@@ -1,0 +1,582 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Dif final source rights and visual acceptance (RFC-BPR-0019)",
+  "review_gate": "dif_final_rights_and_visual_acceptance",
+  "review_scope": "final_source_rights_and_human_visual_criterion_isolation_only",
+  "downstream_claims": {
+    "package_release_approved": false,
+    "rfc_bpr_0019_auto_verified": false,
+    "rfc_bpr_0020_authorized": false,
+    "runtime_composition_approved": false,
+    "runtime_mascot_approved": false
+  },
+  "reference_disclaimer": "This package presents the exact production-source rights record and deterministic preview evidence for RFC-BPR-0019. The supplied opaque Dif reference images and Nib archive are not embedded or shipped; their exact identities and allowed guidance-only roles are bound in the rights subject. Visual approval is limited to the five independent subjects below. It does not approve a Qt widget, runtime composition, packaging, release, or either RFC's closeout.",
+  "subjects": [
+    {
+      "subject_id": "authority:/betterpullreview/rfc-bpr-0019/dif-final-production-rights-v1",
+      "subject_key": "dif-final-production-rights-v1",
+      "display_name": "Validate final rights for the exact Dif production bytes",
+      "description": "Accept or reject the complete identity-bound final-rights subject. Acceptance is a representation that you are the creator/rightsholder or have authority from the creator/rightsholder to grant every stated use for these exact sources and generated products.",
+      "acceptance_criteria": [
+        "The accepted pre-creation authority, exact external-input identities, recorded ImageGen and edit process, source inventory, manifest, generated products, preview renderer, and audit are correctly bound.",
+        "The checked-in Dif sources are original BetterPullReview production assets, and the stated worldwide, perpetual, commercial/noncommercial reproduction, derivative, source/binary/package, documentation, website, release, marketing, and sublicensing scope is authorized.",
+        "The guidance-only Dif images were not cropped or shipped, and the Nib archive granted no Nib, Mel, or AllTheThings art, code, name, identity, palette, dimensions, timing, or branding reuse.",
+        "No third-party license notice or SBOM entry is required for the original Dif raster assets; existing project and dependency notices remain unaffected.",
+        "Acceptance remains independent of the five visual decisions and grants no runtime, package, release, dependency, or RFC-closeout claim."
+      ],
+      "known_concerns": [
+        "A mechanical audit proves file structure, inventory, digests, and searched byte markers; it cannot decide legal capacity or visual originality.",
+        "Reject with a note naming the capacity, permission, distribution, notice, input, tool, or foreign-material fact that must change.",
+        "A rights acceptance cannot substitute for any rejected or pending visual subject."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "The exact precreation verdict validated, all external input identities match their authorized digests and lengths, the complete asset tree validates, two regenerations match committed products, and the scoped foreign-material audit passed with stated attended limitations."
+      },
+      "media_groups": [],
+      "detail_sections": [
+        {
+          "heading": "Exact production anchors",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Manifest",
+              "definition": "sha256:80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00"
+            },
+            {
+              "term": "Provenance",
+              "definition": "sha256:2ac74e25cd0de063b42b765a3d18b498c3e36453574c76af4376ee4961154747"
+            },
+            {
+              "term": "Generated/source digest inventory",
+              "definition": "sha256:7e066db7b5415995e9b7e9cf72f985f3208b5fd9c39b34a4567410d01d2b4bc4"
+            },
+            {
+              "term": "Generator and preview renderer",
+              "definition": "sha256:040b05d2318cc9baa88fd5f2b1b877e895921e48a819258f5addc072e834bf16"
+            },
+            {
+              "term": "Final rights subject",
+              "definition": "sha256:5687b5efe53f92d81563319a9e211b82e80e92921c4d2d0ee7a27b7c6d94643b"
+            }
+          ]
+        },
+        {
+          "heading": "Decision boundary",
+          "kind": "list",
+          "items": [
+            "Accept only if every representation and grant in the copied final-rights subject is accurate for the exact bound bytes.",
+            "Reject if any capacity, permission, distribution, notice, tool, identity, or foreign-material assertion is inaccurate or incomplete.",
+            "This decision grants no visual, runtime, packaging, release, or RFC-closeout claim by itself."
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Final production-source rights subject",
+          "path": "final-rights-subject.txt"
+        },
+        {
+          "label": "Exact review identity and complete source/generated digests",
+          "path": "review-identity.json"
+        },
+        {
+          "label": "Scoped foreign-material audit",
+          "path": "foreign-material-audit.json"
+        },
+        {
+          "label": "Production provenance",
+          "path": "../../../../src/adapters/qt/assets/dif/provenance.json"
+        },
+        {
+          "label": "Production manifest",
+          "path": "../../../../src/adapters/qt/assets/dif/dif-sprite-manifest.json"
+        },
+        {
+          "label": "Generated and source digest inventory",
+          "path": "../../../../src/adapters/qt/assets/dif/generated/dif-sprite-digests.json"
+        },
+        {
+          "label": "Accepted pre-creation verdict",
+          "path": "../dif-provenance-v001/human-verdict.json"
+        },
+        {
+          "label": "Pre-creation verdict validation report",
+          "path": "../dif-provenance-v001/verdict-validation.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/rfc-bpr-0019/dif-identity-and-foreign-exclusion-v1",
+      "subject_key": "dif-identity-and-foreign-exclusion-v1",
+      "display_name": "Approve Dif's identity and foreign-identity exclusion",
+      "description": "Judge the exact master-derived source frames and runtime cells as one coherent original BetterPullReview panda identity. This is the human visual gate for coherence with the authorized purple-and-light Dif direction and exclusion of Nib, Mel, and AllTheThings identity.",
+      "acceptance_criteria": [
+        "Dif reads as one compact, calm, supportive purple-and-light panda across the neutral master, calm idle, greeting, and rest frames.",
+        "The friendly attentive face, silhouette, and abstract plus/minus diff-card prop remain legible at 64, 72, 96, and 256 pixels.",
+        "The prop carries no literal patch, line number, score, approval, error, review conclusion, GitHub mark, or other semantic application result.",
+        "No Nib television body, antennae, magnifying glass, geometry, palette, or motion; no Mel lotus silhouette; and no AllTheThings flattened group identity is reproduced.",
+        "The result is suitable as Dif's canonical BPR asset identity without relying on an opaque background plate, text, glow, or cast shadow."
+      ],
+      "known_concerns": [
+        "The exact opaque reference images are deliberately not copied into the repository evidence package; their digest-bound identity direction is described in the rights subject.",
+        "The soft 3D-style rendering must still read cleanly at the smallest displayed scale.",
+        "This subject does not approve timing, registration, appearance contexts, or reduced-motion behavior; those have separate decisions."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "All source/runtime cells are declared canonical RGBA images with transparent backgrounds, no metadata or embedded text payload, exact hashes, and no prohibited identity string; visual identity and originality remain this attended decision."
+      },
+      "media_groups": [
+        {
+          "group_id": "all-source-and-runtime-frames",
+          "title": "Every source-derived runtime frame at 1x",
+          "required": true,
+          "layout": "grid",
+          "note": "Calm idle has three frames, greet five, and rest one. Click for native 256-pixel cells.",
+          "items": [
+            {
+              "label": "Calm idle contact sheet",
+              "path": "preview/contact-sheets/calm_idle.png"
+            },
+            {
+              "label": "Greet contact sheet",
+              "path": "preview/contact-sheets/greet.png"
+            },
+            {
+              "label": "Rest contact sheet",
+              "path": "preview/contact-sheets/rest.png"
+            }
+          ]
+        },
+        {
+          "group_id": "identity-scale-and-context",
+          "title": "Identity at shipping scales and backgrounds",
+          "required": true,
+          "layout": "grid",
+          "note": "Each clip representative appears at 1.0x, 1.25x, and 2.0x across System, Light, Dark, and high-contrast context plates.",
+          "items": [
+            {
+              "label": "All identity context plates",
+              "path": "preview/appearance-contexts.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Authorized visual direction",
+          "kind": "list",
+          "items": [
+            "Compact panda silhouette with purple ears, limbs, eye patches, and accents plus a pale neutral face and body.",
+            "Calm, focused, friendly expression and a small abstract diff card with plus, minus, and neutral-line shapes.",
+            "Decorative companion only: no pose or prop is allowed to claim a review, approval, defect, or agent result.",
+            "No Nib, Mel, AllTheThings, GitHub, repository, credential, or private-material identity."
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Exact review identity and complete source/generated digests",
+          "path": "review-identity.json"
+        },
+        {
+          "label": "Preview manifest",
+          "path": "preview/preview-manifest.json"
+        },
+        {
+          "label": "Production provenance",
+          "path": "../../../../src/adapters/qt/assets/dif/provenance.json"
+        },
+        {
+          "label": "Scoped foreign-material audit",
+          "path": "foreign-material-audit.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/rfc-bpr-0019/dif-motion-at-shipping-sizes-v1",
+      "subject_key": "dif-motion-at-shipping-sizes-v1",
+      "display_name": "Approve full clip motion at 64, 72, and 96 pixels",
+      "description": "Judge the calm idle at its declared 250 ms per frame and the one-shot greeting at 125 ms per frame. The greeting is only a decorative acknowledgement that a landing surface became visible; it is not a product result.",
+      "acceptance_criteria": [
+        "The three-frame calm idle reads as a gentle closed breath at 4 fps without walking, floating, jitter, or a duplicated terminal dwell.",
+        "The five-frame greet reads as one restrained nonsemantic acknowledgement at 8 fps and does not resemble approval, celebration, warning, reviewing, thinking, or issue discovery.",
+        "Both clips remain intentional and readable at the actual 64, 72, and 96 logical-pixel shipping sizes.",
+        "The motion uses the fewest frames needed and does not introduce clipping, edge contact, distracting prop travel, or unstable facial detail."
+      ],
+      "known_concerns": [
+        "Motion is intentionally subtle: both clips use baseline-anchored scale and squash rather than limb waving or semantic expression changes.",
+        "The preview PNGs are APNG animations; the calm clip loops continuously and greet plays once per browser load or reload.",
+        "This subject does not approve registration metrics, seam/handoff quality, backgrounds, or reduced-motion fallback."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "The manifest mechanically validates the 3/5 frame counts, exact 4/8 fps rates, declared clip kinds and returns, edge clearance, frame budgets, and generated APNG timing. Aesthetic motion quality remains attended."
+      },
+      "media_groups": [
+        {
+          "group_id": "calm-idle-at-shipping-sizes",
+          "title": "Calm idle at declared speed",
+          "required": true,
+          "layout": "grid",
+          "note": "Continuous 4 fps loop at the three intended logical sizes.",
+          "items": [
+            {
+              "label": "Calm idle 64px",
+              "path": "preview/motion/calm_idle-64px.png"
+            },
+            {
+              "label": "Calm idle 72px",
+              "path": "preview/motion/calm_idle-72px.png"
+            },
+            {
+              "label": "Calm idle 96px",
+              "path": "preview/motion/calm_idle-96px.png"
+            }
+          ]
+        },
+        {
+          "group_id": "greet-at-shipping-sizes",
+          "title": "One-shot greet at declared speed",
+          "required": true,
+          "layout": "grid",
+          "note": "One 8 fps five-frame acknowledgement at each intended logical size. Reload the page if your image viewer does not replay one-shot APNGs.",
+          "items": [
+            {
+              "label": "Greet 64px",
+              "path": "preview/motion/greet-64px.png"
+            },
+            {
+              "label": "Greet 72px",
+              "path": "preview/motion/greet-72px.png"
+            },
+            {
+              "label": "Greet 96px",
+              "path": "preview/motion/greet-96px.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Exact motion contract",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "calm_idle",
+              "definition": "3 frames; 250 ms/frame; loop; representative frame 1; priority 0; return calm_idle"
+            },
+            {
+              "term": "greet",
+              "definition": "5 frames; 125 ms/frame; one-shot; representative frame 2; priority 10; return calm_idle"
+            },
+            {
+              "term": "rest",
+              "definition": "1 awake static frame; no procedural motion; reviewed separately"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Exact review identity and complete source/generated digests",
+          "path": "review-identity.json"
+        },
+        {
+          "label": "Preview manifest",
+          "path": "preview/preview-manifest.json"
+        },
+        {
+          "label": "Three-clip production manifest",
+          "path": "../../../../src/adapters/qt/assets/dif/dif-sprite-manifest.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/rfc-bpr-0019/dif-registration-seam-and-handoff-v1",
+      "subject_key": "dif-registration-seam-and-handoff-v1",
+      "display_name": "Approve registration, calm seam, and greet handoff",
+      "description": "Judge the visual steadiness of the common body box, center, and baseline together with the exact calm-loop seam and greet-to-idle return. Mechanical tolerances already pass; this question is whether they look stable.",
+      "acceptance_criteria": [
+        "Every calm, greet, and rest frame stays visually anchored to the cyan center line and red ground baseline inside the shared yellow neutral body box.",
+        "The calm last-to-first seam is not perceptibly discontinuous or dwell-heavy at 64, 72, or 96 pixels.",
+        "The greet completes and returns to the calm representative without a pop, jump, extra hold, or visible registration shift at all three sizes.",
+        "The diff card does not silently recenter the body, and feet, ears, hands, and prop remain comfortably inside the cell."
+      ],
+      "known_concerns": [
+        "Overlay lines are diagnostic and not shipped; they intentionally cover one pixel of the preview.",
+        "The calm seam course alternates only the final and first calm frames to expose their boundary.",
+        "The greet handoff course loops the full greet plus the calm representative so the return can be watched repeatedly."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "All clips share body bounds [56,22,200,224], visual center x=128, baseline y=223, <=1px allowed vertical travel, calm seam mean delta 1 <= 2, and greet handoff mean delta 0 <= 1."
+      },
+      "media_groups": [
+        {
+          "group_id": "registration-overlays",
+          "title": "All frames with body, center, and baseline overlays",
+          "required": true,
+          "layout": "grid",
+          "note": "Yellow is the common neutral body box, cyan the visual center, and red the baseline.",
+          "items": [
+            {
+              "label": "Calm idle registration",
+              "path": "preview/overlays/calm_idle.png"
+            },
+            {
+              "label": "Greet registration",
+              "path": "preview/overlays/greet.png"
+            },
+            {
+              "label": "Rest registration",
+              "path": "preview/overlays/rest.png"
+            }
+          ]
+        },
+        {
+          "group_id": "calm-loop-seam",
+          "title": "Calm last-to-first seam",
+          "required": true,
+          "layout": "grid",
+          "note": "Two-frame seam isolation at the declared 250 ms frame duration.",
+          "items": [
+            {
+              "label": "Calm seam 64px",
+              "path": "preview/motion/calm-seam-64px.png"
+            },
+            {
+              "label": "Calm seam 72px",
+              "path": "preview/motion/calm-seam-72px.png"
+            },
+            {
+              "label": "Calm seam 96px",
+              "path": "preview/motion/calm-seam-96px.png"
+            }
+          ]
+        },
+        {
+          "group_id": "greet-to-calm-handoff",
+          "title": "Full greet and return to calm",
+          "required": true,
+          "layout": "grid",
+          "note": "The handoff course appends the exact calm representative after the greet and loops the boundary for inspection.",
+          "items": [
+            {
+              "label": "Greet handoff 64px",
+              "path": "preview/motion/greet-handoff-64px.png"
+            },
+            {
+              "label": "Greet handoff 72px",
+              "path": "preview/motion/greet-handoff-72px.png"
+            },
+            {
+              "label": "Greet handoff 96px",
+              "path": "preview/motion/greet-handoff-96px.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Mechanical measurements",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Shared registration",
+              "definition": "center x=128; baseline y=223; body bounds [56,22,200,224]; foot tolerance 1px; edge clearance 16px"
+            },
+            {
+              "term": "Calm seam",
+              "definition": "observed mean delta 1; declared maximum 2"
+            },
+            {
+              "term": "Greet handoff",
+              "definition": "observed mean delta 0; declared maximum 1"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Exact review identity and complete source/generated digests",
+          "path": "review-identity.json"
+        },
+        {
+          "label": "Preview manifest",
+          "path": "preview/preview-manifest.json"
+        },
+        {
+          "label": "Three-clip production manifest",
+          "path": "../../../../src/adapters/qt/assets/dif/dif-sprite-manifest.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/rfc-bpr-0019/dif-appearance-contexts-v1",
+      "subject_key": "dif-appearance-contexts-v1",
+      "display_name": "Approve all four appearance contexts at three scales",
+      "description": "Judge each clip representative across the deterministic System, Light, Dark, and high-contrast context plates at 1.0x, 1.25x, and 2.0x relative to the 96-pixel landing size. These plates test contrast and silhouette; they do not claim native OS rendering.",
+      "acceptance_criteria": [
+        "The face, outline, purple/light palette, feet, hands, and diff card remain distinguishable on System, Light, Dark, and black high-contrast surfaces.",
+        "No context requires a baked background plate, glow, cast shadow, forced palette, stylesheet, or text to separate Dif from the surface.",
+        "The calm, greet, and rest representatives remain coherent at 96, 120, and 192 pixels, corresponding to the declared 1.0x, 1.25x, and 2.0x context course.",
+        "No clipping, halo, chroma-key fringe, hidden opaque rectangle, or background-dependent semantic change appears in any plate."
+      ],
+      "known_concerns": [
+        "System is a fixed neutral preview color, not a target-native palette capture; RFC-BPR-0020 will own native runtime appearance integration.",
+        "The 36 plates are ordered by clip representative, then scale, with System/Light/Dark/high-contrast across each row.",
+        "This subject does not approve runtime composition or platform-native high-contrast behavior."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "The preview renderer deterministically composites every representative over four opaque contexts at 96/120/192 pixels from the exact source and manifest bytes; source and generated PNGs retain transparent backgrounds."
+      },
+      "media_groups": [
+        {
+          "group_id": "all-context-plates",
+          "title": "System, Light, Dark, and high contrast at 1.0x, 1.25x, and 2.0x",
+          "required": true,
+          "layout": "grid",
+          "note": "Each four-column row is System, Light, Dark, high contrast. Rows cover calm, greet, and rest representatives at 96, 120, and 192 pixels.",
+          "items": [
+            {
+              "label": "All 36 appearance plates",
+              "path": "preview/appearance-contexts.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Course order",
+          "kind": "list",
+          "items": [
+            "Rows 1-3: calm representative at 96, 120, and 192 pixels.",
+            "Rows 4-6: greet representative at 96, 120, and 192 pixels.",
+            "Rows 7-9: rest representative at 96, 120, and 192 pixels.",
+            "Columns: System neutral, Light white, Dark charcoal, high-contrast black."
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Exact review identity and complete source/generated digests",
+          "path": "review-identity.json"
+        },
+        {
+          "label": "Preview manifest",
+          "path": "preview/preview-manifest.json"
+        },
+        {
+          "label": "Generator and preview renderer",
+          "path": "../../../../scripts/dif_assets.py"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/rfc-bpr-0019/dif-reduced-motion-rest-v1",
+      "subject_key": "dif-reduced-motion-rest-v1",
+      "display_name": "Approve the awake static rest fallback",
+      "description": "Judge the exact static rest pose as the reduced-motion and suspended fallback beside the representative frame of each animated clip. It must preserve Dif's identity without procedural motion, sleep, fade, or semantic status.",
+      "acceptance_criteria": [
+        "The rest frame is calm, awake, friendly, and visibly the same Dif identity as both animated representatives.",
+        "The static pose remains readable at 64, 72, and 96 pixels without animation, fade, pulse, glow, or background plate.",
+        "Rest does not read as asleep, disabled, offline, completed, approved, errored, or otherwise semantically different from decorative presence.",
+        "The comparison does not reveal an objectionable scale, center, baseline, face, prop, or silhouette jump between rest and the animated representatives."
+      ],
+      "known_concerns": [
+        "The rest source is byte-identical to the neutral master and calm representative by design; visual sameness is the accessibility feature, not an omitted animation.",
+        "The comparison sheet is 256 pixels per pose, while the separate static previews show actual 64/72/96 shipping sizes.",
+        "Runtime reduced-motion observation and lifecycle behavior belong to RFC-BPR-0020 and are not approved here."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "The rest clip contains exactly one declared static frame at duration 0, returns to rest, shares the common registration contract, and is emitted without APNG control chunks or procedural motion."
+      },
+      "media_groups": [
+        {
+          "group_id": "rest-representative-compare",
+          "title": "Rest beside calm and greet representatives",
+          "required": true,
+          "layout": "compare",
+          "note": "Left to right: rest, calm representative, greet representative at 256 pixels.",
+          "items": [
+            {
+              "label": "Rest, calm representative, greet representative",
+              "path": "preview/reduced-motion-comparison.png"
+            },
+            {
+              "label": "Rest source/runtime contact sheet",
+              "path": "preview/contact-sheets/rest.png"
+            }
+          ]
+        },
+        {
+          "group_id": "rest-at-shipping-sizes",
+          "title": "Static rest at actual shipping sizes",
+          "required": true,
+          "layout": "grid",
+          "note": "Each is a static PNG with no animation control chunks.",
+          "items": [
+            {
+              "label": "Rest 64px",
+              "path": "preview/motion/rest-64px.png"
+            },
+            {
+              "label": "Rest 72px",
+              "path": "preview/motion/rest-72px.png"
+            },
+            {
+              "label": "Rest 96px",
+              "path": "preview/motion/rest-96px.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Fallback boundary",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Visual meaning",
+              "definition": "Decorative awake presence only"
+            },
+            {
+              "term": "Motion",
+              "definition": "One static frame; zero frame duration; no procedural fade, pulse, or animation"
+            },
+            {
+              "term": "Later runtime owner",
+              "definition": "RFC-BPR-0020 will decide how reduced-motion and suspended application state select this already-approved asset"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Exact review identity and complete source/generated digests",
+          "path": "review-identity.json"
+        },
+        {
+          "label": "Preview manifest",
+          "path": "preview/preview-manifest.json"
+        },
+        {
+          "label": "Three-clip production manifest",
+          "path": "../../../../src/adapters/qt/assets/dif/dif-sprite-manifest.json"
+        }
+      ]
+    }
+  ]
+}

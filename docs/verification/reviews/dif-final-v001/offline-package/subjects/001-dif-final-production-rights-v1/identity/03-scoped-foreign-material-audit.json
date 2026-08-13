@@ -1,0 +1,47 @@
+{
+  "asset_commit": "da4683a",
+  "asset_manifest_sha256": "80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00",
+  "checks": [
+    {
+      "command": "python3 scripts/dif_assets.py validate --assets src/adapters/qt/assets/dif",
+      "result": "DIF_ASSETS_VALID",
+      "scope": "Canonical JSON, declared-only inventory, PNG dimensions/chunks/alpha, source and generated digests, geometry, timing, seams, handoff, and budgets"
+    },
+    {
+      "command": "strings scan over source/generated PNG bytes for private-path, private-key, token, and Nib/Mel/AllTheThings identity markers",
+      "result": "no match",
+      "scope": "All ten source PNGs and all three generated strip PNGs"
+    },
+    {
+      "command": "compare every declared source SHA-256 with the three authorized external-input SHA-256 values",
+      "result": "no equality",
+      "scope": "Exact-byte embedding only; visual originality remains attended"
+    }
+  ],
+  "external_inputs": {
+    "dif_ref_sheet.png": {
+      "byte_length": 1777731,
+      "sha256": "cf35d96198e20575069b3dd43edd352a04393e457970219738a9e888458729c0"
+    },
+    "mascot_group.png": {
+      "byte_length": 2002023,
+      "sha256": "5859655aa4c39e50a7e3c522e48f8b34c48bd5749553089be95860e7f2d0f39e"
+    },
+    "nib-animation-bootstrap.zip": {
+      "byte_length": 21969,
+      "sha256": "e924c69865ff2998fed3bc5981a405c46960a9ef561947ce64b99fa52e54aeef"
+    }
+  },
+  "generated_digest_inventory_sha256": "7e066db7b5415995e9b7e9cf72f985f3208b5fd9c39b34a4567410d01d2b4bc4",
+  "limitations": [
+    "A digest comparison proves only that no complete declared source file equals an external input.",
+    "A byte-string and PNG-structure scan cannot decide visual originality, character identity, prop meaning, readability, or aesthetic quality.",
+    "The attended final-rights and identity subjects retain those human authority and visual decisions."
+  ],
+  "preview_manifest_sha256": "69cdbb13f4d9ebff8201f2f4f2dabcf3d652d54d9767c377e794591e246e20bd",
+  "provenance_sha256": "2ac74e25cd0de063b42b765a3d18b498c3e36453574c76af4376ee4961154747",
+  "result": "pass_with_attended_limitations",
+  "schema_name": "bpr.dif_foreign_material_audit",
+  "schema_version": 1,
+  "tool_sha256": "040b05d2318cc9baa88fd5f2b1b877e895921e48a819258f5addc072e834bf16"
+}

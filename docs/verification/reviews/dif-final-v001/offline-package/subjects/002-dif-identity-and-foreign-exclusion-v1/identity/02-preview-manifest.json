@@ -1,0 +1,30 @@
+{
+  "asset_manifest_sha256": "80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00",
+  "files": {
+    "appearance-contexts.png": "5cb18b23459b94ace5b77e8ead019b045b34f4bfb8e647736de61b48b7f9a1da",
+    "contact-sheets/calm_idle.png": "2179caa8f536937e00b0d7942fadd329d06e940b25856d33c7c4952e626b8e6d",
+    "contact-sheets/greet.png": "e06aa241da4235bfad8ba0cae78ccb0f75e3023260edc49045753ac09570e897",
+    "contact-sheets/rest.png": "a9b05ce50de5c6e338f42d552816847bf40d09e089f73f82768d3175218ec1c1",
+    "motion/calm-seam-64px.png": "db988f08ff5a42bcf54dea41f986526354e77942848f19c84c6aa6b3d3956622",
+    "motion/calm-seam-72px.png": "c4026725c99a1db08dafe0e33625ca9d391262d3ee185b7e466cfbb77ee1c53f",
+    "motion/calm-seam-96px.png": "f914bfb0b0d41b93dc513fb31481f08ac8060f6c90ca79ef827a996128b10ab8",
+    "motion/calm_idle-64px.png": "64067c5fad1e35c85214f74f3d779a670e7eb7fabcc945c47590f7ed91f2101d",
+    "motion/calm_idle-72px.png": "6c520aab7ef94e62db6d285177c7126a9d192c63436086f7f96f5a6d04350390",
+    "motion/calm_idle-96px.png": "412e751e3184127c3aa7cd2cc5d6956e6e462447827af09ca7669370c2715f09",
+    "motion/greet-64px.png": "4ca4332b896f68401f6c03b9c92b1b1a84d7d7df5f612e987938b86d7434da38",
+    "motion/greet-72px.png": "fcd7746f9fd888944bb28544112752d56f5db155a12c75f2babd91ef686ec5e7",
+    "motion/greet-96px.png": "146aea4a90c840573dd9eb5570685e57f63b8c2fbfc058961b5b1a2e7b80b193",
+    "motion/greet-handoff-64px.png": "b34b7135c06ef8b9e9334cb344022f9f1061c62a8e9c4ff367abe49f959c5a45",
+    "motion/greet-handoff-72px.png": "7c0c814f01e2f6e5239e589621748294f998805a87b3f6b9241ca1411870a4b2",
+    "motion/greet-handoff-96px.png": "e27caa73a9ac6735fcaa04a21c6028873a1d974001957891f4b03e6249fb6cc5",
+    "motion/rest-64px.png": "ac5327ae54c24f342df72e8e2cb8dfd0e06228f19ebf494ec58f5fed195fcc66",
+    "motion/rest-72px.png": "7d7d140c2481e7758d1e9e2c9d547d71f8c1731ee42bbc206848f2b8d204bdf4",
+    "motion/rest-96px.png": "42369347b884dddceae7f7662f685002cb11913eeb84448d03d3193605164d8f",
+    "overlays/calm_idle.png": "3f1f2083b2fe20ad761f5e52f85b6c79ab8f0edd7229d325856106ca40ebfb4b",
+    "overlays/greet.png": "175a61d4d2ff7444b91cb744e4a4a9e88d6e9250ea566a0b0d4f559c710e35a5",
+    "overlays/rest.png": "8262ce52fd08bfc265c16f150f239eb974148ab5eccac79ae2d43b7966fa6782",
+    "reduced-motion-comparison.png": "014cefb5df133405047735db286bd790813d96248b720f6565d57a8b44c7e996"
+  },
+  "note": "Mechanical contact sheets, overlays, context plates, and declared-speed APNG previews; attended approval remains separate.",
+  "schema_version": 1
+}

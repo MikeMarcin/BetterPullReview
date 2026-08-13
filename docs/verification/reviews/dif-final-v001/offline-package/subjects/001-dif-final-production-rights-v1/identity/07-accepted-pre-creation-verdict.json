@@ -1,0 +1,22 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/844543906f4f8df462676ab0",
+  "review_gate": "dif_precreation_asset_authority",
+  "review_scope": "precreation_asset_authority_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "authority:/betterpullreview/rfc-bpr-0019/dif-precreation-v1",
+      "subject_digest": "sha256:850b6dead5226ce1a9e12a7a17d3a7d3f7826e6bfe328feeea64f85ba71b64a7"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {},
+  "downstream_claims": {
+    "final_source_rights_validated": false,
+    "package_release_approved": false,
+    "rfc_closeout_claimed": false,
+    "runtime_mascot_approved": false,
+    "visual_acceptance_granted": false
+  }
+}

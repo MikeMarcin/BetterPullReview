@@ -35,3 +35,42 @@ invalidates its verdict.
   forward and no adjacent runtime claim is promoted.
 - Accepted decisions and validation reports are durable, secret-free repository
   evidence, while generated product assets remain distinct from review media.
+
+## Presented attended package
+
+The immutable offline page is
+`docs/verification/reviews/dif-final-v001/offline-package/index.html`, batch
+`bpr:/attended-review/betterpullreview/c93e59ae499277a8d2e854f6`. It contains
+six independent decisions in the required order:
+
+1. final production-source rights,
+   `sha256:13646e6c2807fdbd49e0a467b6b50962cdfe6e6e2ed20b67bf2c729363128fdd`;
+2. original Dif identity and foreign-identity exclusion,
+   `sha256:a57e5da8f73c3d1519eb6df420957343a3a993b45f0e0a6580617194243108ab`;
+3. full clip motion at 64/72/96 pixels,
+   `sha256:6ac1f35de6457f6971746f9d94a9afaf2085912367a2a763cca3737d8da7cb5a`;
+4. registration, calm seam, and greet handoff,
+   `sha256:232406dc5aa201c9fc20da33ce1c744a506b877aba5b5514976af8787eae8893`;
+5. four appearance contexts at three scales,
+   `sha256:6e8c3a57dfa2c07d34d02528c8f2581c3e67468ee3d0f201119f57a3c89610d1`;
+6. the awake static reduced-motion fallback,
+   `sha256:2289597f3b6d892090a1e1b13c1607c8a8d05da6392918e3e967f55419c7e121`.
+
+The rights subject binds the accepted BPR-0287 authority, exact external input
+identities, final rights grant, provenance, manifest, complete source/generated
+digest set, renderer, and scoped foreign-material audit. The five visual
+subjects bind every source-derived runtime cell, declared-speed clips at all
+three shipping sizes, seam/handoff courses, registration overlays, all 36
+appearance plates, and the rest comparison. The package contains 51 files and
+is self-contained; no private path, credential marker, or `file://` URL appears
+inside it.
+
+The official 17-test attended-review builder suite passes. The input SHA-256 is
+`c6408f05b800d3a2f2ed414b9a3978f5a03abdc1ec65881710bd13c71d451efd`,
+the manifest SHA-256 is
+`e193929eb467185f9224c0af411af645e4d57b061d46601f1bf3fdf103853718`,
+and the page SHA-256 is
+`96a5c8b343228a38b529bb8f4f3982d110a35792574e5ce6cc939b4268320504`.
+
+No verdict has been recorded. The page must export one complete user verdict;
+only that exact returned JSON may be saved and validated against this manifest.

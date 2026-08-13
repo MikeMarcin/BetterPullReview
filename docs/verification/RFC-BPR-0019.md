@@ -3,8 +3,8 @@
 RFC base: `58b5116f8706ac336664cc3fc39dabc66745a70d`
 
 Status: **the original Dif source pack and deterministic generated sprite
-products are implemented; final source-rights and attended visual review are
-next.** BPR-0288 is done at `1a5c9b8`: its initial 18-case contract closed the
+products are implemented; the final source-rights and five-subject visual page
+is presented for an attended verdict.** BPR-0288 is done at `1a5c9b8`: its initial 18-case contract closed the
 catalog-portability, neutral-body-box, and symlink-containment findings.
 BPR-0290 extends that contract to 21 cases, including narrow compilation of
 both synthetic and production catalogs plus stale manifest and digest-inventory
@@ -56,7 +56,9 @@ and delegated review disposition before any closeout checkbox changes.
   against batch `bpr:/attended-review/betterpullreview/844543906f4f8df462676ab0`.
   That decision authorizes creation only; BPR-0291 retains final-source rights
   and visual acceptance authority.
-- BPR-0291 has no final rights or attended visual verdict at the planning head.
+- BPR-0291 presents final rights plus five visual decisions in immutable batch
+  `bpr:/attended-review/betterpullreview/c93e59ae499277a8d2e854f6`; no returned
+  verdict has been recorded or inferred.
 - RFC-BPR-0006 is not Auto-Verified and its live closeout is BPR-0115.
 - RFC-BPR-0013 is not Auto-Verified and has no live terminal closeout card at
   the planning head; individual resilience fixes do not substitute for one.

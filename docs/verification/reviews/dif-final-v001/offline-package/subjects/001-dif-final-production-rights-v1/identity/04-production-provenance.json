@@ -1,0 +1,94 @@
+{
+  "asset_family": "dif",
+  "authority": {
+    "decision_path": "docs/verification/reviews/dif-provenance-v001/decision-subject.txt",
+    "decision_subject_sha256": "d86ec61323c4f7304810253b392ed0482563b4f2f382fb64f4a7ff0b668a909d",
+    "status": "approved"
+  },
+  "creation": {
+    "creator": "OpenAI ImageGen output directed and curated by Codex under BetterPullReview product-owner authority",
+    "method_record": "src/adapters/qt/assets/dif/README.md",
+    "source_authority": "checked_in_source_bytes",
+    "tools": [
+      "OpenAI built-in image generation",
+      "imagegen remove_chroma_key.py",
+      "ImageMagick 7.1.2-29",
+      "scripts/dif_assets.py canonical PNG codec"
+    ]
+  },
+  "references": [
+    {
+      "byte_length": 1777731,
+      "id": "dif_ref_sheet",
+      "role": "authorized Dif identity and expression guidance only; not embedded",
+      "sha256": "cf35d96198e20575069b3dd43edd352a04393e457970219738a9e888458729c0"
+    },
+    {
+      "byte_length": 2002023,
+      "id": "mascot_group",
+      "role": "authorized Dif brand-family relationship guidance only; not embedded",
+      "sha256": "5859655aa4c39e50a7e3c522e48f8b34c48bd5749553089be95860e7f2d0f39e"
+    },
+    {
+      "byte_length": 21969,
+      "id": "nib_process_guidance",
+      "role": "locked-master and review-process guidance only; no art or code reused",
+      "sha256": "e924c69865ff2998fed3bc5981a405c46960a9ef561947ce64b99fa52e54aeef"
+    }
+  ],
+  "rights": {
+    "basis": "Validated BPR-0287 product-owner creator/rightsholder representation and authorization",
+    "derivative_scope": "Original reference-informed Dif master, source frames, generated sprite strips, previews, and future Dif derivatives",
+    "distribution_scope": "Repository, source, binary, package, marketing, and documentation uses; commercial and noncommercial; worldwide, perpetual, and sublicensable",
+    "foreign_identity_exclusion": [
+      "AllTheThings",
+      "Mel",
+      "Nib"
+    ],
+    "notice_disposition": "Repository provenance record only unless a later production input introduces an obligation",
+    "notice_required": false
+  },
+  "schema_version": 1,
+  "source_files": [
+    {
+      "path": "source/calm-idle/frame-000.png",
+      "sha256": "718e69ecd7f1f298c0aa757c931e8fc225084399dbd8239ad8613eee809a330b"
+    },
+    {
+      "path": "source/calm-idle/frame-001.png",
+      "sha256": "3a52a8b1d321477e2b8b2ba7c66da3abc68393cd45d3904f403d5521f12e4589"
+    },
+    {
+      "path": "source/calm-idle/frame-002.png",
+      "sha256": "2cf61c2b95a968791bcc00d41d847127af524c636e7717ae855a4edadfb0de8d"
+    },
+    {
+      "path": "source/dif-neutral-master.png",
+      "sha256": "3a52a8b1d321477e2b8b2ba7c66da3abc68393cd45d3904f403d5521f12e4589"
+    },
+    {
+      "path": "source/greet/frame-000.png",
+      "sha256": "3a52a8b1d321477e2b8b2ba7c66da3abc68393cd45d3904f403d5521f12e4589"
+    },
+    {
+      "path": "source/greet/frame-001.png",
+      "sha256": "bf7004314a2a6bf2374ecfb214f0d11734774f5eb7e7b7aafa91114351e045da"
+    },
+    {
+      "path": "source/greet/frame-002.png",
+      "sha256": "56b41e9640ea48d1e0ba7d7debb66c4194f7420b77b50130a74eed4ecd7306ad"
+    },
+    {
+      "path": "source/greet/frame-003.png",
+      "sha256": "bf7004314a2a6bf2374ecfb214f0d11734774f5eb7e7b7aafa91114351e045da"
+    },
+    {
+      "path": "source/greet/frame-004.png",
+      "sha256": "3a52a8b1d321477e2b8b2ba7c66da3abc68393cd45d3904f403d5521f12e4589"
+    },
+    {
+      "path": "source/rest/frame-000.png",
+      "sha256": "3a52a8b1d321477e2b8b2ba7c66da3abc68393cd45d3904f403d5521f12e4589"
+    }
+  ]
+}

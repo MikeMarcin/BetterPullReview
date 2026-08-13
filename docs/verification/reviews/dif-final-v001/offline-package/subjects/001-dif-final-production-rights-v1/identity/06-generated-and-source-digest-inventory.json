@@ -1,0 +1,22 @@
+{
+  "manifest_sha256": "80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00",
+  "output_sha256": {
+    "dif-calm-idle.png": "7dbcc55bff71d53d12f725d64e0384abc93efd29345dd98e914e323028076c99",
+    "dif-greet.png": "4f2c3310d6af5b4497f0e9a4960af219b8ccda000c1d102bea6b158a5e258c62",
+    "dif-rest.png": "b279c428a901a9163881c56582eb8c47ead5c7aac5b3b86f7b41ec7254cad559",
+    "dif-sprite-catalog.hpp": "f6f9a60f8da9cf89f3825000457373a33105872e907289fc5c8627bb8736fe2c"
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "source/calm-idle/frame-000.png": "718e69ecd7f1f298c0aa757c931e8fc225084399dbd8239ad8613eee809a330b",
+    "source/calm-idle/frame-001.png": "3a52a8b1d321477e2b8b2ba7c66da3abc68393cd45d3904f403d5521f12e4589",
+    "source/calm-idle/frame-002.png": "2cf61c2b95a968791bcc00d41d847127af524c636e7717ae855a4edadfb0de8d",
+    "source/dif-neutral-master.png": "3a52a8b1d321477e2b8b2ba7c66da3abc68393cd45d3904f403d5521f12e4589",
+    "source/greet/frame-000.png": "3a52a8b1d321477e2b8b2ba7c66da3abc68393cd45d3904f403d5521f12e4589",
+    "source/greet/frame-001.png": "bf7004314a2a6bf2374ecfb214f0d11734774f5eb7e7b7aafa91114351e045da",
+    "source/greet/frame-002.png": "56b41e9640ea48d1e0ba7d7debb66c4194f7420b77b50130a74eed4ecd7306ad",
+    "source/greet/frame-003.png": "bf7004314a2a6bf2374ecfb214f0d11734774f5eb7e7b7aafa91114351e045da",
+    "source/greet/frame-004.png": "3a52a8b1d321477e2b8b2ba7c66da3abc68393cd45d3904f403d5521f12e4589",
+    "source/rest/frame-000.png": "3a52a8b1d321477e2b8b2ba7c66da3abc68393cd45d3904f403d5521f12e4589"
+  }
+}

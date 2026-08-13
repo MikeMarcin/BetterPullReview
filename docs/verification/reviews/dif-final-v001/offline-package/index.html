@@ -1,0 +1,1040 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dif final source rights and visual acceptance (RFC-BPR-0019)</title>
+  <style>
+:root {
+  color-scheme: dark;
+  --page: #101419;
+  --panel: #192027;
+  --panel-strong: #202a33;
+  --text: #edf3f7;
+  --muted: #a8b5bf;
+  --line: #3a4853;
+  --accent: #75b9d5;
+  --accept: #57c48c;
+  --reject: #ed7777;
+  --pending: #e6b85d;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+a { color: #9fdcf3; }
+header, main { width: min(1480px, calc(100% - 2rem)); margin-inline: auto; }
+header { padding: 2rem 0 1rem; }
+h1, h2, h3, p { margin-top: 0; }
+.lede, .muted { color: var(--muted); }
+.scope-warning {
+  border-left: 4px solid var(--pending);
+  background: #282418;
+  padding: 1rem;
+}
+.reference-disclaimer {
+  border-left: 4px solid var(--accent);
+  background: #16222a;
+  padding: 1rem;
+  margin-top: .75rem;
+}
+.review-controls {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: .8rem 1rem;
+  margin-bottom: 1rem;
+  background: #081016;
+  border: 1px solid var(--line);
+  border-radius: .6rem;
+  box-shadow: 0 .25rem .75rem #0008;
+}
+.review-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+}
+.review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .9rem;
+  font-weight: 700;
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+  margin-left: auto;
+}
+#review-status {
+  min-height: 1.3em;
+  margin: .4rem 0 0;
+  color: var(--muted);
+  font-size: .9rem;
+}
+button, textarea { font: inherit; }
+button {
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  padding: .55rem .8rem;
+  background: #28343e;
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+button:disabled {
+  cursor: not-allowed;
+  color: #c2cdd4;
+  background: #2f3b43;
+  border-color: #61717a;
+}
+.subject {
+  scroll-margin-top: 8rem;
+  margin: 0 0 1.25rem;
+  padding: 1.1rem;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: .7rem;
+}
+.subject[data-review-state="accept"] { border-color: var(--accept); }
+.subject[data-review-state="reject"] { border-color: var(--reject); }
+.subject[data-review-state="pending"] { border-color: var(--pending); }
+.subject[data-review-state="not-chosen"] { border-color: var(--line); opacity: .78; }
+.selection-group {
+  margin: 0 0 1rem;
+  padding: 1rem 1.1rem;
+  background: #131c24;
+  border: 1px solid var(--accent);
+  border-radius: .7rem;
+}
+.selection-group h2 { margin-bottom: .35rem; }
+.selection-group-status { margin: 0; font-weight: 700; color: var(--accent); }
+.selection-group-members {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  margin-top: .8rem;
+  align-items: start;
+}
+.selection-group-members .subject { margin: 0; position: relative; }
+.selection-group-members .media-grid { grid-template-columns: 1fr; }
+.subject.option { padding: .85rem; background: var(--panel-strong); }
+.subject.option h3 { margin-bottom: .3rem; padding-right: 5.5rem; }
+.option-actions { margin: .8rem 0 .3rem; align-items: center; }
+.option-actions .choose { flex: 1 1 auto; font-weight: 700; background: #1d3a4d; }
+.option-actions .minor { padding: .3rem .55rem; font-size: .85rem; background: transparent; }
+.option-extra, .notes-fold { margin-top: .5rem; color: var(--muted); font-size: .9rem; }
+.option-extra summary, .notes-fold summary { cursor: pointer; }
+.option-extra section { margin-top: .5rem; }
+.option-extra h4 { margin: 0 0 .25rem; }
+.selection-group-members .subject::after {
+  position: absolute;
+  top: .6rem;
+  right: .6rem;
+  padding: .1rem .5rem;
+  border-radius: .3rem;
+  font-size: .8rem;
+  font-weight: 700;
+}
+.selection-group-members .subject[data-review-state="accept"]::after {
+  content: "Chosen";
+  background: var(--accept);
+  color: #07150f;
+}
+.selection-group-members .subject[data-review-state="reject"]::after {
+  content: "Defective";
+  background: var(--reject);
+  color: #1b0808;
+}
+.selection-group-members .subject[data-review-state="not-chosen"]::after {
+  content: "Not chosen";
+  background: #2a333b;
+  color: var(--muted);
+}
+@media (max-width: 850px) {
+  .selection-group-members { grid-template-columns: 1fr; }
+}
+.subject-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+.identity { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; word-break: break-all; }
+.audit-banner {
+  padding: .55rem .8rem;
+  border-radius: .4rem;
+  font-weight: 700;
+}
+.audit-banner[data-audit="pass"] { background: #12281c; color: var(--accept); border: 1px solid var(--accept); }
+.audit-banner[data-audit="fail"] { background: #2b1414; color: var(--reject); border: 1px solid var(--reject); }
+.media-groups { display: grid; gap: 1rem; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: .75rem; }
+.media-grid.compare { grid-template-columns: 1fr 1fr; }
+figure { margin: 0; padding: .6rem; background: var(--panel-strong); border-radius: .4rem; }
+figure img, figure video {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  background-color: #6d7479;
+  background-image:
+    linear-gradient(45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(-45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #8a9297 75%),
+    linear-gradient(-45deg, transparent 75%, #8a9297 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}
+figure audio { display: block; width: 100%; margin: .5rem 0; }
+figcaption { padding-top: .45rem; color: var(--muted); }
+.criteria { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.detail-sections { display: grid; gap: 1rem; margin-top: 1rem; }
+.detail-sections dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; margin: 0; }
+.detail-sections dt { color: var(--muted); }
+.detail-sections dd { margin: 0; }
+.detail-sections pre {
+  margin: 0;
+  padding: .65rem;
+  overflow-x: auto;
+  background: #11171c;
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .82rem;
+}
+.identity-files { margin-top: 1rem; }
+.decision-row { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+button[data-decision="accept"][aria-pressed="true"] { color: #07150f; background: var(--accept); }
+button[data-decision="reject"][aria-pressed="true"] { color: #1b0808; background: var(--reject); }
+.audit-note { margin: -.5rem 0 1rem; }
+.notes { display: grid; gap: .35rem; }
+textarea { width: 100%; min-height: 5rem; padding: .65rem; color: var(--text); background: #11171c; border: 1px solid var(--line); border-radius: .35rem; }
+.export-panel { margin: 1rem 0 3rem; padding: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: .6rem; }
+#verdict-output { min-height: 14rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; }
+@media (max-width: 850px) {
+  .criteria, .media-grid.compare { grid-template-columns: 1fr; }
+  .review-actions { margin-left: 0; }
+}
+@media (max-width: 620px) {
+  .review-summary, .review-actions { width: 100%; }
+}
+
+/* Full-resolution inspection. A quiet affordance on the thumbnail,
+   and an overlay that shows the image at its native size so a one-pixel
+   connector can actually be judged. */
+.media-zoom {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  position: relative;
+}
+.media-zoom img { display: block; width: 100%; }
+.media-zoom-hint {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  border-radius: 0.2rem;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.media-zoom:hover .media-zoom-hint,
+.media-zoom:focus-visible .media-zoom-hint { opacity: 1; }
+.media-zoom:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+.media-viewer[hidden] { display: none; }
+.media-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+}
+.media-viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  color: #fff;
+  font-size: 0.9rem;
+}
+.media-viewer-close {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
+  color: #fff;
+  border-radius: 0.25rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+.media-viewer-counter {
+  color: rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  padding-right: 1rem;
+}
+.media-viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1001;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.9rem;
+  line-height: 1;
+  padding: .45rem .75rem .6rem;
+  border-radius: .35rem;
+}
+.media-viewer-nav[hidden] { display: none; }
+.media-viewer-prev { left: .75rem; }
+.media-viewer-next { right: .75rem; }
+.media-viewer-surface { flex: 1; overflow: auto; display: flex; }
+/* Native size, not fitted: fitting it would reproduce the defect this fixes.
+   Auto margins center an image smaller than the viewport and collapse to zero
+   when it overflows, keeping large captures scrollable from their origin. */
+.media-viewer-surface img { display: block; image-rendering: pixelated; margin: auto; }
+
+</style>
+</head>
+<body>
+  <header>
+    <h1>Dif final source rights and visual acceptance (RFC-BPR-0019)</h1>
+    <p class="lede">Project: betterpullreview · Gate: dif_final_rights_and_visual_acceptance · Scope: final_source_rights_and_human_visual_criterion_isolation_only · Batch: bpr:/attended-review/betterpullreview/c93e59ae499277a8d2e854f6</p>
+    <p class="scope-warning"><strong>Scope:</strong> This page records attended human decisions for this exact batch and gate only. It stores choices in this browser and cannot write repository evidence. Acceptance asserts nothing beyond this gate; these claims remain false: package_release_approved, rfc_bpr_0019_auto_verified, rfc_bpr_0020_authorized, runtime_composition_approved, runtime_mascot_approved. Export the complete verdict and return it to the requesting agent session for validation.</p>
+    <p class="reference-disclaimer"><strong>Reference:</strong> This package presents the exact production-source rights record and deterministic preview evidence for RFC-BPR-0019. The supplied opaque Dif reference images and Nib archive are not embedded or shipped; their exact identities and allowed guidance-only roles are bound in the rights subject. Visual approval is limited to the five independent subjects below. It does not approve a Qt widget, runtime composition, packaging, release, or either RFC&#x27;s closeout.</p>
+  </header>
+  <main>
+    <section class="review-controls" aria-label="Review progress and export">
+      <div class="review-controls-row">
+        <div class="review-summary">
+          <span id="review-progress">0/6 reviewed</span>
+          <span id="review-totals">0 accepted · 0 rejected · 6 pending</span>
+        </div>
+        <div class="review-actions">
+          <label><input id="pending-only" type="checkbox"> Show pending only</label>
+          <button id="export-verdict" type="button" disabled>Copy the complete verdict</button>
+        </div>
+      </div>
+      <p id="review-status" role="status" aria-live="polite" aria-atomic="true">Resolve every exact subject to unlock the final verdict.</p>
+    </section>
+    <article class="subject" data-subject-id="authority:/betterpullreview/rfc-bpr-0019/dif-final-production-rights-v1" data-subject-digest="sha256:13646e6c2807fdbd49e0a467b6b50962cdfe6e6e2ed20b67bf2c729363128fdd" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Validate final rights for the exact Dif production bytes</h2>
+      <p>Accept or reject the complete identity-bound final-rights subject. Acceptance is a representation that you are the creator/rightsholder or have authority from the creator/rightsholder to grant every stated use for these exact sources and generated products.</p>
+    </div>
+    <div class="identity">authority:/betterpullreview/rfc-bpr-0019/dif-final-production-rights-v1<br>sha256:13646e6c2807fdbd49e0a467b6b50962cdfe6e6e2ed20b67bf2c729363128fdd</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — The exact precreation verdict validated, all external input identities match their authorized digests and lengths, the complete asset tree validates, two regenerations match committed products, and the scoped foreign-material audit passed with stated attended limitations.</p>
+  <div class="media-groups">
+
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>The accepted pre-creation authority, exact external-input identities, recorded ImageGen and edit process, source inventory, manifest, generated products, preview renderer, and audit are correctly bound.</li><li>The checked-in Dif sources are original BetterPullReview production assets, and the stated worldwide, perpetual, commercial/noncommercial reproduction, derivative, source/binary/package, documentation, website, release, marketing, and sublicensing scope is authorized.</li><li>The guidance-only Dif images were not cropped or shipped, and the Nib archive granted no Nib, Mel, or AllTheThings art, code, name, identity, palette, dimensions, timing, or branding reuse.</li><li>No third-party license notice or SBOM entry is required for the original Dif raster assets; existing project and dependency notices remain unaffected.</li><li>Acceptance remains independent of the five visual decisions and grants no runtime, package, release, dependency, or RFC-closeout claim.</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>A mechanical audit proves file structure, inventory, digests, and searched byte markers; it cannot decide legal capacity or visual originality.</li><li>Reject with a note naming the capacity, permission, distribution, notice, input, tool, or foreign-material fact that must change.</li><li>A rights acceptance cannot substitute for any rejected or pending visual subject.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Exact production anchors</h3><dl><dt>Manifest</dt><dd>sha256:80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00</dd><dt>Provenance</dt><dd>sha256:2ac74e25cd0de063b42b765a3d18b498c3e36453574c76af4376ee4961154747</dd><dt>Generated/source digest inventory</dt><dd>sha256:7e066db7b5415995e9b7e9cf72f985f3208b5fd9c39b34a4567410d01d2b4bc4</dd><dt>Generator and preview renderer</dt><dd>sha256:040b05d2318cc9baa88fd5f2b1b877e895921e48a819258f5addc072e834bf16</dd><dt>Final rights subject</dt><dd>sha256:5687b5efe53f92d81563319a9e211b82e80e92921c4d2d0ee7a27b7c6d94643b</dd></dl></section><section><h3>Decision boundary</h3><ul><li>Accept only if every representation and grant in the copied final-rights subject is accurate for the exact bound bytes.</li><li>Reject if any capacity, permission, distribution, notice, tool, identity, or foreign-material assertion is inaccurate or incomplete.</li><li>This decision grants no visual, runtime, packaging, release, or RFC-closeout claim by itself.</li></ul></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/001-dif-final-production-rights-v1/identity/01-final-production-source-rights-subject.txt">Final production-source rights subject</a> <span class="identity">sha256:5687b5efe53f92d81563319a9e211b82e80e92921c4d2d0ee7a27b7c6d94643b</span></li><li><a href="subjects/001-dif-final-production-rights-v1/identity/02-exact-review-identity-and-complete-source-generated-digests.json">Exact review identity and complete source/generated digests</a> <span class="identity">sha256:da8ac5eca313e56727c8ddd9e2b346c68306a72a979dc562b224e6808771b5f8</span></li><li><a href="subjects/001-dif-final-production-rights-v1/identity/03-scoped-foreign-material-audit.json">Scoped foreign-material audit</a> <span class="identity">sha256:2aacb8931a278d7e4066097e7ba328d86c7c36cac50ed3c5689af3f6c973dcf5</span></li><li><a href="subjects/001-dif-final-production-rights-v1/identity/04-production-provenance.json">Production provenance</a> <span class="identity">sha256:2ac74e25cd0de063b42b765a3d18b498c3e36453574c76af4376ee4961154747</span></li><li><a href="subjects/001-dif-final-production-rights-v1/identity/05-production-manifest.json">Production manifest</a> <span class="identity">sha256:80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00</span></li><li><a href="subjects/001-dif-final-production-rights-v1/identity/06-generated-and-source-digest-inventory.json">Generated and source digest inventory</a> <span class="identity">sha256:7e066db7b5415995e9b7e9cf72f985f3208b5fd9c39b34a4567410d01d2b4bc4</span></li><li><a href="subjects/001-dif-final-production-rights-v1/identity/07-accepted-pre-creation-verdict.json">Accepted pre-creation verdict</a> <span class="identity">sha256:b6a1ea22004ca3b319484749415e775cb1042b49d68290feb63037f60bd0b1e6</span></li><li><a href="subjects/001-dif-final-production-rights-v1/identity/08-pre-creation-verdict-validation-report.json">Pre-creation verdict validation report</a> <span class="identity">sha256:e506b82b13d17238f120a6563b6e698a5ec161ed58223a00fff3a218e6ddca27</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Validate final rights for the exact Dif production bytes">
+    <button type="button" data-decision="accept" aria-pressed="false">Accept exact subject</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+<article class="subject" data-subject-id="criterion:/betterpullreview/rfc-bpr-0019/dif-identity-and-foreign-exclusion-v1" data-subject-digest="sha256:a57e5da8f73c3d1519eb6df420957343a3a993b45f0e0a6580617194243108ab" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Approve Dif&#x27;s identity and foreign-identity exclusion</h2>
+      <p>Judge the exact master-derived source frames and runtime cells as one coherent original BetterPullReview panda identity. This is the human visual gate for coherence with the authorized purple-and-light Dif direction and exclusion of Nib, Mel, and AllTheThings identity.</p>
+    </div>
+    <div class="identity">criterion:/betterpullreview/rfc-bpr-0019/dif-identity-and-foreign-exclusion-v1<br>sha256:a57e5da8f73c3d1519eb6df420957343a3a993b45f0e0a6580617194243108ab</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — All source/runtime cells are declared canonical RGBA images with transparent backgrounds, no metadata or embedded text payload, exact hashes, and no prohibited identity string; visual identity and originality remain this attended decision.</p>
+  <div class="media-groups">
+    <section><h3>Every source-derived runtime frame at 1x</h3><p class="muted">Calm idle has three frames, greet five, and rest one. Click for native 256-pixel cells.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/002-dif-identity-and-foreign-exclusion-v1/all-source-and-runtime-frames/01-calm-idle-contact-sheet.png" data-full-label="Calm idle contact sheet" aria-label="View Calm idle contact sheet at full resolution"><img loading="lazy" src="subjects/002-dif-identity-and-foreign-exclusion-v1/all-source-and-runtime-frames/01-calm-idle-contact-sheet.png" alt="Calm idle contact sheet"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Calm idle contact sheet</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-dif-identity-and-foreign-exclusion-v1/all-source-and-runtime-frames/02-greet-contact-sheet.png" data-full-label="Greet contact sheet" aria-label="View Greet contact sheet at full resolution"><img loading="lazy" src="subjects/002-dif-identity-and-foreign-exclusion-v1/all-source-and-runtime-frames/02-greet-contact-sheet.png" alt="Greet contact sheet"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Greet contact sheet</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-dif-identity-and-foreign-exclusion-v1/all-source-and-runtime-frames/03-rest-contact-sheet.png" data-full-label="Rest contact sheet" aria-label="View Rest contact sheet at full resolution"><img loading="lazy" src="subjects/002-dif-identity-and-foreign-exclusion-v1/all-source-and-runtime-frames/03-rest-contact-sheet.png" alt="Rest contact sheet"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Rest contact sheet</figcaption></figure></div></section>
+<section><h3>Identity at shipping scales and backgrounds</h3><p class="muted">Each clip representative appears at 1.0x, 1.25x, and 2.0x across System, Light, Dark, and high-contrast context plates.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/002-dif-identity-and-foreign-exclusion-v1/identity-scale-and-context/01-all-identity-context-plates.png" data-full-label="All identity context plates" aria-label="View All identity context plates at full resolution"><img loading="lazy" src="subjects/002-dif-identity-and-foreign-exclusion-v1/identity-scale-and-context/01-all-identity-context-plates.png" alt="All identity context plates"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>All identity context plates</figcaption></figure></div></section>
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>Dif reads as one compact, calm, supportive purple-and-light panda across the neutral master, calm idle, greeting, and rest frames.</li><li>The friendly attentive face, silhouette, and abstract plus/minus diff-card prop remain legible at 64, 72, 96, and 256 pixels.</li><li>The prop carries no literal patch, line number, score, approval, error, review conclusion, GitHub mark, or other semantic application result.</li><li>No Nib television body, antennae, magnifying glass, geometry, palette, or motion; no Mel lotus silhouette; and no AllTheThings flattened group identity is reproduced.</li><li>The result is suitable as Dif&#x27;s canonical BPR asset identity without relying on an opaque background plate, text, glow, or cast shadow.</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>The exact opaque reference images are deliberately not copied into the repository evidence package; their digest-bound identity direction is described in the rights subject.</li><li>The soft 3D-style rendering must still read cleanly at the smallest displayed scale.</li><li>This subject does not approve timing, registration, appearance contexts, or reduced-motion behavior; those have separate decisions.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Authorized visual direction</h3><ul><li>Compact panda silhouette with purple ears, limbs, eye patches, and accents plus a pale neutral face and body.</li><li>Calm, focused, friendly expression and a small abstract diff card with plus, minus, and neutral-line shapes.</li><li>Decorative companion only: no pose or prop is allowed to claim a review, approval, defect, or agent result.</li><li>No Nib, Mel, AllTheThings, GitHub, repository, credential, or private-material identity.</li></ul></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/002-dif-identity-and-foreign-exclusion-v1/identity/01-exact-review-identity-and-complete-source-generated-digests.json">Exact review identity and complete source/generated digests</a> <span class="identity">sha256:da8ac5eca313e56727c8ddd9e2b346c68306a72a979dc562b224e6808771b5f8</span></li><li><a href="subjects/002-dif-identity-and-foreign-exclusion-v1/identity/02-preview-manifest.json">Preview manifest</a> <span class="identity">sha256:69cdbb13f4d9ebff8201f2f4f2dabcf3d652d54d9767c377e794591e246e20bd</span></li><li><a href="subjects/002-dif-identity-and-foreign-exclusion-v1/identity/03-production-provenance.json">Production provenance</a> <span class="identity">sha256:2ac74e25cd0de063b42b765a3d18b498c3e36453574c76af4376ee4961154747</span></li><li><a href="subjects/002-dif-identity-and-foreign-exclusion-v1/identity/04-scoped-foreign-material-audit.json">Scoped foreign-material audit</a> <span class="identity">sha256:2aacb8931a278d7e4066097e7ba328d86c7c36cac50ed3c5689af3f6c973dcf5</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Approve Dif&#x27;s identity and foreign-identity exclusion">
+    <button type="button" data-decision="accept" aria-pressed="false">Accept exact subject</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+<article class="subject" data-subject-id="criterion:/betterpullreview/rfc-bpr-0019/dif-motion-at-shipping-sizes-v1" data-subject-digest="sha256:6ac1f35de6457f6971746f9d94a9afaf2085912367a2a763cca3737d8da7cb5a" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Approve full clip motion at 64, 72, and 96 pixels</h2>
+      <p>Judge the calm idle at its declared 250 ms per frame and the one-shot greeting at 125 ms per frame. The greeting is only a decorative acknowledgement that a landing surface became visible; it is not a product result.</p>
+    </div>
+    <div class="identity">criterion:/betterpullreview/rfc-bpr-0019/dif-motion-at-shipping-sizes-v1<br>sha256:6ac1f35de6457f6971746f9d94a9afaf2085912367a2a763cca3737d8da7cb5a</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — The manifest mechanically validates the 3/5 frame counts, exact 4/8 fps rates, declared clip kinds and returns, edge clearance, frame budgets, and generated APNG timing. Aesthetic motion quality remains attended.</p>
+  <div class="media-groups">
+    <section><h3>Calm idle at declared speed</h3><p class="muted">Continuous 4 fps loop at the three intended logical sizes.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/003-dif-motion-at-shipping-sizes-v1/calm-idle-at-shipping-sizes/01-calm-idle-64px.png" data-full-label="Calm idle 64px" aria-label="View Calm idle 64px at full resolution"><img loading="lazy" src="subjects/003-dif-motion-at-shipping-sizes-v1/calm-idle-at-shipping-sizes/01-calm-idle-64px.png" alt="Calm idle 64px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Calm idle 64px</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/003-dif-motion-at-shipping-sizes-v1/calm-idle-at-shipping-sizes/02-calm-idle-72px.png" data-full-label="Calm idle 72px" aria-label="View Calm idle 72px at full resolution"><img loading="lazy" src="subjects/003-dif-motion-at-shipping-sizes-v1/calm-idle-at-shipping-sizes/02-calm-idle-72px.png" alt="Calm idle 72px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Calm idle 72px</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/003-dif-motion-at-shipping-sizes-v1/calm-idle-at-shipping-sizes/03-calm-idle-96px.png" data-full-label="Calm idle 96px" aria-label="View Calm idle 96px at full resolution"><img loading="lazy" src="subjects/003-dif-motion-at-shipping-sizes-v1/calm-idle-at-shipping-sizes/03-calm-idle-96px.png" alt="Calm idle 96px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Calm idle 96px</figcaption></figure></div></section>
+<section><h3>One-shot greet at declared speed</h3><p class="muted">One 8 fps five-frame acknowledgement at each intended logical size. Reload the page if your image viewer does not replay one-shot APNGs.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/003-dif-motion-at-shipping-sizes-v1/greet-at-shipping-sizes/01-greet-64px.png" data-full-label="Greet 64px" aria-label="View Greet 64px at full resolution"><img loading="lazy" src="subjects/003-dif-motion-at-shipping-sizes-v1/greet-at-shipping-sizes/01-greet-64px.png" alt="Greet 64px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Greet 64px</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/003-dif-motion-at-shipping-sizes-v1/greet-at-shipping-sizes/02-greet-72px.png" data-full-label="Greet 72px" aria-label="View Greet 72px at full resolution"><img loading="lazy" src="subjects/003-dif-motion-at-shipping-sizes-v1/greet-at-shipping-sizes/02-greet-72px.png" alt="Greet 72px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Greet 72px</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/003-dif-motion-at-shipping-sizes-v1/greet-at-shipping-sizes/03-greet-96px.png" data-full-label="Greet 96px" aria-label="View Greet 96px at full resolution"><img loading="lazy" src="subjects/003-dif-motion-at-shipping-sizes-v1/greet-at-shipping-sizes/03-greet-96px.png" alt="Greet 96px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Greet 96px</figcaption></figure></div></section>
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>The three-frame calm idle reads as a gentle closed breath at 4 fps without walking, floating, jitter, or a duplicated terminal dwell.</li><li>The five-frame greet reads as one restrained nonsemantic acknowledgement at 8 fps and does not resemble approval, celebration, warning, reviewing, thinking, or issue discovery.</li><li>Both clips remain intentional and readable at the actual 64, 72, and 96 logical-pixel shipping sizes.</li><li>The motion uses the fewest frames needed and does not introduce clipping, edge contact, distracting prop travel, or unstable facial detail.</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>Motion is intentionally subtle: both clips use baseline-anchored scale and squash rather than limb waving or semantic expression changes.</li><li>The preview PNGs are APNG animations; the calm clip loops continuously and greet plays once per browser load or reload.</li><li>This subject does not approve registration metrics, seam/handoff quality, backgrounds, or reduced-motion fallback.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Exact motion contract</h3><dl><dt>calm_idle</dt><dd>3 frames; 250 ms/frame; loop; representative frame 1; priority 0; return calm_idle</dd><dt>greet</dt><dd>5 frames; 125 ms/frame; one-shot; representative frame 2; priority 10; return calm_idle</dd><dt>rest</dt><dd>1 awake static frame; no procedural motion; reviewed separately</dd></dl></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/003-dif-motion-at-shipping-sizes-v1/identity/01-exact-review-identity-and-complete-source-generated-digests.json">Exact review identity and complete source/generated digests</a> <span class="identity">sha256:da8ac5eca313e56727c8ddd9e2b346c68306a72a979dc562b224e6808771b5f8</span></li><li><a href="subjects/003-dif-motion-at-shipping-sizes-v1/identity/02-preview-manifest.json">Preview manifest</a> <span class="identity">sha256:69cdbb13f4d9ebff8201f2f4f2dabcf3d652d54d9767c377e794591e246e20bd</span></li><li><a href="subjects/003-dif-motion-at-shipping-sizes-v1/identity/03-three-clip-production-manifest.json">Three-clip production manifest</a> <span class="identity">sha256:80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Approve full clip motion at 64, 72, and 96 pixels">
+    <button type="button" data-decision="accept" aria-pressed="false">Accept exact subject</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+<article class="subject" data-subject-id="criterion:/betterpullreview/rfc-bpr-0019/dif-registration-seam-and-handoff-v1" data-subject-digest="sha256:232406dc5aa201c9fc20da33ce1c744a506b877aba5b5514976af8787eae8893" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Approve registration, calm seam, and greet handoff</h2>
+      <p>Judge the visual steadiness of the common body box, center, and baseline together with the exact calm-loop seam and greet-to-idle return. Mechanical tolerances already pass; this question is whether they look stable.</p>
+    </div>
+    <div class="identity">criterion:/betterpullreview/rfc-bpr-0019/dif-registration-seam-and-handoff-v1<br>sha256:232406dc5aa201c9fc20da33ce1c744a506b877aba5b5514976af8787eae8893</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — All clips share body bounds [56,22,200,224], visual center x=128, baseline y=223, &lt;=1px allowed vertical travel, calm seam mean delta 1 &lt;= 2, and greet handoff mean delta 0 &lt;= 1.</p>
+  <div class="media-groups">
+    <section><h3>All frames with body, center, and baseline overlays</h3><p class="muted">Yellow is the common neutral body box, cyan the visual center, and red the baseline.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/004-dif-registration-seam-and-handoff-v1/registration-overlays/01-calm-idle-registration.png" data-full-label="Calm idle registration" aria-label="View Calm idle registration at full resolution"><img loading="lazy" src="subjects/004-dif-registration-seam-and-handoff-v1/registration-overlays/01-calm-idle-registration.png" alt="Calm idle registration"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Calm idle registration</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/004-dif-registration-seam-and-handoff-v1/registration-overlays/02-greet-registration.png" data-full-label="Greet registration" aria-label="View Greet registration at full resolution"><img loading="lazy" src="subjects/004-dif-registration-seam-and-handoff-v1/registration-overlays/02-greet-registration.png" alt="Greet registration"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Greet registration</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/004-dif-registration-seam-and-handoff-v1/registration-overlays/03-rest-registration.png" data-full-label="Rest registration" aria-label="View Rest registration at full resolution"><img loading="lazy" src="subjects/004-dif-registration-seam-and-handoff-v1/registration-overlays/03-rest-registration.png" alt="Rest registration"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Rest registration</figcaption></figure></div></section>
+<section><h3>Calm last-to-first seam</h3><p class="muted">Two-frame seam isolation at the declared 250 ms frame duration.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/004-dif-registration-seam-and-handoff-v1/calm-loop-seam/01-calm-seam-64px.png" data-full-label="Calm seam 64px" aria-label="View Calm seam 64px at full resolution"><img loading="lazy" src="subjects/004-dif-registration-seam-and-handoff-v1/calm-loop-seam/01-calm-seam-64px.png" alt="Calm seam 64px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Calm seam 64px</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/004-dif-registration-seam-and-handoff-v1/calm-loop-seam/02-calm-seam-72px.png" data-full-label="Calm seam 72px" aria-label="View Calm seam 72px at full resolution"><img loading="lazy" src="subjects/004-dif-registration-seam-and-handoff-v1/calm-loop-seam/02-calm-seam-72px.png" alt="Calm seam 72px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Calm seam 72px</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/004-dif-registration-seam-and-handoff-v1/calm-loop-seam/03-calm-seam-96px.png" data-full-label="Calm seam 96px" aria-label="View Calm seam 96px at full resolution"><img loading="lazy" src="subjects/004-dif-registration-seam-and-handoff-v1/calm-loop-seam/03-calm-seam-96px.png" alt="Calm seam 96px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Calm seam 96px</figcaption></figure></div></section>
+<section><h3>Full greet and return to calm</h3><p class="muted">The handoff course appends the exact calm representative after the greet and loops the boundary for inspection.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/004-dif-registration-seam-and-handoff-v1/greet-to-calm-handoff/01-greet-handoff-64px.png" data-full-label="Greet handoff 64px" aria-label="View Greet handoff 64px at full resolution"><img loading="lazy" src="subjects/004-dif-registration-seam-and-handoff-v1/greet-to-calm-handoff/01-greet-handoff-64px.png" alt="Greet handoff 64px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Greet handoff 64px</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/004-dif-registration-seam-and-handoff-v1/greet-to-calm-handoff/02-greet-handoff-72px.png" data-full-label="Greet handoff 72px" aria-label="View Greet handoff 72px at full resolution"><img loading="lazy" src="subjects/004-dif-registration-seam-and-handoff-v1/greet-to-calm-handoff/02-greet-handoff-72px.png" alt="Greet handoff 72px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Greet handoff 72px</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/004-dif-registration-seam-and-handoff-v1/greet-to-calm-handoff/03-greet-handoff-96px.png" data-full-label="Greet handoff 96px" aria-label="View Greet handoff 96px at full resolution"><img loading="lazy" src="subjects/004-dif-registration-seam-and-handoff-v1/greet-to-calm-handoff/03-greet-handoff-96px.png" alt="Greet handoff 96px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Greet handoff 96px</figcaption></figure></div></section>
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>Every calm, greet, and rest frame stays visually anchored to the cyan center line and red ground baseline inside the shared yellow neutral body box.</li><li>The calm last-to-first seam is not perceptibly discontinuous or dwell-heavy at 64, 72, or 96 pixels.</li><li>The greet completes and returns to the calm representative without a pop, jump, extra hold, or visible registration shift at all three sizes.</li><li>The diff card does not silently recenter the body, and feet, ears, hands, and prop remain comfortably inside the cell.</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>Overlay lines are diagnostic and not shipped; they intentionally cover one pixel of the preview.</li><li>The calm seam course alternates only the final and first calm frames to expose their boundary.</li><li>The greet handoff course loops the full greet plus the calm representative so the return can be watched repeatedly.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Mechanical measurements</h3><dl><dt>Shared registration</dt><dd>center x=128; baseline y=223; body bounds [56,22,200,224]; foot tolerance 1px; edge clearance 16px</dd><dt>Calm seam</dt><dd>observed mean delta 1; declared maximum 2</dd><dt>Greet handoff</dt><dd>observed mean delta 0; declared maximum 1</dd></dl></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/004-dif-registration-seam-and-handoff-v1/identity/01-exact-review-identity-and-complete-source-generated-digests.json">Exact review identity and complete source/generated digests</a> <span class="identity">sha256:da8ac5eca313e56727c8ddd9e2b346c68306a72a979dc562b224e6808771b5f8</span></li><li><a href="subjects/004-dif-registration-seam-and-handoff-v1/identity/02-preview-manifest.json">Preview manifest</a> <span class="identity">sha256:69cdbb13f4d9ebff8201f2f4f2dabcf3d652d54d9767c377e794591e246e20bd</span></li><li><a href="subjects/004-dif-registration-seam-and-handoff-v1/identity/03-three-clip-production-manifest.json">Three-clip production manifest</a> <span class="identity">sha256:80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Approve registration, calm seam, and greet handoff">
+    <button type="button" data-decision="accept" aria-pressed="false">Accept exact subject</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+<article class="subject" data-subject-id="criterion:/betterpullreview/rfc-bpr-0019/dif-appearance-contexts-v1" data-subject-digest="sha256:6e8c3a57dfa2c07d34d02528c8f2581c3e67468ee3d0f201119f57a3c89610d1" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Approve all four appearance contexts at three scales</h2>
+      <p>Judge each clip representative across the deterministic System, Light, Dark, and high-contrast context plates at 1.0x, 1.25x, and 2.0x relative to the 96-pixel landing size. These plates test contrast and silhouette; they do not claim native OS rendering.</p>
+    </div>
+    <div class="identity">criterion:/betterpullreview/rfc-bpr-0019/dif-appearance-contexts-v1<br>sha256:6e8c3a57dfa2c07d34d02528c8f2581c3e67468ee3d0f201119f57a3c89610d1</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — The preview renderer deterministically composites every representative over four opaque contexts at 96/120/192 pixels from the exact source and manifest bytes; source and generated PNGs retain transparent backgrounds.</p>
+  <div class="media-groups">
+    <section><h3>System, Light, Dark, and high contrast at 1.0x, 1.25x, and 2.0x</h3><p class="muted">Each four-column row is System, Light, Dark, high contrast. Rows cover calm, greet, and rest representatives at 96, 120, and 192 pixels.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/005-dif-appearance-contexts-v1/all-context-plates/01-all-36-appearance-plates.png" data-full-label="All 36 appearance plates" aria-label="View All 36 appearance plates at full resolution"><img loading="lazy" src="subjects/005-dif-appearance-contexts-v1/all-context-plates/01-all-36-appearance-plates.png" alt="All 36 appearance plates"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>All 36 appearance plates</figcaption></figure></div></section>
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>The face, outline, purple/light palette, feet, hands, and diff card remain distinguishable on System, Light, Dark, and black high-contrast surfaces.</li><li>No context requires a baked background plate, glow, cast shadow, forced palette, stylesheet, or text to separate Dif from the surface.</li><li>The calm, greet, and rest representatives remain coherent at 96, 120, and 192 pixels, corresponding to the declared 1.0x, 1.25x, and 2.0x context course.</li><li>No clipping, halo, chroma-key fringe, hidden opaque rectangle, or background-dependent semantic change appears in any plate.</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>System is a fixed neutral preview color, not a target-native palette capture; RFC-BPR-0020 will own native runtime appearance integration.</li><li>The 36 plates are ordered by clip representative, then scale, with System/Light/Dark/high-contrast across each row.</li><li>This subject does not approve runtime composition or platform-native high-contrast behavior.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Course order</h3><ul><li>Rows 1-3: calm representative at 96, 120, and 192 pixels.</li><li>Rows 4-6: greet representative at 96, 120, and 192 pixels.</li><li>Rows 7-9: rest representative at 96, 120, and 192 pixels.</li><li>Columns: System neutral, Light white, Dark charcoal, high-contrast black.</li></ul></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/005-dif-appearance-contexts-v1/identity/01-exact-review-identity-and-complete-source-generated-digests.json">Exact review identity and complete source/generated digests</a> <span class="identity">sha256:da8ac5eca313e56727c8ddd9e2b346c68306a72a979dc562b224e6808771b5f8</span></li><li><a href="subjects/005-dif-appearance-contexts-v1/identity/02-preview-manifest.json">Preview manifest</a> <span class="identity">sha256:69cdbb13f4d9ebff8201f2f4f2dabcf3d652d54d9767c377e794591e246e20bd</span></li><li><a href="subjects/005-dif-appearance-contexts-v1/identity/03-generator-and-preview-renderer.py">Generator and preview renderer</a> <span class="identity">sha256:040b05d2318cc9baa88fd5f2b1b877e895921e48a819258f5addc072e834bf16</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Approve all four appearance contexts at three scales">
+    <button type="button" data-decision="accept" aria-pressed="false">Accept exact subject</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+<article class="subject" data-subject-id="criterion:/betterpullreview/rfc-bpr-0019/dif-reduced-motion-rest-v1" data-subject-digest="sha256:2289597f3b6d892090a1e1b13c1607c8a8d05da6392918e3e967f55419c7e121" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Approve the awake static rest fallback</h2>
+      <p>Judge the exact static rest pose as the reduced-motion and suspended fallback beside the representative frame of each animated clip. It must preserve Dif&#x27;s identity without procedural motion, sleep, fade, or semantic status.</p>
+    </div>
+    <div class="identity">criterion:/betterpullreview/rfc-bpr-0019/dif-reduced-motion-rest-v1<br>sha256:2289597f3b6d892090a1e1b13c1607c8a8d05da6392918e3e967f55419c7e121</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — The rest clip contains exactly one declared static frame at duration 0, returns to rest, shares the common registration contract, and is emitted without APNG control chunks or procedural motion.</p>
+  <div class="media-groups">
+    <section><h3>Rest beside calm and greet representatives</h3><p class="muted">Left to right: rest, calm representative, greet representative at 256 pixels.</p><div class="media-grid compare"><figure><button type="button" class="media-zoom" data-full-source="subjects/006-dif-reduced-motion-rest-v1/rest-representative-compare/01-rest-calm-representative-greet-representative.png" data-full-label="Rest, calm representative, greet representative" aria-label="View Rest, calm representative, greet representative at full resolution"><img loading="lazy" src="subjects/006-dif-reduced-motion-rest-v1/rest-representative-compare/01-rest-calm-representative-greet-representative.png" alt="Rest, calm representative, greet representative"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Rest, calm representative, greet representative</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/006-dif-reduced-motion-rest-v1/rest-representative-compare/02-rest-source-runtime-contact-sheet.png" data-full-label="Rest source/runtime contact sheet" aria-label="View Rest source/runtime contact sheet at full resolution"><img loading="lazy" src="subjects/006-dif-reduced-motion-rest-v1/rest-representative-compare/02-rest-source-runtime-contact-sheet.png" alt="Rest source/runtime contact sheet"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Rest source/runtime contact sheet</figcaption></figure></div></section>
+<section><h3>Static rest at actual shipping sizes</h3><p class="muted">Each is a static PNG with no animation control chunks.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/006-dif-reduced-motion-rest-v1/rest-at-shipping-sizes/01-rest-64px.png" data-full-label="Rest 64px" aria-label="View Rest 64px at full resolution"><img loading="lazy" src="subjects/006-dif-reduced-motion-rest-v1/rest-at-shipping-sizes/01-rest-64px.png" alt="Rest 64px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Rest 64px</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/006-dif-reduced-motion-rest-v1/rest-at-shipping-sizes/02-rest-72px.png" data-full-label="Rest 72px" aria-label="View Rest 72px at full resolution"><img loading="lazy" src="subjects/006-dif-reduced-motion-rest-v1/rest-at-shipping-sizes/02-rest-72px.png" alt="Rest 72px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Rest 72px</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/006-dif-reduced-motion-rest-v1/rest-at-shipping-sizes/03-rest-96px.png" data-full-label="Rest 96px" aria-label="View Rest 96px at full resolution"><img loading="lazy" src="subjects/006-dif-reduced-motion-rest-v1/rest-at-shipping-sizes/03-rest-96px.png" alt="Rest 96px"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Rest 96px</figcaption></figure></div></section>
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>The rest frame is calm, awake, friendly, and visibly the same Dif identity as both animated representatives.</li><li>The static pose remains readable at 64, 72, and 96 pixels without animation, fade, pulse, glow, or background plate.</li><li>Rest does not read as asleep, disabled, offline, completed, approved, errored, or otherwise semantically different from decorative presence.</li><li>The comparison does not reveal an objectionable scale, center, baseline, face, prop, or silhouette jump between rest and the animated representatives.</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>The rest source is byte-identical to the neutral master and calm representative by design; visual sameness is the accessibility feature, not an omitted animation.</li><li>The comparison sheet is 256 pixels per pose, while the separate static previews show actual 64/72/96 shipping sizes.</li><li>Runtime reduced-motion observation and lifecycle behavior belong to RFC-BPR-0020 and are not approved here.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Fallback boundary</h3><dl><dt>Visual meaning</dt><dd>Decorative awake presence only</dd><dt>Motion</dt><dd>One static frame; zero frame duration; no procedural fade, pulse, or animation</dd><dt>Later runtime owner</dt><dd>RFC-BPR-0020 will decide how reduced-motion and suspended application state select this already-approved asset</dd></dl></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/006-dif-reduced-motion-rest-v1/identity/01-exact-review-identity-and-complete-source-generated-digests.json">Exact review identity and complete source/generated digests</a> <span class="identity">sha256:da8ac5eca313e56727c8ddd9e2b346c68306a72a979dc562b224e6808771b5f8</span></li><li><a href="subjects/006-dif-reduced-motion-rest-v1/identity/02-preview-manifest.json">Preview manifest</a> <span class="identity">sha256:69cdbb13f4d9ebff8201f2f4f2dabcf3d652d54d9767c377e794591e246e20bd</span></li><li><a href="subjects/006-dif-reduced-motion-rest-v1/identity/03-three-clip-production-manifest.json">Three-clip production manifest</a> <span class="identity">sha256:80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Approve the awake static rest fallback">
+    <button type="button" data-decision="accept" aria-pressed="false">Accept exact subject</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+    <section class="export-panel">
+      <h2>Final result</h2>
+      <p>The pinned copy button unlocks after every exact subject has Accept or Reject selected. Its result stays visible in the top review bar, and the complete JSON remains below as a manual-copy fallback.</p>
+      <textarea id="verdict-output" readonly aria-label="Exported verdict JSON"></textarea>
+    </section>
+  </main>
+  <script id="attended-review-config" type="application/json">{"batch_id":"bpr:/attended-review/betterpullreview/c93e59ae499277a8d2e854f6","downstream_claims":{"package_release_approved":false,"rfc_bpr_0019_auto_verified":false,"rfc_bpr_0020_authorized":false,"runtime_composition_approved":false,"runtime_mascot_approved":false},"project_id":"betterpullreview","reference_disclaimer":"This package presents the exact production-source rights record and deterministic preview evidence for RFC-BPR-0019. The supplied opaque Dif reference images and Nib archive are not embedded or shipped; their exact identities and allowed guidance-only roles are bound in the rights subject. Visual approval is limited to the five independent subjects below. It does not approve a Qt widget, runtime composition, packaging, release, or either RFC's closeout.","review_gate":"dif_final_rights_and_visual_acceptance","review_scope":"final_source_rights_and_human_visual_criterion_isolation_only","schema_name":"bpr.attended_review_batch","schema_version":1,"subjects":[{"ab_group":"","acceptance_criteria":["The accepted pre-creation authority, exact external-input identities, recorded ImageGen and edit process, source inventory, manifest, generated products, preview renderer, and audit are correctly bound.","The checked-in Dif sources are original BetterPullReview production assets, and the stated worldwide, perpetual, commercial/noncommercial reproduction, derivative, source/binary/package, documentation, website, release, marketing, and sublicensing scope is authorized.","The guidance-only Dif images were not cropped or shipped, and the Nib archive granted no Nib, Mel, or AllTheThings art, code, name, identity, palette, dimensions, timing, or branding reuse.","No third-party license notice or SBOM entry is required for the original Dif raster assets; existing project and dependency notices remain unaffected.","Acceptance remains independent of the five visual decisions and grants no runtime, package, release, dependency, or RFC-closeout claim."],"audit_verdict":{"note":"The exact precreation verdict validated, all external input identities match their authorized digests and lengths, the complete asset tree validates, two regenerations match committed products, and the scoped foreign-material audit passed with stated attended limitations.","status":"pass"},"choice_group":"","description":"Accept or reject the complete identity-bound final-rights subject. Acceptance is a representation that you are the creator/rightsholder or have authority from the creator/rightsholder to grant every stated use for these exact sources and generated products.","detail_sections":[{"heading":"Exact production anchors","items":[{"definition":"sha256:80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00","term":"Manifest"},{"definition":"sha256:2ac74e25cd0de063b42b765a3d18b498c3e36453574c76af4376ee4961154747","term":"Provenance"},{"definition":"sha256:7e066db7b5415995e9b7e9cf72f985f3208b5fd9c39b34a4567410d01d2b4bc4","term":"Generated/source digest inventory"},{"definition":"sha256:040b05d2318cc9baa88fd5f2b1b877e895921e48a819258f5addc072e834bf16","term":"Generator and preview renderer"},{"definition":"sha256:5687b5efe53f92d81563319a9e211b82e80e92921c4d2d0ee7a27b7c6d94643b","term":"Final rights subject"}],"kind":"definitions"},{"heading":"Decision boundary","items":["Accept only if every representation and grant in the copied final-rights subject is accurate for the exact bound bytes.","Reject if any capacity, permission, distribution, notice, tool, identity, or foreign-material assertion is inaccurate or incomplete.","This decision grants no visual, runtime, packaging, release, or RFC-closeout claim by itself."],"kind":"list"}],"display_name":"Validate final rights for the exact Dif production bytes","identity_files":[{"label":"Final production-source rights subject","media_kind":"file","path":"subjects/001-dif-final-production-rights-v1/identity/01-final-production-source-rights-subject.txt","sha256":"sha256:5687b5efe53f92d81563319a9e211b82e80e92921c4d2d0ee7a27b7c6d94643b"},{"label":"Exact review identity and complete source/generated digests","media_kind":"file","path":"subjects/001-dif-final-production-rights-v1/identity/02-exact-review-identity-and-complete-source-generated-digests.json","sha256":"sha256:da8ac5eca313e56727c8ddd9e2b346c68306a72a979dc562b224e6808771b5f8"},{"label":"Scoped foreign-material audit","media_kind":"file","path":"subjects/001-dif-final-production-rights-v1/identity/03-scoped-foreign-material-audit.json","sha256":"sha256:2aacb8931a278d7e4066097e7ba328d86c7c36cac50ed3c5689af3f6c973dcf5"},{"label":"Production provenance","media_kind":"file","path":"subjects/001-dif-final-production-rights-v1/identity/04-production-provenance.json","sha256":"sha256:2ac74e25cd0de063b42b765a3d18b498c3e36453574c76af4376ee4961154747"},{"label":"Production manifest","media_kind":"file","path":"subjects/001-dif-final-production-rights-v1/identity/05-production-manifest.json","sha256":"sha256:80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00"},{"label":"Generated and source digest inventory","media_kind":"file","path":"subjects/001-dif-final-production-rights-v1/identity/06-generated-and-source-digest-inventory.json","sha256":"sha256:7e066db7b5415995e9b7e9cf72f985f3208b5fd9c39b34a4567410d01d2b4bc4"},{"label":"Accepted pre-creation verdict","media_kind":"file","path":"subjects/001-dif-final-production-rights-v1/identity/07-accepted-pre-creation-verdict.json","sha256":"sha256:b6a1ea22004ca3b319484749415e775cb1042b49d68290feb63037f60bd0b1e6"},{"label":"Pre-creation verdict validation report","media_kind":"file","path":"subjects/001-dif-final-production-rights-v1/identity/08-pre-creation-verdict-validation-report.json","sha256":"sha256:e506b82b13d17238f120a6563b6e698a5ec161ed58223a00fff3a218e6ddca27"}],"known_concerns":["A mechanical audit proves file structure, inventory, digests, and searched byte markers; it cannot decide legal capacity or visual originality.","Reject with a note naming the capacity, permission, distribution, notice, input, tool, or foreign-material fact that must change.","A rights acceptance cannot substitute for any rejected or pending visual subject."],"media_groups":[],"subject_digest":"sha256:13646e6c2807fdbd49e0a467b6b50962cdfe6e6e2ed20b67bf2c729363128fdd","subject_id":"authority:/betterpullreview/rfc-bpr-0019/dif-final-production-rights-v1","subject_key":"dif-final-production-rights-v1"},{"ab_group":"","acceptance_criteria":["Dif reads as one compact, calm, supportive purple-and-light panda across the neutral master, calm idle, greeting, and rest frames.","The friendly attentive face, silhouette, and abstract plus/minus diff-card prop remain legible at 64, 72, 96, and 256 pixels.","The prop carries no literal patch, line number, score, approval, error, review conclusion, GitHub mark, or other semantic application result.","No Nib television body, antennae, magnifying glass, geometry, palette, or motion; no Mel lotus silhouette; and no AllTheThings flattened group identity is reproduced.","The result is suitable as Dif's canonical BPR asset identity without relying on an opaque background plate, text, glow, or cast shadow."],"audit_verdict":{"note":"All source/runtime cells are declared canonical RGBA images with transparent backgrounds, no metadata or embedded text payload, exact hashes, and no prohibited identity string; visual identity and originality remain this attended decision.","status":"pass"},"choice_group":"","description":"Judge the exact master-derived source frames and runtime cells as one coherent original BetterPullReview panda identity. This is the human visual gate for coherence with the authorized purple-and-light Dif direction and exclusion of Nib, Mel, and AllTheThings identity.","detail_sections":[{"heading":"Authorized visual direction","items":["Compact panda silhouette with purple ears, limbs, eye patches, and accents plus a pale neutral face and body.","Calm, focused, friendly expression and a small abstract diff card with plus, minus, and neutral-line shapes.","Decorative companion only: no pose or prop is allowed to claim a review, approval, defect, or agent result.","No Nib, Mel, AllTheThings, GitHub, repository, credential, or private-material identity."],"kind":"list"}],"display_name":"Approve Dif's identity and foreign-identity exclusion","identity_files":[{"label":"Exact review identity and complete source/generated digests","media_kind":"file","path":"subjects/002-dif-identity-and-foreign-exclusion-v1/identity/01-exact-review-identity-and-complete-source-generated-digests.json","sha256":"sha256:da8ac5eca313e56727c8ddd9e2b346c68306a72a979dc562b224e6808771b5f8"},{"label":"Preview manifest","media_kind":"file","path":"subjects/002-dif-identity-and-foreign-exclusion-v1/identity/02-preview-manifest.json","sha256":"sha256:69cdbb13f4d9ebff8201f2f4f2dabcf3d652d54d9767c377e794591e246e20bd"},{"label":"Production provenance","media_kind":"file","path":"subjects/002-dif-identity-and-foreign-exclusion-v1/identity/03-production-provenance.json","sha256":"sha256:2ac74e25cd0de063b42b765a3d18b498c3e36453574c76af4376ee4961154747"},{"label":"Scoped foreign-material audit","media_kind":"file","path":"subjects/002-dif-identity-and-foreign-exclusion-v1/identity/04-scoped-foreign-material-audit.json","sha256":"sha256:2aacb8931a278d7e4066097e7ba328d86c7c36cac50ed3c5689af3f6c973dcf5"}],"known_concerns":["The exact opaque reference images are deliberately not copied into the repository evidence package; their digest-bound identity direction is described in the rights subject.","The soft 3D-style rendering must still read cleanly at the smallest displayed scale.","This subject does not approve timing, registration, appearance contexts, or reduced-motion behavior; those have separate decisions."],"media_groups":[{"group_id":"all-source-and-runtime-frames","items":[{"label":"Calm idle contact sheet","media_kind":"image","path":"subjects/002-dif-identity-and-foreign-exclusion-v1/all-source-and-runtime-frames/01-calm-idle-contact-sheet.png","sha256":"sha256:2179caa8f536937e00b0d7942fadd329d06e940b25856d33c7c4952e626b8e6d"},{"label":"Greet contact sheet","media_kind":"image","path":"subjects/002-dif-identity-and-foreign-exclusion-v1/all-source-and-runtime-frames/02-greet-contact-sheet.png","sha256":"sha256:e06aa241da4235bfad8ba0cae78ccb0f75e3023260edc49045753ac09570e897"},{"label":"Rest contact sheet","media_kind":"image","path":"subjects/002-dif-identity-and-foreign-exclusion-v1/all-source-and-runtime-frames/03-rest-contact-sheet.png","sha256":"sha256:a9b05ce50de5c6e338f42d552816847bf40d09e089f73f82768d3175218ec1c1"}],"layout":"grid","note":"Calm idle has three frames, greet five, and rest one. Click for native 256-pixel cells.","required":true,"title":"Every source-derived runtime frame at 1x"},{"group_id":"identity-scale-and-context","items":[{"label":"All identity context plates","media_kind":"image","path":"subjects/002-dif-identity-and-foreign-exclusion-v1/identity-scale-and-context/01-all-identity-context-plates.png","sha256":"sha256:5cb18b23459b94ace5b77e8ead019b045b34f4bfb8e647736de61b48b7f9a1da"}],"layout":"grid","note":"Each clip representative appears at 1.0x, 1.25x, and 2.0x across System, Light, Dark, and high-contrast context plates.","required":true,"title":"Identity at shipping scales and backgrounds"}],"subject_digest":"sha256:a57e5da8f73c3d1519eb6df420957343a3a993b45f0e0a6580617194243108ab","subject_id":"criterion:/betterpullreview/rfc-bpr-0019/dif-identity-and-foreign-exclusion-v1","subject_key":"dif-identity-and-foreign-exclusion-v1"},{"ab_group":"","acceptance_criteria":["The three-frame calm idle reads as a gentle closed breath at 4 fps without walking, floating, jitter, or a duplicated terminal dwell.","The five-frame greet reads as one restrained nonsemantic acknowledgement at 8 fps and does not resemble approval, celebration, warning, reviewing, thinking, or issue discovery.","Both clips remain intentional and readable at the actual 64, 72, and 96 logical-pixel shipping sizes.","The motion uses the fewest frames needed and does not introduce clipping, edge contact, distracting prop travel, or unstable facial detail."],"audit_verdict":{"note":"The manifest mechanically validates the 3/5 frame counts, exact 4/8 fps rates, declared clip kinds and returns, edge clearance, frame budgets, and generated APNG timing. Aesthetic motion quality remains attended.","status":"pass"},"choice_group":"","description":"Judge the calm idle at its declared 250 ms per frame and the one-shot greeting at 125 ms per frame. The greeting is only a decorative acknowledgement that a landing surface became visible; it is not a product result.","detail_sections":[{"heading":"Exact motion contract","items":[{"definition":"3 frames; 250 ms/frame; loop; representative frame 1; priority 0; return calm_idle","term":"calm_idle"},{"definition":"5 frames; 125 ms/frame; one-shot; representative frame 2; priority 10; return calm_idle","term":"greet"},{"definition":"1 awake static frame; no procedural motion; reviewed separately","term":"rest"}],"kind":"definitions"}],"display_name":"Approve full clip motion at 64, 72, and 96 pixels","identity_files":[{"label":"Exact review identity and complete source/generated digests","media_kind":"file","path":"subjects/003-dif-motion-at-shipping-sizes-v1/identity/01-exact-review-identity-and-complete-source-generated-digests.json","sha256":"sha256:da8ac5eca313e56727c8ddd9e2b346c68306a72a979dc562b224e6808771b5f8"},{"label":"Preview manifest","media_kind":"file","path":"subjects/003-dif-motion-at-shipping-sizes-v1/identity/02-preview-manifest.json","sha256":"sha256:69cdbb13f4d9ebff8201f2f4f2dabcf3d652d54d9767c377e794591e246e20bd"},{"label":"Three-clip production manifest","media_kind":"file","path":"subjects/003-dif-motion-at-shipping-sizes-v1/identity/03-three-clip-production-manifest.json","sha256":"sha256:80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00"}],"known_concerns":["Motion is intentionally subtle: both clips use baseline-anchored scale and squash rather than limb waving or semantic expression changes.","The preview PNGs are APNG animations; the calm clip loops continuously and greet plays once per browser load or reload.","This subject does not approve registration metrics, seam/handoff quality, backgrounds, or reduced-motion fallback."],"media_groups":[{"group_id":"calm-idle-at-shipping-sizes","items":[{"label":"Calm idle 64px","media_kind":"image","path":"subjects/003-dif-motion-at-shipping-sizes-v1/calm-idle-at-shipping-sizes/01-calm-idle-64px.png","sha256":"sha256:64067c5fad1e35c85214f74f3d779a670e7eb7fabcc945c47590f7ed91f2101d"},{"label":"Calm idle 72px","media_kind":"image","path":"subjects/003-dif-motion-at-shipping-sizes-v1/calm-idle-at-shipping-sizes/02-calm-idle-72px.png","sha256":"sha256:6c520aab7ef94e62db6d285177c7126a9d192c63436086f7f96f5a6d04350390"},{"label":"Calm idle 96px","media_kind":"image","path":"subjects/003-dif-motion-at-shipping-sizes-v1/calm-idle-at-shipping-sizes/03-calm-idle-96px.png","sha256":"sha256:412e751e3184127c3aa7cd2cc5d6956e6e462447827af09ca7669370c2715f09"}],"layout":"grid","note":"Continuous 4 fps loop at the three intended logical sizes.","required":true,"title":"Calm idle at declared speed"},{"group_id":"greet-at-shipping-sizes","items":[{"label":"Greet 64px","media_kind":"image","path":"subjects/003-dif-motion-at-shipping-sizes-v1/greet-at-shipping-sizes/01-greet-64px.png","sha256":"sha256:4ca4332b896f68401f6c03b9c92b1b1a84d7d7df5f612e987938b86d7434da38"},{"label":"Greet 72px","media_kind":"image","path":"subjects/003-dif-motion-at-shipping-sizes-v1/greet-at-shipping-sizes/02-greet-72px.png","sha256":"sha256:fcd7746f9fd888944bb28544112752d56f5db155a12c75f2babd91ef686ec5e7"},{"label":"Greet 96px","media_kind":"image","path":"subjects/003-dif-motion-at-shipping-sizes-v1/greet-at-shipping-sizes/03-greet-96px.png","sha256":"sha256:146aea4a90c840573dd9eb5570685e57f63b8c2fbfc058961b5b1a2e7b80b193"}],"layout":"grid","note":"One 8 fps five-frame acknowledgement at each intended logical size. Reload the page if your image viewer does not replay one-shot APNGs.","required":true,"title":"One-shot greet at declared speed"}],"subject_digest":"sha256:6ac1f35de6457f6971746f9d94a9afaf2085912367a2a763cca3737d8da7cb5a","subject_id":"criterion:/betterpullreview/rfc-bpr-0019/dif-motion-at-shipping-sizes-v1","subject_key":"dif-motion-at-shipping-sizes-v1"},{"ab_group":"","acceptance_criteria":["Every calm, greet, and rest frame stays visually anchored to the cyan center line and red ground baseline inside the shared yellow neutral body box.","The calm last-to-first seam is not perceptibly discontinuous or dwell-heavy at 64, 72, or 96 pixels.","The greet completes and returns to the calm representative without a pop, jump, extra hold, or visible registration shift at all three sizes.","The diff card does not silently recenter the body, and feet, ears, hands, and prop remain comfortably inside the cell."],"audit_verdict":{"note":"All clips share body bounds [56,22,200,224], visual center x=128, baseline y=223, \u003c=1px allowed vertical travel, calm seam mean delta 1 \u003c= 2, and greet handoff mean delta 0 \u003c= 1.","status":"pass"},"choice_group":"","description":"Judge the visual steadiness of the common body box, center, and baseline together with the exact calm-loop seam and greet-to-idle return. Mechanical tolerances already pass; this question is whether they look stable.","detail_sections":[{"heading":"Mechanical measurements","items":[{"definition":"center x=128; baseline y=223; body bounds [56,22,200,224]; foot tolerance 1px; edge clearance 16px","term":"Shared registration"},{"definition":"observed mean delta 1; declared maximum 2","term":"Calm seam"},{"definition":"observed mean delta 0; declared maximum 1","term":"Greet handoff"}],"kind":"definitions"}],"display_name":"Approve registration, calm seam, and greet handoff","identity_files":[{"label":"Exact review identity and complete source/generated digests","media_kind":"file","path":"subjects/004-dif-registration-seam-and-handoff-v1/identity/01-exact-review-identity-and-complete-source-generated-digests.json","sha256":"sha256:da8ac5eca313e56727c8ddd9e2b346c68306a72a979dc562b224e6808771b5f8"},{"label":"Preview manifest","media_kind":"file","path":"subjects/004-dif-registration-seam-and-handoff-v1/identity/02-preview-manifest.json","sha256":"sha256:69cdbb13f4d9ebff8201f2f4f2dabcf3d652d54d9767c377e794591e246e20bd"},{"label":"Three-clip production manifest","media_kind":"file","path":"subjects/004-dif-registration-seam-and-handoff-v1/identity/03-three-clip-production-manifest.json","sha256":"sha256:80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00"}],"known_concerns":["Overlay lines are diagnostic and not shipped; they intentionally cover one pixel of the preview.","The calm seam course alternates only the final and first calm frames to expose their boundary.","The greet handoff course loops the full greet plus the calm representative so the return can be watched repeatedly."],"media_groups":[{"group_id":"registration-overlays","items":[{"label":"Calm idle registration","media_kind":"image","path":"subjects/004-dif-registration-seam-and-handoff-v1/registration-overlays/01-calm-idle-registration.png","sha256":"sha256:3f1f2083b2fe20ad761f5e52f85b6c79ab8f0edd7229d325856106ca40ebfb4b"},{"label":"Greet registration","media_kind":"image","path":"subjects/004-dif-registration-seam-and-handoff-v1/registration-overlays/02-greet-registration.png","sha256":"sha256:175a61d4d2ff7444b91cb744e4a4a9e88d6e9250ea566a0b0d4f559c710e35a5"},{"label":"Rest registration","media_kind":"image","path":"subjects/004-dif-registration-seam-and-handoff-v1/registration-overlays/03-rest-registration.png","sha256":"sha256:8262ce52fd08bfc265c16f150f239eb974148ab5eccac79ae2d43b7966fa6782"}],"layout":"grid","note":"Yellow is the common neutral body box, cyan the visual center, and red the baseline.","required":true,"title":"All frames with body, center, and baseline overlays"},{"group_id":"calm-loop-seam","items":[{"label":"Calm seam 64px","media_kind":"image","path":"subjects/004-dif-registration-seam-and-handoff-v1/calm-loop-seam/01-calm-seam-64px.png","sha256":"sha256:db988f08ff5a42bcf54dea41f986526354e77942848f19c84c6aa6b3d3956622"},{"label":"Calm seam 72px","media_kind":"image","path":"subjects/004-dif-registration-seam-and-handoff-v1/calm-loop-seam/02-calm-seam-72px.png","sha256":"sha256:c4026725c99a1db08dafe0e33625ca9d391262d3ee185b7e466cfbb77ee1c53f"},{"label":"Calm seam 96px","media_kind":"image","path":"subjects/004-dif-registration-seam-and-handoff-v1/calm-loop-seam/03-calm-seam-96px.png","sha256":"sha256:f914bfb0b0d41b93dc513fb31481f08ac8060f6c90ca79ef827a996128b10ab8"}],"layout":"grid","note":"Two-frame seam isolation at the declared 250 ms frame duration.","required":true,"title":"Calm last-to-first seam"},{"group_id":"greet-to-calm-handoff","items":[{"label":"Greet handoff 64px","media_kind":"image","path":"subjects/004-dif-registration-seam-and-handoff-v1/greet-to-calm-handoff/01-greet-handoff-64px.png","sha256":"sha256:b34b7135c06ef8b9e9334cb344022f9f1061c62a8e9c4ff367abe49f959c5a45"},{"label":"Greet handoff 72px","media_kind":"image","path":"subjects/004-dif-registration-seam-and-handoff-v1/greet-to-calm-handoff/02-greet-handoff-72px.png","sha256":"sha256:7c0c814f01e2f6e5239e589621748294f998805a87b3f6b9241ca1411870a4b2"},{"label":"Greet handoff 96px","media_kind":"image","path":"subjects/004-dif-registration-seam-and-handoff-v1/greet-to-calm-handoff/03-greet-handoff-96px.png","sha256":"sha256:e27caa73a9ac6735fcaa04a21c6028873a1d974001957891f4b03e6249fb6cc5"}],"layout":"grid","note":"The handoff course appends the exact calm representative after the greet and loops the boundary for inspection.","required":true,"title":"Full greet and return to calm"}],"subject_digest":"sha256:232406dc5aa201c9fc20da33ce1c744a506b877aba5b5514976af8787eae8893","subject_id":"criterion:/betterpullreview/rfc-bpr-0019/dif-registration-seam-and-handoff-v1","subject_key":"dif-registration-seam-and-handoff-v1"},{"ab_group":"","acceptance_criteria":["The face, outline, purple/light palette, feet, hands, and diff card remain distinguishable on System, Light, Dark, and black high-contrast surfaces.","No context requires a baked background plate, glow, cast shadow, forced palette, stylesheet, or text to separate Dif from the surface.","The calm, greet, and rest representatives remain coherent at 96, 120, and 192 pixels, corresponding to the declared 1.0x, 1.25x, and 2.0x context course.","No clipping, halo, chroma-key fringe, hidden opaque rectangle, or background-dependent semantic change appears in any plate."],"audit_verdict":{"note":"The preview renderer deterministically composites every representative over four opaque contexts at 96/120/192 pixels from the exact source and manifest bytes; source and generated PNGs retain transparent backgrounds.","status":"pass"},"choice_group":"","description":"Judge each clip representative across the deterministic System, Light, Dark, and high-contrast context plates at 1.0x, 1.25x, and 2.0x relative to the 96-pixel landing size. These plates test contrast and silhouette; they do not claim native OS rendering.","detail_sections":[{"heading":"Course order","items":["Rows 1-3: calm representative at 96, 120, and 192 pixels.","Rows 4-6: greet representative at 96, 120, and 192 pixels.","Rows 7-9: rest representative at 96, 120, and 192 pixels.","Columns: System neutral, Light white, Dark charcoal, high-contrast black."],"kind":"list"}],"display_name":"Approve all four appearance contexts at three scales","identity_files":[{"label":"Exact review identity and complete source/generated digests","media_kind":"file","path":"subjects/005-dif-appearance-contexts-v1/identity/01-exact-review-identity-and-complete-source-generated-digests.json","sha256":"sha256:da8ac5eca313e56727c8ddd9e2b346c68306a72a979dc562b224e6808771b5f8"},{"label":"Preview manifest","media_kind":"file","path":"subjects/005-dif-appearance-contexts-v1/identity/02-preview-manifest.json","sha256":"sha256:69cdbb13f4d9ebff8201f2f4f2dabcf3d652d54d9767c377e794591e246e20bd"},{"label":"Generator and preview renderer","media_kind":"file","path":"subjects/005-dif-appearance-contexts-v1/identity/03-generator-and-preview-renderer.py","sha256":"sha256:040b05d2318cc9baa88fd5f2b1b877e895921e48a819258f5addc072e834bf16"}],"known_concerns":["System is a fixed neutral preview color, not a target-native palette capture; RFC-BPR-0020 will own native runtime appearance integration.","The 36 plates are ordered by clip representative, then scale, with System/Light/Dark/high-contrast across each row.","This subject does not approve runtime composition or platform-native high-contrast behavior."],"media_groups":[{"group_id":"all-context-plates","items":[{"label":"All 36 appearance plates","media_kind":"image","path":"subjects/005-dif-appearance-contexts-v1/all-context-plates/01-all-36-appearance-plates.png","sha256":"sha256:5cb18b23459b94ace5b77e8ead019b045b34f4bfb8e647736de61b48b7f9a1da"}],"layout":"grid","note":"Each four-column row is System, Light, Dark, high contrast. Rows cover calm, greet, and rest representatives at 96, 120, and 192 pixels.","required":true,"title":"System, Light, Dark, and high contrast at 1.0x, 1.25x, and 2.0x"}],"subject_digest":"sha256:6e8c3a57dfa2c07d34d02528c8f2581c3e67468ee3d0f201119f57a3c89610d1","subject_id":"criterion:/betterpullreview/rfc-bpr-0019/dif-appearance-contexts-v1","subject_key":"dif-appearance-contexts-v1"},{"ab_group":"","acceptance_criteria":["The rest frame is calm, awake, friendly, and visibly the same Dif identity as both animated representatives.","The static pose remains readable at 64, 72, and 96 pixels without animation, fade, pulse, glow, or background plate.","Rest does not read as asleep, disabled, offline, completed, approved, errored, or otherwise semantically different from decorative presence.","The comparison does not reveal an objectionable scale, center, baseline, face, prop, or silhouette jump between rest and the animated representatives."],"audit_verdict":{"note":"The rest clip contains exactly one declared static frame at duration 0, returns to rest, shares the common registration contract, and is emitted without APNG control chunks or procedural motion.","status":"pass"},"choice_group":"","description":"Judge the exact static rest pose as the reduced-motion and suspended fallback beside the representative frame of each animated clip. It must preserve Dif's identity without procedural motion, sleep, fade, or semantic status.","detail_sections":[{"heading":"Fallback boundary","items":[{"definition":"Decorative awake presence only","term":"Visual meaning"},{"definition":"One static frame; zero frame duration; no procedural fade, pulse, or animation","term":"Motion"},{"definition":"RFC-BPR-0020 will decide how reduced-motion and suspended application state select this already-approved asset","term":"Later runtime owner"}],"kind":"definitions"}],"display_name":"Approve the awake static rest fallback","identity_files":[{"label":"Exact review identity and complete source/generated digests","media_kind":"file","path":"subjects/006-dif-reduced-motion-rest-v1/identity/01-exact-review-identity-and-complete-source-generated-digests.json","sha256":"sha256:da8ac5eca313e56727c8ddd9e2b346c68306a72a979dc562b224e6808771b5f8"},{"label":"Preview manifest","media_kind":"file","path":"subjects/006-dif-reduced-motion-rest-v1/identity/02-preview-manifest.json","sha256":"sha256:69cdbb13f4d9ebff8201f2f4f2dabcf3d652d54d9767c377e794591e246e20bd"},{"label":"Three-clip production manifest","media_kind":"file","path":"subjects/006-dif-reduced-motion-rest-v1/identity/03-three-clip-production-manifest.json","sha256":"sha256:80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00"}],"known_concerns":["The rest source is byte-identical to the neutral master and calm representative by design; visual sameness is the accessibility feature, not an omitted animation.","The comparison sheet is 256 pixels per pose, while the separate static previews show actual 64/72/96 shipping sizes.","Runtime reduced-motion observation and lifecycle behavior belong to RFC-BPR-0020 and are not approved here."],"media_groups":[{"group_id":"rest-representative-compare","items":[{"label":"Rest, calm representative, greet representative","media_kind":"image","path":"subjects/006-dif-reduced-motion-rest-v1/rest-representative-compare/01-rest-calm-representative-greet-representative.png","sha256":"sha256:014cefb5df133405047735db286bd790813d96248b720f6565d57a8b44c7e996"},{"label":"Rest source/runtime contact sheet","media_kind":"image","path":"subjects/006-dif-reduced-motion-rest-v1/rest-representative-compare/02-rest-source-runtime-contact-sheet.png","sha256":"sha256:a9b05ce50de5c6e338f42d552816847bf40d09e089f73f82768d3175218ec1c1"}],"layout":"compare","note":"Left to right: rest, calm representative, greet representative at 256 pixels.","required":true,"title":"Rest beside calm and greet representatives"},{"group_id":"rest-at-shipping-sizes","items":[{"label":"Rest 64px","media_kind":"image","path":"subjects/006-dif-reduced-motion-rest-v1/rest-at-shipping-sizes/01-rest-64px.png","sha256":"sha256:ac5327ae54c24f342df72e8e2cb8dfd0e06228f19ebf494ec58f5fed195fcc66"},{"label":"Rest 72px","media_kind":"image","path":"subjects/006-dif-reduced-motion-rest-v1/rest-at-shipping-sizes/02-rest-72px.png","sha256":"sha256:7d7d140c2481e7758d1e9e2c9d547d71f8c1731ee42bbc206848f2b8d204bdf4"},{"label":"Rest 96px","media_kind":"image","path":"subjects/006-dif-reduced-motion-rest-v1/rest-at-shipping-sizes/03-rest-96px.png","sha256":"sha256:42369347b884dddceae7f7662f685002cb11913eeb84448d03d3193605164d8f"}],"layout":"grid","note":"Each is a static PNG with no animation control chunks.","required":true,"title":"Static rest at actual shipping sizes"}],"subject_digest":"sha256:2289597f3b6d892090a1e1b13c1607c8a8d05da6392918e3e967f55419c7e121","subject_id":"criterion:/betterpullreview/rfc-bpr-0019/dif-reduced-motion-rest-v1","subject_key":"dif-reduced-motion-rest-v1"}],"title":"Dif final source rights and visual acceptance (RFC-BPR-0019)"}</script>
+  <script>
+(function (root) {
+  "use strict";
+
+  const STORAGE_PREFIX = "bpr.attended-review.v1";
+  const VERDICT_SCHEMA = "bpr.attended_review_verdict";
+
+  function identityKey(subject) {
+    return `${subject.subject_id}@${subject.subject_digest}`;
+  }
+
+  function storageKey(batchId, subject) {
+    return `${STORAGE_PREFIX}:${batchId}:${subject.subject_id}:${subject.subject_digest}`;
+  }
+
+  function createMemoryStorage() {
+    const values = new Map();
+    return {
+      getItem(key) {
+        return values.has(key) ? values.get(key) : null;
+      },
+      setItem(key, value) {
+        values.set(key, String(value));
+      },
+      removeItem(key) {
+        values.delete(key);
+      },
+    };
+  }
+
+  function availableStorage() {
+    try {
+      if (!root.localStorage) {
+        return createMemoryStorage();
+      }
+      const probe = `${STORAGE_PREFIX}:probe`;
+      root.localStorage.setItem(probe, "1");
+      root.localStorage.removeItem(probe);
+      return root.localStorage;
+    } catch (_error) {
+      return createMemoryStorage();
+    }
+  }
+
+  function normalizeSaved(value) {
+    if (!value || typeof value !== "object") {
+      return { decision: null, notes: "" };
+    }
+    const decision = value.decision === "accept" || value.decision === "reject"
+      ? value.decision
+      : null;
+    return {
+      decision,
+      notes: typeof value.notes === "string" ? value.notes : "",
+    };
+  }
+
+  function auditFailed(subject) {
+    return Boolean(subject.audit_verdict && subject.audit_verdict.status === "fail");
+  }
+
+  class ReviewController {
+    constructor(config, storage) {
+      if (!config || !Array.isArray(config.subjects)) {
+        throw new Error("review config must contain subjects");
+      }
+      if (!config.downstream_claims || typeof config.downstream_claims !== "object") {
+        throw new Error("review config must declare downstream_claims");
+      }
+      this.config = config;
+      this.groups = new Map();
+      for (const group of config.selection_groups || []) {
+        this.groups.set(group.group_id, group);
+      }
+      for (const subject of config.subjects) {
+        const token = subject.choice_group;
+        if (token && !this.groups.has(token)) {
+          this.groups.set(token, { group_id: token, min_accept: 1, max_accept: 1 });
+        }
+      }
+      this.storage = storage || availableStorage();
+      this.states = new Map();
+      for (const subject of config.subjects) {
+        const raw = this.storage.getItem(storageKey(config.batch_id, subject));
+        let parsed = null;
+        if (raw !== null) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch (_error) {
+            parsed = null;
+          }
+        }
+        const state = normalizeSaved(parsed);
+        if (state.decision === "accept" && auditFailed(subject)) {
+          state.decision = null;
+        }
+        this.states.set(identityKey(subject), state);
+      }
+    }
+
+    subject(subjectId, subjectDigest) {
+      const found = this.config.subjects.find(
+        (item) => item.subject_id === subjectId && item.subject_digest === subjectDigest
+      );
+      if (!found) {
+        throw new Error(`unknown subject identity: ${subjectId}@${subjectDigest}`);
+      }
+      return found;
+    }
+
+    state(subject) {
+      return this.states.get(identityKey(subject));
+    }
+
+    save(subject) {
+      this.storage.setItem(
+        storageKey(this.config.batch_id, subject),
+        JSON.stringify(this.state(subject))
+      );
+    }
+
+    subjectGroupId(subject) {
+      return subject.selection_group || subject.choice_group || null;
+    }
+
+    groupMembers(groupId) {
+      return this.config.subjects.filter((item) => this.subjectGroupId(item) === groupId);
+    }
+
+    groupTally(groupId) {
+      const group = this.groups.get(groupId);
+      const members = this.groupMembers(groupId);
+      let chosen = 0;
+      let rejected = 0;
+      for (const member of members) {
+        const decision = this.state(member).decision;
+        if (decision === "accept") chosen += 1;
+        if (decision === "reject") rejected += 1;
+      }
+      const undecided = members.length - chosen - rejected;
+      const satisfied = (chosen >= group.min_accept && chosen <= group.max_accept)
+        || (chosen === 0 && rejected === members.length);
+      return { group, members, chosen, rejected, undecided, satisfied };
+    }
+
+    setDecision(subjectId, subjectDigest, decision) {
+      if (decision !== "accept" && decision !== "reject" && decision !== null) {
+        throw new Error(`invalid decision: ${decision}`);
+      }
+      const subject = this.subject(subjectId, subjectDigest);
+      if (decision === "accept" && auditFailed(subject)) {
+        throw new Error("subject failed its mechanical audit; accept is unavailable");
+      }
+      const groupId = this.subjectGroupId(subject);
+      if (decision === "accept" && groupId && this.groups.has(groupId)) {
+        const tally = this.groupTally(groupId);
+        const alreadyChosen = this.state(subject).decision === "accept";
+        if (!alreadyChosen && tally.chosen >= tally.group.max_accept) {
+          if (tally.group.max_accept === 1) {
+            for (const member of tally.members) {
+              const memberState = this.state(member);
+              if (memberState.decision === "accept") {
+                memberState.decision = null;
+                this.save(member);
+              }
+            }
+          } else {
+            throw new Error(
+              `selection group '${groupId}' allows at most ${tally.group.max_accept} chosen alternatives; clear one first`
+            );
+          }
+        }
+      }
+      this.state(subject).decision = decision;
+      this.save(subject);
+      return this.summary();
+    }
+
+    setNotes(subjectId, subjectDigest, notes) {
+      const subject = this.subject(subjectId, subjectDigest);
+      this.state(subject).notes = String(notes || "");
+      this.save(subject);
+      return this.summary();
+    }
+
+    summary() {
+      let accepted = 0;
+      let rejected = 0;
+      let notChosen = 0;
+      let pending = 0;
+      for (const subject of this.config.subjects) {
+        const decision = this.state(subject).decision;
+        if (decision === "accept") accepted += 1;
+        if (decision === "reject") rejected += 1;
+        if (!decision && !this.subjectGroupId(subject)) pending += 1;
+      }
+      for (const groupId of this.groups.keys()) {
+        const tally = this.groupTally(groupId);
+        if (tally.satisfied) {
+          notChosen += tally.undecided;
+        } else {
+          pending += tally.undecided || 1;
+        }
+      }
+      const total = this.config.subjects.length;
+      return {
+        accepted,
+        rejected,
+        notChosen,
+        resolved: total - pending,
+        pending,
+        total,
+      };
+    }
+
+    buildVerdict() {
+      for (const groupId of this.groups.keys()) {
+        const tally = this.groupTally(groupId);
+        if (!tally.satisfied) {
+          throw new Error(
+            `cannot export: selection group '${groupId}' is unresolved; choose between `
+            + `${tally.group.min_accept} and ${tally.group.max_accept} alternatives or reject every member`
+          );
+        }
+      }
+      const summary = this.summary();
+      if (summary.pending !== 0) {
+        throw new Error(`cannot export: ${summary.pending} subject(s) remain pending`);
+      }
+      const accepted = [];
+      const rejected = [];
+      const notChosen = [];
+      const notes = {};
+      for (const subject of this.config.subjects) {
+        const state = this.state(subject);
+        const identity = {
+          subject_id: subject.subject_id,
+          subject_digest: subject.subject_digest,
+        };
+        if (state.decision === "accept") {
+          accepted.push(identity);
+        } else if (state.decision === "reject") {
+          rejected.push(identity);
+        } else {
+          notChosen.push(identity);
+        }
+        if (state.notes.trim()) {
+          notes[identityKey(subject)] = state.notes;
+        }
+      }
+      const verdict = {
+        schema_name: VERDICT_SCHEMA,
+        schema_version: 1,
+        batch_id: this.config.batch_id,
+        review_gate: this.config.review_gate,
+        review_scope: this.config.review_scope,
+        accepted_subjects: accepted,
+        rejected_subjects: rejected,
+        notes_by_subject_identity: notes,
+        downstream_claims: { ...this.config.downstream_claims },
+      };
+      if (this.groups.size > 0) {
+        verdict.not_chosen_subjects = notChosen;
+      }
+      return verdict;
+    }
+  }
+
+  async function copyText(text, environment) {
+    const env = environment || root;
+    if (env.navigator && env.navigator.clipboard && env.navigator.clipboard.writeText) {
+      try {
+        await env.navigator.clipboard.writeText(text);
+        return "clipboard";
+      } catch (_error) {
+        // Local file origins frequently expose Clipboard API but deny writes.
+        // Continue to the legacy selection-based copy path in that case.
+      }
+    }
+    const document = env.document;
+    if (!document || !document.execCommand) {
+      throw new Error("clipboard copy is unavailable; copy the displayed JSON manually");
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (!copied) {
+      throw new Error("clipboard copy failed; copy the displayed JSON manually");
+    }
+    return "execCommand";
+  }
+
+  function initializePage(document) {
+    const configNode = document.getElementById("attended-review-config");
+    if (!configNode) return null;
+    const config = JSON.parse(configNode.textContent);
+    const controller = new ReviewController(config);
+    const cards = Array.from(document.querySelectorAll("[data-subject-id]"));
+    const progress = document.getElementById("review-progress");
+    const totals = document.getElementById("review-totals");
+    const pendingOnly = document.getElementById("pending-only");
+    const exportButton = document.getElementById("export-verdict");
+    const exportOutput = document.getElementById("verdict-output");
+    const reviewStatus = document.getElementById("review-status");
+
+    function cardSubject(card) {
+      return controller.subject(card.dataset.subjectId, card.dataset.subjectDigest);
+    }
+
+    function render() {
+      const summary = controller.summary();
+      progress.textContent = `${summary.resolved}/${summary.total} reviewed`;
+      const segments = [`${summary.accepted} accepted`, `${summary.rejected} rejected`];
+      if (controller.groups.size > 0) {
+        segments.push(`${summary.notChosen} not chosen`);
+      }
+      segments.push(`${summary.pending} pending`);
+      totals.textContent = segments.join(" · ");
+      exportButton.disabled = summary.pending !== 0;
+      if (summary.pending !== 0) {
+        exportButton.textContent = "Copy the complete verdict";
+      }
+      const tallies = new Map();
+      for (const groupId of controller.groups.keys()) {
+        tallies.set(groupId, controller.groupTally(groupId));
+      }
+      for (const card of cards) {
+        const subject = cardSubject(card);
+        const state = controller.state(subject);
+        let reviewState = state.decision || "pending";
+        const groupId = controller.subjectGroupId(subject);
+        if (!state.decision && groupId) {
+          const tally = tallies.get(groupId);
+          if (tally && tally.satisfied) {
+            reviewState = "not-chosen";
+          }
+        }
+        card.dataset.reviewState = reviewState;
+        card.hidden = Boolean(pendingOnly.checked && reviewState !== "pending");
+        for (const button of card.querySelectorAll("[data-decision]")) {
+          button.setAttribute("aria-pressed", String(button.dataset.decision === state.decision));
+        }
+      }
+      for (const node of document.querySelectorAll("[data-selection-group-status]")) {
+        const tally = tallies.get(node.dataset.selectionGroupStatus);
+        if (!tally) continue;
+        const range = tally.group.min_accept === tally.group.max_accept
+          ? String(tally.group.max_accept)
+          : `${tally.group.min_accept}-${tally.group.max_accept}`;
+        if (tally.satisfied && tally.chosen === 0) {
+          node.textContent = `Every alternative rejected: this question has no acceptable answer (needs ${range}).`;
+        } else if (tally.satisfied) {
+          node.textContent = `Satisfied: ${tally.chosen} chosen of ${range}; ${tally.undecided} not chosen, ${tally.rejected} rejected.`;
+        } else {
+          node.textContent = `Unresolved: ${tally.chosen} chosen of ${range} needed; ${tally.undecided} undecided, ${tally.rejected} rejected.`;
+        }
+      }
+    }
+
+    for (const card of cards) {
+      const subject = cardSubject(card);
+      const state = controller.state(subject);
+      const notes = card.querySelector("[data-review-notes]");
+      notes.value = state.notes;
+      for (const button of card.querySelectorAll("[data-decision]")) {
+        button.addEventListener("click", () => {
+          let decision = button.dataset.decision === "clear" ? null : button.dataset.decision;
+          if (decision && controller.state(subject).decision === decision) {
+            decision = null;
+          }
+          try {
+            controller.setDecision(subject.subject_id, subject.subject_digest, decision);
+          } catch (error) {
+            reviewStatus.textContent = error.message;
+            return;
+          }
+          exportOutput.value = "";
+          reviewStatus.textContent = "Decision saved in this browser.";
+          exportButton.textContent = "Copy the complete verdict";
+          render();
+        });
+      }
+      notes.addEventListener("input", () => {
+        controller.setNotes(subject.subject_id, subject.subject_digest, notes.value);
+        exportOutput.value = "";
+        reviewStatus.textContent = "Notes saved in this browser.";
+        exportButton.textContent = "Copy the complete verdict";
+      });
+    }
+
+    pendingOnly.addEventListener("change", render);
+    exportButton.addEventListener("click", async () => {
+      try {
+        const text = `${JSON.stringify(controller.buildVerdict(), null, 2)}\n`;
+        exportOutput.value = text;
+        const method = await copyText(text);
+        exportButton.textContent = "Copied — return it to the agent";
+        reviewStatus.textContent = method === "clipboard"
+          ? "Complete verdict copied. Paste it back to the requesting agent session."
+          : "Complete verdict copied with the local fallback. Paste it back to the requesting agent session.";
+      } catch (error) {
+        exportButton.textContent = "Copy the complete verdict";
+        exportOutput.focus();
+        exportOutput.select();
+        reviewStatus.textContent = `${error.message}. The complete JSON below is selected for manual copy.`;
+      }
+    });
+    render();
+    return controller;
+  }
+
+  const api = {
+    ReviewController,
+    copyText,
+    createMemoryStorage,
+    identityKey,
+    initializePage,
+    storageKey,
+  };
+  root.BprAttendedReview = api;
+  if (root.document) {
+    if (root.document.readyState === "loading") {
+      root.document.addEventListener("DOMContentLoaded", () => initializePage(root.document));
+    } else {
+      initializePage(root.document);
+    }
+  }
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+// Full-resolution inspection. Opening and closing the viewer must not
+// touch decision state or the export lock, so this only reads the DOM.
+(function attachFullResolutionViewer() {
+  // The runtime is loaded browserless by the skill's own tests, so it must not
+  // touch the DOM at import time.
+  if (typeof document === 'undefined' || !document.body) { return; }
+  var viewer = document.createElement('div');
+  viewer.className = 'media-viewer';
+  viewer.hidden = true;
+  viewer.setAttribute('role', 'dialog');
+  viewer.setAttribute('aria-modal', 'true');
+  viewer.innerHTML =
+    '<div class="media-viewer-bar">' +
+    '<span class="media-viewer-label"></span>' +
+    '<span class="media-viewer-counter"></span>' +
+    '<button type="button" class="media-viewer-close">Close</button>' +
+    '</div><div class="media-viewer-surface"><img alt=""></div>' +
+    '<button type="button" class="media-viewer-nav media-viewer-prev" aria-label="Previous image">&#8249;</button>' +
+    '<button type="button" class="media-viewer-nav media-viewer-next" aria-label="Next image">&#8250;</button>';
+  document.body.appendChild(viewer);
+
+  var image = viewer.querySelector('.media-viewer-surface img');
+  var label = viewer.querySelector('.media-viewer-label');
+  var counter = viewer.querySelector('.media-viewer-counter');
+  var closeButton = viewer.querySelector('.media-viewer-close');
+  var prevButton = viewer.querySelector('.media-viewer-prev');
+  var nextButton = viewer.querySelector('.media-viewer-next');
+  var lastTrigger = null;
+
+  function visibleTriggers() {
+    return Array.prototype.filter.call(
+      document.querySelectorAll('.media-zoom'),
+      function (candidate) { return candidate.offsetParent !== null; }
+    );
+  }
+
+  function close() {
+    viewer.hidden = true;
+    image.removeAttribute('src');
+    if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+  }
+
+  function open(trigger, focusClose) {
+    lastTrigger = trigger;
+    image.src = trigger.getAttribute('data-full-source');
+    image.alt = trigger.getAttribute('data-full-label') || '';
+    label.textContent = trigger.getAttribute('data-full-label') || '';
+    var list = visibleTriggers();
+    var index = list.indexOf(trigger);
+    var navigable = list.length > 1;
+    counter.textContent = navigable && index >= 0 ? (index + 1) + ' / ' + list.length : '';
+    prevButton.hidden = !navigable;
+    nextButton.hidden = !navigable;
+    viewer.hidden = false;
+    if (focusClose !== false) { closeButton.focus(); }
+  }
+
+  function step(delta) {
+    var list = visibleTriggers();
+    if (!list.length) { return; }
+    var index = list.indexOf(lastTrigger);
+    var next = ((index < 0 ? 0 : index + delta) + list.length) % list.length;
+    open(list[next], false);
+  }
+
+  document.addEventListener('click', function (event) {
+    var trigger = event.target.closest ? event.target.closest('.media-zoom') : null;
+    if (trigger) { event.preventDefault(); open(trigger); return; }
+    if (viewer.hidden) { return; }
+    if (event.target.closest && event.target.closest('.media-viewer-prev')) { step(-1); return; }
+    if (event.target.closest && event.target.closest('.media-viewer-next')) { step(1); return; }
+    if (event.target === viewer || event.target === closeButton) { close(); }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (viewer.hidden) { return; }
+    if (event.key === 'Escape') { close(); return; }
+    if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); return; }
+    if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
+  });
+})();
+
+</script>
+</body>
+</html>
