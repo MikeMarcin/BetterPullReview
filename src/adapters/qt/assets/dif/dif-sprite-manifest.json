@@ -1,0 +1,117 @@
+{
+  "asset_family": "dif",
+  "cell": {
+    "alpha": "straight",
+    "color_space": "srgb",
+    "gutter_cells": 1,
+    "height": 256,
+    "pixel_format": "rgba8",
+    "width": 256
+  },
+  "clips": [
+    {
+      "accessible_description": "Dif calmly breathes as a decorative companion.",
+      "allowed_travel_px": [
+        0,
+        1
+      ],
+      "body_bounds": [
+        56,
+        22,
+        200,
+        224
+      ],
+      "frame_duration_ms": 250,
+      "frames": [
+        "source/calm-idle/frame-000.png",
+        "source/calm-idle/frame-001.png",
+        "source/calm-idle/frame-002.png"
+      ],
+      "handoff_mean_delta_max": 0,
+      "id": "calm_idle",
+      "kind": "loop",
+      "loop_seam_mean_delta_max": 2,
+      "priority": 0,
+      "representative_frame": 1,
+      "return_target": "calm_idle",
+      "strip": "generated/dif-calm-idle.png"
+    },
+    {
+      "accessible_description": "Dif gives one restrained decorative greeting.",
+      "allowed_travel_px": [
+        0,
+        1
+      ],
+      "body_bounds": [
+        56,
+        22,
+        200,
+        224
+      ],
+      "frame_duration_ms": 125,
+      "frames": [
+        "source/greet/frame-000.png",
+        "source/greet/frame-001.png",
+        "source/greet/frame-002.png",
+        "source/greet/frame-003.png",
+        "source/greet/frame-004.png"
+      ],
+      "handoff_mean_delta_max": 1,
+      "id": "greet",
+      "kind": "one_shot",
+      "loop_seam_mean_delta_max": 0,
+      "priority": 10,
+      "representative_frame": 2,
+      "return_target": "calm_idle",
+      "strip": "generated/dif-greet.png"
+    },
+    {
+      "accessible_description": "Dif rests awake without procedural motion.",
+      "allowed_travel_px": [
+        0,
+        0
+      ],
+      "body_bounds": [
+        56,
+        22,
+        200,
+        224
+      ],
+      "frame_duration_ms": 0,
+      "frames": [
+        "source/rest/frame-000.png"
+      ],
+      "handoff_mean_delta_max": 0,
+      "id": "rest",
+      "kind": "static",
+      "loop_seam_mean_delta_max": 0,
+      "priority": 0,
+      "representative_frame": 0,
+      "return_target": "rest",
+      "strip": "generated/dif-rest.png"
+    }
+  ],
+  "limits": {
+    "max_complete_decoded_bytes": 14155776,
+    "max_content_decoded_bytes": 12582912,
+    "max_content_frames": 48,
+    "max_frames_per_clip": 24,
+    "max_frames_per_second": 12,
+    "max_generated_file_bytes": 25165824,
+    "max_source_dimension": 2048,
+    "max_source_file_bytes": 16777216
+  },
+  "registration": {
+    "baseline_y": 223,
+    "edge_clearance_px": 16,
+    "foot_tolerance_px": 1,
+    "neutral_body_bounds": [
+      56,
+      22,
+      200,
+      224
+    ],
+    "visual_center_x": 128
+  },
+  "schema_version": 1
+}
