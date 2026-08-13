@@ -10,8 +10,10 @@ depends_on: [BPR-0276]
 
 ## Required final state
 
-- Core owns compact typed states, intents, revision/request identity, legality,
-  stale-result rejection, terminal diagnostics, cancellation, and retry policy.
+- Core owns compact typed states, intents, revision/request identity, semantic
+  legality, stale-result rejection, terminal diagnostics, and cancellation.
+- Poll timing, interval, backoff, and transport retry mechanics remain host
+  effects owned by BPR-0279 and never enter core policy.
 - Core and projection types cannot represent client identifiers, endpoints,
   poll intervals, device/user codes, access tokens, or refresh tokens.
 - Replay/property tests cover every legal and illegal transition, duplicate and

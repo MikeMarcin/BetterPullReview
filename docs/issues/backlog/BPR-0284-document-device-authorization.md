@@ -1,9 +1,9 @@
 ---
-id: BPR-0283
+id: BPR-0284
 title: Document device authorization and its authority boundaries
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0281, BPR-0282]
+depends_on: [BPR-0281, BPR-0282, BPR-0283]
 ---
 
 # Document device authorization and its authority boundaries

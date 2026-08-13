@@ -21,5 +21,7 @@ client and capture sanitized contracts from the endpoints the product will call.
   oversized, and rate-limited responses from the real selected service.
 - Capture tooling and evidence prove tokens, refresh tokens, device codes, user
   codes, cookies, and credentials are absent from repository artifacts and logs.
-- The compiled public identifier and fixture provenance are documented without
-  granting repository-mutation authority.
+- The public identifier and fixture provenance are recorded without compiling
+  the identifier into any product artifact or granting repository-mutation
+  authority; BPR-0281 owns compiled production selection after this gate is
+  terminal.

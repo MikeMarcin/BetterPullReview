@@ -48,8 +48,8 @@ and never creates a settings or SQLite path.
 | BPR-0280 | Implement Qt acquisition chooser and browser-handoff presentation | BPR-0277, BPR-0279 |
 | BPR-0281 | Compose the registered GitHub.com path and zero-request unavailable paths | BPR-0279, BPR-0280 |
 | BPR-0282 | Complete security, hostile, release, and public-path evidence | BPR-0281 |
-| BPR-0283 | Reconcile product, architecture, security, build, and agent documentation | BPR-0281, BPR-0282 |
-| BPR-0284 | Simplify the complete implementation without changing authority | BPR-0281, BPR-0282 |
+| BPR-0283 | Simplify the complete implementation without changing authority | BPR-0281, BPR-0282 |
+| BPR-0284 | Reconcile product, architecture, security, build, and agent documentation | BPR-0281, BPR-0282, BPR-0283 |
 | BPR-0285 | Capability-critical final replay and RFC closeout | BPR-0035, BPR-0275 through BPR-0284 |
 
 BPR-0276 initially retains BPR-0035. If the product owner approves a narrow
@@ -75,6 +75,9 @@ exception can waive RFC-BPR-0002 as a final closeout dependency.
 - Binary/source/fixture/log/settings/SQLite scans proving that no client secret,
   access token, refresh token, device code, or user code was retained.
 - Local or target-native execution only; GitHub Actions is never evidence.
+- Every claimed supported platform receives target-native device-flow evidence;
+  until then, product capability selection remains unavailable on that platform
+  and the exact remaining platform claim stays open.
 
 ## Documentation ledger
 

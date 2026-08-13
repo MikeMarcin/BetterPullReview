@@ -10,6 +10,14 @@ depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-028
 
 RFC base: `b969554fb45d838b2a4ea11811363bd7e158e47e`.
 
+## Run objective and membership
+
+This is the terminal anchor for the first RFC in the requested sequence:
+RFC-BPR-0016, then RFC-BPR-0017, then remaining unattended macOS-ready work.
+Its planned membership is exactly BPR-0274 through BPR-0285 plus pre-existing
+RFC-BPR-0002 closeout BPR-0035/BPR-0036. Any newly discovered required work is
+added explicitly to this dependency closure before closeout.
+
 Historical runs are provenance only. Every row requires final replay at the
 immutable closeout head and an independent capability-critical review.
 
@@ -26,6 +34,26 @@ immutable closeout head and an independent capability-critical review.
 | [ ] | Unregistered and GHES profiles refuse with zero requests. | Tests-disabled public counters and hostile capability selection | Exact `device_flow_unavailable`; zero constructed/sent requests | automated |
 | [ ] | Evidence is local/target-native and secret-free. | Clean matrices, Release/runtime/dependency scans, evidence audit | No GitHub Actions evidence and no secret/transient material | automated + target-native |
 
+Every completed row records its exact command or attended interaction, result,
+commit, and durable evidence in `docs/verification/RFC-BPR-0016.md`. Registered
+selectors must be enumerated there before final replay; invented future command
+names do not count.
+
+## Phase checklist
+
+- [ ] Eligibility decisions and external contracts are committed and every RFC
+      gate is satisfied or narrowed by an exact accepted exception.
+- [ ] Core, GitHub adapter, host, Qt, and production composition slices are
+      terminal in dependency order.
+- [ ] Security/hostile/public/Release and every claimed supported-platform
+      target-native matrix is terminal; unavailable platforms remain explicit.
+- [ ] Simplification is terminal before the final documentation impact review.
+- [ ] Every documentation-ledger row in
+      `docs/verification/RFC-BPR-0016.md` is updated or has an exact no-impact
+      disposition.
+- [ ] Final clean replay and independent capability-critical review accept the
+      immutable closeout head.
+
 ## Closeout checklist
 
 - [ ] BPR-0035 records RFC-BPR-0002 Auto-Verified after BPR-0036's real Windows
@@ -35,6 +63,9 @@ immutable closeout head and an independent capability-critical review.
 - [ ] Clean `dev`, `core-only`, sanitizer, tests-disabled Release, focused native
       HTTPS/Qt/application, format, strict tidy, documentation, dependency,
       runtime, secret-scan, and diff gates pass at the closeout head.
+- [ ] The verification ledger records exact commands, interactions, results,
+      artifact paths, and commits for all ten acceptance rows and every claimed
+      supported platform; macOS alone does not prove Windows or Linux.
 - [ ] An independent `rfc-critical-reviewer` falsifies the exact claim matrix,
       application-selection path, packet provenance, and negative controls with
       no unresolved blocker.

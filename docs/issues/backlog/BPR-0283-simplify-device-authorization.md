@@ -1,5 +1,5 @@
 ---
-id: BPR-0284
+id: BPR-0283
 title: Simplify the device-authorization implementation
 status: Backlog
 rfc: RFC-BPR-0016

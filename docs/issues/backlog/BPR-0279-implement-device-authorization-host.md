@@ -16,7 +16,8 @@ depends_on: [BPR-0277, BPR-0278]
 - Success moves credential material exactly once into the existing
   `github_application_host::enroll_profile` vault boundary; no second storage or
   lifetime policy exists.
-- The selected GitHub App design refreshes before expiry and stores refresh
-  material under the same vault authority, with typed recoverable failure.
+- If BPR-0275 selects a GitHub App, the host refreshes before expiry and stores
+  refresh material under the same vault authority, with typed recoverable
+  failure. If BPR-0275 selects an OAuth App, no refresh path is implemented.
 - Every non-success path erases transient material and leaves no partially
   enrolled profile. Direct host tests force all reorderings and failure cuts.
