@@ -32,7 +32,7 @@ head.
 | Transparent bounded registered runtime cells | Full cell/gutter/edge/body/baseline/travel/rate/frame/pixel/file validation and negative corpus | All three committed strips validate with six transparent gutters, nine declared cells, shared registration, and bounded budgets |
 | Mechanical motion plus attended art direction | Seam/handoff mechanics and BPR-0291 five-subject immutable offline visual package | Mechanical calm seam and greet handoff pass; all five exact owner-attended visual subjects are accepted, with the plus/minus-card note preserved for downstream composition |
 | Developer/core-only/tests-disabled isolation | Clean selected-graph builds, dependency/resource scans, and cut registration/tool-dependency negatives | BPR-0292 passes at `d402338`: 182 dev and 83 core-only tests, tests-disabled app build, source/binary/resource scans, and 33 nonvacuous asset/boundary cases are green |
-| Complete honest documentation | BPR-0293 RFC-base path ledger and documentation gate | Planned |
+| Complete honest documentation | BPR-0293 RFC-base path ledger and documentation gate | BPR-0293 passes at `3259cc2`: the exact clean archive validates the Dif assets and repository documentation, every Markdown/agent file has a final newline, Git reports no whitespace error, and every RFC-owned path family has an owner or exact no-impact disposition without a runtime/package claim |
 
 Final replay records use the exact normalized acceptance-criterion text as
 their durable key and add the command, result, proving commit, artifact digest,
