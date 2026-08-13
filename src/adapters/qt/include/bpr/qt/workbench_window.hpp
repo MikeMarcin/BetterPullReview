@@ -312,13 +312,15 @@ namespace bpr::qt {
 
 		/// \brief Reports the window's declared deterministic focus order.
 		///
-		/// \details The order is rebuilt from live widgets, so it names exactly
-		/// the interactive stops the shell currently offers: the compact icon row,
-		/// the file drawer, the two
+		/// \details The order is rebuilt from live widget identities and declares
+		/// the shell-owned structural sequence: the compact icon row, the file
+		/// drawer, the two
 		/// epoch selectors with their exact OIDs, the composed comparison
 		/// surface, the conversation drawer, and the status line. The composed
 		/// surface contributes one stop, because ordering inside it stays
-		/// RFC-BPR-0004's decision and the shell must not restate it.
+		/// RFC-BPR-0004's decision and the shell must not restate it. Evidence for
+		/// the currently available chain filters this declaration by visibility,
+		/// enabled state, and `Qt::TabFocus` rather than creating another order.
 		[[nodiscard]] auto focus_order() const -> QList<QWidget*>;
 
 		/// \brief Presents the composed RFC-BPR-0004 comparison surface.
@@ -479,6 +481,8 @@ namespace bpr::qt {
 		QCheckBox*                                                 QueueRuleExcluding    = nullptr;
 		QAction*                                                   AddQueueRule          = nullptr;
 		QAction*                                                   RemoveQueueRule       = nullptr;
+		QToolButton*                                               AddQueueRuleButton    = nullptr;
+		QToolButton*                                               RemoveQueueRuleButton = nullptr;
 		QLabel*                                                    QueueStatus           = nullptr;
 		std::vector<core::observer_rule>                           QueueRules;
 		application::queue_landing_projection                      QueueProjection;

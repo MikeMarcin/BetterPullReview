@@ -616,6 +616,8 @@ namespace {
 		auto* const conversationEmpty = required_child<QWidget>(window, "githubConversationEmptyState");
 		auto* const connectButton     = required_child<QToolButton>(window, "connectGithubButton");
 		auto* const refreshButton     = required_child<QToolButton>(window, "refreshPullRequestButton");
+		auto* const addRuleButton     = required_child<QToolButton>(window, "addObserverRuleButton");
+		auto* const removeRuleButton  = required_child<QToolButton>(window, "removeObserverRuleButton");
 
 		expect(
 			banner->isVisible()
@@ -685,9 +687,18 @@ namespace {
 		publish_pull_request(window);
 		window.set_queue_preferences_dispatch(
 			[](application::queue_preferences_intent) { });
+		window.set_queue_rule_dispatch(
+			[](application::queue_rule_intent) { });
+		const auto savedRule = core::observer_rule{
+			.Kind    = core::observer_rule_kind::repository,
+			.Pattern = "octo/review-repository",
+		};
 		window.publish(application::queue_landing_projection{
 			.Status = application::queue_landing_status::ready,
+			.Rules  = { savedRule },
 		});
+		window.queue_rule_pattern_editor()->setText(
+			QStringLiteral("src/parser"));
 		QApplication::processEvents();
 		expect(
 			presentation_state(window) == QStringLiteral("loaded")
@@ -775,9 +786,15 @@ namespace {
 						window.queue_rule_kind_selector(),
 						window.queue_rule_pattern_editor(),
 						window.queue_rule_exclusion(),
+						addRuleButton,
+						removeRuleButton,
 						technicalButton,
 					}),
-			"session controls and every queue stop retain their accepted relative order");
+			"session controls and available queue stops retain Exclude, Add, Remove, then technical-details order");
+		expect(
+			declaredTabStops.count(addRuleButton) == 1
+				&& declaredTabStops.count(removeRuleButton) == 1,
+			"each enabled observer-rule presenter appears once in the declared and live Qt chain");
 
 		connectionButton->setFocus(Qt::TabFocusReason);
 		connectionButton->click();

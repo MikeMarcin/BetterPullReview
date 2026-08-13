@@ -317,6 +317,17 @@ presentation preference answers “show this repository name” rather than
 selecting an authentication authority. Empty filtered results say that rows
 remain in the queue. Controls are named, described, and included in focus order.
 
+The workbench retains the exact Add and Remove `QToolButton` presenters rather
+than rediscovering them through their actions. Their stable widget identities
+and explicit accessible descriptions join the declared shell sequence after
+Exclude and before pull-request technical details. The structural declaration
+retains both positions; available-stop evidence filters visibility,
+enablement, and `TabFocus`, so a disabled action is absent without a second
+focus-order authority. Add remains available only for a ready queue, a typed
+rule dispatcher, and a valid trimmed pattern. Remove additionally requires an
+accepted persisted-rule selection. Enabling either prerequisite restores the
+same presenter at the same position rather than creating another stop.
+
 The application host stores only the bounded preference vocabulary after the
 effect succeeds, then publishes the durable choice. SQLite schema version three
 adds one singleton preference row; it stores no derived membership. The

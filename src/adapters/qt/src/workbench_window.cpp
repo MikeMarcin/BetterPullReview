@@ -1046,12 +1046,27 @@ namespace bpr::qt {
 		AddQueueRule->setObjectName(QStringLiteral("addObserverRule"));
 		RemoveQueueRule = new QAction{ tr("Remove selected rule"), this };
 		RemoveQueueRule->setObjectName(QStringLiteral("removeObserverRule"));
-		for (auto* const action : { AddQueueRule, RemoveQueueRule }) {
-			addAction(action);
-			auto* const button = new QToolButton{ surface };
-			button->setDefaultAction(action);
-			controls->addWidget(button);
-		}
+		addAction(AddQueueRule);
+		AddQueueRuleButton = new QToolButton{ surface };
+		AddQueueRuleButton->setDefaultAction(AddQueueRule);
+		AddQueueRuleButton->setObjectName(
+			QStringLiteral("addObserverRuleButton"));
+		AddQueueRuleButton->setAccessibleName(
+			QStringLiteral("Add local observer rule"));
+		AddQueueRuleButton->setAccessibleDescription(QStringLiteral(
+			"Persist the configured observer rule locally without changing GitHub"));
+		controls->addWidget(AddQueueRuleButton);
+
+		addAction(RemoveQueueRule);
+		RemoveQueueRuleButton = new QToolButton{ surface };
+		RemoveQueueRuleButton->setDefaultAction(RemoveQueueRule);
+		RemoveQueueRuleButton->setObjectName(
+			QStringLiteral("removeObserverRuleButton"));
+		RemoveQueueRuleButton->setAccessibleName(
+			QStringLiteral("Remove selected observer rule"));
+		RemoveQueueRuleButton->setAccessibleDescription(QStringLiteral(
+			"Delete the selected persisted local observer rule"));
+		controls->addWidget(RemoveQueueRuleButton);
 		connect(AddQueueRule, &QAction::triggered, this, [this] {
 			dispatch_queue_rule(application::queue_rule_action::add);
 		});
@@ -2280,6 +2295,8 @@ namespace bpr::qt {
 		append(QueueRuleKind);
 		append(QueueRulePattern);
 		append(QueueRuleExcluding);
+		append(AddQueueRuleButton);
+		append(RemoveQueueRuleButton);
 		if (PullRequestPanel != nullptr) {
 			append(PullRequestPanel->technical_details_button());
 			append(PullRequestPanel->body_editor());

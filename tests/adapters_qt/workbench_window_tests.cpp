@@ -2590,6 +2590,18 @@ namespace {
 		return walked;
 	}
 
+	/// \brief Returns only declared stops a keyboard user can reach now.
+	[[nodiscard]] auto available_focus_order(const qt::workbench_window& aWindow)
+		-> QList<QWidget*>
+	{
+		auto available = aWindow.focus_order();
+		available.removeIf([](const QWidget* const aStop) {
+			return !aStop->isVisible() || !aStop->isEnabled()
+				|| (aStop->focusPolicy() & Qt::TabFocus) == 0;
+		});
+		return available;
+	}
+
 	void test_focus_order_is_declared_named_and_walkable()
 	{
 		qt::workbench_window window;
@@ -2938,14 +2950,56 @@ namespace {
 	{
 		qt::workbench_window window;
 		auto                 intents = std::vector<application::queue_rule_intent>{ };
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+
+		auto* const addButton = window.findChild<QToolButton*>(
+			QStringLiteral("addObserverRuleButton"));
+		auto* const removeButton = window.findChild<QToolButton*>(
+			QStringLiteral("removeObserverRuleButton"));
+		expect(
+			addButton != nullptr && removeButton != nullptr
+				&& addButton != removeButton
+				&& addButton->defaultAction() == window.add_queue_rule_action()
+				&& removeButton->defaultAction()
+					== window.remove_queue_rule_action(),
+			"the named rule presenters retain the exact Add and Remove actions");
+		expect(
+			!addButton->accessibleName().isEmpty()
+				&& !addButton->accessibleDescription().isEmpty()
+				&& !removeButton->accessibleName().isEmpty()
+				&& !removeButton->accessibleDescription().isEmpty(),
+			"both retained rule presenters are explicitly named and described");
+		const auto declared       = window.focus_order();
+		const auto exclusionIndex = declared.indexOf(
+			window.queue_rule_exclusion());
+		expect(
+			exclusionIndex >= 0
+				&& declared.indexOf(addButton) == exclusionIndex + 1
+				&& declared.indexOf(removeButton) == exclusionIndex + 2
+				&& declared.count(addButton) == 1
+				&& declared.count(removeButton) == 1,
+			"the structural shell order retains each exact rule presenter once after Exclude");
+
 		window.set_queue_rule_dispatch(
 			[&intents](application::queue_rule_intent aIntent) {
 				intents.push_back(std::move(aIntent));
 			});
 		window.publish({ .Status = application::queue_landing_status::ready });
+		process_events();
+		auto available = available_focus_order(window);
+		expect(
+			!available.contains(addButton) && !available.contains(removeButton),
+			"blank input and no selected persisted rule omit both disabled presenters from the available chain");
 		window.queue_rule_kind_selector()->setCurrentIndex(2);
 		window.queue_rule_pattern_editor()->setText(QStringLiteral("src/parser"));
 		window.queue_rule_exclusion()->setChecked(true);
+		process_events();
+		available = available_focus_order(window);
+		expect(
+			available.count(addButton) == 1 && !available.contains(removeButton),
+			"valid input restores Add exactly once while absent persisted selection keeps Remove unavailable");
 		window.add_queue_rule_action()->trigger();
 		const auto rule = core::observer_rule{
 			.Kind      = core::observer_rule_kind::path,
@@ -2974,8 +3028,25 @@ namespace {
 				.Bucket     = core::attention_bucket::quiet,
 			} },
 		});
+		process_events();
 		expect(window.queue_landing()->rowCount() == 1,
 			   "an accepted projection inserts the matched review");
+		available = available_focus_order(window);
+		expect(
+			available.count(addButton) == 1 && available.count(removeButton) == 1,
+			"accepted prerequisites restore both exact presenters without duplicate stops");
+		window.queue_rule_pattern_editor()->clear();
+		process_events();
+		available = available_focus_order(window);
+		expect(
+			!available.contains(addButton) && available.count(removeButton) == 1,
+			"blank input omits only disabled Add while accepted selection retains Remove");
+		window.queue_rule_pattern_editor()->setText(QStringLiteral("src/parser"));
+		process_events();
+		available = available_focus_order(window);
+		expect(
+			available.count(addButton) == 1 && available.count(removeButton) == 1,
+			"restoring valid input restores Add at its single declared position");
 		window.remove_queue_rule_action()->trigger();
 		expect(intents.size() == 2U
 				   && intents.back() == application::queue_rule_intent{ .Action = application::queue_rule_action::remove, .Rule = rule },
@@ -2983,8 +3054,14 @@ namespace {
 		expect(window.queue_landing()->rowCount() == 1,
 			   "the row remains until the host accepts removal");
 		window.publish({ .Status = application::queue_landing_status::ready });
+		process_events();
 		expect(window.queue_landing()->rowCount() == 0,
 			   "the accepted cut-match projection removes the row");
+		available = available_focus_order(window);
+		expect(
+			available.count(addButton) == 1 && !available.contains(removeButton),
+			"removing the accepted selection omits only Remove from the available chain");
+		window.hide();
 	}
 
 	void test_queue_rule_selection_survives_unrelated_projection()
