@@ -38,23 +38,26 @@ narrows the verification identity to private/owner-only. It does not widen any
 permission or capture authority, and it does not establish the any-account
 production identity needed for distribution or RFC closeout.
 
-The originally authorized single early capture poll has been consumed: the
-service returned `slow_down`, but the interrupted exploratory course retained
-no admissible complete fixture. No replacement early poll may run unless the
-operator gives a new plain, narrowly scoped direction; the live runner must
-otherwise refuse before endpoint traffic.
+The originally authorized early capture poll was consumed: the service returned
+`slow_down`, but the interrupted exploratory course retained no admissible
+complete fixture. The operator later gave plain authority for one replacement.
+That replacement was durably spent before traffic and GitHub returned its
+documented `slow_down` body, including the new interval, but the fail-closed
+three-field parser rejected the response and retained no raw body. The original
+and replacement authority/spent records remain immutable provenance. One final
+recovery poll may run only after the parser and sanitizer admit the exact
+documented interval field, focused adversarial verification passes, and the
+operator gives a new plain, narrowly scoped direction. The recovery uses a
+distinct pre-traffic spent marker; no further retry is admitted.
 
-The later attended run has completed two of five closed courses without
-persisting transient material: real expiry, and token success followed by all
-ten exact read-only route probes. Denial, disabled-setting, and the replacement
-`slow_down` course remain pending. The completed owner-private course roots are
-intermediate evidence only; the gate stays Pending until deterministic
-five-course assembly, the exact attended-review export, repository recording,
-and complete validation all succeed. Because denial revokes the current user
-authorization, its approval and execution must be followed by one fresh token-
-success/read-only course that restores authorization and supplies the final
-success root; the earlier success root stays preserved as intermediate
-evidence.
+The attended run completed real expiry, denial, a fresh token success with all
+ten exact read-only route probes and restored user authorization, plus the
+disabled-setting response with a verified disable/restore transition. Those
+roots bind the pre-repair runner and therefore remain intermediate evidence
+only. After the parser repair, all five courses must be recaptured under one
+runner digest; mixed-runner assembly remains forbidden. The gate stays Pending
+until deterministic five-course assembly, the exact attended-review export,
+repository recording, and complete validation all succeed.
 
 ## Permission inventory
 

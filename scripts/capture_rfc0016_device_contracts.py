@@ -125,8 +125,21 @@ APPROVED_APPLICATION_ID = 4581304
 SLOW_DOWN_REPLACEMENT_AUTHORITY_ID = (
     "rfc0016-bpr0276-slow-down-replacement-once-2026-08-13"
 )
+SLOW_DOWN_RECOVERY_AUTHORITY_ID = (
+    "rfc0016-bpr0276-slow-down-parser-repair-recovery-once-2026-08-13"
+)
 SLOW_DOWN_AUTHORITY_PATH = "slow-down-replacement-authority.json"
 SLOW_DOWN_SPENT_PATH = "slow-down-reservation-spent.json"
+SLOW_DOWN_RECOVERY_AUTHORITY_PATH = (
+    "slow-down-parser-repair-recovery-authority.json"
+)
+SLOW_DOWN_RECOVERY_SPENT_PATH = "slow-down-parser-repair-recovery-spent.json"
+SLOW_DOWN_AUTHORITY_RECORD_PATHS = (
+    SLOW_DOWN_AUTHORITY_PATH,
+    SLOW_DOWN_SPENT_PATH,
+    SLOW_DOWN_RECOVERY_AUTHORITY_PATH,
+    SLOW_DOWN_RECOVERY_SPENT_PATH,
+)
 MAX_JSON_BYTES = 64 * 1024
 MAX_FIXTURE_BYTES = 512 * 1024
 ARTIFACT_SOURCE_KINDS = frozenset({"synthetic", "unattested_capture"})
@@ -218,7 +231,7 @@ OBSERVED_FIELDS = {
     "authorization_pending": ["error", "error_description", "error_uri"],
     "device_flow_disabled": ["error", "error_description", "error_uri"],
     "expired_token": ["error", "error_description", "error_uri"],
-    "slow_down": ["error", "error_description", "error_uri"],
+    "slow_down": ["error", "error_description", "error_uri", "interval"],
 }
 
 GRAPHQL_DOCUMENT = (
@@ -555,6 +568,12 @@ def sanitize_outcome(
             "error": outcome,
             "official_error_uri": True,
         }
+        if outcome == "slow_down":
+            values["interval"] = _require_positive_int(
+                body["interval"],
+                "slow-down interval",
+                300,
+            )
 
     artifact: dict[str, object] = {
         "content_type": "application/json",
@@ -655,6 +674,19 @@ def validate_outcome_artifact(value: object, *, require_real: bool) -> None:
         _require_positive_int(values.get("refresh_token_expires_in"), "refresh expiry", 63_072_000)
         if values.get("scope") != "" or values.get("token_type") != "bearer":
             raise ContractError("token projection mismatch")
+    elif outcome == "slow_down":
+        expected_keys = {"error", "interval", "official_error_uri"}
+        if (
+            not isinstance(values, dict)
+            or values.get("error") != outcome
+            or values.get("official_error_uri") is not True
+        ):
+            raise ContractError("error projection mismatch")
+        _require_positive_int(
+            values.get("interval"),
+            "slow-down interval",
+            300,
+        )
     else:
         expected_keys = {"error", "official_error_uri"}
         if (
@@ -1287,20 +1319,30 @@ def _validate_course_execution(
     _validate_timestamp(execution["executed_at_utc"])
     bindings = _require_exact_keys(
         execution["bindings"],
-        {"device_flow_transition_sha256", "slow_down_reservation_sha256"},
+        {
+            "device_flow_transition_sha256",
+            "slow_down_original_reservation_sha256",
+            "slow_down_recovery_reservation_sha256",
+        },
         "course execution bindings",
     )
     transition = bindings["device_flow_transition_sha256"]
-    reservation = bindings["slow_down_reservation_sha256"]
+    original_reservation = bindings["slow_down_original_reservation_sha256"]
+    recovery_reservation = bindings["slow_down_recovery_reservation_sha256"]
     if course == "device-flow-disabled":
         if type(transition) is not str or not SHA256.fullmatch(transition):
             raise ContractError("course transition binding mismatch")
     elif transition is not None:
         raise ContractError("course transition binding mismatch")
     if course == "slow-down":
-        if type(reservation) is not str or not SHA256.fullmatch(reservation):
+        if (
+            type(original_reservation) is not str
+            or not SHA256.fullmatch(original_reservation)
+            or type(recovery_reservation) is not str
+            or not SHA256.fullmatch(recovery_reservation)
+        ):
             raise ContractError("course reservation binding mismatch")
-    elif reservation is not None:
+    elif original_reservation is not None or recovery_reservation is not None:
         raise ContractError("course reservation binding mismatch")
     return execution
 
@@ -1418,11 +1460,10 @@ def _validate_slow_down_spent_marker(
     payload: bytes,
     *,
     authority_payload: bytes,
-    runner_digest: str,
     reservation_digest: object,
     authorized_at: datetime,
     executed_at_utc: str,
-) -> None:
+) -> tuple[str, datetime]:
     marker = _require_exact_keys(
         _parse_json(payload),
         {
@@ -1441,12 +1482,14 @@ def _validate_slow_down_spent_marker(
     )
     if canonical_json(marker) != payload:
         raise ContractError("slow-down spent marker encoding mismatch")
+    failed_runner_digest = marker["capture_runner_sha256"]
     if (
         marker["authority_amendment_id"] != AUTHORITY_AMENDMENT_ID
         or marker["authority_id"] != SLOW_DOWN_REPLACEMENT_AUTHORITY_ID
         or marker["authority_record_sha256"] != _sha256(authority_payload)
         or marker["authority_subject_sha256"] != AUTHORITY_SUBJECT_SHA256
-        or marker["capture_runner_sha256"] != runner_digest
+        or type(failed_runner_digest) is not str
+        or not SHA256.fullmatch(failed_runner_digest)
         or marker["course"] != "slow-down"
         or marker["schema_name"] != "bpr.rfc0016.slow_down_reservation"
         or type(marker["schema_version"]) is not int
@@ -1460,6 +1503,122 @@ def _validate_slow_down_spent_marker(
     executed_at = datetime.strptime(executed_at_utc, "%Y-%m-%dT%H:%M:%SZ")
     if not authorized_at <= spent_at <= executed_at:
         raise ContractError("slow-down reservation timestamp mismatch")
+    return failed_runner_digest, spent_at
+
+
+def _validate_slow_down_recovery_authority(
+    payload: bytes,
+    *,
+    original_authority_payload: bytes,
+    original_marker_payload: bytes,
+    failed_runner_digest: str,
+    runner_digest: str,
+    original_spent_at: datetime,
+) -> datetime:
+    authority = _require_exact_keys(
+        _parse_json(payload),
+        {
+            "authority_amendment_id",
+            "authority_id",
+            "authority_subject_sha256",
+            "authorized_at_utc",
+            "course",
+            "failed_attempt_authority_sha256",
+            "failed_attempt_capture_runner_sha256",
+            "failed_attempt_spent_marker_sha256",
+            "parser_repair_capture_runner_sha256",
+            "recovery_early_poll_limit",
+            "schema_name",
+            "schema_version",
+            "state",
+        },
+        "slow-down recovery authority",
+    )
+    if canonical_json(authority) != payload:
+        raise ContractError("slow-down recovery authority encoding mismatch")
+    authorized_timestamp = _validate_timestamp(authority["authorized_at_utc"])
+    authorized_at = datetime.strptime(authorized_timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    if (
+        authority["authority_amendment_id"] != AUTHORITY_AMENDMENT_ID
+        or authority["authority_id"] != SLOW_DOWN_RECOVERY_AUTHORITY_ID
+        or authority["authority_subject_sha256"] != AUTHORITY_SUBJECT_SHA256
+        or authority["course"] != "slow-down"
+        or authority["failed_attempt_authority_sha256"]
+        != _sha256(original_authority_payload)
+        or authority["failed_attempt_capture_runner_sha256"]
+        != failed_runner_digest
+        or authority["failed_attempt_spent_marker_sha256"]
+        != _sha256(original_marker_payload)
+        or authority["parser_repair_capture_runner_sha256"] != runner_digest
+        or type(authority["recovery_early_poll_limit"]) is not int
+        or authority["recovery_early_poll_limit"] != 1
+        or authority["schema_name"]
+        != "bpr.rfc0016.slow_down_parser_repair_recovery_authority"
+        or type(authority["schema_version"]) is not int
+        or authority["schema_version"] != SCHEMA_VERSION
+        or authority["state"] != "parser_repair_recovery_authorized"
+        or failed_runner_digest == runner_digest
+        or authorized_at < original_spent_at
+    ):
+        raise ContractError("slow-down recovery authority mismatch")
+    return authorized_at
+
+
+def _validate_slow_down_recovery_spent_marker(
+    payload: bytes,
+    *,
+    authority_payload: bytes,
+    original_authority_payload: bytes,
+    original_marker_payload: bytes,
+    runner_digest: str,
+    reservation_digest: object,
+    authorized_at: datetime,
+    executed_at_utc: str,
+) -> None:
+    marker = _require_exact_keys(
+        _parse_json(payload),
+        {
+            "authority_amendment_id",
+            "authority_id",
+            "authority_record_sha256",
+            "authority_subject_sha256",
+            "capture_runner_sha256",
+            "course",
+            "failed_attempt_authority_sha256",
+            "failed_attempt_spent_marker_sha256",
+            "schema_name",
+            "schema_version",
+            "spent_before_traffic_at_utc",
+            "state",
+        },
+        "slow-down recovery spent marker",
+    )
+    if canonical_json(marker) != payload:
+        raise ContractError("slow-down recovery spent marker encoding mismatch")
+    if (
+        marker["authority_amendment_id"] != AUTHORITY_AMENDMENT_ID
+        or marker["authority_id"] != SLOW_DOWN_RECOVERY_AUTHORITY_ID
+        or marker["authority_record_sha256"] != _sha256(authority_payload)
+        or marker["authority_subject_sha256"] != AUTHORITY_SUBJECT_SHA256
+        or marker["capture_runner_sha256"] != runner_digest
+        or marker["course"] != "slow-down"
+        or marker["failed_attempt_authority_sha256"]
+        != _sha256(original_authority_payload)
+        or marker["failed_attempt_spent_marker_sha256"]
+        != _sha256(original_marker_payload)
+        or marker["schema_name"]
+        != "bpr.rfc0016.slow_down_parser_repair_recovery_reservation"
+        or type(marker["schema_version"]) is not int
+        or marker["schema_version"] != SCHEMA_VERSION
+        or marker["state"] != "spent"
+        or reservation_digest != _sha256(payload)
+    ):
+        raise ContractError("slow-down recovery spent marker mismatch")
+    spent_timestamp = _validate_timestamp(marker["spent_before_traffic_at_utc"])
+    spent_at = datetime.strptime(spent_timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    executed_at = datetime.strptime(executed_at_utc, "%Y-%m-%dT%H:%M:%SZ")
+    if not authorized_at <= spent_at <= executed_at:
+        raise ContractError("slow-down recovery reservation timestamp mismatch")
 
 
 def _read_course_evidence_root(
@@ -1470,8 +1629,7 @@ def _read_course_evidence_root(
     root_entries = list(root.iterdir())
     expected_root_entries = {
         *ATTESTATION_COURSES,
-        SLOW_DOWN_AUTHORITY_PATH,
-        SLOW_DOWN_SPENT_PATH,
+        *SLOW_DOWN_AUTHORITY_RECORD_PATHS,
     }
     if (
         {entry.name for entry in root_entries} != expected_root_entries
@@ -1483,7 +1641,7 @@ def _read_course_evidence_root(
             raise ContractError("course evidence root inventory mismatch")
     authority_records: dict[str, bytes] = {}
     total = [0]
-    for relative in (SLOW_DOWN_AUTHORITY_PATH, SLOW_DOWN_SPENT_PATH):
+    for relative in SLOW_DOWN_AUTHORITY_RECORD_PATHS:
         path = root / relative
         if not path.is_file():
             raise ContractError("course authority record is invalid")
@@ -1614,7 +1772,7 @@ def _validate_course_evidence(
             ):
                 raise ContractError("course artifact execution binding mismatch")
         course_digests[course] = _course_tree_digest(records)
-    _, authorized_at = _validate_slow_down_authority(
+    _, original_authorized_at = _validate_slow_down_authority(
         authority_records[SLOW_DOWN_AUTHORITY_PATH]
     )
     slow_execution = executions["slow-down"]
@@ -1622,12 +1780,33 @@ def _validate_course_evidence(
     slow_executed_at = slow_execution["executed_at_utc"]
     if not isinstance(slow_bindings, dict) or not isinstance(slow_executed_at, str):
         raise ContractError("slow-down execution binding mismatch")
-    _validate_slow_down_spent_marker(
+    failed_runner_digest, original_spent_at = _validate_slow_down_spent_marker(
         authority_records[SLOW_DOWN_SPENT_PATH],
         authority_payload=authority_records[SLOW_DOWN_AUTHORITY_PATH],
+        reservation_digest=slow_bindings[
+            "slow_down_original_reservation_sha256"
+        ],
+        authorized_at=original_authorized_at,
+        executed_at_utc=slow_executed_at,
+    )
+    recovery_authorized_at = _validate_slow_down_recovery_authority(
+        authority_records[SLOW_DOWN_RECOVERY_AUTHORITY_PATH],
+        original_authority_payload=authority_records[SLOW_DOWN_AUTHORITY_PATH],
+        original_marker_payload=authority_records[SLOW_DOWN_SPENT_PATH],
+        failed_runner_digest=failed_runner_digest,
         runner_digest=runner_digest,
-        reservation_digest=slow_bindings["slow_down_reservation_sha256"],
-        authorized_at=authorized_at,
+        original_spent_at=original_spent_at,
+    )
+    _validate_slow_down_recovery_spent_marker(
+        authority_records[SLOW_DOWN_RECOVERY_SPENT_PATH],
+        authority_payload=authority_records[SLOW_DOWN_RECOVERY_AUTHORITY_PATH],
+        original_authority_payload=authority_records[SLOW_DOWN_AUTHORITY_PATH],
+        original_marker_payload=authority_records[SLOW_DOWN_SPENT_PATH],
+        runner_digest=runner_digest,
+        reservation_digest=slow_bindings[
+            "slow_down_recovery_reservation_sha256"
+        ],
+        authorized_at=recovery_authorized_at,
         executed_at_utc=slow_executed_at,
     )
     assembled = _assemble_course_fixture(courses)
@@ -1725,7 +1904,7 @@ def _expected_review_identity(
     ]
     authority_identity = [
         (f"authority:{relative}", _sha256(authority_records[relative]), authority_records[relative])
-        for relative in (SLOW_DOWN_AUTHORITY_PATH, SLOW_DOWN_SPENT_PATH)
+        for relative in SLOW_DOWN_AUTHORITY_RECORD_PATHS
     ]
     return fixture_identity + course_identity + authority_identity + [
         (

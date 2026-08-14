@@ -26,7 +26,9 @@ CLIENT = LIVE.APPROVED_PUBLIC_CLIENT_ID
 CAPTURED_AT = "2026-08-13T14:00:00Z"
 EXECUTED_AT = "2026-08-13T14:10:00Z"
 RUNNER_SHA256 = LIVE._runner_sha256()
-RESERVATION_SHA256 = "sha256:" + "2" * 64
+FAILED_RUNNER_SHA256 = "sha256:" + "1" * 64
+ORIGINAL_RESERVATION_SHA256 = "sha256:" + "2" * 64
+RECOVERY_RESERVATION_SHA256 = "sha256:" + "3" * 64
 REGISTRATION_OBSERVATION = LIVE._registration_observation(LIVE._offline_module(), CLIENT)
 REGISTRATION = LIVE.RegistrationCapture(CAPTURED_AT, REGISTRATION_OBSERVATION)
 
@@ -58,7 +60,14 @@ DEVICE_BODY = payload(
 
 
 def error_body(name: str) -> bytes:
-    return payload({"error": name, "error_description": "ignored", "error_uri": "https://docs.github.com/x"})
+    document = {
+        "error": name,
+        "error_description": "ignored",
+        "error_uri": "https://docs.github.com/x",
+    }
+    if name == "slow_down":
+        document["interval"] = 10
+    return payload(document)
 
 
 TOKEN_BODY = payload(
@@ -103,6 +112,64 @@ def device_flow_transition() -> bytes:
             ],
         }
     )
+
+
+def slow_down_recovery_state_records(
+    runner_digest: str = RUNNER_SHA256,
+) -> dict[str, bytes]:
+    offline = LIVE._offline_module()
+    original_authority = offline.canonical_json(
+        {
+            "authority_amendment_id": LIVE.AUTHORITY_AMENDMENT_ID,
+            "authority_id": LIVE.SLOW_DOWN_REPLACEMENT_AUTHORITY_ID,
+            "authority_subject_sha256": offline.AUTHORITY_SUBJECT_SHA256,
+            "authorized_at_utc": "2026-08-13T14:00:00Z",
+            "course": "slow-down",
+            "previous_early_poll_consumed": True,
+            "replacement_early_poll_limit": 1,
+            "schema_name": "bpr.rfc0016.slow_down_replacement_authority",
+            "schema_version": 1,
+            "state": "replacement_authorized",
+        }
+    )
+    original_marker = offline.canonical_json(
+        {
+            "authority_amendment_id": LIVE.AUTHORITY_AMENDMENT_ID,
+            "authority_id": LIVE.SLOW_DOWN_REPLACEMENT_AUTHORITY_ID,
+            "authority_record_sha256": LIVE._sha256(original_authority),
+            "authority_subject_sha256": offline.AUTHORITY_SUBJECT_SHA256,
+            "capture_runner_sha256": FAILED_RUNNER_SHA256,
+            "course": "slow-down",
+            "schema_name": "bpr.rfc0016.slow_down_reservation",
+            "schema_version": 1,
+            "spent_before_traffic_at_utc": "2026-08-13T14:01:00Z",
+            "state": "spent",
+        }
+    )
+    recovery_authority = offline.canonical_json(
+        {
+            "authority_amendment_id": LIVE.AUTHORITY_AMENDMENT_ID,
+            "authority_id": LIVE.SLOW_DOWN_RECOVERY_AUTHORITY_ID,
+            "authority_subject_sha256": offline.AUTHORITY_SUBJECT_SHA256,
+            "authorized_at_utc": "2026-08-13T14:02:00Z",
+            "course": "slow-down",
+            "failed_attempt_authority_sha256": LIVE._sha256(original_authority),
+            "failed_attempt_capture_runner_sha256": FAILED_RUNNER_SHA256,
+            "failed_attempt_spent_marker_sha256": LIVE._sha256(original_marker),
+            "parser_repair_capture_runner_sha256": runner_digest,
+            "recovery_early_poll_limit": 1,
+            "schema_name": (
+                "bpr.rfc0016.slow_down_parser_repair_recovery_authority"
+            ),
+            "schema_version": 1,
+            "state": "parser_repair_recovery_authorized",
+        }
+    )
+    return {
+        "original-authority.json": original_authority,
+        "original-spent.json": original_marker,
+        "recovery-authority.json": recovery_authority,
+    }
 
 
 def graphql_reply() -> bytes:
@@ -202,7 +269,12 @@ class LiveRunnerTests(unittest.TestCase):
                 )},
                 EXECUTED_AT,
                 RUNNER_SHA256,
-                slow_down_reservation_sha256=RESERVATION_SHA256,
+                slow_down_original_reservation_sha256=(
+                    ORIGINAL_RESERVATION_SHA256
+                ),
+                slow_down_recovery_reservation_sha256=(
+                    RECOVERY_RESERVATION_SHA256
+                ),
             )
         if course == "token-success":
             return LIVE.CourseEvidence(
@@ -390,7 +462,8 @@ class LiveRunnerTests(unittest.TestCase):
             "slow-down",
             present=lambda _value: self.fail("slow-down course presented a code"),
             slow_down_reservation=LIVE.SlowDownReservation(
-                RESERVATION_SHA256,
+                ORIGINAL_RESERVATION_SHA256,
+                RECOVERY_RESERVATION_SHA256,
                 RUNNER_SHA256,
             ),
             sleep=clock.sleep,
@@ -411,32 +484,21 @@ class LiveRunnerTests(unittest.TestCase):
             LIVE.run_authorization_course(wire, CLIENT, "slow-down")
         self.assertEqual(wire.calls, [])
 
-    def test_spent_slow_down_reservation_makes_second_main_invocation_zero_traffic(self) -> None:
+    def test_recovery_reservation_is_one_shot_before_wire_construction(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory).resolve()
             parent.chmod(0o700)
             registration = parent / "registration.json"
             registration.write_bytes(payload(registration_document()))
             registration.chmod(0o600)
-            authority = parent / "authority.json"
-            authority.write_bytes(
-                LIVE._offline_module().canonical_json(
-                    {
-                        "authority_amendment_id": LIVE.AUTHORITY_AMENDMENT_ID,
-                        "authority_id": LIVE.SLOW_DOWN_REPLACEMENT_AUTHORITY_ID,
-                        "authority_subject_sha256": LIVE._offline_module().AUTHORITY_SUBJECT_SHA256,
-                        "authorized_at_utc": "2026-08-13T14:00:00Z",
-                        "course": "slow-down",
-                        "previous_early_poll_consumed": True,
-                        "replacement_early_poll_limit": 1,
-                        "schema_name": "bpr.rfc0016.slow_down_replacement_authority",
-                        "schema_version": 1,
-                        "state": "replacement_authorized",
-                    }
-                )
-            )
-            authority.chmod(0o600)
-            spent = parent / "spent.json"
+            records = slow_down_recovery_state_records()
+            for name, record_payload in records.items():
+                path = parent / name
+                path.write_bytes(record_payload)
+                path.chmod(0o600)
+            original_spent = parent / "original-spent.json"
+            recovery_spent = parent / "recovery-spent.json"
+            original_spent_before = original_spent.read_bytes()
             output = parent / "unused"
             constructors = 0
 
@@ -453,11 +515,19 @@ class LiveRunnerTests(unittest.TestCase):
             ), mock.patch.object(
                 LIVE,
                 "SLOW_DOWN_REPLACEMENT_AUTHORITY_PATH",
-                authority,
+                parent / "original-authority.json",
             ), mock.patch.object(
                 LIVE,
                 "SLOW_DOWN_SPENT_MARKER_PATH",
-                spent,
+                original_spent,
+            ), mock.patch.object(
+                LIVE,
+                "SLOW_DOWN_RECOVERY_AUTHORITY_PATH",
+                parent / "recovery-authority.json",
+            ), mock.patch.object(
+                LIVE,
+                "SLOW_DOWN_RECOVERY_SPENT_MARKER_PATH",
+                recovery_spent,
             ), mock.patch.object(
                 LIVE,
                 "HttpsWire",
@@ -484,15 +554,21 @@ class LiveRunnerTests(unittest.TestCase):
                 self.assertEqual(LIVE.main(arguments), 1)
             self.assertEqual(constructors, 1)
             self.assertEqual(run_course.call_count, 1)
-            self.assertTrue(spent.is_file())
+            self.assertEqual(original_spent.read_bytes(), original_spent_before)
+            self.assertTrue(recovery_spent.is_file())
 
-    def test_main_refuses_slow_down_without_replacement_authority_before_wire(self) -> None:
+    def test_main_refuses_slow_down_without_recovery_authority_before_wire(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory).resolve()
             parent.chmod(0o700)
             registration = parent / "registration.json"
             registration.write_bytes(payload(registration_document()))
             registration.chmod(0o600)
+            records = slow_down_recovery_state_records()
+            for name in ("original-authority.json", "original-spent.json"):
+                path = parent / name
+                path.write_bytes(records[name])
+                path.chmod(0o600)
             with mock.patch.object(
                 LIVE.sys,
                 "platform",
@@ -500,11 +576,19 @@ class LiveRunnerTests(unittest.TestCase):
             ), mock.patch.object(
                 LIVE,
                 "SLOW_DOWN_REPLACEMENT_AUTHORITY_PATH",
-                parent / "absent-authority.json",
+                parent / "original-authority.json",
             ), mock.patch.object(
                 LIVE,
                 "SLOW_DOWN_SPENT_MARKER_PATH",
-                parent / "spent.json",
+                parent / "original-spent.json",
+            ), mock.patch.object(
+                LIVE,
+                "SLOW_DOWN_RECOVERY_AUTHORITY_PATH",
+                parent / "absent-recovery-authority.json",
+            ), mock.patch.object(
+                LIVE,
+                "SLOW_DOWN_RECOVERY_SPENT_MARKER_PATH",
+                parent / "recovery-spent.json",
             ), mock.patch.object(
                 LIVE,
                 "HttpsWire",
@@ -524,10 +608,125 @@ class LiveRunnerTests(unittest.TestCase):
         self.assertEqual(result, 1)
         constructor.assert_not_called()
 
+    def test_original_marker_cannot_be_reused_as_recovery_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory).resolve()
+            parent.chmod(0o700)
+            records = slow_down_recovery_state_records()
+            for name, record_payload in records.items():
+                path = parent / name
+                path.write_bytes(record_payload)
+                path.chmod(0o600)
+            recovery_spent = parent / "recovery-spent.json"
+            recovery_spent.write_bytes(records["original-spent.json"])
+            recovery_spent.chmod(0o600)
+            with mock.patch.object(
+                LIVE,
+                "SLOW_DOWN_REPLACEMENT_AUTHORITY_PATH",
+                parent / "original-authority.json",
+            ), mock.patch.object(
+                LIVE,
+                "SLOW_DOWN_SPENT_MARKER_PATH",
+                parent / "original-spent.json",
+            ), mock.patch.object(
+                LIVE,
+                "SLOW_DOWN_RECOVERY_AUTHORITY_PATH",
+                parent / "recovery-authority.json",
+            ), mock.patch.object(
+                LIVE,
+                "SLOW_DOWN_RECOVERY_SPENT_MARKER_PATH",
+                recovery_spent,
+            ), self.assertRaisesRegex(
+                LIVE.LiveCaptureError,
+                "slow_down_recovery_reservation_spent",
+            ):
+                LIVE._reserve_slow_down_recovery_once(RUNNER_SHA256)
+            self.assertEqual(
+                recovery_spent.read_bytes(),
+                records["original-spent.json"],
+            )
+
+    def test_recovery_authority_is_exact_and_runner_bound_before_wire(self) -> None:
+        for mutation in ("extra", "boolean-limit", "wrong-runner", "wrong-original"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                parent = Path(directory).resolve()
+                parent.chmod(0o700)
+                registration = parent / "registration.json"
+                registration.write_bytes(payload(registration_document()))
+                registration.chmod(0o600)
+                records = slow_down_recovery_state_records()
+                recovery = json.loads(records["recovery-authority.json"])
+                if mutation == "extra":
+                    recovery["unexpected"] = True
+                elif mutation == "boolean-limit":
+                    recovery["recovery_early_poll_limit"] = True
+                elif mutation == "wrong-runner":
+                    recovery["parser_repair_capture_runner_sha256"] = (
+                        FAILED_RUNNER_SHA256
+                    )
+                else:
+                    recovery["failed_attempt_spent_marker_sha256"] = (
+                        "sha256:" + "0" * 64
+                    )
+                records["recovery-authority.json"] = (
+                    LIVE._offline_module().canonical_json(recovery)
+                )
+                for name, record_payload in records.items():
+                    path = parent / name
+                    path.write_bytes(record_payload)
+                    path.chmod(0o600)
+                with mock.patch.object(
+                    LIVE.sys,
+                    "platform",
+                    "darwin",
+                ), mock.patch.object(
+                    LIVE,
+                    "SLOW_DOWN_REPLACEMENT_AUTHORITY_PATH",
+                    parent / "original-authority.json",
+                ), mock.patch.object(
+                    LIVE,
+                    "SLOW_DOWN_SPENT_MARKER_PATH",
+                    parent / "original-spent.json",
+                ), mock.patch.object(
+                    LIVE,
+                    "SLOW_DOWN_RECOVERY_AUTHORITY_PATH",
+                    parent / "recovery-authority.json",
+                ), mock.patch.object(
+                    LIVE,
+                    "SLOW_DOWN_RECOVERY_SPENT_MARKER_PATH",
+                    parent / "recovery-spent.json",
+                ), mock.patch.object(
+                    LIVE,
+                    "HttpsWire",
+                ) as constructor, mock.patch(
+                    "sys.stderr",
+                    io.StringIO(),
+                ):
+                    result = LIVE.main(
+                        [
+                            "capture",
+                            str(registration),
+                            str(parent / "unused"),
+                            "--course",
+                            "slow-down",
+                        ]
+                    )
+                self.assertEqual(result, 1)
+                constructor.assert_not_called()
+
     def test_slow_down_state_root_does_not_follow_home_environment(self) -> None:
         account_home = LIVE._account_home()
         with mock.patch.dict(os.environ, {"HOME": "/private/tmp/alternate-home"}):
             self.assertTrue(LIVE._SLOW_DOWN_STATE_ROOT.is_relative_to(account_home))
+            self.assertEqual(
+                {
+                    LIVE.SLOW_DOWN_REPLACEMENT_AUTHORITY_PATH.parent,
+                    LIVE.SLOW_DOWN_SPENT_MARKER_PATH.parent,
+                    LIVE.SLOW_DOWN_RECOVERY_AUTHORITY_PATH.parent,
+                    LIVE.SLOW_DOWN_RECOVERY_SPENT_MARKER_PATH.parent,
+                },
+                {LIVE._SLOW_DOWN_STATE_ROOT},
+            )
 
     def test_expiry_course_has_one_explicit_post_expiry_probe(self) -> None:
         device = json.loads(DEVICE_BODY)
@@ -804,8 +1003,71 @@ class LiveRunnerTests(unittest.TestCase):
         with self.assertRaisesRegex(LIVE.LiveCaptureError, "schema"):
             LIVE.poll_token(FakeWire([payload(augmented)]), CLIENT, DEVICE)
 
+    def test_poll_token_accepts_documented_slow_down_interval(self) -> None:
+        poll = LIVE.poll_token(
+            FakeWire([error_body("slow_down")]),
+            CLIENT,
+            DEVICE,
+        )
+        self.assertEqual(poll.outcome, "slow_down")
+        self.assertEqual(poll.interval, 10)
+        self.assertEqual(poll.reply.status, 200)
+
+    def test_poll_token_rejects_missing_and_invalid_slow_down_intervals(self) -> None:
+        invalid = (None, True, 1.5, "10", 0, -1, 301)
+        for interval in invalid:
+            document = json.loads(error_body("slow_down"))
+            if interval is None:
+                document.pop("interval")
+                diagnostic = "schema"
+            else:
+                document["interval"] = interval
+                diagnostic = "slow_down_interval_invalid"
+            with self.subTest(interval=interval), self.assertRaisesRegex(
+                LIVE.LiveCaptureError,
+                diagnostic,
+            ):
+                LIVE.poll_token(FakeWire([payload(document)]), CLIENT, DEVICE)
+
+    def test_poll_token_rejects_interval_on_every_generic_error(self) -> None:
+        for outcome in ("authorization_pending", "access_denied", "expired_token"):
+            document = json.loads(error_body(outcome))
+            document["interval"] = 10
+            with self.subTest(outcome=outcome), self.assertRaisesRegex(
+                LIVE.LiveCaptureError,
+                "schema",
+            ):
+                LIVE.poll_token(FakeWire([payload(document)]), CLIENT, DEVICE)
+
+    def test_slow_down_course_requires_exact_plus_five_progression(self) -> None:
+        slow_down = json.loads(error_body("slow_down"))
+        slow_down["interval"] = 11
+        wire = FakeWire(
+            [
+                DEVICE_BODY,
+                error_body("authorization_pending"),
+                payload(slow_down),
+            ]
+        )
+        with self.assertRaisesRegex(
+            LIVE.LiveCaptureError,
+            "slow_down_interval_progression_invalid",
+        ):
+            LIVE.run_authorization_course(
+                wire,
+                CLIENT,
+                "slow-down",
+                slow_down_reservation=LIVE.SlowDownReservation(
+                    ORIGINAL_RESERVATION_SHA256,
+                    RECOVERY_RESERVATION_SHA256,
+                    RUNNER_SHA256,
+                ),
+                sleep=FakeClock().sleep,
+                monotonic=lambda: 0.0,
+            )
+
     def test_token_error_accepts_actual_http_400_but_success_does_not(self) -> None:
-        outcome, reply = LIVE.poll_token(
+        poll = LIVE.poll_token(
             FakeWire([
                 LIVE.WireReply(
                     400,
@@ -817,8 +1079,9 @@ class LiveRunnerTests(unittest.TestCase):
             CLIENT,
             DEVICE,
         )
-        self.assertEqual(outcome, "authorization_pending")
-        self.assertEqual(reply.status, 400)
+        self.assertEqual(poll.outcome, "authorization_pending")
+        self.assertIsNone(poll.interval)
+        self.assertEqual(poll.reply.status, 400)
         with self.assertRaisesRegex(LIVE.LiveCaptureError, "status_invalid"):
             LIVE.poll_token(
                 FakeWire([
@@ -865,7 +1128,8 @@ class LiveRunnerTests(unittest.TestCase):
             },
             EXECUTED_AT,
             RUNNER_SHA256,
-            slow_down_reservation_sha256=RESERVATION_SHA256,
+            slow_down_original_reservation_sha256=ORIGINAL_RESERVATION_SHA256,
+            slow_down_recovery_reservation_sha256=RECOVERY_RESERVATION_SHA256,
         )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve() / "course"

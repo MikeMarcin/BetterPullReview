@@ -153,6 +153,7 @@ def outcome_bodies() -> dict[str, bytes]:
             "error_description": f"GitHub reported {outcome.replace('_', ' ')}.",
             "error_uri": DOCS_ERROR_URI,
         }
+    bodies["slow_down"]["interval"] = 10
     return {outcome: encode(body) for outcome, body in bodies.items()}
 
 
@@ -218,7 +219,8 @@ def write_payload_tree(root: Path, payloads: dict[str, bytes]) -> None:
 def course_evidence_records(
     registration_payload: bytes,
     runner_digest: str,
-    reservation_digest: str,
+    original_reservation_digest: str,
+    recovery_reservation_digest: str,
 ) -> dict[str, dict[str, bytes]]:
     course_times = {
         "access-denied": "2026-08-13T16:00:00Z",
@@ -252,8 +254,11 @@ def course_evidence_records(
         executed_at = course_times[course]
         bindings = {
             "device_flow_transition_sha256": None,
-            "slow_down_reservation_sha256": (
-                reservation_digest if course == "slow-down" else None
+            "slow_down_original_reservation_sha256": (
+                original_reservation_digest if course == "slow-down" else None
+            ),
+            "slow_down_recovery_reservation_sha256": (
+                recovery_reservation_digest if course == "slow-down" else None
             ),
         }
         course_records = {"registration.json": registration_payload}
@@ -330,12 +335,13 @@ def course_evidence_records(
 
 
 def slow_down_authority_records(runner_digest: str) -> dict[str, bytes]:
+    failed_runner_digest = "sha256:" + "f" * 64
     authority = CAPTURE.canonical_json(
         {
             "authority_amendment_id": CAPTURE.AUTHORITY_AMENDMENT_ID,
             "authority_id": CAPTURE.SLOW_DOWN_REPLACEMENT_AUTHORITY_ID,
             "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
-            "authorized_at_utc": "2026-08-13T16:02:58Z",
+            "authorized_at_utc": "2026-08-13T16:02:50Z",
             "course": "slow-down",
             "previous_early_poll_consumed": True,
             "replacement_early_poll_limit": 1,
@@ -350,9 +356,46 @@ def slow_down_authority_records(runner_digest: str) -> dict[str, bytes]:
             "authority_id": CAPTURE.SLOW_DOWN_REPLACEMENT_AUTHORITY_ID,
             "authority_record_sha256": CAPTURE._sha256(authority),
             "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
-            "capture_runner_sha256": runner_digest,
+            "capture_runner_sha256": failed_runner_digest,
             "course": "slow-down",
             "schema_name": "bpr.rfc0016.slow_down_reservation",
+            "schema_version": 1,
+            "spent_before_traffic_at_utc": "2026-08-13T16:02:51Z",
+            "state": "spent",
+        }
+    )
+    recovery_authority = CAPTURE.canonical_json(
+        {
+            "authority_amendment_id": CAPTURE.AUTHORITY_AMENDMENT_ID,
+            "authority_id": CAPTURE.SLOW_DOWN_RECOVERY_AUTHORITY_ID,
+            "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
+            "authorized_at_utc": "2026-08-13T16:02:58Z",
+            "course": "slow-down",
+            "failed_attempt_authority_sha256": CAPTURE._sha256(authority),
+            "failed_attempt_capture_runner_sha256": failed_runner_digest,
+            "failed_attempt_spent_marker_sha256": CAPTURE._sha256(spent),
+            "parser_repair_capture_runner_sha256": runner_digest,
+            "recovery_early_poll_limit": 1,
+            "schema_name": (
+                "bpr.rfc0016.slow_down_parser_repair_recovery_authority"
+            ),
+            "schema_version": 1,
+            "state": "parser_repair_recovery_authorized",
+        }
+    )
+    recovery_spent = CAPTURE.canonical_json(
+        {
+            "authority_amendment_id": CAPTURE.AUTHORITY_AMENDMENT_ID,
+            "authority_id": CAPTURE.SLOW_DOWN_RECOVERY_AUTHORITY_ID,
+            "authority_record_sha256": CAPTURE._sha256(recovery_authority),
+            "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
+            "capture_runner_sha256": runner_digest,
+            "course": "slow-down",
+            "failed_attempt_authority_sha256": CAPTURE._sha256(authority),
+            "failed_attempt_spent_marker_sha256": CAPTURE._sha256(spent),
+            "schema_name": (
+                "bpr.rfc0016.slow_down_parser_repair_recovery_reservation"
+            ),
             "schema_version": 1,
             "spent_before_traffic_at_utc": "2026-08-13T16:02:59Z",
             "state": "spent",
@@ -361,6 +404,8 @@ def slow_down_authority_records(runner_digest: str) -> dict[str, bytes]:
     return {
         CAPTURE.SLOW_DOWN_AUTHORITY_PATH: authority,
         CAPTURE.SLOW_DOWN_SPENT_PATH: spent,
+        CAPTURE.SLOW_DOWN_RECOVERY_AUTHORITY_PATH: recovery_authority,
+        CAPTURE.SLOW_DOWN_RECOVERY_SPENT_PATH: recovery_spent,
     }
 
 
@@ -516,6 +561,9 @@ def build_attestation_review(
         registration_payload,
         runner_digest,
         CAPTURE._sha256(authority_records[CAPTURE.SLOW_DOWN_SPENT_PATH]),
+        CAPTURE._sha256(
+            authority_records[CAPTURE.SLOW_DOWN_RECOVERY_SPENT_PATH]
+        ),
     )
     fixture_payloads = assembled_fixture(course_records)
     if mutate_evidence is not None:
@@ -555,10 +603,7 @@ def build_attestation_review(
             "label": f"authority:{relative}",
             "path": os.path.relpath(course_root / relative, review),
         }
-        for relative in (
-            CAPTURE.SLOW_DOWN_AUTHORITY_PATH,
-            CAPTURE.SLOW_DOWN_SPENT_PATH,
-        )
+        for relative in CAPTURE.SLOW_DOWN_AUTHORITY_RECORD_PATHS
     ] + [
         {
             "label": "attestation:live-run-attestation.json",
@@ -1144,13 +1189,18 @@ class CaptureContractTests(unittest.TestCase):
         self,
     ) -> None:
         mutations = (
-            "missing",
+            "missing-original",
+            "missing-recovery",
             "extra",
-            "authority",
-            "authority-digest",
-            "time",
-            "runner",
-            "marker-binding",
+            "original-authority",
+            "original-authority-digest",
+            "original-time",
+            "failed-runner",
+            "original-marker-binding",
+            "recovery-authority",
+            "recovery-original-binding",
+            "recovery-marker-binding",
+            "recovery-time",
         )
         for mutation in mutations:
             with (
@@ -1163,38 +1213,68 @@ class CaptureContractTests(unittest.TestCase):
                 )
                 authority_path = course_root / CAPTURE.SLOW_DOWN_AUTHORITY_PATH
                 spent_path = course_root / CAPTURE.SLOW_DOWN_SPENT_PATH
-                if mutation == "missing":
+                recovery_authority_path = (
+                    course_root / CAPTURE.SLOW_DOWN_RECOVERY_AUTHORITY_PATH
+                )
+                recovery_spent_path = (
+                    course_root / CAPTURE.SLOW_DOWN_RECOVERY_SPENT_PATH
+                )
+                if mutation == "missing-original":
                     authority_path.unlink()
+                elif mutation == "missing-recovery":
+                    recovery_authority_path.unlink()
                 elif mutation == "extra":
                     (course_root / "unexpected.json").write_text(
                         "{}\n",
                         encoding="utf-8",
                     )
-                elif mutation == "authority":
+                elif mutation == "original-authority":
                     authority = json.loads(authority_path.read_bytes())
                     authority["previous_early_poll_consumed"] = False
                     rewrite_json(authority_path, authority)
-                elif mutation == "authority-digest":
+                elif mutation == "original-authority-digest":
                     spent = json.loads(spent_path.read_bytes())
                     spent["authority_record_sha256"] = "sha256:" + "0" * 64
                     rewrite_json(spent_path, spent)
-                elif mutation == "time":
+                elif mutation == "original-time":
                     spent = json.loads(spent_path.read_bytes())
                     spent["spent_before_traffic_at_utc"] = "2026-08-13T16:03:01Z"
                     rewrite_json(spent_path, spent)
-                elif mutation == "runner":
+                elif mutation == "failed-runner":
                     spent = json.loads(spent_path.read_bytes())
                     spent["capture_runner_sha256"] = "sha256:" + "0" * 64
                     rewrite_json(spent_path, spent)
-                else:
+                elif mutation in {
+                    "original-marker-binding",
+                    "recovery-marker-binding",
+                }:
                     execution_path = (
                         course_root / "slow-down" / "course-execution.json"
                     )
                     execution = json.loads(execution_path.read_bytes())
-                    execution["bindings"]["slow_down_reservation_sha256"] = (
+                    key = (
+                        "slow_down_original_reservation_sha256"
+                        if mutation == "original-marker-binding"
+                        else "slow_down_recovery_reservation_sha256"
+                    )
+                    execution["bindings"][key] = "sha256:" + "0" * 64
+                    rewrite_json(execution_path, execution)
+                elif mutation == "recovery-authority":
+                    authority = json.loads(recovery_authority_path.read_bytes())
+                    authority["recovery_early_poll_limit"] = True
+                    rewrite_json(recovery_authority_path, authority)
+                elif mutation == "recovery-original-binding":
+                    marker = json.loads(recovery_spent_path.read_bytes())
+                    marker["failed_attempt_spent_marker_sha256"] = (
                         "sha256:" + "0" * 64
                     )
-                    rewrite_json(execution_path, execution)
+                    rewrite_json(recovery_spent_path, marker)
+                else:
+                    marker = json.loads(recovery_spent_path.read_bytes())
+                    marker["spent_before_traffic_at_utc"] = (
+                        "2026-08-13T16:03:01Z"
+                    )
+                    rewrite_json(recovery_spent_path, marker)
                 with mock.patch.object(CAPTURE, "REPOSITORY_ROOT", repository_root):
                     self.assert_rejected(
                         lambda: CAPTURE.validate_fixture_root(
@@ -1570,6 +1650,107 @@ class CaptureContractTests(unittest.TestCase):
                         registration_record_sha256=(
                             SYNTHETIC_REGISTRATION_SHA256
                         ),
+                    )
+                )
+
+    def test_slow_down_interval_is_retained_as_non_secret_contract_data(self) -> None:
+        artifact = CAPTURE.sanitize_outcome(
+            "slow_down",
+            outcome_bodies()["slow_down"],
+            http_status=200,
+            captured_at_utc=CAPTURED_AT,
+            source_kind="synthetic",
+            registration_record_sha256=SYNTHETIC_REGISTRATION_SHA256,
+        )
+        self.assertEqual(
+            artifact["projection"]["observed_fields"],
+            ["error", "error_description", "error_uri", "interval"],
+        )
+        self.assertEqual(
+            artifact["projection"]["values"],
+            {
+                "error": "slow_down",
+                "interval": 10,
+                "official_error_uri": True,
+            },
+        )
+        CAPTURE.validate_outcome_artifact(artifact, require_real=False)
+
+    def test_slow_down_interval_sanitizer_and_artifact_are_exact_typed(self) -> None:
+        valid_artifact = CAPTURE.sanitize_outcome(
+            "slow_down",
+            outcome_bodies()["slow_down"],
+            http_status=200,
+            captured_at_utc=CAPTURED_AT,
+            source_kind="synthetic",
+            registration_record_sha256=SYNTHETIC_REGISTRATION_SHA256,
+        )
+        for interval in (None, True, 1.5, "10", 0, -1, 301):
+            raw = json.loads(outcome_bodies()["slow_down"])
+            hostile_artifact = copy.deepcopy(valid_artifact)
+            if interval is None:
+                raw.pop("interval")
+                hostile_artifact["projection"]["values"].pop("interval")
+            else:
+                raw["interval"] = interval
+                hostile_artifact["projection"]["values"]["interval"] = interval
+            with self.subTest(interval=interval):
+                self.assert_rejected(
+                    lambda raw=raw: CAPTURE.sanitize_outcome(
+                        "slow_down",
+                        encode(raw),
+                        http_status=200,
+                        captured_at_utc=CAPTURED_AT,
+                        source_kind="synthetic",
+                        registration_record_sha256=(
+                            SYNTHETIC_REGISTRATION_SHA256
+                        ),
+                    )
+                )
+                self.assert_rejected(
+                    lambda hostile_artifact=hostile_artifact: (
+                        CAPTURE.validate_outcome_artifact(
+                            hostile_artifact,
+                            require_real=False,
+                        )
+                    )
+                )
+
+    def test_interval_is_rejected_on_every_non_slow_error_contract(self) -> None:
+        for outcome in (
+            "access_denied",
+            "authorization_pending",
+            "device_flow_disabled",
+            "expired_token",
+        ):
+            raw = json.loads(outcome_bodies()[outcome])
+            raw["interval"] = 10
+            artifact = CAPTURE.sanitize_outcome(
+                outcome,
+                outcome_bodies()[outcome],
+                http_status=200,
+                captured_at_utc=CAPTURED_AT,
+                source_kind="synthetic",
+                registration_record_sha256=SYNTHETIC_REGISTRATION_SHA256,
+            )
+            artifact["projection"]["values"]["interval"] = 10
+            with self.subTest(outcome=outcome):
+                self.assert_rejected(
+                    lambda outcome=outcome, raw=raw: CAPTURE.sanitize_outcome(
+                        outcome,
+                        encode(raw),
+                        http_status=200,
+                        captured_at_utc=CAPTURED_AT,
+                        source_kind="synthetic",
+                        registration_record_sha256=(
+                            SYNTHETIC_REGISTRATION_SHA256
+                        ),
+                    )
+                )
+                self.assert_rejected(
+                    lambda artifact=artifact: CAPTURE.validate_outcome_artifact(
+                        artifact,
+                        require_real=False,
                     )
                 )
 

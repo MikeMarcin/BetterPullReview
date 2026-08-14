@@ -97,11 +97,14 @@ validator for that later course. It has no live-network or write mode. The
 library surface accepts response bytes in memory, projects only closed
 structural fields, omits access/refresh tokens and device/user codes, and
 requires canonical JSON before an unattested durable fixture tree can validate.
-Error responses retain only the closed error enum and a boolean confirming that
-the observed error URI used the official documentation authority. Their
-free-form description and URI text are listed as observed-but-omitted fields,
-so user-code-, cookie-, JWT-, path-, or identity-shaped text cannot become
-durable evidence.
+Error responses retain the closed error enum and a boolean confirming that the
+observed error URI used the official documentation authority. `slow_down`
+additionally retains only GitHub's bounded positive integer `interval`, because
+that non-secret value is the rate-limit transition the contract must prove;
+the runner requires it to equal the active interval plus five. No other error
+may carry an interval. Free-form description and URI text remain
+observed-but-omitted fields, so user-code-, cookie-, JWT-, path-, or
+identity-shaped text cannot become durable evidence.
 The closed schema requires exactly one projection for device-code
 success, token success, `authorization_pending`, `slow_down`, `access_denied`,
 `expired_token`, and `device_flow_disabled`; synthetic hostile parser inputs
@@ -126,12 +129,16 @@ under `docs/verification/reviews/` and `--course-evidence-root` supplies the
 exact five attended course trees. The validator closes every course inventory,
 execution record, transition, outcome, route projection, registration binding,
 and tree digest. The same exact root also carries canonical copies of the
-one-replacement authority and its before-traffic spent marker. Their authority,
-current-runner, record-digest, reservation-marker, and ordered
-authorized-before-spent-before-course timestamps are closed; their bytes are
-review identities but are deliberately excluded from the five runner course
-tree digests because they were not stored inside those course roots. The
-validator requires the current repository runner digest throughout and
+original replacement authority and spent marker that record the parser-rejected
+attempt, plus the parser-repair recovery authority and its distinct
+before-traffic spent marker. The recovery authority binds the original record,
+marker, failed-runner digest, and repaired-runner digest; the final slow-down
+course binds both reservation digests. Both authority chains and their ordered
+authorized-before-spent-before-course timestamps are closed. All four record
+bytes are review identities but are deliberately excluded from the five runner
+course-tree digests because they were not stored inside those course roots. The
+validator requires one repaired repository runner digest throughout the final
+five-course set and
 reassembles the final fixture bytes and manifest from the prescribed course
 sources. The review must bind every course, authority, and fixture artifact plus the
 runner's strict `live-run-attestation.json` as identity files in one fixed

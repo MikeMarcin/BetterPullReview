@@ -53,6 +53,9 @@ AUTHORITY_AMENDMENT_ID = "rfc0016-private-owner-only-2026-08-13"
 SLOW_DOWN_REPLACEMENT_AUTHORITY_ID = (
     "rfc0016-bpr0276-slow-down-replacement-once-2026-08-13"
 )
+SLOW_DOWN_RECOVERY_AUTHORITY_ID = (
+    "rfc0016-bpr0276-slow-down-parser-repair-recovery-once-2026-08-13"
+)
 
 
 def _account_home() -> Path:
@@ -74,7 +77,14 @@ SLOW_DOWN_REPLACEMENT_AUTHORITY_PATH = (
     _SLOW_DOWN_STATE_ROOT / "slow-down-replacement-authority.json"
 )
 SLOW_DOWN_SPENT_MARKER_PATH = _SLOW_DOWN_STATE_ROOT / "slow-down-reservation-spent.json"
+SLOW_DOWN_RECOVERY_AUTHORITY_PATH = (
+    _SLOW_DOWN_STATE_ROOT / "slow-down-parser-repair-recovery-authority.json"
+)
+SLOW_DOWN_RECOVERY_SPENT_MARKER_PATH = (
+    _SLOW_DOWN_STATE_ROOT / "slow-down-parser-repair-recovery-spent.json"
+)
 ERROR_FIELDS = frozenset({"error", "error_description", "error_uri"})
+SLOW_DOWN_FIELDS = ERROR_FIELDS | {"interval"}
 AMBIENT_NETWORK_ENVIRONMENT = (
     "ALL_PROXY",
     "HTTPS_PROXY",
@@ -661,6 +671,13 @@ class DeviceGrant:
     reply: WireReply
 
 
+@dataclass(frozen=True)
+class TokenPoll:
+    outcome: str
+    reply: WireReply
+    interval: int | None = None
+
+
 def validate_client_id(client_id: str) -> str:
     if client_id != APPROVED_PUBLIC_CLIENT_ID or not PUBLIC_CLIENT_ID.fullmatch(client_id):
         raise LiveCaptureError("client_id_invalid")
@@ -725,7 +742,7 @@ def poll_token(
     device_code: str,
     *,
     timeout_seconds: float = REQUEST_TIMEOUT_SECONDS,
-) -> tuple[str, WireReply]:
+) -> TokenPoll:
     validate_client_id(client_id)
     reply = wire.post_form(
         TOKEN_URL,
@@ -740,14 +757,20 @@ def poll_token(
     if "error" in value:
         if reply.status not in {200, 400}:
             raise LiveCaptureError("token_error_status_invalid")
-        if set(value) != ERROR_FIELDS:
-            raise LiveCaptureError("token_error_schema_invalid")
         error = _required_text(value["error"], "error", 64)
         if error not in {"authorization_pending", "slow_down", *TERMINALS}:
             raise LiveCaptureError("token_error_unknown")
+        expected_fields = SLOW_DOWN_FIELDS if error == "slow_down" else ERROR_FIELDS
+        if set(value) != expected_fields:
+            raise LiveCaptureError("token_error_schema_invalid")
         _required_text(value["error_description"], "error_description", 512)
         _required_text(value["error_uri"], "error_uri", 512)
-        return error, reply
+        interval = (
+            _required_int(value["interval"], "slow_down_interval", 300)
+            if error == "slow_down"
+            else None
+        )
+        return TokenPoll(error, reply, interval)
     expected = {
         "access_token",
         "expires_in",
@@ -762,7 +785,7 @@ def poll_token(
         raise LiveCaptureError("token_response_invalid")
     _required_text(value["access_token"], "access_token", 4096)
     _required_text(value["refresh_token"], "refresh_token", 4096)
-    return "token_success", reply
+    return TokenPoll("token_success", reply)
 
 
 def _access_token(reply: WireReply) -> str:
@@ -811,13 +834,15 @@ class CourseEvidence:
     executed_at_utc: str
     capture_runner_sha256: str
     route_probes: list[dict[str, object]] | None = None
-    slow_down_reservation_sha256: str | None = None
+    slow_down_original_reservation_sha256: str | None = None
+    slow_down_recovery_reservation_sha256: str | None = None
     device_flow_transition: bytes | None = None
 
 
 @dataclass(frozen=True)
 class SlowDownReservation:
-    marker_sha256: str
+    original_marker_sha256: str
+    recovery_marker_sha256: str
     capture_runner_sha256: str
 
 
@@ -842,7 +867,7 @@ def _poll_before_deadline(
     deadline: float,
     *,
     monotonic: Callable[[], float],
-) -> tuple[str, WireReply]:
+) -> TokenPoll:
     remaining = deadline - monotonic()
     if remaining <= 0.0:
         raise LiveCaptureError("course_deadline_refused")
@@ -891,7 +916,11 @@ def run_authorization_course(
         ):
             raise LiveCaptureError("slow_down_reservation_required")
         _require_sha256(
-            slow_down_reservation.marker_sha256,
+            slow_down_reservation.original_marker_sha256,
+            "slow_down_reservation_invalid",
+        )
+        _require_sha256(
+            slow_down_reservation.recovery_marker_sha256,
             "slow_down_reservation_invalid",
         )
     elif slow_down_reservation is not None:
@@ -942,18 +971,18 @@ def run_authorization_course(
             sleep=sleep,
             monotonic=monotonic,
         )
-        outcome, reply = _poll_before_deadline(
+        poll = _poll_before_deadline(
             wire,
             client_id,
             grant.device_code,
             total_deadline,
             monotonic=monotonic,
         )
-        if outcome != "expired_token":
+        if poll.outcome != "expired_token":
             raise LiveCaptureError("expired_token_not_observed")
         return CourseEvidence(
             grant.reply,
-            {outcome: reply},
+            {poll.outcome: poll.reply},
             executed_at_utc,
             capture_runner_sha256,
         )
@@ -964,35 +993,42 @@ def run_authorization_course(
         sleep=sleep,
         monotonic=monotonic,
     )
-    outcome, reply = _poll_before_deadline(
+    poll = _poll_before_deadline(
         wire,
         client_id,
         grant.device_code,
         normal_deadline,
         monotonic=monotonic,
     )
-    if outcome != "authorization_pending":
+    if poll.outcome != "authorization_pending":
         raise LiveCaptureError("pending_not_observed")
-    outcomes[outcome] = reply
+    outcomes[poll.outcome] = poll.reply
 
     if course == "slow-down":
         # The sole RFC-authorized capture-only early poll is isolated here.
-        outcome, reply = _poll_before_deadline(
+        poll = _poll_before_deadline(
             wire,
             client_id,
             grant.device_code,
             normal_deadline,
             monotonic=monotonic,
         )
-        if outcome != "slow_down":
+        if poll.outcome != "slow_down":
             raise LiveCaptureError("slow_down_not_observed")
-        outcomes[outcome] = reply
+        if poll.interval != grant.interval + 5:
+            raise LiveCaptureError("slow_down_interval_progression_invalid")
+        outcomes[poll.outcome] = poll.reply
         return CourseEvidence(
             grant.reply,
             outcomes,
             executed_at_utc,
             capture_runner_sha256,
-            slow_down_reservation_sha256=slow_down_reservation.marker_sha256,
+            slow_down_original_reservation_sha256=(
+                slow_down_reservation.original_marker_sha256
+            ),
+            slow_down_recovery_reservation_sha256=(
+                slow_down_reservation.recovery_marker_sha256
+            ),
         )
 
     present(grant.user_code)
@@ -1008,23 +1044,29 @@ def run_authorization_course(
             sleep=sleep,
             monotonic=monotonic,
         )
-        outcome, reply = _poll_before_deadline(
+        poll = _poll_before_deadline(
             wire,
             client_id,
             grant.device_code,
             normal_deadline,
             monotonic=monotonic,
         )
-        if outcome == "authorization_pending":
-            outcomes.setdefault(outcome, reply)
+        if poll.outcome == "authorization_pending":
+            outcomes.setdefault(poll.outcome, poll.reply)
             continue
-        if outcome == "slow_down":
-            interval += 5
+        if poll.outcome == "slow_down":
+            if poll.interval != interval + 5:
+                raise LiveCaptureError("slow_down_interval_progression_invalid")
+            interval = poll.interval
             continue
-        if outcome != expected:
+        if poll.outcome != expected:
             raise LiveCaptureError("unexpected_terminal")
-        outcomes[outcome] = reply
-        probes = probe(_access_token(reply)) if outcome == "token_success" and probe else None
+        outcomes[poll.outcome] = poll.reply
+        probes = (
+            probe(_access_token(poll.reply))
+            if poll.outcome == "token_success" and probe
+            else None
+        )
         return CourseEvidence(
             grant.reply,
             outcomes,
@@ -1097,23 +1139,13 @@ def _read_private_canonical_json(path: Path, diagnostic: str) -> tuple[dict[str,
     return document, payload
 
 
-def _reserve_slow_down_once(
-    capture_runner_sha256: str,
-) -> SlowDownReservation:
-    """Spend one externally authorized replacement poll before any traffic."""
-    _require_sha256(capture_runner_sha256, "capture_runner_digest_invalid")
-    try:
-        authority_parent, _ = _private_parent(SLOW_DOWN_REPLACEMENT_AUTHORITY_PATH)
-        spent_parent, spent_name = _private_parent(SLOW_DOWN_SPENT_MARKER_PATH)
-    except (LiveCaptureError, OSError) as error:
-        raise LiveCaptureError("slow_down_replacement_authority_required") from error
-    if authority_parent != spent_parent:
-        raise LiveCaptureError("slow_down_state_path_invalid")
-    authority, authority_payload = _read_private_canonical_json(
-        SLOW_DOWN_REPLACEMENT_AUTHORITY_PATH,
-        "slow_down_replacement_authority_required",
-    )
-    if set(authority) != {
+def _validate_original_slow_down_attempt(
+    authority: object,
+    authority_payload: bytes,
+    marker: object,
+) -> tuple[str, datetime]:
+    diagnostic = "slow_down_original_attempt_invalid"
+    if not isinstance(authority, dict) or set(authority) != {
         "authority_amendment_id",
         "authority_id",
         "authority_subject_sha256",
@@ -1125,7 +1157,7 @@ def _reserve_slow_down_once(
         "schema_version",
         "state",
     }:
-        raise LiveCaptureError("slow_down_replacement_authority_invalid")
+        raise LiveCaptureError(diagnostic)
     offline = _offline_module()
     if (
         authority["authority_amendment_id"] != AUTHORITY_AMENDMENT_ID
@@ -1133,45 +1165,170 @@ def _reserve_slow_down_once(
         or authority["authority_subject_sha256"] != offline.AUTHORITY_SUBJECT_SHA256
         or authority["course"] != "slow-down"
         or authority["previous_early_poll_consumed"] is not True
+        or type(authority["replacement_early_poll_limit"]) is not int
         or authority["replacement_early_poll_limit"] != 1
         or authority["schema_name"]
         != "bpr.rfc0016.slow_down_replacement_authority"
+        or type(authority["schema_version"]) is not int
         or authority["schema_version"] != 1
         or authority["state"] != "replacement_authorized"
     ):
-        raise LiveCaptureError("slow_down_replacement_authority_invalid")
-    _timestamp(
-        authority["authorized_at_utc"],
-        "slow_down_replacement_authority_invalid",
+        raise LiveCaptureError(diagnostic)
+    authorized_at = _timestamp(authority["authorized_at_utc"], diagnostic)
+    if not isinstance(marker, dict) or set(marker) != {
+        "authority_amendment_id",
+        "authority_id",
+        "authority_record_sha256",
+        "authority_subject_sha256",
+        "capture_runner_sha256",
+        "course",
+        "schema_name",
+        "schema_version",
+        "spent_before_traffic_at_utc",
+        "state",
+    }:
+        raise LiveCaptureError(diagnostic)
+    failed_runner_sha256 = _require_sha256(
+        marker.get("capture_runner_sha256"),
+        diagnostic,
     )
+    if (
+        marker["authority_amendment_id"] != AUTHORITY_AMENDMENT_ID
+        or marker["authority_id"] != SLOW_DOWN_REPLACEMENT_AUTHORITY_ID
+        or marker["authority_record_sha256"] != _sha256(authority_payload)
+        or marker["authority_subject_sha256"] != offline.AUTHORITY_SUBJECT_SHA256
+        or marker["course"] != "slow-down"
+        or marker["schema_name"] != "bpr.rfc0016.slow_down_reservation"
+        or type(marker["schema_version"]) is not int
+        or marker["schema_version"] != 1
+        or marker["state"] != "spent"
+    ):
+        raise LiveCaptureError(diagnostic)
+    spent_at = _timestamp(marker["spent_before_traffic_at_utc"], diagnostic)
+    if authorized_at > spent_at:
+        raise LiveCaptureError(diagnostic)
+    return failed_runner_sha256, spent_at
+
+
+def _reserve_slow_down_recovery_once(
+    capture_runner_sha256: str,
+) -> SlowDownReservation:
+    """Spend the single parser-repair recovery poll before any traffic."""
+    _require_sha256(capture_runner_sha256, "capture_runner_digest_invalid")
+    state_paths = (
+        SLOW_DOWN_REPLACEMENT_AUTHORITY_PATH,
+        SLOW_DOWN_SPENT_MARKER_PATH,
+        SLOW_DOWN_RECOVERY_AUTHORITY_PATH,
+        SLOW_DOWN_RECOVERY_SPENT_MARKER_PATH,
+    )
+    try:
+        parents_and_names = tuple(_private_parent(path) for path in state_paths)
+    except (LiveCaptureError, OSError) as error:
+        raise LiveCaptureError("slow_down_recovery_authority_required") from error
+    state_parents = {parent for parent, _name in parents_and_names}
+    if len(state_parents) != 1:
+        raise LiveCaptureError("slow_down_state_path_invalid")
+    original_authority, original_authority_payload = _read_private_canonical_json(
+        SLOW_DOWN_REPLACEMENT_AUTHORITY_PATH,
+        "slow_down_original_attempt_required",
+    )
+    original_marker, original_marker_payload = _read_private_canonical_json(
+        SLOW_DOWN_SPENT_MARKER_PATH,
+        "slow_down_original_attempt_required",
+    )
+    failed_runner_sha256, original_spent_at = _validate_original_slow_down_attempt(
+        original_authority,
+        original_authority_payload,
+        original_marker,
+    )
+    recovery_authority, recovery_authority_payload = _read_private_canonical_json(
+        SLOW_DOWN_RECOVERY_AUTHORITY_PATH,
+        "slow_down_recovery_authority_required",
+    )
+    if not isinstance(recovery_authority, dict) or set(recovery_authority) != {
+        "authority_amendment_id",
+        "authority_id",
+        "authority_subject_sha256",
+        "authorized_at_utc",
+        "course",
+        "failed_attempt_authority_sha256",
+        "failed_attempt_capture_runner_sha256",
+        "failed_attempt_spent_marker_sha256",
+        "parser_repair_capture_runner_sha256",
+        "recovery_early_poll_limit",
+        "schema_name",
+        "schema_version",
+        "state",
+    }:
+        raise LiveCaptureError("slow_down_recovery_authority_invalid")
+    offline = _offline_module()
+    recovery_authorized_at = _timestamp(
+        recovery_authority["authorized_at_utc"],
+        "slow_down_recovery_authority_invalid",
+    )
+    if (
+        recovery_authority["authority_amendment_id"] != AUTHORITY_AMENDMENT_ID
+        or recovery_authority["authority_id"] != SLOW_DOWN_RECOVERY_AUTHORITY_ID
+        or recovery_authority["authority_subject_sha256"]
+        != offline.AUTHORITY_SUBJECT_SHA256
+        or recovery_authority["course"] != "slow-down"
+        or recovery_authority["failed_attempt_authority_sha256"]
+        != _sha256(original_authority_payload)
+        or recovery_authority["failed_attempt_capture_runner_sha256"]
+        != failed_runner_sha256
+        or recovery_authority["failed_attempt_spent_marker_sha256"]
+        != _sha256(original_marker_payload)
+        or recovery_authority["parser_repair_capture_runner_sha256"]
+        != capture_runner_sha256
+        or type(recovery_authority["recovery_early_poll_limit"]) is not int
+        or recovery_authority["recovery_early_poll_limit"] != 1
+        or recovery_authority["schema_name"]
+        != "bpr.rfc0016.slow_down_parser_repair_recovery_authority"
+        or type(recovery_authority["schema_version"]) is not int
+        or recovery_authority["schema_version"] != 1
+        or recovery_authority["state"] != "parser_repair_recovery_authorized"
+        or failed_runner_sha256 == capture_runner_sha256
+        or recovery_authorized_at < original_spent_at
+    ):
+        raise LiveCaptureError("slow_down_recovery_authority_invalid")
     spent_at_utc = _execution_timestamp()
-    _timestamp(spent_at_utc, "slow_down_reservation_invalid")
-    marker = {
+    spent_at = _timestamp(spent_at_utc, "slow_down_recovery_reservation_invalid")
+    if spent_at < recovery_authorized_at:
+        raise LiveCaptureError("slow_down_recovery_reservation_invalid")
+    recovery_marker = {
         "authority_amendment_id": AUTHORITY_AMENDMENT_ID,
-        "authority_id": SLOW_DOWN_REPLACEMENT_AUTHORITY_ID,
-        "authority_record_sha256": _sha256(authority_payload),
+        "authority_id": SLOW_DOWN_RECOVERY_AUTHORITY_ID,
+        "authority_record_sha256": _sha256(recovery_authority_payload),
         "authority_subject_sha256": offline.AUTHORITY_SUBJECT_SHA256,
         "capture_runner_sha256": capture_runner_sha256,
         "course": "slow-down",
-        "schema_name": "bpr.rfc0016.slow_down_reservation",
+        "failed_attempt_authority_sha256": _sha256(original_authority_payload),
+        "failed_attempt_spent_marker_sha256": _sha256(original_marker_payload),
+        "schema_name": "bpr.rfc0016.slow_down_parser_repair_recovery_reservation",
         "schema_version": 1,
         "spent_before_traffic_at_utc": spent_at_utc,
         "state": "spent",
     }
-    marker_payload = offline.canonical_json(marker)
+    recovery_marker_payload = offline.canonical_json(recovery_marker)
+    state_parent = next(iter(state_parents))
+    recovery_spent_name = parents_and_names[-1][1]
     directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
     if hasattr(os, "O_NOFOLLOW"):
         directory_flags |= os.O_NOFOLLOW
-    parent_fd = os.open(spent_parent, directory_flags)
+    parent_fd = os.open(state_parent, directory_flags)
     try:
         try:
-            _write_private(parent_fd, spent_name, marker_payload)
+            _write_private(parent_fd, recovery_spent_name, recovery_marker_payload)
         except FileExistsError as error:
-            raise LiveCaptureError("slow_down_reservation_spent") from error
+            raise LiveCaptureError("slow_down_recovery_reservation_spent") from error
         os.fsync(parent_fd)
     finally:
         os.close(parent_fd)
-    return SlowDownReservation(_sha256(marker_payload), capture_runner_sha256)
+    return SlowDownReservation(
+        _sha256(original_marker_payload),
+        _sha256(recovery_marker_payload),
+        capture_runner_sha256,
+    )
 
 
 def load_device_flow_transition_observation(
@@ -1345,7 +1502,12 @@ def _course_execution_document(
         "authority_subject_sha256": _offline_module().AUTHORITY_SUBJECT_SHA256,
         "bindings": {
             "device_flow_transition_sha256": transition_sha256,
-            "slow_down_reservation_sha256": evidence.slow_down_reservation_sha256,
+            "slow_down_original_reservation_sha256": (
+                evidence.slow_down_original_reservation_sha256
+            ),
+            "slow_down_recovery_reservation_sha256": (
+                evidence.slow_down_recovery_reservation_sha256
+            ),
         },
         "capture_runner_sha256": evidence.capture_runner_sha256,
         "course": course,
@@ -1404,18 +1566,28 @@ def _validate_course_execution_document(
     bindings = value["bindings"]
     if not isinstance(bindings, dict) or set(bindings) != {
         "device_flow_transition_sha256",
-        "slow_down_reservation_sha256",
+        "slow_down_original_reservation_sha256",
+        "slow_down_recovery_reservation_sha256",
     }:
         raise LiveCaptureError("course_execution_invalid")
     transition_digest = bindings["device_flow_transition_sha256"]
-    reservation_digest = bindings["slow_down_reservation_sha256"]
+    original_reservation_digest = bindings[
+        "slow_down_original_reservation_sha256"
+    ]
+    recovery_reservation_digest = bindings[
+        "slow_down_recovery_reservation_sha256"
+    ]
     if course == "device-flow-disabled":
         _require_sha256(transition_digest, "course_execution_invalid")
     elif transition_digest is not None:
         raise LiveCaptureError("course_execution_invalid")
     if course == "slow-down":
-        _require_sha256(reservation_digest, "course_execution_invalid")
-    elif reservation_digest is not None:
+        _require_sha256(original_reservation_digest, "course_execution_invalid")
+        _require_sha256(recovery_reservation_digest, "course_execution_invalid")
+    elif (
+        original_reservation_digest is not None
+        or recovery_reservation_digest is not None
+    ):
         raise LiveCaptureError("course_execution_invalid")
     return value
 
@@ -1442,9 +1614,15 @@ def _course_projections(
         evidence.device_flow_transition is not None
     ):
         raise LiveCaptureError("course_evidence_invalid")
-    if (course == "slow-down") != (
-        evidence.slow_down_reservation_sha256 is not None
-    ):
+    has_slow_down_recovery = (
+        evidence.slow_down_original_reservation_sha256 is not None
+        and evidence.slow_down_recovery_reservation_sha256 is not None
+    )
+    if (course == "slow-down") != has_slow_down_recovery:
+        raise LiveCaptureError("course_evidence_invalid")
+    if (
+        evidence.slow_down_original_reservation_sha256 is None
+    ) != (evidence.slow_down_recovery_reservation_sha256 is None):
         raise LiveCaptureError("course_evidence_invalid")
     _timestamp(evidence.executed_at_utc, "course_timestamp_invalid")
     _require_sha256(
@@ -1885,7 +2063,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if (args.course == "device-flow-disabled") != (transition_path is not None):
             raise LiveCaptureError("device_flow_transition_required")
         slow_down_reservation = (
-            _reserve_slow_down_once(LOADED_RUNNER_SHA256)
+            _reserve_slow_down_recovery_once(LOADED_RUNNER_SHA256)
             if args.course == "slow-down"
             else None
         )

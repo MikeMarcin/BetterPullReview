@@ -39,32 +39,34 @@ client and capture sanitized contracts from the endpoints the product will call.
 ## Current course
 
 The private GitHub App registration and selected-repository installation have
-occurred under attended observation. The immutable attended runner captured and
-locally validated the real `expired_token` course and the token-success course,
-including all ten exact read-only Metadata, Contents smart-HTTP, Checks,
-pull-request REST, and review-thread GraphQL probes. Those two owner-private
-course roots remain transient until the complete five-course set is assembled,
-reviewed, and recorded; they do not yet satisfy the real-contract gate.
+occurred under attended observation. The attended runner captured and locally
+validated real expiry, denial, a fresh token-success course that restored the
+BPR-Test user authorization and repeated all ten designated read-only probes,
+and a disabled-setting response with a verified disable/restore transition.
+The earlier token-success root is also preserved as intermediate evidence.
 
-The denial, disabled-setting, and `slow_down` courses remain pending explicit
-operator direction because they respectively revoke the current BPR-Test user
-authorization, temporarily disable and restore Device Flow, and spend one
-replacement early poll. The original early poll observed `slow_down` but its
-interrupted exploratory course retained no admissible fixture. No replacement
-poll is authorized yet.
+The operator authorized one replacement early poll. Its durable spent marker
+was created before traffic and GitHub returned the documented `slow_down`
+response, including its new interval, but the fail-closed runner admitted only
+the three generic error fields and rejected the body. No raw response or course
+root was retained. The parser and sanitizer now require a bounded repair that
+admits the interval only for `slow_down` and adversarially rejects every other
+schema/type variant. The original and replacement authority/spent records must
+remain immutable and be bound into final evidence.
 
-The denial direction must also authorize one immediate fresh token-success
-course afterward. That course restores the BPR-Test user authorization and
-repeats only the same ten designated read-only probes; its closed root replaces
-the earlier token-success root in final assembly. The already valid earlier
-root remains preserved as intermediate evidence until closeout cleanup and is
-never silently deleted or represented as the post-denial restoration.
+Changing the runner invalidates every existing final course identity. After a
+new plain operator direction authorizes exactly one recovery early poll, all
+five courses must be recaptured under the repaired runner and one runner digest;
+mixed-runner assembly stays forbidden. The recovery uses a distinct O_EXCL
+pre-traffic spent marker and no further retry is admitted. Every existing
+owner-private course root remains intermediate provenance and is never silently
+rewritten or represented as a repaired-runner capture.
 
 The hermetic sanitizer, attended runner, and exact external-attestation
 verifier are committed at `3b6d470`, `100f578`, and `910176c`. The verifier
 requires every final fixture byte, all five closed course trees, the exact
-runner bytes, the disabled-setting transition, the replacement-poll authority
-and spent marker, deterministic reassembly, and a genuine accepted
+runner bytes, the disabled-setting transition, every early-poll authority and
+spent marker, deterministic reassembly, and a genuine accepted
 BetterPullReview attended-review export. Its claim is deliberately limited to
 human acceptance of those exact sanitized bytes as attended run evidence; it
 does not claim cryptographic user, GitHub, or transport authenticity.
