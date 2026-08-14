@@ -65,8 +65,9 @@ rewritten or represented as a repaired-runner capture.
 The initial hermetic sanitizer, attended runner, and exact external-attestation
 verifier landed at `3b6d470`, `100f578`, and `910176c`; the exact
 `slow_down.interval` and two-chain parser-recovery contract is repaired at
-`69acab3`. Its focused gates pass 38/38 sanitizer tests, 40/40 runner tests, and
-2/2 repository-network-isolated CTests. The verifier requires every final
+`69acab3`, with final replay-time interval binding at `386176f`. Its focused
+gates pass 39/39 sanitizer tests, 40/40 runner tests, and 2/2
+repository-network-isolated CTests. The verifier requires every final
 fixture byte, all five closed course trees, the exact repaired runner bytes,
 the disabled-setting transition, every early-poll authority and spent marker,
 deterministic reassembly, and a genuine accepted
