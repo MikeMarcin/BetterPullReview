@@ -62,11 +62,14 @@ pre-traffic spent marker and no further retry is admitted. Every existing
 owner-private course root remains intermediate provenance and is never silently
 rewritten or represented as a repaired-runner capture.
 
-The hermetic sanitizer, attended runner, and exact external-attestation
-verifier are committed at `3b6d470`, `100f578`, and `910176c`. The verifier
-requires every final fixture byte, all five closed course trees, the exact
-runner bytes, the disabled-setting transition, every early-poll authority and
-spent marker, deterministic reassembly, and a genuine accepted
+The initial hermetic sanitizer, attended runner, and exact external-attestation
+verifier landed at `3b6d470`, `100f578`, and `910176c`; the exact
+`slow_down.interval` and two-chain parser-recovery contract is repaired at
+`69acab3`. Its focused gates pass 38/38 sanitizer tests, 40/40 runner tests, and
+2/2 repository-network-isolated CTests. The verifier requires every final
+fixture byte, all five closed course trees, the exact repaired runner bytes,
+the disabled-setting transition, every early-poll authority and spent marker,
+deterministic reassembly, and a genuine accepted
 BetterPullReview attended-review export. Its claim is deliberately limited to
 human acceptance of those exact sanitized bytes as attended run evidence; it
 does not claim cryptographic user, GitHub, or transport authenticity.
