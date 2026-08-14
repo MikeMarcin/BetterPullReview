@@ -180,8 +180,12 @@ immutable final-head platform replay is the closeout result.
 
 - Any eligibility row remains pending, or a packet is treated as approval
   without the exact accepted response.
-- A client secret, token, refresh token, device/user code, endpoint, interval,
-  or provider type crosses its allocated boundary or enters durable evidence.
+- A client secret, token, refresh token, or device/user code crosses its
+  boundary or enters durable evidence; or a public client identifier, service
+  endpoint, interval, or provider type crosses its allocated product boundary.
+  The sanitized BPR-0276 evidence may retain only the approved public
+  registration/endpoint identities and the bounded `slow_down` interval needed
+  to prove the exact active-interval-plus-five transition.
 - A widget/provider bypass, alternate credential store, partial unavailable
   mode, unbounded poll, redirect/certificate relaxation, or embedded/listening
   browser design exists.

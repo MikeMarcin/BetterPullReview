@@ -1185,6 +1185,93 @@ class CaptureContractTests(unittest.TestCase):
                     )
                 )
 
+    def test_complete_evidence_requires_own_slow_down_interval_progression(
+        self,
+    ) -> None:
+        def change_slow_course_device_interval(
+            courses: dict[str, dict[str, bytes]],
+            _fixture: dict[str, bytes],
+        ) -> None:
+            relative = "outcomes/device_code_success.json"
+            document = json.loads(courses["slow-down"][relative])
+            document["projection"]["values"]["interval"] = 6
+            courses["slow-down"][relative] = CAPTURE.canonical_json(document)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            repository_root = Path(temporary).resolve()
+            fixture_root, course_root, review = build_attestation_review(
+                repository_root,
+                mutate_evidence=change_slow_course_device_interval,
+            )
+            slow_root = course_root / "slow-down"
+            relative = "outcomes/device_code_success.json"
+            slow_device_payload = (slow_root / relative).read_bytes()
+            slow_device = json.loads(slow_device_payload)
+            slow_response = json.loads(
+                (slow_root / "outcomes/slow_down.json").read_bytes()
+            )
+            self.assertEqual(
+                slow_device["projection"]["values"]["interval"],
+                6,
+            )
+            self.assertEqual(
+                slow_response["projection"]["values"]["interval"],
+                10,
+            )
+            assembled_device = json.loads(
+                (fixture_root / "outcomes/device_code_success.json").read_bytes()
+            )
+            self.assertEqual(
+                assembled_device["projection"]["values"]["interval"],
+                5,
+            )
+
+            slow_records = {
+                path.relative_to(slow_root).as_posix(): path.read_bytes()
+                for path in slow_root.rglob("*")
+                if path.is_file()
+            }
+            attestation = json.loads(
+                (repository_root / "capture/live-run-attestation.json").read_bytes()
+            )
+            self.assertEqual(
+                attestation["course_tree_sha256"]["slow-down"],
+                CAPTURE._course_tree_digest(slow_records),
+            )
+
+            manifest_path = (
+                review / "offline-package/attended-review-manifest.json"
+            )
+            manifest = json.loads(manifest_path.read_bytes())
+            identity = next(
+                item
+                for item in manifest["subjects"][0]["identity_files"]
+                if item["label"] == f"course:slow-down/{relative}"
+            )
+            self.assertEqual(
+                identity["sha256"],
+                CAPTURE._sha256(slow_device_payload),
+            )
+            self.assertEqual(
+                (manifest_path.parent / identity["path"]).read_bytes(),
+                slow_device_payload,
+            )
+            verdict = json.loads((review / "human-verdict.json").read_bytes())
+            self.assertEqual(
+                verdict["accepted_subjects"][0]["subject_digest"],
+                manifest["subjects"][0]["subject_digest"],
+            )
+
+            with mock.patch.object(CAPTURE, "REPOSITORY_ROOT", repository_root):
+                self.assert_rejected(
+                    lambda: CAPTURE.validate_fixture_root(
+                        fixture_root,
+                        require_complete=True,
+                        attestation_review=review,
+                        course_evidence_root=course_root,
+                    )
+                )
+
     def test_slow_down_authority_chain_rejects_missing_tampered_and_unbound_records(
         self,
     ) -> None:

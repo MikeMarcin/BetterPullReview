@@ -1710,6 +1710,46 @@ def _assemble_course_fixture(
     return artifacts
 
 
+def _course_outcome_interval(
+    course_records: Mapping[str, bytes],
+    outcome: str,
+) -> int:
+    relative = f"outcomes/{outcome}.json"
+    payload = course_records.get(relative)
+    if not isinstance(payload, bytes):
+        raise ContractError("slow-down interval evidence is missing")
+    document = _parse_json(payload)
+    _validate_artifact_for_path(relative, document, require_real=False)
+    if not isinstance(document, dict) or document.get("outcome") != outcome:
+        raise ContractError("slow-down interval evidence identity mismatch")
+    projection = _require_exact_keys(
+        document.get("projection"),
+        {"observed_fields", "omitted_transient_fields", "values"},
+        "slow-down interval evidence projection",
+    )
+    values = projection["values"]
+    return _require_positive_int(
+        values.get("interval") if isinstance(values, dict) else None,
+        "slow-down course interval",
+        300,
+    )
+
+
+def _validate_slow_down_interval_progression(
+    courses: Mapping[str, Mapping[str, bytes]],
+) -> None:
+    slow_course = courses.get("slow-down")
+    if not isinstance(slow_course, Mapping):
+        raise ContractError("slow-down course evidence is missing")
+    device_interval = _course_outcome_interval(
+        slow_course,
+        "device_code_success",
+    )
+    response_interval = _course_outcome_interval(slow_course, "slow_down")
+    if response_interval != device_interval + 5:
+        raise ContractError("slow-down interval progression mismatch")
+
+
 def _validate_course_evidence(
     root: Path,
     fixture_payloads: Mapping[str, bytes],
@@ -1809,6 +1849,7 @@ def _validate_course_evidence(
         authorized_at=recovery_authorized_at,
         executed_at_utc=slow_executed_at,
     )
+    _validate_slow_down_interval_progression(courses)
     assembled = _assemble_course_fixture(courses)
     if not _matches_exact(assembled, dict(fixture_payloads)):
         raise ContractError("course evidence assembly mismatch")
