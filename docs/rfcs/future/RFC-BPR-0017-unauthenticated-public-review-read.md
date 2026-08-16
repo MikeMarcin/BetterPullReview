@@ -318,7 +318,7 @@ Implementation may begin only after all of the following exist:
   request with all RFC-BPR-0002 redirect, certificate, and proxy rules intact,
   and that omitting the authorization header is a deliberate typed state rather
   than an absent credential. This is
-  [BPR-0313](../../issues/in-progress/BPR-0313-demonstrate-credential-free-native-https.md),
+  [BPR-0313](../../issues/done/BPR-0313-demonstrate-credential-free-native-https.md),
   and it comes before the product decision, not after it.
 - A product decision that a read-only, triage-less, rate-limited preview of
   public GitHub.com pull requests is a mode the product wants, recorded with
