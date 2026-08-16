@@ -2320,8 +2320,9 @@ namespace bpr::adapters::github::detail {
 		{
 			// A credential-free binding never leases the Git smart surface: that
 			// surface authenticates with HTTP Basic and has no anonymous form
-			// here, so refusing is the fail-closed answer rather than sending an
-			// empty credential.
+			// here. `credential_matches` already refuses it by requiring an
+			// account credential; this term restates that refusal where it can be
+			// read, so a later change to either one cannot open the surface alone.
 			return !Closing.load(std::memory_order_acquire) && !credential_free()
 				&& application::valid(aContext) && credential_matches(aContext);
 		}
@@ -2762,17 +2763,14 @@ namespace bpr::adapters::github::detail {
 #if defined(BPR_NATIVE_HTTPS_TESTING)
 					else if constexpr (
 						std::same_as<credential_type, credential_free_request>) {
-						// No credential means no account authority to correlate,
-						// so the binding matches on session identity alone.
-						return std::visit(
-							[&aCredential, this](const auto& aParent) noexcept {
-								return aParent.ApplicationSession
-									== aCredential.Context.ApplicationSession
-									&& aParent.Profile == Profile.profile()
-									&& aParent.IdentityGeneration
-									== aCredential.Context.IdentityGeneration;
-							},
-							aRequest.Correlation.Parent);
+						// Exactly the session this binding was handed, nothing
+						// wider. With no credential there is no account authority
+						// to correlate a pull-request-scoped parent against, so
+						// that shape is refused rather than matched loosely.
+						const auto* parent = std::get_if<
+							core::github_session_request_context>(
+							&aRequest.Correlation.Parent);
+						return parent != nullptr && *parent == aCredential.Context;
 					}
 #endif
 					else {
@@ -2892,10 +2890,20 @@ namespace bpr::adapters::github::detail {
 			return std::visit(
 				[](const auto& aCredential) noexcept
 					-> std::span<const std::byte> {
-					if constexpr (requires { aCredential.Material; }) {
-						return aCredential.Material.bytes();
-					} else {
+			// Discriminate on the deliberate state, not on whether a
+			// field happens to exist. Testing for the field would let a
+			// future alternative that renames or omits `Material` compile
+			// and silently send an empty credential; naming the type
+			// keeps that a build failure.
+#if defined(BPR_NATIVE_HTTPS_TESTING)
+					if constexpr (std::same_as<
+									  std::remove_cvref_t<decltype(aCredential)>,
+									  credential_free_request>) {
 						return { };
+					} else
+#endif
+					{
+						return aCredential.Material.bytes();
 					}
 				},
 				Credential);

@@ -350,22 +350,40 @@ ctest --preset dev -R '^rfc0017_credential_free_native_https$' --output-on-failu
 ```
 
 The course runs against the same disposable loopback CONNECT and TLS fixture
-every other native-HTTPS scenario uses, so trust, proxy, redirect,
-cancellation, timeout, and response limits are the real ones rather than a
-copy. The child process is handed an empty credential frame, so it never holds
-material to look up, discover, or fall back to, and the fixture treats any
-authorization header on the wire as a contract violation. The course performs
-two requests to prove the state is a deliberate absence rather than a spent
-credential.
+every other native-HTTPS scenario uses, and builds its transport from the same
+configuration record, so trust, proxy, redirect, cancellation, timeout, and
+response limits are the real mechanics rather than a copy. The child process is
+handed an empty credential frame, so it never holds material to look up,
+discover, or fall back to, and the fixture treats any authorization header on
+the wire as a contract violation. The course performs two requests to prove the
+state is a deliberate absence rather than a spent credential, then makes a
+pull-request-scoped request that must be refused before reaching the wire —
+which the fixture's exact two-request count is what proves.
+
+Be precise about what that establishes. The absent authorization header is
+proven by a fixture that fails when one appears, and the absence of
+non-loopback traffic is enforced by the sandbox profile rather than asserted.
+The claims of zero vault lookup, zero credential discovery, and no subprocess
+are true by construction — the native HTTPS path contains no vault or process
+call, and the process is handed nothing — but no command in this course would
+fail if one were added. They are inherited properties, not demonstrated ones.
+The same applies to redirect, cancellation, timeout, and limit fail-closed
+behavior: those are the credentialed courses' evidence, exercised here through
+shared code, not re-demonstrated credential-free.
 
 `make_native_https_credential_free_transport_for_test` exists only under
 `BPR_NATIVE_HTTPS_TESTING` and takes no credential parameter, so a missing,
-malformed, or revoked credential cannot decay into it — each of those still
-returns `invalid_credential_material` from its own factory, which
-`native_https_transport_contract` asserts directly. The Git smart surface
-refuses a credential-free binding outright rather than sending empty Basic
-material. This is a probe, not a product mode: it creates no anonymous profile
-and changes no production factory.
+wiped, or malformed credential cannot decay into it. Each of those still
+produces its own typed refusal from both the bootstrap and account factories —
+never a working transport — which `native_https_transport_contract` asserts
+directly. The
+credential-free binding correlates only to the exact session it was handed, so
+a pull-request-scoped parent is refused rather than served under some other
+account's correlation. The Git smart surface refuses the binding because
+`credential_matches` requires an account credential; `can_acquire_smart`
+restates that refusal where it can be read, so neither can open the surface
+alone. This is a probe, not a product mode: it creates no anonymous profile and
+changes no production factory.
 
 Two guards keep it that way. The inventory half runs in the ordinary graph:
 

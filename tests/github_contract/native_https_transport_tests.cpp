@@ -448,14 +448,35 @@ namespace {
 				== native_https_configuration_failure::invalid_credential_material,
 			"credential-free-no-malformed-bootstrap-fallback");
 
-		auto revoked = credential_material("fixture-token");
-		revoked.reset();
+		// The account factory is the other way in, and it must refuse the same
+		// way rather than leaving the caller with a transport that happens to
+		// send nothing.
+		auto wipedAccountMaterial = credential_material("fixture-token");
+		wipedAccountMaterial.reset();
 		expect(
-			make_native_https_bootstrap_transport_for_test(
-				aNative, session_context(aNative), std::move(revoked), aConfiguration)
+			make_native_https_account_transport_for_test(
+				aNative,
+				application::github_credential_retrieve_success{
+					.Context = account_operation_context(
+						aNative, pull_request_context(aNative)),
+					.Credential = std::move(wipedAccountMaterial),
+				},
+				aConfiguration)
+					.error()
+				== native_https_configuration_failure::invalid_account_credential,
+			"credential-free-no-wiped-account-fallback");
+		expect(
+			make_native_https_account_transport_for_test(
+				aNative,
+				application::github_credential_retrieve_success{
+					.Context = account_operation_context(
+						aNative, pull_request_context(aNative)),
+					.Credential = credential_material("not a token"),
+				},
+				aConfiguration)
 					.error()
 				== native_https_configuration_failure::invalid_credential_material,
-			"credential-free-no-revoked-bootstrap-fallback");
+			"credential-free-no-malformed-account-fallback");
 	}
 
 	void test_factory_contracts_and_preflight()
@@ -1524,6 +1545,17 @@ namespace {
 			// credential rather than a deliberate absence.
 			const auto replay = (*transport)->perform(request, std::stop_token{ });
 			expect_success(replay, request.Correlation, aScenario);
+			// A binding with no credential has no account authority, so a
+			// pull-request-scoped parent must be refused rather than served
+			// under some other account's correlation. The fixture's exact
+			// two-request count is what proves the refusal never reached the
+			// wire.
+			const auto foreign = wire_request_for(
+				*profile, read_operation::list_review_threads);
+			expect_unavailable(
+				(*transport)->perform(foreign, std::stop_token{ }),
+				foreign.Correlation,
+				"credential-free-refuses-pull-request-parent");
 			return;
 		}
 		if (aScenario == fixture_scenario::capability_success

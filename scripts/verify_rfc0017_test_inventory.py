@@ -32,6 +32,14 @@ SELECTORS: dict[str, int] = {
     "rfc0017_credential_free_native_https": 1,
 }
 
+# Counting a name proves only that something claimed it. Each selector also
+# declares an argument its command must carry, so re-pointing the registration
+# at a different suite cannot leave this guard reporting health while the
+# demonstration silently stops running.
+REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
+    "rfc0017_credential_free_native_https": ("--suite", "rfc0017"),
+}
+
 # Not every configured graph builds the native HTTPS loopback fixture — the
 # core-only preset has no Qt and therefore no transport to demonstrate. Rather
 # than let the count check pass vacuously there, anchor it: a graph that
@@ -48,12 +56,13 @@ FORBIDDEN_SYMBOLS: tuple[str, ...] = (
     "credential_free_request",
 )
 
-# Strings that must not appear in a shipped binary for the same reason. The
-# CTest selector name is included because its presence would mean the
-# demonstration wiring was linked in.
+# Strings that must not appear in a shipped binary for the same reason. Only
+# strings that a compiled artifact could actually carry belong here; a CTest
+# selector name lives in CTestTestfile.cmake and never in a binary, so listing
+# one would be a check that can never fire in either direction.
 FORBIDDEN_STRINGS: tuple[str, ...] = (
-    "rfc0017_credential_free_native_https",
     "make_native_https_credential_free_transport_for_test",
+    "credential-free-material-present",
 )
 
 # `make_designated_review_public_observer` also performs a credential-free GET
@@ -68,8 +77,8 @@ class InventoryFailure(RuntimeError):
     """A checked property did not hold."""
 
 
-def registered_tests(build_root: pathlib.Path) -> list[str]:
-    """Every configured CTest name, from CTest's own JSON inventory."""
+def registered_tests(build_root: pathlib.Path) -> list[tuple[str, tuple[str, ...]]]:
+    """Every configured CTest name and command, from CTest's own inventory."""
     ctest = shutil.which("ctest")
     if ctest is None:
         raise InventoryFailure("ctest-unavailable")
@@ -89,26 +98,38 @@ def registered_tests(build_root: pathlib.Path) -> list[str]:
     tests = document.get("tests")
     if not isinstance(tests, list):
         raise InventoryFailure("ctest-inventory-shape")
-    names: list[str] = []
+    registered: list[tuple[str, tuple[str, ...]]] = []
     for entry in tests:
         if not isinstance(entry, dict):
             raise InventoryFailure("ctest-inventory-entry")
         name = entry.get("name")
         if not isinstance(name, str):
             raise InventoryFailure("ctest-inventory-name")
-        names.append(name)
-    return names
+        command = entry.get("command")
+        if command is None:
+            arguments: tuple[str, ...] = ()
+        elif isinstance(command, list) and all(
+            isinstance(argument, str) for argument in command
+        ):
+            arguments = tuple(command)
+        else:
+            raise InventoryFailure("ctest-inventory-command")
+        registered.append((name, arguments))
+    return registered
 
 
 def check_inventory(build_root: pathlib.Path) -> list[str]:
     """Require every selector exactly its expected number of times."""
-    names = registered_tests(build_root)
+    registered = registered_tests(build_root)
+    names = [name for name, _ in registered]
     anchored = GRAPH_ANCHOR in names
     failures: list[str] = []
     for selector, declared in sorted(SELECTORS.items()):
         expected = declared if anchored else 0
-        actual = names.count(selector)
-        if actual != expected:
+        matching = [
+            arguments for name, arguments in registered if name == selector
+        ]
+        if len(matching) != expected:
             reason = (
                 "graph builds the native HTTPS fixture"
                 if anchored
@@ -116,8 +137,18 @@ def check_inventory(build_root: pathlib.Path) -> list[str]:
             )
             failures.append(
                 f"{selector}: expected {expected} registration(s), "
-                f"found {actual} ({reason})"
+                f"found {len(matching)} ({reason})"
             )
+            continue
+        required = REQUIRED_ARGUMENTS.get(selector, ())
+        for arguments in matching:
+            missing = [
+                argument for argument in required if argument not in arguments
+            ]
+            if missing:
+                failures.append(
+                    f"{selector}: command omits {' '.join(missing)}"
+                )
     return failures
 
 
@@ -148,7 +179,11 @@ def symbol_table(binary: pathlib.Path) -> str:
     if command is None:
         raise InventoryFailure("symbol-inspector-unavailable")
     listed = subprocess.run(
-        command, capture_output=True, text=True, check=False
+        command,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        check=False,
     )
     if listed.returncode != 0:
         raise InventoryFailure("symbol-table-unreadable")
@@ -160,6 +195,7 @@ def symbol_table(binary: pathlib.Path) -> str:
         input=listed.stdout,
         capture_output=True,
         text=True,
+        errors="replace",
         check=False,
     )
     return demangled.stdout if demangled.returncode == 0 else listed.stdout
@@ -221,6 +257,9 @@ def main() -> int:
             failures.extend(check_release_absence(arguments.release_binary))
     except InventoryFailure as error:
         print(f"rfc0017-test-inventory:fail:{error}", file=sys.stderr)
+        return 1
+    except Exception:
+        print("rfc0017-test-inventory:fail:internal", file=sys.stderr)
         return 1
 
     if failures:
