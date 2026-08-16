@@ -80,6 +80,58 @@ fill back toward its row colour until the two collapsed.
 - Do not claim an attended verdict. This card makes the emphasis visible; the
   batch that judges it belongs to [[BPR-0233]].
 
+## Correction — the ceiling is a policy, not physics
+
+An earlier reading of this card claimed fill colour could not carry the removed
+side at all. That was wrong, and the product owner's reference diff disproved
+it. Measured from the reference image: its removed row is `#FAE1E1` and its
+removed emphasis is `#F4B3B2`, a separation of 20.6 — five times ours.
+
+It reaches that by not holding the emphasised span to 4.50:1. Over `#F4B3B2`
+the lightest syntax roles measure 3.74:1 bare and 3.41:1 under the selection
+wash. So the real constraint is this repository's own decision to apply the
+WCAG AA text floor to intraline emphasis fills, not a property of the colour
+space.
+
+What the colour space does force is the asymmetry: green carries 0.7152 of
+relative luminance and red 0.2126, so the added side buys chromatic distance
+almost free while the removed side pays for it in luminance. Holding 4.50:1
+with a recognisable pink row caps the removed side near 8.4. Letting the row go
+nearly white (`#FEFEF8`) reaches 15.7 and destroys the row's identity.
+
+The trade is therefore real and unavoidable, and where to sit on it is a
+product decision rather than an engineering one.
+
+## Attended checkpoint — strength selection pending
+
+Five alternatives were rendered through the real UIforETW selected-diff course
+at 1280 × 1000 in all four appearance profiles, one per candidate, every
+capture emitting `UIFORETW_SELECTED_DIFF_EVIDENCE_OK`. They form one
+choose-exactly-one selection group, so the four not chosen are recorded as not
+chosen rather than as defective.
+
+| Candidate | Light removed | Separation | Tightest syntax role |
+|---|---|---:|---|
+| C0 keep current | `#FFE2DF` | 4.2 | 4.55:1 |
+| C1 subtle | `#F4D5D2` | 8.1 | 4.16:1 |
+| C2 moderate | `#E2C3C0` | 14.0 | 3.64:1 |
+| C3 reference-matched | `#F1B9B4` | 20.7 | 3.50:1 |
+| C4 strong | `#F9AEA8` | 28.2 | 3.36:1 |
+
+Every candidate leaves the row fills untouched and never weakens a side that
+already works, so the light and high-contrast-light added fills stay at 38.3
+and 38.0 in all five.
+
+The batch is
+`bpr:/attended-review/betterpullreview/ebe2ee306b89f453d1de6704` at
+[`intraline-emphasis-strength-v001`](../../verification/reviews/intraline-emphasis-strength-v001/offline-package/index.html).
+The selected candidate sets both published constants, which is why
+`emphasis_separation_minimum_tenths` and
+`emphasis_balance_maximum_hundredths` are not committed yet: the current
+working values of 7.0 and 2.50 were chosen before the captures existed, and the
+captures show 7.5 and 8.7 are invisible in the dark profile. No verdict is
+inferred and no palette is committed until the exact export is validated.
+
 ## Verification
 
 ```sh

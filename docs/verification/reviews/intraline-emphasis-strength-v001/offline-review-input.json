@@ -1,0 +1,691 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Intraline emphasis strength (BPR-0320)",
+  "review_gate": "intraline_emphasis_strength",
+  "review_scope": "human_ui_alternative_selection_only",
+  "downstream_claims": {
+    "bpr_0320_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0214_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "reference_disclaimer": "Pick one. These are five alternatives to a single question - how strongly the changed characters inside a diff row should be marked - not five independent pass/fail checks. Choosing one records the others as not chosen, never as defective. The trade is fixed and unavoidable: the added span can travel a long way from its row fill at almost no cost because green carries 0.7152 of relative luminance, while the removed span cannot, because red carries 0.2126. Making red visible means making it darker, and darker spends the contrast budget of the code sitting on it. Every candidate below is one point on that trade. Captures are offscreen QFusionStyle at device pixel ratio 1; native artwork, issue closure, RFC closeout, and release readiness are all outside this batch.",
+  "selection_groups": [
+    {
+      "group_id": "emphasis-strength",
+      "title": "How strongly should changed characters be marked?",
+      "min_accept": 1,
+      "max_accept": 1
+    }
+  ],
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c0",
+      "subject_key": "intraline-emphasis-c0",
+      "display_name": "Keep what ships today",
+      "description": "No change. The added span is obvious and the removed span is not there. Nothing changes. Choose this if none of the four candidates is an improvement. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.",
+      "acceptance_criteria": [
+        "The changed characters are visible in the removed (left) pane",
+        "The changed characters are visible in the added (right) pane",
+        "Neither side reads as more important than the other",
+        "The code on the emphasised span is still comfortable to read",
+        "The effect holds in all four appearance profiles"
+      ],
+      "known_concerns": [
+        "Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.",
+        "The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.",
+        "No candidate value falls below the project text-contrast floor."
+      ],
+      "selection_group": "emphasis-strength",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK."
+      },
+      "media_groups": [
+        {
+          "group_id": "changed-characters",
+          "title": "Changed characters, all four profiles",
+          "required": true,
+          "layout": "grid",
+          "note": "Click any image for native resolution. Look at the digits after '464,' on the two highlighted rows in each pane.",
+          "items": [
+            {
+              "label": "Light - changed characters",
+              "path": "captures/C0/light-comparison.png"
+            },
+            {
+              "label": "Dark - changed characters",
+              "path": "captures/C0/dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Light - changed characters",
+              "path": "captures/C0/high-contrast-light-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark - changed characters",
+              "path": "captures/C0/high-contrast-dark-comparison.png"
+            }
+          ]
+        },
+        {
+          "group_id": "whole-window",
+          "title": "Whole window, for context",
+          "required": false,
+          "layout": "grid",
+          "note": "The same states at full window size.",
+          "items": [
+            {
+              "label": "Light - whole window",
+              "path": "captures/C0/light-full-window.png"
+            },
+            {
+              "label": "Dark - whole window",
+              "path": "captures/C0/dark-full-window.png"
+            },
+            {
+              "label": "High-contrast Light - whole window",
+              "path": "captures/C0/high-contrast-light-full-window.png"
+            },
+            {
+              "label": "High-contrast Dark - whole window",
+              "path": "captures/C0/high-contrast-dark-full-window.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured values",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Light added",
+              "definition": "#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1"
+            },
+            {
+              "term": "Light removed",
+              "definition": "#FFE2DF, separation 4.2 from its row fill, tightest syntax role 4.55:1"
+            },
+            {
+              "term": "Dark added",
+              "definition": "#17462B, separation 8.7 from its row fill, tightest syntax role 4.55:1"
+            },
+            {
+              "term": "Dark removed",
+              "definition": "#522829, separation 7.5 from its row fill, tightest syntax role 5.18:1"
+            },
+            {
+              "term": "High-contrast Light added",
+              "definition": "#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1"
+            },
+            {
+              "term": "High-contrast Light removed",
+              "definition": "#FFE1E1, separation 4.1 from its row fill, tightest syntax role 7.04:1"
+            },
+            {
+              "term": "High-contrast Dark added",
+              "definition": "#003900, separation 4.2 from its row fill, tightest syntax role 7.06:1"
+            },
+            {
+              "term": "High-contrast Dark removed",
+              "definition": "#680000, separation 19.2 from its row fill, tightest syntax role 7.05:1"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "path": "captures/C0/light-capture-facts.json"
+        },
+        {
+          "label": "Dark capture facts",
+          "path": "captures/C0/dark-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "path": "captures/C0/high-contrast-light-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "path": "captures/C0/high-contrast-dark-capture-facts.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c1",
+      "subject_key": "intraline-emphasis-c1",
+      "display_name": "Subtle - contrast floor almost intact",
+      "description": "The weakest mark that is still a mark. Holds close to the 4.50:1 text floor. The removed span becomes faintly visible rather than invisible, and stays much weaker than the added span. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.",
+      "acceptance_criteria": [
+        "The changed characters are visible in the removed (left) pane",
+        "The changed characters are visible in the added (right) pane",
+        "Neither side reads as more important than the other",
+        "The code on the emphasised span is still comfortable to read",
+        "The effect holds in all four appearance profiles"
+      ],
+      "known_concerns": [
+        "Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.",
+        "The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.",
+        "Below the project text-contrast floor on emphasised characters only: Light removed at 4.16:1; High-contrast Light removed at 6.05:1; High-contrast Dark added at 6.19:1."
+      ],
+      "selection_group": "emphasis-strength",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK."
+      },
+      "media_groups": [
+        {
+          "group_id": "changed-characters",
+          "title": "Changed characters, all four profiles",
+          "required": true,
+          "layout": "grid",
+          "note": "Click any image for native resolution. Look at the digits after '464,' on the two highlighted rows in each pane.",
+          "items": [
+            {
+              "label": "Light - changed characters",
+              "path": "captures/C1/light-comparison.png"
+            },
+            {
+              "label": "Dark - changed characters",
+              "path": "captures/C1/dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Light - changed characters",
+              "path": "captures/C1/high-contrast-light-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark - changed characters",
+              "path": "captures/C1/high-contrast-dark-comparison.png"
+            }
+          ]
+        },
+        {
+          "group_id": "whole-window",
+          "title": "Whole window, for context",
+          "required": false,
+          "layout": "grid",
+          "note": "The same states at full window size.",
+          "items": [
+            {
+              "label": "Light - whole window",
+              "path": "captures/C1/light-full-window.png"
+            },
+            {
+              "label": "Dark - whole window",
+              "path": "captures/C1/dark-full-window.png"
+            },
+            {
+              "label": "High-contrast Light - whole window",
+              "path": "captures/C1/high-contrast-light-full-window.png"
+            },
+            {
+              "label": "High-contrast Dark - whole window",
+              "path": "captures/C1/high-contrast-dark-full-window.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured values",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Light added",
+              "definition": "#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1"
+            },
+            {
+              "term": "Light removed",
+              "definition": "#F4D5D2, separation 8.1 from its row fill, tightest syntax role 4.16:1"
+            },
+            {
+              "term": "Dark added",
+              "definition": "#17462B, separation 8.7 from its row fill, tightest syntax role 4.55:1"
+            },
+            {
+              "term": "Dark removed",
+              "definition": "#320C0C, separation 8.6 from its row fill, tightest syntax role 7.00:1"
+            },
+            {
+              "term": "High-contrast Light added",
+              "definition": "#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1"
+            },
+            {
+              "term": "High-contrast Light removed",
+              "definition": "#EAD2D2, separation 8.3 from its row fill, tightest syntax role 6.05:1"
+            },
+            {
+              "term": "High-contrast Dark added",
+              "definition": "#024309, separation 8.4 from its row fill, tightest syntax role 6.19:1"
+            },
+            {
+              "term": "High-contrast Dark removed",
+              "definition": "#680000, separation 19.2 from its row fill, tightest syntax role 7.05:1"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "path": "captures/C1/light-capture-facts.json"
+        },
+        {
+          "label": "Dark capture facts",
+          "path": "captures/C1/dark-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "path": "captures/C1/high-contrast-light-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "path": "captures/C1/high-contrast-dark-capture-facts.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c2",
+      "subject_key": "intraline-emphasis-c2",
+      "display_name": "Moderate",
+      "description": "A clear mark on both sides, still restrained. Trades some text contrast on emphasised characters for a removed span you do not have to look for. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.",
+      "acceptance_criteria": [
+        "The changed characters are visible in the removed (left) pane",
+        "The changed characters are visible in the added (right) pane",
+        "Neither side reads as more important than the other",
+        "The code on the emphasised span is still comfortable to read",
+        "The effect holds in all four appearance profiles"
+      ],
+      "known_concerns": [
+        "Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.",
+        "The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.",
+        "Below the project text-contrast floor on emphasised characters only: Light removed at 3.64:1; High-contrast Light removed at 5.18:1; High-contrast Dark added at 5.40:1."
+      ],
+      "selection_group": "emphasis-strength",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK."
+      },
+      "media_groups": [
+        {
+          "group_id": "changed-characters",
+          "title": "Changed characters, all four profiles",
+          "required": true,
+          "layout": "grid",
+          "note": "Click any image for native resolution. Look at the digits after '464,' on the two highlighted rows in each pane.",
+          "items": [
+            {
+              "label": "Light - changed characters",
+              "path": "captures/C2/light-comparison.png"
+            },
+            {
+              "label": "Dark - changed characters",
+              "path": "captures/C2/dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Light - changed characters",
+              "path": "captures/C2/high-contrast-light-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark - changed characters",
+              "path": "captures/C2/high-contrast-dark-comparison.png"
+            }
+          ]
+        },
+        {
+          "group_id": "whole-window",
+          "title": "Whole window, for context",
+          "required": false,
+          "layout": "grid",
+          "note": "The same states at full window size.",
+          "items": [
+            {
+              "label": "Light - whole window",
+              "path": "captures/C2/light-full-window.png"
+            },
+            {
+              "label": "Dark - whole window",
+              "path": "captures/C2/dark-full-window.png"
+            },
+            {
+              "label": "High-contrast Light - whole window",
+              "path": "captures/C2/high-contrast-light-full-window.png"
+            },
+            {
+              "label": "High-contrast Dark - whole window",
+              "path": "captures/C2/high-contrast-dark-full-window.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured values",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Light added",
+              "definition": "#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1"
+            },
+            {
+              "term": "Light removed",
+              "definition": "#E2C3C0, separation 14.0 from its row fill, tightest syntax role 3.64:1"
+            },
+            {
+              "term": "Dark added",
+              "definition": "#054827, separation 13.6 from its row fill, tightest syntax role 4.51:1"
+            },
+            {
+              "term": "Dark removed",
+              "definition": "#42090F, separation 13.9 from its row fill, tightest syntax role 6.76:1"
+            },
+            {
+              "term": "High-contrast Light added",
+              "definition": "#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1"
+            },
+            {
+              "term": "High-contrast Light removed",
+              "definition": "#D9C3C3, separation 13.7 from its row fill, tightest syntax role 5.18:1"
+            },
+            {
+              "term": "High-contrast Dark added",
+              "definition": "#034D0C, separation 14.0 from its row fill, tightest syntax role 5.40:1"
+            },
+            {
+              "term": "High-contrast Dark removed",
+              "definition": "#680000, separation 19.2 from its row fill, tightest syntax role 7.05:1"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "path": "captures/C2/light-capture-facts.json"
+        },
+        {
+          "label": "Dark capture facts",
+          "path": "captures/C2/dark-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "path": "captures/C2/high-contrast-light-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "path": "captures/C2/high-contrast-dark-capture-facts.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c3",
+      "subject_key": "intraline-emphasis-c3",
+      "display_name": "Reference-matched",
+      "description": "Approximately the strength of the reference diff you supplied. Matches the reference's emphasis strength. Its own removed emphasis measured 3.74:1 for the lightest syntax roles; this candidate lands in the same region. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.",
+      "acceptance_criteria": [
+        "The changed characters are visible in the removed (left) pane",
+        "The changed characters are visible in the added (right) pane",
+        "Neither side reads as more important than the other",
+        "The code on the emphasised span is still comfortable to read",
+        "The effect holds in all four appearance profiles"
+      ],
+      "known_concerns": [
+        "Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.",
+        "The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.",
+        "Below the project text-contrast floor on emphasised characters only: Light removed at 3.50:1; Dark added at 3.93:1; High-contrast Light removed at 5.15:1; High-contrast Dark added at 4.65:1; High-contrast Dark removed at 6.32:1."
+      ],
+      "selection_group": "emphasis-strength",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK."
+      },
+      "media_groups": [
+        {
+          "group_id": "changed-characters",
+          "title": "Changed characters, all four profiles",
+          "required": true,
+          "layout": "grid",
+          "note": "Click any image for native resolution. Look at the digits after '464,' on the two highlighted rows in each pane.",
+          "items": [
+            {
+              "label": "Light - changed characters",
+              "path": "captures/C3/light-comparison.png"
+            },
+            {
+              "label": "Dark - changed characters",
+              "path": "captures/C3/dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Light - changed characters",
+              "path": "captures/C3/high-contrast-light-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark - changed characters",
+              "path": "captures/C3/high-contrast-dark-comparison.png"
+            }
+          ]
+        },
+        {
+          "group_id": "whole-window",
+          "title": "Whole window, for context",
+          "required": false,
+          "layout": "grid",
+          "note": "The same states at full window size.",
+          "items": [
+            {
+              "label": "Light - whole window",
+              "path": "captures/C3/light-full-window.png"
+            },
+            {
+              "label": "Dark - whole window",
+              "path": "captures/C3/dark-full-window.png"
+            },
+            {
+              "label": "High-contrast Light - whole window",
+              "path": "captures/C3/high-contrast-light-full-window.png"
+            },
+            {
+              "label": "High-contrast Dark - whole window",
+              "path": "captures/C3/high-contrast-dark-full-window.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured values",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Light added",
+              "definition": "#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1"
+            },
+            {
+              "term": "Light removed",
+              "definition": "#F1B9B4, separation 20.7 from its row fill, tightest syntax role 3.50:1"
+            },
+            {
+              "term": "Dark added",
+              "definition": "#065730, separation 20.6 from its row fill, tightest syntax role 3.93:1"
+            },
+            {
+              "term": "Dark removed",
+              "definition": "#520412, separation 21.2 from its row fill, tightest syntax role 6.52:1"
+            },
+            {
+              "term": "High-contrast Light added",
+              "definition": "#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1"
+            },
+            {
+              "term": "High-contrast Light removed",
+              "definition": "#F3B9BA, separation 20.3 from its row fill, tightest syntax role 5.15:1"
+            },
+            {
+              "term": "High-contrast Dark added",
+              "definition": "#04580F, separation 20.1 from its row fill, tightest syntax role 4.65:1"
+            },
+            {
+              "term": "High-contrast Dark removed",
+              "definition": "#750115, separation 20.5 from its row fill, tightest syntax role 6.32:1"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "path": "captures/C3/light-capture-facts.json"
+        },
+        {
+          "label": "Dark capture facts",
+          "path": "captures/C3/dark-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "path": "captures/C3/high-contrast-light-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "path": "captures/C3/high-contrast-dark-capture-facts.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c4",
+      "subject_key": "intraline-emphasis-c4",
+      "display_name": "Strong",
+      "description": "The most emphatic of the four. Hardest to miss, and the largest reduction in text contrast on emphasised characters. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.",
+      "acceptance_criteria": [
+        "The changed characters are visible in the removed (left) pane",
+        "The changed characters are visible in the added (right) pane",
+        "Neither side reads as more important than the other",
+        "The code on the emphasised span is still comfortable to read",
+        "The effect holds in all four appearance profiles"
+      ],
+      "known_concerns": [
+        "Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.",
+        "The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.",
+        "Below the project text-contrast floor on emphasised characters only: Light removed at 3.36:1; Dark added at 3.20:1; High-contrast Light removed at 4.72:1; High-contrast Dark added at 3.89:1; High-contrast Dark removed at 5.37:1."
+      ],
+      "selection_group": "emphasis-strength",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK."
+      },
+      "media_groups": [
+        {
+          "group_id": "changed-characters",
+          "title": "Changed characters, all four profiles",
+          "required": true,
+          "layout": "grid",
+          "note": "Click any image for native resolution. Look at the digits after '464,' on the two highlighted rows in each pane.",
+          "items": [
+            {
+              "label": "Light - changed characters",
+              "path": "captures/C4/light-comparison.png"
+            },
+            {
+              "label": "Dark - changed characters",
+              "path": "captures/C4/dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Light - changed characters",
+              "path": "captures/C4/high-contrast-light-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark - changed characters",
+              "path": "captures/C4/high-contrast-dark-comparison.png"
+            }
+          ]
+        },
+        {
+          "group_id": "whole-window",
+          "title": "Whole window, for context",
+          "required": false,
+          "layout": "grid",
+          "note": "The same states at full window size.",
+          "items": [
+            {
+              "label": "Light - whole window",
+              "path": "captures/C4/light-full-window.png"
+            },
+            {
+              "label": "Dark - whole window",
+              "path": "captures/C4/dark-full-window.png"
+            },
+            {
+              "label": "High-contrast Light - whole window",
+              "path": "captures/C4/high-contrast-light-full-window.png"
+            },
+            {
+              "label": "High-contrast Dark - whole window",
+              "path": "captures/C4/high-contrast-dark-full-window.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured values",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Light added",
+              "definition": "#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1"
+            },
+            {
+              "term": "Light removed",
+              "definition": "#F9AEA8, separation 28.2 from its row fill, tightest syntax role 3.36:1"
+            },
+            {
+              "term": "Dark added",
+              "definition": "#076639, separation 27.6 from its row fill, tightest syntax role 3.20:1"
+            },
+            {
+              "term": "Dark removed",
+              "definition": "#701521, separation 27.9 from its row fill, tightest syntax role 5.23:1"
+            },
+            {
+              "term": "High-contrast Light added",
+              "definition": "#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1"
+            },
+            {
+              "term": "High-contrast Light removed",
+              "definition": "#F6ACAE, separation 27.4 from its row fill, tightest syntax role 4.72:1"
+            },
+            {
+              "term": "High-contrast Dark added",
+              "definition": "#036512, separation 27.4 from its row fill, tightest syntax role 3.89:1"
+            },
+            {
+              "term": "High-contrast Dark removed",
+              "definition": "#88051B, separation 27.6 from its row fill, tightest syntax role 5.37:1"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "path": "captures/C4/light-capture-facts.json"
+        },
+        {
+          "label": "Dark capture facts",
+          "path": "captures/C4/dark-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "path": "captures/C4/high-contrast-light-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "path": "captures/C4/high-contrast-dark-capture-facts.json"
+        }
+      ]
+    }
+  ]
+}

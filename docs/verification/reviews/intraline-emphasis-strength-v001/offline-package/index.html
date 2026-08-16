@@ -1,0 +1,971 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Intraline emphasis strength (BPR-0320)</title>
+  <style>
+:root {
+  color-scheme: dark;
+  --page: #101419;
+  --panel: #192027;
+  --panel-strong: #202a33;
+  --text: #edf3f7;
+  --muted: #a8b5bf;
+  --line: #3a4853;
+  --accent: #75b9d5;
+  --accept: #57c48c;
+  --reject: #ed7777;
+  --pending: #e6b85d;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+a { color: #9fdcf3; }
+header, main { width: min(1480px, calc(100% - 2rem)); margin-inline: auto; }
+header { padding: 2rem 0 1rem; }
+h1, h2, h3, p { margin-top: 0; }
+.lede, .muted { color: var(--muted); }
+.scope-warning {
+  border-left: 4px solid var(--pending);
+  background: #282418;
+  padding: 1rem;
+}
+.reference-disclaimer {
+  border-left: 4px solid var(--accent);
+  background: #16222a;
+  padding: 1rem;
+  margin-top: .75rem;
+}
+.review-controls {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: .8rem 1rem;
+  margin-bottom: 1rem;
+  background: #081016;
+  border: 1px solid var(--line);
+  border-radius: .6rem;
+  box-shadow: 0 .25rem .75rem #0008;
+}
+.review-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+}
+.review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .9rem;
+  font-weight: 700;
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+  margin-left: auto;
+}
+#review-status {
+  min-height: 1.3em;
+  margin: .4rem 0 0;
+  color: var(--muted);
+  font-size: .9rem;
+}
+button, textarea { font: inherit; }
+button {
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  padding: .55rem .8rem;
+  background: #28343e;
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+button:disabled {
+  cursor: not-allowed;
+  color: #c2cdd4;
+  background: #2f3b43;
+  border-color: #61717a;
+}
+.subject {
+  scroll-margin-top: 8rem;
+  margin: 0 0 1.25rem;
+  padding: 1.1rem;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: .7rem;
+}
+.subject[data-review-state="accept"] { border-color: var(--accept); }
+.subject[data-review-state="reject"] { border-color: var(--reject); }
+.subject[data-review-state="pending"] { border-color: var(--pending); }
+.subject[data-review-state="not-chosen"] { border-color: var(--line); opacity: .78; }
+.selection-group {
+  margin: 0 0 1rem;
+  padding: 1rem 1.1rem;
+  background: #131c24;
+  border: 1px solid var(--accent);
+  border-radius: .7rem;
+}
+.selection-group h2 { margin-bottom: .35rem; }
+.selection-group-status { margin: 0; font-weight: 700; color: var(--accent); }
+.selection-group-members {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  margin-top: .8rem;
+  align-items: start;
+}
+.selection-group-members .subject { margin: 0; position: relative; }
+.selection-group-members .media-grid { grid-template-columns: 1fr; }
+.subject.option { padding: .85rem; background: var(--panel-strong); }
+.subject.option h3 { margin-bottom: .3rem; padding-right: 5.5rem; }
+.option-actions { margin: .8rem 0 .3rem; align-items: center; }
+.option-actions .choose { flex: 1 1 auto; font-weight: 700; background: #1d3a4d; }
+.option-actions .minor { padding: .3rem .55rem; font-size: .85rem; background: transparent; }
+.option-extra, .notes-fold { margin-top: .5rem; color: var(--muted); font-size: .9rem; }
+.option-extra summary, .notes-fold summary { cursor: pointer; }
+.option-extra section { margin-top: .5rem; }
+.option-extra h4 { margin: 0 0 .25rem; }
+.selection-group-members .subject::after {
+  position: absolute;
+  top: .6rem;
+  right: .6rem;
+  padding: .1rem .5rem;
+  border-radius: .3rem;
+  font-size: .8rem;
+  font-weight: 700;
+}
+.selection-group-members .subject[data-review-state="accept"]::after {
+  content: "Chosen";
+  background: var(--accept);
+  color: #07150f;
+}
+.selection-group-members .subject[data-review-state="reject"]::after {
+  content: "Defective";
+  background: var(--reject);
+  color: #1b0808;
+}
+.selection-group-members .subject[data-review-state="not-chosen"]::after {
+  content: "Not chosen";
+  background: #2a333b;
+  color: var(--muted);
+}
+@media (max-width: 850px) {
+  .selection-group-members { grid-template-columns: 1fr; }
+}
+.subject-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+.identity { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; word-break: break-all; }
+.audit-banner {
+  padding: .55rem .8rem;
+  border-radius: .4rem;
+  font-weight: 700;
+}
+.audit-banner[data-audit="pass"] { background: #12281c; color: var(--accept); border: 1px solid var(--accept); }
+.audit-banner[data-audit="fail"] { background: #2b1414; color: var(--reject); border: 1px solid var(--reject); }
+.media-groups { display: grid; gap: 1rem; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: .75rem; }
+.media-grid.compare { grid-template-columns: 1fr 1fr; }
+figure { margin: 0; padding: .6rem; background: var(--panel-strong); border-radius: .4rem; }
+figure img, figure video {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  background-color: #6d7479;
+  background-image:
+    linear-gradient(45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(-45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #8a9297 75%),
+    linear-gradient(-45deg, transparent 75%, #8a9297 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}
+figure audio { display: block; width: 100%; margin: .5rem 0; }
+figcaption { padding-top: .45rem; color: var(--muted); }
+.criteria { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.detail-sections { display: grid; gap: 1rem; margin-top: 1rem; }
+.detail-sections dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; margin: 0; }
+.detail-sections dt { color: var(--muted); }
+.detail-sections dd { margin: 0; }
+.detail-sections pre {
+  margin: 0;
+  padding: .65rem;
+  overflow-x: auto;
+  background: #11171c;
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .82rem;
+}
+.identity-files { margin-top: 1rem; }
+.decision-row { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+button[data-decision="accept"][aria-pressed="true"] { color: #07150f; background: var(--accept); }
+button[data-decision="reject"][aria-pressed="true"] { color: #1b0808; background: var(--reject); }
+.audit-note { margin: -.5rem 0 1rem; }
+.notes { display: grid; gap: .35rem; }
+textarea { width: 100%; min-height: 5rem; padding: .65rem; color: var(--text); background: #11171c; border: 1px solid var(--line); border-radius: .35rem; }
+.export-panel { margin: 1rem 0 3rem; padding: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: .6rem; }
+#verdict-output { min-height: 14rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; }
+@media (max-width: 850px) {
+  .criteria, .media-grid.compare { grid-template-columns: 1fr; }
+  .review-actions { margin-left: 0; }
+}
+@media (max-width: 620px) {
+  .review-summary, .review-actions { width: 100%; }
+}
+
+/* Full-resolution inspection. A quiet affordance on the thumbnail,
+   and an overlay that shows the image at its native size so a one-pixel
+   connector can actually be judged. */
+.media-zoom {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  position: relative;
+}
+.media-zoom img { display: block; width: 100%; }
+.media-zoom-hint {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  border-radius: 0.2rem;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.media-zoom:hover .media-zoom-hint,
+.media-zoom:focus-visible .media-zoom-hint { opacity: 1; }
+.media-zoom:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+.media-viewer[hidden] { display: none; }
+.media-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+}
+.media-viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  color: #fff;
+  font-size: 0.9rem;
+}
+.media-viewer-close {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
+  color: #fff;
+  border-radius: 0.25rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+.media-viewer-counter {
+  color: rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  padding-right: 1rem;
+}
+.media-viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1001;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.9rem;
+  line-height: 1;
+  padding: .45rem .75rem .6rem;
+  border-radius: .35rem;
+}
+.media-viewer-nav[hidden] { display: none; }
+.media-viewer-prev { left: .75rem; }
+.media-viewer-next { right: .75rem; }
+.media-viewer-surface { flex: 1; overflow: auto; display: flex; }
+/* Native size, not fitted: fitting it would reproduce the defect this fixes.
+   Auto margins center an image smaller than the viewport and collapse to zero
+   when it overflows, keeping large captures scrollable from their origin. */
+.media-viewer-surface img { display: block; image-rendering: pixelated; margin: auto; }
+
+</style>
+</head>
+<body>
+  <header>
+    <h1>Intraline emphasis strength (BPR-0320)</h1>
+    <p class="lede">Project: betterpullreview · Gate: intraline_emphasis_strength · Scope: human_ui_alternative_selection_only · Batch: bpr:/attended-review/betterpullreview/ebe2ee306b89f453d1de6704</p>
+    <p class="scope-warning"><strong>Scope:</strong> This page records attended human decisions for this exact batch and gate only. It stores choices in this browser and cannot write repository evidence. Acceptance asserts nothing beyond this gate; these claims remain false: bpr_0214_closed, bpr_0233_closed, bpr_0320_closed, release_gate_satisfied, rfc_closeout_claimed. Export the complete verdict and return it to the requesting agent session for validation.</p>
+    <p class="reference-disclaimer"><strong>Reference:</strong> Pick one. These are five alternatives to a single question - how strongly the changed characters inside a diff row should be marked - not five independent pass/fail checks. Choosing one records the others as not chosen, never as defective. The trade is fixed and unavoidable: the added span can travel a long way from its row fill at almost no cost because green carries 0.7152 of relative luminance, while the removed span cannot, because red carries 0.2126. Making red visible means making it darker, and darker spends the contrast budget of the code sitting on it. Every candidate below is one point on that trade. Captures are offscreen QFusionStyle at device pixel ratio 1; native artwork, issue closure, RFC closeout, and release readiness are all outside this batch.</p>
+  </header>
+  <main>
+    <section class="review-controls" aria-label="Review progress and export">
+      <div class="review-controls-row">
+        <div class="review-summary">
+          <span id="review-progress">0/5 reviewed</span>
+          <span id="review-totals">0 accepted · 0 rejected · 5 pending</span>
+        </div>
+        <div class="review-actions">
+          <label><input id="pending-only" type="checkbox"> Show pending only</label>
+          <button id="export-verdict" type="button" disabled>Copy the complete verdict</button>
+        </div>
+      </div>
+      <p id="review-status" role="status" aria-live="polite" aria-atomic="true">Resolve every exact subject to unlock the final verdict.</p>
+    </section>
+    <section class="selection-group" data-selection-group-header="emphasis-strength"><h2>How strongly should changed characters be marked?</h2><p class="muted">Choose exactly one alternative. Unchosen alternatives are recorded as not chosen, never as rejections; Reject marks an alternative genuinely defective.</p><p class="selection-group-status" data-selection-group-status="emphasis-strength">No alternatives chosen yet.</p><div class="selection-group-members">
+<article class="subject option" data-subject-id="criterion:/betterpullreview/bpr-0320/intraline-emphasis-c0" data-subject-digest="sha256:7098a86de7bfd4417129ae4ef87c62aff3ce50453e63038dc62beae9adf3b0d9" data-selection-group="emphasis-strength" data-review-state="pending">
+  <h3>Keep what ships today</h3>
+  <p class="muted">No change. The added span is obvious and the removed span is not there. Nothing changes. Choose this if none of the four candidates is an improvement. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.</p>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK.</p>
+  <div class="media-groups">
+    <section><h3>Changed characters, all four profiles</h3><p class="muted">Click any image for native resolution. Look at the digits after &#x27;464,&#x27; on the two highlighted rows in each pane.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/001-intraline-emphasis-c0/changed-characters/01-light-changed-characters.png" data-full-label="Light - changed characters" aria-label="View Light - changed characters at full resolution"><img loading="lazy" src="subjects/001-intraline-emphasis-c0/changed-characters/01-light-changed-characters.png" alt="Light - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Light - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-intraline-emphasis-c0/changed-characters/02-dark-changed-characters.png" data-full-label="Dark - changed characters" aria-label="View Dark - changed characters at full resolution"><img loading="lazy" src="subjects/001-intraline-emphasis-c0/changed-characters/02-dark-changed-characters.png" alt="Dark - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Dark - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-intraline-emphasis-c0/changed-characters/03-high-contrast-light-changed-characters.png" data-full-label="High-contrast Light - changed characters" aria-label="View High-contrast Light - changed characters at full resolution"><img loading="lazy" src="subjects/001-intraline-emphasis-c0/changed-characters/03-high-contrast-light-changed-characters.png" alt="High-contrast Light - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Light - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-intraline-emphasis-c0/changed-characters/04-high-contrast-dark-changed-characters.png" data-full-label="High-contrast Dark - changed characters" aria-label="View High-contrast Dark - changed characters at full resolution"><img loading="lazy" src="subjects/001-intraline-emphasis-c0/changed-characters/04-high-contrast-dark-changed-characters.png" alt="High-contrast Dark - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Dark - changed characters</figcaption></figure></div></section>
+<section><h3>Whole window, for context</h3><p class="muted">The same states at full window size.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/001-intraline-emphasis-c0/whole-window/01-light-whole-window.png" data-full-label="Light - whole window" aria-label="View Light - whole window at full resolution"><img loading="lazy" src="subjects/001-intraline-emphasis-c0/whole-window/01-light-whole-window.png" alt="Light - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Light - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-intraline-emphasis-c0/whole-window/02-dark-whole-window.png" data-full-label="Dark - whole window" aria-label="View Dark - whole window at full resolution"><img loading="lazy" src="subjects/001-intraline-emphasis-c0/whole-window/02-dark-whole-window.png" alt="Dark - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Dark - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-intraline-emphasis-c0/whole-window/03-high-contrast-light-whole-window.png" data-full-label="High-contrast Light - whole window" aria-label="View High-contrast Light - whole window at full resolution"><img loading="lazy" src="subjects/001-intraline-emphasis-c0/whole-window/03-high-contrast-light-whole-window.png" alt="High-contrast Light - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Light - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-intraline-emphasis-c0/whole-window/04-high-contrast-dark-whole-window.png" data-full-label="High-contrast Dark - whole window" aria-label="View High-contrast Dark - whole window at full resolution"><img loading="lazy" src="subjects/001-intraline-emphasis-c0/whole-window/04-high-contrast-dark-whole-window.png" alt="High-contrast Dark - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Dark - whole window</figcaption></figure></div></section>
+  </div>
+  <details class="option-extra"><summary>Details and identity</summary><section><h4>Acceptance criteria</h4><ul><li>The changed characters are visible in the removed (left) pane</li><li>The changed characters are visible in the added (right) pane</li><li>Neither side reads as more important than the other</li><li>The code on the emphasised span is still comfortable to read</li><li>The effect holds in all four appearance profiles</li></ul></section><section><h4>Known concerns</h4><ul><li>Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.</li><li>The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.</li><li>No candidate value falls below the project text-contrast floor.</li></ul></section><div class="detail-sections"><section><h3>Measured values</h3><dl><dt>Light added</dt><dd>#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1</dd><dt>Light removed</dt><dd>#FFE2DF, separation 4.2 from its row fill, tightest syntax role 4.55:1</dd><dt>Dark added</dt><dd>#17462B, separation 8.7 from its row fill, tightest syntax role 4.55:1</dd><dt>Dark removed</dt><dd>#522829, separation 7.5 from its row fill, tightest syntax role 5.18:1</dd><dt>High-contrast Light added</dt><dd>#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1</dd><dt>High-contrast Light removed</dt><dd>#FFE1E1, separation 4.1 from its row fill, tightest syntax role 7.04:1</dd><dt>High-contrast Dark added</dt><dd>#003900, separation 4.2 from its row fill, tightest syntax role 7.06:1</dd><dt>High-contrast Dark removed</dt><dd>#680000, separation 19.2 from its row fill, tightest syntax role 7.05:1</dd></dl></section></div><section><h4>Identity-bound files</h4><ul><li><a href="subjects/001-intraline-emphasis-c0/identity/01-light-capture-facts.json">Light capture facts</a> <span class="identity">sha256:43071b6cc9bb73d0abf042b7527ebe59e5398f4921b65462580550282b6d6132</span></li><li><a href="subjects/001-intraline-emphasis-c0/identity/02-dark-capture-facts.json">Dark capture facts</a> <span class="identity">sha256:f5a66f004a0b5113c100483a0a4b2d4aef8fdd5b277be4ee5aca1f2f426af921</span></li><li><a href="subjects/001-intraline-emphasis-c0/identity/03-high-contrast-light-capture-facts.json">High-contrast Light capture facts</a> <span class="identity">sha256:6489fc4c3bc6775eac85c30c9900c8662f3b8439cfa6f08e57f5ae8784f0ac9a</span></li><li><a href="subjects/001-intraline-emphasis-c0/identity/04-high-contrast-dark-capture-facts.json">High-contrast Dark capture facts</a> <span class="identity">sha256:621fa5c04d13bc0ea94ea7f697bd77fc66d5b8687932650f5082e120cad7576c</span></li></ul></section><p class="identity">criterion:/betterpullreview/bpr-0320/intraline-emphasis-c0<br>sha256:7098a86de7bfd4417129ae4ef87c62aff3ce50453e63038dc62beae9adf3b0d9</p></details>
+  <div class="decision-row option-actions" role="group" aria-label="Decision for Keep what ships today">
+    <button type="button" class="choose" data-decision="accept" aria-pressed="false">Choose</button>
+    <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
+  </div>
+  <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
+</article>
+<article class="subject option" data-subject-id="criterion:/betterpullreview/bpr-0320/intraline-emphasis-c1" data-subject-digest="sha256:c70c7e6d938ce8c82ad0462743b7f7adc5518714b9c4bf6688f38d4cfb8e5cac" data-selection-group="emphasis-strength" data-review-state="pending">
+  <h3>Subtle - contrast floor almost intact</h3>
+  <p class="muted">The weakest mark that is still a mark. Holds close to the 4.50:1 text floor. The removed span becomes faintly visible rather than invisible, and stays much weaker than the added span. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.</p>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK.</p>
+  <div class="media-groups">
+    <section><h3>Changed characters, all four profiles</h3><p class="muted">Click any image for native resolution. Look at the digits after &#x27;464,&#x27; on the two highlighted rows in each pane.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/002-intraline-emphasis-c1/changed-characters/01-light-changed-characters.png" data-full-label="Light - changed characters" aria-label="View Light - changed characters at full resolution"><img loading="lazy" src="subjects/002-intraline-emphasis-c1/changed-characters/01-light-changed-characters.png" alt="Light - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Light - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-intraline-emphasis-c1/changed-characters/02-dark-changed-characters.png" data-full-label="Dark - changed characters" aria-label="View Dark - changed characters at full resolution"><img loading="lazy" src="subjects/002-intraline-emphasis-c1/changed-characters/02-dark-changed-characters.png" alt="Dark - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Dark - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-intraline-emphasis-c1/changed-characters/03-high-contrast-light-changed-characters.png" data-full-label="High-contrast Light - changed characters" aria-label="View High-contrast Light - changed characters at full resolution"><img loading="lazy" src="subjects/002-intraline-emphasis-c1/changed-characters/03-high-contrast-light-changed-characters.png" alt="High-contrast Light - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Light - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-intraline-emphasis-c1/changed-characters/04-high-contrast-dark-changed-characters.png" data-full-label="High-contrast Dark - changed characters" aria-label="View High-contrast Dark - changed characters at full resolution"><img loading="lazy" src="subjects/002-intraline-emphasis-c1/changed-characters/04-high-contrast-dark-changed-characters.png" alt="High-contrast Dark - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Dark - changed characters</figcaption></figure></div></section>
+<section><h3>Whole window, for context</h3><p class="muted">The same states at full window size.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/002-intraline-emphasis-c1/whole-window/01-light-whole-window.png" data-full-label="Light - whole window" aria-label="View Light - whole window at full resolution"><img loading="lazy" src="subjects/002-intraline-emphasis-c1/whole-window/01-light-whole-window.png" alt="Light - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Light - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-intraline-emphasis-c1/whole-window/02-dark-whole-window.png" data-full-label="Dark - whole window" aria-label="View Dark - whole window at full resolution"><img loading="lazy" src="subjects/002-intraline-emphasis-c1/whole-window/02-dark-whole-window.png" alt="Dark - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Dark - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-intraline-emphasis-c1/whole-window/03-high-contrast-light-whole-window.png" data-full-label="High-contrast Light - whole window" aria-label="View High-contrast Light - whole window at full resolution"><img loading="lazy" src="subjects/002-intraline-emphasis-c1/whole-window/03-high-contrast-light-whole-window.png" alt="High-contrast Light - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Light - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-intraline-emphasis-c1/whole-window/04-high-contrast-dark-whole-window.png" data-full-label="High-contrast Dark - whole window" aria-label="View High-contrast Dark - whole window at full resolution"><img loading="lazy" src="subjects/002-intraline-emphasis-c1/whole-window/04-high-contrast-dark-whole-window.png" alt="High-contrast Dark - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Dark - whole window</figcaption></figure></div></section>
+  </div>
+  <details class="option-extra"><summary>Details and identity</summary><section><h4>Acceptance criteria</h4><ul><li>The changed characters are visible in the removed (left) pane</li><li>The changed characters are visible in the added (right) pane</li><li>Neither side reads as more important than the other</li><li>The code on the emphasised span is still comfortable to read</li><li>The effect holds in all four appearance profiles</li></ul></section><section><h4>Known concerns</h4><ul><li>Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.</li><li>The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.</li><li>Below the project text-contrast floor on emphasised characters only: Light removed at 4.16:1; High-contrast Light removed at 6.05:1; High-contrast Dark added at 6.19:1.</li></ul></section><div class="detail-sections"><section><h3>Measured values</h3><dl><dt>Light added</dt><dd>#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1</dd><dt>Light removed</dt><dd>#F4D5D2, separation 8.1 from its row fill, tightest syntax role 4.16:1</dd><dt>Dark added</dt><dd>#17462B, separation 8.7 from its row fill, tightest syntax role 4.55:1</dd><dt>Dark removed</dt><dd>#320C0C, separation 8.6 from its row fill, tightest syntax role 7.00:1</dd><dt>High-contrast Light added</dt><dd>#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1</dd><dt>High-contrast Light removed</dt><dd>#EAD2D2, separation 8.3 from its row fill, tightest syntax role 6.05:1</dd><dt>High-contrast Dark added</dt><dd>#024309, separation 8.4 from its row fill, tightest syntax role 6.19:1</dd><dt>High-contrast Dark removed</dt><dd>#680000, separation 19.2 from its row fill, tightest syntax role 7.05:1</dd></dl></section></div><section><h4>Identity-bound files</h4><ul><li><a href="subjects/002-intraline-emphasis-c1/identity/01-light-capture-facts.json">Light capture facts</a> <span class="identity">sha256:76003e28f8881d6791ef1244a6bdc08fc1533159a3682233aefcc19c53ec5ceb</span></li><li><a href="subjects/002-intraline-emphasis-c1/identity/02-dark-capture-facts.json">Dark capture facts</a> <span class="identity">sha256:e6dad2ad084b133f0f10f07ed5e9b9f07457a109d8755da3ab963a7bf1f7366c</span></li><li><a href="subjects/002-intraline-emphasis-c1/identity/03-high-contrast-light-capture-facts.json">High-contrast Light capture facts</a> <span class="identity">sha256:79963cd4285a66890ef884dc9326e29a780d98655f45c7cfef67808e286f88b1</span></li><li><a href="subjects/002-intraline-emphasis-c1/identity/04-high-contrast-dark-capture-facts.json">High-contrast Dark capture facts</a> <span class="identity">sha256:e917e9557bebf62b71321cdf2273475da5506aeb114e01f28aa39132366e75d4</span></li></ul></section><p class="identity">criterion:/betterpullreview/bpr-0320/intraline-emphasis-c1<br>sha256:c70c7e6d938ce8c82ad0462743b7f7adc5518714b9c4bf6688f38d4cfb8e5cac</p></details>
+  <div class="decision-row option-actions" role="group" aria-label="Decision for Subtle - contrast floor almost intact">
+    <button type="button" class="choose" data-decision="accept" aria-pressed="false">Choose</button>
+    <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
+  </div>
+  <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
+</article>
+<article class="subject option" data-subject-id="criterion:/betterpullreview/bpr-0320/intraline-emphasis-c2" data-subject-digest="sha256:357b5d930bc7fcea5b22229fcdb7dae19d73949d47da1ce37b1cac631bc68c96" data-selection-group="emphasis-strength" data-review-state="pending">
+  <h3>Moderate</h3>
+  <p class="muted">A clear mark on both sides, still restrained. Trades some text contrast on emphasised characters for a removed span you do not have to look for. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.</p>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK.</p>
+  <div class="media-groups">
+    <section><h3>Changed characters, all four profiles</h3><p class="muted">Click any image for native resolution. Look at the digits after &#x27;464,&#x27; on the two highlighted rows in each pane.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/003-intraline-emphasis-c2/changed-characters/01-light-changed-characters.png" data-full-label="Light - changed characters" aria-label="View Light - changed characters at full resolution"><img loading="lazy" src="subjects/003-intraline-emphasis-c2/changed-characters/01-light-changed-characters.png" alt="Light - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Light - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/003-intraline-emphasis-c2/changed-characters/02-dark-changed-characters.png" data-full-label="Dark - changed characters" aria-label="View Dark - changed characters at full resolution"><img loading="lazy" src="subjects/003-intraline-emphasis-c2/changed-characters/02-dark-changed-characters.png" alt="Dark - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Dark - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/003-intraline-emphasis-c2/changed-characters/03-high-contrast-light-changed-characters.png" data-full-label="High-contrast Light - changed characters" aria-label="View High-contrast Light - changed characters at full resolution"><img loading="lazy" src="subjects/003-intraline-emphasis-c2/changed-characters/03-high-contrast-light-changed-characters.png" alt="High-contrast Light - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Light - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/003-intraline-emphasis-c2/changed-characters/04-high-contrast-dark-changed-characters.png" data-full-label="High-contrast Dark - changed characters" aria-label="View High-contrast Dark - changed characters at full resolution"><img loading="lazy" src="subjects/003-intraline-emphasis-c2/changed-characters/04-high-contrast-dark-changed-characters.png" alt="High-contrast Dark - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Dark - changed characters</figcaption></figure></div></section>
+<section><h3>Whole window, for context</h3><p class="muted">The same states at full window size.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/003-intraline-emphasis-c2/whole-window/01-light-whole-window.png" data-full-label="Light - whole window" aria-label="View Light - whole window at full resolution"><img loading="lazy" src="subjects/003-intraline-emphasis-c2/whole-window/01-light-whole-window.png" alt="Light - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Light - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/003-intraline-emphasis-c2/whole-window/02-dark-whole-window.png" data-full-label="Dark - whole window" aria-label="View Dark - whole window at full resolution"><img loading="lazy" src="subjects/003-intraline-emphasis-c2/whole-window/02-dark-whole-window.png" alt="Dark - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Dark - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/003-intraline-emphasis-c2/whole-window/03-high-contrast-light-whole-window.png" data-full-label="High-contrast Light - whole window" aria-label="View High-contrast Light - whole window at full resolution"><img loading="lazy" src="subjects/003-intraline-emphasis-c2/whole-window/03-high-contrast-light-whole-window.png" alt="High-contrast Light - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Light - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/003-intraline-emphasis-c2/whole-window/04-high-contrast-dark-whole-window.png" data-full-label="High-contrast Dark - whole window" aria-label="View High-contrast Dark - whole window at full resolution"><img loading="lazy" src="subjects/003-intraline-emphasis-c2/whole-window/04-high-contrast-dark-whole-window.png" alt="High-contrast Dark - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Dark - whole window</figcaption></figure></div></section>
+  </div>
+  <details class="option-extra"><summary>Details and identity</summary><section><h4>Acceptance criteria</h4><ul><li>The changed characters are visible in the removed (left) pane</li><li>The changed characters are visible in the added (right) pane</li><li>Neither side reads as more important than the other</li><li>The code on the emphasised span is still comfortable to read</li><li>The effect holds in all four appearance profiles</li></ul></section><section><h4>Known concerns</h4><ul><li>Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.</li><li>The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.</li><li>Below the project text-contrast floor on emphasised characters only: Light removed at 3.64:1; High-contrast Light removed at 5.18:1; High-contrast Dark added at 5.40:1.</li></ul></section><div class="detail-sections"><section><h3>Measured values</h3><dl><dt>Light added</dt><dd>#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1</dd><dt>Light removed</dt><dd>#E2C3C0, separation 14.0 from its row fill, tightest syntax role 3.64:1</dd><dt>Dark added</dt><dd>#054827, separation 13.6 from its row fill, tightest syntax role 4.51:1</dd><dt>Dark removed</dt><dd>#42090F, separation 13.9 from its row fill, tightest syntax role 6.76:1</dd><dt>High-contrast Light added</dt><dd>#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1</dd><dt>High-contrast Light removed</dt><dd>#D9C3C3, separation 13.7 from its row fill, tightest syntax role 5.18:1</dd><dt>High-contrast Dark added</dt><dd>#034D0C, separation 14.0 from its row fill, tightest syntax role 5.40:1</dd><dt>High-contrast Dark removed</dt><dd>#680000, separation 19.2 from its row fill, tightest syntax role 7.05:1</dd></dl></section></div><section><h4>Identity-bound files</h4><ul><li><a href="subjects/003-intraline-emphasis-c2/identity/01-light-capture-facts.json">Light capture facts</a> <span class="identity">sha256:0373290c25e29a405df6045b70a93dad3c02fcbc6bb645820b11c6adc6fa4ba2</span></li><li><a href="subjects/003-intraline-emphasis-c2/identity/02-dark-capture-facts.json">Dark capture facts</a> <span class="identity">sha256:380989cb5f28d545318fb9019d06581d2ed460a78719429ccd3cb02b69424735</span></li><li><a href="subjects/003-intraline-emphasis-c2/identity/03-high-contrast-light-capture-facts.json">High-contrast Light capture facts</a> <span class="identity">sha256:e637377e719ca94f1b21c7edf95fe7730545e8120e380c98ea4ddc8e70f15b03</span></li><li><a href="subjects/003-intraline-emphasis-c2/identity/04-high-contrast-dark-capture-facts.json">High-contrast Dark capture facts</a> <span class="identity">sha256:955e0a8304b0b882e8cbcadc2c5c15f81748299f354c68b0a6056c7566e29da5</span></li></ul></section><p class="identity">criterion:/betterpullreview/bpr-0320/intraline-emphasis-c2<br>sha256:357b5d930bc7fcea5b22229fcdb7dae19d73949d47da1ce37b1cac631bc68c96</p></details>
+  <div class="decision-row option-actions" role="group" aria-label="Decision for Moderate">
+    <button type="button" class="choose" data-decision="accept" aria-pressed="false">Choose</button>
+    <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
+  </div>
+  <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
+</article>
+<article class="subject option" data-subject-id="criterion:/betterpullreview/bpr-0320/intraline-emphasis-c3" data-subject-digest="sha256:f3653bc5729d2ecc16dbcaab1e7c3d821e9ee6f7b1b2f7bedc148028a75e0093" data-selection-group="emphasis-strength" data-review-state="pending">
+  <h3>Reference-matched</h3>
+  <p class="muted">Approximately the strength of the reference diff you supplied. Matches the reference&#x27;s emphasis strength. Its own removed emphasis measured 3.74:1 for the lightest syntax roles; this candidate lands in the same region. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.</p>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK.</p>
+  <div class="media-groups">
+    <section><h3>Changed characters, all four profiles</h3><p class="muted">Click any image for native resolution. Look at the digits after &#x27;464,&#x27; on the two highlighted rows in each pane.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/004-intraline-emphasis-c3/changed-characters/01-light-changed-characters.png" data-full-label="Light - changed characters" aria-label="View Light - changed characters at full resolution"><img loading="lazy" src="subjects/004-intraline-emphasis-c3/changed-characters/01-light-changed-characters.png" alt="Light - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Light - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/004-intraline-emphasis-c3/changed-characters/02-dark-changed-characters.png" data-full-label="Dark - changed characters" aria-label="View Dark - changed characters at full resolution"><img loading="lazy" src="subjects/004-intraline-emphasis-c3/changed-characters/02-dark-changed-characters.png" alt="Dark - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Dark - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/004-intraline-emphasis-c3/changed-characters/03-high-contrast-light-changed-characters.png" data-full-label="High-contrast Light - changed characters" aria-label="View High-contrast Light - changed characters at full resolution"><img loading="lazy" src="subjects/004-intraline-emphasis-c3/changed-characters/03-high-contrast-light-changed-characters.png" alt="High-contrast Light - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Light - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/004-intraline-emphasis-c3/changed-characters/04-high-contrast-dark-changed-characters.png" data-full-label="High-contrast Dark - changed characters" aria-label="View High-contrast Dark - changed characters at full resolution"><img loading="lazy" src="subjects/004-intraline-emphasis-c3/changed-characters/04-high-contrast-dark-changed-characters.png" alt="High-contrast Dark - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Dark - changed characters</figcaption></figure></div></section>
+<section><h3>Whole window, for context</h3><p class="muted">The same states at full window size.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/004-intraline-emphasis-c3/whole-window/01-light-whole-window.png" data-full-label="Light - whole window" aria-label="View Light - whole window at full resolution"><img loading="lazy" src="subjects/004-intraline-emphasis-c3/whole-window/01-light-whole-window.png" alt="Light - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Light - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/004-intraline-emphasis-c3/whole-window/02-dark-whole-window.png" data-full-label="Dark - whole window" aria-label="View Dark - whole window at full resolution"><img loading="lazy" src="subjects/004-intraline-emphasis-c3/whole-window/02-dark-whole-window.png" alt="Dark - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Dark - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/004-intraline-emphasis-c3/whole-window/03-high-contrast-light-whole-window.png" data-full-label="High-contrast Light - whole window" aria-label="View High-contrast Light - whole window at full resolution"><img loading="lazy" src="subjects/004-intraline-emphasis-c3/whole-window/03-high-contrast-light-whole-window.png" alt="High-contrast Light - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Light - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/004-intraline-emphasis-c3/whole-window/04-high-contrast-dark-whole-window.png" data-full-label="High-contrast Dark - whole window" aria-label="View High-contrast Dark - whole window at full resolution"><img loading="lazy" src="subjects/004-intraline-emphasis-c3/whole-window/04-high-contrast-dark-whole-window.png" alt="High-contrast Dark - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Dark - whole window</figcaption></figure></div></section>
+  </div>
+  <details class="option-extra"><summary>Details and identity</summary><section><h4>Acceptance criteria</h4><ul><li>The changed characters are visible in the removed (left) pane</li><li>The changed characters are visible in the added (right) pane</li><li>Neither side reads as more important than the other</li><li>The code on the emphasised span is still comfortable to read</li><li>The effect holds in all four appearance profiles</li></ul></section><section><h4>Known concerns</h4><ul><li>Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.</li><li>The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.</li><li>Below the project text-contrast floor on emphasised characters only: Light removed at 3.50:1; Dark added at 3.93:1; High-contrast Light removed at 5.15:1; High-contrast Dark added at 4.65:1; High-contrast Dark removed at 6.32:1.</li></ul></section><div class="detail-sections"><section><h3>Measured values</h3><dl><dt>Light added</dt><dd>#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1</dd><dt>Light removed</dt><dd>#F1B9B4, separation 20.7 from its row fill, tightest syntax role 3.50:1</dd><dt>Dark added</dt><dd>#065730, separation 20.6 from its row fill, tightest syntax role 3.93:1</dd><dt>Dark removed</dt><dd>#520412, separation 21.2 from its row fill, tightest syntax role 6.52:1</dd><dt>High-contrast Light added</dt><dd>#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1</dd><dt>High-contrast Light removed</dt><dd>#F3B9BA, separation 20.3 from its row fill, tightest syntax role 5.15:1</dd><dt>High-contrast Dark added</dt><dd>#04580F, separation 20.1 from its row fill, tightest syntax role 4.65:1</dd><dt>High-contrast Dark removed</dt><dd>#750115, separation 20.5 from its row fill, tightest syntax role 6.32:1</dd></dl></section></div><section><h4>Identity-bound files</h4><ul><li><a href="subjects/004-intraline-emphasis-c3/identity/01-light-capture-facts.json">Light capture facts</a> <span class="identity">sha256:635a031e8f2f4283c72ba4ebb593449a02aab8ccd8ea71133cd07cb7a2fc4a24</span></li><li><a href="subjects/004-intraline-emphasis-c3/identity/02-dark-capture-facts.json">Dark capture facts</a> <span class="identity">sha256:92bfc851b53fe840631678ecdb70bc12a03557978fc193adbcbea8a94c631c0f</span></li><li><a href="subjects/004-intraline-emphasis-c3/identity/03-high-contrast-light-capture-facts.json">High-contrast Light capture facts</a> <span class="identity">sha256:d196ddd3148ffc977313ee3032ca1817c8183e7b82ebf1281f67ba81456734fc</span></li><li><a href="subjects/004-intraline-emphasis-c3/identity/04-high-contrast-dark-capture-facts.json">High-contrast Dark capture facts</a> <span class="identity">sha256:3bcc9eadd83e8c5732712fc96362199c40dbddb3d37976da709d12498f8907da</span></li></ul></section><p class="identity">criterion:/betterpullreview/bpr-0320/intraline-emphasis-c3<br>sha256:f3653bc5729d2ecc16dbcaab1e7c3d821e9ee6f7b1b2f7bedc148028a75e0093</p></details>
+  <div class="decision-row option-actions" role="group" aria-label="Decision for Reference-matched">
+    <button type="button" class="choose" data-decision="accept" aria-pressed="false">Choose</button>
+    <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
+  </div>
+  <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
+</article>
+<article class="subject option" data-subject-id="criterion:/betterpullreview/bpr-0320/intraline-emphasis-c4" data-subject-digest="sha256:6ee2162d3625d047044ccb094d135ca11c4246a061c53424986501babfefb805" data-selection-group="emphasis-strength" data-review-state="pending">
+  <h3>Strong</h3>
+  <p class="muted">The most emphatic of the four. Hardest to miss, and the largest reduction in text contrast on emphasised characters. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.</p>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK.</p>
+  <div class="media-groups">
+    <section><h3>Changed characters, all four profiles</h3><p class="muted">Click any image for native resolution. Look at the digits after &#x27;464,&#x27; on the two highlighted rows in each pane.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/005-intraline-emphasis-c4/changed-characters/01-light-changed-characters.png" data-full-label="Light - changed characters" aria-label="View Light - changed characters at full resolution"><img loading="lazy" src="subjects/005-intraline-emphasis-c4/changed-characters/01-light-changed-characters.png" alt="Light - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Light - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/005-intraline-emphasis-c4/changed-characters/02-dark-changed-characters.png" data-full-label="Dark - changed characters" aria-label="View Dark - changed characters at full resolution"><img loading="lazy" src="subjects/005-intraline-emphasis-c4/changed-characters/02-dark-changed-characters.png" alt="Dark - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Dark - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/005-intraline-emphasis-c4/changed-characters/03-high-contrast-light-changed-characters.png" data-full-label="High-contrast Light - changed characters" aria-label="View High-contrast Light - changed characters at full resolution"><img loading="lazy" src="subjects/005-intraline-emphasis-c4/changed-characters/03-high-contrast-light-changed-characters.png" alt="High-contrast Light - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Light - changed characters</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/005-intraline-emphasis-c4/changed-characters/04-high-contrast-dark-changed-characters.png" data-full-label="High-contrast Dark - changed characters" aria-label="View High-contrast Dark - changed characters at full resolution"><img loading="lazy" src="subjects/005-intraline-emphasis-c4/changed-characters/04-high-contrast-dark-changed-characters.png" alt="High-contrast Dark - changed characters"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Dark - changed characters</figcaption></figure></div></section>
+<section><h3>Whole window, for context</h3><p class="muted">The same states at full window size.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/005-intraline-emphasis-c4/whole-window/01-light-whole-window.png" data-full-label="Light - whole window" aria-label="View Light - whole window at full resolution"><img loading="lazy" src="subjects/005-intraline-emphasis-c4/whole-window/01-light-whole-window.png" alt="Light - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Light - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/005-intraline-emphasis-c4/whole-window/02-dark-whole-window.png" data-full-label="Dark - whole window" aria-label="View Dark - whole window at full resolution"><img loading="lazy" src="subjects/005-intraline-emphasis-c4/whole-window/02-dark-whole-window.png" alt="Dark - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Dark - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/005-intraline-emphasis-c4/whole-window/03-high-contrast-light-whole-window.png" data-full-label="High-contrast Light - whole window" aria-label="View High-contrast Light - whole window at full resolution"><img loading="lazy" src="subjects/005-intraline-emphasis-c4/whole-window/03-high-contrast-light-whole-window.png" alt="High-contrast Light - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Light - whole window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/005-intraline-emphasis-c4/whole-window/04-high-contrast-dark-whole-window.png" data-full-label="High-contrast Dark - whole window" aria-label="View High-contrast Dark - whole window at full resolution"><img loading="lazy" src="subjects/005-intraline-emphasis-c4/whole-window/04-high-contrast-dark-whole-window.png" alt="High-contrast Dark - whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Dark - whole window</figcaption></figure></div></section>
+  </div>
+  <details class="option-extra"><summary>Details and identity</summary><section><h4>Acceptance criteria</h4><ul><li>The changed characters are visible in the removed (left) pane</li><li>The changed characters are visible in the added (right) pane</li><li>Neither side reads as more important than the other</li><li>The code on the emphasised span is still comfortable to read</li><li>The effect holds in all four appearance profiles</li></ul></section><section><h4>Known concerns</h4><ul><li>Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.</li><li>The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.</li><li>Below the project text-contrast floor on emphasised characters only: Light removed at 3.36:1; Dark added at 3.20:1; High-contrast Light removed at 4.72:1; High-contrast Dark added at 3.89:1; High-contrast Dark removed at 5.37:1.</li></ul></section><div class="detail-sections"><section><h3>Measured values</h3><dl><dt>Light added</dt><dd>#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1</dd><dt>Light removed</dt><dd>#F9AEA8, separation 28.2 from its row fill, tightest syntax role 3.36:1</dd><dt>Dark added</dt><dd>#076639, separation 27.6 from its row fill, tightest syntax role 3.20:1</dd><dt>Dark removed</dt><dd>#701521, separation 27.9 from its row fill, tightest syntax role 5.23:1</dd><dt>High-contrast Light added</dt><dd>#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1</dd><dt>High-contrast Light removed</dt><dd>#F6ACAE, separation 27.4 from its row fill, tightest syntax role 4.72:1</dd><dt>High-contrast Dark added</dt><dd>#036512, separation 27.4 from its row fill, tightest syntax role 3.89:1</dd><dt>High-contrast Dark removed</dt><dd>#88051B, separation 27.6 from its row fill, tightest syntax role 5.37:1</dd></dl></section></div><section><h4>Identity-bound files</h4><ul><li><a href="subjects/005-intraline-emphasis-c4/identity/01-light-capture-facts.json">Light capture facts</a> <span class="identity">sha256:95395256905d1621f2355b463d67e49fb91a9f1ec12c039d28aa0b2b4385e663</span></li><li><a href="subjects/005-intraline-emphasis-c4/identity/02-dark-capture-facts.json">Dark capture facts</a> <span class="identity">sha256:facabb0c6c5256b970ecda59ced4713db4f77e6224a4c9e12954edc4edd62fa5</span></li><li><a href="subjects/005-intraline-emphasis-c4/identity/03-high-contrast-light-capture-facts.json">High-contrast Light capture facts</a> <span class="identity">sha256:f8c33a85bffd08e59d3d1e19b6f064cd96ef2f7ecfd5601c956ae45c96fe33f3</span></li><li><a href="subjects/005-intraline-emphasis-c4/identity/04-high-contrast-dark-capture-facts.json">High-contrast Dark capture facts</a> <span class="identity">sha256:135ae0d9371630f9985cbd6a79a05ecf39aacb2ef098f3ae9ace607ac083e45a</span></li></ul></section><p class="identity">criterion:/betterpullreview/bpr-0320/intraline-emphasis-c4<br>sha256:6ee2162d3625d047044ccb094d135ca11c4246a061c53424986501babfefb805</p></details>
+  <div class="decision-row option-actions" role="group" aria-label="Decision for Strong">
+    <button type="button" class="choose" data-decision="accept" aria-pressed="false">Choose</button>
+    <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
+  </div>
+  <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
+</article>
+</div></section>
+    <section class="export-panel">
+      <h2>Final result</h2>
+      <p>The pinned copy button unlocks after every exact subject has Accept or Reject selected. Its result stays visible in the top review bar, and the complete JSON remains below as a manual-copy fallback.</p>
+      <textarea id="verdict-output" readonly aria-label="Exported verdict JSON"></textarea>
+    </section>
+  </main>
+  <script id="attended-review-config" type="application/json">{"batch_id":"bpr:/attended-review/betterpullreview/ebe2ee306b89f453d1de6704","downstream_claims":{"bpr_0214_closed":false,"bpr_0233_closed":false,"bpr_0320_closed":false,"release_gate_satisfied":false,"rfc_closeout_claimed":false},"project_id":"betterpullreview","reference_disclaimer":"Pick one. These are five alternatives to a single question - how strongly the changed characters inside a diff row should be marked - not five independent pass/fail checks. Choosing one records the others as not chosen, never as defective. The trade is fixed and unavoidable: the added span can travel a long way from its row fill at almost no cost because green carries 0.7152 of relative luminance, while the removed span cannot, because red carries 0.2126. Making red visible means making it darker, and darker spends the contrast budget of the code sitting on it. Every candidate below is one point on that trade. Captures are offscreen QFusionStyle at device pixel ratio 1; native artwork, issue closure, RFC closeout, and release readiness are all outside this batch.","review_gate":"intraline_emphasis_strength","review_scope":"human_ui_alternative_selection_only","schema_name":"bpr.attended_review_batch","schema_version":1,"selection_groups":[{"group_id":"emphasis-strength","max_accept":1,"min_accept":1,"note":"","title":"How strongly should changed characters be marked?"}],"subjects":[{"ab_group":"","acceptance_criteria":["The changed characters are visible in the removed (left) pane","The changed characters are visible in the added (right) pane","Neither side reads as more important than the other","The code on the emphasised span is still comfortable to read","The effect holds in all four appearance profiles"],"audit_verdict":{"note":"Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK.","status":"pass"},"choice_group":"","description":"No change. The added span is obvious and the removed span is not there. Nothing changes. Choose this if none of the four candidates is an improvement. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.","detail_sections":[{"heading":"Measured values","items":[{"definition":"#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1","term":"Light added"},{"definition":"#FFE2DF, separation 4.2 from its row fill, tightest syntax role 4.55:1","term":"Light removed"},{"definition":"#17462B, separation 8.7 from its row fill, tightest syntax role 4.55:1","term":"Dark added"},{"definition":"#522829, separation 7.5 from its row fill, tightest syntax role 5.18:1","term":"Dark removed"},{"definition":"#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1","term":"High-contrast Light added"},{"definition":"#FFE1E1, separation 4.1 from its row fill, tightest syntax role 7.04:1","term":"High-contrast Light removed"},{"definition":"#003900, separation 4.2 from its row fill, tightest syntax role 7.06:1","term":"High-contrast Dark added"},{"definition":"#680000, separation 19.2 from its row fill, tightest syntax role 7.05:1","term":"High-contrast Dark removed"}],"kind":"definitions"}],"display_name":"Keep what ships today","identity_files":[{"label":"Light capture facts","media_kind":"file","path":"subjects/001-intraline-emphasis-c0/identity/01-light-capture-facts.json","sha256":"sha256:43071b6cc9bb73d0abf042b7527ebe59e5398f4921b65462580550282b6d6132"},{"label":"Dark capture facts","media_kind":"file","path":"subjects/001-intraline-emphasis-c0/identity/02-dark-capture-facts.json","sha256":"sha256:f5a66f004a0b5113c100483a0a4b2d4aef8fdd5b277be4ee5aca1f2f426af921"},{"label":"High-contrast Light capture facts","media_kind":"file","path":"subjects/001-intraline-emphasis-c0/identity/03-high-contrast-light-capture-facts.json","sha256":"sha256:6489fc4c3bc6775eac85c30c9900c8662f3b8439cfa6f08e57f5ae8784f0ac9a"},{"label":"High-contrast Dark capture facts","media_kind":"file","path":"subjects/001-intraline-emphasis-c0/identity/04-high-contrast-dark-capture-facts.json","sha256":"sha256:621fa5c04d13bc0ea94ea7f697bd77fc66d5b8687932650f5082e120cad7576c"}],"known_concerns":["Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.","The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.","No candidate value falls below the project text-contrast floor."],"media_groups":[{"group_id":"changed-characters","items":[{"label":"Light - changed characters","media_kind":"image","path":"subjects/001-intraline-emphasis-c0/changed-characters/01-light-changed-characters.png","sha256":"sha256:fe5b4493c5ea01ddec46dc98692a5e383f928e77c6e5d4165003a725377cc1fe"},{"label":"Dark - changed characters","media_kind":"image","path":"subjects/001-intraline-emphasis-c0/changed-characters/02-dark-changed-characters.png","sha256":"sha256:177f6d726cbc5dc9b7cd5457d929e132cf8328712ab773af161b083764757edf"},{"label":"High-contrast Light - changed characters","media_kind":"image","path":"subjects/001-intraline-emphasis-c0/changed-characters/03-high-contrast-light-changed-characters.png","sha256":"sha256:be469cf92a8a690344da8929304eed20be3bba89c62911fc603886492e278661"},{"label":"High-contrast Dark - changed characters","media_kind":"image","path":"subjects/001-intraline-emphasis-c0/changed-characters/04-high-contrast-dark-changed-characters.png","sha256":"sha256:0f9f8cbb92420e5f4391b2fdd6555984db89580ff78af1466bab565178c53fc1"}],"layout":"grid","note":"Click any image for native resolution. Look at the digits after '464,' on the two highlighted rows in each pane.","required":true,"title":"Changed characters, all four profiles"},{"group_id":"whole-window","items":[{"label":"Light - whole window","media_kind":"image","path":"subjects/001-intraline-emphasis-c0/whole-window/01-light-whole-window.png","sha256":"sha256:4ac0662bf19a610526a6bb850a76e187d094801d9642a6ee2c636c314183a9c2"},{"label":"Dark - whole window","media_kind":"image","path":"subjects/001-intraline-emphasis-c0/whole-window/02-dark-whole-window.png","sha256":"sha256:dd82aaabe742ed2511c4071d738d00579ecbe7764871a287be24dcd44788b311"},{"label":"High-contrast Light - whole window","media_kind":"image","path":"subjects/001-intraline-emphasis-c0/whole-window/03-high-contrast-light-whole-window.png","sha256":"sha256:fe73c139944cfd39e1b457ddc9aea892dc823b0931ea6f03745aa24c8f67639f"},{"label":"High-contrast Dark - whole window","media_kind":"image","path":"subjects/001-intraline-emphasis-c0/whole-window/04-high-contrast-dark-whole-window.png","sha256":"sha256:9fd8ca574dfebf6dec34ce5ea8b0d1b3e103a0f36169d508a981159213e700aa"}],"layout":"grid","note":"The same states at full window size.","required":false,"title":"Whole window, for context"}],"selection_group":"emphasis-strength","subject_digest":"sha256:7098a86de7bfd4417129ae4ef87c62aff3ce50453e63038dc62beae9adf3b0d9","subject_id":"criterion:/betterpullreview/bpr-0320/intraline-emphasis-c0","subject_key":"intraline-emphasis-c0"},{"ab_group":"","acceptance_criteria":["The changed characters are visible in the removed (left) pane","The changed characters are visible in the added (right) pane","Neither side reads as more important than the other","The code on the emphasised span is still comfortable to read","The effect holds in all four appearance profiles"],"audit_verdict":{"note":"Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK.","status":"pass"},"choice_group":"","description":"The weakest mark that is still a mark. Holds close to the 4.50:1 text floor. The removed span becomes faintly visible rather than invisible, and stays much weaker than the added span. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.","detail_sections":[{"heading":"Measured values","items":[{"definition":"#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1","term":"Light added"},{"definition":"#F4D5D2, separation 8.1 from its row fill, tightest syntax role 4.16:1","term":"Light removed"},{"definition":"#17462B, separation 8.7 from its row fill, tightest syntax role 4.55:1","term":"Dark added"},{"definition":"#320C0C, separation 8.6 from its row fill, tightest syntax role 7.00:1","term":"Dark removed"},{"definition":"#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1","term":"High-contrast Light added"},{"definition":"#EAD2D2, separation 8.3 from its row fill, tightest syntax role 6.05:1","term":"High-contrast Light removed"},{"definition":"#024309, separation 8.4 from its row fill, tightest syntax role 6.19:1","term":"High-contrast Dark added"},{"definition":"#680000, separation 19.2 from its row fill, tightest syntax role 7.05:1","term":"High-contrast Dark removed"}],"kind":"definitions"}],"display_name":"Subtle - contrast floor almost intact","identity_files":[{"label":"Light capture facts","media_kind":"file","path":"subjects/002-intraline-emphasis-c1/identity/01-light-capture-facts.json","sha256":"sha256:76003e28f8881d6791ef1244a6bdc08fc1533159a3682233aefcc19c53ec5ceb"},{"label":"Dark capture facts","media_kind":"file","path":"subjects/002-intraline-emphasis-c1/identity/02-dark-capture-facts.json","sha256":"sha256:e6dad2ad084b133f0f10f07ed5e9b9f07457a109d8755da3ab963a7bf1f7366c"},{"label":"High-contrast Light capture facts","media_kind":"file","path":"subjects/002-intraline-emphasis-c1/identity/03-high-contrast-light-capture-facts.json","sha256":"sha256:79963cd4285a66890ef884dc9326e29a780d98655f45c7cfef67808e286f88b1"},{"label":"High-contrast Dark capture facts","media_kind":"file","path":"subjects/002-intraline-emphasis-c1/identity/04-high-contrast-dark-capture-facts.json","sha256":"sha256:e917e9557bebf62b71321cdf2273475da5506aeb114e01f28aa39132366e75d4"}],"known_concerns":["Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.","The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.","Below the project text-contrast floor on emphasised characters only: Light removed at 4.16:1; High-contrast Light removed at 6.05:1; High-contrast Dark added at 6.19:1."],"media_groups":[{"group_id":"changed-characters","items":[{"label":"Light - changed characters","media_kind":"image","path":"subjects/002-intraline-emphasis-c1/changed-characters/01-light-changed-characters.png","sha256":"sha256:1d708ae84fb15a526f25337693b6e568ed8d7dcd5d086aefb0c670dc797c20f7"},{"label":"Dark - changed characters","media_kind":"image","path":"subjects/002-intraline-emphasis-c1/changed-characters/02-dark-changed-characters.png","sha256":"sha256:4e0f3af50d275cfddbf7420c3579d0e58650163d40270d489d2c8c68720df8ef"},{"label":"High-contrast Light - changed characters","media_kind":"image","path":"subjects/002-intraline-emphasis-c1/changed-characters/03-high-contrast-light-changed-characters.png","sha256":"sha256:307e45d8aa7ffdf94aada9118d8ff89bfd7c3f14454546ca896deff8454debb9"},{"label":"High-contrast Dark - changed characters","media_kind":"image","path":"subjects/002-intraline-emphasis-c1/changed-characters/04-high-contrast-dark-changed-characters.png","sha256":"sha256:71bc196d9b263de5baa9ca33aec413ca2c48a36b6f8007cc9c3748d58a0bb68f"}],"layout":"grid","note":"Click any image for native resolution. Look at the digits after '464,' on the two highlighted rows in each pane.","required":true,"title":"Changed characters, all four profiles"},{"group_id":"whole-window","items":[{"label":"Light - whole window","media_kind":"image","path":"subjects/002-intraline-emphasis-c1/whole-window/01-light-whole-window.png","sha256":"sha256:edd517cda428187537be9f31b897f6efa5cfea9b44a1184f20f2d261dd1c129c"},{"label":"Dark - whole window","media_kind":"image","path":"subjects/002-intraline-emphasis-c1/whole-window/02-dark-whole-window.png","sha256":"sha256:157997dd752d07119a07452ac2d32b16a236cc3ad7f3d40fbf796e7e215628f1"},{"label":"High-contrast Light - whole window","media_kind":"image","path":"subjects/002-intraline-emphasis-c1/whole-window/03-high-contrast-light-whole-window.png","sha256":"sha256:63d4937731e70f335466e962655e7cd5e3e6aaeba7e9c48fbd408f803a6a5c8c"},{"label":"High-contrast Dark - whole window","media_kind":"image","path":"subjects/002-intraline-emphasis-c1/whole-window/04-high-contrast-dark-whole-window.png","sha256":"sha256:b36aa697ba13cbf83fe19a5513ac9c97218a4f6752fa1678711b87dcfd486887"}],"layout":"grid","note":"The same states at full window size.","required":false,"title":"Whole window, for context"}],"selection_group":"emphasis-strength","subject_digest":"sha256:c70c7e6d938ce8c82ad0462743b7f7adc5518714b9c4bf6688f38d4cfb8e5cac","subject_id":"criterion:/betterpullreview/bpr-0320/intraline-emphasis-c1","subject_key":"intraline-emphasis-c1"},{"ab_group":"","acceptance_criteria":["The changed characters are visible in the removed (left) pane","The changed characters are visible in the added (right) pane","Neither side reads as more important than the other","The code on the emphasised span is still comfortable to read","The effect holds in all four appearance profiles"],"audit_verdict":{"note":"Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK.","status":"pass"},"choice_group":"","description":"A clear mark on both sides, still restrained. Trades some text contrast on emphasised characters for a removed span you do not have to look for. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.","detail_sections":[{"heading":"Measured values","items":[{"definition":"#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1","term":"Light added"},{"definition":"#E2C3C0, separation 14.0 from its row fill, tightest syntax role 3.64:1","term":"Light removed"},{"definition":"#054827, separation 13.6 from its row fill, tightest syntax role 4.51:1","term":"Dark added"},{"definition":"#42090F, separation 13.9 from its row fill, tightest syntax role 6.76:1","term":"Dark removed"},{"definition":"#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1","term":"High-contrast Light added"},{"definition":"#D9C3C3, separation 13.7 from its row fill, tightest syntax role 5.18:1","term":"High-contrast Light removed"},{"definition":"#034D0C, separation 14.0 from its row fill, tightest syntax role 5.40:1","term":"High-contrast Dark added"},{"definition":"#680000, separation 19.2 from its row fill, tightest syntax role 7.05:1","term":"High-contrast Dark removed"}],"kind":"definitions"}],"display_name":"Moderate","identity_files":[{"label":"Light capture facts","media_kind":"file","path":"subjects/003-intraline-emphasis-c2/identity/01-light-capture-facts.json","sha256":"sha256:0373290c25e29a405df6045b70a93dad3c02fcbc6bb645820b11c6adc6fa4ba2"},{"label":"Dark capture facts","media_kind":"file","path":"subjects/003-intraline-emphasis-c2/identity/02-dark-capture-facts.json","sha256":"sha256:380989cb5f28d545318fb9019d06581d2ed460a78719429ccd3cb02b69424735"},{"label":"High-contrast Light capture facts","media_kind":"file","path":"subjects/003-intraline-emphasis-c2/identity/03-high-contrast-light-capture-facts.json","sha256":"sha256:e637377e719ca94f1b21c7edf95fe7730545e8120e380c98ea4ddc8e70f15b03"},{"label":"High-contrast Dark capture facts","media_kind":"file","path":"subjects/003-intraline-emphasis-c2/identity/04-high-contrast-dark-capture-facts.json","sha256":"sha256:955e0a8304b0b882e8cbcadc2c5c15f81748299f354c68b0a6056c7566e29da5"}],"known_concerns":["Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.","The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.","Below the project text-contrast floor on emphasised characters only: Light removed at 3.64:1; High-contrast Light removed at 5.18:1; High-contrast Dark added at 5.40:1."],"media_groups":[{"group_id":"changed-characters","items":[{"label":"Light - changed characters","media_kind":"image","path":"subjects/003-intraline-emphasis-c2/changed-characters/01-light-changed-characters.png","sha256":"sha256:1b35d89f156e93beaeba79ddb339a0be96184ec9443be0e0bba4fd9fe1649152"},{"label":"Dark - changed characters","media_kind":"image","path":"subjects/003-intraline-emphasis-c2/changed-characters/02-dark-changed-characters.png","sha256":"sha256:04f1f6c9378095bbeaf18565bc2e31b73cb5eceba352499987fb32a58a0619db"},{"label":"High-contrast Light - changed characters","media_kind":"image","path":"subjects/003-intraline-emphasis-c2/changed-characters/03-high-contrast-light-changed-characters.png","sha256":"sha256:53f034bdc41487968c878d3ea41b5e61140314c15c1c0bbf768b9863de16c0ec"},{"label":"High-contrast Dark - changed characters","media_kind":"image","path":"subjects/003-intraline-emphasis-c2/changed-characters/04-high-contrast-dark-changed-characters.png","sha256":"sha256:26ac5c1101483a3af23c4eb7dad2e5fce8f183b9f3b3e708feebe2b5d2514849"}],"layout":"grid","note":"Click any image for native resolution. Look at the digits after '464,' on the two highlighted rows in each pane.","required":true,"title":"Changed characters, all four profiles"},{"group_id":"whole-window","items":[{"label":"Light - whole window","media_kind":"image","path":"subjects/003-intraline-emphasis-c2/whole-window/01-light-whole-window.png","sha256":"sha256:04a96ae602622c6f70cfe7d05f45883d76dda105fc4b811470c025636018dd96"},{"label":"Dark - whole window","media_kind":"image","path":"subjects/003-intraline-emphasis-c2/whole-window/02-dark-whole-window.png","sha256":"sha256:03e7a90388398040d2ffe49336ca0f9a9ad1d865e095378b5d498a9d24d6d8cd"},{"label":"High-contrast Light - whole window","media_kind":"image","path":"subjects/003-intraline-emphasis-c2/whole-window/03-high-contrast-light-whole-window.png","sha256":"sha256:e1fe50cf07b236c8041cfe00313df9388387802863a560f907b43fbaa0af6d74"},{"label":"High-contrast Dark - whole window","media_kind":"image","path":"subjects/003-intraline-emphasis-c2/whole-window/04-high-contrast-dark-whole-window.png","sha256":"sha256:fdaa8d653f87985d53cc58007c0dcc6a61d73400de7b3a4040968886d7afd401"}],"layout":"grid","note":"The same states at full window size.","required":false,"title":"Whole window, for context"}],"selection_group":"emphasis-strength","subject_digest":"sha256:357b5d930bc7fcea5b22229fcdb7dae19d73949d47da1ce37b1cac631bc68c96","subject_id":"criterion:/betterpullreview/bpr-0320/intraline-emphasis-c2","subject_key":"intraline-emphasis-c2"},{"ab_group":"","acceptance_criteria":["The changed characters are visible in the removed (left) pane","The changed characters are visible in the added (right) pane","Neither side reads as more important than the other","The code on the emphasised span is still comfortable to read","The effect holds in all four appearance profiles"],"audit_verdict":{"note":"Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK.","status":"pass"},"choice_group":"","description":"Approximately the strength of the reference diff you supplied. Matches the reference's emphasis strength. Its own removed emphasis measured 3.74:1 for the lightest syntax roles; this candidate lands in the same region. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.","detail_sections":[{"heading":"Measured values","items":[{"definition":"#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1","term":"Light added"},{"definition":"#F1B9B4, separation 20.7 from its row fill, tightest syntax role 3.50:1","term":"Light removed"},{"definition":"#065730, separation 20.6 from its row fill, tightest syntax role 3.93:1","term":"Dark added"},{"definition":"#520412, separation 21.2 from its row fill, tightest syntax role 6.52:1","term":"Dark removed"},{"definition":"#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1","term":"High-contrast Light added"},{"definition":"#F3B9BA, separation 20.3 from its row fill, tightest syntax role 5.15:1","term":"High-contrast Light removed"},{"definition":"#04580F, separation 20.1 from its row fill, tightest syntax role 4.65:1","term":"High-contrast Dark added"},{"definition":"#750115, separation 20.5 from its row fill, tightest syntax role 6.32:1","term":"High-contrast Dark removed"}],"kind":"definitions"}],"display_name":"Reference-matched","identity_files":[{"label":"Light capture facts","media_kind":"file","path":"subjects/004-intraline-emphasis-c3/identity/01-light-capture-facts.json","sha256":"sha256:635a031e8f2f4283c72ba4ebb593449a02aab8ccd8ea71133cd07cb7a2fc4a24"},{"label":"Dark capture facts","media_kind":"file","path":"subjects/004-intraline-emphasis-c3/identity/02-dark-capture-facts.json","sha256":"sha256:92bfc851b53fe840631678ecdb70bc12a03557978fc193adbcbea8a94c631c0f"},{"label":"High-contrast Light capture facts","media_kind":"file","path":"subjects/004-intraline-emphasis-c3/identity/03-high-contrast-light-capture-facts.json","sha256":"sha256:d196ddd3148ffc977313ee3032ca1817c8183e7b82ebf1281f67ba81456734fc"},{"label":"High-contrast Dark capture facts","media_kind":"file","path":"subjects/004-intraline-emphasis-c3/identity/04-high-contrast-dark-capture-facts.json","sha256":"sha256:3bcc9eadd83e8c5732712fc96362199c40dbddb3d37976da709d12498f8907da"}],"known_concerns":["Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.","The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.","Below the project text-contrast floor on emphasised characters only: Light removed at 3.50:1; Dark added at 3.93:1; High-contrast Light removed at 5.15:1; High-contrast Dark added at 4.65:1; High-contrast Dark removed at 6.32:1."],"media_groups":[{"group_id":"changed-characters","items":[{"label":"Light - changed characters","media_kind":"image","path":"subjects/004-intraline-emphasis-c3/changed-characters/01-light-changed-characters.png","sha256":"sha256:48a7a16f93040cbf5424961615c0886434a6a4a4793ffc6684dd8589fd56d41c"},{"label":"Dark - changed characters","media_kind":"image","path":"subjects/004-intraline-emphasis-c3/changed-characters/02-dark-changed-characters.png","sha256":"sha256:f66c97126d79b10d4cf46eefd0a8c57252b27c833fb35d961002e44a0b1e4de1"},{"label":"High-contrast Light - changed characters","media_kind":"image","path":"subjects/004-intraline-emphasis-c3/changed-characters/03-high-contrast-light-changed-characters.png","sha256":"sha256:3b8af0d1359e4bc5f90aa1e207692e6ecade546bd75d6beec8da8b811edb5c59"},{"label":"High-contrast Dark - changed characters","media_kind":"image","path":"subjects/004-intraline-emphasis-c3/changed-characters/04-high-contrast-dark-changed-characters.png","sha256":"sha256:a37e5595deb5d80c8fe0de3984412f75d84e0196a8811d12dfb8cd90b73f90e4"}],"layout":"grid","note":"Click any image for native resolution. Look at the digits after '464,' on the two highlighted rows in each pane.","required":true,"title":"Changed characters, all four profiles"},{"group_id":"whole-window","items":[{"label":"Light - whole window","media_kind":"image","path":"subjects/004-intraline-emphasis-c3/whole-window/01-light-whole-window.png","sha256":"sha256:de298dec46bb76a380338abf6fef77456e117a80132e2d801331cebc69350e1d"},{"label":"Dark - whole window","media_kind":"image","path":"subjects/004-intraline-emphasis-c3/whole-window/02-dark-whole-window.png","sha256":"sha256:943133e456cecaca5368a5659f7a67359417cc4ccf36e5a746503515ea163904"},{"label":"High-contrast Light - whole window","media_kind":"image","path":"subjects/004-intraline-emphasis-c3/whole-window/03-high-contrast-light-whole-window.png","sha256":"sha256:1bd1170f60227a606a90fa2607cbc24e5631f6e19dad1c1e6ab04e01bda57c5f"},{"label":"High-contrast Dark - whole window","media_kind":"image","path":"subjects/004-intraline-emphasis-c3/whole-window/04-high-contrast-dark-whole-window.png","sha256":"sha256:3252aaeddef0ce62975eda370a48c357bcfc93898f05d57de41d36bf0b89857b"}],"layout":"grid","note":"The same states at full window size.","required":false,"title":"Whole window, for context"}],"selection_group":"emphasis-strength","subject_digest":"sha256:f3653bc5729d2ecc16dbcaab1e7c3d821e9ee6f7b1b2f7bedc148028a75e0093","subject_id":"criterion:/betterpullreview/bpr-0320/intraline-emphasis-c3","subject_key":"intraline-emphasis-c3"},{"ab_group":"","acceptance_criteria":["The changed characters are visible in the removed (left) pane","The changed characters are visible in the added (right) pane","Neither side reads as more important than the other","The code on the emphasised span is still comfortable to read","The effect holds in all four appearance profiles"],"audit_verdict":{"note":"Rendered by the real UIforETW selected-diff course at 1280x1000 in all four profiles; every capture emitted UIFORETW_SELECTED_DIFF_EVIDENCE_OK.","status":"pass"},"choice_group":"","description":"The most emphatic of the four. Hardest to miss, and the largest reduction in text contrast on emphasised characters. Compare the left pane against the right pane: the same replacement pair is 28/42/56/70/84 on the left and 24/36/48/60/72 on the right. Both should read as marked.","detail_sections":[{"heading":"Measured values","items":[{"definition":"#9EFFB5, separation 38.3 from its row fill, tightest syntax role 4.61:1","term":"Light added"},{"definition":"#F9AEA8, separation 28.2 from its row fill, tightest syntax role 3.36:1","term":"Light removed"},{"definition":"#076639, separation 27.6 from its row fill, tightest syntax role 3.20:1","term":"Dark added"},{"definition":"#701521, separation 27.9 from its row fill, tightest syntax role 5.23:1","term":"Dark removed"},{"definition":"#99FF99, separation 38.0 from its row fill, tightest syntax role 7.00:1","term":"High-contrast Light added"},{"definition":"#F6ACAE, separation 27.4 from its row fill, tightest syntax role 4.72:1","term":"High-contrast Light removed"},{"definition":"#036512, separation 27.4 from its row fill, tightest syntax role 3.89:1","term":"High-contrast Dark added"},{"definition":"#88051B, separation 27.6 from its row fill, tightest syntax role 5.37:1","term":"High-contrast Dark removed"}],"kind":"definitions"}],"display_name":"Strong","identity_files":[{"label":"Light capture facts","media_kind":"file","path":"subjects/005-intraline-emphasis-c4/identity/01-light-capture-facts.json","sha256":"sha256:95395256905d1621f2355b463d67e49fb91a9f1ec12c039d28aa0b2b4385e663"},{"label":"Dark capture facts","media_kind":"file","path":"subjects/005-intraline-emphasis-c4/identity/02-dark-capture-facts.json","sha256":"sha256:facabb0c6c5256b970ecda59ced4713db4f77e6224a4c9e12954edc4edd62fa5"},{"label":"High-contrast Light capture facts","media_kind":"file","path":"subjects/005-intraline-emphasis-c4/identity/03-high-contrast-light-capture-facts.json","sha256":"sha256:f8c33a85bffd08e59d3d1e19b6f064cd96ef2f7ecfd5601c956ae45c96fe33f3"},{"label":"High-contrast Dark capture facts","media_kind":"file","path":"subjects/005-intraline-emphasis-c4/identity/04-high-contrast-dark-capture-facts.json","sha256":"sha256:135ae0d9371630f9985cbd6a79a05ecf39aacb2ef098f3ae9ace607ac083e45a"}],"known_concerns":["Offscreen QFusionStyle at device pixel ratio 1. This judges the deterministic appearance profiles, not native macOS artwork.","The emphasis marks the changed characters only. Row fills are identical in every candidate and are not under review here.","Below the project text-contrast floor on emphasised characters only: Light removed at 3.36:1; Dark added at 3.20:1; High-contrast Light removed at 4.72:1; High-contrast Dark added at 3.89:1; High-contrast Dark removed at 5.37:1."],"media_groups":[{"group_id":"changed-characters","items":[{"label":"Light - changed characters","media_kind":"image","path":"subjects/005-intraline-emphasis-c4/changed-characters/01-light-changed-characters.png","sha256":"sha256:041c99a286ff096b9885e3813199ba3fee290bfaf4c5f53bc22f211ef9acf8b2"},{"label":"Dark - changed characters","media_kind":"image","path":"subjects/005-intraline-emphasis-c4/changed-characters/02-dark-changed-characters.png","sha256":"sha256:962973d895b76b5e790beb6d2cd90278fc4e939bb2592c439bf6c9d650210db7"},{"label":"High-contrast Light - changed characters","media_kind":"image","path":"subjects/005-intraline-emphasis-c4/changed-characters/03-high-contrast-light-changed-characters.png","sha256":"sha256:52c9b280ad406f02d58666cf0680339872feba94223435f089b287e9f05739cb"},{"label":"High-contrast Dark - changed characters","media_kind":"image","path":"subjects/005-intraline-emphasis-c4/changed-characters/04-high-contrast-dark-changed-characters.png","sha256":"sha256:428e59b7e248c78e374c08d824f8bf8d1e38d669d62a4373ec32c7e1c226b75e"}],"layout":"grid","note":"Click any image for native resolution. Look at the digits after '464,' on the two highlighted rows in each pane.","required":true,"title":"Changed characters, all four profiles"},{"group_id":"whole-window","items":[{"label":"Light - whole window","media_kind":"image","path":"subjects/005-intraline-emphasis-c4/whole-window/01-light-whole-window.png","sha256":"sha256:a7d7d55c434cc0cb3916959d7f5a3f576a99629afa24909d69ec26a0730ee081"},{"label":"Dark - whole window","media_kind":"image","path":"subjects/005-intraline-emphasis-c4/whole-window/02-dark-whole-window.png","sha256":"sha256:273cca960b8e96b97dc6e6f77ee77b0bd1de9db48119dd2eea9acd1820694476"},{"label":"High-contrast Light - whole window","media_kind":"image","path":"subjects/005-intraline-emphasis-c4/whole-window/03-high-contrast-light-whole-window.png","sha256":"sha256:4af2ed91712cc8708c66fbb1aa1100a0c2f4f35e9516545fe48a2c444e0aad92"},{"label":"High-contrast Dark - whole window","media_kind":"image","path":"subjects/005-intraline-emphasis-c4/whole-window/04-high-contrast-dark-whole-window.png","sha256":"sha256:9f6d0e68fd00107c50bf1b1d2e868b5d3f6adca3dfb4d376d985dec4f385717f"}],"layout":"grid","note":"The same states at full window size.","required":false,"title":"Whole window, for context"}],"selection_group":"emphasis-strength","subject_digest":"sha256:6ee2162d3625d047044ccb094d135ca11c4246a061c53424986501babfefb805","subject_id":"criterion:/betterpullreview/bpr-0320/intraline-emphasis-c4","subject_key":"intraline-emphasis-c4"}],"title":"Intraline emphasis strength (BPR-0320)"}</script>
+  <script>
+(function (root) {
+  "use strict";
+
+  const STORAGE_PREFIX = "bpr.attended-review.v1";
+  const VERDICT_SCHEMA = "bpr.attended_review_verdict";
+
+  function identityKey(subject) {
+    return `${subject.subject_id}@${subject.subject_digest}`;
+  }
+
+  function storageKey(batchId, subject) {
+    return `${STORAGE_PREFIX}:${batchId}:${subject.subject_id}:${subject.subject_digest}`;
+  }
+
+  function createMemoryStorage() {
+    const values = new Map();
+    return {
+      getItem(key) {
+        return values.has(key) ? values.get(key) : null;
+      },
+      setItem(key, value) {
+        values.set(key, String(value));
+      },
+      removeItem(key) {
+        values.delete(key);
+      },
+    };
+  }
+
+  function availableStorage() {
+    try {
+      if (!root.localStorage) {
+        return createMemoryStorage();
+      }
+      const probe = `${STORAGE_PREFIX}:probe`;
+      root.localStorage.setItem(probe, "1");
+      root.localStorage.removeItem(probe);
+      return root.localStorage;
+    } catch (_error) {
+      return createMemoryStorage();
+    }
+  }
+
+  function normalizeSaved(value) {
+    if (!value || typeof value !== "object") {
+      return { decision: null, notes: "" };
+    }
+    const decision = value.decision === "accept" || value.decision === "reject"
+      ? value.decision
+      : null;
+    return {
+      decision,
+      notes: typeof value.notes === "string" ? value.notes : "",
+    };
+  }
+
+  function auditFailed(subject) {
+    return Boolean(subject.audit_verdict && subject.audit_verdict.status === "fail");
+  }
+
+  class ReviewController {
+    constructor(config, storage) {
+      if (!config || !Array.isArray(config.subjects)) {
+        throw new Error("review config must contain subjects");
+      }
+      if (!config.downstream_claims || typeof config.downstream_claims !== "object") {
+        throw new Error("review config must declare downstream_claims");
+      }
+      this.config = config;
+      this.groups = new Map();
+      for (const group of config.selection_groups || []) {
+        this.groups.set(group.group_id, group);
+      }
+      for (const subject of config.subjects) {
+        const token = subject.choice_group;
+        if (token && !this.groups.has(token)) {
+          this.groups.set(token, { group_id: token, min_accept: 1, max_accept: 1 });
+        }
+      }
+      this.storage = storage || availableStorage();
+      this.states = new Map();
+      for (const subject of config.subjects) {
+        const raw = this.storage.getItem(storageKey(config.batch_id, subject));
+        let parsed = null;
+        if (raw !== null) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch (_error) {
+            parsed = null;
+          }
+        }
+        const state = normalizeSaved(parsed);
+        if (state.decision === "accept" && auditFailed(subject)) {
+          state.decision = null;
+        }
+        this.states.set(identityKey(subject), state);
+      }
+    }
+
+    subject(subjectId, subjectDigest) {
+      const found = this.config.subjects.find(
+        (item) => item.subject_id === subjectId && item.subject_digest === subjectDigest
+      );
+      if (!found) {
+        throw new Error(`unknown subject identity: ${subjectId}@${subjectDigest}`);
+      }
+      return found;
+    }
+
+    state(subject) {
+      return this.states.get(identityKey(subject));
+    }
+
+    save(subject) {
+      this.storage.setItem(
+        storageKey(this.config.batch_id, subject),
+        JSON.stringify(this.state(subject))
+      );
+    }
+
+    subjectGroupId(subject) {
+      return subject.selection_group || subject.choice_group || null;
+    }
+
+    groupMembers(groupId) {
+      return this.config.subjects.filter((item) => this.subjectGroupId(item) === groupId);
+    }
+
+    groupTally(groupId) {
+      const group = this.groups.get(groupId);
+      const members = this.groupMembers(groupId);
+      let chosen = 0;
+      let rejected = 0;
+      for (const member of members) {
+        const decision = this.state(member).decision;
+        if (decision === "accept") chosen += 1;
+        if (decision === "reject") rejected += 1;
+      }
+      const undecided = members.length - chosen - rejected;
+      const satisfied = (chosen >= group.min_accept && chosen <= group.max_accept)
+        || (chosen === 0 && rejected === members.length);
+      return { group, members, chosen, rejected, undecided, satisfied };
+    }
+
+    setDecision(subjectId, subjectDigest, decision) {
+      if (decision !== "accept" && decision !== "reject" && decision !== null) {
+        throw new Error(`invalid decision: ${decision}`);
+      }
+      const subject = this.subject(subjectId, subjectDigest);
+      if (decision === "accept" && auditFailed(subject)) {
+        throw new Error("subject failed its mechanical audit; accept is unavailable");
+      }
+      const groupId = this.subjectGroupId(subject);
+      if (decision === "accept" && groupId && this.groups.has(groupId)) {
+        const tally = this.groupTally(groupId);
+        const alreadyChosen = this.state(subject).decision === "accept";
+        if (!alreadyChosen && tally.chosen >= tally.group.max_accept) {
+          if (tally.group.max_accept === 1) {
+            for (const member of tally.members) {
+              const memberState = this.state(member);
+              if (memberState.decision === "accept") {
+                memberState.decision = null;
+                this.save(member);
+              }
+            }
+          } else {
+            throw new Error(
+              `selection group '${groupId}' allows at most ${tally.group.max_accept} chosen alternatives; clear one first`
+            );
+          }
+        }
+      }
+      this.state(subject).decision = decision;
+      this.save(subject);
+      return this.summary();
+    }
+
+    setNotes(subjectId, subjectDigest, notes) {
+      const subject = this.subject(subjectId, subjectDigest);
+      this.state(subject).notes = String(notes || "");
+      this.save(subject);
+      return this.summary();
+    }
+
+    summary() {
+      let accepted = 0;
+      let rejected = 0;
+      let notChosen = 0;
+      let pending = 0;
+      for (const subject of this.config.subjects) {
+        const decision = this.state(subject).decision;
+        if (decision === "accept") accepted += 1;
+        if (decision === "reject") rejected += 1;
+        if (!decision && !this.subjectGroupId(subject)) pending += 1;
+      }
+      for (const groupId of this.groups.keys()) {
+        const tally = this.groupTally(groupId);
+        if (tally.satisfied) {
+          notChosen += tally.undecided;
+        } else {
+          pending += tally.undecided || 1;
+        }
+      }
+      const total = this.config.subjects.length;
+      return {
+        accepted,
+        rejected,
+        notChosen,
+        resolved: total - pending,
+        pending,
+        total,
+      };
+    }
+
+    buildVerdict() {
+      for (const groupId of this.groups.keys()) {
+        const tally = this.groupTally(groupId);
+        if (!tally.satisfied) {
+          throw new Error(
+            `cannot export: selection group '${groupId}' is unresolved; choose between `
+            + `${tally.group.min_accept} and ${tally.group.max_accept} alternatives or reject every member`
+          );
+        }
+      }
+      const summary = this.summary();
+      if (summary.pending !== 0) {
+        throw new Error(`cannot export: ${summary.pending} subject(s) remain pending`);
+      }
+      const accepted = [];
+      const rejected = [];
+      const notChosen = [];
+      const notes = {};
+      for (const subject of this.config.subjects) {
+        const state = this.state(subject);
+        const identity = {
+          subject_id: subject.subject_id,
+          subject_digest: subject.subject_digest,
+        };
+        if (state.decision === "accept") {
+          accepted.push(identity);
+        } else if (state.decision === "reject") {
+          rejected.push(identity);
+        } else {
+          notChosen.push(identity);
+        }
+        if (state.notes.trim()) {
+          notes[identityKey(subject)] = state.notes;
+        }
+      }
+      const verdict = {
+        schema_name: VERDICT_SCHEMA,
+        schema_version: 1,
+        batch_id: this.config.batch_id,
+        review_gate: this.config.review_gate,
+        review_scope: this.config.review_scope,
+        accepted_subjects: accepted,
+        rejected_subjects: rejected,
+        notes_by_subject_identity: notes,
+        downstream_claims: { ...this.config.downstream_claims },
+      };
+      if (this.groups.size > 0) {
+        verdict.not_chosen_subjects = notChosen;
+      }
+      return verdict;
+    }
+  }
+
+  async function copyText(text, environment) {
+    const env = environment || root;
+    if (env.navigator && env.navigator.clipboard && env.navigator.clipboard.writeText) {
+      try {
+        await env.navigator.clipboard.writeText(text);
+        return "clipboard";
+      } catch (_error) {
+        // Local file origins frequently expose Clipboard API but deny writes.
+        // Continue to the legacy selection-based copy path in that case.
+      }
+    }
+    const document = env.document;
+    if (!document || !document.execCommand) {
+      throw new Error("clipboard copy is unavailable; copy the displayed JSON manually");
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (!copied) {
+      throw new Error("clipboard copy failed; copy the displayed JSON manually");
+    }
+    return "execCommand";
+  }
+
+  function initializePage(document) {
+    const configNode = document.getElementById("attended-review-config");
+    if (!configNode) return null;
+    const config = JSON.parse(configNode.textContent);
+    const controller = new ReviewController(config);
+    const cards = Array.from(document.querySelectorAll("[data-subject-id]"));
+    const progress = document.getElementById("review-progress");
+    const totals = document.getElementById("review-totals");
+    const pendingOnly = document.getElementById("pending-only");
+    const exportButton = document.getElementById("export-verdict");
+    const exportOutput = document.getElementById("verdict-output");
+    const reviewStatus = document.getElementById("review-status");
+
+    function cardSubject(card) {
+      return controller.subject(card.dataset.subjectId, card.dataset.subjectDigest);
+    }
+
+    function render() {
+      const summary = controller.summary();
+      progress.textContent = `${summary.resolved}/${summary.total} reviewed`;
+      const segments = [`${summary.accepted} accepted`, `${summary.rejected} rejected`];
+      if (controller.groups.size > 0) {
+        segments.push(`${summary.notChosen} not chosen`);
+      }
+      segments.push(`${summary.pending} pending`);
+      totals.textContent = segments.join(" · ");
+      exportButton.disabled = summary.pending !== 0;
+      if (summary.pending !== 0) {
+        exportButton.textContent = "Copy the complete verdict";
+      }
+      const tallies = new Map();
+      for (const groupId of controller.groups.keys()) {
+        tallies.set(groupId, controller.groupTally(groupId));
+      }
+      for (const card of cards) {
+        const subject = cardSubject(card);
+        const state = controller.state(subject);
+        let reviewState = state.decision || "pending";
+        const groupId = controller.subjectGroupId(subject);
+        if (!state.decision && groupId) {
+          const tally = tallies.get(groupId);
+          if (tally && tally.satisfied) {
+            reviewState = "not-chosen";
+          }
+        }
+        card.dataset.reviewState = reviewState;
+        card.hidden = Boolean(pendingOnly.checked && reviewState !== "pending");
+        for (const button of card.querySelectorAll("[data-decision]")) {
+          button.setAttribute("aria-pressed", String(button.dataset.decision === state.decision));
+        }
+      }
+      for (const node of document.querySelectorAll("[data-selection-group-status]")) {
+        const tally = tallies.get(node.dataset.selectionGroupStatus);
+        if (!tally) continue;
+        const range = tally.group.min_accept === tally.group.max_accept
+          ? String(tally.group.max_accept)
+          : `${tally.group.min_accept}-${tally.group.max_accept}`;
+        if (tally.satisfied && tally.chosen === 0) {
+          node.textContent = `Every alternative rejected: this question has no acceptable answer (needs ${range}).`;
+        } else if (tally.satisfied) {
+          node.textContent = `Satisfied: ${tally.chosen} chosen of ${range}; ${tally.undecided} not chosen, ${tally.rejected} rejected.`;
+        } else {
+          node.textContent = `Unresolved: ${tally.chosen} chosen of ${range} needed; ${tally.undecided} undecided, ${tally.rejected} rejected.`;
+        }
+      }
+    }
+
+    for (const card of cards) {
+      const subject = cardSubject(card);
+      const state = controller.state(subject);
+      const notes = card.querySelector("[data-review-notes]");
+      notes.value = state.notes;
+      for (const button of card.querySelectorAll("[data-decision]")) {
+        button.addEventListener("click", () => {
+          let decision = button.dataset.decision === "clear" ? null : button.dataset.decision;
+          if (decision && controller.state(subject).decision === decision) {
+            decision = null;
+          }
+          try {
+            controller.setDecision(subject.subject_id, subject.subject_digest, decision);
+          } catch (error) {
+            reviewStatus.textContent = error.message;
+            return;
+          }
+          exportOutput.value = "";
+          reviewStatus.textContent = "Decision saved in this browser.";
+          exportButton.textContent = "Copy the complete verdict";
+          render();
+        });
+      }
+      notes.addEventListener("input", () => {
+        controller.setNotes(subject.subject_id, subject.subject_digest, notes.value);
+        exportOutput.value = "";
+        reviewStatus.textContent = "Notes saved in this browser.";
+        exportButton.textContent = "Copy the complete verdict";
+      });
+    }
+
+    pendingOnly.addEventListener("change", render);
+    exportButton.addEventListener("click", async () => {
+      try {
+        const text = `${JSON.stringify(controller.buildVerdict(), null, 2)}\n`;
+        exportOutput.value = text;
+        const method = await copyText(text);
+        exportButton.textContent = "Copied — return it to the agent";
+        reviewStatus.textContent = method === "clipboard"
+          ? "Complete verdict copied. Paste it back to the requesting agent session."
+          : "Complete verdict copied with the local fallback. Paste it back to the requesting agent session.";
+      } catch (error) {
+        exportButton.textContent = "Copy the complete verdict";
+        exportOutput.focus();
+        exportOutput.select();
+        reviewStatus.textContent = `${error.message}. The complete JSON below is selected for manual copy.`;
+      }
+    });
+    render();
+    return controller;
+  }
+
+  const api = {
+    ReviewController,
+    copyText,
+    createMemoryStorage,
+    identityKey,
+    initializePage,
+    storageKey,
+  };
+  root.BprAttendedReview = api;
+  if (root.document) {
+    if (root.document.readyState === "loading") {
+      root.document.addEventListener("DOMContentLoaded", () => initializePage(root.document));
+    } else {
+      initializePage(root.document);
+    }
+  }
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+// Full-resolution inspection. Opening and closing the viewer must not
+// touch decision state or the export lock, so this only reads the DOM.
+(function attachFullResolutionViewer() {
+  // The runtime is loaded browserless by the skill's own tests, so it must not
+  // touch the DOM at import time.
+  if (typeof document === 'undefined' || !document.body) { return; }
+  var viewer = document.createElement('div');
+  viewer.className = 'media-viewer';
+  viewer.hidden = true;
+  viewer.setAttribute('role', 'dialog');
+  viewer.setAttribute('aria-modal', 'true');
+  viewer.innerHTML =
+    '<div class="media-viewer-bar">' +
+    '<span class="media-viewer-label"></span>' +
+    '<span class="media-viewer-counter"></span>' +
+    '<button type="button" class="media-viewer-close">Close</button>' +
+    '</div><div class="media-viewer-surface"><img alt=""></div>' +
+    '<button type="button" class="media-viewer-nav media-viewer-prev" aria-label="Previous image">&#8249;</button>' +
+    '<button type="button" class="media-viewer-nav media-viewer-next" aria-label="Next image">&#8250;</button>';
+  document.body.appendChild(viewer);
+
+  var image = viewer.querySelector('.media-viewer-surface img');
+  var label = viewer.querySelector('.media-viewer-label');
+  var counter = viewer.querySelector('.media-viewer-counter');
+  var closeButton = viewer.querySelector('.media-viewer-close');
+  var prevButton = viewer.querySelector('.media-viewer-prev');
+  var nextButton = viewer.querySelector('.media-viewer-next');
+  var lastTrigger = null;
+
+  function visibleTriggers() {
+    return Array.prototype.filter.call(
+      document.querySelectorAll('.media-zoom'),
+      function (candidate) { return candidate.offsetParent !== null; }
+    );
+  }
+
+  function close() {
+    viewer.hidden = true;
+    image.removeAttribute('src');
+    if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+  }
+
+  function open(trigger, focusClose) {
+    lastTrigger = trigger;
+    image.src = trigger.getAttribute('data-full-source');
+    image.alt = trigger.getAttribute('data-full-label') || '';
+    label.textContent = trigger.getAttribute('data-full-label') || '';
+    var list = visibleTriggers();
+    var index = list.indexOf(trigger);
+    var navigable = list.length > 1;
+    counter.textContent = navigable && index >= 0 ? (index + 1) + ' / ' + list.length : '';
+    prevButton.hidden = !navigable;
+    nextButton.hidden = !navigable;
+    viewer.hidden = false;
+    if (focusClose !== false) { closeButton.focus(); }
+  }
+
+  function step(delta) {
+    var list = visibleTriggers();
+    if (!list.length) { return; }
+    var index = list.indexOf(lastTrigger);
+    var next = ((index < 0 ? 0 : index + delta) + list.length) % list.length;
+    open(list[next], false);
+  }
+
+  document.addEventListener('click', function (event) {
+    var trigger = event.target.closest ? event.target.closest('.media-zoom') : null;
+    if (trigger) { event.preventDefault(); open(trigger); return; }
+    if (viewer.hidden) { return; }
+    if (event.target.closest && event.target.closest('.media-viewer-prev')) { step(-1); return; }
+    if (event.target.closest && event.target.closest('.media-viewer-next')) { step(1); return; }
+    if (event.target === viewer || event.target === closeButton) { close(); }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (viewer.hidden) { return; }
+    if (event.key === 'Escape') { close(); return; }
+    if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); return; }
+    if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
+  });
+})();
+
+</script>
+</body>
+</html>
