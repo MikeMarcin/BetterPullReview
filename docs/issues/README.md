@@ -7,6 +7,7 @@ Issue IDs use the `BPR-NNNN` sequence allocated by `NEXT_ID`.
 | Folder | Status | Meaning |
 |---|---|---|
 | `backlog/` | Backlog | Planned but blocked by dependencies |
+| `blocked/` | Blocked | Cannot be executed here; needs a different operating system |
 | `ready/` | Ready | Unblocked and available to start |
 | `in-progress/` | In Progress | The current implementation slice |
 | `done/` | Done | Verified terminal state |
@@ -14,6 +15,21 @@ Issue IDs use the `BPR-NNNN` sequence allocated by `NEXT_ID`.
 Folder placement is authoritative. Front-matter `status` must agree with the
 folder. Move a card rather than copying it, and update dependencies when new
 work is discovered.
+
+`blocked/` holds a card whose own remaining work cannot be executed on this
+host because it requires target-native execution on a different operating
+system, together with any card whose every unmet dependency resolves only
+through such a card. Each one carries a `blocked_by` field naming the exact
+platform: `platform-linux`, `platform-windows`, or
+`platform-linux-and-windows`. The lane is not terminal — a card returns to
+`backlog/` or `ready/` on the day the platform exists.
+
+The rule is narrower than "cannot progress right now", and deliberately so. A
+card parked on an attended owner verdict, a live GitHub session, or an unmade
+product decision stays in `backlog/`, because the missing input is a person or
+a service rather than a machine. Those blockers gate more of this board than
+the platform blockers do; see [Open right now](#open-right-now) for who owns
+each one.
 
 Each card links one RFC, names its dependencies, defines completion evidence,
 and is committed with the implementation slice it tracks. RFC closeout is
@@ -84,7 +100,7 @@ behavior-preserving identity, capability-cache, accessibility-text,
 CLI-automation, and Release-contract simplifications verified by complete
 available-platform and focused sanitizer matrices.
 
-BPR-0035 and BPR-0036 remain in `backlog/`: BPR-0036 retains direct real
+BPR-0035 and BPR-0036 remain in `blocked/`: BPR-0036 retains direct real
 Windows x64 evidence, and BPR-0035 cannot mark RFC-BPR-0002 Auto-Verified
 until that evidence exists. By product-owner direction, this does not block
 planning and implementing later RFCs in canonical order.
@@ -183,8 +199,7 @@ traversal, and real rendered/restart evidence complete. BPR-0052 is now in
 application timeout snapshot, deliberately retaining fail-closed authority
 structure, and replaying the clean developer, core-only, sanitizer,
 tests-disabled Release, documentation, and rendered integration matrices.
-BPR-0053 and BPR-0054 remain in `backlog/` pending their explicit board
-transitions. Done BPR-0067 now exposes confirmed prune/cache-delete commands
+BPR-0053 and BPR-0054 are in `blocked/` for real Windows x64 execution. Done BPR-0067 now exposes confirmed prune/cache-delete commands
 through the selected application and real Git/SQLite projection path, with
 default-Cancel confirmations, unrelated-ref canaries, durable restart proof,
 and no additional provider traffic. Done BPR-0068 makes the epoch-host job
@@ -282,7 +297,7 @@ closed by the replay at `ca424f7`, which passed 88/88 on `dev` and 33/33 on
 `core-only`. BPR-0225 later falsified that review's broader public-path
 conclusion: the selected diff was requested only by a tests-only fixture helper
 at its reviewed head. Done BPR-0227 now closes that required public path. The
-card also remains in backlog because it depends on BPR-0054. Its
+card is also in `blocked/` because it depends on BPR-0054. Its
 owner-authorized native System-theme gate is satisfied: an owner-activated
 Cocoa/QMacStyle run at commit `1e581a6` passed active focus, both local and
 global Light-to-Dark transitions, and every workbench palette, font,
@@ -475,7 +490,7 @@ pretending to complete them inside the review:
   BPR-0187 serves the recording, but the current registered public test only
   opens the pull request and saves a window grab; it does not request or assert
   the diff.
-- In-progress BPR-0235 replaces a structural live-mutation inventory with
+- Blocked BPR-0235 replaces a structural live-mutation inventory with
   process-boundary default network denial before BPR-0142 can use a live
   provider. Done BPR-0236 supplies the promised appearance fallback when its
   durable store cannot open.
@@ -500,20 +515,45 @@ duplicated number here. The groups below
 describe the actual remaining authority or product surface; closure cards may
 also depend transitively on more than one group.
 
+#### Frontier roots
+
+Most open cards are waiting on another open card. Only a handful sit at the
+front of the graph with every dependency already in `done/`, and those are the
+only places work can actually start. BPR-0319 enumerated them, and the result
+is worth stating plainly: **every frontier root needs hardware, a person, or a
+live service. None of them can be carried to completion by unattended work on
+this host.**
+
+| Root | Needs |
+|---|---|
+| BPR-0036, BPR-0053 | Real Windows 10/11 x64 |
+| BPR-0156 | A Linux host or VM; this one has no toolchain, container runtime, or emulator |
+| BPR-0235 | Target-native Linux and Windows; its portable slice is complete |
+| BPR-0240 | Target-native Windows, after the portable gates BPR-0319 does not own |
+| BPR-0168, BPR-0220, BPR-0233, BPR-0257, BPR-0258 | A person looking, clicking, or returning an exported verdict |
+| BPR-0262 | An operator statement in the containment approval packet |
+| BPR-0276, BPR-0298 | Owner authority plus a real GitHub service call |
+| BPR-0211, BPR-0212 | Neither: owner-deferred, and RFC-scale rather than a slice |
+
+Everything else in `backlog/` reaches one of those roots transitively. That is
+not a scheduling problem, and no amount of further unattended implementation
+moves it.
+
 | Group | Cards | What is actually missing |
 |---|---|---|
 | Requested Dif mascot program | Done BPR-0286 through BPR-0294, backlog BPR-0295 | RFC-BPR-0019 tooling, assets, exact rights and visual verdicts, clean dev/core/tests-disabled boundary verification, immutable-base documentation reconciliation, and behavior-preserving simplification are complete. The accepted verdict preserves the owner's requirement that the plus/minus card not become inseparable from Dif's core base sprite. RFC-BPR-0019 closeout remains blocked by non-waived RFC-BPR-0006/RFC-BPR-0013 closeout; RFC-BPR-0020 cannot begin before RFC-BPR-0019 is Auto-Verified |
-| Requested post-pack device authorization | Done BPR-0274/BPR-0275, in-progress BPR-0276, backlog BPR-0277 through BPR-0285 plus BPR-0310/BPR-0311/BPR-0318 | RFC-BPR-0016 remains Deferred. The private owner-only BPR-Test identity is limited to attended verification; BPR-0318 records a separate distributable identity before any production platform can become available. Bounded real-service capture, RFC-BPR-0002 closeout, implementation, target-native enablement, and capability-critical final replay remain explicit; no partial device-flow mode exists |
-| Requested post-pack unauthenticated public read | Done planning BPR-0296, scoping BPR-0297, and demonstration BPR-0313; ready BPR-0298; backlog BPR-0299 through BPR-0309 plus BPR-0312 and BPR-0314 through BPR-0317 | RFC-BPR-0017 remains Deferred. Live-tree scoping is corrected: the read catalog has no REST review-comment operation, so refusing GraphQL anonymously loses every inline review comment rather than only resolution state, and the mutation authority's own REST review-comment read is recorded as the exception no read path can select. The credential-free transport demonstration exists as a `BUILD_TESTING`-only loopback course with a standing inventory and Release-absence guard; it creates no anonymous profile. Still required are real anonymous-service probes, an explicit positive build gate, RFC-BPR-0002 closeout, full public diff authority, macOS enablement, Linux/Windows unavailability proof, implementation, and capability-critical final replay. `native_designated_review_public_observer` is product-compiled and does perform a credential-free GET, but it duplicates rather than exercises the transport's rules and is not product evidence |
-| Real Windows x64 hardware | BPR-0036, BPR-0053, and transitively BPR-0035, BPR-0054, BPR-0083 | Target-native execution; no available-platform substitute counts |
+| Requested post-pack device authorization | Done BPR-0274/BPR-0275, in-progress BPR-0276, backlog BPR-0277 through BPR-0285 plus BPR-0318, blocked BPR-0310/BPR-0311 | RFC-BPR-0016 remains Deferred. The private owner-only BPR-Test identity is limited to attended verification; BPR-0318 records a separate distributable identity before any production platform can become available. Bounded real-service capture, RFC-BPR-0002 closeout, implementation, target-native enablement, and capability-critical final replay remain explicit; no partial device-flow mode exists |
+| Requested post-pack unauthenticated public read | Done planning BPR-0296, scoping BPR-0297, and demonstration BPR-0313; ready BPR-0298; backlog BPR-0299 through BPR-0309 plus BPR-0312, BPR-0316 and BPR-0317, blocked BPR-0314/BPR-0315 | RFC-BPR-0017 remains Deferred. Live-tree scoping is corrected: the read catalog has no REST review-comment operation, so refusing GraphQL anonymously loses every inline review comment rather than only resolution state, and the mutation authority's own REST review-comment read is recorded as the exception no read path can select. The credential-free transport demonstration exists as a `BUILD_TESTING`-only loopback course with a standing inventory and Release-absence guard; it creates no anonymous profile. Still required are real anonymous-service probes, an explicit positive build gate, RFC-BPR-0002 closeout, full public diff authority, macOS enablement, Linux/Windows unavailability proof, implementation, and capability-critical final replay. `native_designated_review_public_observer` is product-compiled and does perform a credential-free GET, but it duplicates rather than exercises the transport's rules and is not product evidence |
+| Real Windows x64 hardware | Blocked BPR-0036, BPR-0053, BPR-0311, BPR-0315, and transitively BPR-0035, BPR-0054, BPR-0083 | Target-native execution; no available-platform substitute counts |
+| A Linux host | Blocked BPR-0156, BPR-0310, BPR-0314, and BPR-0235's Linux half | Target-native execution; this host has no Linux toolchain, container runtime, or emulator |
 | A designated live GitHub pull request | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Disposable `MikeMarcin/BPR-Test#1` is identity-bound; the live provider, exact-target lane, owner-authenticated mutations, and attended/mixed-client checks remain |
 | Designated live-lane proof blockers | Backlog BPR-0262, done BPR-0261/BPR-0263/BPR-0264, gating backlog BPR-0256 | The approved narrowed replay authority is implemented and independently reviewed; the approved read-only-image and kernel-audited supervisor containment topology remains. No live or package authority was granted |
 | Owner-attended or native-display judgment | BPR-0100, BPR-0114, BPR-0168 with done BPR-0251, BPR-0210, BPR-0214, and ready BPR-0220 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta; BPR-0251 makes the real notification course truthful |
 | Product composition | Backlog BPR-0232; done BPR-0223, BPR-0226 through BPR-0231, BPR-0247, and BPR-0250 | Notification request/activation, the workbench host, selected diff, ledger, actionability, fixture-safe review round trip, durable defect workflow, observer-rule queue, portable agent invocation, durable sessions, and explicit private-context selection are composed. BPR-0232 waits for deferred native Windows lifecycle proof and its final replay through that same surface. |
-| Missing component and resilience scope | In-progress BPR-0235 and BPR-0240; done BPR-0237 through BPR-0239 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, and BPR-0236's appearance-storage fallback are done |
+| Missing component and resilience scope | Blocked BPR-0235; in-progress BPR-0240; done BPR-0237 through BPR-0239 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, and BPR-0236's appearance-storage fallback are done |
 | Recorded selected-diff proof | Backlog BPR-0233 plus done BPR-0246, gating BPR-0214, BPR-0210, and BPR-0100 | The real selected-file course binds UIforETW commits/blobs, named replacement pairs, semantic roles, and a cut-wire negative. The v001 attended batch was rejected. Done BPR-0246 supplies the mechanically green 1280 × 1000 focused layout with shipped drawer/detail controls, exact-span/connector evidence, and immutable digest-bound v002; its attended verdict remains |
 | Closeout rigor and terminal cards | Done BPR-0234 and BPR-0248; backlog BPR-0241 through BPR-0245 | The standing shipped-binary composition inventory is reconciled with exact fixture/production profiles; replay each anchored executable checklist and retain a live terminal card for each Proposed RFC |
-| Deferred or not a slice | BPR-0211, BPR-0212, BPR-0156, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering |
+| Deferred or not a slice | BPR-0211, BPR-0212, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering; BPR-0156 moved to `blocked/` because its blocker is a missing Linux host rather than a decision |
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
 final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench

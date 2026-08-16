@@ -1,9 +1,10 @@
 ---
 id: BPR-0310
 title: Verify device authorization on target-native Linux
-status: Backlog
+status: Blocked
 rfc: RFC-BPR-0016
 depends_on: [BPR-0282, BPR-0318]
+blocked_by: platform-linux
 ---
 
 # Verify device authorization on target-native Linux

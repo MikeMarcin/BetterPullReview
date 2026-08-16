@@ -1,9 +1,10 @@
 ---
 id: BPR-0156
 title: Re-establish Linux build and runtime verification
-status: Backlog
+status: Blocked
 rfc: RFC-BPR-0003
 depends_on: [BPR-0155]
+blocked_by: platform-linux
 ---
 
 # Re-establish Linux build and runtime verification

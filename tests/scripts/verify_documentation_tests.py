@@ -26,7 +26,7 @@ class IssueGraphTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.issue_root = self.root / "docs/issues"
-        for lane in ("backlog", "ready", "in-progress", "done"):
+        for lane in ("backlog", "blocked", "ready", "in-progress", "done"):
             (self.issue_root / lane).mkdir(parents=True)
 
     def tearDown(self) -> None:
@@ -38,7 +38,9 @@ class IssueGraphTests(unittest.TestCase):
         lane: str,
         status: str,
         dependencies: str,
+        blocked_by: str | None = None,
     ) -> None:
+        blocked_line = f"blocked_by: {blocked_by}\n" if blocked_by else ""
         (self.issue_root / lane / f"{issue_id}-fixture.md").write_text(
             "---\n"
             f"id: {issue_id}\n"
@@ -46,6 +48,7 @@ class IssueGraphTests(unittest.TestCase):
             f"status: {status}\n"
             "rfc: RFC-BPR-TEST\n"
             f"depends_on: [{dependencies}]\n"
+            f"{blocked_line}"
             "---\n",
             encoding="utf-8",
         )
@@ -80,6 +83,79 @@ class IssueGraphTests(unittest.TestCase):
     def test_rejects_dependency_cycle(self) -> None:
         self.write_card("BPR-0001", "backlog", "Backlog", "BPR-0002")
         self.write_card("BPR-0002", "backlog", "Backlog", "BPR-0001")
+
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0003")
+
+    def test_accepts_blocked_card_with_open_dependency(self) -> None:
+        self.write_card(
+            "BPR-0001",
+            "blocked",
+            "Blocked",
+            "",
+            blocked_by="platform-windows",
+        )
+        self.write_card(
+            "BPR-0002",
+            "blocked",
+            "Blocked",
+            "BPR-0001",
+            blocked_by="platform-windows",
+        )
+
+        self.verify("BPR-0003")
+
+    def test_rejects_blocked_card_without_blocked_by(self) -> None:
+        self.write_card("BPR-0001", "blocked", "Blocked", "")
+
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0002")
+
+    def test_rejects_unknown_blocked_by_value(self) -> None:
+        self.write_card(
+            "BPR-0001",
+            "blocked",
+            "Blocked",
+            "",
+            blocked_by="waiting-on-the-product-owner",
+        )
+
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0002")
+
+    def test_rejects_blocked_by_outside_the_blocked_lane(self) -> None:
+        self.write_card(
+            "BPR-0001",
+            "backlog",
+            "Backlog",
+            "",
+            blocked_by="platform-windows",
+        )
+
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0002")
+
+    def test_rejects_blocked_lane_status_mismatch(self) -> None:
+        self.write_card(
+            "BPR-0001",
+            "blocked",
+            "Backlog",
+            "",
+            blocked_by="platform-windows",
+        )
+
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0002")
+
+    def test_rejects_ready_card_depending_on_a_blocked_card(self) -> None:
+        self.write_card(
+            "BPR-0001",
+            "blocked",
+            "Blocked",
+            "",
+            blocked_by="platform-linux",
+        )
+        self.write_card("BPR-0002", "ready", "Ready", "BPR-0001")
 
         with self.assertRaises(SystemExit):
             self.verify("BPR-0003")

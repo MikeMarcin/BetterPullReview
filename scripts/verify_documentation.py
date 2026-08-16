@@ -38,6 +38,18 @@ CLOSEOUT_COLUMNS = (
     "Gate class",
     "Live blocker",
 )
+OPEN_ISSUE_LANES = ("backlog", "blocked", "ready", "in-progress")
+OPEN_ISSUE_STATUSES = frozenset(
+    {"Backlog", "Blocked", "Ready", "In Progress"}
+)
+DEFERRING_ISSUE_LANES = frozenset({"backlog", "blocked"})
+BLOCKED_BY_VALUES = frozenset(
+    {
+        "platform-linux",
+        "platform-windows",
+        "platform-linux-and-windows",
+    }
+)
 CLOSEOUT_GATE_CLASSES = {
     "automated",
     "target-native",
@@ -158,6 +170,7 @@ def verify_issue_board(root: Path) -> None:
     issue_root = root / "docs/issues"
     lane_status = {
         "backlog": "Backlog",
+        "blocked": "Blocked",
         "ready": "Ready",
         "in-progress": "In Progress",
         "done": "Done",
@@ -188,6 +201,17 @@ def verify_issue_board(root: Path) -> None:
                     f"duplicate dependency in {path}: "
                     f"{metadata.get('depends_on')}"
                 )
+            blocked_by = metadata.get("blocked_by")
+            if lane == "blocked":
+                if not blocked_by:
+                    fail(f"blocked card does not declare blocked_by: {path}")
+                if blocked_by not in BLOCKED_BY_VALUES:
+                    fail(
+                        f"unknown blocked_by in {path}: {blocked_by}; "
+                        f"expected one of {sorted(BLOCKED_BY_VALUES)}"
+                    )
+            elif blocked_by is not None:
+                fail(f"blocked_by outside the blocked lane: {path}")
             cards[issue_id] = (lane, dependencies, path)
             highest = max(highest, int(match.group(1)))
 
@@ -205,7 +229,7 @@ def verify_issue_board(root: Path) -> None:
             if dependency not in cards:
                 fail(f"missing dependency in {path}: {dependency}")
             dependency_lane = cards[dependency][0]
-            if lane != "backlog" and dependency_lane != "done":
+            if lane not in DEFERRING_ISSUE_LANES and dependency_lane != "done":
                 fail(
                     f"{lane} card {issue_id} depends on {dependency} "
                     f"in {dependency_lane}"
@@ -501,7 +525,7 @@ def issue_dependencies(metadata: dict[str, str], path: Path) -> list[str]:
 
 def issue_dependency_closure(root: Path, issue_id: str) -> set[str]:
     cards: dict[str, tuple[list[str], Path]] = {}
-    for lane in ("backlog", "ready", "in-progress", "done"):
+    for lane in (*OPEN_ISSUE_LANES, "done"):
         for path in (root / "docs/issues" / lane).glob("BPR-*.md"):
             metadata = front_matter(path)
             card_id = metadata.get("id", "")
@@ -570,8 +594,8 @@ def verify_closeout_procedure_links(
                 f"{closeout_path}: {label}"
             )
         if (
-            procedure.get("status") not in {"Backlog", "Ready", "In Progress"}
-            or procedure_path.parent.name not in {"backlog", "ready", "in-progress"}
+            procedure.get("status") not in OPEN_ISSUE_STATUSES
+            or procedure_path.parent.name not in OPEN_ISSUE_LANES
         ):
             fail(
                 f"closeout procedure is not open in {closeout_path}: "
@@ -752,8 +776,8 @@ def verify_closeout_card(
                     f"closure in {path}: {blocker_id}"
                 )
             if (
-                blocker.get("status") not in {"Backlog", "Ready", "In Progress"}
-                or blocker_path.parent.name not in {"backlog", "ready", "in-progress"}
+                blocker.get("status") not in OPEN_ISSUE_STATUSES
+                or blocker_path.parent.name not in OPEN_ISSUE_LANES
             ):
                 fail(
                     f"closeout blocker is not open in {path}: "
@@ -769,7 +793,7 @@ def verify_closeout_card(
 
 
 def verify_terminal_closeout_cards(root: Path) -> None:
-    for lane in ("backlog", "ready", "in-progress"):
+    for lane in OPEN_ISSUE_LANES:
         for path in sorted((root / "docs/issues" / lane).glob("BPR-*.md")):
             metadata = front_matter(path)
             title_match = CLOSEOUT_TITLE_RE.fullmatch(metadata.get("title", ""))

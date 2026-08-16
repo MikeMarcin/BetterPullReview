@@ -1,9 +1,10 @@
 ---
 id: BPR-0235
 title: Enforce default-deny network isolation for live mutation tests
-status: In Progress
+status: Blocked
 rfc: RFC-BPR-0008
 depends_on: [BPR-0221]
+blocked_by: platform-linux-and-windows
 ---
 
 # Enforce default-deny network isolation for live mutation tests
@@ -150,3 +151,14 @@ their exact commands, passed `test_network_isolation_manifest`, and inspected
 Per the product owner's 2026-08-10 scheduling decision, target-native Linux and
 Windows execution is deferred until the end of the remaining portable work.
 This changes order only and does not weaken either terminal criterion.
+
+## Lane — 2026-08-16
+
+Moved to `blocked/` by BPR-0319. The remaining portable work is done, and all
+three remaining criteria require target-native execution on Linux or Windows.
+
+The third of them carries a second blocker the lane does not record: the
+designated live lane also needs the separately authorized session authority
+and attended procedure that the later live provider/write card supplies. A
+Linux and a Windows machine unblock the first two criteria outright; the third
+still waits on the product owner after that.

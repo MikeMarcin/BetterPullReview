@@ -1,9 +1,10 @@
 ---
 id: BPR-0311
 title: Verify device authorization on target-native Windows x64
-status: Backlog
+status: Blocked
 rfc: RFC-BPR-0016
 depends_on: [BPR-0036, BPR-0282, BPR-0318]
+blocked_by: platform-windows
 ---
 
 # Verify device authorization on target-native Windows x64

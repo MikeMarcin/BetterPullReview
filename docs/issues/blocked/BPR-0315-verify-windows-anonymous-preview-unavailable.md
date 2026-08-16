@@ -1,9 +1,10 @@
 ---
 id: BPR-0315
 title: Verify anonymous preview remains unavailable on Windows x64
-status: Backlog
+status: Blocked
 rfc: RFC-BPR-0017
 depends_on: [BPR-0036, BPR-0311, BPR-0306]
+blocked_by: platform-windows
 ---
 
 # Verify anonymous preview remains unavailable on Windows x64
