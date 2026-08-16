@@ -1,7 +1,7 @@
 ---
 id: BPR-0297
 title: Correct RFC-BPR-0017 findings against the live read path
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: []
 ---
