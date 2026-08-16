@@ -29,6 +29,15 @@ namespace bpr::app {
 		bool                  BuildTesting = true;
 	};
 
+	/// \brief Initializes or deliberately resets the designated-live replay
+	/// namespace below one explicit application-data root.
+	///
+	/// \details This is an operator operation, not an application-startup
+	/// fallback. It returns no replay path or namespace identity, so neither can
+	/// escape through the command line or diagnostics.
+	[[nodiscard]] auto initialize_or_reset_designated_live_replay_state(
+		const std::filesystem::path& aApplicationDataRoot) noexcept -> bool;
+
 	/// \brief Describes the github application status record.
 	struct github_application_status
 	{

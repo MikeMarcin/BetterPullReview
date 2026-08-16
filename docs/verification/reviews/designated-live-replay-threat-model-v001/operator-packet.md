@@ -27,7 +27,7 @@ Review and either accept or reject all of these facts as one decision:
 4. Rejection keeps BPR-0261 in Backlog until a monotonic authority outside
    current-user-mutable storage is selected.
 
-## Evidence
+## Decision-time context
 
 | Artifact | SHA-256 | Bytes |
 |---|---|---:|
@@ -43,12 +43,23 @@ crash recovery retained it. The source was reverted and BPR-0261 was returned
 to Backlog. No live lane, network request, credential, approval, or GitHub
 mutation was used.
 
-Changing any bound artifact byte reopens this decision. Approval selects only
-the narrowed local replay design in the exact subject; it does not retroactively
-approve the rejected implementation.
+Changing any byte of `decision-subject.txt` reopens this decision. Approval
+selects only the narrowed local replay design in the exact subject; it does not
+retroactively approve the rejected implementation.
 The pending packet was rebound after a later fixture-notification helper change
 in `github_application.cpp`; the decision subject and replay bootstrap remained
 byte-identical, and no verdict had been recorded.
+
+### Post-decision note — 2026-08-15 (BPR-0261)
+
+Added after the recorded verdict; the verdict itself is unchanged and remains
+bound only to the `decision-subject.txt` digest above. Its earlier wording said
+that changing any bound artifact byte reopened the decision, which was
+self-defeating: the approval authorizes implementation, and implementing it
+necessarily changes the two source hashes. Those hashes identify the rejected
+starting implementation the decision was made against; they do not extend the
+decision to the implementation that replaced it, which required its own
+hermetic verification and independent capability-critical review.
 
 ## Operator response
 

@@ -25,6 +25,7 @@
 #include <QPixmap>
 #include <QSize>
 #include <QSpinBox>
+#include <QStandardPaths>
 #include <QTextStream>
 #include <QTimer>
 
@@ -79,6 +80,16 @@
 #endif
 
 namespace {
+#if !defined(BPR_BUILD_TESTING)
+	[[nodiscard]] auto native_filesystem_path(const QString& aPath)
+		-> std::filesystem::path
+	{
+		const auto bytes = aPath.toUtf8();
+		return std::filesystem::path{ std::string{
+			bytes.constData(), static_cast<std::size_t>(bytes.size()) } };
+	}
+#endif
+
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
 	constexpr auto designated_live_child_channel = 3;
 	constexpr auto designated_live_probe_argument
@@ -4948,21 +4959,40 @@ auto main(int argc, char** argv) -> int
 			.EnterpriseHostname = std::nullopt,
 		};
 		auto attendedApprovalCount = std::size_t{ 0U };
+		auto replayResetCount      = std::size_t{ 0U };
 		for (auto index = 1; index < argc; ++index) {
 			if (std::string_view{ argv[index] }
 				== "--attended-designated-live-approval") {
 				++attendedApprovalCount;
 			}
+			if (std::string_view{ argv[index] }
+				== "--initialize-or-reset-designated-live-replay-state") {
+				++replayResetCount;
+			}
 		}
 #if defined(BPR_BUILD_TESTING)
-		if (attendedApprovalCount != 0U) {
+		if (attendedApprovalCount != 0U || replayResetCount != 0U) {
 			QTextStream{ stdout } << "STARTUP_FAILED\n";
 			return EXIT_FAILURE;
 		}
 #else
-		if (attendedApprovalCount > 1U) {
+		if (attendedApprovalCount > 1U || replayResetCount > 1U
+			|| (attendedApprovalCount != 0U && replayResetCount != 0U)) {
 			QTextStream{ stdout } << "STARTUP_FAILED\n";
 			return EXIT_FAILURE;
+		}
+		const auto applicationDataRoot = native_filesystem_path(
+											 QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
+											 .lexically_normal();
+		if (replayResetCount == 1U) {
+			if (argc != 2
+				|| !bpr::app::initialize_or_reset_designated_live_replay_state(
+					applicationDataRoot)) {
+				QTextStream{ stdout } << "STARTUP_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			QTextStream{ stdout } << "DESIGNATED_LIVE_REPLAY_STATE_READY\n";
+			return EXIT_SUCCESS;
 		}
 		if (attendedApprovalCount == 1U) {
 			const auto approval = argument_value(
@@ -4979,6 +5009,7 @@ auto main(int argc, char** argv) -> int
 			}
 			const auto executableUtf8             = QCoreApplication::applicationFilePath().toUtf8();
 			config.AttendedDesignatedLiveApproval = approvalPath;
+			config.ApplicationDataRoot            = applicationDataRoot;
 			config.RunningExecutable              = std::filesystem::path{ std::string{
 				executableUtf8.constData(), static_cast<std::size_t>(executableUtf8.size()) } };
 			config.AttendedSourceSha256           = BPR_ATTENDED_REVIEW_SOURCE_SHA256;

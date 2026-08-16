@@ -2,6 +2,7 @@
 
 #include "bpr/core/sha256.hpp"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cerrno>
@@ -9,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <limits>
 #include <span>
 #include <string>
@@ -19,7 +21,9 @@
 #if defined(_WIN32)
 	#include <windows.h>
 #else
+	#include <dirent.h>
 	#include <fcntl.h>
+	#include <sys/file.h>
 	#include <sys/stat.h>
 	#include <sys/types.h>
 	#include <unistd.h>
@@ -29,16 +33,20 @@
 	#endif
 	#if defined(__linux__)
 		#include <linux/fs.h>
+		#include <sys/random.h>
 		#include <sys/syscall.h>
 	#endif
 #endif
 
 namespace bpr::application::detail {
 	namespace {
-		constexpr auto maximum_approval_bytes   = std::size_t{ 8U * 1024U };
-		constexpr auto maximum_executable_bytes = std::size_t{ 256U * 1024U * 1024U };
-		constexpr auto authority_lifetime       = std::chrono::minutes{ 15 };
-		constexpr char spent_directory_name[]   = ".bpr-spent";
+		constexpr auto maximum_approval_bytes        = std::size_t{ 8U * 1024U };
+		constexpr auto maximum_executable_bytes      = std::size_t{ 256U * 1024U * 1024U };
+		constexpr auto maximum_path_components       = std::size_t{ 128U };
+		constexpr auto authority_lifetime            = std::chrono::minutes{ 15 };
+		constexpr auto maximum_replay_metadata_bytes = std::size_t{ 16U * 1024U };
+		constexpr char replay_metadata_name[]        = ".bpr-replay-namespace";
+		constexpr char replay_metadata_next_name[]   = ".bpr-replay-namespace.next";
 
 		constexpr auto designated_hostname      = std::string_view{ "github.com" };
 		constexpr auto designated_owner         = std::string_view{ "MikeMarcin" };
@@ -100,7 +108,10 @@ namespace bpr::application::detail {
 		}
 
 #if defined(BPR_APPLICATION_TESTING)
-		std::atomic<std::uint32_t> FsyncFailureCountdown = 0U;
+		std::atomic<std::uint32_t>                                 FsyncFailureCountdown = 0U;
+		std::atomic<designated_review_marker_mutation_for_testing> MarkerMutation{
+			designated_review_marker_mutation_for_testing::none
+		};
 #endif
 
 		[[nodiscard]] auto durable_sync(const int aDescriptor) noexcept -> bool
@@ -125,7 +136,15 @@ namespace bpr::application::detail {
 				}
 			}
 	#endif
+	#if defined(__APPLE__)
+			// fsync(2) only hands the write to the drive; macOS documents
+			// F_FULLFSYNC as the barrier that survives power loss or a panic.
+			// A spent marker that a later run cannot see is a replay, so an
+			// unsupported or failing barrier is a durability failure here.
+			return ::fcntl(aDescriptor, F_FULLFSYNC) != -1;
+	#else
 			return ::fsync(aDescriptor) == 0;
+	#endif
 #endif
 		}
 
@@ -207,7 +226,11 @@ namespace bpr::application::detail {
 				}
 				return *this;
 			}
-			[[nodiscard]] auto     get() const noexcept -> int { return Value; }
+			[[nodiscard]] auto get() const noexcept -> int { return Value; }
+			[[nodiscard]] auto release() noexcept -> int
+			{
+				return std::exchange(Value, -1);
+			}
 			[[nodiscard]] explicit operator bool() const noexcept { return Value >= 0; }
 
 		private:
@@ -231,14 +254,331 @@ namespace bpr::application::detail {
 	#endif
 		}
 
-		struct retained_approval
+		class directory_stream final
 		{
-			file_descriptor Parent;
+		public:
+			explicit directory_stream(const int aDescriptor) noexcept
+			{
+				auto directory = file_descriptor{ ::openat(
+					aDescriptor,
+					".",
+					O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW) };
+				if (!directory) {
+					return;
+				}
+				Value = ::fdopendir(directory.get());
+				if (Value != nullptr) {
+					static_cast<void>(directory.release());
+				}
+			}
+			~directory_stream()
+			{
+				if (Value != nullptr) {
+					static_cast<void>(::closedir(Value));
+				}
+			}
+			directory_stream(const directory_stream&)                    = delete;
+			auto operator=(const directory_stream&) -> directory_stream& = delete;
+
+			[[nodiscard]] auto     get() const noexcept -> DIR* { return Value; }
+			[[nodiscard]] explicit operator bool() const noexcept
+			{
+				return Value != nullptr;
+			}
+
+		private:
+			DIR* Value = nullptr;
+		};
+
+		class directory_lock final
+		{
+		public:
+			explicit directory_lock(const int aDescriptor) noexcept
+				: Descriptor{ aDescriptor }
+			{
+				for (;;) {
+					if (::flock(Descriptor, LOCK_EX) == 0) {
+						Locked = true;
+						return;
+					}
+					if (errno != EINTR) {
+						return;
+					}
+				}
+			}
+			~directory_lock()
+			{
+				if (Locked) {
+					static_cast<void>(::flock(Descriptor, LOCK_UN));
+				}
+			}
+			directory_lock(const directory_lock&)                    = delete;
+			auto operator=(const directory_lock&) -> directory_lock& = delete;
+
+			[[nodiscard]] explicit operator bool() const noexcept { return Locked; }
+
+		private:
+			int  Descriptor;
+			bool Locked = false;
+		};
+
+		struct retained_directory_path
+		{
+			file_descriptor       Parent;
+			file_descriptor       Directory;
+			std::filesystem::path AbsolutePath;
+			std::string           Name;
+			struct stat           Identity{ };
+		};
+
+		struct retained_regular_file
+		{
 			file_descriptor File;
-			std::string     Name;
 			struct stat     Identity{ };
 			std::string     Bytes;
 		};
+
+		struct retained_approval
+		{
+			retained_directory_path Parent;
+			file_descriptor         File;
+			std::string             Name;
+			struct stat             Identity{ };
+			std::string             Bytes;
+		};
+
+		struct retained_replay_namespace
+		{
+			retained_directory_path                Path;
+			retained_regular_file                  Metadata;
+			designated_review_replay_configuration Configuration;
+		};
+
+		struct replay_inventory
+		{
+			std::vector<std::string> Markers;
+			bool                     HasMetadata = false;
+			bool                     HasNext     = false;
+		};
+
+		[[nodiscard]] auto same_identity(
+			const struct stat& aLeft, const struct stat& aRight) noexcept -> bool
+		{
+			return aLeft.st_dev == aRight.st_dev && aLeft.st_ino == aRight.st_ino;
+		}
+
+		[[nodiscard]] auto safe_private_directory(
+			const int aDescriptor, struct stat* const aIdentity = nullptr) noexcept
+			-> bool
+		{
+			struct stat status{ };
+			if (::fstat(aDescriptor, &status) != 0 || !S_ISDIR(status.st_mode)
+				|| status.st_uid != ::geteuid() || (status.st_mode & 0777) != 0700
+				|| !has_only_trivial_acl(aDescriptor)) {
+				return false;
+			}
+			if (aIdentity != nullptr) {
+				*aIdentity = status;
+			}
+			return true;
+		}
+
+		[[nodiscard]] auto safe_approval_parent(
+			const int aDescriptor, struct stat* const aIdentity = nullptr) noexcept
+			-> bool
+		{
+			struct stat status{ };
+			if (::fstat(aDescriptor, &status) != 0 || !S_ISDIR(status.st_mode)
+				|| status.st_uid != ::geteuid() || (status.st_mode & 0077) != 0
+				|| !has_only_trivial_acl(aDescriptor)) {
+				return false;
+			}
+			if (aIdentity != nullptr) {
+				*aIdentity = status;
+			}
+			return true;
+		}
+
+		[[nodiscard]] auto safe_private_regular(
+			const int aDescriptor, struct stat* const aIdentity = nullptr) noexcept
+			-> bool
+		{
+			struct stat status{ };
+			if (::fstat(aDescriptor, &status) != 0 || !S_ISREG(status.st_mode)
+				|| status.st_uid != ::geteuid() || status.st_nlink != 1
+				|| (status.st_mode & 0777) != 0600
+				|| !has_only_trivial_acl(aDescriptor)) {
+				return false;
+			}
+			if (aIdentity != nullptr) {
+				*aIdentity = status;
+			}
+			return true;
+		}
+
+		[[nodiscard]] auto path_components(
+			const std::filesystem::path& aPath)
+			-> std::optional<std::vector<std::string>>
+		{
+			if (aPath.empty() || !aPath.is_absolute()
+				|| aPath.lexically_normal() != aPath || aPath == aPath.root_path()
+				|| aPath.filename().empty()) {
+				return std::nullopt;
+			}
+			auto result = std::vector<std::string>{ };
+			result.reserve(16U);
+			for (const auto& component : aPath.relative_path()) {
+				const auto value = component.string();
+				if (value.empty() || value == "." || value == ".."
+					|| value.contains('\0') || value.contains('\n')
+					|| value.contains('\r') || result.size() == maximum_path_components) {
+					return std::nullopt;
+				}
+				result.push_back(value);
+			}
+			return result.empty() ? std::nullopt
+								  : std::optional<std::vector<std::string>>{ std::move(result) };
+		}
+
+		[[nodiscard]] auto open_retained_directory(
+			const std::filesystem::path&              aPath,
+			const designated_review_bootstrap_failure aAbsent,
+			const designated_review_bootstrap_failure aUnsafe)
+			-> std::expected<retained_directory_path, designated_review_bootstrap_failure>
+		{
+			auto components = path_components(aPath);
+			if (!components.has_value()) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::invalid_configuration);
+			}
+			auto current = file_descriptor{ ::open(
+				aPath.root_path().c_str(),
+				O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW) };
+			if (!current) {
+				return std::unexpected(aUnsafe);
+			}
+			for (auto index = std::size_t{ 0U }; index + 1U < components->size(); ++index) {
+				auto next = file_descriptor{ ::openat(
+					current.get(),
+					(*components)[index].c_str(),
+					O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW) };
+				if (!next) {
+					return std::unexpected(errno == ENOENT ? aAbsent : aUnsafe);
+				}
+				current = std::move(next);
+			}
+			const auto& name      = components->back();
+			auto        directory = file_descriptor{ ::openat(
+				current.get(),
+				name.c_str(),
+				O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW) };
+			if (!directory) {
+				return std::unexpected(errno == ENOENT ? aAbsent : aUnsafe);
+			}
+			struct stat identity{ };
+			if (::fstat(directory.get(), &identity) != 0 || !S_ISDIR(identity.st_mode)) {
+				return std::unexpected(aUnsafe);
+			}
+			return retained_directory_path{
+				.Parent       = std::move(current),
+				.Directory    = std::move(directory),
+				.AbsolutePath = aPath,
+				.Name         = name,
+				.Identity     = identity,
+			};
+		}
+
+		[[nodiscard]] auto create_retained_directory(
+			const std::filesystem::path& aPath)
+			-> std::expected<retained_directory_path, designated_review_bootstrap_failure>
+		{
+			auto components = path_components(aPath);
+			if (!components.has_value()) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::invalid_configuration);
+			}
+			auto current = file_descriptor{ ::open(
+				aPath.root_path().c_str(),
+				O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW) };
+			if (!current) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::unsafe_replay_state);
+			}
+			for (auto index = std::size_t{ 0U }; index < components->size(); ++index) {
+				const auto& name    = (*components)[index];
+				auto        created = false;
+				auto        next    = file_descriptor{ ::openat(
+					current.get(),
+					name.c_str(),
+					O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW) };
+				if (!next && errno == ENOENT) {
+					if (::mkdirat(current.get(), name.c_str(), 0700) != 0) {
+						return std::unexpected(
+							designated_review_bootstrap_failure::unsafe_replay_state);
+					}
+					created = true;
+					next    = file_descriptor{ ::openat(
+						current.get(),
+						name.c_str(),
+						O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW) };
+				}
+				if (!next) {
+					return std::unexpected(
+						designated_review_bootstrap_failure::unsafe_replay_state);
+				}
+				if (created && !safe_private_directory(next.get())) {
+					return std::unexpected(
+						designated_review_bootstrap_failure::unsafe_replay_state);
+				}
+				if (created && !durable_sync(current.get())) {
+					return std::unexpected(
+						designated_review_bootstrap_failure::directory_sync_failure);
+				}
+				if (index + 1U == components->size()) {
+					struct stat identity{ };
+					if (::fstat(next.get(), &identity) != 0) {
+						return std::unexpected(
+							designated_review_bootstrap_failure::unsafe_replay_state);
+					}
+					return retained_directory_path{
+						.Parent       = std::move(current),
+						.Directory    = std::move(next),
+						.AbsolutePath = aPath,
+						.Name         = name,
+						.Identity     = identity,
+					};
+				}
+				current = std::move(next);
+			}
+			return std::unexpected(
+				designated_review_bootstrap_failure::unsafe_replay_state);
+		}
+
+		[[nodiscard]] auto retained_path_matches(
+			const retained_directory_path& aPath) -> bool
+		{
+			struct stat retained{ };
+			struct stat named{ };
+			if (::fstat(aPath.Directory.get(), &retained) != 0
+				|| ::fstatat(
+					   aPath.Parent.get(),
+					   aPath.Name.c_str(),
+					   &named,
+					   AT_SYMLINK_NOFOLLOW)
+					!= 0
+				|| !S_ISDIR(named.st_mode) || !same_identity(retained, aPath.Identity)
+				|| !same_identity(named, aPath.Identity)) {
+				return false;
+			}
+			auto reopened = open_retained_directory(
+				aPath.AbsolutePath,
+				designated_review_bootstrap_failure::replay_state_substituted,
+				designated_review_bootstrap_failure::replay_state_substituted);
+			return reopened.has_value()
+				&& same_identity(reopened->Identity, aPath.Identity)
+				&& ::fstat(reopened->Directory.get(), &named) == 0
+				&& same_identity(named, aPath.Identity);
+		}
 
 		[[nodiscard]] auto read_descriptor(
 			const int aDescriptor, const std::size_t aLimit)
@@ -266,40 +606,290 @@ namespace bpr::application::detail {
 			}
 		}
 
+		[[nodiscard]] auto write_descriptor(
+			const int aDescriptor, const std::string_view aBytes) noexcept -> bool
+		{
+			auto written = std::size_t{ 0U };
+			while (written != aBytes.size()) {
+				const auto count = ::write(
+					aDescriptor, aBytes.data() + written, aBytes.size() - written);
+				if (count < 0 && errno == EINTR) {
+					continue;
+				}
+				if (count <= 0) {
+					return false;
+				}
+				written += static_cast<std::size_t>(count);
+			}
+			return true;
+		}
+
+		[[nodiscard]] auto replay_metadata_bytes(
+			const designated_review_replay_configuration& aConfiguration)
+			-> std::optional<std::string>
+		{
+			const auto path = aConfiguration.NamespacePath.generic_string();
+			if (!path_components(aConfiguration.NamespacePath).has_value()
+				|| path.contains('\0') || path.contains('\n') || path.contains('\r')
+				|| !lowercase_sha256(aConfiguration.NamespaceId)) {
+				return std::nullopt;
+			}
+			auto result = std::string{ };
+			result.reserve(path.size() + 256U);
+			result.append("schema_name=")
+				.append(designated_review_replay_schema)
+				.append("\nschema_version=1\nnamespace_path=")
+				.append(path)
+				.append("\nnamespace_id=")
+				.append(aConfiguration.NamespaceId)
+				.append("\n");
+			return result;
+		}
+
+		[[nodiscard]] auto open_replay_regular(
+			const int                                 aDirectory,
+			const std::string_view                    aName,
+			const std::size_t                         aLimit,
+			const designated_review_bootstrap_failure aAbsent,
+			const designated_review_bootstrap_failure aUnsafe)
+			-> std::expected<retained_regular_file, designated_review_bootstrap_failure>
+		{
+			auto file = file_descriptor{ ::openat(
+				aDirectory,
+				std::string{ aName }.c_str(),
+				O_RDONLY | O_CLOEXEC | O_NOFOLLOW) };
+			if (!file) {
+				return std::unexpected(errno == ENOENT ? aAbsent : aUnsafe);
+			}
+			struct stat identity{ };
+			if (!safe_private_regular(file.get(), &identity) || identity.st_size <= 0
+				|| static_cast<std::uintmax_t>(identity.st_size) > aLimit) {
+				return std::unexpected(aUnsafe);
+			}
+			auto bytes = read_descriptor(file.get(), aLimit);
+			if (!bytes.has_value()
+				|| bytes->size() != static_cast<std::size_t>(identity.st_size)) {
+				return std::unexpected(aUnsafe);
+			}
+			return retained_regular_file{
+				.File     = std::move(file),
+				.Identity = identity,
+				.Bytes    = std::string{
+					reinterpret_cast<const char*>(bytes->data()), bytes->size() },
+			};
+		}
+
+		[[nodiscard]] auto retained_regular_matches(
+			const int                    aDirectory,
+			const std::string_view       aName,
+			const retained_regular_file& aRetained) noexcept -> bool
+		{
+			struct stat descriptorStatus{ };
+			struct stat namedStatus{ };
+			// This runs on the revalidation barrier of a noexcept spend, so the
+			// name is copied into fixed storage rather than an allocating string.
+			auto namedPath = std::array<char, 256>{ };
+			if (aName.empty() || aName.size() >= namedPath.size()) {
+				return false;
+			}
+			std::ranges::copy(aName, namedPath.begin());
+			return safe_private_regular(aRetained.File.get(), &descriptorStatus)
+				&& ::fstatat(
+					   aDirectory, namedPath.data(), &namedStatus, AT_SYMLINK_NOFOLLOW)
+				== 0
+				&& S_ISREG(namedStatus.st_mode) && namedStatus.st_uid == ::geteuid()
+				&& namedStatus.st_nlink == 1 && (namedStatus.st_mode & 0777) == 0600
+				&& same_identity(descriptorStatus, aRetained.Identity)
+				&& same_identity(namedStatus, aRetained.Identity);
+		}
+
+		[[nodiscard]] auto marker_bytes(const std::string_view aApprovalId)
+			-> std::string
+		{
+			return std::string{ "approval_id=" } + std::string{ aApprovalId } + "\n";
+		}
+
+		[[nodiscard]] auto inspect_replay_namespace(
+			const int aDirectory, const bool aAllowNext)
+			-> std::expected<replay_inventory, designated_review_bootstrap_failure>
+		{
+			auto stream = directory_stream{ aDirectory };
+			if (!stream) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::unsafe_replay_state);
+			}
+			auto result = replay_inventory{ };
+			result.Markers.reserve(designated_review_replay_marker_capacity);
+			auto entryCount = std::size_t{ 0U };
+			for (;;) {
+				// readdir reports end-of-directory and failure the same way, so
+				// errno is cleared immediately before every call; work inside the
+				// loop is allowed to set errno on success.
+				errno                   = 0;
+				const auto* const entry = ::readdir(stream.get());
+				if (entry == nullptr) {
+					break;
+				}
+				const auto name = std::string_view{ entry->d_name };
+				if (name == "." || name == "..") {
+					continue;
+				}
+				++entryCount;
+				if (entryCount > designated_review_replay_marker_capacity + 2U) {
+					return std::unexpected(
+						designated_review_bootstrap_failure::replay_state_capacity);
+				}
+				if (name == replay_metadata_name) {
+					if (result.HasMetadata) {
+						return std::unexpected(
+							designated_review_bootstrap_failure::unsafe_replay_state);
+					}
+					result.HasMetadata = true;
+				} else if (name == replay_metadata_next_name && aAllowNext) {
+					if (result.HasNext) {
+						return std::unexpected(
+							designated_review_bootstrap_failure::unsafe_replay_state);
+					}
+					result.HasNext = true;
+				} else if (lowercase_sha256(name)) {
+					if (result.Markers.size()
+						== designated_review_replay_marker_capacity) {
+						return std::unexpected(
+							designated_review_bootstrap_failure::replay_state_capacity);
+					}
+					result.Markers.emplace_back(name);
+				} else {
+					return std::unexpected(
+						designated_review_bootstrap_failure::unsafe_replay_state);
+				}
+			}
+			if (errno != 0) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::unsafe_replay_state);
+			}
+			for (const auto& marker : result.Markers) {
+				auto file = open_replay_regular(
+					aDirectory,
+					marker,
+					maximum_approval_bytes,
+					designated_review_bootstrap_failure::unsafe_replay_state,
+					designated_review_bootstrap_failure::unsafe_replay_state);
+				if (!file.has_value() || file->Bytes != marker_bytes(marker)) {
+					return std::unexpected(
+						designated_review_bootstrap_failure::unsafe_replay_state);
+				}
+			}
+			return result;
+		}
+
+		[[nodiscard]] auto random_namespace_id()
+			-> std::expected<std::string, designated_review_bootstrap_failure>
+		{
+			auto bytes = std::array<std::uint8_t, 32U>{ };
+	#if defined(__APPLE__)
+			::arc4random_buf(bytes.data(), bytes.size());
+	#elif defined(__linux__)
+			auto offset = std::size_t{ 0U };
+			while (offset != bytes.size()) {
+				const auto count = ::getrandom(
+					bytes.data() + offset, bytes.size() - offset, 0U);
+				if (count < 0 && errno == EINTR) {
+					continue;
+				}
+				if (count <= 0) {
+					return std::unexpected(
+						designated_review_bootstrap_failure::unsafe_replay_state);
+				}
+				offset += static_cast<std::size_t>(count);
+			}
+	#else
+			return std::unexpected(
+				designated_review_bootstrap_failure::platform_unavailable);
+	#endif
+			return hex_digest(bytes);
+		}
+
+		[[nodiscard]] auto replay_namespace_matches(
+			const retained_replay_namespace& aNamespace) -> bool
+		{
+			return retained_path_matches(aNamespace.Path)
+				&& safe_private_directory(aNamespace.Path.Directory.get())
+				&& retained_regular_matches(
+					   aNamespace.Path.Directory.get(),
+					   replay_metadata_name,
+					   aNamespace.Metadata);
+		}
+
+		[[nodiscard]] auto open_replay_namespace(
+			const designated_review_replay_configuration& aConfiguration)
+			-> std::expected<retained_replay_namespace, designated_review_bootstrap_failure>
+		{
+			auto expectedMetadata = replay_metadata_bytes(aConfiguration);
+			if (!expectedMetadata.has_value()) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::invalid_configuration);
+			}
+			auto path = open_retained_directory(
+				aConfiguration.NamespacePath,
+				designated_review_bootstrap_failure::replay_state_absent,
+				designated_review_bootstrap_failure::unsafe_replay_state);
+			if (!path.has_value()) {
+				return std::unexpected(path.error());
+			}
+			if (!safe_private_directory(path->Directory.get(), &path->Identity)
+				|| !retained_path_matches(*path)) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::unsafe_replay_state);
+			}
+			auto metadata = open_replay_regular(
+				path->Directory.get(),
+				replay_metadata_name,
+				maximum_replay_metadata_bytes,
+				designated_review_bootstrap_failure::replay_state_absent,
+				designated_review_bootstrap_failure::unsafe_replay_state);
+			if (!metadata.has_value()) {
+				return std::unexpected(metadata.error());
+			}
+			if (metadata->Bytes != *expectedMetadata) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::replay_state_mismatch);
+			}
+			return retained_replay_namespace{
+				.Path          = std::move(*path),
+				.Metadata      = std::move(*metadata),
+				.Configuration = aConfiguration,
+			};
+		}
+
 		[[nodiscard]] auto open_approval(
 			const std::filesystem::path& aPath)
 			-> std::expected<retained_approval, designated_review_bootstrap_failure>
 		{
-			if (!aPath.is_absolute() || aPath.filename().empty()
-				|| aPath.lexically_normal() != aPath) {
+			if (!path_components(aPath).has_value()) {
 				return std::unexpected(
 					designated_review_bootstrap_failure::invalid_configuration);
 			}
-			auto parent = file_descriptor{ ::open(
-				aPath.parent_path().c_str(), O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW) };
-			if (!parent) {
-				return std::unexpected(designated_review_bootstrap_failure::unsafe_parent);
-			}
-			struct stat parentStatus{ };
-			if (::fstat(parent.get(), &parentStatus) != 0
-				|| !S_ISDIR(parentStatus.st_mode) || parentStatus.st_uid != ::geteuid()
-				|| (parentStatus.st_mode & 0077) != 0
-				|| !has_only_trivial_acl(parent.get())) {
+			auto parent = open_retained_directory(
+				aPath.parent_path(),
+				designated_review_bootstrap_failure::unsafe_parent,
+				designated_review_bootstrap_failure::unsafe_parent);
+			if (!parent.has_value()
+				|| !safe_approval_parent(parent->Directory.get(), &parent->Identity)
+				|| !retained_path_matches(*parent)) {
 				return std::unexpected(designated_review_bootstrap_failure::unsafe_parent);
 			}
 			const auto name = aPath.filename().string();
 			auto       file = file_descriptor{ ::openat(
-				parent.get(), name.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW) };
+				parent->Directory.get(),
+				name.c_str(),
+				O_RDONLY | O_CLOEXEC | O_NOFOLLOW) };
 			if (!file) {
 				return std::unexpected(
 					errno == ENOENT ? designated_review_bootstrap_failure::artifact_absent
 									: designated_review_bootstrap_failure::unsafe_artifact);
 			}
 			struct stat status{ };
-			if (::fstat(file.get(), &status) != 0 || !S_ISREG(status.st_mode)
-				|| status.st_uid != ::geteuid() || status.st_nlink != 1
-				|| (status.st_mode & 0777) != 0600
-				|| !has_only_trivial_acl(file.get())) {
+			if (!safe_private_regular(file.get(), &status)) {
 				return std::unexpected(designated_review_bootstrap_failure::unsafe_artifact);
 			}
 			if (status.st_size <= 0
@@ -311,7 +901,7 @@ namespace bpr::application::detail {
 				return std::unexpected(designated_review_bootstrap_failure::artifact_limit);
 			}
 			return retained_approval{
-				.Parent   = std::move(parent),
+				.Parent   = std::move(*parent),
 				.File     = std::move(file),
 				.Name     = name,
 				.Identity = status,
@@ -320,41 +910,148 @@ namespace bpr::application::detail {
 			};
 		}
 
-		[[nodiscard]] auto record_spent(
-			retained_approval&     aApproval,
-			const std::string_view aApprovalId)
+		void stabilize_failed_marker(
+			const retained_replay_namespace& aNamespace,
+			const std::string&               aName,
+			const std::string&               aBytes) noexcept
+		{
+			if (::unlinkat(aNamespace.Path.Directory.get(), aName.c_str(), 0) != 0
+				&& errno != ENOENT) {
+				return;
+			}
+			auto record = file_descriptor{ ::openat(
+				aNamespace.Path.Directory.get(),
+				aName.c_str(),
+				O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
+				0600) };
+			if (!record || !write_descriptor(record.get(), aBytes)) {
+				return;
+			}
+			static_cast<void>(::fsync(record.get()));
+			static_cast<void>(::fsync(aNamespace.Path.Directory.get()));
+		}
+
+		void apply_marker_mutation_for_testing(
+			const retained_replay_namespace& aNamespace,
+			const std::string&               aName,
+			const std::string&               aBytes) noexcept
+		{
+	#if defined(BPR_APPLICATION_TESTING)
+			const auto mutation = MarkerMutation.exchange(
+				designated_review_marker_mutation_for_testing::none,
+				std::memory_order_acq_rel);
+			switch (mutation) {
+			case designated_review_marker_mutation_for_testing::none:
+				break;
+			case designated_review_marker_mutation_for_testing::unlink:
+				static_cast<void>(::unlinkat(
+					aNamespace.Path.Directory.get(), aName.c_str(), 0));
+				break;
+			case designated_review_marker_mutation_for_testing::substitute: {
+				static_cast<void>(::unlinkat(
+					aNamespace.Path.Directory.get(), aName.c_str(), 0));
+				auto replacement = file_descriptor{ ::openat(
+					aNamespace.Path.Directory.get(),
+					aName.c_str(),
+					O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
+					0600) };
+				if (replacement) {
+					static_cast<void>(write_descriptor(replacement.get(), aBytes));
+				}
+				break;
+			}
+			case designated_review_marker_mutation_for_testing::hard_link: {
+				const auto linkName = ".bpr-test-link-" + aName;
+				static_cast<void>(::linkat(
+					aNamespace.Path.Directory.get(),
+					aName.c_str(),
+					aNamespace.Path.Directory.get(),
+					linkName.c_str(),
+					0));
+				break;
+			}
+			}
+	#else
+			static_cast<void>(aNamespace);
+			static_cast<void>(aName);
+			static_cast<void>(aBytes);
+	#endif
+		}
+
+		[[nodiscard]] auto refuse_known_replay(
+			const retained_replay_namespace& aNamespace,
+			const std::string_view           aApprovalId)
 			-> std::expected<void, designated_review_bootstrap_failure>
 		{
 			if (!lowercase_sha256(aApprovalId)) {
 				return std::unexpected(
 					designated_review_bootstrap_failure::invalid_configuration);
 			}
-			auto createdDirectory = false;
-			if (::mkdirat(aApproval.Parent.get(), spent_directory_name, 0700) == 0) {
-				createdDirectory = true;
-			} else if (errno != EEXIST) {
+			auto lock = directory_lock{ aNamespace.Path.Directory.get() };
+			if (!lock || !replay_namespace_matches(aNamespace)) {
 				return std::unexpected(
-					designated_review_bootstrap_failure::spent_state_failure);
+					designated_review_bootstrap_failure::replay_state_substituted);
 			}
-			auto        spent = file_descriptor{ ::openat(
-				aApproval.Parent.get(),
-				spent_directory_name,
-				O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW) };
-			struct stat spentStatus{ };
-			if (!spent || ::fstat(spent.get(), &spentStatus) != 0
-				|| !S_ISDIR(spentStatus.st_mode) || spentStatus.st_uid != ::geteuid()
-				|| (spentStatus.st_mode & 0777) != 0700
-				|| !has_only_trivial_acl(spent.get())) {
+			auto inventory = inspect_replay_namespace(
+				aNamespace.Path.Directory.get(), false);
+			if (!inventory.has_value()) {
+				return std::unexpected(inventory.error());
+			}
+			if (!inventory->HasMetadata || inventory->HasNext) {
 				return std::unexpected(
-					designated_review_bootstrap_failure::spent_state_failure);
+					designated_review_bootstrap_failure::unsafe_replay_state);
 			}
-			if (createdDirectory && !durable_sync(aApproval.Parent.get())) {
+			if (std::ranges::find(inventory->Markers, aApprovalId)
+				!= inventory->Markers.end()) {
 				return std::unexpected(
-					designated_review_bootstrap_failure::directory_sync_failure);
+					designated_review_bootstrap_failure::artifact_replayed);
 			}
-			auto record = file_descriptor{ ::openat(
-				spent.get(),
-				std::string{ aApprovalId }.c_str(),
+			if (inventory->Markers.size() == designated_review_replay_marker_capacity) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::replay_state_capacity);
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto record_spent(
+			const retained_replay_namespace& aNamespace,
+			const std::string_view           aApprovalId,
+			bool&                            aMarkerCreationBegan)
+			-> std::expected<void, designated_review_bootstrap_failure>
+		{
+			aMarkerCreationBegan = false;
+			if (!lowercase_sha256(aApprovalId)) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::invalid_configuration);
+			}
+			auto lock = directory_lock{ aNamespace.Path.Directory.get() };
+			if (!lock || !replay_namespace_matches(aNamespace)) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::replay_state_substituted);
+			}
+			auto inventory = inspect_replay_namespace(
+				aNamespace.Path.Directory.get(), false);
+			if (!inventory.has_value()) {
+				return std::unexpected(inventory.error());
+			}
+			if (!inventory->HasMetadata || inventory->HasNext) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::unsafe_replay_state);
+			}
+			if (std::ranges::find(inventory->Markers, aApprovalId)
+				!= inventory->Markers.end()) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::artifact_replayed);
+			}
+			if (inventory->Markers.size() == designated_review_replay_marker_capacity) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::replay_state_capacity);
+			}
+			const auto name   = std::string{ aApprovalId };
+			const auto bytes  = marker_bytes(aApprovalId);
+			auto       record = file_descriptor{ ::openat(
+				aNamespace.Path.Directory.get(),
+				name.c_str(),
 				O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
 				0600) };
 			if (!record) {
@@ -363,74 +1060,43 @@ namespace bpr::application::detail {
 						? designated_review_bootstrap_failure::artifact_replayed
 						: designated_review_bootstrap_failure::spent_state_failure);
 			}
-			const auto bytes = std::string{ "approval_id=" } + std::string{ aApprovalId }
-				+ "\n";
-			auto written = std::size_t{ 0U };
-			while (written != bytes.size()) {
-				const auto count = ::write(
-					record.get(), bytes.data() + written, bytes.size() - written);
-				if (count < 0 && errno == EINTR) {
-					continue;
-				}
-				if (count <= 0) {
-					return std::unexpected(
-						designated_review_bootstrap_failure::spent_state_failure);
-				}
-				written += static_cast<std::size_t>(count);
-			}
-			if (!durable_sync(record.get())) {
-				return std::unexpected(
-					designated_review_bootstrap_failure::file_sync_failure);
-			}
-			if (!durable_sync(spent.get())) {
-				return std::unexpected(
-					designated_review_bootstrap_failure::directory_sync_failure);
-			}
-			return { };
-		}
-
-		[[nodiscard]] auto refuse_known_replay(
-			const retained_approval& aApproval,
-			const std::string_view   aApprovalId)
-			-> std::expected<void, designated_review_bootstrap_failure>
-		{
-			if (!lowercase_sha256(aApprovalId)) {
-				return std::unexpected(
-					designated_review_bootstrap_failure::invalid_configuration);
-			}
-			auto spent = file_descriptor{ ::openat(
-				aApproval.Parent.get(),
-				spent_directory_name,
-				O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW) };
-			if (!spent) {
-				return errno == ENOENT
-					? std::expected<void, designated_review_bootstrap_failure>{ }
-					: std::unexpected(
-						  designated_review_bootstrap_failure::spent_state_failure);
-			}
-			struct stat directoryStatus{ };
-			if (::fstat(spent.get(), &directoryStatus) != 0
-				|| !S_ISDIR(directoryStatus.st_mode)
-				|| directoryStatus.st_uid != ::geteuid()
-				|| (directoryStatus.st_mode & 0777) != 0700
-				|| !has_only_trivial_acl(spent.get())) {
+			aMarkerCreationBegan = true;
+			struct stat identity{ };
+			if (!safe_private_regular(record.get(), &identity)
+				|| !write_descriptor(record.get(), bytes)) {
+				stabilize_failed_marker(aNamespace, name, bytes);
 				return std::unexpected(
 					designated_review_bootstrap_failure::spent_state_failure);
 			}
-			struct stat recordStatus{ };
-			if (::fstatat(
-					spent.get(),
-					std::string{ aApprovalId }.c_str(),
-					&recordStatus,
-					AT_SYMLINK_NOFOLLOW)
-				== 0) {
+			if (!durable_sync(record.get())) {
+				stabilize_failed_marker(aNamespace, name, bytes);
 				return std::unexpected(
-					designated_review_bootstrap_failure::artifact_replayed);
+					designated_review_bootstrap_failure::file_sync_failure);
 			}
-			return errno == ENOENT
-				? std::expected<void, designated_review_bootstrap_failure>{ }
-				: std::unexpected(
-					  designated_review_bootstrap_failure::spent_state_failure);
+			if (!durable_sync(aNamespace.Path.Directory.get())) {
+				stabilize_failed_marker(aNamespace, name, bytes);
+				return std::unexpected(
+					designated_review_bootstrap_failure::directory_sync_failure);
+			}
+			apply_marker_mutation_for_testing(aNamespace, name, bytes);
+			struct stat retainedStatus{ };
+			struct stat namedStatus{ };
+			if (!safe_private_regular(record.get(), &retainedStatus)
+				|| !same_identity(retainedStatus, identity)
+				|| ::fstatat(
+					   aNamespace.Path.Directory.get(),
+					   name.c_str(),
+					   &namedStatus,
+					   AT_SYMLINK_NOFOLLOW)
+					!= 0
+				|| namedStatus.st_nlink != 1 || !S_ISREG(namedStatus.st_mode)
+				|| !same_identity(namedStatus, identity)
+				|| !replay_namespace_matches(aNamespace)) {
+				stabilize_failed_marker(aNamespace, name, bytes);
+				return std::unexpected(
+					designated_review_bootstrap_failure::replay_state_substituted);
+			}
+			return { };
 		}
 
 		[[nodiscard]] auto executable_sha256(
@@ -489,21 +1155,26 @@ namespace bpr::application::detail {
 		[[nodiscard]] auto consume(retained_approval& aApproval)
 			-> std::expected<void, designated_review_bootstrap_failure>
 		{
+			if (!safe_approval_parent(aApproval.Parent.Directory.get())
+				|| !retained_path_matches(aApproval.Parent)) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::artifact_substituted);
+			}
 			const auto quarantine = "." + aApproval.Name + ".bpr-consumed";
 	#if defined(__APPLE__)
 			if (::renameatx_np(
-					aApproval.Parent.get(),
+					aApproval.Parent.Directory.get(),
 					aApproval.Name.c_str(),
-					aApproval.Parent.get(),
+					aApproval.Parent.Directory.get(),
 					quarantine.c_str(),
 					RENAME_EXCL)
 				!= 0) {
 	#elif defined(__linux__)
 			if (::syscall(
 					SYS_renameat2,
-					aApproval.Parent.get(),
+					aApproval.Parent.Directory.get(),
 					aApproval.Name.c_str(),
-					aApproval.Parent.get(),
+					aApproval.Parent.Directory.get(),
 					quarantine.c_str(),
 					RENAME_NOREPLACE)
 				!= 0) {
@@ -518,7 +1189,7 @@ namespace bpr::application::detail {
 			}
 			struct stat moved{ };
 			if (::fstatat(
-					aApproval.Parent.get(),
+					aApproval.Parent.Directory.get(),
 					quarantine.c_str(),
 					&moved,
 					AT_SYMLINK_NOFOLLOW)
@@ -526,11 +1197,13 @@ namespace bpr::application::detail {
 				|| moved.st_dev != aApproval.Identity.st_dev
 				|| moved.st_ino != aApproval.Identity.st_ino) {
 				static_cast<void>(::unlinkat(
-					aApproval.Parent.get(), quarantine.c_str(), 0));
+					aApproval.Parent.Directory.get(), quarantine.c_str(), 0));
 				return std::unexpected(
 					designated_review_bootstrap_failure::artifact_substituted);
 			}
-			if (::unlinkat(aApproval.Parent.get(), quarantine.c_str(), 0) != 0) {
+			if (::unlinkat(
+					aApproval.Parent.Directory.get(), quarantine.c_str(), 0)
+				!= 0) {
 				return std::unexpected(
 					designated_review_bootstrap_failure::consume_failure);
 			}
@@ -539,14 +1212,251 @@ namespace bpr::application::detail {
 				return std::unexpected(
 					designated_review_bootstrap_failure::artifact_substituted);
 			}
-			if (!durable_sync(aApproval.Parent.get())) {
+			if (!durable_sync(aApproval.Parent.Directory.get())) {
 				return std::unexpected(
 					designated_review_bootstrap_failure::directory_sync_failure);
 			}
+			if (!safe_approval_parent(aApproval.Parent.Directory.get())
+				|| !retained_path_matches(aApproval.Parent)) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::artifact_substituted);
+			}
 			return { };
+		}
+
+		[[nodiscard]] auto load_replay_configuration(
+			const std::filesystem::path& aNamespacePath)
+			-> std::expected<
+				designated_review_replay_configuration,
+				designated_review_bootstrap_failure>
+		{
+			if (!path_components(aNamespacePath).has_value()) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::invalid_configuration);
+			}
+			auto path = open_retained_directory(
+				aNamespacePath,
+				designated_review_bootstrap_failure::replay_state_absent,
+				designated_review_bootstrap_failure::unsafe_replay_state);
+			if (!path.has_value()) {
+				return std::unexpected(path.error());
+			}
+			if (!safe_private_directory(path->Directory.get(), &path->Identity)
+				|| !retained_path_matches(*path)) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::unsafe_replay_state);
+			}
+			auto lock = directory_lock{ path->Directory.get() };
+			if (!lock) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::unsafe_replay_state);
+			}
+			auto inventory = inspect_replay_namespace(path->Directory.get(), false);
+			if (!inventory.has_value()) {
+				return std::unexpected(inventory.error());
+			}
+			if (!inventory->HasMetadata || inventory->HasNext) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::replay_state_absent);
+			}
+			auto metadata = open_replay_regular(
+				path->Directory.get(),
+				replay_metadata_name,
+				maximum_replay_metadata_bytes,
+				designated_review_bootstrap_failure::replay_state_absent,
+				designated_review_bootstrap_failure::unsafe_replay_state);
+			if (!metadata.has_value()) {
+				return std::unexpected(metadata.error());
+			}
+			const auto normalizedPath = aNamespacePath.generic_string();
+			auto       prefix         = std::string{ };
+			prefix.reserve(normalizedPath.size() + 192U);
+			prefix.append("schema_name=")
+				.append(designated_review_replay_schema)
+				.append("\nschema_version=1\nnamespace_path=")
+				.append(normalizedPath)
+				.append("\nnamespace_id=");
+			if (metadata->Bytes.size() != prefix.size() + 65U
+				|| !metadata->Bytes.starts_with(prefix)
+				|| metadata->Bytes.back() != '\n') {
+				return std::unexpected(
+					designated_review_bootstrap_failure::replay_state_mismatch);
+			}
+			auto configuration = designated_review_replay_configuration{
+				.NamespacePath = aNamespacePath,
+				.NamespaceId   = metadata->Bytes.substr(prefix.size(), 64U),
+			};
+			auto expected = replay_metadata_bytes(configuration);
+			if (!expected.has_value() || *expected != metadata->Bytes
+				|| !retained_path_matches(*path)
+				|| !retained_regular_matches(
+					path->Directory.get(), replay_metadata_name, *metadata)) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::replay_state_mismatch);
+			}
+			return configuration;
+		}
+
+		[[nodiscard]] auto initialize_or_reset_replay_namespace(
+			const std::filesystem::path& aNamespacePath)
+			-> std::expected<
+				designated_review_replay_configuration,
+				designated_review_bootstrap_failure>
+		{
+			auto path = create_retained_directory(aNamespacePath);
+			if (!path.has_value()) {
+				return std::unexpected(path.error());
+			}
+			if (!safe_private_directory(path->Directory.get(), &path->Identity)
+				|| !retained_path_matches(*path)) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::unsafe_replay_state);
+			}
+			auto lock = directory_lock{ path->Directory.get() };
+			if (!lock) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::unsafe_replay_state);
+			}
+			auto inventory = inspect_replay_namespace(path->Directory.get(), true);
+			if (!inventory.has_value()) {
+				return std::unexpected(inventory.error());
+			}
+			for (const auto name : { std::string_view{ replay_metadata_name },
+									 std::string_view{ replay_metadata_next_name } }) {
+				const auto present = name == replay_metadata_name
+					? inventory->HasMetadata
+					: inventory->HasNext;
+				if (!present) {
+					continue;
+				}
+				auto existing = file_descriptor{ ::openat(
+					path->Directory.get(),
+					std::string{ name }.c_str(),
+					O_RDONLY | O_CLOEXEC | O_NOFOLLOW) };
+				if (!existing || !safe_private_regular(existing.get())) {
+					return std::unexpected(
+						designated_review_bootstrap_failure::unsafe_replay_state);
+				}
+			}
+			if (inventory->HasNext
+				&& ::unlinkat(
+					   path->Directory.get(), replay_metadata_next_name, 0)
+					!= 0) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::unsafe_replay_state);
+			}
+			auto namespaceId = random_namespace_id();
+			if (!namespaceId.has_value()) {
+				return std::unexpected(namespaceId.error());
+			}
+			auto configuration = designated_review_replay_configuration{
+				.NamespacePath = aNamespacePath,
+				.NamespaceId   = std::move(*namespaceId),
+			};
+			auto metadataBytes = replay_metadata_bytes(configuration);
+			if (!metadataBytes.has_value()) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::invalid_configuration);
+			}
+			auto        next = file_descriptor{ ::openat(
+				path->Directory.get(),
+				replay_metadata_next_name,
+				O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
+				0600) };
+			struct stat nextIdentity{ };
+			if (!next || !safe_private_regular(next.get(), &nextIdentity)
+				|| !write_descriptor(next.get(), *metadataBytes)) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::unsafe_replay_state);
+			}
+			if (!durable_sync(next.get())) {
+				static_cast<void>(::unlinkat(
+					path->Directory.get(), replay_metadata_next_name, 0));
+				return std::unexpected(
+					designated_review_bootstrap_failure::file_sync_failure);
+			}
+			if (::renameat(
+					path->Directory.get(),
+					replay_metadata_next_name,
+					path->Directory.get(),
+					replay_metadata_name)
+				!= 0) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::unsafe_replay_state);
+			}
+			if (!durable_sync(path->Directory.get())) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::directory_sync_failure);
+			}
+			for (const auto& marker : inventory->Markers) {
+				if (::unlinkat(path->Directory.get(), marker.c_str(), 0) != 0) {
+					return std::unexpected(
+						designated_review_bootstrap_failure::unsafe_replay_state);
+				}
+			}
+			if (!inventory->Markers.empty()
+				&& !durable_sync(path->Directory.get())) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::directory_sync_failure);
+			}
+			if (!retained_path_matches(*path)) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::replay_state_substituted);
+			}
+			auto metadata = open_replay_regular(
+				path->Directory.get(),
+				replay_metadata_name,
+				maximum_replay_metadata_bytes,
+				designated_review_bootstrap_failure::replay_state_absent,
+				designated_review_bootstrap_failure::unsafe_replay_state);
+			if (!metadata.has_value() || metadata->Bytes != *metadataBytes) {
+				return std::unexpected(
+					designated_review_bootstrap_failure::replay_state_mismatch);
+			}
+			return configuration;
 		}
 #endif
 	} // namespace
+
+	auto designated_review_replay_initializer::initialize_or_reset(
+		const std::filesystem::path& aNamespacePath)
+		-> std::expected<
+			designated_review_replay_configuration,
+			designated_review_bootstrap_failure>
+	{
+#if defined(_WIN32)
+		static_cast<void>(aNamespacePath);
+		return std::unexpected(
+			designated_review_bootstrap_failure::platform_unavailable);
+#else
+		try {
+			return initialize_or_reset_replay_namespace(aNamespacePath);
+		} catch (...) {
+			return std::unexpected(
+				designated_review_bootstrap_failure::unsafe_replay_state);
+		}
+#endif
+	}
+
+	auto designated_review_replay_initializer::load(
+		const std::filesystem::path& aNamespacePath)
+		-> std::expected<
+			designated_review_replay_configuration,
+			designated_review_bootstrap_failure>
+	{
+#if defined(_WIN32)
+		static_cast<void>(aNamespacePath);
+		return std::unexpected(
+			designated_review_bootstrap_failure::platform_unavailable);
+#else
+		try {
+			return load_replay_configuration(aNamespacePath);
+		} catch (...) {
+			return std::unexpected(
+				designated_review_bootstrap_failure::unsafe_replay_state);
+		}
+#endif
+	}
 
 	auto designated_review_approval_subject(
 		const designated_review_bootstrap_request& aRequest,
@@ -554,7 +1464,17 @@ namespace bpr::application::detail {
 		const std::string_view                     aApprovalId)
 		-> std::expected<std::string, designated_review_bootstrap_failure>
 	{
-		if (aRequest.BuildTesting || aRequest.BuildConfiguration != "Release"
+		const auto replayPath = aRequest.Replay.NamespacePath.generic_string();
+		if (aRequest.Replay.NamespacePath.empty()
+			|| !aRequest.Replay.NamespacePath.is_absolute()
+			|| aRequest.Replay.NamespacePath.lexically_normal()
+				!= aRequest.Replay.NamespacePath
+			|| aRequest.Replay.NamespacePath.filename().empty()
+			|| replayPath.contains('\0') || replayPath.contains('\n')
+			|| replayPath.contains('\r')
+			|| !lowercase_sha256(aRequest.Replay.NamespaceId)
+			|| aRequest.BuildTesting
+			|| aRequest.BuildConfiguration != "Release"
 			|| !lowercase_sha256(aRequest.SourceSha256)
 			|| !lowercase_sha256(aApprovalId)
 			|| !lowercase_sha256(aApplicationSha256)) {
@@ -562,9 +1482,9 @@ namespace bpr::application::detail {
 				designated_review_bootstrap_failure::invalid_configuration);
 		}
 		auto result = std::string{ };
-		result.reserve(1'024U);
+		result.reserve(1'024U + replayPath.size());
 		result.append("schema_name=bpr.designated_live_review_approval\n")
-			.append("schema_version=1\n")
+			.append("schema_version=2\n")
 			.append("approval_statement=")
 			.append(designated_approval_statement)
 			.append("\napplication_sha256=")
@@ -575,6 +1495,13 @@ namespace bpr::application::detail {
 			.append(aApprovalId)
 			.append("\nbuild_configuration=Release\n")
 			.append("build_testing=off\n")
+			.append("replay_schema=")
+			.append(designated_review_replay_schema)
+			.append("\nreplay_namespace_path=")
+			.append(replayPath)
+			.append("\nreplay_namespace_id=")
+			.append(aRequest.Replay.NamespaceId)
+			.append("\n")
 			.append("hostname=")
 			.append(designated_hostname)
 			.append("\nserver_contract=github.com-2022-11-28\n")
@@ -664,7 +1591,12 @@ namespace bpr::application::detail {
 				return std::unexpected(
 					designated_review_bootstrap_failure::approval_mismatch);
 			}
-			if (const auto replay = refuse_known_replay(*approval, *approvalId);
+			auto replayNamespace = open_replay_namespace(aRequest.Replay);
+			if (!replayNamespace.has_value()) {
+				return std::unexpected(replayNamespace.error());
+			}
+			if (const auto replay = refuse_known_replay(
+					*replayNamespace, *approvalId);
 				!replay.has_value()) {
 				return std::unexpected(replay.error());
 			}
@@ -677,8 +1609,13 @@ namespace bpr::application::detail {
 				return std::unexpected(
 					designated_review_bootstrap_failure::public_observation);
 			}
-			const auto spent = record_spent(*approval, *approvalId);
+			auto       markerCreationBegan = false;
+			const auto spent               = record_spent(
+				*replayNamespace, *approvalId, markerCreationBegan);
 			if (!spent.has_value()) {
+				if (markerCreationBegan) {
+					static_cast<void>(consume(*approval));
+				}
 				return std::unexpected(spent.error());
 			}
 			const auto consumed = consume(*approval);
@@ -701,6 +1638,12 @@ namespace bpr::application::detail {
 		const std::uint32_t aCalls) noexcept
 	{
 		FsyncFailureCountdown.store(aCalls, std::memory_order_release);
+	}
+
+	void mutate_designated_review_marker_after_sync_for_testing(
+		const designated_review_marker_mutation_for_testing aMutation) noexcept
+	{
+		MarkerMutation.store(aMutation, std::memory_order_release);
 	}
 #endif
 } // namespace bpr::application::detail

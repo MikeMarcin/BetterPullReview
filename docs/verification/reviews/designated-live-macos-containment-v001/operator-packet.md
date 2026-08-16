@@ -27,7 +27,7 @@ Review and either accept or reject all of these facts as one decision:
 4. This selects an implementation/testing topology, not a release artifact or
    operator workflow; RFC-BPR-0014 remains the authority for distribution.
 
-## Evidence
+## Decision-time context
 
 | Artifact | SHA-256 | Bytes |
 |---|---|---:|
@@ -46,11 +46,24 @@ with the pre-attach pathname. A regression must still prove that
 `SERVICE_SLOT` is initially unused for the supported Qt launch, is restored on
 every spawn result, and causes fail-closed behavior when occupied.
 
-Changing any bound artifact byte reopens this decision. No live lane, network
-request, credential, approval, or GitHub mutation was used to prepare it.
+Changing any byte of `decision-subject.txt` reopens this decision. No live lane,
+network request, credential, approval, or GitHub mutation was used to prepare
+it.
 The pending packet was rebound after later diagnostic and notification-course
 changes in `main.cpp`; the decision subject and every dedicated containment
 artifact remained byte-identical, and no verdict had been recorded.
+
+### Post-decision note — 2026-08-15 (BPR-0261)
+
+Added after the recorded verdict; the verdict itself is unchanged and remains
+bound only to the `decision-subject.txt` digest above. Its earlier wording said
+that changing any bound artifact byte reopened the decision, which was
+self-defeating: the approval authorizes implementation, and implementing it
+necessarily changes the source hashes. Those hashes identify the starting
+implementation the decision was made against and do not extend the decision to
+whatever replaces it. BPR-0261's replay work prompted this correction; the
+containment topology this packet governs remains unimplemented and still owned
+by BPR-0262.
 
 ## Operator response
 

@@ -213,6 +213,15 @@ namespace bpr::app {
 		inline constexpr auto designated_review_head_ref          = std::string_view{ "codex/disposable-live-review-20260810" };
 		inline constexpr auto designated_review_base_oid          = std::string_view{ "e2a44aa8fef704de7373463222b1872e796918c6" };
 		inline constexpr auto designated_review_head_oid          = std::string_view{ "17990ba0c2fb50338141f35c0717f0f99639c7ba" };
+		[[nodiscard]] auto    designated_review_replay_namespace_path(
+			const std::filesystem::path& aApplicationDataRoot)
+			-> std::filesystem::path
+		{
+			return (aApplicationDataRoot
+					/ std::filesystem::path{ application::detail::
+												 designated_review_replay_namespace_child_name })
+				.lexically_normal();
+		}
 
 		struct designated_review_mutation_selection
 		{
@@ -1715,6 +1724,15 @@ namespace bpr::app {
 			}
 #else
 			if (aConfig.AttendedDesignatedLiveApproval.has_value()) {
+				if (!aConfig.ApplicationDataRoot.has_value()) {
+					throw std::runtime_error{ "explicit replay state unavailable" };
+				}
+				auto replay = application::detail::designated_review_replay_initializer::load(
+					designated_review_replay_namespace_path(
+						aConfig.ApplicationDataRoot->lexically_normal()));
+				if (!replay.has_value()) {
+					throw std::runtime_error{ "replay state unavailable" };
+				}
 				auto observer
 					= adapters::github::detail::make_designated_review_public_observer();
 				if (observer == nullptr) {
@@ -1726,6 +1744,7 @@ namespace bpr::app {
 						.ExecutablePath     = aConfig.RunningExecutable,
 						.SourceSha256       = aConfig.AttendedSourceSha256,
 						.BuildConfiguration = aConfig.BuildConfiguration,
+						.Replay             = std::move(*replay),
 						.BuildTesting       = aConfig.BuildTesting,
 					},
 					*observer);
@@ -4628,6 +4647,22 @@ namespace bpr::app {
 		std::size_t                CapturedNotificationDisplays     = 0U;
 #endif
 	};
+
+	auto initialize_or_reset_designated_live_replay_state(
+		const std::filesystem::path& aApplicationDataRoot) noexcept -> bool
+	{
+		try {
+			if (aApplicationDataRoot.empty() || !aApplicationDataRoot.is_absolute()
+				|| aApplicationDataRoot.lexically_normal() != aApplicationDataRoot) {
+				return false;
+			}
+			return application::detail::designated_review_replay_initializer::initialize_or_reset(
+					   designated_review_replay_namespace_path(aApplicationDataRoot))
+				.has_value();
+		} catch (...) {
+			return false;
+		}
+	}
 
 	github_application::github_application(github_application_config aConfig)
 		: Implementation{

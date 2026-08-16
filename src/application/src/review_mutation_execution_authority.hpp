@@ -5,6 +5,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -33,6 +34,11 @@ namespace bpr::application::detail {
 		file_sync_failure,
 		directory_sync_failure,
 		consume_failure,
+		replay_state_absent,
+		unsafe_replay_state,
+		replay_state_mismatch,
+		replay_state_capacity,
+		replay_state_substituted,
 		platform_unavailable,
 	};
 
@@ -58,15 +64,53 @@ namespace bpr::application::detail {
 			= 0;
 	};
 
+	inline constexpr auto designated_review_replay_schema
+		= std::string_view{ "bpr.designated_live_review_replay.v1" };
+	inline constexpr auto designated_review_replay_namespace_child_name
+		= std::string_view{ "designated-live-review-replay-state-v1" };
+	inline constexpr auto designated_review_replay_marker_capacity
+		= std::size_t{ 128U };
+
+	/// \brief Exact schema, normalized path, and random identity of one replay namespace.
+	struct designated_review_replay_configuration
+	{
+		std::filesystem::path NamespacePath;
+		std::string           NamespaceId;
+
+		auto operator<=>(const designated_review_replay_configuration&) const = default;
+	};
+
 	struct designated_review_bootstrap_request
 	{
-		std::filesystem::path ApprovalPath;
-		std::filesystem::path ExecutablePath;
-		std::string           SourceSha256;
-		std::string           BuildConfiguration;
-		bool                  BuildTesting = true;
+		std::filesystem::path                  ApprovalPath;
+		std::filesystem::path                  ExecutablePath;
+		std::string                            SourceSha256;
+		std::string                            BuildConfiguration;
+		designated_review_replay_configuration Replay;
+		bool                                   BuildTesting = true;
 
 		auto operator<=>(const designated_review_bootstrap_request&) const = default;
+	};
+
+	/// \brief Owns explicit creation/reset and read-only loading of replay state.
+	class designated_review_replay_initializer final
+	{
+	public:
+		designated_review_replay_initializer() = delete;
+
+		/// \brief Creates missing configured directories or resets to a fresh identity.
+		[[nodiscard]] static auto initialize_or_reset(
+			const std::filesystem::path& aNamespacePath)
+			-> std::expected<
+				designated_review_replay_configuration,
+				designated_review_bootstrap_failure>;
+
+		/// \brief Loads safe existing state without creating or repairing it.
+		[[nodiscard]] static auto load(
+			const std::filesystem::path& aNamespacePath)
+			-> std::expected<
+				designated_review_replay_configuration,
+				designated_review_bootstrap_failure>;
 	};
 
 	[[nodiscard]] auto designated_review_approval_subject(
@@ -90,6 +134,15 @@ namespace bpr::application::detail {
 
 #if defined(BPR_APPLICATION_TESTING)
 	void fail_designated_review_fsync_after_for_testing(std::uint32_t aCalls) noexcept;
+	/// \brief Post-sync record mutation injected by the bootstrap test target.
+	enum class designated_review_marker_mutation_for_testing : std::uint8_t {
+		none,
+		unlink,
+		substitute,
+		hard_link,
+	};
+	void mutate_designated_review_marker_after_sync_for_testing(
+		designated_review_marker_mutation_for_testing aMutation) noexcept;
 #endif
 } // namespace bpr::application::detail
 

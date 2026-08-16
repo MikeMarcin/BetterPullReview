@@ -67,3 +67,25 @@ tests-disabled application. RFC-BPR-0020 must repeat the resource and runtime
 audit when it intentionally changes that application boundary. The attended
 identity review, rather than a byte scan, owns visual originality, GitHub-mark
 absence, and foreign-character exclusion.
+
+## Designated-live replay boundary
+
+The optional macOS designated-live verification lane uses one explicit
+owner-private replay namespace below the application-data root. Initialization
+or deliberate reset is a separate operator command and selects a fresh random
+namespace identity. Attended startup has no create-on-missing fallback: every
+approval binds the namespace schema, normalized absolute path, and identity,
+and missing, unsafe, linked, substituted, full, mismatched, or unsynced state
+fails closed. Approval and replay paths are walked descriptor by descriptor
+without following symlinks; an exclusive spent record is committed with
+`F_FULLFSYNC`, not bare `fsync`, and then checked against its retained inode
+and link count before a grant can exist. A spend that has been reported
+therefore survives power loss or a kernel panic.
+
+This is a narrowed local-authority guarantee. Detected filesystem races remain
+fail-closed, but intentional same-user or administrator deletion, rollback,
+restoration, or mutation of replay state is outside the approved threat model,
+as is loss the filesystem never reports, such as media corruption that removes
+a spent record while leaving the namespace intact. The namespace and approval contain no credential, and
+their path, identity, and bytes are not accepted through environment variables
+or emitted in diagnostics or Qt state.

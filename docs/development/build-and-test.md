@@ -213,6 +213,22 @@ be owned by the invoking user, non-symlink, and have no group or other
 permissions. The approval carries no credential; any write-scoped credential
 is entered only through the application's existing Qt sensitive prompt.
 
+Before preparing a new approval packet, initialize the per-user replay
+namespace once, or deliberately reset it, with the tests-disabled shipped app:
+
+```sh
+better_pull_review --initialize-or-reset-designated-live-replay-state
+```
+
+This mode accepts no path or other argument and reports only success or failure;
+it does not print the namespace path or random identity. It is separate from an
+attended launch. Reset creates a fresh identity, invalidates every approval
+bound to the former identity, and therefore requires a newly generated and
+attended approval packet. The attended application path only loads the fixed
+namespace below its application-data root and fails closed if it is absent,
+unsafe, substituted, full, or mismatched. It never initializes or repairs that
+state implicitly.
+
 Configure a separate opt-in test graph only after the approval file exists.
 Supply the resolved supervisor and capsule-inventory paths plus the producer
 directory from a separate fresh `BUILD_TESTING=OFF`, `BPR_BUILD_QT=ON`,
@@ -231,8 +247,11 @@ creates the app suspended, compares its dynamic code identity with the
 prevalidated static identity, and revalidates the retained executable identity
 before resume. The shipped application then identifies and hashes its own
 executable, validates the exact digest-bound approval through retained native
-file/directory identity, durably records its random approval ID as spent, and
-atomically consumes the same approval inode. It then holds one private
+file/directory identity, loads the exact schema/path/identity-bound replay
+namespace, exclusively records its random approval ID there behind an
+`F_FULLFSYNC` barrier on both the record and the namespace directory, and
+revalidates the retained marker name, inode, and single link before atomically
+consuming the same approval inode. It then holds one private
 15-minute authority. The first valid host binding seals that authority to the
 freshly authenticated acting identity; the async host consumes it only after
 session, generation, exact target and actor, comparison, file, right anchor,

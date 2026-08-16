@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
     set(bpr_expected_full_application_digest
-		"6c1c70c8d3a9eff041b304acbf70d841d6f2c2417e3a71e20393208ae7b32c32"
+		"5f3ea428e4d2373aa9c7feb7532429959216a3acf0c13d3379e60fba18d2a563"
     )
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -132,7 +132,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
     set(bpr_expected_production_app_manifest_digest
-		"7c46e847d5a98a903c8ffa7794b50d5062af9c6ccb1b3791950dab96853bd4b6"
+		"6289e40afa4d4557fbc0492afaedbb51e0e5ab9b77f1b30c9bbe11b1dc47eb17"
     )
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -145,6 +145,63 @@ function(bpr_verify_app_source_tree app_source_root)
     endif()
 endfunction()
 
+function(bpr_verify_replay_operator_surface app_source_root)
+    file(READ "${app_source_root}/main.cpp" bpr_main_source)
+    file(READ
+        "${app_source_root}/include/bpr/app/github_application.hpp"
+        bpr_app_header_source
+    )
+    foreach(required IN ITEMS
+        "--initialize-or-reset-designated-live-replay-state"
+        "argc != 2"
+        "initialize_or_reset_designated_live_replay_state("
+        "DESIGNATED_LIVE_REPLAY_STATE_READY"
+        "config.ApplicationDataRoot"
+    )
+        string(FIND "${bpr_main_source}" "${required}" found)
+        if(found EQUAL -1)
+            message(FATAL_ERROR
+                "replay operator/startup surface omitted ${required}"
+            )
+        endif()
+    endforeach()
+    foreach(required IN ITEMS
+        "initialize_or_reset_designated_live_replay_state("
+        "This is an operator operation, not an application-startup"
+    )
+        string(FIND "${bpr_app_header_source}" "${required}" found)
+        if(found EQUAL -1)
+            message(FATAL_ERROR
+                "replay operator API omitted ${required}"
+            )
+        endif()
+    endforeach()
+    bpr_require_literal_count(
+        bpr_main_source
+        "--initialize-or-reset-designated-live-replay-state"
+        1
+        "no-path replay initializer argument"
+    )
+    bpr_require_literal_count(
+        bpr_main_source
+        "initialize_or_reset_designated_live_replay_state("
+        1
+        "replay initializer invocation"
+    )
+    foreach(forbidden IN ITEMS
+        "designated-live-review-replay-state-v1"
+        "NamespaceId"
+        "QTextStream{ stdout } << applicationDataRoot"
+    )
+        string(FIND "${bpr_main_source}" "${forbidden}" found)
+        if(NOT found EQUAL -1)
+            message(FATAL_ERROR
+                "replay path or identity leaked into the CLI surface: ${forbidden}"
+            )
+        endif()
+    endforeach()
+endfunction()
+
 function(bpr_verify_async_mutation_host_inventory source_variable)
     set(bpr_async_mutation_source "${${source_variable}}")
     foreach(required IN ITEMS
@@ -154,6 +211,8 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
 		"adapters::sqlite::make_review_mutation_recovery_store("
 		"std::move(*recovery)"
 		"application::detail::designated_review_authority_bootstrap::run("
+		"application::detail::designated_review_replay_initializer::load("
+		".Replay             = std::move(*replay)"
         "adapters::github::detail::make_designated_review_public_observer("
         "ReviewMutationHost = std::make_unique<"
         "application::review_mutation_application_host>("
@@ -209,6 +268,24 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
 		"application::detail::designated_review_authority_bootstrap::run("
         1
         "attended production authority bootstrap call"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+		"application::detail::designated_review_replay_initializer::load("
+        1
+        "attended replay-state load"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+		"application::detail::designated_review_replay_initializer::initialize_or_reset("
+        1
+        "explicit replay-state operator operation"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+		".Replay             = std::move(*replay)"
+        1
+        "explicit replay configuration handoff"
     )
     bpr_require_literal_count(
         bpr_async_mutation_source
@@ -397,6 +474,7 @@ if(DEFINED BPR_PROVIDER_INVENTORY_SOURCE_FILE)
     )
     if(DEFINED BPR_APP_SOURCE_ROOT)
         bpr_verify_app_source_tree("${BPR_APP_SOURCE_ROOT}")
+        bpr_verify_replay_operator_surface("${BPR_APP_SOURCE_ROOT}")
     endif()
     message("ASYNC_MUTATION_HOST_INVENTORY_OK")
     return()
@@ -422,6 +500,7 @@ bpr_verify_full_application_digest(bpr_application_source)
 bpr_verify_async_mutation_host_inventory(bpr_application_source)
 bpr_verify_production_mutation_host_digest(bpr_application_source)
 bpr_verify_app_source_tree("${BPR_SOURCE_ROOT}/src/app")
+bpr_verify_replay_operator_surface("${BPR_SOURCE_ROOT}/src/app")
 string(FIND
     "${bpr_application_source}"
     "exercise_review_round_trip_composition("

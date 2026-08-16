@@ -65,7 +65,10 @@ accepted snapshot, and re-observed by the provider. An ordinary production
 launch has no execution authority and refuses before queuing an effect. The
 only production issuer is the attended bootstrap described below: it consumes
 one owner-private approval bound to the exact shipped executable, source
-surface, designated target, and public target observation. It then retains one
+surface, designated target, public target observation, and the schema, absolute
+normalized path, and random identity of one explicit replay namespace. The
+attended launch only loads that owner-private namespace and fails closed when it
+is absent or mismatched; it never creates or resets it. It then retains one
 opaque authority until the host validates and atomically admits one exact
 request. No boolean, environment variable, credential, raw nonce, persisted
 setting, IPC message, or ordinary Qt gesture can mint that authority.
@@ -201,14 +204,33 @@ immutable inventory. It then performs the narrow unauthenticated public target
 observation before creating the GUI process. The app is created suspended from
 the owner-private capsule; the supervisor compares the child's dynamic signing
 identity with the prevalidated static identity and revalidates the retained
-path identity before resuming it. The application then opens the approval and
-its owner-private parent through retained native descriptors, bounds and
-validates the exact ordered subject and its SHA-256, descriptor-relatively
-moves the checked entry to an exclusive claim name, compares and unlinks the
-same inode, proves that the retained descriptor has zero links, durably records
-the random approval ID as spent, and mints one private 15-minute carrier.
-Substitution, replay, timeout, malformed or oversized content, remote failure,
-a closed PR, or a moved head yields no grant.
+path identity before resuming it. The application then walks every approval and
+replay path component through retained native descriptors without following
+symlinks. It validates the approval's exact ordered subject and SHA-256 and the
+replay namespace's private mode, schema, path, and random identity. Spending
+creates one approval-ID record exclusively in that namespace, syncs the record
+and directory, and revalidates the retained record against its name, inode, and
+single link before atomically consuming the approval inode and minting one
+private 15-minute carrier. The namespace has a fixed record capacity. Absence,
+unsafe permissions, links, substitution, replay, capacity exhaustion, failed
+durability, timeout, malformed or oversized content, remote failure, a closed
+PR, or a moved head yields no grant.
+
+Namespace initialization or reset is an explicit no-path command separate from
+attended startup. It creates a fresh random namespace identity, so every prior
+approval becomes invalid and a later run needs a newly bound attended approval.
+An ordinary or attended launch never silently repairs lost state. The one-use
+claim follows the approved local-authority threat model: every detected unsafe
+condition fails closed, while intentional same-user or administrator deletion,
+rollback, restoration, or mutation of replay state is outside the supported
+guarantee.
+
+Durability is a real barrier rather than a hand-off. `fsync` on macOS only
+gives the write to the drive, so the record and its directory are committed
+with `F_FULLFSYNC` and a grant exists only after that barrier returns. A spend
+therefore survives power loss or a kernel panic. Loss the filesystem never
+reports, such as media corruption that removes a record while leaving the
+namespace intact, is the one accidental case the guarantee does not cover.
 
 BPR-0235 requires that public observation to finish before the Qt application
 process exists, so it cannot use `native_https_transport`: that adapter owns a
