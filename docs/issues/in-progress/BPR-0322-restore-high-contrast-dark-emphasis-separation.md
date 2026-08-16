@@ -1,7 +1,7 @@
 ---
 id: BPR-0322
 title: Restore colour-vision separation for high-contrast dark intraline emphasis
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0006
 depends_on: [BPR-0320]
 ---
