@@ -1,0 +1,42 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/ebe2ee306b89f453d1de6704",
+  "review_gate": "intraline_emphasis_strength",
+  "review_scope": "human_ui_alternative_selection_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c3",
+      "subject_digest": "sha256:f3653bc5729d2ecc16dbcaab1e7c3d821e9ee6f7b1b2f7bedc148028a75e0093"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c3@sha256:f3653bc5729d2ecc16dbcaab1e7c3d821e9ee6f7b1b2f7bedc148028a75e0093": "There's one weird thing going on though with the selected lines. If the line fill is blue the intraline emphasis fill should also be a blue, currently it puts red/green there which makes it more difficult. Same for yellow."
+  },
+  "downstream_claims": {
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0320_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "not_chosen_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c0",
+      "subject_digest": "sha256:7098a86de7bfd4417129ae4ef87c62aff3ce50453e63038dc62beae9adf3b0d9"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c1",
+      "subject_digest": "sha256:c70c7e6d938ce8c82ad0462743b7f7adc5518714b9c4bf6688f38d4cfb8e5cac"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c2",
+      "subject_digest": "sha256:357b5d930bc7fcea5b22229fcdb7dae19d73949d47da1ce37b1cac631bc68c96"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c4",
+      "subject_digest": "sha256:6ee2162d3625d047044ccb094d135ca11c4246a061c53424986501babfefb805"
+    }
+  ]
+}

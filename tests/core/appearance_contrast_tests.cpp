@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -243,15 +244,34 @@ namespace {
 			// pair regardless of kind would make this assertion about how many
 			// obligations a background happens to have rather than about
 			// syntax coverage, which is what it is for.
+			// The two intraline emphasis fills carry `emphasis_text` rather
+			// than `text`, because BPR-0320 gave them their own published
+			// floor. They are still syntax-text pairs and must still be
+			// covered, so both kinds count here and the kind itself is
+			// asserted separately below.
+			const auto expectedKind
+				= background == appearance_role::diff_intraline_added_background
+					|| background == appearance_role::diff_intraline_removed_background
+				? contrast_kind::emphasis_text
+				: contrast_kind::text;
 			const auto count = std::ranges::count_if(
 				pairs,
-				[background](const contrast_pair& aPair) {
+				[background, expectedKind](const contrast_pair& aPair) {
 					return aPair.Background == background
-						&& aPair.Kind == contrast_kind::text
+						&& aPair.Kind == expectedKind
 						&& !aPair.Wash.has_value();
 				});
 			expect_equal(static_cast<std::uint32_t>(count), 25U,
 						 "every syntax role is checked over every canvas background");
+			expect(std::ranges::none_of(
+					   pairs,
+					   [background, expectedKind](const contrast_pair& aPair) {
+						   return aPair.Background == background
+							   && (aPair.Kind == contrast_kind::text
+								   || aPair.Kind == contrast_kind::emphasis_text)
+							   && aPair.Kind != expectedKind;
+					   }),
+				   "a background holds all of its text pairs to one floor");
 
 			// And again through the selection wash, for the backgrounds a wash
 			// can land on. Selecting a line must not be what makes it
@@ -263,9 +283,9 @@ namespace {
 				= background != appearance_role::code_current_line_background;
 			const auto washed = std::ranges::count_if(
 				pairs,
-				[background](const contrast_pair& aPair) {
+				[background, expectedKind](const contrast_pair& aPair) {
 					return aPair.Background == background
-						&& aPair.Kind == contrast_kind::text
+						&& aPair.Kind == expectedKind
 						&& aPair.Wash
 						== std::optional{
 							   appearance_role::code_selection_background
@@ -625,6 +645,156 @@ namespace {
 		expect(std::ranges::find(findings, finding) != findings.end(),
 			   "the sweep agrees with the single measurement");
 	}
+
+	// The emphasis fills are the ones painted inside another fill, so the
+	// question they answer is not "are these two states different" but "can
+	// the reader see the mark at all". Both are enumerated, in a fixed order,
+	// so a palette author can be told which one collapsed.
+	auto test_every_emphasis_pair_is_named() -> void
+	{
+		const auto pairs = emphasis_pairs();
+		expect_equal(static_cast<std::uint32_t>(pairs.size()), 2U,
+					 "both intraline emphases are checked");
+		expect(pairs[0]
+				   == emphasis_pair{
+					   .Fill     = appearance_role::diff_added_background,
+					   .Emphasis = appearance_role::diff_intraline_added_background },
+			   "the added emphasis is checked against the added row");
+		expect(pairs[1]
+				   == emphasis_pair{
+					   .Fill     = appearance_role::diff_removed_background,
+					   .Emphasis = appearance_role::diff_intraline_removed_background },
+			   "the removed emphasis is checked against the removed row");
+	}
+
+	// The exact values the built-in light profile carried before BPR-0320.
+	// They are the reason the check exists, so they are the case it is pinned
+	// to: the added mark was plainly visible and the removed mark was not,
+	// which is what the product owner reported seeing.
+	auto test_a_collapsed_emphasis_is_reported_with_its_separation() -> void
+	{
+		auto palette = maximal_contrast_palette();
+		palette      = with_role(palette, appearance_role::diff_added_background,
+								 srgb(0xE6FFEC));
+		palette      = with_role(palette,
+								 appearance_role::diff_intraline_added_background,
+								 srgb(0x9EFFB5));
+		palette      = with_role(palette, appearance_role::diff_removed_background,
+								 srgb(0xFFEBE9));
+		palette      = with_role(palette,
+								 appearance_role::diff_intraline_removed_background,
+								 srgb(0xFFE2DF));
+
+		const auto added = measure_emphasis_separation(
+			palette,
+			emphasis_pair{
+				.Fill     = appearance_role::diff_added_background,
+				.Emphasis = appearance_role::diff_intraline_added_background });
+		expect_equal(added.SeparationTenths, 383U,
+					 "the added emphasis stands 38.3 units off its row");
+		expect(added.Meets, "the added emphasis clears the published minimum");
+
+		const auto removed = measure_emphasis_separation(
+			palette,
+			emphasis_pair{
+				.Fill     = appearance_role::diff_removed_background,
+				.Emphasis = appearance_role::diff_intraline_removed_background });
+		expect_equal(removed.SeparationTenths, 42U,
+					 "the removed emphasis stands 4.2 units off its row");
+		expect(!removed.Meets, "the removed emphasis misses the published minimum");
+		expect_equal(removed.MinimumTenths, emphasis_separation_minimum_tenths,
+					 "the finding carries the minimum it was judged against");
+
+		const auto failing = failing_emphasis_separation(palette);
+		expect_equal(static_cast<std::uint32_t>(failing.size()), 1U,
+					 "only the collapsed side is reported");
+		expect(failing.front() == removed, "the report is the measurement");
+	}
+
+	// Clearing the floor on both sides is not the whole requirement. This
+	// palette does exactly that and still reads as one-sided, because one mark
+	// is nine times stronger than the other.
+	auto test_a_lopsided_palette_fails_the_balance_bound() -> void
+	{
+		auto palette = maximal_contrast_palette();
+		palette      = with_role(palette, appearance_role::diff_added_background,
+								 srgb(0xE6FFEC));
+		palette      = with_role(palette,
+								 appearance_role::diff_intraline_added_background,
+								 srgb(0x2AFF6E));
+		palette      = with_role(palette, appearance_role::diff_removed_background,
+								 srgb(0xFFEBE9));
+		// 20.7 units off its row: past the floor, nowhere near the added side.
+		palette = with_role(palette,
+							appearance_role::diff_intraline_removed_background,
+							srgb(0xF1B9B4));
+
+		const auto failing = failing_emphasis_separation(palette);
+		expect(failing.empty(), "both sides clear the separation minimum");
+
+		const auto balance = measure_emphasis_balance(palette);
+		expect_equal(balance.StrongestTenths, 822U, "the added side measures 82.2");
+		expect_equal(balance.WeakestTenths, 207U, "the removed side measures 20.7");
+		expect_equal(balance.RatioHundredths, 397U, "the sides differ by 3.97:1");
+		expect(!balance.Meets, "a four-to-one split is not a balanced palette");
+	}
+
+	auto test_a_balanced_palette_passes_both_bounds() -> void
+	{
+		auto palette = maximal_contrast_palette();
+		palette      = with_role(palette, appearance_role::diff_added_background,
+								 srgb(0xE6FFEC));
+		palette      = with_role(palette,
+								 appearance_role::diff_intraline_added_background,
+								 srgb(0x9EFFB5));
+		palette      = with_role(palette, appearance_role::diff_removed_background,
+								 srgb(0xFFEBE9));
+		palette      = with_role(palette,
+								 appearance_role::diff_intraline_removed_background,
+								 srgb(0xF1B9B4));
+
+		expect(failing_emphasis_separation(palette).empty(),
+			   "both emphases are visible on their rows");
+
+		const auto balance = measure_emphasis_balance(palette);
+		expect(balance.Meets, "neither side dominates the other");
+		expect(balance.RatioHundredths <= emphasis_balance_maximum_hundredths,
+			   "the reported ratio agrees with the verdict");
+
+		const auto findings = measure_emphasis_separation(palette);
+		expect_equal(static_cast<std::uint32_t>(findings.size()),
+					 static_cast<std::uint32_t>(emphasis_pairs().size()),
+					 "the sweep reports one finding per pair");
+	}
+
+	// Dividing by a zero separation would be undefined rather than merely
+	// uninformative, and the palette that produces it has already failed.
+	auto test_an_invisible_emphasis_reports_the_extreme_ratio() -> void
+	{
+		auto palette = maximal_contrast_palette();
+		palette      = with_role(palette, appearance_role::diff_added_background,
+								 srgb(0xE6FFEC));
+		palette      = with_role(palette,
+								 appearance_role::diff_intraline_added_background,
+								 srgb(0x9EFFB5));
+		palette      = with_role(palette, appearance_role::diff_removed_background,
+								 srgb(0xFFEBE9));
+		palette      = with_role(palette,
+								 appearance_role::diff_intraline_removed_background,
+								 srgb(0xFFEBE9));
+
+		const auto failing = failing_emphasis_separation(palette);
+		expect_equal(static_cast<std::uint32_t>(failing.size()), 1U,
+					 "an emphasis painted its row's own colour has failed");
+		expect_equal(failing.front().SeparationTenths, 0U, "it is zero units away");
+
+		const auto balance = measure_emphasis_balance(palette);
+		expect_equal(balance.WeakestTenths, 0U, "the weakest side is invisible");
+		expect_equal(balance.RatioHundredths,
+					 std::numeric_limits<std::uint32_t>::max(),
+					 "the ratio saturates rather than dividing by zero");
+		expect(!balance.Meets, "an invisible emphasis is never balanced");
+	}
 } // namespace
 
 int main()
@@ -642,5 +812,10 @@ int main()
 	test_a_collapsing_pair_is_reported_with_its_differences();
 	test_a_separated_pair_survives_both_deficiencies();
 	test_identical_colors_never_pass_the_colour_check();
+	test_every_emphasis_pair_is_named();
+	test_a_collapsed_emphasis_is_reported_with_its_separation();
+	test_a_lopsided_palette_fails_the_balance_bound();
+	test_a_balanced_palette_passes_both_bounds();
+	test_an_invisible_emphasis_reports_the_extreme_ratio();
 	return EXIT_SUCCESS;
 }

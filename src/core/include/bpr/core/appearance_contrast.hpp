@@ -52,6 +52,7 @@ namespace bpr::core {
 	/// mark that only has to be found and told apart from its surface.
 	enum class contrast_kind : std::uint8_t {
 		text,
+		emphasis_text,
 		indicator,
 	};
 
@@ -70,6 +71,43 @@ namespace bpr::core {
 	/// not enough for the person who selected it, so it is held to the enhanced
 	/// criterion rather than to the same one under a different name.
 	inline constexpr std::uint32_t high_contrast_text_minimum_hundredths = 700U;
+
+	/// \brief The minimum ratio text drawn on an emphasis fill is held to.
+	///
+	/// \details 3.50:1 is below WCAG 2.2 AA, and that is a deliberate,
+	/// attended, and narrowly scoped decision rather than an oversight.
+	///
+	/// The reason it exists: an intraline emphasis fill has to be visibly
+	/// different from the row fill it sits inside, and on the removed side
+	/// that means darker, because red carries 0.2126 of relative luminance
+	/// against green's 0.7152. Holding the emphasis fill to the full 4.50:1
+	/// text floor caps its separation from the row at about 8.4, which the
+	/// product owner reported as no mark at all. The floor and the mark cannot
+	/// both be satisfied on the removed side; one of them had to give.
+	///
+	/// Its scope is exactly the two intraline emphasis fills. Row fills, the
+	/// code canvas, the current line, the moved band, and every other
+	/// background keep the full floor, so ordinary code is unaffected and only
+	/// the changed characters inside an already-highlighted row are read at
+	/// the lower ratio.
+	///
+	/// Its provenance is a rendered attended selection, not a preference:
+	/// batch `bpr:/attended-review/betterpullreview/ebe2ee306b89f453d1de6704`
+	/// presented five alternatives with each one's exact breach values, and
+	/// the accepted candidate's worst standard-variant pair measures 3.50:1.
+	/// Raising the separation further would lower this again, which is why the
+	/// number is pinned to that decision instead of rounded.
+	inline constexpr std::uint32_t emphasis_text_contrast_minimum_hundredths = 350U;
+
+	/// \brief The minimum ratio a high-contrast variant holds emphasis text to.
+	///
+	/// \details 4.65:1 for the same reason and from the same accepted batch,
+	/// whose worst high-contrast pair measures 4.65:1. It stays above the
+	/// standard variants' emphasis floor, preserving the ordering that makes a
+	/// high-contrast profile worth selecting, while acknowledging that the
+	/// 7.00:1 enhanced floor and a visible mark are not simultaneously
+	/// reachable on these fills.
+	inline constexpr std::uint32_t high_contrast_emphasis_text_minimum_hundredths = 465U;
 
 	/// \brief The minimum ratio the project holds indicator pairs to.
 	///
@@ -249,6 +287,124 @@ namespace bpr::core {
 	/// light. Requiring roughly four just-noticeable differences is the margin
 	/// that buys.
 	inline constexpr std::uint32_t distinguishable_difference_minimum_tenths = 100U;
+
+	/// \brief The difference an emphasis fill needs from the fill beneath it.
+	///
+	/// \details 20.0 is not derived from a standard, because no accessibility
+	/// standard publishes a threshold for a mark painted inside the fill it
+	/// marks. It is the weakest separation in the palette a product owner
+	/// selected while looking at rendered captures of five alternatives, and it
+	/// is published here so a later change has to argue with the observation
+	/// rather than with a preference.
+	///
+	/// The observations it rests on, all from the real selected-diff course:
+	/// 4.2 was reported as no mark at all; 7.5 and 8.7 were invisible in the
+	/// dark captures; 19.2 was marginal in high-contrast dark; 38.3 was the
+	/// separation the same owner described as highlighted. The accepted palette
+	/// puts its weakest pair at 20.1.
+	///
+	/// A guessed value sat here first. It was 7.0, reasoned from
+	/// just-noticeable differences and adjacency, and the dark profile passed
+	/// it at 7.5 while showing nothing. That is why this constant now cites
+	/// captures instead of arithmetic.
+	inline constexpr std::uint32_t emphasis_separation_minimum_tenths = 200U;
+
+	/// \brief How far apart the two sides' separations are allowed to drift.
+	///
+	/// \details Expressed in hundredths of a ratio, so 200 is 2.00:1. Meeting
+	/// the minimum on both sides is not sufficient: a palette whose added
+	/// emphasis clears the floor nine times over while its removed emphasis
+	/// sits under it reads as though the tool considers one pane more important
+	/// than the other, which is the defect the product owner actually reported.
+	///
+	/// 2.00:1 rather than 1.00:1 because the two hues cannot be made equally
+	/// strong at equal luminance — green carries 0.7152 of relative luminance
+	/// and red 0.2126, so a red emphasis matching a green one exactly would
+	/// have to leave the text-contrast band it is painted under. The accepted
+	/// palette's widest profile measures 1.87:1, which is that forced asymmetry
+	/// and not a palette that drifted. The bound admits the first and refuses
+	/// the second.
+	inline constexpr std::uint32_t emphasis_balance_maximum_hundredths = 200U;
+
+	/// \brief Names one fill painted over another, which it must stay visible on.
+	///
+	/// \details The order is load-bearing in a way `hue_critical_pair`'s is
+	/// not: `Emphasis` is drawn inside `Fill`, so a finding reads as "this mark
+	/// vanished into that row" rather than as an unordered distance.
+	struct emphasis_pair
+	{
+		appearance_role Fill     = appearance_role::diff_added_background;
+		appearance_role Emphasis = appearance_role::diff_intraline_added_background;
+
+		auto operator<=>(const emphasis_pair&) const = default;
+	};
+
+	/// \brief Returns every fill that is painted over another fill.
+	///
+	/// \details Today this is the two intraline emphases over the two diff row
+	/// fills. The set is enumerated rather than derived because "is painted
+	/// over" is a presentation fact the role vocabulary does not encode, and a
+	/// rule that guessed would either miss a pair or constrain a combination
+	/// nobody paints.
+	///
+	/// The span refers to storage with static lifetime and outlives any caller.
+	[[nodiscard]] auto emphasis_pairs() noexcept -> std::span<const emphasis_pair>;
+
+	/// \brief Reports how far one emphasis fill stays from the fill beneath it.
+	///
+	/// \details The separation is the `typical` CIE76 difference. The dichromat
+	/// models are deliberately not applied: this pair is not separated by hue
+	/// carrying a meaning, it is one shade of a row marking part of that row,
+	/// and both members move together under a deficiency.
+	struct emphasis_finding
+	{
+		emphasis_pair Pair;
+		std::uint32_t SeparationTenths = 0U;
+		std::uint32_t MinimumTenths    = 0U;
+		bool          Meets            = false;
+
+		auto operator<=>(const emphasis_finding&) const = default;
+	};
+
+	/// \brief Measures one emphasis pair against a palette.
+	[[nodiscard]] auto measure_emphasis_separation(
+		const appearance_palette& aPalette,
+		emphasis_pair             aPair) noexcept -> emphasis_finding;
+
+	/// \brief Measures every emphasis pair, in `emphasis_pairs` order.
+	[[nodiscard]] auto measure_emphasis_separation(const appearance_palette& aPalette)
+		-> std::vector<emphasis_finding>;
+
+	/// \brief Returns only the emphasis pairs that miss the published minimum.
+	///
+	/// \details Empty exactly when every emphasis fill is visible on the fill
+	/// it marks.
+	[[nodiscard]] auto failing_emphasis_separation(const appearance_palette& aPalette)
+		-> std::vector<emphasis_finding>;
+
+	/// \brief Reports whether the emphasis pairs are comparably strong.
+	///
+	/// \details `RatioHundredths` is the strongest separation over the weakest,
+	/// so an exactly balanced palette reports 100. A palette with any pair at
+	/// zero separation reports the maximum representable ratio rather than
+	/// dividing by zero; such a palette has already failed
+	/// `failing_emphasis_separation`, and the balance answer for it is "as
+	/// unbalanced as it is possible to be".
+	struct emphasis_balance_finding
+	{
+		std::uint32_t StrongestTenths = 0U;
+		std::uint32_t WeakestTenths   = 0U;
+		std::uint32_t RatioHundredths = 0U;
+		std::uint32_t MaximumHundredths
+			= emphasis_balance_maximum_hundredths;
+		bool Meets = false;
+
+		auto operator<=>(const emphasis_balance_finding&) const = default;
+	};
+
+	/// \brief Measures how far the emphasis pairs' separations drift apart.
+	[[nodiscard]] auto measure_emphasis_balance(const appearance_palette& aPalette)
+		-> emphasis_balance_finding;
 
 	/// \brief Names two roles whose meanings differ, and whose colours may not.
 	///

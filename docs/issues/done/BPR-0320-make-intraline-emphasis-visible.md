@@ -1,7 +1,7 @@
 ---
 id: BPR-0320
 title: Make intraline emphasis visible on both sides in every profile
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: []
 ---
@@ -66,6 +66,9 @@ fill back toward its row colour until the two collapsed.
   reviewer must not be able to tell which pane the tool considers important.
 - The existing required-contrast audit and every hue-critical obligation still
   pass unchanged. Emphasis visibility may not be bought with text legibility.
+  *Amended by the attended decision; see "Two amendments" below. Both halves of
+  this bullet were overtaken by the accepted candidate, and the exact scope and
+  provenance of each departure is recorded there rather than here.*
 - A focused test fails before the palette change and passes after, for the
   exact pairs measured above.
 - The Qt model test asserts the removed side as well as the added side.
@@ -131,6 +134,62 @@ The selected candidate sets both published constants, which is why
 working values of 7.0 and 2.50 were chosen before the captures existed, and the
 captures show 7.5 and 8.7 are invisible in the dark profile. No verdict is
 inferred and no palette is committed until the exact export is validated.
+
+## Attended result — C3 accepted, 2026-08-16
+
+The product owner selected `intraline-emphasis-c3` from the five alternatives.
+The export validated against its batch manifest and is recorded at
+`docs/verification/reviews/intraline-emphasis-strength-v001/`, with the four
+unchosen candidates recorded as not chosen rather than rejected.
+
+Shipped palette:
+
+| Profile | Added | Removed | Separations | Balance |
+|---|---|---|---:|---:|
+| Light | `#9EFFB5` unchanged | `#F1B9B4` | 38.3 / 20.7 | 1.85 |
+| Dark | `#065730` | `#520412` | 20.6 / 21.2 | 1.02 |
+| High-contrast Light | `#99FF99` unchanged | `#F3B9BA` | 38.0 / 20.3 | 1.87 |
+| High-contrast Dark | `#04580F` | `#750115` | 20.1 / 20.5 | 1.01 |
+
+Both published constants are pinned to that palette rather than guessed:
+`emphasis_separation_minimum_tenths` is 200, its weakest pair, and
+`emphasis_balance_maximum_hundredths` is 200, above its widest 1.87. The first
+draft of this card set them to 70 and 250 from reasoning about
+just-noticeable differences, and the captures showed the dark profile passing
+70 at 7.5 and 8.7 while displaying nothing. The numbers now come from
+observation.
+
+### Two amendments to the required final state
+
+The bullet requiring the existing audit to pass unchanged did not survive
+contact with the decision, and is recorded as amended rather than quietly
+dropped.
+
+**The text floor was lowered, within an exact scope.** Text on the two
+intraline emphasis fills is now held to `emphasis_text_contrast_minimum_hundredths`
+(3.50:1) and `high_contrast_emphasis_text_minimum_hundredths` (4.65:1) through
+a new `contrast_kind::emphasis_text`. Every other background, including the
+diff row fills those two sit inside, keeps the full 4.50:1 and 7.00:1 floors,
+so ordinary code is untouched and only the changed characters inside an
+already-highlighted row read at the lower ratio. The attended page disclosed
+all five breach values for this candidate before it was chosen: Light removed
+3.50:1, Dark added 3.93:1, High-contrast Light removed 5.15:1, High-contrast
+Dark added 4.65:1, High-contrast Dark removed 6.32:1.
+
+**One colour-vision obligation moved, net neutral in count and not in kind.**
+The dark intraline pair was already recorded as needing a non-colour signal;
+this palette discharges it. The high-contrast dark pair now needs one, sitting
+5.7 apart under deuteranopia against a floor of 10.0. That is a regression the
+batch never measured, and [[BPR-0322]] owns it with a known substitute pair
+already found and deliberately not applied, because it would change a colour
+the owner selected.
+
+### Carried out of the verdict
+
+The accepting note reported a defect the batch did not present: intraline
+emphasis keeps its added or removed hue when the row wears the selection wash
+or the moved band. [[BPR-0321]] owns it. The captures show it plainly — the
+selected top row carries a blue wash and a salmon patch at the same time.
 
 ## Verification
 

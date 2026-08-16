@@ -1957,11 +1957,19 @@ namespace {
 				core::appearance_variant Variant;
 				std::uint32_t            HeadroomHundredths;
 			};
+			// Light and high-contrast dark record zero after BPR-0320, and the
+			// zero is deliberate rather than exhausted margin. The emphasis
+			// floors are pinned to the exact worst pair of the palette a
+			// product owner selected from rendered captures, so the tightest
+			// pair sits on its floor by construction. Any later change to
+			// those two fills trips this guard immediately, which is the
+			// intended effect: the number came from a verdict, so moving it
+			// needs another one.
 			constexpr auto recorded = std::array{
-				tightest_pair{ core::appearance_variant::light, 5U },
+				tightest_pair{ core::appearance_variant::light, 0U },
 				tightest_pair{ core::appearance_variant::dark, 5U },
 				tightest_pair{ core::appearance_variant::high_contrast_light, 0U },
-				tightest_pair{ core::appearance_variant::high_contrast_dark, 4U },
+				tightest_pair{ core::appearance_variant::high_contrast_dark, 0U },
 			};
 			auto eroded = std::size_t{ 0U };
 			for (const auto& expectation : recorded) {
@@ -2011,22 +2019,48 @@ namespace {
 	// another, so the two are required to stay distinct.
 	void test_intraline_emphasis_never_collapses_onto_its_row_fill()
 	{
-		constexpr auto pairs = std::array{
-			std::pair{ role::diff_added_background,
-					   role::diff_intraline_added_background },
-			std::pair{ role::diff_removed_background,
-					   role::diff_intraline_removed_background },
-		};
-
+		// Inequality is not the requirement and never was. Before BPR-0320 the
+		// light profile's removed emphasis sat 4.2 units off its row and this
+		// check passed, because #FFEBE9 and #FFE2DF are different numbers. The
+		// core publishes the distance a mark has to keep from the fill it
+		// marks; this asks the palettes for that distance instead.
 		for (const auto variant : all_variants) {
 			const auto& palette = qt::builtin_appearance_palette(variant);
 
-			for (const auto& [rowRole, emphasisRole] : pairs) {
-				expect(
-					palette[core::index_of(rowRole)]
-						!= palette[core::index_of(emphasisRole)],
-					"an intraline emphasis fill differs from its row fill");
+			for (const auto& finding : core::failing_emphasis_separation(palette)) {
+				std::cerr << "FAILING EMPHASIS: variant "
+						  << static_cast<int>(variant) << " emphasis role "
+						  << static_cast<int>(core::index_of(finding.Pair.Emphasis))
+						  << " measured " << finding.SeparationTenths << " needs "
+						  << finding.MinimumTenths << '\n';
 			}
+			expect(
+				core::failing_emphasis_separation(palette).empty(),
+				"every intraline emphasis stays visible on the row it marks");
+		}
+	}
+
+	// A palette can clear the floor on both sides and still tell the reader
+	// that one pane matters more, which is the defect the product owner
+	// actually reported: the added span was obvious and the removed span was
+	// not there at all.
+	void test_intraline_emphasis_is_balanced_across_both_sides()
+	{
+		for (const auto variant : all_variants) {
+			const auto& palette = qt::builtin_appearance_palette(variant);
+			const auto  balance = core::measure_emphasis_balance(palette);
+
+			if (!balance.Meets) {
+				std::cerr << "UNBALANCED EMPHASIS: variant "
+						  << static_cast<int>(variant) << " strongest "
+						  << balance.StrongestTenths << " weakest "
+						  << balance.WeakestTenths << " ratio "
+						  << balance.RatioHundredths << " maximum "
+						  << balance.MaximumHundredths << '\n';
+			}
+			expect(
+				balance.Meets,
+				"neither intraline side is disproportionately stronger");
 		}
 	}
 
@@ -2073,16 +2107,12 @@ namespace {
 		color_only_obligation{ core::appearance_variant::dark,
 							   role::diff_added_background,
 							   role::diff_removed_background },
-		// The intraline pair, one level down from the row pair above and for
-		// the same reason: softening the dark bands toward the reference the
-		// owner asked for brought the green and the red close enough that
-		// deuteranopia collapses them. Accepting it here rather than keeping
-		// the harsher tones the owner rejected -- the row bands have owed the
-		// same signal in this profile since it was written, so the intraline
-		// spans owing it too is consistent rather than new in kind.
-		color_only_obligation{ core::appearance_variant::dark,
-							   role::diff_intraline_added_background,
-							   role::diff_intraline_removed_background },
+		// The dark intraline pair used to be recorded here. BPR-0320's
+		// selected palette discharged it: pushing both dark emphases out to a
+		// separation of roughly 20 from their rows also pushed them apart from
+		// each other, and the pair now clears the dichromat floor on its own.
+		// The obligation is gone because the palette fixed it, not because the
+		// check was relaxed.
 		color_only_obligation{ core::appearance_variant::high_contrast_light,
 							   role::diff_added_background,
 							   role::diff_removed_background },
@@ -2095,6 +2125,21 @@ namespace {
 		color_only_obligation{ core::appearance_variant::high_contrast_dark,
 							   role::diff_added_background,
 							   role::diff_moved_background },
+		// A regression, recorded as one. BPR-0320's attended batch presented
+		// emphasis strength and the text contrast it costs; it did not present
+		// colour-vision separation, and this pair is what that omission cost.
+		// The selected high-contrast-dark emphases sit 5.7 apart under
+		// deuteranopia against a floor of 10.0, where the previous pair
+		// cleared it.
+		//
+		// A substitute pair exists that holds the accepted strength and
+		// restores the separation, but it moves the removed emphasis from red
+		// to plum, which is a visible change the product owner did not approve.
+		// Silently swapping it would put a colour on screen that no verdict
+		// covers, so the accepted bytes stand and [[BPR-0322]] owns the fix.
+		color_only_obligation{ core::appearance_variant::high_contrast_dark,
+							   role::diff_intraline_added_background,
+							   role::diff_intraline_removed_background },
 		color_only_obligation{ core::appearance_variant::high_contrast_dark,
 							   role::state_accepted,
 							   role::state_defect },
@@ -2210,6 +2255,7 @@ auto main(int argc, char** argv) -> int
 	test_a_font_change_moves_geometry_and_not_semantics();
 	test_a_tab_width_change_alone_invalidates_measured_geometry();
 	test_intraline_emphasis_never_collapses_onto_its_row_fill();
+	test_intraline_emphasis_is_balanced_across_both_sides();
 	test_hue_critical_pairs_are_measured_for_every_builtin_profile();
 	test_every_builtin_profile_passes_the_published_contrast_audit();
 

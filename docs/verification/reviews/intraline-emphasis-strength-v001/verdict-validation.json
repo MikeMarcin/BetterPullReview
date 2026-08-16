@@ -1,0 +1,43 @@
+{
+  "schema_name": "bpr.attended_review_validation_record",
+  "schema_version": 1,
+  "recorded_at": "2026-08-16T17:43:45Z",
+  "batch_id": "bpr:/attended-review/betterpullreview/ebe2ee306b89f453d1de6704",
+  "review_gate": "intraline_emphasis_strength",
+  "review_scope": "human_ui_alternative_selection_only",
+  "invocation": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/intraline-emphasis-strength-v001/offline-package/attended-review-manifest.json --verdict <pasted.json>",
+  "result": "valid complete verdict",
+  "manifest": {
+    "path": "docs/verification/reviews/intraline-emphasis-strength-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:e4dae9b94effcc7f84e569eb5bb78033d899cf015a188a75b964da21eb3d7ddd",
+    "byte_length": 40971
+  },
+  "verdict": {
+    "path": "docs/verification/reviews/intraline-emphasis-strength-v001/human-verdict.json",
+    "sha256": "sha256:65f38439f11e929a545799555cc466fa63036e85cb94b3d7e47df8943072bd84",
+    "byte_length": 1903
+  },
+  "official_validator": {
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:bb5ccf6bd8fe265ea886a6e5e33912ce72c19ec20d99b0c807f542c0b425742a",
+    "byte_length": 45484
+  },
+  "selected_subject": "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c3",
+  "selected_digest": "sha256:f3653bc5729d2ecc16dbcaab1e7c3d821e9ee6f7b1b2f7bedc148028a75e0093",
+  "not_chosen_subjects": [
+    "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c0",
+    "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c1",
+    "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c2",
+    "criterion:/betterpullreview/bpr-0320/intraline-emphasis-c4"
+  ],
+  "claims": {
+    "emphasis_strength_selected": true,
+    "bpr_0320_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0214_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false,
+    "selected_and_moved_row_emphasis_accepted": false
+  },
+  "operator_note_disposition": "The accepting note reports a defect the batch did not present: intraline emphasis keeps its added/removed hue when the row carries the selection or moved fill. BPR-0321 owns it. The C3 selection stands for the added/removed case the captures showed."
+}

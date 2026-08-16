@@ -1796,6 +1796,79 @@ namespace {
 		expect(compared > 0U, "at least one intraline edit was compared");
 	}
 
+	/// \brief The removed side must be emphasised exactly as the added side is.
+	///
+	/// \details The check above reads only `right_pane`, only
+	/// `diff_intraline_added_background`, and only `edit.Right`. That is how a
+	/// palette in which the removed emphasis was invisible survived to an
+	/// attended review: nothing ever asked the left pane whether it had been
+	/// marked. BPR-0320 fixed the palette; this keeps the coverage gap from
+	/// reopening.
+	auto test_intraline_ranges_are_painted_on_the_removed_side() -> void
+	{
+		const auto left = std::string{
+			"context-before\n"
+			"const auto na\xc3\xafve = compute(alpha);\n"
+			"context-after\n"
+		};
+		const auto right = std::string{
+			"context-before\n"
+			"const auto na\xc3\xafve = compute(omega);\n"
+			"context-after\n"
+		};
+		const auto diff = computed(left, right, { }, 47U);
+		expect(
+			!diff.Intraline.empty(),
+			"the fixture produces intraline edits, so the comparison below is "
+			"against something");
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		auto profile = qt::appearance_profile{ };
+		workbench.adopt_appearance(profile);
+		const auto selected = context(diff, 93U, 93U);
+		workbench.set_loading(selected);
+		workbench.publish({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+
+		const auto emphasis
+			= profile.color(core::appearance_role::diff_intraline_removed_background);
+		const QList<QTextEdit::ExtraSelection> selections
+			= workbench.left_pane()->extraSelections();
+		auto compared = 0U;
+		for (const auto& edit : diff.Intraline) {
+			const auto pair = std::ranges::find_if(
+				diff.Alignment.Pairs,
+				[&edit](const core::line_pair& aPair) {
+					return aPair.Id == edit.Pair;
+				});
+			if (pair == diff.Alignment.Pairs.end()
+				|| edit.Left.Begin >= edit.Left.End) {
+				continue;
+			}
+			const auto painted = std::ranges::any_of(
+				selections,
+				[&emphasis, &pair](const QTextEdit::ExtraSelection& aSelection) {
+					return !aSelection.format.boolProperty(
+							   QTextFormat::FullWidthSelection)
+						&& aSelection.cursor.blockNumber()
+						== static_cast<int>(pair->LeftLine)
+						&& aSelection.format.background().color() == emphasis;
+				});
+			expect(
+				painted,
+				"every removed-side intraline range carries the removed "
+				"emphasis colour");
+			++compared;
+		}
+		expect(compared > 0U, "at least one removed-side intraline edit exists");
+	}
+
 	/// \brief Selecting a change group must wash the whole group.
 	auto test_group_selection_washes_every_line() -> void
 	{
@@ -2059,6 +2132,7 @@ auto main(int argc, char** argv) -> int
 	test_syntax_formatting_stays_bounded_by_the_viewport();
 	test_moved_blocks_carry_the_moved_role();
 	test_intraline_ranges_match_the_model();
+	test_intraline_ranges_are_painted_on_the_removed_side();
 	test_group_boundaries_are_painted();
 	test_link_map_endpoints_meet_their_blocks();
 	test_group_selection_washes_every_line();

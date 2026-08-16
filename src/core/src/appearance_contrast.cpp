@@ -4,6 +4,8 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <limits>
 #include <stdexcept>
 
 namespace bpr::core {
@@ -193,6 +195,20 @@ namespace bpr::core {
 			index_of(last_syntax_role) + 1U == appearance_role_count,
 			"the syntax group must stay at the end of the vocabulary");
 
+		/// \brief Selects the floor one background holds its text to.
+		///
+		/// \details Only the two intraline emphasis fills carry the reduced
+		/// emphasis floor. Every other background, including the diff row
+		/// fills those two sit inside, keeps the full text floor.
+		[[nodiscard]] consteval auto kind_for_background(
+			const appearance_role aBackground) -> contrast_kind
+		{
+			return aBackground == appearance_role::diff_intraline_added_background
+					|| aBackground == appearance_role::diff_intraline_removed_background
+				? contrast_kind::emphasis_text
+				: contrast_kind::text;
+		}
+
 		/// \brief The backgrounds that syntax-coloured code text is drawn over.
 		constexpr auto code_canvas_backgrounds = std::array{
 			appearance_role::code_background,
@@ -303,7 +319,7 @@ namespace bpr::core {
 						.Foreground = static_cast<appearance_role>(
 							static_cast<std::uint8_t>(index_of(first_syntax_role) + offset)),
 						.Background = background,
-						.Kind       = contrast_kind::text,
+						.Kind       = kind_for_background(background),
 					};
 					++next;
 				}
@@ -317,7 +333,7 @@ namespace bpr::core {
 								static_cast<std::uint8_t>(
 									index_of(first_syntax_role) + offset)),
 							.Background = background,
-							.Kind       = contrast_kind::text,
+							.Kind       = kind_for_background(background),
 							.Wash       = wash,
 						};
 						++next;
@@ -383,6 +399,18 @@ namespace bpr::core {
 				.Second = appearance_role::syntax_error,
 			},
 		};
+
+		/// \brief The fills that are painted inside another fill.
+		constexpr auto emphasis_table = std::array{
+			emphasis_pair{
+				.Fill     = appearance_role::diff_added_background,
+				.Emphasis = appearance_role::diff_intraline_added_background,
+			},
+			emphasis_pair{
+				.Fill     = appearance_role::diff_removed_background,
+				.Emphasis = appearance_role::diff_intraline_removed_background,
+			},
+		};
 	} // namespace
 
 	auto contrast_ratio_hundredths(
@@ -404,6 +432,11 @@ namespace bpr::core {
 	{
 		if (aKind == contrast_kind::indicator) {
 			return indicator_contrast_minimum_hundredths;
+		}
+		if (aKind == contrast_kind::emphasis_text) {
+			return high_contrast(aVariant)
+				? high_contrast_emphasis_text_minimum_hundredths
+				: emphasis_text_contrast_minimum_hundredths;
 		}
 
 		return high_contrast(aVariant)
@@ -502,6 +535,86 @@ namespace bpr::core {
 			= std::sqrt((lightness * lightness) + (a * a) + (b * b));
 
 		return truncated(difference, tenths_scale);
+	}
+
+	auto emphasis_pairs() noexcept -> std::span<const emphasis_pair>
+	{
+		return std::span<const emphasis_pair>{ emphasis_table };
+	}
+
+	auto measure_emphasis_separation(
+		const appearance_palette& aPalette,
+		const emphasis_pair       aPair) noexcept -> emphasis_finding
+	{
+		const auto fill     = aPalette[index_of(aPair.Fill)];
+		const auto emphasis = aPalette[index_of(aPair.Emphasis)];
+		const auto separation
+			= color_difference_tenths(fill, emphasis, color_vision::typical);
+
+		return emphasis_finding{
+			.Pair             = aPair,
+			.SeparationTenths = separation,
+			.MinimumTenths    = emphasis_separation_minimum_tenths,
+			.Meets            = separation >= emphasis_separation_minimum_tenths,
+		};
+	}
+
+	auto measure_emphasis_separation(const appearance_palette& aPalette)
+		-> std::vector<emphasis_finding>
+	{
+		auto findings = std::vector<emphasis_finding>{ };
+		findings.reserve(emphasis_table.size());
+		for (const auto pair : emphasis_table) {
+			findings.push_back(measure_emphasis_separation(aPalette, pair));
+		}
+
+		return findings;
+	}
+
+	auto failing_emphasis_separation(const appearance_palette& aPalette)
+		-> std::vector<emphasis_finding>
+	{
+		auto failing = std::vector<emphasis_finding>{ };
+		for (const auto pair : emphasis_table) {
+			const auto finding = measure_emphasis_separation(aPalette, pair);
+			if (!finding.Meets) {
+				failing.push_back(finding);
+			}
+		}
+
+		return failing;
+	}
+
+	auto measure_emphasis_balance(const appearance_palette& aPalette)
+		-> emphasis_balance_finding
+	{
+		auto strongest = std::uint32_t{ 0U };
+		auto weakest   = std::numeric_limits<std::uint32_t>::max();
+		for (const auto pair : emphasis_table) {
+			const auto separation
+				= measure_emphasis_separation(aPalette, pair).SeparationTenths;
+			strongest = std::max(strongest, separation);
+			weakest   = std::min(weakest, separation);
+		}
+
+		// A pair with no separation at all has already failed the minimum, and
+		// dividing by it would be undefined rather than merely uninformative.
+		// Reporting the largest representable ratio keeps the finding readable
+		// as the extreme it is.
+		constexpr auto hundredthsPerUnit = std::uint64_t{ 100U };
+		const auto     ratio             = weakest == 0U
+			? std::numeric_limits<std::uint32_t>::max()
+			: static_cast<std::uint32_t>(
+				  (static_cast<std::uint64_t>(strongest) * hundredthsPerUnit)
+				  / weakest);
+
+		return emphasis_balance_finding{
+			.StrongestTenths   = strongest,
+			.WeakestTenths     = weakest,
+			.RatioHundredths   = ratio,
+			.MaximumHundredths = emphasis_balance_maximum_hundredths,
+			.Meets             = ratio <= emphasis_balance_maximum_hundredths,
+		};
 	}
 
 	auto hue_critical_pairs() noexcept -> std::span<const hue_critical_pair>
