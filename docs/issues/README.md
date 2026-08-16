@@ -374,10 +374,14 @@ BPR-0114/BPR-0115 retain attended and terminal closeout work. Done BPR-0260
 restores canonical formatting for the merged compact-navigation composition
 source and refreshes its exact integrity digests. BPR-0256's packet is not
 final: capability-critical review invalidated it and split the remaining
-portable authority/recovery work into ready BPR-0261, dependent backlog
-BPR-0262, and done BPR-0263. The operator approved the narrowed replay and
+portable authority/recovery work into BPR-0261, dependent backlog BPR-0262, and
+done BPR-0263. The operator approved the narrowed replay and
 authenticated-containment designs for implementation and hermetic verification
-only; no live or package authority was granted.
+only; no live or package authority was granted. BPR-0261 is now in `done/`: one
+explicit owner-private replay namespace carries approval identity, reset is an
+operator command rather than a startup fallback, and the spend barrier is
+`F_FULLFSYNC` after capability-critical review showed bare `fsync` could not
+carry the durability claim on macOS.
 
 Done BPR-0180 is the card that changed how this board reads evidence. It
 reconciled RFC-BPR-0006's ledger against what the application actually
@@ -503,7 +507,7 @@ also depend transitively on more than one group.
 | Requested post-pack unauthenticated public read | Done planning BPR-0296, ready BPR-0297, backlog BPR-0298 through BPR-0309 plus BPR-0312 through BPR-0317 | RFC-BPR-0017 remains Deferred behind corrected live-tree scoping, a non-product credential-free demonstration, real anonymous-service probes, an explicit positive build gate, RFC-BPR-0002 closeout, full public diff authority, macOS enablement, Linux/Windows unavailability proof, implementation, and capability-critical final replay; the designated public observer is not product evidence |
 | Real Windows x64 hardware | BPR-0036, BPR-0053, and transitively BPR-0035, BPR-0054, BPR-0083 | Target-native execution; no available-platform substitute counts |
 | A designated live GitHub pull request | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Disposable `MikeMarcin/BPR-Test#1` is identity-bound; the live provider, exact-target lane, owner-authenticated mutations, and attended/mixed-client checks remain |
-| Designated live-lane proof blockers | Ready BPR-0261, backlog BPR-0262, done BPR-0263/BPR-0264, gating backlog BPR-0256 | Implement and independently verify the approved narrowed replay authority, then the approved read-only-image and kernel-audited supervisor containment topology; no live or package authority was granted |
+| Designated live-lane proof blockers | Backlog BPR-0262, done BPR-0261/BPR-0263/BPR-0264, gating backlog BPR-0256 | The approved narrowed replay authority is implemented and independently reviewed; the approved read-only-image and kernel-audited supervisor containment topology remains. No live or package authority was granted |
 | Owner-attended or native-display judgment | BPR-0100, BPR-0114, BPR-0168 with done BPR-0251, BPR-0210, BPR-0214, and ready BPR-0220 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta; BPR-0251 makes the real notification course truthful |
 | Product composition | Backlog BPR-0232; done BPR-0223, BPR-0226 through BPR-0231, BPR-0247, and BPR-0250 | Notification request/activation, the workbench host, selected diff, ledger, actionability, fixture-safe review round trip, durable defect workflow, observer-rule queue, portable agent invocation, durable sessions, and explicit private-context selection are composed. BPR-0232 waits for deferred native Windows lifecycle proof and its final replay through that same surface. |
 | Missing component and resilience scope | In-progress BPR-0235 and BPR-0240; done BPR-0237 through BPR-0239 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, and BPR-0236's appearance-storage fallback are done |
