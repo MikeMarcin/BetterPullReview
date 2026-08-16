@@ -1,7 +1,7 @@
 ---
 id: BPR-0298
 title: Record anonymous GitHub service contracts
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0017
 depends_on: [BPR-0297]
 ---
