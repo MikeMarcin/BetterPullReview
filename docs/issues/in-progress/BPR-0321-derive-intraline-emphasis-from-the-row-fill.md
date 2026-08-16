@@ -1,7 +1,7 @@
 ---
 id: BPR-0321
 title: Derive intraline emphasis from the fill the row actually carries
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0006
 depends_on: [BPR-0320]
 ---
