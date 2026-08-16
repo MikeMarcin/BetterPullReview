@@ -74,6 +74,17 @@ SCENARIOS = (
     "capability-429",
 )
 
+# RFC-BPR-0017's eligibility gate asks one bounded question: can this transport
+# issue a request with no authorization header while every other rule holds.
+# It runs as its own suite so the CTest inventory can count exactly one
+# selector for it, and so the answer is never buried in the general matrix.
+RFC0017_SCENARIOS = ("credential-free",)
+
+SUITES = {
+    "default": SCENARIOS,
+    "rfc0017": RFC0017_SCENARIOS,
+}
+
 
 class ProbeFailure(RuntimeError):
     def __init__(self, code: str) -> None:
@@ -716,18 +727,24 @@ class LoopbackConnectTlsFixture:
 
     def _inspect_origin_request(self, request: OriginRequest) -> None:
         authorization = one_header(request.headers, "authorization")
-        expected_authorization = bytearray(b"Bearer ")
-        expected_authorization.extend(self.token)
-        exact_authorization = (
-            authorization is not None
-            and hmac.compare_digest(authorization, expected_authorization)
-        )
-        wipe_mutable_bytes(expected_authorization)
-        if exact_authorization:
-            with self.observation.lock:
-                self.observation.exact_authorization_requests += 1
+        if self.scenario == "credential-free":
+            # The whole point of this course. Any authorization material on the
+            # wire falsifies it, so record a violation rather than a count.
+            if authorization is not None:
+                self.observation.violate("credential-free-authorization")
         else:
-            self.observation.violate("origin-authorization")
+            expected_authorization = bytearray(b"Bearer ")
+            expected_authorization.extend(self.token)
+            exact_authorization = (
+                authorization is not None
+                and hmac.compare_digest(authorization, expected_authorization)
+            )
+            wipe_mutable_bytes(expected_authorization)
+            if exact_authorization:
+                with self.observation.lock:
+                    self.observation.exact_authorization_requests += 1
+            else:
+                self.observation.violate("origin-authorization")
         if "proxy-authorization" in request.headers:
             self.observation.violate("origin-proxy-authorization")
         if one_header(request.headers, "host") != HOST.encode("ascii"):
@@ -1147,6 +1164,21 @@ class LoopbackConnectTlsFixture:
                 raise ProbeFailure("mutation-witness-failure-observation")
             return
 
+        if self.scenario == "credential-free":
+            # Two requests, because the course proves the state is a deliberate
+            # absence rather than a spent credential, and zero authorizations.
+            if (
+                accepts != 2
+                or connects != 2
+                or handshakes != 2
+                or requests != 2
+                or authorizations != 0
+                or tls_failures != 0
+                or targets != (REST_PATH, REST_PATH)
+            ):
+                raise ProbeFailure("credential-free-observation")
+            return
+
         expected_requests = 2 if self.scenario == "same-redirect" else 1
         if (
             accepts != expected_requests
@@ -1243,7 +1275,12 @@ def invoke_child(
         process.wait(timeout=CHILD_TIMEOUT_SECONDS)
         raise ProbeFailure(f"{scenario}-child-pipes")
 
-    framed = child_input(token, authority_pem)
+    # The credential-free child is handed no credential at all. A process that
+    # never receives one cannot look one up, discover one, or fall back to one.
+    framed = child_input(
+        bytearray() if scenario == "credential-free" else token,
+        authority_pem,
+    )
     try:
         process.stdin.write(framed)
         process.stdin.close()
@@ -1366,11 +1403,21 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument("--executable", required=True)
     parser.add_argument("--openssl")
+    parser.add_argument(
+        "--suite",
+        choices=sorted(SUITES),
+        default="default",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     arguments = parse_arguments()
+    label = (
+        "native-https-transport-fixture"
+        if arguments.suite == "default"
+        else "rfc0017-credential-free-native-https"
+    )
     try:
         executable = executable_path(arguments.executable, None)
         openssl_fallback = shutil.which("openssl")
@@ -1386,7 +1433,7 @@ def main() -> int:
             )
             authority_pem = certificate.authority_certificate.read_bytes()
             ports = configured_loopback_ports(2)
-            for scenario in SCENARIOS:
+            for scenario in SUITES[arguments.suite]:
                 verify_scenario(
                     executable,
                     scenario,
@@ -1397,18 +1444,18 @@ def main() -> int:
                 )
     except ProbeFailure as error:
         print(
-            f"native-https-transport-fixture:fail:{error.code}",
+            f"{label}:fail:{error.code}",
             file=sys.stderr,
         )
         return 1
     except Exception:
         print(
-            "native-https-transport-fixture:fail:internal",
+            f"{label}:fail:internal",
             file=sys.stderr,
         )
         return 1
 
-    print("native-https-transport-fixture:pass")
+    print(f"{label}:pass")
     return 0
 
 

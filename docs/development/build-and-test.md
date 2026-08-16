@@ -339,6 +339,58 @@ cmake --build --preset windows-dev
 ctest --preset windows-dev --output-on-failure
 ```
 
+## RFC-BPR-0017 credential-free demonstration
+
+RFC-BPR-0017 has to answer whether the native HTTPS transport can issue a
+request with no authorization header while every RFC-BPR-0002 rule stays
+intact. `rfc0017_credential_free_native_https` answers it and nothing else:
+
+```sh
+ctest --preset dev -R '^rfc0017_credential_free_native_https$' --output-on-failure
+```
+
+The course runs against the same disposable loopback CONNECT and TLS fixture
+every other native-HTTPS scenario uses, so trust, proxy, redirect,
+cancellation, timeout, and response limits are the real ones rather than a
+copy. The child process is handed an empty credential frame, so it never holds
+material to look up, discover, or fall back to, and the fixture treats any
+authorization header on the wire as a contract violation. The course performs
+two requests to prove the state is a deliberate absence rather than a spent
+credential.
+
+`make_native_https_credential_free_transport_for_test` exists only under
+`BPR_NATIVE_HTTPS_TESTING` and takes no credential parameter, so a missing,
+malformed, or revoked credential cannot decay into it — each of those still
+returns `invalid_credential_material` from its own factory, which
+`native_https_transport_contract` asserts directly. The Git smart surface
+refuses a credential-free binding outright rather than sending empty Basic
+material. This is a probe, not a product mode: it creates no anonymous profile
+and changes no production factory.
+
+Two guards keep it that way. The inventory half runs in the ordinary graph:
+
+```sh
+ctest --preset dev -R '^rfc0017_test_inventory$' --output-on-failure
+```
+
+The absence half needs a build the test graph does not contain, so run it at
+closeout against a tests-disabled Release application:
+
+```sh
+python3 scripts/verify_rfc0017_test_inventory.py \
+    --release-binary build/app-release/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
+```
+
+Both print `RFC0017_TEST_INVENTORY_OK`. Later RFC-BPR-0017 cards add their
+selectors to the same script rather than starting a second checker.
+
+Note that `make_designated_review_public_observer` also performs a
+credential-free GET and *is* compiled into a shipped build. It predates
+RFC-BPR-0017, belongs to the attended designated-live lane, duplicates the
+transport's TLS and redirect policy rather than exercising it, and skips
+system-proxy discovery. It is neither a regression the absence scan should flag
+nor evidence for this RFC's gate.
+
 ## Targets
 
 | Target | Responsibility |

@@ -186,6 +186,24 @@ set_tests_properties(
         TIMEOUT 60
 )
 
+# Only the inventory half runs here. The tests-disabled Release absence scan
+# needs a build this graph does not contain, so it stays a closeout command
+# documented in docs/development/build-and-test.md.
+bpr_add_network_isolated_test(
+    NAME rfc0017_test_inventory
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/scripts/verify_rfc0017_test_inventory.py"
+        --build-root
+        "${PROJECT_BINARY_DIR}"
+)
+set_tests_properties(
+    rfc0017_test_inventory
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "RFC0017_TEST_INVENTORY_OK"
+        TIMEOUT 60
+)
+
 bpr_add_network_isolated_test(
     NAME documentation_structure
     COMMAND

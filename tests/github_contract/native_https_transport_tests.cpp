@@ -387,6 +387,77 @@ namespace {
 			   aMessage);
 	}
 
+	/// \brief Proves the credential-free state can only be asked for by name.
+	///
+	/// \details RFC-BPR-0017's gate is not "can a request go out without a
+	/// header" — it is "can that only happen deliberately". So this checks both
+	/// directions. The credential-free factory refuses the same malformed inputs
+	/// every other factory refuses, and the credentialed factories still reject
+	/// empty, malformed, and wiped material with their own typed failures rather
+	/// than degrading into the credential-free state.
+	void test_credential_free_is_deliberate(
+		const validated_github_host_profile&   aNative,
+		const validated_github_host_profile&   aCli,
+		const native_https_test_configuration& aConfiguration)
+	{
+		const auto credentialFree = make_native_https_credential_free_transport_for_test(
+			aNative, session_context(aNative), aConfiguration);
+		expect(credentialFree.has_value(), "credential-free-factory");
+
+		auto foreignContext    = session_context(aNative);
+		foreignContext.Profile = core::host_profile_id{ 99 };
+		expect(
+			make_native_https_credential_free_transport_for_test(
+				aNative, foreignContext, aConfiguration)
+					.error()
+				== native_https_configuration_failure::invalid_bootstrap_context,
+			"credential-free-profile-drift");
+
+		expect(
+			make_native_https_credential_free_transport_for_test(
+				aCli, session_context(aCli), aConfiguration)
+					.error()
+				== native_https_configuration_failure::profile_transport_mismatch,
+			"credential-free-transport-mismatch");
+
+		expect(
+			make_native_https_credential_free_transport_for_test(
+				aNative, session_context(aNative), native_https_test_configuration{ })
+					.error()
+				== native_https_configuration_failure::invalid_test_configuration,
+			"credential-free-test-configuration");
+
+		// The cut wire. Every way an authenticated caller can arrive without
+		// usable material must produce its own typed refusal. None of them may
+		// hand back a working transport, which is what a silent fallback into
+		// the credential-free state would look like from here.
+		auto emptyMaterial = credential_material("fixture-token");
+		emptyMaterial.reset();
+		expect(
+			make_native_https_bootstrap_transport_for_test(
+				aNative, session_context(aNative), std::move(emptyMaterial),
+				aConfiguration)
+					.error()
+				== native_https_configuration_failure::invalid_credential_material,
+			"credential-free-no-empty-bootstrap-fallback");
+		expect(
+			make_native_https_bootstrap_transport_for_test(
+				aNative, session_context(aNative), credential_material("not a token"),
+				aConfiguration)
+					.error()
+				== native_https_configuration_failure::invalid_credential_material,
+			"credential-free-no-malformed-bootstrap-fallback");
+
+		auto revoked = credential_material("fixture-token");
+		revoked.reset();
+		expect(
+			make_native_https_bootstrap_transport_for_test(
+				aNative, session_context(aNative), std::move(revoked), aConfiguration)
+					.error()
+				== native_https_configuration_failure::invalid_credential_material,
+			"credential-free-no-revoked-bootstrap-fallback");
+	}
+
 	void test_factory_contracts_and_preflight()
 	{
 		const auto native = validate_github_host_profile(
@@ -683,6 +754,8 @@ namespace {
 		expect(probeCancellation != nullptr
 				   && probeCancellation->Correlation == capability.Correlation,
 			   "capability-pre-cancel-correlation");
+
+		test_credential_free_is_deliberate(*native, *cli, configuration);
 	}
 
 	[[nodiscard]] constexpr auto tls_backend_name(
@@ -773,6 +846,7 @@ namespace {
 		capability_redirect,
 		capability_403_rate,
 		capability_429,
+		credential_free,
 	};
 
 	[[nodiscard]] auto parse_scenario(const std::string_view aValue)
@@ -780,6 +854,9 @@ namespace {
 	{
 		if (aValue == "success") {
 			return fixture_scenario::success;
+		}
+		if (aValue == "credential-free") {
+			return fixture_scenario::credential_free;
 		}
 		if (aValue == "mutation-witness") {
 			return fixture_scenario::mutation_witness;
@@ -892,6 +969,8 @@ namespace {
 		switch (aScenario) {
 		case fixture_scenario::success:
 			return "success";
+		case fixture_scenario::credential_free:
+			return "credential-free";
 		case fixture_scenario::mutation_witness:
 			return "mutation-witness";
 		case fixture_scenario::mutation_witness_failure:
@@ -1242,6 +1321,7 @@ namespace {
 	{
 		switch (aScenario) {
 		case fixture_scenario::success:
+		case fixture_scenario::credential_free:
 		case fixture_scenario::mutation_witness:
 		case fixture_scenario::mutation_witness_failure:
 		case fixture_scenario::mutation_proxy_no_fallback:
@@ -1402,7 +1482,15 @@ namespace {
 											   "fixture-credential-limit");
 		auto authorityCertificate = read_frame(
 			native_https_maximum_response_header_bytes, "fixture-authority-limit");
-		expect(!framedCredential.empty(), "fixture-credential-empty");
+		// The credential-free course is the one case where the harness sends an
+		// empty credential frame. That is the point: this process never holds
+		// credential material, so there is nothing to discover, look up, or fall
+		// back to. Every other course still requires one.
+		if (aScenario == fixture_scenario::credential_free) {
+			expect(framedCredential.empty(), "credential-free-material-present");
+		} else {
+			expect(!framedCredential.empty(), "fixture-credential-empty");
+		}
 		expect(!authorityCertificate.empty(), "fixture-authority-empty");
 
 		const auto profile = validate_github_host_profile(profile_candidate(
@@ -1422,6 +1510,22 @@ namespace {
 				: native_https_maximum_response_body_bytes,
 		};
 
+		if (aScenario == fixture_scenario::credential_free) {
+			const auto request = wire_request_for(
+				*profile, read_operation::get_viewer_identity);
+			auto transport = make_native_https_credential_free_transport_for_test(
+				*profile, session_context(*profile), configuration);
+			expect(transport.has_value(), "credential-free-transport");
+			const auto completion = (*transport)->perform(request, std::stop_token{ });
+			expect_success(completion, request.Correlation, aScenario);
+			// A credential-free binding is not one-shot the way a bootstrap
+			// credential is, so a second request must still succeed. If this
+			// ever starts failing, the state has quietly become a spent
+			// credential rather than a deliberate absence.
+			const auto replay = (*transport)->perform(request, std::stop_token{ });
+			expect_success(replay, request.Correlation, aScenario);
+			return;
+		}
 		if (aScenario == fixture_scenario::capability_success
 			|| aScenario == fixture_scenario::capability_redirect
 			|| aScenario == fixture_scenario::capability_403_rate

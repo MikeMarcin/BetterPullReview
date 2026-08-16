@@ -121,7 +121,21 @@ namespace bpr::adapters::github::detail {
 			application::github_credential_material          Material;
 		};
 
+#if defined(BPR_NATIVE_HTTPS_TESTING)
+		/// \brief A deliberate credential-free binding, not an absent credential.
+		///
+		/// \details It carries no material field at all, so there is no empty or
+		/// wiped credential for a later change to mistake for a usable one.
+		struct credential_free_request
+		{
+			core::github_session_request_context Context;
+		};
+
+		using credential_binding = std::
+			variant<bootstrap_credential, account_credential, credential_free_request>;
+#else
 		using credential_binding = std::variant<bootstrap_credential, account_credential>;
+#endif
 
 		enum class native_request_surface : std::uint8_t {
 			rest_read,
@@ -2091,6 +2105,18 @@ namespace bpr::adapters::github::detail {
 		{
 		}
 
+#if defined(BPR_NATIVE_HTTPS_TESTING)
+		implementation(
+			const validated_github_host_profile& aProfile,
+			credential_free_request              aCredential,
+			transport_policy                     aPolicy)
+			: Profile{ aProfile }
+			, Credential{ std::move(aCredential) }
+			, Policy{ std::move(aPolicy) }
+		{
+		}
+#endif
+
 		implementation(const implementation&)                    = delete;
 		auto operator=(const implementation&) -> implementation& = delete;
 
@@ -2292,7 +2318,11 @@ namespace bpr::adapters::github::detail {
 			const application::git_smart_request_context& aContext) const noexcept
 			-> bool
 		{
-			return !Closing.load(std::memory_order_acquire)
+			// A credential-free binding never leases the Git smart surface: that
+			// surface authenticates with HTTP Basic and has no anonymous form
+			// here, so refusing is the fail-closed answer rather than sending an
+			// empty credential.
+			return !Closing.load(std::memory_order_acquire) && !credential_free()
 				&& application::valid(aContext) && credential_matches(aContext);
 		}
 
@@ -2728,7 +2758,24 @@ namespace bpr::adapters::github::detail {
 							&& *parent == aCredential.Context
 							&& aRequest.Correlation.Operation
 							== read_operation::get_viewer_identity;
-					} else {
+					}
+#if defined(BPR_NATIVE_HTTPS_TESTING)
+					else if constexpr (
+						std::same_as<credential_type, credential_free_request>) {
+						// No credential means no account authority to correlate,
+						// so the binding matches on session identity alone.
+						return std::visit(
+							[&aCredential, this](const auto& aParent) noexcept {
+								return aParent.ApplicationSession
+									== aCredential.Context.ApplicationSession
+									&& aParent.Profile == Profile.profile()
+									&& aParent.IdentityGeneration
+									== aCredential.Context.IdentityGeneration;
+							},
+							aRequest.Correlation.Parent);
+					}
+#endif
+					else {
 						return std::visit(
 							[&aCredential, this](const auto& aParent) noexcept {
 								if (
@@ -2830,12 +2877,26 @@ namespace bpr::adapters::github::detail {
 			}
 		}
 
+		[[nodiscard]] auto credential_free() const noexcept -> bool
+		{
+#if defined(BPR_NATIVE_HTTPS_TESTING)
+			return std::holds_alternative<credential_free_request>(Credential);
+#else
+			return false;
+#endif
+		}
+
 		[[nodiscard]] auto credential_bytes() const noexcept
 			-> std::span<const std::byte>
 		{
 			return std::visit(
-				[](const auto& aCredential) noexcept {
-					return aCredential.Material.bytes();
+				[](const auto& aCredential) noexcept
+					-> std::span<const std::byte> {
+					if constexpr (requires { aCredential.Material; }) {
+						return aCredential.Material.bytes();
+					} else {
+						return { };
+					}
 				},
 				Credential);
 		}
@@ -2963,13 +3024,21 @@ namespace bpr::adapters::github::detail {
 			request.setRawHeader("Accept-Encoding", "identity");
 			request.setRawHeader("Accept-Language", "*");
 
-			QByteArray                  authorization{ "Bearer " };
-			const qbytearray_wipe_guard authorizationGuard{ authorization };
-			const auto                  credential = credential_bytes();
-			authorization.append(
-				reinterpret_cast<const char*>(credential.data()),
-				static_cast<qsizetype>(credential.size()));
-			request.setRawHeader("Authorization", authorization);
+#if defined(BPR_NATIVE_HTTPS_TESTING)
+			// The only way to reach this without an authorization header is the
+			// deliberate credential-free binding, which no production factory
+			// can construct. A shipped build has no such branch at all.
+			if (!credential_free())
+#endif
+			{
+				QByteArray                  authorization{ "Bearer " };
+				const qbytearray_wipe_guard authorizationGuard{ authorization };
+				const auto                  credential = credential_bytes();
+				authorization.append(
+					reinterpret_cast<const char*>(credential.data()),
+					static_cast<qsizetype>(credential.size()));
+				request.setRawHeader("Authorization", authorization);
+			}
 
 			const auto tls = ssl_configuration();
 			if (!tls.has_value()) {
@@ -3943,6 +4012,32 @@ namespace bpr::adapters::github::detail {
 				.Context  = aCredential.Context,
 				.Material = std::move(aCredential.Credential),
 			},
+			make_test_policy(aConfiguration));
+	}
+
+	auto make_native_https_credential_free_transport_for_test(
+		const validated_github_host_profile&   aProfile,
+		core::github_session_request_context   aContext,
+		const native_https_test_configuration& aConfiguration) noexcept
+		-> native_https_transport_factory_result
+	{
+		if (
+			!application::detail::valid_context(aContext)
+			|| aContext.Profile != aProfile.profile()) {
+			return std::unexpected{
+				native_https_configuration_failure::
+					invalid_bootstrap_context
+			};
+		}
+		if (!valid_test_configuration(aConfiguration)) {
+			return std::unexpected{
+				native_https_configuration_failure::
+					invalid_test_configuration
+			};
+		}
+		return make_transport(
+			aProfile,
+			credential_free_request{ .Context = aContext },
 			make_test_policy(aConfiguration));
 	}
 #endif

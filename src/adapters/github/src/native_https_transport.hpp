@@ -185,6 +185,22 @@ namespace bpr::adapters::github::detail {
 		application::github_credential_retrieve_success aCredential,
 		const native_https_test_configuration&          aConfiguration) noexcept
 		-> native_https_transport_factory_result;
+
+	/// \brief Builds a transport whose credential-free state is deliberate.
+	///
+	/// \details RFC-BPR-0017 needs to know whether this transport can issue a
+	/// request with no authorization header while every other RFC-BPR-0002 rule
+	/// stays intact. This answers that question and nothing else. It takes no
+	/// credential parameter, so the caller cannot supply one and a missing,
+	/// malformed, or revoked credential cannot decay into this state; reaching
+	/// it requires naming it. The symbol exists only under
+	/// `BPR_NATIVE_HTTPS_TESTING` and is absent from a shipped build, so it
+	/// creates no anonymous profile and no partial public mode.
+	[[nodiscard]] auto make_native_https_credential_free_transport_for_test(
+		const validated_github_host_profile&   aProfile,
+		core::github_session_request_context   aContext,
+		const native_https_test_configuration& aConfiguration) noexcept
+		-> native_https_transport_factory_result;
 #endif
 
 	[[nodiscard]] auto observe_native_https_runtime(

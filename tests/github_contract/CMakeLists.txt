@@ -154,6 +154,30 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
             TIMEOUT 90
     )
 
+    # RFC-BPR-0017's credential-free demonstration is registered separately so
+    # verify_rfc0017_test_inventory.py can count exactly one selector for it.
+    bpr_add_network_isolated_test(
+        NAME rfc0017_credential_free_native_https
+        LOOPBACK_PORT_COUNT 2
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/verify_native_https_transport.py"
+            --executable
+            "$<TARGET_FILE:test_better_pull_review_native_https_transport_tests>"
+            --openssl
+            "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
+            --suite
+            rfc0017
+    )
+    set_tests_properties(
+        rfc0017_credential_free_native_https
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 90
+            PASS_REGULAR_EXPRESSION
+                "rfc0017-credential-free-native-https:pass"
+    )
+
     bpr_add_network_isolated_test(
         NAME native_git_smart_transport_fixture
         LOOPBACK_PORT_COUNT 1

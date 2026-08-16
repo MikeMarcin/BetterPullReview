@@ -60,6 +60,7 @@ MACOS_LOOPBACK_AUTHORITIES = {
     "designated_live_public_observer_fixture": 1,
     "native_https_transport_fixture": 2,
     "native_git_smart_transport_fixture": 1,
+    "rfc0017_credential_free_native_https": 2,
 }
 MACOS_UNRELATED_ENDPOINT_PROBE = "test_network_isolation_unrelated"
 PRE_BOUNDARY_INJECTION_VARIABLES = (
