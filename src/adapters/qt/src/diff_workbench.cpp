@@ -1322,16 +1322,19 @@ namespace bpr::qt {
 				}
 			}
 
+			auto washed = std::optional<core::line_span>{ };
 			if (CurrentResult && Interaction.Selection.has_value()) {
 				const auto lines = selected_lines(aSide);
 				if (lines.has_value()) {
 					append_selection_band(
 						selections, aPane, *lines, paintable);
+					washed = lines;
 				}
 			}
 
 			if (CurrentResult && Colors.Supplied) {
-				append_intraline_emphasis(selections, aPane, aSide, paintable);
+				append_intraline_emphasis(
+					selections, aPane, aSide, paintable, washed);
 			}
 
 			aPane.setExtraSelections(selections);
@@ -1534,10 +1537,11 @@ namespace bpr::qt {
 
 	/// \brief Marks the exact byte spans the core reported as changed.
 	void diff_workbench::append_intraline_emphasis(
-		QList<QTextEdit::ExtraSelection>& aSelections,
-		QPlainTextEdit&                   aPane,
-		const core::diff_side             aSide,
-		const core::line_span             aPaintable)
+		QList<QTextEdit::ExtraSelection>&    aSelections,
+		QPlainTextEdit&                      aPane,
+		const core::diff_side                aSide,
+		const core::line_span                aPaintable,
+		const std::optional<core::line_span> aWashed)
 	{
 		const auto& document = aSide == core::diff_side::left
 			? CurrentResult->LeftDocument
@@ -1551,6 +1555,31 @@ namespace bpr::qt {
 		if (!color.isValid()) {
 			return;
 		}
+
+		// The emphasis is painted opaque and last, so on a washed row it would
+		// otherwise be the one fill the wash does not reach — a red or green
+		// patch sitting on a blue row, belonging to neither. Compositing the
+		// same wash into it keeps it a deeper shade of whatever the row is
+		// actually wearing, which is what the mark is for.
+		//
+		// The wash is applied here rather than by Qt because Qt paints these
+		// selections in list order and the emphasis comes after the band; the
+		// row's own wash is a translucent colour Qt blends, and an opaque
+		// emphasis on top of it is not blended again.
+		const auto washedColor = [&aPane, color] {
+			const auto highlight = aPane.palette().color(QPalette::Highlight);
+			const auto blended   = core::composited(
+				core::appearance_color{ static_cast<std::uint8_t>(highlight.red()),
+										static_cast<std::uint8_t>(highlight.green()),
+										static_cast<std::uint8_t>(highlight.blue()),
+										255U },
+				core::appearance_color{ static_cast<std::uint8_t>(color.red()),
+										static_cast<std::uint8_t>(color.green()),
+										static_cast<std::uint8_t>(color.blue()),
+										255U },
+				core::selection_wash_alpha);
+			return QColor{ blended.Red, blended.Green, blended.Blue };
+		}();
 
 		const auto& pairs = CurrentResult->Alignment.Pairs;
 		for (const auto& edit : CurrentResult->Intraline) {
@@ -1586,12 +1615,15 @@ namespace bpr::qt {
 			if (from >= to) {
 				continue;
 			}
+			const auto selected = aWashed.has_value()
+				&& line >= aWashed->Begin && line < aWashed->End;
+
 			auto emphasis   = QTextEdit::ExtraSelection{ };
 			emphasis.cursor = QTextCursor{ block };
 			emphasis.cursor.setPosition(block.position() + from);
 			emphasis.cursor.setPosition(
 				block.position() + to, QTextCursor::KeepAnchor);
-			emphasis.format.setBackground(color);
+			emphasis.format.setBackground(selected ? washedColor : color);
 			aSelections.push_back(emphasis);
 		}
 	}

@@ -245,11 +245,19 @@ namespace bpr::qt {
 		/// \brief Whether the named segment takes part in a detected move.
 		[[nodiscard]] auto moved(const core::alignment_segment_id& aSegment) const
 			-> bool;
+		/// \brief Marks the changed characters inside each paintable pair.
+		///
+		/// \details `aWashed` is the span this pane's selection wash covers, so
+		/// the emphasis can take that wash on too. Without it the mark keeps
+		/// its added or removed hue on a selected row, which puts a red or
+		/// green patch inside a blue band and makes the changed characters
+		/// harder to find rather than easier.
 		void append_intraline_emphasis(
 			QList<QTextEdit::ExtraSelection>& aSelections,
 			QPlainTextEdit&                   aPane,
 			core::diff_side                   aSide,
-			core::line_span                   aPaintable);
+			core::line_span                   aPaintable,
+			std::optional<core::line_span>    aWashed);
 		/// \brief Tells the link map where the pane viewports actually are.
 		void declare_link_map_band();
 		void schedule_geometry_rebuild(

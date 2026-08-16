@@ -32,6 +32,7 @@
 #include <numeric>
 #include <optional>
 #include <ranges>
+#include <set>
 #include <span>
 #include <string>
 #include <string_view>
@@ -1680,6 +1681,29 @@ namespace {
 	}
 
 	/// \brief Painted intraline ranges must be the ranges the core computed.
+	/// \brief The emphasis colour a row wearing the selection wash shows.
+	///
+	/// \details BPR-0321: the emphasis is composited with the same wash as the
+	/// row it marks, so a selected row's mark is a deeper shade of what the
+	/// row is actually wearing rather than a bare added or removed hue.
+	[[nodiscard]] auto washed_emphasis(
+		const QPlainTextEdit& aPane,
+		const QColor          aBase) -> QColor
+	{
+		const auto highlight = aPane.palette().color(QPalette::Highlight);
+		const auto blended   = core::composited(
+			core::appearance_color{ static_cast<std::uint8_t>(highlight.red()),
+									static_cast<std::uint8_t>(highlight.green()),
+									static_cast<std::uint8_t>(highlight.blue()),
+									255U },
+			core::appearance_color{ static_cast<std::uint8_t>(aBase.red()),
+									static_cast<std::uint8_t>(aBase.green()),
+									static_cast<std::uint8_t>(aBase.blue()),
+									255U },
+			core::selection_wash_alpha);
+		return QColor{ blended.Red, blended.Green, blended.Blue };
+	}
+
 	auto test_intraline_ranges_match_the_model() -> void
 	{
 		// A two-byte character sits ahead of the edit on the changed line, so a
@@ -1715,8 +1739,9 @@ namespace {
 		});
 		process_events();
 
-		const auto emphasis
-			= profile.color(core::appearance_role::diff_intraline_added_background);
+		const auto emphasis = washed_emphasis(
+			*workbench.right_pane(),
+			profile.color(core::appearance_role::diff_intraline_added_background));
 		auto wash = workbench.right_pane()->palette().color(QPalette::Highlight);
 		wash.setAlpha(core::selection_wash_alpha);
 		auto compared = 0U;
@@ -1790,7 +1815,8 @@ namespace {
 					&& emphasisSelection != selections.end()
 					&& std::distance(selections.begin(), washSelection)
 						< std::distance(selections.begin(), emphasisSelection),
-				"the opaque intraline role is painted after the selected-row wash");
+				"the intraline role is painted after the selected-row wash, and\n"
+				"carries that wash rather than covering it");
 			++compared;
 		}
 		expect(compared > 0U, "at least one intraline edit was compared");
@@ -1836,8 +1862,9 @@ namespace {
 		});
 		process_events();
 
-		const auto emphasis
-			= profile.color(core::appearance_role::diff_intraline_removed_background);
+		const auto emphasis = washed_emphasis(
+			*workbench.left_pane(),
+			profile.color(core::appearance_role::diff_intraline_removed_background));
 		const QList<QTextEdit::ExtraSelection> selections
 			= workbench.left_pane()->extraSelections();
 		auto compared = 0U;
@@ -1870,6 +1897,103 @@ namespace {
 	}
 
 	/// \brief Selecting a change group must wash the whole group.
+	/// \brief A selected row's emphasis must wear the row's own wash.
+	///
+	/// \details Reported by the product owner: "If the line fill is blue the
+	/// intraline emphasis fill should also be a blue, currently it puts
+	/// red/green there which makes it more difficult." The emphasis is painted
+	/// opaque and last, so before the fix it was the one fill the selection
+	/// wash never reached.
+	auto test_selected_rows_wash_their_intraline_emphasis() -> void
+	{
+		const auto left = std::string{
+			"context-before\n"
+			"const auto value = compute(alpha);\n"
+			"context-after\n"
+		};
+		const auto right = std::string{
+			"context-before\n"
+			"const auto value = compute(omega);\n"
+			"context-after\n"
+		};
+		const auto diff = computed(left, right, { }, 51U);
+		expect(!diff.Intraline.empty(), "the fixture produces intraline edits");
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		auto profile = qt::appearance_profile{ };
+		workbench.adopt_appearance(profile);
+		const auto selected = context(diff, 95U, 95U);
+		workbench.set_loading(selected);
+		workbench.publish({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+
+		const auto bare
+			= profile.color(core::appearance_role::diff_intraline_added_background);
+		auto       highlight = workbench.right_pane()->palette().color(QPalette::Highlight);
+		const auto blended   = core::composited(
+			core::appearance_color{ static_cast<std::uint8_t>(highlight.red()),
+									static_cast<std::uint8_t>(highlight.green()),
+									static_cast<std::uint8_t>(highlight.blue()),
+									255U },
+			core::appearance_color{ static_cast<std::uint8_t>(bare.red()),
+									static_cast<std::uint8_t>(bare.green()),
+									static_cast<std::uint8_t>(bare.blue()),
+									255U },
+			core::selection_wash_alpha);
+		const auto washed = QColor{ blended.Red, blended.Green, blended.Blue };
+		expect(washed != bare, "the wash actually changes the emphasis colour");
+
+		// Select through the ribbon, the gesture a reviewer actually has.
+		const auto visible = workbench.link_map()->visible_links();
+		expect(!visible.empty(), "a ribbon is available to select");
+		send_click(
+			*workbench.link_map(), visible.front().Path.boundingRect().center());
+		process_events();
+
+		// Which rows are washed is read back from the painted bands rather
+		// than from a member, so the test sees what a reviewer sees.
+		const QList<QTextEdit::ExtraSelection> selections
+			= workbench.right_pane()->extraSelections();
+		auto washedRows = std::set<int>{ };
+		for (const auto& selection : selections) {
+			if (selection.format.boolProperty(QTextFormat::FullWidthSelection)
+				&& selection.format.background().color().alpha()
+					== core::selection_wash_alpha) {
+				washedRows.insert(selection.cursor.blockNumber());
+			}
+		}
+		expect(!washedRows.empty(), "the click washed at least one row");
+
+		auto washedMarks = 0U;
+		auto bareMarks   = 0U;
+		for (const auto& selection : selections) {
+			if (selection.format.boolProperty(QTextFormat::FullWidthSelection)) {
+				continue;
+			}
+			if (!washedRows.contains(selection.cursor.blockNumber())) {
+				continue;
+			}
+			const auto painted = selection.format.background().color();
+			if (painted == washed) {
+				++washedMarks;
+			} else if (painted == bare) {
+				++bareMarks;
+			}
+		}
+		expect(
+			washedMarks > 0U,
+			"a selected row's intraline emphasis carries the row's wash");
+		expect(
+			bareMarks == 0U,
+			"no selected row keeps the unwashed added or removed hue");
+	}
+
 	auto test_group_selection_washes_every_line() -> void
 	{
 		const auto [left, right] = representative_text();
@@ -2135,6 +2259,7 @@ auto main(int argc, char** argv) -> int
 	test_intraline_ranges_are_painted_on_the_removed_side();
 	test_group_boundaries_are_painted();
 	test_link_map_endpoints_meet_their_blocks();
+	test_selected_rows_wash_their_intraline_emphasis();
 	test_group_selection_washes_every_line();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;

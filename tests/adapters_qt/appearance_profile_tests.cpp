@@ -2040,6 +2040,62 @@ namespace {
 		}
 	}
 
+	// BPR-0321 composites the row's selection wash into the emphasis so a
+	// selected row's mark stays a deeper shade of what the row is wearing.
+	// Both fills take the same wash at the same alpha, so their separation
+	// survives in proportion rather than collapsing -- but "in proportion" is
+	// a claim, and this is where it is checked.
+	void test_the_selection_wash_preserves_emphasis_separation()
+	{
+		constexpr auto pairs = std::array{
+			std::pair{ role::diff_added_background,
+					   role::diff_intraline_added_background },
+			std::pair{ role::diff_removed_background,
+					   role::diff_intraline_removed_background },
+		};
+
+		for (const auto variant : all_variants) {
+			const auto& palette = qt::builtin_appearance_palette(variant);
+			const auto  wash    = palette[core::index_of(
+				role::code_selection_background)];
+			const auto  floor   = core::minimum_contrast_hundredths(
+				core::contrast_kind::emphasis_text, variant);
+
+			for (const auto& [rowRole, emphasisRole] : pairs) {
+				const auto row      = palette[core::index_of(rowRole)];
+				const auto emphasis = palette[core::index_of(emphasisRole)];
+				const auto washedRow
+					= core::composited(wash, row, core::selection_wash_alpha);
+				const auto washedEmphasis = core::composited(
+					wash, emphasis, core::selection_wash_alpha);
+
+				const auto bare = core::color_difference_tenths(
+					row, emphasis, core::color_vision::typical);
+				const auto washed = core::color_difference_tenths(
+					washedRow, washedEmphasis, core::color_vision::typical);
+				expect(
+					washed * 3U >= bare * 2U,
+					"at least two thirds of the emphasis separation survives "
+					"the selection wash");
+				expect(
+					washed >= 100U,
+					"a washed emphasis is still plainly a mark");
+
+				// The characters sitting on the washed mark still have to be
+				// readable; the wash must not spend the emphasis floor.
+				for (auto index = core::index_of(core::appearance_role::syntax_normal);
+					 index < core::appearance_role_count;
+					 ++index) {
+					const auto ratio = core::contrast_ratio_hundredths(
+						palette[index], washedEmphasis);
+					expect(
+						ratio >= floor,
+						"syntax text stays legible on a washed emphasis fill");
+				}
+			}
+		}
+	}
+
 	// A palette can clear the floor on both sides and still tell the reader
 	// that one pane matters more, which is the defect the product owner
 	// actually reported: the added span was obvious and the removed span was
@@ -2256,6 +2312,7 @@ auto main(int argc, char** argv) -> int
 	test_a_tab_width_change_alone_invalidates_measured_geometry();
 	test_intraline_emphasis_never_collapses_onto_its_row_fill();
 	test_intraline_emphasis_is_balanced_across_both_sides();
+	test_the_selection_wash_preserves_emphasis_separation();
 	test_hue_critical_pairs_are_measured_for_every_builtin_profile();
 	test_every_builtin_profile_passes_the_published_contrast_audit();
 

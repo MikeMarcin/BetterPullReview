@@ -6500,16 +6500,44 @@ namespace bpr::app {
 					   aSecond.RightSpan);
 		}
 
+		/// \brief The colours one intraline role can legitimately paint as.
+		///
+		/// \details BPR-0321 composites the row's selection wash into the
+		/// emphasis, so one semantic role renders as its palette colour on an
+		/// unselected row and as that colour under the wash on a selected one.
+		/// Both are the role. A check that accepted only the bare colour would
+		/// read a correctly washed mark as a missing one, which is exactly how
+		/// this course failed when the wash first landed.
+		[[nodiscard]] auto role_renderings(
+			const QPlainTextEdit& aPane,
+			const QColor&         aRole) -> std::array<QColor, 2U>
+		{
+			const auto highlight = aPane.palette().color(QPalette::Highlight);
+			const auto blended   = core::composited(
+				core::appearance_color{ static_cast<std::uint8_t>(highlight.red()),
+										static_cast<std::uint8_t>(highlight.green()),
+										static_cast<std::uint8_t>(highlight.blue()),
+										255U },
+				core::appearance_color{ static_cast<std::uint8_t>(aRole.red()),
+										static_cast<std::uint8_t>(aRole.green()),
+										static_cast<std::uint8_t>(aRole.blue()),
+										255U },
+				core::selection_wash_alpha);
+			return { aRole, QColor{ blended.Red, blended.Green, blended.Blue } };
+		}
+
 		[[nodiscard]] auto role_paint_count(
 			const QPlainTextEdit& aPane,
 			const QColor&         aExpected) -> std::size_t
 		{
+			const auto accepted = role_renderings(aPane, aExpected);
 			return static_cast<std::size_t>(std::ranges::count_if(
 				aPane.extraSelections(),
-				[&aExpected](const QTextEdit::ExtraSelection& aSelection) {
+				[&accepted](const QTextEdit::ExtraSelection& aSelection) {
 					return !aSelection.format.boolProperty(
 							   QTextFormat::FullWidthSelection)
-						&& aSelection.format.background().color() == aExpected
+						&& std::ranges::contains(
+							accepted, aSelection.format.background().color())
 						&& aSelection.cursor.hasSelection();
 				}));
 		}
@@ -6550,11 +6578,14 @@ namespace bpr::app {
 			if (image.isNull() || !aExpected.isValid()) {
 				return 0U;
 			}
-			const auto expected = aExpected.rgba();
+			const auto accepted = role_renderings(aPane, aExpected);
+			const auto bare     = accepted[0U].rgba();
+			const auto washed   = accepted[1U].rgba();
 			auto       count    = std::size_t{ 0U };
 			for (auto y = 0; y < image.height(); ++y) {
 				for (auto x = 0; x < image.width(); ++x) {
-					if (image.pixel(x, y) == expected) {
+					const auto pixel = image.pixel(x, y);
+					if (pixel == bare || pixel == washed) {
 						++count;
 					}
 				}
@@ -6662,14 +6693,16 @@ namespace bpr::app {
 			if (!block.isValid()) {
 				return false;
 			}
-			const auto from = block.position() + character_offset(bytes, aSpan.Begin);
-			const auto to   = block.position() + character_offset(bytes, aSpan.End);
+			const auto from     = block.position() + character_offset(bytes, aSpan.Begin);
+			const auto to       = block.position() + character_offset(bytes, aSpan.End);
+			const auto accepted = role_renderings(aPane, aExpected);
 			return std::ranges::any_of(
 				aPane.extraSelections(),
-				[&aExpected, from, to](const QTextEdit::ExtraSelection& aSelection) {
+				[&accepted, from, to](const QTextEdit::ExtraSelection& aSelection) {
 					return !aSelection.format.boolProperty(
 							   QTextFormat::FullWidthSelection)
-						&& aSelection.format.background().color() == aExpected
+						&& std::ranges::contains(
+							accepted, aSelection.format.background().color())
 						&& aSelection.cursor.selectionStart() == from
 						&& aSelection.cursor.selectionEnd() == to;
 				});
