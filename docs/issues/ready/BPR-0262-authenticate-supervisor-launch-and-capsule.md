@@ -56,3 +56,63 @@ signing/notarization, or RFC-closeout authority.
   verification and requires refusal before GUI resume.
 - Architecture, capsule, manifest, bootstrap, production-symbol/source,
   format/tidy, documentation, and diff gates pass.
+
+## Tree state as of BPR-0261 closeout
+
+Surveyed 2026-08-15 so the implementing session starts from facts. This is a
+ground-up build, not an extension of partial scaffolding.
+
+- **Nothing Mach exists.** `SERVICE_SLOT`, `bootstrap_check_in`,
+  `bootstrap_look_up`, `audit_token`, `xpc_*`, and `mach_msg` appear nowhere in
+  the tree outside the operator packet itself. Every element of fact_3 and
+  fact_4 is new code with no regression to extend.
+- **The attended launch passes argv and nothing else.** `launch_attended_application`
+  in `src/app/src/designated_live_macos_supervisor.cpp` spawns the app suspended,
+  compares static and dynamic signing identity by PID, revalidates the retained
+  executable identity, and resumes — but hands the child only
+  `--attended-designated-live-approval <path>`. The child therefore has no
+  parent-provenance signal at all. `launch_harmless_probe` in the same file does
+  have a `socketpair` challenge on fd 3; the two functions are not unified, and
+  whether to unify them is an open design seam.
+- **The grant bootstrap runs after `QApplication`, not before.** `main` calls the
+  preflight probe before constructing `QApplication`, but the attended approval
+  is not parsed until well after, and `designated_review_authority_bootstrap::run`
+  is reached only from the `github_application::implementation` constructor,
+  which `main` builds after Qt setup. Satisfying fact_4's "before QApplication or
+  public observation" is an ordering change to `main`, not a local edit.
+- **The approval subject binds no supervisor or inventory identity.**
+  `designated_review_approval_subject` binds schema, statement, application and
+  source digests, approval ID, build configuration and testing flags, the three
+  replay fields, and the fixed target identity. `designated_review_bootstrap_request`
+  has no supervisor, capsule, or inventory field. fact_5 requires adding both.
+- **Nested capsule coverage is check-time only.** `scripts/designated_live_macos_capsule.py`
+  walks the capsule recursively and its inventory covers every nested file,
+  directory, and symlink, and `verify_inventory` compares a fresh recursive walk.
+  But that runs in a Python subprocess that has already exited before the child
+  is resumed, and the supervisor's own post-verification identity checks cover
+  only the top-level application executable. Nothing revalidates a nested dylib,
+  framework, or plugin between static verification and `dyld` loading it. That
+  window is the check/use gap this card names.
+- **No test exercises the C++ supervisor.** `designated_live_macos_capsule_contract`
+  tests the Python script's functions directly; `application_attended_launch_contract`
+  exercises an unrelated tests-enabled fixture flag. The only test reaching
+  `designated_review_authority_bootstrap::run` is
+  `application_designated_review_authority_bootstrap`. A new test surface for the
+  supervisor's authentication logic is required, and whether it is a unit target
+  or only an end-to-end capsule course is an open design seam.
+- **Digest re-pinning is mechanically required.** Any change to
+  `src/app/main.cpp`, `src/app/src/github_application.cpp`, or the `src/app` file
+  set drifts the pinned digests and file inventory in
+  `tests/end_to_end/application_review_round_trip_composition_contract.cmake`,
+  exactly as BPR-0261 hit.
+- **Signing is ad-hoc, with no entitlements.** The capsule is signed
+  `codesign --force --sign - --timestamp=none` with no hardened runtime and no
+  entitlements plist anywhere in the repository. The existing
+  `SecCodeCopyGuestWithAttributes` guest lookup works under that signing, but
+  nothing in the tree establishes whether Mach port registration and audit-trailer
+  validation also do. That is an open uncertainty to probe first, not a confirmed
+  blocker.
+- Exceeding any of the seven approved facts — in particular fact_3's prohibition
+  on any argv, environment, PID-only, nonce-only, generic-pipe, or persistent-state
+  fallback — invalidates the approval outright. It is a hard non-goal, not a
+  preference.
