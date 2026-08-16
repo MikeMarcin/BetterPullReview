@@ -1,7 +1,7 @@
 ---
 id: BPR-0313
 title: Demonstrate deliberate credential-free native HTTPS
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: [BPR-0297]
 ---
