@@ -1,0 +1,407 @@
+{
+    "added_role": "#ff04580f",
+    "appearance": "high-contrast-dark",
+    "base_blob": "b995e189fb58da146945e1fb22380cdf4a7f4e47",
+    "base_commit": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc",
+    "comparison_height_ratio_permille": 918,
+    "comparison_pixel_height": 918,
+    "comparison_pixel_width": 1262,
+    "comparison_rect_in_window": {
+        "height": 918,
+        "width": 1262,
+        "x": 0,
+        "y": 60
+    },
+    "comparison_width_ratio_permille": 985,
+    "conversations_drawer_rect_in_splitter": {
+        "height": 939,
+        "width": 64,
+        "x": 1280,
+        "y": 0
+    },
+    "conversations_drawer_toggle_exercised": true,
+    "conversations_drawer_visible": false,
+    "conversations_toggle_rect_in_row": {
+        "height": 31,
+        "width": 32,
+        "x": 1244,
+        "y": 4
+    },
+    "device_pixel_ratio": 1,
+    "epoch_controls_visible": false,
+    "files_drawer_rect_in_splitter": {
+        "height": 939,
+        "width": 64,
+        "x": 0,
+        "y": 0
+    },
+    "files_drawer_toggle_exercised": true,
+    "files_drawer_visible": false,
+    "files_toggle_rect_in_row": {
+        "height": 31,
+        "width": 32,
+        "x": 4,
+        "y": 4
+    },
+    "fixture_diff_helper_invocations": 0,
+    "full_window_rect": {
+        "height": 1000,
+        "width": 1280,
+        "x": 0,
+        "y": 0
+    },
+    "gutter_rect_in_window": {
+        "height": 918,
+        "width": 56,
+        "x": 603,
+        "y": 60
+    },
+    "head_blob": "6335c1b2e14cd5e63142ce1dfc283fcf538fb134",
+    "head_commit": "e40058be7d5fe319342dffb567ce30e42bc6f4de",
+    "intraline_edit_count": 5,
+    "left_horizontal_offset": 230,
+    "left_pane_rect_in_window": {
+        "height": 898,
+        "width": 601,
+        "x": 1,
+        "y": 61
+    },
+    "logical_height": 1000,
+    "logical_width": 1280,
+    "navigation_accessible_names_unique": true,
+    "navigation_actions_accessible": true,
+    "navigation_actions_have_native_icons": true,
+    "navigation_actions_icon_only": true,
+    "navigation_icon_contrast": {
+        "next_change": {
+            "background": "#ff000000",
+            "disabled_contrast_hundredths": 524,
+            "disabled_foreground": "#ff7f7f7f",
+            "disabled_foreground_pixels": 80,
+            "normal_contrast_hundredths": 2100,
+            "normal_foreground": "#ffffffff",
+            "normal_foreground_pixels": 92,
+            "states_distinct": true
+        },
+        "next_file": {
+            "background": "#ff000000",
+            "disabled_contrast_hundredths": 524,
+            "disabled_foreground": "#ff7f7f7f",
+            "disabled_foreground_pixels": 80,
+            "normal_contrast_hundredths": 2100,
+            "normal_foreground": "#ffffffff",
+            "normal_foreground_pixels": 92,
+            "states_distinct": true
+        },
+        "previous_change": {
+            "background": "#ff000000",
+            "disabled_contrast_hundredths": 524,
+            "disabled_foreground": "#ff7f7f7f",
+            "disabled_foreground_pixels": 80,
+            "normal_contrast_hundredths": 2100,
+            "normal_foreground": "#ffffffff",
+            "normal_foreground_pixels": 92,
+            "states_distinct": true
+        },
+        "previous_file": {
+            "background": "#ff000000",
+            "disabled_contrast_hundredths": 524,
+            "disabled_foreground": "#ff7f7f7f",
+            "disabled_foreground_pixels": 80,
+            "normal_contrast_hundredths": 2100,
+            "normal_foreground": "#ffffffff",
+            "normal_foreground_pixels": 92,
+            "states_distinct": true
+        }
+    },
+    "navigation_icons_palette_aware": true,
+    "navigation_row_exact_order": true,
+    "navigation_row_rect_in_window": {
+        "height": 39,
+        "width": 1280,
+        "x": 0,
+        "y": 0
+    },
+    "next_change_navigation_exercised": true,
+    "next_change_rect_in_row": {
+        "height": 31,
+        "width": 32,
+        "x": 136,
+        "y": 4
+    },
+    "next_file_navigation_exercised": true,
+    "next_file_rect_in_row": {
+        "height": 31,
+        "width": 32,
+        "x": 70,
+        "y": 4
+    },
+    "pixel_height": 1000,
+    "pixel_width": 1280,
+    "previous_change_navigation_exercised": true,
+    "previous_change_rect_in_row": {
+        "height": 31,
+        "width": 32,
+        "x": 103,
+        "y": 4
+    },
+    "previous_file_navigation_exercised": true,
+    "previous_file_rect_in_row": {
+        "height": 31,
+        "width": 32,
+        "x": 37,
+        "y": 4
+    },
+    "private_progress_rect_in_row": {
+        "height": 31,
+        "width": 48,
+        "x": 211,
+        "y": 4
+    },
+    "qt_platform": "offscreen",
+    "qt_version": "6.11.1",
+    "removed_role": "#ff750115",
+    "replacement_28_to_24": {
+        "change_index": 1,
+        "connector": {
+            "bounds": {
+                "height": 15,
+                "width": 56,
+                "x": 0,
+                "y": 375
+            },
+            "contrast_floor_hundredths": 300,
+            "contrast_pixels": 250,
+            "dominant_path_pixel": "#ff314f78",
+            "dominant_path_pixels": 702,
+            "end": {
+                "x": 56,
+                "y": 375
+            },
+            "gutter_background": "#ff000000",
+            "left_endpoint_at_pane_edge": true,
+            "left_target_row_overlap": true,
+            "median_contrast_hundredths": 252,
+            "right_endpoint_at_pane_edge": true,
+            "right_target_row_overlap": true,
+            "sampled_path_pixels": 1008,
+            "start": {
+                "x": 0,
+                "y": 375
+            },
+            "state": "selected"
+        },
+        "group": "b4c07943900c2dc81af3fbac864ef96833eacd2a0e57fb1cbc2ff708835c1981",
+        "left_line": 108,
+        "left_rect_in_pane": {
+            "height": 15,
+            "width": 9,
+            "x": 446,
+            "y": 375
+        },
+        "left_role_pixels": 49,
+        "right_line": 109,
+        "right_rect_in_pane": {
+            "height": 15,
+            "width": 8,
+            "x": 446,
+            "y": 375
+        },
+        "right_role_pixels": 68,
+        "segment": "119d197adf3fce145f540bf1cafde170c9c91c6c2ddd1dea4a8f5eb3f3d3749e",
+        "selected_connector": {
+            "bounds": {
+                "height": 15,
+                "width": 56,
+                "x": 0,
+                "y": 375
+            },
+            "contrast_floor_hundredths": 300,
+            "contrast_pixels": 250,
+            "dominant_path_pixel": "#ff314f78",
+            "dominant_path_pixels": 702,
+            "end": {
+                "x": 56,
+                "y": 375
+            },
+            "gutter_background": "#ff000000",
+            "left_endpoint_at_pane_edge": true,
+            "left_target_row_overlap": true,
+            "median_contrast_hundredths": 252,
+            "right_endpoint_at_pane_edge": true,
+            "right_target_row_overlap": true,
+            "sampled_path_pixels": 1008,
+            "start": {
+                "x": 0,
+                "y": 375
+            },
+            "state": "selected"
+        },
+        "selected_left_role_pixels": 49,
+        "selected_observed": true,
+        "selected_right_role_pixels": 68,
+        "unselected_connector": {
+            "bounds": {
+                "height": 15,
+                "width": 56,
+                "x": 0,
+                "y": 345
+            },
+            "contrast_floor_hundredths": 300,
+            "contrast_pixels": 840,
+            "dominant_path_pixel": "#ff909090",
+            "dominant_path_pixels": 840,
+            "end": {
+                "x": 56,
+                "y": 345
+            },
+            "gutter_background": "#ff000000",
+            "left_endpoint_at_pane_edge": true,
+            "left_target_row_overlap": true,
+            "median_contrast_hundredths": 657,
+            "right_endpoint_at_pane_edge": true,
+            "right_target_row_overlap": true,
+            "sampled_path_pixels": 1008,
+            "start": {
+                "x": 0,
+                "y": 345
+            },
+            "state": "unselected"
+        }
+    },
+    "replacement_42_to_36": {
+        "change_index": 2,
+        "connector": {
+            "bounds": {
+                "height": 15,
+                "width": 56,
+                "x": 0,
+                "y": 405
+            },
+            "contrast_floor_hundredths": 300,
+            "contrast_pixels": 840,
+            "dominant_path_pixel": "#ff909090",
+            "dominant_path_pixels": 840,
+            "end": {
+                "x": 56,
+                "y": 405
+            },
+            "gutter_background": "#ff000000",
+            "left_endpoint_at_pane_edge": true,
+            "left_target_row_overlap": true,
+            "median_contrast_hundredths": 657,
+            "right_endpoint_at_pane_edge": true,
+            "right_target_row_overlap": true,
+            "sampled_path_pixels": 1008,
+            "start": {
+                "x": 0,
+                "y": 405
+            },
+            "state": "unselected"
+        },
+        "group": "63cc7178bba9e56dbf7caec73290d64e5eac4aba467e322d26309ce7bfd7ef57",
+        "left_line": 110,
+        "left_rect_in_pane": {
+            "height": 15,
+            "width": 16,
+            "x": 147,
+            "y": 405
+        },
+        "left_role_pixels": 133,
+        "right_line": 111,
+        "right_rect_in_pane": {
+            "height": 15,
+            "width": 16,
+            "x": 147,
+            "y": 405
+        },
+        "right_role_pixels": 112,
+        "segment": "1a2fc71e426531f0b8532818f9d2c9ea5c06da1eb92e16e5c47cc2b322e96235",
+        "selected_connector": {
+            "bounds": {
+                "height": 15,
+                "width": 56,
+                "x": 0,
+                "y": 375
+            },
+            "contrast_floor_hundredths": 300,
+            "contrast_pixels": 250,
+            "dominant_path_pixel": "#ff002d6c",
+            "dominant_path_pixels": 702,
+            "end": {
+                "x": 56,
+                "y": 375
+            },
+            "gutter_background": "#ff000000",
+            "left_endpoint_at_pane_edge": true,
+            "left_target_row_overlap": true,
+            "median_contrast_hundredths": 159,
+            "right_endpoint_at_pane_edge": true,
+            "right_target_row_overlap": true,
+            "sampled_path_pixels": 1008,
+            "start": {
+                "x": 0,
+                "y": 375
+            },
+            "state": "selected"
+        },
+        "selected_left_role_pixels": 133,
+        "selected_observed": true,
+        "selected_right_role_pixels": 112,
+        "unselected_connector": {
+            "bounds": {
+                "height": 15,
+                "width": 56,
+                "x": 0,
+                "y": 405
+            },
+            "contrast_floor_hundredths": 300,
+            "contrast_pixels": 840,
+            "dominant_path_pixel": "#ff909090",
+            "dominant_path_pixels": 840,
+            "end": {
+                "x": 56,
+                "y": 405
+            },
+            "gutter_background": "#ff000000",
+            "left_endpoint_at_pane_edge": true,
+            "left_target_row_overlap": true,
+            "median_contrast_hundredths": 657,
+            "right_endpoint_at_pane_edge": true,
+            "right_target_row_overlap": true,
+            "sampled_path_pixels": 1008,
+            "start": {
+                "x": 0,
+                "y": 405
+            },
+            "state": "unselected"
+        }
+    },
+    "review_details_rect_in_row": {
+        "height": 31,
+        "width": 32,
+        "x": 178,
+        "y": 4
+    },
+    "review_details_rect_in_window": {
+        "height": 220,
+        "width": 1280,
+        "x": 0,
+        "y": 39
+    },
+    "review_details_visible": false,
+    "right_horizontal_offset": 230,
+    "right_pane_rect_in_window": {
+        "height": 898,
+        "width": 601,
+        "x": 660,
+        "y": 61
+    },
+    "schema": "bpr.uiforetw_intraline_capture.v4",
+    "selected_change_detail_visible": false,
+    "selected_change_index": 1,
+    "selected_group": "b4c07943900c2dc81af3fbac864ef96833eacd2a0e57fb1cbc2ff708835c1981",
+    "selected_path": "UIforETW/UIforETW.rc",
+    "selected_segment": "119d197adf3fce145f540bf1cafde170c9c91c6c2ddd1dea4a8f5eb3f3d3749e",
+    "style": "QFusionStyle"
+}

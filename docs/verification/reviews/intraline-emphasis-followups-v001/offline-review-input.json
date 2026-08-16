@@ -1,0 +1,429 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Intraline emphasis follow-ups (BPR-0321, BPR-0322)",
+  "review_gate": "intraline_emphasis_followups",
+  "review_scope": "human_ui_criterion_and_alternative_selection_only",
+  "downstream_claims": {
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0214_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "reference_disclaimer": "Two unrelated decisions in one sitting. The first is an ordinary accept or reject: the selected-row fix you asked for. The rest are three alternatives to a single question about one profile \u2014 pick exactly one, and the others are recorded as not chosen rather than defective. The second decision exists because the batch that chose the current palette measured strength and text contrast but never measured colour vision, and in high-contrast dark that omission left added and removed indistinguishable to a deuteranope. Captures are offscreen QFusionStyle at device pixel ratio 1; native artwork, issue closure, RFC closeout, and release readiness are outside this batch.",
+  "selection_groups": [
+    {
+      "group_id": "high-contrast-dark-pair",
+      "title": "Which high-contrast dark pair should ship?",
+      "min_accept": 1,
+      "max_accept": 1
+    }
+  ],
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0321/selected-row-emphasis",
+      "subject_key": "selected-row-emphasis",
+      "display_name": "A selected row's mark now wears the row's own wash",
+      "description": "You reported that a blue selected row still got a red or green patch stamped inside it. The mark now takes the same selection wash the row takes, so it stays a deeper shade of whatever the row is wearing. Look at the top row in each capture: it is the selected one, and its changed digits should now read as part of that band rather than as a foreign colour sitting on it. The rows below it are unselected and must still show exactly the salmon and green you accepted.",
+      "acceptance_criteria": [
+        "On the selected row, the changed characters read as part of the selection band",
+        "The changed characters are still findable on the selected row",
+        "Unselected rows are unchanged from the palette you accepted",
+        "The effect holds in all four appearance profiles"
+      ],
+      "known_concerns": [
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork.",
+        "The moved-row half of your report is not included because it cannot occur: intraline edits exist only for similar pairs, which come only from replacement segments, and move detection marks only left-only and right-only segments. A moved row cannot carry a mark today.",
+        "Between 70 and 79 percent of each mark's separation survives the wash, measured, and text on the washed mark stays above the emphasis floor in every profile."
+      ],
+      "audit_verdict": {
+        "status": "pass",
+        "note": "dev 186/186 and core-only 86/86 at this commit, format and strict clang-tidy clean. A test asserts the washed mark and fails when the wash is removed."
+      },
+      "media_groups": [
+        {
+          "group_id": "selected-row",
+          "title": "Selected row, all four profiles",
+          "required": true,
+          "layout": "grid",
+          "note": "The top highlighted row is selected. Compare its changed digits against the unselected rows beneath it.",
+          "items": [
+            {
+              "label": "Light \u2014 changed characters",
+              "path": "captures/selected-row/light-comparison.png"
+            },
+            {
+              "label": "Dark \u2014 changed characters",
+              "path": "captures/selected-row/dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Light \u2014 changed characters",
+              "path": "captures/selected-row/high-contrast-light-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark \u2014 changed characters",
+              "path": "captures/selected-row/high-contrast-dark-comparison.png"
+            }
+          ]
+        },
+        {
+          "group_id": "selected-row-window",
+          "title": "Whole window",
+          "required": false,
+          "layout": "grid",
+          "items": [
+            {
+              "label": "Light \u2014 whole window",
+              "path": "captures/selected-row/light-full-window.png"
+            },
+            {
+              "label": "Dark \u2014 whole window",
+              "path": "captures/selected-row/dark-full-window.png"
+            },
+            {
+              "label": "High-contrast Light \u2014 whole window",
+              "path": "captures/selected-row/high-contrast-light-full-window.png"
+            },
+            {
+              "label": "High-contrast Dark \u2014 whole window",
+              "path": "captures/selected-row/high-contrast-dark-full-window.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Separation through the wash",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Light",
+              "definition": "added 38.3 \u2192 28.2, removed 20.7 \u2192 14.5"
+            },
+            {
+              "term": "Dark",
+              "definition": "added 20.6 \u2192 15.1, removed 21.2 \u2192 16.2"
+            },
+            {
+              "term": "High-contrast Light",
+              "definition": "added 38.0 \u2192 27.3, removed 20.3 \u2192 14.8"
+            },
+            {
+              "term": "High-contrast Dark",
+              "definition": "added 20.1 \u2192 15.5, removed 20.5 \u2192 16.2"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "path": "captures/selected-row/light-capture-facts.json"
+        },
+        {
+          "label": "Dark capture facts",
+          "path": "captures/selected-row/dark-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "path": "captures/selected-row/high-contrast-light-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "path": "captures/selected-row/high-contrast-dark-capture-facts.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d0",
+      "subject_key": "high-contrast-dark-d0",
+      "display_name": "Keep the colours you already picked",
+      "description": "No change to any colour. High-contrast dark keeps the pair you selected, and a deuteranope keeps being unable to tell an added span from a removed one in that profile. Only the high-contrast dark profile differs between these three; the other profiles are identical in all of them and are included so you can confirm nothing else moved.",
+      "acceptance_criteria": [
+        "Added and removed intraline marks are tellable apart in high-contrast dark",
+        "Both marks are visible against their row fills",
+        "The code on the marks is comfortable to read",
+        "The other three profiles are unchanged"
+      ],
+      "known_concerns": [
+        "Nothing changes anywhere; every profile stays exactly as accepted.",
+        "The colour-vision gap stays open and stays recorded as a known defect.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork.",
+        "Deuteranopia separation 5.7 against a published floor of 10.0."
+      ],
+      "selection_group": "high-contrast-dark-pair",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Rendered through the real UIforETW course in all four profiles. Added #04580F separation 20.1, removed #750115 separation 20.5."
+      },
+      "media_groups": [
+        {
+          "group_id": "hcd",
+          "title": "High-contrast dark \u2014 the profile under review",
+          "required": true,
+          "layout": "grid",
+          "note": "This is the only profile that differs between the three options. Can you tell the left marks from the right ones?",
+          "items": [
+            {
+              "label": "High-contrast Dark \u2014 changed characters",
+              "path": "captures/D0/high-contrast-dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark \u2014 whole window",
+              "path": "captures/D0/high-contrast-dark-full-window.png"
+            }
+          ]
+        },
+        {
+          "group_id": "unchanged",
+          "title": "The other three profiles, unchanged",
+          "required": false,
+          "layout": "grid",
+          "items": [
+            {
+              "label": "Light \u2014 changed characters",
+              "path": "captures/D0/light-comparison.png"
+            },
+            {
+              "label": "Dark \u2014 changed characters",
+              "path": "captures/D0/dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Light \u2014 changed characters",
+              "path": "captures/D0/high-contrast-light-comparison.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Added emphasis",
+              "definition": "#04580F, separation 20.1 from its row, tightest syntax role 4.65:1"
+            },
+            {
+              "term": "Removed emphasis",
+              "definition": "#750115, separation 20.5 from its row, tightest syntax role 6.32:1"
+            },
+            {
+              "term": "Added against removed, typical vision",
+              "definition": "84.3"
+            },
+            {
+              "term": "Added against removed, protanopia",
+              "definition": "38.6"
+            },
+            {
+              "term": "Added against removed, deuteranopia",
+              "definition": "5.7 against a floor of 10.0 \u2014 fails"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "High-contrast Dark capture facts",
+          "path": "captures/D0/high-contrast-dark-capture-facts.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d1",
+      "subject_key": "high-contrast-dark-d1",
+      "display_name": "Plum removed, restores the most separation",
+      "description": "Moves high-contrast dark's removed emphasis from red toward plum and its added toward a purer green. The largest colour-vision margin of the three, and the largest departure from the red you picked. Only the high-contrast dark profile differs between these three; the other profiles are identical in all of them and are included so you can confirm nothing else moved.",
+      "acceptance_criteria": [
+        "Added and removed intraline marks are tellable apart in high-contrast dark",
+        "Both marks are visible against their row fills",
+        "The code on the marks is comfortable to read",
+        "The other three profiles are unchanged"
+      ],
+      "known_concerns": [
+        "The removed emphasis stops reading as red in this one profile.",
+        "Text contrast improves on the added side and drops slightly on the removed.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork.",
+        "Deuteranopia separation 21.6 against a published floor of 10.0."
+      ],
+      "selection_group": "high-contrast-dark-pair",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Rendered through the real UIforETW course in all four profiles. Added #005200 separation 20.0, removed #782A3E separation 22.3."
+      },
+      "media_groups": [
+        {
+          "group_id": "hcd",
+          "title": "High-contrast dark \u2014 the profile under review",
+          "required": true,
+          "layout": "grid",
+          "note": "This is the only profile that differs between the three options. Can you tell the left marks from the right ones?",
+          "items": [
+            {
+              "label": "High-contrast Dark \u2014 changed characters",
+              "path": "captures/D1/high-contrast-dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark \u2014 whole window",
+              "path": "captures/D1/high-contrast-dark-full-window.png"
+            }
+          ]
+        },
+        {
+          "group_id": "unchanged",
+          "title": "The other three profiles, unchanged",
+          "required": false,
+          "layout": "grid",
+          "items": [
+            {
+              "label": "Light \u2014 changed characters",
+              "path": "captures/D1/light-comparison.png"
+            },
+            {
+              "label": "Dark \u2014 changed characters",
+              "path": "captures/D1/dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Light \u2014 changed characters",
+              "path": "captures/D1/high-contrast-light-comparison.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Added emphasis",
+              "definition": "#005200, separation 20.0 from its row, tightest syntax role 5.07:1"
+            },
+            {
+              "term": "Removed emphasis",
+              "definition": "#782A3E, separation 22.3 from its row, tightest syntax role 5.09:1"
+            },
+            {
+              "term": "Added against removed, typical vision",
+              "definition": "79.8"
+            },
+            {
+              "term": "Added against removed, protanopia",
+              "definition": "47.8"
+            },
+            {
+              "term": "Added against removed, deuteranopia",
+              "definition": "21.6 against a floor of 10.0 \u2014 clears"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "High-contrast Dark capture facts",
+          "path": "captures/D1/high-contrast-dark-capture-facts.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d2",
+      "subject_key": "high-contrast-dark-d2",
+      "display_name": "Keep red, shift the green",
+      "description": "Holds high-contrast dark's removed emphasis as a true red and moves the added side toward olive instead. Clears the colour-vision floor with less margin than the plum option, and keeps added/removed reading as green/red. Only the high-contrast dark profile differs between these three; the other profiles are identical in all of them and are included so you can confirm nothing else moved.",
+      "acceptance_criteria": [
+        "Added and removed intraline marks are tellable apart in high-contrast dark",
+        "Both marks are visible against their row fills",
+        "The code on the marks is comfortable to read",
+        "The other three profiles are unchanged"
+      ],
+      "known_concerns": [
+        "The added emphasis reads olive rather than green in this one profile.",
+        "Smallest colour-vision margin of the two repairs, still above the floor.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork.",
+        "Deuteranopia separation 10.6 against a published floor of 10.0."
+      ],
+      "selection_group": "high-contrast-dark-pair",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Rendered through the real UIforETW course in all four profiles. Added #394200 separation 20.0, removed #872427 separation 23.6."
+      },
+      "media_groups": [
+        {
+          "group_id": "hcd",
+          "title": "High-contrast dark \u2014 the profile under review",
+          "required": true,
+          "layout": "grid",
+          "note": "This is the only profile that differs between the three options. Can you tell the left marks from the right ones?",
+          "items": [
+            {
+              "label": "High-contrast Dark \u2014 changed characters",
+              "path": "captures/D2/high-contrast-dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark \u2014 whole window",
+              "path": "captures/D2/high-contrast-dark-full-window.png"
+            }
+          ]
+        },
+        {
+          "group_id": "unchanged",
+          "title": "The other three profiles, unchanged",
+          "required": false,
+          "layout": "grid",
+          "items": [
+            {
+              "label": "Light \u2014 changed characters",
+              "path": "captures/D2/light-comparison.png"
+            },
+            {
+              "label": "Dark \u2014 changed characters",
+              "path": "captures/D2/dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Light \u2014 changed characters",
+              "path": "captures/D2/high-contrast-light-comparison.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Added emphasis",
+              "definition": "#394200, separation 20.0 from its row, tightest syntax role 5.73:1"
+            },
+            {
+              "term": "Removed emphasis",
+              "definition": "#872427, separation 23.6 from its row, tightest syntax role 4.84:1"
+            },
+            {
+              "term": "Added against removed, typical vision",
+              "definition": "56.1"
+            },
+            {
+              "term": "Added against removed, protanopia",
+              "definition": "26.9"
+            },
+            {
+              "term": "Added against removed, deuteranopia",
+              "definition": "10.6 against a floor of 10.0 \u2014 clears"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "High-contrast Dark capture facts",
+          "path": "captures/D2/high-contrast-dark-capture-facts.json"
+        }
+      ]
+    }
+  ]
+}

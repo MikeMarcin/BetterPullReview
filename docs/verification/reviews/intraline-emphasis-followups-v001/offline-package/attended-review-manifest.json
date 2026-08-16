@@ -1,0 +1,507 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/f1db1ba708cfed928b632d9f",
+  "downstream_claims": {
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "Two unrelated decisions in one sitting. The first is an ordinary accept or reject: the selected-row fix you asked for. The rest are three alternatives to a single question about one profile — pick exactly one, and the others are recorded as not chosen rather than defective. The second decision exists because the batch that chose the current palette measured strength and text contrast but never measured colour vision, and in high-contrast dark that omission left added and removed indistinguishable to a deuteranope. Captures are offscreen QFusionStyle at device pixel ratio 1; native artwork, issue closure, RFC closeout, and release readiness are outside this batch.",
+  "review_gate": "intraline_emphasis_followups",
+  "review_scope": "human_ui_criterion_and_alternative_selection_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "selection_groups": [
+    {
+      "group_id": "high-contrast-dark-pair",
+      "max_accept": 1,
+      "min_accept": 1,
+      "note": "",
+      "title": "Which high-contrast dark pair should ship?"
+    }
+  ],
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "On the selected row, the changed characters read as part of the selection band",
+        "The changed characters are still findable on the selected row",
+        "Unselected rows are unchanged from the palette you accepted",
+        "The effect holds in all four appearance profiles"
+      ],
+      "audit_verdict": {
+        "note": "dev 186/186 and core-only 86/86 at this commit, format and strict clang-tidy clean. A test asserts the washed mark and fails when the wash is removed.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "You reported that a blue selected row still got a red or green patch stamped inside it. The mark now takes the same selection wash the row takes, so it stays a deeper shade of whatever the row is wearing. Look at the top row in each capture: it is the selected one, and its changed digits should now read as part of that band rather than as a foreign colour sitting on it. The rows below it are unselected and must still show exactly the salmon and green you accepted.",
+      "detail_sections": [
+        {
+          "heading": "Separation through the wash",
+          "items": [
+            {
+              "definition": "added 38.3 → 28.2, removed 20.7 → 14.5",
+              "term": "Light"
+            },
+            {
+              "definition": "added 20.6 → 15.1, removed 21.2 → 16.2",
+              "term": "Dark"
+            },
+            {
+              "definition": "added 38.0 → 27.3, removed 20.3 → 14.8",
+              "term": "High-contrast Light"
+            },
+            {
+              "definition": "added 20.1 → 15.5, removed 20.5 → 16.2",
+              "term": "High-contrast Dark"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "A selected row's mark now wears the row's own wash",
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-selected-row-emphasis/identity/01-light-capture-facts.json",
+          "sha256": "sha256:838626e690c1a3975ebec2bfedd8905d8e221ced5e5327e067a788b04038f42a"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-selected-row-emphasis/identity/02-dark-capture-facts.json",
+          "sha256": "sha256:f0b95c272e596c9cc720d9e72e71fe8a8e73995cd00e5d82bcaaf705f6a35684"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-selected-row-emphasis/identity/03-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:4e3247cd88c88936e039632cd5f4eaa7fbe9e0aa34a193bca46764e7881028a3"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-selected-row-emphasis/identity/04-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:e7ec67be11dab0fcc12717c6d999eb7face4f866c44196800da3e5463066646e"
+        }
+      ],
+      "known_concerns": [
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork.",
+        "The moved-row half of your report is not included because it cannot occur: intraline edits exist only for similar pairs, which come only from replacement segments, and move detection marks only left-only and right-only segments. A moved row cannot carry a mark today.",
+        "Between 70 and 79 percent of each mark's separation survives the wash, measured, and text on the washed mark stays above the emphasis floor in every profile."
+      ],
+      "media_groups": [
+        {
+          "group_id": "selected-row",
+          "items": [
+            {
+              "label": "Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-selected-row-emphasis/selected-row/01-light-changed-characters.png",
+              "sha256": "sha256:900be118a6072a15520a3f17976d4bdd1bd0b94333f9ca91d6c61da93eec0b6d"
+            },
+            {
+              "label": "Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-selected-row-emphasis/selected-row/02-dark-changed-characters.png",
+              "sha256": "sha256:6fb3350a97289440aea6817332ad70cd2196a09c6dc7ed3d83211c159c4637e6"
+            },
+            {
+              "label": "High-contrast Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-selected-row-emphasis/selected-row/03-high-contrast-light-changed-characters.png",
+              "sha256": "sha256:4a181abe4f44fc150f445ca4af6cfc1e6ef7e90c75036e41b910b03bfa7d44d2"
+            },
+            {
+              "label": "High-contrast Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-selected-row-emphasis/selected-row/04-high-contrast-dark-changed-characters.png",
+              "sha256": "sha256:c37e97d063360777ccf5e1e9d6d19722c8d0f6d4579b725d374f44ad3e8ad20d"
+            }
+          ],
+          "layout": "grid",
+          "note": "The top highlighted row is selected. Compare its changed digits against the unselected rows beneath it.",
+          "required": true,
+          "title": "Selected row, all four profiles"
+        },
+        {
+          "group_id": "selected-row-window",
+          "items": [
+            {
+              "label": "Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-selected-row-emphasis/selected-row-window/01-light-whole-window.png",
+              "sha256": "sha256:6a740a44d9468961dce404763d762e61a4e21212e8665c8939afeacc7dafbeb6"
+            },
+            {
+              "label": "Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-selected-row-emphasis/selected-row-window/02-dark-whole-window.png",
+              "sha256": "sha256:bd6905eee81f7885116e1a0e512af305270b784c132e03ecd9d9b4aba0aa79d0"
+            },
+            {
+              "label": "High-contrast Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-selected-row-emphasis/selected-row-window/03-high-contrast-light-whole-window.png",
+              "sha256": "sha256:e34f05855652888e45f08084ee89567d920f04cd09405ce71dc98a35a3660d36"
+            },
+            {
+              "label": "High-contrast Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-selected-row-emphasis/selected-row-window/04-high-contrast-dark-whole-window.png",
+              "sha256": "sha256:a29c8141803abe6a4c43f7c49107286124d59bde5faee97b789dcd448f43b5c2"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": false,
+          "title": "Whole window"
+        }
+      ],
+      "subject_digest": "sha256:342e19a924e35005809484ca3dc122f6d71de7f5bf0fc33b70e6c0ef88244d4c",
+      "subject_id": "criterion:/betterpullreview/bpr-0321/selected-row-emphasis",
+      "subject_key": "selected-row-emphasis"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Added and removed intraline marks are tellable apart in high-contrast dark",
+        "Both marks are visible against their row fills",
+        "The code on the marks is comfortable to read",
+        "The other three profiles are unchanged"
+      ],
+      "audit_verdict": {
+        "note": "Rendered through the real UIforETW course in all four profiles. Added #04580F separation 20.1, removed #750115 separation 20.5.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "No change to any colour. High-contrast dark keeps the pair you selected, and a deuteranope keeps being unable to tell an added span from a removed one in that profile. Only the high-contrast dark profile differs between these three; the other profiles are identical in all of them and are included so you can confirm nothing else moved.",
+      "detail_sections": [
+        {
+          "heading": "Measured",
+          "items": [
+            {
+              "definition": "#04580F, separation 20.1 from its row, tightest syntax role 4.65:1",
+              "term": "Added emphasis"
+            },
+            {
+              "definition": "#750115, separation 20.5 from its row, tightest syntax role 6.32:1",
+              "term": "Removed emphasis"
+            },
+            {
+              "definition": "84.3",
+              "term": "Added against removed, typical vision"
+            },
+            {
+              "definition": "38.6",
+              "term": "Added against removed, protanopia"
+            },
+            {
+              "definition": "5.7 against a floor of 10.0 — fails",
+              "term": "Added against removed, deuteranopia"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "Keep the colours you already picked",
+      "identity_files": [
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/002-high-contrast-dark-d0/identity/01-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:a0db56e82ba8a3ed96deebf25b60bb51cf58bf73e40b3743f3f2dfd0fff1c0ff"
+        }
+      ],
+      "known_concerns": [
+        "Nothing changes anywhere; every profile stays exactly as accepted.",
+        "The colour-vision gap stays open and stays recorded as a known defect.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork.",
+        "Deuteranopia separation 5.7 against a published floor of 10.0."
+      ],
+      "media_groups": [
+        {
+          "group_id": "hcd",
+          "items": [
+            {
+              "label": "High-contrast Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-dark-d0/hcd/01-high-contrast-dark-changed-characters.png",
+              "sha256": "sha256:c37e97d063360777ccf5e1e9d6d19722c8d0f6d4579b725d374f44ad3e8ad20d"
+            },
+            {
+              "label": "High-contrast Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-dark-d0/hcd/02-high-contrast-dark-whole-window.png",
+              "sha256": "sha256:a29c8141803abe6a4c43f7c49107286124d59bde5faee97b789dcd448f43b5c2"
+            }
+          ],
+          "layout": "grid",
+          "note": "This is the only profile that differs between the three options. Can you tell the left marks from the right ones?",
+          "required": true,
+          "title": "High-contrast dark — the profile under review"
+        },
+        {
+          "group_id": "unchanged",
+          "items": [
+            {
+              "label": "Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-dark-d0/unchanged/01-light-changed-characters.png",
+              "sha256": "sha256:900be118a6072a15520a3f17976d4bdd1bd0b94333f9ca91d6c61da93eec0b6d"
+            },
+            {
+              "label": "Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-dark-d0/unchanged/02-dark-changed-characters.png",
+              "sha256": "sha256:6fb3350a97289440aea6817332ad70cd2196a09c6dc7ed3d83211c159c4637e6"
+            },
+            {
+              "label": "High-contrast Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-dark-d0/unchanged/03-high-contrast-light-changed-characters.png",
+              "sha256": "sha256:4a181abe4f44fc150f445ca4af6cfc1e6ef7e90c75036e41b910b03bfa7d44d2"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": false,
+          "title": "The other three profiles, unchanged"
+        }
+      ],
+      "selection_group": "high-contrast-dark-pair",
+      "subject_digest": "sha256:318e779e9866a8e134bce61d8fcc231213925a5733d93b563984ddbc3d9ca493",
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d0",
+      "subject_key": "high-contrast-dark-d0"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Added and removed intraline marks are tellable apart in high-contrast dark",
+        "Both marks are visible against their row fills",
+        "The code on the marks is comfortable to read",
+        "The other three profiles are unchanged"
+      ],
+      "audit_verdict": {
+        "note": "Rendered through the real UIforETW course in all four profiles. Added #005200 separation 20.0, removed #782A3E separation 22.3.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Moves high-contrast dark's removed emphasis from red toward plum and its added toward a purer green. The largest colour-vision margin of the three, and the largest departure from the red you picked. Only the high-contrast dark profile differs between these three; the other profiles are identical in all of them and are included so you can confirm nothing else moved.",
+      "detail_sections": [
+        {
+          "heading": "Measured",
+          "items": [
+            {
+              "definition": "#005200, separation 20.0 from its row, tightest syntax role 5.07:1",
+              "term": "Added emphasis"
+            },
+            {
+              "definition": "#782A3E, separation 22.3 from its row, tightest syntax role 5.09:1",
+              "term": "Removed emphasis"
+            },
+            {
+              "definition": "79.8",
+              "term": "Added against removed, typical vision"
+            },
+            {
+              "definition": "47.8",
+              "term": "Added against removed, protanopia"
+            },
+            {
+              "definition": "21.6 against a floor of 10.0 — clears",
+              "term": "Added against removed, deuteranopia"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "Plum removed, restores the most separation",
+      "identity_files": [
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/003-high-contrast-dark-d1/identity/01-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:4497d71b6dd2a39c249128a485c720a43645343939c91ab6ed800f772303c82d"
+        }
+      ],
+      "known_concerns": [
+        "The removed emphasis stops reading as red in this one profile.",
+        "Text contrast improves on the added side and drops slightly on the removed.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork.",
+        "Deuteranopia separation 21.6 against a published floor of 10.0."
+      ],
+      "media_groups": [
+        {
+          "group_id": "hcd",
+          "items": [
+            {
+              "label": "High-contrast Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/003-high-contrast-dark-d1/hcd/01-high-contrast-dark-changed-characters.png",
+              "sha256": "sha256:d42c20638b32d90fd684575e21a98c080a20e26f8ff1e1ac8a181d1c5c5c306d"
+            },
+            {
+              "label": "High-contrast Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/003-high-contrast-dark-d1/hcd/02-high-contrast-dark-whole-window.png",
+              "sha256": "sha256:690c9dcbb59f2b544d2a1d8e19a1062f827f7a4f6d544ecbefab5713d1be149b"
+            }
+          ],
+          "layout": "grid",
+          "note": "This is the only profile that differs between the three options. Can you tell the left marks from the right ones?",
+          "required": true,
+          "title": "High-contrast dark — the profile under review"
+        },
+        {
+          "group_id": "unchanged",
+          "items": [
+            {
+              "label": "Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/003-high-contrast-dark-d1/unchanged/01-light-changed-characters.png",
+              "sha256": "sha256:900be118a6072a15520a3f17976d4bdd1bd0b94333f9ca91d6c61da93eec0b6d"
+            },
+            {
+              "label": "Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/003-high-contrast-dark-d1/unchanged/02-dark-changed-characters.png",
+              "sha256": "sha256:6fb3350a97289440aea6817332ad70cd2196a09c6dc7ed3d83211c159c4637e6"
+            },
+            {
+              "label": "High-contrast Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/003-high-contrast-dark-d1/unchanged/03-high-contrast-light-changed-characters.png",
+              "sha256": "sha256:4a181abe4f44fc150f445ca4af6cfc1e6ef7e90c75036e41b910b03bfa7d44d2"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": false,
+          "title": "The other three profiles, unchanged"
+        }
+      ],
+      "selection_group": "high-contrast-dark-pair",
+      "subject_digest": "sha256:7b205c4f3d11376f798d1f7fa7ad66914c73241fbe5b60f3cde8b0c52c8454b9",
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d1",
+      "subject_key": "high-contrast-dark-d1"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Added and removed intraline marks are tellable apart in high-contrast dark",
+        "Both marks are visible against their row fills",
+        "The code on the marks is comfortable to read",
+        "The other three profiles are unchanged"
+      ],
+      "audit_verdict": {
+        "note": "Rendered through the real UIforETW course in all four profiles. Added #394200 separation 20.0, removed #872427 separation 23.6.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Holds high-contrast dark's removed emphasis as a true red and moves the added side toward olive instead. Clears the colour-vision floor with less margin than the plum option, and keeps added/removed reading as green/red. Only the high-contrast dark profile differs between these three; the other profiles are identical in all of them and are included so you can confirm nothing else moved.",
+      "detail_sections": [
+        {
+          "heading": "Measured",
+          "items": [
+            {
+              "definition": "#394200, separation 20.0 from its row, tightest syntax role 5.73:1",
+              "term": "Added emphasis"
+            },
+            {
+              "definition": "#872427, separation 23.6 from its row, tightest syntax role 4.84:1",
+              "term": "Removed emphasis"
+            },
+            {
+              "definition": "56.1",
+              "term": "Added against removed, typical vision"
+            },
+            {
+              "definition": "26.9",
+              "term": "Added against removed, protanopia"
+            },
+            {
+              "definition": "10.6 against a floor of 10.0 — clears",
+              "term": "Added against removed, deuteranopia"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "Keep red, shift the green",
+      "identity_files": [
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/004-high-contrast-dark-d2/identity/01-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:526ade4412b01e1c43475b57c4ba72b9e34d90bada6c9e0e6665b5d4a9dd5309"
+        }
+      ],
+      "known_concerns": [
+        "The added emphasis reads olive rather than green in this one profile.",
+        "Smallest colour-vision margin of the two repairs, still above the floor.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork.",
+        "Deuteranopia separation 10.6 against a published floor of 10.0."
+      ],
+      "media_groups": [
+        {
+          "group_id": "hcd",
+          "items": [
+            {
+              "label": "High-contrast Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/004-high-contrast-dark-d2/hcd/01-high-contrast-dark-changed-characters.png",
+              "sha256": "sha256:e720a8156749e7dda33bf01ae741d349f60dcea280ac9a2574287a7a19836ab3"
+            },
+            {
+              "label": "High-contrast Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/004-high-contrast-dark-d2/hcd/02-high-contrast-dark-whole-window.png",
+              "sha256": "sha256:3ce5d871acd86cb763518b53c4030053377723828bec1d5d6907e2a8e643c5a3"
+            }
+          ],
+          "layout": "grid",
+          "note": "This is the only profile that differs between the three options. Can you tell the left marks from the right ones?",
+          "required": true,
+          "title": "High-contrast dark — the profile under review"
+        },
+        {
+          "group_id": "unchanged",
+          "items": [
+            {
+              "label": "Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/004-high-contrast-dark-d2/unchanged/01-light-changed-characters.png",
+              "sha256": "sha256:900be118a6072a15520a3f17976d4bdd1bd0b94333f9ca91d6c61da93eec0b6d"
+            },
+            {
+              "label": "Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/004-high-contrast-dark-d2/unchanged/02-dark-changed-characters.png",
+              "sha256": "sha256:6fb3350a97289440aea6817332ad70cd2196a09c6dc7ed3d83211c159c4637e6"
+            },
+            {
+              "label": "High-contrast Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/004-high-contrast-dark-d2/unchanged/03-high-contrast-light-changed-characters.png",
+              "sha256": "sha256:4a181abe4f44fc150f445ca4af6cfc1e6ef7e90c75036e41b910b03bfa7d44d2"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": false,
+          "title": "The other three profiles, unchanged"
+        }
+      ],
+      "selection_group": "high-contrast-dark-pair",
+      "subject_digest": "sha256:863d1165bdb75d22c4c1f32ee0096dd4125b3b52616dbfbba253a5a3d9eb2b67",
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d2",
+      "subject_key": "high-contrast-dark-d2"
+    }
+  ],
+  "title": "Intraline emphasis follow-ups (BPR-0321, BPR-0322)"
+}
