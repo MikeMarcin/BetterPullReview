@@ -113,6 +113,12 @@ files, but neither earlier checkpoint ran the core tier it changed. In this
 matrix `core_agent_profile` (#52) and `core_agent_context_supplement` (#54)
 both passed.
 
+Strict `coding-tidy` passed the whole first-party tree at `4fc9a78` under
+`--warnings-as-errors=*`, with zero diagnostics across 884 lines of invocation
+log. The one translation unit it cannot reach is still
+`windows_agent_process.cpp`, absent from the macOS compilation database, which
+is target-native work and correctly deferred.
+
 The independent review returned **PORTABLE-WORK-REMAINS** and it is right. Four
 findings, each reproduced directly rather than taken on the reviewer's word:
 
