@@ -2109,8 +2109,8 @@ namespace {
 
 		{
 			epoch_state invalidSession;
-			const auto  before = invalidSession;
-			const auto  result = transition(
+			const auto  sessionBefore = invalidSession;
+			const auto  result        = transition(
 				invalidSession,
 				pull_request_revision_accepted_event{
 					.ApplicationSession = application_session_id{ },
@@ -2119,7 +2119,7 @@ namespace {
 				});
 			expect(
 				diagnostic_is(result, epoch_reason_code::invalid_revision)
-					&& invalidSession == before && result.Requests.empty(),
+					&& invalidSession == sessionBefore && result.Requests.empty(),
 				"zero application session cannot enter a host request context");
 		}
 
@@ -2197,8 +2197,8 @@ namespace {
 			for (const auto ineligible : { anchor_availability::pruned,
 										   anchor_availability::cache_deleted,
 										   anchor_availability::never_observed }) {
-				const auto state    = epochPair(ineligible, ineligible);
-				const auto commands = epoch_commands(state);
+				const auto ineligibleState = epochPair(ineligible, ineligible);
+				const auto commands        = epoch_commands(ineligibleState);
 				expect(!commands[2].Enabled
 						   && commands[2].DisabledReason
 							   == epoch_reason_code::invalid_maintenance_target

@@ -952,13 +952,13 @@ namespace bpr::adapters::sqlite::detail {
 
 #if defined(BPR_SQLITE_TESTING)
 	void set_review_ledger_preflight_boundary_hook_for_testing(
-		const preflight_test_hook aHook) noexcept
+		preflight_test_hook aHook) noexcept
 	{
 		PreflightBoundaryHook = aHook;
 	}
 
 	void set_review_ledger_preflight_cleanup_hook_for_testing(
-		const preflight_test_hook aHook) noexcept
+		preflight_test_hook aHook) noexcept
 	{
 		PreflightCleanupHook = aHook;
 	}

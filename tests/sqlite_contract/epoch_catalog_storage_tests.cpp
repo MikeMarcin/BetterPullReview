@@ -297,13 +297,13 @@ namespace {
 				"table inventory finalizes");
 
 			for (const auto& table : tables) {
-				const auto      query = "SELECT * FROM \"" + table + "\"";
-				::sqlite3_stmt* rows  = nullptr;
+				const auto      scanQuery = "SELECT * FROM \"" + table + "\"";
+				::sqlite3_stmt* rows      = nullptr;
 				expect(
 					::sqlite3_prepare_v3(
 						Handle,
-						query.c_str(),
-						static_cast<int>(query.size()),
+						scanQuery.c_str(),
+						static_cast<int>(scanQuery.size()),
 						SQLITE_PREPARE_NO_VTAB,
 						&rows,
 						nullptr)
@@ -646,7 +646,7 @@ namespace {
 			"relative storage roots fail closed");
 
 #if defined(_WIN32)
-		auto forward_spelling = cancelled_root.path().native();
+		auto forward_spelling = cancelledRoot.path().native();
 		std::ranges::replace(forward_spelling, L'\\', L'/');
 		expect_failure(
 			sqlite::make_epoch_catalog(
@@ -671,36 +671,36 @@ namespace {
 		expect_failure(
 			sqlite::make_epoch_catalog(
 				{ .StorageRoot = std::filesystem::path{
-					  cancelled_root.path().native() + L":alternate" } }),
+					  cancelledRoot.path().native() + L":alternate" } }),
 			app::epoch_catalog_failure::invalid_path, "alternate-data-stream Windows root fails closed");
 		expect_failure(
 			sqlite::make_epoch_catalog(
-				{ .StorageRoot = cancelled_root.path() / L"reserved." }),
+				{ .StorageRoot = cancelledRoot.path() / L"reserved." }),
 			app::epoch_catalog_failure::invalid_path,
 			"trailing-dot Windows component fails closed");
 		expect_failure(
 			sqlite::make_epoch_catalog(
-				{ .StorageRoot = cancelled_root.path() / L"reserved " }),
+				{ .StorageRoot = cancelledRoot.path() / L"reserved " }),
 			app::epoch_catalog_failure::invalid_path,
 			"trailing-space Windows component fails closed");
 		expect_failure(
 			sqlite::make_epoch_catalog(
-				{ .StorageRoot = cancelled_root.path() / L"CON" }),
+				{ .StorageRoot = cancelledRoot.path() / L"CON" }),
 			app::epoch_catalog_failure::invalid_path,
 			"reserved DOS device component fails closed");
-		const auto dot_spelling = cancelled_root.path().parent_path()
-			/ L"." / cancelled_root.path().filename();
+		const auto dot_spelling = cancelledRoot.path().parent_path()
+			/ L"." / cancelledRoot.path().filename();
 		expect_failure(
 			sqlite::make_epoch_catalog({ .StorageRoot = dot_spelling }),
 			app::epoch_catalog_failure::invalid_path,
 			"dot-containing Windows root fails closed");
-		const auto dotdot_spelling = cancelled_root.path()
+		const auto dotdot_spelling = cancelledRoot.path()
 			/ L"unused" / L"..";
 		expect_failure(
 			sqlite::make_epoch_catalog({ .StorageRoot = dotdot_spelling }),
 			app::epoch_catalog_failure::invalid_path,
 			"dot-dot-containing Windows root fails closed");
-		const auto drive     = cancelled_root.path().root_name().native();
+		const auto drive     = cancelledRoot.path().root_name().native();
 		const auto overbound = std::filesystem::path{
 			drive + L"\\" + std::wstring(33'000U, L'a')
 		};
@@ -759,7 +759,7 @@ namespace {
 #if defined(_WIN32)
 		expect(
 			test_platform::create_directory_junction(
-				state_link.path() / "state", target),
+				stateLink.path() / "state", target),
 			"directory junction fixture creates without symlink privilege");
 #else
 		std::filesystem::create_directory_symlink(target, stateLink.path() / "state");
@@ -788,7 +788,7 @@ namespace {
 			"database-link victim becomes owner-private");
 #if defined(_WIN32)
 		const auto link_result = test_platform::create_file_symbolic_link(
-			database_path(database_link.path()), victim);
+			database_path(databaseLink.path()), victim);
 		if (link_result
 			== test_platform::symbolic_link_result::privilege_unavailable) {
 			std::cout
@@ -799,7 +799,7 @@ namespace {
 				link_result == test_platform::symbolic_link_result::created,
 				"Windows file-symlink fixture creates");
 			expect_failure(
-				sqlite::make_epoch_catalog({ .StorageRoot = database_link.path() }),
+				sqlite::make_epoch_catalog({ .StorageRoot = databaseLink.path() }),
 				app::epoch_catalog_failure::invalid_path,
 				"symlinked database file fails closed");
 		}

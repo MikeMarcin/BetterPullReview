@@ -743,15 +743,15 @@ namespace bpr::adapters::sqlite {
 					"ON o.incarnation = d.incarnation AND o.operation = d.operation "
 					"WHERE d.incarnation = ?1 AND o.cache_scope = ?2" },
 			};
-			for (const auto& cleanup : cleanup) {
-				auto removed = prepare(aDatabase, cleanup.Delete);
+			for (const auto& cleanupStatement : cleanup) {
+				auto removed = prepare(aDatabase, cleanupStatement.Delete);
 				if (!removed || !bind_fixed(removed->Value, 1, aIncarnation)
 					|| !bind_fixed(removed->Value, 2, aCache)
 					|| ::sqlite3_step(removed->Value) != SQLITE_DONE) {
 					return std::unexpected(
 						removed ? sql_failure(aDatabase, aStop) : removed.error());
 				}
-				auto remaining = prepare(aDatabase, cleanup.Verify);
+				auto remaining = prepare(aDatabase, cleanupStatement.Verify);
 				if (!remaining || !bind_fixed(remaining->Value, 1, aIncarnation)
 					|| !bind_fixed(remaining->Value, 2, aCache)
 					|| ::sqlite3_step(remaining->Value) != SQLITE_ROW
@@ -3640,13 +3640,13 @@ namespace bpr::adapters::sqlite {
 					if (code != SQLITE_ROW) {
 						return std::unexpected(sql_failure(database, { }));
 					}
-					auto cache = read_fixed<core::repository_cache_scope_id>(
+					auto rowCache = read_fixed<core::repository_cache_scope_id>(
 						rows->Value, 0);
 					auto authority = read_fixed<core::pull_request_authority_scope_id>(
 						rows->Value, 1);
 					const auto revision   = ::sqlite3_column_int64(rows->Value, 2);
 					const auto epochCount = ::sqlite3_column_int64(rows->Value, 3);
-					if (!cache || *cache != output.Cache || !authority
+					if (!rowCache || *rowCache != output.Cache || !authority
 						|| revision < 0 || epochCount < 0
 						|| observedRetainedEpochCount
 							> static_cast<std::uint64_t>(
