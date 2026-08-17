@@ -1,7 +1,7 @@
 ---
 id: BPR-0321
 title: Derive intraline emphasis from the fill the row actually carries
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0320]
 ---
@@ -159,3 +159,25 @@ The implementation stays in the tree. It is a strict improvement on stamping a
 fully unwashed hue, it is asserted, and the rendered result is what proved it
 insufficient. What it is not is a fix, and the card is open again on that basis.
 [[BPR-0323]] carries the replacement.
+
+## Closed — 2026-08-17
+
+This card's requirement is met, by [[BPR-0323]] rather than by the
+implementation recorded above. A selected row's mark is now derived from the
+band that row is wearing, holding hue to within a degree, which is what the
+original report asked for: "if the line fill is blue the intraline emphasis
+fill should also be a blue, just a darker or lighter version."
+
+The batch that settled it is
+`bpr:/attended-review/betterpullreview/d9a2e27adfc4279abdce0eaf`, whose
+`hue-preserving-mark` subject the product owner accepted.
+
+What this card got wrong is worth keeping. It composited the accepted palette
+colour with the row's wash and measured the separation that survived — 70 to 79
+percent, asserted and true. Hue was the property under judgement and separation
+cannot see it: `#F1B9B4` composited at 72/255 becomes `#D1B6C3`, still plainly
+pink on a blue band. The measurement was real and answered a question nobody
+had asked.
+
+The moved-row half of the report remains unreachable by construction, with the
+proof recorded above.

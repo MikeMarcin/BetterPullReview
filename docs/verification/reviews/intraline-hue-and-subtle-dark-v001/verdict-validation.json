@@ -1,0 +1,41 @@
+{
+  "schema_name": "bpr.attended_review_validation_record",
+  "schema_version": 1,
+  "recorded_at": "2026-08-17T02:42:56Z",
+  "batch_id": "bpr:/attended-review/betterpullreview/d9a2e27adfc4279abdce0eaf",
+  "review_gate": "intraline_hue_and_subtle_dark",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "invocation": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/intraline-hue-and-subtle-dark-v001/offline-package/attended-review-manifest.json --verdict <pasted.json>",
+  "result": "valid complete verdict",
+  "outcome": "both subjects accepted",
+  "manifest": {
+    "path": "docs/verification/reviews/intraline-hue-and-subtle-dark-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:1d49a838cb9dfde0fc4717c33bff6be2760df0ccf71a1d1204559d870294527d",
+    "byte_length": 11619
+  },
+  "verdict": {
+    "path": "docs/verification/reviews/intraline-hue-and-subtle-dark-v001/human-verdict.json",
+    "sha256": "sha256:b2de5f76bbab443d4ba1f417369d151c05c61521b9ee5c73c80ed71e6f37434d",
+    "byte_length": 1178
+  },
+  "official_validator": {
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:bb5ccf6bd8fe265ea886a6e5e33912ce72c19ec20d99b0c807f542c0b425742a",
+    "byte_length": 45484
+  },
+  "accepted_subjects": [
+    "criterion:/betterpullreview/bpr-0323/hue-preserving-mark",
+    "criterion:/betterpullreview/bpr-0323/subtle-dark"
+  ],
+  "claims": {
+    "hue_preserving_mark_accepted": true,
+    "subtle_dark_accepted": true,
+    "dark_green_strength_settled": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "open_note": "The acceptance carries one refinement: 'I still feel like dark intraline green fill is slightly weak.' The measurement agrees -- dark's green sat 25.2 from its row while its red sat 36.6, a 1.45 imbalance that the published balance bound of 2.00 permits and an eye notices. The green moves to #145E20 at 30.7, which keeps the brightening character the reference established and leaves contrast headroom above the floor. That adjustment is not covered by these accepted digests and needs its own confirmation."
+}

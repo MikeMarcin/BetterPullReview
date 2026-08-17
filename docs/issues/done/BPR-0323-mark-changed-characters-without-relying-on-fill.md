@@ -1,7 +1,7 @@
 ---
 id: BPR-0323
 title: Mark changed characters without relying on fill colour alone
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0320]
 ---
@@ -148,3 +148,50 @@ only seen it with an underline drawn over it, so the next batch shows it plain.
 
 Batch `bpr:/attended-review/betterpullreview/8f175d37c3b12a3e17ca6fda` carries
 both remaining questions.
+
+## Closed — 2026-08-17
+
+Four accepted subjects across three batches settle the whole sequence:
+
+| Surface | Result |
+|---|---|
+| Light, unselected | The C3 tint, untouched. Confirmed good three separate times |
+| Dark, unselected | `#145E20` and `#933030` — brightened, in the reference's style |
+| High contrast, both | `#55FF55` and `#FF9999`, each carrying its own text colour |
+| Selected rows, all four | Derived from the row's own washed band, hue held to within a degree |
+| Underlines | None. Rejected as an instrument, so removed rather than tuned |
+
+The core carries this as published rules rather than tuned constants:
+`derived_emphasis_fill` for hue-preserving strengthening at 23.0,
+`emphasis_needs_own_foreground` for when a fill is too bold to let syntax
+colours read on it, `emphasis_foreground` for what it carries instead, and a
+contrast audit that measures the foreground actually painted rather than a
+combination the panes never produce.
+
+### What the sequence cost, and why
+
+Six rounds, five of them rejected. The pattern was consistent and it was mine:
+each round generalised a specific observation into a rule, then measured the
+rule instead of the thing being looked at.
+
+- "The least contrasted examples" was about the high-contrast profiles. It was
+  read as "a fill cannot carry this anywhere" and produced an underline nobody
+  asked for.
+- The wash composite preserved separation, which was asserted and true, while
+  the property under judgement was hue.
+- The dark palette hit the same measured separation as the reference by
+  saturating to 0.93 in place, where the reference brightens from value 0.37 to
+  0.58. Same number, opposite direction, invisible result. Every published
+  threshold said it passed.
+
+What broke the loop was the reference image. Measuring what had been shown took
+ten minutes and found the real defect — direction, not distance — that four
+rounds of reasoning had missed. The thresholds in the core are now pinned to
+that measurement and to accepted verdicts, and the headroom guard in
+`appearance_profile_tests.cpp` records that every emphasis fill sits on its
+floor by construction, so the next change to any of them has to reopen the
+gate.
+
+`derived_emphasis_separation_minimum_tenths` is 23.0 because the reference's
+own dark marks measure 23.3 and 24.4. An earlier version of that constant was
+9.0, reasoned from first principles, and the result was rejected as terrible.

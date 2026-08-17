@@ -1,0 +1,39 @@
+{
+  "schema_name": "bpr.attended_review_validation_record",
+  "schema_version": 1,
+  "recorded_at": "2026-08-17T03:02:09Z",
+  "batch_id": "bpr:/attended-review/betterpullreview/3c820801bf20637a2ccc4381",
+  "review_gate": "intraline_dark_green_strength",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "invocation": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/intraline-dark-green-strength-v001/offline-package/attended-review-manifest.json --verdict <pasted.json>",
+  "result": "valid complete verdict",
+  "outcome": "accepted with no notes",
+  "manifest": {
+    "path": "docs/verification/reviews/intraline-dark-green-strength-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:983d72485c4d5029dc512649aa865e7d5b1251b82ac5b9d965fcf59cba3b44fa",
+    "byte_length": 6182
+  },
+  "verdict": {
+    "path": "docs/verification/reviews/intraline-dark-green-strength-v001/human-verdict.json",
+    "sha256": "sha256:5e2ea030c4c6a4ae833a7201f6b1635e9265a81ad5d8f95bdbe22594e08785fb",
+    "byte_length": 792
+  },
+  "official_validator": {
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:bb5ccf6bd8fe265ea886a6e5e33912ce72c19ec20d99b0c807f542c0b425742a",
+    "byte_length": 45484
+  },
+  "accepted_subjects": [
+    "criterion:/betterpullreview/bpr-0323/dark-green-strength"
+  ],
+  "claims": {
+    "dark_green_strength_accepted": true,
+    "intraline_emphasis_appearance_settled": true,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "note": "This is the last open appearance question in the intraline emphasis sequence. Card closure is a separate tracker act performed by the integrator after the complete matrices and gates pass; this record settles the appearance only."
+}

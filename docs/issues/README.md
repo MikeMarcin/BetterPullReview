@@ -35,6 +35,14 @@ Each card links one RFC, names its dependencies, defines completion evidence,
 and is committed with the implementation slice it tracks. RFC closeout is
 blocked while any required card remains outside `done/`.
 
+Verification scope follows the transition. Moving a card to `done/` needs the
+focused selectors that card names and `clang-format` on the files it touched.
+The full `dev` and `core-only` matrices and the strict `coding-tidy` target are
+RFC-closeout gates: together they run for the better part of an hour, and
+spending that on every slice buys nothing a focused selector did not already
+prove. Run them when a change plausibly reaches beyond its slice, and at
+closeout, where a clean full replay is the actual requirement.
+
 ## Current frontiers
 
 RFC-BPR-0001 is `Auto-Verified`, and every linked card is in `done/`.

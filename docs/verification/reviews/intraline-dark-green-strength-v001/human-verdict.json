@@ -1,0 +1,24 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/3c820801bf20637a2ccc4381",
+  "review_gate": "intraline_dark_green_strength",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0323/dark-green-strength",
+      "subject_digest": "sha256:78649d8ade86f57475b895185e744260f4204cad8a24a489f1c41d74a6005341"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {},
+  "downstream_claims": {
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}

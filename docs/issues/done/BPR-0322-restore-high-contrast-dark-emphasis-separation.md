@@ -1,7 +1,7 @@
 ---
 id: BPR-0322
 title: Restore colour-vision separation for high-contrast dark intraline emphasis
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0320]
 ---
@@ -126,3 +126,20 @@ The acceptance was qualified — "This is great other than the selected row" —
 the selected-row treatment remains open in these profiles exactly as it does in
 the standard ones. [[BPR-0323]] owns it, and this card stays open until that
 lands, because a profile is not finished while one of its row states is wrong.
+
+## Closed — 2026-08-17
+
+Both halves are now settled. The accepted pairing `#55FF55` and `#FF9999`
+discharges the deuteranopia defect this card was opened for, at 36.4 against a
+floor of 10.0. The selected-row qualification on that acceptance — "great other
+than the selected row" — is answered by [[BPR-0323]]'s hue-preserving mark,
+accepted in batch
+`bpr:/attended-review/betterpullreview/d9a2e27adfc4279abdce0eaf`.
+
+The card was opened as a colour-vision repair and that framing was too narrow.
+The product owner's observation that the high-contrast profiles were "the least
+contrasted examples" showed the marks were failing ordinary vision too, in the
+profile people select precisely because they need more. The colour-vision
+defect was a symptom. Choosing between three tints that all failed the plainer
+test would have been the wrong question, and the rejection that said so is the
+most useful result this card produced.

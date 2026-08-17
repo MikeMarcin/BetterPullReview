@@ -1,0 +1,30 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/d9a2e27adfc4279abdce0eaf",
+  "review_gate": "intraline_hue_and_subtle_dark",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0323/hue-preserving-mark",
+      "subject_digest": "sha256:e0457431fa57a2491be97c67682638bfaae49fc018592cb2d07f0f334d6d17d8"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0323/subtle-dark",
+      "subject_digest": "sha256:746034eceed986107864e37cdda8205b786f1871620dece1d8898f4e1a0863e7"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0323/hue-preserving-mark@sha256:e0457431fa57a2491be97c67682638bfaae49fc018592cb2d07f0f334d6d17d8": "I still feel like dark intraline green fill is slightly weak."
+  },
+  "downstream_claims": {
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}

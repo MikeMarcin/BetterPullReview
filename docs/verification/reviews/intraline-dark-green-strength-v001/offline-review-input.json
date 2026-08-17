@@ -1,0 +1,118 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Dark green strength (BPR-0323)",
+  "review_gate": "intraline_dark_green_strength",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "downstream_claims": {
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0214_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "reference_disclaimer": "One small accept-or-reject, following the note on your last acceptance. Only dark's green changed; the hue-preserving selected-row mark, light, and the high-contrast pairing are all exactly as you accepted them. Accepting this closes the intraline emphasis work; rejecting it leaves the accepted #1E5D2A in place and only this adjustment open. Captures are offscreen QFusionStyle at device pixel ratio 1.",
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0323/dark-green-strength",
+      "subject_key": "dark-green-strength",
+      "display_name": "Dark's green mark, strengthened",
+      "description": "You accepted both subjects with one note: the dark intraline green fill still felt slightly weak. The measurement agreed \u2014 dark's green sat 25.2 from its row while its red sat 36.6, an imbalance of 1.45 that the published bound of 2.00 permits and an eye notices. The green moves from #1E5D2A to #145E20, which is 30.7, and keeps the brightening character your reference established rather than reaching strength by saturating in place. Before and after are side by side.",
+      "acceptance_criteria": [
+        "Dark's green mark now reads as strong as its red counterpart",
+        "It still brightens rather than deepening, in your reference's style",
+        "The profile's syntax colouring still shows through it",
+        "Nothing else changed in any profile"
+      ],
+      "known_concerns": [
+        "30.7 rather than the red's 36.6. Going further needs full saturation, which is the move that made the earlier dark palette invisible, so it stops short deliberately.",
+        "Every syntax role clears 3.50:1 on the new green, bare and under the selection wash, with a little headroom at 3.58:1.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Rendered through the real UIforETW course in all four profiles."
+      },
+      "media_groups": [
+        {
+          "group_id": "compare",
+          "title": "Dark, before and after",
+          "required": true,
+          "layout": "compare",
+          "note": "The first is what you accepted with the note; the second is the strengthened green.",
+          "items": [
+            {
+              "label": "Before \u2014 green at 25.2",
+              "path": "captures/before-dark-comparison.png"
+            },
+            {
+              "label": "After \u2014 green at 30.7",
+              "path": "captures/after-dark-comparison.png"
+            }
+          ]
+        },
+        {
+          "group_id": "unchanged",
+          "title": "The other three profiles, unchanged",
+          "required": false,
+          "layout": "grid",
+          "items": [
+            {
+              "label": "Light",
+              "path": "captures/after-light-comparison.png"
+            },
+            {
+              "label": "High-contrast Light",
+              "path": "captures/after-high-contrast-light-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark",
+              "path": "captures/after-high-contrast-dark-comparison.png"
+            }
+          ]
+        },
+        {
+          "group_id": "window",
+          "title": "Whole window",
+          "required": false,
+          "layout": "grid",
+          "items": [
+            {
+              "label": "Dark \u2014 whole window",
+              "path": "captures/after-dark-full-window.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Dark's pair",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Removed",
+              "definition": "#933030, separation 36.6 \u2014 unchanged"
+            },
+            {
+              "term": "Added, before",
+              "definition": "#1E5D2A, separation 25.2, imbalance 1.45"
+            },
+            {
+              "term": "Added, after",
+              "definition": "#145E20, separation 30.7, imbalance 1.19"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Dark capture facts",
+          "path": "captures/after-dark-capture-facts.json"
+        }
+      ]
+    }
+  ]
+}

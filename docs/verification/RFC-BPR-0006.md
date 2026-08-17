@@ -259,8 +259,9 @@ network service.
 | BPR-0237 | Semantic palette preview, persistence, and safe local import — **done** |
 | BPR-0233 | Recorded UIforETW selected-diff — focused deterministic path verified; v001 and v002 rejected; v002 required better fixed-width typeface/render quality, symmetric source/destination intraline emphasis, and a fresh integrated capture containing the later accepted dark-connector repair. BPR-0320 supplies the symmetric emphasis through an accepted strength selection; the typeface complaint and the fresh integrated batch remain |
 | BPR-0320 | Intraline emphasis strength — **done**. Attended batch `bpr:/attended-review/betterpullreview/ebe2ee306b89f453d1de6704` selected candidate C3 from five rendered alternatives. Both emphasis-separation constants are pinned to that palette. Text on the two intraline emphasis fills now carries a scoped lower floor, 3.50:1 standard and 4.65:1 high-contrast, disclosed in the batch before selection; every other background keeps the full floor |
-| BPR-0321 | Intraline emphasis keeps its added/removed hue on selected and moved rows, reported in BPR-0320's accepting note — **open** |
-| BPR-0322 | High-contrast dark intraline pair collapses under deuteranopia after BPR-0320 — **open**, substitute pair found and deliberately not applied |
+| BPR-0321 | Intraline emphasis on selected rows — **done**. Its own wash-compositing approach was rejected; [[BPR-0323]]'s hue-preserving derivation satisfies the requirement. The moved-row case is unreachable by construction |
+| BPR-0322 | High-contrast dark pair — **done**. `#55FF55` and `#FF9999` with their own text colour, accepted from three rendered alternatives; the deuteranopia defect is discharged at 36.4 against a floor of 10.0 |
+| BPR-0323 | Intraline emphasis appearance — **done** across three attended batches. Light unchanged, dark brightened to `#145E20`/`#933030` in the style of an owner-supplied reference, high contrast as accepted, selected rows derived from their own washed band, no underlines |
 | BPR-0257 | One compact icon-only navigation row — deterministic host/Qt/composed/UIforETW evidence verified; digest-bound v003 rejected because dark Previous/Next icons are unreadable; BPR-0258 open |
 | BPR-0258 | Palette-aware dark navigation icons — focused implementation verified; v004 rejected on adjacent unselected-connector visibility; exact BPR-0258 verdict remains open |
 | BPR-0259 | Palette-derived unselected connectors with selected-state distinction — **done** after implementation, rendered-raster evidence, accepted v005 subject, and current-tree 6/6 replay; no release/RFC claim |
@@ -315,7 +316,12 @@ The attended history includes these accepted and rejected batches:
 | `diff_scheme_acceptance` v001 | light accepted, dark and its selection rejected |
 | `diff_scheme_acceptance` v002 | both schemes accepted, no notes |
 | `high_contrast_scheme_acceptance` | both profiles accepted, no notes |
-| `intraline_emphasis_strength` v001 | C3 selected from five alternatives; C0, C1, C2, C4 recorded as not chosen. Accepting note reports the selected/moved-row hue defect now owned by BPR-0321 |
+| `intraline_emphasis_strength` v001 | C3 selected from five alternatives; C0, C1, C2, C4 recorded as not chosen. Accepting note reports the selected-row hue defect |
+| `intraline_emphasis_followups` v001 | Both subjects rejected: the wash composite still read as red on blue, and all three high-contrast tints read as invisible |
+| `intraline_rule_mark` v001 | Rejected. The underline is rejected as an instrument, and the note corrected an over-reading: the tint was never the problem in light and dark |
+| `intraline_high_contrast` v001 | Bright hue-true pairing accepted; cyan/amber and deep-with-white-text recorded as not chosen. Standard profiles rejected |
+| `intraline_hue_and_subtle_dark` v001 | Both accepted: hue-preserving selected-row marks, and a dark profile brightened in the style of the owner's reference |
+| `intraline_dark_green_strength` v001 | Accepted with no notes. Dark's green moves from 25.2 to 30.7, bringing its imbalance against the red from 1.45 to 1.19 |
 | `uiforetw_intraline_acceptance` v001 | only subject rejected — the full window starves the panes/gutter, the named changed spans are not visible, and the selected ribbon appears ungrounded |
 
 The rejections are the useful part of that record. Two of them were defects in
