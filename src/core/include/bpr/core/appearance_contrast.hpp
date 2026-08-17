@@ -440,6 +440,33 @@ namespace bpr::core {
 	[[nodiscard]] auto derived_emphasis_fill(appearance_color aFill) noexcept
 		-> appearance_color;
 
+	/// \brief Returns the foreground an emphasis fill would carry itself.
+	///
+	/// \details Black or white, whichever the fill contrasts with more. A fill
+	/// bright enough to be unmistakable in a high-contrast profile cannot also
+	/// let the profile's own syntax colours read on it — a dark profile's text
+	/// is light, and light text on bright amber is unreadable at any size. Such
+	/// a fill carries its own foreground instead, and this is it.
+	///
+	/// The choice is between the two extremes rather than a palette role
+	/// because the point is maximum legibility on one specific fill, and no
+	/// role can be guaranteed to beat both extremes on an arbitrary colour.
+	[[nodiscard]] auto emphasis_foreground(appearance_color aFill) noexcept
+		-> appearance_color;
+
+	/// \brief Reports whether an emphasis fill must carry its own foreground.
+	///
+	/// \details True when any syntax role fails the emphasis floor over the
+	/// fill, which is the measurable form of "the profile's own text cannot be
+	/// read on this". A profile whose emphasis fills are gentle tints — the
+	/// standard light and dark ones — answers false and keeps its syntax
+	/// colouring showing through the mark, which is what makes an ordinary
+	/// diff readable.
+	[[nodiscard]] auto emphasis_needs_own_foreground(
+		const appearance_palette& aPalette,
+		appearance_role           aFill,
+		appearance_variant        aVariant) noexcept -> bool;
+
 	/// \brief Names two roles whose meanings differ, and whose colours may not.
 	///
 	/// \details These are the pairs where hue is doing the semantic work. The

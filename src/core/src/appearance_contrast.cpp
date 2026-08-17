@@ -461,8 +461,18 @@ namespace bpr::core {
 				  aPalette[index_of(aPair.Background)],
 				  selection_wash_alpha)
 			: aPalette[index_of(aPair.Background)];
-		const auto ratio      = contrast_ratio_hundredths(
-			aPalette[index_of(aPair.Foreground)], background);
+		// A fill that carries its own foreground is never painted under the
+		// profile's syntax colours, so measuring those against it would be
+		// measuring a combination the panes do not produce. Every syntax pair
+		// over such a fill collapses to the same check, which is redundant and
+		// correct rather than clever.
+		const auto foreground
+			= aPair.Kind == contrast_kind::emphasis_text
+				&& emphasis_needs_own_foreground(
+					aPalette, aPair.Background, aVariant)
+			? emphasis_foreground(background)
+			: aPalette[index_of(aPair.Foreground)];
+		const auto ratio = contrast_ratio_hundredths(foreground, background);
 		const auto minimum = minimum_contrast_hundredths(aPair.Kind, aVariant);
 
 		return contrast_finding{
@@ -668,6 +678,36 @@ namespace bpr::core {
 		}
 
 		return aFill;
+	}
+
+	auto emphasis_foreground(const appearance_color aFill) noexcept
+		-> appearance_color
+	{
+		constexpr auto black = appearance_color{ 0U, 0U, 0U, 255U };
+		constexpr auto white = appearance_color{ 255U, 255U, 255U, 255U };
+		return contrast_ratio_hundredths(black, aFill)
+				>= contrast_ratio_hundredths(white, aFill)
+			? black
+			: white;
+	}
+
+	auto emphasis_needs_own_foreground(
+		const appearance_palette& aPalette,
+		const appearance_role     aFill,
+		const appearance_variant  aVariant) noexcept -> bool
+	{
+		const auto fill    = aPalette[index_of(aFill)];
+		const auto minimum = minimum_contrast_hundredths(
+			contrast_kind::emphasis_text, aVariant);
+		for (auto offset = std::size_t{ 0U }; offset < syntax_role_count; ++offset) {
+			const auto role = static_cast<appearance_role>(
+				static_cast<std::uint8_t>(index_of(first_syntax_role) + offset));
+			if (contrast_ratio_hundredths(aPalette[index_of(role)], fill) < minimum) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	auto hue_critical_pairs() noexcept -> std::span<const hue_critical_pair>

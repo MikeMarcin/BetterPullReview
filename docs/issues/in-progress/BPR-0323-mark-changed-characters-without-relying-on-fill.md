@@ -105,3 +105,46 @@ and a span counts as marked when it carries the rule even with no fill.
 dev 186/186, core-only 86/86, format and strict clang-tidy clean, documentation
 gate green. Both composed-application digests were refreshed. The batch is
 `bpr:/attended-review/betterpullreview/baf053d332b2b9b7008a1c0f`.
+
+## Attended result — rejected, and it corrected the premise
+
+Batch `bpr:/attended-review/betterpullreview/baf053d332b2b9b7008a1c0f` was
+rejected:
+
+> I don't like the underline and my note was not that a dark tint couldnt carry
+> this, in fact that tint worked very well for the normal light and dark mode
+> versions. My note was that it did not work for the high contrast mode. That is
+> to say for high contrast we should consider using a DIFFERENT color fill,
+> maybe a yellow on red or something high contrast like that, you pick the
+> correct color pairings. As for the normal non-high-contrast modes this is the
+> wrong direction for the blue selected row in particular. And no underlines, i
+> dont like them.
+
+The table at the top of this card drew the wrong conclusion from the second
+rejection, and this is the correction. "The least contrasted examples" was
+about the high-contrast profiles specifically. It was read here as evidence
+that a fill cannot carry the mark anywhere, and generalised into a structural
+signal applied to all four profiles and every row. The tint was never the
+problem in light and dark; the reviewer says it works well there, and the
+accepted C3 palette stands untouched.
+
+Two things follow, and only two:
+
+- The underline is gone. It is rejected as an instrument, not as a parameter,
+  so no variant of it is worth rendering.
+- The high-contrast profiles need a different and genuinely bolder colour
+  pairing rather than a deeper shade of their own rows.
+
+The mechanism built for the wrong conclusion is still worth keeping. A fill
+bright enough for a high-contrast profile cannot let that profile's syntax
+colours read on it, so `emphasis_foreground` and
+`emphasis_needs_own_foreground` let such a fill carry its own text colour, and
+the contrast audit measures what is actually painted instead of a combination
+the panes never produce. That is what makes the bolder pairings possible at
+all.
+
+The selected row in the standard profiles remains open. The reviewer has still
+only seen it with an underline drawn over it, so the next batch shows it plain.
+
+Batch `bpr:/attended-review/betterpullreview/8f175d37c3b12a3e17ca6fda` carries
+both remaining questions.

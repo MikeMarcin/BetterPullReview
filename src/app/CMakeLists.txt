@@ -194,6 +194,8 @@ if(BPR_BUILD_QT)
                 MACOSX_BUNDLE_GUI_IDENTIFIER
                     "io.github.MikeMarcin.BetterPullReview"
                 MACOSX_BUNDLE_ICON_FILE "better_pull_review.icns"
+                MACOSX_BUNDLE_INFO_PLIST
+                    "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in"
                 MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
         )
     endif()

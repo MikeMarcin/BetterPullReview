@@ -1193,6 +1193,8 @@ namespace bpr::qt {
 			.IntralineRemoved = aProfile.color(role::diff_intraline_removed_background),
 			.Moved            = aProfile.color(role::diff_moved_background),
 			.Syntax           = { },
+			.Palette          = aProfile.palette(),
+			.Variant          = aProfile.variant(),
 			.Supplied         = true,
 		};
 		for (auto index = std::size_t{ 0U }; index < core::appearance_role_count;
@@ -1556,23 +1558,14 @@ namespace bpr::qt {
 			return;
 		}
 
-		// Three attended reviews established that a fill cannot carry this
-		// mark by itself. It works on an ordinary row in the standard
-		// profiles, and fails on a selected row -- where a tint keeps its own
-		// hue and reads as a red patch on a blue band -- and in the
-		// high-contrast profiles, where the row fills already sit at the ends
-		// of the range and a tint has nowhere to travel.
-		//
-		// So the mark is a rule under the characters, and the fill is what it
-		// keeps only where a fill was accepted. The rule is drawn in
-		// `syntax_normal`, which is the one colour guaranteed legible on every
-		// background the diff can paint: the required-contrast audit already
-		// holds every syntax role to its floor over every canvas fill,
-		// including both intraline fills and the selection wash composited
-		// over them. The underline inherits that guarantee instead of needing
-		// its own.
-		const auto rule
-			= Colors.Syntax[core::index_of(core::appearance_role::syntax_normal)];
+
+		const auto ownForeground = Colors.Supplied
+			&& core::emphasis_needs_own_foreground(
+				Colors.Palette,
+				aSide == core::diff_side::left
+					? core::appearance_role::diff_intraline_removed_background
+					: core::appearance_role::diff_intraline_added_background,
+				Colors.Variant);
 
 		// The fill a selected row's mark uses. The row is wearing its band with
 		// the wash composited over it, and that composite is not a palette
@@ -1645,13 +1638,20 @@ namespace bpr::qt {
 			// actually wearing, so it is a deeper shade of the band rather
 			// than a pink patch on a blue one. Everywhere else the accepted
 			// fill stays exactly as accepted.
-			emphasis.format.setBackground(
-				selected ? derivedFill(aSide) : color);
-			if (rule.isValid()) {
-				emphasis.format.setFontUnderline(true);
-				emphasis.format.setUnderlineStyle(
-					QTextCharFormat::SingleUnderline);
-				emphasis.format.setUnderlineColor(rule);
+			const auto fill = selected ? derivedFill(aSide) : color;
+			emphasis.format.setBackground(fill);
+			// A fill bright enough to be unmistakable in a high-contrast
+			// profile cannot also let that profile's own syntax colours read
+			// on it, so the core says when the mark carries its own text
+			// colour instead.
+			if (ownForeground && fill.isValid()) {
+				const auto chosen = core::emphasis_foreground(
+					core::appearance_color{ static_cast<std::uint8_t>(fill.red()),
+											static_cast<std::uint8_t>(fill.green()),
+											static_cast<std::uint8_t>(fill.blue()),
+											255U });
+				emphasis.format.setForeground(
+					QColor{ chosen.Red, chosen.Green, chosen.Blue });
 			}
 			aSelections.push_back(emphasis);
 		}

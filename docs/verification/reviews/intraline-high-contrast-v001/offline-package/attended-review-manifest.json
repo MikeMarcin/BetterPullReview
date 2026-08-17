@@ -1,0 +1,425 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/8f175d37c3b12a3e17ca6fda",
+  "downstream_claims": {
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "Your correction, acted on. The underlines are gone. The tint you accepted is back untouched on every unselected row in light and dark, because you said it works there and it does. What is left is the two things you actually named: the selected row in the standard profiles, which is one accept-or-reject; and the high-contrast profiles, which get a genuinely different and much bolder pairing, offered as three alternatives — pick exactly one. All three discharge the colour-vision defect that BPR-0322 was opened for, so that is no longer a reason to prefer one over another; judge them on how they look. Captures are offscreen QFusionStyle at device pixel ratio 1.",
+  "review_gate": "intraline_high_contrast",
+  "review_scope": "human_ui_criterion_and_alternative_selection_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "selection_groups": [
+    {
+      "group_id": "high-contrast-scheme",
+      "max_accept": 1,
+      "min_accept": 1,
+      "note": "",
+      "title": "Which high-contrast pairing should ship?"
+    }
+  ],
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "No underlines anywhere",
+        "Unselected rows show exactly the fills accepted earlier",
+        "On the selected top row, nothing reads as a foreign colour in the blue band",
+        "The changed characters are still findable on the selected row"
+      ],
+      "audit_verdict": {
+        "note": "Rendered through the real UIforETW course.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "The underlines are gone. The accepted fills are back exactly as you chose them on every unselected row. The one thing still different from what you first saw is the selected row — the top one in each capture — where the mark is derived from the blue band itself rather than being the salmon or green tint laid over it. That was your original request, and you have never seen it without an underline on top of it. If it is still wrong, say so and the selected row can simply keep the accepted tint like every other row.",
+      "detail_sections": [],
+      "display_name": "Light and dark, underlines removed",
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-standard-profiles/identity/01-light-capture-facts.json",
+          "sha256": "sha256:045f851fb84eb5465e4b02fb001ac06888f8ae78c294ac8426f7317dfb83c3c0"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-standard-profiles/identity/02-dark-capture-facts.json",
+          "sha256": "sha256:3c534ba21fe41a658cd291e0f5dd95fe15c0a79493818e841810d2385b923e48"
+        }
+      ],
+      "known_concerns": [
+        "Only the selected row differs from the palette you accepted; every other row is untouched.",
+        "The selected row's mark holds the band's hue to within a degree and sits 9.0 from it, measured.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "media_groups": [
+        {
+          "group_id": "standard",
+          "items": [
+            {
+              "label": "Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-standard-profiles/standard/01-light-changed-characters.png",
+              "sha256": "sha256:7e1d7e8229ab196d0c438ace0c9f958cc5a4cc8fa031c40271879e230991c830"
+            },
+            {
+              "label": "Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-standard-profiles/standard/02-dark-changed-characters.png",
+              "sha256": "sha256:f33c19aad34ffff1164719930f610695d0fa8412f5a460071555d86281f60790"
+            }
+          ],
+          "layout": "grid",
+          "note": "The top highlighted row is the selected one.",
+          "required": true,
+          "title": "Light and dark"
+        },
+        {
+          "group_id": "standard-windows",
+          "items": [
+            {
+              "label": "Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-standard-profiles/standard-windows/01-light-whole-window.png",
+              "sha256": "sha256:f9692329b92147b426ac9a9b17f47464c66b3ef5c4258a77f4658b0c22dad7bc"
+            },
+            {
+              "label": "Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-standard-profiles/standard-windows/02-dark-whole-window.png",
+              "sha256": "sha256:d6f58c2a511e7ccecc5377992db7068d1fd8cc8eaf714f1b81de7e843b05fbd7"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": false,
+          "title": "Whole window"
+        }
+      ],
+      "subject_digest": "sha256:daaf40cea1d60f43b65919d43b4c1d3b5ad2d336da8c65b336c2c2a36768e0c9",
+      "subject_id": "criterion:/betterpullreview/bpr-0323/standard-profiles",
+      "subject_key": "standard-profiles"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "The changed characters are immediately visible in both high-contrast profiles",
+        "High contrast now looks more emphatic than the standard profiles, not less",
+        "Added and removed are tellable apart",
+        "The characters on the mark are comfortable to read"
+      ],
+      "audit_verdict": {
+        "note": "Rendered through the real UIforETW course in both high-contrast profiles.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "The emphasis stays green for added and red for removed, pushed to full brightness with black text on top. The most familiar of the three, and the one whose colours still mean what they mean everywhere else. The fill carries its own text colour here, which is what lets it be this bold: a mark strong enough to see in a high-contrast profile cannot also let that profile's syntax colours read on it, so the mark supplies its own. Light and dark are unaffected by this choice.",
+      "detail_sections": [
+        {
+          "heading": "Measured",
+          "items": [
+            {
+              "definition": "added sits 95.1 from its row, removed 63.4",
+              "term": "High-contrast Dark"
+            },
+            {
+              "definition": "added sits 74.1 from its row, removed 39.6",
+              "term": "High-contrast Light"
+            },
+            {
+              "definition": "36.4 against a floor of 10.0",
+              "term": "Worst colour-vision separation"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "Bright green and soft red — keeps the added/removed hues",
+      "identity_files": [
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/002-high-contrast-ha/identity/01-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:c799c0bbe6932aa84f76fbb0f940386fac29b61eaa92f9f4fed49c67a1ae3eb1"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/002-high-contrast-ha/identity/02-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:971f091a267a1823d96f99b3cb4b59d7807fd4d577e67d2ff1e0f6822ad0b17e"
+        }
+      ],
+      "known_concerns": [
+        "Added #55FF55 carries black text at 15.82:1; removed #FF9999 carries black text at 10.26:1. Both clear the 7.00:1 enhanced floor.",
+        "Added against removed stays 36.4 apart under the worst colour-vision model, against a floor of 10.0. This discharges the deuteranopia defect BPR-0322 was opened for.",
+        "Syntax colouring does not show through the mark in these profiles, because the mark carries its own text colour.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "media_groups": [
+        {
+          "group_id": "hc",
+          "items": [
+            {
+              "label": "High-contrast Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-ha/hc/01-high-contrast-dark-changed-characters.png",
+              "sha256": "sha256:9a2a5af711f5a78b24fc4d10c27a80c5fc64388326f01157e0eb832949bedb8c"
+            },
+            {
+              "label": "High-contrast Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-ha/hc/02-high-contrast-light-changed-characters.png",
+              "sha256": "sha256:c5269bcc88942a7f3ba8c4227a2bf21c5a4ed31cd8f282f6a716874bfd549c9f"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": true,
+          "title": "Both high-contrast profiles"
+        },
+        {
+          "group_id": "hc-windows",
+          "items": [
+            {
+              "label": "High-contrast Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-ha/hc-windows/01-high-contrast-dark-whole-window.png",
+              "sha256": "sha256:4e76ea2c4bd3408b20c4cae58b768aadd2129631f19094b6f8b5d8934b4ba7d5"
+            },
+            {
+              "label": "High-contrast Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-ha/hc-windows/02-high-contrast-light-whole-window.png",
+              "sha256": "sha256:f224b31063873b233ca48985abadeb60b88f8b6025ad9df69d58392d7420cda3"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": false,
+          "title": "Whole window"
+        }
+      ],
+      "selection_group": "high-contrast-scheme",
+      "subject_digest": "sha256:9055cc782b0d6fb57ef3ec454150a0de92646a21a391922566c723d4f465bf72",
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-ha",
+      "subject_key": "high-contrast-ha"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "The changed characters are immediately visible in both high-contrast profiles",
+        "High contrast now looks more emphatic than the standard profiles, not less",
+        "Added and removed are tellable apart",
+        "The characters on the mark are comfortable to read"
+      ],
+      "audit_verdict": {
+        "note": "Rendered through the real UIforETW course in both high-contrast profiles.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Drops the green/red hues in these two profiles in favour of a pair that no colour-vision deficiency collapses. The side is still carried by which pane you are looking at and by the row band underneath. The fill carries its own text colour here, which is what lets it be this bold: a mark strong enough to see in a high-contrast profile cannot also let that profile's syntax colours read on it, so the mark supplies its own. Light and dark are unaffected by this choice.",
+      "detail_sections": [
+        {
+          "heading": "Measured",
+          "items": [
+            {
+              "definition": "added sits 83.3 from its row, removed 98.9",
+              "term": "High-contrast Dark"
+            },
+            {
+              "definition": "added sits 47.2 from its row, removed 81.7",
+              "term": "High-contrast Light"
+            },
+            {
+              "definition": "100.4 against a floor of 10.0",
+              "term": "Worst colour-vision separation"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "Cyan and amber — the strongest separation",
+      "identity_files": [
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/003-high-contrast-hb/identity/01-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:c114f4455e57aa4d69cb5106e5a9d7ce799645206b90a224a166a4812a3dcd97"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/003-high-contrast-hb/identity/02-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:e30b1f4fe80e3b772e21cb9e109b424e9a53aae05438ea11cdca4e798e798f4a"
+        }
+      ],
+      "known_concerns": [
+        "Added #00E0FF carries black text at 13.10:1; removed #FFC000 carries black text at 12.79:1. Both clear the 7.00:1 enhanced floor.",
+        "Added against removed stays 100.4 apart under the worst colour-vision model, against a floor of 10.0. This discharges the deuteranopia defect BPR-0322 was opened for.",
+        "Syntax colouring does not show through the mark in these profiles, because the mark carries its own text colour.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "media_groups": [
+        {
+          "group_id": "hc",
+          "items": [
+            {
+              "label": "High-contrast Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/003-high-contrast-hb/hc/01-high-contrast-dark-changed-characters.png",
+              "sha256": "sha256:c48c2e1aa2b20987c5bd22fe81fe811fe96a7ee31f297f0d106134a26aa47bf1"
+            },
+            {
+              "label": "High-contrast Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/003-high-contrast-hb/hc/02-high-contrast-light-changed-characters.png",
+              "sha256": "sha256:b1f65f80d46c61e9af47f0d2037745e70c470bd1f0b17628ffe901ddfa0c82a7"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": true,
+          "title": "Both high-contrast profiles"
+        },
+        {
+          "group_id": "hc-windows",
+          "items": [
+            {
+              "label": "High-contrast Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/003-high-contrast-hb/hc-windows/01-high-contrast-dark-whole-window.png",
+              "sha256": "sha256:bdea9596bfcec72476ae9db94f36a4b85406e6725353886b0173cca01b623e97"
+            },
+            {
+              "label": "High-contrast Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/003-high-contrast-hb/hc-windows/02-high-contrast-light-whole-window.png",
+              "sha256": "sha256:8ea138fe1ebbf2db99dac1930fc3dd6ab91f2b118d8d13d842253a5948071df7"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": false,
+          "title": "Whole window"
+        }
+      ],
+      "selection_group": "high-contrast-scheme",
+      "subject_digest": "sha256:77578b2179ff2a69791298ca06e72737959721d7ba8455cefbdd90e690090b13",
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-hb",
+      "subject_key": "high-contrast-hb"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "The changed characters are immediately visible in both high-contrast profiles",
+        "High contrast now looks more emphatic than the standard profiles, not less",
+        "Added and removed are tellable apart",
+        "The characters on the mark are comfortable to read"
+      ],
+      "audit_verdict": {
+        "note": "Rendered through the real UIforETW course in both high-contrast profiles.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Keeps the hues and goes dark rather than bright, inverting to white text. The most restrained of the three, and the closest in weight to the standard profiles. The fill carries its own text colour here, which is what lets it be this bold: a mark strong enough to see in a high-contrast profile cannot also let that profile's syntax colours read on it, so the mark supplies its own. Light and dark are unaffected by this choice.",
+      "detail_sections": [
+        {
+          "heading": "Measured",
+          "items": [
+            {
+              "definition": "added sits 30.2 from its row, removed 51.8",
+              "term": "High-contrast Dark"
+            },
+            {
+              "definition": "added sits 69.5 from its row, removed 92.4",
+              "term": "High-contrast Light"
+            },
+            {
+              "definition": "16.7 against a floor of 10.0",
+              "term": "Worst colour-vision separation"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "Deep green and deep red with white text",
+      "identity_files": [
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/004-high-contrast-hc/identity/01-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:5ccb796502c27d0ca210ca293fc2bcad374c6dd58bd8d444fc15f397e4d8bc9d"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/004-high-contrast-hc/identity/02-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:f1c28cdf7338f8b9f47b414cce42980935b521da2de72e2fbbd0a1999ded5784"
+        }
+      ],
+      "known_concerns": [
+        "Added #006400 carries white text at 7.43:1; removed #B00000 carries white text at 7.37:1. Both clear the 7.00:1 enhanced floor.",
+        "Added against removed stays 16.7 apart under the worst colour-vision model, against a floor of 10.0. This discharges the deuteranopia defect BPR-0322 was opened for.",
+        "Syntax colouring does not show through the mark in these profiles, because the mark carries its own text colour.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "media_groups": [
+        {
+          "group_id": "hc",
+          "items": [
+            {
+              "label": "High-contrast Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/004-high-contrast-hc/hc/01-high-contrast-dark-changed-characters.png",
+              "sha256": "sha256:c6acf0bfcbe1f941bddb34327ee5e3eb56e9161256491851168a7b4d2285885d"
+            },
+            {
+              "label": "High-contrast Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/004-high-contrast-hc/hc/02-high-contrast-light-changed-characters.png",
+              "sha256": "sha256:2daadf39d52ac3433f9fde95b9a0df5aff339c3b2c1b05cb879626aaa2b303b1"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": true,
+          "title": "Both high-contrast profiles"
+        },
+        {
+          "group_id": "hc-windows",
+          "items": [
+            {
+              "label": "High-contrast Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/004-high-contrast-hc/hc-windows/01-high-contrast-dark-whole-window.png",
+              "sha256": "sha256:532847f3e42edc6727e947f552550b589e4c580cfa2b7f3c816e7006ce2a72cf"
+            },
+            {
+              "label": "High-contrast Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/004-high-contrast-hc/hc-windows/02-high-contrast-light-whole-window.png",
+              "sha256": "sha256:c7ac204b9708eee8ee8f6110ed246c0508bf78cf04c4b2513e19ca2a8b80fd90"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": false,
+          "title": "Whole window"
+        }
+      ],
+      "selection_group": "high-contrast-scheme",
+      "subject_digest": "sha256:50d0411c542f0623f69fc128733ded89f05aed2a90c3ce32c869710821591c6b",
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-hc",
+      "subject_key": "high-contrast-hc"
+    }
+  ],
+  "title": "High-contrast emphasis, underlines removed (BPR-0322, BPR-0323)"
+}

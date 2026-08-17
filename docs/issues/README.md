@@ -376,6 +376,10 @@ Done BPR-0324 replaces that canonical source with the owner-supplied
 the source-digest, container, runtime-icon, tray, and macOS bundle checks. The
 platform bindings and RFC-BPR-0014 package boundaries are unchanged.
 
+Done BPR-0325 gives the application an explicit `BetterPullReview` display
+name in both Qt and the macOS bundle metadata so the Dock tooltip no longer
+falls back to the `better_pull_review` executable or bundle filename.
+
 Done BPR-0085 adopts the rendered project-neutral C++ standard as the
 repository source of truth. It applies canonical formatting, naming, include
 guards, and public API documentation across the first-party source and test

@@ -4936,6 +4936,8 @@ auto main(int argc, char** argv) -> int
 	QApplication qtApplication{ argc, argv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QCoreApplication::setApplicationName(QStringLiteral("BetterPullReview"));
+	QGuiApplication::setApplicationDisplayName(
+		QStringLiteral("BetterPullReview"));
 	QCoreApplication::setApplicationVersion(QStringLiteral(BPR_VERSION));
 	QCoreApplication::setOrganizationName(
 		QStringLiteral("BetterPullReview"));

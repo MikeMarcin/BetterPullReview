@@ -108,6 +108,9 @@ class AppIconAssetsTests(unittest.TestCase):
             encoding="utf-8"
         )
         main = (REPOSITORY_ROOT / "src/app/main.cpp").read_text(encoding="utf-8")
+        macos_info = (REPOSITORY_ROOT / "packaging/macos/Info.plist.in").read_text(
+            encoding="utf-8"
+        )
         desktop = (
             ICON_ROOT
             / "linux/io.github.MikeMarcin.BetterPullReview.desktop"
@@ -117,6 +120,16 @@ class AppIconAssetsTests(unittest.TestCase):
         self.assertIn("windows/better_pull_review.rc", cmake)
         self.assertIn("macos/better_pull_review.icns", cmake)
         self.assertIn("MACOSX_BUNDLE_ICON_FILE", cmake)
+        self.assertIn("MACOSX_BUNDLE_INFO_PLIST", cmake)
+        self.assertIn("<key>CFBundleDisplayName</key>", macos_info)
+        self.assertIn(
+            "<string>${MACOSX_BUNDLE_BUNDLE_NAME}</string>", macos_info
+        )
+        self.assertIn(
+            'QGuiApplication::setApplicationDisplayName(\n'
+            '\t\tQStringLiteral("BetterPullReview"))',
+            main,
+        )
         self.assertIn("QApplication::setWindowIcon(application_icon())", main)
         for size in PNG_SIZES[:-1]:
             self.assertIn(f":/icons/{size}x{size}/better_pull_review.png", main)

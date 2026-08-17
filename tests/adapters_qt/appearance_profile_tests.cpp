@@ -2040,57 +2040,60 @@ namespace {
 		}
 	}
 
-	// BPR-0321 composites the row's selection wash into the emphasis so a
-	// selected row's mark stays a deeper shade of what the row is wearing.
-	// Both fills take the same wash at the same alpha, so their separation
-	// survives in proportion rather than collapsing -- but "in proportion" is
-	// a claim, and this is where it is checked.
-	void test_the_selection_wash_preserves_emphasis_separation()
+	// BPR-0323: a selected row's mark is a deeper shade of the band that row
+	// is wearing, because a palette colour there kept its own hue and read as
+	// foreign. The mark still has to be visible and the code on it still has
+	// to be readable, and neither follows from the unselected measurements.
+	void test_a_selected_rows_mark_stays_visible_and_readable()
 	{
-		constexpr auto pairs = std::array{
-			std::pair{ role::diff_added_background,
-					   role::diff_intraline_added_background },
-			std::pair{ role::diff_removed_background,
-					   role::diff_intraline_removed_background },
+		constexpr auto bands = std::array{
+			role::diff_added_background,
+			role::diff_removed_background,
 		};
 
 		for (const auto variant : all_variants) {
 			const auto& palette = qt::builtin_appearance_palette(variant);
-			const auto  wash    = palette[core::index_of(
-				role::code_selection_background)];
-			const auto  floor   = core::minimum_contrast_hundredths(
-				core::contrast_kind::emphasis_text, variant);
+			const auto  wash = palette[core::index_of(role::code_selection_background)];
+			const auto  floor = core::minimum_contrast_hundredths(
+                core::contrast_kind::emphasis_text, variant);
 
-			for (const auto& [rowRole, emphasisRole] : pairs) {
-				const auto row      = palette[core::index_of(rowRole)];
-				const auto emphasis = palette[core::index_of(emphasisRole)];
-				const auto washedRow
-					= core::composited(wash, row, core::selection_wash_alpha);
-				const auto washedEmphasis = core::composited(
-					wash, emphasis, core::selection_wash_alpha);
+			for (const auto bandRole : bands) {
+				const auto washedBand = core::composited(
+					wash,
+					palette[core::index_of(bandRole)],
+					core::selection_wash_alpha);
+				const auto mark = core::derived_emphasis_fill(washedBand);
 
-				const auto bare = core::color_difference_tenths(
-					row, emphasis, core::color_vision::typical);
-				const auto washed = core::color_difference_tenths(
-					washedRow, washedEmphasis, core::color_vision::typical);
 				expect(
-					washed * 3U >= bare * 2U,
-					"at least two thirds of the emphasis separation survives "
-					"the selection wash");
-				expect(
-					washed >= 100U,
-					"a washed emphasis is still plainly a mark");
+					core::color_difference_tenths(
+						washedBand, mark, core::color_vision::typical)
+						>= core::derived_emphasis_separation_minimum_tenths,
+					"a selected row's mark reaches the published separation "
+					"from the band it sits in");
 
-				// The characters sitting on the washed mark still have to be
-				// readable; the wash must not spend the emphasis floor.
-				for (auto index = core::index_of(core::appearance_role::syntax_normal);
+				// Whatever is painted on the mark has to clear the floor:
+				// either the profile's own syntax colours, or the foreground
+				// the mark carries when they cannot.
+				const auto emphasisRole
+					= bandRole == role::diff_added_background
+					? role::diff_intraline_added_background
+					: role::diff_intraline_removed_background;
+				if (core::emphasis_needs_own_foreground(
+						palette, emphasisRole, variant)) {
+					expect(
+						core::contrast_ratio_hundredths(
+							core::emphasis_foreground(mark), mark)
+							>= floor,
+						"a mark carrying its own foreground clears the floor");
+					continue;
+				}
+				for (auto index = core::index_of(role::syntax_normal);
 					 index < core::appearance_role_count;
 					 ++index) {
-					const auto ratio = core::contrast_ratio_hundredths(
-						palette[index], washedEmphasis);
 					expect(
-						ratio >= floor,
-						"syntax text stays legible on a washed emphasis fill");
+						core::contrast_ratio_hundredths(palette[index], mark)
+							>= floor,
+						"syntax text stays legible on a selected row's mark");
 				}
 			}
 		}
@@ -2312,7 +2315,7 @@ auto main(int argc, char** argv) -> int
 	test_a_tab_width_change_alone_invalidates_measured_geometry();
 	test_intraline_emphasis_never_collapses_onto_its_row_fill();
 	test_intraline_emphasis_is_balanced_across_both_sides();
-	test_the_selection_wash_preserves_emphasis_separation();
+	test_a_selected_rows_mark_stays_visible_and_readable();
 	test_hue_critical_pairs_are_measured_for_every_builtin_profile();
 	test_every_builtin_profile_passes_the_published_contrast_audit();
 

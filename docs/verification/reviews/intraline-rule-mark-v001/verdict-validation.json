@@ -1,0 +1,40 @@
+{
+  "schema_name": "bpr.attended_review_validation_record",
+  "schema_version": 1,
+  "recorded_at": "2026-08-17T02:05:06Z",
+  "batch_id": "bpr:/attended-review/betterpullreview/baf053d332b2b9b7008a1c0f",
+  "review_gate": "intraline_rule_mark",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "invocation": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/intraline-rule-mark-v001/offline-package/attended-review-manifest.json --verdict <pasted.json>",
+  "result": "valid complete verdict",
+  "outcome": "rejected",
+  "manifest": {
+    "path": "docs/verification/reviews/intraline-rule-mark-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:34558b685062eec5a399b40b403718212338d9f5b0908925706ebd444a0ae8a2",
+    "byte_length": 8850
+  },
+  "verdict": {
+    "path": "docs/verification/reviews/intraline-rule-mark-v001/human-verdict.json",
+    "sha256": "sha256:a9971686e150408cef86c6773eab9fd16f159ee130ac45687e4489dca99c57da",
+    "byte_length": 1452
+  },
+  "official_validator": {
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:bb5ccf6bd8fe265ea886a6e5e33912ce72c19ec20d99b0c807f542c0b425742a",
+    "byte_length": 45484
+  },
+  "claims": {
+    "rule_mark_accepted": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "findings": [
+    "The underline is rejected outright as an instrument, in both profiles and on every row.",
+    "The earlier rejection was misread. The tint was never the problem in the standard light and dark profiles, where the reviewer reports it works well; the objection was specific to the high-contrast profiles. Generalising it into 'a fill cannot carry this mark' was an over-reading that cost a round.",
+    "High contrast should use a different and genuinely high-contrast colour pairing rather than a deeper shade of the row, with the pairing left to the implementer's judgement.",
+    "The selected-row direction in the standard profiles is still not right, though the reviewer saw it only with an underline drawn over it."
+  ]
+}

@@ -228,6 +228,13 @@ namespace bpr::qt {
 			/// the only place a role becomes visible, and it is copied whole
 			/// from the composed palette rather than derived here.
 			std::array<QColor, core::appearance_role_count> Syntax;
+			/// The composed palette and the variant it belongs to, kept so the
+			/// painter can ask the core questions that depend on the whole
+			/// palette rather than on one colour -- whether an emphasis fill
+			/// has to carry its own foreground, most of all.
+			core::appearance_palette                        Palette{ };
+			core::appearance_variant                        Variant
+				= core::appearance_variant::light;
 			bool                                            Supplied = false;
 		};
 

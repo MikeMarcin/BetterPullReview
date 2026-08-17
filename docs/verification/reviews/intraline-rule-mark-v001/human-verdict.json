@@ -1,0 +1,26 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/baf053d332b2b9b7008a1c0f",
+  "review_gate": "intraline_rule_mark",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [],
+  "rejected_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0323/rule-mark",
+      "subject_digest": "sha256:0149c6738dbccbdef6d06b39fd6b1e6bec91b974cf6c0d9d19e005d6daff2adc"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0323/rule-mark@sha256:0149c6738dbccbdef6d06b39fd6b1e6bec91b974cf6c0d9d19e005d6daff2adc": "I don't like the underline and my not was not that a dark tint couldnt carry this, in fact that tint worked very well for the normal light and dark mode versions. My not wa that it did not work for the high contrast mode. That is to say for high contrast we should consdier using a DIFFERENT color fill, maybe a yellow on red or something high contrast like that, you pick the correct color pairings. As for the normal non-high-contrast modes this is the wrong direction for the blue selected row in particular. And no underlines, i dont like them."
+  },
+  "downstream_claims": {
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}
