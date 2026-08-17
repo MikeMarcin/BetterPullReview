@@ -1,0 +1,162 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/baf053d332b2b9b7008a1c0f",
+  "downstream_claims": {
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "One accept-or-reject, and a different kind of answer from the last two. Both previous batches offered points on one axis — how strong a tint — and you rejected the axis twice, for two different and correct reasons. This is not another tint. The mark is a rule under the characters, which does not depend on a fill being able to differ from its row, so it behaves the same on a washed row as an unwashed one and in a high-contrast profile as a standard one. If the rule is the wrong instrument, say so and the next batch can show an outline or a bold weight instead; the mechanism is in place and swapping the mark is cheap now.",
+  "review_gate": "intraline_rule_mark",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Changed characters are findable in every profile",
+        "High-contrast Dark is at least as emphatic as the standard profiles, not less",
+        "On a selected row nothing reads as a foreign colour inside the band",
+        "Unselected rows keep the fills accepted in the earlier batch",
+        "The rule does not disturb the alignment of the monospaced code"
+      ],
+      "audit_verdict": {
+        "note": "Rendered through the real UIforETW course in all four profiles, every capture emitting UIFORETW_SELECTED_DIFF_EVIDENCE_OK. Tests assert the rule and the derived fill and fail without them.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Both of your last notes said a tint could not carry this. A tint keeps its own hue, so it read as red on a blue row; and in the high-contrast profiles the row fills already sit at the ends of the range, so a tint had nowhere to travel and those profiles showed the least contrast of any. So the mark is now a rule under the changed characters, drawn in the code's own text colour, in every profile and on every row. The accepted fills stay exactly where they still work: an unselected row in any profile keeps the salmon and green you chose. A selected row drops them for a deeper shade of the band it is actually wearing, so nothing foreign sits inside the blue.",
+      "detail_sections": [
+        {
+          "heading": "What changed",
+          "items": [
+            "A rule is drawn under every changed run, in every profile, on selected and unselected rows alike.",
+            "Unselected rows keep the accepted C3 fills unchanged.",
+            "Selected rows take a fill derived from their own washed band instead of a palette colour, so the hue matches the band.",
+            "Nothing about the row bands, the selection wash, the connectors, or the navigation icons changed."
+          ],
+          "kind": "list"
+        }
+      ],
+      "display_name": "Changed characters are marked with a rule, not only a tint",
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-rule-mark/identity/01-light-capture-facts.json",
+          "sha256": "sha256:7c9085207b4bcf2682cc6a69b0843a8f9f959bb95b0348a65cf259fcd1e5fddf"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-rule-mark/identity/02-dark-capture-facts.json",
+          "sha256": "sha256:5aa62dc1646abab6563be84095511178266c374e66417c89f704e8b048e3e1c9"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-rule-mark/identity/03-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:376a5a4e9cbf44e4f3603a3a6559396b1461c9cd9bb4a6d721e13b36383fe212"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-rule-mark/identity/04-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:88b107d4738841acf0545c748d0fe2a5f5c4c532ab8fa4a43b35c423a9a87c62"
+        }
+      ],
+      "known_concerns": [
+        "The rule is drawn in `syntax_normal`. That is the one colour the existing contrast audit already guarantees is legible on every background the diff can paint, so the rule inherits that guarantee rather than needing a threshold of its own.",
+        "A selected row's fill is derived from that row's own washed band and holds its hue to within a degree, at a separation of 9.0 — much lower than an unselected mark's 20.0, because the rule is carrying the mark there and spending more would cost text contrast the band already spent.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork.",
+        "The moved-row case from your first note is still not shown, because it cannot occur: a moved row can never carry an intraline mark."
+      ],
+      "media_groups": [
+        {
+          "group_id": "the-two-that-failed",
+          "items": [
+            {
+              "label": "Light — selected row at the top",
+              "media_kind": "image",
+              "path": "subjects/001-rule-mark/the-two-that-failed/01-light-selected-row-at-the-top.png",
+              "sha256": "sha256:af61a3c4fc107ed750f8851d23eb1cf9821d287d56d80481a8c46dd1dd50c470"
+            },
+            {
+              "label": "High-contrast Dark",
+              "media_kind": "image",
+              "path": "subjects/001-rule-mark/the-two-that-failed/02-high-contrast-dark.png",
+              "sha256": "sha256:92bdc5aef618f46f240cad7ed67b9d1c6c666e791f493d4079b3cd5eb1331f36"
+            }
+          ],
+          "layout": "grid",
+          "note": "Light: the top row is selected — check nothing red or green sits inside the blue band. High-contrast Dark: check the marks are now the most visible rather than the least.",
+          "required": true,
+          "title": "The two states that failed before"
+        },
+        {
+          "group_id": "other-profiles",
+          "items": [
+            {
+              "label": "Dark",
+              "media_kind": "image",
+              "path": "subjects/001-rule-mark/other-profiles/01-dark.png",
+              "sha256": "sha256:6c3c67ec00d6b1929716ac34e3ddae6b115635511160d46a0f0d55854a48413e"
+            },
+            {
+              "label": "High-contrast Light",
+              "media_kind": "image",
+              "path": "subjects/001-rule-mark/other-profiles/02-high-contrast-light.png",
+              "sha256": "sha256:f400f0884e19357be865968a749a44568be59f7d20976899cb6f2dffa66688cf"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": true,
+          "title": "The other two profiles"
+        },
+        {
+          "group_id": "windows",
+          "items": [
+            {
+              "label": "Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-rule-mark/windows/01-light-whole-window.png",
+              "sha256": "sha256:4cea0ba3635351c02d964af1cff1e947465e3e4fb5370192e0d9a995ad275f0f"
+            },
+            {
+              "label": "Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-rule-mark/windows/02-dark-whole-window.png",
+              "sha256": "sha256:8e241720bf4b133dbe2363896417673680555d71412bdb09b4325d609698916d"
+            },
+            {
+              "label": "High-contrast Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-rule-mark/windows/03-high-contrast-light-whole-window.png",
+              "sha256": "sha256:f3c1d1049375879cd660a252bfc4bf30b770448ad123577845830d1dc3739a90"
+            },
+            {
+              "label": "High-contrast Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-rule-mark/windows/04-high-contrast-dark-whole-window.png",
+              "sha256": "sha256:6a559e8d7cd2fcc951106792e6fd32b13aab727b773fdf7489610585663778c1"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": false,
+          "title": "Whole window, all four profiles"
+        }
+      ],
+      "subject_digest": "sha256:0149c6738dbccbdef6d06b39fd6b1e6bec91b974cf6c0d9d19e005d6daff2adc",
+      "subject_id": "criterion:/betterpullreview/bpr-0323/rule-mark",
+      "subject_key": "rule-mark"
+    }
+  ],
+  "title": "Intraline emphasis carried by a rule (BPR-0323)"
+}

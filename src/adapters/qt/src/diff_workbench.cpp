@@ -1556,30 +1556,48 @@ namespace bpr::qt {
 			return;
 		}
 
-		// The emphasis is painted opaque and last, so on a washed row it would
-		// otherwise be the one fill the wash does not reach — a red or green
-		// patch sitting on a blue row, belonging to neither. Compositing the
-		// same wash into it keeps it a deeper shade of whatever the row is
-		// actually wearing, which is what the mark is for.
+		// Three attended reviews established that a fill cannot carry this
+		// mark by itself. It works on an ordinary row in the standard
+		// profiles, and fails on a selected row -- where a tint keeps its own
+		// hue and reads as a red patch on a blue band -- and in the
+		// high-contrast profiles, where the row fills already sit at the ends
+		// of the range and a tint has nowhere to travel.
 		//
-		// The wash is applied here rather than by Qt because Qt paints these
-		// selections in list order and the emphasis comes after the band; the
-		// row's own wash is a translucent colour Qt blends, and an opaque
-		// emphasis on top of it is not blended again.
-		const auto washedColor = [&aPane, color] {
+		// So the mark is a rule under the characters, and the fill is what it
+		// keeps only where a fill was accepted. The rule is drawn in
+		// `syntax_normal`, which is the one colour guaranteed legible on every
+		// background the diff can paint: the required-contrast audit already
+		// holds every syntax role to its floor over every canvas fill,
+		// including both intraline fills and the selection wash composited
+		// over them. The underline inherits that guarantee instead of needing
+		// its own.
+		const auto rule
+			= Colors.Syntax[core::index_of(core::appearance_role::syntax_normal)];
+
+		// The fill a selected row's mark uses. The row is wearing its band with
+		// the wash composited over it, and that composite is not a palette
+		// colour, so the core derives a deeper shade of it rather than the
+		// palette reaching for one it does not have.
+		const auto derivedFill = [this, &aPane](const core::diff_side aRowSide) {
+			const auto band = aRowSide == core::diff_side::left ? Colors.Removed
+																: Colors.Added;
+			if (!band.isValid()) {
+				return QColor{ };
+			}
 			const auto highlight = aPane.palette().color(QPalette::Highlight);
-			const auto blended   = core::composited(
+			const auto washed    = core::composited(
 				core::appearance_color{ static_cast<std::uint8_t>(highlight.red()),
 										static_cast<std::uint8_t>(highlight.green()),
 										static_cast<std::uint8_t>(highlight.blue()),
 										255U },
-				core::appearance_color{ static_cast<std::uint8_t>(color.red()),
-										static_cast<std::uint8_t>(color.green()),
-										static_cast<std::uint8_t>(color.blue()),
+				core::appearance_color{ static_cast<std::uint8_t>(band.red()),
+										static_cast<std::uint8_t>(band.green()),
+										static_cast<std::uint8_t>(band.blue()),
 										255U },
 				core::selection_wash_alpha);
-			return QColor{ blended.Red, blended.Green, blended.Blue };
-		}();
+			const auto derived = core::derived_emphasis_fill(washed);
+			return QColor{ derived.Red, derived.Green, derived.Blue };
+		};
 
 		const auto& pairs = CurrentResult->Alignment.Pairs;
 		for (const auto& edit : CurrentResult->Intraline) {
@@ -1623,7 +1641,18 @@ namespace bpr::qt {
 			emphasis.cursor.setPosition(block.position() + from);
 			emphasis.cursor.setPosition(
 				block.position() + to, QTextCursor::KeepAnchor);
-			emphasis.format.setBackground(selected ? washedColor : color);
+			// On a selected row the fill is derived from what that row is
+			// actually wearing, so it is a deeper shade of the band rather
+			// than a pink patch on a blue one. Everywhere else the accepted
+			// fill stays exactly as accepted.
+			emphasis.format.setBackground(
+				selected ? derivedFill(aSide) : color);
+			if (rule.isValid()) {
+				emphasis.format.setFontUnderline(true);
+				emphasis.format.setUnderlineStyle(
+					QTextCharFormat::SingleUnderline);
+				emphasis.format.setUnderlineColor(rule);
+			}
 			aSelections.push_back(emphasis);
 		}
 	}

@@ -1,3 +1,4 @@
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 
@@ -1680,30 +1681,33 @@ namespace {
 			"and not a wash");
 	}
 
-	/// \brief Painted intraline ranges must be the ranges the core computed.
-	/// \brief The emphasis colour a row wearing the selection wash shows.
+	/// \brief The fill a selected row's mark shows.
 	///
-	/// \details BPR-0321: the emphasis is composited with the same wash as the
-	/// row it marks, so a selected row's mark is a deeper shade of what the
-	/// row is actually wearing rather than a bare added or removed hue.
-	[[nodiscard]] auto washed_emphasis(
+	/// \details BPR-0323: on a selected row the mark is a deeper shade of the
+	/// band the row is wearing — its own band with the wash over it — rather
+	/// than any palette colour. Compositing the palette colour instead was
+	/// BPR-0321, and the product owner rejected it: at 72/255 a pink stays
+	/// pink on a blue band.
+	[[nodiscard]] auto selected_row_fill(
 		const QPlainTextEdit& aPane,
-		const QColor          aBase) -> QColor
+		const QColor          aBand) -> QColor
 	{
 		const auto highlight = aPane.palette().color(QPalette::Highlight);
-		const auto blended   = core::composited(
+		const auto washed    = core::composited(
 			core::appearance_color{ static_cast<std::uint8_t>(highlight.red()),
 									static_cast<std::uint8_t>(highlight.green()),
 									static_cast<std::uint8_t>(highlight.blue()),
 									255U },
-			core::appearance_color{ static_cast<std::uint8_t>(aBase.red()),
-									static_cast<std::uint8_t>(aBase.green()),
-									static_cast<std::uint8_t>(aBase.blue()),
+			core::appearance_color{ static_cast<std::uint8_t>(aBand.red()),
+									static_cast<std::uint8_t>(aBand.green()),
+									static_cast<std::uint8_t>(aBand.blue()),
 									255U },
 			core::selection_wash_alpha);
-		return QColor{ blended.Red, blended.Green, blended.Blue };
+		const auto shade = core::derived_emphasis_fill(washed);
+		return QColor{ shade.Red, shade.Green, shade.Blue };
 	}
 
+	/// \brief Painted intraline ranges must be the ranges the core computed.
 	auto test_intraline_ranges_match_the_model() -> void
 	{
 		// A two-byte character sits ahead of the edit on the changed line, so a
@@ -1739,9 +1743,9 @@ namespace {
 		});
 		process_events();
 
-		const auto emphasis = washed_emphasis(
+		const auto emphasis = selected_row_fill(
 			*workbench.right_pane(),
-			profile.color(core::appearance_role::diff_intraline_added_background));
+			profile.color(core::appearance_role::diff_added_background));
 		auto wash = workbench.right_pane()->palette().color(QPalette::Highlight);
 		wash.setAlpha(core::selection_wash_alpha);
 		auto compared = 0U;
@@ -1862,9 +1866,9 @@ namespace {
 		});
 		process_events();
 
-		const auto emphasis = washed_emphasis(
+		const auto emphasis = selected_row_fill(
 			*workbench.left_pane(),
-			profile.color(core::appearance_role::diff_intraline_removed_background));
+			profile.color(core::appearance_role::diff_removed_background));
 		const QList<QTextEdit::ExtraSelection> selections
 			= workbench.left_pane()->extraSelections();
 		auto compared = 0U;
@@ -1904,7 +1908,7 @@ namespace {
 	/// red/green there which makes it more difficult." The emphasis is painted
 	/// opaque and last, so before the fix it was the one fill the selection
 	/// wash never reached.
-	auto test_selected_rows_wash_their_intraline_emphasis() -> void
+	auto test_selected_rows_derive_their_intraline_fill() -> void
 	{
 		const auto left = std::string{
 			"context-before\n"
@@ -1935,19 +1939,10 @@ namespace {
 
 		const auto bare
 			= profile.color(core::appearance_role::diff_intraline_added_background);
-		auto       highlight = workbench.right_pane()->palette().color(QPalette::Highlight);
-		const auto blended   = core::composited(
-			core::appearance_color{ static_cast<std::uint8_t>(highlight.red()),
-									static_cast<std::uint8_t>(highlight.green()),
-									static_cast<std::uint8_t>(highlight.blue()),
-									255U },
-			core::appearance_color{ static_cast<std::uint8_t>(bare.red()),
-									static_cast<std::uint8_t>(bare.green()),
-									static_cast<std::uint8_t>(bare.blue()),
-									255U },
-			core::selection_wash_alpha);
-		const auto washed = QColor{ blended.Red, blended.Green, blended.Blue };
-		expect(washed != bare, "the wash actually changes the emphasis colour");
+		const auto washed = selected_row_fill(
+			*workbench.right_pane(),
+			profile.color(core::appearance_role::diff_added_background));
+		expect(washed != bare, "a selected row's fill is not the palette colour");
 
 		// Select through the ribbon, the gesture a reviewer actually has.
 		const auto visible = workbench.link_map()->visible_links();
@@ -1988,10 +1983,10 @@ namespace {
 		}
 		expect(
 			washedMarks > 0U,
-			"a selected row's intraline emphasis carries the row's wash");
+			"a selected row's mark is a deeper shade of the band it sits in");
 		expect(
 			bareMarks == 0U,
-			"no selected row keeps the unwashed added or removed hue");
+			"no selected row keeps the unselected added or removed hue");
 	}
 
 	auto test_group_selection_washes_every_line() -> void
@@ -2259,7 +2254,7 @@ auto main(int argc, char** argv) -> int
 	test_intraline_ranges_are_painted_on_the_removed_side();
 	test_group_boundaries_are_painted();
 	test_link_map_endpoints_meet_their_blocks();
-	test_selected_rows_wash_their_intraline_emphasis();
+	test_selected_rows_derive_their_intraline_fill();
 	test_group_selection_washes_every_line();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;

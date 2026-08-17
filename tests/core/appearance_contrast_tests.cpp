@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -795,6 +796,66 @@ namespace {
 					 "the ratio saturates rather than dividing by zero");
 		expect(!balance.Meets, "an invisible emphasis is never balanced");
 	}
+	// A fill the palette has no emphasis role for -- a row wearing the
+	// selection wash, most of all -- gets a deeper shade of itself. Hue is the
+	// property under test: compositing a palette colour instead kept its own
+	// hue and was rejected for exactly that.
+	auto test_a_derived_fill_keeps_its_own_hue() -> void
+	{
+		const auto hueOf = [](const appearance_color aColor) {
+			const auto high = std::max({ aColor.Red, aColor.Green, aColor.Blue });
+			const auto low  = std::min({ aColor.Red, aColor.Green, aColor.Blue });
+			return std::pair{ high, low };
+		};
+
+		// A washed blue band, the case the product owner reported.
+		constexpr auto band    = srgb(0xC9E9EB);
+		const auto     derived = derived_emphasis_fill(band);
+		expect(
+			color_difference_tenths(band, derived, color_vision::typical)
+				>= derived_emphasis_separation_minimum_tenths,
+			"a derived fill reaches the published separation");
+		expect(
+			derived.Blue >= derived.Green && derived.Green >= derived.Red,
+			"a derived fill keeps the channel order of the fill it came from");
+
+		const auto [bandHigh, bandLow]   = hueOf(band);
+		const auto [shadeHigh, shadeLow] = hueOf(derived);
+		expect(
+			shadeHigh - shadeLow > bandHigh - bandLow,
+			"a derived fill is more saturated than the fill it came from");
+	}
+
+	// A near-black row has no room to deepen, so the derivation brightens
+	// rather than returning something invisible.
+	auto test_a_dark_fill_is_derived_by_brightening() -> void
+	{
+		constexpr auto band    = srgb(0x00311E);
+		const auto     derived = derived_emphasis_fill(band);
+		expect(
+			color_difference_tenths(band, derived, color_vision::typical)
+				>= derived_emphasis_separation_minimum_tenths,
+			"a dark fill still reaches the published separation");
+		expect(
+			derived.Green > band.Green,
+			"a dark fill is brightened rather than darkened further");
+	}
+
+	// Black and white have nowhere to go in their own hue, so the derivation
+	// moves toward the opposite extreme instead of failing.
+	auto test_a_neutral_fill_moves_toward_the_far_extreme() -> void
+	{
+		const auto fromBlack = derived_emphasis_fill(srgb(0x000000));
+		expect(fromBlack.Red > 0U, "black derives toward white");
+		const auto fromWhite = derived_emphasis_fill(srgb(0xFFFFFF));
+		expect(fromWhite.Red < 255U, "white derives toward black");
+		for (const auto derived : { fromBlack, fromWhite }) {
+			expect(
+				derived.Red == derived.Green && derived.Green == derived.Blue,
+				"a neutral fill derives to a neutral shade");
+		}
+	}
+
 } // namespace
 
 int main()
@@ -817,5 +878,8 @@ int main()
 	test_a_lopsided_palette_fails_the_balance_bound();
 	test_a_balanced_palette_passes_both_bounds();
 	test_an_invisible_emphasis_reports_the_extreme_ratio();
+	test_a_derived_fill_keeps_its_own_hue();
+	test_a_dark_fill_is_derived_by_brightening();
+	test_a_neutral_fill_moves_toward_the_far_extreme();
 	return EXIT_SUCCESS;
 }

@@ -406,6 +406,40 @@ namespace bpr::core {
 	[[nodiscard]] auto measure_emphasis_balance(const appearance_palette& aPalette)
 		-> emphasis_balance_finding;
 
+	/// \brief The separation a fill derived from its row is held to.
+	///
+	/// \details 9.0, and deliberately far below
+	/// `emphasis_separation_minimum_tenths`. A derived fill is not carrying the
+	/// mark by itself — the rule under the characters does that — so it only
+	/// has to read as a deeper shade of the row rather than as a mark in its
+	/// own right. Pushing it to 20.0 would spend text contrast the row has
+	/// already spent on its own band, and buy emphasis the rule already
+	/// supplies.
+	inline constexpr std::uint32_t derived_emphasis_separation_minimum_tenths = 90U;
+
+	/// \brief Returns a deeper shade of one fill, in the fill's own hue.
+	///
+	/// \details For a fill the palette has no emphasis role for — a row wearing
+	/// the selection wash, most of all — the mark cannot be a palette colour,
+	/// because the fill it has to sit inside is a composite the palette never
+	/// names. Deriving keeps the answer in the row's own hue, which is the
+	/// property that failed when the accepted added and removed fills were
+	/// composited instead: at 72/255 a pink stays pink on a blue band, and a
+	/// reviewer reading "red patch on a blue row" is reading it correctly.
+	///
+	/// The derivation moves toward the most vivid rendering of the fill's own
+	/// hue, lifted to full brightness when the fill is dark so a near-black
+	/// row has somewhere to travel, and blends until the separation reaches
+	/// `derived_emphasis_separation_minimum_tenths`. Hue is preserved to within
+	/// a degree by construction. A fill with no hue to deepen moves toward
+	/// white or black instead, whichever it is further from.
+	///
+	/// Returns the fill unchanged when the minimum cannot be reached, which is
+	/// honest rather than convenient: the caller still draws the rule, and a
+	/// silently invented colour would be worse than no tint.
+	[[nodiscard]] auto derived_emphasis_fill(appearance_color aFill) noexcept
+		-> appearance_color;
+
 	/// \brief Names two roles whose meanings differ, and whose colours may not.
 	///
 	/// \details These are the pairs where hue is doing the semantic work. The
