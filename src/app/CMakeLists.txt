@@ -188,6 +188,7 @@ if(BPR_BUILD_QT)
         set_target_properties(
             app_better_pull_review
             PROPERTIES
+                OUTPUT_NAME "BetterPullReview"
                 MACOSX_BUNDLE TRUE
                 MACOSX_BUNDLE_BUNDLE_NAME "BetterPullReview"
                 MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"

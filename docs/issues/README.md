@@ -389,6 +389,11 @@ Dock comparison showed that its outer footprint still exceeded neighboring
 application icons. The resulting transparent margin applies consistently to
 the SVG and every generated platform asset.
 
+Done BPR-0328 names the tests-disabled macOS executable and bundle
+`BetterPullReview`, closing the Dock-tooltip fallback that occurs when VS Code
+starts the bundle executable directly under LLDB instead of through Launch
+Services. Other platform and tests-enabled executable names remain unchanged.
+
 Done BPR-0085 adopts the rendered project-neutral C++ standard as the
 repository source of truth. It applies canonical formatting, naming, include
 guards, and public API documentation across the first-party source and test

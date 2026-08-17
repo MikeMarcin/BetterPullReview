@@ -44,7 +44,7 @@ cmake --build --preset app-release
 ```
 
 On macOS the result is
-`build/app-release/src/app/better_pull_review.app`. This is the closest current
+`build/app-release/src/app/BetterPullReview.app`. This is the closest current
 shipped-application shape, but it is not a signed, notarized, dependency-
 deployed, or installer-ready package; RFC-BPR-0014 owns those distribution
 claims.

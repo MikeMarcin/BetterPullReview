@@ -396,7 +396,7 @@ closeout against a tests-disabled Release application:
 
 ```sh
 python3 scripts/verify_rfc0017_test_inventory.py \
-    --release-binary build/app-release/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
+    --release-binary build/app-release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview
 ```
 
 Both print `RFC0017_TEST_INVENTORY_OK`. Later RFC-BPR-0017 cards add their
