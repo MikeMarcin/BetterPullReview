@@ -1608,7 +1608,7 @@ of this verification.
 
 For the BPR-0048 focused epoch matrix, first build `dev`, then run the core,
 host, catalog, Git, smart transport, Qt, public persistence, and boundary
-targets selected in `docs/issues/done/BPR-0048-rfc-0003-focused-tests.md`.
+targets selected in `docs/issues/60-done/BPR-0048-rfc-0003-focused-tests.md`.
 The fixed public force-push graph has its own quick semantic contract:
 
 ```sh

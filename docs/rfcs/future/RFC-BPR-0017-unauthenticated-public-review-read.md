@@ -313,17 +313,17 @@ Implementation may begin only after all of the following exist:
 
 - Recorded probe evidence resolving every claim in the second findings section
   against the real service, captured as sanitized fixtures. This is
-  [BPR-0298](../../issues/ready/BPR-0298-record-anonymous-github-contracts.md).
+  [BPR-0298](../../issues/20-ready/BPR-0298-record-anonymous-github-contracts.md).
 - A demonstration that the native HTTPS transport issues a credential-free
   request with all RFC-BPR-0002 redirect, certificate, and proxy rules intact,
   and that omitting the authorization header is a deliberate typed state rather
   than an absent credential. This is
-  [BPR-0313](../../issues/done/BPR-0313-demonstrate-credential-free-native-https.md),
+  [BPR-0313](../../issues/60-done/BPR-0313-demonstrate-credential-free-native-https.md),
   and it comes before the product decision, not after it.
 - A product decision that a read-only, triage-less, rate-limited preview of
   public GitHub.com pull requests is a mode the product wants, recorded with
   its intended presentation of those limits. This is
-  [BPR-0299](../../issues/backlog/BPR-0299-decide-anonymous-public-preview.md),
+  [BPR-0299](../../issues/10-backlog/BPR-0299-decide-anonymous-public-preview.md),
   which depends on both of the above.
 - RFC-BPR-0002 Auto-Verified, since this mode reuses its transport and
   normalization guarantees rather than restating them.

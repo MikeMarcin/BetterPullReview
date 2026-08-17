@@ -97,11 +97,11 @@ or fixtured, and never typed into a shell that records history.
 
 ## The structural guard was rebuilt first; the executable boundary is separate
 
-[[BPR-0221]], now in `done/`, rebuilt the provider inventory and binary-symbol
-guard before a live implementation existed. It does not satisfy this card's
-whole-process requirement by itself. [[BPR-0235]] separately owns the CTest
-launcher boundary and remains in progress until Linux and Windows are proved
-target-native and the only live exception enforces the now-designated
+[[BPR-0221]], now in `60-done/`, rebuilt the provider inventory and
+binary-symbol guard before a live implementation existed. It does not satisfy
+this card's whole-process requirement by itself. [[BPR-0235]] separately owns
+the CTest launcher boundary and remains in progress until Linux and Windows are
+proved target-native and the only live exception enforces the now-designated
 pull-request identity before child creation.
 
 Building the structural half before the live provider existed was the point: it is the only moment

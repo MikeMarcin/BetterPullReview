@@ -121,7 +121,7 @@ Both are testable in one run, and it is a run somebody is about to do anyway.
 configuration that reaches the code path, and it already reports the delta. Re-
 instrumenting `schedule_geometry_rebuild` for that run — recording the cause
 mask per rebuild — answers this card from the same sitting. This card remains
-open rather than moving to `done/`: the product question is not answered, only
+open rather than moving to `60-done/`: the product question is not answered, only
 narrowed from "why twice" to "which of two named candidates".
 
 The `== 1U` expectation at `main.cpp:728-729` and `:2339` is unchanged, and must
@@ -172,6 +172,6 @@ and the complete output must contain
 
 Run only the digest-bound procedure in
 [`appearance-scheme-foreground-v002`](../../verification/reviews/appearance-scheme-foreground-v002/operator-packet.md).
-This card is parked in `backlog/` until that log is returned. No product fix and
+This card is parked in `10-backlog/` until that log is returned. No product fix and
 no change to either exact `== 1U` expectation is authorized before the causes
 are measured.

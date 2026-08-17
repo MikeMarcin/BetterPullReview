@@ -14,7 +14,7 @@ Replay the complete RFC-BPR-0006 claim matrix from clean state, resolve every do
 
 This card cannot mark RFC-BPR-0006 `Auto-Verified`. Closure is strictly ordered and RFC-BPR-0005, RFC-BPR-0004, RFC-BPR-0003, and RFC-BPR-0002 are all still `Proposed` pending real Windows x64 evidence. It also depends on the owner-attended BPR-0114.
 
-It stays in `backlog/` and makes no closure claim.
+It stays in `10-backlog/` and makes no closure claim.
 
 ## Historical composition finding and current correction
 

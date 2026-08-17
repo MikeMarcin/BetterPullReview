@@ -14,7 +14,7 @@ RFC base: `bfa9ab3ad6b08fbb22b697ed6fe6688202d3335a`.
 Replay the complete claim matrix from clean state, directly inspect the real
 composition and rendered application, verify target-native credential adapters
 and secret-free evidence, review the final diff skeptically, resolve every
-documentation-ledger entry, and move every RFC card to `done/`.
+documentation-ledger entry, and move every RFC card to `60-done/`.
 
 Mark RFC-BPR-0002 Auto-Verified only when GitHub.com, recorded GHES 3.18,
 native HTTPS, all three native credential stores, the fixed zero-launch CLI
@@ -38,7 +38,7 @@ Auto-Verified transition.
 ## Available-platform checkpoint
 
 At `a600ab2c29d2b4088a3f2598dbb817c35af2eafd`, BPR-0016 through
-BPR-0034 plus BPR-0037/BPR-0038 are in `done/`. The current RFC-owned macOS
+BPR-0034 plus BPR-0037/BPR-0038 are in `60-done/`. The current RFC-owned macOS
 matrix is 46/46, `core-only` is 17/17, and the final simplification's focused
 AddressSanitizer/UndefinedBehaviorSanitizer matrix is 7/7. Documentation,
 architecture, security, tests-disabled Release, native macOS, pinned Linux,

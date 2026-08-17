@@ -16,7 +16,7 @@ past RFC-BPR-0004 through the remainder of the pack on available targets.
 Implementation, tests, documentation, security review, and simplification for
 RFC-BPR-0005 through RFC-BPR-0014 may proceed while earlier RFCs remain
 `Proposed`. Each such RFC ends its available-target work at a closeout card in
-`backlog/` and stays `Proposed`.
+`10-backlog/` and stays `Proposed`.
 
 Every requirement that cannot be met on an available target is recorded on a
 live issue card naming exactly what is missing and who must supply it. Three

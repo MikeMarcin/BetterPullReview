@@ -38,11 +38,12 @@ CLOSEOUT_COLUMNS = (
     "Gate class",
     "Live blocker",
 )
-OPEN_ISSUE_LANES = ("backlog", "blocked", "ready", "in-progress")
+OPEN_ISSUE_LANES = ("10-backlog", "50-blocked", "20-ready", "30-in-progress")
+DONE_ISSUE_LANE = "60-done"
 OPEN_ISSUE_STATUSES = frozenset(
     {"Backlog", "Blocked", "Ready", "In Progress"}
 )
-DEFERRING_ISSUE_LANES = frozenset({"backlog", "blocked"})
+DEFERRING_ISSUE_LANES = frozenset({"10-backlog", "50-blocked"})
 BLOCKED_BY_VALUES = frozenset(
     {
         "platform-linux",
@@ -169,11 +170,11 @@ def verify_rfc_index(root: Path) -> None:
 def verify_issue_board(root: Path) -> None:
     issue_root = root / "docs/issues"
     lane_status = {
-        "backlog": "Backlog",
-        "blocked": "Blocked",
-        "ready": "Ready",
-        "in-progress": "In Progress",
-        "done": "Done",
+        "10-backlog": "Backlog",
+        "50-blocked": "Blocked",
+        "20-ready": "Ready",
+        "30-in-progress": "In Progress",
+        DONE_ISSUE_LANE: "Done",
     }
     cards: dict[str, tuple[str, list[str], Path]] = {}
     highest = 0
@@ -202,7 +203,7 @@ def verify_issue_board(root: Path) -> None:
                     f"{metadata.get('depends_on')}"
                 )
             blocked_by = metadata.get("blocked_by")
-            if lane == "blocked":
+            if lane == "50-blocked":
                 if not blocked_by:
                     fail(f"blocked card does not declare blocked_by: {path}")
                 if blocked_by not in BLOCKED_BY_VALUES:
@@ -229,7 +230,10 @@ def verify_issue_board(root: Path) -> None:
             if dependency not in cards:
                 fail(f"missing dependency in {path}: {dependency}")
             dependency_lane = cards[dependency][0]
-            if lane not in DEFERRING_ISSUE_LANES and dependency_lane != "done":
+            if (
+                lane not in DEFERRING_ISSUE_LANES
+                and dependency_lane != DONE_ISSUE_LANE
+            ):
                 fail(
                     f"{lane} card {issue_id} depends on {dependency} "
                     f"in {dependency_lane}"
@@ -525,7 +529,7 @@ def issue_dependencies(metadata: dict[str, str], path: Path) -> list[str]:
 
 def issue_dependency_closure(root: Path, issue_id: str) -> set[str]:
     cards: dict[str, tuple[list[str], Path]] = {}
-    for lane in (*OPEN_ISSUE_LANES, "done"):
+    for lane in (*OPEN_ISSUE_LANES, DONE_ISSUE_LANE):
         for path in (root / "docs/issues" / lane).glob("BPR-*.md"):
             metadata = front_matter(path)
             card_id = metadata.get("id", "")

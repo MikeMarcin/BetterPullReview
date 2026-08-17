@@ -389,7 +389,7 @@ That edit also removed an obsolete attribution. The ledger said this card
 first at the top of *"The blocker, attributed 2026-08-08"*. Recording the
 correction precisely, because the campaign plan that prompted the sweep
 described BPR-0154 as *withdrawn*: it was not. BPR-0154 is `status: Done` under
-RFC-BPR-0003 and lives in `done/`. It was closed, and it was not this card's
+RFC-BPR-0003 and lives in `60-done/`. It was closed, and it was not this card's
 blocker — a different thing from being withdrawn.
 
 ## Prepared for an attended run, 2026-08-09

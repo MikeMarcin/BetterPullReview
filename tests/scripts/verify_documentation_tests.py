@@ -26,7 +26,14 @@ class IssueGraphTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.issue_root = self.root / "docs/issues"
-        for lane in ("backlog", "blocked", "ready", "in-progress", "done"):
+        lanes = (
+            "10-backlog",
+            "50-blocked",
+            "20-ready",
+            "30-in-progress",
+            "60-done",
+        )
+        for lane in lanes:
             (self.issue_root / lane).mkdir(parents=True)
 
     def tearDown(self) -> None:
@@ -61,28 +68,28 @@ class IssueGraphTests(unittest.TestCase):
         verify_issue_board(self.root)
 
     def test_accepts_completed_dependencies_and_backlog_frontier(self) -> None:
-        self.write_card("BPR-0001", "done", "Done", "")
-        self.write_card("BPR-0002", "ready", "Ready", "BPR-0001")
-        self.write_card("BPR-0003", "backlog", "Backlog", "BPR-0002")
+        self.write_card("BPR-0001", "60-done", "Done", "")
+        self.write_card("BPR-0002", "20-ready", "Ready", "BPR-0001")
+        self.write_card("BPR-0003", "10-backlog", "Backlog", "BPR-0002")
 
         self.verify("BPR-0004")
 
     def test_rejects_missing_dependency(self) -> None:
-        self.write_card("BPR-0001", "backlog", "Backlog", "BPR-0099")
+        self.write_card("BPR-0001", "10-backlog", "Backlog", "BPR-0099")
 
         with self.assertRaises(SystemExit):
             self.verify("BPR-0002")
 
     def test_rejects_ready_card_with_open_dependency(self) -> None:
-        self.write_card("BPR-0001", "backlog", "Backlog", "")
-        self.write_card("BPR-0002", "ready", "Ready", "BPR-0001")
+        self.write_card("BPR-0001", "10-backlog", "Backlog", "")
+        self.write_card("BPR-0002", "20-ready", "Ready", "BPR-0001")
 
         with self.assertRaises(SystemExit):
             self.verify("BPR-0003")
 
     def test_rejects_dependency_cycle(self) -> None:
-        self.write_card("BPR-0001", "backlog", "Backlog", "BPR-0002")
-        self.write_card("BPR-0002", "backlog", "Backlog", "BPR-0001")
+        self.write_card("BPR-0001", "10-backlog", "Backlog", "BPR-0002")
+        self.write_card("BPR-0002", "10-backlog", "Backlog", "BPR-0001")
 
         with self.assertRaises(SystemExit):
             self.verify("BPR-0003")
@@ -90,14 +97,14 @@ class IssueGraphTests(unittest.TestCase):
     def test_accepts_blocked_card_with_open_dependency(self) -> None:
         self.write_card(
             "BPR-0001",
-            "blocked",
+            "50-blocked",
             "Blocked",
             "",
             blocked_by="platform-windows",
         )
         self.write_card(
             "BPR-0002",
-            "blocked",
+            "50-blocked",
             "Blocked",
             "BPR-0001",
             blocked_by="platform-windows",
@@ -106,7 +113,7 @@ class IssueGraphTests(unittest.TestCase):
         self.verify("BPR-0003")
 
     def test_rejects_blocked_card_without_blocked_by(self) -> None:
-        self.write_card("BPR-0001", "blocked", "Blocked", "")
+        self.write_card("BPR-0001", "50-blocked", "Blocked", "")
 
         with self.assertRaises(SystemExit):
             self.verify("BPR-0002")
@@ -114,7 +121,7 @@ class IssueGraphTests(unittest.TestCase):
     def test_rejects_unknown_blocked_by_value(self) -> None:
         self.write_card(
             "BPR-0001",
-            "blocked",
+            "50-blocked",
             "Blocked",
             "",
             blocked_by="waiting-on-the-product-owner",
@@ -126,7 +133,7 @@ class IssueGraphTests(unittest.TestCase):
     def test_rejects_blocked_by_outside_the_blocked_lane(self) -> None:
         self.write_card(
             "BPR-0001",
-            "backlog",
+            "10-backlog",
             "Backlog",
             "",
             blocked_by="platform-windows",
@@ -138,7 +145,7 @@ class IssueGraphTests(unittest.TestCase):
     def test_rejects_blocked_lane_status_mismatch(self) -> None:
         self.write_card(
             "BPR-0001",
-            "blocked",
+            "50-blocked",
             "Backlog",
             "",
             blocked_by="platform-windows",
@@ -150,12 +157,12 @@ class IssueGraphTests(unittest.TestCase):
     def test_rejects_ready_card_depending_on_a_blocked_card(self) -> None:
         self.write_card(
             "BPR-0001",
-            "blocked",
+            "50-blocked",
             "Blocked",
             "",
             blocked_by="platform-linux",
         )
-        self.write_card("BPR-0002", "ready", "Ready", "BPR-0001")
+        self.write_card("BPR-0002", "20-ready", "Ready", "BPR-0001")
 
         with self.assertRaises(SystemExit):
             self.verify("BPR-0003")
@@ -165,7 +172,7 @@ class CloseoutContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
-        for lane in ("backlog", "ready", "in-progress", "done"):
+        for lane in ("10-backlog", "20-ready", "30-in-progress", "60-done"):
             (self.root / "docs/issues" / lane).mkdir(parents=True)
         (self.root / "docs/rfcs").mkdir(parents=True)
         (self.root / "docs/verification").mkdir(parents=True)
@@ -173,13 +180,13 @@ class CloseoutContractTests(unittest.TestCase):
         self.base = "a" * 40
         self.card_path = (
             self.root
-            / "docs/issues/backlog/BPR-0999-close-rfc-0999.md"
+            / "docs/issues/10-backlog/BPR-0999-close-rfc-0999.md"
         )
         self.blocker_path = (
-            self.root / "docs/issues/backlog/BPR-0998-attended-blocker.md"
+            self.root / "docs/issues/10-backlog/BPR-0998-attended-blocker.md"
         )
         self.done_blocker_path = (
-            self.root / "docs/issues/done/BPR-0997-done-blocker.md"
+            self.root / "docs/issues/60-done/BPR-0997-done-blocker.md"
         )
         self.write_rfc()
         self.write_ledger()
@@ -442,14 +449,14 @@ class CloseoutContractTests(unittest.TestCase):
         self.write_card(
             table=self.table().replace(
                 "[BPR-0998](BPR-0998-attended-blocker.md)",
-                "[BPR-0997](../done/BPR-0997-done-blocker.md)",
+                "[BPR-0997](../60-done/BPR-0997-done-blocker.md)",
             )
         )
         self.reject()
 
     def test_rejects_nonautomated_unrelated_open_blocker(self) -> None:
         unrelated_path = (
-            self.root / "docs/issues/backlog/BPR-0996-unrelated-blocker.md"
+            self.root / "docs/issues/10-backlog/BPR-0996-unrelated-blocker.md"
         )
         self.write_blocker(unrelated_path, "Backlog")
         self.write_card(
@@ -714,7 +721,7 @@ class CloseoutContractTests(unittest.TestCase):
             table=self.table().replace(
                 "[BPR-0998](BPR-0998-attended-blocker.md"
                 "#required-direct-evidence)",
-                "[BPR-0997](../done/BPR-0997-done-blocker.md"
+                "[BPR-0997](../60-done/BPR-0997-done-blocker.md"
                 "#required-direct-evidence)",
                 1,
             ),
@@ -723,7 +730,7 @@ class CloseoutContractTests(unittest.TestCase):
 
     def test_rejects_unowned_procedure_reference(self) -> None:
         unrelated_path = (
-            self.root / "docs/issues/backlog/BPR-0996-unrelated-blocker.md"
+            self.root / "docs/issues/10-backlog/BPR-0996-unrelated-blocker.md"
         )
         self.write_blocker(unrelated_path, "Backlog")
         self.write_card(
@@ -757,7 +764,7 @@ class CloseoutContractTests(unittest.TestCase):
 
     def test_rejects_automated_unrelated_open_blocker(self) -> None:
         unrelated_path = (
-            self.root / "docs/issues/backlog/BPR-0996-unrelated-blocker.md"
+            self.root / "docs/issues/10-backlog/BPR-0996-unrelated-blocker.md"
         )
         self.write_blocker(unrelated_path, "Backlog")
         self.write_card(
@@ -773,7 +780,7 @@ class CloseoutContractTests(unittest.TestCase):
         self.write_card(
             table=self.table().replace(
                 CLOSEOUT_NO_LIVE_BLOCKER,
-                "[BPR-0997](../done/BPR-0997-done-blocker.md) remains open.",
+                "[BPR-0997](../60-done/BPR-0997-done-blocker.md) remains open.",
                 1,
             )
         )

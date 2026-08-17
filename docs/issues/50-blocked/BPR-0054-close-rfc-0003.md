@@ -19,7 +19,7 @@ security boundaries, package/runtime dependencies, and platform-native
 evidence.
 
 Resolve every documentation-ledger row, perform a skeptical final diff review,
-move every RFC card to `done/`, and mark RFC-BPR-0003 Auto-Verified only when
+move every RFC card to `60-done/`, and mark RFC-BPR-0003 Auto-Verified only when
 all claims agree and RFC-BPR-0002 has already closed in canonical order.
 
 Closeout requires fresh `dev`, `core-only`, sanitizer, tests-disabled Release,
@@ -67,7 +67,7 @@ documentation review; original-pack validation; workflow absence; and
   overstated which host capacities are actually flood-tested.
 - BPR-0035/BPR-0036 and BPR-0053 remain open for real Windows execution and
   canonical RFC-BPR-0002/RFC-BPR-0003 status transitions. Every other blocking
-  dependency of this card is now in `done/`: BPR-0070 closed the prune
+  dependency of this card is now in `60-done/`: BPR-0070 closed the prune
   command-projection refinement, and BPR-0069 closed the evidence and
   documentation reconciliation. Nonblocking BPR-0086 is not a dependency. This
   card remains in backlog and makes no `Auto-Verified` claim while real Windows

@@ -502,7 +502,7 @@ judge and reproduce it.
 
 | Field | Recorded value |
 |---|---|
-| Card | [BPR-0059](../issues/done/BPR-0059-rfc-0003-macos-active-focus-verification.md) |
+| Card | [BPR-0059](../issues/60-done/BPR-0059-rfc-0003-macos-active-focus-verification.md) |
 | Recording commit | `63df236f3732903c55d3ba9b386ed9d83e467234`, 2026-08-01 |
 | Probe source identity | `src/app/main.cpp` blob `787ba735278b4f22834fab0e3b8e20f7a9df5515` at that commit |
 | Executable | `build/dev/src/app/better_pull_review` from the Qt-enabled tests-enabled `dev` preset |

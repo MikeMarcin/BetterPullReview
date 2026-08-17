@@ -154,7 +154,7 @@ This changes order only and does not weaken either terminal criterion.
 
 ## Lane — 2026-08-16
 
-Moved to `blocked/` by BPR-0319. The remaining portable work is done, and all
+Moved to `50-blocked/` by BPR-0319. The remaining portable work is done, and all
 three remaining criteria require target-native execution on Linux or Windows.
 
 The third of them carries a second blocker the lane does not record: the

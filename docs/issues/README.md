@@ -6,37 +6,40 @@ Issue IDs use the `BPR-NNNN` sequence allocated by `NEXT_ID`.
 
 | Folder | Status | Meaning |
 |---|---|---|
-| `backlog/` | Backlog | Planned but blocked by dependencies |
-| `blocked/` | Blocked | Cannot be executed here; needs a different operating system |
-| `ready/` | Ready | Unblocked and available to start |
-| `in-progress/` | In Progress | The current implementation slice |
-| `done/` | Done | Verified terminal state |
+| `10-backlog/` | Backlog | Planned but blocked by dependencies |
+| `20-ready/` | Ready | Unblocked and available to start |
+| `30-in-progress/` | In Progress | The current implementation slice |
+| `50-blocked/` | Blocked | Cannot be executed here; needs a different operating system |
+| `60-done/` | Done | Verified terminal state |
 
 Folder placement is authoritative. Front-matter `status` must agree with the
 folder. Move a card rather than copying it, and update dependencies when new
-work is discovered.
+work is discovered. The two-digit prefix exists so that a directory listing
+sorts the lanes in workflow order rather than alphabetically; the gap at `40`
+leaves room for a lane between in-progress and blocked.
 
-`blocked/` holds a card whose own remaining work cannot be executed on this
+`50-blocked/` holds a card whose own remaining work cannot be executed on this
 host because it requires target-native execution on a different operating
 system, together with any card whose every unmet dependency resolves only
 through such a card. Each one carries a `blocked_by` field naming the exact
 platform: `platform-linux`, `platform-windows`, or
 `platform-linux-and-windows`. The lane is not terminal — a card returns to
-`backlog/` or `ready/` on the day the platform exists.
+`10-backlog/` or `20-ready/` on the day the platform exists.
 
 The rule is narrower than "cannot progress right now", and deliberately so. A
 card parked on an attended owner verdict, a live GitHub session, or an unmade
-product decision stays in `backlog/`, because the missing input is a person or
-a service rather than a machine. Those blockers gate more of this board than
+product decision stays in `10-backlog/`, because the missing input is a person
+or a service rather than a machine. Those blockers gate more of this board than
 the platform blockers do; see [Open right now](#open-right-now) for who owns
 each one.
 
 Each card links one RFC, names its dependencies, defines completion evidence,
 and is committed with the implementation slice it tracks. RFC closeout is
-blocked while any required card remains outside `done/`.
+blocked while any required card remains outside `60-done/`.
 
-Verification scope follows the transition. Moving a card to `done/` needs the
-focused selectors that card names and `clang-format` on the files it touched.
+Verification scope follows the transition. Moving a card to `60-done/` needs
+the focused selectors that card names and `clang-format` on the files it
+touched.
 The full `dev` and `core-only` matrices and the strict `coding-tidy` target are
 RFC-closeout gates: together they run for the better part of an hour, and
 spending that on every slice buys nothing a focused selector did not already
@@ -45,31 +48,31 @@ closeout, where a clean full replay is the actual requirement.
 
 ## Current frontiers
 
-RFC-BPR-0001 is `Auto-Verified`, and every linked card is in `done/`.
+RFC-BPR-0001 is `Auto-Verified`, and every linked card is in `60-done/`.
 RFC-BPR-0002 is the closure frontier in canonical order. Its planning slice is
 complete; its architecture, deterministic-core, normalized-contract,
 host-profile/capability, portable/native credential, and hardened GitHub CLI
-broker slices are verified. `BPR-0023` is in `done/` with its Windows
+broker slices are verified. `BPR-0023` is in `60-done/` with its Windows
 implementation evidence, while direct Windows x64 execution remains in
-`BPR-0036`. `BPR-0025` is in `done/`; its production CLI path remains
-fail-closed with zero launches. `BPR-0037` is in `done/` with the
+`BPR-0036`. `BPR-0025` is in `60-done/`; its production CLI path remains
+fail-closed with zero launches. `BPR-0037` is in `60-done/` with the
 product-owner-approved milestone-one resolution: native HTTPS is the sole
 production authentication transport, every visible CLI choice returns typed
 `cli_unavailable` before CLI discovery or process creation, and positive CLI
 enablement is deferred outside pack v2 to RFC-BPR-0015. `BPR-0026` is in
-`done/` with its
+`60-done/` with its
 macOS/Linux native HTTPS trust, proxy, redirect, cancellation, bounds, and
-runtime evidence. `BPR-0027` is in `done/` with the application provider,
+runtime evidence. `BPR-0027` is in `60-done/` with the application provider,
 serialized host, pagination, rate/retry, credential-lifecycle, and staging
 surface verified on macOS by the focused 9/9, fresh `dev` 35/35, fresh
 `core-only` 17/17, sanitizer 3/3, and tests-disabled Release gates; its final
 Ubuntu 26.04 x86_64 full-system QEMU build passed under GCC 15.2 and its
-focused matrix passed 9/9 under Qt 6.10.2. `BPR-0028` is in `done/` with the
+focused matrix passed 9/9 under Qt 6.10.2. `BPR-0028` is in `60-done/` with the
 provider-free atomic projection, accessible GitHub Qt window, stable
 incremental conversation model, three-scale rendering, fresh macOS 38/38 and
 core-only 17/17 matrices, sanitizer 4/4, and Ubuntu x86_64 host/scale 4/4
-evidence. `BPR-0038` is in `done/` with the fail-closed decision to keep
-query-bearing HTTP redirect targets rejected. `BPR-0029` is in `done/` with
+evidence. `BPR-0038` is in `60-done/` with the fail-closed decision to keep
+query-bearing HTTP redirect targets rejected. `BPR-0029` is in `60-done/` with
 explicit GitHub.com/GHES profiles and provenance, multi-profile provider
 routing, native HTTPS and platform-vault selection, Qt-owned sensitive input,
 hostname-bound v2 authority, orderly exact credential deletion, visible
@@ -77,14 +80,14 @@ zero-launch CLI unavailability, public GitHub.com/GHES application fixtures,
 and a tests-disabled Release seam-absence contract. Its pinned Linux v2 matrix
 ran at the BPR-0029 snapshot in an Ubuntu 26.04 x86_64 full-system QEMU guest,
 including the native vault, both public fixtures, Release seam absence, exact
-cleanup, and dependency/runtime/ELF audits. `BPR-0030` is in `done/` with
+cleanup, and dependency/runtime/ELF audits. `BPR-0030` is in `60-done/` with
 exact
 recorded-method and bounded GraphQL operation policy, canonical-body
 backstop, exhaustive provider-failure mapping, a checked-in deterministic Qt
 property corpus, and the current 32-scenario native HTTPS verifier. Its final
 macOS matrices passed 44/44 and 17/17 plus sanitizer refreshes; its Ubuntu
 26.04 x86_64 GCC 15.2 build completed 83/83 targets and the complete
-non-native matrix passed 41/41. `BPR-0031` is in `done/` with the interim
+non-native matrix passed 41/41. `BPR-0031` is in `60-done/` with the interim
 rendered-state, accessibility, and target-native macOS appearance evidence
 complete. Its authorized same-process probe observed both Qt and the global
 operating-system setting change from Light to Dark under Cocoa/QMacStyle,
@@ -98,62 +101,62 @@ The open Windows task does not block later implementation, tests,
 documentation, security review, or simplification on available targets.
 BPR-0036 blocks only its affected Windows claims and final RFC-BPR-0002
 Auto-Verified closeout. It does not stop work on later RFCs. BPR-0032 is in
-`done/` with the current security/authority audit, exact one-row/two-row CLI
+`60-done/` with the current security/authority audit, exact one-row/two-row CLI
 self-test, tests-disabled Release symbol gate, native macOS checks, focused
 sanitizer matrix, and corrected evidence boundaries complete. BPR-0033 is in
-`done/` with the immutable-base documentation impact review, corrected native
+`60-done/` with the immutable-base documentation impact review, corrected native
 appearance record, operator-safe troubleshooting, resolved documentation
-ledger, and workflow-absence gate complete. BPR-0034 is in `done/` with
+ledger, and workflow-absence gate complete. BPR-0034 is in `60-done/` with
 behavior-preserving identity, capability-cache, accessibility-text,
 CLI-automation, and Release-contract simplifications verified by complete
 available-platform and focused sanitizer matrices.
 
-BPR-0035 and BPR-0036 remain in `blocked/`: BPR-0036 retains direct real
+BPR-0035 and BPR-0036 remain in `50-blocked/`: BPR-0036 retains direct real
 Windows x64 evidence, and BPR-0035 cannot mark RFC-BPR-0002 Auto-Verified
 until that evidence exists. By product-owner direction, this does not block
 planning and implementing later RFCs in canonical order.
 
 RFC-BPR-0003 remains open for explicitly deferred closeout claims while the
 replacement RFC-BPR-0004 is the next implementation frontier by product-owner
-direction. BPR-0039 is in `done/` with the
+direction. BPR-0039 is in `60-done/` with the
 immutable-base architecture, authority, claim, platform, UX, documentation,
 performance, and security plan recorded in the
 [RFC-BPR-0003 verification ledger](../verification/RFC-BPR-0003.md).
-BPR-0040 is in `done/` with the dedicated epoch core/host, account-isolated
+BPR-0040 is in `60-done/` with the dedicated epoch core/host, account-isolated
 bare cache, app-owned protocol-v2 and credential-free `index-pack`, versioned
 ref/catalog, exact cause/alias, recovery, Qt projection, lifecycle, and
-no-impact architecture selected. BPR-0041 is in `done/` with the compact
+no-impact architecture selected. BPR-0041 is in `60-done/` with the compact
 deterministic epoch reducer, exact identity/completion policy, explicit
 catalog-bound projection clears, and direct core evidence complete. BPR-0042
-is in `done/` with the hardened installed-Git local process boundary, exact
+is in `60-done/` with the hardened installed-Git local process boundary, exact
 spool consumption, bounded lifecycle, hostile canaries, and direct macOS
-evidence complete. BPR-0043 is in `done/` with the app-owned
+evidence complete. BPR-0043 is in `60-done/` with the app-owned
 protocol-v2/native-HTTPS, authority-partitioned bare-cache, and retained-ref
 component slice verified through commit `2801241`. BPR-0044's durable
 epoch-catalog and operation-record persistence slice is in
-`done/`, with fresh macOS Debug, core-only, sanitizer, tests-disabled Release,
+`60-done/`, with fresh macOS Debug, core-only, sanitizer, tests-disabled Release,
 and guarded-Windows cross-compile/link evidence complete. BPR-0045 is in
-`done/` with the source-free application host, production entropy/clock ports,
+`60-done/` with the source-free application host, production entropy/clock ports,
 exact append/recovery sequencing, repository FIFO/session isolation,
 stale/cancel rejection, projection containment, and quiescence directly
-verified. BPR-0056 is in `done/` with the single revision-bound core cursor,
+verified. BPR-0056 is in `60-done/` with the single revision-bound core cursor,
 bounded intent/request/terminal algebra, repository-actor catalog execution,
 sanitized incremental page projection, stale/revision/cancellation rejection,
 and direct core/manual-executor/SQLite evidence complete. BPR-0055 is in
-`done/` with deterministic core authorization, exact durable prune/cache-delete
+`60-done/` with deterministic core authorization, exact durable prune/cache-delete
 orchestration, every maintenance restart phase, fault-injected failure policy,
 incremental availability projection, and real installed-Git/SQLite composition
-evidence complete. BPR-0046 is in `done/` with the provider/effect-free stable
+evidence complete. BPR-0046 is in `60-done/` with the provider/effect-free stable
 epoch model, independent exact selectors, alias actions, full OIDs, explicit
 availability/history states, accessibility, native-System inheritance, and
-three-scale rendered loaded-window evidence complete. BPR-0047 is in `done/`
+three-scale rendered loaded-window evidence complete. BPR-0047 is in `60-done/`
 with the exact accepted GitHub handoff, revocable smart authority, concrete
 Git/cache/catalog/epoch/Qt composition, two-process GitHub.com/GHES
 persistence and cache reuse, tests-disabled Release exclusion, and quiescent
-shutdown directly verified. BPR-0048 is in `done/` with the manifest-bound
+shutdown directly verified. BPR-0048 is in `60-done/` with the manifest-bound
 sibling-head force-push fixture, public retained-old-head/cause evidence,
 issued-transport revocation, broad combined 25/25 matrix, and fresh sanitizer
-coverage complete. BPR-0049 is in `done/` with refreshed scale-specific,
+coverage complete. BPR-0049 is in `60-done/` with refreshed scale-specific,
 public-path, Linux XCB/QFusionStyle, and macOS Cocoa/QMacStyle epoch UX and
 accessibility evidence. Its fresh Ubuntu 26.04 GCC 15.2 build exposed the
 intentional aggregate-default warning policy now resolved by done BPR-0057,
@@ -199,15 +202,15 @@ verified SQLite amalgamation bytes while excluding only their upstream
 blank-at-EOL bytes from Git's path-specific diagnostic. Done BPR-0051 now
 completes the 186-path immutable-base documentation-impact classification,
 product/authority/operator updates, explicit no-impact dispositions, focused
-direct reruns, and independent accuracy review. BPR-0066 is now in `done/`
+direct reruns, and independent accuracy review. BPR-0066 is now in `60-done/`
 with core-authorized newest/older navigation, one 100-epoch/200-anchor Qt
 page, stale-page invalidation, out-of-window exact selection, 1,000+ page
 traversal, and real rendered/restart evidence complete. BPR-0052 is now in
-`done/` after removing the unused catalog-replacement payload, extracting the
+`60-done/` after removing the unused catalog-replacement payload, extracting the
 application timeout snapshot, deliberately retaining fail-closed authority
 structure, and replaying the clean developer, core-only, sanitizer,
 tests-disabled Release, documentation, and rendered integration matrices.
-BPR-0053 and BPR-0054 are in `blocked/` for real Windows x64 execution. Done BPR-0067 now exposes confirmed prune/cache-delete commands
+BPR-0053 and BPR-0054 are in `50-blocked/` for real Windows x64 execution. Done BPR-0067 now exposes confirmed prune/cache-delete commands
 through the selected application and real Git/SQLite projection path, with
 default-Cancel confirmations, unrelated-ref canaries, durable restart proof,
 and no additional provider traffic. Done BPR-0068 makes the epoch-host job
@@ -305,7 +308,7 @@ closed by the replay at `ca424f7`, which passed 88/88 on `dev` and 33/33 on
 `core-only`. BPR-0225 later falsified that review's broader public-path
 conclusion: the selected diff was requested only by a tests-only fixture helper
 at its reviewed head. Done BPR-0227 now closes that required public path. The
-card is also in `blocked/` because it depends on BPR-0054. Its
+card is also in `50-blocked/` because it depends on BPR-0054. Its
 owner-authorized native System-theme gate is satisfied: an owner-activated
 Cocoa/QMacStyle run at commit `1e581a6` passed active focus, both local and
 global Light-to-Dark transitions, and every workbench palette, font,
@@ -325,7 +328,7 @@ By further product-owner direction the implementation frontier now advances
 past RFC-BPR-0004 through the remainder of the pack on available targets, so
 RFC-BPR-0005 onward may be implemented while earlier RFCs remain `Proposed`.
 Each of those RFCs ends its available-target work at a closeout card in
-`backlog/`. Requirements that need target-native Windows x64 execution, an
+`10-backlog/`. Requirements that need target-native Windows x64 execution, an
 owner-attended check, or external authority are recorded on live cards naming
 exactly what is missing rather than being silently skipped.
 
@@ -423,7 +426,7 @@ final: capability-critical review invalidated it and split the remaining
 portable authority/recovery work into BPR-0261, dependent backlog BPR-0262, and
 done BPR-0263. The operator approved the narrowed replay and
 authenticated-containment designs for implementation and hermetic verification
-only; no live or package authority was granted. BPR-0261 is now in `done/`: one
+only; no live or package authority was granted. BPR-0261 is now in `60-done/`: one
 explicit owner-private replay namespace carries approval identity, reset is an
 operator command rather than a startup fallback, and the spend barrier is
 `F_FULLFSYNC` after capability-critical review showed bare `fsync` could not
@@ -549,7 +552,7 @@ also depend transitively on more than one group.
 #### Frontier roots
 
 Most open cards are waiting on another open card. Only a handful sit at the
-front of the graph with every dependency already in `done/`, and those are the
+front of the graph with every dependency already in `60-done/`, and those are the
 only places work can actually start. BPR-0319 enumerated them, and the result
 is worth stating plainly: **every frontier root needs hardware, a person, or a
 live service. None of them can be carried to completion by unattended work on
@@ -566,7 +569,7 @@ this host.**
 | BPR-0276, BPR-0298 | Owner authority plus a real GitHub service call |
 | BPR-0211, BPR-0212 | Neither: owner-deferred, and RFC-scale rather than a slice |
 
-Everything else in `backlog/` reaches one of those roots transitively. That is
+Everything else in `10-backlog/` reaches one of those roots transitively. That is
 not a scheduling problem, and no amount of further unattended implementation
 moves it.
 
@@ -584,7 +587,7 @@ moves it.
 | Missing component and resilience scope | Blocked BPR-0235; in-progress BPR-0240; done BPR-0237 through BPR-0239 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, and BPR-0236's appearance-storage fallback are done |
 | Recorded selected-diff proof | Backlog BPR-0233 plus done BPR-0246, gating BPR-0214, BPR-0210, and BPR-0100 | The real selected-file course binds UIforETW commits/blobs, named replacement pairs, semantic roles, and a cut-wire negative. The v001 attended batch was rejected. Done BPR-0246 supplies the mechanically green 1280 × 1000 focused layout with shipped drawer/detail controls, exact-span/connector evidence, and immutable digest-bound v002; its attended verdict remains |
 | Closeout rigor and terminal cards | Done BPR-0234 and BPR-0248; backlog BPR-0241 through BPR-0245 | The standing shipped-binary composition inventory is reconciled with exact fixture/production profiles; replay each anchored executable checklist and retain a live terminal card for each Proposed RFC |
-| Deferred or not a slice | BPR-0211, BPR-0212, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering; BPR-0156 moved to `blocked/` because its blocker is a missing Linux host rather than a decision |
+| Deferred or not a slice | BPR-0211, BPR-0212, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering; BPR-0156 moved to `50-blocked/` because its blocker is a missing Linux host rather than a decision |
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
 final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench

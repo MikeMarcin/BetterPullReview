@@ -35,7 +35,7 @@ network, or process effects.
 ## Workflow
 
 - RFCs close sequentially in the canonical index order.
-- Issue folder placement is status. `done/` is terminal.
+- Issue folder placement is status. `60-done/` is terminal.
 - Allocate issue IDs from `docs/issues/NEXT_ID`.
 - Commit each completed issue slice intentionally.
 - Use fixtures or designated safe test repositories for remote mutations.

@@ -8,7 +8,7 @@ depends_on: []
 
 # Introduce the blocked lane and classify platform-blocked cards
 
-`backlog/` currently carries two different things under one name. Some cards
+`10-backlog/` currently carries two different things under one name. Some cards
 are waiting on another card and will start as soon as it lands. Others cannot
 be executed at all, on any host this project has, because their acceptance
 criteria require target-native execution on an operating system nobody here
@@ -19,30 +19,30 @@ It cannot. Eleven of those cards are waiting on hardware.
 
 ## Lane definition
 
-`blocked/` holds a card whose own remaining work cannot be executed on this
+`50-blocked/` holds a card whose own remaining work cannot be executed on this
 host because it requires target-native execution on a different operating
 system, together with any card whose every unmet dependency resolves only
 through such a card.
 
 The rule is deliberately narrower than "cannot progress right now". A card
 parked on an attended owner verdict, a live GitHub session, or an unmade
-product decision stays in `backlog/`, because the missing input is a person or
-a service rather than a machine. Those blockers are just as real, and several
+product decision stays in `10-backlog/`, because the missing input is a person
+or a service rather than a machine. Those blockers are just as real, and several
 of them gate more work than the platform blockers do, but they are not what
 this lane records and folding them in would make the lane mean nothing.
 
-`blocked/` is not terminal. A card returns to `backlog/` or `ready/` on the day
-the platform exists, with no other change required.
+`50-blocked/` is not terminal. A card returns to `10-backlog/` or `20-ready/`
+on the day the platform exists, with no other change required.
 
 ## Required final state
 
-- A `blocked/` lane exists with status `Blocked`, documented in the board
+- A `50-blocked/` lane exists with status `Blocked`, documented in the board
   README alongside the other four lanes.
-- Every card in `blocked/` carries a `blocked_by` front-matter field naming the
-  exact platform requirement, drawn from a closed vocabulary.
-- `scripts/verify_documentation.py` treats `blocked/` as a real lane: it
+- Every card in `50-blocked/` carries a `blocked_by` front-matter field naming
+  the exact platform requirement, drawn from a closed vocabulary.
+- `scripts/verify_documentation.py` treats `50-blocked/` as a real lane: it
   enforces the folder/status agreement, requires and validates `blocked_by`,
-  permits unmet dependencies the way `backlog/` does, and accepts a blocked
+  permits unmet dependencies the way `10-backlog/` does, and accepts a blocked
   card as an open closeout blocker.
 - The documentation gate and its own contract suite pass with the new lane
   populated.
