@@ -380,6 +380,10 @@ Done BPR-0325 gives the application an explicit `BetterPullReview` display
 name in both Qt and the macOS bundle metadata so the Dock tooltip no longer
 falls back to the `better_pull_review` executable or bundle filename.
 
+Done BPR-0326 optically fits the circular wave artwork to its Dock neighbors
+and clips the complete icon to a rounded, transparent-corner mask. All tracked
+PNG, ICO, and ICNS derivatives are regenerated from that revised vector.
+
 Done BPR-0085 adopts the rendered project-neutral C++ standard as the
 repository source of truth. It applies canonical formatting, naming, include
 guards, and public API documentation across the first-party source and test

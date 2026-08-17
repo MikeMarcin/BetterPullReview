@@ -1,9 +1,11 @@
 # Application icon
 
-`better_pull_review.svg` is the canonical, unchanged vector source for the
-BetterPullReview application icon. The tracked PNG family supplies the Qt
-runtime resource and Linux desktop sizes; the ICO is embedded in the Windows
-executable; and the ICNS is copied into the macOS application bundle.
+`better_pull_review.svg` is the canonical editable vector source for the
+BetterPullReview application icon. It retains the owner-supplied wave artwork
+inside a platform-appropriate rounded mask and optical safe area. The tracked
+PNG family supplies the Qt runtime resource and Linux desktop sizes; the ICO is
+embedded in the Windows executable; and the ICNS is copied into the macOS
+application bundle.
 
 The Linux desktop file uses the stable application ID
 `io.github.MikeMarcin.BetterPullReview`. A future Linux package must install it

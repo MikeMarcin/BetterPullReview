@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import struct
 import unittest
+import zlib
 from pathlib import Path
 
 
@@ -13,7 +14,7 @@ ICON_ROOT = REPOSITORY_ROOT / "packaging/icons"
 PNG_SIZES = (16, 24, 32, 40, 48, 64, 128, 256, 512, 1024)
 WINDOWS_SIZES = (16, 24, 32, 40, 48, 64, 128, 256)
 CANONICAL_SVG_SHA256 = (
-    "3d84ff2090d1dd19ee4b79fd21afb4ced0d1889b26392777cce03b190bd6b88f"
+    "8a15a0cf806ffe26e2e19fe77bcfbe5a6c958d982c32240a6954f825980dae8b"
 )
 
 
@@ -22,6 +23,29 @@ def png_size(path: Path) -> tuple[int, int]:
     if data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR":
         raise AssertionError(f"not a PNG with an IHDR: {path}")
     return struct.unpack(">II", data[16:24])
+
+
+def png_top_left_alpha(path: Path) -> int:
+    data = path.read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise AssertionError(f"not a PNG: {path}")
+
+    color_type = data[25]
+    if data[24] != 8 or color_type != 6:
+        raise AssertionError(f"not an 8-bit RGBA PNG: {path}")
+
+    compressed = bytearray()
+    offset = 8
+    while offset < len(data):
+        chunk_size = struct.unpack_from(">I", data, offset)[0]
+        chunk_type = data[offset + 4 : offset + 8]
+        chunk_data = data[offset + 8 : offset + 8 + chunk_size]
+        if chunk_type == b"IDAT":
+            compressed.extend(chunk_data)
+        offset += 12 + chunk_size
+
+    scanlines = zlib.decompress(compressed)
+    return scanlines[4]
 
 
 def ico_sizes(path: Path) -> tuple[int, ...]:
@@ -67,10 +91,15 @@ def icns_types(path: Path) -> set[bytes]:
 
 
 class AppIconAssetsTests(unittest.TestCase):
-    def test_canonical_svg_is_the_supplied_vector(self) -> None:
+    def test_canonical_svg_has_reviewed_framing(self) -> None:
         source = (ICON_ROOT / "better_pull_review.svg").read_bytes()
         self.assertEqual(hashlib.sha256(source).hexdigest(), CANONICAL_SVG_SHA256)
         self.assertIn(b'viewBox="0 0 1024 1024"', source)
+        self.assertIn(
+            b'<clipPath id="app-icon"><rect width="1024" height="1024" rx="190"/></clipPath>',
+            source,
+        )
+        self.assertIn(b'scale(0.84)', source)
         self.assertNotIn(b"<image", source)
 
     def test_png_family_has_every_runtime_and_desktop_size(self) -> None:
@@ -78,6 +107,7 @@ class AppIconAssetsTests(unittest.TestCase):
             with self.subTest(size=size):
                 path = ICON_ROOT / f"png/{size}x{size}/better_pull_review.png"
                 self.assertEqual(png_size(path), (size, size))
+                self.assertEqual(png_top_left_alpha(path), 0)
 
     def test_windows_icon_contains_the_complete_size_family(self) -> None:
         self.assertEqual(

@@ -24,6 +24,7 @@
       <stop offset="0.82" stop-color="#fa8aff"/>
       <stop offset="1.0" stop-color="#ff85e2"/>
     </linearGradient>
+    <clipPath id="app-icon"><rect width="1024" height="1024" rx="190"/></clipPath>
     <clipPath id="disc"><circle cx="512" cy="512" r="452"/></clipPath>
     <filter id="blur6" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="6"/></filter>
     <filter id="blur2" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2"/></filter>
@@ -32,11 +33,13 @@
     <filter id="haze" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="50"/></filter>
   </defs>
 
-  <rect width="1024" height="1024" fill="#06070d"/>
-  <circle cx="512" cy="512" r="452" fill="url(#hot)" opacity="0.30" filter="url(#haze)"/>
+  <g clip-path="url(#app-icon)">
+    <rect width="1024" height="1024" rx="190" fill="#06070d"/>
+    <g transform="translate(512 512) scale(0.84) translate(-512 -512)">
+      <circle cx="512" cy="512" r="452" fill="url(#hot)" opacity="0.30" filter="url(#haze)"/>
 
-  <g clip-path="url(#disc)">
-    <circle cx="512" cy="512" r="452" fill="url(#wave)"/>
+      <g clip-path="url(#disc)">
+        <circle cx="512" cy="512" r="452" fill="url(#wave)"/>
     <!-- chromatic halo, wide, pure hue -->
     <g fill="none" stroke="url(#hot)" stroke-width="14" filter="url(#blur6)" opacity="0.85">
       <path d="M 0 141.3 C 635 141.3, 389 226.4, 1024 226.4"/>
@@ -125,13 +128,15 @@
       <path d="M 0 884.6 C 635 884.6, 389 931.8, 1024 931.8 L 1024 937.5 C 389 937.5, 635 897.8, 0 897.8 Z"/>
       <path d="M 0 933.7 C 635 933.7, 389 954.5, 1024 954.5 L 1024 965.9 C 389 965.9, 635 950.8, 0 950.8 Z"/>
     </g>
+      </g>
+
+      <!-- ring: chroma halo + tight chroma + core -->
+      <circle cx="512" cy="512" r="452" fill="none" stroke="url(#hot)" stroke-width="16" filter="url(#blur9)" opacity="0.9"/>
+      <circle cx="512" cy="512" r="452" fill="none" stroke="url(#hot)" stroke-width="7" filter="url(#blur3)"/>
+      <circle cx="512" cy="512" r="452" fill="none" stroke="url(#core)" stroke-width="3"/>
+    </g>
+
+    <rect x="20.5" y="20.5" width="983" height="983" rx="170" fill="none" stroke="url(#hot)" stroke-width="2.5" opacity="0.9" filter="url(#blur2)"/>
+    <rect x="20.5" y="20.5" width="983" height="983" rx="170" fill="none" stroke="url(#core)" stroke-width="1.5" opacity="0.9"/>
   </g>
-
-  <!-- ring: chroma halo + tight chroma + core -->
-  <circle cx="512" cy="512" r="452" fill="none" stroke="url(#hot)" stroke-width="16" filter="url(#blur9)" opacity="0.9"/>
-  <circle cx="512" cy="512" r="452" fill="none" stroke="url(#hot)" stroke-width="7" filter="url(#blur3)"/>
-  <circle cx="512" cy="512" r="452" fill="none" stroke="url(#core)" stroke-width="3"/>
-
-  <rect x="20.5" y="20.5" width="983" height="983" rx="92" fill="none" stroke="url(#hot)" stroke-width="2.5" opacity="0.9" filter="url(#blur2)"/>
-  <rect x="20.5" y="20.5" width="983" height="983" rx="92" fill="none" stroke="url(#core)" stroke-width="1.5" opacity="0.9"/>
 </svg>
