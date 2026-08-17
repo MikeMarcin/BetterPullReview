@@ -1,9 +1,10 @@
 ---
 id: BPR-0332
 title: Reconcile the Windows launch documentation with the shipped dispatch
-status: Ready
+status: Blocked
 rfc: RFC-BPR-0011
 depends_on: []
+blocked_by: platform-windows
 ---
 
 # Reconcile the Windows launch documentation with the shipped dispatch
@@ -64,6 +65,29 @@ Two resolutions are defensible, and they are not equivalent:
 Option 1 changes shipped behaviour. Option 2 does not, and does not pre-empt
 option 1 later. Neither may be chosen by rewriting a Result cell to sound
 satisfied.
+
+## Why this is blocked rather than ready
+
+Owner direction, 2026-08-17: this card requires the Windows implementation to be
+tested, so it belongs in `50-blocked/` with the rest of the Windows work.
+
+The reasoning holds against the lane rule. Whichever resolution is chosen, this
+card's terminal criterion is a *true and final* statement about Windows launch
+behaviour, and no such statement can be made from a host that cannot compile the
+backend. Option 1 makes it worse, not better: the restored guard would live
+inside `#if defined(Q_OS_WIN)`, so no macOS selector could ever exercise it, and
+"a test fails without the guard" is unprovable here by construction.
+
+The cost is recorded rather than hidden. Until a Windows host exists, six
+statements — including the `RFC-BPR-0011.md:109` claim-matrix Result cell
+reading "Windows starts no child" — continue to assert a property the source
+does not have. That is a known-false documentation claim being carried
+deliberately, with its falseness written down here, which is the honest form of
+the trade. Anyone reading those six statements before this card closes should
+read this card instead.
+
+If the owner later chooses option 2, the documentation half is portable and this
+card returns to `20-ready/` immediately, with no other change required.
 
 ## Required final state
 

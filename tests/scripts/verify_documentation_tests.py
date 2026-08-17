@@ -397,6 +397,28 @@ class CloseoutContractTests(unittest.TestCase):
     def test_accepts_exact_numbered_checkbox_multiline_contract(self) -> None:
         verify_terminal_closeout_cards(self.root)
 
+    def test_rejects_closeout_row_calling_an_open_blocker_done(self) -> None:
+        self.write_card(
+            table=self.table().replace(
+                "| [BPR-0998](BPR-0998-attended-blocker.md) |",
+                "| [BPR-0998](BPR-0998-attended-blocker.md) is done; "
+                "final-head focused replay remains required. |",
+            )
+        )
+
+        self.reject()
+
+    def test_accepts_closeout_row_naming_an_open_blocker_as_open(self) -> None:
+        self.write_card(
+            table=self.table().replace(
+                "| [BPR-0998](BPR-0998-attended-blocker.md) |",
+                "| [BPR-0998](BPR-0998-attended-blocker.md) remains open; "
+                "final-head focused replay remains required. |",
+            )
+        )
+
+        verify_terminal_closeout_cards(self.root)
+
     def test_rejects_missing_base(self) -> None:
         self.card_path.write_text(
             self.card_path.read_text(encoding="utf-8").replace(

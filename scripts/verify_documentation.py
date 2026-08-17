@@ -109,6 +109,17 @@ CLOSEOUT_PLACEHOLDER_PATTERNS = {
 }
 
 
+def closeout_blocker_called_done(cell: str, blocker_id: str) -> bool:
+    """Whether a closeout row's prose calls a linked blocker done."""
+    return (
+        re.search(
+            rf"\[{re.escape(blocker_id)}\]\([^)]*\)\s+(?:is|are)\s+done\b",
+            cell,
+        )
+        is not None
+    )
+
+
 def fail(message: str) -> None:
     print(f"ERROR: {message}", file=sys.stderr)
     raise SystemExit(1)
@@ -811,6 +822,15 @@ def verify_closeout_card(
                 fail(
                     f"closeout blocker is not open in {path}: "
                     f"{blocker_path}"
+                )
+            # A blocker reaching this point is required to be open, so prose
+            # in the same cell calling it done contradicts the card's own
+            # structure. That drifts silently: the row keeps its unchecked
+            # box while telling a reader the blocker is cleared.
+            if closeout_blocker_called_done(live_blocker, blocker_id):
+                fail(
+                    f"closeout row calls an open blocker done in {path}: "
+                    f"{blocker_id} is in {blocker_path.parent.name}"
                 )
             if gate_class == "canonical-order" and not CLOSEOUT_TITLE_RE.fullmatch(
                 blocker.get("title", "")
