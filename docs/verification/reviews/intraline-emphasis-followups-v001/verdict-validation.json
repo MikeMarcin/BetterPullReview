@@ -1,0 +1,44 @@
+{
+  "schema_name": "bpr.attended_review_validation_record",
+  "schema_version": 1,
+  "recorded_at": "2026-08-17T00:08:53Z",
+  "batch_id": "bpr:/attended-review/betterpullreview/f1db1ba708cfed928b632d9f",
+  "review_gate": "intraline_emphasis_followups",
+  "review_scope": "human_ui_criterion_and_alternative_selection_only",
+  "invocation": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/intraline-emphasis-followups-v001/offline-package/attended-review-manifest.json --verdict <pasted.json>",
+  "result": "valid complete verdict",
+  "outcome": "every subject rejected",
+  "manifest": {
+    "path": "docs/verification/reviews/intraline-emphasis-followups-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:0815a72f9c27720ab5e0733e70ebd2beb26a939fa379eff253c1bd5e7fbe5326",
+    "byte_length": 24114
+  },
+  "verdict": {
+    "path": "docs/verification/reviews/intraline-emphasis-followups-v001/human-verdict.json",
+    "sha256": "sha256:d6f7520f62b0377ad5d62eda01408a642b2cbc0cf0445b29aa32a3c74adab639",
+    "byte_length": 1995
+  },
+  "official_validator": {
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:bb5ccf6bd8fe265ea886a6e5e33912ce72c19ec20d99b0c807f542c0b425742a",
+    "byte_length": 45484
+  },
+  "rejected_subjects": [
+    "criterion:/betterpullreview/bpr-0321/selected-row-emphasis",
+    "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d0",
+    "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d1",
+    "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d2"
+  ],
+  "claims": {
+    "selected_row_emphasis_accepted": false,
+    "high_contrast_dark_pair_selected": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "findings": [
+    "BPR-0321: compositing the row's wash into the emphasis is insufficient. At 72/255 the mark still reads as its original hue -- red behind the 8 on a blue row, green on the 4 -- so hue, not separation, is the failing property. The shipped separation measurements were true and did not measure the thing the reviewer was judging.",
+    "BPR-0322: all three high-contrast dark pairs read as invisible, and the reviewer notes the high-contrast profile is showing the least contrast of any, which inverts what selecting it is for. A tint at the published separation is not a high-contrast treatment."
+  ]
+}

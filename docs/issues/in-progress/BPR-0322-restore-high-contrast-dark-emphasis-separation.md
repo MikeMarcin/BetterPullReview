@@ -75,3 +75,25 @@ python3 scripts/verify_documentation.py --root .
 
 The audit must report zero unreviewed obligations with the high-contrast dark
 intraline entry removed from the reviewed list.
+
+## Attended result — all three rejected, 2026-08-17
+
+Every option in batch
+`bpr:/attended-review/betterpullreview/f1db1ba708cfed928b632d9f` was rejected:
+
+> None of these looks visible to me. It's supposed to be high contrast but
+> these are the least contrasted examples. Might need to do something different
+> than just darkening the wash for high contrast.
+
+That reframes this card. It was written as a colour-vision repair, and the
+answer is that the high-contrast dark intraline marks are not visible to
+ordinary vision either — the profile a person selects *because* they need more
+contrast is showing the least of any. Choosing between three tints that all
+fail the plainer test would have been the wrong question, and the rejection is
+the right answer to it.
+
+The colour-vision defect this card was opened for is still real and still
+recorded in the reviewed-obligation list. It is now a symptom of the same cause
+rather than an independent problem: a tint at the published separation is not a
+high-contrast treatment. [[BPR-0323]] owns the treatment; this card stays open
+for the obligation and closes when the measurement says it is discharged.

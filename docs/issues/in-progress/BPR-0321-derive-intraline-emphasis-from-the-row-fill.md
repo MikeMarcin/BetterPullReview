@@ -1,7 +1,7 @@
 ---
 id: BPR-0321
 title: Derive intraline emphasis from the fill the row actually carries
-status: Done
+status: In Progress
 rfc: RFC-BPR-0006
 depends_on: [BPR-0320]
 ---
@@ -139,3 +139,23 @@ integrity digests over `github_application.cpp` were refreshed in
 `application_review_round_trip_composition_contract.cmake`, which is the
 mechanism working: editing the composed application is supposed to require
 saying so.
+
+## Attended result — rejected, 2026-08-17
+
+The product owner rejected the exact subject in batch
+`bpr:/attended-review/betterpullreview/f1db1ba708cfed928b632d9f`:
+
+> Shaded area behind 8 still looks red to me when the wash is blue, same with
+> the green on the 4
+
+The measurements this card shipped were true and were measuring the wrong
+thing. Compositing the wash at 72/255 preserves most of the *separation*
+between the mark and its row, which is what the tests assert, and moves the
+*hue* barely at all: `#F1B9B4` becomes `#D1B6C3`, still plainly pink. The
+reviewer was judging whether the mark belongs to the blue band, and separation
+cannot answer that question.
+
+The implementation stays in the tree. It is a strict improvement on stamping a
+fully unwashed hue, it is asserted, and the rendered result is what proved it
+insufficient. What it is not is a fix, and the card is open again on that basis.
+[[BPR-0323]] carries the replacement.

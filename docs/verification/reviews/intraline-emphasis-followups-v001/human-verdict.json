@@ -1,0 +1,39 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/f1db1ba708cfed928b632d9f",
+  "review_gate": "intraline_emphasis_followups",
+  "review_scope": "human_ui_criterion_and_alternative_selection_only",
+  "accepted_subjects": [],
+  "rejected_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0321/selected-row-emphasis",
+      "subject_digest": "sha256:342e19a924e35005809484ca3dc122f6d71de7f5bf0fc33b70e6c0ef88244d4c"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d0",
+      "subject_digest": "sha256:318e779e9866a8e134bce61d8fcc231213925a5733d93b563984ddbc3d9ca493"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d1",
+      "subject_digest": "sha256:7b205c4f3d11376f798d1f7fa7ad66914c73241fbe5b60f3cde8b0c52c8454b9"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d2",
+      "subject_digest": "sha256:863d1165bdb75d22c4c1f32ee0096dd4125b3b52616dbfbba253a5a3d9eb2b67"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0321/selected-row-emphasis@sha256:342e19a924e35005809484ca3dc122f6d71de7f5bf0fc33b70e6c0ef88244d4c": "Light — changed characters\nShaded area behind 8 still looks red to me when the wash is blue, same with the green on the 4",
+    "criterion:/betterpullreview/bpr-0322/high-contrast-dark-d0@sha256:318e779e9866a8e134bce61d8fcc231213925a5733d93b563984ddbc3d9ca493": "None of these looks visible to me. It's supposed to be high contrast but these are the least contrasted examples. Might need to do something different than just darkening the wash for high contrast."
+  },
+  "downstream_claims": {
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "not_chosen_subjects": []
+}
