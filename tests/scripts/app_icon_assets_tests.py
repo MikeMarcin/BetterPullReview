@@ -13,7 +13,7 @@ ICON_ROOT = REPOSITORY_ROOT / "packaging/icons"
 PNG_SIZES = (16, 24, 32, 40, 48, 64, 128, 256, 512, 1024)
 WINDOWS_SIZES = (16, 24, 32, 40, 48, 64, 128, 256)
 CANONICAL_SVG_SHA256 = (
-    "51392db0f0b959f9c1906e801506b084e3d6203be7254cf5a49ef2ed140199bc"
+    "3d84ff2090d1dd19ee4b79fd21afb4ced0d1889b26392777cce03b190bd6b88f"
 )
 
 
@@ -70,7 +70,7 @@ class AppIconAssetsTests(unittest.TestCase):
     def test_canonical_svg_is_the_supplied_vector(self) -> None:
         source = (ICON_ROOT / "better_pull_review.svg").read_bytes()
         self.assertEqual(hashlib.sha256(source).hexdigest(), CANONICAL_SVG_SHA256)
-        self.assertIn(b'viewBox="0 0 1254 1254"', source)
+        self.assertIn(b'viewBox="0 0 1024 1024"', source)
         self.assertNotIn(b"<image", source)
 
     def test_png_family_has_every_runtime_and_desktop_size(self) -> None:

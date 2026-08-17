@@ -371,6 +371,11 @@ and gives tests-disabled macOS builds their bundle icon. The Linux desktop and
 hicolor assets are retained for RFC-BPR-0014; no install, signing, or package
 readiness claim is made.
 
+Done BPR-0324 replaces that canonical source with the owner-supplied
+`diff-icon-v1.svg`, regenerates the complete PNG/ICO/ICNS family, and replays
+the source-digest, container, runtime-icon, tray, and macOS bundle checks. The
+platform bindings and RFC-BPR-0014 package boundaries are unchanged.
+
 Done BPR-0085 adopts the rendered project-neutral C++ standard as the
 repository source of truth. It applies canonical formatting, naming, include
 guards, and public API documentation across the first-party source and test
