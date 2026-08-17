@@ -1,9 +1,10 @@
 ---
 id: BPR-0220
 title: An appearance change rebuilds comparison geometry twice
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0006
 depends_on: [BPR-0249]
+parked_on: awaiting-owner-verdict
 ---
 
 # An appearance change rebuilds comparison geometry twice

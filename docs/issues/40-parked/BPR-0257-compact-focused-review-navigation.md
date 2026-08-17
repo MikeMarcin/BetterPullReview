@@ -1,9 +1,10 @@
 ---
 id: BPR-0257
 title: Compact focused-review navigation into one icon row
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0006
 depends_on: [BPR-0246]
+parked_on: awaiting-owner-verdict
 ---
 
 # Compact focused-review navigation into one icon row

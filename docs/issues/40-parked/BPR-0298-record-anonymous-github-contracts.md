@@ -1,9 +1,10 @@
 ---
 id: BPR-0298
 title: Record anonymous GitHub service contracts
-status: Ready
+status: Parked
 rfc: RFC-BPR-0017
 depends_on: [BPR-0297]
+parked_on: awaiting-live-github
 ---
 
 # Record anonymous GitHub service contracts

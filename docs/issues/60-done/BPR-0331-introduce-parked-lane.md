@@ -1,7 +1,7 @@
 ---
 id: BPR-0331
 title: Introduce the parked lane for person and service blockers
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: [BPR-0319]
 ---
@@ -86,7 +86,7 @@ are all in `60-done/` — and then read against each card's own text:
 |---|---|---|
 | BPR-0168 | `awaiting-owner-verdict` | "Attendance was never what was missing"; one banner observation remains |
 | BPR-0220 | `awaiting-owner-verdict` | Implementation complete; "Awaiting the owner foreground run" |
-| BPR-0233 | `awaiting-owner-verdict` | "The exact captures receive the required attended verdict" |
+| BPR-0233 | `awaiting-owner-verdict` | "the card remains open until the exact captures receive the required attended verdict" |
 | BPR-0257 | `awaiting-owner-verdict` | "the rejected v003 subject is evidence, not acceptance" |
 | BPR-0258 | `awaiting-owner-verdict` | "parked in Backlog while the exact exported human verdict is pending" |
 | BPR-0276 | `awaiting-owner-verdict` | "After a new plain operator direction authorizes exactly one recovery early poll" |
@@ -122,3 +122,55 @@ missing `parked_on`, a parked card carrying an unknown value, a parked card
 whose folder and status disagree, a `parked_on` outside the lane, and — the case
 that distinguishes this lane from `50-blocked/` — a parked card with an unmet
 dependency.
+
+## Result
+
+`40-parked/` holds the seven cards classified above, each with the `parked_on`
+its own text supports. Every quote in the table was checked against the card
+rather than against a summary of it; one was a paraphrase and was replaced with
+the card's exact sentence. BPR-0258 turned out to describe itself as "parked in
+Backlog while the exact exported human verdict is pending", which is the lane
+this card built, named the way the board had already started naming it.
+
+The frontier-root invariant needed no new mechanism. Because `40-parked` is
+absent from `DEFERRING_ISSUE_LANES`, the pre-existing dependency check already
+fails a parked card with an unmet dependency:
+
+```
+ERROR: 40-parked card BPR-0002 depends on BPR-0001 in 10-backlog
+```
+
+and a backlog card depending on a parked card still passes, because
+`10-backlog` remains deferring. Both directions are asserted by the suite, which
+grew from 69 cases to 76.
+
+Six of the seven new cases fail against the pre-change validator. The seventh —
+a parked card whose dependencies are all done — passes vacuously, because before
+the change the lane was never scanned and the card was simply invisible. That is
+recorded rather than disguised: an acceptance case can only fail beforehand if
+the old validator were stricter, and the one shape where that happens is already
+covered by the backlog-depends-on-parked case.
+
+The moves broke four markdown links, which is how the gate found them. BPR-0115
+and BPR-0244 linked BPR-0220 and BPR-0168 as same-directory neighbours, and
+RFC-BPR-0017 linked BPR-0298 through its old lane. All four now point at
+`40-parked/`.
+
+The README's hand-maintained frontier table is reconciled and its stale BPR-0262
+row is corrected: that card's approval is recorded in its own text, so it is a
+frontier root that needs nothing and stays in `20-ready/`. The table now names
+each root's lane, which is what makes the list checkable instead of narrative.
+
+Gates:
+
+```
+python3 scripts/verify_documentation.py --root .      DOCUMENTATION_OK
+python3 tests/scripts/verify_documentation_tests.py   76 tests, OK
+ctest -R '^(documentation_structure|documentation_issue_graph_contract)$'   2/2
+```
+
+One deliberate non-change: `40-parked` is inserted beside `50-blocked` in
+`OPEN_ISSUE_LANES` and `lane_status` rather than in ordinal position, because
+those structures were never in ordinal order and iteration order there decides
+only which diagnostic fires first, never a verdict.
+

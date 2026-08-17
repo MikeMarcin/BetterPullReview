@@ -1,9 +1,10 @@
 ---
 id: BPR-0258
 title: Make dark navigation icons readable
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0006
 depends_on: [BPR-0246]
+parked_on: awaiting-owner-verdict
 ---
 
 # Make dark navigation icons readable

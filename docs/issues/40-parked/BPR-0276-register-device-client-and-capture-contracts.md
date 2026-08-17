@@ -1,9 +1,10 @@
 ---
 id: BPR-0276
 title: Register the device client and capture real wire contracts
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0016
 depends_on: [BPR-0275]
+parked_on: awaiting-owner-verdict
 ---
 
 # Register the device client and capture real wire contracts

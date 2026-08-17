@@ -1,9 +1,10 @@
 ---
 id: BPR-0233
 title: Exercise the recorded UIforETW diff and intraline pixels through the selected public path
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0006
 depends_on: [BPR-0227, BPR-0246]
+parked_on: awaiting-owner-verdict
 ---
 
 # Exercise the recorded UIforETW diff and intraline pixels through the selected public path

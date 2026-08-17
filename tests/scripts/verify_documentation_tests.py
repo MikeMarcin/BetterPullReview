@@ -29,6 +29,7 @@ class IssueGraphTests(unittest.TestCase):
         lanes = (
             "10-backlog",
             "50-blocked",
+            "40-parked",
             "20-ready",
             "30-in-progress",
             "60-done",
@@ -46,8 +47,10 @@ class IssueGraphTests(unittest.TestCase):
         status: str,
         dependencies: str,
         blocked_by: str | None = None,
+        parked_on: str | None = None,
     ) -> None:
         blocked_line = f"blocked_by: {blocked_by}\n" if blocked_by else ""
+        parked_line = f"parked_on: {parked_on}\n" if parked_on else ""
         (self.issue_root / lane / f"{issue_id}-fixture.md").write_text(
             "---\n"
             f"id: {issue_id}\n"
@@ -56,6 +59,7 @@ class IssueGraphTests(unittest.TestCase):
             "rfc: RFC-BPR-TEST\n"
             f"depends_on: [{dependencies}]\n"
             f"{blocked_line}"
+            f"{parked_line}"
             "---\n",
             encoding="utf-8",
         )
@@ -166,6 +170,85 @@ class IssueGraphTests(unittest.TestCase):
 
         with self.assertRaises(SystemExit):
             self.verify("BPR-0003")
+
+    def test_accepts_parked_card_with_completed_dependencies(self) -> None:
+        self.write_card("BPR-0001", "60-done", "Done", "")
+        self.write_card(
+            "BPR-0002",
+            "40-parked",
+            "Parked",
+            "BPR-0001",
+            parked_on="awaiting-product-decision",
+        )
+
+        self.verify("BPR-0003")
+
+    def test_rejects_parked_card_without_parked_on(self) -> None:
+        self.write_card("BPR-0001", "40-parked", "Parked", "")
+
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0002")
+
+    def test_rejects_unknown_parked_on_value(self) -> None:
+        self.write_card(
+            "BPR-0001",
+            "40-parked",
+            "Parked",
+            "",
+            parked_on="awaiting-hardware",
+        )
+
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0002")
+
+    def test_rejects_parked_on_outside_the_parked_lane(self) -> None:
+        self.write_card(
+            "BPR-0001",
+            "10-backlog",
+            "Backlog",
+            "",
+            parked_on="awaiting-owner-verdict",
+        )
+
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0002")
+
+    def test_rejects_parked_lane_status_mismatch(self) -> None:
+        self.write_card(
+            "BPR-0001",
+            "40-parked",
+            "Backlog",
+            "",
+            parked_on="awaiting-owner-verdict",
+        )
+
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0002")
+
+    def test_rejects_parked_card_with_open_dependency(self) -> None:
+        self.write_card("BPR-0001", "10-backlog", "Backlog", "")
+        self.write_card(
+            "BPR-0002",
+            "40-parked",
+            "Parked",
+            "BPR-0001",
+            parked_on="awaiting-owner-verdict",
+        )
+
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0003")
+
+    def test_accepts_backlog_card_depending_on_a_parked_card(self) -> None:
+        self.write_card(
+            "BPR-0001",
+            "40-parked",
+            "Parked",
+            "",
+            parked_on="awaiting-live-github",
+        )
+        self.write_card("BPR-0002", "10-backlog", "Backlog", "BPR-0001")
+
+        self.verify("BPR-0003")
 
 
 class CloseoutContractTests(unittest.TestCase):

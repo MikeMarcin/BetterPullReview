@@ -38,10 +38,16 @@ CLOSEOUT_COLUMNS = (
     "Gate class",
     "Live blocker",
 )
-OPEN_ISSUE_LANES = ("10-backlog", "50-blocked", "20-ready", "30-in-progress")
+OPEN_ISSUE_LANES = (
+    "10-backlog",
+    "50-blocked",
+    "40-parked",
+    "20-ready",
+    "30-in-progress",
+)
 DONE_ISSUE_LANE = "60-done"
 OPEN_ISSUE_STATUSES = frozenset(
-    {"Backlog", "Blocked", "Ready", "In Progress"}
+    {"Backlog", "Blocked", "Parked", "Ready", "In Progress"}
 )
 DEFERRING_ISSUE_LANES = frozenset({"10-backlog", "50-blocked"})
 BLOCKED_BY_VALUES = frozenset(
@@ -49,6 +55,13 @@ BLOCKED_BY_VALUES = frozenset(
         "platform-linux",
         "platform-windows",
         "platform-linux-and-windows",
+    }
+)
+PARKED_ON_VALUES = frozenset(
+    {
+        "awaiting-owner-verdict",
+        "awaiting-live-github",
+        "awaiting-product-decision",
     }
 )
 CLOSEOUT_GATE_CLASSES = {
@@ -172,6 +185,7 @@ def verify_issue_board(root: Path) -> None:
     lane_status = {
         "10-backlog": "Backlog",
         "50-blocked": "Blocked",
+        "40-parked": "Parked",
         "20-ready": "Ready",
         "30-in-progress": "In Progress",
         DONE_ISSUE_LANE: "Done",
@@ -213,6 +227,17 @@ def verify_issue_board(root: Path) -> None:
                     )
             elif blocked_by is not None:
                 fail(f"blocked_by outside the blocked lane: {path}")
+            parked_on = metadata.get("parked_on")
+            if lane == "40-parked":
+                if not parked_on:
+                    fail(f"parked card does not declare parked_on: {path}")
+                if parked_on not in PARKED_ON_VALUES:
+                    fail(
+                        f"unknown parked_on in {path}: {parked_on}; "
+                        f"expected one of {sorted(PARKED_ON_VALUES)}"
+                    )
+            elif parked_on is not None:
+                fail(f"parked_on outside the parked lane: {path}")
             cards[issue_id] = (lane, dependencies, path)
             highest = max(highest, int(match.group(1)))
 
