@@ -831,9 +831,21 @@ def read_from(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+# The names the application can be built under. The macOS Qt bundle carries the
+# shipped product name (BPR-0328); every other configuration keeps the target's
+# own lowercase name. A finder that knew only the latter reported a successful
+# tests-disabled Release build as producing no executable at all.
+EXECUTABLE_NAMES = (
+    "better_pull_review",
+    "better_pull_review.exe",
+    "BetterPullReview",
+    "BetterPullReview.exe",
+)
+
+
 def find_better_pull_review_executable(build_directory: Path) -> Path:
     application_directory = build_directory / "src/app"
-    for name in ("better_pull_review", "better_pull_review.exe"):
+    for name in EXECUTABLE_NAMES:
         candidate = application_directory / name
         if candidate.is_file():
             return candidate
@@ -841,8 +853,7 @@ def find_better_pull_review_executable(build_directory: Path) -> Path:
     candidates = sorted(
         path
         for path in build_directory.rglob("*")
-        if path.is_file()
-        and path.name in {"better_pull_review", "better_pull_review.exe"}
+        if path.is_file() and path.name in set(EXECUTABLE_NAMES)
     )
     if len(candidates) != 1:
         rendered = ", ".join(str(path) for path in candidates) or "none"
