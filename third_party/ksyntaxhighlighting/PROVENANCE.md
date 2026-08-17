@@ -6,8 +6,10 @@ open, and the reasoning is recorded in the
 [RFC-BPR-0006 ledger](../../docs/verification/RFC-BPR-0006.md).
 
 Caller-installed discovery was investigated first, because the library is
-Qt-dependent and the dependency boundary treats Qt as a caller-installed
-package that is never fetched. No Homebrew formula exists for
+Qt-dependent and the dependency boundary at that time treated Qt as a
+caller-installed package that is never fetched. Qt has since moved to its own
+pinned provider, which does not change the outcome recorded here. No Homebrew
+formula exists for
 KSyntaxHighlighting or for the KDE Frameworks on the development host, so
 requiring a caller-installed package would have made the RFC unimplementable
 rather than deferred. Verified CPM source acquisition, following the SQLite
@@ -39,7 +41,7 @@ following it.
 
 ## Toolchain requirement
 
-KSyntaxHighlighting 6.28.1 requires caller-installed Qt 6.9 or newer, which is
+KSyntaxHighlighting 6.28.1 requires Qt 6.9 or newer, which is
 above the BetterPullReview floor. The provider states that minimum itself and
 fails with an explicit message naming both versions, rather than letting the
 nested configure fail somewhere less legible.

@@ -685,7 +685,9 @@ blocked BPR-0083 closeout.
 BPR-0084 raises every live build entry point to CMake 4.4.2, replaces the
 private test option with `BUILD_TESTING`, and centralizes dependency ownership
 before product subdirectories. Caller-installed Qt resolves through its CMake
-config package and is never fetched. Python and Git use their standard CMake
+config package and is never fetched. (Superseded by BPR-0337: Qt is now
+acquired by a pinned provider and still resolved through the same config
+package. The rest of this entry is unaffected.) Python and Git use their standard CMake
 find modules, Linux libsecret uses `pkg-config`, and the centralized provider
 requires the conventional imported targets before product targets are
 declared. A collision with any provider-owned target name is fatal before

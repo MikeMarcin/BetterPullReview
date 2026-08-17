@@ -40,7 +40,7 @@ The Qt presentation adapter is part of the imperative shell. It is not an archit
 - REST-first GitHub provider with narrow GraphQL use
 - KSyntaxHighlighting 6.28.1 through its low-level highlighter interface,
   acquired as verified CPM source with extra-cmake-modules 6.28.0 as a pinned
-  transitive build input; it requires caller-installed Qt 6.9 or newer
+  transitive build input; it requires Qt 6.9 or newer
 - No Qt WebEngine, QML runtime, Electron, Tauri, Node runtime, local HTTP service, or browser-extension requirement
 
 The concrete RFC-BPR-0002 allocation is defined in [GitHub Host

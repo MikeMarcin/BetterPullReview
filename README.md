@@ -160,7 +160,8 @@ libsecret 0.20+ development metadata is also required.
 Compatible newer installations are supported.
 
 Dependency discovery is centralized before product targets are declared.
-Caller-installed Qt is resolved in package mode and is never fetched;
+Qt 6.10.3 is acquired by a pinned provider and resolved in package mode,
+with `BPR_QT_ROOT` and `BPR_QT_PROVIDER=OFF` available to supply it yourself;
 Python, Git, and Linux libsecret use their standard CMake or `pkg-config`
 providers only when their selected graph needs them. SQLite 3.53.4 is
 source-acquired through a verified, download-only CPM 0.43.1 provider and

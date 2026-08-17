@@ -1,5 +1,6 @@
 include_guard(GLOBAL)
 
+include("${CMAKE_CURRENT_LIST_DIR}/BprQtProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSyntaxHighlightingProvider.cmake")
 
 set(BPR_QT_MINIMUM_VERSION "6.8")
@@ -108,6 +109,11 @@ function(bpr_configure_dependencies)
             )
         endforeach()
         bpr_require_dependency_target_absent(Qt6::rcc "Qt6 CoreTools")
+        if(BPR_QT_PROVIDER)
+            bpr_acquire_qt(bpr_qt_prefix)
+            bpr_expose_qt_runtime("${bpr_qt_prefix}")
+            list(APPEND CMAKE_PREFIX_PATH "${bpr_qt_prefix}")
+        endif()
         find_package(
             Qt6
             ${BPR_QT_MINIMUM_VERSION}
@@ -116,12 +122,20 @@ function(bpr_configure_dependencies)
             COMPONENTS Core Gui Widgets Network
         )
         if(NOT Qt6_FOUND)
+            if(BPR_QT_PROVIDER)
+                message(
+                    FATAL_ERROR
+                    "The pinned Qt ${BPR_QT_VERSION} provider produced "
+                    "'${bpr_qt_prefix}', but Qt6 with Core, Gui, Widgets, and "
+                    "Network did not resolve from it."
+                )
+            endif()
             message(
                 FATAL_ERROR
-                "BetterPullReview requires caller-installed Qt >= "
+                "BPR_QT_PROVIDER=OFF requires caller-installed Qt >= "
                 "${BPR_QT_MINIMUM_VERSION} with Core, Gui, Widgets, and Network. "
                 "Install a compatible Qt package and set Qt6_ROOT, Qt6_DIR, or "
-                "CMAKE_PREFIX_PATH. Qt is never fetched automatically."
+                "CMAKE_PREFIX_PATH, or re-enable the pinned provider."
             )
         endif()
         foreach(component IN ITEMS Core Gui Widgets Network)

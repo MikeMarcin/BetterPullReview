@@ -120,7 +120,9 @@ recorded here because the reasoning matters more than the outcome.
 
 The repository has two precedents. Qt is a caller-installed CMake package that
 is never fetched, and the dependency boundary states that CPM is not used to
-replace caller-installed platform packages. SQLite is CPM-acquired
+replace caller-installed platform packages. (Superseded by BPR-0337: Qt now has
+its own pinned provider. The decision recorded here stands on the Homebrew gap,
+which is unchanged.) SQLite is CPM-acquired
 download-only source, pinned by version and cryptographic digest and staged
 into a first-party static target.
 

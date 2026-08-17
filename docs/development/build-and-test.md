@@ -16,8 +16,12 @@ Ninja, Python 3.14, and Qt 6.11.1 on macOS arm64.
 
 ## Dependency boundary
 
-The root resolves dependencies before product subdirectories. Qt uses the
-caller-installed CMake package and is never fetched. Python and Git use the
+The root resolves dependencies before product subdirectories. Qt 6.10.3 is
+acquired by a pinned provider into the shared dependency cache and then
+resolved through its ordinary CMake config package, so discovery does not
+depend on how Qt arrived. `BPR_QT_ROOT` names an existing prefix to use
+instead, and `BPR_QT_PROVIDER=OFF` restores the former requirement that the
+caller install Qt themselves. Python and Git use the
 standard CMake find modules, while Linux libsecret uses `pkg-config`; each is
 discovered only when its selected target graph needs it. The centralized
 provider requires the Qt libraries plus `Qt6::rcc`, `Python3::Interpreter`,
@@ -47,9 +51,11 @@ packages.
 
 KSyntaxHighlighting 6.28.1 is acquired the same way, with
 extra-cmake-modules 6.28.0 as a pinned transitive build input. Caller-installed
-discovery was investigated first, because the library is Qt-dependent and Qt is
-never fetched, but no Homebrew formula exists for it or for the KDE Frameworks,
-which would have made RFC-BPR-0006 unimplementable rather than deferred. Each
+discovery was investigated first, because the library is Qt-dependent and Qt
+was at that time never fetched, but no Homebrew formula exists for it or for
+the KDE Frameworks, which would have made RFC-BPR-0006 unimplementable rather
+than deferred. Qt has since moved to its own pinned provider, which does not
+disturb that outcome: the Homebrew gap was the deciding constraint. Each
 input carries an archive digest and an extracted-source digest computed over a
 sorted manifest of every file's own digest, so a changed, added, or removed file
 is detected rather than only a tampered archive; a symbolic link anywhere in the
