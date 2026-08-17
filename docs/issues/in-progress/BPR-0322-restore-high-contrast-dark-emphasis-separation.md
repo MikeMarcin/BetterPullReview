@@ -97,3 +97,32 @@ recorded in the reviewed-obligation list. It is now a symptom of the same cause
 rather than an independent problem: a tint at the published separation is not a
 high-contrast treatment. [[BPR-0323]] owns the treatment; this card stays open
 for the obligation and closes when the measurement says it is discharged.
+
+## Attended result — HA accepted, 2026-08-17
+
+The product owner selected the bright hue-true pairing from batch
+`bpr:/attended-review/betterpullreview/8f175d37c3b12a3e17ca6fda`:
+
+| | Added | Removed |
+|---|---|---|
+| High-contrast Light | `#55FF55`, black text at 15.82:1 | `#FF9999`, black text at 10.26:1 |
+| High-contrast Dark | `#55FF55`, black text at 15.82:1 | `#FF9999`, black text at 10.26:1 |
+
+The two unchosen pairings — cyan/amber and deep-with-white-text — are recorded
+as not chosen rather than rejected.
+
+Both fills carry their own text colour, which is what lets them be this bold: a
+mark strong enough to see in a high-contrast profile cannot also let that
+profile's syntax colours read on it. `emphasis_needs_own_foreground` answers
+that question from the palette, and the contrast audit measures the foreground
+actually painted rather than a combination the panes never produce.
+
+This card's original defect is discharged. The pair stays 36.4 apart under the
+worst colour-vision model against a floor of 10.0, where the previous pair sat
+at 5.7. The reviewed-obligation list loses its high-contrast dark intraline
+entry because the measurement says so, not to quiet the audit.
+
+The acceptance was qualified — "This is great other than the selected row" — so
+the selected-row treatment remains open in these profiles exactly as it does in
+the standard ones. [[BPR-0323]] owns it, and this card stays open until that
+lands, because a profile is not finished while one of its row states is wrong.

@@ -1,0 +1,49 @@
+{
+  "schema_name": "bpr.attended_review_validation_record",
+  "schema_version": 1,
+  "recorded_at": "2026-08-17T02:11:29Z",
+  "batch_id": "bpr:/attended-review/betterpullreview/8f175d37c3b12a3e17ca6fda",
+  "review_gate": "intraline_high_contrast",
+  "review_scope": "human_ui_criterion_and_alternative_selection_only",
+  "invocation": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/intraline-high-contrast-v001/offline-package/attended-review-manifest.json --verdict <pasted.json>",
+  "result": "valid complete verdict",
+  "outcome": "high-contrast scheme HA accepted; standard profiles rejected",
+  "manifest": {
+    "path": "docs/verification/reviews/intraline-high-contrast-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:1ea7e05358b5524b984ae61acd0191d10a406ee0ce969259029f4d737aa73e74",
+    "byte_length": 20337
+  },
+  "verdict": {
+    "path": "docs/verification/reviews/intraline-high-contrast-v001/human-verdict.json",
+    "sha256": "sha256:19cb8c93ff2bc05e4967f6d4ab81908dfd9973c602f0e55036431db35785b1ca",
+    "byte_length": 1857
+  },
+  "official_validator": {
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:bb5ccf6bd8fe265ea886a6e5e33912ce72c19ec20d99b0c807f542c0b425742a",
+    "byte_length": 45484
+  },
+  "selected_subject": "criterion:/betterpullreview/bpr-0322/high-contrast-ha",
+  "selected_digest": "sha256:9055cc782b0d6fb57ef3ec454150a0de92646a21a391922566c723d4f465bf72",
+  "not_chosen_subjects": [
+    "criterion:/betterpullreview/bpr-0322/high-contrast-hb",
+    "criterion:/betterpullreview/bpr-0322/high-contrast-hc"
+  ],
+  "claims": {
+    "high_contrast_pairing_selected": true,
+    "high_contrast_selected_row_accepted": false,
+    "standard_profiles_accepted": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "findings": [
+    "High-contrast pairing HA accepted: bright green #55FF55 and soft red #FF9999, each carrying black text. It discharges the deuteranopia defect BPR-0322 was opened for.",
+    "The acceptance is qualified: 'great other than the selected row'. The selected-row treatment is rejected in the high-contrast profiles too, so it is wrong in all four rather than only in the standard ones.",
+    "Light unselected is confirmed good for a third time -- 'very good on red and green lines'. The accepted C3 tint is settled there and must not be touched.",
+    "Light selected is 'terrible on blue lines'. Deriving the mark from the blue band is rejected, as compositing and underlining were before it.",
+    "Dark is 'bad everywhere, its visible but only barely'. Its unselected tint is too weak, which no earlier note had said and no measurement had flagged, because 20.6 and 21.2 clear the published floor of 20.0."
+  ]
+}

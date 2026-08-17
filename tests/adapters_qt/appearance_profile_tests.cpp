@@ -2184,21 +2184,12 @@ namespace {
 		color_only_obligation{ core::appearance_variant::high_contrast_dark,
 							   role::diff_added_background,
 							   role::diff_moved_background },
-		// A regression, recorded as one. BPR-0320's attended batch presented
-		// emphasis strength and the text contrast it costs; it did not present
-		// colour-vision separation, and this pair is what that omission cost.
-		// The selected high-contrast-dark emphases sit 5.7 apart under
-		// deuteranopia against a floor of 10.0, where the previous pair
-		// cleared it.
-		//
-		// A substitute pair exists that holds the accepted strength and
-		// restores the separation, but it moves the removed emphasis from red
-		// to plum, which is a visible change the product owner did not approve.
-		// Silently swapping it would put a colour on screen that no verdict
-		// covers, so the accepted bytes stand and [[BPR-0322]] owns the fix.
-		color_only_obligation{ core::appearance_variant::high_contrast_dark,
-							   role::diff_intraline_added_background,
-							   role::diff_intraline_removed_background },
+		// The high-contrast dark intraline pair was recorded here between
+		// BPR-0320 and BPR-0322. The accepted bright pairing discharged it:
+		// #55FF55 and #FF9999 stay 36.4 apart under the worst colour-vision
+		// model against a floor of 10.0. The obligation is gone because a
+		// product owner picked colours that removed it, not because the check
+		// was relaxed.
 		color_only_obligation{ core::appearance_variant::high_contrast_dark,
 							   role::state_accepted,
 							   role::state_defect },

@@ -14,7 +14,7 @@ ICON_ROOT = REPOSITORY_ROOT / "packaging/icons"
 PNG_SIZES = (16, 24, 32, 40, 48, 64, 128, 256, 512, 1024)
 WINDOWS_SIZES = (16, 24, 32, 40, 48, 64, 128, 256)
 CANONICAL_SVG_SHA256 = (
-    "8a15a0cf806ffe26e2e19fe77bcfbe5a6c958d982c32240a6954f825980dae8b"
+    "5aa4a6d31df345258be71fa3e7f960470db09ff0686727e1a2a69b7661d4f81b"
 )
 
 
@@ -100,6 +100,7 @@ class AppIconAssetsTests(unittest.TestCase):
             source,
         )
         self.assertIn(b'scale(0.84)', source)
+        self.assertIn(b'scale(0.875)', source)
         self.assertNotIn(b"<image", source)
 
     def test_png_family_has_every_runtime_and_desktop_size(self) -> None:

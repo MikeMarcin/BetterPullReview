@@ -1,0 +1,42 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/8f175d37c3b12a3e17ca6fda",
+  "review_gate": "intraline_high_contrast",
+  "review_scope": "human_ui_criterion_and_alternative_selection_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-ha",
+      "subject_digest": "sha256:9055cc782b0d6fb57ef3ec454150a0de92646a21a391922566c723d4f465bf72"
+    }
+  ],
+  "rejected_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0323/standard-profiles",
+      "subject_digest": "sha256:daaf40cea1d60f43b65919d43b4c1d3b5ad2d336da8c65b336c2c2a36768e0c9"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0323/standard-profiles@sha256:daaf40cea1d60f43b65919d43b4c1d3b5ad2d336da8c65b336c2c2a36768e0c9": "Light intraline is very good on red and green lines, terrible on blue lines. \nDark intraline is bad everywhere, its visible but only barely.",
+    "criterion:/betterpullreview/bpr-0322/high-contrast-ha@sha256:9055cc782b0d6fb57ef3ec454150a0de92646a21a391922566c723d4f465bf72": "This is great other than the selected row."
+  },
+  "downstream_claims": {
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "not_chosen_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-hb",
+      "subject_digest": "sha256:77578b2179ff2a69791298ca06e72737959721d7ba8455cefbdd90e690090b13"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0322/high-contrast-hc",
+      "subject_digest": "sha256:50d0411c542f0623f69fc128733ded89f05aed2a90c3ce32c869710821591c6b"
+    }
+  ]
+}
