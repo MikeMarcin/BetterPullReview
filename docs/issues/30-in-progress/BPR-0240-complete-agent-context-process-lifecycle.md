@@ -90,3 +90,64 @@ This checkpoint closes the selected portable macOS evidence gap only. The card
 remains in progress pending the target-native Windows compile/runtime matrix,
 the remaining portable regression and closeout gates, and independent terminal
 review.
+
+## Portable gates and independent review — 2026-08-17
+
+[[BPR-0319]] deferred this card's lane classification until the portable gates
+it owed had actually run here. They have now run, and the answer is that the
+card is **not** platform-blocked. It stays in progress.
+
+The complete portable `dev` matrix ran at `be42eb7`: 184 of 186 passed. Both
+failures were environmental and each passes on its own.
+`application_native_notification_attended_contract` failed on
+`sh: /bin/ps: Operation not permitted` — a sandbox restriction on the runner,
+not the product — and passes with `/bin/ps` reachable.
+`application_epoch_maintenance_public_path` failed under contention while other
+work shared the machine, and passes alone in 53.56 s. Neither touches this
+card's surface. A clean uncontended replay is still the RFC-closeout gate; this
+is checkpoint evidence, not closeout evidence.
+
+That run also supplies evidence this card had never recorded. `8886017` rewrote
+`agent_context_supplement.cpp`, `agent_profile.cpp`, and both of their test
+files, but neither earlier checkpoint ran the core tier it changed. In this
+matrix `core_agent_profile` (#52) and `core_agent_context_supplement` (#54)
+both passed.
+
+The independent review returned **PORTABLE-WORK-REMAINS** and it is right. Four
+findings, each reproduced directly rather than taken on the reviewer's word:
+
+1. **The Windows pre-start refusal is gone and six documents still assert it.**
+   `c6f3d96` replaced the `failed_to_start` guard in
+   `agent_process_launcher.cpp:129` with a dispatch into the never-compiled
+   WIN32 backend. `RFC-BPR-0011.md:13,109,115,216` and
+   `ai-agent-boundary.md:140,335` all still say the adapter refuses before
+   `QProcess::start`, and line 109 is a claim-matrix **Result** cell. A seventh
+   row, `ai-agent-boundary.md:314`, cites a Windows-conditional canary as proof
+   of refusal whose final assertion is now `Outcome == success`. Tracked as
+   [[BPR-0332]], which also carries the choice between restoring the guard and
+   documenting the real state.
+2. **Two of three output ceilings are unproven.** `output_too_large` and
+   `frame_too_large` appear four times in `src/` and zero times in `tests/`.
+   The 256 KiB stderr canary proves draining without deadlock, not the 1 MiB
+   bound. Tracked as [[BPR-0333]].
+3. **Core-tier evidence was missing.** Closed by this matrix run, above.
+4. **~250 lines of portable protocol logic were duplicated into the
+   Windows-only translation unit.** `windows_agent_process.cpp:480-729`
+   re-implements the decoder loop, follow-up gating, publish path, stderr
+   arithmetic, and outcome classification from
+   `agent_process_launcher.cpp:201-345`. Tracked as [[BPR-0334]].
+
+The review also corrected an overclaim on this card. The required final state
+says "A canary asserts all required context fields"; the canary checks eight
+substrings and never checks `base`, `head`, either epoch, `host`, `repository`,
+or any segment or group field. The obligation is met — but by
+`application_agent_invocation_composition_contract`, whose whole-map equality
+covers them exactly. This card credited the wrong artifact.
+
+What is genuinely Windows-bound is unchanged and remains correctly deferred:
+`windows_agent_process.cpp` has never been compiled, strict clang-tidy cannot
+reach it because it is absent from the macOS compilation database, and Job
+Object pre-resume assignment and descendant containment need real Windows. It is
+also the only `Q_OS_WIN`-gated source file, so the file-level claim in the
+earlier checkpoints was accurate. What was not accurate was treating everything
+that remained as Windows work.
