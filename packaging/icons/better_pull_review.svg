@@ -33,9 +33,10 @@
     <filter id="haze" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="50"/></filter>
   </defs>
 
-  <g clip-path="url(#app-icon)">
-    <rect width="1024" height="1024" rx="190" fill="#06070d"/>
-    <g transform="translate(512 512) scale(0.84) translate(-512 -512)">
+  <g transform="translate(512 512) scale(0.875) translate(-512 -512)">
+    <g clip-path="url(#app-icon)">
+      <rect width="1024" height="1024" rx="190" fill="#06070d"/>
+      <g transform="translate(512 512) scale(0.84) translate(-512 -512)">
       <circle cx="512" cy="512" r="452" fill="url(#hot)" opacity="0.30" filter="url(#haze)"/>
 
       <g clip-path="url(#disc)">
@@ -134,9 +135,10 @@
       <circle cx="512" cy="512" r="452" fill="none" stroke="url(#hot)" stroke-width="16" filter="url(#blur9)" opacity="0.9"/>
       <circle cx="512" cy="512" r="452" fill="none" stroke="url(#hot)" stroke-width="7" filter="url(#blur3)"/>
       <circle cx="512" cy="512" r="452" fill="none" stroke="url(#core)" stroke-width="3"/>
-    </g>
+      </g>
 
-    <rect x="20.5" y="20.5" width="983" height="983" rx="170" fill="none" stroke="url(#hot)" stroke-width="2.5" opacity="0.9" filter="url(#blur2)"/>
-    <rect x="20.5" y="20.5" width="983" height="983" rx="170" fill="none" stroke="url(#core)" stroke-width="1.5" opacity="0.9"/>
+      <rect x="20.5" y="20.5" width="983" height="983" rx="170" fill="none" stroke="url(#hot)" stroke-width="2.5" opacity="0.9" filter="url(#blur2)"/>
+      <rect x="20.5" y="20.5" width="983" height="983" rx="170" fill="none" stroke="url(#core)" stroke-width="1.5" opacity="0.9"/>
+    </g>
   </g>
 </svg>
