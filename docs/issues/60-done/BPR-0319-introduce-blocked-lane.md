@@ -1,7 +1,7 @@
 ---
 id: BPR-0319
 title: Introduce the blocked lane and classify platform-blocked cards
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
 ---
@@ -99,3 +99,44 @@ ctest --test-dir build/dev --output-on-failure \
 The contract suite must gain cases that fail without the change: a blocked card
 missing `blocked_by`, a blocked card carrying an unknown platform value, and a
 blocked card whose folder and status disagree.
+
+## Result
+
+The classification landed at `a6760a3` and the lane itself at `db1e5ec`.
+`50-blocked/` holds exactly the eleven cards named above — the eight direct and
+the three transitive — and every one of them carries a `blocked_by` drawn from
+the closed vocabulary: `platform-windows` for BPR-0035, BPR-0036, BPR-0053,
+BPR-0054, BPR-0083, BPR-0311, and BPR-0315; `platform-linux` for BPR-0156,
+BPR-0310, and BPR-0314; `platform-linux-and-windows` for BPR-0235.
+
+`scripts/verify_documentation.py` treats the lane as real rather than tolerated.
+`50-blocked` maps to `Blocked` in the lane/status table and the mismatch is a
+failure, not a warning. `blocked_by` is required inside the lane, validated
+against `BLOCKED_BY_VALUES`, and rejected outside it — a backlog card cannot
+quietly claim a platform blocker it is not parked on. `DEFERRING_ISSUE_LANES`
+carries `50-blocked` alongside `10-backlog`, so a blocked card may depend on
+open work the way a backlog card may, and `OPEN_ISSUE_STATUSES` carries
+`Blocked`, so a blocked card still blocks its RFC's closeout. That last pair is
+the point of the lane: it records why a card cannot move without pretending the
+card is finished.
+
+The contract suite gained the three cases the card required —
+`test_rejects_blocked_card_without_blocked_by`,
+`test_rejects_unknown_blocked_by_value` (which uses
+`waiting-on-the-product-owner`, the exact kind of blocker this lane refuses),
+and `test_rejects_blocked_lane_status_mismatch` — plus
+`test_rejects_blocked_by_outside_the_blocked_lane`,
+`test_accepts_blocked_card_with_open_dependency`, and
+`test_rejects_ready_card_depending_on_a_blocked_card`.
+
+Gates, with the lane populated:
+
+```
+python3 scripts/verify_documentation.py --root .      DOCUMENTATION_OK
+python3 tests/scripts/verify_documentation_tests.py   69 tests, OK
+ctest -R '^(documentation_structure|documentation_issue_graph_contract)$'   2/2
+```
+
+BPR-0240 is still unclassified, as this card said it would be. Its remaining
+work is not purely platform-bound, and it is classified after the portable
+gates it owes are run, not before.
