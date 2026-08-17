@@ -1,0 +1,230 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Selected-row badge and the dark profile (BPR-0323)",
+  "review_gate": "intraline_badge_and_dark",
+  "review_scope": "human_ui_alternative_selection_only",
+  "downstream_claims": {
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0214_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "reference_disclaimer": "Two alternatives to one question \u2014 how the dark profile's unselected marks should look \u2014 so pick exactly one; the other is recorded as not chosen rather than defective. Everything else is common to both and follows your last note directly: no underlines, light unselected untouched, high contrast as you accepted it, and the selected row now carrying a bold badge rather than a tint. The badge is the one idea you have said works, generalised: it is what the accepted high-contrast pairing is, derived from whatever colour each profile already uses. If the badge itself is wrong, reject both and say so \u2014 that is a recordable answer and it is the more useful one. Captures are offscreen QFusionStyle at device pixel ratio 1.",
+  "selection_groups": [
+    {
+      "group_id": "dark-treatment",
+      "title": "How should the dark profile's unselected marks look?",
+      "min_accept": 1,
+      "max_accept": 1
+    }
+  ],
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0323/badge-p1",
+      "subject_key": "badge-p1",
+      "display_name": "Dark uses the bright pairing you just accepted",
+      "description": "The dark profile's unselected marks become the same #55FF55 and #FF9999 you picked for high contrast, each carrying black text. The boldest answer to \"bad everywhere, only barely visible\", and it makes dark and high contrast look closely related. Dark stops showing syntax colouring inside the mark, because the mark carries its own text colour.\n\nEverything else is identical between the two options, and all of it follows your last note. No underlines. Light unselected keeps the tint you have now called good three times. High contrast keeps the pairing you just accepted. The selected row \u2014 the top one in every capture \u2014 now shows a bold badge instead of a tint, in every profile, because that is the one treatment you have said works: it is the same idea as the high-contrast pairing, derived from whatever colour the profile already uses.",
+      "acceptance_criteria": [
+        "The selected top row's changed characters are unmistakable, in every profile",
+        "Nothing on the selected row reads as a foreign colour in the blue band",
+        "Dark's unselected marks are properly visible, not barely",
+        "Light's unselected marks are unchanged",
+        "No underlines anywhere"
+      ],
+      "known_concerns": [
+        "The selected-row badge is common to both options. Rejecting both says the badge is wrong; picking one says it is right and settles the dark question at the same time.",
+        "A badge is the profile's own emphasis colour pushed to its most vivid form, backed off until black or white text on it clears the variant's full text floor \u2014 not the reduced emphasis floor.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "selection_group": "dark-treatment",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Rendered through the real UIforETW course in all four profiles; focused matrix 7/7 at this tree."
+      },
+      "media_groups": [
+        {
+          "group_id": "dark",
+          "title": "Dark \u2014 the profile under review",
+          "required": true,
+          "layout": "grid",
+          "note": "This is the only profile that differs between the two options. The top row is selected.",
+          "items": [
+            {
+              "label": "Dark \u2014 changed characters",
+              "path": "captures/P1/dark-comparison.png"
+            },
+            {
+              "label": "Dark \u2014 whole window",
+              "path": "captures/P1/dark-full-window.png"
+            }
+          ]
+        },
+        {
+          "group_id": "others",
+          "title": "The other three profiles \u2014 identical in both options",
+          "required": true,
+          "layout": "grid",
+          "note": "Check the selected top row here too; the badge is the same idea in every profile.",
+          "items": [
+            {
+              "label": "Light \u2014 changed characters",
+              "path": "captures/P1/light-comparison.png"
+            },
+            {
+              "label": "High-contrast Light \u2014 changed characters",
+              "path": "captures/P1/high-contrast-light-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark \u2014 changed characters",
+              "path": "captures/P1/high-contrast-dark-comparison.png"
+            }
+          ]
+        },
+        {
+          "group_id": "windows",
+          "title": "Whole window",
+          "required": false,
+          "layout": "grid",
+          "items": [
+            {
+              "label": "Light \u2014 whole window",
+              "path": "captures/P1/light-full-window.png"
+            },
+            {
+              "label": "High-contrast Light \u2014 whole window",
+              "path": "captures/P1/high-contrast-light-full-window.png"
+            },
+            {
+              "label": "High-contrast Dark \u2014 whole window",
+              "path": "captures/P1/high-contrast-dark-full-window.png"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "path": "captures/P1/light-capture-facts.json"
+        },
+        {
+          "label": "Dark capture facts",
+          "path": "captures/P1/dark-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "path": "captures/P1/high-contrast-light-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "path": "captures/P1/high-contrast-dark-capture-facts.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0323/badge-p2",
+      "subject_key": "badge-p2",
+      "display_name": "Dark keeps a tint, roughly seventy percent stronger",
+      "description": "The dark profile's unselected marks stay tints in their own hues, pushed from a separation of about 21 to about 35 \u2014 the most they can travel while the profile's syntax colours still read through them. More restrained, and dark keeps looking like dark rather than like the high-contrast profile.\n\nEverything else is identical between the two options, and all of it follows your last note. No underlines. Light unselected keeps the tint you have now called good three times. High contrast keeps the pairing you just accepted. The selected row \u2014 the top one in every capture \u2014 now shows a bold badge instead of a tint, in every profile, because that is the one treatment you have said works: it is the same idea as the high-contrast pairing, derived from whatever colour the profile already uses.",
+      "acceptance_criteria": [
+        "The selected top row's changed characters are unmistakable, in every profile",
+        "Nothing on the selected row reads as a foreign colour in the blue band",
+        "Dark's unselected marks are properly visible, not barely",
+        "Light's unselected marks are unchanged",
+        "No underlines anywhere"
+      ],
+      "known_concerns": [
+        "The selected-row badge is common to both options. Rejecting both says the badge is wrong; picking one says it is right and settles the dark question at the same time.",
+        "A badge is the profile's own emphasis colour pushed to its most vivid form, backed off until black or white text on it clears the variant's full text floor \u2014 not the reduced emphasis floor.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "selection_group": "dark-treatment",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Rendered through the real UIforETW course in all four profiles; focused matrix 7/7 at this tree."
+      },
+      "media_groups": [
+        {
+          "group_id": "dark",
+          "title": "Dark \u2014 the profile under review",
+          "required": true,
+          "layout": "grid",
+          "note": "This is the only profile that differs between the two options. The top row is selected.",
+          "items": [
+            {
+              "label": "Dark \u2014 changed characters",
+              "path": "captures/P2/dark-comparison.png"
+            },
+            {
+              "label": "Dark \u2014 whole window",
+              "path": "captures/P2/dark-full-window.png"
+            }
+          ]
+        },
+        {
+          "group_id": "others",
+          "title": "The other three profiles \u2014 identical in both options",
+          "required": true,
+          "layout": "grid",
+          "note": "Check the selected top row here too; the badge is the same idea in every profile.",
+          "items": [
+            {
+              "label": "Light \u2014 changed characters",
+              "path": "captures/P2/light-comparison.png"
+            },
+            {
+              "label": "High-contrast Light \u2014 changed characters",
+              "path": "captures/P2/high-contrast-light-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark \u2014 changed characters",
+              "path": "captures/P2/high-contrast-dark-comparison.png"
+            }
+          ]
+        },
+        {
+          "group_id": "windows",
+          "title": "Whole window",
+          "required": false,
+          "layout": "grid",
+          "items": [
+            {
+              "label": "Light \u2014 whole window",
+              "path": "captures/P2/light-full-window.png"
+            },
+            {
+              "label": "High-contrast Light \u2014 whole window",
+              "path": "captures/P2/high-contrast-light-full-window.png"
+            },
+            {
+              "label": "High-contrast Dark \u2014 whole window",
+              "path": "captures/P2/high-contrast-dark-full-window.png"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "path": "captures/P2/light-capture-facts.json"
+        },
+        {
+          "label": "Dark capture facts",
+          "path": "captures/P2/dark-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "path": "captures/P2/high-contrast-light-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "path": "captures/P2/high-contrast-dark-capture-facts.json"
+        }
+      ]
+    }
+  ]
+}

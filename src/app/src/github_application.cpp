@@ -6509,9 +6509,9 @@ namespace bpr::app {
 		/// read a correctly washed mark as a missing one, which is exactly how
 		/// this course failed when the wash first landed.
 		[[nodiscard]] auto role_renderings(
-			const QPlainTextEdit& aPane,
-			const QColor&         aRole,
-			const QColor&         aRowBand) -> std::array<QColor, 3U>
+			const QPlainTextEdit&          aPane,
+			const QColor&                  aRole,
+			const core::appearance_variant aVariant) -> std::array<QColor, 3U>
 		{
 			const auto highlight = aPane.palette().color(QPalette::Highlight);
 			const auto blended   = core::composited(
@@ -6524,27 +6524,16 @@ namespace bpr::app {
 										static_cast<std::uint8_t>(aRole.blue()),
 										255U },
 				core::selection_wash_alpha);
-			// The third rendering is BPR-0323's derived fill: on a selected row
-			// the mark is a deeper shade of the washed band rather than any
-			// palette colour, because a palette colour there kept its own hue
-			// and read as foreign.
-			auto derived = QColor{ };
-			if (aRowBand.isValid()) {
-				const auto washedBand = core::composited(
-					core::appearance_color{
-						static_cast<std::uint8_t>(highlight.red()),
-						static_cast<std::uint8_t>(highlight.green()),
-						static_cast<std::uint8_t>(highlight.blue()),
-						255U },
-					core::appearance_color{
-						static_cast<std::uint8_t>(aRowBand.red()),
-						static_cast<std::uint8_t>(aRowBand.green()),
-						static_cast<std::uint8_t>(aRowBand.blue()),
-						255U },
-					core::selection_wash_alpha);
-				const auto shade = core::derived_emphasis_fill(washedBand);
-				derived          = QColor{ shade.Red, shade.Green, shade.Blue };
-			}
+			// The third rendering is the badge a selected row shows: the same
+			// emphasis colour pushed to its most vivid legible form, because a
+			// tint of any kind was rejected on a washed row.
+			const auto shade = core::emphasis_badge_fill(
+				core::appearance_color{ static_cast<std::uint8_t>(aRole.red()),
+										static_cast<std::uint8_t>(aRole.green()),
+										static_cast<std::uint8_t>(aRole.blue()),
+										255U },
+				aVariant);
+			const auto derived = QColor{ shade.Red, shade.Green, shade.Blue };
 			return { aRole,
 					 QColor{ blended.Red, blended.Green, blended.Blue },
 					 derived };
@@ -6552,8 +6541,8 @@ namespace bpr::app {
 
 		[[nodiscard]] auto role_paint_count(
 			const QPlainTextEdit& aPane,
-			const QColor&         aExpected,
-			const QColor&         aRowBand) -> std::size_t
+			const QColor&                  aExpected,
+			const core::appearance_variant aVariant) -> std::size_t
 		{
 			// BPR-0323 marks the changed characters with a rule as well as a
 			// fill, and drops the fill on a selected row because a tint there
@@ -6561,7 +6550,7 @@ namespace bpr::app {
 			// span belongs to, so an underlined span is the role just as much
 			// as a filled one; requiring the fill would read the new mark as
 			// a missing one.
-			const auto accepted = role_renderings(aPane, aExpected, aRowBand);
+			const auto accepted = role_renderings(aPane, aExpected, aVariant);
 			return static_cast<std::size_t>(std::ranges::count_if(
 				aPane.extraSelections(),
 				[&accepted](const QTextEdit::ExtraSelection& aSelection) {
@@ -6584,13 +6573,13 @@ namespace bpr::app {
 					   *aWorkbench.left_pane(),
 					   aProfile.color(
 						   core::appearance_role::diff_intraline_removed_background),
-					   aProfile.color(core::appearance_role::diff_removed_background))
+					   aProfile.variant())
 				>= aMinimum
 				&& role_paint_count(
 					   *aWorkbench.right_pane(),
 					   aProfile.color(
 						   core::appearance_role::diff_intraline_added_background),
-					   aProfile.color(core::appearance_role::diff_added_background))
+					   aProfile.variant())
 				>= aMinimum;
 		}
 
@@ -6605,16 +6594,16 @@ namespace bpr::app {
 
 		[[nodiscard]] auto role_pixel_count(
 			QPlainTextEdit& aPane,
-			const QRect&    aRect,
-			const QColor&   aExpected,
-			const QColor&   aRowBand) -> std::size_t
+			const QRect&                   aRect,
+			const QColor&                  aExpected,
+			const core::appearance_variant aVariant) -> std::size_t
 		{
 			const auto image = aPane.viewport()->grab(aRect).toImage().convertToFormat(
 				QImage::Format_ARGB32);
 			if (image.isNull() || !aExpected.isValid()) {
 				return 0U;
 			}
-			const auto accepted = role_renderings(aPane, aExpected, aRowBand);
+			const auto accepted = role_renderings(aPane, aExpected, aVariant);
 			auto       count    = std::size_t{ 0U };
 			for (auto y = 0; y < image.height(); ++y) {
 				for (auto x = 0; x < image.width(); ++x) {
@@ -6714,7 +6703,7 @@ namespace bpr::app {
 			const std::uint32_t                aLine,
 			const core::byte_span              aSpan,
 			const QColor&                      aExpected,
-			const QColor&                      aRowBand) -> bool
+			const core::appearance_variant     aVariant) -> bool
 		{
 			if (aLine >= aDocument.Lines.size()) {
 				return false;
@@ -6735,7 +6724,7 @@ namespace bpr::app {
 			}
 			const auto from     = block.position() + character_offset(bytes, aSpan.Begin);
 			const auto to       = block.position() + character_offset(bytes, aSpan.End);
-			const auto accepted = role_renderings(aPane, aExpected, aRowBand);
+			const auto accepted = role_renderings(aPane, aExpected, aVariant);
 			return std::ranges::any_of(
 				aPane.extraSelections(),
 				[&accepted, from, to](const QTextEdit::ExtraSelection& aSelection) {
@@ -6781,24 +6770,20 @@ namespace bpr::app {
 				core::appearance_role::diff_intraline_removed_background);
 			const auto added = aProfile.color(
 				core::appearance_role::diff_intraline_added_background);
-			const auto removedBand = aProfile.color(
-				core::appearance_role::diff_removed_background);
-			const auto addedBand = aProfile.color(
-				core::appearance_role::diff_added_background);
 			if (!exact_role_selection_present(
 					*left,
 					*aResult.LeftDocument,
 					pair->Left,
 					pair->LeftSpan,
 					removed,
-					removedBand)
+					aProfile.variant())
 				|| !exact_role_selection_present(
 					*right,
 					*aResult.RightDocument,
 					pair->Right,
 					pair->RightSpan,
 					added,
-					addedBand)) {
+					aProfile.variant())) {
 				return std::nullopt;
 			}
 			return intraline_render_observation{
@@ -6809,12 +6794,12 @@ namespace bpr::app {
 					*left,
 					*leftRect,
 					removed,
-					aProfile.color(core::appearance_role::diff_removed_background)),
+					aProfile.variant()),
 				.RightRolePixels = role_pixel_count(
 					*right,
 					*rightRect,
 					added,
-					addedBand),
+					aProfile.variant()),
 			};
 		}
 

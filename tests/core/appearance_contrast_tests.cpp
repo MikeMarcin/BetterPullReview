@@ -796,64 +796,86 @@ namespace {
 					 "the ratio saturates rather than dividing by zero");
 		expect(!balance.Meets, "an invisible emphasis is never balanced");
 	}
-	// A fill the palette has no emphasis role for -- a row wearing the
-	// selection wash, most of all -- gets a deeper shade of itself. Hue is the
-	// property under test: compositing a palette colour instead kept its own
-	// hue and was rejected for exactly that.
-	auto test_a_derived_fill_keeps_its_own_hue() -> void
+	// A selected row's mark is the badge form of the profile's own emphasis
+	// colour: the same hue pushed to its most vivid rendering, backed off
+	// until the better of black and white text on it still clears the floor.
+	auto test_a_badge_is_more_vivid_and_still_legible() -> void
 	{
-		const auto hueOf = [](const appearance_color aColor) {
-			const auto high = std::max({ aColor.Red, aColor.Green, aColor.Blue });
-			const auto low  = std::min({ aColor.Red, aColor.Green, aColor.Blue });
-			return std::pair{ high, low };
+		constexpr auto gentle = srgb(0xF1B9B4);
+		const auto     badge
+			= emphasis_badge_fill(gentle, appearance_variant::light);
+
+		const auto spread = [](const appearance_color aColor) {
+			return static_cast<int>(std::max({ aColor.Red, aColor.Green, aColor.Blue }))
+				- static_cast<int>(std::min({ aColor.Red, aColor.Green, aColor.Blue }));
 		};
-
-		// A washed blue band, the case the product owner reported.
-		constexpr auto band    = srgb(0xC9E9EB);
-		const auto     derived = derived_emphasis_fill(band);
 		expect(
-			color_difference_tenths(band, derived, color_vision::typical)
-				>= derived_emphasis_separation_minimum_tenths,
-			"a derived fill reaches the published separation");
+			spread(badge) > spread(gentle),
+			"a badge is more vivid than the colour it came from");
 		expect(
-			derived.Blue >= derived.Green && derived.Green >= derived.Red,
-			"a derived fill keeps the channel order of the fill it came from");
-
-		const auto [bandHigh, bandLow]   = hueOf(band);
-		const auto [shadeHigh, shadeLow] = hueOf(derived);
+			badge.Red >= badge.Green && badge.Red >= badge.Blue,
+			"a badge keeps the dominant channel of the colour it came from");
 		expect(
-			shadeHigh - shadeLow > bandHigh - bandLow,
-			"a derived fill is more saturated than the fill it came from");
+			contrast_ratio_hundredths(emphasis_foreground(badge), badge)
+				>= minimum_contrast_hundredths(
+					contrast_kind::text, appearance_variant::light),
+			"a badge stays legible under its own foreground");
 	}
 
-	// A near-black row has no room to deepen, so the derivation brightens
-	// rather than returning something invisible.
-	auto test_a_dark_fill_is_derived_by_brightening() -> void
+	// Backing off is the whole point: the most vivid red takes black text at
+	// 5.25:1, which is under the floor a high-contrast profile is held to, so
+	// a high-contrast badge must stop short of it.
+	auto test_a_high_contrast_badge_stops_short_of_the_vivid_extreme() -> void
 	{
-		constexpr auto band    = srgb(0x00311E);
-		const auto     derived = derived_emphasis_fill(band);
+		constexpr auto accepted = srgb(0xFF9999);
+		const auto     standard
+			= emphasis_badge_fill(accepted, appearance_variant::light);
+		const auto enhanced = emphasis_badge_fill(
+			accepted, appearance_variant::high_contrast_light);
+
 		expect(
-			color_difference_tenths(band, derived, color_vision::typical)
-				>= derived_emphasis_separation_minimum_tenths,
-			"a dark fill still reaches the published separation");
+			contrast_ratio_hundredths(emphasis_foreground(enhanced), enhanced)
+				>= high_contrast_text_minimum_hundredths,
+			"a high-contrast badge clears the enhanced floor");
 		expect(
-			derived.Green > band.Green,
-			"a dark fill is brightened rather than darkened further");
+			enhanced != srgb(0xFF0000),
+			"a high-contrast badge is not the vivid extreme, which fails that "
+			"floor");
+		expect(
+			contrast_ratio_hundredths(emphasis_foreground(standard), standard)
+				>= text_contrast_minimum_hundredths,
+			"a standard badge clears the standard floor");
 	}
 
-	// Black and white have nowhere to go in their own hue, so the derivation
-	// moves toward the opposite extreme instead of failing.
-	auto test_a_neutral_fill_moves_toward_the_far_extreme() -> void
+	// A palette whose emphasis fills are gentle tints keeps its syntax
+	// colouring showing through the mark; one whose fills are bold does not,
+	// and the audit has to measure what is actually painted.
+	auto test_only_a_bold_fill_carries_its_own_foreground() -> void
 	{
-		const auto fromBlack = derived_emphasis_fill(srgb(0x000000));
-		expect(fromBlack.Red > 0U, "black derives toward white");
-		const auto fromWhite = derived_emphasis_fill(srgb(0xFFFFFF));
-		expect(fromWhite.Red < 255U, "white derives toward black");
-		for (const auto derived : { fromBlack, fromWhite }) {
-			expect(
-				derived.Red == derived.Green && derived.Green == derived.Blue,
-				"a neutral fill derives to a neutral shade");
-		}
+		auto gentle = maximal_contrast_palette();
+		gentle      = with_role(gentle,
+                           appearance_role::diff_intraline_added_background,
+                           srgb(0xFFFFFF));
+		expect(
+			!emphasis_needs_own_foreground(
+				gentle,
+				appearance_role::diff_intraline_added_background,
+				appearance_variant::light),
+			"black syntax text on a white fill needs no override");
+
+		auto bold = gentle;
+		bold      = with_role(bold,
+                         appearance_role::diff_intraline_added_background,
+                         srgb(0x000000));
+		expect(
+			emphasis_needs_own_foreground(
+				bold,
+				appearance_role::diff_intraline_added_background,
+				appearance_variant::light),
+			"black syntax text on a black fill needs one");
+		expect(
+			emphasis_foreground(srgb(0x000000)) == srgb(0xFFFFFF),
+			"the override picks the extreme that contrasts");
 	}
 
 } // namespace
@@ -878,8 +900,8 @@ int main()
 	test_a_lopsided_palette_fails_the_balance_bound();
 	test_a_balanced_palette_passes_both_bounds();
 	test_an_invisible_emphasis_reports_the_extreme_ratio();
-	test_a_derived_fill_keeps_its_own_hue();
-	test_a_dark_fill_is_derived_by_brightening();
-	test_a_neutral_fill_moves_toward_the_far_extreme();
+	test_a_badge_is_more_vivid_and_still_legible();
+	test_a_high_contrast_badge_stops_short_of_the_vivid_extreme();
+	test_only_a_bold_fill_carries_its_own_foreground();
 	return EXIT_SUCCESS;
 }

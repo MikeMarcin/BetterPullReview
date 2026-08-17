@@ -1567,29 +1567,27 @@ namespace bpr::qt {
 					: core::appearance_role::diff_intraline_added_background,
 				Colors.Variant);
 
-		// The fill a selected row's mark uses. The row is wearing its band with
-		// the wash composited over it, and that composite is not a palette
-		// colour, so the core derives a deeper shade of it rather than the
-		// palette reaching for one it does not have.
-		const auto derivedFill = [this, &aPane](const core::diff_side aRowSide) {
-			const auto band = aRowSide == core::diff_side::left ? Colors.Removed
-																: Colors.Added;
-			if (!band.isValid()) {
+		// The fill a selected row's mark uses. Three attended rounds rejected
+		// everything gentle on a washed row -- the accepted tint painted over
+		// the wash, a shade derived from the washed band, and a rule under the
+		// characters. What the same reviewer accepted in the high-contrast
+		// profiles was a bold fill carrying its own text colour, so that is
+		// what a selected row gets, derived from the colour the profile
+		// already chose.
+		const auto badgeFill = [this](const core::diff_side aRowSide) {
+			const auto base = aRowSide == core::diff_side::left
+				? Colors.IntralineRemoved
+				: Colors.IntralineAdded;
+			if (!base.isValid()) {
 				return QColor{ };
 			}
-			const auto highlight = aPane.palette().color(QPalette::Highlight);
-			const auto washed    = core::composited(
-				core::appearance_color{ static_cast<std::uint8_t>(highlight.red()),
-										static_cast<std::uint8_t>(highlight.green()),
-										static_cast<std::uint8_t>(highlight.blue()),
+			const auto badge = core::emphasis_badge_fill(
+				core::appearance_color{ static_cast<std::uint8_t>(base.red()),
+										static_cast<std::uint8_t>(base.green()),
+										static_cast<std::uint8_t>(base.blue()),
 										255U },
-				core::appearance_color{ static_cast<std::uint8_t>(band.red()),
-										static_cast<std::uint8_t>(band.green()),
-										static_cast<std::uint8_t>(band.blue()),
-										255U },
-				core::selection_wash_alpha);
-			const auto derived = core::derived_emphasis_fill(washed);
-			return QColor{ derived.Red, derived.Green, derived.Blue };
+				Colors.Variant);
+			return QColor{ badge.Red, badge.Green, badge.Blue };
 		};
 
 		const auto& pairs = CurrentResult->Alignment.Pairs;
@@ -1638,13 +1636,13 @@ namespace bpr::qt {
 			// actually wearing, so it is a deeper shade of the band rather
 			// than a pink patch on a blue one. Everywhere else the accepted
 			// fill stays exactly as accepted.
-			const auto fill = selected ? derivedFill(aSide) : color;
+			const auto fill = selected ? badgeFill(aSide) : color;
 			emphasis.format.setBackground(fill);
 			// A fill bright enough to be unmistakable in a high-contrast
 			// profile cannot also let that profile's own syntax colours read
 			// on it, so the core says when the mark carries its own text
 			// colour instead.
-			if (ownForeground && fill.isValid()) {
+			if ((selected || ownForeground) && fill.isValid()) {
 				const auto chosen = core::emphasis_foreground(
 					core::appearance_color{ static_cast<std::uint8_t>(fill.red()),
 											static_cast<std::uint8_t>(fill.green()),

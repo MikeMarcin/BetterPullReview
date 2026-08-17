@@ -406,40 +406,6 @@ namespace bpr::core {
 	[[nodiscard]] auto measure_emphasis_balance(const appearance_palette& aPalette)
 		-> emphasis_balance_finding;
 
-	/// \brief The separation a fill derived from its row is held to.
-	///
-	/// \details 9.0, and deliberately far below
-	/// `emphasis_separation_minimum_tenths`. A derived fill is not carrying the
-	/// mark by itself — the rule under the characters does that — so it only
-	/// has to read as a deeper shade of the row rather than as a mark in its
-	/// own right. Pushing it to 20.0 would spend text contrast the row has
-	/// already spent on its own band, and buy emphasis the rule already
-	/// supplies.
-	inline constexpr std::uint32_t derived_emphasis_separation_minimum_tenths = 90U;
-
-	/// \brief Returns a deeper shade of one fill, in the fill's own hue.
-	///
-	/// \details For a fill the palette has no emphasis role for — a row wearing
-	/// the selection wash, most of all — the mark cannot be a palette colour,
-	/// because the fill it has to sit inside is a composite the palette never
-	/// names. Deriving keeps the answer in the row's own hue, which is the
-	/// property that failed when the accepted added and removed fills were
-	/// composited instead: at 72/255 a pink stays pink on a blue band, and a
-	/// reviewer reading "red patch on a blue row" is reading it correctly.
-	///
-	/// The derivation moves toward the most vivid rendering of the fill's own
-	/// hue, lifted to full brightness when the fill is dark so a near-black
-	/// row has somewhere to travel, and blends until the separation reaches
-	/// `derived_emphasis_separation_minimum_tenths`. Hue is preserved to within
-	/// a degree by construction. A fill with no hue to deepen moves toward
-	/// white or black instead, whichever it is further from.
-	///
-	/// Returns the fill unchanged when the minimum cannot be reached, which is
-	/// honest rather than convenient: the caller still draws the rule, and a
-	/// silently invented colour would be worse than no tint.
-	[[nodiscard]] auto derived_emphasis_fill(appearance_color aFill) noexcept
-		-> appearance_color;
-
 	/// \brief Returns the foreground an emphasis fill would carry itself.
 	///
 	/// \details Black or white, whichever the fill contrasts with more. A fill
@@ -466,6 +432,27 @@ namespace bpr::core {
 		const appearance_palette& aPalette,
 		appearance_role           aFill,
 		appearance_variant        aVariant) noexcept -> bool;
+
+	/// \brief Returns the badge form of one emphasis fill.
+	///
+	/// \details A selected row is already wearing a wash, and three attended
+	/// rounds established that nothing gentle survives it: the accepted tint
+	/// painted over the wash reads as a foreign colour, a shade derived from
+	/// the washed band reads as nothing at all, and a rule under the
+	/// characters was rejected outright. What the same reviewer did accept, in
+	/// the high-contrast profiles, was a bold fill carrying its own text
+	/// colour. This is that treatment, derived rather than enumerated so every
+	/// profile gets it from the colour it already chose.
+	///
+	/// The badge is the most vivid rendering of the emphasis colour — the same
+	/// hue with its channel spread pushed to the full range — backed off until
+	/// the better of black and white text on it still clears the variant's
+	/// text floor. Backing off is what keeps a badge legible: pure red takes
+	/// black text at only 5.25:1, which is under the enhanced floor a
+	/// high-contrast profile is held to.
+	[[nodiscard]] auto emphasis_badge_fill(
+		appearance_color   aEmphasis,
+		appearance_variant aVariant) noexcept -> appearance_color;
 
 	/// \brief Names two roles whose meanings differ, and whose colours may not.
 	///

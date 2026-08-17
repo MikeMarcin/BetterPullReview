@@ -628,58 +628,6 @@ namespace bpr::core {
 		};
 	}
 
-	auto derived_emphasis_fill(const appearance_color aFill) noexcept
-		-> appearance_color
-	{
-		// A fill this dark has no room to deepen, so the derivation brightens
-		// instead. The threshold is the same relative luminance the contrast
-		// ratio's own offset sits near, which is where "dark ground" stops
-		// being a judgement call.
-		constexpr auto darkGroundLuminance = 0.18;
-
-		const auto high = std::max(
-			{ aFill.Red, aFill.Green, aFill.Blue });
-		const auto low = std::min(
-			{ aFill.Red, aFill.Green, aFill.Blue });
-		const auto dark = relative_luminance(linear_of(aFill)) <= darkGroundLuminance;
-
-		// The most vivid rendering of this fill's own hue: the same channel
-		// ratios with the minimum driven to zero, held at the fill's own
-		// brightness on a light ground and lifted to full on a dark one.
-		const auto vivid = [aFill, high, low, dark]() -> appearance_color {
-			if (high == low) {
-				// No hue to deepen. Move toward whichever extreme is further.
-				const auto extreme = dark
-					? static_cast<std::uint8_t>(channel_ceiling)
-					: std::uint8_t{ 0U };
-				return appearance_color{ extreme, extreme, extreme, 255U };
-			}
-			const auto span    = static_cast<std::uint32_t>(high - low);
-			const auto ceiling = dark ? channel_ceiling
-									  : static_cast<std::uint32_t>(high);
-			const auto scaled  = [span, ceiling, low](const std::uint8_t aChannel) {
-				const auto lifted = static_cast<std::uint32_t>(aChannel - low)
-					* ceiling / span;
-				return static_cast<std::uint8_t>(std::min(lifted, channel_ceiling));
-			};
-			return appearance_color{ scaled(aFill.Red),
-									 scaled(aFill.Green),
-									 scaled(aFill.Blue),
-									 255U };
-		}();
-
-		for (auto alpha = std::uint32_t{ 2U }; alpha <= channel_ceiling; alpha += 2U) {
-			const auto candidate = composited(
-				vivid, aFill, static_cast<std::uint8_t>(alpha));
-			if (color_difference_tenths(aFill, candidate, color_vision::typical)
-				>= derived_emphasis_separation_minimum_tenths) {
-				return candidate;
-			}
-		}
-
-		return aFill;
-	}
-
 	auto emphasis_foreground(const appearance_color aFill) noexcept
 		-> appearance_color
 	{
@@ -708,6 +656,52 @@ namespace bpr::core {
 		}
 
 		return false;
+	}
+
+	auto emphasis_badge_fill(
+		const appearance_color   aEmphasis,
+		const appearance_variant aVariant) noexcept -> appearance_color
+	{
+		const auto high  = std::max({ aEmphasis.Red, aEmphasis.Green, aEmphasis.Blue });
+		const auto low   = std::min({ aEmphasis.Red, aEmphasis.Green, aEmphasis.Blue });
+		const auto floor = minimum_contrast_hundredths(
+			contrast_kind::text, aVariant);
+
+		// The most vivid rendering of this colour's own hue. A colour with no
+		// hue has no vivid form, so it moves to the opposite extreme instead.
+		const auto vivid = [aEmphasis, high, low]() -> appearance_color {
+			if (high == low) {
+				const auto extreme = high < channel_ceiling / 2U
+					? static_cast<std::uint8_t>(channel_ceiling)
+					: std::uint8_t{ 0U };
+				return appearance_color{ extreme, extreme, extreme, 255U };
+			}
+			const auto span   = static_cast<std::uint32_t>(high - low);
+			const auto scaled = [span, low](const std::uint8_t aChannel) {
+				const auto lifted = static_cast<std::uint32_t>(aChannel - low)
+					* channel_ceiling / span;
+				return static_cast<std::uint8_t>(std::min(lifted, channel_ceiling));
+			};
+			return appearance_color{ scaled(aEmphasis.Red),
+									 scaled(aEmphasis.Green),
+									 scaled(aEmphasis.Blue),
+									 255U };
+		}();
+
+		auto badge = aEmphasis;
+		for (auto alpha = std::uint32_t{ 0U }; alpha <= channel_ceiling;
+			 alpha += 4U) {
+			const auto candidate = composited(
+				vivid, aEmphasis, static_cast<std::uint8_t>(alpha));
+			if (contrast_ratio_hundredths(
+					emphasis_foreground(candidate), candidate)
+				< floor) {
+				break;
+			}
+			badge = candidate;
+		}
+
+		return badge;
 	}
 
 	auto hue_critical_pairs() noexcept -> std::span<const hue_critical_pair>

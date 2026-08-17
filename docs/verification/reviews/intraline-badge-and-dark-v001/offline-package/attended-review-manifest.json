@@ -1,0 +1,290 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/f204f015d18bb06efc0df96b",
+  "downstream_claims": {
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "Two alternatives to one question — how the dark profile's unselected marks should look — so pick exactly one; the other is recorded as not chosen rather than defective. Everything else is common to both and follows your last note directly: no underlines, light unselected untouched, high contrast as you accepted it, and the selected row now carrying a bold badge rather than a tint. The badge is the one idea you have said works, generalised: it is what the accepted high-contrast pairing is, derived from whatever colour each profile already uses. If the badge itself is wrong, reject both and say so — that is a recordable answer and it is the more useful one. Captures are offscreen QFusionStyle at device pixel ratio 1.",
+  "review_gate": "intraline_badge_and_dark",
+  "review_scope": "human_ui_alternative_selection_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "selection_groups": [
+    {
+      "group_id": "dark-treatment",
+      "max_accept": 1,
+      "min_accept": 1,
+      "note": "",
+      "title": "How should the dark profile's unselected marks look?"
+    }
+  ],
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "The selected top row's changed characters are unmistakable, in every profile",
+        "Nothing on the selected row reads as a foreign colour in the blue band",
+        "Dark's unselected marks are properly visible, not barely",
+        "Light's unselected marks are unchanged",
+        "No underlines anywhere"
+      ],
+      "audit_verdict": {
+        "note": "Rendered through the real UIforETW course in all four profiles; focused matrix 7/7 at this tree.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "The dark profile's unselected marks become the same #55FF55 and #FF9999 you picked for high contrast, each carrying black text. The boldest answer to \"bad everywhere, only barely visible\", and it makes dark and high contrast look closely related. Dark stops showing syntax colouring inside the mark, because the mark carries its own text colour.\n\nEverything else is identical between the two options, and all of it follows your last note. No underlines. Light unselected keeps the tint you have now called good three times. High contrast keeps the pairing you just accepted. The selected row — the top one in every capture — now shows a bold badge instead of a tint, in every profile, because that is the one treatment you have said works: it is the same idea as the high-contrast pairing, derived from whatever colour the profile already uses.",
+      "detail_sections": [],
+      "display_name": "Dark uses the bright pairing you just accepted",
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-badge-p1/identity/01-light-capture-facts.json",
+          "sha256": "sha256:ba82ee8bae8c0d5da32ca9fcc7fa5de2c5afbbdea737f8b8543e92a81ff681ce"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-badge-p1/identity/02-dark-capture-facts.json",
+          "sha256": "sha256:b5d60ab67dd0334bc786bb4c996cd8809a3c35223f53b9d494e71fe09768fc46"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-badge-p1/identity/03-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:584d87851ddc9a8aee66fd7508d3b8f562efe18e5e97ed9bf8348283936ba34f"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-badge-p1/identity/04-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:094a676b3aee9eb159637fd3590525220c04cfa9394e4b272f04653250b8be4b"
+        }
+      ],
+      "known_concerns": [
+        "The selected-row badge is common to both options. Rejecting both says the badge is wrong; picking one says it is right and settles the dark question at the same time.",
+        "A badge is the profile's own emphasis colour pushed to its most vivid form, backed off until black or white text on it clears the variant's full text floor — not the reduced emphasis floor.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "media_groups": [
+        {
+          "group_id": "dark",
+          "items": [
+            {
+              "label": "Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-badge-p1/dark/01-dark-changed-characters.png",
+              "sha256": "sha256:344de6dfae13c995428bcab4ab5b298222212d0e082649f534f9eef0a675b05c"
+            },
+            {
+              "label": "Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-badge-p1/dark/02-dark-whole-window.png",
+              "sha256": "sha256:e794d1403c2919fedfe7dc6a59a4577080d57d750c8c5a874f6f4988989c87d7"
+            }
+          ],
+          "layout": "grid",
+          "note": "This is the only profile that differs between the two options. The top row is selected.",
+          "required": true,
+          "title": "Dark — the profile under review"
+        },
+        {
+          "group_id": "others",
+          "items": [
+            {
+              "label": "Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-badge-p1/others/01-light-changed-characters.png",
+              "sha256": "sha256:e220c5f72ea715f820f8ae65f1ba3e80dee6ea86ecf7c688102e304f34973e50"
+            },
+            {
+              "label": "High-contrast Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-badge-p1/others/02-high-contrast-light-changed-characters.png",
+              "sha256": "sha256:771a273c39d111b5c79358373f14c8638c92f157395131ed1dd2e9e11eefc618"
+            },
+            {
+              "label": "High-contrast Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-badge-p1/others/03-high-contrast-dark-changed-characters.png",
+              "sha256": "sha256:a3e6094671def5c68e70e98422a779a5402ed65a5dd81f37db139416e2860344"
+            }
+          ],
+          "layout": "grid",
+          "note": "Check the selected top row here too; the badge is the same idea in every profile.",
+          "required": true,
+          "title": "The other three profiles — identical in both options"
+        },
+        {
+          "group_id": "windows",
+          "items": [
+            {
+              "label": "Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-badge-p1/windows/01-light-whole-window.png",
+              "sha256": "sha256:7c3c6b65d68599e110d04348abb6c9d793505b00dcd889d6782902eaca68bcf5"
+            },
+            {
+              "label": "High-contrast Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-badge-p1/windows/02-high-contrast-light-whole-window.png",
+              "sha256": "sha256:88ebcbe103addf1d4f84d5e3940b6d2f5aecca0a6566ccd7855d519d2d6d4747"
+            },
+            {
+              "label": "High-contrast Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-badge-p1/windows/03-high-contrast-dark-whole-window.png",
+              "sha256": "sha256:39a9660e9ad0b1cbbc91587ff47b90410ff3d3d396bbd5d04a13c7dd3001633f"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": false,
+          "title": "Whole window"
+        }
+      ],
+      "selection_group": "dark-treatment",
+      "subject_digest": "sha256:81cb07c1e1813ad7fb491cea32f4fd8b21bad947288d3ce8470725833385d2f8",
+      "subject_id": "criterion:/betterpullreview/bpr-0323/badge-p1",
+      "subject_key": "badge-p1"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "The selected top row's changed characters are unmistakable, in every profile",
+        "Nothing on the selected row reads as a foreign colour in the blue band",
+        "Dark's unselected marks are properly visible, not barely",
+        "Light's unselected marks are unchanged",
+        "No underlines anywhere"
+      ],
+      "audit_verdict": {
+        "note": "Rendered through the real UIforETW course in all four profiles; focused matrix 7/7 at this tree.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "The dark profile's unselected marks stay tints in their own hues, pushed from a separation of about 21 to about 35 — the most they can travel while the profile's syntax colours still read through them. More restrained, and dark keeps looking like dark rather than like the high-contrast profile.\n\nEverything else is identical between the two options, and all of it follows your last note. No underlines. Light unselected keeps the tint you have now called good three times. High contrast keeps the pairing you just accepted. The selected row — the top one in every capture — now shows a bold badge instead of a tint, in every profile, because that is the one treatment you have said works: it is the same idea as the high-contrast pairing, derived from whatever colour the profile already uses.",
+      "detail_sections": [],
+      "display_name": "Dark keeps a tint, roughly seventy percent stronger",
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/002-badge-p2/identity/01-light-capture-facts.json",
+          "sha256": "sha256:069fc7910b1506ae15d7c82f421a22da6da06797e364c13a38796d7bf46acaa2"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/002-badge-p2/identity/02-dark-capture-facts.json",
+          "sha256": "sha256:60bdb50e2c4cce7a73af56f6d1f3067f31ae4309b139b5a2b50a0974754aa503"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/002-badge-p2/identity/03-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:c5b854a7e585205e6499391bcaf7109d1436c587a7176140e51c72a4e19206f3"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/002-badge-p2/identity/04-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:4fc52f7ef6e9052640ff0c77efe4356ff5a0d328086ae1d6b574d021de257f7d"
+        }
+      ],
+      "known_concerns": [
+        "The selected-row badge is common to both options. Rejecting both says the badge is wrong; picking one says it is right and settles the dark question at the same time.",
+        "A badge is the profile's own emphasis colour pushed to its most vivid form, backed off until black or white text on it clears the variant's full text floor — not the reduced emphasis floor.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "media_groups": [
+        {
+          "group_id": "dark",
+          "items": [
+            {
+              "label": "Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/002-badge-p2/dark/01-dark-changed-characters.png",
+              "sha256": "sha256:6b7912274cc2a8dae88dc9916ea49243e6625ac2a1d91ba402da193d1db7b2fe"
+            },
+            {
+              "label": "Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/002-badge-p2/dark/02-dark-whole-window.png",
+              "sha256": "sha256:236b971bf6866e2b49f55defd04fda120fc7191d246d13d45970ffe3b5724e3a"
+            }
+          ],
+          "layout": "grid",
+          "note": "This is the only profile that differs between the two options. The top row is selected.",
+          "required": true,
+          "title": "Dark — the profile under review"
+        },
+        {
+          "group_id": "others",
+          "items": [
+            {
+              "label": "Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/002-badge-p2/others/01-light-changed-characters.png",
+              "sha256": "sha256:e220c5f72ea715f820f8ae65f1ba3e80dee6ea86ecf7c688102e304f34973e50"
+            },
+            {
+              "label": "High-contrast Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/002-badge-p2/others/02-high-contrast-light-changed-characters.png",
+              "sha256": "sha256:771a273c39d111b5c79358373f14c8638c92f157395131ed1dd2e9e11eefc618"
+            },
+            {
+              "label": "High-contrast Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/002-badge-p2/others/03-high-contrast-dark-changed-characters.png",
+              "sha256": "sha256:a3e6094671def5c68e70e98422a779a5402ed65a5dd81f37db139416e2860344"
+            }
+          ],
+          "layout": "grid",
+          "note": "Check the selected top row here too; the badge is the same idea in every profile.",
+          "required": true,
+          "title": "The other three profiles — identical in both options"
+        },
+        {
+          "group_id": "windows",
+          "items": [
+            {
+              "label": "Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/002-badge-p2/windows/01-light-whole-window.png",
+              "sha256": "sha256:7c3c6b65d68599e110d04348abb6c9d793505b00dcd889d6782902eaca68bcf5"
+            },
+            {
+              "label": "High-contrast Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/002-badge-p2/windows/02-high-contrast-light-whole-window.png",
+              "sha256": "sha256:88ebcbe103addf1d4f84d5e3940b6d2f5aecca0a6566ccd7855d519d2d6d4747"
+            },
+            {
+              "label": "High-contrast Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/002-badge-p2/windows/03-high-contrast-dark-whole-window.png",
+              "sha256": "sha256:39a9660e9ad0b1cbbc91587ff47b90410ff3d3d396bbd5d04a13c7dd3001633f"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": false,
+          "title": "Whole window"
+        }
+      ],
+      "selection_group": "dark-treatment",
+      "subject_digest": "sha256:9972beff70f59e7965e4746cd70f44e9fa36889f3fd7b3f5c29f33a611d40c11",
+      "subject_id": "criterion:/betterpullreview/bpr-0323/badge-p2",
+      "subject_key": "badge-p2"
+    }
+  ],
+  "title": "Selected-row badge and the dark profile (BPR-0323)"
+}

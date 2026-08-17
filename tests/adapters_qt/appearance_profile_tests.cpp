@@ -2062,39 +2062,34 @@ namespace {
 					wash,
 					palette[core::index_of(bandRole)],
 					core::selection_wash_alpha);
-				const auto mark = core::derived_emphasis_fill(washedBand);
+				const auto emphasisRoleForBand
+					= bandRole == role::diff_added_background
+					? role::diff_intraline_added_background
+					: role::diff_intraline_removed_background;
+				const auto mark = core::emphasis_badge_fill(
+					palette[core::index_of(emphasisRoleForBand)], variant);
 
 				expect(
 					core::color_difference_tenths(
 						washedBand, mark, core::color_vision::typical)
-						>= core::derived_emphasis_separation_minimum_tenths,
-					"a selected row's mark reaches the published separation "
-					"from the band it sits in");
+						>= core::emphasis_separation_minimum_tenths,
+					"a selected row's badge stands clear of the band it sits "
+					"in");
 
 				// Whatever is painted on the mark has to clear the floor:
 				// either the profile's own syntax colours, or the foreground
 				// the mark carries when they cannot.
-				const auto emphasisRole
-					= bandRole == role::diff_added_background
-					? role::diff_intraline_added_background
-					: role::diff_intraline_removed_background;
-				if (core::emphasis_needs_own_foreground(
-						palette, emphasisRole, variant)) {
-					expect(
-						core::contrast_ratio_hundredths(
-							core::emphasis_foreground(mark), mark)
-							>= floor,
-						"a mark carrying its own foreground clears the floor");
-					continue;
-				}
-				for (auto index = core::index_of(role::syntax_normal);
-					 index < core::appearance_role_count;
-					 ++index) {
-					expect(
-						core::contrast_ratio_hundredths(palette[index], mark)
-							>= floor,
-						"syntax text stays legible on a selected row's mark");
-				}
+				// A badge always carries its own foreground, so what has to
+				// clear the floor is that foreground and not the profile's
+				// syntax colours.
+				expect(
+					core::contrast_ratio_hundredths(
+						core::emphasis_foreground(mark), mark)
+						>= core::minimum_contrast_hundredths(
+							core::contrast_kind::text, variant),
+					"a selected row's badge is legible under its own "
+					"foreground");
+				static_cast<void>(floor);
 			}
 		}
 	}
