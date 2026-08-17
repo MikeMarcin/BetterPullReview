@@ -1,0 +1,28 @@
+{
+  "schema_name": "bpr.reference_measurement",
+  "schema_version": 1,
+  "source": "product-owner supplied dark-mode reference, recorded as captures/reference-dark.png",
+  "canvas": "#282828",
+  "text": "#DDDDDD",
+  "pairs": [
+    {
+      "side": "removed",
+      "row": "#5E413F",
+      "intraline": "#944849",
+      "separation_tenths": 233,
+      "text_contrast_hundredths": 471,
+      "saturation": "0.33 -> 0.51",
+      "value": "0.37 -> 0.58"
+    },
+    {
+      "side": "added",
+      "row": "#425B42",
+      "intraline": "#4D8249",
+      "separation_tenths": 244,
+      "text_contrast_hundredths": 335,
+      "saturation": "0.27 -> 0.44",
+      "value": "0.36 -> 0.51"
+    }
+  ],
+  "conclusion": "The reference brightens and moderately saturates its intraline marks. The rejected dark palette reached a comparable separation by saturating to 0.93 while staying dark, which is why it read as barely visible at the same measured distance."
+}

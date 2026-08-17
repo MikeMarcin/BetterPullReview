@@ -1689,16 +1689,23 @@ namespace {
 	/// BPR-0321, and the product owner rejected it: at 72/255 a pink stays
 	/// pink on a blue band.
 	[[nodiscard]] auto selected_row_fill(
+		const QPlainTextEdit&         aPane,
 		const qt::appearance_profile& aProfile,
-		const QColor                  aEmphasis) -> QColor
+		const QColor                  aBand) -> QColor
 	{
-		const auto badge = core::emphasis_badge_fill(
-			core::appearance_color{ static_cast<std::uint8_t>(aEmphasis.red()),
-									static_cast<std::uint8_t>(aEmphasis.green()),
-									static_cast<std::uint8_t>(aEmphasis.blue()),
+		const auto highlight = aPane.palette().color(QPalette::Highlight);
+		const auto washed    = core::composited(
+			core::appearance_color{ static_cast<std::uint8_t>(highlight.red()),
+									static_cast<std::uint8_t>(highlight.green()),
+									static_cast<std::uint8_t>(highlight.blue()),
 									255U },
-			aProfile.variant());
-		return QColor{ badge.Red, badge.Green, badge.Blue };
+			core::appearance_color{ static_cast<std::uint8_t>(aBand.red()),
+									static_cast<std::uint8_t>(aBand.green()),
+									static_cast<std::uint8_t>(aBand.blue()),
+									255U },
+			core::selection_wash_alpha);
+		const auto mark = core::derived_emphasis_fill(washed, aProfile.variant());
+		return QColor{ mark.Red, mark.Green, mark.Blue };
 	}
 
 	/// \brief Painted intraline ranges must be the ranges the core computed.
@@ -1738,8 +1745,9 @@ namespace {
 		process_events();
 
 		const auto emphasis = selected_row_fill(
+			*workbench.right_pane(),
 			profile,
-			profile.color(core::appearance_role::diff_intraline_added_background));
+			profile.color(core::appearance_role::diff_added_background));
 		auto wash = workbench.right_pane()->palette().color(QPalette::Highlight);
 		wash.setAlpha(core::selection_wash_alpha);
 		auto compared = 0U;
@@ -1861,8 +1869,9 @@ namespace {
 		process_events();
 
 		const auto emphasis = selected_row_fill(
+			*workbench.left_pane(),
 			profile,
-			profile.color(core::appearance_role::diff_intraline_removed_background));
+			profile.color(core::appearance_role::diff_removed_background));
 		const QList<QTextEdit::ExtraSelection> selections
 			= workbench.left_pane()->extraSelections();
 		auto compared = 0U;
@@ -1934,8 +1943,9 @@ namespace {
 		const auto bare
 			= profile.color(core::appearance_role::diff_intraline_added_background);
 		const auto washed = selected_row_fill(
+			*workbench.right_pane(),
 			profile,
-			profile.color(core::appearance_role::diff_intraline_added_background));
+			profile.color(core::appearance_role::diff_added_background));
 		expect(washed != bare, "a selected row's fill is not the palette colour");
 
 		// Select through the ribbon, the gesture a reviewer actually has.

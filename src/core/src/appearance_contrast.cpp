@@ -11,7 +11,6 @@
 namespace bpr::core {
 	namespace {
 		constexpr double        channel_maximum = 255.0;
-		constexpr std::uint32_t channel_ceiling = 255U;
 
 		// The sRGB electro-optical transfer function and its inverse.
 		constexpr double srgb_decode_threshold = 0.040'45;
@@ -180,6 +179,72 @@ namespace bpr::core {
 				.A         = lab_a_scale * (fx - fy),
 				.B         = lab_b_scale * (fy - fz),
 			};
+		}
+
+		/// \brief Holds one colour as hue, saturation and value.
+		struct hsv_color
+		{
+			double Hue        = 0.0;
+			double Saturation = 0.0;
+			double Value      = 0.0;
+		};
+
+		[[nodiscard]] auto hsv_of(const appearance_color aColor) noexcept -> hsv_color
+		{
+			const auto red   = static_cast<double>(aColor.Red) / channel_maximum;
+			const auto green = static_cast<double>(aColor.Green) / channel_maximum;
+			const auto blue  = static_cast<double>(aColor.Blue) / channel_maximum;
+			const auto high  = std::max({ red, green, blue });
+			const auto low   = std::min({ red, green, blue });
+			const auto span  = high - low;
+
+			auto hue = 0.0;
+			if (span > 0.0) {
+				if (high == red) {
+					hue = std::fmod(((green - blue) / span) + 6.0, 6.0);
+				}
+				else if (high == green) {
+					hue = ((blue - red) / span) + 2.0;
+				}
+				else {
+					hue = ((red - green) / span) + 4.0;
+				}
+				hue /= 6.0;
+			}
+
+			return hsv_color{
+				.Hue        = hue,
+				.Saturation = high > 0.0 ? span / high : 0.0,
+				.Value      = high,
+			};
+		}
+
+		[[nodiscard]] auto rgb_of(const hsv_color aColor) noexcept -> appearance_color
+		{
+			const auto sector    = aColor.Hue * 6.0;
+			const auto index     = static_cast<int>(std::floor(sector)) % 6;
+			const auto remainder = sector - std::floor(sector);
+			const auto p = aColor.Value * (1.0 - aColor.Saturation);
+			const auto q = aColor.Value * (1.0 - (aColor.Saturation * remainder));
+			const auto t = aColor.Value * (1.0 - (aColor.Saturation * (1.0 - remainder)));
+
+			auto red = 0.0;
+			auto green = 0.0;
+			auto blue = 0.0;
+			switch (index) {
+			case 0: red = aColor.Value; green = t; blue = p; break;
+			case 1: red = q; green = aColor.Value; blue = p; break;
+			case 2: red = p; green = aColor.Value; blue = t; break;
+			case 3: red = p; green = q; blue = aColor.Value; break;
+			case 4: red = t; green = p; blue = aColor.Value; break;
+			default: red = aColor.Value; green = p; blue = q; break;
+			}
+
+			const auto quantise = [](const double aChannel) {
+				return static_cast<std::uint8_t>(
+					std::lround(std::clamp(aChannel, 0.0, 1.0) * channel_maximum));
+			};
+			return appearance_color{ quantise(red), quantise(green), quantise(blue), 255U };
 		}
 
 		// --- the checked pair tables -------------------------------------
@@ -658,50 +723,38 @@ namespace bpr::core {
 		return false;
 	}
 
-	auto emphasis_badge_fill(
-		const appearance_color   aEmphasis,
+	auto derived_emphasis_fill(
+		const appearance_color   aFill,
 		const appearance_variant aVariant) noexcept -> appearance_color
 	{
-		const auto high  = std::max({ aEmphasis.Red, aEmphasis.Green, aEmphasis.Blue });
-		const auto low   = std::min({ aEmphasis.Red, aEmphasis.Green, aEmphasis.Blue });
-		const auto floor = minimum_contrast_hundredths(
-			contrast_kind::text, aVariant);
+		static_cast<void>(aVariant);
+		constexpr auto darkGroundLuminance = 0.18;
+		constexpr auto steps               = std::uint32_t{ 100U };
+		constexpr auto saturationReach     = 0.55;
+		constexpr auto lightnessReach      = 0.45;
 
-		// The most vivid rendering of this colour's own hue. A colour with no
-		// hue has no vivid form, so it moves to the opposite extreme instead.
-		const auto vivid = [aEmphasis, high, low]() -> appearance_color {
-			if (high == low) {
-				const auto extreme = high < channel_ceiling / 2U
-					? static_cast<std::uint8_t>(channel_ceiling)
-					: std::uint8_t{ 0U };
-				return appearance_color{ extreme, extreme, extreme, 255U };
-			}
-			const auto span   = static_cast<std::uint32_t>(high - low);
-			const auto scaled = [span, low](const std::uint8_t aChannel) {
-				const auto lifted = static_cast<std::uint32_t>(aChannel - low)
-					* channel_ceiling / span;
-				return static_cast<std::uint8_t>(std::min(lifted, channel_ceiling));
+		const auto source = hsv_of(aFill);
+		const auto dark = relative_luminance(linear_of(aFill)) <= darkGroundLuminance;
+
+		auto strongest = aFill;
+		for (auto step = std::uint32_t{ 1U }; step <= steps; ++step) {
+			const auto reach = static_cast<double>(step) / static_cast<double>(steps);
+			const auto shifted = hsv_color{
+				.Hue        = source.Hue,
+				.Saturation = std::min(1.0, source.Saturation + (reach * saturationReach)),
+				.Value      = dark
+					? std::min(1.0, source.Value + (reach * lightnessReach))
+					: std::max(0.0, source.Value - (reach * lightnessReach)),
 			};
-			return appearance_color{ scaled(aEmphasis.Red),
-									 scaled(aEmphasis.Green),
-									 scaled(aEmphasis.Blue),
-									 255U };
-		}();
-
-		auto badge = aEmphasis;
-		for (auto alpha = std::uint32_t{ 0U }; alpha <= channel_ceiling;
-			 alpha += 4U) {
-			const auto candidate = composited(
-				vivid, aEmphasis, static_cast<std::uint8_t>(alpha));
-			if (contrast_ratio_hundredths(
-					emphasis_foreground(candidate), candidate)
-				< floor) {
-				break;
+			const auto candidate = rgb_of(shifted);
+			strongest            = candidate;
+			if (color_difference_tenths(aFill, candidate, color_vision::typical)
+				>= derived_emphasis_separation_minimum_tenths) {
+				return candidate;
 			}
-			badge = candidate;
 		}
 
-		return badge;
+		return strongest;
 	}
 
 	auto hue_critical_pairs() noexcept -> std::span<const hue_critical_pair>

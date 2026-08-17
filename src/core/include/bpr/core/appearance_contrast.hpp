@@ -433,25 +433,36 @@ namespace bpr::core {
 		appearance_role           aFill,
 		appearance_variant        aVariant) noexcept -> bool;
 
-	/// \brief Returns the badge form of one emphasis fill.
+	/// \brief The separation a mark derived from its own fill is held to.
 	///
-	/// \details A selected row is already wearing a wash, and three attended
-	/// rounds established that nothing gentle survives it: the accepted tint
-	/// painted over the wash reads as a foreign colour, a shade derived from
-	/// the washed band reads as nothing at all, and a rule under the
-	/// characters was rejected outright. What the same reviewer did accept, in
-	/// the high-contrast profiles, was a bold fill carrying its own text
-	/// colour. This is that treatment, derived rather than enumerated so every
-	/// profile gets it from the colour it already chose.
+	/// \details 23.0, taken from a reference diff the product owner supplied as
+	/// the standard to meet. Its dark rows sit 23.3 and 24.4 from their
+	/// intraline marks, so this is a measured preference rather than a chosen
+	/// number. An earlier version of this constant was 9.0, reasoned from the
+	/// idea that a separate signal was carrying the mark, and the result was
+	/// rejected as terrible.
+	inline constexpr std::uint32_t derived_emphasis_separation_minimum_tenths = 230U;
+
+	/// \brief Returns a stronger version of one fill, in the fill's own hue.
 	///
-	/// The badge is the most vivid rendering of the emphasis colour — the same
-	/// hue with its channel spread pushed to the full range — backed off until
-	/// the better of black and white text on it still clears the variant's
-	/// text floor. Backing off is what keeps a badge legible: pure red takes
-	/// black text at only 5.25:1, which is under the enhanced floor a
-	/// high-contrast profile is held to.
-	[[nodiscard]] auto emphasis_badge_fill(
-		appearance_color   aEmphasis,
+	/// \details For a fill the palette has no emphasis role for — a row wearing
+	/// the selection wash above all — the mark cannot be a palette colour,
+	/// because the fill it sits inside is a composite the palette never names.
+	/// The product owner's requirement is exact: "if the line fill is blue the
+	/// intraline emphasis fill should also be a blue, just a darker or lighter
+	/// version". Hue is therefore preserved and only saturation and lightness
+	/// move.
+	///
+	/// The direction is away from the ground the fill sits on: a dark fill
+	/// brightens, a light one darkens, and both gain saturation. That is the
+	/// same move the supplied reference makes — its dark marks go from value
+	/// 0.37 to 0.58 and saturation 0.33 to 0.51 — rather than the deeper,
+	/// muddier direction an earlier attempt took.
+	///
+	/// Returns the fill unchanged when the minimum cannot be reached, which is
+	/// honest rather than convenient.
+	[[nodiscard]] auto derived_emphasis_fill(
+		appearance_color   aFill,
 		appearance_variant aVariant) noexcept -> appearance_color;
 
 	/// \brief Names two roles whose meanings differ, and whose colours may not.

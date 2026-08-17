@@ -1,0 +1,229 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/d9a2e27adfc4279abdce0eaf",
+  "downstream_claims": {
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "Two independent accept-or-rejects, one for each thing you named. They are separate subjects so a problem with one does not sink the other. Your dark reference is included in the second so you can compare against the thing you actually asked for; measuring it is what found the real defect, which was direction rather than distance. No underlines. Light unselected and the accepted high-contrast pairing are both untouched. Captures are offscreen QFusionStyle at device pixel ratio 1.",
+  "review_gate": "intraline_hue_and_subtle_dark",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "On the selected row, the mark is the same hue as the band it sits in",
+        "The mark is still easy to find on the selected row",
+        "Unselected rows are unchanged",
+        "The effect holds in all four profiles"
+      ],
+      "audit_verdict": {
+        "note": "Rendered through the real UIforETW course in all four profiles; focused core and Qt tests 5/5.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Your words: a blue line should get a blue mark, just darker or lighter. The mark on a selected row is now derived from the band that row is actually wearing — its own colour with the blue wash over it — keeping the hue to within a degree and moving only saturation and lightness. Nothing red or green is painted inside the blue band any more. The top row in every capture is the selected one.",
+      "detail_sections": [],
+      "display_name": "A selected row's mark keeps the row's own hue",
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-hue-preserving-mark/identity/01-light-capture-facts.json",
+          "sha256": "sha256:9d1c0a2d10618dcf5c0ab8a4991d145e8768e04d91dcc999c61b960ca8119c7e"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-hue-preserving-mark/identity/02-dark-capture-facts.json",
+          "sha256": "sha256:3f6b0af13e45bafca6bb595bc9d0ee5be7a599e2044f7825bf15952b050bbaf6"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-hue-preserving-mark/identity/03-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:376ce496440187b6733b0de3e091d697300ac8793ffc72223c7b1bf2577a8d96"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-hue-preserving-mark/identity/04-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:aa62bc4a1845f05d765825fc70dad416d28d969caf27a5e25b6d13712bd36dd0"
+        }
+      ],
+      "known_concerns": [
+        "The mark sits 23.0 from the band it derives from. That figure is taken from your reference diff, whose own dark marks measure 23.3 and 24.4; an earlier attempt used 9.0 and you called it terrible.",
+        "Where the profile's syntax colours cannot read on the derived mark, the mark carries its own text colour instead.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "media_groups": [
+        {
+          "group_id": "selected",
+          "items": [
+            {
+              "label": "Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-hue-preserving-mark/selected/01-light-changed-characters.png",
+              "sha256": "sha256:8f7d6d9814d988ab8173bdcce1275f7c03ac03931428e9ea6bb4203ee25430d5"
+            },
+            {
+              "label": "Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-hue-preserving-mark/selected/02-dark-changed-characters.png",
+              "sha256": "sha256:f3dd7f40e75c93fa6e8d5f853d32061b620390907786321e154a3ca6aede3690"
+            },
+            {
+              "label": "High-contrast Light — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-hue-preserving-mark/selected/03-high-contrast-light-changed-characters.png",
+              "sha256": "sha256:9898705b452334647a64e618ba66131d66d019cf9dee103a30fca9f3df8a7853"
+            },
+            {
+              "label": "High-contrast Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/001-hue-preserving-mark/selected/04-high-contrast-dark-changed-characters.png",
+              "sha256": "sha256:ec0158434a3b26f84cd7d5fe6624dfb157c60d00f7b973de64f016b08c269b7b"
+            }
+          ],
+          "layout": "grid",
+          "note": "Top highlighted row in each. Its mark should read as a deeper shade of the same band.",
+          "required": true,
+          "title": "The selected row, all four profiles"
+        },
+        {
+          "group_id": "windows",
+          "items": [
+            {
+              "label": "Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-hue-preserving-mark/windows/01-light-whole-window.png",
+              "sha256": "sha256:c5fbc53b8efa0d9a93fd3d1a7347fba67a84a833b0ea50989c07804ceba3844f"
+            },
+            {
+              "label": "Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-hue-preserving-mark/windows/02-dark-whole-window.png",
+              "sha256": "sha256:658f0ed7806c7878dca48172f6c8b96bda14ec7272d2c47b6743486e6399f30d"
+            },
+            {
+              "label": "High-contrast Light — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-hue-preserving-mark/windows/03-high-contrast-light-whole-window.png",
+              "sha256": "sha256:70ff0d239bd03f5a44edff2672478849617236a5f99fcb4ab9f9435eaa51a7a6"
+            },
+            {
+              "label": "High-contrast Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/001-hue-preserving-mark/windows/04-high-contrast-dark-whole-window.png",
+              "sha256": "sha256:4844bcca3de33730db4713a65e393c5a634fcf22d7cbde41d35b38a34cfb6a07"
+            }
+          ],
+          "layout": "grid",
+          "note": "",
+          "required": false,
+          "title": "Whole window"
+        }
+      ],
+      "subject_digest": "sha256:e0457431fa57a2491be97c67682638bfaae49fc018592cb2d07f0f334d6d17d8",
+      "subject_id": "criterion:/betterpullreview/bpr-0323/hue-preserving-mark",
+      "subject_key": "hue-preserving-mark"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Dark's marks are clearly visible without looking like the high-contrast profile",
+        "The marks read as a brighter version of their row, not a darker one",
+        "The profile's syntax colouring still shows through the mark",
+        "Light and the high-contrast profiles are unchanged"
+      ],
+      "audit_verdict": {
+        "note": "Every syntax role clears 3.50:1 on both dark marks, bare and under the selection wash.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Your reference is included below so you can compare directly. Measuring it showed what was actually wrong: it brightens its marks and raises saturation moderately — value 0.37 to 0.58, saturation 0.33 to 0.51 — while the rejected dark palette reached the same measured distance by pushing saturation to 0.93 and staying dark. Same number, opposite direction, which is why it read as barely visible. Dark now brightens the way yours does: added #1E5D2A and removed #933030.",
+      "detail_sections": [
+        {
+          "heading": "Measured against your reference",
+          "items": [
+            {
+              "definition": "#5E413F to #944849, separation 23.3, saturation 0.33 to 0.51, value 0.37 to 0.58",
+              "term": "Your reference, removed"
+            },
+            {
+              "definition": "#425B42 to #4D8249, separation 24.4, saturation 0.27 to 0.44, value 0.36 to 0.51",
+              "term": "Your reference, added"
+            },
+            {
+              "definition": "#3E1F1F to #933030, separation 36.6, value 0.24 to 0.58",
+              "term": "Ours, removed"
+            },
+            {
+              "definition": "#153622 to #1E5D2A, separation 25.2, value 0.21 to 0.36",
+              "term": "Ours, added"
+            },
+            {
+              "definition": "#520412 and #065730 — separation 21, but saturation pushed to 0.93 while value stayed near 0.33",
+              "term": "What was rejected"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "Dark is subtle again, in the style of your reference",
+      "identity_files": [
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/002-subtle-dark/identity/01-dark-capture-facts.json",
+          "sha256": "sha256:3f6b0af13e45bafca6bb595bc9d0ee5be7a599e2044f7825bf15952b050bbaf6"
+        }
+      ],
+      "known_concerns": [
+        "Added sits 25.2 from its row and removed 36.6, against your reference's 23.3 and 24.4.",
+        "Saturation lands a little higher than your reference's, at 0.68 and 0.67 against 0.44 and 0.51. Our dark rows start darker than the reference's, and every syntax role still has to clear 3.50:1 on the mark, which is what forces it.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "media_groups": [
+        {
+          "group_id": "dark",
+          "items": [
+            {
+              "label": "Dark — changed characters",
+              "media_kind": "image",
+              "path": "subjects/002-subtle-dark/dark/01-dark-changed-characters.png",
+              "sha256": "sha256:f3dd7f40e75c93fa6e8d5f853d32061b620390907786321e154a3ca6aede3690"
+            },
+            {
+              "label": "Your reference",
+              "media_kind": "image",
+              "path": "subjects/002-subtle-dark/dark/02-your-reference.png",
+              "sha256": "sha256:b562da61e6a784ed3c3af907ae54488037a09b47083f808c3a6cf8e9f839c619"
+            },
+            {
+              "label": "Dark — whole window",
+              "media_kind": "image",
+              "path": "subjects/002-subtle-dark/dark/03-dark-whole-window.png",
+              "sha256": "sha256:658f0ed7806c7878dca48172f6c8b96bda14ec7272d2c47b6743486e6399f30d"
+            }
+          ],
+          "layout": "grid",
+          "note": "Your reference is the second image. Compare the character of the marks, not the exact hues — the two diffs show different code.",
+          "required": true,
+          "title": "Dark, against your reference"
+        }
+      ],
+      "subject_digest": "sha256:746034eceed986107864e37cdda8205b786f1871620dece1d8898f4e1a0863e7",
+      "subject_id": "criterion:/betterpullreview/bpr-0323/subtle-dark",
+      "subject_key": "subtle-dark"
+    }
+  ],
+  "title": "Hue-preserving selected marks and a subtler dark (BPR-0323)"
+}

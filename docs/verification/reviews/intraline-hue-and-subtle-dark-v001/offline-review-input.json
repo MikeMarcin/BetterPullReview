@@ -1,0 +1,188 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Hue-preserving selected marks and a subtler dark (BPR-0323)",
+  "review_gate": "intraline_hue_and_subtle_dark",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "downstream_claims": {
+    "bpr_0321_closed": false,
+    "bpr_0322_closed": false,
+    "bpr_0323_closed": false,
+    "bpr_0233_closed": false,
+    "bpr_0214_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "reference_disclaimer": "Two independent accept-or-rejects, one for each thing you named. They are separate subjects so a problem with one does not sink the other. Your dark reference is included in the second so you can compare against the thing you actually asked for; measuring it is what found the real defect, which was direction rather than distance. No underlines. Light unselected and the accepted high-contrast pairing are both untouched. Captures are offscreen QFusionStyle at device pixel ratio 1.",
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0323/hue-preserving-mark",
+      "subject_key": "hue-preserving-mark",
+      "display_name": "A selected row's mark keeps the row's own hue",
+      "description": "Your words: a blue line should get a blue mark, just darker or lighter. The mark on a selected row is now derived from the band that row is actually wearing \u2014 its own colour with the blue wash over it \u2014 keeping the hue to within a degree and moving only saturation and lightness. Nothing red or green is painted inside the blue band any more. The top row in every capture is the selected one.",
+      "acceptance_criteria": [
+        "On the selected row, the mark is the same hue as the band it sits in",
+        "The mark is still easy to find on the selected row",
+        "Unselected rows are unchanged",
+        "The effect holds in all four profiles"
+      ],
+      "known_concerns": [
+        "The mark sits 23.0 from the band it derives from. That figure is taken from your reference diff, whose own dark marks measure 23.3 and 24.4; an earlier attempt used 9.0 and you called it terrible.",
+        "Where the profile's syntax colours cannot read on the derived mark, the mark carries its own text colour instead.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Rendered through the real UIforETW course in all four profiles; focused core and Qt tests 5/5."
+      },
+      "media_groups": [
+        {
+          "group_id": "selected",
+          "title": "The selected row, all four profiles",
+          "required": true,
+          "layout": "grid",
+          "note": "Top highlighted row in each. Its mark should read as a deeper shade of the same band.",
+          "items": [
+            {
+              "label": "Light \u2014 changed characters",
+              "path": "captures/light-comparison.png"
+            },
+            {
+              "label": "Dark \u2014 changed characters",
+              "path": "captures/dark-comparison.png"
+            },
+            {
+              "label": "High-contrast Light \u2014 changed characters",
+              "path": "captures/high-contrast-light-comparison.png"
+            },
+            {
+              "label": "High-contrast Dark \u2014 changed characters",
+              "path": "captures/high-contrast-dark-comparison.png"
+            }
+          ]
+        },
+        {
+          "group_id": "windows",
+          "title": "Whole window",
+          "required": false,
+          "layout": "grid",
+          "items": [
+            {
+              "label": "Light \u2014 whole window",
+              "path": "captures/light-full-window.png"
+            },
+            {
+              "label": "Dark \u2014 whole window",
+              "path": "captures/dark-full-window.png"
+            },
+            {
+              "label": "High-contrast Light \u2014 whole window",
+              "path": "captures/high-contrast-light-full-window.png"
+            },
+            {
+              "label": "High-contrast Dark \u2014 whole window",
+              "path": "captures/high-contrast-dark-full-window.png"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Light capture facts",
+          "path": "captures/light-capture-facts.json"
+        },
+        {
+          "label": "Dark capture facts",
+          "path": "captures/dark-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "path": "captures/high-contrast-light-capture-facts.json"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "path": "captures/high-contrast-dark-capture-facts.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0323/subtle-dark",
+      "subject_key": "subtle-dark",
+      "display_name": "Dark is subtle again, in the style of your reference",
+      "description": "Your reference is included below so you can compare directly. Measuring it showed what was actually wrong: it brightens its marks and raises saturation moderately \u2014 value 0.37 to 0.58, saturation 0.33 to 0.51 \u2014 while the rejected dark palette reached the same measured distance by pushing saturation to 0.93 and staying dark. Same number, opposite direction, which is why it read as barely visible. Dark now brightens the way yours does: added #1E5D2A and removed #933030.",
+      "acceptance_criteria": [
+        "Dark's marks are clearly visible without looking like the high-contrast profile",
+        "The marks read as a brighter version of their row, not a darker one",
+        "The profile's syntax colouring still shows through the mark",
+        "Light and the high-contrast profiles are unchanged"
+      ],
+      "known_concerns": [
+        "Added sits 25.2 from its row and removed 36.6, against your reference's 23.3 and 24.4.",
+        "Saturation lands a little higher than your reference's, at 0.68 and 0.67 against 0.44 and 0.51. Our dark rows start darker than the reference's, and every syntax role still has to clear 3.50:1 on the mark, which is what forces it.",
+        "Offscreen QFusionStyle at device pixel ratio 1; not native macOS artwork."
+      ],
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Every syntax role clears 3.50:1 on both dark marks, bare and under the selection wash."
+      },
+      "media_groups": [
+        {
+          "group_id": "dark",
+          "title": "Dark, against your reference",
+          "required": true,
+          "layout": "grid",
+          "note": "Your reference is the second image. Compare the character of the marks, not the exact hues \u2014 the two diffs show different code.",
+          "items": [
+            {
+              "label": "Dark \u2014 changed characters",
+              "path": "captures/dark-comparison.png"
+            },
+            {
+              "label": "Your reference",
+              "path": "captures/reference-dark.png"
+            },
+            {
+              "label": "Dark \u2014 whole window",
+              "path": "captures/dark-full-window.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured against your reference",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "Your reference, removed",
+              "definition": "#5E413F to #944849, separation 23.3, saturation 0.33 to 0.51, value 0.37 to 0.58"
+            },
+            {
+              "term": "Your reference, added",
+              "definition": "#425B42 to #4D8249, separation 24.4, saturation 0.27 to 0.44, value 0.36 to 0.51"
+            },
+            {
+              "term": "Ours, removed",
+              "definition": "#3E1F1F to #933030, separation 36.6, value 0.24 to 0.58"
+            },
+            {
+              "term": "Ours, added",
+              "definition": "#153622 to #1E5D2A, separation 25.2, value 0.21 to 0.36"
+            },
+            {
+              "term": "What was rejected",
+              "definition": "#520412 and #065730 \u2014 separation 21, but saturation pushed to 0.93 while value stayed near 0.33"
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Dark capture facts",
+          "path": "captures/dark-capture-facts.json"
+        }
+      ]
+    }
+  ]
+}

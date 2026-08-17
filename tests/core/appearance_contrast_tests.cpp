@@ -796,55 +796,47 @@ namespace {
 					 "the ratio saturates rather than dividing by zero");
 		expect(!balance.Meets, "an invisible emphasis is never balanced");
 	}
-	// A selected row's mark is the badge form of the profile's own emphasis
-	// colour: the same hue pushed to its most vivid rendering, backed off
-	// until the better of black and white text on it still clears the floor.
-	auto test_a_badge_is_more_vivid_and_still_legible() -> void
+	// A selected row's mark keeps the hue of the fill it sits in. The product
+	// owner's requirement is exact: a blue line gets a blue mark, just darker
+	// or lighter. Hue is the property under test, and three earlier attempts
+	// failed it or failed to be visible at all.
+	auto test_a_derived_mark_keeps_the_hue_of_its_fill() -> void
 	{
-		constexpr auto gentle = srgb(0xF1B9B4);
-		const auto     badge
-			= emphasis_badge_fill(gentle, appearance_variant::light);
+		// A washed blue band, the case that was reported three times.
+		constexpr auto band = srgb(0xC9E9EB);
+		const auto     mark
+			= derived_emphasis_fill(band, appearance_variant::light);
 
-		const auto spread = [](const appearance_color aColor) {
-			return static_cast<int>(std::max({ aColor.Red, aColor.Green, aColor.Blue }))
-				- static_cast<int>(std::min({ aColor.Red, aColor.Green, aColor.Blue }));
-		};
 		expect(
-			spread(badge) > spread(gentle),
-			"a badge is more vivid than the colour it came from");
+			color_difference_tenths(band, mark, color_vision::typical)
+				>= derived_emphasis_separation_minimum_tenths,
+			"a derived mark reaches the published separation");
 		expect(
-			badge.Red >= badge.Green && badge.Red >= badge.Blue,
-			"a badge keeps the dominant channel of the colour it came from");
+			mark.Blue >= mark.Green && mark.Green >= mark.Red,
+			"a derived mark keeps the channel order of the fill it came from");
 		expect(
-			contrast_ratio_hundredths(emphasis_foreground(badge), badge)
-				>= minimum_contrast_hundredths(
-					contrast_kind::text, appearance_variant::light),
-			"a badge stays legible under its own foreground");
+			mark.Red < band.Red && mark.Green < band.Green,
+			"a mark on a light fill darkens rather than brightening");
 	}
 
-	// Backing off is the whole point: the most vivid red takes black text at
-	// 5.25:1, which is under the floor a high-contrast profile is held to, so
-	// a high-contrast badge must stop short of it.
-	auto test_a_high_contrast_badge_stops_short_of_the_vivid_extreme() -> void
+	// A dark fill has nowhere to darken to, so the same rule brightens it.
+	// This is the direction the supplied reference takes, and the opposite of
+	// an earlier attempt that deepened everything and read as mud.
+	auto test_a_derived_mark_brightens_a_dark_fill() -> void
 	{
-		constexpr auto accepted = srgb(0xFF9999);
-		const auto     standard
-			= emphasis_badge_fill(accepted, appearance_variant::light);
-		const auto enhanced = emphasis_badge_fill(
-			accepted, appearance_variant::high_contrast_light);
+		constexpr auto band = srgb(0x1A3E40);
+		const auto     mark = derived_emphasis_fill(band, appearance_variant::dark);
 
 		expect(
-			contrast_ratio_hundredths(emphasis_foreground(enhanced), enhanced)
-				>= high_contrast_text_minimum_hundredths,
-			"a high-contrast badge clears the enhanced floor");
+			color_difference_tenths(band, mark, color_vision::typical)
+				>= derived_emphasis_separation_minimum_tenths,
+			"a dark fill still reaches the published separation");
 		expect(
-			enhanced != srgb(0xFF0000),
-			"a high-contrast badge is not the vivid extreme, which fails that "
-			"floor");
+			mark.Green > band.Green || mark.Blue > band.Blue,
+			"a mark on a dark fill brightens rather than darkening");
 		expect(
-			contrast_ratio_hundredths(emphasis_foreground(standard), standard)
-				>= text_contrast_minimum_hundredths,
-			"a standard badge clears the standard floor");
+			mark.Blue >= mark.Green && mark.Green >= mark.Red,
+			"brightening does not reorder the channels");
 	}
 
 	// A palette whose emphasis fills are gentle tints keeps its syntax
@@ -863,10 +855,9 @@ namespace {
 				appearance_variant::light),
 			"black syntax text on a white fill needs no override");
 
-		auto bold = gentle;
-		bold      = with_role(bold,
-                         appearance_role::diff_intraline_added_background,
-                         srgb(0x000000));
+		auto bold = with_role(gentle,
+							  appearance_role::diff_intraline_added_background,
+							  srgb(0x000000));
 		expect(
 			emphasis_needs_own_foreground(
 				bold,
@@ -900,8 +891,8 @@ int main()
 	test_a_lopsided_palette_fails_the_balance_bound();
 	test_a_balanced_palette_passes_both_bounds();
 	test_an_invisible_emphasis_reports_the_extreme_ratio();
-	test_a_badge_is_more_vivid_and_still_legible();
-	test_a_high_contrast_badge_stops_short_of_the_vivid_extreme();
+	test_a_derived_mark_keeps_the_hue_of_its_fill();
+	test_a_derived_mark_brightens_a_dark_fill();
 	test_only_a_bold_fill_carries_its_own_foreground();
 	return EXIT_SUCCESS;
 }
