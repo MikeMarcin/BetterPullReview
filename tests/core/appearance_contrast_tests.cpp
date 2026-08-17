@@ -846,8 +846,8 @@ namespace {
 	{
 		auto gentle = maximal_contrast_palette();
 		gentle      = with_role(gentle,
-                           appearance_role::diff_intraline_added_background,
-                           srgb(0xFFFFFF));
+								appearance_role::diff_intraline_added_background,
+								srgb(0xFFFFFF));
 		expect(
 			!emphasis_needs_own_foreground(
 				gentle,

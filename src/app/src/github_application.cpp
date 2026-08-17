@@ -6551,7 +6551,7 @@ namespace bpr::app {
 		}
 
 		[[nodiscard]] auto role_paint_count(
-			const QPlainTextEdit& aPane,
+			const QPlainTextEdit&          aPane,
 			const QColor&                  aExpected,
 			const QColor&                  aRowBand,
 			const core::appearance_variant aVariant) -> std::size_t
@@ -6607,7 +6607,7 @@ namespace bpr::app {
 		};
 
 		[[nodiscard]] auto role_pixel_count(
-			QPlainTextEdit& aPane,
+			QPlainTextEdit&                aPane,
 			const QRect&                   aRect,
 			const QColor&                  aExpected,
 			const QColor&                  aRowBand,

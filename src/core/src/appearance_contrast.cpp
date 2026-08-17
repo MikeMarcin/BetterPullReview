@@ -10,7 +10,7 @@
 
 namespace bpr::core {
 	namespace {
-		constexpr double        channel_maximum = 255.0;
+		constexpr double channel_maximum = 255.0;
 
 		// The sRGB electro-optical transfer function and its inverse.
 		constexpr double srgb_decode_threshold = 0.040'45;
@@ -202,11 +202,9 @@ namespace bpr::core {
 			if (span > 0.0) {
 				if (high == red) {
 					hue = std::fmod(((green - blue) / span) + 6.0, 6.0);
-				}
-				else if (high == green) {
+				} else if (high == green) {
 					hue = ((blue - red) / span) + 2.0;
-				}
-				else {
+				} else {
 					hue = ((red - green) / span) + 4.0;
 				}
 				hue /= 6.0;
@@ -224,20 +222,44 @@ namespace bpr::core {
 			const auto sector    = aColor.Hue * 6.0;
 			const auto index     = static_cast<int>(std::floor(sector)) % 6;
 			const auto remainder = sector - std::floor(sector);
-			const auto p = aColor.Value * (1.0 - aColor.Saturation);
-			const auto q = aColor.Value * (1.0 - (aColor.Saturation * remainder));
-			const auto t = aColor.Value * (1.0 - (aColor.Saturation * (1.0 - remainder)));
+			const auto p         = aColor.Value * (1.0 - aColor.Saturation);
+			const auto q         = aColor.Value * (1.0 - (aColor.Saturation * remainder));
+			const auto t         = aColor.Value * (1.0 - (aColor.Saturation * (1.0 - remainder)));
 
-			auto red = 0.0;
+			auto red   = 0.0;
 			auto green = 0.0;
-			auto blue = 0.0;
+			auto blue  = 0.0;
 			switch (index) {
-			case 0: red = aColor.Value; green = t; blue = p; break;
-			case 1: red = q; green = aColor.Value; blue = p; break;
-			case 2: red = p; green = aColor.Value; blue = t; break;
-			case 3: red = p; green = q; blue = aColor.Value; break;
-			case 4: red = t; green = p; blue = aColor.Value; break;
-			default: red = aColor.Value; green = p; blue = q; break;
+			case 0:
+				red   = aColor.Value;
+				green = t;
+				blue  = p;
+				break;
+			case 1:
+				red   = q;
+				green = aColor.Value;
+				blue  = p;
+				break;
+			case 2:
+				red   = p;
+				green = aColor.Value;
+				blue  = t;
+				break;
+			case 3:
+				red   = p;
+				green = q;
+				blue  = aColor.Value;
+				break;
+			case 4:
+				red   = t;
+				green = p;
+				blue  = aColor.Value;
+				break;
+			default:
+				red   = aColor.Value;
+				green = p;
+				blue  = q;
+				break;
 			}
 
 			const auto quantise = [](const double aChannel) {
@@ -537,7 +559,7 @@ namespace bpr::core {
 					aPalette, aPair.Background, aVariant)
 			? emphasis_foreground(background)
 			: aPalette[index_of(aPair.Foreground)];
-		const auto ratio = contrast_ratio_hundredths(foreground, background);
+		const auto ratio   = contrast_ratio_hundredths(foreground, background);
 		const auto minimum = minimum_contrast_hundredths(aPair.Kind, aVariant);
 
 		return contrast_finding{
@@ -734,11 +756,11 @@ namespace bpr::core {
 		constexpr auto lightnessReach      = 0.45;
 
 		const auto source = hsv_of(aFill);
-		const auto dark = relative_luminance(linear_of(aFill)) <= darkGroundLuminance;
+		const auto dark   = relative_luminance(linear_of(aFill)) <= darkGroundLuminance;
 
 		auto strongest = aFill;
 		for (auto step = std::uint32_t{ 1U }; step <= steps; ++step) {
-			const auto reach = static_cast<double>(step) / static_cast<double>(steps);
+			const auto reach   = static_cast<double>(step) / static_cast<double>(steps);
 			const auto shifted = hsv_color{
 				.Hue        = source.Hue,
 				.Saturation = std::min(1.0, source.Saturation + (reach * saturationReach)),

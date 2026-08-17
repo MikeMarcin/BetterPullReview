@@ -232,10 +232,10 @@ namespace bpr::qt {
 			/// painter can ask the core questions that depend on the whole
 			/// palette rather than on one colour -- whether an emphasis fill
 			/// has to carry its own foreground, most of all.
-			core::appearance_palette                        Palette{ };
-			core::appearance_variant                        Variant
+			core::appearance_palette Palette{ };
+			core::appearance_variant Variant
 				= core::appearance_variant::light;
-			bool                                            Supplied = false;
+			bool Supplied = false;
 		};
 
 		void adopt_code_typography(const code_typography_event& aTypography);

@@ -1958,17 +1958,20 @@ namespace {
 				core::appearance_variant Variant;
 				std::uint32_t            HeadroomHundredths;
 			};
-			// Light and high-contrast dark record zero after BPR-0320, and the
-			// zero is deliberate rather than exhausted margin. The emphasis
-			// floors are pinned to the exact worst pair of the palette a
-			// product owner selected from rendered captures, so the tightest
-			// pair sits on its floor by construction. Any later change to
-			// those two fills trips this guard immediately, which is the
-			// intended effect: the number came from a verdict, so moving it
-			// needs another one.
+			// These figures are near zero on purpose. Every emphasis fill in
+			// every profile is now the exact colour a product owner selected
+			// or approved from rendered captures, and each one was pushed as
+			// far as its floor allows -- that is what "strong enough to see"
+			// turned out to mean. The tightest pair therefore sits on its
+			// floor by construction rather than by neglect.
+			//
+			// Dark drops from 5 to 1 with BPR-0323's stronger green, which is
+			// the last of those pushes. Any later change to any emphasis fill
+			// trips this guard immediately, which is the intended effect: the
+			// numbers came from verdicts, so moving them needs another one.
 			constexpr auto recorded = std::array{
 				tightest_pair{ core::appearance_variant::light, 0U },
-				tightest_pair{ core::appearance_variant::dark, 5U },
+				tightest_pair{ core::appearance_variant::dark, 1U },
 				tightest_pair{ core::appearance_variant::high_contrast_light, 0U },
 				tightest_pair{ core::appearance_variant::high_contrast_dark, 0U },
 			};
@@ -2054,9 +2057,9 @@ namespace {
 
 		for (const auto variant : all_variants) {
 			const auto& palette = qt::builtin_appearance_palette(variant);
-			const auto  wash = palette[core::index_of(role::code_selection_background)];
-			const auto  floor = core::minimum_contrast_hundredths(
-                core::contrast_kind::emphasis_text, variant);
+			const auto  wash    = palette[core::index_of(role::code_selection_background)];
+			const auto  floor   = core::minimum_contrast_hundredths(
+				core::contrast_kind::emphasis_text, variant);
 
 			for (const auto bandRole : bands) {
 				const auto washedBand = core::composited(

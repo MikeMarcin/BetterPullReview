@@ -1558,14 +1558,13 @@ namespace bpr::qt {
 			return;
 		}
 
-
 		const auto ownForeground = Colors.Supplied
 			&& core::emphasis_needs_own_foreground(
-				Colors.Palette,
-				aSide == core::diff_side::left
-					? core::appearance_role::diff_intraline_removed_background
-					: core::appearance_role::diff_intraline_added_background,
-				Colors.Variant);
+									   Colors.Palette,
+									   aSide == core::diff_side::left
+										   ? core::appearance_role::diff_intraline_removed_background
+										   : core::appearance_role::diff_intraline_added_background,
+									   Colors.Variant);
 
 		// The fill a selected row's mark uses. The requirement is exact: a blue
 		// line gets a blue mark, just darker or lighter. The mark therefore
@@ -1580,15 +1579,15 @@ namespace bpr::qt {
 			}
 			const auto highlight = aPane.palette().color(QPalette::Highlight);
 			const auto washed    = core::composited(
-                core::appearance_color{ static_cast<std::uint8_t>(highlight.red()),
+				core::appearance_color{ static_cast<std::uint8_t>(highlight.red()),
 										static_cast<std::uint8_t>(highlight.green()),
 										static_cast<std::uint8_t>(highlight.blue()),
 										255U },
-                core::appearance_color{ static_cast<std::uint8_t>(band.red()),
+				core::appearance_color{ static_cast<std::uint8_t>(band.red()),
 										static_cast<std::uint8_t>(band.green()),
 										static_cast<std::uint8_t>(band.blue()),
 										255U },
-                core::selection_wash_alpha);
+				core::selection_wash_alpha);
 			const auto mark = core::derived_emphasis_fill(washed, Colors.Variant);
 			return QColor{ mark.Red, mark.Green, mark.Blue };
 		};
