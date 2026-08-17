@@ -429,11 +429,12 @@ namespace {
 			workbench.statistics().GeometryRebuilds == 0U
 				&& workbench.statistics().GeometryRebuildHistorySize == 0U,
 			"empty-workbench show and resize events do not create attributed geometry work");
-		if (const auto* expectedScale = std::getenv("BPR_EXPECTED_QT_SCALE")) {
+		const auto expectedScale = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE");
+		if (!expectedScale.isEmpty()) {
 			expect(
 				close(
 					workbench.devicePixelRatioF(),
-					QString::fromLocal8Bit(expectedScale).toDouble(),
+					expectedScale.toDouble(),
 					0.05),
 				"selected workbench observes the requested Qt scale");
 		}
@@ -947,14 +948,16 @@ namespace {
 					== rejectedBeforeLate + 1U,
 			"late publication after invalidation cannot recreate cleared Qt state");
 
-		if (const auto* renderPath = std::getenv("BPR_QT_DIFF_WORKBENCH_RENDER_PATH")) {
+		const auto renderPath
+			= qEnvironmentVariable("BPR_QT_DIFF_WORKBENCH_RENDER_PATH");
+		if (!renderPath.isEmpty()) {
 			workbench.set_loading(firstContext);
 			workbench.publish({
 				.Context = firstContext,
 				.Result  = std::make_shared<const core::computed_file_diff>(diff),
 			});
 			process_events();
-			expect(workbench.grab().save(QString::fromLocal8Bit(renderPath)),
+			expect(workbench.grab().save(renderPath),
 				   "selected workbench raster saves");
 		}
 	}

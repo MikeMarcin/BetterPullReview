@@ -2792,8 +2792,9 @@ namespace bpr::adapters::github::detail {
 									return aParent.Host == Profile.host()
 										&& aParent.Account
 										== aCredential.Context.Authority.Account;
+								} else {
+									return true;
 								}
-								return true;
 							},
 							aRequest.Correlation.Parent);
 					}

@@ -428,8 +428,9 @@ namespace {
 				   && emptyGeometry->Boundaries.size() == 1U,
 			   "live empty pane exposes one boundary without a source row");
 
-		if (const auto* expectedScale = std::getenv("BPR_EXPECTED_QT_SCALE")) {
-			const auto scale = QString::fromLocal8Bit(expectedScale).toDouble();
+		const auto expectedScale = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE");
+		if (!expectedScale.isEmpty()) {
+			const auto scale = expectedScale.toDouble();
 			expect(close(leftGeometry->DevicePixelRatio, scale, 0.05)
 					   && close(rightGeometry->DevicePixelRatio, scale, 0.05),
 				   "live pane measurement observes selected Qt scale");
@@ -452,8 +453,9 @@ namespace {
 				   == static_cast<qreal>(left->viewport()->height()),
 			   "viewport resize is reflected in measured facts");
 
-		if (const auto* renderPath = std::getenv("BPR_QT_DIFF_AXIS_RENDER_PATH")) {
-			expect(surface.grab().save(QString::fromLocal8Bit(renderPath)),
+		const auto renderPath = qEnvironmentVariable("BPR_QT_DIFF_AXIS_RENDER_PATH");
+		if (!renderPath.isEmpty()) {
+			expect(surface.grab().save(renderPath),
 				   "live natural-layout pane raster saves");
 		}
 	}

@@ -124,7 +124,13 @@
 #include <vector>
 
 #if defined(_WIN32)
-	#include <windows.h>
+	#if !defined(NOMINMAX)
+		#define NOMINMAX
+	#endif
+	#if !defined(WIN32_LEAN_AND_MEAN)
+		#define WIN32_LEAN_AND_MEAN
+	#endif
+	#include <Windows.h>
 #else
 	#include <fcntl.h>
 	#include <sys/stat.h>
@@ -1142,7 +1148,10 @@ namespace bpr::app {
 			}
 
 #if defined(_WIN32)
-			const auto path = std::filesystem::u8path(aPath.begin(), aPath.end());
+			// `std::filesystem::u8path` is deprecated in C++20. A `char8_t` view
+			// over the same bytes selects the identical UTF-8 interpretation.
+			const auto utf8 = std::u8string_view{ reinterpret_cast<const char8_t*>(aPath.data()), aPath.size() };
+			const auto path = std::filesystem::path{ utf8 };
 			auto       file = theme_file_handle{ ::CreateFileW(
 				path.c_str(),
 				GENERIC_READ,
@@ -4714,17 +4723,7 @@ namespace bpr::app {
 			.AgentWorkspaceCleanupFailed    = Implementation->AgentWorkspaceCleanupFailed,
 			.NativePlatformVaultSelected    = Implementation->NativePlatformVaultSelected,
 			.EpochProjectionDeliveryFailed  = Implementation->EpochProjectionDeliveryFailed,
-			.ObservedScheme                 = Implementation->AppearanceProfile
-				? Implementation->AppearanceProfile->observation().Scheme
-				: core::os_color_scheme::unknown,
-			.ResolvedVariant                = Implementation->AppearanceProfile
-				? Implementation->AppearanceProfile->variant()
-				: core::appearance_variant::light,
-			.CustomisedRoles                = Implementation->AppearanceProfile
-				? Implementation->AppearanceProfile->customised_roles()
-				: 0U,
 			.EpochHandoffDeliveryFailed     = Implementation->Host->epoch_handoff_delivery_failed(),
-			.EpochStatus                    = Implementation->EpochHost->state().Status,
 			.WorkbenchHostComposed          = Implementation->WorkbenchHost != nullptr,
 			.AppearanceHostComposed         = Implementation->AppearanceHost != nullptr,
 			.AgentHostComposed              = Implementation->AgentHost != nullptr,
@@ -4735,6 +4734,15 @@ namespace bpr::app {
 			.AppliedSelectionColor          = Implementation->AppliedSelectionColor,
 			.AppliedBaseColor               = Implementation->AppliedBaseColor,
 			.AppliedFromProfile             = Implementation->AppliedFromProfile,
+			.ObservedScheme                 = Implementation->AppearanceProfile
+				? Implementation->AppearanceProfile->observation().Scheme
+				: core::os_color_scheme::unknown,
+			.ResolvedVariant                = Implementation->AppearanceProfile
+				? Implementation->AppearanceProfile->variant()
+				: core::appearance_variant::light,
+			.CustomisedRoles                = Implementation->AppearanceProfile
+				? Implementation->AppearanceProfile->customised_roles()
+				: 0U,
 			.SyntaxClassifierComposed       = Implementation->SyntaxClassification != nullptr,
 			.AdoptedClassifications         = Implementation->AdoptedClassifications,
 			.ClassificationSubmissions      = Implementation->AppearanceHost != nullptr
@@ -4772,6 +4780,7 @@ namespace bpr::app {
 				: 0U,
 			.NotificationSelections        = Implementation->NotificationSelections,
 			.NotificationSelectionFailures = Implementation->NotificationSelectionFailures,
+			.EpochStatus                   = Implementation->EpochHost->state().Status,
 		};
 	}
 

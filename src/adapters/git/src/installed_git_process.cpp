@@ -1285,7 +1285,7 @@ namespace bpr::adapters::git {
 					SIGKILL));
 			}
 #else
-			static_cast<void>(process_group_id);
+			static_cast<void>(aProcessGroupId);
 #endif
 		}
 
@@ -3554,8 +3554,8 @@ namespace bpr::adapters::git {
 				}
 #else
 				const auto created = std::filesystem::create_directory(
-					request.Repository,
-					create_error);
+					aRequest.Repository,
+					createError);
 #endif
 				if (!created || createError) {
 					return std::unexpected{

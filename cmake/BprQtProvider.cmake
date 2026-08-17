@@ -155,6 +155,9 @@ function(bpr_download_qt host arch prefix_root prefix)
             COMMAND
                 "${environment_python}" -m aqt install-qt "${host}" desktop
                 "${BPR_QT_VERSION}" "${arch}" --outputdir "${prefix_root}"
+            # aqtinstall writes aqtinstall.log into its working directory, and
+            # the repository must not collect transient tool output.
+            WORKING_DIRECTORY "${prefix_root}"
             RESULT_VARIABLE install_result
             OUTPUT_VARIABLE install_output
             ERROR_VARIABLE install_output

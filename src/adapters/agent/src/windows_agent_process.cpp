@@ -870,7 +870,7 @@ namespace bpr::adapters::agent::detail {
 			aRequest,
 			aSink,
 			aCancelled,
-			aDeadline,
+			deadline,
 			input->Parent,
 			output->Parent,
 			error->Parent,

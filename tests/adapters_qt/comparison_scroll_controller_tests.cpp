@@ -905,8 +905,9 @@ namespace {
 				   && right.verticalScrollBar()->value() == rightNative,
 			   "consumed navigation keys never create pane vertical authority");
 
-		if (const auto* expected = std::getenv("BPR_EXPECTED_QT_SCALE")) {
-			const auto scale = QString::fromLocal8Bit(expected).toDouble();
+		const auto expected = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE");
+		if (!expected.isEmpty()) {
+			const auto scale = expected.toDouble();
 			expect(close(leftGeometry->DevicePixelRatio, scale, 0.05)
 					   && close(rightGeometry->DevicePixelRatio, scale, 0.05),
 				   "live controller measurements observe the selected Qt scale");

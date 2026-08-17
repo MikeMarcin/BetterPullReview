@@ -432,9 +432,9 @@ namespace {
 			std::filesystem::perms::owner_all,
 			std::filesystem::perm_options::replace);
 #else
-		static_cast<void>(path);
-		static_cast<void>(marker);
-		static_cast<void>(label);
+		static_cast<void>(aPath);
+		static_cast<void>(aMarker);
+		static_cast<void>(aLabel);
 #endif
 	}
 

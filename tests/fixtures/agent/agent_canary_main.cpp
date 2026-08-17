@@ -14,7 +14,9 @@
 
 #if defined(_WIN32)
 	#include <process.h>
-extern "C" char** _environ;
+// The UCRT already supplies `_environ`, as a macro over `__p__environ()`. A
+// hand-written `extern "C"` declaration redeclares that accessor without its
+// import linkage, so the fixture takes the header's spelling instead.
 	#define BPR_ENVIRON _environ
 #else
 	#include <sys/types.h>
@@ -420,7 +422,17 @@ auto main(int argc, char** argv) -> int
 	}
 	emit(protocol, "stdin\t" + input);
 	emit(protocol, "stdin-hex\t" + lower_hex(input));
+	// `std::getenv` is the only portable spelling this Qt-free fixture can use;
+	// the MSVC CRT deprecates it in favour of the nonportable `_dupenv_s`. The
+	// suppression covers exactly this read and nothing else in the fixture.
+#if defined(_MSC_VER)
+	#pragma warning(push)
+	#pragma warning(disable : 4996)
+#endif
 	const auto identity = std::getenv("BPR_CANARY_AGENT_IDENTITY");
+#if defined(_MSC_VER)
+	#pragma warning(pop)
+#endif
 	emit(
 		protocol,
 		"identity\t" + std::string{ identity == nullptr ? "absent" : identity });

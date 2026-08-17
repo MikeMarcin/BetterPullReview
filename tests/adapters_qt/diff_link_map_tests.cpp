@@ -367,8 +367,10 @@ namespace {
 		rightText += "late-new-a\nlate-new-b\nlate-new-c\nend\n";
 		auto  harness = live_harness{ leftText, rightText };
 		auto& map     = *harness.Map;
-		if (const auto* expectedScale = std::getenv("BPR_EXPECTED_QT_SCALE")) {
-			const auto scale = QString::fromLocal8Bit(expectedScale).toDouble();
+
+		const auto expectedScale = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE");
+		if (!expectedScale.isEmpty()) {
+			const auto scale = expectedScale.toDouble();
 			expect(close(map.devicePixelRatioF(), scale, 0.05),
 				   "rendered link map observes the selected Qt scale");
 		}
@@ -603,9 +605,10 @@ namespace {
 		QApplication::setPalette(originalPalette);
 		QApplication::processEvents();
 
-		if (const auto* renderPath
-			= std::getenv("BPR_QT_DIFF_LINK_MAP_RENDER_PATH")) {
-			expect(harness.Surface.grab().save(QString::fromLocal8Bit(renderPath)),
+		const auto renderPath
+			= qEnvironmentVariable("BPR_QT_DIFF_LINK_MAP_RENDER_PATH");
+		if (!renderPath.isEmpty()) {
+			expect(harness.Surface.grab().save(renderPath),
 				   "selected live link-map composition raster saves");
 		}
 	}
