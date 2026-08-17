@@ -29,6 +29,8 @@ SHARED_LINES = {
     "review queue application host constructor": "0010 T bpr::application::review_queue_application_host::review_queue_application_host()",
     "review queue notifier constructor": "0011 T bpr::application::review_queue_notifier::review_queue_notifier()",
     "agent invocation application host constructor": "0012 T bpr::application::agent_invocation_host::agent_invocation_host()",
+    "agent process launcher constructor": "0020 T bpr::adapters::agent::agent_process_launcher::agent_process_launcher()",
+    "Qt agent launch panel constructor": "0021 T bpr::qt::agent_launch_panel::agent_launch_panel()",
     "Qt workbench window constructor": "0013 T bpr::qt::workbench_window::workbench_window()",
 }
 FIXTURE_LINES = {

@@ -1,7 +1,7 @@
 ---
 id: BPR-0335
 title: Add the agent launcher and panel to the composition inventory
-status: In Progress
+status: Done
 rfc: RFC-BPR-0011
 depends_on: []
 ---
@@ -69,3 +69,35 @@ python3 scripts/verify_documentation.py --root .
 
 Removing either new anchor's symbol from the binary must fail the verifier;
 that is the property the inventory exists to hold.
+
+## Result
+
+`SHARED_REQUIRED` carries both anchors. The required count rises from 18 to 20
+for `development-fixture` and from 17 to 19 for `production`, and both profiles
+verify against the real built binaries:
+
+```
+COMPOSED_HOSTS_OK: profile=development-fixture required=20 forbidden=2
+COMPOSED_HOSTS_OK: profile=production          required=19 forbidden=3
+```
+
+The anchors are load-bearing rather than decorative. Filtering each symbol out
+of the real `llvm-nm --demangle` output of the production binary and re-running
+`audit_symbols` produces exactly one absence each:
+
+```
+intact binary        -> no absences
+launcher removed     -> required exact demangled anchor is absent:
+                        agent process launcher constructor
+panel removed        -> required exact demangled anchor is absent:
+                        Qt agent launch panel constructor
+```
+
+`verify_composed_hosts_tests.py` passes 42/42 once its synthetic symbol table
+lists the two new anchors — which is the same guard working: the fixture table
+is required to name every anchor, so adding one without it fails six tests
+immediately. `application_composition_contract` and
+`application_agent_invocation_composition_contract` both pass.
+
+No production or packaging file was touched. This card added two lines of
+inventory and the fixture entries that keep the verifier's own suite honest.

@@ -133,6 +133,14 @@ SHARED_REQUIRED = (
         "bpr::application::agent_invocation_host::agent_invocation_host",
     ),
     function_anchor(
+        "agent process launcher constructor",
+        "bpr::adapters::agent::agent_process_launcher::agent_process_launcher",
+    ),
+    function_anchor(
+        "Qt agent launch panel constructor",
+        "bpr::qt::agent_launch_panel::agent_launch_panel",
+    ),
+    function_anchor(
         "Qt workbench window constructor",
         "bpr::qt::workbench_window::workbench_window",
     ),

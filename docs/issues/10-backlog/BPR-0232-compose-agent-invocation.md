@@ -57,3 +57,12 @@ configured agent remains a typed failed-to-start result.
   optional status for a smoke run against an actually installed agent.
 - Extend the standing composition inventory to the launcher and panel, then
   prove construction and invocation separately from their linked symbols.
+  [[BPR-0335]] discharged the inventory half: `SHARED_REQUIRED` now names the
+  agent process launcher and Qt agent launch panel constructors, and both are
+  proved load-bearing by removal. The panel's separate construction-and-
+  invocation evidence already exists in
+  `tests/end_to_end/agent_invocation_composition_public_path.cpp`, which reaches
+  `window.agent_panel()`, clicks `start_button()`, asserts
+  `StartIntents == 1U`, and carries a construction-cut negative. What remains on
+  this card is the launcher's own construction-and-invocation assertion, named
+  separately from its linked symbol.
