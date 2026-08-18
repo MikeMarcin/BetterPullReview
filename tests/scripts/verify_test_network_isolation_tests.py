@@ -30,6 +30,17 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
 from scripts.run_network_isolated_test import write_profile  # noqa: E402
 
 
+# The verifier refuses a live supervisor that is not an executable regular
+# file, which it asks with os.access(X_OK). Windows has no execute permission
+# for that call to read: it ignores X_OK and answers as it would for R_OK, so
+# chmod(0o600) leaves the file just as executable as before and the refusal
+# cannot fire. That is a real gap, but it belongs to the Windows designated
+# live lane, which BPR-0235 records as deliberately unimplemented. Asserting
+# the refusal only where the permission exists keeps this suite honest instead
+# of asserting a property the platform cannot express.
+EXECUTE_PERMISSION_IS_EXPRESSIBLE = os.name != "nt"
+
+
 def write(root: pathlib.Path, relative: str, text: str) -> None:
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -485,7 +496,10 @@ class LiveSupervisorIdentityTests(unittest.TestCase):
             supervisor.chmod(0o600)
             os.utime(supervisor, ns=(1, 1))
             failures = live_supervisor_failures(supervisor, inventory, build, root)
-            self.assertTrue(any("executable regular file" in value for value in failures))
+            if EXECUTE_PERMISSION_IS_EXPRESSIBLE:
+                self.assertTrue(
+                    any("executable regular file" in value for value in failures)
+                )
             self.assertTrue(any("BUILD_TESTING:BOOL" in value for value in failures))
             self.assertTrue(any("predates" in value for value in failures))
 
@@ -583,8 +597,14 @@ class ConfiguredManifestAndProfileTests(unittest.TestCase):
             root = pathlib.Path(directory)
             template = root / "template.sb"
             output = root / "derived.sb"
-            fixture = root / "fixture"
-            fixture.mkdir()
+            # The profile writer is macOS-only, and the fixture root it is
+            # handed there is always a POSIX path. Deriving one from the host's
+            # own temporary directory made this test hand it a Windows path on
+            # Windows, which seatbelt_string refuses by design: the refusal was
+            # right and the fixture was wrong. Only the string form of this
+            # argument reaches the profile, so a pure POSIX path states the
+            # production shape on every host.
+            fixture = pathlib.PurePosixPath("/private/tmp/bpr-fixture")
             template.write_text(
                 "(version 1)\n(allow default)\n"
                 "(deny network-outbound network-inbound network-bind)\n",
@@ -597,6 +617,26 @@ class ConfiguredManifestAndProfileTests(unittest.TestCase):
             self.assertIn('(local ip "localhost:43124")', text)
             self.assertNotIn("localhost:*", text)
             self.assertNotIn('(subpath "/")', text)
+
+    # A fixture root that could close the quoted seatbelt string, or that is
+    # not anchored at all, must be refused rather than escaped into the
+    # profile. Both shapes are unsafe on every host, so unlike the case above
+    # this control asserts the refusal everywhere.
+    def test_derived_profile_refuses_an_unsafe_fixture_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            template = root / "template.sb"
+            template.write_text(
+                "(version 1)\n(allow default)\n"
+                "(deny network-outbound network-inbound network-bind)\n",
+                encoding="utf-8",
+            )
+            for unsafe in (
+                pathlib.PurePosixPath('/private/tmp/bpr"escape'),
+                pathlib.PurePosixPath("relative/fixture"),
+            ):
+                with self.assertRaisesRegex(SystemExit, "125"):
+                    write_profile(template, root / "derived.sb", unsafe, [])
 
     def test_profile_template_cannot_pregrant_network_authority(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
