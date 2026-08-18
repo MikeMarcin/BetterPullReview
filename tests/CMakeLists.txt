@@ -523,8 +523,14 @@ message(
     "non-production executables"
 )
 
+# The manifest embeds $<TARGET_FILE:...>, whose value differs per
+# configuration. A multi-config generator such as Visual Studio evaluates this
+# file once per configuration, so a single fixed path would be written
+# repeatedly with different content and generation fails. Keying the path by
+# configuration is correct for single-config generators too, where $<CONFIG>
+# is simply the one build type.
 set(bpr_automated_executable_manifest
-    "${CMAKE_BINARY_DIR}/_bpr/automated-executables.txt"
+    "${CMAKE_BINARY_DIR}/_bpr/$<CONFIG>/automated-executables.txt"
 )
 set(bpr_automated_executable_files "")
 foreach(bpr_automated_target IN LISTS bpr_automated_executables)
