@@ -1,7 +1,7 @@
 ---
 id: BPR-0363
 title: The Windows preset contract names a Visual Studio the preset does not use
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0013
 depends_on: []
 ---
