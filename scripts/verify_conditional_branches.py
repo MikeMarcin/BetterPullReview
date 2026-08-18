@@ -44,8 +44,21 @@ SOURCE_SUFFIXES = (".cpp", ".hpp")
 
 DIRECTIVE = re.compile(r"^\s*#\s*(if|ifdef|ifndef|elif|else|endif)\b(.*)$")
 
+# A statement keyword cannot be a type, so `return _read(x)` declares nothing.
+# Without this the call reads as a declaration of `_read`, and because
+# `spelling_key` strips underscores that collides with the POSIX `read` in the
+# opposite branch — reporting a rename where there are two correct spellings of
+# two different functions.
+# Deliberately excludes `using` and `typedef`: `using reason = ...;` really does
+# declare `reason`, and dropping them would lose that.
+STATEMENT_KEYWORDS = (
+    "return|else|do|try|case|goto|throw|delete"
+    "|co_return|co_await|co_yield"
+)
+
 DECLARATION = re.compile(
-    r"\b(?:auto|[A-Za-z_]\w*(?:::\w+)*(?:\s*<[^;{}\n]*?>)?"
+    rf"\b(?!(?:{STATEMENT_KEYWORDS})\b)"
+    r"(?:auto|[A-Za-z_]\w*(?:::\w+)*(?:\s*<[^;{}\n]*?>)?"
     r"(?:\s*(?:const\s*)?[*&]+)?)\s+(?:const\s+)?([a-z_][A-Za-z0-9_]*)\s*[=({;]")
 
 IDENTIFIER = re.compile(r"(?<![\w:.>])([a-z_][A-Za-z0-9_]*)\b(?!\s*::)")

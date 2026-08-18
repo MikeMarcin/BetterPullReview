@@ -179,6 +179,18 @@ bpr_add_network_isolated_test(
         --root
         "${PROJECT_SOURCE_DIR}"
 )
+
+# The gate above reports on source it cannot compile, so nothing downstream
+# catches it being wrong. It read `return _read(x)` as declaring `_read` and
+# then, because spelling comparison strips underscores, called the POSIX `read`
+# in the opposite branch a rename of it. These cases pin both directions: a real
+# rename is still caught, and two correct platform spellings are not.
+bpr_add_network_isolated_test(
+    NAME conditional_branch_identifier_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/conditional_branch_identifier_tests.py"
+)
 set_tests_properties(
     conditional_branch_identifiers
     PROPERTIES
