@@ -2072,8 +2072,30 @@ namespace bpr::app {
 				DecisionLane,
 				*this);
 
+			// git pack-objects creates its temporary pack inside the --git-dir's
+			// own object store and renames it onto the requested output base.
+			// A workspace on another filesystem makes that rename EXDEV, and
+			// git reports "Invalid cross-device link" rather than anything this
+			// side can interpret. So the workspace has to share a filesystem
+			// with the retained cache.
+			//
+			// The system temporary directory does not, on a stock Linux host:
+			// /tmp is tmpfs and an ordinary checkout is not. macOS never showed
+			// it because the per-user temporary directory and a checkout are on
+			// one APFS volume.
+			//
+			// A sibling of the application data root shares that filesystem and
+			// stays disjoint from the cache, which the guard below still checks
+			// rather than assumes.
+			const auto workspaceNeighbourhood
+				= std::filesystem::weakly_canonical(ApplicationDataRoot)
+					  .parent_path();
+			const auto workspaceTemplate = workspaceNeighbourhood.empty()
+				? std::filesystem::path{ QDir::tempPath().toStdString() }
+					  / "betterpullreview-agent-XXXXXX"
+				: workspaceNeighbourhood / "betterpullreview-agent-XXXXXX";
 			AgentWorkspaceRoot = std::make_unique<QTemporaryDir>(
-				QDir::tempPath() + QStringLiteral("/betterpullreview-agent-XXXXXX"));
+				QString::fromStdString(workspaceTemplate.string()));
 			if (!AgentWorkspaceRoot->isValid()) {
 				throw std::runtime_error{ "Agent workspace root is unavailable" };
 			}

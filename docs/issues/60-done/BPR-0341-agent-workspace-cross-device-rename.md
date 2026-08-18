@@ -1,9 +1,10 @@
 ---
 id: BPR-0341
 title: Stop the agent workspace failing across a filesystem boundary
-status: In Progress
+status: Done
 rfc: RFC-BPR-0011
 depends_on: []
+completed: 2026-08-17
 ---
 
 # Stop the agent workspace failing across a filesystem boundary
