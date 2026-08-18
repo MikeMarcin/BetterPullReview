@@ -28,34 +28,45 @@ namespace {
 	/// link. Connecting directly costs a few lines and adds no dependency.
 	struct signal_recorder
 	{
+		// Every connection names Context as its receiver. Without one, a
+		// connection outlives the recorder that owns the counters, because it
+		// is the sender that keeps it alive. A later block on the same model
+		// would then fire this recorder's lambda too, incrementing a `this`
+		// whose storage the next recorder has already reused. Destroying
+		// Context with the recorder ends the connection with it.
 		explicit signal_recorder(QAbstractItemModel& aModel)
 		{
 			QObject::connect(
-				&aModel, &QAbstractItemModel::modelReset, [this]() {
+				&aModel, &QAbstractItemModel::modelReset, &Context, [this]() {
 					++Resets;
 				});
 			QObject::connect(
 				&aModel,
 				&QAbstractItemModel::rowsInserted,
+				&Context,
 				[this](const QModelIndex&, int, int) { ++Insertions; });
 			QObject::connect(
 				&aModel,
 				&QAbstractItemModel::rowsRemoved,
+				&Context,
 				[this](const QModelIndex&, int, int) { ++Removals; });
 			QObject::connect(
 				&aModel,
 				&QAbstractItemModel::rowsMoved,
+				&Context,
 				[this](const QModelIndex&, int, int, const QModelIndex&, int) {
 					++Moves;
 				});
 			QObject::connect(
 				&aModel,
 				&QAbstractItemModel::dataChanged,
+				&Context,
 				[this](const QModelIndex&, const QModelIndex&, const QList<int>&) {
 					++Changes;
 				});
 		}
 
+		QObject Context;
 		int Resets     = 0;
 		int Insertions = 0;
 		int Removals   = 0;
