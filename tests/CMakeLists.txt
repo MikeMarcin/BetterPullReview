@@ -349,6 +349,61 @@ if(APPLE)
     )
 endif()
 
+# BPR-0350. The Mach mechanism BPR-0262 fact_3 and fact_4 rest on exists nowhere
+# else in the tree, so it is proven on its own before anything is built on it.
+# The target links no product library: this is a platform contract, not a
+# composition one, and it must stay outside src/app so no pinned digest moves.
+if(APPLE)
+    bpr_add_executable(
+        test_better_pull_review_macos_service_slot_handshake_tests
+        platform/macos_service_slot_handshake_tests.cpp
+    )
+    target_link_libraries(
+        test_better_pull_review_macos_service_slot_handshake_tests
+        PRIVATE
+            "-framework CoreFoundation"
+            "-framework Security"
+            bsm
+    )
+    # This target links no product library, so nothing propagates the standard
+    # to it the way BetterPullReview::Application does elsewhere.
+    target_compile_features(
+        test_better_pull_review_macos_service_slot_handshake_tests
+        PRIVATE
+            cxx_std_23
+    )
+    bpr_enable_hardening(
+        test_better_pull_review_macos_service_slot_handshake_tests
+    )
+    bpr_enable_warnings(
+        test_better_pull_review_macos_service_slot_handshake_tests
+    )
+
+    # The linker already applies an ad-hoc signature on arm64, but it sets the
+    # linker-signed bit. Re-sign exactly as scripts/designated_live_macos_capsule.py
+    # signs the capsule, so the contract answers the question actually asked
+    # rather than a friendlier one.
+    add_custom_command(
+        TARGET test_better_pull_review_macos_service_slot_handshake_tests
+        POST_BUILD
+        COMMAND
+            codesign --force --sign - --timestamp=none
+            "$<TARGET_FILE:test_better_pull_review_macos_service_slot_handshake_tests>"
+        VERBATIM
+        COMMENT "Signing the SERVICE_SLOT contract as the capsule is signed"
+    )
+
+    bpr_add_network_isolated_test(
+        NAME macos_service_slot_handshake
+        COMMAND test_better_pull_review_macos_service_slot_handshake_tests
+    )
+    set_tests_properties(
+        macos_service_slot_handshake
+        PROPERTIES
+            PASS_REGULAR_EXPRESSION "macos-service-slot-handshake-tests:pass"
+    )
+endif()
+
 set(bpr_network_isolation_verifier_command
     Python3::Interpreter
     "${PROJECT_SOURCE_DIR}/scripts/verify_test_network_isolation.py"
