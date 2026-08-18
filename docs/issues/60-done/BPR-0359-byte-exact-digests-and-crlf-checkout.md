@@ -41,6 +41,13 @@ A repo-wide sweep for `file(SHA256`, `file(MD5`, `hashlib.sha256`, and
 `hashlib.md5` found no sixth case: the other hits digest downloaded
 dependencies under the CPM cache, which checkout never rewrites.
 
+**Corrected by [[BPR-0365]].** That sweep was too narrow. It looked for a digest
+compared against a constant and missed byte equality against regenerated
+content, which is the same defect with no digest in it at all.
+`scripts/dif_assets.py` compares `path.read_bytes()` to a canonical form that
+ends every line with LF, and five more files under
+`src/adapters/qt/assets/dif/` were failing that way. They are pinned there.
+
 ## Resolution
 
 `.gitattributes` now pins those five paths with `text eol=lf`, so the working

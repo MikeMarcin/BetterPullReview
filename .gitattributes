@@ -12,3 +12,14 @@ tests/network_isolation/designated_live_mutation_canary.hpp text eol=lf
 tests/network_isolation/designated_live_mutation_child.cpp text eol=lf
 tests/network_isolation/designated_live_mutation_child.hpp text eol=lf
 packaging/icons/better_pull_review.svg text eol=lf
+
+# The Dif asset canon regenerates each document and compares bytes, and its
+# canonical form ends every line with LF. A CRLF working tree can never equal
+# it, so `dif_assets.py` rejects its own checked-in assets. The PNGs are
+# deliberately absent: git already classifies them as binary and a text
+# attribute would corrupt them. See BPR-0365.
+src/adapters/qt/assets/dif/README.md text eol=lf
+src/adapters/qt/assets/dif/dif-sprite-manifest.json text eol=lf
+src/adapters/qt/assets/dif/provenance.json text eol=lf
+src/adapters/qt/assets/dif/generated/dif-sprite-catalog.hpp text eol=lf
+src/adapters/qt/assets/dif/generated/dif-sprite-digests.json text eol=lf
