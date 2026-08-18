@@ -1,9 +1,9 @@
 ---
 id: BPR-0262
 title: Authenticate supervisor launch and retain capsule identity
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0261]
+depends_on: [BPR-0350, BPR-0351, BPR-0352, BPR-0353, BPR-0354]
 ---
 
 # Authenticate supervisor launch and retain capsule identity
@@ -116,3 +116,85 @@ ground-up build, not an extension of partial scaffolding.
   on any argv, environment, PID-only, nonce-only, generic-pipe, or persistent-state
   fallback — invalidates the approval outright. It is a hard non-goal, not a
   preference.
+
+## Decomposed — 2026-08-17
+
+This is five pieces of new work, not one slice, and the survey below understated
+only how much. Split so each piece can land with its own evidence:
+
+| Card | Fact | What it owns |
+|---|---|---|
+| [[BPR-0350]] | 3, 4 mechanism | Prove the SERVICE_SLOT handshake exists and works before anything is built on it |
+| [[BPR-0351]] | 4 | Establish provenance before `QApplication` and public observation |
+| [[BPR-0352]] | 5 | Bind supervisor and inventory identity into the approval subject |
+| [[BPR-0353]] | 1 | Mount the capsule from a digest-bound read-only image |
+| [[BPR-0354]] | 2 | Close the nested check/use window |
+
+Fact_6's fail-closed conditions are not a sixth card; each belongs to the card
+that owns the condition it guards. Fact_7 is a scope limit, not work.
+
+This card stays open as the umbrella and returns to Backlog behind the five.
+
+## The open uncertainty is resolved — 2026-08-17
+
+The survey called ad-hoc signing "an open uncertainty to probe first, not a
+confirmed blocker." Probed. It is not a blocker.
+
+`SERVICE_SLOT` is `2` in `<mach/mach_init.h>` — an index into the task's
+registered-port array via `mach_ports_register`, not a launchd service name.
+That reading is what the rest of the topology depends on, so it is worth stating
+plainly before it is designed around.
+
+A throwaway probe, signed exactly as the capsule is
+(`codesign --force --sign - --timestamp=none`, no hardened runtime, no
+entitlements), on macOS 15.7.7 arm64 / Darwin 24.6.0:
+
+```
+PARENT slot_initially_empty=yes
+PARENT register=(os/kern) successful
+PARENT spawn=0 pid=98031                     # POSIX_SPAWN_START_SUSPENDED
+CHILD  slot_recovered=yes port=0xb03         # after exec, via mach_ports_lookup
+PARENT restore=(os/kern) successful
+PARENT slot_cleared_after_restore=yes
+PARENT receive=(os/kern) successful
+PARENT payload=bpr-0262-probe trailer_size=52
+PARENT audit_pid=98031 child_pid=98031 match=yes
+PARENT sec_guest_from_audit_token=0          # errSecSuccess
+PARENT sec_check_validity=0
+PARENT cdhash_dynamic_present=yes static_present=yes equal=yes
+```
+
+Every element fact_3 and fact_4 need is available under this tree's signing: the
+slot starts empty, a registered send right survives suspended spawn and `exec`,
+the parent can restore its exact prior snapshot, the kernel audit trailer names
+the child exactly, and `SecCodeCopyGuestWithAttributes` keyed by
+`kSecGuestAttributeAudit` — not by pid — returns a guest whose
+`kSecCodeInfoUnique` equals the on-disk binary's.
+
+One trap worth recording. An early run returned `sec_guest_from_audit_token=100003`,
+which is `kPOSIXErrorBase + ESRCH`: the child had already exited, so there was no
+guest left to identify. Validation has to happen while the peer is alive, which
+the real handshake gets for free by holding the child suspended. A future
+implementer reading `ESRCH` as "audit tokens do not work under ad-hoc signing"
+would draw exactly the wrong conclusion.
+
+The probe was not checked in as-is. [[BPR-0350]] turns it into a contract with
+its fail-closed halves.
+
+## Survey corrections — 2026-08-17
+
+Two details in the tree survey above are wrong in ways that would cost an
+implementer time, verified against the live tree:
+
+- `designated_review_approval_subject` is **not a struct**. It is a free function
+  (`src/application/src/review_mutation_execution_authority.hpp:116-120`, defined
+  `designated_review_authority_bootstrap.cpp:1461-1535`) rendering a `key=value`
+  text subject. Fact_5 adds emitted fields and a `schema_version` bump, not
+  struct members.
+- The "opt-in CTest manifest" is not a manifest artifact. It is two CMake
+  options: `BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE` (which hard-fails when
+  `BUILD_TESTING` is also ON) and `BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST`,
+  which registers the single `live_review_mutation_designated_target` entry.
+
+Everything else in the survey still holds, including the check/use window, the
+absent Mach machinery, the argv-only attended launch, and the pinned digests.
