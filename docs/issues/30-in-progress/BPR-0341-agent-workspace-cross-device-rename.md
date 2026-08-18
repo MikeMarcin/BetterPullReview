@@ -41,21 +41,47 @@ It passes with that variable set and fails without it. Nothing else changes.
 not: it alternates pass and fail across consecutive runs whatever `TMPDIR` is,
 which is a different defect. BPR-0345 carries it.
 
-## Why no other platform shows it
+## Mechanism — corrected 2026-08-17
 
-`rename(2)` cannot cross a filesystem boundary; it fails with `EXDEV`. macOS
-puts the per-user temporary directory and an ordinary checkout on the same
-APFS volume, so the boundary never exists there and the call always succeeds.
+This card first asserted a `rename(2)` returning `EXDEV` in our own code. That
+was inference from the 2x2, not a measurement, and it is wrong: there is no
+such rename on this path. `materialize_agent_workspace` performs no rename
+between the two roots, and its precondition block is not the branch that
+rejects.
+
+Instrumenting the real path gives the actual answer:
+
+```
+BPRDBG proc-materialize-fail=11        # git_process_failure::nonzero_exit
+BPRDBG materialize-fail=1              # agent_workspace_failure::unavailable
+```
+
+A **git subprocess exits nonzero** during materialization, and the host maps
+that to `unavailable`, which `workspace_outcome` turns into
+`failed_to_start`. So the reported outcome names the launch, while the failure
+is in the workspace's git work several layers earlier.
+
+What is still established is the dependency itself: the workspace parent and
+the retained cache must be on the same filesystem. Both roots on tmpfs passes
+and both on ext4 passes, so it is the relationship rather than either
+filesystem. macOS keeps the per-user temporary directory and an ordinary
+checkout on one APFS volume, so the relationship always holds there.
+
+The remaining work is to capture that subprocess's standard error and name the
+git operation, rather than to assume which one it is.
 
 ## Required final state
 
-- Find the rename and decide the contract: either the staging directory is
-  created on the destination's filesystem, or the publication falls back to
-  copy-and-replace when `EXDEV` is returned. A silent fallback must not weaken
-  whatever atomicity the rename was chosen for.
-- The failure is currently reported as `failed_to_start` with no cause. The
-  typed outcome should distinguish a workspace that could not be published
-  from an executable that could not be launched.
+- Identify the git operation that exits nonzero and why the filesystem
+  relationship decides it, from its captured standard error rather than by
+  inference.
+- Repair it at that layer. If the answer is that the workspace must share a
+  filesystem with the cache, the composition should place it there rather than
+  taking `QDir::tempPath()` and hoping.
+- The failure is currently reported as `failed_to_start` with no cause, three
+  layers from where it happened. A workspace that could not be materialized
+  should not be indistinguishable from an executable that could not be
+  launched, and the subprocess's error should reach the evidence.
 - The contract passes with a build-tree root and an unmodified `TMPDIR` on a
   stock Ubuntu 26.04 host.
 - The macOS behavior is unchanged, and a regression test covers the crossing
