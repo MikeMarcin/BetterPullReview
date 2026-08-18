@@ -31,6 +31,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Sequence
 
 # The only files that may implement `application::review_mutation_port`. The
 # live provider's two files are listed before they exist, on purpose: this is
@@ -134,9 +135,17 @@ def construction_site_counts(root: pathlib.Path) -> dict[str, int]:
     return found
 
 
+def inspects_objects() -> bool:
+    """True where the linked image carries no symbol table to read."""
+    return platform.system() == "Windows"
+
+
 def symbol_command(binary: str) -> list[str] | None:
     """Select one target-native symbol inspector without a skip path."""
-    if platform.system() == "Windows":
+    if inspects_objects():
+        # `dumpbin /symbols` against a linked image prints a section summary and
+        # no symbols at all, because the MSVC linker consumes the COFF table.
+        # The objects are read instead; see object_symbols.
         candidates = (
             ("dumpbin", ["/symbols", binary]),
             ("llvm-readobj", ["--symbols", binary]),
@@ -153,6 +162,44 @@ def symbol_command(binary: str) -> list[str] | None:
         if resolved is not None:
             return [resolved, *arguments]
     return None
+
+
+def object_manifest_entries(manifest: pathlib.Path) -> dict[str, list[str]]:
+    """Binary path -> the object files that composed it, as the build recorded."""
+    entries: dict[str, list[str]] = {}
+    for line in manifest.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        binary, _, joined = line.partition("|")
+        objects = [item for item in joined.split("|") if item]
+        entries[binary] = objects
+    return entries
+
+
+def object_symbols(objects: Sequence[str]) -> str | None:
+    """Concatenated symbol tables of a binary's objects, or None if unreadable.
+
+    Every object must be readable. A partial table would let the forbidden-symbol
+    scan stay silent about the one translation unit it could not open, which is
+    exactly the failure the positive control exists to catch.
+    """
+    if not objects:
+        return None
+    inspector = shutil.which("dumpbin")
+    if inspector is None:
+        return None
+    tables: list[str] = []
+    for item in objects:
+        listed = subprocess.run(
+            [inspector, "/symbols", item],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if listed.returncode != 0:
+            return None
+        tables.append(listed.stdout)
+    return "".join(tables)
 
 
 def symbols(binary: str) -> str | None:
@@ -218,7 +265,10 @@ def _check_sources(root: pathlib.Path) -> list[str]:
     return failures
 
 
-def _check_binaries(manifest: pathlib.Path) -> tuple[list[str], int, bool]:
+def _check_binaries(
+    manifest: pathlib.Path,
+    object_manifest: pathlib.Path | None = None,
+) -> tuple[list[str], int, bool]:
     failures: list[str] = []
     binaries = [
         line.strip()
@@ -233,13 +283,44 @@ def _check_binaries(manifest: pathlib.Path) -> tuple[list[str], int, bool]:
             False,
         )
 
+    objects_by_binary: dict[str, list[str]] = {}
+    if inspects_objects():
+        if object_manifest is None or not object_manifest.is_file():
+            return (
+                [f"this platform has no readable symbol table in a linked "
+                 f"image, so the objects must be inspected instead, and "
+                 f"{object_manifest} is missing. The build generates it, so a "
+                 f"missing object manifest means nothing was inspected"],
+                0,
+                False,
+            )
+        objects_by_binary = object_manifest_entries(object_manifest)
+
     control_seen = False
     inspected = 0
     for binary in binaries:
-        table = symbols(binary)
-        if table is None:
-            failures.append(f"nm could not read {binary}")
-            continue
+        if inspects_objects():
+            objects = objects_by_binary.get(binary)
+            if not objects:
+                failures.append(
+                    f"{object_manifest} records no objects for {binary}, so its "
+                    f"symbols were never read and its silence about "
+                    f"{FORBIDDEN_SYMBOL} means nothing"
+                )
+                continue
+            table = object_symbols(objects)
+            if table is None:
+                failures.append(
+                    f"no inspector could read the {len(objects)} objects that "
+                    f"composed {pathlib.Path(binary).name}. `dumpbin` is only "
+                    f"on PATH inside a Visual Studio developer environment"
+                )
+                continue
+        else:
+            table = symbols(binary)
+            if table is None:
+                failures.append(f"nm could not read {binary}")
+                continue
         inspected += 1
         for line in forbidden_symbols_in(table):
             failures.append(
@@ -272,6 +353,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True)
     parser.add_argument("--manifest", required=True)
+    # Required only where the linked image carries no symbol table. The build
+    # writes it on every platform so the two halves cannot drift apart.
+    parser.add_argument("--object-manifest")
     arguments = parser.parse_args()
 
     root = pathlib.Path(arguments.root)
@@ -288,7 +372,12 @@ def main() -> int:
             f"manifest means the binary half never ran"
         )
     else:
-        binary_failures, inspected, _ = _check_binaries(manifest)
+        object_manifest = (
+            pathlib.Path(arguments.object_manifest)
+            if arguments.object_manifest
+            else None
+        )
+        binary_failures, inspected, _ = _check_binaries(manifest, object_manifest)
         failures.extend(binary_failures)
 
     if failures:

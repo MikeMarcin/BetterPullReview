@@ -629,6 +629,34 @@ file(
     CONTENT "${bpr_automated_executable_files}"
 )
 
+# The MSVC linker consumes the COFF symbol table, so `dumpbin /symbols` reports
+# only a section summary for a linked image and the binary half of the guard
+# would be reading an empty table. The objects that composed each binary do
+# carry the table, so record them and let the verifier read those on Windows.
+# Written on every platform so the two sides cannot drift apart unnoticed, and
+# keyed by binary so the guard keeps its per-binary granularity: the claim is
+# that a *non-production* binary carries no live provider, not that the tree
+# contains none anywhere.
+set(bpr_automated_executable_object_manifest
+    "${CMAKE_BINARY_DIR}/_bpr/$<CONFIG>/automated-executable-objects.txt"
+)
+set(bpr_automated_executable_objects "")
+foreach(bpr_automated_target IN LISTS bpr_automated_executables)
+    string(
+        APPEND
+        bpr_automated_executable_objects
+        "$<TARGET_FILE:${bpr_automated_target}>"
+        "|"
+        "$<JOIN:$<TARGET_OBJECTS:${bpr_automated_target}>,|>"
+        "\n"
+    )
+endforeach()
+file(
+    GENERATE
+    OUTPUT "${bpr_automated_executable_object_manifest}"
+    CONTENT "${bpr_automated_executable_objects}"
+)
+
 bpr_add_network_isolated_test(
     NAME live_mutation_isolation
     COMMAND
@@ -638,6 +666,8 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}"
         --manifest
         "${bpr_automated_executable_manifest}"
+        --object-manifest
+        "${bpr_automated_executable_object_manifest}"
 )
 set_tests_properties(
     live_mutation_isolation

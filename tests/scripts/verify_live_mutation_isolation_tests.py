@@ -24,9 +24,11 @@ from scripts.verify_live_mutation_isolation import (  # noqa: E402
     FORBIDDEN_SYMBOL,
     POSITIVE_CONTROL_SYMBOL,
     REQUIRED_PORT_IMPLEMENTATION,
+    _check_binaries,
     construction_site_counts,
     construction_sites,
     forbidden_symbols_in,
+    object_manifest_entries,
     port_implementations,
     symbol_command,
 )
@@ -158,6 +160,123 @@ class ForbiddenSymbolTests(unittest.TestCase):
         system.return_value = "Windows"
         which.return_value = None
         self.assertIsNone(symbol_command("C:/build/test.exe"))
+
+
+class ObjectInspectionTests(unittest.TestCase):
+    """The Windows half reads objects, because a linked image has no table.
+
+    `dumpbin /symbols` against an MSVC-linked executable prints a section
+    summary and no symbols at all. A guard that ran it would report a clean
+    tree while reading nothing, which is the exact failure the positive control
+    exists to catch, so the objects that composed each binary are read instead.
+    """
+
+    def test_manifest_maps_each_binary_to_its_objects(self) -> None:
+        with contained_temporary_directory() as directory:
+            manifest = Path(directory) / "objects.txt"
+            manifest.write_text(
+                "C:/b/one.exe|C:/b/a.obj|C:/b/b.obj\n"
+                "C:/b/two.exe|C:/b/c.obj\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                object_manifest_entries(manifest),
+                {
+                    "C:/b/one.exe": ["C:/b/a.obj", "C:/b/b.obj"],
+                    "C:/b/two.exe": ["C:/b/c.obj"],
+                },
+            )
+
+    def test_a_binary_with_no_objects_recorded_is_not_silently_clean(
+        self,
+    ) -> None:
+        with contained_temporary_directory() as directory:
+            manifest = Path(directory) / "objects.txt"
+            manifest.write_text("C:/b/other.exe|C:/b/a.obj\n", encoding="utf-8")
+            self.assertEqual(object_manifest_entries(manifest).get("C:/b/one.exe"), None)
+
+    @mock.patch("scripts.verify_live_mutation_isolation.inspects_objects")
+    def test_missing_object_manifest_fails_closed(
+        self, inspects: mock.Mock
+    ) -> None:
+        inspects.return_value = True
+        with contained_temporary_directory() as directory:
+            binaries = Path(directory) / "binaries.txt"
+            binaries.write_text("C:/b/one.exe\n", encoding="utf-8")
+            failures, inspected, complete = _check_binaries(binaries, None)
+        self.assertEqual(inspected, 0)
+        self.assertFalse(complete)
+        self.assertTrue(
+            any("objects must be inspected instead" in item for item in failures),
+            failures,
+        )
+
+    @mock.patch("scripts.verify_live_mutation_isolation.inspects_objects")
+    def test_a_binary_absent_from_the_object_manifest_is_a_failure(
+        self, inspects: mock.Mock
+    ) -> None:
+        inspects.return_value = True
+        with contained_temporary_directory() as directory:
+            root = Path(directory)
+            binaries = root / "binaries.txt"
+            binaries.write_text("C:/b/one.exe\n", encoding="utf-8")
+            objects = root / "objects.txt"
+            objects.write_text("C:/b/other.exe|C:/b/a.obj\n", encoding="utf-8")
+            failures, inspected, _ = _check_binaries(binaries, objects)
+        self.assertEqual(inspected, 0)
+        self.assertTrue(
+            any("records no objects for" in item for item in failures), failures
+        )
+
+    @mock.patch("scripts.verify_live_mutation_isolation.object_symbols")
+    @mock.patch("scripts.verify_live_mutation_isolation.inspects_objects")
+    def test_an_unreadable_object_set_is_not_silently_clean(
+        self, inspects: mock.Mock, read: mock.Mock
+    ) -> None:
+        inspects.return_value = True
+        read.return_value = None
+        with contained_temporary_directory() as directory:
+            root = Path(directory)
+            binaries = root / "binaries.txt"
+            binaries.write_text("C:/b/review_mutation_tests.exe\n", encoding="utf-8")
+            objects = root / "objects.txt"
+            objects.write_text(
+                "C:/b/review_mutation_tests.exe|C:/b/a.obj\n", encoding="utf-8"
+            )
+            failures, inspected, _ = _check_binaries(binaries, objects)
+        self.assertEqual(inspected, 0)
+        self.assertTrue(
+            any("no inspector could read" in item for item in failures), failures
+        )
+
+    @mock.patch("scripts.verify_live_mutation_isolation.object_symbols")
+    @mock.patch("scripts.verify_live_mutation_isolation.inspects_objects")
+    def test_a_forbidden_symbol_in_an_object_is_caught(
+        self, inspects: mock.Mock, read: mock.Mock
+    ) -> None:
+        inspects.return_value = True
+        # An MSVC decorated name, which is what dumpbin actually prints. The
+        # scan matches on the undecorated identifier inside it, so no demangler
+        # is required — and none ships with Visual Studio.
+        read.return_value = (
+            "A26 00000000 UNDEF notype () External | "
+            f"??0{POSITIVE_CONTROL_SYMBOL}@application@bpr@@QEAA@XZ\n"
+            "A27 00000000 SECT1 notype () External | "
+            f"?make@{FORBIDDEN_SYMBOL}@application@bpr@@QEAA@XZ\n"
+        )
+        with contained_temporary_directory() as directory:
+            root = Path(directory)
+            binaries = root / "binaries.txt"
+            binaries.write_text("C:/b/review_mutation_tests.exe\n", encoding="utf-8")
+            objects = root / "objects.txt"
+            objects.write_text(
+                "C:/b/review_mutation_tests.exe|C:/b/a.obj\n", encoding="utf-8"
+            )
+            failures, inspected, _ = _check_binaries(binaries, objects)
+        self.assertEqual(inspected, 1)
+        self.assertTrue(
+            any(FORBIDDEN_SYMBOL in item for item in failures), failures
+        )
 
 
 class ConstructionSiteTests(unittest.TestCase):
