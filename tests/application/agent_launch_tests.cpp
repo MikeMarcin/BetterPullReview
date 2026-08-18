@@ -756,10 +756,35 @@ namespace {
 		auto oversized = application::agent_protocol_decoder{
 			core::agent_protocol::external_terminal
 		};
+		const auto refusedFrame = oversized.push(
+			std::string(application::maximum_agent_frame_bytes + 1U, 'x'));
 		expect(
-			!oversized.push(std::string(
-				application::maximum_agent_frame_bytes + 1U, 'x')),
+			!refusedFrame
+				&& refusedFrame.error()
+					== application::agent_protocol_failure::frame_too_large,
 			"a frame beyond the fixed bound is refused before further buffering");
+
+		// The total ceiling and the per-frame ceiling are separate limits, so
+		// this flood keeps every frame inside the frame bound and can only be
+		// refused by the total.
+		auto flooded = application::agent_protocol_decoder{
+			core::agent_protocol::external_terminal
+		};
+		const auto line = std::string(
+							  application::maximum_agent_frame_bytes / 2U, 'o')
+			+ "\n";
+		auto flooding = flooded.push(line);
+		for (auto written = line.size();
+			 flooding
+			 && written < application::maximum_agent_stdout_bytes + line.size();
+			 written += line.size()) {
+			flooding = flooded.push(line);
+		}
+		expect(
+			!flooding
+				&& flooding.error()
+					== application::agent_protocol_failure::output_too_large,
+			"output past the total ceiling is refused as its own exact cause");
 	}
 
 	void test_process_and_staleness_outcomes_remain_distinct()

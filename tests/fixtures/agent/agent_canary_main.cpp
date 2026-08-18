@@ -355,6 +355,30 @@ auto main(int argc, char** argv) -> int
 		std::cout.flush();
 		return EXIT_SUCCESS;
 	}
+	// Each line stays well inside the per-frame bound, so the total-output
+	// ceiling is the only one this flood can reach. The parent's pipe holds far
+	// less than the ceiling, so it drains and refuses while the child is still
+	// writing.
+	if (has_argument(argc, argv, "--stdout-flood")) {
+		const auto line = std::string(32U * 1024U, 'o') + "\n";
+		for (auto written = std::size_t{ 0U }; written < 1536U * 1024U;
+			 written += line.size()) {
+			std::cout << line;
+		}
+		std::cout.flush();
+		return EXIT_SUCCESS;
+	}
+	// Retained stderr, not stdout: the parent must refuse to accumulate past
+	// its own ceiling rather than growing the retained buffer without bound.
+	if (has_argument(argc, argv, "--stderr-flood")) {
+		const auto block = std::string(64U * 1024U, 'e');
+		for (auto written = std::size_t{ 0U }; written < 1536U * 1024U;
+			 written += block.size()) {
+			std::cerr << block;
+		}
+		std::cerr.flush();
+		return EXIT_SUCCESS;
+	}
 	if (has_argument(argc, argv, "--stderr-pressure")) {
 		const auto block = std::string(4U * 1024U, 'e');
 		for (auto written = std::size_t{ 0U }; written < 256U * 1024U;

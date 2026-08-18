@@ -463,8 +463,38 @@ namespace {
 		expect(
 			oversizedResult.Outcome
 					== application::agent_run_outcome::protocol_failure
-				&& oversizedResult.Events.empty(),
+				&& oversizedResult.Events.empty()
+				&& oversizedResult.ProtocolFailure
+					== application::agent_protocol_failure::frame_too_large,
 			"an output frame beyond the bound fails without unbounded retention");
+
+		// Both byte ceilings report the same cause, so each case is pinned to
+		// the channel it flooded: the stdout course retains no standard error,
+		// and the stderr course publishes no event.
+		auto flooded = request(core::agent_protocol::external_terminal);
+		flooded.Arguments.emplace_back("--stdout-flood");
+		const auto floodedResult = launcher.run(flooded, 20'000);
+		expect(
+			floodedResult.Outcome
+					== application::agent_run_outcome::protocol_failure
+				&& floodedResult.ProtocolFailure
+					== application::agent_protocol_failure::output_too_large
+				&& floodedResult.Events.empty()
+				&& floodedResult.StandardError.empty(),
+			"stdout past the total ceiling is refused as its own exact cause");
+
+		auto floodedError = request(core::agent_protocol::external_terminal);
+		floodedError.Arguments.emplace_back("--stderr-flood");
+		const auto floodedErrorResult = launcher.run(floodedError, 20'000);
+		expect(
+			floodedErrorResult.Outcome
+					== application::agent_run_outcome::protocol_failure
+				&& floodedErrorResult.ProtocolFailure
+					== application::agent_protocol_failure::output_too_large
+				&& floodedErrorResult.Events.empty()
+				&& floodedErrorResult.StandardError.size()
+					<= application::maximum_agent_stderr_bytes,
+			"retained stderr stops at its ceiling instead of growing to the flood");
 
 		const auto refusedBySink = launcher.run(
 			request(core::agent_protocol::external_terminal),
