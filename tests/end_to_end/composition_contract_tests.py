@@ -90,6 +90,66 @@ def parse_arguments() -> tuple[argparse.Namespace, list[str]]:
 ARGUMENTS, UNITTEST_ARGUMENTS = parse_arguments()
 
 
+# What a diagnostic must say for a hostile snippet to have been stopped by the
+# seal it targets rather than by an unrelated mistake. `review_mutation_-
+# execution_authority` is only forward-declared in the public header, so both
+# GCC and Clang reject its construction for incompleteness before access
+# control is ever consulted; the entity is unusable either way.
+ACCESS_CONTROLLED = r"private"
+UNCONSTRUCTIBLE = r"(private|incomplete type)"
+UNDECLARED = r"(no member named|not a member)"
+REDEFINED = r"(private|incomplete type|redefinition)"
+
+SNIPPET_INCLUDE_ARGUMENTS = (
+    f"-I{REPOSITORY_ROOT / 'src/application/include'}",
+    f"-I{REPOSITORY_ROOT / 'src/core/include'}",
+)
+
+
+def compile_snippet(
+    temporary_root: Path,
+    name: str,
+    source: str,
+) -> subprocess.CompletedProcess[str]:
+    path = temporary_root / f"{name}.cpp"
+    path.write_text(source, encoding="utf-8")
+    return subprocess.run(
+        [
+            ARGUMENTS.cxx,
+            "-std=c++23",
+            "-fsyntax-only",
+            "-D_LIBCPP_ENABLE_EXPERIMENTAL",
+            *SNIPPET_INCLUDE_ARGUMENTS,
+            str(path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+
+def diagnostic_messages(
+    completed: subprocess.CompletedProcess[str],
+) -> list[str]:
+    """The lowercased message of every reported error, without its location.
+
+    Everything before `error:` on a diagnostic line is the source path, and a
+    path is not evidence about the code. Keeping it lets a directory name
+    satisfy an assertion about what the compiler said: the temporary root on
+    macOS lands under `/private/var/folders`, so a search of the raw output for
+    `private` succeeded there however the seal behaved. Compiling the same
+    hostile snippet from a directory named `/private/var/folders/xy` on Linux
+    reproduces that directly.
+    """
+    combined = completed.stdout + completed.stderr
+    return [
+        line.split("error:", 1)[1].strip().lower()
+        for line in combined.splitlines()
+        if "error:" in line
+    ]
+
+
 def read(relative_path: str) -> str:
     return (REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8")
 
@@ -113,37 +173,53 @@ def source_files(relative_root: str) -> list[Path]:
 
 
 class CompositionContractTests(unittest.TestCase):
-    def test_production_mutation_authority_issuers_are_language_sealed(self) -> None:
-        include_arguments = [
-            f"-I{REPOSITORY_ROOT / 'src/application/include'}",
-            f"-I{REPOSITORY_ROOT / 'src/core/include'}",
+    def assert_language_sealed(
+        self,
+        completed: subprocess.CompletedProcess[str],
+        sealed: str | tuple[str, ...],
+        reason: str,
+    ) -> None:
+        """Assert a hostile snippet was rejected by the seal it targets.
+
+        Three things must hold together. The snippet must fail; some
+        diagnostic must name the sealed entity; and that same diagnostic must
+        give a reason the entity was unusable. A bare exit-status check would
+        accept a snippet that failed over a typo, and naming without a reason
+        would accept one that merely mentioned the entity on its way to an
+        unrelated error.
+        """
+        names = (sealed,) if isinstance(sealed, str) else sealed
+        rendered = completed.stdout + completed.stderr
+        self.assertNotEqual(
+            completed.returncode,
+            0,
+            f"the snippet compiled, so the seal is gone:\n{rendered}",
+        )
+        messages = diagnostic_messages(completed)
+        self.assertTrue(
+            messages,
+            f"a rejected snippet must report an error:\n{rendered}",
+        )
+        naming = [
+            message
+            for message in messages
+            if any(name in message for name in names)
         ]
+        self.assertTrue(
+            naming,
+            f"no diagnostic names any of {names}, so the snippet may have "
+            f"failed for an unrelated reason:\n{rendered}",
+        )
+        self.assertTrue(
+            any(re.search(reason, message) for message in naming),
+            f"no diagnostic naming {names} matches {reason!r}, so nothing "
+            f"proves the entity was unusable:\n{rendered}",
+        )
 
-        def compile_source(
-            temporary_root: Path,
-            name: str,
-            source: str,
-        ) -> subprocess.CompletedProcess[str]:
-            path = temporary_root / f"{name}.cpp"
-            path.write_text(source, encoding="utf-8")
-            return subprocess.run(
-                [
-                    ARGUMENTS.cxx,
-                    "-std=c++23",
-                    "-fsyntax-only",
-                    "-D_LIBCPP_ENABLE_EXPERIMENTAL",
-                    *include_arguments,
-                    str(path),
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-
+    def test_production_mutation_authority_issuers_are_language_sealed(self) -> None:
         with contained_temporary_directory() as temporary_directory:
             temporary_root = Path(temporary_directory)
-            production_baseline = compile_source(
+            production_baseline = compile_snippet(
                 temporary_root,
                 "production-baseline",
                 (
@@ -158,7 +234,7 @@ class CompositionContractTests(unittest.TestCase):
                 production_baseline.stdout + production_baseline.stderr,
             )
 
-            testing_baseline = compile_source(
+            testing_baseline = compile_snippet(
                 temporary_root,
                 "testing-baseline",
                 (
@@ -186,7 +262,7 @@ class CompositionContractTests(unittest.TestCase):
                 testing_baseline.stdout + testing_baseline.stderr,
             )
 
-            hostile_endpoint = compile_source(
+            hostile_endpoint = compile_snippet(
                 temporary_root,
                 "hostile-endpoint",
                 (
@@ -198,13 +274,13 @@ class CompositionContractTests(unittest.TestCase):
                     "}\n"
                 ),
             )
-            self.assertNotEqual(hostile_endpoint.returncode, 0)
-            self.assertIn(
-                "private",
-                (hostile_endpoint.stdout + hostile_endpoint.stderr).lower(),
+            self.assert_language_sealed(
+                hostile_endpoint,
+                "workbench_selected_diff_endpoint",
+                ACCESS_CONTROLLED,
             )
 
-            hostile_grant = compile_source(
+            hostile_grant = compile_snippet(
                 temporary_root,
                 "hostile-grant",
                 (
@@ -221,13 +297,13 @@ class CompositionContractTests(unittest.TestCase):
                     "}\n"
                 ),
             )
-            self.assertNotEqual(hostile_grant.returncode, 0)
-            self.assertIn(
-                "private",
-                (hostile_grant.stdout + hostile_grant.stderr).lower(),
+            self.assert_language_sealed(
+                hostile_grant,
+                "review_mutation_execution_authority",
+                UNCONSTRUCTIBLE,
             )
 
-            hostile_grant_call = compile_source(
+            hostile_grant_call = compile_snippet(
                 temporary_root,
                 "hostile-grant-call",
                 (
@@ -240,13 +316,13 @@ class CompositionContractTests(unittest.TestCase):
                     "}\n"
                 ),
             )
-            self.assertNotEqual(hostile_grant_call.returncode, 0)
-            self.assertRegex(
-                (hostile_grant_call.stdout + hostile_grant_call.stderr).lower(),
-                r"(no member named|not a member)",
+            self.assert_language_sealed(
+                hostile_grant_call,
+                "make_review_mutation_testing_grant",
+                UNDECLARED,
             )
 
-            hostile_attended_authority = compile_source(
+            hostile_attended_authority = compile_snippet(
                 temporary_root,
                 "hostile-attended-authority",
                 (
@@ -258,16 +334,13 @@ class CompositionContractTests(unittest.TestCase):
                     "}\n"
                 ),
             )
-            self.assertNotEqual(hostile_attended_authority.returncode, 0)
-            self.assertIn(
-                "private",
-                (
-                    hostile_attended_authority.stdout
-                    + hostile_attended_authority.stderr
-                ).lower(),
+            self.assert_language_sealed(
+                hostile_attended_authority,
+                "review_mutation_execution_authority",
+                UNCONSTRUCTIBLE,
             )
 
-            hostile_bootstrap_definition = compile_source(
+            hostile_bootstrap_definition = compile_snippet(
                 temporary_root,
                 "hostile-bootstrap-definition",
                 (
@@ -284,16 +357,16 @@ class CompositionContractTests(unittest.TestCase):
                     "}\n"
                 ),
             )
-            self.assertNotEqual(hostile_bootstrap_definition.returncode, 0)
-            self.assertRegex(
+            self.assert_language_sealed(
+                hostile_bootstrap_definition,
                 (
-                    hostile_bootstrap_definition.stdout
-                    + hostile_bootstrap_definition.stderr
-                ).lower(),
-                r"(redefinition|private)",
+                    "review_mutation_execution_authority",
+                    "designated_review_authority_bootstrap",
+                ),
+                REDEFINED,
             )
 
-            hostile_one_shot_factory_call = compile_source(
+            hostile_one_shot_factory_call = compile_snippet(
                 temporary_root,
                 "hostile-one-shot-factory-call",
                 (
@@ -306,14 +379,71 @@ class CompositionContractTests(unittest.TestCase):
                     "}\n"
                 ),
             )
-            self.assertNotEqual(hostile_one_shot_factory_call.returncode, 0)
-            self.assertRegex(
-                (
-                    hostile_one_shot_factory_call.stdout
-                    + hostile_one_shot_factory_call.stderr
-                ).lower(),
-                r"(no member named|not a member)",
+            self.assert_language_sealed(
+                hostile_one_shot_factory_call,
+                "make_review_mutation_one_shot_testing_grant",
+                UNDECLARED,
             )
+
+    def test_language_seal_assertion_rejects_what_does_not_prove_a_seal(
+        self,
+    ) -> None:
+        """The seal assertion must fail on both ways of not proving a seal.
+
+        A snippet that compiles means the seal is gone, and a snippet that
+        fails over a typo proves nothing about the entity it names. Both must
+        make `assert_language_sealed` fail, or a removed seal could keep the
+        contract green.
+        """
+        sealed = "review_mutation_execution_authority"
+        header = '#include "bpr/application/review_mutation_application_host.hpp"\n'
+        with contained_temporary_directory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+
+            compiles = compile_snippet(
+                temporary_root,
+                "seal-control-compiles",
+                header + "int main() { return 0; }\n",
+            )
+            self.assertEqual(
+                compiles.returncode,
+                0,
+                compiles.stdout + compiles.stderr,
+            )
+            with self.assertRaises(AssertionError):
+                self.assert_language_sealed(compiles, sealed, UNCONSTRUCTIBLE)
+
+            typo = compile_snippet(
+                temporary_root,
+                "seal-control-typo",
+                header + "int main() { retrun 0; }\n",
+            )
+            self.assertNotEqual(
+                typo.returncode,
+                0,
+                typo.stdout + typo.stderr,
+            )
+            with self.assertRaises(AssertionError):
+                self.assert_language_sealed(typo, sealed, UNCONSTRUCTIBLE)
+
+            # The reason must be checked against the diagnostic that names the
+            # entity, not against the output as a whole.
+            unrelated = compile_snippet(
+                temporary_root,
+                "seal-control-unrelated",
+                header
+                + "namespace bpr::application {\n"
+                + "auto unrelated() -> review_mutation_execution_grant;\n"
+                + "}\n"
+                + "int main() { retrun 0; }\n",
+            )
+            self.assertNotEqual(
+                unrelated.returncode,
+                0,
+                unrelated.stdout + unrelated.stderr,
+            )
+            with self.assertRaises(AssertionError):
+                self.assert_language_sealed(unrelated, sealed, UNCONSTRUCTIBLE)
 
     def assert_release_self_test(
         self,
