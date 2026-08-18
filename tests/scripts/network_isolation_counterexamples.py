@@ -58,6 +58,44 @@ def linux_namespace_is_isolated() -> tuple[bool, str]:
     return True, "lo-only"
 
 
+def identity_attempt(backend: str) -> int:
+    """Prove the launcher granted no privilege it was not asked for.
+
+    A user namespace is needed only so an unprivileged caller can create a
+    network namespace. Mapping the caller to 0 would also hand every test root,
+    and root is exempt from the permission checks the product relies on, so a
+    test asking whether a mode is refused would quietly get the wrong answer.
+
+    The map itself is the proof and it is readable from inside: each range
+    names the id inside the namespace and the id outside it. Equal ends mean
+    the caller kept exactly the identity it already had. This holds whoever
+    runs the suite, including a genuine root, so it does not double as an
+    assertion about who that is.
+    """
+    if backend != LINUX_BACKEND:
+        print(f"NETWORK_ISOLATION_IDENTITY_NOT_APPLICABLE:{backend}", flush=True)
+        return 1
+    for name in ("uid_map", "gid_map"):
+        try:
+            text = pathlib.Path(f"/proc/self/{name}").read_text()
+        except OSError as error:
+            print(f"NETWORK_ISOLATION_IDENTITY_UNREADABLE:{name}:{error.errno}", flush=True)
+            return 1
+        rows = [line.split() for line in text.splitlines() if line.strip()]
+        if not rows:
+            print(f"NETWORK_ISOLATION_IDENTITY_UNMAPPED:{name}", flush=True)
+            return 1
+        for row in rows:
+            if len(row) != 3 or row[0] != row[1]:
+                print(
+                    f"NETWORK_ISOLATION_IDENTITY_REMAPPED:{name}:{' '.join(row)}",
+                    flush=True,
+                )
+                return 1
+    print(f"NETWORK_ISOLATION_IDENTITY_PRESERVED:{os.geteuid()}", flush=True)
+    return 0
+
+
 def external_attempt(backend: str) -> int:
     accepted = DENIAL_ERRNOS.get(backend)
     if accepted is None:
@@ -223,6 +261,8 @@ def main() -> int:
     probe, backend = sys.argv[1], sys.argv[2]
     if probe == "external":
         return external_attempt(backend)
+    if probe == "identity":
+        return identity_attempt(backend)
     if probe == "loopback":
         return loopback_attempt()
     if probe == "child":

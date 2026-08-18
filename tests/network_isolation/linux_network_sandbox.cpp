@@ -41,19 +41,28 @@ namespace {
 		return ::close(descriptor) == 0;
 	}
 
+	// The identity is mapped to itself, not to 0. A user namespace is needed
+	// only so that an unprivileged caller may create a network namespace; it is
+	// not a request for privilege. Mapping to 0 would hand every test root, and
+	// root is exempt from the permission checks the product relies on, so a
+	// test asking whether a mode is refused would silently get the wrong
+	// answer. Capabilities in the new namespace come from creating it, not from
+	// the mapped id, so bringing loopback up still works. No setresuid call
+	// follows, both because there is no transition to make and because such a
+	// transition is what would drop those capabilities.
 	[[nodiscard]] auto map_current_identity(
 		const uid_t aUid,
 		const gid_t aGid) -> bool
 	{
-		const auto uidMap = std::string{ "0 " } + std::to_string(aUid) + " 1\n";
-		const auto gidMap = std::string{ "0 " } + std::to_string(aGid) + " 1\n";
+		const auto uidText = std::to_string(aUid);
+		const auto gidText = std::to_string(aGid);
+		const auto uidMap  = uidText + " " + uidText + " 1\n";
+		const auto gidMap  = gidText + " " + gidText + " 1\n";
 		if (!write_text("/proc/self/setgroups", "deny\n") && errno != ENOENT) {
 			return false;
 		}
 		return write_text("/proc/self/uid_map", uidMap)
-			&& write_text("/proc/self/gid_map", gidMap)
-			&& ::setresgid(0, 0, 0) == 0
-			&& ::setresuid(0, 0, 0) == 0;
+			&& write_text("/proc/self/gid_map", gidMap);
 	}
 
 	[[nodiscard]] auto enable_loopback() -> bool

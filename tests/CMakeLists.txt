@@ -416,6 +416,24 @@ foreach(bpr_network_probe IN ITEMS external child)
             "${BPR_AUTOMATED_TEST_ISOLATION_BACKEND}"
     )
 endforeach()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # The launcher's user namespace must buy a network namespace and nothing
+    # else. Without this, a future launcher could map the caller to 0 again and
+    # every permission assertion in the suite would silently stop testing.
+    bpr_add_network_isolated_test(
+        NAME test_network_isolation_identity
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/network_isolation_counterexamples.py"
+            identity
+            "${BPR_AUTOMATED_TEST_ISOLATION_BACKEND}"
+    )
+    set_tests_properties(
+        test_network_isolation_identity
+        PROPERTIES
+            TIMEOUT 15
+    )
+endif()
 bpr_add_network_isolated_test(
     NAME test_network_isolation_loopback
     LOOPBACK_PORT_COUNT 1
