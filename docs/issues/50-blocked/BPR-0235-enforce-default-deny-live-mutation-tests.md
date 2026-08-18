@@ -4,7 +4,7 @@ title: Enforce default-deny network isolation for live mutation tests
 status: Blocked
 rfc: RFC-BPR-0008
 depends_on: [BPR-0221]
-blocked_by: platform-linux-and-windows
+blocked_by: platform-windows
 ---
 
 # Enforce default-deny network isolation for live mutation tests
@@ -135,10 +135,29 @@ their exact commands, passed `test_network_isolation_manifest`, and inspected
 `ctest --show-only=json-v1`. It found one exact live exception. The ordinary
 `build/dev` JSON manifest found zero.
 
-## Still required before terminal status
+## Linux criterion discharged — 2026-08-17
 
-- Run the checked-in user/network-namespace launcher and its counterexamples on
-  target-native Linux.
+The checked-in user/network-namespace launcher and its counterexamples ran on
+target-native Ubuntu 26.04 x86_64. All eight isolation tests pass, including
+`test_network_isolation_application`, so a production binary launched by CTest
+does inherit the boundary on Linux as it does on macOS.
+
+Both counterexamples failed on the first run and the boundary was not why.
+Outside the sandbox `connect_ex("1.1.1.1", 443)` returns 0 with `lo` and
+`eth0` present; inside it returns `ENETUNREACH` with exactly `lo`, no route,
+and a different net-namespace inode. The probe accepted only `{EPERM,
+EACCES}`, which is what `sandbox-exec` produces, so it rejected the correct
+Linux answer. BPR-0346's sibling commit made each backend declare its own
+denial shape rather than widening the set for everyone, and added a structural
+check so an offline host cannot satisfy the Linux path by accident. macOS
+semantics are unchanged.
+
+The run also found that the launcher maps the invoking user to uid 0, so every
+Linux test runs as namespace-root and root is exempt from the permission
+checks the product relies on. That is not a network property and it is not
+repaired here; BPR-0342 carries it.
+
+## Still required before terminal status
 - Replace Windows' current pre-launch refusal with a validated whole-suite
   boundary and run the same descendant/application matrix target-native.
 - Run the default-off designated lane target-native only when the later live
