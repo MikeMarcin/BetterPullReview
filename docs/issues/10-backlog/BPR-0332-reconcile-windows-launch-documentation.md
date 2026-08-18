@@ -1,10 +1,9 @@
 ---
 id: BPR-0332
 title: Reconcile the Windows launch documentation with the shipped dispatch
-status: Blocked
+status: Backlog
 rfc: RFC-BPR-0011
-depends_on: []
-blocked_by: platform-windows
+depends_on: [BPR-0240]
 ---
 
 # Reconcile the Windows launch documentation with the shipped dispatch
@@ -115,3 +114,27 @@ ctest --test-dir build/dev --output-on-failure \
 
 If the guard is restored, additionally the agent launch and canary selectors
 that cover the dispatch path.
+
+## Lane — 2026-08-18
+
+Returned to `10-backlog/` by [[BPR-0358]]. The section above is retained because
+it records a real decision, but its load-bearing premise has expired: it argued
+that "no such statement can be made from a host that cannot compile the
+backend", and this checkout now runs on a Windows 11 x64 host with MSVC 14.51
+and the Windows SDK. The backend can be compiled here.
+
+It has not been. That is why this card is in `10-backlog/` rather than
+`20-ready/`, and why it now declares `depends_on: [BPR-0240]` instead of an
+empty list: [[BPR-0240]] owns compiling and proving
+`src/adapters/agent/src/windows_agent_process.cpp` for the first time, and this
+card's terminal criterion is a true and final statement about Windows launch
+behaviour, which still cannot be written before that.
+
+The choice between the two resolutions is untouched and remains the product
+owner's. If it is still unmade when [[BPR-0240]] is terminal, this card becomes
+a `40-parked/` card carrying `awaiting-product-decision`, because at that point
+every dependency is done and the only missing input is a person.
+
+Until then the cost recorded above stands, with one correction: the six
+statements are no longer being carried because nothing can compile the backend.
+They are being carried because nothing has yet.

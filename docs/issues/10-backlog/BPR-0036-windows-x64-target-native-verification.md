@@ -1,10 +1,9 @@
 ---
 id: BPR-0036
 title: Run RFC-BPR-0002 Windows x64 target-native verification
-status: Blocked
+status: Backlog
 rfc: RFC-BPR-0002
-depends_on: [BPR-0034]
-blocked_by: platform-windows
+depends_on: [BPR-0034, BPR-0347, BPR-0350]
 ---
 
 # Run RFC-BPR-0002 Windows x64 target-native verification

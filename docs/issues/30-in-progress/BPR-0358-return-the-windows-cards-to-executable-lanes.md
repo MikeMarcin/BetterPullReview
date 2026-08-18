@@ -1,0 +1,122 @@
+---
+id: BPR-0358
+title: Return the Windows cards to executable lanes
+status: In Progress
+rfc: RFC-BPR-0013
+depends_on: []
+---
+
+# Return the Windows cards to executable lanes
+
+[[BPR-0319]] created `50-blocked/` and put eleven cards in it, seven of them
+under `blocked_by: platform-windows`. It also wrote the exit condition into the
+lane definition, in the board README and in its own text:
+
+> `50-blocked/` is not terminal. A card returns to `10-backlog/` or
+> `20-ready/` on the day the platform exists, with no other change required.
+
+The platform exists. This checkout now runs on a real Windows 11 x64 host with
+Visual Studio 18 (MSVC 14.51) and the Windows SDK, and [[BPR-0347]] has already
+been executed target-native on it: an AppContainer boundary was built here, its
+denial was measured here against a working internet connection, and the suite
+went from 0 of 84 executing to 60 of 84 passing. That is not a claim about a
+host somebody could obtain. It is a record of work this host did.
+
+So the seven `platform-windows` cards no longer satisfy the lane's own
+admission rule, which is specifically "cannot be executed **on this host**
+because it requires target-native execution on a **different** operating
+system". Leaving them where they are would make `50-blocked/` mean "was blocked
+once", which is exactly the reading [[BPR-0319]] built the lane to prevent.
+
+## What this card does not decide
+
+Returning a card to an executable lane is not a claim that its work is done,
+easy, or even close. Four of the seven remain unstartable for reasons that have
+nothing to do with the platform, and this card moves them to the lane that
+records the real reason rather than leaving a platform label on a
+non-platform blocker.
+
+`platform-linux` is untouched. [[BPR-0310]] and [[BPR-0314]] stay in
+`50-blocked/`, because no Linux host exists here.
+
+## The moves
+
+Each row cites the card's own text or its dependency graph, not a narrative.
+
+| Card | To | Why it leaves `50-blocked/` | Why not further |
+|---|---|---|---|
+| BPR-0036 | `10-backlog/` | Windows 10/11 x64 is this host | its acceptance is a passing complete `windows-dev` CTest matrix; 24 tests still fail |
+| BPR-0053 | `10-backlog/` | same | same |
+| BPR-0235 | `10-backlog/` | its Linux criterion was discharged 2026-08-17 and its Windows criterion is executable here | that criterion is precisely [[BPR-0347]] and [[BPR-0350]]; its live-lane criterion additionally needs owner authority |
+| BPR-0311 | `10-backlog/` | Windows is available | `BPR-0282` and `BPR-0318` are portable work still in `10-backlog/` |
+| BPR-0315 | `10-backlog/` | Windows is available | depends on `BPR-0311` and `BPR-0306`, both open |
+| BPR-0332 | `10-backlog/` | its stated premise — a host "that cannot compile the backend" — is now false | the backend still has to actually compile, which is [[BPR-0240]]'s Windows slice, and the card then carries an unmade product decision |
+| BPR-0035 | `10-backlog/` | transitive only; its platform root left the lane | `BPR-0036` is open |
+| BPR-0054 | `10-backlog/` | transitive only | `BPR-0035`, `BPR-0053` open |
+| BPR-0083 | `10-backlog/` | transitive only | `BPR-0054` open |
+
+Three cards gain a dependency they always had in substance:
+
+- `BPR-0036` and `BPR-0053` each require a **passing** complete `windows-dev`
+  matrix. That matrix cannot pass while the suite is 24 tests short, so both
+  now name `BPR-0347` and `BPR-0350`. Without this, the board would offer two
+  `20-ready/` cards whose acceptance criterion is known to be unreachable
+  today, which is the failure mode `40-parked/`'s frontier-root rule exists to
+  prevent in the other direction.
+- `BPR-0332` now names `BPR-0240`. Its own text already says its terminal
+  criterion is a true and final statement about Windows launch behaviour, and
+  `src/adapters/agent/src/windows_agent_process.cpp` has never been compiled by
+  any toolchain this project has had.
+
+`blocked_by` is removed from all nine, because the verifier rejects that field
+outside `50-blocked/`.
+
+## The Windows program, and its order
+
+This card is the durable anchor for the Windows program the moves open up.
+
+- `RFC_BASE_SHA`: `605aa56c666610516b4af61e61fdd4fccb60d5ca`
+- Host: Windows 11 x64 (10.0.26200), MSVC 14.51.36231, Windows SDK via
+  `vcvars64.bat`, CPython 3.14.6, Qt 6.10.3 acquired by
+  `cmake/BprQtProvider.cmake`.
+- Build note, learned the hard way and recorded so nobody re-learns it: every
+  `cmake`/`ctest` invocation must run with the MSVC x64 environment imported.
+  Without it `cmake --preset core-only` fails inside
+  `cmake/WindowsTestIsolationSetup.cmake` with `fatal error C1034: windows.h:
+  no include path set`, which reads like an AppContainer-launcher defect and is
+  not one.
+
+The frontier is a chain, not a fan-out. Nothing downstream can be verified
+while the suite it must run is failing.
+
+1. `BPR-0347` — the suite's own remaining failures, and the Qt graph under the
+   boundary.
+2. `BPR-0350` — owner-private temporary roots inside an AppContainer, the
+   single cause behind 17 of the 24.
+3. `BPR-0240` — compile and prove the Windows agent backend.
+4. `BPR-0332` — reconcile the six stale launch statements, once 3 makes a true
+   statement possible.
+5. `BPR-0036`, `BPR-0053` — the RFC-BPR-0002 and RFC-BPR-0003 target-native
+   matrices.
+6. `BPR-0235` — its Windows criterion, once 1 and 2 are terminal.
+7. `BPR-0311`, `BPR-0315` — gated on portable siblings outside this program.
+
+## Required final state
+
+- No card carries `blocked_by: platform-windows`.
+- `50-blocked/` holds exactly the two `platform-linux` cards.
+- Every moved card's folder, `status`, and dependency set agree, and the
+  dependency rule that forbids an unmet dependency outside a deferring lane
+  still holds.
+- `docs/issues/README.md`'s "Current frontiers" no longer states that Windows
+  cards are waiting on hardware.
+- The documentation gate and both documentation contract tests pass.
+
+## Verification
+
+```sh
+py -3 scripts/verify_documentation.py --root .
+py -3 tests/scripts/verify_documentation_tests.py
+ctest --test-dir build/core-only --output-on-failure \
+  -R '^(documentation_structure|documentation_issue_graph_contract)$'
+```

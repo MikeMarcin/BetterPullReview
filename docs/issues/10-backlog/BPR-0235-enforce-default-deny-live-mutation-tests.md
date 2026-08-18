@@ -1,10 +1,9 @@
 ---
 id: BPR-0235
 title: Enforce default-deny network isolation for live mutation tests
-status: Blocked
+status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0221]
-blocked_by: platform-windows
+depends_on: [BPR-0221, BPR-0347, BPR-0350]
 ---
 
 # Enforce default-deny network isolation for live mutation tests
@@ -181,3 +180,16 @@ designated live lane also needs the separately authorized session authority
 and attended procedure that the later live provider/write card supplies. A
 Linux and a Windows machine unblock the first two criteria outright; the third
 still waits on the product owner after that.
+
+## Lane — 2026-08-18
+
+Returned to `10-backlog/` by [[BPR-0358]]. A Windows host now exists, so the
+lane rule that put this card in `50-blocked/` no longer admits it.
+
+Neither remaining criterion is discharged by that. The Windows boundary
+criterion is now a dependency rather than a platform blocker: [[BPR-0347]] built
+the AppContainer boundary target-native on this host and [[BPR-0350]] owns the
+temporary-root defect still keeping the suite 24 tests short, and this card
+records that criterion satisfied only when the same descendant and application
+matrix passes there. The designated-live criterion is unchanged and still waits
+on the product owner's separately authorized session authority.
