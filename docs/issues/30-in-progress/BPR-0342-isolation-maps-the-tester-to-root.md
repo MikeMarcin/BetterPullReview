@@ -1,7 +1,7 @@
 ---
 id: BPR-0342
 title: Stop the Linux test isolation presenting every test as root
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: []
 ---
