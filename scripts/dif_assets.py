@@ -9,13 +9,11 @@ import json
 import math
 import struct
 import sys
+import tempfile
 import zlib
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -1099,7 +1097,7 @@ def validate_assets(root: Path) -> None:
 
 def verify_assets(root: Path) -> None:
     validate_assets(root)
-    with contained_temporary_directory(prefix="bpr-dif-assets-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="bpr-dif-assets-") as temporary:
         first = Path(temporary) / "first"
         second = Path(temporary) / "second"
         products = generated_products(root)

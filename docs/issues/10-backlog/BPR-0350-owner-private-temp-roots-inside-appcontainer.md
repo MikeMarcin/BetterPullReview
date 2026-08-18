@@ -154,3 +154,27 @@ card:
 This card stays in `10-backlog/` behind [[BPR-0360]], because its own third
 criterion is a statement about the four SQLite tests and that statement cannot
 be made true here.
+
+## One conversion was reverted — the dif tool may not import it
+
+`scripts/dif_assets.py` was converted with the rest and then reverted.
+`scripts/verify_dif_asset_boundaries.py` holds `ALLOWED_TOOL_IMPORTS`, a closed
+stdlib-only set, and rejects anything else with `Dif asset tool imports
+unapproved capability`. Importing the shared helper tripped it, and
+`dif_assets_contract` began failing on that instead of on the defect it already
+had.
+
+Adding `scripts` to the allowlist would have made the check pass and would have
+been the wrong fix: the entry is a per-module capability boundary, and widening
+it to the package would let that tool import anything in the repository. The
+boundary is right; the conversion was the intruder.
+
+Making the tool container-safe within its own boundary is not a one-line change.
+`os`, `shutil`, `secrets`, and `contextlib` are all outside the allowed set, so
+it cannot use the helper's technique inline either. That needs its own decision
+about which capability, if any, the dif tool is allowed to gain, and it is
+recorded here rather than forced now. `dif_assets_contract` fails on this card's
+original defect meanwhile, which is where it started.
+
+`scripts/build_recorded_pull_request_pack.py` has no such boundary and keeps the
+conversion.
