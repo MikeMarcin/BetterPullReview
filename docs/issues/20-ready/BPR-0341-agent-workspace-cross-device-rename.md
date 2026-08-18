@@ -16,10 +16,11 @@ are on the root filesystem.
 
 ## Reproduction
 
-`application_agent_invocation_composition_contract` and
-`application_epoch_maintenance_public_path` both fail with the build-tree root
-they are registered with. The 2x2 is exact and does not involve the test
-sandbox, which was ruled out by running the same binary with and without it:
+`application_agent_invocation_composition_contract` fails with the build-tree
+root it is registered with, three runs out of three, and passes three out of
+three when `TMPDIR` is moved onto the build filesystem. The 2x2 below is from
+direct binary runs and does not involve the test sandbox, which was ruled out
+by running the same binary with and without it:
 
 | workspace root | `TMPDIR` | same filesystem | result |
 |---|---|---|---|
@@ -31,10 +32,14 @@ sandbox, which was ruled out by running the same binary with and without it:
 ```sh
 TMPDIR=/some/path/on/the/build/filesystem \
   ctest --test-dir build/dev \
-  -R '^(application_agent_invocation_composition_contract|application_epoch_maintenance_public_path)$'
+  -R '^application_agent_invocation_composition_contract$'
 ```
 
-Both pass with that variable set and fail without it. Nothing else changes.
+It passes with that variable set and fails without it. Nothing else changes.
+
+`application_epoch_maintenance_public_path` was briefly attributed here and is
+not: it alternates pass and fail across consecutive runs whatever `TMPDIR` is,
+which is a different defect. BPR-0345 carries it.
 
 ## Why no other platform shows it
 
@@ -51,7 +56,7 @@ APFS volume, so the boundary never exists there and the call always succeeds.
 - The failure is currently reported as `failed_to_start` with no cause. The
   typed outcome should distinguish a workspace that could not be published
   from an executable that could not be launched.
-- Both contracts pass with a build-tree root and an unmodified `TMPDIR` on a
+- The contract passes with a build-tree root and an unmodified `TMPDIR` on a
   stock Ubuntu 26.04 host.
 - The macOS behavior is unchanged, and a regression test covers the crossing
   rather than relying on the host's mount layout.
