@@ -3,7 +3,7 @@ id: BPR-0262
 title: Authenticate supervisor launch and retain capsule identity
 status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0350, BPR-0351, BPR-0352, BPR-0353, BPR-0354]
+depends_on: [BPR-0357, BPR-0351, BPR-0352, BPR-0353, BPR-0354]
 ---
 
 # Authenticate supervisor launch and retain capsule identity
@@ -124,7 +124,7 @@ only how much. Split so each piece can land with its own evidence:
 
 | Card | Fact | What it owns |
 |---|---|---|
-| [[BPR-0350]] | 3, 4 mechanism | Prove the SERVICE_SLOT handshake exists and works before anything is built on it |
+| [[BPR-0357]] | 3, 4 mechanism | Prove the SERVICE_SLOT handshake exists and works before anything is built on it |
 | [[BPR-0351]] | 4 | Establish provenance before `QApplication` and public observation |
 | [[BPR-0352]] | 5 | Bind supervisor and inventory identity into the approval subject |
 | [[BPR-0353]] | 1 | Mount the capsule from a digest-bound read-only image |
@@ -178,7 +178,7 @@ the real handshake gets for free by holding the child suspended. A future
 implementer reading `ESRCH` as "audit tokens do not work under ad-hoc signing"
 would draw exactly the wrong conclusion.
 
-The probe was not checked in as-is. [[BPR-0350]] turns it into a contract with
+The probe was not checked in as-is. [[BPR-0357]] turns it into a contract with
 its fail-closed halves.
 
 ## Survey corrections — 2026-08-17

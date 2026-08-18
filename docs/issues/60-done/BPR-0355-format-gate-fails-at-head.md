@@ -1,5 +1,5 @@
 ---
-id: BPR-0348
+id: BPR-0355
 title: Repair the format gate that fails at HEAD
 status: Done
 rfc: RFC-BPR-0011

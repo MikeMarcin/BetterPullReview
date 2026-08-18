@@ -349,7 +349,7 @@ if(APPLE)
     )
 endif()
 
-# BPR-0350. The Mach mechanism BPR-0262 fact_3 and fact_4 rest on exists nowhere
+# BPR-0357. The Mach mechanism BPR-0262 fact_3 and fact_4 rest on exists nowhere
 # else in the tree, so it is proven on its own before anything is built on it.
 # The target links no product library: this is a platform contract, not a
 # composition one, and it must stay outside src/app so no pinned digest moves.

@@ -119,11 +119,11 @@ repair reverted the canary passes three times out of three, because every switch
 carrying an exact cause either outruns a pipe buffer or waits on parent input,
 so the child is still running when the parent drains and the loop returns before
 `finish` is reached. A repair with no failing-if-wrong evidence does not belong
-in a card whose whole subject is unproven assertions. Tracked as [[BPR-0349]].
+in a card whose whole subject is unproven assertions. Tracked as [[BPR-0356]].
 
 `coding-format-check` also fails at HEAD on a file this card did not touch,
 committed by `82c7d1c` under [[BPR-0340]]. Left alone rather than swept into an
-unrelated slice; tracked as [[BPR-0348]].
+unrelated slice; tracked as [[BPR-0355]].
 
 ### What this does not close
 

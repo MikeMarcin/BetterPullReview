@@ -3,7 +3,7 @@ id: BPR-0353
 title: Mount the capsule from a digest-bound read-only image
 status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0350]
+depends_on: [BPR-0357]
 ---
 
 # Mount the capsule from a digest-bound read-only image

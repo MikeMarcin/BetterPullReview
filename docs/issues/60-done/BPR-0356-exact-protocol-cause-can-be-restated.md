@@ -1,5 +1,5 @@
 ---
-id: BPR-0349
+id: BPR-0356
 title: Stop the trailing decode restating an exact protocol cause as the generic one
 status: Done
 rfc: RFC-BPR-0011
