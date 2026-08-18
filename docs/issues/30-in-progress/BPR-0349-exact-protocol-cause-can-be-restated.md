@@ -1,7 +1,7 @@
 ---
 id: BPR-0349
 title: Stop the trailing decode restating an exact protocol cause as the generic one
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0011
 depends_on: []
 ---
