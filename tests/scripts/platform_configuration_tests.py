@@ -40,10 +40,13 @@ class PlatformConfigurationTests(unittest.TestCase):
         resolved["cacheVariables"] = cache
         return resolved
 
-    def test_windows_preset_selects_visual_studio_2022_x64(self) -> None:
+    def test_windows_preset_selects_visual_studio_2026_x64(self) -> None:
         windows = self.resolved_configure_preset("windows-dev")
 
-        self.assertEqual(windows["generator"], "Visual Studio 17 2022")
+        # BPR-0336 retargeted this preset from the uninstalled Visual Studio 17
+        # 2022 generator when a real Windows host first became available. The
+        # pin stays exact so that a further retarget has to be deliberate.
+        self.assertEqual(windows["generator"], "Visual Studio 18 2026")
         self.assertEqual(windows["architecture"], "x64")
         self.assertEqual(windows["cacheVariables"]["BPR_BUILD_QT"], "ON")
         self.assertEqual(windows["cacheVariables"]["BUILD_TESTING"], "ON")
