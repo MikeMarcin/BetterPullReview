@@ -8206,7 +8206,7 @@ namespace bpr::app {
 				  static_cast<qint64>(aValue.Pixels.DominantPixels) },
 				{ QStringLiteral("contrast_floor_hundredths"), 300 },
 				{ QStringLiteral("median_contrast_hundredths"),
-				  aValue.Pixels.MedianContrastHundredths },
+				  static_cast<qint64>(aValue.Pixels.MedianContrastHundredths) },
 				{ QStringLiteral("bounds"), rectangle_json(aValue.Bounds) },
 				{ QStringLiteral("start"), point_json(aValue.Start) },
 				{ QStringLiteral("end"), point_json(aValue.End) },
