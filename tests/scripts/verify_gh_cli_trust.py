@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
 import argparse
 from dataclasses import dataclass
 import hashlib
@@ -20,6 +21,9 @@ import threading
 import time
 from typing import Callable
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory, make_contained_temporary_directory  # noqa: E402
 
 PROCESS_TIMEOUT_SECONDS = 10
 MAXIMUM_VERSION_OUTPUT_BYTES = 4 * 1024
@@ -818,7 +822,7 @@ def main() -> int:
             raise ProbeFailure("openssl is required for the loopback TLS fixture")
         openssl = Path(arguments.openssl).resolve(strict=True)
 
-        with tempfile.TemporaryDirectory(prefix="bpr0025-gh-trust-") as raw:
+        with contained_temporary_directory(prefix="bpr0025-gh-trust-") as raw:
             directory = Path(raw)
             directory.chmod(0o700)
             if has_repository_ancestor(directory.resolve(strict=True)):
@@ -843,9 +847,9 @@ def main() -> int:
                 raise ProbeFailure("the selected gh version changed")
             disposable_token = "BPR0025_" + secrets.token_urlsafe(48)
             unix_socket_directory = Path(
-                tempfile.mkdtemp(
+                make_contained_temporary_directory(
                     prefix="bpr-gh-socket-",
-                    dir=short_unix_socket_root(),
+                    parent=short_unix_socket_root(),
                 )
             )
             unix_socket_path = unix_socket_directory / "u"

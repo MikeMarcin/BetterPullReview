@@ -3,15 +3,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import errno
 import os
 import pathlib
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 MACOS_BACKEND = "macos-sandbox-exec"
 LINUX_BACKEND = "linux-network-namespace"
@@ -248,9 +251,9 @@ def one_loopback(
 def unix_loopback() -> bool:
     configured_root = os.environ.get("BPR_TEST_SOCKET_ROOT")
     context = (
-        tempfile.TemporaryDirectory(dir=configured_root)
+        contained_temporary_directory(dir=configured_root)
         if configured_root
-        else tempfile.TemporaryDirectory()
+        else contained_temporary_directory()
     )
     with context as directory:
         path = pathlib.Path(directory) / "fixture.sock"

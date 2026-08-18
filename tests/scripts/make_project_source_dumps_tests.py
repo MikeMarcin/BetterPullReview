@@ -6,10 +6,12 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import ContainedTemporaryDirectory  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "make_project_source_dumps.py"
@@ -23,7 +25,7 @@ SPEC.loader.exec_module(MODULE)
 
 class ProjectSourceDumpTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
+        self.temporary = ContainedTemporaryDirectory()
         self.root = Path(self.temporary.name).resolve()
         self.write("README.md", "# Fixture\n")
         self.write("AGENTS.md", "# Instructions\n")

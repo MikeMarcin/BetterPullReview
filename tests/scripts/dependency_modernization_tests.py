@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
 import argparse
 import json
 import os
 import re
 import shutil
 import subprocess
-import tempfile
 import unittest
 from pathlib import Path
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 BUILD_DIR: Path
@@ -79,7 +82,7 @@ class DependencyModernizationTests(unittest.TestCase):
                 self.assertEqual(preset.get("inherits"), "_test-common")
 
     def test_obsolete_option_fails_with_migration_diagnostic(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             result = self.configure(
                 temporary_directory,
                 "-DBPR_BUILD_TESTS=OFF",
@@ -123,7 +126,7 @@ class DependencyModernizationTests(unittest.TestCase):
             self.assertNotIn("pkg_check_modules(", contents, str(path))
 
     def test_predeclared_dependency_target_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             temporary = Path(temporary_directory)
             source = temporary / "source"
             source.mkdir()
@@ -161,7 +164,7 @@ class DependencyModernizationTests(unittest.TestCase):
         )
 
     def test_standard_tool_discovery_ignores_config_preference(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             temporary = Path(temporary_directory)
             source = temporary / "source"
             package = temporary / "fake package"
@@ -215,7 +218,7 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertFalse(marker.exists())
 
     def test_provider_owned_package_redirect_is_rejected_unexecuted(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             temporary = Path(temporary_directory)
             source = temporary / "source"
             source.mkdir()
@@ -257,7 +260,7 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertFalse(marker.exists())
 
     def test_top_level_dependency_provider_is_rejected_unexecuted(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             temporary = Path(temporary_directory)
             marker = temporary / "dependency-provider-executed"
             provider = temporary / "dependency-provider.cmake"
@@ -279,7 +282,7 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertFalse(marker.exists())
 
     def test_repository_modules_ignore_caller_module_path(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             temporary = Path(temporary_directory)
             fake_modules = temporary / "fake modules"
             fake_modules.mkdir()
@@ -329,7 +332,7 @@ class DependencyModernizationTests(unittest.TestCase):
             )
 
     def test_tests_disabled_core_graph_omits_test_and_qt_dependencies(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             configured = self.configure(
                 temporary_directory,
                 "-DBPR_BUILD_QT=OFF",
@@ -348,7 +351,7 @@ class DependencyModernizationTests(unittest.TestCase):
                 self.assertNotIn(dependency, audit)
 
     def test_qt_is_package_only_and_never_fetched(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             configured = self.configure(
                 temporary_directory,
                 "-DBPR_BUILD_QT=ON",
@@ -390,7 +393,7 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertTrue((CPM_SOURCE_CACHE / "bprsqlite").is_dir())
         for copy_sqlite, expected_success in ((True, True), (False, False)):
             with self.subTest(copy_sqlite=copy_sqlite):
-                with tempfile.TemporaryDirectory() as temporary_directory:
+                with contained_temporary_directory() as temporary_directory:
                     temporary = Path(temporary_directory)
                     cache = temporary / "offline cache"
                     shutil.copytree(CPM_SOURCE_CACHE / "cpm", cache / "cpm")
@@ -424,7 +427,7 @@ class DependencyModernizationTests(unittest.TestCase):
                         self.assertIn("SQLite 3.53.4", diagnostic)
 
     def test_sqlite_staging_excludes_unverified_cache_headers(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             temporary = Path(temporary_directory)
             cache = temporary / "poisoned cache"
             shutil.copytree(CPM_SOURCE_CACHE / "cpm", cache / "cpm")
@@ -492,7 +495,7 @@ class DependencyModernizationTests(unittest.TestCase):
             self.assertNotIn(str(cache / "bprsqlite"), command)
 
     def test_sqlite_staging_rejects_unexpected_generated_entries(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             configured = self.configure(
                 temporary_directory,
                 "-DBPR_BUILD_QT=OFF",
@@ -541,7 +544,7 @@ class DependencyModernizationTests(unittest.TestCase):
         )
         for filename, old, new, digest_variable, expected in cases:
             with self.subTest(filename=filename):
-                with tempfile.TemporaryDirectory() as temporary_directory:
+                with contained_temporary_directory() as temporary_directory:
                     source = Path(temporary_directory) / "sqlite"
                     source.mkdir()
                     for sqlite_file in ("sqlite3.c", "sqlite3.h"):
@@ -578,7 +581,7 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertIn("GUARD FUNCTION", bootstrap)
 
     def test_sqlite_archive_hash_mismatch_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             temporary = Path(temporary_directory)
             corrupt_archive = temporary / "sqlite-amalgamation-3530400.zip"
             corrupt_archive.write_bytes(b"not the verified SQLite archive")
@@ -635,7 +638,7 @@ class DependencyModernizationTests(unittest.TestCase):
             )
 
     def test_sqlite_rejects_fetchcontent_source_override(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             configured = self.configure(
                 temporary_directory,
                 "-DBPR_BUILD_QT=OFF",
@@ -649,7 +652,7 @@ class DependencyModernizationTests(unittest.TestCase):
         )
 
     def test_sqlite_cpm_force_ignores_local_package_override(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             temporary = Path(temporary_directory)
             package = temporary / "fake local package"
             package.mkdir()

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import sys
-import tempfile
 import unittest
 from contextlib import redirect_stderr
 from io import StringIO
@@ -11,6 +10,8 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from scripts.contained_temporary_support import ContainedTemporaryDirectory  # noqa: E402
 
 from scripts.verify_documentation import (  # noqa: E402
     CLOSEOUT_COLUMNS,
@@ -23,7 +24,7 @@ from scripts.verify_documentation import (  # noqa: E402
 
 class IssueGraphTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
+        self.temporary = ContainedTemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.issue_root = self.root / "docs/issues"
         lanes = (
@@ -253,7 +254,7 @@ class IssueGraphTests(unittest.TestCase):
 
 class CloseoutContractTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
+        self.temporary = ContainedTemporaryDirectory()
         self.root = Path(self.temporary.name)
         for lane in ("10-backlog", "20-ready", "30-in-progress", "60-done"):
             (self.root / "docs/issues" / lane).mkdir(parents=True)

@@ -157,6 +157,69 @@ namespace bpr::tests::sqlite_contract {
 		return storage;
 	}
 
+	// An owner-only descriptor is unusable from inside an AppContainer: a lowbox
+	// token's access check additionally requires the object to grant the
+	// container's own package SID. Returns the package SID's bytes when this
+	// process is contained, and an empty vector when it is not, so that callers
+	// can distinguish "not contained" from "could not tell".
+	[[nodiscard]] inline auto current_appcontainer_sid_storage()
+		-> std::vector<std::byte>
+	{
+		HANDLE raw_token = nullptr;
+		if (::OpenProcessToken(::GetCurrentProcess(), TOKEN_QUERY, &raw_token) == 0) {
+			return { };
+		}
+		unique_handle token{ raw_token };
+		DWORD         contained = 0;
+		DWORD         returned  = 0;
+		if (::GetTokenInformation(
+				token.get(),
+				TokenIsAppContainer,
+				&contained,
+				sizeof(contained),
+				&returned)
+				== 0
+			|| contained == 0) {
+			return { };
+		}
+
+		DWORD required = 0;
+		(void)::GetTokenInformation(
+			token.get(), TokenAppContainerSid, nullptr, 0, &required);
+		if (required == 0 || ::GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+			return { };
+		}
+		auto information = std::vector<std::byte>(required);
+		if (::GetTokenInformation(
+				token.get(),
+				TokenAppContainerSid,
+				information.data(),
+				required,
+				&required)
+			== 0) {
+			return { };
+		}
+		const auto* container = reinterpret_cast<const TOKEN_APPCONTAINER_INFORMATION*>(
+			information.data());
+		if (container->TokenAppContainer == nullptr
+			|| ::IsValidSid(container->TokenAppContainer) == 0) {
+			return { };
+		}
+
+		// Copy the SID out rather than handing back a pointer into the token
+		// buffer, so the returned bytes stand on their own.
+		const auto length  = ::GetLengthSid(container->TokenAppContainer);
+		auto       storage = std::vector<std::byte>(length);
+		if (::CopySid(
+				length,
+				static_cast<PSID>(storage.data()),
+				container->TokenAppContainer)
+			== 0) {
+			return { };
+		}
+		return storage;
+	}
+
 	[[nodiscard]] inline auto set_test_dacl(
 		const std::filesystem::path& path,
 		const bool                   directory,
@@ -171,7 +234,13 @@ namespace bpr::tests::sqlite_contract {
 			return false;
 		}
 
-		auto entries                    = std::array<EXPLICIT_ACCESSW, 2U>{ };
+		// The container is not a second user. Granting its package SID keeps the
+		// object reachable by the only identity that is supposed to own it,
+		// which an owner-only descriptor otherwise locks out of its own
+		// directory.
+		auto container_storage = current_appcontainer_sid_storage();
+
+		auto entries                    = std::array<EXPLICIT_ACCESSW, 3U>{ };
 		entries[0].grfAccessPermissions = FILE_ALL_ACCESS;
 		entries[0].grfAccessMode        = SET_ACCESS;
 		entries[0].grfInheritance       = directory
@@ -181,9 +250,22 @@ namespace bpr::tests::sqlite_contract {
 		entries[0].Trustee.TrusteeType  = TRUSTEE_IS_USER;
 		entries[0].Trustee.ptstrName    = static_cast<LPWSTR>(token_user->User.Sid);
 
+		auto entry_count = ULONG{ 1 };
+		if (!container_storage.empty()) {
+			entries[entry_count].grfAccessPermissions = FILE_ALL_ACCESS;
+			entries[entry_count].grfAccessMode        = GRANT_ACCESS;
+			entries[entry_count].grfInheritance       = directory
+				? SUB_CONTAINERS_AND_OBJECTS_INHERIT
+				: NO_INHERITANCE;
+			entries[entry_count].Trustee.TrusteeForm  = TRUSTEE_IS_SID;
+			entries[entry_count].Trustee.TrusteeType  = TRUSTEE_IS_WELL_KNOWN_GROUP;
+			entries[entry_count].Trustee.ptstrName    = reinterpret_cast<LPWSTR>(
+				container_storage.data());
+			++entry_count;
+		}
+
 		auto  world_storage = std::array<std::byte, SECURITY_MAX_SID_SIZE>{ };
 		DWORD world_size    = static_cast<DWORD>(world_storage.size());
-		auto  entry_count   = ULONG{ 1 };
 		if (permissive) {
 			if (::CreateWellKnownSid(
 					WinWorldSid,
@@ -193,15 +275,16 @@ namespace bpr::tests::sqlite_contract {
 				== 0) {
 				return false;
 			}
-			entries[1].grfAccessPermissions = FILE_GENERIC_READ;
-			entries[1].grfAccessMode        = GRANT_ACCESS;
-			entries[1].grfInheritance       = directory
+			entries[entry_count].grfAccessPermissions = FILE_GENERIC_READ;
+			entries[entry_count].grfAccessMode        = GRANT_ACCESS;
+			entries[entry_count].grfInheritance       = directory
 				? SUB_CONTAINERS_AND_OBJECTS_INHERIT
 				: NO_INHERITANCE;
-			entries[1].Trustee.TrusteeForm  = TRUSTEE_IS_SID;
-			entries[1].Trustee.TrusteeType  = TRUSTEE_IS_WELL_KNOWN_GROUP;
-			entries[1].Trustee.ptstrName    = reinterpret_cast<LPWSTR>(world_storage.data());
-			entry_count                     = 2;
+			entries[entry_count].Trustee.TrusteeForm  = TRUSTEE_IS_SID;
+			entries[entry_count].Trustee.TrusteeType  = TRUSTEE_IS_WELL_KNOWN_GROUP;
+			entries[entry_count].Trustee.ptstrName    = reinterpret_cast<LPWSTR>(
+				world_storage.data());
+			++entry_count;
 		}
 
 		PACL acl = nullptr;
@@ -255,6 +338,12 @@ namespace bpr::tests::sqlite_contract {
 		if (user_storage.empty()) {
 			return false;
 		}
+		auto container_storage = current_appcontainer_sid_storage();
+		// Inside a container the owner-private descriptor carries exactly one
+		// extra entry, for the package SID that the restricted access check
+		// requires. Anything beyond that pair is not owner-private.
+		const auto expected_ace_count
+			= static_cast<ULONG>(container_storage.empty() ? 1 : 2);
 		const auto*          token_user = reinterpret_cast<const TOKEN_USER*>(user_storage.data());
 		auto                 native     = path.native();
 		PSID                 owner      = nullptr;
@@ -291,28 +380,51 @@ namespace bpr::tests::sqlite_contract {
 				   sizeof(information),
 				   AclSizeInformation)
 				!= 0
-			&& information.AceCount == 1;
+			&& information.AceCount == expected_ace_count;
 		if (!descriptor_valid) {
 			(void)::LocalFree(descriptor);
 			return false;
 		}
 
-		void*      raw_ace        = nullptr;
 		const auto expected_flags = static_cast<BYTE>(
 			directory ? OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE : 0);
-		const auto ace_valid = ::GetAce(dacl, 0, &raw_ace) != 0
-			&& raw_ace != nullptr
-			&& static_cast<ACE_HEADER*>(raw_ace)->AceType
-				== ACCESS_ALLOWED_ACE_TYPE
-			&& static_cast<ACE_HEADER*>(raw_ace)->AceFlags == expected_flags
-			&& static_cast<ACCESS_ALLOWED_ACE*>(raw_ace)->Mask
-				== FILE_ALL_ACCESS
-			&& ::EqualSid(
-				   &static_cast<ACCESS_ALLOWED_ACE*>(raw_ace)->SidStart,
-				   token_user->User.Sid)
-				!= 0;
+		// Require each expected trustee exactly once, without depending on the
+		// order SetEntriesInAclW happened to emit them in.
+		auto user_grants      = 0;
+		auto container_grants = 0;
+		auto every_ace_valid  = true;
+		for (auto index = ULONG{ 0 }; index < expected_ace_count; ++index) {
+			void* raw_ace = nullptr;
+			if (::GetAce(dacl, index, &raw_ace) == 0 || raw_ace == nullptr) {
+				every_ace_valid = false;
+				break;
+			}
+			auto* header  = static_cast<ACE_HEADER*>(raw_ace);
+			auto* allowed = static_cast<ACCESS_ALLOWED_ACE*>(raw_ace);
+			if (header->AceType != ACCESS_ALLOWED_ACE_TYPE
+				|| header->AceFlags != expected_flags
+				|| allowed->Mask != FILE_ALL_ACCESS) {
+				every_ace_valid = false;
+				break;
+			}
+			auto* granted = static_cast<PSID>(&allowed->SidStart);
+			if (::EqualSid(granted, token_user->User.Sid) != 0) {
+				++user_grants;
+			} else if (
+				!container_storage.empty()
+				&& ::EqualSid(
+					   granted,
+					   static_cast<PSID>(container_storage.data()))
+					!= 0) {
+				++container_grants;
+			} else {
+				every_ace_valid = false;
+				break;
+			}
+		}
 		(void)::LocalFree(descriptor);
-		return ace_valid;
+		return every_ace_valid && user_grants == 1
+			&& container_grants == (container_storage.empty() ? 0 : 1);
 	}
 
 	struct file_identity

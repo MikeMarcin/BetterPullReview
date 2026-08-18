@@ -14,11 +14,13 @@ import ssl
 import struct
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from typing import BinaryIO
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 AUTHORITY = "ghe.bpr.invalid:443"
 HOST = "ghe.bpr.invalid"
@@ -1422,7 +1424,7 @@ def main() -> int:
         executable = executable_path(arguments.executable, None)
         openssl_fallback = shutil.which("openssl")
         openssl = executable_path(arguments.openssl, openssl_fallback)
-        with tempfile.TemporaryDirectory(
+        with contained_temporary_directory(
             prefix="bpr0026-native-https-"
         ) as temporary:
             directory = Path(temporary)

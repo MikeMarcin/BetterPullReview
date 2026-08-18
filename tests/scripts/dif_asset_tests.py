@@ -9,11 +9,13 @@ import shlex
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 from types import ModuleType
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import ContainedTemporaryDirectory, contained_temporary_directory  # noqa: E402
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPOSITORY_ROOT / "scripts/dif_assets.py"
@@ -66,7 +68,7 @@ def cxx_command() -> list[str]:
 
 
 def compile_catalog(catalog: Path) -> subprocess.CompletedProcess[str]:
-    with tempfile.TemporaryDirectory(prefix="bpr-dif-catalog-") as directory:
+    with contained_temporary_directory(prefix="bpr-dif-catalog-") as directory:
         root = Path(directory)
         shutil.copy2(catalog, root / "dif-sprite-catalog.hpp")
         consumer = root / "catalog-consumer.cpp"
@@ -370,7 +372,7 @@ def make_selected_build(root: Path, profile: str) -> Path:
 class DifAssetTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.base_temporary = tempfile.TemporaryDirectory(prefix="bpr-dif-base-")
+        cls.base_temporary = ContainedTemporaryDirectory(prefix="bpr-dif-base-")
         cls.base_root = Path(cls.base_temporary.name) / "dif"
         make_pack(cls.base_root)
 
@@ -379,7 +381,7 @@ class DifAssetTests(unittest.TestCase):
         cls.base_temporary.cleanup()
 
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(prefix="bpr-dif-test-")
+        self.temporary = ContainedTemporaryDirectory(prefix="bpr-dif-test-")
         self.root = Path(self.temporary.name) / "dif"
         shutil.copytree(self.base_root, self.root)
 
@@ -388,7 +390,7 @@ class DifAssetTests(unittest.TestCase):
 
     def test_valid_pack_reproduces_every_generated_byte(self) -> None:
         DIF.verify_assets(self.root)
-        with tempfile.TemporaryDirectory(prefix="bpr-dif-generate-") as directory:
+        with contained_temporary_directory(prefix="bpr-dif-generate-") as directory:
             first = Path(directory) / "first"
             second = Path(directory) / "second"
             DIF._write_products(DIF.generated_products(self.root), first)
@@ -399,7 +401,7 @@ class DifAssetTests(unittest.TestCase):
             )
 
     def test_cli_validate_generate_verify_and_preview(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="bpr-dif-cli-") as directory:
+        with contained_temporary_directory(prefix="bpr-dif-cli-") as directory:
             output = Path(directory) / "generated"
             preview = Path(directory) / "preview"
             commands = (

@@ -3,15 +3,57 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import os
+import secrets
+import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 
 VALIDATOR = Path(__file__).with_name("validate_operator_packet.py")
+
+
+@contextlib.contextmanager
+def temporary_directory() -> Iterator[str]:
+    """A scratch directory this process can still use once it is contained.
+
+    `tempfile.mkdtemp` calls `os.mkdir(path, 0o700)`, which modern CPython turns
+    on Windows into a protected descriptor naming only SYSTEM, Administrators,
+    and OWNER RIGHTS. A process inside an AppContainer additionally needs the
+    container's package SID in the DACL, so it is denied the directory it just
+    created. Creating with no explicit mode inherits the parent's entries, which
+    already include the container's own grant.
+
+    The repository has a shared `scripts/contained_temporary_support.py` that
+    does this. This skill deliberately does not import it: a skill pack resolves
+    paths only within its own directory, so reaching into the surrounding
+    repository would make the pack non-portable.
+    """
+    base = Path(tempfile.gettempdir())
+    if os.name != "nt":
+        with tempfile.TemporaryDirectory() as directory:
+            yield directory
+        return
+    for _ in range(64):
+        candidate = base / f"bpr-operator-{secrets.token_hex(8)}"
+        try:
+            os.mkdir(candidate)
+        except FileExistsError:
+            continue
+        try:
+            yield str(candidate)
+        finally:
+            shutil.rmtree(candidate, ignore_errors=True)
+        return
+    raise FileExistsError(f"no unused temporary name under {base}")
+
+
 GATE = "synthetic-gate-v001"
 RECORD = Path(GATE) / "validation-record.json"
 FAILURES: list[str] = []
@@ -388,7 +430,7 @@ def main() -> int:
         test_validation_record_must_be_adjacent,
     )
     for test in tests:
-        with tempfile.TemporaryDirectory() as directory:
+        with temporary_directory() as directory:
             test(Path(directory) / test.__name__)
     if FAILURES:
         for failure in FAILURES:

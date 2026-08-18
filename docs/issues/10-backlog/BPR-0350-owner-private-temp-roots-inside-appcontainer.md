@@ -3,7 +3,7 @@ id: BPR-0350
 title: Owner-private temporary roots are unusable inside an AppContainer
 status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0347]
+depends_on: [BPR-0347, BPR-0360]
 ---
 
 # Owner-private temporary roots are unusable inside an AppContainer
@@ -71,3 +71,82 @@ entry for the same reason.
 The other seven Windows failures [[BPR-0347]] records: the binary symbol
 inspector reading no symbols in `live_mutation_isolation`, and the six
 undiagnosed ones. They have different causes and should not be folded in here.
+
+## Both halves implemented and directly verified — 2026-08-18
+
+### CPython's temporary directories
+
+`scripts/contained_temporary_support.py` is the shared helper this card asked
+for. On Windows it creates the directory with no explicit mode, so it inherits
+the parent's entries — including the container's own `(I)(OI)(CI)(M)` grant. On
+POSIX it delegates to `tempfile` untouched, so the `0o700` protection is exactly
+what it was. It exports a context manager, a held-object form with `name` and
+`cleanup()`, and a `Path`-returning form, so every existing call shape had a
+drop-in.
+
+Twenty-two files under `tests/` and two under `scripts/` now use it, across 112
+call sites. `scripts/run_network_isolated_test.py` was deliberately left alone:
+it is the POSIX runner, it builds a `sandbox-exec` profile under `/tmp`, and it
+never executes on Windows. `.agents/skills/bpr-attended-review/scripts/test_validate_operator_packet.py`
+got a small self-contained equivalent rather than an import, because a skill pack
+resolves paths only inside its own directory and reaching into the repository
+would make it non-portable.
+
+Proven inside the launcher, with the negative control that makes it evidence:
+
+| | inside (`TokenIsAppContainer=1`) | outside (`0`) |
+|---|---|---|
+| `tempfile.mkdtemp()` | `PermissionError` | usable |
+| `make_contained_temporary_directory()` | usable | usable |
+| `contained_temporary_directory()` | usable, cleaned up | usable, cleaned up |
+
+`core_boundary_contract` runs and passes under the launcher, having previously
+failed with `PermissionError: [WinError 5]` on the directory it had just made.
+
+### The suite's own DACL helper
+
+`tests/sqlite_contract/platform_test_support.hpp` gained
+`current_appcontainer_sid_storage`, which reads `TokenIsAppContainer` and then
+copies the SID out of `TokenAppContainerSid`. `set_test_dacl` grants that SID
+`FILE_ALL_ACCESS` with the user entry's inheritance, and only when the process is
+actually contained. `is_owner_private` expects one ACE outside a container and
+exactly two inside it, and now checks the entries as a set so it does not depend
+on the order `SetEntriesInAclW` emits. World read still appears only in
+permissive mode; no group and no `ALL APPLICATION PACKAGES` grant was
+introduced.
+
+The four SQLite tests stopped failing at `temporary root becomes owner-private`,
+which is what this half owed.
+
+## What this did not finish, and why
+
+The suite went from 24 failures to 16. Eight tests moved to passing:
+`core_boundary_contract`, `documentation_issue_graph_contract`,
+`github_recorded_fixture_contract`, `attended_review_verdict_contract`,
+`project_source_dump_contract`, `live_mutation_isolation_contract`, plus
+`architecture_boundaries` and `application_icon_assets_contract` from the
+sibling [[BPR-0359]].
+
+This card's third criterion — that the seventeen tests [[BPR-0347]] grouped
+together all pass — is **not** met, and the reason is that the grouping was
+wrong rather than that the fix is incomplete. Those tests shared a *symptom*,
+not a cause. With the temporary-directory cause removed, what was underneath it
+turned out to be four further independent defects, each now carrying its own
+card:
+
+- [[BPR-0360]] — the **product** builds the same protected owner-only descriptor
+  in `src/adapters/sqlite/src/catalog_database.cpp`, so the four SQLite tests
+  still fail. This card's diagnosis named only the test helper and missed it.
+  Measured with a negative control: that exact descriptor shape is denied inside
+  the container and writable outside it.
+- [[BPR-0362]] — `Path.resolve(strict=True)` cannot resolve any path whose
+  ancestors the container cannot read, which is every path. Two RFC-0016 tests
+  fail on it, and they only reached it because this card's fix let them get that
+  far.
+- [[BPR-0361]] — no symbol inspector reads an MSVC PE.
+- [[BPR-0363]] — the Windows preset contract names a Visual Studio the preset
+  does not use.
+
+This card stays in `10-backlog/` behind [[BPR-0360]], because its own third
+criterion is a statement about the four SQLite tests and that statement cannot
+be made true here.

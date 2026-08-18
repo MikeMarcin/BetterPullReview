@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import sys
 import argparse
 import base64
 import hashlib
@@ -11,8 +12,10 @@ import os
 from pathlib import Path
 import re
 import subprocess
-import tempfile
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 def fail(message: str) -> None:
     raise SystemExit(f"epoch-history-fixture: {message}")
@@ -177,7 +180,7 @@ def main() -> None:
     if packs["force_push"].get("contains_old_head") is not False:
         fail("replacement pack must declare old-head omission")
 
-    with tempfile.TemporaryDirectory(prefix="bpr-epoch-history-") as temporary:
+    with contained_temporary_directory(prefix="bpr-epoch-history-") as temporary:
         root = Path(temporary)
         initial = root / "initial.git"
         replacement = root / "replacement.git"

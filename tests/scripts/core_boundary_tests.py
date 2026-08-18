@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 import shutil
 import subprocess
-import tempfile
 import unittest
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 VERIFY_SCRIPT = REPOSITORY_ROOT / "cmake" / "VerifyCoreBoundary.cmake"
@@ -14,7 +17,7 @@ VERIFY_SCRIPT = REPOSITORY_ROOT / "cmake" / "VerifyCoreBoundary.cmake"
 
 class CoreBoundaryTests(unittest.TestCase):
     def run_check(self, source: str) -> subprocess.CompletedProcess[str]:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             root = Path(temporary_directory)
             core_source = root / "src/core/policy.cpp"
             core_source.parent.mkdir(parents=True)

@@ -3,15 +3,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+import sys
 import argparse
 import os
 import pathlib
 import socket
 import ssl
 import subprocess
-import tempfile
 import threading
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 HOST = "api.github.com"
 PATH = "/repos/MikeMarcin/BPR-Test/pulls/1"
@@ -196,7 +200,7 @@ def main() -> int:
     arguments = parser.parse_args()
     executable = arguments.executable.resolve(strict=True)
     openssl = arguments.openssl.resolve(strict=True)
-    with tempfile.TemporaryDirectory() as directory_text:
+    with contained_temporary_directory() as directory_text:
         directory = pathlib.Path(directory_text)
         cancelled = subprocess.run(
             [str(executable), "--cancelled"],

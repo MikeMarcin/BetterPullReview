@@ -3,11 +3,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+import sys
 import argparse
 import pathlib
 import subprocess
-import tempfile
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 def run(executable: pathlib.Path, phase: str, root: pathlib.Path) -> str:
     completed = subprocess.run(
@@ -29,7 +33,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--executable", required=True, type=pathlib.Path)
     arguments = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix="bpr-review-mutation-restart-") as raw:
+    with contained_temporary_directory(prefix="bpr-review-mutation-restart-") as raw:
         root = pathlib.Path(raw)
         first = run(arguments.executable, "--write-unresolved", root)
         second = run(arguments.executable, "--recover-unresolved", root)

@@ -28,8 +28,10 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 # Fixed identity and timestamps. A pack whose object identifiers changed every
 # time it was regenerated could not be pinned by a test, and "the fixture
@@ -118,7 +120,7 @@ def main() -> int:
     recording = json.loads(Path(sys.argv[1]).read_text())
     output = Path(sys.argv[2])
 
-    with tempfile.TemporaryDirectory() as repository:
+    with contained_temporary_directory() as repository:
         base, head = build(recording, repository)
         failures = verify(recording, repository, base, head)
         if failures:

@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 import shutil
 import subprocess
-import tempfile
 import unittest
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 VERIFY_SCRIPT = REPOSITORY_ROOT / "cmake" / "VerifyArchitectureBoundaries.cmake"
@@ -1293,7 +1296,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         omit_process_runner: bool = False,
         omit_cli_transport: bool = False,
     ) -> subprocess.CompletedProcess[str]:
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             root = Path(temporary_directory)
             files = {
                 "CMakeLists.txt": "",

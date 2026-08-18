@@ -8,12 +8,14 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 import unittest
 from collections.abc import Callable
 from pathlib import Path
 from unittest import mock
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 TOOL_PATH = REPOSITORY_ROOT / "scripts" / "capture_rfc0016_device_contracts.py"
@@ -767,7 +769,7 @@ class CaptureContractTests(unittest.TestCase):
         )
 
     def test_synthetic_complete_tree_cannot_claim_real_and_is_not_modified(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             root = Path(temporary)
             write_synthetic_complete_root(root)
             before = {
@@ -789,7 +791,7 @@ class CaptureContractTests(unittest.TestCase):
         artifacts = contract_artifacts("unattested_capture")
         manifest = CAPTURE.build_manifest(list(artifacts.items()))
         self.assertEqual(manifest["state"], "unattested_capture")
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             root = Path(temporary)
             for relative, payload in artifacts.items():
                 path = root / relative
@@ -810,7 +812,7 @@ class CaptureContractTests(unittest.TestCase):
             )
 
     def test_exact_attended_review_admits_unattested_capture_via_cli(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             repository_root = Path(temporary).resolve()
             fixture_root, course_root, review = build_attestation_review(
                 repository_root
@@ -897,7 +899,7 @@ class CaptureContractTests(unittest.TestCase):
             ),
         )
         for name, artifact, mutate in mutations:
-            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+            with self.subTest(name=name), contained_temporary_directory() as temporary:
                 repository_root = Path(temporary).resolve()
                 fixture_root, course_root, review = build_attestation_review(
                     repository_root
@@ -941,7 +943,7 @@ class CaptureContractTests(unittest.TestCase):
         for mutation in mutations:
             with (
                 self.subTest(mutation=mutation),
-                tempfile.TemporaryDirectory() as temporary,
+                contained_temporary_directory() as temporary,
             ):
                 repository_root = Path(temporary).resolve()
                 fixture_root, course_root, review = build_attestation_review(
@@ -1024,7 +1026,7 @@ class CaptureContractTests(unittest.TestCase):
         for mutation in mutations:
             with (
                 self.subTest(mutation=mutation),
-                tempfile.TemporaryDirectory() as temporary,
+                contained_temporary_directory() as temporary,
             ):
                 repository_root = Path(temporary).resolve()
                 fixture_root, course_root, review = build_attestation_review(
@@ -1095,7 +1097,7 @@ class CaptureContractTests(unittest.TestCase):
         for mutation in mutations:
             with (
                 self.subTest(mutation=mutation),
-                tempfile.TemporaryDirectory() as temporary,
+                contained_temporary_directory() as temporary,
             ):
                 repository_root = Path(temporary).resolve()
                 fixture_root, course_root, review = build_attestation_review(
@@ -1152,7 +1154,7 @@ class CaptureContractTests(unittest.TestCase):
                     )
 
     def test_course_evidence_rejects_changed_final_assembly_source(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             repository_root = Path(temporary).resolve()
             fixture_root, course_root, review = build_attestation_review(
                 repository_root
@@ -1197,7 +1199,7 @@ class CaptureContractTests(unittest.TestCase):
             document["projection"]["values"]["interval"] = 6
             courses["slow-down"][relative] = CAPTURE.canonical_json(document)
 
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             repository_root = Path(temporary).resolve()
             fixture_root, course_root, review = build_attestation_review(
                 repository_root,
@@ -1292,7 +1294,7 @@ class CaptureContractTests(unittest.TestCase):
         for mutation in mutations:
             with (
                 self.subTest(mutation=mutation),
-                tempfile.TemporaryDirectory() as temporary,
+                contained_temporary_directory() as temporary,
             ):
                 repository_root = Path(temporary).resolve()
                 fixture_root, course_root, review = build_attestation_review(
@@ -1377,7 +1379,7 @@ class CaptureContractTests(unittest.TestCase):
         for mutation in mutations:
             with (
                 self.subTest(mutation=mutation),
-                tempfile.TemporaryDirectory() as temporary,
+                contained_temporary_directory() as temporary,
             ):
                 repository_root = Path(temporary).resolve()
                 fixture_root, course_root, review = build_attestation_review(
@@ -1415,7 +1417,7 @@ class CaptureContractTests(unittest.TestCase):
                     )
 
     def test_attestation_and_validation_triples_require_exact_integer_types(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             repository_root = Path(temporary).resolve()
             fixture_root, course_root, review = build_attestation_review(
                 repository_root
@@ -1535,7 +1537,7 @@ class CaptureContractTests(unittest.TestCase):
         for name, mutate_evidence in cases:
             with (
                 self.subTest(name=name),
-                tempfile.TemporaryDirectory() as temporary,
+                contained_temporary_directory() as temporary,
             ):
                 repository_root = Path(temporary).resolve()
                 fixture_root, course_root, review = build_attestation_review(
@@ -1556,7 +1558,7 @@ class CaptureContractTests(unittest.TestCase):
                         )
                     )
 
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             pending_root = Path(temporary)
             pending = {
                 "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
@@ -1644,7 +1646,7 @@ class CaptureContractTests(unittest.TestCase):
             "schema_version": CAPTURE.SCHEMA_VERSION,
             "state": "complete_real_capture",
         }
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             root = Path(temporary)
             for relative, payload in artifacts.items():
                 path = root / relative
@@ -1661,7 +1663,7 @@ class CaptureContractTests(unittest.TestCase):
             )
 
     def test_exact_tree_schema_and_canonical_encoding_are_enforced(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             root = Path(temporary)
             write_synthetic_complete_root(root)
             (root / "unexpected.json").write_text("{}\n", encoding="utf-8")
@@ -1678,7 +1680,7 @@ class CaptureContractTests(unittest.TestCase):
             )
         )
 
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             root = Path(temporary)
             write_synthetic_complete_root(root)
             pending = root / "outcomes" / "authorization_pending.json"
@@ -1686,14 +1688,14 @@ class CaptureContractTests(unittest.TestCase):
             self.assert_rejected(lambda: CAPTURE.validate_fixture_root(root))
 
     def test_fixture_size_and_outside_root_link_are_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             root = Path(temporary)
             (root / "pending.json").write_bytes(
                 b"x" * (CAPTURE.MAX_JSON_BYTES + 1)
             )
             self.assert_rejected(lambda: CAPTURE.validate_fixture_root(root))
 
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             parent = Path(temporary)
             root = parent / "fixture"
             root.mkdir()
@@ -2004,7 +2006,7 @@ class CaptureContractTests(unittest.TestCase):
                 )
 
     def test_manifest_digest_mismatch_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             root = Path(temporary)
             write_synthetic_complete_root(root)
             artifacts = {
@@ -2333,7 +2335,7 @@ class CaptureContractTests(unittest.TestCase):
             "RFC0016_DEVICE_CAPTURE_VALID:pending_real_capture\n",
         )
 
-        with tempfile.TemporaryDirectory() as temporary:
+        with contained_temporary_directory() as temporary:
             root = Path(temporary)
             canary = "BPR_RUNTIME_REJECTED_CANARY_708d"
             (root / "pending.json").write_text(canary, encoding="utf-8")

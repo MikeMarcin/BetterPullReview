@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
 import argparse
 import base64
 from dataclasses import dataclass, field
@@ -11,10 +12,12 @@ import socket
 import ssl
 import struct
 import subprocess
-import tempfile
 import threading
 import time
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 GHES_HOST = "ghe.bpr.invalid"
 GITHUB_COM_HOST = "github.com"
@@ -602,7 +605,7 @@ def main() -> int:
     try:
         target = executable(arguments.executable)
         openssl = executable(arguments.openssl)
-        with tempfile.TemporaryDirectory(prefix="bpr0043-smart-") as value:
+        with contained_temporary_directory(prefix="bpr0043-smart-") as value:
             directory = Path(value)
             material = certificates(openssl, directory)
             port = configured_loopback_port()

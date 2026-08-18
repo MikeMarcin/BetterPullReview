@@ -4,12 +4,13 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 import unittest
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from scripts.contained_temporary_support import ContainedTemporaryDirectory  # noqa: E402
 
 from scripts import verify_composed_hosts as VERIFIER  # noqa: E402
 
@@ -108,7 +109,7 @@ def completed(
 
 class ComposedHostVerifierTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.TemporaryDirectory = tempfile.TemporaryDirectory()
+        self.TemporaryDirectory = ContainedTemporaryDirectory()
         self.Binary = Path(self.TemporaryDirectory.name) / "application"
         self.Binary.write_bytes(b"synthetic-binary")
 

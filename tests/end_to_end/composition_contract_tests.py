@@ -9,9 +9,11 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_SUFFIXES = frozenset({".c", ".cc", ".cpp", ".cxx", ".h", ".hpp"})
@@ -139,7 +141,7 @@ class CompositionContractTests(unittest.TestCase):
                 timeout=30,
             )
 
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             temporary_root = Path(temporary_directory)
             production_baseline = compile_source(
                 temporary_root,
@@ -448,7 +450,7 @@ class CompositionContractTests(unittest.TestCase):
             / "tests/end_to_end/application_review_round_trip_composition_contract.cmake"
         )
 
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             temporary_root = Path(temporary_directory)
             baseline_path = temporary_root / "baseline-github-application.cpp"
             baseline_path.write_text(source, encoding="utf-8")
@@ -640,7 +642,7 @@ class CompositionContractTests(unittest.TestCase):
         public_header = read("src/app/include/bpr/app/github_application.hpp")
         self.assertNotIn("BPR_BUILD_TESTING", public_header)
 
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             build_directory = Path(temporary_directory) / "release"
             command = [
                 ARGUMENTS.cmake,

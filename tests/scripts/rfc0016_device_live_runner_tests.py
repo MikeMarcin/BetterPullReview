@@ -7,11 +7,13 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 PATH = ROOT / "scripts" / "run_rfc0016_device_capture_attended.py"
@@ -485,7 +487,7 @@ class LiveRunnerTests(unittest.TestCase):
         self.assertEqual(wire.calls, [])
 
     def test_recovery_reservation_is_one_shot_before_wire_construction(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             parent = Path(directory).resolve()
             parent.chmod(0o700)
             registration = parent / "registration.json"
@@ -558,7 +560,7 @@ class LiveRunnerTests(unittest.TestCase):
             self.assertTrue(recovery_spent.is_file())
 
     def test_main_refuses_slow_down_without_recovery_authority_before_wire(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             parent = Path(directory).resolve()
             parent.chmod(0o700)
             registration = parent / "registration.json"
@@ -609,7 +611,7 @@ class LiveRunnerTests(unittest.TestCase):
         constructor.assert_not_called()
 
     def test_original_marker_cannot_be_reused_as_recovery_marker(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             parent = Path(directory).resolve()
             parent.chmod(0o700)
             records = slow_down_recovery_state_records()
@@ -648,7 +650,7 @@ class LiveRunnerTests(unittest.TestCase):
 
     def test_recovery_authority_is_exact_and_runner_bound_before_wire(self) -> None:
         for mutation in ("extra", "boolean-limit", "wrong-runner", "wrong-original"):
-            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+            with self.subTest(mutation=mutation), contained_temporary_directory() as directory:
                 parent = Path(directory).resolve()
                 parent.chmod(0o700)
                 registration = parent / "registration.json"
@@ -827,7 +829,7 @@ class LiveRunnerTests(unittest.TestCase):
 
     def test_cli_failure_output_contains_no_transient_value(self) -> None:
         stderr = io.StringIO()
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             registration = Path(directory) / "registration.json"
             registration.write_bytes(payload(registration_document()))
             with mock.patch.object(
@@ -904,7 +906,7 @@ class LiveRunnerTests(unittest.TestCase):
             RUNNER_SHA256,
             route_probes=LIVE._offline_module().expected_route_probes(),
         )
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory).resolve() / "course"
             LIVE.persist_sanitized_course(root, REGISTRATION, "token-success", evidence)
             durable = b"".join(path.read_bytes() for path in root.rglob("*.json"))
@@ -914,7 +916,7 @@ class LiveRunnerTests(unittest.TestCase):
             self.assertTrue(all(path.stat().st_mode & 0o077 == 0 for path in root.rglob("*.json")))
 
     def test_course_artifacts_use_execution_timestamp_not_registration_timestamp(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory).resolve() / "course"
             LIVE.persist_sanitized_course(
                 root,
@@ -940,7 +942,7 @@ class LiveRunnerTests(unittest.TestCase):
     def test_disabled_course_requires_exact_restored_transition(self) -> None:
         evidence = self._evidence_for("device-flow-disabled")
         evidence.device_flow_transition = None
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory).resolve() / "course"
             with self.assertRaisesRegex(
                 LIVE.LiveCaptureError,
@@ -960,7 +962,7 @@ class LiveRunnerTests(unittest.TestCase):
         evidence.device_flow_transition = LIVE._offline_module().canonical_json(
             transition
         )
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             with self.assertRaisesRegex(
                 LIVE.LiveCaptureError,
                 "device_flow_transition_invalid",
@@ -973,7 +975,7 @@ class LiveRunnerTests(unittest.TestCase):
                 )
 
     def test_invalid_client_is_rejected_before_wire_construction(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             observed = dict(REGISTRATION_OBSERVATION)
             observed["public_client_id"] = "Iv1.not-approved-client"
             registration = Path(directory) / "registration.json"
@@ -1131,7 +1133,7 @@ class LiveRunnerTests(unittest.TestCase):
             slow_down_original_reservation_sha256=ORIGINAL_RESERVATION_SHA256,
             slow_down_recovery_reservation_sha256=RECOVERY_RESERVATION_SHA256,
         )
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory).resolve() / "course"
             original = LIVE._write_private
             calls = 0
@@ -1147,7 +1149,7 @@ class LiveRunnerTests(unittest.TestCase):
             self.assertFalse(root.exists())
 
     def test_symlinked_output_parent_is_refused(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             private = Path(directory).resolve()
             target = private / "target"
             target.mkdir(mode=0o700)
@@ -1157,7 +1159,7 @@ class LiveRunnerTests(unittest.TestCase):
                 LIVE._publish_projection_tree(alias / "course", {"registration.json": b"{}"})
 
     def test_five_courses_assemble_atomically_into_exact_unattested_bundle(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             parent = Path(directory).resolve()
             roots = {}
             for course in sorted(LIVE.COURSES):
@@ -1185,7 +1187,7 @@ class LiveRunnerTests(unittest.TestCase):
                 self.assertNotIn(transient.encode(), durable)
 
     def test_assembly_uses_execution_bound_runner_not_current_runner_bytes(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             parent = Path(directory).resolve()
             roots = {}
             for course in sorted(LIVE.COURSES):
@@ -1234,7 +1236,7 @@ class LiveRunnerTests(unittest.TestCase):
         )
 
     def test_assembly_refuses_mismatched_registration_and_publishes_nothing(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             parent = Path(directory).resolve()
             roots = {}
             for course in sorted(LIVE.COURSES):

@@ -8,11 +8,12 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 from scripts.verify_test_network_isolation import (  # noqa: E402
     EXIT_VERDICT_TESTS,
@@ -100,7 +101,7 @@ def protected_test(name: str, command: list[str]) -> dict[str, object]:
 
 class RegistrationInventoryTests(unittest.TestCase):
     def test_exact_owner_and_isolated_registration_are_visible(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             write(root, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
             write(
@@ -115,7 +116,7 @@ class RegistrationInventoryTests(unittest.TestCase):
             )
 
     def test_rogue_raw_registration_is_visible(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             write(root, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
             write(root, "tests/CMakeLists.txt", "ADD_TEST(NAME bypass COMMAND x)\n")
@@ -123,7 +124,7 @@ class RegistrationInventoryTests(unittest.TestCase):
             self.assertIn("tests/CMakeLists.txt", raw)
 
     def test_second_or_argument_selected_live_registration_is_visible(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             write(root, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
             write(
@@ -474,7 +475,7 @@ class LiveSupervisorIdentityTests(unittest.TestCase):
         return supervisor.resolve(), inventory.resolve(), build.resolve()
 
     def test_exact_fresh_tests_disabled_supervisor_passes(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             supervisor, inventory, build = self.make_fixture(root)
             self.assertEqual(
@@ -483,7 +484,7 @@ class LiveSupervisorIdentityTests(unittest.TestCase):
             )
 
     def test_fixture_alternate_stale_and_tests_enabled_supervisors_fail(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             supervisor, inventory, build = self.make_fixture(root)
             cache = build / "CMakeCache.txt"
@@ -511,7 +512,7 @@ class LiveSupervisorIdentityTests(unittest.TestCase):
             self.assertTrue(any("outside" in value for value in failures))
 
     def test_regression_runner_cannot_be_selected_as_the_live_supervisor(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             supervisor, inventory, build = self.make_fixture(root)
             runner = build / "tool_better_pull_review_designated_live_mutation_runner"
@@ -534,7 +535,7 @@ class LiveSupervisorIdentityTests(unittest.TestCase):
             / "BprTestIsolation.cmake"
         )
 
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory).resolve()
             approval = root / "approval"
             approval.write_text("not an approval\n", encoding="utf-8")
@@ -593,7 +594,7 @@ class LiveSupervisorIdentityTests(unittest.TestCase):
 
 class ConfiguredManifestAndProfileTests(unittest.TestCase):
     def test_derived_profile_contains_only_exact_runner_authority(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             template = root / "template.sb"
             output = root / "derived.sb"
@@ -623,7 +624,7 @@ class ConfiguredManifestAndProfileTests(unittest.TestCase):
     # profile. Both shapes are unsafe on every host, so unlike the case above
     # this control asserts the refusal everywhere.
     def test_derived_profile_refuses_an_unsafe_fixture_root(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             template = root / "template.sb"
             template.write_text(
@@ -639,7 +640,7 @@ class ConfiguredManifestAndProfileTests(unittest.TestCase):
                     write_profile(template, root / "derived.sb", unsafe, [])
 
     def test_profile_template_cannot_pregrant_network_authority(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             template = root / "template.sb"
             template.write_text(

@@ -15,8 +15,10 @@ import json
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 # Each recorded pull request as it was on its retrieval date. A re-fetch that
@@ -271,7 +273,7 @@ def check_generated_contract_matches(name: str) -> None:
     if not committed.is_dir():
         return
 
-    with tempfile.TemporaryDirectory() as directory:
+    with contained_temporary_directory() as directory:
         regenerated = Path(directory) / name
         result = subprocess.run(
             [

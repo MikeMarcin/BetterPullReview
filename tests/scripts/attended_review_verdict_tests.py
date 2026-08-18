@@ -14,8 +14,10 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 BUILDER = ROOT / ".agents/skills/bpr-attended-review/scripts/build_attended_review.py"
@@ -299,7 +301,7 @@ def test_recorded_verdicts_still_validate() -> None:
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory() as raw:
+    with contained_temporary_directory() as raw:
         root = Path(raw)
         test_choice_group_arithmetic(root)
         test_batches_without_a_choice_group_are_unaffected(root)

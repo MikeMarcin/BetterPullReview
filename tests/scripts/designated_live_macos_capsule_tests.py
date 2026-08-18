@@ -3,16 +3,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import importlib.util
 import os
 import pathlib
 import stat
 import subprocess
 import sys
-import tempfile
 import unittest
 from unittest import mock
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 SCRIPT = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "designated_live_macos_capsule.py"
 SPEC = importlib.util.spec_from_file_location("designated_live_macos_capsule", SCRIPT)
@@ -56,7 +59,7 @@ def make_capsule(parent: pathlib.Path) -> tuple[pathlib.Path, pathlib.Path]:
 
 class CapsuleInventoryTests(unittest.TestCase):
     def test_exact_capsule_is_accepted(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root, inventory = make_capsule(pathlib.Path(directory))
             self.assertEqual(
                 capsule.verify_inventory(
@@ -69,7 +72,7 @@ class CapsuleInventoryTests(unittest.TestCase):
             )
 
     def test_substituted_file_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root, inventory = make_capsule(pathlib.Path(directory))
             (root / capsule.APP_RELATIVE).write_bytes(b"substitute")
             with self.assertRaisesRegex(capsule.CapsuleFailure, "differs from filesystem"):
@@ -77,7 +80,7 @@ class CapsuleInventoryTests(unittest.TestCase):
 
     def test_missing_and_extra_entries_are_rejected(self) -> None:
         for mutation in ("missing", "extra"):
-            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+            with self.subTest(mutation=mutation), contained_temporary_directory() as directory:
                 root, inventory = make_capsule(pathlib.Path(directory))
                 if mutation == "missing":
                     (root / capsule.QT_CONF_RELATIVE).unlink()
@@ -87,7 +90,7 @@ class CapsuleInventoryTests(unittest.TestCase):
                     capsule.verify_inventory(root, inventory)
 
     def test_symlink_substitution_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root, inventory = make_capsule(pathlib.Path(directory))
             link = root / "BetterPullReview.app/Contents/Frameworks/QtCore.framework/Versions/Current"
             link.unlink()
@@ -96,7 +99,7 @@ class CapsuleInventoryTests(unittest.TestCase):
                 capsule.verify_inventory(root, inventory)
 
     def test_escaping_symlink_is_rejected_before_inventory_comparison(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root, inventory = make_capsule(pathlib.Path(directory))
             link = root / "BetterPullReview.app/Contents/Resources/escape"
             link.symlink_to("../../../../../../etc/passwd")
@@ -105,7 +108,7 @@ class CapsuleInventoryTests(unittest.TestCase):
 
     def test_writable_directory_and_non_private_root_are_rejected(self) -> None:
         for mutation in ("root", "directory"):
-            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+            with self.subTest(mutation=mutation), contained_temporary_directory() as directory:
                 root, inventory = make_capsule(pathlib.Path(directory))
                 if mutation == "root":
                     root.chmod(0o755)
@@ -123,7 +126,7 @@ class CapsuleInventoryTests(unittest.TestCase):
                     capsule.verify_inventory(root, inventory, require_owner_private=True)
 
     def test_qt_lookup_policy_is_exact(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root, inventory = make_capsule(pathlib.Path(directory))
             (root / capsule.QT_CONF_RELATIVE).write_bytes(b"[Paths]\nPlugins=/tmp\n")
             inventory.write_text(
@@ -133,7 +136,7 @@ class CapsuleInventoryTests(unittest.TestCase):
                 capsule.verify_inventory(root, inventory)
 
     def test_inventory_must_be_canonical_and_sorted(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root, inventory = make_capsule(pathlib.Path(directory))
             lines = inventory.read_text(encoding="utf-8").splitlines()
             lines[-1], lines[-2] = lines[-2], lines[-1]
@@ -144,7 +147,7 @@ class CapsuleInventoryTests(unittest.TestCase):
 
 class CapsuleRuntimeTests(unittest.TestCase):
     def test_homebrew_dependency_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root, _ = make_capsule(pathlib.Path(directory))
             application = root / capsule.APP_RELATIVE
             application.write_bytes(b"\xcf\xfa\xed\xfe" + b"x" * 8)
@@ -167,7 +170,7 @@ class CapsuleRuntimeTests(unittest.TestCase):
                     capsule.verify_dependencies(root, pathlib.Path("/usr/bin/otool"))
 
     def test_unresolved_rpath_dependency_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root, _ = make_capsule(pathlib.Path(directory))
             application = root / capsule.APP_RELATIVE
             application.write_bytes(b"\xcf\xfa\xed\xfe" + b"x" * 8)
@@ -198,7 +201,7 @@ class CapsuleRuntimeTests(unittest.TestCase):
 
 class CapsuleClosureTests(unittest.TestCase):
     def test_macdeployqt_policy_overwrite_is_atomically_replaced(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             policy = root / capsule.QT_CONF_RELATIVE
             write(policy, b"[Paths]\nPrefix = /opt/homebrew\n")
@@ -208,7 +211,7 @@ class CapsuleClosureTests(unittest.TestCase):
             self.assertFalse((policy.parent / ".qt.conf.bpr-new").exists())
 
     def test_exact_loader_path_rpath_resolves_authentic_brotli_edge(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root, _ = make_capsule(pathlib.Path(directory))
             application = root / capsule.APP_RELATIVE
             frameworks = root / "BetterPullReview.app/Contents/Frameworks"
@@ -252,7 +255,7 @@ class CapsuleClosureTests(unittest.TestCase):
                 capsule.verify_dependencies(root, pathlib.Path("/usr/bin/otool"))
 
     def test_digest_prefixed_copy_is_collision_safe(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             frameworks = root / "Frameworks"
             frameworks.mkdir()
@@ -268,7 +271,7 @@ class CapsuleClosureTests(unittest.TestCase):
             self.assertEqual(second_destination.read_bytes(), b"second")
 
     def test_ambiguous_capsule_dependency_is_visible(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             frameworks = root / "BetterPullReview.app/Contents/Frameworks"
             write(frameworks / "one/libsame.dylib", b"\xcf\xfa\xed\xfe")
@@ -277,7 +280,7 @@ class CapsuleClosureTests(unittest.TestCase):
             self.assertEqual(len(candidates), 2)
 
     def test_plugin_inventory_is_reduced_to_exact_runtime_set(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
             plugins = root / "BetterPullReview.app/Contents/PlugIns"
             for relative in capsule.ALLOWED_PLUGIN_FILES:

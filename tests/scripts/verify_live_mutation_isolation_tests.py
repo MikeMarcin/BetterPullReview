@@ -11,13 +11,14 @@ known.
 from __future__ import annotations
 
 import sys
-import tempfile
 import unittest
 from unittest import mock
 from pathlib import Path
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 from scripts.verify_live_mutation_isolation import (  # noqa: E402
     FORBIDDEN_SYMBOL,
@@ -74,7 +75,7 @@ def tree_with_only_the_fake(root: Path) -> None:
 
 class PortInventoryTests(unittest.TestCase):
     def test_finds_the_fake_and_nothing_else(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory)
             tree_with_only_the_fake(root)
             self.assertEqual(
@@ -83,7 +84,7 @@ class PortInventoryTests(unittest.TestCase):
             )
 
     def test_finds_a_rogue_implementation(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory)
             tree_with_only_the_fake(root)
             write(
@@ -98,7 +99,7 @@ class PortInventoryTests(unittest.TestCase):
     def test_a_tree_missing_the_fake_is_visible(self) -> None:
         # The instrument reporting an empty set must be distinguishable from a
         # clean tree, which is what the required-implementation check is for.
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory)
             write(root, "src/core/src/unrelated.cpp", "int main() { return 0; }\n")
             self.assertNotIn(
@@ -107,7 +108,7 @@ class PortInventoryTests(unittest.TestCase):
             )
 
     def test_a_mere_mention_is_not_an_implementation(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory)
             write(
                 root,
@@ -161,13 +162,13 @@ class ForbiddenSymbolTests(unittest.TestCase):
 
 class ConstructionSiteTests(unittest.TestCase):
     def test_no_sites_on_a_clean_tree(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory)
             tree_with_only_the_fake(root)
             self.assertEqual(construction_sites(root), set())
 
     def test_a_test_calling_the_factory_is_caught(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory)
             write(
                 root,
@@ -182,7 +183,7 @@ class ConstructionSiteTests(unittest.TestCase):
     def test_the_allowed_sites_are_still_reported(self) -> None:
         # The function reports every site; the allowlist is applied by the
         # caller. Reporting only violations would make the allowlist untestable.
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory)
             write(
                 root,
@@ -195,7 +196,7 @@ class ConstructionSiteTests(unittest.TestCase):
             )
 
     def test_a_second_call_inside_the_composition_root_is_counted(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory)
             write(
                 root,
@@ -209,7 +210,7 @@ class ConstructionSiteTests(unittest.TestCase):
             )
 
     def test_naming_without_calling_is_not_a_site(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             root = Path(directory)
             write(
                 root,
