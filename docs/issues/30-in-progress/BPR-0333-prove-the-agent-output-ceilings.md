@@ -1,7 +1,7 @@
 ---
 id: BPR-0333
 title: Prove the agent output ceilings instead of asserting them
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0011
 depends_on: []
 ---
