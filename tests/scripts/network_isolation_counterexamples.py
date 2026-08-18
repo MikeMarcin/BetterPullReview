@@ -15,15 +15,26 @@ import threading
 
 MACOS_BACKEND = "macos-sandbox-exec"
 LINUX_BACKEND = "linux-network-namespace"
+WINDOWS_BACKEND = "windows-appcontainer"
+
+# The Winsock names exist in `errno` only on Windows, while the numbers are
+# fixed by Winsock itself, so the Windows shape is spelled with its own name
+# where that name is defined and by its fixed value everywhere else. This keeps
+# the module importable on macOS and Linux without widening anyone's set.
+WSAEACCES = getattr(errno, "WSAEACCES", 10013)
 
 # Each backend refuses an external connection in its own shape, and accepting
 # the other one's shape would let a genuine escape pass. sandbox-exec denies
 # the operation, so the kernel reports a permission error. A Linux network
 # namespace holding only loopback has no route to a global address at all, so
 # the kernel reports the network as unreachable before any policy is consulted.
+# A Windows AppContainer entered with zero capabilities still has the host's
+# routes, so the connection is refused rather than unroutable: the Windows
+# Filtering Platform denies it and Winsock reports WSAEACCES.
 DENIAL_ERRNOS = {
     MACOS_BACKEND: (errno.EPERM, errno.EACCES),
     LINUX_BACKEND: (errno.ENETUNREACH, errno.EHOSTUNREACH),
+    WINDOWS_BACKEND: (WSAEACCES,),
 }
 
 
@@ -56,6 +67,76 @@ def linux_namespace_is_isolated() -> tuple[bool, str]:
     if routes:
         return False, "routes=" + ",".join(routes)
     return True, "lo-only"
+
+
+def windows_appcontainer_is_entered() -> tuple[bool, str]:
+    """Prove the AppContainer caused the refusal, not a missing network.
+
+    This is the Windows half of the same argument the Linux helper above
+    makes. WSAEACCES alone is weak evidence, because a machine whose firewall
+    or policy refuses the address reports it too, so the errno cannot tell a
+    working boundary from an unrelated refusal. The token can: a process
+    entered through the launcher carries an AppContainer token and one that
+    was never contained does not, which Windows answers directly.
+
+    `TokenIsAppContainer` is only reachable through the Win32 API, so ctypes
+    is required; nothing outside the standard library is. `GetCurrentProcess`
+    returns a pseudo-handle, and without an explicit `restype` ctypes marshals
+    it as a 32-bit int and silently corrupts it on 64-bit Python, which fails
+    as an invalid-handle error rather than as a wrong answer.
+    """
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except (ImportError, ValueError) as error:  # pragma: no cover - not Windows
+        return False, f"unavailable:{error}"
+
+    token_query = 0x0008
+    token_is_app_container = 29
+    try:
+        advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    except (AttributeError, OSError) as error:  # pragma: no cover - not Windows
+        return False, f"unavailable:{error}"
+
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel32.GetCurrentProcess.argtypes = []
+    advapi32.OpenProcessToken.restype = wintypes.BOOL
+    advapi32.OpenProcessToken.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.HANDLE),
+    ]
+    advapi32.GetTokenInformation.restype = wintypes.BOOL
+    advapi32.GetTokenInformation.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+
+    token = wintypes.HANDLE()
+    if not advapi32.OpenProcessToken(
+        kernel32.GetCurrentProcess(), token_query, ctypes.byref(token)
+    ):
+        return False, f"token-open:{ctypes.get_last_error()}"
+    contained = wintypes.DWORD(0)
+    written = wintypes.DWORD(0)
+    queried = advapi32.GetTokenInformation(
+        token,
+        token_is_app_container,
+        ctypes.byref(contained),
+        ctypes.sizeof(contained),
+        ctypes.byref(written),
+    )
+    error = ctypes.get_last_error()
+    kernel32.CloseHandle(token)
+    if not queried:
+        return False, f"token-query:{error}"
+    if contained.value != 1:
+        return False, f"uncontained:{contained.value}"
+    return True, "appcontainer"
 
 
 def identity_attempt(backend: str) -> int:
@@ -111,6 +192,11 @@ def external_attempt(backend: str) -> int:
     if backend == LINUX_BACKEND:
         isolated, detail = linux_namespace_is_isolated()
         if not isolated:
+            print(f"NETWORK_ISOLATION_EXTERNAL_NOT_ISOLATED:{detail}", flush=True)
+            return 1
+    if backend == WINDOWS_BACKEND:
+        contained, detail = windows_appcontainer_is_entered()
+        if not contained:
             print(f"NETWORK_ISOLATION_EXTERNAL_NOT_ISOLATED:{detail}", flush=True)
             return 1
     print(f"NETWORK_ISOLATION_EXTERNAL_DENIED:{result}", flush=True)
@@ -197,14 +283,23 @@ def loopback_attempt() -> int:
     ipv6_available = socket.has_ipv6
     ipv4_ok = one_loopback(socket.AF_INET, "127.0.0.1", ports[0])
     ipv6_ok = not ipv6_available or one_loopback(socket.AF_INET6, "::1", ports[0])
-    unix_ok = unix_loopback()
+    # CPython exposes no AF_UNIX on Windows, so there is no Unix channel to
+    # allow or deny there and asking for one is an AttributeError rather than
+    # a result. The channel that does not exist is named in the output instead
+    # of being silently folded into a pass, so a host that stops offering
+    # AF_UNIX cannot look the same as one that proved it.
+    unix_available = hasattr(socket, "AF_UNIX")
+    unix_ok = unix_loopback() if unix_available else True
     if not (ipv4_ok and ipv6_ok and unix_ok):
         print(
             f"NETWORK_ISOLATION_LOOPBACK_FAILED:{ipv4_ok}:{ipv6_ok}:{unix_ok}",
             flush=True,
         )
         return 1
-    print("NETWORK_ISOLATION_LOOPBACK_OK", flush=True)
+    channels = "ipv4" + (":ipv6" if ipv6_available else "") + (
+        ":unix" if unix_available else ""
+    )
+    print(f"NETWORK_ISOLATION_LOOPBACK_OK:{channels}", flush=True)
     return 0
 
 

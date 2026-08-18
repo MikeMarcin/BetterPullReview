@@ -188,8 +188,7 @@ def expected_prefix(
     backend: str,
     profile: pathlib.Path | None,
     linux_launcher: pathlib.Path | None,
-    cmake: pathlib.Path,
-    root: pathlib.Path,
+    windows_launcher: pathlib.Path | None,
     python: pathlib.Path | None,
     macos_runner: pathlib.Path | None,
 ) -> list[str]:
@@ -210,13 +209,28 @@ def expected_prefix(
         if linux_launcher is None:
             raise ValueError("Linux backend requires a launcher")
         return [str(linux_launcher.resolve())]
-    if backend == "windows-unavailable":
-        return [
-            str(cmake.resolve()),
-            "-P",
-            str((root / "cmake/FailClosedAutomatedTestIsolation.cmake").resolve()),
-        ]
+    if backend == "windows-appcontainer":
+        if windows_launcher is None:
+            raise ValueError("Windows backend requires a launcher")
+        return [str(windows_launcher.resolve())]
     raise ValueError(f"unknown backend: {backend}")
+
+
+def comparable_command(value: Any) -> Any:
+    """Compare a configured command the way the host compares paths.
+
+    CTest writes every path in its JSON manifest with forward slashes, while
+    `pathlib` resolves one with the platform separator. On Windows that makes
+    the very same program compare unequal on separator alone, which reads as a
+    substituted command when nothing was substituted. Windows treats the two
+    separators as one path, so folding them keeps this comparison exact in
+    meaning rather than merely looser, and no other platform is affected.
+    """
+    if os.name != "nt" or not isinstance(value, list):
+        return value
+    return [
+        item.replace("\\", "/") if isinstance(item, str) else item for item in value
+    ]
 
 
 def configured_failures(
@@ -230,6 +244,13 @@ def configured_failures(
     tests = manifest.get("tests")
     if not isinstance(tests, list) or not tests:
         return ["CTest JSON contains no tests"]
+    prefix = comparable_command(prefix)
+    live_command = comparable_command(live_command)
+    if required_commands is not None:
+        required_commands = {
+            name: comparable_command(command)
+            for name, command in required_commands.items()
+        }
     live_named = [test for test in tests if test.get("name") == LIVE_TEST_NAME]
     if live_command is None:
         if live_named:
@@ -252,7 +273,7 @@ def configured_failures(
                 failures.append(
                     f"protected test {required_name} count is {len(named)}, expected one"
                 )
-            elif named[0].get("command") != expected_command:
+            elif comparable_command(named[0].get("command")) != expected_command:
                 failures.append(
                     f"protected test {required_name} does not use its exact command: "
                     f"{named[0].get('command')!r}"
@@ -262,7 +283,7 @@ def configured_failures(
                     test.get("name", "<unnamed>")
                     for test in tests
                     if test.get("name") != required_name
-                    and test.get("command") == expected_command
+                    and comparable_command(test.get("command")) == expected_command
                 ]
                 if renamed:
                     failures.append(
@@ -275,7 +296,7 @@ def configured_failures(
         failures.extend(environment_injection_failures(test, name))
         if name in EXIT_VERDICT_TESTS:
             failures.extend(exit_verdict_failures(test, name))
-        command = test.get("command")
+        command = comparable_command(test.get("command"))
         labels = property_value(test, "LABELS")
         if name == LIVE_TEST_NAME:
             if live_command is not None and command != live_command:
@@ -423,6 +444,7 @@ def main() -> int:
     parser.add_argument("--python", type=pathlib.Path)
     parser.add_argument("--macos-runner", type=pathlib.Path)
     parser.add_argument("--linux-launcher", type=pathlib.Path)
+    parser.add_argument("--windows-launcher", type=pathlib.Path)
     parser.add_argument("--live-supervisor", type=pathlib.Path)
     parser.add_argument("--live-inventory", type=pathlib.Path)
     parser.add_argument("--live-build-dir", type=pathlib.Path)
@@ -469,8 +491,7 @@ def main() -> int:
             arguments.backend,
             arguments.profile,
             arguments.linux_launcher,
-            arguments.cmake,
-            arguments.root,
+            arguments.windows_launcher,
             arguments.python,
             arguments.macos_runner,
         )

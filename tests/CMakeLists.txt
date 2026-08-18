@@ -381,6 +381,13 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         --linux-launcher
         "$<TARGET_FILE:tool_better_pull_review_network_sandbox>"
     )
+elseif(WIN32)
+    list(
+        APPEND
+        bpr_network_isolation_verifier_command
+        --windows-launcher
+        "$<TARGET_FILE:tool_better_pull_review_network_sandbox>"
+    )
 endif()
 if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
     list(

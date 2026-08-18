@@ -2,29 +2,31 @@ include_guard(GLOBAL)
 
 # Windows offers an unprivileged process no network namespace, so the
 # default-deny automated-test boundary is one fixed AppContainer entered with
-# zero capabilities. Two machine facts have to hold before that boundary can
-# carry a test suite, and a contained child can establish neither of them:
+# zero capabilities. One machine fact has to hold before that boundary can
+# carry a test suite, and a contained child cannot establish it: the container
+# has to read the sources, the resolved Qt prefix, and the built executables,
+# and to write the build tree. CreateProcessW reports success even when the
+# container cannot read the image it was handed and the launch then fails
+# incoherently much later, so the grants must exist before any test is
+# registered. That is settled here, at configure time, and a missing
+# prerequisite refuses the build instead of producing a suite that silently
+# cannot run.
 #
-#   * the container has to read the sources, the resolved Qt prefix, and the
-#     built executables, and to write the build tree. CreateProcessW reports
-#     success even when the container cannot read the image it was handed and
-#     the launch then fails incoherently much later, so the grants must exist
-#     before any test is registered;
-#   * loopback has to be exempted for the container. Adding that exemption
-#     needs elevation, which a build must never take on the owner's behalf, so
-#     a missing entry is reported as the one manual step it is.
-#
-# Both are settled here, at configure time. A missing prerequisite refuses the
-# build instead of producing a suite that silently cannot run.
+# This deliberately does not ask for a machine-wide loopback exemption. The
+# restriction AppContainers carry is on reaching a loopback listener owned by
+# something else; two processes inside the same container reach each other over
+# loopback with no exemption at all. Every fixture in this suite is created by
+# the test that uses it, and CTest launches the whole test through the launcher,
+# so the listener and its client are always in this one container together.
+# Requiring the exemption would have demanded an elevated command from the
+# owner in exchange for authority the suite never exercises, and refused the
+# whole build until it was granted. `test_network_isolation_loopback` proves
+# the channel positively at test time, which is where the claim belongs.
 
 set(BPR_WINDOWS_APPCONTAINER_NAME "BprAutomatedTest")
 
 file(TO_CMAKE_PATH "$ENV{SystemRoot}" bpr_windows_system_root)
 set(BPR_WINDOWS_ICACLS "${bpr_windows_system_root}/System32/icacls.exe")
-set(
-    BPR_WINDOWS_CHECK_NET_ISOLATION
-    "${bpr_windows_system_root}/System32/CheckNetIsolation.exe"
-)
 unset(bpr_windows_system_root)
 
 # The container SID is a hash of the container name that only the Windows API
@@ -103,80 +105,17 @@ function(bpr_windows_appcontainer_grant sid access path)
     endif()
 endfunction()
 
-# The exemption is machine state an unprivileged build cannot create, so its
-# absence is a refusal that names the exact elevated command instead of a
-# guess about why every test later failed to reach its own fixtures.
-function(bpr_windows_appcontainer_require_loopback_exemption sid)
-    execute_process(
-        COMMAND "${BPR_WINDOWS_CHECK_NET_ISOLATION}" LoopbackExempt -s
-        RESULT_VARIABLE query_status
-        OUTPUT_VARIABLE query_output
-        ERROR_VARIABLE query_error
-    )
-    if(NOT query_status EQUAL 0)
-        message(
-            FATAL_ERROR
-            "Unable to read the Windows loopback exemption list "
-            "(status ${query_status}): ${query_error}"
-        )
-    endif()
-
-    string(TOUPPER "${query_output}" exempted)
-    string(TOUPPER "${sid}" wanted_sid)
-    string(TOUPPER "${BPR_WINDOWS_APPCONTAINER_NAME}" wanted_name)
-    string(FIND "${exempted}" "${wanted_sid}" sid_offset)
-    string(FIND "${exempted}" "${wanted_name}" name_offset)
-    if(sid_offset GREATER_EQUAL 0 OR name_offset GREATER_EQUAL 0)
-        return()
-    endif()
-
-    message(
-        FATAL_ERROR
-        "============================================================\n"
-        "ONE ELEVATED COMMAND IS REQUIRED BEFORE TESTS CAN BE BUILT\n"
-        "============================================================\n"
-        "Windows blocks loopback for an AppContainer until the machine\n"
-        "carries a loopback exemption for it, and BetterPullReview's\n"
-        "automated tests reach their own local fixtures over loopback.\n"
-        "This build refuses rather than register a suite that could\n"
-        "only fail, and it never elevates on your behalf.\n"
-        "Open a Command Prompt or PowerShell AS ADMINISTRATOR and run\n"
-        "this exact command once, then configure again:\n"
-        "    CheckNetIsolation.exe LoopbackExempt -a"
-        " -n=${BPR_WINDOWS_APPCONTAINER_NAME}\n"
-        "Confirm it took effect with:\n"
-        "    CheckNetIsolation.exe LoopbackExempt -s\n"
-        "AppContainer : ${BPR_WINDOWS_APPCONTAINER_NAME}\n"
-        "Container SID: ${sid}\n"
-        "This is the only manual step in the Windows automated-test\n"
-        "network boundary.\n"
-        "============================================================"
-    )
-endfunction()
-
 # Establish every machine prerequisite the AppContainer boundary depends on,
 # or refuse the configure.
 function(bpr_configure_windows_test_isolation launcher_source)
-    foreach(
-        tool
-        IN ITEMS
-            "${BPR_WINDOWS_ICACLS}"
-            "${BPR_WINDOWS_CHECK_NET_ISOLATION}"
-    )
-        if(NOT EXISTS "${tool}")
-            message(
-                FATAL_ERROR
-                "The Windows automated-test network boundary requires ${tool}"
-            )
-        endif()
-    endforeach()
+    if(NOT EXISTS "${BPR_WINDOWS_ICACLS}")
+        message(
+            FATAL_ERROR
+            "The Windows automated-test network boundary requires ${BPR_WINDOWS_ICACLS}"
+        )
+    endif()
 
     bpr_windows_appcontainer_sid("${launcher_source}" container_sid)
-
-    # The exemption is checked before anything is granted. It is a read-only
-    # query, and refusing after having rewritten access control on the owner's
-    # source tree would leave a side effect behind for a build that never ran.
-    bpr_windows_appcontainer_require_loopback_exemption("${container_sid}")
 
     # Sources, the resolved Qt prefix, and the built executables are read; the
     # build tree is also written, because tests keep their scratch data there.
