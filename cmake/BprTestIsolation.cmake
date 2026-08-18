@@ -280,13 +280,36 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
     set(BPR_AUTOMATED_TEST_ISOLATION_BACKEND "linux-network-namespace")
 elseif(WIN32)
+    include("${PROJECT_SOURCE_DIR}/cmake/WindowsTestIsolationSetup.cmake")
+    set(
+        bpr_windows_network_sandbox_source
+        "${PROJECT_SOURCE_DIR}/tests/network_isolation/windows_network_sandbox.cpp"
+    )
+    bpr_configure_windows_test_isolation(
+        "${bpr_windows_network_sandbox_source}"
+    )
+    bpr_add_executable(
+        tool_better_pull_review_network_sandbox
+        "${bpr_windows_network_sandbox_source}"
+    )
+    target_compile_features(
+        tool_better_pull_review_network_sandbox
+        PRIVATE
+            cxx_std_23
+    )
+    target_link_libraries(
+        tool_better_pull_review_network_sandbox
+        PRIVATE
+            userenv
+            advapi32
+    )
+    bpr_enable_hardening(tool_better_pull_review_network_sandbox)
+    bpr_enable_warnings(tool_better_pull_review_network_sandbox)
     set(
         BPR_AUTOMATED_TEST_ISOLATION_PREFIX
-        "${CMAKE_COMMAND}"
-        -P
-        "${PROJECT_SOURCE_DIR}/cmake/FailClosedAutomatedTestIsolation.cmake"
+        "$<TARGET_FILE:tool_better_pull_review_network_sandbox>"
     )
-    set(BPR_AUTOMATED_TEST_ISOLATION_BACKEND "windows-unavailable")
+    set(BPR_AUTOMATED_TEST_ISOLATION_BACKEND "windows-appcontainer")
 else()
     message(
         FATAL_ERROR
