@@ -1,7 +1,7 @@
 ---
 id: BPR-0343
 title: Make the tests-disabled Release graph build and verify under GCC
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0013
 depends_on: []
 ---
