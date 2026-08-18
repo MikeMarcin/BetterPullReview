@@ -1,2 +1,14 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Files whose exact bytes are pinned by a checked-in SHA-256 must not be
+# transformed on checkout. `text=auto` above would hand a CRLF working tree to
+# `file(SHA256)` in cmake/VerifyArchitectureBoundaries.cmake and to
+# `hashlib.sha256` in tests/scripts/app_icon_assets_tests.py, so the pin — which
+# is computed over the LF blob — would fail on Windows and hold on POSIX. See
+# BPR-0359.
+tests/network_isolation/designated_live_mutation_canary.cpp text eol=lf
+tests/network_isolation/designated_live_mutation_canary.hpp text eol=lf
+tests/network_isolation/designated_live_mutation_child.cpp text eol=lf
+tests/network_isolation/designated_live_mutation_child.hpp text eol=lf
+packaging/icons/better_pull_review.svg text eol=lf
