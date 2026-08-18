@@ -53,8 +53,43 @@ instead, because the class is only forward-declared at that point and
 incompleteness is diagnosed before access control. The assertion, not the
 seal, is what fails.
 
-The hostile-endpoint case still says `private` under GCC, so only the grant
-case is affected.
+The hostile-endpoint case still says `private` under GCC, so it is unaffected.
+
+## Corrected — three cases are affected, and the assertion never proved the seal
+
+Two claims above are wrong and are corrected here rather than edited away.
+
+**It is not only the grant case.** Three of the five hostile snippets construct
+`review_mutation_execution_authority`, which the public header only
+forward-declares. All three are therefore rejected for incompleteness before
+access control is ever consulted, and none of the three diagnostics contains
+`private`:
+
+| Snippet | Required by the assertion | GCC 15.2 | Clang 21.1 |
+|---|---|---|---|
+| `hostile-endpoint` | `private` | `is private within this context` | `calling a private constructor` |
+| `hostile-grant` | `private` | `invalid use of incomplete type` | `allocation of incomplete type` |
+| `hostile-attended-authority` | `private` | `invalid use of incomplete type` | `allocation of incomplete type` |
+| `hostile-bootstrap-definition` | `redefinition\|private` | `invalid use of incomplete type` | `allocation of incomplete type` |
+
+The suite stops at the first failure, which is why only the grant case was
+seen. The other two are behind it.
+
+**It is not a GCC-versus-Clang difference.** Clang 21.1 on Linux produces the
+same incomplete-type wording GCC does, so the wording the assertion demands is
+not what either compiler emits.
+
+**The assertion was passing on macOS for a reason unrelated to the seal.** It
+searches the whole captured output, and every diagnostic line is prefixed with
+the temporary source path. `tempfile.TemporaryDirectory()` on macOS returns a
+path under `/private/var/folders`, so the substring `private` is present no
+matter what the compiler said. Compiling `hostile-grant.cpp` from a directory
+named `/private/var/folders/xy` reproduces this directly: `assertIn("private",
+...)` passes while no diagnostic message contains the word.
+
+So the repair is not only to widen the accepted wording. The assertion must
+read the diagnostic messages rather than the raw output, or it can keep passing
+on a path spelling after the seal is gone.
 
 ## Required final state
 
