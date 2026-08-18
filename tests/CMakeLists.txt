@@ -413,6 +413,7 @@ foreach(bpr_network_probe IN ITEMS external child)
             Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/tests/scripts/network_isolation_counterexamples.py"
             "${bpr_network_probe}"
+            "${BPR_AUTOMATED_TEST_ISOLATION_BACKEND}"
     )
 endforeach()
 bpr_add_network_isolated_test(
@@ -422,6 +423,7 @@ bpr_add_network_isolated_test(
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/network_isolation_counterexamples.py"
         loopback
+        "${BPR_AUTOMATED_TEST_ISOLATION_BACKEND}"
 )
 if(APPLE)
     bpr_add_network_isolated_test(
@@ -432,6 +434,7 @@ if(APPLE)
             Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/tests/scripts/network_isolation_counterexamples.py"
             unrelated
+            "${BPR_AUTOMATED_TEST_ISOLATION_BACKEND}"
     )
 endif()
 if(TARGET app_better_pull_review)

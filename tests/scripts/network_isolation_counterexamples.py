@@ -13,14 +13,68 @@ import tempfile
 import threading
 
 
-def external_attempt() -> int:
+MACOS_BACKEND = "macos-sandbox-exec"
+LINUX_BACKEND = "linux-network-namespace"
+
+# Each backend refuses an external connection in its own shape, and accepting
+# the other one's shape would let a genuine escape pass. sandbox-exec denies
+# the operation, so the kernel reports a permission error. A Linux network
+# namespace holding only loopback has no route to a global address at all, so
+# the kernel reports the network as unreachable before any policy is consulted.
+DENIAL_ERRNOS = {
+    MACOS_BACKEND: (errno.EPERM, errno.EACCES),
+    LINUX_BACKEND: (errno.ENETUNREACH, errno.EHOSTUNREACH),
+}
+
+
+def linux_namespace_is_isolated() -> tuple[bool, str]:
+    """Prove the namespace caused the unreachability, not a missing network.
+
+    An unreachable errno is only evidence when the boundary produced it. A host
+    that is simply offline reports the same errno, so the errno alone cannot
+    tell a working boundary from an absent one. The launcher's namespace holds
+    exactly one interface and no route; an unsandboxed host keeps its real
+    interfaces and routes whether or not they currently carry traffic.
+    """
+    try:
+        interfaces = sorted(
+            line.split(":", 1)[0].strip()
+            for line in pathlib.Path("/proc/net/dev").read_text().splitlines()[2:]
+            if ":" in line
+        )
+        routes = sorted(
+            {
+                line.split("\t", 1)[0]
+                for line in pathlib.Path("/proc/net/route").read_text().splitlines()[1:]
+                if line.strip()
+            }
+        )
+    except OSError as error:
+        return False, f"unreadable:{error.errno}"
+    if interfaces != ["lo"]:
+        return False, "interfaces=" + ",".join(interfaces)
+    if routes:
+        return False, "routes=" + ",".join(routes)
+    return True, "lo-only"
+
+
+def external_attempt(backend: str) -> int:
+    accepted = DENIAL_ERRNOS.get(backend)
+    if accepted is None:
+        print(f"NETWORK_ISOLATION_EXTERNAL_UNKNOWN_BACKEND:{backend}", flush=True)
+        return 1
     candidate = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     candidate.settimeout(2.0)
     result = candidate.connect_ex(("1.1.1.1", 443))
     candidate.close()
-    if result not in (errno.EPERM, errno.EACCES):
+    if result not in accepted:
         print(f"NETWORK_ISOLATION_EXTERNAL_NOT_DENIED:{result}", flush=True)
         return 1
+    if backend == LINUX_BACKEND:
+        isolated, detail = linux_namespace_is_isolated()
+        if not isolated:
+            print(f"NETWORK_ISOLATION_EXTERNAL_NOT_ISOLATED:{detail}", flush=True)
+            return 1
     print(f"NETWORK_ISOLATION_EXTERNAL_DENIED:{result}", flush=True)
     return 0
 
@@ -146,9 +200,9 @@ def unrelated_attempt() -> int:
     return 0
 
 
-def child_attempt() -> int:
+def child_attempt(backend: str) -> int:
     child = subprocess.run(
-        [sys.executable, __file__, "external"],
+        [sys.executable, __file__, "external", backend],
         capture_output=True,
         text=True,
         check=False,
@@ -164,15 +218,16 @@ def child_attempt() -> int:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         return 2
-    if sys.argv[1] == "external":
-        return external_attempt()
-    if sys.argv[1] == "loopback":
+    probe, backend = sys.argv[1], sys.argv[2]
+    if probe == "external":
+        return external_attempt(backend)
+    if probe == "loopback":
         return loopback_attempt()
-    if sys.argv[1] == "child":
-        return child_attempt()
-    if sys.argv[1] == "unrelated":
+    if probe == "child":
+        return child_attempt(backend)
+    if probe == "unrelated":
         return unrelated_attempt()
     return 2
 
