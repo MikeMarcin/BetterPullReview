@@ -559,9 +559,10 @@ evidence gathered before the rename:
   Secret Service, cache, catalog, maintenance, public Qt, dependency, and
   runtime.
 
-Both runs happened. Neither was reproducible at HEAD before BPR-0155, and the
-Linux one is still not reproducible here, because this host has no Linux
-toolchain, container runtime, or emulator. BPR-0156 carries it.
+Both runs happened. Neither was reproducible at HEAD before BPR-0155. The
+Linux one is reproducible again as of 2026-08-17: BPR-0156 ran the matrix on
+an Ubuntu 26.04 x86_64 host matching BPR-0050's GCC 15.2, Git 2.53, libsecret
+0.21.7, and gnome-keyring 50.
 
 ### What BPR-0155 established
 
@@ -571,8 +572,46 @@ toolchain, container runtime, or emulator. BPR-0156 carries it.
 | MinGW x86-64 syntax check | 47 non-Qt translation units clean; 8 unreachable without Qt for Windows; 7 unreachable without libsecret, CoreFoundation, or KSyntaxHighlighting headers |
 | macOS `dev` build | Unchanged — none of these branches is compiled here |
 
-Compiling is not running. The Windows runtime claims stay in BPR-0053 and the
-Linux ones in BPR-0156.
+Compiling is not running. The Windows runtime claims stay in BPR-0053.
+
+### What BPR-0156 re-established
+
+Compiling was indeed not running, and it was not compiling either. Seven of
+BPR-0155's nine files are gated behind `BPR_BUILD_QT`, so `core-only` never
+reads them; only the `dev` preset proves they build. It did not build until
+BPR-0346 repaired a `QJsonValue` initializer that is ambiguous wherever
+`std::int64_t` is `long` rather than `long long`. That line sits in no
+conditional branch, so `verify_conditional_branches.py` cannot reach it, and
+BPR-0155's gate never could have.
+
+| Surface | Result |
+|---|---|
+| `core-only` build | 358 of 358 edges, warnings as errors |
+| `dev` build | 671 of 671 edges; `better_pull_review` links |
+| Tests-disabled Release build | Fails under GCC at `-O3`; BPR-0343 |
+| BPR-0155's nine files | All compile, seven only under `dev` |
+| `getrandom`, `renameat2`, `/proc/self/fd` | Re-established through the epoch, catalog, cache, and process suites |
+| Secret Service vault | Re-established against a real gnome-keyring 50.0 owning `org.freedesktop.secrets`; all four `linux_secret_service_*` tests pass |
+| `gh` CLI Linux environment | Re-established; `gh_cli_transport` fails only inside the isolation namespace, for the harness reason in BPR-0342 |
+| `core-only` suite | 82 of 84 |
+| `dev` suite | 175 of 183 |
+
+The two `core-only` failures are pre-existing on `main` and are not
+Linux-specific: `platform_configuration_contract` and
+`dependency_modernization_contract` assert strings that e5797f3 and fbf0f18
+changed without updating them, and they fail on macOS too. e5797f3 also moved
+`github_application.cpp` without updating the round-trip contract's pinned
+digests, which BPR-0346 re-pinned after reading the full diff since they last
+matched.
+
+The remaining `dev` failures are BPR-0341 through BPR-0345, one slow-host
+budget overrun of under 0.05%, and the absent WSLg system tray. None of them
+contradicts a BPR-0050 claim; they are properties of code and harness written
+after it.
+
+`coding-format-check` could not be reproduced: no clang-format Ubuntu 26.04
+offers agrees with the tree, and the gate pins no version. BPR-0346's edit was
+checked directly instead and introduced no violation.
 
 ### The gate
 
