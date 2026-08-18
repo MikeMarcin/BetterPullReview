@@ -340,7 +340,25 @@ auto main(int argc, char** argv) -> int
 	const auto protocol = selected_protocol(argc, argv);
 	const auto input    = read_input(
 		protocol, has_argument(argc, argv, "--preemptive-app-server"));
+	// Deliberately not `write_partial` and deliberately ahead of
+	// `begin_output`: the whole refused exchange has to reach the pipe in one
+	// write and be followed immediately by exit, so that the parent reads it in
+	// the same drain that observes the child gone. Trickling it a few bytes at a
+	// time would let an earlier drain see it while the child is still running,
+	// which is the path every other switch already takes.
+	if (has_argument(argc, argv, "--fast-remote-failure")) {
+		std::cout << "{\"type\":\"thread.started\",\"thread_id\":\"canary-thread\"}\n"
+					 "{\"type\":\"turn.started\"}\n"
+					 "{\"type\":\"turn.failed\",\"error\":{}}\n";
+		std::cout.flush();
+		return EXIT_SUCCESS;
+	}
 	begin_output(protocol);
+	// Stops after a valid prefix. Every frame written decodes, so the drain
+	// records nothing and the trailing decode is the first and only refusal.
+	if (has_argument(argc, argv, "--truncated-exchange")) {
+		return EXIT_SUCCESS;
+	}
 	if (has_argument(argc, argv, "--malformed-json")) {
 		write_partial("{\"type\":\"turn.started\"\n");
 		return EXIT_SUCCESS;

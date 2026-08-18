@@ -785,6 +785,26 @@ namespace {
 				&& flooding.error()
 					== application::agent_protocol_failure::output_too_large,
 			"output past the total ceiling is refused as its own exact cause");
+
+		// A refused decoder answers every later call with the generic cause,
+		// including `finish`. The host calls `finish` after its last drain, so
+		// a host that treated this answer as new information would restate an
+		// exact cause it already held. This is the premise that requires the
+		// launcher to keep the first cause it recorded.
+		auto restating = application::agent_protocol_decoder{
+			core::agent_protocol::external_terminal
+		};
+		const auto exactCause = restating.push(
+			std::string(application::maximum_agent_frame_bytes + 1U, 'x'));
+		const auto restatedCause = restating.finish();
+		expect(
+			!exactCause
+				&& exactCause.error()
+					== application::agent_protocol_failure::frame_too_large
+				&& !restatedCause
+				&& restatedCause.error()
+					== application::agent_protocol_failure::malformed_frame,
+			"a refused decoder restates the generic cause rather than the exact one");
 	}
 
 	void test_process_and_staleness_outcomes_remain_distinct()

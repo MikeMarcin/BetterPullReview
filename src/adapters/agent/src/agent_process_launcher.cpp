@@ -306,7 +306,12 @@ namespace bpr::adapters::agent {
 		}
 		drain();
 		const auto trailing = decoder.finish();
-		if (!trailing) {
+		// The trailing decode is the first refusal for an exchange that simply
+		// stopped early, so its cause must still be adopted. It is not new
+		// information once the drain above recorded one: a refused decoder
+		// restates the generic cause on every later call, and adopting that
+		// would adopt the restatement over the exact cause.
+		if (!trailing && !protocolFailure) {
 			protocolFailure = trailing.error();
 		}
 		if (

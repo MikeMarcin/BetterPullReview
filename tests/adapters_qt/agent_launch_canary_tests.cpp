@@ -457,6 +457,37 @@ namespace {
 				"App Server terminal status is retained as an exact typed failure");
 		}
 
+		// Nothing the drain reads is refusable here, so the trailing decode is
+		// the first and only refusal. This is why the host must still adopt a
+		// cause from that decode, and it is the half of the ordering that a
+		// guard against restating an earlier cause must not break.
+		auto truncated = request(core::agent_protocol::codex_jsonl_exec);
+		truncated.Arguments.emplace_back("--truncated-exchange");
+		const auto truncatedResult = launcher.run(truncated, 20'000);
+		expect(
+			truncatedResult.Outcome
+					== application::agent_run_outcome::protocol_failure
+				&& truncatedResult.ProtocolFailure
+					== application::agent_protocol_failure::incomplete_frame
+				&& truncatedResult.Events.empty(),
+			"an exchange that stops early is refused as incomplete by the trailing decode");
+
+		// The switches above all outrun a pipe buffer or wait on parent input,
+		// so the parent always reads their refusal while the child is still
+		// running. This one writes its whole exchange at once and exits, so the
+		// refusal arrives in the same drain that ends the loop — the one path
+		// where a later trailing decode could restate the exact cause.
+		auto fastFailure = request(core::agent_protocol::codex_jsonl_exec);
+		fastFailure.Arguments.emplace_back("--fast-remote-failure");
+		const auto fastFailureResult = launcher.run(fastFailure, 20'000);
+		expect(
+			fastFailureResult.Outcome
+					== application::agent_run_outcome::protocol_failure
+				&& fastFailureResult.ProtocolFailure
+					== application::agent_protocol_failure::remote_failed
+				&& fastFailureResult.Events.empty(),
+			"a refusal read in the terminal drain keeps its exact cause");
+
 		auto oversized = request(core::agent_protocol::claude_stream_json);
 		oversized.Arguments.emplace_back("--oversize-frame");
 		const auto oversizedResult = launcher.run(oversized, 20'000);
