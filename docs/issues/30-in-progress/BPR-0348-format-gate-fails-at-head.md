@@ -1,7 +1,7 @@
 ---
 id: BPR-0348
 title: Repair the format gate that fails at HEAD
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0011
 depends_on: []
 ---
