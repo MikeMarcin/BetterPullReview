@@ -1,7 +1,7 @@
 ---
 id: BPR-0262
 title: Authenticate supervisor launch and retain capsule identity
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0261]
 ---
