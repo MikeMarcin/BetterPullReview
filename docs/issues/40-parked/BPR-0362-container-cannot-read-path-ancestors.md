@@ -1,9 +1,10 @@
 ---
 id: BPR-0362
 title: The container cannot read the ancestors every path check walks
-status: Ready
+status: Parked
 rfc: RFC-BPR-0008
 depends_on: []
+parked_on: awaiting-product-decision
 ---
 
 # The container cannot read the ancestors every path check walks
@@ -137,3 +138,48 @@ ctest --preset core-only --output-on-failure \
 
 Run the same selectors outside the launcher as the negative control, so a pass
 inside is evidence about the boundary rather than about the machine.
+
+## Operator decision packet — 2026-08-18
+
+Parked here rather than decided. Every unattended piece of evidence this card
+can produce has been produced; what remains is a choice about how much sandbox
+narrowness to trade for how much security-claim reach, and that is the product
+owner's.
+
+**The bounded decision requested.** Pick one of the three resolutions above for
+the retained ancestor chain. The Python `resolve(strict=True)` half follows from
+the same choice and does not need a separate answer.
+
+**What to look at.**
+
+- This card's measured table: the drive root is `win32=5` inside the container
+  and opens outside it.
+- `src/adapters/sqlite/src/catalog_database.cpp:2155` — `validate_ancestor_chain`,
+  the loop that starts at `\\?\C:\`.
+- [[BPR-0053]]'s epoch-catalog criterion, which is the security claim option 2
+  would narrow: "a live ancestor-substitution attempt while the catalog is open;
+  require the retained directory chain and private SQLite VFS to prevent any
+  redirected create, open, delete, or publication effect".
+- `cmake/WindowsTestIsolationSetup.cmake`, which is where option 1's `icacls`
+  grants would go.
+
+**What the verdict binds to.** The three options as written in this card, at
+commit `c55f2d7`. Nothing else is being approved: no live GitHub call, no
+credential, no release authority, no remote mutation.
+
+**Consequences, stated plainly.**
+
+| option | gives up | keeps |
+|---|---|---|
+| 1 — grant traverse up the chain | the contained process can walk to the drive root; the boundary [[BPR-0347]] built gets wider | the substitution defence intact and unmodified; no product change |
+| 2 — anchor the chain at a readable root | the substitution claim no longer reaches above that root, and [[BPR-0053]]'s criterion has to be rewritten to say so | the sandbox exactly as narrow as it is now |
+| 3 — do not contain the storage tests | the default-deny boundary [[BPR-0235]] requires of *every* test, for exactly the tests whose subject is filesystem authority | both the sandbox and the claim, for every other test |
+
+**Explicit non-scope.** This card does not change what the product does on macOS
+or Linux, does not touch [[BPR-0360]]'s descriptor defect, and does not decide
+whether the two epoch-catalog timeouts have a separate cause.
+
+Six tests wait on this: the four SQLite storage contracts and the two RFC-0016
+security tests. Nothing else in the Windows program is blocked by it —
+[[BPR-0363]], [[BPR-0361]], [[BPR-0365]], and [[BPR-0366]] were all completed
+while it stood.

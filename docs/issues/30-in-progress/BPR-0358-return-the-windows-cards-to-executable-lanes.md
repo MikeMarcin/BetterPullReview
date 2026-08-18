@@ -179,3 +179,63 @@ five still-undiagnosed tests and the Qt graph, and only then [[BPR-0036]] and
 - [ ] documentation gate passed over `RFC_BASE_SHA..HEAD`
 - [ ] independent review done
 - [ ] status flipped — no RFC in this program is close to closeout; all remain `Proposed`
+
+## Run state at `c55f2d7` — 2026-08-18
+
+**The Windows suite went from 60 of 84 to 72 of 85.** The extra registered test
+is `conditional_branch_identifier_contract`, added by [[BPR-0366]] to a gate that
+had none.
+
+| commit | card | effect |
+|---|---|---|
+| `d8404e6` | [[BPR-0358]] | nine cards leave `50-blocked/`; the lane holds only the two `platform-linux` cards |
+| `daee1be` | [[BPR-0359]] | five byte-pinned files stop changing under a CRLF checkout |
+| `acb8295` | [[BPR-0350]] | contained tests can create and use a temporary root |
+| `f372f83` | trackers | the failure taxonomy corrected from three symptoms to six causes |
+| `4214d78`, `555400c` | [[BPR-0363]] | the preset contract asserts the generator the preset declares |
+| `4ea0c0c` | [[BPR-0361]] | the live-mutation guard reads objects, because a linked MSVC image has no symbols |
+| `acb36e5` | [[BPR-0350]] | the Dif tool's import boundary restored; that conversion reverted |
+| `9c084bc` | [[BPR-0365]] | the Dif asset canon stops rejecting its own assets |
+| `c55f2d7` | [[BPR-0366]] | the conditional-branch gate stops reading a call as a declaration |
+
+Cards closed: [[BPR-0359]], [[BPR-0363]], [[BPR-0361]], [[BPR-0365]],
+[[BPR-0366]]. Cards opened by the work: [[BPR-0360]], [[BPR-0362]],
+[[BPR-0364]], [[BPR-0367]].
+
+### The 13 that remain
+
+| cause | tests | owner |
+|---|---|---|
+| the container cannot read any path ancestor | 4 SQLite storage, 2 RFC-0016 security | [[BPR-0362]] — **parked on a product decision** |
+| no Windows symbol inspector for the composed host | `composed_host_verifier_contract` | [[BPR-0364]] |
+| `git init` returns 128 inside the container | `operator_response_validation_contract` | undiagnosed |
+| the isolation verifier rejects the Windows runner | `test_network_isolation_structure_contract` | undiagnosed |
+| temporary root, inside the Dif tool's import boundary; and a PNG canon that may be zlib-version-dependent | `dif_assets_contract` | [[BPR-0350]] records the boundary |
+| undiagnosed | `architecture_boundary_contract`, `dependency_modernization_contract`, `github_contract_fixture_security` | — |
+
+### What is blocked and what is not
+
+[[BPR-0362]] is the only card in this program waiting on a person. It is parked
+with an operator decision packet, and it does not block the rest: four cards
+closed while it stood.
+
+Everything else that remains is ordinary diagnosis. Nothing in this program now
+waits on hardware, which is the thing this card set out to establish.
+
+### Gates
+
+```
+py -3 scripts/verify_documentation.py --root .        DOCUMENTATION_OK
+py -3 tests/scripts/verify_documentation_tests.py     78 tests, OK
+git diff --check 605aa56..HEAD                        clean
+clang-format on the one C++ file this run changed     clean
+ctest --preset core-only                              72/85
+cmake --build --target coding-format-check            FAILS, pre-existing, [[BPR-0367]]
+```
+
+The format gate's failure is one file, `src/app/src/github_application.cpp`,
+last touched before this program's base and untouched by it. [[BPR-0367]] carries
+it, including the open question of whether the file is misformatted or the tool
+version disagrees.
+
+The Qt graph under the boundary is still not attempted, unchanged by any of this.
