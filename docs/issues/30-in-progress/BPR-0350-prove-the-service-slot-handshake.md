@@ -1,7 +1,7 @@
 ---
 id: BPR-0350
 title: Prove the SERVICE_SLOT handshake mechanism before anything is built on it
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: []
 ---
