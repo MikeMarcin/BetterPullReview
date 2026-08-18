@@ -136,3 +136,61 @@ pre-quoted string makes `CreateProcessW` fail with `win32=5`, which looks like
 a boundary defect and is not one. A bare `python` also fails, with `win32=2`,
 because the launcher resolves the image itself and does not see the
 `WindowsApps` execution-alias stub the shell would.
+
+## The three groups were wrong — 2026-08-18
+
+This card grouped its 24 remaining failures into three buckets and named the
+first "one defect with one cause". That was a grouping by *symptom*. Removing
+the symptom showed six independent causes underneath, and the counts were off in
+both directions.
+
+[[BPR-0359]] and [[BPR-0350]] have landed. The suite is at **68 of 84 passing**,
+up from 60. Eight tests moved: `core_boundary_contract`,
+`documentation_issue_graph_contract`, `github_recorded_fixture_contract`,
+`attended_review_verdict_contract`, `project_source_dump_contract`,
+`live_mutation_isolation_contract`, `architecture_boundaries`, and
+`application_icon_assets_contract`.
+
+The corrected taxonomy of the 16 that remain, each measured on this host:
+
+| cause | tests | owner |
+|---|---|---|
+| the container cannot read any path ancestor, so `resolve(strict=True)` and the product's retained ancestor chain both fail | `sqlite_epoch_catalog_storage_contract`, `sqlite_epoch_catalog_behavior_contract`, `sqlite_review_mutation_recovery_storage`, `sqlite_review_ledger_storage`, `rfc0016_device_capture_security`, `rfc0016_device_live_runner_security` | [[BPR-0362]] |
+| no symbol inspector reads an MSVC PE | `live_mutation_isolation`, `composed_host_verifier_contract` | [[BPR-0361]] |
+| the Windows preset contract names Visual Studio 17 2022; the preset declares 18 2026 | `platform_configuration_contract` | [[BPR-0363]] |
+| `git init` returns 128 inside the container | `operator_response_validation_contract` | undiagnosed |
+| the isolation verifier's own contract rejects the Windows runner: `unsafe-fixture-root`, `profile-template-contains-network-allow` | `test_network_isolation_structure_contract` | undiagnosed |
+| not yet diagnosed individually | `architecture_boundary_contract`, `conditional_branch_identifiers`, `dif_assets_contract`, `dependency_modernization_contract`, `github_contract_fixture_security` | undiagnosed |
+
+Two corrections to what this card asserted:
+
+- The "17 tests" in the first group were not one defect. Four of the six
+  "undiagnosed" tests were the same temporary-directory cause, one was the DACL
+  cause, and one — `architecture_boundaries` — was a byte-pinned digest against a
+  CRLF checkout, which is [[BPR-0359]] and has nothing to do with containment.
+- The symbol-inspector failure is two defects, not one.
+  `verify_live_mutation_isolation.py` selects `dumpbin`, which returns no symbol
+  table for a linked image; `verify_composed_hosts.py` has no Windows candidate
+  at all. [[BPR-0361]] carries both.
+
+`architecture_boundary_contract` fails at the same
+`VerifyArchitectureBoundaries.cmake:1152` message [[BPR-0359]] fixed, but against
+fixture files the test itself writes, so it is probably the same class through a
+different door — a test writing text without `newline=""`. Probably is not
+measured, so it stays undiagnosed here.
+
+`BPR_BUILD_QT=ON` still has never been run under this boundary, unchanged by any
+of this work.
+
+## Build note for this host
+
+Every `cmake` and `ctest` invocation must run with the MSVC x64 environment
+imported. Without it, configure fails inside
+`cmake/WindowsTestIsolationSetup.cmake` with `fatal error C1034: windows.h: no
+include path set` while building the AppContainer launcher, which reads like a
+launcher defect and is not one.
+
+The launcher also prints `Failed to find real location of <image>` on every
+invocation before the test runs. It is not fatal and the test proceeds, but it
+appears in the output of all 84 tests and nothing explains it. It is likely the
+same ancestor-read denial [[BPR-0362]] measures, seen from inside the launcher.

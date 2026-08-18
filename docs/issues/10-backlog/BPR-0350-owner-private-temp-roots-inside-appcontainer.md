@@ -134,15 +134,19 @@ not a cause. With the temporary-directory cause removed, what was underneath it
 turned out to be four further independent defects, each now carrying its own
 card:
 
+- [[BPR-0362]] — nothing can read the ancestors above the container's own `AC`
+  directory, and both `Path.resolve(strict=True)` and the product's
+  `validate_ancestor_chain` walk all the way to `\\?\C:\`. That is what the
+  four SQLite storage tests and two RFC-0016 tests actually fail on, and they
+  only reached it because this card's fix let them get that far. Measured with a
+  negative control: the drive root is `win32=5` inside the container and opens
+  outside it.
 - [[BPR-0360]] — the **product** builds the same protected owner-only descriptor
-  in `src/adapters/sqlite/src/catalog_database.cpp`, so the four SQLite tests
-  still fail. This card's diagnosis named only the test helper and missed it.
-  Measured with a negative control: that exact descriptor shape is denied inside
-  the container and writable outside it.
-- [[BPR-0362]] — `Path.resolve(strict=True)` cannot resolve any path whose
-  ancestors the container cannot read, which is every path. Two RFC-0016 tests
-  fail on it, and they only reached it because this card's fix let them get that
-  far.
+  in `src/adapters/sqlite/src/catalog_database.cpp`. This card's diagnosis named
+  only the test helper and missed it. The descriptor defect is proven by direct
+  measurement, but it is latent behind [[BPR-0362]]: `open_state_directory` never
+  reaches the descriptor, so a fix has no observable symptom until that card
+  lands. One was written and reverted for exactly that reason.
 - [[BPR-0361]] — no symbol inspector reads an MSVC PE.
 - [[BPR-0363]] — the Windows preset contract names a Visual Studio the preset
   does not use.

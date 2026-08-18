@@ -120,3 +120,62 @@ py -3 tests/scripts/verify_documentation_tests.py
 ctest --test-dir build/core-only --output-on-failure \
   -R '^(documentation_structure|documentation_issue_graph_contract)$'
 ```
+
+## Progress — 2026-08-18
+
+The lane repair landed at `d8404e6`. `50-blocked/` holds exactly
+[[BPR-0310]] and [[BPR-0314]], both `platform-linux`, and no card carries
+`blocked_by: platform-windows`.
+
+Two slices of the frontier itself then landed, taking the Windows suite from
+**60 of 84 to 68 of 84**:
+
+| commit | card | effect |
+|---|---|---|
+| `daee1be` | [[BPR-0359]] | five byte-pinned files no longer change under a CRLF checkout; `architecture_boundaries` and `application_icon_assets_contract` pass |
+| `acb8295` | [[BPR-0350]] | contained tests can create and use a temporary root; six further tests pass |
+
+### What the frontier actually looks like now
+
+The order this card recorded assumed [[BPR-0347]]'s three failure groups were
+three causes. They were three symptoms. Working them exposed six causes, four of
+which now have their own cards, and the chain is longer than step 1 → 2 → 3:
+
+- [[BPR-0362]] is the largest single blocker, at six tests, and it is the one
+  that carries a real product-owner decision rather than a repair. The container
+  cannot read anything above its own `AC` directory — the drive root included —
+  and both `Path.resolve(strict=True)` and the product's deliberate retained
+  ancestor chain walk all the way up. Widening the sandbox, narrowing the
+  security claim, and exempting the storage contracts from containment are three
+  defensible answers that give up different things.
+- [[BPR-0360]] sits behind it. The product builds the same owner-only descriptor
+  [[BPR-0350]] fixed in the test helper, and that defect is proven, but
+  `open_state_directory` never reaches the descriptor while [[BPR-0362]] stands.
+  An implementation was written and reverted rather than landed unverifiable.
+- [[BPR-0361]] and [[BPR-0363]] are independent and unblocked.
+
+So the revised order is: [[BPR-0363]] and [[BPR-0361]] (unblocked, no decision),
+then [[BPR-0362]] (needs the decision), then [[BPR-0360]], then [[BPR-0347]]'s
+five still-undiagnosed tests and the Qt graph, and only then [[BPR-0036]] and
+[[BPR-0053]], whose acceptance is a passing matrix.
+
+### Verification matrix
+
+| claim | surface | command | proves it | result | evidence |
+|---|---|---|---|---|---|
+| no card claims a Windows platform blocker | issue board front matter | `grep -rn '^blocked_by:' docs/issues/` | only `platform-linux` remains | pass | `d8404e6`; `50-blocked/` holds 2 cards |
+| lane, status, and dependency rules still hold | `scripts/verify_documentation.py` | `py -3 scripts/verify_documentation.py --root .` | the verifier rejects lane/status disagreement and an unmet dependency outside a deferring lane | `DOCUMENTATION_OK` | every commit in this run |
+| the documentation contract suite still passes | `tests/scripts/verify_documentation_tests.py` | `py -3 tests/scripts/verify_documentation_tests.py` | 78 cases including the blocked-lane cases [[BPR-0319]] added | 78 tests, OK | `d8404e6` |
+| byte-pinned files match their pins on Windows | `cmake/VerifyArchitectureBoundaries.cmake`, `app_icon_assets_tests.py` | `ctest -R '^(architecture_boundaries\|application_icon_assets_contract)$'` | both read working-tree bytes and compare to a constant | 2/2 pass | `daee1be` |
+| a contained test can create and use a temporary root | the launcher plus `scripts/contained_temporary_support.py` | probe under `better_pull_review_network_sandbox.exe`, and `ctest -R '^core_boundary_contract$'` | `mkdtemp` denied inside and usable outside; the helper usable in both | pass, with negative control | `acb8295` |
+| the suite improved and nothing regressed | full Qt-free graph | `ctest --preset core-only --output-on-failure` | 84 registered tests | 68 pass, 16 fail, was 60/24 | `acb8295` |
+| the Qt graph under the boundary | `dev` / `windows-dev` presets | not run | — | **not attempted** | [[BPR-0347]] |
+
+### Phase checklist
+
+- [x] planning committed — `d8404e6`
+- [ ] implementation cards done — 2 of the program's slices landed; 4 new cards opened
+- [ ] simplify committed
+- [ ] documentation gate passed over `RFC_BASE_SHA..HEAD`
+- [ ] independent review done
+- [ ] status flipped — no RFC in this program is close to closeout; all remain `Proposed`
