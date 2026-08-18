@@ -67,11 +67,11 @@ namespace {
 		}
 
 		QObject Context;
-		int Resets     = 0;
-		int Insertions = 0;
-		int Removals   = 0;
-		int Moves      = 0;
-		int Changes    = 0;
+		int     Resets     = 0;
+		int     Insertions = 0;
+		int     Removals   = 0;
+		int     Moves      = 0;
+		int     Changes    = 0;
 	};
 
 	[[nodiscard]] auto ref(const std::int64_t aNumber) -> core::pull_request_ref
