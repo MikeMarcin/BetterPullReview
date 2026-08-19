@@ -1,7 +1,7 @@
 ---
 id: BPR-0354
 title: Close the nested resource check/use window
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0353]
 ---
