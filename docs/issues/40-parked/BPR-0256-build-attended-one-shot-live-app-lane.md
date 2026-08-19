@@ -299,3 +299,38 @@ So the card moves to `40-parked/` behind the operator verdict rather than to
 `20-ready/`: (1) is environment-blocked and tracked, and (3) is the terminal
 requirement in any case. No live lane was executed, no credential accessed, no
 mutation submitted.
+
+## Packet regenerated — 2026-08-18
+
+Step (1) is complete. [[BPR-0363]]'s fix held: the tests-disabled Release
+graph configured and built fresh at `build/bpr0256-release`, and the first
+capsule build since the graph was unblocked exposed and closed two real
+defects on the way — done [[BPR-0366]] (the capsule surface still pinned the
+pre-BPR-0328 executable name) and done [[BPR-0367]] (the verifier could not
+parse the universal Qt's per-architecture Mach-O framing). With both fixed
+the capsule builds and verifies: `designated-live-macos-capsule:pass`.
+
+The regenerated evidence is
+`docs/verification/reviews/designated-live-review-publication-v002/`:
+
+- capsule application `sha256:26719adf…`, supervisor `sha256:d5490007…`,
+  inventory `sha256:053f5e99…`, all under source digest `1a6c971b…`, whose
+  31-entry manifest was reproduced byte-exactly during preparation;
+- a schema-3 approval subject (`sha256:929a013d…`) rendered through the real
+  `designated_review_approval_subject` renderer, binding the supervisor and
+  inventory digests and the existing replay namespace, which was loaded
+  read-only — it was not reset, and the packet forbids resetting it;
+- the digest-bound read-only capsule image (`sha256:4603539d…`) built and
+  `stage-zero`-verified as separate release evidence, with the packet
+  explicitly not claiming the CTest lane runs from the mounted image.
+
+The current eleven-selector hermetic matrix passed 10/10 at the repinned
+app-source digest, recorded in the RFC-BPR-0008 ledger. Two gates remain
+before the operator decision may be requested, both deliberately sequenced
+behind the dev-binary hold protecting two other digest-bound attended
+packets: `application_review_round_trip_composition_contract` runs the dev
+application binary and waits for that hold to lift, and step (2)'s fresh
+capability-critical independent review runs after the full matrix is green.
+Step (3), the exact attended operator decision, remains the terminal
+requirement. No live lane was executed, no credential accessed, no mutation
+submitted, and no approval file exists.

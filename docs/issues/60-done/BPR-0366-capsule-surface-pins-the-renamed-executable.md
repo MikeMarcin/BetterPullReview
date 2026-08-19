@@ -51,3 +51,10 @@ real defect — universal Mach-O framing, tracked and closed as [[BPR-0367]] —
 and with both fixes in place the capsule `build` subcommand prints
 `designated-live-macos-capsule:pass` against the freshly built tests-disabled
 Release bundle. The three focused selectors pass 3/3.
+
+The BPR-0255 production app-source digest drifted as a direct consequence:
+since the last pin at `47c6d9e`, the only changed app sources are exactly
+this card's `designated_live_macos_supervisor.cpp` and
+`designated_live_macos_provenance.cpp`, so the expected manifest digest is
+repinned to `ef7a210a` following the BPR-0360 ceremony, and
+`application_composition_contract` passes again at the repinned value.
