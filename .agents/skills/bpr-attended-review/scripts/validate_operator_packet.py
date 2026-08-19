@@ -528,7 +528,18 @@ def main() -> int:
         destination = root / output_path
         if destination.exists():
             raise validation_error(f"validation record already exists: {output_path}")
-        destination.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+        # Byte-exact on purpose. This record is committed and then revalidated
+        # against its own commit, and git normalises line endings on the way in.
+        # Without `newline=""` the tool wrote CRLF, git stored LF, and the very
+        # next `--validate-existing` run rejected the record this tool had just
+        # produced. `encoding` is explicit for the same reason: the record is
+        # evidence, and evidence that varies with the writer's locale is not
+        # evidence.
+        destination.write_text(
+            json.dumps(record, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+            newline="",
+        )
         print(f"OPERATOR_RESPONSE_VALID:{gate}")
         return 0
     except (OSError, UnicodeError, json.JSONDecodeError, validation_error) as error:

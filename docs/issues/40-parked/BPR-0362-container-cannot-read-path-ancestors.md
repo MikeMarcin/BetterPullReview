@@ -352,3 +352,47 @@ Fixing them one at a time is not a repair, it is a pattern of concessions. That
 is the argument for answering this card as a policy rather than per site, and it
 strengthens option 4: file identity is available contained, and it is the one
 answer that serves all three.
+
+## Git cannot run contained either, which narrows the options — 2026-08-18
+
+A fourth code path reaches this card, and it is not ours to change.
+
+```
+subprocess.CalledProcessError: Command '['git', 'init', '-q']' returned 128
+fatal: unable to get current working directory: Permission denied
+```
+
+Measured inside the launcher, in a directory the process had just created and
+can write to. `git` resolves its working directory at start-up, that resolution
+walks the ancestor chain, and the chain is unreadable. Nothing about the
+repository, the fixture, or the temporary root is wrong.
+
+`operator_response_validation_contract` fails on this, and [[BPR-0379]] fixed
+everything else that test was failing on.
+
+### What it means for the options
+
+**Option 4 cannot fix this.** Verifying by file identity instead of by name is
+a change to *our* code, and `git` is a third-party binary that will keep calling
+`getcwd()` however we express our own checks. Any test that shells out to `git`
+inside the container fails regardless.
+
+That leaves the two options this card started with, and sharpens the choice:
+
+1. **Grant the container ACLs up the chain** — the only option that fixes every
+   path at once, including third-party binaries. Its cost is unchanged and
+   real: it means modifying the ACLs of `C:\`, `C:\Users`, and the invoking
+   user's profile directory.
+3. **Do not contain the tests that need this** — now a larger set than it
+   looked, because it includes anything invoking `git`.
+
+Option 4 remains worth doing for the product's own chain, on its own merits —
+`validate_ancestor_chain` should probably verify identity rather than name
+regardless of containers. But it is no longer a complete answer to this card,
+and it should not be presented as one.
+
+### The honest summary
+
+Six tests wait on this decision. Three separate mechanisms are involved — our
+product's retained chain, `resolve(strict=True)` in two scripts, and `getcwd()`
+in `git` — and only option 1 addresses all three.

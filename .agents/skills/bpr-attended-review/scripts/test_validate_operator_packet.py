@@ -102,9 +102,13 @@ def fixture(root: Path, newline: str = "\n") -> tuple[str, str]:
             "",
         )
     )
-    (root / GATE / "decision-subject.txt").write_text(subject)
+    (root / GATE / "decision-subject.txt").write_text(
+        subject, encoding="utf-8", newline=""
+    )
     (root / GATE / "operator-packet.md").write_bytes(packet.encode())
-    (root / GATE / "operator-response.md").write_text(statement)
+    (root / GATE / "operator-response.md").write_text(
+        statement, encoding="utf-8", newline=""
+    )
     claims = {
         "schema_name": "bpr.operator_claim_contract",
         "schema_version": 1,
@@ -112,7 +116,9 @@ def fixture(root: Path, newline: str = "\n") -> tuple[str, str]:
         "approved_claim": "synthetic_gate_v001_approved",
         "adjacent_false_claims": ["adjacent_authority_approved"],
     }
-    (root / GATE / "claims-contract.json").write_text(json.dumps(claims))
+    (root / GATE / "claims-contract.json").write_text(
+        json.dumps(claims), encoding="utf-8", newline=""
+    )
     (root / "validator.py").write_bytes(VALIDATOR.read_bytes())
     git(root, "add", ".")
     git(root, "commit", "-qm", "fixture")
