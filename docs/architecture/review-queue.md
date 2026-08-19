@@ -58,6 +58,10 @@ assignments from review or comment history.
 
 - **Observation** — `core::pull_request_observation` (who, where, which paths)
   and `core::queue_activity_observation` (what has happened since).
+- **Report** — `application::queue_activity_report`, binding one activity
+  observation to the ref it was read about. Projection pairs activity to
+  enrollments by ref in any order; a report about an unenrolled ref moves
+  nothing, and an enrollment without a report is quiet.
 - **Rule** — `core::observer_rule`: repository, author, or path, including or
   excluding.
 - **Decision** — `core::queue_membership`, carrying the GitHub role, whether a

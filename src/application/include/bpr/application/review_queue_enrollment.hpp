@@ -70,6 +70,21 @@ namespace bpr::application {
 		auto operator<=>(const enrollment_record&) const = default;
 	};
 
+	/// \brief One pull request's read activity, keyed to the ref it describes.
+	///
+	/// \details `project` once paired activity to enrollments positionally,
+	/// which obliged every caller to reproduce the register's private record
+	/// order exactly and would have misattributed one pull request's activity
+	/// to another on any mismatch. Carrying the ref makes the pairing explicit
+	/// and order-free.
+	struct queue_activity_report
+	{
+		core::pull_request_ref           Ref;
+		core::queue_activity_observation Observation;
+
+		auto operator<=>(const queue_activity_report&) const = default;
+	};
+
 	/// \brief Retains enrollments and projects the queue from them.
 	///
 	/// \details Holds no provider, no clock, and no database. The durable store
@@ -125,8 +140,11 @@ namespace bpr::application {
 		/// \details Departed items are retained but not projected. They are
 		/// kept so the reviewer can be told what happened, and dropped from the
 		/// queue because a closed pull request is not asking for attention.
+		/// Reports pair to enrollments by ref in any order: a report about an
+		/// unenrolled ref moves nothing, and an enrollment without a report is
+		/// quiet.
 		[[nodiscard]] auto project(
-			std::span<const core::queue_activity_observation> aActivity) const
+			std::span<const queue_activity_report> aActivity) const
 			-> std::vector<core::queue_item>;
 
 	private:

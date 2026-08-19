@@ -641,8 +641,8 @@ namespace {
 		records.enroll(ref(8), by_role(core::github_role::requested_reviewer));
 
 		const auto activity = std::array{
-			core::queue_activity_observation{ },
-			core::queue_activity_observation{ },
+			application::queue_activity_report{ .Ref = ref(7) },
+			application::queue_activity_report{ .Ref = ref(8) },
 		};
 		const auto queue = records.project(activity);
 
@@ -666,6 +666,51 @@ namespace {
 		expect(
 			queue.front().Bucket == core::attention_bucket::quiet,
 			"and asks for nothing until something has been read about it");
+	}
+
+	// Activity pairs to enrollments by ref, so the caller owes no particular
+	// order. Under the old positional contract this could not even be stated:
+	// the same reports in a different order described different pull requests.
+	void test_activity_pairs_by_ref_in_any_order()
+	{
+		auto records = application::queue_enrollment_register{ };
+		records.enroll(ref(7), by_role(core::github_role::reviewer));
+		records.enroll(ref(8), by_role(core::github_role::reviewer));
+		records.enroll(ref(9), by_role(core::github_role::reviewer));
+
+		const auto moved = core::queue_activity_observation{
+			.ReviewedByMe           = true,
+			.HeadMovedSinceMyReview = true,
+		};
+		const auto forward = std::array{
+			application::queue_activity_report{ .Ref = ref(7) },
+			application::queue_activity_report{ .Ref = ref(8), .Observation = moved },
+			application::queue_activity_report{ .Ref = ref(9) },
+		};
+		const auto shuffled = std::array{ forward[2], forward[0], forward[1] };
+
+		const auto expected = records.project(forward);
+		expect(
+			records.project(shuffled) == expected,
+			"the same reports in any order project the same queue");
+		const auto item
+			= std::ranges::find(expected, ref(8), &core::queue_item::Ref);
+		expect(
+			item != expected.end()
+				&& item->Bucket != core::attention_bucket::quiet,
+			"and the moved head lands on the pull request it was read about");
+
+		const auto unenrolled = std::array{
+			application::queue_activity_report{ .Ref = ref(99), .Observation = moved },
+		};
+		const auto ignored = records.project(unenrolled);
+		expect(
+			std::ranges::all_of(
+				ignored,
+				[](const core::queue_item& aItem) {
+					return aItem.Bucket == core::attention_bucket::quiet;
+				}),
+			"a report about an unenrolled ref moves nothing");
 	}
 
 	void test_presentation_preferences_are_durable_before_projection()
@@ -808,6 +853,7 @@ auto main() -> int
 	test_every_departure_names_and_explains_itself();
 	test_the_projection_is_ordered_by_attention();
 	test_an_unobserved_item_is_quiet();
+	test_activity_pairs_by_ref_in_any_order();
 	test_composed_host_persists_matches_and_removal();
 	test_rule_removal_reconciles_every_matching_enrollment_before_publish();
 	test_refresh_identity_and_cancellation_are_authoritative();

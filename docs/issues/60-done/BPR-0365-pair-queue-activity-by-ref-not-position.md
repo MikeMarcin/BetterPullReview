@@ -1,7 +1,7 @@
 ---
 id: BPR-0365
 title: Pair queue activity observations by ref instead of position
-status: In Progress
+status: Done
 rfc: RFC-BPR-0010
 depends_on: []
 ---
@@ -46,3 +46,31 @@ one pull request), and this repair must not wait for a Linux host.
 ```sh
 ctest --preset dev -R '^(application_review_queue_enrollment|application_queue_composition_contract)$' --output-on-failure
 ```
+
+## Result — 2026-08-18
+
+`application::queue_activity_report` now binds each observation to the ref it
+was read about, and `queue_enrollment_register::project` pairs reports to
+enrollments by ref lookup: a report about an unenrolled ref moves nothing,
+and an enrollment without a report is quiet. The host's parallel-vector
+assembly (`activities()`) is deleted rather than adapted — the retained
+activity list is itself the keyed report list and is handed to `project`
+directly, so no caller reconstructs the register's private order anywhere.
+The refresh path was already keyed and is unchanged, as is the Qt-facing
+landing projection.
+
+The new register-tier test enrolls three pull requests, projects the same
+reports forward and shuffled, and requires identical queues with the moved
+head landing on the exact pull request it was read about; it also proves an
+unenrolled ref's report moves nothing. Under the old positional contract the
+shuffled projection would have cross-attributed the moved observation, so
+the test fails if the pairing regresses.
+
+Evidence at this commit: the six queue-touching selectors —
+`application_review_queue_enrollment`, `application_review_queue_refresh`,
+`application_review_queue_notification`, `sqlite_queue_enrollment_storage`,
+`qt_review_queue`, and `application_queue_composition_contract` — pass 6/6,
+`clang-format --dry-run --Werror` is clean on the three changed code files,
+and the register's only consumers are the three edited files.
+`docs/architecture/review-queue.md` gains the report in its typed
+vocabulary.

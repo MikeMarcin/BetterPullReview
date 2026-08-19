@@ -155,22 +155,23 @@ namespace bpr::application {
 	}
 
 	auto queue_enrollment_register::project(
-		const std::span<const core::queue_activity_observation> aActivity) const
+		const std::span<const queue_activity_report> aActivity) const
 		-> std::vector<core::queue_item>
 	{
 		auto items = std::vector<core::queue_item>{ };
 		items.reserve(Records.size());
-		for (auto index = std::size_t{ 0U }; index < Records.size(); ++index) {
-			const auto& record = Records[index];
+		for (const auto& record : Records) {
 			if (!record.present()) {
 				continue;
 			}
-			// A missing observation is not an error and must not be guessed at.
-			// The host supplies what it read; an item it has not read yet is
+			// A missing report is not an error and must not be guessed at. The
+			// host supplies what it read; an item it has not read yet is
 			// quiet, which is what `bucket_for` says about an empty one.
-			const auto activity = index < aActivity.size()
-				? aActivity[index]
-				: core::queue_activity_observation{ };
+			const auto found = std::ranges::find(
+				aActivity, record.Ref, &queue_activity_report::Ref);
+			const auto activity = found == aActivity.end()
+				? core::queue_activity_observation{ }
+				: found->Observation;
 			items.push_back(core::queue_item{
 				.Ref        = record.Ref,
 				.Membership = record.Membership,
@@ -306,32 +307,12 @@ namespace bpr::application {
 			publish();
 		}
 
-		[[nodiscard]] auto activities() const
-			-> std::vector<core::queue_activity_observation>
-		{
-			auto result = std::vector<core::queue_activity_observation>{ };
-			result.reserve(Enrollments.records().size());
-			for (const auto& record : Enrollments.records()) {
-				const auto found = std::ranges::find(
-					Activity,
-					record.Ref,
-					&std::pair<core::pull_request_ref,
-							   core::queue_activity_observation>::first);
-				result.push_back(
-					found == Activity.end()
-						? core::queue_activity_observation{ }
-						: found->second);
-			}
-			return result;
-		}
-
 		void publish()
 		{
-			const auto observation = activities();
 			Projection.publish(queue_landing_projection{
 				.Status         = Status,
 				.Rules          = Rules,
-				.Items          = Enrollments.project(observation),
+				.Items          = Enrollments.project(Activity),
 				.Preferences    = Preferences,
 				.Session        = Scheduler.session(),
 				.Online         = Scheduler.online(),
@@ -662,14 +643,14 @@ namespace bpr::application {
 			const core::queue_activity_observation& aObservation)
 		{
 			const auto found = std::ranges::find(
-				Activity,
-				aRef,
-				&std::pair<core::pull_request_ref,
-						   core::queue_activity_observation>::first);
+				Activity, aRef, &queue_activity_report::Ref);
 			if (found == Activity.end()) {
-				Activity.emplace_back(aRef, aObservation);
+				Activity.push_back(queue_activity_report{
+					.Ref         = aRef,
+					.Observation = aObservation,
+				});
 			} else {
-				found->second = aObservation;
+				found->Observation = aObservation;
 			}
 		}
 
@@ -815,9 +796,7 @@ namespace bpr::application {
 		std::vector<core::observer_rule>              Rules;
 		queue_presentation_preferences                Preferences;
 		std::optional<queue_presentation_preferences> QueuedPreferences;
-		std::vector<std::pair<core::pull_request_ref,
-							  core::queue_activity_observation>>
-													  Activity;
+		std::vector<queue_activity_report>            Activity;
 		std::vector<outstanding_request>              Outstanding;
 		std::optional<core::pull_request_ref>         LastRef;
 		std::optional<core::pull_request_observation> LastObservation;
@@ -897,8 +876,7 @@ namespace bpr::application {
 	auto review_queue_application_host::queue() const
 		-> std::vector<core::queue_item>
 	{
-		const auto observation = Implementation->activities();
-		return Implementation->Enrollments.project(observation);
+		return Implementation->Enrollments.project(Implementation->Activity);
 	}
 
 	auto review_queue_application_host::statistics() const noexcept
