@@ -1,7 +1,7 @@
 ---
 id: BPR-0345
 title: Resolve the nondeterministic epoch maintenance verify-deleted failure
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: []
 ---
