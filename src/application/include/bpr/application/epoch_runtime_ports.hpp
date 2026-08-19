@@ -15,6 +15,7 @@ namespace bpr::application {
 	inline constexpr std::size_t maximum_epoch_outstanding_jobs = 1'024U;
 	inline constexpr std::size_t maximum_epoch_deferred_ingress = 1'024U;
 	inline constexpr auto        maximum_epoch_blob_wait        = std::chrono::minutes{ 10 };
+	inline constexpr auto        maximum_epoch_workspace_wait   = std::chrono::minutes{ 60 };
 
 	/// \brief Describes the epoch host residency limits.
 	struct epoch_host_limits
@@ -33,6 +34,14 @@ namespace bpr::application {
 		// classification stayed outstanding until shutdown retired it — which is
 		// how a pane rendered monochrome for a whole session. BPR-0390.
 		std::chrono::milliseconds BlobWait = std::chrono::seconds{ 90 };
+		// The same backstop for the two agent-workspace calls, which shared the
+		// unbounded shape until BPR-0397 and are deliberately not bounded by
+		// `BlobWait`. Those read an object the cache already holds; materializing
+		// a workspace writes a whole tree to disk and cleaning one removes it,
+		// and either can legitimately outrun a bound sized for a read. Choosing a
+		// bound tight enough to fail honest work would be a defect wearing a
+		// safety margin.
+		std::chrono::milliseconds WorkspaceWait = std::chrono::minutes{ 10 };
 
 		auto operator<=>(const epoch_host_limits&) const = default;
 	};
@@ -48,7 +57,9 @@ namespace bpr::application {
 			// A zero bound would abandon every read before the actor could run,
 			// which is worse than the unbounded wait it replaced.
 			&& aLimits.BlobWait > std::chrono::milliseconds::zero()
-			&& aLimits.BlobWait <= maximum_epoch_blob_wait;
+			&& aLimits.BlobWait <= maximum_epoch_blob_wait
+			&& aLimits.WorkspaceWait > std::chrono::milliseconds::zero()
+			&& aLimits.WorkspaceWait <= maximum_epoch_workspace_wait;
 	}
 
 	using epoch_entropy_bytes = std::array<std::uint8_t, 32U>;

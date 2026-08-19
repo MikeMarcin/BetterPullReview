@@ -313,7 +313,17 @@ Epoch cache/catalog effects are serialized by a host-lifetime registry of at
 most 1,000 actors, one per exact repository cache authority. Each actor owns
 one FIFO and at most one live cache session. One public `epoch_host_limits`
 record caps the global retained job ledger (64 by default, at most 1,024) and
-ordinary reentrant ingress (64 by default, at most 1,024). Every queued,
+ordinary reentrant ingress (64 by default, at most 1,024). The same record
+bounds how long a synchronous caller may wait on that FIFO: `BlobWait` (90
+seconds by default, at most 10 minutes) for the two reads — blob
+materialization and selected-diff resolution — and `WorkspaceWait` (10 minutes
+by default, at most 60) for the two agent-workspace calls, which write or
+remove a whole tree rather than read an object the cache already holds. Both
+are validated non-zero at composition. They are backstops, not latency
+targets: what releases an abandoned call *promptly* is the caller's stop
+token, which every one of these waits honours, and the deadline is what
+releases a call whose actor never reaches the work at all. Before either
+existed the waits had neither, and only shutdown ended them. Every queued,
 running, or decision-completion-pending actor operation—including synchronous
 diff blob materialization—retains one ledger entry. The global job cap
 therefore bounds the sum of actor FIFOs and each individual FIFO. Decision

@@ -3,12 +3,14 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <deque>
 #include <expected>
+#include <filesystem>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -2123,6 +2125,65 @@ namespace {
 		};
 	}
 
+	// BPR-0397. The two agent-workspace calls reach their wait only for a value
+	// the host can key to a live cache actor, so these mirror the fixture's
+	// accepted authority, its application session, and its SHA-1 head. That is
+	// what makes the derived cache actor key the one `establish_ready_comparison`
+	// installed rather than a second key with no actor behind it.
+	[[nodiscard]] auto workspace_parent_directory() -> std::filesystem::path
+	{
+		// Absolute, because a relative parent is an invalid request. Nothing is
+		// created here: the fake cache session answers without a filesystem.
+		return std::filesystem::temp_directory_path() / "bpr-0397-workspaces";
+	}
+
+	[[nodiscard]] auto workspace_request_for(const core::epoch_state& aState)
+		-> application::agent_workspace_materialization_request
+	{
+		expect(
+			aState.Authority.has_value(),
+			"ready comparison supplies agent workspace authority");
+		const auto& owner = *aState.Authority;
+		return {
+			.ApplicationSession = aState.ApplicationSession,
+			.Authority          = owner,
+			.Session            = {
+				.Id      = core::agent_session_id{ 5U },
+				.Profile = core::agent_profile_id{ 6U },
+				.Binding = {
+					.Host        = owner.Host,
+					.Repository  = owner.Repository,
+					.PullRequest = owner.PullRequest,
+					.BaseOid     = oid<core::git_commit_oid>(10U),
+					.HeadOid     = oid<core::git_commit_oid>(20U),
+					.LeftEpoch   = core::epoch_ordinal{ 1 },
+					.RightEpoch  = core::epoch_ordinal{ 1 },
+				},
+			},
+			.ParentDirectory = workspace_parent_directory(),
+		};
+	}
+
+	[[nodiscard]] auto owned_workspace_for(const core::epoch_state& aState)
+		-> application::owned_agent_workspace
+	{
+		const auto request = workspace_request_for(aState);
+		return {
+			.Workspace = {
+				.Policy      = core::agent_workspace_policy::disposable_review_workspace,
+				.PinnedHead  = request.Session.Binding.HeadOid,
+				.Path        = (request.ParentDirectory / "workspace").string(),
+				.Cleanliness = application::checkout_cleanliness::clean,
+			},
+			.ApplicationSession = request.ApplicationSession,
+			.Authority          = request.Authority,
+			.Session            = request.Session.Id,
+			.ParentDirectory    = request.ParentDirectory,
+			.OwnershipMarker    = "bpr-0397",
+			.DirectoryIdentity  = { .Opaque = { 2U, 1U, 0U, 1U } },
+		};
+	}
+
 	[[nodiscard]] auto diagnostic_count(
 		const shared_state&           aState,
 		const core::epoch_reason_code aReason) -> std::size_t
@@ -2351,6 +2412,139 @@ namespace {
 						  .DeferredIngress = 2U,
 						  .BlobWait        = application::maximum_epoch_blob_wait }),
 			   "the hard maximum blob-read bound remains admissible");
+
+		// BPR-0397. The two agent-workspace waits are bounded on the same terms
+		// and fail the same way at zero, but they are a separate bound because
+		// writing or removing a whole tree is not a read of an object the cache
+		// already holds.
+		expect(rejects({ .OutstandingJobs = 2U,
+						 .DeferredIngress = 2U,
+						 .WorkspaceWait   = std::chrono::milliseconds::zero() }),
+			   "a zero agent-workspace bound is rejected at composition");
+		expect(rejects({ .OutstandingJobs = 2U,
+						 .DeferredIngress = 2U,
+						 .WorkspaceWait   = application::maximum_epoch_workspace_wait
+							 + std::chrono::milliseconds{ 1 } }),
+			   "an agent-workspace bound above the hard maximum is rejected at "
+			   "composition");
+		expect(!rejects({ .OutstandingJobs = 2U,
+						  .DeferredIngress = 2U,
+						  .WorkspaceWait   = application::maximum_epoch_workspace_wait }),
+			   "the hard maximum agent-workspace bound remains admissible");
+	}
+
+	/// BPR-0397. These three waits had no deadline at all, and the only thing
+	/// that ever released one was shutdown — which is how a starved call
+	/// outlived the work it was waiting for. Each now returns its own failure
+	/// exit when the actor never reaches the work it queued.
+	///
+	/// The token passed here has no stop state, so the abandonment path cannot
+	/// fire and the bound is the only exit left. `queued_actor_work()` is what
+	/// separates that exit from the earlier returns that report the same
+	/// status: work is enqueued strictly after the key, the actor, and the
+	/// authorization have been accepted, and the effect executor is never run
+	/// here, so nothing can complete it.
+	void every_sibling_actor_wait_releases_at_its_bound()
+	{
+		constexpr auto bound = std::chrono::milliseconds{ 25 };
+		fixture        value{ application::epoch_host_limits{
+			.BlobWait      = bound,
+			.WorkspaceWait = bound,
+		} };
+		establish_ready_comparison(value);
+		expect(
+			value.Effects.pending() == 0U
+				&& value.Host->queued_actor_work() == 0U,
+			"the ready fixture leaves no actor work outstanding");
+
+		const auto diff = selected_diff_request_for(value);
+		expect(
+			value.Host->resolve(diff, { }).Status
+					== application::workbench_selected_diff_status::failure
+				&& value.Host->queued_actor_work() == 1U,
+			"a selected-diff resolution whose actor never runs returns at its "
+			"bound with its queued work intact");
+
+		const auto request = workspace_request_for(value.Host->state());
+		const auto materialized
+			= value.Host->materialize_agent_workspace(request, { });
+		expect(
+			!materialized.has_value()
+				&& materialized.error()
+					== application::agent_workspace_failure::unavailable
+				&& value.Host->queued_actor_work() == 2U,
+			"a workspace materialization whose actor never runs returns at its "
+			"bound with its queued work intact");
+
+		const auto workspace = owned_workspace_for(value.Host->state());
+		const auto cleaned   = value.Host->cleanup_agent_workspace(workspace, { });
+		expect(
+			!cleaned.has_value()
+				&& cleaned.error()
+					== application::agent_workspace_failure::cleanup_failed
+				&& value.Host->queued_actor_work() == 3U,
+			"a workspace cleanup whose actor never runs returns at its bound "
+			"with its queued work intact");
+		expect(
+			value.Effects.pending() == 1U,
+			"and one scheduled actor drain still owns all three: a released "
+			"wait cancels no job");
+	}
+
+	/// BPR-0397. The other exit, and the one that has to stay distinguishable
+	/// from the bound: a caller that has moved on is `cancelled`. Nothing else
+	/// here can produce that status — the effect executor is never run, so the
+	/// queued work cannot report it, and each bound reports its own failure
+	/// instead.
+	///
+	/// The bound is deliberately large. A short one would let a broken stop
+	/// path pass by elapsing quickly, and the point of the case is that only
+	/// the stop token can explain a prompt return. Ten seconds is long enough
+	/// to say that and short enough that a regression fails in ten seconds
+	/// rather than hanging.
+	void every_sibling_actor_wait_releases_on_caller_cancellation()
+	{
+		constexpr auto bound = std::chrono::seconds{ 10 };
+		fixture        value{ application::epoch_host_limits{
+			.BlobWait      = bound,
+			.WorkspaceWait = bound,
+		} };
+		establish_ready_comparison(value);
+		auto caller = std::stop_source{ };
+		static_cast<void>(caller.request_stop());
+
+		const auto diff = selected_diff_request_for(value);
+		expect(
+			value.Host->resolve(diff, caller.get_token()).Status
+					== application::workbench_selected_diff_status::cancelled
+				&& value.Host->queued_actor_work() == 1U,
+			"a stopped caller releases the selected-diff wait as cancelled "
+			"without cancelling the work it queued");
+
+		const auto request = workspace_request_for(value.Host->state());
+		const auto materialized
+			= value.Host->materialize_agent_workspace(request, caller.get_token());
+		expect(
+			!materialized.has_value()
+				&& materialized.error()
+					== application::agent_workspace_failure::cancelled
+				&& value.Host->queued_actor_work() == 2U,
+			"a stopped caller releases the materialization wait as cancelled "
+			"without cancelling the work it queued");
+
+		const auto workspace = owned_workspace_for(value.Host->state());
+		const auto cleaned
+			= value.Host->cleanup_agent_workspace(workspace, caller.get_token());
+		expect(
+			!cleaned.has_value()
+				&& cleaned.error()
+					== application::agent_workspace_failure::cancelled
+				&& value.Host->queued_actor_work() == 3U,
+			"a stopped caller releases the cleanup wait as cancelled without "
+			"cancelling the removal it queued");
+		expect(
+			value.Effects.pending() == 1U,
+			"and one scheduled actor drain still owns all three");
 	}
 
 	void admission_allocation_failure_rolls_back_every_boundary()
@@ -5568,6 +5762,8 @@ int main()
 	projection_failure_is_contained_and_decision_progress_drains();
 	reentrant_projection_ingress_is_deferred_without_recursion();
 	epoch_host_limits_reject_invalid_capacity();
+	every_sibling_actor_wait_releases_at_its_bound();
+	every_sibling_actor_wait_releases_on_caller_cancellation();
 	admission_allocation_failure_rolls_back_every_boundary();
 	executor_refusal_rolls_back_offer_admission();
 	actor_quota_rejection_preserves_the_admitted_offer();

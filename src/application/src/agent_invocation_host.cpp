@@ -469,6 +469,14 @@ namespace bpr::application {
 			if (!workspace.has_value()) {
 				return true;
 			}
+			// The stop-stateless token here is deliberate, and saying so is the
+			// point: BPR-0390 found a `std::stop_token{ }` that made a wait look
+			// cancellable when it never could be. This one must not be
+			// cancellable. Cleanup runs *because* the invocation ended, and
+			// `destroy` requests the invocation's stop before calling here, so
+			// passing that token would abandon every shutdown cleanup and leak
+			// the workspace it exists to remove. What makes this wait terminable
+			// is its bound, not a token. BPR-0397.
 			const auto cleaned = Workspaces.cleanup_agent_workspace(*workspace, { });
 			if (!cleaned.has_value()) {
 				++WorkspaceCleanupFailures;

@@ -806,6 +806,9 @@ namespace bpr::application {
 			std::mutex                                         Mutex;
 			std::condition_variable                            Completed;
 			std::optional<workbench_selected_diff_observation> Result;
+			// See `blob_waiter::Abandoned`. This wait carried the identical
+			// unbounded shape until BPR-0397.
+			bool Abandoned = false;
 		};
 
 		struct workspace_waiter final
@@ -815,6 +818,11 @@ namespace bpr::application {
 			std::optional<
 				std::expected<owned_agent_workspace, agent_workspace_failure>>
 				Result;
+			// See `blob_waiter::Abandoned`. Abandoning this one is not free the
+			// way abandoning a read is: if the work later succeeds it has written
+			// a workspace to disk that nobody owns, so the closure consults this
+			// flag under the mutex and cleans up rather than leaking. BPR-0397.
+			bool Abandoned = false;
 		};
 
 		struct workspace_cleanup_waiter final
@@ -822,6 +830,9 @@ namespace bpr::application {
 			std::mutex                                                  Mutex;
 			std::condition_variable                                     Completed;
 			std::optional<std::expected<void, agent_workspace_failure>> Result;
+			// See `blob_waiter::Abandoned`. Abandoning a cleanup is safe: the
+			// removal still runs, and only its outcome goes unread. BPR-0397.
+			bool Abandoned = false;
 		};
 
 		struct authority_context final
@@ -3321,11 +3332,34 @@ namespace bpr::application {
 				finish_job(control);
 				return result;
 			}
+
+			// Registered before the lock is taken, for the reason `materialize`
+			// records: an already-stopped token invokes its callback during
+			// construction, and doing that under the waiter's mutex would
+			// deadlock. BPR-0397.
+			auto releaseOnStop = std::stop_callback{ aStop, [waiter] {
+														{
+															const auto guard  = std::lock_guard{ waiter->Mutex };
+															waiter->Abandoned = true;
+														}
+														waiter->Completed.notify_all();
+													} };
 			std::unique_lock lock{ waiter->Mutex };
-			waiter->Completed.wait(lock, [&waiter] {
-				return waiter->Result.has_value();
-			});
-			return std::move(*waiter->Result);
+			static_cast<void>(waiter->Completed.wait_for(
+				lock, Limits.BlobWait, [&waiter] {
+					return waiter->Result.has_value() || waiter->Abandoned;
+				}));
+			if (waiter->Result.has_value()) {
+				return std::move(*waiter->Result);
+			}
+			// `result` already carries the request. Bounded by `BlobWait` rather
+			// than `WorkspaceWait` because this is the same class of work as
+			// `materialize`: a read of objects the cache already holds, queued
+			// behind whatever the repository actor is running.
+			result.Status = waiter->Abandoned
+				? workbench_selected_diff_status::cancelled
+				: workbench_selected_diff_status::failure;
+			return result;
 		}
 
 		[[nodiscard]] auto materialize(
@@ -3670,7 +3704,24 @@ namespace bpr::application {
 						} catch (...) {
 							result = std::unexpected{ agent_workspace_failure::unavailable };
 						}
-						auto waiterLock     = std::unique_lock{ waiter->Mutex };
+						auto waiterLock = std::unique_lock{ waiter->Mutex };
+						// The caller may have given up while this was queued or
+						// running. A materialized workspace it will never read is
+						// a directory nobody owns, so remove it here rather than
+						// leak it. Decided under the waiter's mutex so the caller
+						// cannot abandon between the check and the store; the
+						// removal path does not take this mutex, and nothing
+						// contends for it once the caller is gone. BPR-0397.
+						if (
+							waiter->Abandoned && result.has_value()
+							&& actor->Cache != nullptr) {
+							static_cast<void>(actor->Cache->cleanup_agent_workspace(
+								*result,
+								{ }));
+							result = std::unexpected{
+								agent_workspace_failure::cancelled
+							};
+						}
 						waiter->Result      = std::move(result);
 						const auto reserved = retire_actor_job(control);
 						struct actor_exit_reservation final
@@ -3690,11 +3741,30 @@ namespace bpr::application {
 				finish_job(control);
 				return std::unexpected{ agent_workspace_failure::unavailable };
 			}
+
+			// Registered before the lock, per `materialize`'s deadlock note.
+			auto releaseOnStop = std::stop_callback{ aStop, [waiter] {
+														{
+															const auto guard  = std::lock_guard{ waiter->Mutex };
+															waiter->Abandoned = true;
+														}
+														waiter->Completed.notify_all();
+													} };
 			std::unique_lock lock{ waiter->Mutex };
-			waiter->Completed.wait(lock, [&waiter] {
-				return waiter->Result.has_value();
-			});
-			return std::move(*waiter->Result);
+			static_cast<void>(waiter->Completed.wait_for(
+				lock, Limits.WorkspaceWait, [&waiter] {
+					return waiter->Result.has_value() || waiter->Abandoned;
+				}));
+			if (waiter->Result.has_value()) {
+				return std::move(*waiter->Result);
+			}
+			// Bounded by `WorkspaceWait`, not `BlobWait`: this writes a whole
+			// tree to disk behind the actor's FIFO. Say which release happened —
+			// a caller that moved on is `cancelled`, an actor that never got to
+			// the work is `unavailable`.
+			return std::unexpected{ waiter->Abandoned
+										? agent_workspace_failure::cancelled
+										: agent_workspace_failure::unavailable };
 		}
 
 		[[nodiscard]] auto cleanup_agent_workspace(
@@ -3807,11 +3877,29 @@ namespace bpr::application {
 				finish_job(control);
 				return std::unexpected{ agent_workspace_failure::cleanup_failed };
 			}
+
+			// Registered before the lock, per `materialize`'s deadlock note.
+			auto releaseOnStop = std::stop_callback{ aStop, [waiter] {
+														{
+															const auto guard  = std::lock_guard{ waiter->Mutex };
+															waiter->Abandoned = true;
+														}
+														waiter->Completed.notify_all();
+													} };
 			std::unique_lock lock{ waiter->Mutex };
-			waiter->Completed.wait(lock, [&waiter] {
-				return waiter->Result.has_value();
-			});
-			return std::move(*waiter->Result);
+			static_cast<void>(waiter->Completed.wait_for(
+				lock, Limits.WorkspaceWait, [&waiter] {
+					return waiter->Result.has_value() || waiter->Abandoned;
+				}));
+			if (waiter->Result.has_value()) {
+				return std::move(*waiter->Result);
+			}
+			// Abandoning this one leaves nothing behind: the removal still runs
+			// on the actor, and only its outcome goes unread. So the caller is
+			// told what released it and nothing else needs undoing. BPR-0397.
+			return std::unexpected{ waiter->Abandoned
+										? agent_workspace_failure::cancelled
+										: agent_workspace_failure::cleanup_failed };
 		}
 
 		void accept(accepted_pull_request_handoff aHandoff)
