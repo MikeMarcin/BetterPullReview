@@ -23,3 +23,11 @@ src/adapters/qt/assets/dif/dif-sprite-manifest.json text eol=lf
 src/adapters/qt/assets/dif/provenance.json text eol=lf
 src/adapters/qt/assets/dif/generated/dif-sprite-catalog.hpp text eol=lf
 src/adapters/qt/assets/dif/generated/dif-sprite-digests.json text eol=lf
+
+# The GitHub contract and capability fixtures have their exact bytes pinned by
+# constants in tests/scripts/github_contract_fixture_security_tests.py, which
+# hashes what it reads from disk. A CRLF checkout changes every one of them. The
+# pack file is deliberately absent: git classifies it as binary already. See
+# BPR-0372.
+tests/fixtures/github/**/*.json text eol=lf
+tests/fixtures/github/**/*.md text eol=lf

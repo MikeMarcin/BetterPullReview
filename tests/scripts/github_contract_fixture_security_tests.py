@@ -588,7 +588,7 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                 )
 
         actual_files = {
-            str(path.relative_to(FIXTURE_ROOT))
+            path.relative_to(FIXTURE_ROOT).as_posix()
             for path in FIXTURE_ROOT.rglob("*")
             if path.is_file()
         }
@@ -613,7 +613,7 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
             "synthetic/missing-unresolve.json",
         }
         actual_files = {
-            str(path.relative_to(CAPABILITY_FIXTURE_ROOT))
+            path.relative_to(CAPABILITY_FIXTURE_ROOT).as_posix()
             for path in CAPABILITY_FIXTURE_ROOT.rglob("*")
             if path.is_file()
         }
@@ -1010,7 +1010,7 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                 continue
             payload = path.read_text(encoding="utf-8")
             for oid in RECORDED_REAL_OIDS:
-                with self.subTest(path=str(path.relative_to(FIXTURE_ROOT))):
+                with self.subTest(path=path.relative_to(FIXTURE_ROOT).as_posix()):
                     self.assertNotIn(oid, payload)
 
     def test_fixture_identities_need_no_escaping(self) -> None:
