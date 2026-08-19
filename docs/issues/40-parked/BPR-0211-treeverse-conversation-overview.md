@@ -1,9 +1,10 @@
 ---
 id: BPR-0211
 title: A secondary overview for conversations too large to follow inline
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191]
+parked_on: awaiting-product-decision
 ---
 
 # A secondary overview for conversations too large to follow inline

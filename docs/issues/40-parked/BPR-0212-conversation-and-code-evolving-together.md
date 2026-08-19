@@ -1,9 +1,10 @@
 ---
 id: BPR-0212
 title: Show conversation and code evolving together across revisions
-status: Backlog
+status: Parked
 rfc: none
 depends_on: [BPR-0191]
+parked_on: awaiting-product-decision
 ---
 
 # Show conversation and code evolving together across revisions
