@@ -1,8 +1,9 @@
 ---
 id: BPR-0368
 title: Re-pin the application digests BPR-0341 left behind
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
+completed: 2026-08-18
 depends_on: []
 ---
 
@@ -85,3 +86,44 @@ records content, and the content will change once more.
 ```sh
 ctest --preset dev -R '^application_composition_contract$' --output-on-failure
 ```
+
+## Result — 2026-08-18
+
+Both pins now record current content, and
+`application_composition_contract` passes on Linux:
+
+```
+ctest --preset dev -R '^application_composition_contract$' --output-on-failure
+# Ran 5 tests in 223.8s ... 100% tests passed out of 1
+```
+
+The change is two hexadecimal literals. No assertion was removed, relaxed, or
+made conditional, and no source the pins cover was edited.
+
+## Evidence
+
+Each replaced value was traced before it was replaced, by recomputing the
+contract's own definitions over `git show` output rather than by trusting the
+error message:
+
+- Line 42 is the LF-normalized SHA-256 of `src/app/src/github_application.cpp`.
+  `27e4bed~1` gives `857636fa…`, matching the old pin; `27e4bed`, `605aa56`,
+  `main`, and this branch all give `2e6427b0…`.
+- Line 134 is the SHA-256 of a manifest of `"<relative path>\n<LF digest>\n"`
+  over the eight production `src/app` sources. `6d7a945` — the previous re-pin,
+  [[BPR-0346]] — and `27e4bed~1` both give `a0f15b6d…`, matching the old pin;
+  `27e4bed` onward gives `4e151830…`.
+- The recomputation agrees with CMake: the value my recomputation produces for
+  this branch is byte-identical to the `found` digest the contract reported
+  before the re-pin, for both pins.
+- This branch's own commits are not implicated. They touch
+  `src/adapters/github/` and `src/adapters/sqlite/`; neither pin covers those
+  paths, and the digests at this branch's HEAD equal those at `main`.
+
+The failure was reached at all only because [[BPR-0343]] repaired the GCC
+Release compile that had been stopping the contract earlier. Before that, the
+contract never evaluated either pin on this platform.
+
+Not addressed here: `github_application.cpp` is still misformatted under the
+version the tree is formatted for. That is [[BPR-0367]], and reformatting it
+will move both of these digests again.
