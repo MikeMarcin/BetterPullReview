@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>What the Dif asset provenance canon asserts</title>
+  <style>
+:root {
+  color-scheme: dark;
+  --page: #101419;
+  --panel: #192027;
+  --panel-strong: #202a33;
+  --text: #edf3f7;
+  --muted: #a8b5bf;
+  --line: #3a4853;
+  --accent: #75b9d5;
+  --accept: #57c48c;
+  --reject: #ed7777;
+  --pending: #e6b85d;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+a { color: #9fdcf3; }
+header, main { width: min(1480px, calc(100% - 2rem)); margin-inline: auto; }
+header { padding: 2rem 0 1rem; }
+h1, h2, h3, p { margin-top: 0; }
+.lede, .muted { color: var(--muted); }
+.scope-warning {
+  border-left: 4px solid var(--pending);
+  background: #282418;
+  padding: 1rem;
+}
+.reference-disclaimer {
+  border-left: 4px solid var(--accent);
+  background: #16222a;
+  padding: 1rem;
+  margin-top: .75rem;
+}
+.review-controls {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: .8rem 1rem;
+  margin-bottom: 1rem;
+  background: #081016;
+  border: 1px solid var(--line);
+  border-radius: .6rem;
+  box-shadow: 0 .25rem .75rem #0008;
+}
+.review-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+}
+.review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .9rem;
+  font-weight: 700;
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+  margin-left: auto;
+}
+#review-status {
+  min-height: 1.3em;
+  margin: .4rem 0 0;
+  color: var(--muted);
+  font-size: .9rem;
+}
+button, textarea { font: inherit; }
+button {
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  padding: .55rem .8rem;
+  background: #28343e;
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+button:disabled {
+  cursor: not-allowed;
+  color: #c2cdd4;
+  background: #2f3b43;
+  border-color: #61717a;
+}
+.subject {
+  scroll-margin-top: 8rem;
+  margin: 0 0 1.25rem;
+  padding: 1.1rem;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: .7rem;
+}
+.subject[data-review-state="accept"] { border-color: var(--accept); }
+.subject[data-review-state="reject"] { border-color: var(--reject); }
+.subject[data-review-state="pending"] { border-color: var(--pending); }
+.subject[data-review-state="not-chosen"] { border-color: var(--line); opacity: .78; }
+.selection-group {
+  margin: 0 0 1rem;
+  padding: 1rem 1.1rem;
+  background: #131c24;
+  border: 1px solid var(--accent);
+  border-radius: .7rem;
+}
+.selection-group h2 { margin-bottom: .35rem; }
+.selection-group-status { margin: 0; font-weight: 700; color: var(--accent); }
+.selection-group-members {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  margin-top: .8rem;
+  align-items: start;
+}
+.selection-group-members .subject { margin: 0; position: relative; }
+.selection-group-members .media-grid { grid-template-columns: 1fr; }
+.subject.option { padding: .85rem; background: var(--panel-strong); }
+.subject.option h3 { margin-bottom: .3rem; padding-right: 5.5rem; }
+.option-actions { margin: .8rem 0 .3rem; align-items: center; }
+.option-actions .choose { flex: 1 1 auto; font-weight: 700; background: #1d3a4d; }
+.option-actions .minor { padding: .3rem .55rem; font-size: .85rem; background: transparent; }
+.option-extra, .notes-fold { margin-top: .5rem; color: var(--muted); font-size: .9rem; }
+.option-extra summary, .notes-fold summary { cursor: pointer; }
+.option-extra section { margin-top: .5rem; }
+.option-extra h4 { margin: 0 0 .25rem; }
+.selection-group-members .subject::after {
+  position: absolute;
+  top: .6rem;
+  right: .6rem;
+  padding: .1rem .5rem;
+  border-radius: .3rem;
+  font-size: .8rem;
+  font-weight: 700;
+}
+.selection-group-members .subject[data-review-state="accept"]::after {
+  content: "Chosen";
+  background: var(--accept);
+  color: #07150f;
+}
+.selection-group-members .subject[data-review-state="reject"]::after {
+  content: "Defective";
+  background: var(--reject);
+  color: #1b0808;
+}
+.selection-group-members .subject[data-review-state="not-chosen"]::after {
+  content: "Not chosen";
+  background: #2a333b;
+  color: var(--muted);
+}
+@media (max-width: 850px) {
+  .selection-group-members { grid-template-columns: 1fr; }
+}
+.subject-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+.identity { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; word-break: break-all; }
+.audit-banner {
+  padding: .55rem .8rem;
+  border-radius: .4rem;
+  font-weight: 700;
+}
+.audit-banner[data-audit="pass"] { background: #12281c; color: var(--accept); border: 1px solid var(--accept); }
+.audit-banner[data-audit="fail"] { background: #2b1414; color: var(--reject); border: 1px solid var(--reject); }
+.media-groups { display: grid; gap: 1rem; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: .75rem; }
+.media-grid.compare { grid-template-columns: 1fr 1fr; }
+figure { margin: 0; padding: .6rem; background: var(--panel-strong); border-radius: .4rem; }
+figure img, figure video {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  background-color: #6d7479;
+  background-image:
+    linear-gradient(45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(-45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #8a9297 75%),
+    linear-gradient(-45deg, transparent 75%, #8a9297 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}
+figure audio { display: block; width: 100%; margin: .5rem 0; }
+figcaption { padding-top: .45rem; color: var(--muted); }
+.criteria { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.detail-sections { display: grid; gap: 1rem; margin-top: 1rem; }
+.detail-sections dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; margin: 0; }
+.detail-sections dt { color: var(--muted); }
+.detail-sections dd { margin: 0; }
+.detail-sections pre {
+  margin: 0;
+  padding: .65rem;
+  overflow-x: auto;
+  background: #11171c;
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .82rem;
+}
+.identity-files { margin-top: 1rem; }
+.decision-row { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+button[data-decision="accept"][aria-pressed="true"] { color: #07150f; background: var(--accept); }
+button[data-decision="reject"][aria-pressed="true"] { color: #1b0808; background: var(--reject); }
+.audit-note { margin: -.5rem 0 1rem; }
+.notes { display: grid; gap: .35rem; }
+textarea { width: 100%; min-height: 5rem; padding: .65rem; color: var(--text); background: #11171c; border: 1px solid var(--line); border-radius: .35rem; }
+.export-panel { margin: 1rem 0 3rem; padding: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: .6rem; }
+#verdict-output { min-height: 14rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; }
+@media (max-width: 850px) {
+  .criteria, .media-grid.compare { grid-template-columns: 1fr; }
+  .review-actions { margin-left: 0; }
+}
+@media (max-width: 620px) {
+  .review-summary, .review-actions { width: 100%; }
+}
+
+/* Full-resolution inspection. A quiet affordance on the thumbnail,
+   and an overlay that shows the image at its native size so a one-pixel
+   connector can actually be judged. */
+.media-zoom {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  position: relative;
+}
+.media-zoom img { display: block; width: 100%; }
+.media-zoom-hint {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  border-radius: 0.2rem;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.media-zoom:hover .media-zoom-hint,
+.media-zoom:focus-visible .media-zoom-hint { opacity: 1; }
+.media-zoom:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+.media-viewer[hidden] { display: none; }
+.media-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+}
+.media-viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  color: #fff;
+  font-size: 0.9rem;
+}
+.media-viewer-close {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
+  color: #fff;
+  border-radius: 0.25rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+.media-viewer-counter {
+  color: rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  padding-right: 1rem;
+}
+.media-viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1001;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.9rem;
+  line-height: 1;
+  padding: .45rem .75rem .6rem;
+  border-radius: .35rem;
+}
+.media-viewer-nav[hidden] { display: none; }
+.media-viewer-prev { left: .75rem; }
+.media-viewer-next { right: .75rem; }
+.media-viewer-surface { flex: 1; overflow: auto; display: flex; }
+/* Native size, not fitted: fitting it would reproduce the defect this fixes.
+   Auto margins center an image smaller than the viewport and collapse to zero
+   when it overflows, keeping large captures scrollable from their origin. */
+.media-viewer-surface img { display: block; image-rendering: pixelated; margin: auto; }
+
+</style>
+</head>
+<body>
+  <header>
+    <h1>What the Dif asset provenance canon asserts</h1>
+    <p class="lede">Project: betterpullreview · Gate: dif_asset_canon_policy · Scope: provenance_canon_property_selection_only · Batch: bpr:/attended-review/betterpullreview/737479c73240621e0f2d4a91</p>
+    <p class="scope-warning"><strong>Scope:</strong> This page records attended human decisions for this exact batch and gate only. It stores choices in this browser and cannot write repository evidence. Acceptance asserts nothing beyond this gate; these claims remain false: assets_regenerated, bpr_0378_closed, dif_assets_contract_repaired, release_gate_satisfied, rfc_bpr_0019_closeout_claimed. Export the complete verdict and return it to the requesting agent session for validation.</p>
+    <p class="reference-disclaimer"><strong>Reference:</strong> No image is being judged here and no asset changes either way. The decision is which property `verify_assets` asserts about the committed PNG bytes. Everything below was measured on this macOS host at the commit named in each subject&#x27;s provenance, not estimated. The measurements are identical for all three options because they are measurements of the current tree; what differs is which of them each option keeps.</p>
+  </header>
+  <main>
+    <section class="review-controls" aria-label="Review progress and export">
+      <div class="review-controls-row">
+        <div class="review-summary">
+          <span id="review-progress">0/3 reviewed</span>
+          <span id="review-totals">0 accepted · 0 rejected · 3 pending</span>
+        </div>
+        <div class="review-actions">
+          <label><input id="pending-only" type="checkbox"> Show pending only</label>
+          <button id="export-verdict" type="button" disabled>Copy the complete verdict</button>
+        </div>
+      </div>
+      <p id="review-status" role="status" aria-live="polite" aria-atomic="true">Resolve every exact subject to unlock the final verdict.</p>
+    </section>
+    <article class="subject" data-subject-id="policy:/betterpullreview/bpr-0378/compare-decoded-content" data-subject-digest="sha256:56ee802a4572732ef007b1b6ff65d85282608d4a8ad348644fc3d6ccfb906e1a" data-choice-group="canon-property" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Option 1 - assert the decoded content and canonical structure, not the compressed bytes</h2>
+      <p>Replace `data == encode_png(decode_png_bytes(data))` with a check on what the file decodes to: the committed PNG&#x27;s decompressed filtered scanlines must equal the scanlines the generator produces, and its chunk structure must be canonical. Byte equality of the DEFLATE stream stops being asserted. This is the option the card&#x27;s own analysis favours, and the measurement below is what makes the trade-off exact rather than argued.</p>
+    </div>
+    <div class="identity">policy:/betterpullreview/bpr-0378/compare-decoded-content<br>sha256:56ee802a4572732ef007b1b6ff65d85282608d4a8ad348644fc3d6ccfb906e1a</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — Measured directly. See the Measurement section on this subject.</p>
+  <div class="media-groups">
+
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>A hand-edited sprite still fails the canon - measured, not assumed</li><li>The canon holds on an interpreter linked against either zlib or zlib-ng</li><li>The property the canon asserts is stated rather than implied</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>A re-compression that changes no pixel and no filter choice is accepted where it is rejected today. That is the entire behavioural difference, and it is the case nobody was defending against.</li><li>The canon stops proving &#x27;your DEFLATE implementation matches mine&#x27;. If that property is wanted for some other reason, this option loses it.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Measurement</h3><dl><dt>A deliberately altered pixel</dt><dd>One channel of one pixel in dif-neutral-master.png changed by 17, then re-encoded into a structurally valid canonical PNG that passes every existing structural check. The replacement REJECTS it. Measured, which is this card&#x27;s second required bullet.</dd><dt>A recompression that changes nothing visible</dt><dd>The identical filtered scanlines recompressed at level 6: 746,919 bytes against the committed 745,543. The replacement ACCEPTS it; byte equality rejects it. This one case is byte equality&#x27;s entire marginal coverage.</dd><dt>What the structural check already covers</dt><dd>decode_png_bytes already rejects any chunk that is not IHDR, IDAT or IEND, any bad CRC, non-consecutive IDATs, anything that is not non-interlaced 8-bit RGBA, and any decompressed size that disagrees with the header. None of that is being given up.</dd><dt>Committed tree today</dt><dd>One IDAT chunk; scanlines equal the generator&#x27;s own filtering; byte equality passes on this host, whose interpreter links zlib 1.2.12.</dd></dl></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/001-compare-decoded-content/identity/01-the-canon-being-changed-scripts-dif-assets-py.py">The canon being changed (scripts/dif_assets.py)</a> <span class="identity">sha256:3d635423c7bea2be0c5411525f194954c3b02dbb055e58756eaa04bfc616703b</span></li><li><a href="subjects/001-compare-decoded-content/identity/02-the-measurement-script.py">The measurement script</a> <span class="identity">sha256:e49bb0e4568b20c9d519853daf8f2f60b06c6cfad2ea0e055ded88903a80e725</span></li><li><a href="subjects/001-compare-decoded-content/identity/03-the-measurement-output-on-this-host.txt">The measurement output on this host</a> <span class="identity">sha256:4e533c28ab7b64f7680df2294763a8bedd7dc87db7e493985d7dbc73c0f777bb</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Option 1 - assert the decoded content and canonical structure, not the compressed bytes">
+    <button type="button" data-decision="accept" aria-pressed="false">Choose exact alternative</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact alternative</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+<article class="subject" data-subject-id="policy:/betterpullreview/bpr-0378/pin-the-compressor" data-subject-digest="sha256:edbe8f95a304d6f95c1be282955017824c344afcd1259ab14ae76a5695615f06" data-choice-group="canon-property" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Option 2 - keep byte equality and pin the compressor</h2>
+      <p>Keep asserting the exact compressed bytes, and make them reproducible by vendoring a deterministic DEFLATE implementation or by storing each asset&#x27;s expected IDAT stream alongside it.</p>
+    </div>
+    <div class="identity">policy:/betterpullreview/bpr-0378/pin-the-compressor<br>sha256:edbe8f95a304d6f95c1be282955017824c344afcd1259ab14ae76a5695615f06</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — Not implemented. Selecting this makes it the implementation.</p>
+  <div class="media-groups">
+
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>Byte equality survives an interpreter change</li><li>The added dependency or the second copy of every compressed stream is an accepted cost</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>A vendored DEFLATE is a new build-time dependency in a tool that currently has none beyond the standard library.</li><li>Storing expected IDAT streams doubles the compressed bytes in the repository for every asset and adds a second thing that can drift.</li><li>It keeps a property whose only demonstrated effect is rejecting a recompression that changes no pixel.</li></ul></section>
+  </div>
+
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/002-pin-the-compressor/identity/01-the-canon-being-changed-scripts-dif-assets-py.py">The canon being changed (scripts/dif_assets.py)</a> <span class="identity">sha256:3d635423c7bea2be0c5411525f194954c3b02dbb055e58756eaa04bfc616703b</span></li><li><a href="subjects/002-pin-the-compressor/identity/02-the-measurement-script.py">The measurement script</a> <span class="identity">sha256:e49bb0e4568b20c9d519853daf8f2f60b06c6cfad2ea0e055ded88903a80e725</span></li><li><a href="subjects/002-pin-the-compressor/identity/03-the-measurement-output-on-this-host.txt">The measurement output on this host</a> <span class="identity">sha256:4e533c28ab7b64f7680df2294763a8bedd7dc87db7e493985d7dbc73c0f777bb</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Option 2 - keep byte equality and pin the compressor">
+    <button type="button" data-decision="accept" aria-pressed="false">Choose exact alternative</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact alternative</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+<article class="subject" data-subject-id="policy:/betterpullreview/bpr-0378/regenerate-with-current-zlib" data-subject-digest="sha256:475bd4ed429ec33a9442a0b704569e5d5b4fc8ddf963f4d86826d06f9ce5d552" data-choice-group="canon-property" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Option 3 - regenerate the assets with this host&#x27;s zlib</h2>
+      <p>Leave the canon alone and re-encode every committed asset so byte equality holds against whichever zlib produced them most recently.</p>
+    </div>
+    <div class="identity">policy:/betterpullreview/bpr-0378/regenerate-with-current-zlib<br>sha256:475bd4ed429ec33a9442a0b704569e5d5b4fc8ddf963f4d86826d06f9ce5d552</div>
+  </div>
+  <p class="audit-banner" data-audit="fail">Mechanical audit: FAIL — Recorded so the choice is complete. The card rejects it: it fixes this host and breaks the next, and it is the only option that rewrites committed asset bytes.</p>
+  <div class="media-groups">
+
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>Accepted only as a deliberate decision that the next host rediscovers this</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>The card records this as not a resolution: it fixes one host and breaks the next.</li><li>It also changes committed asset bytes, which the other two options do not.</li></ul></section>
+  </div>
+
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/003-regenerate-with-current-zlib/identity/01-the-canon-being-changed-scripts-dif-assets-py.py">The canon being changed (scripts/dif_assets.py)</a> <span class="identity">sha256:3d635423c7bea2be0c5411525f194954c3b02dbb055e58756eaa04bfc616703b</span></li><li><a href="subjects/003-regenerate-with-current-zlib/identity/02-the-measurement-script.py">The measurement script</a> <span class="identity">sha256:e49bb0e4568b20c9d519853daf8f2f60b06c6cfad2ea0e055ded88903a80e725</span></li><li><a href="subjects/003-regenerate-with-current-zlib/identity/03-the-measurement-output-on-this-host.txt">The measurement output on this host</a> <span class="identity">sha256:4e533c28ab7b64f7680df2294763a8bedd7dc87db7e493985d7dbc73c0f777bb</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Option 3 - regenerate the assets with this host&#x27;s zlib">
+    <button type="button" data-decision="accept" aria-pressed="false" disabled>Choose exact alternative</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact alternative</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+  <p class="muted audit-note">Accept is unavailable: this subject failed its mechanical audit. Reject it, or fix the failure and rebuild the batch.</p>
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+    <section class="export-panel">
+      <h2>Final result</h2>
+      <p>The pinned copy button unlocks after every exact subject has Accept or Reject selected. Its result stays visible in the top review bar, and the complete JSON remains below as a manual-copy fallback.</p>
+      <textarea id="verdict-output" readonly aria-label="Exported verdict JSON"></textarea>
+    </section>
+  </main>
+  <script id="attended-review-config" type="application/json">{"batch_id":"bpr:/attended-review/betterpullreview/737479c73240621e0f2d4a91","downstream_claims":{"assets_regenerated":false,"bpr_0378_closed":false,"dif_assets_contract_repaired":false,"release_gate_satisfied":false,"rfc_bpr_0019_closeout_claimed":false},"project_id":"betterpullreview","reference_disclaimer":"No image is being judged here and no asset changes either way. The decision is which property `verify_assets` asserts about the committed PNG bytes. Everything below was measured on this macOS host at the commit named in each subject's provenance, not estimated. The measurements are identical for all three options because they are measurements of the current tree; what differs is which of them each option keeps.","review_gate":"dif_asset_canon_policy","review_scope":"provenance_canon_property_selection_only","schema_name":"bpr.attended_review_batch","schema_version":1,"subjects":[{"ab_group":"","acceptance_criteria":["A hand-edited sprite still fails the canon - measured, not assumed","The canon holds on an interpreter linked against either zlib or zlib-ng","The property the canon asserts is stated rather than implied"],"audit_verdict":{"note":"Measured directly. See the Measurement section on this subject.","status":"pass"},"choice_group":"canon-property","description":"Replace `data == encode_png(decode_png_bytes(data))` with a check on what the file decodes to: the committed PNG's decompressed filtered scanlines must equal the scanlines the generator produces, and its chunk structure must be canonical. Byte equality of the DEFLATE stream stops being asserted. This is the option the card's own analysis favours, and the measurement below is what makes the trade-off exact rather than argued.","detail_sections":[{"heading":"Measurement","items":[{"definition":"One channel of one pixel in dif-neutral-master.png changed by 17, then re-encoded into a structurally valid canonical PNG that passes every existing structural check. The replacement REJECTS it. Measured, which is this card's second required bullet.","term":"A deliberately altered pixel"},{"definition":"The identical filtered scanlines recompressed at level 6: 746,919 bytes against the committed 745,543. The replacement ACCEPTS it; byte equality rejects it. This one case is byte equality's entire marginal coverage.","term":"A recompression that changes nothing visible"},{"definition":"decode_png_bytes already rejects any chunk that is not IHDR, IDAT or IEND, any bad CRC, non-consecutive IDATs, anything that is not non-interlaced 8-bit RGBA, and any decompressed size that disagrees with the header. None of that is being given up.","term":"What the structural check already covers"},{"definition":"One IDAT chunk; scanlines equal the generator's own filtering; byte equality passes on this host, whose interpreter links zlib 1.2.12.","term":"Committed tree today"}],"kind":"definitions"}],"display_name":"Option 1 - assert the decoded content and canonical structure, not the compressed bytes","identity_files":[{"label":"The canon being changed (scripts/dif_assets.py)","media_kind":"file","path":"subjects/001-compare-decoded-content/identity/01-the-canon-being-changed-scripts-dif-assets-py.py","sha256":"sha256:3d635423c7bea2be0c5411525f194954c3b02dbb055e58756eaa04bfc616703b"},{"label":"The measurement script","media_kind":"file","path":"subjects/001-compare-decoded-content/identity/02-the-measurement-script.py","sha256":"sha256:e49bb0e4568b20c9d519853daf8f2f60b06c6cfad2ea0e055ded88903a80e725"},{"label":"The measurement output on this host","media_kind":"file","path":"subjects/001-compare-decoded-content/identity/03-the-measurement-output-on-this-host.txt","sha256":"sha256:4e533c28ab7b64f7680df2294763a8bedd7dc87db7e493985d7dbc73c0f777bb"}],"known_concerns":["A re-compression that changes no pixel and no filter choice is accepted where it is rejected today. That is the entire behavioural difference, and it is the case nobody was defending against.","The canon stops proving 'your DEFLATE implementation matches mine'. If that property is wanted for some other reason, this option loses it."],"media_groups":[],"subject_digest":"sha256:56ee802a4572732ef007b1b6ff65d85282608d4a8ad348644fc3d6ccfb906e1a","subject_id":"policy:/betterpullreview/bpr-0378/compare-decoded-content","subject_key":"compare-decoded-content"},{"ab_group":"","acceptance_criteria":["Byte equality survives an interpreter change","The added dependency or the second copy of every compressed stream is an accepted cost"],"audit_verdict":{"note":"Not implemented. Selecting this makes it the implementation.","status":"pass"},"choice_group":"canon-property","description":"Keep asserting the exact compressed bytes, and make them reproducible by vendoring a deterministic DEFLATE implementation or by storing each asset's expected IDAT stream alongside it.","detail_sections":[],"display_name":"Option 2 - keep byte equality and pin the compressor","identity_files":[{"label":"The canon being changed (scripts/dif_assets.py)","media_kind":"file","path":"subjects/002-pin-the-compressor/identity/01-the-canon-being-changed-scripts-dif-assets-py.py","sha256":"sha256:3d635423c7bea2be0c5411525f194954c3b02dbb055e58756eaa04bfc616703b"},{"label":"The measurement script","media_kind":"file","path":"subjects/002-pin-the-compressor/identity/02-the-measurement-script.py","sha256":"sha256:e49bb0e4568b20c9d519853daf8f2f60b06c6cfad2ea0e055ded88903a80e725"},{"label":"The measurement output on this host","media_kind":"file","path":"subjects/002-pin-the-compressor/identity/03-the-measurement-output-on-this-host.txt","sha256":"sha256:4e533c28ab7b64f7680df2294763a8bedd7dc87db7e493985d7dbc73c0f777bb"}],"known_concerns":["A vendored DEFLATE is a new build-time dependency in a tool that currently has none beyond the standard library.","Storing expected IDAT streams doubles the compressed bytes in the repository for every asset and adds a second thing that can drift.","It keeps a property whose only demonstrated effect is rejecting a recompression that changes no pixel."],"media_groups":[],"subject_digest":"sha256:edbe8f95a304d6f95c1be282955017824c344afcd1259ab14ae76a5695615f06","subject_id":"policy:/betterpullreview/bpr-0378/pin-the-compressor","subject_key":"pin-the-compressor"},{"ab_group":"","acceptance_criteria":["Accepted only as a deliberate decision that the next host rediscovers this"],"audit_verdict":{"note":"Recorded so the choice is complete. The card rejects it: it fixes this host and breaks the next, and it is the only option that rewrites committed asset bytes.","status":"fail"},"choice_group":"canon-property","description":"Leave the canon alone and re-encode every committed asset so byte equality holds against whichever zlib produced them most recently.","detail_sections":[],"display_name":"Option 3 - regenerate the assets with this host's zlib","identity_files":[{"label":"The canon being changed (scripts/dif_assets.py)","media_kind":"file","path":"subjects/003-regenerate-with-current-zlib/identity/01-the-canon-being-changed-scripts-dif-assets-py.py","sha256":"sha256:3d635423c7bea2be0c5411525f194954c3b02dbb055e58756eaa04bfc616703b"},{"label":"The measurement script","media_kind":"file","path":"subjects/003-regenerate-with-current-zlib/identity/02-the-measurement-script.py","sha256":"sha256:e49bb0e4568b20c9d519853daf8f2f60b06c6cfad2ea0e055ded88903a80e725"},{"label":"The measurement output on this host","media_kind":"file","path":"subjects/003-regenerate-with-current-zlib/identity/03-the-measurement-output-on-this-host.txt","sha256":"sha256:4e533c28ab7b64f7680df2294763a8bedd7dc87db7e493985d7dbc73c0f777bb"}],"known_concerns":["The card records this as not a resolution: it fixes one host and breaks the next.","It also changes committed asset bytes, which the other two options do not."],"media_groups":[],"subject_digest":"sha256:475bd4ed429ec33a9442a0b704569e5d5b4fc8ddf963f4d86826d06f9ce5d552","subject_id":"policy:/betterpullreview/bpr-0378/regenerate-with-current-zlib","subject_key":"regenerate-with-current-zlib"}],"title":"What the Dif asset provenance canon asserts"}</script>
+  <script>
+(function (root) {
+  "use strict";
+
+  const STORAGE_PREFIX = "bpr.attended-review.v1";
+  const VERDICT_SCHEMA = "bpr.attended_review_verdict";
+
+  function identityKey(subject) {
+    return `${subject.subject_id}@${subject.subject_digest}`;
+  }
+
+  function storageKey(batchId, subject) {
+    return `${STORAGE_PREFIX}:${batchId}:${subject.subject_id}:${subject.subject_digest}`;
+  }
+
+  function createMemoryStorage() {
+    const values = new Map();
+    return {
+      getItem(key) {
+        return values.has(key) ? values.get(key) : null;
+      },
+      setItem(key, value) {
+        values.set(key, String(value));
+      },
+      removeItem(key) {
+        values.delete(key);
+      },
+    };
+  }
+
+  function availableStorage() {
+    try {
+      if (!root.localStorage) {
+        return createMemoryStorage();
+      }
+      const probe = `${STORAGE_PREFIX}:probe`;
+      root.localStorage.setItem(probe, "1");
+      root.localStorage.removeItem(probe);
+      return root.localStorage;
+    } catch (_error) {
+      return createMemoryStorage();
+    }
+  }
+
+  function normalizeSaved(value) {
+    if (!value || typeof value !== "object") {
+      return { decision: null, notes: "" };
+    }
+    const decision = value.decision === "accept" || value.decision === "reject"
+      ? value.decision
+      : null;
+    return {
+      decision,
+      notes: typeof value.notes === "string" ? value.notes : "",
+    };
+  }
+
+  function auditFailed(subject) {
+    return Boolean(subject.audit_verdict && subject.audit_verdict.status === "fail");
+  }
+
+  class ReviewController {
+    constructor(config, storage) {
+      if (!config || !Array.isArray(config.subjects)) {
+        throw new Error("review config must contain subjects");
+      }
+      if (!config.downstream_claims || typeof config.downstream_claims !== "object") {
+        throw new Error("review config must declare downstream_claims");
+      }
+      this.config = config;
+      this.groups = new Map();
+      for (const group of config.selection_groups || []) {
+        this.groups.set(group.group_id, group);
+      }
+      for (const subject of config.subjects) {
+        const token = subject.choice_group;
+        if (token && !this.groups.has(token)) {
+          this.groups.set(token, { group_id: token, min_accept: 1, max_accept: 1 });
+        }
+      }
+      this.storage = storage || availableStorage();
+      this.states = new Map();
+      for (const subject of config.subjects) {
+        const raw = this.storage.getItem(storageKey(config.batch_id, subject));
+        let parsed = null;
+        if (raw !== null) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch (_error) {
+            parsed = null;
+          }
+        }
+        const state = normalizeSaved(parsed);
+        if (state.decision === "accept" && auditFailed(subject)) {
+          state.decision = null;
+        }
+        this.states.set(identityKey(subject), state);
+      }
+    }
+
+    subject(subjectId, subjectDigest) {
+      const found = this.config.subjects.find(
+        (item) => item.subject_id === subjectId && item.subject_digest === subjectDigest
+      );
+      if (!found) {
+        throw new Error(`unknown subject identity: ${subjectId}@${subjectDigest}`);
+      }
+      return found;
+    }
+
+    state(subject) {
+      return this.states.get(identityKey(subject));
+    }
+
+    save(subject) {
+      this.storage.setItem(
+        storageKey(this.config.batch_id, subject),
+        JSON.stringify(this.state(subject))
+      );
+    }
+
+    subjectGroupId(subject) {
+      return subject.selection_group || subject.choice_group || null;
+    }
+
+    groupMembers(groupId) {
+      return this.config.subjects.filter((item) => this.subjectGroupId(item) === groupId);
+    }
+
+    groupTally(groupId) {
+      const group = this.groups.get(groupId);
+      const members = this.groupMembers(groupId);
+      let chosen = 0;
+      let rejected = 0;
+      for (const member of members) {
+        const decision = this.state(member).decision;
+        if (decision === "accept") chosen += 1;
+        if (decision === "reject") rejected += 1;
+      }
+      const undecided = members.length - chosen - rejected;
+      const satisfied = (chosen >= group.min_accept && chosen <= group.max_accept)
+        || (chosen === 0 && rejected === members.length);
+      return { group, members, chosen, rejected, undecided, satisfied };
+    }
+
+    setDecision(subjectId, subjectDigest, decision) {
+      if (decision !== "accept" && decision !== "reject" && decision !== null) {
+        throw new Error(`invalid decision: ${decision}`);
+      }
+      const subject = this.subject(subjectId, subjectDigest);
+      if (decision === "accept" && auditFailed(subject)) {
+        throw new Error("subject failed its mechanical audit; accept is unavailable");
+      }
+      const groupId = this.subjectGroupId(subject);
+      if (decision === "accept" && groupId && this.groups.has(groupId)) {
+        const tally = this.groupTally(groupId);
+        const alreadyChosen = this.state(subject).decision === "accept";
+        if (!alreadyChosen && tally.chosen >= tally.group.max_accept) {
+          if (tally.group.max_accept === 1) {
+            for (const member of tally.members) {
+              const memberState = this.state(member);
+              if (memberState.decision === "accept") {
+                memberState.decision = null;
+                this.save(member);
+              }
+            }
+          } else {
+            throw new Error(
+              `selection group '${groupId}' allows at most ${tally.group.max_accept} chosen alternatives; clear one first`
+            );
+          }
+        }
+      }
+      this.state(subject).decision = decision;
+      this.save(subject);
+      return this.summary();
+    }
+
+    setNotes(subjectId, subjectDigest, notes) {
+      const subject = this.subject(subjectId, subjectDigest);
+      this.state(subject).notes = String(notes || "");
+      this.save(subject);
+      return this.summary();
+    }
+
+    summary() {
+      let accepted = 0;
+      let rejected = 0;
+      let notChosen = 0;
+      let pending = 0;
+      for (const subject of this.config.subjects) {
+        const decision = this.state(subject).decision;
+        if (decision === "accept") accepted += 1;
+        if (decision === "reject") rejected += 1;
+        if (!decision && !this.subjectGroupId(subject)) pending += 1;
+      }
+      for (const groupId of this.groups.keys()) {
+        const tally = this.groupTally(groupId);
+        if (tally.satisfied) {
+          notChosen += tally.undecided;
+        } else {
+          pending += tally.undecided || 1;
+        }
+      }
+      const total = this.config.subjects.length;
+      return {
+        accepted,
+        rejected,
+        notChosen,
+        resolved: total - pending,
+        pending,
+        total,
+      };
+    }
+
+    buildVerdict() {
+      for (const groupId of this.groups.keys()) {
+        const tally = this.groupTally(groupId);
+        if (!tally.satisfied) {
+          throw new Error(
+            `cannot export: selection group '${groupId}' is unresolved; choose between `
+            + `${tally.group.min_accept} and ${tally.group.max_accept} alternatives or reject every member`
+          );
+        }
+      }
+      const summary = this.summary();
+      if (summary.pending !== 0) {
+        throw new Error(`cannot export: ${summary.pending} subject(s) remain pending`);
+      }
+      const accepted = [];
+      const rejected = [];
+      const notChosen = [];
+      const notes = {};
+      for (const subject of this.config.subjects) {
+        const state = this.state(subject);
+        const identity = {
+          subject_id: subject.subject_id,
+          subject_digest: subject.subject_digest,
+        };
+        if (state.decision === "accept") {
+          accepted.push(identity);
+        } else if (state.decision === "reject") {
+          rejected.push(identity);
+        } else {
+          notChosen.push(identity);
+        }
+        if (state.notes.trim()) {
+          notes[identityKey(subject)] = state.notes;
+        }
+      }
+      const verdict = {
+        schema_name: VERDICT_SCHEMA,
+        schema_version: 1,
+        batch_id: this.config.batch_id,
+        review_gate: this.config.review_gate,
+        review_scope: this.config.review_scope,
+        accepted_subjects: accepted,
+        rejected_subjects: rejected,
+        notes_by_subject_identity: notes,
+        downstream_claims: { ...this.config.downstream_claims },
+      };
+      if (this.groups.size > 0) {
+        verdict.not_chosen_subjects = notChosen;
+      }
+      return verdict;
+    }
+  }
+
+  async function copyText(text, environment) {
+    const env = environment || root;
+    if (env.navigator && env.navigator.clipboard && env.navigator.clipboard.writeText) {
+      try {
+        await env.navigator.clipboard.writeText(text);
+        return "clipboard";
+      } catch (_error) {
+        // Local file origins frequently expose Clipboard API but deny writes.
+        // Continue to the legacy selection-based copy path in that case.
+      }
+    }
+    const document = env.document;
+    if (!document || !document.execCommand) {
+      throw new Error("clipboard copy is unavailable; copy the displayed JSON manually");
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (!copied) {
+      throw new Error("clipboard copy failed; copy the displayed JSON manually");
+    }
+    return "execCommand";
+  }
+
+  function initializePage(document) {
+    const configNode = document.getElementById("attended-review-config");
+    if (!configNode) return null;
+    const config = JSON.parse(configNode.textContent);
+    const controller = new ReviewController(config);
+    const cards = Array.from(document.querySelectorAll("[data-subject-id]"));
+    const progress = document.getElementById("review-progress");
+    const totals = document.getElementById("review-totals");
+    const pendingOnly = document.getElementById("pending-only");
+    const exportButton = document.getElementById("export-verdict");
+    const exportOutput = document.getElementById("verdict-output");
+    const reviewStatus = document.getElementById("review-status");
+
+    function cardSubject(card) {
+      return controller.subject(card.dataset.subjectId, card.dataset.subjectDigest);
+    }
+
+    function render() {
+      const summary = controller.summary();
+      progress.textContent = `${summary.resolved}/${summary.total} reviewed`;
+      const segments = [`${summary.accepted} accepted`, `${summary.rejected} rejected`];
+      if (controller.groups.size > 0) {
+        segments.push(`${summary.notChosen} not chosen`);
+      }
+      segments.push(`${summary.pending} pending`);
+      totals.textContent = segments.join(" · ");
+      exportButton.disabled = summary.pending !== 0;
+      if (summary.pending !== 0) {
+        exportButton.textContent = "Copy the complete verdict";
+      }
+      const tallies = new Map();
+      for (const groupId of controller.groups.keys()) {
+        tallies.set(groupId, controller.groupTally(groupId));
+      }
+      for (const card of cards) {
+        const subject = cardSubject(card);
+        const state = controller.state(subject);
+        let reviewState = state.decision || "pending";
+        const groupId = controller.subjectGroupId(subject);
+        if (!state.decision && groupId) {
+          const tally = tallies.get(groupId);
+          if (tally && tally.satisfied) {
+            reviewState = "not-chosen";
+          }
+        }
+        card.dataset.reviewState = reviewState;
+        card.hidden = Boolean(pendingOnly.checked && reviewState !== "pending");
+        for (const button of card.querySelectorAll("[data-decision]")) {
+          button.setAttribute("aria-pressed", String(button.dataset.decision === state.decision));
+        }
+      }
+      for (const node of document.querySelectorAll("[data-selection-group-status]")) {
+        const tally = tallies.get(node.dataset.selectionGroupStatus);
+        if (!tally) continue;
+        const range = tally.group.min_accept === tally.group.max_accept
+          ? String(tally.group.max_accept)
+          : `${tally.group.min_accept}-${tally.group.max_accept}`;
+        if (tally.satisfied && tally.chosen === 0) {
+          node.textContent = `Every alternative rejected: this question has no acceptable answer (needs ${range}).`;
+        } else if (tally.satisfied) {
+          node.textContent = `Satisfied: ${tally.chosen} chosen of ${range}; ${tally.undecided} not chosen, ${tally.rejected} rejected.`;
+        } else {
+          node.textContent = `Unresolved: ${tally.chosen} chosen of ${range} needed; ${tally.undecided} undecided, ${tally.rejected} rejected.`;
+        }
+      }
+    }
+
+    for (const card of cards) {
+      const subject = cardSubject(card);
+      const state = controller.state(subject);
+      const notes = card.querySelector("[data-review-notes]");
+      notes.value = state.notes;
+      for (const button of card.querySelectorAll("[data-decision]")) {
+        button.addEventListener("click", () => {
+          let decision = button.dataset.decision === "clear" ? null : button.dataset.decision;
+          if (decision && controller.state(subject).decision === decision) {
+            decision = null;
+          }
+          try {
+            controller.setDecision(subject.subject_id, subject.subject_digest, decision);
+          } catch (error) {
+            reviewStatus.textContent = error.message;
+            return;
+          }
+          exportOutput.value = "";
+          reviewStatus.textContent = "Decision saved in this browser.";
+          exportButton.textContent = "Copy the complete verdict";
+          render();
+        });
+      }
+      notes.addEventListener("input", () => {
+        controller.setNotes(subject.subject_id, subject.subject_digest, notes.value);
+        exportOutput.value = "";
+        reviewStatus.textContent = "Notes saved in this browser.";
+        exportButton.textContent = "Copy the complete verdict";
+      });
+    }
+
+    pendingOnly.addEventListener("change", render);
+    exportButton.addEventListener("click", async () => {
+      try {
+        const text = `${JSON.stringify(controller.buildVerdict(), null, 2)}\n`;
+        exportOutput.value = text;
+        const method = await copyText(text);
+        exportButton.textContent = "Copied — return it to the agent";
+        reviewStatus.textContent = method === "clipboard"
+          ? "Complete verdict copied. Paste it back to the requesting agent session."
+          : "Complete verdict copied with the local fallback. Paste it back to the requesting agent session.";
+      } catch (error) {
+        exportButton.textContent = "Copy the complete verdict";
+        exportOutput.focus();
+        exportOutput.select();
+        reviewStatus.textContent = `${error.message}. The complete JSON below is selected for manual copy.`;
+      }
+    });
+    render();
+    return controller;
+  }
+
+  const api = {
+    ReviewController,
+    copyText,
+    createMemoryStorage,
+    identityKey,
+    initializePage,
+    storageKey,
+  };
+  root.BprAttendedReview = api;
+  if (root.document) {
+    if (root.document.readyState === "loading") {
+      root.document.addEventListener("DOMContentLoaded", () => initializePage(root.document));
+    } else {
+      initializePage(root.document);
+    }
+  }
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+// Full-resolution inspection. Opening and closing the viewer must not
+// touch decision state or the export lock, so this only reads the DOM.
+(function attachFullResolutionViewer() {
+  // The runtime is loaded browserless by the skill's own tests, so it must not
+  // touch the DOM at import time.
+  if (typeof document === 'undefined' || !document.body) { return; }
+  var viewer = document.createElement('div');
+  viewer.className = 'media-viewer';
+  viewer.hidden = true;
+  viewer.setAttribute('role', 'dialog');
+  viewer.setAttribute('aria-modal', 'true');
+  viewer.innerHTML =
+    '<div class="media-viewer-bar">' +
+    '<span class="media-viewer-label"></span>' +
+    '<span class="media-viewer-counter"></span>' +
+    '<button type="button" class="media-viewer-close">Close</button>' +
+    '</div><div class="media-viewer-surface"><img alt=""></div>' +
+    '<button type="button" class="media-viewer-nav media-viewer-prev" aria-label="Previous image">&#8249;</button>' +
+    '<button type="button" class="media-viewer-nav media-viewer-next" aria-label="Next image">&#8250;</button>';
+  document.body.appendChild(viewer);
+
+  var image = viewer.querySelector('.media-viewer-surface img');
+  var label = viewer.querySelector('.media-viewer-label');
+  var counter = viewer.querySelector('.media-viewer-counter');
+  var closeButton = viewer.querySelector('.media-viewer-close');
+  var prevButton = viewer.querySelector('.media-viewer-prev');
+  var nextButton = viewer.querySelector('.media-viewer-next');
+  var lastTrigger = null;
+
+  function visibleTriggers() {
+    return Array.prototype.filter.call(
+      document.querySelectorAll('.media-zoom'),
+      function (candidate) { return candidate.offsetParent !== null; }
+    );
+  }
+
+  function close() {
+    viewer.hidden = true;
+    image.removeAttribute('src');
+    if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+  }
+
+  function open(trigger, focusClose) {
+    lastTrigger = trigger;
+    image.src = trigger.getAttribute('data-full-source');
+    image.alt = trigger.getAttribute('data-full-label') || '';
+    label.textContent = trigger.getAttribute('data-full-label') || '';
+    var list = visibleTriggers();
+    var index = list.indexOf(trigger);
+    var navigable = list.length > 1;
+    counter.textContent = navigable && index >= 0 ? (index + 1) + ' / ' + list.length : '';
+    prevButton.hidden = !navigable;
+    nextButton.hidden = !navigable;
+    viewer.hidden = false;
+    if (focusClose !== false) { closeButton.focus(); }
+  }
+
+  function step(delta) {
+    var list = visibleTriggers();
+    if (!list.length) { return; }
+    var index = list.indexOf(lastTrigger);
+    var next = ((index < 0 ? 0 : index + delta) + list.length) % list.length;
+    open(list[next], false);
+  }
+
+  document.addEventListener('click', function (event) {
+    var trigger = event.target.closest ? event.target.closest('.media-zoom') : null;
+    if (trigger) { event.preventDefault(); open(trigger); return; }
+    if (viewer.hidden) { return; }
+    if (event.target.closest && event.target.closest('.media-viewer-prev')) { step(-1); return; }
+    if (event.target.closest && event.target.closest('.media-viewer-next')) { step(1); return; }
+    if (event.target === viewer || event.target === closeButton) { close(); }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (viewer.hidden) { return; }
+    if (event.key === 'Escape') { close(); return; }
+    if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); return; }
+    if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
+  });
+})();
+
+</script>
+</body>
+</html>

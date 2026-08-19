@@ -1,8 +1,9 @@
 ---
 id: BPR-0378
 title: The Dif asset canon depends on which zlib the interpreter was built with
-status: Ready
+status: Parked
 rfc: RFC-BPR-0019
+parked_on: awaiting-product-decision
 depends_on: []
 ---
 
@@ -100,3 +101,53 @@ way before being left open.
 
 Under zlib-ng no PNG in the tree is canonical, not just the one the error names;
 that file is simply the first one read.
+
+## The trade-off is measured, and the decision is ready — 2026-08-19
+
+This host's interpreter links stock zlib 1.2.12, so the canon passes here and the
+failure does not reproduce. What could be done without an owner is establish what
+each option actually costs, which the card had left as reasoning. It is now
+measurement, recorded at
+`docs/verification/reviews/dif-canon-portability-v001/canon-measurement.txt` from
+the script beside it.
+
+Three facts, all against the committed `dif-neutral-master.png`:
+
+| Question | Answer |
+|---|---|
+| Does a deliberately altered pixel still fail Option 1? | **Yes.** One channel changed by 17, re-encoded into a structurally valid canonical PNG that passes every existing structural check: the scanline comparison rejects it. This is the card's second required bullet, measured rather than assumed. |
+| What does byte equality catch that Option 1 does not? | Exactly one thing: a re-compression that changes no pixel and no filter choice. The identical filtered scanlines at level 6 are 746,919 bytes against the committed 745,543 — byte equality rejects it, Option 1 accepts it. |
+| What does the structural check already cover? | `decode_png_bytes` already rejects any chunk that is not IHDR/IDAT/IEND, any bad CRC, non-consecutive IDATs, anything not non-interlaced 8-bit RGBA, and any decompressed size disagreeing with the header. None of that is at stake. |
+
+So byte equality's entire marginal coverage over Option 1 is "your DEFLATE
+implementation matches mine" — the property the card already identified as one
+nobody wants. The replacement is not weaker in any other respect, and on the
+filter-choice question it is not weaker at all: comparing the decompressed
+scanlines against `_filtered_rgba_rows` asserts the generator's filter decisions
+directly.
+
+The committed tree carries one IDAT and scanlines equal to the generator's own
+filtering, so Option 1 holds today without touching an asset.
+
+### The packet
+
+`docs/verification/reviews/dif-canon-portability-v001/offline-package/index.html`
+presents the three options as one choose-exactly-one question rather than three
+pass/fail checks, because accepting one makes the others pointless. Every subject
+binds the same three identities: `scripts/dif_assets.py`, the measurement script,
+and its output. Deliberately not this card: binding a card to a verdict recorded
+on the card forces a rebuild on every edit to it, and the card is context rather
+than governed bytes. Batch identity is
+`bpr:/attended-review/betterpullreview/737479c73240621e0f2d4a91`. Option 3's
+mechanical audit is `fail`, so it can be rejected but not accepted — the card already records that it fixes this host and
+breaks the next, and it is the only option that rewrites committed asset bytes.
+
+Nothing in the packet changes an asset, and no claim of closure is attached to it.
+
+## Parked
+
+Every dependency is done and the remaining work is one decision nobody has made.
+Selecting Option 1 makes the rest a bounded implementation slice: replace
+`data != encode_png(image)` in `decode_png` with a scanline comparison plus an
+exactly-one-IDAT requirement, and keep the altered-pixel case as its regression
+test.

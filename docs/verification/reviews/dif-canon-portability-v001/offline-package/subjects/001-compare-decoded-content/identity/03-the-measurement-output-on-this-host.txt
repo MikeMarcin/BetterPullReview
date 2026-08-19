@@ -1,0 +1,25 @@
+zlib: compile=1.2.12 runtime=1.2.12
+asset root: src/adapters/qt/assets/dif
+master: src/adapters/qt/assets/dif/source/dif-neutral-master.png (745543 bytes)
+
+--- Q1: the current canon on this interpreter ---
+byte equality (current canon): True
+original bytes 745543  re-encoded 745543
+IDAT chunks in the committed file: 1
+
+--- Q3: what the replacement keeps ---
+committed filtered scanlines == the generator's own filtering: True
+scanline bytes: 4195328
+
+--- Q2: does an altered pixel still fail the replacement? ---
+altered one channel at offset 2097152: 0 -> 17
+altered file passes decode_png_bytes structural validation: True
+REPLACEMENT verdict on the altered file (scanlines == generator filtering of the COMMITTED image): False
+  -> False means the replacement rejects a hand-edited sprite, which is the property the canon exists for.
+CURRENT verdict on the altered file (byte equality against the committed file): False
+
+--- Q3b: the one property byte equality adds ---
+level-6 recompression differs in bytes: True
+level-6 recompression has identical scanlines: True
+level-6 size 746919 vs committed 745543
+  -> This file changes no pixel and no filter choice. Byte equality rejects it; the replacement accepts it.

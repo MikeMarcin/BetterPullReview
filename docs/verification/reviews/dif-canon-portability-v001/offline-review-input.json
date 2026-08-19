@@ -1,0 +1,150 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "What the Dif asset provenance canon asserts",
+  "review_gate": "dif_asset_canon_policy",
+  "review_scope": "provenance_canon_property_selection_only",
+  "downstream_claims": {
+    "rfc_bpr_0019_closeout_claimed": false,
+    "bpr_0378_closed": false,
+    "assets_regenerated": false,
+    "release_gate_satisfied": false,
+    "dif_assets_contract_repaired": false
+  },
+  "reference_disclaimer": "No image is being judged here and no asset changes either way. The decision is which property `verify_assets` asserts about the committed PNG bytes. Everything below was measured on this macOS host at the commit named in each subject's provenance, not estimated. The measurements are identical for all three options because they are measurements of the current tree; what differs is which of them each option keeps.",
+  "subjects": [
+    {
+      "subject_id": "policy:/betterpullreview/bpr-0378/compare-decoded-content",
+      "subject_key": "compare-decoded-content",
+      "display_name": "Option 1 - assert the decoded content and canonical structure, not the compressed bytes",
+      "description": "Replace `data == encode_png(decode_png_bytes(data))` with a check on what the file decodes to: the committed PNG's decompressed filtered scanlines must equal the scanlines the generator produces, and its chunk structure must be canonical. Byte equality of the DEFLATE stream stops being asserted. This is the option the card's own analysis favours, and the measurement below is what makes the trade-off exact rather than argued.",
+      "acceptance_criteria": [
+        "A hand-edited sprite still fails the canon - measured, not assumed",
+        "The canon holds on an interpreter linked against either zlib or zlib-ng",
+        "The property the canon asserts is stated rather than implied"
+      ],
+      "known_concerns": [
+        "A re-compression that changes no pixel and no filter choice is accepted where it is rejected today. That is the entire behavioural difference, and it is the case nobody was defending against.",
+        "The canon stops proving 'your DEFLATE implementation matches mine'. If that property is wanted for some other reason, this option loses it."
+      ],
+      "ab_group": null,
+      "choice_group": "canon-property",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Measured directly. See the Measurement section on this subject."
+      },
+      "media_groups": [],
+      "detail_sections": [
+        {
+          "heading": "Measurement",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "A deliberately altered pixel",
+              "definition": "One channel of one pixel in dif-neutral-master.png changed by 17, then re-encoded into a structurally valid canonical PNG that passes every existing structural check. The replacement REJECTS it. Measured, which is this card's second required bullet."
+            },
+            {
+              "term": "A recompression that changes nothing visible",
+              "definition": "The identical filtered scanlines recompressed at level 6: 746,919 bytes against the committed 745,543. The replacement ACCEPTS it; byte equality rejects it. This one case is byte equality's entire marginal coverage."
+            },
+            {
+              "term": "What the structural check already covers",
+              "definition": "decode_png_bytes already rejects any chunk that is not IHDR, IDAT or IEND, any bad CRC, non-consecutive IDATs, anything that is not non-interlaced 8-bit RGBA, and any decompressed size that disagrees with the header. None of that is being given up."
+            },
+            {
+              "term": "Committed tree today",
+              "definition": "One IDAT chunk; scanlines equal the generator's own filtering; byte equality passes on this host, whose interpreter links zlib 1.2.12."
+            }
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "The canon being changed (scripts/dif_assets.py)",
+          "path": "../../../../scripts/dif_assets.py"
+        },
+        {
+          "label": "The measurement script",
+          "path": "canon-measurement.py"
+        },
+        {
+          "label": "The measurement output on this host",
+          "path": "canon-measurement.txt"
+        }
+      ]
+    },
+    {
+      "subject_id": "policy:/betterpullreview/bpr-0378/pin-the-compressor",
+      "subject_key": "pin-the-compressor",
+      "display_name": "Option 2 - keep byte equality and pin the compressor",
+      "description": "Keep asserting the exact compressed bytes, and make them reproducible by vendoring a deterministic DEFLATE implementation or by storing each asset's expected IDAT stream alongside it.",
+      "acceptance_criteria": [
+        "Byte equality survives an interpreter change",
+        "The added dependency or the second copy of every compressed stream is an accepted cost"
+      ],
+      "known_concerns": [
+        "A vendored DEFLATE is a new build-time dependency in a tool that currently has none beyond the standard library.",
+        "Storing expected IDAT streams doubles the compressed bytes in the repository for every asset and adds a second thing that can drift.",
+        "It keeps a property whose only demonstrated effect is rejecting a recompression that changes no pixel."
+      ],
+      "ab_group": null,
+      "choice_group": "canon-property",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Not implemented. Selecting this makes it the implementation."
+      },
+      "media_groups": [],
+      "detail_sections": [],
+      "identity_files": [
+        {
+          "label": "The canon being changed (scripts/dif_assets.py)",
+          "path": "../../../../scripts/dif_assets.py"
+        },
+        {
+          "label": "The measurement script",
+          "path": "canon-measurement.py"
+        },
+        {
+          "label": "The measurement output on this host",
+          "path": "canon-measurement.txt"
+        }
+      ]
+    },
+    {
+      "subject_id": "policy:/betterpullreview/bpr-0378/regenerate-with-current-zlib",
+      "subject_key": "regenerate-with-current-zlib",
+      "display_name": "Option 3 - regenerate the assets with this host's zlib",
+      "description": "Leave the canon alone and re-encode every committed asset so byte equality holds against whichever zlib produced them most recently.",
+      "acceptance_criteria": [
+        "Accepted only as a deliberate decision that the next host rediscovers this"
+      ],
+      "known_concerns": [
+        "The card records this as not a resolution: it fixes one host and breaks the next.",
+        "It also changes committed asset bytes, which the other two options do not."
+      ],
+      "ab_group": null,
+      "choice_group": "canon-property",
+      "audit_verdict": {
+        "status": "fail",
+        "note": "Recorded so the choice is complete. The card rejects it: it fixes this host and breaks the next, and it is the only option that rewrites committed asset bytes."
+      },
+      "media_groups": [],
+      "detail_sections": [],
+      "identity_files": [
+        {
+          "label": "The canon being changed (scripts/dif_assets.py)",
+          "path": "../../../../scripts/dif_assets.py"
+        },
+        {
+          "label": "The measurement script",
+          "path": "canon-measurement.py"
+        },
+        {
+          "label": "The measurement output on this host",
+          "path": "canon-measurement.txt"
+        }
+      ]
+    }
+  ]
+}
