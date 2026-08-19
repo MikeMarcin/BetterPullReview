@@ -1,7 +1,7 @@
 ---
 id: BPR-0214
 title: Intraline emphasis has never appeared in a reviewed capture
-status: Backlog
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0233]
 ---
@@ -128,3 +128,19 @@ So the remaining order is:
 
 Nothing about the emphasis itself is known to be broken. What is known is that
 no capture has ever been able to show it, and until step 1 lands none can.
+
+## Closed by the accepted v006 batch — 2026-08-18
+
+Both remaining steps happened. Done BPR-0187 serves the `uiforetw-74`
+recording with real blob contents, done BPR-0233 drives it through the real
+selected-file diff path, and the v006 attended batch at
+`docs/verification/reviews/uiforetw-intraline-acceptance-v006/` put the
+intraline rows in front of the reviewer: its
+`criterion:/betterpullreview/bpr-0233/recorded-intraline-emphasis` subject
+presents both coordinate replacements' narrow intraline-removed and
+intraline-added marks in all four appearance profiles, backed by exact role
+pixels in the capture facts, and the product owner accepted it with the
+validated verdict recorded beside the captures. The title's fact is finally
+false: a reviewed capture has shown intraline emphasis, and a reviewer
+accepted what it showed. The near-identical-pair count guard in
+`recorded_pull_request_fixture_tests` remains as the regression hold.
