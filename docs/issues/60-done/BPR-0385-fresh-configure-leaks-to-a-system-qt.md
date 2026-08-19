@@ -1,5 +1,5 @@
 ---
-id: BPR-0363
+id: BPR-0385
 title: A fresh configure leaks to a system Qt and fails KSyntaxHighlighting
 status: Done
 rfc: RFC-BPR-0013
@@ -160,4 +160,4 @@ carry its tests. The test configures without `-DBPR_QT_PROVIDER=OFF` and then
 expects the diagnostic that only the `OFF` branch emits.
 
 That is a policy-versus-test disagreement of the same kind as [[BPR-0362]], not
-a leak, and [[BPR-0364]] owns it.
+a leak, and [[BPR-0386]] owns it.

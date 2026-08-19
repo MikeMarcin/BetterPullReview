@@ -349,14 +349,14 @@ class CapsuleImageTests(unittest.TestCase):
         self.assertNotIn("-force", recorded[0])
 
     def test_a_writable_mount_is_refused_and_leaves_nothing_behind(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             writable = pathlib.Path(directory)
             with self.assertRaises(capsule.CapsuleFailure):
                 capsule.require_read_only_mount(writable)
             self.assertEqual(list(writable.iterdir()), [])
 
     def test_mount_root_is_fresh_and_owner_private(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             parent = pathlib.Path(directory) / "mounts"
             first = capsule.owner_private_mount_root(parent)
             second = capsule.owner_private_mount_root(parent)
@@ -368,7 +368,7 @@ class CapsuleImageTests(unittest.TestCase):
     def test_a_drifted_image_digest_refuses_before_anything_is_attached(
         self,
     ) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             parent = pathlib.Path(directory)
             image = parent / "capsule.dmg"
             image.write_bytes(b"not the approved image")
@@ -395,7 +395,7 @@ class CapsuleImageTests(unittest.TestCase):
     def test_real_image_round_trip_is_read_only_and_detaches_without_force(
         self,
     ) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with contained_temporary_directory() as directory:
             parent = pathlib.Path(directory)
             root, inventory = make_capsule(parent)
             image = parent / "capsule.dmg"

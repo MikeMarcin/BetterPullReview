@@ -7,7 +7,7 @@ counterexamples were answered: replay authority by BPR-0261, supervisor
 launch provenance by BPR-0351, supervisor/inventory identity binding by
 BPR-0352, the nested check/use window by BPR-0354, and indeterminate
 recovery by BPR-0263. It binds a fresh tests-disabled Release capsule built
-at commit `b04b43c` after BPR-0363 unblocked the graph and BPR-0366/BPR-0367
+at commit `b04b43c` after BPR-0385 unblocked the graph and BPR-0388/BPR-0389
 repaired the capsule builder against the renamed executable and universal
 Qt. No operator decision is requested until the fresh capability-critical
 independent review completes with no blocker.

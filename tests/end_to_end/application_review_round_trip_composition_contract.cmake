@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
     set(bpr_expected_full_application_digest
-		"2e6427b0ddd61d1a9c7f89082ccb071e94940dea18f00b8448b7e586568fb640"
+		"7dec2b7bffb981ed23dee8254b59cc5fe1e95d8a7a6b9d915e1b3c69db0f4777"
     )
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -64,6 +64,10 @@ function(bpr_verify_app_source_tree app_source_root)
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/worker_executor.hpp"
         "main.cpp"
+		"src/designated_live_macos_capsule_identity.cpp"
+		"src/designated_live_macos_capsule_identity.hpp"
+		"src/designated_live_macos_provenance.cpp"
+		"src/designated_live_macos_provenance.hpp"
 		"src/designated_live_macos_supervisor.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
@@ -132,7 +136,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
     set(bpr_expected_production_app_manifest_digest
-		"b6d2a2c69678990c43a104eca60aaf9e31be5279733d1d17240adaf47dbadad4"
+		"a4d1deed924d404a0c795fc0cc53897f16f87aa7f728d91dacde383aa3727db4"
     )
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

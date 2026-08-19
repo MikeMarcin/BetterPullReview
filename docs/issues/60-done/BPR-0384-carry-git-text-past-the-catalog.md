@@ -1,9 +1,9 @@
 ---
-id: BPR-0361
+id: BPR-0384
 title: Carry the retained git text past the catalog boundary
 status: Done
 rfc: RFC-BPR-0003
-depends_on: [BPR-0348]
+depends_on: []
 completed: 2026-08-18
 ---
 
@@ -110,3 +110,8 @@ Adding the enumerator broke the build with an unhandled-switch error in the Qt
 comparison control — which is the compiler doing exactly what a `-Werror`
 switch is for, and the reason the new code reaches a reviewer with words rather
 than silently falling through to a default.
+
+The original front matter depended on this line's BPR-0348 slice; the
+reconciliation kept the other line's BPR-0348, which parked on a policy
+decision this card never needed. The dependency is dropped as historical:
+this card's work completed and was verified without it.

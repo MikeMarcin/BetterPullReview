@@ -1,5 +1,5 @@
 ---
-id: BPR-0360
+id: BPR-0383
 title: Re-pin the application digests that drifted without notice
 status: Done
 rfc: RFC-BPR-0008
@@ -33,16 +33,16 @@ Measured rather than assumed, hashing the blob at each commit the same way
 | pinned expectation | `857636fa…` |
 
 The pin matched none of them, including the base. So this is not fallout from
-[[BPR-0359]]'s whitespace repair; that repair moved an already-wrong number.
+[[BPR-0382]]'s whitespace repair; that repair moved an already-wrong number.
 The last commit to change `github_application.cpp` before this session was
 `27e4bed` ([[BPR-0341]]), which re-pinned nothing.
 
-An earlier reading of this attributed the drift to BPR-0359, from a broken
+An earlier reading of this attributed the drift to BPR-0382, from a broken
 measurement — `git cat-file` on unquoted short refs silently resolved to other
 objects and returned 2.8 KB and 31 KB for a 382 KB file. Recorded because the
 wrong conclusion is the easy one to reach here.
 
-## The pattern, which is the same one BPR-0359 records
+## The pattern, which is the same one BPR-0382 records
 
 `27e4bed` left both the format gate and this digest red, and neither was
 noticed until a later slice ran the wider gates. Three digests and a file list

@@ -1,5 +1,5 @@
 ---
-id: BPR-0368
+id: BPR-0390
 title: Cache-served comparisons render without syntax classification
 status: In Progress
 rfc: RFC-BPR-0006

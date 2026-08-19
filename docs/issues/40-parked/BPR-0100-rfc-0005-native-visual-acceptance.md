@@ -88,9 +88,9 @@ their own words:
 
 `UIforETW/UIforETWDlg.cpp` renders monochrome in the dark profile while
 `SYNTAX_CLASSIFIER_COMPOSED_OK` stays green — the defect is recorded and
-root-caused as [[BPR-0368]], a delivery race between span adoption and the
+root-caused as [[BPR-0390]], a delivery race between span adoption and the
 diff projection that no contract observes. This is precisely what the pass
 exists to produce; the rejection is evidence, not failure. The card stays
-parked: the packet is re-presented against repaired bytes after BPR-0368
+parked: the packet is re-presented against repaired bytes after BPR-0390
 lands, and no acceptance is inferred from the aspects the owner did not
 reach.

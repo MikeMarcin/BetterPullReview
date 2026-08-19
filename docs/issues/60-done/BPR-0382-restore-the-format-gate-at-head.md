@@ -1,5 +1,5 @@
 ---
-id: BPR-0359
+id: BPR-0382
 title: Restore the format gate at HEAD again
 status: Done
 rfc: RFC-BPR-0011

@@ -290,7 +290,7 @@ What remains is not implementation:
    surface — so the recorded digests are stale by construction. This cannot be
    done here: the tests-disabled capsule graph will not configure, because a
    fresh configure resolves a system Qt and fails the verified
-   KSyntaxHighlighting build. [[BPR-0363]] owns that.
+   KSyntaxHighlighting build. [[BPR-0385]] owns that.
 2. **A fresh capability-critical independent review** of the regenerated packet.
 3. **An exact attended operator decision.** This card prepares the packet; it
    has never had authority to approve or execute it.
@@ -302,11 +302,11 @@ mutation submitted.
 
 ## Packet regenerated — 2026-08-18
 
-Step (1) is complete. [[BPR-0363]]'s fix held: the tests-disabled Release
+Step (1) is complete. [[BPR-0385]]'s fix held: the tests-disabled Release
 graph configured and built fresh at `build/bpr0256-release`, and the first
 capsule build since the graph was unblocked exposed and closed two real
-defects on the way — done [[BPR-0366]] (the capsule surface still pinned the
-pre-BPR-0328 executable name) and done [[BPR-0367]] (the verifier could not
+defects on the way — done [[BPR-0388]] (the capsule surface still pinned the
+pre-BPR-0328 executable name) and done [[BPR-0389]] (the verifier could not
 parse the universal Qt's per-architecture Mach-O framing). With both fixed
 the capsule builds and verifies: `designated-live-macos-capsule:pass`.
 

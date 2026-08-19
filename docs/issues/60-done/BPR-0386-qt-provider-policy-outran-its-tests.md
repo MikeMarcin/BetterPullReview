@@ -1,5 +1,5 @@
 ---
-id: BPR-0364
+id: BPR-0386
 title: The Qt provider policy outran its own tests
 status: Done
 rfc: RFC-BPR-0013
@@ -29,13 +29,13 @@ So `test_qt_is_package_only_and_never_fetched` configures without
 diagnostic only the `OFF` branch emits (`cmake/BprDependencies.cmake:135`).
 Its name asserts a policy the build deliberately abandoned.
 
-Found while fixing [[BPR-0363]], which repaired the other, unrelated failure in
+Found while fixing [[BPR-0385]], which repaired the other, unrelated failure in
 the same area — a forwarding bug that starved the nested KSyntaxHighlighting
 configure of `-DCMAKE_PREFIX_PATH`.
 
 ## This is the third of its kind
 
-[[BPR-0359]] (format gate), [[BPR-0360]] (pinned digests), [[BPR-0362]]
+[[BPR-0382]] (format gate), [[BPR-0383]] (pinned digests), [[BPR-0362]]
 (Windows generator) and now this one all have the same shape: a change landed
 and the checked-in expectation that described the old behaviour stayed. Each was
 found by a later slice running a wider gate, not by the slice that caused it.
@@ -57,7 +57,7 @@ instance.
 ## Not this card
 
 Do not change the provider default to make the tests pass. BPR-0337 chose it
-deliberately, and the pinned acquisition is what [[BPR-0363]] just proved the
+deliberately, and the pinned acquisition is what [[BPR-0385]] just proved the
 nested configure depends on.
 
 ## Result — 2026-08-18

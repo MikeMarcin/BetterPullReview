@@ -248,7 +248,7 @@ a pre-`QApplication` hook already existed. The handshake sits beside it.
 The survey was right about everything else, including the check/use window, the
 absent Mach machinery, the argv-only attended launch, and the pinned digests —
 which moved four times over this program and were re-pinned each time by the
-procedure [[BPR-0360]] recorded.
+procedure [[BPR-0383]] recorded.
 
 ### The limit worth carrying forward
 

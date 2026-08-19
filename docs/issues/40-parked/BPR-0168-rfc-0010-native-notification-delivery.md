@@ -151,7 +151,7 @@ applications by bundle, and the owner confirmed System Settings →
 Notifications carries no BetterPullReview entry at all. The attempt log is
 preserved beside the packet as `notification-run-attempt-1.log`. This
 card's refrain applies a third time: attendance was never what was missing.
-[[BPR-0370]] owns the bundling repair and the preflight check that was
+[[BPR-0392]] owns the bundling repair and the preflight check that was
 missing; this card stays parked until a regenerated packet binds bytes that
 can actually produce the banner.
 

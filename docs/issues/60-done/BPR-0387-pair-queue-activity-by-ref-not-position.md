@@ -1,5 +1,5 @@
 ---
-id: BPR-0365
+id: BPR-0387
 title: Pair queue activity observations by ref instead of position
 status: Done
 rfc: RFC-BPR-0010

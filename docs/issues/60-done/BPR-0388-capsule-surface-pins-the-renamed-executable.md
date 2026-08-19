@@ -1,5 +1,5 @@
 ---
-id: BPR-0366
+id: BPR-0388
 title: The capsule surface still pins the pre-BPR-0328 executable name
 status: Done
 rfc: RFC-BPR-0008
@@ -8,7 +8,7 @@ depends_on: []
 
 # The capsule surface still pins the pre-BPR-0328 executable name
 
-Found by BPR-0256's regeneration, the first capsule build since [[BPR-0363]]
+Found by BPR-0256's regeneration, the first capsule build since [[BPR-0385]]
 unblocked the tests-disabled graph. [[BPR-0328]] renamed the tests-disabled
 macOS executable to `BetterPullReview` so the Dock tooltip stops falling back
 to the filename, and the bundle's `CFBundleExecutable` now says exactly that.
@@ -47,7 +47,7 @@ cmake --build build/bpr0256-release --target designated_live_macos_capsule
 
 All four pins now name `Contents/MacOS/BetterPullReview`. The fix moved the
 capsule build past the name inspection immediately, which surfaced the next
-real defect — universal Mach-O framing, tracked and closed as [[BPR-0367]] —
+real defect — universal Mach-O framing, tracked and closed as [[BPR-0389]] —
 and with both fixes in place the capsule `build` subcommand prints
 `designated-live-macos-capsule:pass` against the freshly built tests-disabled
 Release bundle. The three focused selectors pass 3/3.
@@ -56,5 +56,5 @@ The BPR-0255 production app-source digest drifted as a direct consequence:
 since the last pin at `47c6d9e`, the only changed app sources are exactly
 this card's `designated_live_macos_supervisor.cpp` and
 `designated_live_macos_provenance.cpp`, so the expected manifest digest is
-repinned to `ef7a210a` following the BPR-0360 ceremony, and
+repinned to `ef7a210a` following the BPR-0383 ceremony, and
 `application_composition_contract` passes again at the repinned value.

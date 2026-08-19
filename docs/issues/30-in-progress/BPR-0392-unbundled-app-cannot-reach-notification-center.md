@@ -1,5 +1,5 @@
 ---
-id: BPR-0370
+id: BPR-0392
 title: The unbundled test build cannot register with Notification Center
 status: In Progress
 rfc: RFC-BPR-0010

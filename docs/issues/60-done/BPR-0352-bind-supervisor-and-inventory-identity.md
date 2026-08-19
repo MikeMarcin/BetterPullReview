@@ -102,5 +102,5 @@ which occurs only at the call.
 and its literal had to follow. A stale literal there does not fail loudly — it
 silently stops rewriting anything, and the case then proves nothing.
 
-Both application digests were re-pinned, per the procedure [[BPR-0360]] left
+Both application digests were re-pinned, per the procedure [[BPR-0383]] left
 next to them.

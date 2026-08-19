@@ -1,5 +1,5 @@
 ---
-id: BPR-0369
+id: BPR-0391
 title: The native appearance probe's dark-side measurement outruns the owner
 status: In Progress
 rfc: RFC-BPR-0006
