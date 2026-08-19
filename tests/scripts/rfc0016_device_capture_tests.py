@@ -97,6 +97,29 @@ DOCS_ERROR_URI = (
 )
 
 
+def link_or_skip(link_path: Path, target: Path) -> None:
+    """Create a symbolic link, or skip when Windows withholds the privilege.
+
+    Creating a symbolic link on Windows needs SeCreateSymbolicLinkPrivilege,
+    which an unelevated account does not hold unless Developer Mode is on. The
+    mutation this stages is an adversary the validator must reject, so where the
+    platform will not let the adversary exist the case is skipped by name rather
+    than reported as a failure of the thing under test.
+
+    `tests/sqlite_contract/epoch_catalog_storage_tests.cpp` does the same, and
+    says the same thing in its own message.
+    """
+    try:
+        link_path.symlink_to(target)
+    except OSError as error:
+        if getattr(error, "winerror", None) != 1314:
+            raise
+        raise unittest.SkipTest(
+            "symbolic-link rejection requires the Windows symlink privilege; "
+            "the other identity-drift mutations remain covered"
+        ) from error
+
+
 def encode(value: object) -> bytes:
     return json.dumps(value, separators=(",", ":"), sort_keys=True).encode()
 
@@ -975,7 +998,7 @@ class CaptureContractTests(unittest.TestCase):
                     )
                 elif mutation == "symlink":
                     identity_path.unlink()
-                    identity_path.symlink_to(fixture_root / "manifest.json")
+                    link_or_skip(identity_path, fixture_root / "manifest.json")
                 elif mutation == "fixture-bytes":
                     identity_path.write_bytes(identity_path.read_bytes() + b" ")
                 elif mutation == "course-bytes":
@@ -1118,11 +1141,12 @@ class CaptureContractTests(unittest.TestCase):
                     )
                 elif mutation == "symlink":
                     access_pending.unlink()
-                    access_pending.symlink_to(
+                    link_or_skip(
+                        access_pending,
                         course_root
                         / "slow-down"
                         / "outcomes"
-                        / "authorization_pending.json"
+                        / "authorization_pending.json",
                     )
                 elif mutation == "swapped":
                     slow_pending = (

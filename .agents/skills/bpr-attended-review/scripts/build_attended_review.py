@@ -819,12 +819,19 @@ def build(input_path: Path, output_root: Path) -> dict[str, Any]:
     skill_root = Path(__file__).resolve().parent.parent
     css = (skill_root / "assets" / "attended_review.css").read_text(encoding="utf-8")
     runtime = (skill_root / "assets" / "attended_review_runtime.js").read_text(encoding="utf-8")
+    # `newline=""` on both: these two files are digest-bound. The validator
+    # rebuilds the page from the same inputs and compares bytes, and it reads
+    # the CSS and runtime in text mode, so its rebuild always has LF endings.
+    # Without this the writer emitted CRLF on Windows and the artifact could
+    # never match its own rebuild — a verdict recorded against it would be
+    # bound to bytes no other platform produces.
     (output_root / "attended-review-manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
+        newline="",
     )
     (output_root / "index.html").write_text(
-        render_html(manifest, css, runtime), encoding="utf-8"
+        render_html(manifest, css, runtime), encoding="utf-8", newline=""
     )
     return manifest
 
