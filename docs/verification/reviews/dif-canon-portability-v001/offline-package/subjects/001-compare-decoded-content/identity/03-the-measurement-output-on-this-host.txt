@@ -1,25 +1,45 @@
 zlib: compile=1.2.12 runtime=1.2.12
-asset root: src/adapters/qt/assets/dif
 master: src/adapters/qt/assets/dif/source/dif-neutral-master.png (745543 bytes)
+IDAT chunks: 1
+canon term holds on the committed file: True
 
---- Q1: the current canon on this interpreter ---
-byte equality (current canon): True
-original bytes 745543  re-encoded 745543
-IDAT chunks in the committed file: 1
+--- 1. Does the canon term defend against a hand-edited sprite? ---
+one channel changed at byte 2097152, then re-encoded by encode_png
+  accepted by the structural check:      True
+  accepted by TODAY's canon term:        True
+  accepted by a scanline comparison:     True
+  -> No. Both accept it. `decode_png` asserts that a file is in the tool's
+     canonical *serialization*, not that its pixels are the committed ones.
+     A scanline comparison at that site is vacuous besides: every row that
+     encode_png writes uses filter byte 0, so it can only ever agree.
 
---- Q3: what the replacement keeps ---
-committed filtered scanlines == the generator's own filtering: True
-scanline bytes: 4195328
+--- 2. What does defend against it ---
+provenance record: provenance.json
+  recorded digest: 3a52a8b1d321477e2b8b2ba7c66da3abc68393cd45d3904f403d5521f12e4589
+  file digest:     3a52a8b1d321477e2b8b2ba7c66da3abc68393cd45d3904f403d5521f12e4589
+  altered digest:  af2357e023304ee97585b91ab4d35ec56789fd2cdcce02bf12f967a3c554248a
+  -> `_validate_provenance` raises `provenance source digest mismatch`
+     (scripts/dif_assets.py:612-620). That is the check the edited sprite
+     fails, and no option in this decision touches it.
 
---- Q2: does an altered pixel still fail the replacement? ---
-altered one channel at offset 2097152: 0 -> 17
-altered file passes decode_png_bytes structural validation: True
-REPLACEMENT verdict on the altered file (scanlines == generator filtering of the COMMITTED image): False
-  -> False means the replacement rejects a hand-edited sprite, which is the property the canon exists for.
-CURRENT verdict on the altered file (byte equality against the committed file): False
+--- 3. What byte equality catches that the structural check does not ---
+level-6 recompression:
+  bytes differ from committed:      True
+  accepted by the structural check: True
+  same decoded scanlines:           True
+  (identical pixels and filters; this is the zlib-ng case)
+non-empty IEND payload:
+  bytes differ from committed:      True
+  accepted by the structural check: True
+  same decoded scanlines:           True
+  (not a DEFLATE property)
+IDAT split in two:
+  bytes differ from committed:      True
+  accepted by the structural check: True
+  same decoded scanlines:           True
+  (not a DEFLATE property)
 
---- Q3b: the one property byte equality adds ---
-level-6 recompression differs in bytes: True
-level-6 recompression has identical scanlines: True
-level-6 size 746919 vs committed 745543
-  -> This file changes no pixel and no filter choice. Byte equality rejects it; the replacement accepts it.
+-> Byte equality's marginal coverage is three things, not one. Two of them
+   have nothing to do with which zlib is installed, so a replacement that
+   only stops comparing compressed bytes must assert them explicitly:
+   exactly one IDAT, and an empty IEND payload.

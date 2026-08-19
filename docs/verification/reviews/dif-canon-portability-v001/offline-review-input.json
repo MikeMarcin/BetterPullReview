@@ -2,7 +2,7 @@
   "schema_name": "bpr.attended_review_batch_input",
   "schema_version": 1,
   "project_id": "betterpullreview",
-  "title": "What the Dif asset provenance canon asserts",
+  "title": "What the Dif asset canon asserts about committed PNG bytes",
   "review_gate": "dif_asset_canon_policy",
   "review_scope": "provenance_canon_property_selection_only",
   "downstream_claims": {
@@ -10,23 +10,25 @@
     "bpr_0378_closed": false,
     "assets_regenerated": false,
     "release_gate_satisfied": false,
-    "dif_assets_contract_repaired": false
+    "dif_assets_contract_repaired": false,
+    "hand_edited_sprite_defence_changed": false
   },
-  "reference_disclaimer": "No image is being judged here and no asset changes either way. The decision is which property `verify_assets` asserts about the committed PNG bytes. Everything below was measured on this macOS host at the commit named in each subject's provenance, not estimated. The measurements are identical for all three options because they are measurements of the current tree; what differs is which of them each option keeps.",
+  "reference_disclaimer": "No image is being judged here and no asset changes either way. The decision is which property `verify_assets` asserts about the committed PNG bytes at `decode_png`. One correction matters more than anything else below, because a first version of this packet got it wrong: that term does NOT defend against a hand-edited sprite. Re-encoding edited pixels through the tool's own `encode_png` satisfies it today, and would satisfy a scanline comparison too. What catches an edited sprite is the provenance digest in `provenance.json`, which no option here touches. Every figure below was measured on this host by the script bound to this batch.",
   "subjects": [
     {
       "subject_id": "policy:/betterpullreview/bpr-0378/compare-decoded-content",
       "subject_key": "compare-decoded-content",
-      "display_name": "Option 1 - assert the decoded content and canonical structure, not the compressed bytes",
-      "description": "Replace `data == encode_png(decode_png_bytes(data))` with a check on what the file decodes to: the committed PNG's decompressed filtered scanlines must equal the scanlines the generator produces, and its chunk structure must be canonical. Byte equality of the DEFLATE stream stops being asserted. This is the option the card's own analysis favours, and the measurement below is what makes the trade-off exact rather than argued.",
+      "display_name": "Option 1 - assert canonical structure explicitly and stop comparing compressed bytes",
+      "description": "Replace `data == encode_png(decode_png_bytes(data))` with explicit structural requirements: the existing chunk, format and size checks, plus the two properties byte equality was silently providing - exactly one IDAT, and an empty IEND payload. The compressed DEFLATE stream stops being asserted, which is what makes the canon hold on an interpreter linked against zlib-ng. This is the option the card favours; what has changed is the reason and the required additions.",
       "acceptance_criteria": [
-        "A hand-edited sprite still fails the canon - measured, not assumed",
         "The canon holds on an interpreter linked against either zlib or zlib-ng",
-        "The property the canon asserts is stated rather than implied"
+        "It says which property it asserts, rather than implying pixel provenance it never had",
+        "The one-IDAT and empty-IEND properties byte equality provided are asserted explicitly rather than lost"
       ],
       "known_concerns": [
-        "A re-compression that changes no pixel and no filter choice is accepted where it is rejected today. That is the entire behavioural difference, and it is the case nobody was defending against.",
-        "The canon stops proving 'your DEFLATE implementation matches mine'. If that property is wanted for some other reason, this option loses it."
+        "Written naively as a scanline comparison it would be vacuous: `_filtered_rgba_rows` emits filter byte 0 for every row, so the comparison can only ever agree. The value is in the explicit structural requirements, not in comparing scanlines.",
+        "It stops pinning the exact serialization. A future generator change that altered compression would no longer be caught here - only by the provenance digests, and only for files whose digests are re-recorded.",
+        "The measurement was taken on a host whose interpreter links stock zlib 1.2.12, where the canon currently passes. The failure it addresses was observed elsewhere."
       ],
       "ab_group": null,
       "choice_group": "canon-property",
@@ -41,20 +43,20 @@
           "kind": "definitions",
           "items": [
             {
-              "term": "A deliberately altered pixel",
-              "definition": "One channel of one pixel in dif-neutral-master.png changed by 17, then re-encoded into a structurally valid canonical PNG that passes every existing structural check. The replacement REJECTS it. Measured, which is this card's second required bullet."
+              "term": "Does the canon term stop a hand-edited sprite?",
+              "definition": "No. One channel changed and re-encoded through `encode_png` is accepted by the structural check, by today's byte-equality term, AND by a scanline comparison. This corrects the first version of this packet, which reported a rejection by comparing against the committed asset - a reference `decode_png` does not have, since it runs on source files with no expected image."
             },
             {
-              "term": "A recompression that changes nothing visible",
-              "definition": "The identical filtered scanlines recompressed at level 6: 746,919 bytes against the committed 745,543. The replacement ACCEPTS it; byte equality rejects it. This one case is byte equality's entire marginal coverage."
+              "term": "What does stop it",
+              "definition": "The provenance digest. `provenance.json` records sha256 3a52a8b1... for the master; the altered file hashes af2357e0..., and `_validate_provenance` raises `provenance source digest mismatch` (scripts/dif_assets.py:612-620). No option in this decision touches that."
             },
             {
-              "term": "What the structural check already covers",
-              "definition": "decode_png_bytes already rejects any chunk that is not IHDR, IDAT or IEND, any bad CRC, non-consecutive IDATs, anything that is not non-interlaced 8-bit RGBA, and any decompressed size that disagrees with the header. None of that is being given up."
+              "term": "What byte equality actually adds - three things, not one",
+              "definition": "A level-6 recompression with identical pixels and filters (the zlib-ng case); a non-empty IEND payload; and an IDAT split in two. All three are accepted by the structural check and have identical decoded scanlines, so byte equality is the only thing rejecting them - and two of the three have nothing to do with which zlib is installed."
             },
             {
               "term": "Committed tree today",
-              "definition": "One IDAT chunk; scanlines equal the generator's own filtering; byte equality passes on this host, whose interpreter links zlib 1.2.12."
+              "definition": "One IDAT chunk, canon term holds, 745,543 bytes."
             }
           ]
         }
@@ -78,7 +80,7 @@
       "subject_id": "policy:/betterpullreview/bpr-0378/pin-the-compressor",
       "subject_key": "pin-the-compressor",
       "display_name": "Option 2 - keep byte equality and pin the compressor",
-      "description": "Keep asserting the exact compressed bytes, and make them reproducible by vendoring a deterministic DEFLATE implementation or by storing each asset's expected IDAT stream alongside it.",
+      "description": "Keep asserting the exact compressed bytes, and make them reproducible by vendoring a deterministic DEFLATE implementation or by storing each asset's expected IDAT stream alongside it. This is the only option that keeps the serialization pinned exactly.",
       "acceptance_criteria": [
         "Byte equality survives an interpreter change",
         "The added dependency or the second copy of every compressed stream is an accepted cost"
@@ -86,7 +88,7 @@
       "known_concerns": [
         "A vendored DEFLATE is a new build-time dependency in a tool that currently has none beyond the standard library.",
         "Storing expected IDAT streams doubles the compressed bytes in the repository for every asset and adds a second thing that can drift.",
-        "It keeps a property whose only demonstrated effect is rejecting a recompression that changes no pixel."
+        "It keeps a property whose demonstrated effects are a recompression that changes no pixel, a non-empty IEND payload, and IDAT splitting - none of which is the hand-edited sprite the canon was thought to be defending against."
       ],
       "ab_group": null,
       "choice_group": "canon-property",
@@ -121,7 +123,7 @@
       ],
       "known_concerns": [
         "The card records this as not a resolution: it fixes one host and breaks the next.",
-        "It also changes committed asset bytes, which the other two options do not."
+        "It is the only option that changes committed asset bytes, which also means re-recording every provenance digest."
       ],
       "ab_group": null,
       "choice_group": "canon-property",

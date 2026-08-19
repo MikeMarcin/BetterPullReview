@@ -102,52 +102,90 @@ way before being left open.
 Under zlib-ng no PNG in the tree is canonical, not just the one the error names;
 that file is simply the first one read.
 
-## The trade-off is measured, and the decision is ready — 2026-08-19
+## Corrected — 2026-08-19
 
-This host's interpreter links stock zlib 1.2.12, so the canon passes here and the
-failure does not reproduce. What could be done without an owner is establish what
-each option actually costs, which the card had left as reasoning. It is now
-measurement, recorded at
-`docs/verification/reviews/dif-canon-portability-v001/canon-measurement.txt` from
-the script beside it.
+An independent review broke the first version of this analysis, and it was right.
+The correction matters more than the measurement it replaces, so it comes first.
 
-Three facts, all against the committed `dif-neutral-master.png`:
+### `decode_png`'s byte equality does not defend against a hand-edited sprite
 
-| Question | Answer |
+The card's own framing says the point of `verify_assets` is "that nobody
+hand-edited a sprite". That is true of the tree as a whole and **false of the term
+under discussion**. Measured directly: change one channel of the master, re-encode
+it through the tool's own `encode_png`, and
+
+| Check | Verdict on the edited sprite |
 |---|---|
-| Does a deliberately altered pixel still fail Option 1? | **Yes.** One channel changed by 17, re-encoded into a structurally valid canonical PNG that passes every existing structural check: the scanline comparison rejects it. This is the card's second required bullet, measured rather than assumed. |
-| What does byte equality catch that Option 1 does not? | Exactly one thing: a re-compression that changes no pixel and no filter choice. The identical filtered scanlines at level 6 are 746,919 bytes against the committed 745,543 — byte equality rejects it, Option 1 accepts it. |
-| What does the structural check already cover? | `decode_png_bytes` already rejects any chunk that is not IHDR/IDAT/IEND, any bad CRC, non-consecutive IDATs, anything not non-interlaced 8-bit RGBA, and any decompressed size disagreeing with the header. None of that is at stake. |
+| structural check | accepts |
+| **today's byte-equality term** | **accepts** |
+| a scanline comparison | accepts |
 
-So byte equality's entire marginal coverage over Option 1 is "your DEFLATE
-implementation matches mine" — the property the card already identified as one
-nobody wants. The replacement is not weaker in any other respect, and on the
-filter-choice question it is not weaker at all: comparing the decompressed
-scanlines against `_filtered_rgba_rows` asserts the generator's filter decisions
-directly.
+`data == encode_png(decode_png_bytes(data))` asks whether a file is in the tool's
+canonical *serialization*, not whether its pixels are the committed ones. It cannot
+ask the latter: `decode_png` runs on the source master and every source frame,
+where the only input is the file's own bytes and no expected image exists.
 
-The committed tree carries one IDAT and scanlines equal to the generator's own
-filtering, so Option 1 holds today without touching an asset.
+The first measurement reported a rejection because it compared the altered file's
+scanlines against scanlines derived from the *committed* asset held in memory. That
+is a comparison the canon site cannot make, and it is the provenance mechanism
+wearing the canon's name.
 
-### The packet
+### What does defend against it
 
+`provenance.json` records a sha256 per source file and `_validate_provenance`
+(`scripts/dif_assets.py:612-620`) raises `provenance source digest mismatch` when
+the file on disk disagrees. The master is `3a52a8b1…`; the edited file is
+`af2357e0…`. **No option in this decision touches that check.** The card's second
+required bullet is therefore satisfied by a mechanism that is not changing, rather
+than by anything the replacement must prove.
+
+### Byte equality's marginal coverage is three things, not one
+
+The withdrawn analysis said the only thing byte equality adds is "your DEFLATE
+matches mine". Measured, it adds three, and two are not about DEFLATE at all:
+
+| Variant | Structural check | Same scanlines | Only byte equality rejects it |
+|---|---|---|---|
+| level-6 recompression | accepts | yes | yes — the zlib-ng case |
+| non-empty IEND payload | accepts | yes | yes |
+| IDAT split in two | accepts | yes | yes |
+
+`decode_png_bytes` permits a non-empty IEND payload and any number of consecutive
+IDATs, so those two properties were only ever held by the byte comparison.
+
+**Consequence for Option 1:** a replacement that merely stops comparing compressed
+bytes silently loses them. It has to assert *exactly one IDAT* and *an empty IEND
+payload* explicitly. And it must not be written as a scanline comparison, which
+would be vacuous — `_filtered_rgba_rows` emits filter byte 0 for every row, so it
+can only ever agree.
+
+### The decision, restated
+
+Option 1 still looks right, for a corrected reason: it trades an exact-serialization
+pin, which is environment-dependent and was never the pixel-provenance guarantee it
+was taken for, against portability — while the property everyone actually cares
+about stays with the provenance digests either way.
+
+The packet at
 `docs/verification/reviews/dif-canon-portability-v001/offline-package/index.html`
-presents the three options as one choose-exactly-one question rather than three
-pass/fail checks, because accepting one makes the others pointless. Every subject
-binds the same three identities: `scripts/dif_assets.py`, the measurement script,
-and its output. Deliberately not this card: binding a card to a verdict recorded
-on the card forces a rebuild on every edit to it, and the card is context rather
-than governed bytes. Batch identity is
-`bpr:/attended-review/betterpullreview/737479c73240621e0f2d4a91`. Option 3's
-mechanical audit is `fail`, so it can be rejected but not accepted — the card already records that it fixes this host and
-breaks the next, and it is the only option that rewrites committed asset bytes.
+presents the three options as one choose-exactly-one question. Batch identity is
+`bpr:/attended-review/betterpullreview/568e2cf7d36599fa83d41f43`. Each subject binds
+`scripts/dif_assets.py`, the measurement script, and its recorded output —
+deliberately not this card, since binding a card to a verdict recorded on it would
+force a rebuild on every edit. Option 3's mechanical audit is `fail`: it fixes this
+host, breaks the next, and is the only option that rewrites asset bytes, which also
+means re-recording every provenance digest.
 
-Nothing in the packet changes an asset, and no claim of closure is attached to it.
+The measurement script resolves the repository root from its own location rather
+than hard-coding a path, so it can be re-run on another host.
 
 ## Parked
 
 Every dependency is done and the remaining work is one decision nobody has made.
-Selecting Option 1 makes the rest a bounded implementation slice: replace
-`data != encode_png(image)` in `decode_png` with a scanline comparison plus an
-exactly-one-IDAT requirement, and keep the altered-pixel case as its regression
-test.
+Selecting Option 1 makes the rest a bounded implementation slice: replace the
+byte-equality term in `decode_png` with the existing structural check plus an
+exactly-one-IDAT and empty-IEND requirement, and cover all three variants above as
+regression cases.
+
+The failure does not reproduce on this host, whose interpreter links stock zlib
+1.2.12, and no asset changed.

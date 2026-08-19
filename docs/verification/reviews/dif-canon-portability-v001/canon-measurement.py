@@ -1,150 +1,158 @@
 #!/usr/bin/env python3
-"""Measure what the Dif asset canon's byte-equality term actually adds. BPR-0378.
+"""Measure what `decode_png`'s byte-equality term actually asserts. BPR-0378.
 
-Question 1: does the committed tree pass the current canon on this interpreter?
-Question 2: if byte equality is replaced by "the decompressed filtered scanlines
-            equal the generator's own filtering", does a deliberately altered
-            pixel still fail?
-Question 3: what exactly does byte equality assert that the replacement does not?
+This replaces a first version of this script whose central result was wrong. That
+version compared an altered file's scanlines against scanlines derived from the
+*committed* asset held in memory, and reported that the replacement rejects a
+hand-edited sprite. `decode_png` has no committed reference to compare against —
+it is called on the source master and on every source frame, where the only
+inputs are the file's own bytes — so that comparison is not one the canon site can
+make. See the Correction section of the card.
+
+What is measured here is only what the canon site can actually decide, plus the
+mechanism that does defend the property the card cares about.
+
+Run from anywhere:
+
+    python3 docs/verification/reviews/dif-canon-portability-v001/canon-measurement.py
 """
 
 from __future__ import annotations
 
+import hashlib
+import pathlib
 import struct
 import sys
 import zlib
-from pathlib import Path
 
-ROOT = Path("/Users/jaeger/Documents/GitHub/BetterPullReview")
+# Resolved from this file rather than hard-coded, so the measurement is
+# reproducible on a host whose checkout lives elsewhere.
+ROOT = pathlib.Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import dif_assets as DA  # noqa: E402
 
-ASSET_ROOT = None
-for candidate in (
-    ROOT / "assets" / "dif",
-    ROOT / "docs" / "assets" / "dif",
-):
-    if candidate.is_dir():
-        ASSET_ROOT = candidate
-        break
-if ASSET_ROOT is None:
-    hits = sorted(ROOT.rglob("dif-neutral-master.png"))
-    hits = [h for h in hits if "build" not in h.parts]
-    if not hits:
-        raise SystemExit("could not locate the Dif asset tree")
-    ASSET_ROOT = hits[0].parent.parent
+MASTER = ROOT / "src/adapters/qt/assets/dif/source/dif-neutral-master.png"
 
-MASTER = ASSET_ROOT / "source" / "dif-neutral-master.png"
-print(f"zlib: compile={zlib.ZLIB_VERSION} runtime={zlib.ZLIB_RUNTIME_VERSION}")
-print(f"asset root: {ASSET_ROOT.relative_to(ROOT)}")
-print(f"master: {MASTER.relative_to(ROOT)} ({MASTER.stat().st_size} bytes)")
+
+def chunks_of(data: bytes) -> list[tuple[bytes, bytes]]:
+    offset = len(DA.PNG_SIGNATURE)
+    out: list[tuple[bytes, bytes]] = []
+    while offset < len(data):
+        size = struct.unpack_from(">I", data, offset)[0]
+        out.append((data[offset + 4 : offset + 8], data[offset + 8 : offset + 8 + size]))
+        offset += 12 + size
+    return out
+
+
+def rebuild(chunks: list[tuple[bytes, bytes]]) -> bytes:
+    out = bytearray(DA.PNG_SIGNATURE)
+    for kind, payload in chunks:
+        out.extend(DA._png_chunk(kind, payload))
+    return bytes(out)
 
 
 def scanlines_of(data: bytes) -> bytes:
-    """The decompressed filtered scanlines a PNG carries, per its own IDATs."""
-    offset = len(DA.PNG_SIGNATURE)
-    idats = []
-    header = None
-    while offset < len(data):
-        size = struct.unpack_from(">I", data, offset)[0]
-        kind = data[offset + 4 : offset + 8]
-        payload = data[offset + 8 : offset + 8 + size]
-        if kind == b"IHDR":
-            header = payload
-        elif kind == b"IDAT":
-            idats.append(payload)
-        offset += 12 + size
-    assert header is not None
-    return zlib.decompress(b"".join(idats))
+    return zlib.decompress(
+        b"".join(payload for kind, payload in chunks_of(data) if kind == b"IDAT")
+    )
 
 
-def count_idats(data: bytes) -> int:
-    offset = len(DA.PNG_SIGNATURE)
-    count = 0
-    while offset < len(data):
-        size = struct.unpack_from(">I", data, offset)[0]
-        if data[offset + 4 : offset + 8] == b"IDAT":
-            count += 1
-        offset += 12 + size
-    return count
+def accepted_by_structure(data: bytes, label: str) -> bool:
+    try:
+        DA.decode_png_bytes(data, label)
+        return True
+    except DA.AssetError:
+        return False
+
+
+def canon_term(data: bytes) -> bool:
+    """`decode_png`'s actual test: is this file exactly what encode_png emits?"""
+    return data == DA.encode_png(DA.decode_png_bytes(data, "probe"))
 
 
 original = MASTER.read_bytes()
 image = DA.decode_png_bytes(original, "master")
-reencoded = DA.encode_png(image)
+chunks = chunks_of(original)
+
+print(f"zlib: compile={zlib.ZLIB_VERSION} runtime={zlib.ZLIB_RUNTIME_VERSION}")
+print(f"master: {MASTER.relative_to(ROOT)} ({len(original)} bytes)")
+print(f"IDAT chunks: {sum(1 for k, _ in chunks if k == b'IDAT')}")
+print(f"canon term holds on the committed file: {canon_term(original)}")
 
 print()
-print("--- Q1: the current canon on this interpreter ---")
-print(f"byte equality (current canon): {original == reencoded}")
-print(f"original bytes {len(original)}  re-encoded {len(reencoded)}")
-print(f"IDAT chunks in the committed file: {count_idats(original)}")
-
-generator_scanlines = DA._filtered_rgba_rows(image)
-committed_scanlines = scanlines_of(original)
-print()
-print("--- Q3: what the replacement keeps ---")
-print(
-    "committed filtered scanlines == the generator's own filtering: "
-    f"{committed_scanlines == generator_scanlines}"
-)
-print(f"scanline bytes: {len(committed_scanlines)}")
-
-print()
-print("--- Q2: does an altered pixel still fail the replacement? ---")
-# Flip one pixel's red channel by one, in the middle of the image, then
-# re-encode it into a structurally valid canonical PNG. This is the
-# hand-edited-sprite threat: a real PNG that decodes cleanly but is not what
-# the generator produces.
+print("--- 1. Does the canon term defend against a hand-edited sprite? ---")
 pixels = bytearray(image.pixels)
-midpoint = (len(pixels) // 8) * 4
-before = pixels[midpoint]
-pixels[midpoint] = (before + 17) % 256
-altered_image = DA.RgbaImage(image.width, image.height, bytes(pixels))
-altered_bytes = DA.encode_png(altered_image)
-print(f"altered one channel at offset {midpoint}: {before} -> {pixels[midpoint]}")
-
-# Does it survive structural validation? It must, or the test is vacuous.
-altered_decoded = DA.decode_png_bytes(altered_bytes, "altered")
-print(f"altered file passes decode_png_bytes structural validation: True")
-
-altered_scanlines = scanlines_of(altered_bytes)
+offset = (len(pixels) // 8) * 4
+pixels[offset] = (pixels[offset] + 17) % 256
+altered = DA.encode_png(DA.RgbaImage(image.width, image.height, bytes(pixels)))
+altered_image = DA.decode_png_bytes(altered, "altered")
+print(f"one channel changed at byte {offset}, then re-encoded by encode_png")
+print(f"  accepted by the structural check:      {accepted_by_structure(altered, 'a')}")
+print(f"  accepted by TODAY's canon term:        {canon_term(altered)}")
 print(
-    "REPLACEMENT verdict on the altered file "
-    "(scanlines == generator filtering of the COMMITTED image): "
-    f"{altered_scanlines == generator_scanlines}"
+    "  accepted by a scanline comparison:     "
+    f"{scanlines_of(altered) == DA._filtered_rgba_rows(altered_image)}"
 )
-print(
-    "  -> False means the replacement rejects a hand-edited sprite, "
-    "which is the property the canon exists for."
-)
-print(
-    "CURRENT verdict on the altered file (byte equality against the committed "
-    f"file): {altered_bytes == original}"
-)
+print("  -> No. Both accept it. `decode_png` asserts that a file is in the tool's")
+print("     canonical *serialization*, not that its pixels are the committed ones.")
+print("     A scanline comparison at that site is vacuous besides: every row that")
+print("     encode_png writes uses filter byte 0, so it can only ever agree.")
 
 print()
-print("--- Q3b: the one property byte equality adds ---")
-# Re-compress the identical scanlines at a different level: same pixels, same
-# filtering, different compressed bytes. This is exactly what a different zlib
-# does, and it is the only thing byte equality catches that the replacement
-# does not.
-recompressed = (
-    DA.PNG_SIGNATURE
-    + DA._png_chunk(
-        b"IHDR",
-        struct.pack(">IIBBBBB", image.width, image.height, 8, 6, 0, 0, 0),
+print("--- 2. What does defend against it ---")
+provenance = MASTER.parent.parent / "provenance.json"
+recorded = None
+if provenance.is_file():
+    import json
+
+    for entry in json.loads(provenance.read_text())["source_files"]:
+        if entry["path"].endswith("dif-neutral-master.png"):
+            recorded = entry["sha256"]
+print(f"provenance record: {provenance.name}")
+print(f"  recorded digest: {recorded}")
+print(f"  file digest:     {hashlib.sha256(original).hexdigest()}")
+print(f"  altered digest:  {hashlib.sha256(altered).hexdigest()}")
+print("  -> `_validate_provenance` raises `provenance source digest mismatch`")
+print("     (scripts/dif_assets.py:612-620). That is the check the edited sprite")
+print("     fails, and no option in this decision touches it.")
+
+print()
+print("--- 3. What byte equality catches that the structural check does not ---")
+recompressed = rebuild(
+    [
+        (k, zlib.compress(scanlines_of(original), level=6) if k == b"IDAT" else p)
+        for k, p in chunks
+    ]
+)
+padded_iend = rebuild(
+    [(k, b"PADDINGPADDING" if k == b"IEND" else p) for k, p in chunks]
+)
+split_idat_chunks: list[tuple[bytes, bytes]] = []
+for kind, payload in chunks:
+    if kind == b"IDAT":
+        split_idat_chunks.append((b"IDAT", payload[: len(payload) // 2]))
+        split_idat_chunks.append((b"IDAT", payload[len(payload) // 2 :]))
+    else:
+        split_idat_chunks.append((kind, payload))
+split_idat = rebuild(split_idat_chunks)
+
+for label, variant, note in (
+    ("level-6 recompression", recompressed, "identical pixels and filters; this is the zlib-ng case"),
+    ("non-empty IEND payload", padded_iend, "not a DEFLATE property"),
+    ("IDAT split in two", split_idat, "not a DEFLATE property"),
+):
+    print(f"{label}:")
+    print(f"  bytes differ from committed:      {variant != original}")
+    print(f"  accepted by the structural check: {accepted_by_structure(variant, label)}")
+    print(
+        "  same decoded scanlines:           "
+        f"{scanlines_of(variant) == scanlines_of(original)}"
     )
-    + DA._png_chunk(b"IDAT", zlib.compress(generator_scanlines, level=6))
-    + DA._png_chunk(b"IEND", b"")
-)
-print(f"level-6 recompression differs in bytes: {recompressed != original}")
-print(
-    "level-6 recompression has identical scanlines: "
-    f"{scanlines_of(recompressed) == generator_scanlines}"
-)
-print(f"level-6 size {len(recompressed)} vs committed {len(original)}")
-print(
-    "  -> This file changes no pixel and no filter choice. Byte equality "
-    "rejects it; the replacement accepts it."
-)
+    print(f"  ({note})")
+
+print()
+print("-> Byte equality's marginal coverage is three things, not one. Two of them")
+print("   have nothing to do with which zlib is installed, so a replacement that")
+print("   only stops comparing compressed bytes must assert them explicitly:")
+print("   exactly one IDAT, and an empty IEND payload.")
