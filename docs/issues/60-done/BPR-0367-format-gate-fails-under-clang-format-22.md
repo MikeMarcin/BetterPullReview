@@ -1,7 +1,7 @@
 ---
 id: BPR-0367
 title: The format gate fails on this host, on a file nothing recently changed
-status: Ready
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
 ---
@@ -128,3 +128,74 @@ that the gate passes.
 Not done here: `github_application.cpp` was not reformatted, and
 `.clang-format` was not touched. Both belong to this card, and a concurrent
 session may hold it.
+
+## Claimed on macOS — 2026-08-18
+
+The macOS line holds the card from here. Two of the four required-final-state
+bullets were already answered before it was claimed, and the answers are
+recorded rather than repeated:
+
+- The file **was** reformatted, by [[BPR-0382]] at `14a654d`, which is the
+  macOS line's own copy of this failure. Its diff is exactly the two lines this
+  card names, whitespace only. `clang-format` 22.1.8 on this host now reports
+  the whole tree clean: `Checking 381 file(s)` … `Formatting check passed.`
+  Three 22.x builds on three operating systems therefore agree about that file
+  in both directions — dirty before `14a654d`, clean after.
+- `.clang-format` was not touched, and is not in scope.
+
+What remains is the pair of bullets nobody has done: naming the supported
+version, and recording the Windows `PATH` requirement.
+
+## The version is now part of the verdict — 2026-08-19
+
+`MINIMUM_CLANG_FORMAT_VERSION` in `_coding-standard/scripts/_coding_standard.py`
+is `(22,)`, and both `format_check.py` and `format.py` read the tool's reported
+version before doing anything else. Below the minimum, or with no parseable
+version at all, they print what they found, what they need, and why, and exit 2
+without invoking the tool on a single file. `format.py` says the stronger thing,
+because an older tool there would not misreport those files but rewrite them.
+
+`--allow-unsupported-clang-format` runs anyway. It still prints the diagnostic
+and adds `this result is not a gate verdict`, which is the honest description:
+on the provisioned Linux toolchain a 21.x run can say whether an edit added a
+violation *relative to 21*, and cannot say the gate passes. Both scripts now
+also print the version they used next to the tool path, so a recorded run says
+which tool produced it — the fact this card could not recover for the run that
+last passed over `github_application.cpp`.
+
+The banner parser takes the first dotted number after the banner text, because
+every distribution writes a different prefix: `Homebrew clang-format version
+22.1.8`, `Ubuntu clang-format version 21.1.8`, `Apple clang-format version
+16.0.0 (clang-1600.0.26.6)`.
+
+`coding_standard_format_gate_contract` is registered and covers it. Its stubs
+answer `--version` and append to a marker file on any other invocation, so a
+refusal is proven by the *absence* of a formatting call rather than by the exit
+status alone — which also proves `format.py` cannot rewrite a file it refused.
+Removing the check from `format_check.py` fails three of its eight cases
+directly; that was run rather than assumed.
+
+Documentation: `_coding-standard/README.md` gains a
+`Supported clang-format Versions` section, and `docs/development/build-and-test.md`
+gains `The format gate needs clang-format 22 or newer`, carrying the measured
+21-versus-22 split, the `{ }` mechanism, and the Windows `PATH` line — Visual
+Studio 2022 does not put `clang-format` on `PATH`, so the first failure on a
+fresh Windows checkout is `Tool not found on PATH: clang-format`.
+
+### Evidence
+
+| Check | Result |
+|---|---|
+| `cmake --build --preset core-only --target coding-format-check` | `Checking 381 file(s) with …clang-format (22.1.8)` / `Formatting check passed.` |
+| `python3 _coding-standard/scripts/format_check.py` | same, passed |
+| `ctest --preset dev -R '^coding_standard_format_gate_contract$'` | 1/1 passed, 1.28 s |
+| gate deleted from `format_check.py`, contract re-run | 3 of 8 cases fail; restored and re-run 8/8 |
+| `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+
+### Left open deliberately
+
+The Linux toolchain still provisions 21.1.8. This card does not change that; it
+makes the consequence explicit instead of silent. Provisioning a supported
+clang-format on that host is separate work, and until it happens the C/C++ half
+of `coding-format-check` there returns a refusal rather than 292 false
+positives.

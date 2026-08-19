@@ -9,6 +9,8 @@ from typing import List, Optional, Sequence
 
 from _coding_standard import (
     SOURCE_EXTENSIONS,
+    add_clang_format_version_argument,
+    check_clang_format_version,
     display_path,
     iter_source_files,
     normalize_input_paths,
@@ -16,6 +18,7 @@ from _coding_standard import (
     repo_root,
     resolve_tool,
     supports_option,
+    version_text,
 )
 
 
@@ -83,6 +86,7 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser.add_argument("paths", nargs="*", help="Files or directories to check. Defaults to normal project source roots.")
     parser.add_argument("--root", type=Path, default=None, help="Project root to scan. Defaults to the current working directory.")
     parser.add_argument("--clang-format", default="clang-format", help="clang-format executable path or PATH name.")
+    add_clang_format_version_argument(parser)
     parser.add_argument("--from-stdin", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
@@ -97,6 +101,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(str(exc), file=sys.stderr)
         return 2
 
+    usable, version = check_clang_format_version(
+        clang_format,
+        allow_unsupported=args.allow_unsupported_clang_format,
+    )
+    if not usable:
+        return 2
+
     raw_paths = list(args.paths)
     if args.from_stdin:
         raw_paths.extend(read_nul_paths_from_stdin())
@@ -109,7 +120,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print("No C/C++ source files found.")
         return 0
 
-    print(f"Checking {len(files)} file(s) with {clang_format}")
+    reported = version_text(version) if version is not None else "unknown version"
+    print(f"Checking {len(files)} file(s) with {clang_format} ({reported})")
     if supports_option(clang_format, "--dry-run"):
         rc = check_with_dry_run(clang_format, files, root)
     else:

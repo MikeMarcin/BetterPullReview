@@ -9,6 +9,8 @@ from typing import List, Optional, Sequence
 
 from _coding_standard import (
     SOURCE_EXTENSIONS,
+    add_clang_format_version_argument,
+    check_clang_format_version,
     chunked,
     display_path,
     iter_source_files,
@@ -16,6 +18,7 @@ from _coding_standard import (
     repo_root,
     resolve_tool,
     supports_option,
+    version_text,
 )
 
 
@@ -43,6 +46,7 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser.add_argument("paths", nargs="*", help="Files or directories to format. Defaults to normal project source roots.")
     parser.add_argument("--root", type=Path, default=None, help="Project root to scan. Defaults to the current working directory.")
     parser.add_argument("--clang-format", default="clang-format", help="clang-format executable path or PATH name.")
+    add_clang_format_version_argument(parser)
     parser.add_argument("--dry-run", action="store_true", help="Ask clang-format to check formatting without editing when supported.")
     return parser.parse_args(argv)
 
@@ -57,13 +61,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(str(exc), file=sys.stderr)
         return 2
 
+    usable, version = check_clang_format_version(
+        clang_format,
+        allow_unsupported=args.allow_unsupported_clang_format,
+        mutating=not args.dry_run,
+    )
+    if not usable:
+        return 2
+
     files: List[Path] = sorted(iter_source_files(normalize_input_paths(args.paths, root), root, SOURCE_EXTENSIONS))
     if not files:
         print("No C/C++ source files found.")
         return 0
 
     action = "Checking" if args.dry_run else "Formatting"
-    print(f"{action} {len(files)} file(s) with {clang_format}")
+    reported = version_text(version) if version is not None else "unknown version"
+    print(f"{action} {len(files)} file(s) with {clang_format} ({reported})")
     rc = run_clang_format(clang_format, files, dry_run=args.dry_run)
     if rc == 0:
         for path in files:

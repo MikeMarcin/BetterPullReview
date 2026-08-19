@@ -25,6 +25,24 @@ python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnin
 
 Pass explicit paths after the options to limit the scan.
 
+## Supported clang-format Versions
+
+`.clang-format` is rendered by **clang-format 22 or newer**, recorded as
+`MINIMUM_CLANG_FORMAT_VERSION` in `scripts/_coding_standard.py`. Both
+`format_check.py` and `format.py` read the tool's reported version first and
+refuse an older one, naming what they found and what they need.
+
+The boundary is not arbitrary. Release 21 and earlier render an empty braced
+initializer as `{}` where this standard's sources hold `{ }`, and no key
+restores the space — `Cpp11BracedListStyle` produces `{}` either way, and
+`SpaceInEmptyBraces` is not an option those releases accept. Every file
+containing `{ }` therefore disagrees with an older tool, which is most of a
+migrated tree.
+
+Pass `--allow-unsupported-clang-format` to run anyway. The diagnostic is still
+printed and the result is labelled advisory: a tool that renders the style file
+differently can report a file's state, but not the project's.
+
 ## CMake Integration
 
 Top-level project builds include:

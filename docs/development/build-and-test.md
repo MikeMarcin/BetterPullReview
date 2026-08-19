@@ -461,6 +461,50 @@ set `-DBPR_ENABLE_CODING_TARGETS=ON` to add the targets deliberately. The tidy
 profile's narrow compatibility exclusions and compilation-database adaptation
 are documented in `_coding-standard/README.md`.
 
+### The format gate needs clang-format 22 or newer
+
+The tree is rendered by **clang-format 22 or newer**, and both format scripts
+now refuse an older tool rather than returning a verdict from it:
+
+```
+error: unsupported clang-format: /usr/bin/clang-format reports version 21.1.8
+       This project's .clang-format requires clang-format 22 or newer. …
+```
+
+Release 21 and earlier strip the space out of an empty braced initializer —
+they emit `{}` where this tree holds `{ }` — and no `.clang-format` key restores
+it, because `SpaceInEmptyBraces` is not an option those releases accept. That
+one difference is enough to make an older tool report every file containing
+`{ }` dirty: measured on Ubuntu 26.04, 21.1.8 reported 292 of 375 files needing
+formatting where 22.1.2 reported one. Every one of the 151 files under `src/`
+containing `{ }` was in the older tool's list, and every file it called clean
+contained none. So the failures were never selective, and a passing run under an
+unrecorded version was never proof.
+
+`format.py` refuses for the stronger reason: an older tool would not merely
+misreport those files, it would rewrite them.
+
+Pass `--allow-unsupported-clang-format` to run anyway. The scripts still print
+the diagnostic and label the result advisory, because a verdict from a tool that
+renders the style file differently is not a gate verdict.
+`coding_standard_format_gate_contract` covers the refusal, the override, and the
+accepted path.
+
+On **Windows**, `clang-format` is not on `PATH` by default even with Visual
+Studio 2022 installed, so the gate's first failure on a fresh checkout is
+`Tool not found on PATH: clang-format` rather than a formatting complaint. Add
+the Visual Studio LLVM directory:
+
+```powershell
+$env:PATH = "$env:PATH;${env:ProgramFiles}\Microsoft Visual Studio\18\Community\VC\Tools\Llvm\x64\bin"
+```
+
+Adjust the edition and version segments to the installed instance, or pass the
+executable directly with `--clang-format`. Check what the toolchain actually
+supplies before trusting a run: Visual Studio's bundled LLVM has satisfied the
+minimum since it moved to 22.x, and an instance still shipping 21 or earlier
+gets the refusal above.
+
 ## Focused evidence
 
 ```sh
