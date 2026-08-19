@@ -1,7 +1,7 @@
 ---
 id: BPR-0364
 title: The Qt provider policy outran its own tests
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0013
 depends_on: []
 ---
