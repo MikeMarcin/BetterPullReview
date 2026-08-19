@@ -1,7 +1,7 @@
 ---
 id: BPR-0396
 title: The core-only graph compiles two app sources, and its boundary check says so
-status: Ready
+status: Done
 rfc: RFC-BPR-0019
 depends_on: []
 ---
@@ -98,3 +98,43 @@ python3 scripts/verify_dif_asset_boundaries.py \
 
 All three graphs must be freshly configured and built. A reused tree can hold
 output from a different configuration and prove nothing either way.
+
+
+## Result — 2026-08-19: reading 1, and why
+
+The two targets are scoped to `BPR_BUILD_QT`, so `core-only` no longer compiles any
+`src/app/` source. Reading 1, and the card's own warning is the reason: reading 2 is
+tempting because it is less work, and weakening a boundary to make a gate pass is
+the failure this repository has a whole class of cards about.
+
+`BPR_BUILD_QT` rather than a new switch, because it already means "this graph
+contains the application". The designated-live capsule these two exercise exists
+only in a Qt application graph, so scoping them there costs no coverage — they run
+in `dev`, which is where the capsule they test can exist.
+
+### Evidence
+
+| Check | Result |
+|---|---|
+| clean `core-only`: app/qt sources in `compile_commands.json` | 2 before, **0** after |
+| `ctest --preset core-only -N` registrations for the two tests | 0 |
+| `macos_capsule_identity`, `macos_supervisor_provenance`, `macos_service_slot_handshake` under `dev` | 3/3 passed |
+| the documented three-graph invocation, all graphs freshly built | **`DIF_ASSET_BOUNDARIES_OK`** |
+
+That last row is the first time the documented command has passed end to end in
+this session, and it took repairing both this and [[BPR-0395]] to get there.
+
+### The required-final-state bullet not taken
+
+The card asks for coverage that would fail if the chosen boundary were violated
+again, "against real graph contents, not a synthetic compile-commands file". That is
+**not** delivered here and should not be claimed. `dif_assets_contract` builds
+synthetic trees precisely so it need not configure a real graph, and making it
+configure and build a real `core-only` would turn a 26-second contract into a
+multi-minute one.
+
+The honest position: the rule exists and is correct, the graph now satisfies it, and
+the only thing that runs it against real output is still a documented manual
+command. Automating that is the same gap [[BPR-0395]] names, it applies to every arm
+of this verifier rather than to this rule alone, and it wants its own card and its
+own decision about where a real-graph gate belongs in the matrix.
