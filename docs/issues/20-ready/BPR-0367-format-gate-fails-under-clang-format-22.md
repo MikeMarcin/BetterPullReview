@@ -74,3 +74,57 @@ py -3 _coding-standard/scripts/format_check.py
 ```
 
 On Windows both need `…/VC/Tools/Llvm/x64/bin` on `PATH`.
+
+## Answered from the Linux lane — 2026-08-18
+
+Both explanations are true, for different files, and the split is now measured
+rather than guessed.
+
+Ubuntu 26.04 x86_64. `clang-format` 22.1.2 was fetched into a scratch prefix
+for this comparison; 21.1.8 is what the provisioned toolchain actually supplies
+(`~/.local/bin/clang-format` →
+`~/.local/bpr-toolchain/debroot/usr/lib/llvm-21/bin/clang-format`, and
+`~/.local/bin` precedes `/usr/bin`).
+
+| `clang-format` | files checked | files needing formatting | violations |
+|---|---|---|---|
+| 21.1.8 | 375 | 292 | 10275 |
+| 22.1.2 | 375 | **1** | 2 |
+
+The one file 22.1.2 reports is `src/app/src/github_application.cpp`, at lines
+2094 and 2097 — the same file and the same two lines this card recorded from
+Windows under 22.1.3. Two hosts, two operating systems, two 22.x builds, one
+answer. **That file is genuinely misformatted**, and reformatting it is this
+card's second bullet, still to do. Nothing else is.
+
+Everything else is the other explanation. The dominant cause reduces to three
+lines against the project's own `.clang-format`:
+
+```sh
+printf 'auto f() {\n\tauto state = process_state{ };\n}\n' > probe.cpp
+clang-format-22 --style=file:.clang-format probe.cpp   # auto state = process_state{ };
+clang-format-21 --style=file:.clang-format probe.cpp   # auto state = process_state{};
+```
+
+21 strips the space from an empty braced initializer and no setting restores
+it: `Cpp11BracedListStyle` produces `{}` either way, and `SpaceInEmptyBraces` is
+not a key 21 accepts. `{ }` is the project's style in every file that has one,
+so the disagreement is not distributed randomly — of the C++ files under `src/`,
+every one of the 151 containing `{ }` is reported dirty under 21, and every one
+of the 81 clean files contains none.
+
+That correlation also corrects [[BPR-0156]], which saw ~290 files dirty under
+18 through 21 and concluded "this is not a blanket version disagreement,"
+reasoning that `src/core/src/model.cpp` was clean under all of them while
+`src/app/src/github_application.cpp` was not. `model.cpp` is clean because it
+contains no `{ }` at all, not because the disagreement is selective.
+
+So the version the tree is formatted for is 22 or later, and the Linux
+toolchain provisions 21. Until this card names a version, the C/C++ half of
+`coding-format-check` is unusable on the provisioned Linux toolchain: cards
+worked in the Linux lane can only claim their own edits added no violation, not
+that the gate passes.
+
+Not done here: `github_application.cpp` was not reformatted, and
+`.clang-format` was not touched. Both belong to this card, and a concurrent
+session may hold it.
