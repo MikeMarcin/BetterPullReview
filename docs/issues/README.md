@@ -588,7 +588,7 @@ three answers it needs:
 |---|---|---|
 | BPR-0347 | `30-in-progress/` | Nothing. The Windows suite runs here and its own remaining failures are the work |
 | BPR-0358 | `30-in-progress/` | Nothing. It records that the Windows platform arrived and repairs the lanes that assumed it had not |
-| BPR-0168, BPR-0220, BPR-0256 | `40-parked/` | A person looking, clicking, or returning an exported verdict |
+| BPR-0100, BPR-0168, BPR-0220, BPR-0256 | `40-parked/` | A person looking, clicking, or returning an exported verdict |
 | BPR-0211, BPR-0212 | `40-parked/` | A product decision: owner-deferred, and RFC-scale rather than a slice |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | A digest-bound attended packet, then a real GitHub call |

@@ -1,9 +1,10 @@
 ---
 id: BPR-0100
 title: Run the inherited native visual-acceptance pass
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0005
 depends_on: [BPR-0097, BPR-0186, BPR-0187, BPR-0233]
+parked_on: awaiting-owner-verdict
 ---
 
 # Run the inherited native visual-acceptance pass
@@ -64,3 +65,15 @@ What the run did establish, and what is worth keeping:
 Both were found by a person looking at the captured rasters after every
 automated marker had reported OK. That is the argument for this card existing
 at all, and it applies again once the shell is the window.
+
+## Packet prepared — 2026-08-18
+
+Every dependency is in `60-done/`: the attended launch exists, the recording
+is served, and BPR-0233 drives it through the real selected-file path with
+the v006 batch accepted. What remains is exactly this card's class: a person
+judging presentation on a real display. The digest-bound procedure is
+`docs/verification/reviews/native-visual-acceptance-v001/operator-packet.md`,
+binding the same dev executable as the two other pending packets, with
+`application_attended_launch_contract` and the recorded selected-diff
+contract green at those bytes as preflights. The card parks awaiting that
+judgment.
