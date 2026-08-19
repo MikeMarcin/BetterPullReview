@@ -206,3 +206,25 @@ The card also asked to check whether macOS alternates the same way. That is not
 answered here and should not be recorded as though it were: what is established
 is that the defect is not platform-specific by construction, which is a weaker
 claim than a macOS run.
+
+## Correction — this slice missed the same gate BPR-0368 had just documented
+
+The repair edits `src/app/main.cpp`, which is one of the eight sources the
+production application manifest digest covers
+(`application_review_round_trip_composition_contract.cmake:135`). The slice did
+not re-pin it, so `application_composition_contract` began failing on the
+digest immediately after this card closed.
+
+That is precisely the failure mode [[BPR-0368]] had recorded one slice earlier,
+against `27e4bed`, and it recurred anyway. The reason is the same one BPR-0368
+named: this card's verification ran the selectors the card named, and the
+composition contract is not among them, so nothing here was going to notice.
+
+The pin is corrected to `b6d2a2c6…`. The other two pins are untouched: the
+file digest at line 42 still matches, because `github_application.cpp` did not
+change, and the narrower mutation pin did not drift.
+
+The recurrence is evidence for BPR-0368's closing observation rather than
+against it. A per-slice rule that depends on remembering which shared gate a
+file participates in will be missed again; `src/app/main.cpp` carries nothing
+that says a digest covers it.
