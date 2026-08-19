@@ -1,9 +1,10 @@
 ---
 id: BPR-0360
 title: Re-pin the application digests that drifted without notice
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: []
+completed: 2026-08-18
 ---
 
 # Re-pin the application digests that drifted without notice
@@ -69,3 +70,31 @@ and KSyntaxHighlighting to resolve) are environmental. The
 `platform_configuration_contract` mismatch is Windows work: the preset has said
 `Visual Studio 18 2026` since `7cf8356` while the test still expects
 `Visual Studio 17 2022`. [[BPR-0362]] records it.
+
+## Result — 2026-08-18
+
+Two of the three pinned digests had drifted; the third had not.
+
+| Pin | Was | Now |
+|---|---|---|
+| full `github_application.cpp` (`:42`) | `857636fa…` | `bf9e5863…` |
+| production app source manifest (`:135`) | `a0f15b6d…` | `3177982c…` |
+| production mutation host (`:445`) | `d8274b71…` | unchanged |
+
+Re-pinned by running the contract and taking the `found` value it prints,
+rather than by reimplementing its hashing — it normalizes lone `\r` as well as
+`\r\n`, and a reimplementation that missed that would agree on this tree and
+disagree on some later one. It reports one digest at a time, so this took two
+rounds.
+
+`application_review_round_trip_composition_contract` passes. In
+`application_composition_contract`, the subtest that failed on this digest —
+`test_async_mutation_host_inventory_rejects_every_direct_bypass` — now passes.
+Its other subtest, `test_tests_off_release_graph_omits_public_path_fixture`,
+still fails because KSyntaxHighlighting 6.28.1 will not configure from the
+offline dependency cache. That is environmental and explicitly not this card.
+
+The re-pin procedure is now written above the first digest function, including
+the warning that matters more than the mechanics: re-pin only when the source
+change was intended, because a digest that moved on its own is the defect this
+contract exists to catch.
