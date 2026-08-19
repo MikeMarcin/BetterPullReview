@@ -561,9 +561,19 @@ namespace bpr::application {
 			Enrollments = std::move(aEnrollments);
 			Status      = queue_landing_status::ready;
 			publish();
-			if (!LastObservation.has_value()) {
-				refresh_last();
-			}
+			// `reconcile_last`, not a bare `refresh_last` for the missing case.
+			// The enrollments just adopted were computed when the intent was
+			// accepted, against whatever observation existed then. A refresh
+			// that completed while this mutation was in flight is judged
+			// against the rules as they stood when *it* was dispatched, which
+			// did not include this one. Neither side sees the pair, and the
+			// pull request stays out of the queue for good.
+			//
+			// `reconcile_last` re-judges the observation against the rules just
+			// committed, and still falls through to `refresh_last` when there
+			// is no observation to re-judge, which is what this used to do and
+			// all it used to do. BPR-0344.
+			reconcile_last();
 		}
 
 		void reconcile_last()

@@ -724,6 +724,77 @@ namespace {
 			"a separate host lifetime restores the exact private preferences");
 		restarted.shutdown();
 	}
+	// BPR-0344. A rule added while a refresh is already in flight used to lose
+	// the enrollment entirely. The refresh completion is evaluated against the
+	// rules as they stood when it was dispatched — none — and the rule
+	// mutation's own reconciliation was captured before that observation
+	// existed, so neither side ever matched the two together.
+	//
+	// Nothing in the queue depends on a clock or a filesystem, but which of the
+	// two lands first does, which is why this reached a contract only on a host
+	// whose pull-request open path was slower than another's.
+	void test_a_rule_added_during_a_refresh_still_enrolls()
+	{
+		auto       store       = memory_queue_store{ };
+		auto       refresh     = observed_refresh{ };
+		auto       effects     = application::manual_executor{ };
+		auto       decisions   = application::manual_executor{ };
+		auto       projections = landing_log{ };
+		const auto rule        = core::observer_rule{
+			.Kind = core::observer_rule_kind::repository, .Pattern = "octo/app"
+		};
+		refresh.Observation = core::pull_request_observation{
+			.Ref = ref(7), .Author = "octocat", .ChangedPaths = { "src/parser.cpp" }
+		};
+
+		auto host = application::review_queue_application_host{
+			store,
+			refresh,
+			effects,
+			decisions,
+			projections,
+			{ .Host = "github.com", .Account = "reviewer", .Generation = 4U }
+		};
+		host.restore();
+		run_one(effects, decisions);
+		expect(host.rules().empty(), "the host starts with no rules");
+
+		// Both in flight at once, refresh first.
+		host.refresh(ref(7));
+		host.apply({ .Action = application::queue_rule_action::add, .Rule = rule });
+		expect(effects.pending() == 2U, "the refresh and the rule mutation overlap");
+
+		// The refresh completes while the rule is still uncommitted, so it is
+		// judged against an empty rule set and matches nothing. That is
+		// correct on its own terms and must stay that way.
+		effects.run_next();
+		decisions.run_next();
+		expect(host.queue().empty(),
+			   "a refresh judged before the rule exists matches nothing");
+
+		// Committing the rule has to re-judge that observation. Before
+		// BPR-0344 it re-judged nothing, because it only looked for a *missing*
+		// observation and this one was present.
+		effects.run_next();
+		decisions.run_next();
+		expect(host.rules().size() == 1U && host.rules().front() == rule,
+			   "the rule is committed");
+		expect(effects.pending() == 1U,
+			   "committing the rule enrolls the observation it now matches");
+		effects.run_next();
+		decisions.run_next();
+
+		expect(host.queue().size() == 1U,
+			   "the pull request the rule matches reaches the queue");
+		expect(host.queue().front().Membership.MatchedRule
+				   && host.queue().front().Membership.Rule == rule,
+			   "the queued item names the rule that matched it");
+		expect(store.State.Enrollments.size() == 1U
+				   && store.State.Enrollments.front().Membership.Rule == rule,
+			   "the enrollment is durable, not only projected");
+		host.shutdown();
+	}
+
 } // namespace
 
 auto main() -> int
@@ -743,6 +814,7 @@ auto main() -> int
 	test_failed_rule_reconciliation_rolls_back_before_unavailable_projection();
 	test_rule_reconciliation_never_suppresses_a_github_role();
 	test_presentation_preferences_are_durable_before_projection();
+	test_a_rule_added_during_a_refresh_still_enrolls();
 
 	std::cout << "review-queue-enrollment-tests:pass\n";
 	return EXIT_SUCCESS;
