@@ -1,3 +1,5 @@
+#include "platform_test_support.hpp"
+
 #include "../../src/adapters/sqlite/src/review_ledger_database.hpp"
 #include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
 #include "../../src/adapters/sqlite/src/state_directory.hpp"
@@ -44,6 +46,8 @@ namespace bpr::adapters::sqlite::detail {
 namespace {
 	using namespace bpr;
 	using namespace bpr::adapters::sqlite::detail;
+
+	namespace test_platform = bpr::tests::sqlite_contract;
 
 	template <typename Identity>
 	[[nodiscard]] constexpr auto opaque(const std::uint8_t aSeed) -> Identity
@@ -142,14 +146,29 @@ namespace {
 		/// root `owner_all` before either store sees it. A scratch directory
 		/// created with the default mode is not a root either store would
 		/// accept, and pretending otherwise would test the wrong refusal.
-		void make_private() const
+		///
+		/// On Windows `std::filesystem::permissions` toggles only
+		/// `FILE_ATTRIBUTE_READONLY` and writes no DACL, so it reported success
+		/// and left the root exactly as open as it found it. Every store then
+		/// refused the root, correctly, and the refusal read like a product
+		/// defect. The suite's own Win32 helper is used instead, the same one
+		/// the epoch-catalog tests use.
+		///
+		/// The result is returned rather than discarded: a root that could not
+		/// be made private is not a root these tests can say anything about.
+		[[nodiscard]] auto make_private() const -> bool
 		{
-			std::error_code ignored;
+#if defined(_WIN32)
+			return test_platform::make_owner_private(Path, true);
+#else
+			std::error_code failed;
 			std::filesystem::permissions(
 				Path,
 				std::filesystem::perms::owner_all,
 				std::filesystem::perm_options::replace,
-				ignored);
+				failed);
+			return !failed;
+#endif
 		}
 
 	private:
@@ -1618,7 +1637,7 @@ namespace {
 	void test_private_record_bounds_and_anchor_honesty_are_enforced()
 	{
 		const scratch_directory directory;
-		directory.make_private();
+		expect(directory.make_private(), "the scratch root becomes owner-private");
 		auto state = open_state_directory(directory.path());
 		expect(state.has_value(), "the bounded state directory opens");
 		auto opened = review_ledger_database::open(
@@ -2001,7 +2020,7 @@ namespace {
 	void test_the_application_store_round_trips_private_records_by_scope()
 	{
 		const scratch_directory directory;
-		directory.make_private();
+		expect(directory.make_private(), "the scratch root becomes owner-private");
 		const auto configuration = bpr::adapters::sqlite::review_ledger_configuration{
 			.StorageRoot = directory.path(),
 			.Host        = "github.com",
@@ -2147,7 +2166,7 @@ namespace {
 	void test_the_ledger_composing_first_hardens_the_state_directory()
 	{
 		const scratch_directory directory;
-		directory.make_private();
+		expect(directory.make_private(), "the scratch root becomes owner-private");
 
 		expect(
 			ledger_composes(directory.path()),
@@ -2181,7 +2200,7 @@ namespace {
 	{
 		for (const auto ledgerFirst : { true, false }) {
 			const scratch_directory directory;
-			directory.make_private();
+			expect(directory.make_private(), "the scratch root becomes owner-private");
 
 			const auto elsewhere = directory.path() / "elsewhere";
 			std::filesystem::create_directories(elsewhere);
@@ -2221,7 +2240,7 @@ namespace {
 	{
 		for (const auto ledgerFirst : { true, false }) {
 			const scratch_directory directory;
-			directory.make_private();
+			expect(directory.make_private(), "the scratch root becomes owner-private");
 
 			const auto state = directory.path() / "state" / "v1";
 			std::filesystem::create_directories(state);

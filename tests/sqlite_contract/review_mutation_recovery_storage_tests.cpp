@@ -1,3 +1,5 @@
+#include "platform_test_support.hpp"
+
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 
 #include <sqlite3.h>
@@ -20,6 +22,8 @@
 namespace {
 	using namespace bpr;
 
+	namespace test_platform = bpr::tests::sqlite_contract;
+
 	void expect(const bool aCondition, const std::string_view aMessage)
 	{
 		if (!aCondition) {
@@ -40,8 +44,14 @@ namespace {
 			Path = std::filesystem::temp_directory_path()
 				/ ("bpr-mutation-recovery-" + seed);
 			std::filesystem::create_directory(Path);
-#if !defined(_WIN32)
-			static_cast<void>(::chmod(Path.c_str(), 0700));
+#if defined(_WIN32)
+			// There was no Windows arm here at all, so the root was never made
+			// owner-private and the store refused it — correctly, and in a way
+			// that read like a product defect. `0700` has no Win32 equivalent
+			// that `chmod` can express; the suite's own helper writes the DACL.
+			Private = test_platform::make_owner_private(Path, true);
+#else
+			Private = ::chmod(Path.c_str(), 0700) == 0;
 #endif
 		}
 
@@ -52,6 +62,12 @@ namespace {
 		}
 
 		std::filesystem::path Path;
+
+		/// \brief Whether the root really became owner-private.
+		///
+		/// A root that did not is one these tests can say nothing about, so the
+		/// result is kept rather than discarded.
+		bool Private = false;
 	};
 
 	template <typename Identity>
@@ -172,7 +188,16 @@ namespace {
 	{
 		const auto state = aDirectory.Path / "state" / "v1";
 		std::filesystem::create_directories(state);
-#if !defined(_WIN32)
+#if defined(_WIN32)
+		// The store creates these two through `ensure_private_child`, which
+		// writes an owner-private descriptor. This fixture makes them directly,
+		// so it has to match — there was no Windows arm here, and the store
+		// refused the directories it was handed.
+		expect(test_platform::make_owner_private(aDirectory.Path / "state", true),
+			   "the fixture state directory becomes owner-private");
+		expect(test_platform::make_owner_private(state, true),
+			   "the fixture v1 directory becomes owner-private");
+#else
 		static_cast<void>(::chmod((aDirectory.Path / "state").c_str(), 0700));
 		static_cast<void>(::chmod(state.c_str(), 0700));
 #endif
@@ -229,7 +254,8 @@ namespace {
 	void test_durable_unresolved_and_success_reopen()
 	{
 		auto directory = temporary_directory{ };
-		auto first     = adapters::sqlite::make_review_mutation_recovery_store(
+		expect(directory.Private, "the recovery root becomes owner-private");
+		auto first = adapters::sqlite::make_review_mutation_recovery_store(
 			configuration(directory));
 		expect(first.has_value(), "owner-private recovery store opens");
 		const auto expected = record();
@@ -307,7 +333,8 @@ namespace {
 	void test_schema_identity_is_fail_closed_and_credential_free()
 	{
 		auto directory = temporary_directory{ };
-		auto store     = adapters::sqlite::make_review_mutation_recovery_store(
+		expect(directory.Private, "the recovery root becomes owner-private");
+		auto store = adapters::sqlite::make_review_mutation_recovery_store(
 			configuration(directory));
 		expect(store.has_value(), "schema fixture opens");
 		store->reset();
@@ -361,6 +388,7 @@ namespace {
 	void test_version_one_migration_preserves_success_and_guards_unresolved()
 	{
 		auto directory = temporary_directory{ };
+		expect(directory.Private, "the recovery root becomes owner-private");
 		materialize_version_one_database(directory);
 		auto migrated = adapters::sqlite::make_review_mutation_recovery_store(
 			configuration(directory));
@@ -393,6 +421,7 @@ namespace {
 	void test_version_one_schema_drift_is_refused_without_migration()
 	{
 		auto directory = temporary_directory{ };
+		expect(directory.Private, "the recovery root becomes owner-private");
 		materialize_version_one_database(directory);
 		execute_sql(
 			database_path(directory),
@@ -410,7 +439,8 @@ namespace {
 	void test_baseline_capacity_and_integrity_fail_closed()
 	{
 		auto directory = temporary_directory{ };
-		auto store     = adapters::sqlite::make_review_mutation_recovery_store(
+		expect(directory.Private, "the recovery root becomes owner-private");
+		auto store = adapters::sqlite::make_review_mutation_recovery_store(
 			configuration(directory));
 		expect(store.has_value(), "baseline integrity store opens");
 

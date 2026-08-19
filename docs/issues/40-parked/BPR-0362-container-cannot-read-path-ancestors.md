@@ -206,3 +206,34 @@ proven to be this card either.
 The decision packet stands, because the ancestor-read denial is still true and
 still has to be answered before anything containment-dependent can be relied on.
 What must not stand is the claim that six tests are waiting on it.
+
+## The claim, restored and made exact — 2026-08-18
+
+The correction above was itself too broad, and the honest position is narrower
+than either version.
+
+When it was written, the four SQLite storage tests failed **uncontained** as
+well, so the container could not be shown to be their cause. Three separate
+product and test defects were responsible for that —
+[[BPR-0368]], [[BPR-0369]], and [[BPR-0370]] — and all three are now fixed.
+With them fixed:
+
+| test | uncontained | contained |
+|---|---|---|
+| `sqlite_epoch_catalog_behavior_contract` | **passes** | fails |
+| `sqlite_review_ledger_storage` | **passes** | fails |
+| `sqlite_review_mutation_recovery_storage` | **passes** | fails |
+| `sqlite_epoch_catalog_storage_contract` | fails later, at a no-delete-share assertion | fails |
+| `test_network_isolation_structure_contract` | **passes** | fails |
+
+Contained, they fail at exactly the step this card measures — the ancestors
+cannot be read, so `open_state_directory` cannot walk them — with the same
+messages as before: `the bounded state directory opens`,
+`owner-private recovery store opens`.
+
+So this card's mechanism was right, its test list was premature, and it is now
+evidenced. **Four tests are waiting on this decision, not six and not zero.**
+The two epoch-catalog tests also stopped hanging: they now fail fast contained
+rather than timing out, because the failure they hit is immediate.
+
+The decision packet is unchanged and still needs an answer.
