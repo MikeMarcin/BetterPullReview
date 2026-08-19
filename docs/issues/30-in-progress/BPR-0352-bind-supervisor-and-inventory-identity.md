@@ -1,7 +1,7 @@
 ---
 id: BPR-0352
 title: Bind supervisor and inventory identity into the approval subject
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0351]
 ---
