@@ -239,3 +239,38 @@ it, including the open question of whether the file is misformatted or the tool
 version disagrees.
 
 The Qt graph under the boundary is still not attempted, unchanged by any of this.
+
+## The SQLite storage path, closed out — 2026-08-18
+
+Three defects stood between Windows and a working epoch catalog, and none of
+them was the AppContainer:
+
+| card | defect | evidence |
+|---|---|---|
+| [[BPR-0368]] | `validate_ancestor_chain` doubled the root separator, so the retained chain never compared equal | instrumented; without it the chain fails, with it nothing does |
+| [[BPR-0369]] | `SetFileInformationByHandle` does not honour `RootDirectory`; the publication rename needed a qualified name | probe across every parent access mask: 87 each time, qualified form OK |
+| [[BPR-0370]] | three fixtures narrowed their roots only on POSIX, so Windows roots were never owner-private | `permissions` returns 0 and leaves `is_owner_private` false |
+
+`open_state_directory` had **never** worked on Windows. It does now.
+
+### The container's cost, re-measured
+
+Stripping the launcher from each failing test and running the real command:
+
+| | at the start of this program | now |
+|---|---|---|
+| passes uncontained | 1 of 13 | **4 of 13** |
+
+The cost went **up** as the product was repaired, which is the opposite of what
+the first measurement suggested and the correct reading now that the product
+defects underneath are gone. `sqlite_epoch_catalog_behavior_contract`,
+`sqlite_review_ledger_storage`, `sqlite_review_mutation_recovery_storage`, and
+`test_network_isolation_structure_contract` all pass uncontained and fail
+contained.
+
+So [[BPR-0362]] is not a small decision that can be deferred indefinitely: it is
+the single thing standing between four tests and green, and it is the only card
+in this program waiting on a person.
+
+The contained matrix still reads 72 of 85. That number understates the run:
+four of the thirteen failures are now the boundary rather than the code.
