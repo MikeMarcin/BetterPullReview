@@ -1,7 +1,7 @@
 ---
 id: BPR-0344
 title: Resolve the queue composition first head differing by filesystem
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0010
 depends_on: []
 ---
