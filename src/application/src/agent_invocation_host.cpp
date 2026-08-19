@@ -28,8 +28,12 @@ namespace bpr::application {
 				return agent_run_outcome::cancelled;
 			case agent_workspace_failure::stale:
 				return agent_run_outcome::stale_result;
-			case agent_workspace_failure::invalid_request:
 			case agent_workspace_failure::unavailable:
+				// The workspace could not be materialized. Nothing was launched,
+				// so `failed_to_start` would point the operator at the agent
+				// when the failure is in the cache. BPR-0348.
+				return agent_run_outcome::workspace_unavailable;
+			case agent_workspace_failure::invalid_request:
 			case agent_workspace_failure::cleanup_failed:
 				return agent_run_outcome::failed_to_start;
 			}

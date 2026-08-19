@@ -692,9 +692,17 @@ namespace {
 				&& test.Projection.StartedIdentity == std::nullopt
 				&& test.Projection.Finished.size() == 1U
 				&& test.Projection.Finished.front().Outcome
-					== application::agent_run_outcome::failed_to_start
+					== application::agent_run_outcome::workspace_unavailable
 				&& test.Processes.Starts == 0U && test.Host.is_quiescent(),
 			"workspace failure retains the admitted identity through its typed terminal");
+		// BPR-0348. `Starts == 0U` above already says no executable was reached,
+		// and the terminal must say the same thing. It used to answer
+		// `failed_to_start`, which sends whoever reads it to look at the agent
+		// for a failure that happened in the cache several layers earlier.
+		expect(
+			test.Projection.Finished.front().Outcome
+				!= application::agent_run_outcome::failed_to_start,
+			"a workspace that could not be materialized is not a launch failure");
 	}
 
 	void test_projection_exceptions_never_escape_or_skip_cleanup()

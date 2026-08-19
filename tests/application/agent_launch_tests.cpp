@@ -812,6 +812,7 @@ namespace {
 		const auto outcomes = std::array{
 			application::agent_run_outcome::success,
 			application::agent_run_outcome::failed_to_start,
+			application::agent_run_outcome::workspace_unavailable,
 			application::agent_run_outcome::nonzero_exit,
 			application::agent_run_outcome::protocol_failure,
 			application::agent_run_outcome::cancelled,

@@ -1465,6 +1465,8 @@ namespace bpr::application {
 			return "success";
 		case agent_run_outcome::failed_to_start:
 			return "failed_to_start";
+		case agent_run_outcome::workspace_unavailable:
+			return "workspace_unavailable";
 		case agent_run_outcome::nonzero_exit:
 			return "nonzero_exit";
 		case agent_run_outcome::protocol_failure:

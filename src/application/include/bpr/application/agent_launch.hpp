@@ -194,6 +194,14 @@ namespace bpr::application {
 	enum class agent_run_outcome : std::uint8_t {
 		success,
 		failed_to_start,
+		/// \brief The workspace could not be materialized, so no agent was launched.
+		///
+		/// \details Distinct from `failed_to_start`, which means an executable was
+		/// reached and would not run. This one means the run never got that far:
+		/// the failure is in the cache, several layers earlier, and BPR-0341 spent
+		/// its diagnosis discovering that because both answered `failed_to_start`.
+		/// An operator told the agent failed to start looks at the agent.
+		workspace_unavailable,
 		nonzero_exit,
 		protocol_failure,
 		cancelled,
