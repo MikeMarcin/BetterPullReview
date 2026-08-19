@@ -96,6 +96,18 @@ namespace bpr::application {
 			-> std::size_t;
 		[[nodiscard]] auto coalesced_classifications() const noexcept
 			-> std::size_t;
+		// Classifications that ended in a failure publication instead of
+		// spans: invalid key, mismatched claim, unavailable bytes or
+		// definition, or the span limit. A pane that never heard back is
+		// indistinguishable from one that was never asked without this count
+		// (BPR-0368).
+		[[nodiscard]] auto classification_failures() const noexcept
+			-> std::size_t;
+		// Classification terminals that reached the decision lane at all. The
+		// difference from submissions is work that vanished in transit — an
+		// executor that never ran the effect or a lane that never drained it.
+		[[nodiscard]] auto classification_terminals() const noexcept
+			-> std::size_t;
 		[[nodiscard]] auto cache_evictions() const noexcept -> std::size_t;
 		[[nodiscard]] auto persisted_settings() const noexcept -> std::size_t;
 		[[nodiscard]] auto outstanding_requests() const noexcept -> std::size_t;

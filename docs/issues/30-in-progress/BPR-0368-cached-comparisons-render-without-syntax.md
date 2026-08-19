@@ -47,8 +47,21 @@ compounding parts:
   check and drop silently. The counters show it: the automated two-file
   course records `SYNTAX_CLASSIFICATION:1:2` with four blobs in play.
 
-Which of the last two is dominant — coalesced-before-submission versus
-completed-after-supersession — still needs one instrumented run. The markers
+The instrumented run settled it, and both prior candidates were wrong. New
+durable counters — cache hits, coalesced, dropped-at-adoption, failure
+publications, terminals entering the decision lane — plus a
+`SYNTAX_DISPLAYED:<left>:<right>` present-tense marker report
+`SYNTAX_DELIVERY:0:0:0:1:2` with `SYNTAX_DISPLAYED:1:0` on the automated
+course. Read together: nothing was coalesced, nothing was dropped at
+adoption, and both submitted terminals eventually arrived — but one arrived
+only when shutdown retired its record, meaning that classification stayed
+outstanding for the entire session while its pane rendered monochrome. And
+only two submissions exist where a two-comparison course owes four: one
+comparison's `classify_comparison` never ran at all. Two independent
+defects, then: **(A)** a display path that fails to submit for one of the
+comparisons, and **(B)** a submitted classification whose effect never
+completes — the blob read plausibly starving behind the epoch repository
+actor — with no timeout, no retry, and no marker until shutdown refuses it. The markers
 ask whether the classifier was composed and whether some classification was
 ever adopted; nobody asks whether the comparison on screen is classified,
 and no registered contract greps `SYNTAX_CLASSIFICATION` at all. This is

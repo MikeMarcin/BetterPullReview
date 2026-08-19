@@ -99,6 +99,22 @@ namespace bpr::app {
 		// advances exactly when lexical work was unavoidable, so a repaint that
 		// moves it is a repaint that reparsed.
 		std::size_t ClassificationSubmissions = 0U;
+		// Where the deliveries that did not reach a pane went (BPR-0368).
+		// Adopted alone cannot distinguish "everything arrived" from "half was
+		// silently dropped": a publication whose comparison was already left,
+		// whose spans were empty, or whose ordering the surface refused all
+		// vanish without a trace the counters above would show.
+		std::size_t ClassificationCacheHits  = 0U;
+		std::size_t CoalescedClassifications = 0U;
+		std::size_t DroppedClassifications   = 0U;
+		std::size_t ClassificationFailures   = 0U;
+		std::size_t ClassificationTerminals  = 0U;
+		// Whether the comparison on screen right now actually carries spans,
+		// per side. The composition and delivery counters are history; the
+		// reviewer looks at the present, which is how a monochrome pane hid
+		// behind an all-green marker set.
+		bool DisplayedLeftClassified  = false;
+		bool DisplayedRightClassified = false;
 		// The appearance settings in effect, as the core's stable names and
 		// values.
 		//

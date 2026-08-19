@@ -883,6 +883,7 @@ namespace bpr::application {
 				return;
 			}
 			if (!valid(aKey)) {
+				++ClassificationFailures;
 				publish_failure(local_context(),
 								appearance_host_failure::invalid_classification_key);
 				return;
@@ -1024,23 +1025,28 @@ namespace bpr::application {
 
 		void finish_classification(syntax_classification aClassification)
 		{
+			++ClassificationTerminals;
 			const auto claimed = claim(aClassification.Context,
 									   appearance_request_domain::classification);
 			if (claimed.Rejection != appearance_terminal_rejection::none) {
+				++ClassificationFailures;
 				refuse(claimed.Rejection);
 				return;
 			}
 			if (claimed.Key != aClassification.Key) {
+				++ClassificationFailures;
 				publish_failure(aClassification.Context,
 								appearance_host_failure::host_failure);
 				return;
 			}
 			if (aClassification.Status != syntax_classification_status::available) {
+				++ClassificationFailures;
 				publish_failure(aClassification.Context,
 								failure_for_status(aClassification.Status));
 				return;
 			}
 			if (aClassification.Spans.size() > Limits.TokenSpansPerBlob) {
+				++ClassificationFailures;
 				publish_failure(aClassification.Context,
 								appearance_host_failure::classification_limit);
 				return;
@@ -1242,6 +1248,8 @@ namespace bpr::application {
 		std::size_t                   CacheHits                 = 0U;
 		std::size_t                   ClassificationSubmissions = 0U;
 		std::size_t                   CoalescedClassifications  = 0U;
+		std::size_t                   ClassificationFailures    = 0U;
+		std::size_t                   ClassificationTerminals   = 0U;
 		std::size_t                   CacheEvictions            = 0U;
 		std::size_t                   PersistedSettings         = 0U;
 		std::size_t                   RejectedTerminals         = 0U;
@@ -1381,6 +1389,18 @@ namespace bpr::application {
 		-> std::size_t
 	{
 		return Implementation->ClassificationSubmissions;
+	}
+
+	auto appearance_application_host::classification_failures() const noexcept
+		-> std::size_t
+	{
+		return Implementation->ClassificationFailures;
+	}
+
+	auto appearance_application_host::classification_terminals() const noexcept
+		-> std::size_t
+	{
+		return Implementation->ClassificationTerminals;
 	}
 
 	auto appearance_application_host::coalesced_classifications() const noexcept

@@ -4002,6 +4002,7 @@ namespace bpr::app {
 				: state.Pending.has_value() ? &*state.Pending
 											: nullptr;
 			if (context == nullptr) {
+				++DroppedClassifications;
 				return;
 			}
 			const auto side = context->Key.LeftBlob == std::optional{ aSpans.Key.Blob }
@@ -4010,11 +4011,14 @@ namespace bpr::app {
 				? std::optional{ core::diff_side::right }
 				: std::nullopt;
 			if (!side.has_value() || !aSpans.Spans) {
+				++DroppedClassifications;
 				return;
 			}
 			if (Window->comparison_surface()->adopt_token_spans(
 					*side, aSpans.Spans)) {
 				++AdoptedClassifications;
+			} else {
+				++DroppedClassifications;
 			}
 		}
 
@@ -4661,6 +4665,7 @@ namespace bpr::app {
 		// classifier is linked" and "a pane received its answer" are different
 		// claims, and only the second one shows a reviewer anything.
 		std::size_t AdoptedClassifications = 0U;
+		std::size_t DroppedClassifications = 0U;
 		// Times the presentation profile refused typography the host accepted.
 		// Both validate with the same core function, so this must stay zero;
 		// it exists so that if it ever does not, something says so.
@@ -4772,26 +4777,45 @@ namespace bpr::app {
 			.ClassificationSubmissions      = Implementation->AppearanceHost != nullptr
 				? Implementation->AppearanceHost->classification_submissions()
 				: 0U,
-			.AppearanceMode                 = Implementation->AppearanceHost != nullptr
+			.ClassificationCacheHits        = Implementation->AppearanceHost != nullptr
+				? Implementation->AppearanceHost->cache_hits()
+				: 0U,
+			.CoalescedClassifications       = Implementation->AppearanceHost != nullptr
+				? Implementation->AppearanceHost->coalesced_classifications()
+				: 0U,
+			.DroppedClassifications         = Implementation->DroppedClassifications,
+			.ClassificationFailures         = Implementation->AppearanceHost != nullptr
+				? Implementation->AppearanceHost->classification_failures()
+				: 0U,
+			.ClassificationTerminals        = Implementation->AppearanceHost != nullptr
+				? Implementation->AppearanceHost->classification_terminals()
+				: 0U,
+			.DisplayedLeftClassified        = Implementation->Window != nullptr
+				&& static_cast<bool>(Implementation->Window->comparison_surface()
+										 ->token_spans(core::diff_side::left)),
+			.DisplayedRightClassified = Implementation->Window != nullptr
+				&& static_cast<bool>(Implementation->Window->comparison_surface()
+										 ->token_spans(core::diff_side::right)),
+			.AppearanceMode                = Implementation->AppearanceHost != nullptr
 				? std::string{ core::stable_name(
 					  Implementation->AppearanceHost->settings().Mode) }
 				: std::string{ },
-			.AppearanceTabWidth             = Implementation->AppearanceHost != nullptr
+			.AppearanceTabWidth            = Implementation->AppearanceHost != nullptr
 				? Implementation->AppearanceHost->settings().Typography.Code.TabWidth
 				: 0U,
-			.AppearanceDivergences          = Implementation->AppearanceDivergences,
-			.ProfileMode                    = Implementation->AppearanceProfile
+			.AppearanceDivergences         = Implementation->AppearanceDivergences,
+			.ProfileMode                   = Implementation->AppearanceProfile
 				? Implementation->AppearanceProfile->mode()
 				: core::appearance_mode::system,
-			.ProfileVariant                 = Implementation->AppearanceProfile
+			.ProfileVariant                = Implementation->AppearanceProfile
 				? Implementation->AppearanceProfile->variant()
 				: core::appearance_variant::light,
-			.NotificationDeliveryComposed   = Implementation->Notifications != nullptr,
-			.NotificationPermission         = Implementation->NotificationSink != nullptr
+			.NotificationDeliveryComposed  = Implementation->Notifications != nullptr,
+			.NotificationPermission        = Implementation->NotificationSink != nullptr
 				? Implementation->NotificationSink->permission()
 				: application::notification_permission::refused,
-			.NotificationRequestsAttempted  = Implementation->NotificationRequestsAttempted,
-			.NotificationRequestsSubmitted  = Implementation->Notifications != nullptr
+			.NotificationRequestsAttempted = Implementation->NotificationRequestsAttempted,
+			.NotificationRequestsSubmitted = Implementation->Notifications != nullptr
 				? Implementation->Notifications->statistics().Submitted
 				: 0U,
 			.NotificationRequestsSuppressedUnattributable

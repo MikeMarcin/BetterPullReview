@@ -3240,6 +3240,19 @@ namespace {
 		stream << "SYNTAX_CLASSIFICATION:"
 			   << aApplication.status().AdoptedClassifications << ':'
 			   << aApplication.status().ClassificationSubmissions << '\n';
+		// Where the deliveries that did not reach a pane went, and whether the
+		// comparison on screen right now carries spans per side (BPR-0368).
+		// The counters above are history; the reviewer looks at the present,
+		// which is how a monochrome pane hid behind an all-green marker set.
+		stream << "SYNTAX_DELIVERY:"
+			   << aApplication.status().ClassificationCacheHits << ':'
+			   << aApplication.status().CoalescedClassifications << ':'
+			   << aApplication.status().DroppedClassifications << ':'
+			   << aApplication.status().ClassificationFailures << ':'
+			   << aApplication.status().ClassificationTerminals << '\n';
+		stream << "SYNTAX_DISPLAYED:"
+			   << aApplication.status().DisplayedLeftClassified << ':'
+			   << aApplication.status().DisplayedRightClassified << '\n';
 		// The settings in effect. A composition starts from `system` and a tab
 		// width of four, so a run that made no gesture and reports anything
 		// else read it from the durable record - which is the restart claim.
