@@ -288,6 +288,42 @@ notifying, so no wakeup is lost — the predicate is evaluated on entry.
 | `application_composition_contract`, `application_review_round_trip_composition_contract` | passed after re-pinning both drifted digests |
 | `clang-format --dry-run --Werror` on all three changed files | clean |
 
+### What slice two changed, measured
+
+The counters moved and the visible outcome did not. On the same course:
+
+| | `CLASSIFICATION` | `DELIVERY` (hits:coalesced:dropped:failures:terminals) | `DISPLAYED_SPANS` |
+|---|---|---|---|
+| after slice one | `3:6` | `2:0:4:1:6` | `1361:0:5:1` |
+| after slice two | `1:7` | `1:0:3:4:7` | `1361:0:4:1` |
+
+Failures rose from one to four and drops fell from four to three, because a read for
+a comparison the reviewer has left is now *cancelled* where it used to complete and
+then be refused at adoption. The left pane still carries 1361 spans.
+
+The honest cost, stated rather than buried: cache hits fell from two to one. A
+departed comparison's blob used to finish its read and warm the cache, so revisiting
+it hit; now it does not. That follows the policy the code already stated — "dropping
+the context makes it report unavailable rather than materialize bytes for a file the
+reviewer has left" — which the old default-constructed token made unenforceable. The
+work saved is real and the lost warm entry is real; this keeps the stated policy
+rather than quietly inverting it.
+
+### The right pane is not caused by either slice
+
+Measured rather than assumed. Neutering the departure cancellation returns every
+counter to its slice-one value and the right pane is **still zero**. So the gap
+predates both halves and survives both configurations.
+
+Two candidate explanations are also eliminated. Both `UIforETW.rc` blobs were
+extracted from the fixture pack: 12,147 and 12,424 bytes, both **valid UTF-8**, both
+far below the 8 MiB materialization limit. So it is neither a decode refusal nor a
+size refusal, and the left blob of the same file classifies to 1,361 spans, so the
+grammar is embedded and the definition resolves.
+
+That leaves a timing or bookkeeping cause inside the classification path, which is
+what remains open. This card does not guess at it.
+
 ### Deliberately not done
 
 The three sibling waits in the same file — `resolve`, `materialize_agent_workspace`,
