@@ -37,7 +37,7 @@ namespace {
 		"better_pull_review_designated_live_supervisor"
 	};
 	constexpr auto application_relative = std::string_view{
-		"BetterPullReview.app/Contents/MacOS/better_pull_review"
+		"BetterPullReview.app/Contents/MacOS/BetterPullReview"
 	};
 	constexpr auto verifier_relative = std::string_view{
 		"BetterPullReview.app/Contents/Resources/"

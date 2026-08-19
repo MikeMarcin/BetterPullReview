@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 SCHEMA = "bpr.designated_live_macos_capsule"
 VERSION = "1"
-APP_RELATIVE = pathlib.PurePosixPath("BetterPullReview.app/Contents/MacOS/better_pull_review")
+APP_RELATIVE = pathlib.PurePosixPath("BetterPullReview.app/Contents/MacOS/BetterPullReview")
 HELPER_RELATIVE = pathlib.PurePosixPath(
     "BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor"
 )

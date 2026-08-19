@@ -19,7 +19,7 @@ namespace bpr::app::designated_live_provenance {
 		/// Where the supervisor sits relative to the application inside one
 		/// capsule. Fixed by the capsule builder, not discovered at runtime.
 		constexpr auto application_suffix = std::string_view{
-			"BetterPullReview.app/Contents/MacOS/better_pull_review"
+			"BetterPullReview.app/Contents/MacOS/BetterPullReview"
 		};
 		constexpr auto helper_relative = std::string_view{
 			"BetterPullReview.app/Contents/Helpers/"

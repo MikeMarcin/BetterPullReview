@@ -57,7 +57,7 @@ namespace {
 	auto make_capsule(const std::filesystem::path& aRoot) -> void
 	{
 		write_file(
-			aRoot / "BetterPullReview.app/Contents/MacOS/better_pull_review",
+			aRoot / "BetterPullReview.app/Contents/MacOS/BetterPullReview",
 			"application");
 		write_file(
 			aRoot / "BetterPullReview.app/Contents/Helpers/supervisor",
