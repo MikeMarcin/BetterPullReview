@@ -2333,6 +2333,24 @@ namespace {
 		expect(!rejects({ .OutstandingJobs = application::maximum_epoch_outstanding_jobs,
 						  .DeferredIngress = application::maximum_epoch_deferred_ingress }),
 			   "both hard maxima remain admissible at composition");
+
+		// BPR-0390. The synchronous blob read used to wait forever; it is now
+		// bounded, and a zero bound would abandon every read before the actor
+		// could run, which is worse than the wait it replaced.
+		expect(rejects({ .OutstandingJobs = 2U,
+						 .DeferredIngress = 2U,
+						 .BlobWait        = std::chrono::milliseconds::zero() }),
+			   "a zero blob-read bound is rejected at composition");
+		expect(rejects({ .OutstandingJobs = 2U,
+						 .DeferredIngress = 2U,
+						 .BlobWait        = application::maximum_epoch_blob_wait
+							 + std::chrono::milliseconds{ 1 } }),
+			   "a blob-read bound above the hard maximum is rejected at "
+			   "composition");
+		expect(!rejects({ .OutstandingJobs = 2U,
+						  .DeferredIngress = 2U,
+						  .BlobWait        = application::maximum_epoch_blob_wait }),
+			   "the hard maximum blob-read bound remains admissible");
 	}
 
 	void admission_allocation_failure_rolls_back_every_boundary()

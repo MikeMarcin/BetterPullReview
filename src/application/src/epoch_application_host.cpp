@@ -794,6 +794,11 @@ namespace bpr::application {
 			std::mutex                           Mutex;
 			std::condition_variable              Completed;
 			std::optional<diff_blob_observation> Result;
+			// Set when the caller's stop token fires. The per-job stop source is
+			// wired inside the enqueued closure, so a stop requested while the
+			// work is still queued behind the actor's FIFO could not reach it and
+			// the wait was deaf to cancellation. BPR-0390.
+			bool Abandoned = false;
 		};
 
 		struct selected_diff_waiter final
@@ -3491,11 +3496,37 @@ namespace bpr::application {
 				return result;
 			}
 
+			// Registered before the lock is taken: a token that has already been
+			// stopped invokes the callback during construction, and doing that
+			// while holding the mutex would deadlock. Setting `Abandoned` under
+			// the mutex before notifying means no wakeup can be lost, because the
+			// predicate is evaluated on entry.
+			auto releaseOnStop = std::stop_callback{ aStop, [waiter] {
+														{
+															const auto guard  = std::lock_guard{ waiter->Mutex };
+															waiter->Abandoned = true;
+														}
+														waiter->Completed.notify_all();
+													} };
 			std::unique_lock lock{ waiter->Mutex };
-			waiter->Completed.wait(lock, [&waiter] {
-				return waiter->Result.has_value();
-			});
-			return std::move(*waiter->Result);
+			// Bounded, where it used to wait forever. `waiter` is a shared owner,
+			// so abandoning the wait is safe: the closure still completes and
+			// writes its result into a record nothing reads.
+			static_cast<void>(waiter->Completed.wait_for(
+				lock, Limits.BlobWait, [&waiter] {
+					return waiter->Result.has_value() || waiter->Abandoned;
+				}));
+			if (waiter->Result.has_value()) {
+				return std::move(*waiter->Result);
+			}
+			// `result` already carries the request's identity. Say which of the
+			// two releases happened rather than collapsing both to `failure`: a
+			// cancelled read is the reviewer moving on, and an elapsed bound is an
+			// actor that never got to it.
+			result.Status = waiter->Abandoned
+				? diff_blob_status::cancelled
+				: diff_blob_status::failure;
+			return result;
 		}
 
 		[[nodiscard]] auto materialize_agent_workspace(

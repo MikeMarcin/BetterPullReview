@@ -239,9 +239,61 @@ here, and this card does not claim it is.
 Still open on this card:
 
 - Which blob the single classification failure belongs to, and why.
-- Slice two: the bounded, stop-aware wait in `epoch_application_host::materialize`
-  and in-flight bookkeeping that clears on failure. Both remain real defects even
-  though this course does not hit them — the wait at
-  `epoch_application_host.cpp:3494` has no timeout and does not use the caller's
-  stop token, and three sibling waits in the same file share the shape.
+- The attended visual pass re-presented against repaired bytes.
+
+## Slice two: the wait that could not end — 2026-08-19
+
+The card located this precisely and it was right: `materialize`'s caller side waited
+on a condition with **no timeout and no use of the caller's stop token**. The stop
+token was not merely unused — it could not have worked. `aStop` is forwarded into
+the per-job stop source *inside the enqueued closure*, so a caller cancelling while
+the work is still queued behind the actor's FIFO cannot reach it. Only shutdown's
+`BlobIngressClosing` released the wait, which is why the starved terminal in the
+card's instrumented run arrived after `retire_all` had already refused its record.
+
+Both halves are now closed, and they do different jobs:
+
+**Prompt release: a real stop token.** `composition_blob_source` passed a
+default-constructed `std::stop_token{}` — one with no stop state, which can never
+signal — so there was nothing for even a correct wait to honour. It now owns a
+`std::stop_source` stopped by `clear_comparison`, so a read for a comparison the
+reviewer has left ends when they leave. The source is swapped under the lock and
+stopped outside it, so a read being released does not contend for the mutex its own
+completion path wants.
+
+**Backstop: a bound.** `epoch_host_limits::BlobWait` defaults to 90 seconds,
+validated non-zero and at most ten minutes. Deliberately generous: work is enqueued
+behind whatever the actor is running and epoch maintenance can hold it for most of a
+minute, so a tight bound would fail legitimate reads. Promptness is the stop token's
+job; this is what releases a read whose actor never finishes at all.
+
+The wait now distinguishes its two exits — `cancelled` for the reviewer moving on,
+`failure` for an elapsed bound — rather than collapsing both. Abandoning is safe
+because `waiter` is a shared owner: the closure still completes and writes into a
+record nothing reads.
+
+The `std::stop_callback` is registered **before** the lock is taken. A token that has
+already been stopped invokes its callback during construction, and doing that while
+holding the waiter's mutex would deadlock. `Abandoned` is set under the mutex before
+notifying, so no wakeup is lost — the predicate is evaluated on entry.
+
+### Evidence
+
+| Check | Result |
+|---|---|
+| `application_epoch_host` with three new limit cases | passed |
+| blob-wait validation deleted, re-run | fails: `a zero blob-read bound is rejected at composition` |
+| validation restored | passed |
+| `application_uiforetw_selected_diff_contract`, `application_diff_workbench_public_path`, `application_epoch_persistence_github-com`, `application_epoch_maintenance_public_path`, `application_host` | 5/5 passed |
+| `application_composition_contract`, `application_review_round_trip_composition_contract` | passed after re-pinning both drifted digests |
+| `clang-format --dry-run --Werror` on all three changed files | clean |
+
+### Deliberately not done
+
+The three sibling waits in the same file — `resolve`, `materialize_agent_workspace`,
+and `cleanup_agent_workspace` — share the identical unbounded shape. They are real
+latent hangs and they are **not** this card's: bounding them changes the behaviour of
+the selected-diff resolution and agent workspace paths, which this card makes no
+claim about. Factoring the four into one helper is the obvious follow-up and wants
+its own card and its own matrix.
 - The attended visual pass re-presented against repaired bytes.

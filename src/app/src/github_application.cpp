@@ -1340,8 +1340,17 @@ namespace bpr::app {
 
 		void clear_comparison()
 		{
-			const auto guard = std::lock_guard{ Mutex };
-			Requests.clear();
+			auto departed = std::stop_source{ };
+			{
+				const auto guard = std::lock_guard{ Mutex };
+				Requests.clear();
+				// Swapped out under the lock and stopped outside it, so a read
+				// waiting on the old token is released without holding the mutex
+				// its own completion path may want.
+				departed  = std::move(Departure);
+				Departure = std::stop_source{ };
+			}
+			departed.request_stop();
 		}
 
 		[[nodiscard]] auto blob_bytes(const core::git_blob_oid& aBlob)
@@ -1361,8 +1370,11 @@ namespace bpr::app {
 				// no longer be answered from a comparison that arrived later.
 				return std::nullopt;
 			}
-			const auto observation
-				= Blobs.materialize(*request, std::stop_token{ });
+			// A real token, where this used to pass a default-constructed one that
+			// could never signal. `clear_comparison` stops it, so a read for a
+			// comparison the reviewer has left is abandoned promptly rather than
+			// only when its bound elapses. BPR-0390.
+			const auto observation = Blobs.materialize(*request, departure_token());
 			if (
 				observation.Status != application::diff_blob_status::available) {
 				// Absent rather than empty. An empty string would classify as
@@ -1390,9 +1402,19 @@ namespace bpr::app {
 				});
 		}
 
+		[[nodiscard]] auto departure_token() -> std::stop_token
+		{
+			const auto guard = std::lock_guard{ Mutex };
+			return Departure.get_token();
+		}
+
 		application::diff_blob_port&                Blobs;
 		std::mutex                                  Mutex;
 		std::vector<application::diff_blob_request> Requests;
+		// Stopped when the reviewer leaves the comparison. One source per
+		// selection rather than one per read: every outstanding read for a
+		// departed comparison should end, and they end together.
+		std::stop_source Departure;
 	};
 
 	/// \brief Routes appearance projections to the surfaces that consume them.
