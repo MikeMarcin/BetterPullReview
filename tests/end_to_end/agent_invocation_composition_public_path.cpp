@@ -1,3 +1,5 @@
+#include "public_path_poll.hpp"
+
 #include "../../src/app/src/github_application_fixture_access.hpp"
 
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -10,7 +12,6 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
-#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QItemSelectionModel>
 #include <QLineEdit>
@@ -38,20 +39,29 @@
 namespace {
 	using namespace bpr;
 
+	using e2e::default_agent_budget;
+	using e2e::extended_agent_budget;
+	using e2e::wait_terms;
+
+	// The course's own budgets, unchanged, including the six sites that have
+	// always asked for the longer one. This used to be a second copy of the queue
+	// course's loop, differing only in whether the budget was a parameter
+	// (BPR-0381).
 	template <typename Predicate>
-	[[nodiscard]] auto wait_until(Predicate aPredicate, const int aMilliseconds = 30'000)
-		-> bool
+	[[nodiscard]] auto wait_until_reporting(
+		wait_terms&                     aTerms,
+		Predicate                       aPredicate,
+		const std::chrono::milliseconds aBudget = default_agent_budget) -> bool
 	{
-		auto timer = QElapsedTimer{ };
-		timer.start();
-		while (timer.elapsed() < aMilliseconds) {
-			QApplication::processEvents(QEventLoop::AllEvents, 20);
-			if (aPredicate()) {
-				return true;
-			}
-			QThread::msleep(5);
-		}
-		return false;
+		return e2e::wait_until(aTerms, aPredicate, aBudget);
+	}
+
+	template <typename Predicate>
+	[[nodiscard]] auto wait_until(
+		Predicate                       aPredicate,
+		const std::chrono::milliseconds aBudget = default_agent_budget) -> bool
+	{
+		return e2e::wait_until_plain(aPredicate, aBudget);
 	}
 
 	[[nodiscard]] auto shutdown(app::github_application& aApplication) -> bool
@@ -62,10 +72,27 @@ namespace {
 		});
 	}
 
-	auto fail(app::github_application& aApplication, const std::string_view aReason)
-		-> int
+	/// \brief Reports a failed condition without shutting anything down.
+	///
+	/// \details Separate from `fail` because the cleanup-retry shutdown wait is
+	/// reached after `begin_shutdown` has already been called, where `fail`'s own
+	/// shutdown wait would be a second one. That site used to return
+	/// `EXIT_FAILURE` having printed nothing at all (BPR-0381).
+	void report(const std::string_view aReason, const std::string_view aState = { })
 	{
-		std::cerr << "agent-invocation-composition-failed:" << aReason << '\n';
+		std::cerr << "agent-invocation-composition-failed:" << aReason;
+		if (!aState.empty()) {
+			std::cerr << ' ' << aState;
+		}
+		std::cerr << '\n';
+	}
+
+	auto fail(
+		app::github_application& aApplication,
+		const std::string_view   aReason,
+		const std::string_view   aState = { }) -> int
+	{
+		report(aReason, aState);
 		static_cast<void>(shutdown(aApplication));
 		return EXIT_FAILURE;
 	}
@@ -599,7 +626,7 @@ auto main(int argc, char** argv) -> int
 				return window.comparison_surface()->current_result() != nullptr
 					&& panel->start_action()->isEnabled();
 			},
-						45'000)) {
+						extended_agent_budget)) {
 			return fail(*application, "real-selected-diff");
 		}
 		auto* const surface = window.comparison_surface();
@@ -715,7 +742,7 @@ auto main(int argc, char** argv) -> int
 				return panel->status_text().startsWith(QStringLiteral("Running in"))
 					&& panel->output_text().contains(QStringLiteral("canary-complete"));
 			},
-						45'000)) {
+						extended_agent_budget)) {
 			return fail(*application, "cleanup-retry-running");
 		}
 		const auto output    = panel->output_text().toStdString();
@@ -784,17 +811,27 @@ auto main(int argc, char** argv) -> int
 					&& current.Statistics.WorkspaceCleanups == 0U
 					&& !current.Quiescent;
 			},
-						45'000)) {
+						extended_agent_budget)) {
 			return restoreThenFail("cleanup-retry-first-refusal");
 		}
 		if (!restore()) {
 			return fail(*application, "cleanup-retry-restore");
 		}
 		application->begin_shutdown();
-		if (!wait_until([&application] {
-				return application->status().ShutdownComplete;
-			},
-						45'000)) {
+		// `report` rather than `fail`: shutdown has already begun, so `fail`'s own
+		// shutdown wait would be a second one. This used to return EXIT_FAILURE
+		// having printed nothing whatsoever (BPR-0381).
+		auto retryShutdown = wait_terms{ };
+		if (!wait_until_reporting(
+				retryShutdown,
+				[&application](wait_terms& aTerms) {
+					const auto status = application->status();
+					aTerms.note("cleanup-failed", status.ShutdownCleanupFailed);
+					return aTerms.require(
+						"shutdown-complete", status.ShutdownComplete);
+				},
+				extended_agent_budget)) {
+			report("cleanup-retry-shutdown", retryShutdown.render());
 			return EXIT_FAILURE;
 		}
 		const auto finalEvidence = app::detail::github_application_fixture_access::
@@ -822,7 +859,7 @@ auto main(int argc, char** argv) -> int
 				return panel->status_text().startsWith(QStringLiteral("Running in"))
 					&& panel->output_text().contains(QStringLiteral("canary-complete"));
 			},
-						45'000)) {
+						extended_agent_budget)) {
 			return fail(*application, "running-course");
 		}
 		if (course == "cancellation") {
@@ -843,7 +880,7 @@ auto main(int argc, char** argv) -> int
 		if (!wait_until([panel, &expectedTerminal] {
 				return panel->status_text() == expectedTerminal;
 			},
-						45'000)
+						extended_agent_budget)
 			|| !panel->output_text().isEmpty() || !wait_until([&application] {
 				   const auto evidence = app::detail::github_application_fixture_access::
 					   agent_invocation_evidence(*application);
@@ -852,15 +889,23 @@ auto main(int argc, char** argv) -> int
 			   })) {
 			const auto failureEvidence = app::detail::github_application_fixture_access::
 				agent_invocation_evidence(*application);
-			std::cerr << "agent-terminal-status:"
-					  << panel->status_text().toStdString() << '\n'
-					  << "agent-terminal-output-bytes:"
-					  << panel->output_text().toUtf8().size() << '\n'
-					  << "agent-terminal-cleanups:"
-					  << failureEvidence.Statistics.WorkspaceCleanups << '\n'
-					  << "agent-terminal-quiescent:"
-					  << failureEvidence.Quiescent << '\n';
-			return fail(*application, "typed-terminal-cleanup");
+			// The third independently shaped dump this file carried, now the same
+			// recorder as the others (BPR-0381).
+			auto terminal = wait_terms{ };
+			terminal.note_identifier(
+				"agent-terminal-status", panel->status_text().toStdString());
+			terminal.note_identifier(
+				"agent-terminal-expected", expectedTerminal.toStdString());
+			terminal.note(
+				"agent-terminal-output-bytes",
+				static_cast<std::uint64_t>(panel->output_text().toUtf8().size()));
+			terminal.note(
+				"agent-terminal-cleanups",
+				static_cast<std::uint64_t>(
+					failureEvidence.Statistics.WorkspaceCleanups));
+			terminal.note("agent-terminal-quiescent", failureEvidence.Quiescent);
+			return fail(
+				*application, "typed-terminal-cleanup", terminal.render());
 		}
 		if (course == "cancellation") {
 			if (!descendantMarker.has_value()) {
@@ -885,17 +930,34 @@ auto main(int argc, char** argv) -> int
 	if (!wait_until([panel] {
 			return panel->status_text().startsWith(QStringLiteral("Finished:"));
 		},
-					45'000)
+					extended_agent_budget)
 		|| panel->status_text() != "Finished: success") {
 		const auto failureEvidence = app::detail::github_application_fixture_access::
 			agent_invocation_evidence(*application);
-		std::cerr << "agent-status:" << panel->status_text().toStdString() << '\n'
-				  << "core:" << failureEvidence.Statistics.CoreDecisions << '\n'
-				  << "workspace:" << failureEvidence.Statistics.WorkspaceStarts << '\n'
-				  << "process:" << failureEvidence.Statistics.ProcessStarts << '\n'
-				  << "cleanup:" << failureEvidence.Statistics.WorkspaceCleanups << '\n'
-				  << panel->output_text().toStdString();
-		return fail(*application, "typed-success");
+		// Was a hand-rolled dump that ended with the panel's whole output text.
+		// That text is agent output and `evidence.WorkspaceRoot` is a filesystem
+		// path carrying a local username -- BPR-0344's own evidence contains one --
+		// so both are replaced by bounded facts. The status text is an identifier,
+		// so it goes through the channel that bounds and sanitizes it (BPR-0381).
+		auto success = wait_terms{ };
+		success.note_identifier("agent-status", panel->status_text().toStdString());
+		success.note(
+			"core",
+			static_cast<std::uint64_t>(failureEvidence.Statistics.CoreDecisions));
+		success.note(
+			"workspace",
+			static_cast<std::uint64_t>(failureEvidence.Statistics.WorkspaceStarts));
+		success.note(
+			"process",
+			static_cast<std::uint64_t>(failureEvidence.Statistics.ProcessStarts));
+		success.note(
+			"cleanup",
+			static_cast<std::uint64_t>(
+				failureEvidence.Statistics.WorkspaceCleanups));
+		success.note(
+			"output-bytes",
+			static_cast<std::uint64_t>(panel->output_text().size()));
+		return fail(*application, "typed-success", success.render());
 	}
 	if (!wait_until([&application] {
 			return app::detail::github_application_fixture_access::

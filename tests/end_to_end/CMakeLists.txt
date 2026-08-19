@@ -196,6 +196,33 @@ set_tests_properties(
         TIMEOUT 15
 )
 
+# BPR-0381. What a timed-out public-path wait says, asserted directly rather than
+# only when something else is already broken. No Qt: the report formatting is
+# standard C++ precisely so this can compile it without an application or an event
+# loop, and the polling half that needs Qt is not under test here.
+bpr_add_executable(
+    test_better_pull_review_public_path_wait_tests
+    public_path_wait_tests.cpp
+)
+target_compile_features(
+    test_better_pull_review_public_path_wait_tests
+    PRIVATE
+        cxx_std_23
+)
+bpr_enable_hardening(test_better_pull_review_public_path_wait_tests)
+bpr_enable_warnings(test_better_pull_review_public_path_wait_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_public_path_wait
+    COMMAND test_better_pull_review_public_path_wait_tests
+)
+set_tests_properties(
+    application_public_path_wait
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "public-path-wait-tests:pass"
+        TIMEOUT 15
+)
+
 set(bpr_application_composition_contract_command
     Python3::Interpreter
     "${CMAKE_CURRENT_SOURCE_DIR}/composition_contract_tests.py"

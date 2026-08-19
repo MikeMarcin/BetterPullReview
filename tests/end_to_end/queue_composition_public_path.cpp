@@ -1,11 +1,12 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 
+#include "public_path_poll.hpp"
+
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QApplication>
 #include <QComboBox>
-#include <QElapsedTimer>
 #include <QLineEdit>
 #include <QListView>
 #include <QSpinBox>
@@ -22,19 +23,22 @@
 namespace {
 	using namespace bpr;
 
+	using e2e::default_queue_budget;
+	using e2e::wait_terms;
+
+	// The course's own budget, unchanged. `wait_until` and `fail` used to be
+	// copies of the agent course's, differing only in whether the budget was a
+	// parameter; both copies are gone (BPR-0381).
+	template <typename Predicate>
+	[[nodiscard]] auto wait_until_reporting(wait_terms& aTerms, Predicate aPredicate) -> bool
+	{
+		return e2e::wait_until(aTerms, aPredicate, default_queue_budget);
+	}
+
 	template <typename Predicate>
 	[[nodiscard]] auto wait_until(Predicate aPredicate) -> bool
 	{
-		auto timer = QElapsedTimer{ };
-		timer.start();
-		while (timer.elapsed() < 20'000) {
-			QApplication::processEvents(QEventLoop::AllEvents, 20);
-			if (aPredicate()) {
-				return true;
-			}
-			QThread::msleep(5);
-		}
-		return false;
+		return e2e::wait_until_plain(aPredicate, default_queue_budget);
 	}
 
 	[[nodiscard]] auto shutdown(app::github_application& aApplication) -> bool
@@ -45,10 +49,26 @@ namespace {
 		});
 	}
 
-	auto fail(app::github_application& aApplication, const std::string_view aMessage)
-		-> int
+	/// \brief Reports a failed condition without shutting anything down.
+	///
+	/// \details Separate from `fail` because one site is reached after
+	/// `begin_shutdown` has already been called, where `fail`'s own shutdown wait
+	/// would be a second one. That site used to print nothing at all.
+	void report(const std::string_view aReason, const std::string_view aState = { })
 	{
-		std::cerr << "queue-composition-failed:" << aMessage << '\n';
+		std::cerr << "queue-composition-failed:" << aReason;
+		if (!aState.empty()) {
+			std::cerr << ' ' << aState;
+		}
+		std::cerr << '\n';
+	}
+
+	auto fail(
+		app::github_application& aApplication,
+		const std::string_view   aMessage,
+		const std::string_view   aState = { }) -> int
+	{
+		report(aMessage, aState);
 		(void)shutdown(aApplication);
 		return EXIT_FAILURE;
 	}
@@ -80,41 +100,44 @@ namespace {
 	// The timeout report therefore carries the observed terminal state: an
 	// exact-but-late row names a durability-latency mechanism, while a wrong
 	// field names a content mechanism.
-	[[nodiscard]] auto first_head_state(
-		qt::workbench_window& aWindow, const core::observer_rule& aRule)
-		-> std::string
+	/// \brief Records the queue's first row into a wait report.
+	///
+	/// \details Was `first_head_state`, a hand-rolled string built only for the
+	/// one call site below. The values it chose were right; what it lacked was
+	/// which conjunct failed, a bound, and any reuse. BPR-0381.
+	void note_first_head(
+		wait_terms&                aTerms,
+		qt::workbench_window&      aWindow,
+		const core::observer_rule& aRule)
 	{
-		auto state = std::string{ "rows=" };
-		state += std::to_string(aWindow.queue_landing()->rowCount());
-		state += ":remove-enabled=";
-		state += aWindow.remove_queue_rule_action()->isEnabled() ? "1" : "0";
+		aTerms.note(
+			"rows", static_cast<std::uint64_t>(aWindow.queue_landing()->rowCount()));
 		if (aWindow.queue_landing()->rowCount() != 1) {
-			return state;
+			return;
 		}
 		const auto item = aWindow.queue_landing()->item_at(
 			aWindow.queue_landing()->index(0));
 		if (!item.has_value()) {
-			state += ":item=absent";
-			return state;
+			aTerms.note("item-present", false);
+			return;
 		}
-		state += ":ref=";
-		state += item->Ref.Host;
-		state += '/';
-		state += item->Ref.Account;
-		state += '/';
-		state += item->Ref.Repository;
-		state += '#';
-		state += std::to_string(item->Ref.Number);
-		state += ":role=";
-		state += core::name(item->Membership.Role);
-		state += ":matched-rule=";
-		state += item->Membership.MatchedRule ? "1" : "0";
-		state += ":rule-exact=";
-		state += item->Membership.Rule == aRule ? "1" : "0";
-		state += ":bucket=";
-		state += core::name(item->Bucket);
-		return state;
+		// The ref goes through the identifier channel, which bounds and sanitizes
+		// it. Fixture refs are synthetic, but the rule has to hold by
+		// construction rather than by that.
+		auto ref = item->Ref.Host;
+		ref += '/';
+		ref += item->Ref.Account;
+		ref += '/';
+		ref += item->Ref.Repository;
+		ref += '#';
+		ref += std::to_string(item->Ref.Number);
+		aTerms.note_identifier("ref", ref);
+		aTerms.note_name("role", core::name(item->Membership.Role));
+		aTerms.note("matched-rule", item->Membership.MatchedRule);
+		aTerms.note("rule-exact", item->Membership.Rule == aRule);
+		aTerms.note_name("bucket", core::name(item->Bucket));
 	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -170,22 +193,32 @@ auto main(int argc, char** argv) -> int
 		}
 		window.add_queue_rule_action()->trigger();
 	}
-	if (!wait_until([&window, &rule] {
-			if (!window.remove_queue_rule_action()->isEnabled()
-				|| window.queue_landing()->rowCount() != 1) {
+	auto firstHead = wait_terms{ };
+	if (!wait_until_reporting(firstHead, [&window, &rule](wait_terms& aTerms) {
+			note_first_head(aTerms, window, rule);
+			if (!aTerms.require(
+					"remove-enabled",
+					window.remove_queue_rule_action()->isEnabled())
+				|| !aTerms.require(
+					"row-count-is-one",
+					window.queue_landing()->rowCount() == 1)) {
 				return false;
 			}
 			const auto item = window.queue_landing()->item_at(
 				window.queue_landing()->index(0));
-			return item.has_value() && item->Ref == fixture_ref()
-				&& item->Membership.Role == core::github_role::none
-				&& item->Membership.MatchedRule
-				&& item->Membership.Rule == rule
-				&& item->Bucket == core::attention_bucket::quiet;
+			return aTerms.require("item-present", item.has_value())
+				&& aTerms.require("ref-is-the-fixture", item->Ref == fixture_ref())
+				&& aTerms.require(
+					"role-is-none",
+					item->Membership.Role == core::github_role::none)
+				&& aTerms.require("matched-a-rule", item->Membership.MatchedRule)
+				&& aTerms.require("rule-is-exact", item->Membership.Rule == rule)
+				&& aTerms.require(
+					"bucket-is-quiet",
+					item->Bucket == core::attention_bucket::quiet);
 		})) {
 		return fail(
-			*application,
-			"first-head-is-exact-and-quiet:" + first_head_state(window, rule));
+			*application, "first-head-is-exact-and-quiet", firstHead.render());
 	}
 	const auto initialEvidence = app::detail::github_application_fixture_access::
 		queue_notification_evidence(*application);
