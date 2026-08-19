@@ -237,3 +237,65 @@ The two epoch-catalog tests also stopped hanging: they now fail fast contained
 rather than timing out, because the failure they hit is immediate.
 
 The decision packet is unchanged and still needs an answer.
+
+## Option 2 was attempted and is not sufficient — 2026-08-18
+
+The three resolutions above were written before anyone had tried one. Option 2
+was implemented and measured, and it does **not** work. The card's decision
+space was wrong, and this is what replaces it.
+
+The implementation anchored the chain at the highest ancestor the process can
+open: unchanged outside a container, where the drive root is always openable,
+and relaxed only while contained. It behaved exactly as designed —
+
+```
+PROBE chain contained=1
+PROBE chain deny err=1 retained=0 skip=1
+  (seven times: C:\, Users, mikem, AppData, Local, Packages, bprautomatedtest)
+```
+
+— and then failed anyway, one step later:
+
+```
+PROBE match failed err=1
+  wanted = \\?\C:\Users\mikem\AppData\Local\Packages\bprautomatedtest\AC
+  got    = <final_path_of failed>
+```
+
+`CreateFileW` **succeeds** on that directory. `GetFinalPathNameByHandleW` on the
+resulting handle **fails**. So inside an AppContainer a process can open a
+directory it has been granted and still not resolve that handle's own name,
+because resolving it walks the parent chain internally and that is denied.
+
+`path_matches_handle` runs for every retained ancestor and for the leaf, so
+anchoring the chain lower cannot help: each retained handle still has to name
+itself, and none of them can.
+
+## What that leaves
+
+Two of the original three survive, and a fourth appears that is better than
+either.
+
+1. **Grant the container ACLs up the chain** — unchanged, and still means
+   modifying `C:\`, `C:\Users`, and the invoking user's profile directory. It
+   would fix both the opens and the name resolution.
+3. **Do not contain these tests** — unchanged, and still the largest hole.
+4. **Verify identity rather than name.** `identity_of` succeeded on the very
+   handle whose name could not be resolved: `GetFileInformationByHandle` returns
+   the volume serial and file index inside a container. The chain already
+   collects that identity for every ancestor, and already compares identities
+   elsewhere. Verifying the retained chain by file identity instead of by
+   `GetFinalPathNameByHandleW` would work contained *and* uncontained, and file
+   identity is a stronger statement than a name string — a rename cannot forge
+   it.
+
+Option 4 is the one to examine first. It is still a change to how the
+substitution defence is expressed, so it remains the product owner's call, but
+unlike option 2 it is not known to be insufficient, and unlike options 1 and 3
+it gives up neither the sandbox nor the policy.
+
+**Option 2 should be struck.** It is measured, and it does not work.
+
+The implementation was reverted rather than left in the tree, along with a
+second attempt at [[BPR-0360]]'s descriptor fix that rode along with it: with the
+chain still failing, that fix remains unobservable and unproven.
