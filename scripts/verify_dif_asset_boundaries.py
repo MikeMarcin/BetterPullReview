@@ -9,6 +9,7 @@ import ast
 import hashlib
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -175,17 +176,65 @@ def _validate_core_ctest_surface(build: Path) -> None:
         )
 
 
+def _application_names(build: Path) -> set[str]:
+    """The executable names this repository's build can actually produce.
+
+    Derived rather than listed. A literal name list went stale the moment
+    BPR-0328 renamed the tests-disabled macOS executable to `BetterPullReview`:
+    the lookup kept searching for `better_pull_review`, found nothing in a clean
+    `app-release` graph, and looked healthy only on hosts that still had a stale
+    pre-rename bundle beside the current one. Reading what the build states means
+    the next rename does not repeat that.
+
+    Two sources, because they answer for different graphs:
+
+    - `src/app/CMakeLists.txt`'s `OUTPUT_NAME` values plus `bpr_add_executable`'s
+      default, which is the name with the target's category prefix removed. This
+      covers every platform, bundled or flat.
+    - `CFBundleExecutable` from any `.app` in the build tree, which is the bundle
+      stating its own executable's name.
+
+    See `docs/issues/*/BPR-0395-asset-boundary-verifier-cannot-find-the-renamed-release-binary.md`.
+    """
+    names = {"better_pull_review"}
+
+    app_cmake = Path(__file__).resolve().parents[1] / "src/app/CMakeLists.txt"
+    try:
+        declared = app_cmake.read_text(encoding="utf-8")
+    except OSError as error:
+        raise BoundaryError(
+            f"application CMakeLists is unreadable: {app_cmake}"
+        ) from error
+    names.update(re.findall(r'OUTPUT_NAME\s+"([^"]+)"', declared))
+
+    for plist in build.rglob("Contents/Info.plist"):
+        try:
+            declared_bundle = plist.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        stated = re.search(
+            r"<key>CFBundleExecutable</key>\s*<string>([^<]+)</string>",
+            declared_bundle,
+        )
+        if stated is not None:
+            names.add(stated.group(1))
+
+    return names | {f"{name}.exe" for name in names}
+
+
 def _discover_application(build: Path) -> Path:
     candidates: list[Path] = []
-    for name in ("better_pull_review", "better_pull_review.exe"):
+    for name in sorted(_application_names(build)):
         for path in build.rglob(name):
             if path.is_file() and "CMakeFiles" not in path.parts:
                 candidates.append(path)
     unique = sorted(set(path.resolve() for path in candidates))
     if len(unique) != 1:
+        # Exactly one stays the rule. Two means one of them is stale, and
+        # auditing the wrong bytes is worse than refusing.
         raise BoundaryError(
             "selected application graph must contain one application binary, "
-            f"found {len(unique)}"
+            f"found {len(unique)}: {[str(path) for path in unique]}"
         )
     return unique[0]
 

@@ -687,6 +687,51 @@ class DifAssetTests(unittest.TestCase):
                 )
                 self.assertGreater(result["first_party_translation_units"], 0)
 
+    def test_boundary_verifier_finds_a_renamed_bundled_application(self) -> None:
+        """BPR-0395. The release executable's name is not `better_pull_review`.
+
+        BPR-0328 renamed the tests-disabled macOS executable to
+        `BetterPullReview` and the literal-name lookup kept searching for the
+        old one, so a clean `app-release` graph resolved to zero candidates. It
+        looked healthy only where a stale pre-rename bundle happened to remain.
+        """
+        build = make_selected_build(
+            Path(self.temporary.name) / "renamed-builds", "app-release"
+        )
+        (build / "src/app/better_pull_review").unlink()
+        bundle = build / "src/app/BetterPullReview.app/Contents"
+        (bundle / "MacOS").mkdir(parents=True)
+        (bundle / "MacOS/BetterPullReview").write_bytes(
+            b"BPR_SYNTHETIC_APPLICATION\0"
+        )
+        (bundle / "Info.plist").write_text(
+            "<plist><dict>"
+            "<key>CFBundleExecutable</key><string>BetterPullReview</string>"
+            "</dict></plist>\n",
+            encoding="utf-8",
+        )
+        found = BOUNDARY._discover_application(build)
+        self.assertEqual(found.name, "BetterPullReview")
+
+    def test_boundary_verifier_refuses_a_stale_second_application(self) -> None:
+        """Exactly one stays the rule: two means one is stale."""
+        build = make_selected_build(
+            Path(self.temporary.name) / "stale-builds", "app-release"
+        )
+        bundle = build / "src/app/BetterPullReview.app/Contents"
+        (bundle / "MacOS").mkdir(parents=True)
+        (bundle / "MacOS/BetterPullReview").write_bytes(
+            b"BPR_SYNTHETIC_APPLICATION\0"
+        )
+        (bundle / "Info.plist").write_text(
+            "<plist><dict>"
+            "<key>CFBundleExecutable</key><string>BetterPullReview</string>"
+            "</dict></plist>\n",
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "found 2"):
+            BOUNDARY._discover_application(build)
+
     def test_boundary_verifier_rejects_cut_ctest_registration(self) -> None:
         build = make_selected_build(
             Path(self.temporary.name) / "selected-builds", "core-only"
