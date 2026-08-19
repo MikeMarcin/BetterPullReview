@@ -1,6 +1,8 @@
 #include "designated_live_public_observer.hpp"
 
+#include "designated_live_macos_provenance.hpp"
 #include <CoreFoundation/CoreFoundation.h>
+
 #include <Security/Security.h>
 #include <mach-o/dyld.h>
 
@@ -588,6 +590,16 @@ namespace {
 		auto environment = std::array<char*, 4>{
 			pathValue.data(), langValue.data(), localeValue.data(), nullptr
 		};
+		// fact_3. The right the child will authenticate us by is published
+		// before the spawn, because inheritance is the only channel permitted:
+		// there is no argument, variable, or descriptor here that could carry
+		// it afterwards. An occupied slot refuses outright rather than being
+		// overwritten.
+		auto channel = bpr::app::designated_live_provenance::supervisor_channel::claim();
+		if (!channel.has_value()) {
+			static_cast<void>(posix_spawnattr_destroy(&attributes));
+			return false;
+		}
 		pid_t      process = -1;
 		const auto spawned = posix_spawn(
 			&process,
@@ -597,7 +609,10 @@ namespace {
 			arguments.data(),
 			environment.data());
 		static_cast<void>(posix_spawnattr_destroy(&attributes));
-		if (spawned != 0) {
+		// Immediately, and whether or not the spawn worked. Every later spawn
+		// from this task must find the slot as it was.
+		const auto restored = channel->restore();
+		if (spawned != 0 || !restored) {
 			return false;
 		}
 		auto failChild = [&] {
@@ -615,6 +630,14 @@ namespace {
 		if (!childSigningDigest.has_value()
 			|| *childSigningDigest != *expectedSigningDigest
 			|| ::kill(process, SIGCONT) != 0) {
+			return failChild();
+		}
+		// fact_4. The handshake completes before the child reaches Qt or any
+		// public observation, and it is what tells the child it was launched by
+		// us. The identity is taken from the kernel audit trailer the child's
+		// message carries, not from `process`: a pid can be reused between the
+		// spawn and the question, and an audit token names the sender.
+		if (!channel->authenticate(process, application)) {
 			return failChild();
 		}
 		return wait_success(process);

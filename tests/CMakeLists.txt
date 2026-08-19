@@ -414,6 +414,60 @@ if(APPLE)
         PROPERTIES
             PASS_REGULAR_EXPRESSION "macos-service-slot-handshake-tests:pass"
     )
+
+    # BPR-0351. The product's own halves of the authenticated launch channel,
+    # exercised against each other. This one links the shipped source rather
+    # than a copy, so a change to the channel is a change to what is proven.
+    bpr_add_executable(
+        test_better_pull_review_macos_supervisor_provenance_tests
+        platform/macos_supervisor_provenance_tests.cpp
+        "${PROJECT_SOURCE_DIR}/src/app/src/designated_live_macos_provenance.cpp"
+    )
+    target_include_directories(
+        test_better_pull_review_macos_supervisor_provenance_tests
+        PRIVATE
+            "${PROJECT_SOURCE_DIR}/src/app/src"
+    )
+    target_link_libraries(
+        test_better_pull_review_macos_supervisor_provenance_tests
+        PRIVATE
+            "-framework CoreFoundation"
+            "-framework Security"
+            bsm
+    )
+    target_compile_features(
+        test_better_pull_review_macos_supervisor_provenance_tests
+        PRIVATE
+            cxx_std_23
+    )
+    bpr_enable_hardening(
+        test_better_pull_review_macos_supervisor_provenance_tests
+    )
+    bpr_enable_warnings(
+        test_better_pull_review_macos_supervisor_provenance_tests
+    )
+
+    # Signed exactly as the capsule signs, so the contract answers the question
+    # actually asked rather than a friendlier one.
+    add_custom_command(
+        TARGET test_better_pull_review_macos_supervisor_provenance_tests
+        POST_BUILD
+        COMMAND
+            codesign --force --sign - --timestamp=none
+            "$<TARGET_FILE:test_better_pull_review_macos_supervisor_provenance_tests>"
+        VERBATIM
+        COMMENT "Signing the provenance contract as the capsule is signed"
+    )
+
+    bpr_add_network_isolated_test(
+        NAME macos_supervisor_provenance
+        COMMAND test_better_pull_review_macos_supervisor_provenance_tests
+    )
+    set_tests_properties(
+        macos_supervisor_provenance
+        PROPERTIES
+            PASS_REGULAR_EXPRESSION "macos-supervisor-provenance-tests:pass"
+    )
 endif()
 
 set(bpr_network_isolation_verifier_command

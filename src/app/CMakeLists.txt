@@ -60,6 +60,38 @@ if(BPR_BUILD_QT)
         main.cpp
     )
 
+    if(APPLE)
+        # BPR-0351. The application authenticates its stage-one supervisor
+        # before QApplication exists, so the channel cannot live behind the
+        # composition library the way the rest of the application does. It is
+        # compiled into both graphs and both executables: the supervisor is the
+        # other half of the same handshake, and a contract that links it proves
+        # the halves against each other rather than against a copy.
+        find_library(BPR_PROVENANCE_SECURITY_FRAMEWORK Security REQUIRED)
+        find_library(
+            BPR_PROVENANCE_COREFOUNDATION_FRAMEWORK
+            CoreFoundation
+            REQUIRED
+        )
+        target_sources(
+            app_better_pull_review
+            PRIVATE
+                src/designated_live_macos_provenance.cpp
+        )
+        target_include_directories(
+            app_better_pull_review
+            PRIVATE
+                "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        )
+        target_link_libraries(
+            app_better_pull_review
+            PRIVATE
+                "${BPR_PROVENANCE_COREFOUNDATION_FRAMEWORK}"
+                "${BPR_PROVENANCE_SECURITY_FRAMEWORK}"
+                bsm
+        )
+    endif()
+
 	set(
 		bpr_attended_review_source_surface
 		src/app/CMakeLists.txt
@@ -88,6 +120,8 @@ if(BPR_BUILD_QT)
 		src/adapters/sqlite/include/bpr/adapters/sqlite/review_mutation_recovery_store.hpp
 		src/adapters/sqlite/src/review_mutation_recovery_store.cpp
 		src/app/src/designated_live_macos_supervisor.cpp
+		src/app/src/designated_live_macos_provenance.hpp
+		src/app/src/designated_live_macos_provenance.cpp
 		scripts/designated_live_macos_capsule.py
 	)
 	set(bpr_attended_review_source_manifest "")
@@ -257,6 +291,7 @@ if(BPR_BUILD_QT)
         bpr_add_executable(
             tool_better_pull_review_designated_live_supervisor
             src/designated_live_macos_supervisor.cpp
+            src/designated_live_macos_provenance.cpp
         )
         target_link_libraries(
             tool_better_pull_review_designated_live_supervisor
@@ -264,6 +299,7 @@ if(BPR_BUILD_QT)
                 BetterPullReview::DesignatedLivePublicObserver
                 "${BPR_DESIGNATED_LIVE_COREFOUNDATION_FRAMEWORK}"
                 "${BPR_DESIGNATED_LIVE_SECURITY_FRAMEWORK}"
+                bsm
         )
         target_compile_definitions(
             tool_better_pull_review_designated_live_supervisor

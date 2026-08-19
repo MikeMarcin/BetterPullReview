@@ -14,6 +14,10 @@
 	#endif
 #endif
 
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+	#include "designated_live_macos_provenance.hpp"
+#endif
+
 #include <QAction>
 #include <QApplication>
 #include <QColor>
@@ -4986,6 +4990,31 @@ auto main(int argc, char** argv) -> int
 	if (const auto preflight = run_designated_live_preflight_probe(argc, argv);
 		preflight.has_value()) {
 		return *preflight;
+	}
+	// BPR-0262 fact_4, and the reason it has to be here rather than anywhere
+	// more convenient: attended authority is refused unless the exact bound
+	// supervisor launched this process, and that has to be settled before
+	// QApplication exists and before any public observation. Everything below
+	// this line has already decided the process is allowed to run.
+	//
+	// Only the flag's presence is read here. Whether the approval itself is
+	// well-formed is settled further down, because a malformed approval and an
+	// unauthenticated parent are different refusals and answering the second
+	// first is what keeps a direct launch from learning anything.
+	if (has_argument(argc, argv, "--attended-designated-live-approval")) {
+		const auto image      = bpr::app::designated_live_provenance::running_executable_path();
+		const auto supervisor = image.has_value()
+			? bpr::app::designated_live_provenance::supervisor_image_for(*image)
+			: std::nullopt;
+		if (!supervisor.has_value()
+			|| !bpr::app::designated_live_provenance::authenticate_supervisor(
+				*supervisor)) {
+			// Deliberately the same words a malformed approval produces. A
+			// caller that cannot authenticate learns that it failed, not which
+			// check refused it.
+			std::fputs("STARTUP_FAILED\n", stdout);
+			return EXIT_FAILURE;
+		}
 	}
 #endif
 	QApplication qtApplication{ argc, argv };

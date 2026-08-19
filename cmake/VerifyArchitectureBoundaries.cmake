@@ -40,6 +40,14 @@ set(
     "src/app/src/designated_live_macos_supervisor.cpp"
 )
 set(
+    app_entry_point_relative
+    "src/app/main.cpp"
+)
+set(
+    app_designated_live_provenance_relative
+    "src/app/src/designated_live_macos_provenance.cpp"
+)
+set(
     github_wire_validation_relative
     "src/adapters/github/src/github_wire_request_validation.cpp"
 )
@@ -1508,6 +1516,15 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
                 effect_owner_target
                 "tool_better_pull_review_designated_live_supervisor"
             )
+        elseif(
+            current_allowed_relative
+                STREQUAL app_designated_live_provenance_relative
+        )
+            # Compiled into the application and the supervisor both: it is one
+            # half of a handshake each performs, so a single owner would be the
+            # wrong answer. src/app/CMakeLists.txt declares it for both.
+            set(effect_owner_cmake "${app_cmake_contents}")
+            set(effect_owner_target "app_better_pull_review")
         elseif(current_allowed_relative MATCHES "^src/adapters/git/")
             set(effect_owner_cmake "${git_cmake_contents}")
             set(effect_owner_target "better_pull_review_adapter_git")
@@ -1581,6 +1598,9 @@ verify_effect_owner(
     "macOS code-signing API"
     "${github_designated_live_observer_relative}"
     "${app_designated_live_supervisor_relative}"
+    # BPR-0351. The authenticated launch channel identifies its peer from the
+    # kernel audit trailer, which is a code-signing question by construction.
+    "${app_designated_live_provenance_relative}"
 )
 verify_effect_owner(
     "(/usr/bin/curl|com\\.apple\\.curl)"
@@ -1819,6 +1839,109 @@ if(EXISTS "${app_designated_live_supervisor_file}")
             "fixed public target before application launch"
         )
     endif()
+endif()
+
+# BPR-0262 fact_4, BPR-0351. Attended authority is refused unless the exact
+# bound supervisor launched this process, and that has to be settled before
+# QApplication exists. The wiring is production-only -- a tests-enabled build
+# rejects the approval flag outright -- so no tests-enabled runtime can observe
+# it, and source order is what pins it.
+get_filename_component(
+    app_entry_point_file
+    "${BPR_ROOT}/${app_entry_point_relative}"
+    ABSOLUTE
+)
+if(EXISTS "${app_entry_point_file}")
+    file(READ "${app_entry_point_file}" app_entry_point_contents)
+    string(
+        FIND
+        "${app_entry_point_contents}"
+        "designated_live_provenance::authenticate_supervisor("
+        app_provenance_index
+    )
+    string(
+        FIND
+        "${app_entry_point_contents}"
+        "QApplication qtApplication{ argc, argv };"
+        app_qapplication_index
+    )
+    if(app_provenance_index EQUAL -1)
+        message(
+            FATAL_ERROR
+            "The application must authenticate its bound supervisor before "
+            "accepting attended authority"
+        )
+    endif()
+    if(app_qapplication_index EQUAL -1)
+        message(
+            FATAL_ERROR
+            "The application entry point no longer constructs QApplication "
+            "where this check can see it"
+        )
+    endif()
+    if(app_provenance_index GREATER_EQUAL app_qapplication_index)
+        message(
+            FATAL_ERROR
+            "Supervisor provenance must be established before QApplication "
+            "and before any public observation"
+        )
+    endif()
+endif()
+
+# fact_3 forbids every cheaper channel. The provenance component may consult
+# the inherited port right and nothing else; a fallback here would invalidate
+# the recorded approval rather than merely weaken it.
+get_filename_component(
+    app_designated_live_provenance_file
+    "${BPR_ROOT}/${app_designated_live_provenance_relative}"
+    ABSOLUTE
+)
+if(EXISTS "${app_designated_live_provenance_file}")
+    file(
+        READ
+        "${app_designated_live_provenance_file}"
+        app_designated_live_provenance_contents
+    )
+    foreach(
+        forbidden_provenance_pattern
+        IN ITEMS
+            "(^|[^A-Za-z0-9_])(getenv|secure_getenv|qgetenv|environ)([^A-Za-z0-9_]|$)"
+            "(^|[^A-Za-z0-9_])getppid([^A-Za-z0-9_]|$)"
+            "#[ \t]*include[ \t]*[<\"]Q"
+    )
+        if(
+            app_designated_live_provenance_contents
+                MATCHES "${forbidden_provenance_pattern}"
+        )
+            message(
+                FATAL_ERROR
+                "Supervisor provenance must not fall back to the environment, "
+                "a parent pid, or Qt: ${forbidden_provenance_pattern}"
+            )
+        endif()
+    endforeach()
+    foreach(
+        required_provenance_fragment
+        IN ITEMS
+            [=[kSecGuestAttributeAudit]=]
+            [=[SecCodeCheckValidity]=]
+            [=[MACH_RCV_TRAILER_AUDIT]=]
+            [=[mach_ports_register]=]
+    )
+        string(
+            FIND
+            "${app_designated_live_provenance_contents}"
+            "${required_provenance_fragment}"
+            required_provenance_fragment_index
+        )
+        if(required_provenance_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Supervisor provenance policy is incomplete: "
+                "${required_provenance_fragment}"
+            )
+        endif()
+    endforeach()
 endif()
 verify_effect_owner(
     "(libsecret/secret\\.h|org\\.freedesktop\\.(Secret|secrets)|(^|[^A-Za-z0-9_])secret_(collection|item|password|schema|service|value)_[A-Za-z0-9_]*|(^|[^A-Za-z0-9_])Secret(Collection|Item|Schema|Service|Value)[A-Za-z0-9_]*|(^|[^A-Za-z0-9_])SECRET_(COLLECTION|ITEM|SCHEMA|SERVICE|VALUE)_[A-Z0-9_]*)"
