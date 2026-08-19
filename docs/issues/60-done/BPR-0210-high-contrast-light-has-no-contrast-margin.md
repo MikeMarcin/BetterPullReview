@@ -1,7 +1,7 @@
 ---
 id: BPR-0210
 title: High-contrast light sits exactly on its minimum with no margin
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0206, BPR-0214]
 ---
@@ -37,6 +37,36 @@ at attended review on 2026-08-08.
 Establish the achievable margin before deciding whether to spend a re-review on
 it. If the honest answer is that 7.00:1 exactly is the best this profile can do,
 that is worth recording as a bound rather than left looking like an oversight.
+
+## Measured, and the condition is gone — 2026-08-18
+
+The margin was established, and the answer arrived sideways: the pair this
+card measured at zero no longer exists as an obligation. The BPR-0320
+through BPR-0330 emphasis program moved selected-row mark readability onto
+derived fills with guaranteed foregrounds, which retired
+syntax-through-wash-over-intraline from the required pairs. What binds
+high-contrast light today is `syntax_escape_sequence` over
+`diff_moved_background` through the selection wash at **7.18:1** — 18
+hundredths of headroom — and high-contrast dark's `syntax_keyword` over its
+moved band holds 4. Both were still recorded as 0 in the BPR-0204 ratchet,
+so the regained margin was spendable without a warning, which is this
+card's original complaint wearing new colors.
+
+The slice therefore raises the ratchet's recorded figures to the measured
+actuals — high-contrast light 0 → 18, high-contrast dark 0 → 4 — moving no
+palette color and spending no re-review. The direct measurement used the
+real `core::composited`/`measure_required_contrast` math over the shipped
+palette, and the shipped ratchet's own printout confirms all four variants
+at their recorded values: light 0, dark 1, high-contrast light 18,
+high-contrast dark 4. `qt_appearance_profile` passes at the raised figures
+and fails if any future edit spends them.
+
+For the record the card asked for: buying more than about 19 hundredths in
+high-contrast light is possible only by moving `diff_moved_background` or
+the accepted selection color, because darkening the escape color alone
+shifts the binding pair to `syntax_keyword`/`syntax_import` over the same
+moved band at 7.19:1. That is the future price of more margin, and it costs
+the attended re-review this card deliberately declined to spend.
 
 ## Measured, 2026-08-08 — margin is reachable, and the cost is small
 

@@ -1950,8 +1950,16 @@ namespace {
 		// spends the remaining margin fails here and has to lower a number
 		// deliberately, which is the decision that used to be invisible.
 		//
-		// high_contrast_light has *none*. It sits exactly on its 7.00:1
-		// minimum, so any erosion at all is a failure rather than a warning.
+		// light still has *none*: its comment-on-removed-emphasis pair sits
+		// exactly on 7.00:1, so any erosion there is a failure rather than a
+		// warning. BPR-0210 asked what margin high_contrast_light could
+		// achieve; the answer arrived sideways. The emphasis rework moved
+		// mark readability onto derived fills with guaranteed foregrounds,
+		// which retired the pair that card measured at zero, and the pairs
+		// that bind both high-contrast profiles today - syntax text over the
+		// moved band - hold 18 and 4 hundredths. Those figures were regained,
+		// not granted, so they are recorded here at their measured values
+		// rather than left at zero for anyone to spend silently.
 		{
 			struct tightest_pair
 			{
@@ -1972,8 +1980,8 @@ namespace {
 			constexpr auto recorded = std::array{
 				tightest_pair{ core::appearance_variant::light, 0U },
 				tightest_pair{ core::appearance_variant::dark, 1U },
-				tightest_pair{ core::appearance_variant::high_contrast_light, 0U },
-				tightest_pair{ core::appearance_variant::high_contrast_dark, 0U },
+				tightest_pair{ core::appearance_variant::high_contrast_light, 18U },
+				tightest_pair{ core::appearance_variant::high_contrast_dark, 4U },
 			};
 			auto eroded = std::size_t{ 0U };
 			for (const auto& expectation : recorded) {
