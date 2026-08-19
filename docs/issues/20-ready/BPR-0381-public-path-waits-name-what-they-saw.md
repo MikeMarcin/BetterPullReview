@@ -1,5 +1,5 @@
 ---
-id: BPR-0369
+id: BPR-0381
 title: Make a timed-out public-path wait name the condition that failed
 status: Ready
 rfc: RFC-BPR-0010

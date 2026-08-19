@@ -158,7 +158,7 @@ satisfy one.
   remaining failing edge, the sqlite site, and none after that.
 - `application_composition_contract` passes on Linux: `Ran 5 tests in 223.8s`,
   `100% tests passed out of 1`. Reaching that verdict also required
-  [[BPR-0368]], two digest pins the same earlier slice had left stale behind
+  [[BPR-0380]], two digest pins the same earlier slice had left stale behind
   this compile failure.
 - The seal suite passes under **both** compilers on this host — GCC 15.2.0 and
   Clang 21.1.8 — which matters because Clang emits the same incomplete-type
@@ -189,7 +189,7 @@ development host rather than an absent platform.
 What reduces the risk, stated so it can be checked rather than assumed: the
 seal suite passed under Clang here, which is the compiler family macOS uses;
 both changed translation units compile clean under that Clang with the full
-warning set; and the digest pins [[BPR-0368]] repaired are LF-normalized, so
+warning set; and the digest pins [[BPR-0380]] repaired are LF-normalized, so
 they cannot differ by platform. What remains genuinely unproven is the
 macOS-native Release composition and its byte scan. Whoever next runs the
 contract on macOS should confirm it, and this card should be reopened if it
