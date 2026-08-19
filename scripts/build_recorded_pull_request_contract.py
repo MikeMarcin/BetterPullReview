@@ -80,7 +80,17 @@ def graphql_body(owner: str, name: str, number: int) -> str:
 
 def write(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent="\t", sort_keys=True) + "\n")
+    # `encoding` and `newline` are both explicit on purpose. Without them the
+    # served tree is written in the platform's locale encoding with `\n`
+    # translated to `\r\n`, so the same recording produced different bytes on
+    # Windows than the ones checked in — and the contract that compares the
+    # served tree to this generator's output could only hold on the platform
+    # that last regenerated it.
+    path.write_text(
+        json.dumps(payload, indent="\t", sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="",
+    )
 
 
 def main() -> int:

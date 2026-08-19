@@ -81,3 +81,37 @@ OK
 
 No file in `tests/fixtures/github/` differs from its blob any more, and the
 `objects.pack` still reports `i/-text w/-text`.
+
+## The pin exposed a third defect, in the generator
+
+Pinning the fixture tree to LF broke `github_recorded_fixture_contract`, which
+had been passing:
+
+```
+FAILED: uiforetw-74: manifest.json differs from what the generator writes from
+recording.json - the served tree was edited by hand, or the generator changed
+without regenerating
+```
+
+Neither of those two explanations was true. `scripts/build_recorded_pull_request_contract.py`
+wrote with a bare `path.write_text(...)`: no encoding and no newline control. So
+it emitted the platform's locale encoding with `
+` translated to `
+`, and
+the contract that compares the served tree against this generator's output could
+only hold on whichever platform last regenerated it. Before the pin, both sides
+were CRLF on Windows and it passed for the wrong reason; after, the served tree
+was LF and the generator still wasn't.
+
+`encoding="utf-8", newline=""` makes the generator produce the same bytes
+everywhere, which is what a contract asserting "the served tree is exactly what
+the generator writes" requires to mean anything.
+
+```
+py -3 tests/scripts/recorded_pull_request_fixture_tests.py
+RECORDED_FIXTURE_OK
+```
+
+This is a fifth instance of the class described above, and the first one that
+was latent rather than failing — further evidence for the policy fix this card
+declines to make unilaterally.
