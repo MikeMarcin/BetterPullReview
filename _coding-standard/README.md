@@ -32,12 +32,19 @@ Pass explicit paths after the options to limit the scan.
 `format_check.py` and `format.py` read the tool's reported version first and
 refuse an older one, naming what they found and what they need.
 
-The boundary is not arbitrary. Release 21 and earlier render an empty braced
-initializer as `{}` where this standard's sources hold `{ }`, and no key
-restores the space — `Cpp11BracedListStyle` produces `{}` either way, and
-`SpaceInEmptyBraces` is not an option those releases accept. Every file
-containing `{ }` therefore disagrees with an older tool, which is most of a
-migrated tree.
+The boundary is not arbitrary, and it has two independent causes:
+
+- **17 and earlier cannot read the style file.** `AlignFunctionPointers` was
+  added in 18, so an older tool reports `unknown key` and silently falls back to
+  a default style. Every file then looks dirty for a reason unrelated to the
+  file.
+- **18 through 21 read it and render it differently.** They emit `{}` where this
+  standard's sources hold `{ }`, and no key restores the space —
+  `Cpp11BracedListStyle` produces `{}` either way in those releases, and
+  `SpaceInEmptyBraces` is not an option they accept. Every file containing `{ }`
+  therefore disagrees, which is most of a migrated tree.
+
+The second tier is the dangerous one: it produces a plausible-looking result.
 
 Pass `--allow-unsupported-clang-format` to run anyway. The diagnostic is still
 printed and the result is labelled advisory: a tool that renders the style file

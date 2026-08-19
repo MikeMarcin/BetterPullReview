@@ -192,6 +192,35 @@ fresh Windows checkout is `Tool not found on PATH: clang-format`.
 | gate deleted from `format_check.py`, contract re-run | 3 of 8 cases fail; restored and re-run 8/8 |
 | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
 
+### A stronger fact, found by running the refusal against a real old tool
+
+The stub cases prove the gate's logic; Apple clang-format 16.0.0, which is
+actually installed here, proves the premise. Under
+`--allow-unsupported-clang-format` it reports:
+
+```
+.clang-format:11:3: error: unknown key 'AlignFunctionPointers'
+Error reading .clang-format: Invalid argument
+```
+
+`AlignFunctionPointers` arrived in clang-format 18, so releases before that
+cannot read this project's style file at all — they fall back to a default style
+and call everything dirty for a reason that has nothing to do with the files.
+`src/core/src/model.cpp` is reported dirty under 16 even though the Linux lane
+measured it clean under 18 through 21, which is exactly that fallback.
+
+So the floor has two independent causes, not one, and the middle tier is the
+dangerous one because it produces a plausible-looking result:
+
+| clang-format | Behaviour |
+|---|---|
+| ≤ 17 | cannot parse `.clang-format`; falls back to a default style |
+| 18–21 | parse it, render `{}` where the tree holds `{ }` |
+| ≥ 22 | render the tree as committed |
+
+Both documentation sites now carry the three tiers rather than only the `{ }`
+difference.
+
 ### Left open deliberately
 
 The Linux toolchain still provisions 21.1.8. This card does not change that; it

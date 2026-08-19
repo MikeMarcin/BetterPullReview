@@ -471,15 +471,21 @@ error: unsupported clang-format: /usr/bin/clang-format reports version 21.1.8
        This project's .clang-format requires clang-format 22 or newer. …
 ```
 
-Release 21 and earlier strip the space out of an empty braced initializer —
-they emit `{}` where this tree holds `{ }` — and no `.clang-format` key restores
-it, because `SpaceInEmptyBraces` is not an option those releases accept. That
-one difference is enough to make an older tool report every file containing
-`{ }` dirty: measured on Ubuntu 26.04, 21.1.8 reported 292 of 375 files needing
-formatting where 22.1.2 reported one. Every one of the 151 files under `src/`
-containing `{ }` was in the older tool's list, and every file it called clean
-contained none. So the failures were never selective, and a passing run under an
-unrecorded version was never proof.
+There are three tiers, and only the third can produce a verdict:
+
+| clang-format | What happens |
+|---|---|
+| 17 and earlier | **Cannot read `.clang-format` at all**: `unknown key 'AlignFunctionPointers'`, an option added in 18. The tool falls back to a default style, so every file looks dirty for a reason that has nothing to do with the file. Verified directly with Apple clang-format 16.0.0. |
+| 18 through 21 | Read the style file, but render an empty braced initializer as `{}` where this tree holds `{ }` |
+| 22 and newer | Render the tree as it is committed |
+
+The middle tier is the one that looks like a real result and is not. Measured on
+Ubuntu 26.04, 21.1.8 reported 292 of 375 files needing formatting where 22.1.2
+reported one; every one of the 151 files under `src/` containing `{ }` was in the
+older tool's list, and every file it called clean contained none. So the failures
+were never selective, and a passing run under an unrecorded version was never
+proof. No key restores the space under `Cpp11BracedListStyle: false` in those
+releases — `SpaceInEmptyBraces` is not an option they accept.
 
 `format.py` refuses for the stronger reason: an older tool would not merely
 misreport those files, it would rewrite them.
