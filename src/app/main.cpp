@@ -4616,6 +4616,12 @@ namespace {
 						}
 						break;
 					}
+					// Armed again for a second episode. The scheme can settle,
+					// the owner return, and focus be lost again before the
+					// measurement completes; without this the second wait would
+					// be silent and the log would show a gap nobody could
+					// attribute.
+					aRun->Appearance.WaitingForOwnerReturnReported = false;
 					const auto* const appearanceWorkbench
 						= window.comparison_surface();
 					aRun->Appearance.ObservedDiffPalette

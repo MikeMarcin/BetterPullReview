@@ -122,6 +122,56 @@ Documentation: `docs/development/build-and-test.md` gains the dark-side wait
 beside the Light-side one it already documented, including why the procedure was
 impossible before and what bounds the wait.
 
+### Corrected after review — 2026-08-19
+
+An independent review confirmed both cannot-hang grounds and found three things the
+record overstated. All three are corrected here rather than defended.
+
+**"The startup-budget course is the registered case" generalizes across a branch
+boundary.** `capture_automated_timeout_evidence` splits on
+`!Appearance.StageEntered`, and `StageEntered` is set true *before* `Stage` becomes
+`appearance`. So an expiry inside the new wait takes the other branch: the
+precondition refusal stays `none` and the selected-diff evidence is not refreshed.
+The startup-budget course expires with `StageEntered == false`, so it exercises the
+branch the wait does not. An operator slower than the run budget therefore sees
+`NATIVE_APPEARANCE_PRECONDITION_REFUSED:none:…` rather than anything naming the
+wait. The complete marker record is still produced — the cannot-hang claim is
+unaffected — but it does not name the wait, and no registered case covers that
+branch.
+
+**"Geometry-rebuild attribution is unchanged in kind" understates a
+packet-visible effect.** `GeometryRebuildHistory` is a fixed 32-entry array that
+stops recording and sets an overflow flag, and `DiffGeometryAttributionComplete`
+requires no overflow. The window now stays open for however long the operator
+takes rather than roughly half a second, so it has correspondingly more room to
+reach 32. Separately,
+`NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_OK` requires a delta of exactly one, and
+the window now spans the operator's return trip, during which a window deactivate
+and reactivate can add rebuilds. Neither term is part of `PresentationPassed`, so
+both would report failure without failing the run, and the appearance stage is
+unreachable offscreen so nothing automated covers either. That is a real change in
+what the attended packet is likely to see, and the packet's audit list should be
+read with it in mind.
+
+**The waiting marker was armed once.** `WaitingForOwnerReturnReported` was never
+cleared, so a second wait episode — scheme settles, owner returns, focus is lost
+again before the measurement completes — would have been silent, leaving a gap in
+the log nobody could attribute. It is now reset when the wait is satisfied.
+
+What the review confirmed rather than broke: no argv or fixture reaches the
+appearance stage off cocoa; the budget check precedes the stage switch on every
+path and `transition_to_shutdown` sets the stage before the switch is evaluated, so
+the wait's `break` cannot outlive the run; `SettleAttempts` is a `std::size_t`
+incremented at roughly a hundred a second and cannot practically overflow; and the
+geometry history stops recording rather than wrapping, so no stale entry can be
+read back.
+
+It also named honestly what the three absence assertions in the contract do and do
+not prove: they are satisfied by unreachability, so nothing automated exercises
+`native_appearance_owner_returned` in either polarity. The card already said the
+stage is unreachable offscreen; this states the consequence for the predicate
+itself.
+
 ### What remains
 
 Only the attended bullet: the v004 packet regenerated against these bytes, and
