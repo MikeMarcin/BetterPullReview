@@ -287,6 +287,13 @@ set_tests_properties(
 )
 
 bpr_add_network_isolated_test(
+    NAME contained_temporary_usage_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/contained_temporary_usage_tests.py"
+)
+
+bpr_add_network_isolated_test(
     NAME coding_standard_format_gate_contract
     COMMAND
         Python3::Interpreter

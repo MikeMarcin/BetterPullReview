@@ -251,7 +251,7 @@ def one_loopback(
 def unix_loopback() -> bool:
     configured_root = os.environ.get("BPR_TEST_SOCKET_ROOT")
     context = (
-        contained_temporary_directory(dir=configured_root)
+        contained_temporary_directory(parent=configured_root)
         if configured_root
         else contained_temporary_directory()
     )

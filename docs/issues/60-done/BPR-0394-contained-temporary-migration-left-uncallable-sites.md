@@ -1,7 +1,7 @@
 ---
 id: BPR-0394
 title: The contained-temporary migration left call sites that cannot execute
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
 ---
@@ -66,3 +66,60 @@ it sits among.
 ```sh
 ctest --preset dev -R '^test_network_isolation_(loopback|unrelated)$' --output-on-failure
 ```
+
+## Result — 2026-08-19
+
+`unix_loopback` passes `parent=configured_root`. One character of substance.
+
+### The audit
+
+Ten call sites pass an argument at all; the rest pass none and cannot be wrong.
+Of those ten, nine pass only `prefix=`, which is accepted. The
+`network_isolation_counterexamples.py` site was the only signature disagreement
+in the tree.
+
+`tempfile` under `tests/`: one directory-creating use, BPR-0373's, now repaired
+by that card. `verify_gh_cli_trust.py:44` calls `tempfile.gettempdir()`, which
+reads a path and creates nothing.
+
+Two uses outside `tests/` are deliberately left alone, and it is worth saying why
+rather than listing them as exceptions. `scripts/run_network_isolated_test.py:176`
+is the launcher that *builds* the sandbox: it runs outside the container it
+creates, so the constraint does not apply to it. `scripts/designated_live_macos_capsule.py:656`
+is a tests-disabled macOS packaging path, and the AppContainer is a Windows
+object. `scripts/dif_assets.py` carries its own contained implementation and
+documents the same reasoning at `:1111`.
+
+### The gate
+
+`contained_temporary_usage_contract` parses every `tests/**/*.py` with `ast` and
+fails when a call passes a keyword the helper does not accept, or when a test
+creates a temporary directory through `tempfile`. It reads the accepted keywords
+**out of the support module** rather than restating them, so adding a parameter
+there cannot leave the check stale, and it asserts that its own scan found more
+than twenty call sites so a scan that silently matched nothing cannot pass
+vacuously.
+
+It answers the card's fourth bullet directly. Both defects are runtime errors in
+untaken branches, so nothing short of executing that exact branch reports them —
+`compileall` would not. Checking the shape costs 0.27 s and runs everywhere.
+
+Mutation-checked against the two real defects, re-introduced one at a time:
+
+| Seed | Gate output |
+|---|---|
+| `contained_temporary_directory(dir=configured_root)` | `network_isolation_counterexamples.py:254: contained_temporary_directory(dir=...) — accepted: ['parent', 'prefix', 'suffix']` |
+| `tempfile.TemporaryDirectory()` in the dependency tests | `dependency_modernization_tests.py:472: tempfile.TemporaryDirectory — use scripts/contained_temporary_support instead` |
+| both reverted | 4 tests, OK |
+
+It names the file, the line, and what was accepted instead — which is what would
+have turned either of these from a matrix archaeology exercise into a one-line
+read.
+
+### Evidence
+
+| Check | Result |
+|---|---|
+| `ctest --preset dev -R '^test_network_isolation_(loopback\|unrelated)$'` | 2/2 passed |
+| `ctest --preset dev -R '^contained_temporary_usage_contract$'` | passed |
+| `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
