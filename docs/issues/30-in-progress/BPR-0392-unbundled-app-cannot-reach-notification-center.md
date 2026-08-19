@@ -146,6 +146,40 @@ the `dev` configure. They come from the shared `packaging/macos/Info.plist.in`
 and the tests-disabled configure already emitted them; `uninitialized` is not in
 the preset's `errors` list.
 
+### The full matrix, and the one pin it moved
+
+`ctest --preset dev` ran the complete 191-test matrix at this slice: **187
+passed, 4 failed**, and all four are accounted for:
+
+| Failure | Cause |
+|---|---|
+| `dependency_modernization_contract` | pre-existing at `HEAD`, [[BPR-0373]]'s missing `tempfile` import |
+| `test_network_isolation_loopback` | pre-existing at `HEAD`, [[BPR-0394]]'s wrong keyword |
+| `test_network_isolation_unrelated` | same |
+| `application_composition_contract` | **this slice.** `main.cpp` changed, so the pinned production-app source digest drifted |
+
+The first three were red before this slice touched anything and are fixed by
+their own cards. The fourth is this slice's, and re-pinning it is the established
+maintenance step: `bpr_verify_app_source_tree`
+(`tests/end_to_end/application_review_round_trip_composition_contract.cmake:139`)
+hashes eight named app sources and pins the manifest digest, so any edit to
+`main.cpp` moves it.
+
+The new value was computed independently rather than copied out of the failure
+message, replicating the gate's own algorithm — CRLF and CR normalized to LF,
+per-file SHA-256, then SHA-256 over the `path\ndigest\n` manifest — and it agreed
+exactly: `14a14a2a5a402179237a5ad185307178da7b5ac6ea2ec92c0fd4e7bff28ef523`. The
+pin is not weakened: `composition_contract_tests.py:690-709` prepends and appends
+a hostile fragment to each pinned source and requires the drift diagnostic, so
+the gate mutation-checks itself and still passes.
+
+After all four repairs, a focused replay of exactly those four plus the new
+`contained_temporary_usage_contract` passes 5/5. Every end-to-end test that
+consumes the application binary — tests 155 through 191, including all three
+public paths, the workbench, ledger, round-trip, defect, agent-invocation,
+epoch-persistence, appearance, and attended courses — passed with the bundle in
+place, which is the evidence that `$<TARGET_FILE:...>` absorbed the path change.
+
 ### What remains, and what this does not claim
 
 The bundle is neither signed nor notarized, and `macdeployqt` does not run. So
