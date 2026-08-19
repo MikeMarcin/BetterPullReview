@@ -130,3 +130,27 @@ The preflights pass at these exact bytes: `application_attended_launch_contract`
 packets, so one attended session can serve all three.
 
 The card stays parked awaiting that judgment.
+
+## Rebound once more, and this time the bytes are settled — 2026-08-19
+
+[[BPR-0397]] bounded three unbounded waits in the epoch host and rebuilt the
+executable, so the previous packet's digest no longer matched anything on disk.
+Third rebuild in a row to invalidate a pending packet; caught before an operator
+hit it rather than after.
+
+The live packet is
+`docs/verification/reviews/native-visual-acceptance-v003/operator-packet.md`,
+bound to
+`sha256:7b9d6be98c89b70a49f0616d2b32b10cb6b5d4a3f238366bed916379a78fcd93` at
+51,085,872 bytes.
+
+Why this one should hold where three did not: every card that could change these
+bytes is in `60-done/`, and nothing in an active lane is executable without a
+Windows or Linux host, a product decision, or an owner verdict. The bytes are
+settled because the board is.
+
+The preflights are stronger than any earlier version's, too — the complete
+193-test `dev` matrix passed at exactly these bytes rather than a focused
+selector set.
+
+The card stays parked on the operator.
