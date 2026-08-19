@@ -1,7 +1,7 @@
 ---
 id: BPR-0351
 title: Establish supervisor provenance before QApplication and public observation
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0357]
 ---
