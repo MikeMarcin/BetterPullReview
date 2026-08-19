@@ -1,7 +1,7 @@
 ---
 id: BPR-0365
 title: Pair queue activity observations by ref instead of position
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0010
 depends_on: []
 ---
