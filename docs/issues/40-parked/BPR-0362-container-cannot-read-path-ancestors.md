@@ -183,3 +183,26 @@ Six tests wait on this: the four SQLite storage contracts and the two RFC-0016
 security tests. Nothing else in the Windows program is blocked by it —
 [[BPR-0363]], [[BPR-0361]], [[BPR-0365]], and [[BPR-0366]] were all completed
 while it stood.
+
+## Correction — the SQLite tests are not this card
+
+[[BPR-0368]] falsified the causation claim above. This card said the four SQLite
+storage tests fail because the container cannot read path ancestors. They fail
+**uncontained** too, where `C:\` opens normally, so the container is not why.
+
+What was actually stopping them was a doubled separator in
+`validate_ancestor_chain`'s own string building, which made the retained chain
+compare unequal on every Windows host, contained or not. [[BPR-0368]] fixed that,
+and with it `open_state_directory` returns successfully and every descriptor
+check passes.
+
+What this card still owns is real and unchanged: the container genuinely cannot
+read above its own `AC` directory, the measured table stands, and
+`Path.resolve(strict=True)` still cannot work inside it. But the honest test
+count is smaller than claimed. `rfc0016_device_capture_security` and
+`rfc0016_device_live_runner_security` also fail uncontained, so they are not
+proven to be this card either.
+
+The decision packet stands, because the ancestor-read denial is still true and
+still has to be answered before anything containment-dependent can be relied on.
+What must not stand is the claim that six tests are waiting on it.

@@ -99,3 +99,21 @@ ctest --preset core-only --output-on-failure -R '^(sqlite_epoch_catalog_storage_
 
 Run the same selectors outside the launcher as the negative control, so a pass
 inside is evidence about the boundary rather than about the machine.
+
+## Correction — the descriptor is reachable after all
+
+This card said `open_state_directory` never reaches the descriptor, so the fix
+would have no observable symptom. [[BPR-0368]] disproved the premise: the
+blocker was a doubled separator in `validate_ancestor_chain`, not the container,
+and with it repaired the chain, the descriptor validation, and the filesystem
+check all pass.
+
+Measured uncontained, every check this card would change already passes today:
+owner is the token user, the descriptor is protected, there is exactly one ACE,
+its flags and mask are exact, and its SID is the token user.
+
+So the work here is now observable and can be written with evidence rather than
+ahead of it. What has **not** changed is that the descriptor is genuinely
+unusable from inside an AppContainer — that measurement stands on its own, with
+its negative control — which is why this card is still open and still matters
+for MSIX packaging.

@@ -2070,7 +2070,15 @@ namespace bpr::adapters::sqlite::detail {
 				const auto end       = separator == std::wstring::npos
 					? native.size()
 					: separator;
-				candidate.append(native.substr(offset - 1U, end - offset + 1U));
+				// The first candidate is the root, `\\?\C:\`, which already ends
+				// in the separator. Copying the separator in unconditionally
+				// produced `\\?\C:\\Users`, and `\\?\` paths are not normalized,
+				// so the handle's own name came back one character shorter and
+				// never compared equal.
+				if (!candidate.ends_with(L'\\')) {
+					candidate.push_back(L'\\');
+				}
+				candidate.append(native.substr(offset, end - offset));
 				offset = end + 1U;
 			}
 		}
