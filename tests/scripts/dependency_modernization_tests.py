@@ -378,6 +378,84 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertIn("caller-installed Qt", diagnostic)
         self.assertIn("re-enable the pinned provider", diagnostic)
 
+    def test_qt_provider_keeps_every_mechanism_it_replaced_the_old_policy_with(
+        self,
+    ) -> None:
+        """The five properties that make fetching Qt as strict as refusing to.
+
+        BPR-0337 replaced "Qt is never fetched automatically" with a provider,
+        and BPR-0373 records why re-pointing the assertions at whatever the file
+        now says is not enough: a contract edited to agree with the build is not
+        a contract. The old policy's rigour came from being absolute. This one's
+        has to come from naming each mechanism, so the contract fails if the
+        provider stops pinning, stops locking, stops refusing offline, or starts
+        accepting an arbitrary Qt.
+
+        Each assertion below is paired with the failure it exists to catch.
+        """
+        provider = (ROOT / "cmake/BprQtProvider.cmake").read_text(
+            encoding="utf-8"
+        )
+
+        # Unpinned, a range, or an environment default would all let two hosts
+        # build against different Qt.
+        self.assertRegex(
+            provider, r"(?m)^set\(BPR_QT_VERSION \"\d+\.\d+\.\d+\"\)$"
+        )
+
+        # Not namespaced by version, a cache populated under one pin would be
+        # accepted for the next one.
+        self.assertIn(
+            'set(prefix_root "${CPM_SOURCE_CACHE}/bprqt/${BPR_QT_VERSION}")',
+            provider,
+        )
+
+        # Without the lock, two concurrent configures race to write and validate
+        # the same prefix; without the fail-closed result check, a timeout would
+        # proceed as though it held it.
+        self.assertRegex(
+            provider,
+            r"file\(\s*LOCK \"\$\{CPM_SOURCE_CACHE\}/bprqt-\$\{BPR_QT_VERSION\}\.lock\""
+            r"\s+GUARD FUNCTION\s+TIMEOUT \d+\s+RESULT_VARIABLE lock_result\s*\)",
+        )
+        self.assertRegex(
+            provider,
+            r"if\(lock_result\)\s*\n\s*message\(\s*\n?\s*FATAL_ERROR",
+        )
+
+        # The offline gate has to sit strictly before the download, or offline
+        # mode silently reaches the network.
+        offline_gate = provider.find("if(BPR_DEPENDENCY_OFFLINE)")
+        download_call = provider.find('bpr_download_qt("${qt_host}"')
+        self.assertNotEqual(offline_gate, -1)
+        self.assertNotEqual(download_call, -1)
+        self.assertLess(offline_gate, download_call)
+        self.assertIn("BPR_DEPENDENCY_OFFLINE=ON requires Qt", provider)
+
+        # Validation is presence-of-packages *plus* an exact version match. File
+        # existence alone would accept an interrupted download or a stale pin,
+        # and the version has to be read from the Impl file because the
+        # forwarding file never carries the literal.
+        for package in (
+            "Qt6",
+            "Qt6Core",
+            "Qt6Gui",
+            "Qt6Widgets",
+            "Qt6Network",
+            "Qt6CoreTools",
+        ):
+            self.assertIn(package, provider)
+        self.assertIn("Qt6ConfigVersionImpl.cmake", provider)
+        self.assertIn(
+            r'REGEX "^set\\(PACKAGE_VERSION \"${BPR_QT_VERSION}\"\\)$"',
+            provider,
+        )
+
+        # And the validator has to be what the acquisition path consults, not a
+        # function nothing calls.
+        self.assertIn('bpr_validate_qt_prefix("${prefix}" cached_is_valid)', provider)
+        self.assertIn("if(NOT cached_is_valid)", provider)
+
     def test_qt_provider_is_the_default_acquisition_path(self) -> None:
         """The other branch, which nothing covered.
 
@@ -391,7 +469,7 @@ class DependencyModernizationTests(unittest.TestCase):
             provider,
             r"option\(\s*BPR_QT_PROVIDER\s+\"[^\"]*\"\s+ON\s*\)",
         )
-        with tempfile.TemporaryDirectory() as temporary_directory:
+        with contained_temporary_directory() as temporary_directory:
             configured = self.configure(
                 temporary_directory,
                 "-DBPR_BUILD_QT=ON",

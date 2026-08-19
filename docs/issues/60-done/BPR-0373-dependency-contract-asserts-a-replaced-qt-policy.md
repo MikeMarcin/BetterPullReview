@@ -1,7 +1,7 @@
 ---
 id: BPR-0373
 title: The dependency contract asserts a Qt policy that was replaced
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
 ---
@@ -167,3 +167,51 @@ causes cannot be recovered from this host; the split predates the fix.
 
   That is what "not sufficient to rewrite the assertions to match today's file"
   means concretely: each row has to fail if the provider stops doing it.
+
+## Result — 2026-08-19
+
+`test_qt_provider_is_the_default_acquisition_path` now uses
+`contained_temporary_directory()`, so the coverage that commit added executes for
+the first time.
+
+`test_qt_provider_keeps_every_mechanism_it_replaced_the_old_policy_with` binds all
+five mechanisms, each paired in the source with the failure it exists to catch:
+the literal three-component pin, the version-namespaced cache path, the
+`GUARD FUNCTION` lock with its timeout and its fail-closed result check, the
+offline gate's position **strictly before** `bpr_download_qt` (asserted by index
+comparison, not by presence), the six required package configs, and the version
+match read from `Qt6ConfigVersionImpl.cmake` rather than the forwarding file. It
+also requires the validator to be what the acquisition path actually consults, so
+it cannot become a function nothing calls.
+
+### Mutation-checked, not asserted
+
+Each was driven to fail by breaking the provider, then restored:
+
+| Provider mutation | Verdict |
+|---|---|
+| `BPR_QT_VERSION` becomes `$ENV{BPR_QT}` | fails |
+| lock becomes `GUARD PROCESS` | fails |
+| the `BPR_DEPENDENCY_OFFLINE` gate renamed away | fails |
+| validation reads the forwarding `Qt6ConfigVersion.cmake` | fails |
+| provider restored | passes |
+
+`git diff --stat cmake/BprQtProvider.cmake` is empty afterwards.
+
+### Evidence
+
+| Check | Result |
+|---|---|
+| `dependency_modernization_tests.py` direct, before | 21 tests, 1 error |
+| same, after | **22 tests, OK** |
+| `ctest --preset core-only -R '^dependency_modernization_contract$'` | passes |
+
+Nothing was made to pass by deleting coverage: the case count went up by one and
+the previously-erroring case now runs.
+
+### Left to another card
+
+The sibling instance of the same migration mistake — a
+`contained_temporary_directory(dir=...)` call in
+`tests/scripts/network_isolation_counterexamples.py` — belongs to [[BPR-0394]],
+together with the audit of every other call site and a gate for the class.
