@@ -104,3 +104,144 @@ BPR-0216's shape wearing syntax colors.
 ```sh
 ctest --preset dev -R '^(application_uiforetw_selected_diff_contract|qt_diff_workbench_scale_100|application_workbench_composition_contract)$' --output-on-failure
 ```
+
+## Two of this card's own findings were stale — 2026-08-19
+
+Re-measured before implementing anything, on the recorded `uiforetw-74` course:
+
+```
+SYNTAX_CLASSIFICATION:3:6
+SYNTAX_DELIVERY:2:0:4:1:6
+SYNTAX_DISPLAYED:0:0
+```
+
+**Defect A does not exist as written.** 6 submissions plus 2 cache hits is 8
+`classify` calls, and the course displays four comparisons — eight side-blobs, of
+which six are distinct because `Resource.h` is displayed twice. Every blob is
+accounted for. The `SYNTAX_CLASSIFICATION:1:2` this card recorded is stale; no
+submission is missing.
+
+The hypothesised mechanism could not have produced the symptom either.
+`set_loading` is the only writer of `diff_workbench::CurrentContext`, and it is
+skipped in the *same* early return as `classify_comparison`, so had that branch
+been taken the later publication would have been rejected as stale and the
+comparison would not have displayed at all. "Displayed but unclassified" cannot
+come from there.
+
+**Defect B is not reproducing on this course either.** Terminals equal
+submissions, so nothing is outstanding; the unbounded materialize wait is real
+but is not what this course hits.
+
+**What is actually wrong is adoption.** 5 parses plus 2 cache hits is 7
+publications; 3 were adopted and **4 were dropped**, and both panes ended
+uncoloured. That is the card's own third bullet — two unordered deliveries into
+one pane, `set_loading` clearing spans on every new request, and
+`adopt_classification` refusing anything whose blob is no longer the current
+comparison's. A classification arriving slightly early is wiped; one arriving
+slightly late is refused.
+
+So the repair the card asks for is right and the diagnosis behind it was not.
+
+## The repair — slice one
+
+**Adopt at display time.** `adopt_published_classification` runs from the diff
+publication sink and asks the surface itself what it is showing —
+`current_result()->Alignment.Key == aPublication.Context.Key` — rather than
+trusting the retained selection. That guard matters:
+`composition_diff_projection::publish` forwards *every* publication to the sink
+while `diff_workbench::publish` accepts only the current one, so a sink that
+classified unconditionally could colour a pane showing something else.
+
+Adoption reads `AppearanceHost::cached`, which existed with no callers outside
+its own translation unit. The submission in `classify_comparison` is deliberately
+kept alongside it, for a reason worth recording: `cached` resolves through
+`retained`, which does **not** bump `CacheSequence`, so replacing the submission
+with a cache read would stop refreshing the retention order and make a
+repeatedly displayed blob evictable.
+
+The definition needed to rebuild the cache key comes from a bounded
+`blob → definition` binding recorded at submission, not from the file's name. That
+is what lets display-time adoption work on the `--diff-workbench-probe` course
+too, whose only diff request comes from a fixture helper that never sets
+`SelectedDiffPublication` — a path that would have been silently uncovered had
+adoption been keyed on the retained selection.
+
+**Per-blob identity.** `composition_blob_source` no longer holds one mutable
+`diff_request_context`. Each submitted blob is bound to the exact
+`diff_blob_request` that reads it, insert-if-absent — a blob is content-addressed,
+so two comparisons naming it want identical bytes, and keeping the first binding
+means no later display can move a read already in flight. Bounded at 16
+bindings, eight comparisons' worth; past that a read is **refused rather than
+evicted**, because evicting would move an in-flight read, which is the defect
+being replaced. Bindings are released when a terminal arrives and cleared with the
+selection.
+
+`adopt_classification`'s blob-identity drop policy is untouched, as the card
+requires: defence in depth, not the primary mechanism.
+
+## The deterministic check, and why it is not `1:1`
+
+`SYNTAX_DISPLAYED` reports *presence* of a span list, which is too weak to be the
+check. `definition_for_path` falls back to plain text rather than failing, and a
+plain-text classification still publishes a non-null list, so a pane can hold a
+span list and be entirely uncoloured. New `SYNTAX_DISPLAYED_SPANS:<left>:<right>:<display-adopted>:<shown>`
+reports counts plus whether a comparison is on screen at all — without the last
+field a count of zero cannot distinguish "shown and uncoloured", the defect, from
+"nothing shown", which is not.
+
+That fourth field immediately answered a question this card would otherwise have
+got wrong. On the `application_diff_workbench_public_path` course the reading is
+`SYNTAX_DISPLAYED_SPANS:0:0:3:0`: three display adoptions happened, and **no
+comparison is displayed** by the time the status dumps. Its `SYNTAX_DISPLAYED:0:0`
+was never evidence about classification, and [[BPR-0393]]'s deliberately loose
+`[01]:[01]` term must stay loose — tightening it to `1:1` would assert something
+false about a course that has nothing on screen.
+
+`application_uiforetw_selected_diff_contract` now requires a comparison to be
+shown and its left pane to carry a nonzero span count.
+
+### Measured
+
+| Course | Before | After |
+|---|---|---|
+| `uiforetw-74` | `SYNTAX_DISPLAYED:0:0` | `SYNTAX_DISPLAYED:1:0`, `SYNTAX_DISPLAYED_SPANS:1361:0:5:1` |
+| `diff-workbench-probe` | `SYNTAX_DISPLAYED:0:0` | `0:0`, `SYNTAX_DISPLAYED_SPANS:0:0:3:0` — nothing shown |
+
+The left pane went from no spans to **1361**. Removing only the
+`adopt_published_classification` call fails the new assertion with `UIforETW light
+rendered the selected comparison unclassified`; restoring it passes. That was run,
+not assumed.
+
+| Check | Result |
+|---|---|
+| `ctest -R '^(application_uiforetw_selected_diff_contract\|qt_diff_workbench_scale_100\|application_workbench_composition_contract\|application_diff_workbench_public_path)$'` | 4/4 passed |
+| assertion negative proof | fails without the repair, passes with it |
+| `clang-format --dry-run --Werror` on both app sources | clean |
+| `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+| `application_composition_contract`, `application_review_round_trip_composition_contract` | passed after re-pinning two drifted digests |
+
+Both digests were recomputed independently rather than copied from the failure
+messages, and agreed: the eight-source manifest is
+`e4ca325deacff0e876c679d162d75abb82dfe8440243cba292f845852cb83707` and the
+full LF-normalized `github_application.cpp` is
+`c847ec226967620d2bc38a9e1495d614ee194791c30d5657c3974948093ebb23`.
+
+## What remains — the right pane, and slice two
+
+The card's required final state says a displayed comparison's **panes** carry
+their classification. One of two does. The final comparison's right blob is still
+uncoloured, and the counters place it as the single recorded
+`ClassificationFailures` entry — 6 submissions, 6 terminals, 1 failure, and no
+cache entry for that blob at display time, so nothing exists to adopt. Whether
+that failure is a refused blob read or a refused span list is **not** established
+here, and this card does not claim it is.
+
+Still open on this card:
+
+- Which blob the single classification failure belongs to, and why.
+- Slice two: the bounded, stop-aware wait in `epoch_application_host::materialize`
+  and in-flight bookkeeping that clears on failure. Both remain real defects even
+  though this course does not hit them — the wait at
+  `epoch_application_host.cpp:3494` has no timeout and does not use the caller's
+  stop token, and three sibling waits in the same file share the shape.
+- The attended visual pass re-presented against repaired bytes.

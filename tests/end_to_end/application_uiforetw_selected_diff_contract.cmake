@@ -109,6 +109,39 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
             )
         endif()
     endforeach()
+
+    # BPR-0390. The one question no marker asked: is the comparison on screen
+    # actually classified? Every composition marker above stayed green while both
+    # panes rendered monochrome, because they report that a classifier exists and
+    # that some classification was once adopted — never that this comparison
+    # carries spans now.
+    #
+    # Span *count*, not presence, and the shown flag with it. Presence is too
+    # weak: `definition_for_path` falls back to plain text rather than failing, so
+    # a pane can hold a non-null span list and be entirely uncoloured. And a
+    # count of zero is ambiguous without the shown flag, because "nothing is
+    # displayed" is not a defect while "displayed and uncoloured" is.
+    #
+    # The left pane only. The right pane of this course's final comparison is
+    # still uncoloured, which the card records as open rather than asserted away;
+    # binding `1:1` here would be binding a value that is not true.
+    if(
+        NOT probe_output MATCHES
+            "SYNTAX_DISPLAYED_SPANS:([0-9]+):([0-9]+):([0-9]+):1"
+    )
+        message(FATAL_ERROR
+            "UIforETW ${profile} displayed no comparison to classify\n"
+            "stdout:\n${probe_output}"
+        )
+    endif()
+    if("${CMAKE_MATCH_1}" STREQUAL "0")
+        message(FATAL_ERROR
+            "UIforETW ${profile} rendered the selected comparison unclassified: "
+            "the left pane carries no token spans for a file whose grammar is "
+            "embedded\nstdout:\n${probe_output}"
+        )
+    endif()
+
     foreach(artifact IN ITEMS full-window.png intraline-comparison.png capture-facts.json)
         if(NOT EXISTS "${profile_evidence}/${artifact}")
             message(FATAL_ERROR "UIforETW ${profile} omitted ${artifact}")

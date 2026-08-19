@@ -115,6 +115,19 @@ namespace bpr::app {
 		// behind an all-green marker set.
 		bool DisplayedLeftClassified  = false;
 		bool DisplayedRightClassified = false;
+		// How many spans those panes carry. Presence alone is too weak to be the
+		// check the reviewer needs: `definition_for_path` falls back to plain
+		// text rather than failing, and a plain-text classification still
+		// publishes a non-null list, so a pane with a span list can still be
+		// entirely uncoloured. A count distinguishes them. BPR-0390.
+		std::size_t DisplayedLeftSpans  = 0U;
+		std::size_t DisplayedRightSpans = 0U;
+		// Whether a comparison is on screen at all. Without it a span count of
+		// zero is ambiguous between "shown and uncoloured", which is the defect,
+		// and "nothing is shown", which is not.
+		bool DisplayedComparison = false;
+		// Adoptions taken on the display turn rather than on delivery.
+		std::size_t DisplayAdoptedClassifications = 0U;
 		// The appearance settings in effect, as the core's stable names and
 		// values.
 		//

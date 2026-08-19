@@ -3330,6 +3330,17 @@ namespace {
 		stream << "SYNTAX_DISPLAYED:"
 			   << aApplication.status().DisplayedLeftClassified << ':'
 			   << aApplication.status().DisplayedRightClassified << '\n';
+		// How many spans those panes carry, and how many adoptions were taken on
+		// the display turn rather than on delivery. Presence is too weak to be
+		// the check: `definition_for_path` falls back to plain text rather than
+		// failing, and a plain-text classification still publishes a non-null
+		// list, so a pane can hold a span list and be entirely uncoloured. A
+		// count separates "classified" from "a list arrived" (BPR-0390).
+		stream << "SYNTAX_DISPLAYED_SPANS:"
+			   << aApplication.status().DisplayedLeftSpans << ':'
+			   << aApplication.status().DisplayedRightSpans << ':'
+			   << aApplication.status().DisplayAdoptedClassifications << ':'
+			   << (aApplication.status().DisplayedComparison ? 1 : 0) << '\n';
 		// The settings in effect. A composition starts from `system` and a tab
 		// width of four, so a run that made no gesture and reports anything
 		// else read it from the durable record - which is the restart claim.

@@ -1278,11 +1278,19 @@ namespace bpr::app {
 	/// exists to prevent.
 	///
 	/// `materialize` needs the request context that names the authority its
-	/// cache session was opened for, so the comparison currently being
-	/// classified is retained here. It is set on the decision lane and read on
-	/// the appearance effect executor, which is why it is guarded.
+	/// cache session was opened for, so each submitted blob is bound to the
+	/// request that reads it. Registrations are written on the decision lane and
+	/// read on the appearance effect executor, which is why they are guarded.
 	///
-	/// The retained value is a comparison, never a classification: this class
+	/// One binding per blob rather than one mutable comparison. The single
+	/// retained context was latest-write-wins, so a classification that began
+	/// late read whichever comparison had since become current instead of the one
+	/// it was submitted for. Binding is insert-if-absent: a blob is
+	/// content-addressed, so two comparisons naming it want identical bytes, and
+	/// keeping the first binding means no later display can move a read that is
+	/// already in flight. BPR-0390.
+	///
+	/// The retained values are comparisons, never classifications: this class
 	/// holds no span, decides no role, and would be useless to anything that
 	/// wanted to skip the classifier.
 	class composition_blob_source final : public adapters::syntax::blob_source
@@ -1293,47 +1301,68 @@ namespace bpr::app {
 		{
 		}
 
-		void set_comparison(const core::diff_request_context& aContext)
+		/// \brief Binds each of a comparison's blobs to the request that reads it.
+		void register_comparison(const core::diff_request_context& aContext)
 		{
 			const auto guard = std::lock_guard{ Mutex };
-			Context          = aContext;
+			for (const auto side :
+				 { core::diff_side::left, core::diff_side::right }) {
+				const auto& blob = side == core::diff_side::left
+					? aContext.Key.LeftBlob
+					: aContext.Key.RightBlob;
+				if (!blob.has_value() || find_request(*blob) != Requests.end()) {
+					continue;
+				}
+				if (Requests.size() >= MaximumRequests) {
+					// Refused rather than evicted. Evicting would move a read
+					// that is already in flight, which is the defect this
+					// replaced; refusing makes the read report unavailable, the
+					// classification fail, and a later display resubmit.
+					continue;
+				}
+				Requests.push_back(application::diff_blob_request{
+					.Context      = aContext,
+					.Side         = side,
+					.Blob         = *blob,
+					.MaximumBytes = adapters::syntax::maximum_classified_blob_bytes,
+				});
+			}
+		}
+
+		/// \brief Releases one blob's binding once its classification is over.
+		void release_blob(const core::git_blob_oid& aBlob)
+		{
+			const auto guard = std::lock_guard{ Mutex };
+			if (const auto known = find_request(aBlob); known != Requests.end()) {
+				Requests.erase(known);
+			}
 		}
 
 		void clear_comparison()
 		{
 			const auto guard = std::lock_guard{ Mutex };
-			Context.reset();
+			Requests.clear();
 		}
 
 		[[nodiscard]] auto blob_bytes(const core::git_blob_oid& aBlob)
 			-> std::optional<std::string> override
 		{
-			const auto context = [this] {
+			const auto request = [this, &aBlob] {
 				const auto guard = std::lock_guard{ Mutex };
-				return Context;
+				const auto known = find_request(aBlob);
+				return known == Requests.end()
+					? std::optional<application::diff_blob_request>{ }
+					: std::optional{ *known };
 			}();
-			if (!context.has_value()) {
+			if (!request.has_value()) {
+				// A blob nothing bound belongs to a comparison the reviewer has
+				// left, or to one whose binding was refused at the bound. Side
+				// is carried by the binding rather than derived here, so it can
+				// no longer be answered from a comparison that arrived later.
 				return std::nullopt;
 			}
-			// Side is reported back rather than acted on, so it is derived
-			// from the comparison instead of guessed. A blob that belongs to
-			// neither side is not this comparison's to read.
-			const auto side = context->Key.LeftBlob == std::optional{ aBlob }
-				? core::diff_side::left
-				: core::diff_side::right;
-			if (
-				context->Key.LeftBlob != std::optional{ aBlob }
-				&& context->Key.RightBlob != std::optional{ aBlob }) {
-				return std::nullopt;
-			}
-			const auto observation = Blobs.materialize(
-				application::diff_blob_request{
-					.Context      = *context,
-					.Side         = side,
-					.Blob         = aBlob,
-					.MaximumBytes = adapters::syntax::maximum_classified_blob_bytes,
-				},
-				std::stop_token{ });
+			const auto observation
+				= Blobs.materialize(*request, std::stop_token{ });
 			if (
 				observation.Status != application::diff_blob_status::available) {
 				// Absent rather than empty. An empty string would classify as
@@ -1347,9 +1376,23 @@ namespace bpr::app {
 		}
 
 	private:
-		application::diff_blob_port&              Blobs;
-		std::mutex                                Mutex;
-		std::optional<core::diff_request_context> Context;
+		// Two blobs per comparison, so eight comparisons' worth of concurrent
+		// classification. Past that a read is refused rather than mis-bound.
+		static constexpr auto MaximumRequests = std::size_t{ 16U };
+
+		[[nodiscard]] auto find_request(const core::git_blob_oid& aBlob)
+			-> std::vector<application::diff_blob_request>::iterator
+		{
+			return std::ranges::find_if(
+				Requests,
+				[&aBlob](const application::diff_blob_request& aRequest) {
+					return aRequest.Blob == aBlob;
+				});
+		}
+
+		application::diff_blob_port&                Blobs;
+		std::mutex                                  Mutex;
+		std::vector<application::diff_blob_request> Requests;
 	};
 
 	/// \brief Routes appearance projections to the surfaces that consume them.
@@ -2186,6 +2229,12 @@ namespace bpr::app {
 			DiffProjections = std::make_unique<composition_diff_projection>(
 				*Window->comparison_surface(),
 				[this](const application::diff_publication& aPublication) {
+					// Before the ledger observation, because it is about the
+					// panes rather than about the review, and because
+					// `observe_selected_material` returns early for reasons
+					// that have nothing to do with whether the comparison on
+					// screen is coloured.
+					adopt_published_classification(aPublication);
 					observe_selected_material(aPublication);
 				});
 			DiffHost = std::make_unique<application::diff_application_host>(
@@ -3822,11 +3871,15 @@ namespace bpr::app {
 			}
 			if (SyntaxBlobs != nullptr) {
 				// A classification still in flight now has no comparison to
-				// read for. Dropping the context makes it report unavailable
+				// read for. Dropping the bindings makes it report unavailable
 				// rather than materialize bytes for a file the reviewer has
 				// left.
 				SyntaxBlobs->clear_comparison();
 			}
+			// The definitions go with them: nothing on screen can be adopted for
+			// a selection that has been cleared, and keeping the choices would
+			// only let a later publication colour a pane the reviewer has left.
+			ClassifiedDefinitions.clear();
 			if (Window != nullptr) {
 				Window->comparison_surface()->clear();
 			}
@@ -3966,20 +4019,114 @@ namespace bpr::app {
 			const core::diff_request_context& aContext,
 			const std::string_view            aPath)
 		{
-			if (AppearanceHost == nullptr) {
+			if (AppearanceHost == nullptr || SyntaxBlobs == nullptr) {
 				return;
 			}
-			SyntaxBlobs->set_comparison(aContext);
+			SyntaxBlobs->register_comparison(aContext);
 			const auto definition = SyntaxDefinitions->definition_for_path(aPath);
-			for (const auto& blob :
-				 { aContext.Key.LeftBlob, aContext.Key.RightBlob }) {
+			for (const auto side :
+				 { core::diff_side::left, core::diff_side::right }) {
+				const auto& blob = side == core::diff_side::left
+					? aContext.Key.LeftBlob
+					: aContext.Key.RightBlob;
 				if (!blob.has_value()) {
 					continue;
 				}
+				// Retained so the display path can rebuild this exact cache key
+				// without the file's name. The name is only needed to choose a
+				// definition, and that choice has already been made here.
+				retain_definition(*blob, definition);
 				AppearanceHost->classify(application::token_span_cache_key{
 					.Blob       = *blob,
 					.Definition = definition,
 				});
+			}
+		}
+
+		/// \brief Remembers which definition a blob was classified against.
+		///
+		/// \details Bounded and insert-if-absent for the same reason as the blob
+		/// bindings: a blob is content-addressed, so the definition chosen for it
+		/// once is the definition for it. BPR-0390.
+		void retain_definition(
+			const core::git_blob_oid&                     aBlob,
+			const application::syntax_definition_version& aDefinition)
+		{
+			const auto known = std::ranges::find_if(
+				ClassifiedDefinitions,
+				[&aBlob](const auto& aEntry) { return aEntry.first == aBlob; });
+			if (known != ClassifiedDefinitions.end()) {
+				return;
+			}
+			if (ClassifiedDefinitions.size() >= MaximumClassifiedDefinitions) {
+				ClassifiedDefinitions.erase(ClassifiedDefinitions.begin());
+			}
+			ClassifiedDefinitions.emplace_back(aBlob, aDefinition);
+		}
+
+		/// \brief Colours the comparison the panes are actually showing.
+		///
+		/// \details Adoption used to depend entirely on delivery order. A
+		/// classification and a diff result are two unordered publications into
+		/// one pane, `set_loading` clears spans on every new request, and
+		/// `adopt_classification` drops anything whose blob is no longer the
+		/// current comparison's — so a classification that arrived a moment too
+		/// early was wiped and one that arrived a moment too late was refused.
+		/// Measured on the recorded course, four of seven publications were
+		/// dropped and both panes ended unclassified while every composition
+		/// marker stayed green.
+		///
+		/// This asks the opposite question at the one moment it can be answered:
+		/// the comparison is on screen now, so if its spans are already known,
+		/// adopt them now. Guarded by what the surface itself reports rather than
+		/// by the retained selection, because `composition_diff_projection`
+		/// forwards every publication to this sink while `diff_workbench::publish`
+		/// accepts only the current one. BPR-0390.
+		void adopt_published_classification(
+			const application::diff_publication& aPublication)
+		{
+			if (
+				Closing || Window == nullptr || AppearanceHost == nullptr
+				|| aPublication.Result == nullptr) {
+				return;
+			}
+			auto* const surface = Window->comparison_surface();
+			const auto& shown   = surface->current_result();
+			if (!shown || shown->Alignment.Key != aPublication.Context.Key) {
+				return;
+			}
+			for (const auto side :
+				 { core::diff_side::left, core::diff_side::right }) {
+				const auto& blob = side == core::diff_side::left
+					? aPublication.Context.Key.LeftBlob
+					: aPublication.Context.Key.RightBlob;
+				if (!blob.has_value()) {
+					continue;
+				}
+				const auto known = std::ranges::find_if(
+					ClassifiedDefinitions,
+					[&blob](const auto& aEntry) {
+						return aEntry.first == *blob;
+					});
+				if (known == ClassifiedDefinitions.end()) {
+					continue;
+				}
+				// A synchronous read of what the host already holds. The
+				// submission in `classify_comparison` is deliberately kept as
+				// well: `cached` does not refresh the retention order, so a
+				// repeatedly displayed blob would become evictable if this
+				// replaced it rather than joining it.
+				auto spans = AppearanceHost->cached(
+					application::token_span_cache_key{
+						.Blob       = *blob,
+						.Definition = known->second,
+					});
+				if (!spans) {
+					continue;
+				}
+				if (surface->adopt_token_spans(side, std::move(spans))) {
+					++DisplayAdoptedClassifications;
+				}
 			}
 		}
 
@@ -3993,6 +4140,14 @@ namespace bpr::app {
 		void adopt_classification(
 			const application::token_span_publication& aSpans)
 		{
+			// A terminal has arrived for this blob, so whatever read it needed is
+			// over and its binding can go. Released before the guards below,
+			// because the binding's lifetime is the classification's rather than
+			// this adoption's, and a dropped adoption still ends the read.
+			// BPR-0390.
+			if (SyntaxBlobs != nullptr) {
+				SyntaxBlobs->release_blob(aSpans.Key.Blob);
+			}
 			if (Closing || Window == nullptr || DiffHost == nullptr) {
 				return;
 			}
@@ -4666,6 +4821,18 @@ namespace bpr::app {
 		// claims, and only the second one shows a reviewer anything.
 		std::size_t AdoptedClassifications = 0U;
 		std::size_t DroppedClassifications = 0U;
+		// Adoptions taken on the display turn from what the host already held,
+		// counted apart from the publication path so neither number absorbs the
+		// other. BPR-0390.
+		std::size_t DisplayAdoptedClassifications = 0U;
+		// Two blobs per comparison, so eight comparisons' worth of remembered
+		// definition choices. The oldest is dropped past that; a blob whose
+		// choice has been forgotten is simply not adopted on display, and its
+		// classification still publishes through the ordinary path.
+		static constexpr auto MaximumClassifiedDefinitions = std::size_t{ 16U };
+		std::vector<
+			std::pair<core::git_blob_oid, application::syntax_definition_version>>
+			ClassifiedDefinitions;
 		// Times the presentation profile refused typography the host accepted.
 		// Both validate with the same core function, so this must stay zero;
 		// it exists so that if it ever does not, something says so.
@@ -4745,6 +4912,19 @@ namespace bpr::app {
 
 	auto github_application::status() const noexcept -> github_application_status
 	{
+		// How many spans the pane on screen carries right now. Read here rather
+		// than counted as it is adopted, because the question is about the
+		// present state of the surface and a count kept alongside would only
+		// agree with it by luck. BPR-0390.
+		const auto displayed_span_count
+			= [this](const core::diff_side aSide) noexcept -> std::size_t {
+			if (Implementation->Window == nullptr) {
+				return 0U;
+			}
+			const auto& spans
+				= Implementation->Window->comparison_surface()->token_spans(aSide);
+			return spans ? spans->size() : 0U;
+		};
 		return {
 			.Closing                        = Implementation->Closing,
 			.ShutdownComplete               = Implementation->ShutdownComplete,
@@ -4796,6 +4976,15 @@ namespace bpr::app {
 			.DisplayedRightClassified = Implementation->Window != nullptr
 				&& static_cast<bool>(Implementation->Window->comparison_surface()
 										 ->token_spans(core::diff_side::right)),
+			.DisplayedLeftSpans = displayed_span_count(
+				core::diff_side::left),
+			.DisplayedRightSpans = displayed_span_count(
+				core::diff_side::right),
+			.DisplayedComparison = Implementation->Window != nullptr
+				&& static_cast<bool>(Implementation->Window->comparison_surface()
+										 ->current_result()),
+			.DisplayAdoptedClassifications
+			= Implementation->DisplayAdoptedClassifications,
 			.AppearanceMode                = Implementation->AppearanceHost != nullptr
 				? std::string{ core::stable_name(
 					  Implementation->AppearanceHost->settings().Mode) }
