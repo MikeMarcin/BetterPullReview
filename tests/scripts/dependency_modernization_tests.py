@@ -393,14 +393,33 @@ class DependencyModernizationTests(unittest.TestCase):
 
         Each assertion below is paired with the failure it exists to catch.
         """
-        provider = (ROOT / "cmake/BprQtProvider.cmake").read_text(
+        raw_provider = (ROOT / "cmake/BprQtProvider.cmake").read_text(
             encoding="utf-8"
+        )
+        # Comments stripped before anything is asserted. Every `assertIn` below
+        # would otherwise be satisfiable by a `#` line naming the thing it asks
+        # for, which is how a contract comes to describe a build it no longer
+        # constrains. The two ordering checks depend on this too: `str.find`
+        # returns the first occurrence, so a comment mentioning
+        # `if(BPR_DEPENDENCY_OFFLINE)` above the real gate would let the gate
+        # move below the download while the index comparison still held.
+        provider = "\n".join(
+            re.sub(r"#.*$", "", line) for line in raw_provider.splitlines()
         )
 
         # Unpinned, a range, or an environment default would all let two hosts
         # build against different Qt.
         self.assertRegex(
             provider, r"(?m)^set\(BPR_QT_VERSION \"\d+\.\d+\.\d+\"\)$"
+        )
+        # And the only one. A second `set(BPR_QT_VERSION …)` guarded by
+        # `if(DEFINED ENV{…})` leaves the literal line intact and still lets two
+        # hosts build against different Qt, which is the failure the line above
+        # exists to catch rather than merely to describe.
+        self.assertEqual(
+            len(re.findall(r"set\(\s*BPR_QT_VERSION\b", provider)),
+            1,
+            "BPR_QT_VERSION is assigned more than once",
         )
 
         # Not namespaced by version, a cache populated under one pin would be
@@ -436,25 +455,56 @@ class DependencyModernizationTests(unittest.TestCase):
         # existence alone would accept an interrupted download or a stale pin,
         # and the version has to be read from the Impl file because the
         # forwarding file never carries the literal.
-        for package in (
-            "Qt6",
-            "Qt6Core",
-            "Qt6Gui",
-            "Qt6Widgets",
-            "Qt6Network",
-            "Qt6CoreTools",
-        ):
-            self.assertIn(package, provider)
+        # Read off the validator's own `foreach` line as whole words. A plain
+        # `assertIn` over the file would pass with the list reduced to one
+        # package, because `Qt6` is a substring of `Qt6Core` and `Qt6Core` of
+        # `Qt6CoreTools`.
+        validated = re.search(
+            r"foreach\(package IN ITEMS ([^)]*)\)", provider
+        )
+        self.assertIsNotNone(validated, "the validator's package list is gone")
+        validated_packages = set((validated.group(1) if validated else "").split())
+        self.assertEqual(
+            validated_packages,
+            {
+                "Qt6",
+                "Qt6Core",
+                "Qt6Gui",
+                "Qt6Widgets",
+                "Qt6Network",
+                "Qt6CoreTools",
+            },
+        )
         self.assertIn("Qt6ConfigVersionImpl.cmake", provider)
         self.assertIn(
             r'REGEX "^set\\(PACKAGE_VERSION \"${BPR_QT_VERSION}\"\\)$"',
             provider,
         )
 
-        # And the validator has to be what the acquisition path consults, not a
-        # function nothing calls.
-        self.assertIn('bpr_validate_qt_prefix("${prefix}" cached_is_valid)', provider)
-        self.assertIn("if(NOT cached_is_valid)", provider)
+        # And the validator has to be what every acquisition arm consults, not a
+        # function one of them calls. Three arms reach a prefix: the cache hit,
+        # a caller-supplied `BPR_QT_ROOT`, and each download attempt. Binding
+        # only the first would let `-DBPR_QT_ROOT=/any/dir` bypass the pin and
+        # the package checks entirely, and would let the retry loop accept an
+        # empty prefix on a zero exit -- the exact intermittent failure the
+        # provider's own comment says exit status cannot rule out.
+        for arm, guard in (
+            ('bpr_validate_qt_prefix("${prefix}" cached_is_valid)', "if(NOT cached_is_valid)"),
+            ('bpr_validate_qt_prefix("${BPR_QT_ROOT}" supplied_is_valid)', "if(NOT supplied_is_valid)"),
+            ('bpr_validate_qt_prefix("${prefix}" attempt_is_valid)', "if(attempt_is_valid)"),
+        ):
+            self.assertIn(arm, provider)
+            self.assertIn(guard, provider)
+
+        # The lock has to be held before the prefix is read or written, not
+        # merely to exist somewhere in the file.
+        lock_call = provider.find("LOCK \"${CPM_SOURCE_CACHE}/bprqt-")
+        self.assertNotEqual(lock_call, -1)
+        self.assertLess(lock_call, download_call)
+        self.assertLess(
+            lock_call,
+            provider.find('bpr_validate_qt_prefix("${prefix}" cached_is_valid)'),
+        )
 
     def test_qt_provider_is_the_default_acquisition_path(self) -> None:
         """The other branch, which nothing covered.

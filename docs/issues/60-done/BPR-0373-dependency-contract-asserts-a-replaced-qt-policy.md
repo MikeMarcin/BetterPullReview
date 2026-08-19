@@ -209,6 +209,53 @@ Each was driven to fail by breaking the provider, then restored:
 Nothing was made to pass by deleting coverage: the case count went up by one and
 the previously-erroring case now runs.
 
+### Strengthened after review — 2026-08-19
+
+An independent review broke five of the assertions, and every break was real. The
+common cause: they asserted that text *exists*, which a `#` comment satisfies, and
+they asserted that mechanisms *are present*, which says nothing about whether they
+are reachable or unique.
+
+Comments are now stripped before anything is asserted, which closes the whole
+comment-satisfiable class at once and is also what makes the two ordering checks
+mean anything — `str.find` returns the first occurrence, so a comment mentioning
+`if(BPR_DEPENDENCY_OFFLINE)` above the real gate would have let the gate move below
+the download while the index comparison still held.
+
+Four specific additions:
+
+- **The pin must be the only assignment.** `if(DEFINED ENV{BPR_QT}) set(BPR_QT_VERSION …)`
+  after line 16 leaves the literal line intact, so the regex still passed while two
+  hosts could build against different Qt.
+- **Every validation arm, not one.** Three arms reach a prefix — the cache hit, a
+  caller-supplied `BPR_QT_ROOT`, and each download attempt — and only the first was
+  bound. So `-DBPR_QT_ROOT=/any/dir` could bypass the pin and the package checks
+  entirely, and the retry loop could accept an empty prefix on a zero exit, which is
+  the exact intermittent failure the provider's own comment says exit status cannot
+  rule out.
+- **The package list read as whole words** off the validator's own `foreach` line.
+  `assertIn` over the file passed with the list cut to one package, because `Qt6` is
+  a substring of `Qt6Core` and `Qt6Core` of `Qt6CoreTools`.
+- **The lock's position**, not just its presence: it must be taken before the prefix
+  is validated or downloaded, or two configures still race.
+
+### Mutation table, extended
+
+Every row was driven to failure and the provider restored byte-identical:
+
+| Provider mutation | Verdict |
+|---|---|
+| `BPR_QT_VERSION` becomes `$ENV{BPR_QT}` | fails |
+| an `ENV` override *added after* the literal pin | fails (new) |
+| lock becomes `GUARD PROCESS` | fails |
+| the `BPR_DEPENDENCY_OFFLINE` gate renamed away | fails |
+| the gate moved below the download, comment left behind | fails (new) |
+| validation reads the forwarding `Qt6ConfigVersion.cmake` | fails |
+| `BPR_QT_ROOT` validation removed | fails (new) |
+| the retry loop accepts a zero exit | fails (new) |
+| the package list cut to one entry | fails (new) |
+| provider restored | passes |
+
 ### Left to another card
 
 The sibling instance of the same migration mistake — a
