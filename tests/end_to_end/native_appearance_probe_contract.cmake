@@ -387,4 +387,34 @@ if(EXISTS "${BPR_BEFORE_RENDER}" OR EXISTS "${BPR_AFTER_RENDER}")
     message(FATAL_ERROR "cut native selection wire produced evidence")
 endif()
 
+# BPR-0391. The dark side now waits for the owner's focus to come back before
+# it takes its one-shot measurement, bounded only by the run budget. That wait
+# is only correct because no automated course can enter it: it lives inside the
+# appearance stage, and every course here refuses at `platform_not_cocoa` before
+# that stage is entered. If the marker ever appears in one of these runs, an
+# automated course is waiting for a person who is not there, and the only thing
+# that would end it is budget expiry.
+#
+# The other half of "cannot hang" is structural and proven above rather than
+# here: the budget is checked at the top of every tick, ahead of the stage
+# switch that contains the wait, and the startup-budget course is the case that
+# shows expiry still produces the complete marker record.
+foreach(
+    waiting_course
+    offscreen
+    startup_budget
+    cut
+)
+    if(
+        ${waiting_course}_output MATCHES
+            "NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN"
+    )
+        message(
+            FATAL_ERROR
+            "${waiting_course} course entered the owner-return wait: "
+            "stdout=${${waiting_course}_output}"
+        )
+    endif()
+endforeach()
+
 message("NATIVE_APPEARANCE_PROBE_CONTRACT_OK")

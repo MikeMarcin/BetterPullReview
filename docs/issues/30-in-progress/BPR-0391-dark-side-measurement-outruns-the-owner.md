@@ -52,3 +52,77 @@ no rasters), preserved at
 ```sh
 ctest --preset dev -R '^(application_native_appearance_probe_contract|application_attended_launch_contract)$' --output-on-failure
 ```
+
+## The dark side now waits — 2026-08-19
+
+`native_appearance_owner_returned` (`src/app/main.cpp`) asks exactly what the
+measurement asks: `InitialFocus != nullptr`, `isActiveWindow()`,
+`QApplication::activeWindow() == &window`, and
+`QApplication::focusWidget() == InitialFocus`. The appearance stage now consults
+it after the settle counter elapses and before the one-shot measurement, prints
+`NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN` once, and breaks out of the tick
+until the answer changes.
+
+Deliberately the *measurement's* condition rather than the Light side's weaker
+one. The Light gate is `!isActiveWindow() || focusWidget() == nullptr`, which is
+all it can ask before a baseline exists; waiting on that here would let the
+measurement proceed with focus on some other widget and fail on a term the wait
+could have waited for.
+
+Geometry-rebuild attribution is unchanged in kind. The capture window still
+opens at the accepted Light baseline — `InitialDiffGeometryRebuilds` and
+`InitialDiffGeometryHistorySize` are recorded in
+`prepare_native_appearance_probe`, untouched — so transition-caused rebuilds are
+attributed whether or not the owner has returned. What changed is that the
+window now closes when the owner returns rather than half a second after the
+scheme settles, and `DiffGeometryAttributionComplete` still reports history
+overflow rather than hiding it.
+
+### Cannot hang: what was proven, and how
+
+The card asks the offscreen contract to prove the wait is satisfied immediately
+where focus is synthesized. It cannot, and the narrower truth is better than a
+claim shaped to the request: **the appearance stage is unreachable offscreen.**
+`prepare_native_appearance_probe` returns `platform_not_cocoa` when
+`InitialPlatformName != "cocoa"`, before `Stage` becomes `appearance`, so no
+offscreen course reaches the wait at all. The predicate is written without a
+platform test — it would pass immediately anywhere focus is synthesized — but
+nothing offscreen exercises it.
+
+What is proven instead, and directly:
+
+1. `native_appearance_probe_contract.cmake` now requires
+   `NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN` to be **absent** from all three
+   of its offscreen courses — the real-selection course, the 1 ms
+   startup-budget course, and the cut-selection-wire course. If the wait ever
+   becomes reachable in an automated run, that is the assertion that says so.
+   Seeding the marker into the refusal path made the contract fail with
+   `offscreen course entered the owner-return wait`, so the check is wired, not
+   decorative; the seed was removed and the contract re-run clean.
+2. The bound is structural and already covered. The budget is evaluated at the
+   top of every tick, ahead of the `switch` that contains the wait
+   (`src/app/main.cpp`), and expiry calls `capture_automated_timeout_evidence`,
+   which records the failed stage and transitions to shutdown. The
+   startup-budget course is the registered case that shows an expired budget
+   still produces the complete marker record. A `break` out of the appearance
+   stage therefore cannot outlive the run, by the same mechanism that already
+   bounds the Light-side wait.
+
+### Evidence
+
+| Check | Result |
+|---|---|
+| `ctest --preset dev -R '^(application_native_appearance_probe_contract\|application_attended_launch_contract)$'` | 2/2 passed, 47.20 s |
+| marker seeded into the refusal path, contract re-run | fails: `offscreen course entered the owner-return wait` |
+| seed removed, contract re-run | 1/1 passed, 26.90 s |
+| `clang-format --dry-run --Werror src/app/main.cpp` | clean |
+| `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+
+Documentation: `docs/development/build-and-test.md` gains the dark-side wait
+beside the Light-side one it already documented, including why the procedure was
+impossible before and what bounds the wait.
+
+### What remains
+
+Only the attended bullet: the v004 packet regenerated against these bytes, and
+an operator willing to click, switch, return. That is a person, not a gate.

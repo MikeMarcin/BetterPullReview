@@ -591,18 +591,19 @@ namespace {
 #if defined(BPR_BUILD_TESTING)
 		struct native_appearance_probe_state
 		{
-			bool                                         Enabled                      = false;
-			bool                                         StageEntered                 = false;
-			bool                                         WaitingForOwnerFocusReported = false;
-			bool                                         SignalObserved               = false;
-			bool                                         StatePassed                  = false;
-			bool                                         PixelsDiffer                 = false;
-			std::size_t                                  SettleAttempts               = 0U;
-			std::size_t                                  GlobalPollTicks              = 0U;
-			Qt::ColorScheme                              InitialColorScheme           = Qt::ColorScheme::Unknown;
-			Qt::ColorScheme                              ObservedColorScheme          = Qt::ColorScheme::Unknown;
-			Qt::ColorScheme                              InitialGlobalColorScheme     = Qt::ColorScheme::Unknown;
-			Qt::ColorScheme                              ObservedGlobalColorScheme    = Qt::ColorScheme::Unknown;
+			bool                                         Enabled                       = false;
+			bool                                         StageEntered                  = false;
+			bool                                         WaitingForOwnerFocusReported  = false;
+			bool                                         WaitingForOwnerReturnReported = false;
+			bool                                         SignalObserved                = false;
+			bool                                         StatePassed                   = false;
+			bool                                         PixelsDiffer                  = false;
+			std::size_t                                  SettleAttempts                = 0U;
+			std::size_t                                  GlobalPollTicks               = 0U;
+			Qt::ColorScheme                              InitialColorScheme            = Qt::ColorScheme::Unknown;
+			Qt::ColorScheme                              ObservedColorScheme           = Qt::ColorScheme::Unknown;
+			Qt::ColorScheme                              InitialGlobalColorScheme      = Qt::ColorScheme::Unknown;
+			Qt::ColorScheme                              ObservedGlobalColorScheme     = Qt::ColorScheme::Unknown;
 			QPalette                                     InitialPalette;
 			QString                                      InitialPlatformName;
 			QString                                      InitialStyleClass;
@@ -1067,6 +1068,31 @@ namespace {
 			&& aWindow.epoch_selectors()->statistics().AppearanceUpdates
 			== aRun.Appearance.InitialEpochAppearanceUpdates
 			&& native_appearance_context_passed(aWindow, aRun);
+	}
+
+	/// Whether the owner's focus has come back to the window the probe measures.
+	///
+	/// The one-shot dark measurement requires the window to be active, to be the
+	/// application's active window, and to hold focus on the exact widget the
+	/// Light baseline recorded. A person changing the appearance in System
+	/// Settings necessarily surrenders all three, and cannot restore them within
+	/// the half-second the settle counter allows, so measuring as soon as the
+	/// schemes read Dark makes the attended procedure humanly impossible rather
+	/// than merely strict. This is the same question the Light side already
+	/// waits on, asked at the other end of the transition. BPR-0391.
+	///
+	/// The terms are the run's own baseline facts, not conditions waiting can
+	/// change: `prepare_native_appearance_probe` refuses before the stage is
+	/// entered unless the window was active with a focused widget, so a run that
+	/// reaches here has both.
+	[[nodiscard]] auto native_appearance_owner_returned(
+		const bpr::qt::workbench_window& aWindow,
+		const automated_run&             aRun) -> bool
+	{
+		return aRun.Appearance.InitialFocus != nullptr
+			&& aWindow.isActiveWindow()
+			&& QApplication::activeWindow() == &aWindow
+			&& QApplication::focusWidget() == aRun.Appearance.InitialFocus;
 	}
 
 	[[nodiscard]] auto native_appearance_dark_state_passed(
@@ -4506,6 +4532,23 @@ namespace {
 					&& QGuiApplication::styleHints()->colorScheme()
 						== Qt::ColorScheme::Dark
 					&& ++aRun->Appearance.SettleAttempts >= 50U) {
+					// The schemes have settled; the owner has not necessarily
+					// come back. Wait for the focus the measurement below
+					// requires, rather than measuring into its absence and
+					// reporting the owner's trip to System Settings as a state
+					// failure. Bounded only by the run budget, which is checked
+					// at the top of every tick before this switch, so the wait
+					// cannot outlive the run. BPR-0391.
+					if (!native_appearance_owner_returned(window, *aRun)) {
+						if (!aRun->Appearance.WaitingForOwnerReturnReported) {
+							QTextStream stream{ stdout };
+							stream
+								<< "NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN\n";
+							stream.flush();
+							aRun->Appearance.WaitingForOwnerReturnReported = true;
+						}
+						break;
+					}
 					const auto* const appearanceWorkbench
 						= window.comparison_surface();
 					aRun->Appearance.ObservedDiffPalette

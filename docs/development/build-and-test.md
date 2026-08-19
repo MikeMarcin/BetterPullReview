@@ -1218,6 +1218,26 @@ verdict. Non-Cocoa probes report `platform_not_cocoa` after proving the exact
 selected-diff course. The readiness loop below therefore does not progress
 until the owner has focused the window.
 
+The dark side waits for the same thing at the other end of the transition.
+Changing the appearance is precisely what takes focus away — a person has to go
+to System Settings — and the one-shot measurement requires the window active,
+the application's active window, and focus on the exact widget the Light
+baseline recorded. So once the local, global, and style-hint schemes all read
+Dark and the settle counter has elapsed, the probe prints
+`NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN` once and waits for the owner to
+come back before measuring. Without that wait the attended procedure is not
+merely strict but impossible: no operator can leave System Settings and restore
+focus to one particular widget inside the settle window, so the run reports
+`NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED` and `NATIVE_APPEARANCE_STATE_FAILED`
+for the operator's trip rather than for anything about the appearance. The wait
+is bounded only by the run budget, which is evaluated at the top of every tick
+ahead of the stage that contains it; a run that never gets the owner back
+expires and still emits its complete marker record. No automated course can
+enter the wait, because every one of them refuses at `platform_not_cocoa`
+before the stage exists, and
+`application_native_appearance_probe_contract` asserts the marker's absence in
+all three of its offscreen courses.
+
 Only run the live Light-to-Dark gate after the desktop owner explicitly
 authorizes changing the global appearance. The test-build-only probe reads the
 global preference as independent evidence but never writes it. Use System
