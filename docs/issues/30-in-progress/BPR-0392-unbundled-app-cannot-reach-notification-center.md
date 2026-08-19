@@ -75,8 +75,9 @@ Four facts decided it, none of them a preference:
    anticipated; the build had simply never caught up.
 4. `scripts/verify_dif_asset_boundaries.py` rglobs for the literal name
    `better_pull_review` and requires exactly one hit, so keeping `OUTPUT_NAME`
-   keeps it working — and a stale flat Mach-O left in the build tree would have
-   made it two.
+   keeps it working *for this graph* — and a stale flat Mach-O left in the build
+   tree would have made it two. It does not find the tests-disabled graph's
+   binary at all; see the measured note below and [[BPR-0395]].
 
 The identities are deliberately different:
 
@@ -179,6 +180,39 @@ consumes the application binary — tests 155 through 191, including all three
 public paths, the workbench, ledger, round-trip, defect, agent-invocation,
 epoch-persistence, appearance, and attended courses — passed with the bundle in
 place, which is the evidence that `$<TARGET_FILE:...>` absorbed the path change.
+
+### Two things a review said were unclaimed, now measured
+
+An independent review flagged two shifts the card asserted nothing about. Both were
+checked directly rather than reasoned about.
+
+**The application data root does not move.** The concern was that Qt resolves
+`AppLocalDataLocation` from the bundle's `CFBundleName` on macOS, which would move
+the tests-enabled default from `…/BetterPullReview` to `…/BetterPullReview (tests)`
+and hide any pre-existing state. Probed with a minimal Qt 6.10.3 program run twice —
+once flat, once inside a bundle carrying exactly this configuration's
+`CFBundleName` and identifier:
+
+```
+flat executable    : /Users/jaeger/Library/Application Support/BetterPullReview
+bundled executable : /Users/jaeger/Library/Application Support/BetterPullReview
+```
+
+Identical. Qt uses `QCoreApplication::applicationName()`, which `main.cpp` sets
+explicitly to `BetterPullReview`, so `CFBundleName` does not participate. Nothing
+moved, and no state became invisible.
+
+**`verify_dif_asset_boundaries.py` finds this graph's binary but not the other
+one.** The card's fourth reason said it "still finds it by name". True here, and
+false for the tests-disabled graph, whose executable BPR-0328 renamed to
+`BetterPullReview` while the verifier rglobs for `better_pull_review` only. On a
+clean `app-release` tree that resolves to zero candidates.
+
+It looks healthy on this host solely because a stale pre-rename
+`better_pull_review.app` sits beside the current `BetterPullReview.app`, giving the
+lowercase rglob exactly one hit. That is a pre-existing gap from BPR-0328 rather
+than anything bundling introduced, and it is now [[BPR-0395]]. The build-and-test
+sentence has been narrowed to say which graph it is true of.
 
 ### What remains, and what this does not claim
 

@@ -539,9 +539,12 @@ The two bundles carry **deliberately different identities**:
 Notification Center keys authorization by identifier, so sharing one would let a
 tests-enabled build grant or consume the shipped application's permission.
 `OUTPUT_NAME` is left at the default for the tests-enabled graph on purpose: the
-executable inside the bundle keeps its established name, so
-`scripts/verify_dif_asset_boundaries.py` still finds it by name and only the
-directory portion of any recorded path changes.
+executable inside the bundle keeps its established name, so only the directory
+portion of any recorded path changes and
+`scripts/verify_dif_asset_boundaries.py` still finds it by name **in this graph**.
+It cannot find the tests-disabled one, whose executable BPR-0328 renamed to
+`BetterPullReview`; that is a pre-existing gap tracked by BPR-0395, not something
+bundling introduced.
 
 No registered test needed editing. They resolve the application through
 `$<TARGET_FILE:app_better_pull_review>`, which for a bundle target names the
