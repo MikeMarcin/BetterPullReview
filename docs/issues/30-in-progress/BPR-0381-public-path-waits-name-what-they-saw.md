@@ -1,7 +1,7 @@
 ---
 id: BPR-0381
 title: Make a timed-out public-path wait name the condition that failed
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0010
 depends_on: []
 ---
