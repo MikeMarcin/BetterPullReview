@@ -808,6 +808,21 @@ namespace bpr::core {
 		quota_exceeded,
 		ordinal_exhausted,
 		repair_required,
+		/// \brief The Git subprocess this work depended on failed.
+		///
+		/// \details Distinct from `unavailable`, which it used to share with a
+		/// cancellation, an invalid path, an unavailable lock, and a spool
+		/// failure. Those are five different things to go and look at, and one
+		/// code for all of them sent an operator to the wrong one.
+		///
+		/// BPR-0361 asked whether the epoch path should instead carry the text
+		/// Git wrote, as the agent path does since BPR-0348. It should not: the
+		/// functional core holds compact typed state, and threading a message
+		/// through it to reach a person would put an owning payload where the
+		/// architecture deliberately has none. A finer code says which layer
+		/// failed, which is what the code is for; the text stays in the adapter
+		/// that produced it.
+		process_failure,
 	};
 
 	/// \brief Describes the epoch catalog load failed event record.
@@ -1200,6 +1215,7 @@ namespace bpr::core {
 		catalog_conflict,
 		quota_exceeded,
 		repair_required,
+		process_failure,
 		cancelled,
 		cancellation_after_point_of_no_return,
 	};

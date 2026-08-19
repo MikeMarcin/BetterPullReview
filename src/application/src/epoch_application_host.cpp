@@ -310,10 +310,15 @@ namespace bpr::application {
 			case git_cache_failure::invalid_request:
 			case git_cache_failure::invalid_authority:
 				return core::epoch_failure::malformed_observation;
+			case git_cache_failure::process_failure:
+				// The Git subprocess failed. BPR-0348 retains what it said in
+				// `git_cache_error::Diagnostic`; this is the part of that
+				// answer the core can carry, and it is enough to say which
+				// layer to look at.
+				return core::epoch_failure::process_failure;
 			case git_cache_failure::invalid_path:
 			case git_cache_failure::lock_unavailable:
 			case git_cache_failure::spool_failure:
-			case git_cache_failure::process_failure:
 				return core::epoch_failure::unavailable;
 			}
 			return core::epoch_failure::unavailable;

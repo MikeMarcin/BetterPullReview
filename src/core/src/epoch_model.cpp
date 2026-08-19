@@ -142,6 +142,8 @@ namespace bpr::core {
 			return epoch_reason_code::epoch_ordinal_exhausted;
 		case epoch_failure::repair_required:
 			return epoch_reason_code::repair_required;
+		case epoch_failure::process_failure:
+			return epoch_reason_code::process_failure;
 		}
 		return epoch_reason_code::invalid_observation;
 	}

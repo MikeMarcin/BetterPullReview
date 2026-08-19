@@ -90,6 +90,12 @@ namespace bpr::qt {
 				return QStringLiteral("The local review-history limit was reached.");
 			case core::epoch_reason_code::repair_required:
 				return QStringLiteral("The local review history requires repair.");
+			case core::epoch_reason_code::process_failure:
+				// Deliberately says which layer, and does not try to say what
+				// Git said. The text Git wrote is retained in the adapter that
+				// ran it (BPR-0348); putting a subprocess message in front of a
+				// reviewer here would be quoting a stranger.
+				return QStringLiteral("A Git command failed while reading the review history.");
 			case core::epoch_reason_code::cancelled:
 				return QStringLiteral("Review-history work was canceled.");
 			case core::epoch_reason_code::cancellation_after_point_of_no_return:

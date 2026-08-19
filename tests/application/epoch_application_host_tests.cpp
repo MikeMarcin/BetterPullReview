@@ -4806,6 +4806,22 @@ namespace {
 			"applied-then-error promotion resumes from exact final postcondition");
 	}
 
+	[[nodiscard]] auto has_diagnostic(
+		const shared_state&           aState,
+		const core::epoch_reason_code aCode) -> bool
+	{
+		return std::ranges::any_of(
+			aState.Updates,
+			[aCode](const application::epoch_presentation_update& aUpdate) {
+				return aUpdate.Transition
+					&& std::ranges::any_of(
+						   aUpdate.Transition->Diagnostics,
+						   [aCode](const core::epoch_diagnostic& aDiagnostic) {
+							   return aDiagnostic.Code == aCode;
+						   });
+			});
+	}
+
 	[[nodiscard]] auto has_repair_diagnostic(const shared_state& aState) -> bool
 	{
 		return std::ranges::any_of(
@@ -5459,6 +5475,54 @@ namespace {
 		}
 	}
 
+	/// BPR-0361. A Git subprocess failure used to arrive as `unavailable`,
+	/// which it shared with a cancellation, an invalid path, an unavailable
+	/// lock, and a spool failure. Five things to go and look at, one code.
+	///
+	/// The card asked whether the epoch path should instead carry the text Git
+	/// wrote, as the agent path does since BPR-0348. It should not: the
+	/// functional core holds compact typed state, and threading a message
+	/// through it would put an owning payload where the architecture has none.
+	/// A finer code says which layer failed; the text stays in the adapter that
+	/// produced it.
+	void a_failed_git_subprocess_names_itself_rather_than_unavailable()
+	{
+		{
+			fixture value;
+			value.State.PrepareCacheFailures.emplace_back(
+				"cache.prepare-revision",
+				application::git_cache_failure::process_failure);
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+			drain(value);
+			expect(
+				has_diagnostic(
+					value.State, core::epoch_reason_code::process_failure),
+				"a failing Git subprocess reaches presentation as a process "
+				"failure rather than as a bare unavailability");
+			expect(
+				!has_diagnostic(
+					value.State, core::epoch_reason_code::unavailable),
+				"and does not also arrive as the code it used to be collapsed "
+				"into, which is what made the two indistinguishable");
+		}
+
+		// The neighbour it used to share a code with. If this ever reports a
+		// process failure the distinction has been lost again.
+		{
+			fixture value;
+			value.State.PrepareCacheFailures.emplace_back(
+				"cache.prepare-revision",
+				application::git_cache_failure::lock_unavailable);
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+			drain(value);
+			expect(
+				!has_diagnostic(
+					value.State, core::epoch_reason_code::process_failure),
+				"an unavailable lock is not reported as a Git subprocess "
+				"failure, so the process-failure code means what it says");
+		}
+	}
+
 	void shutdown_waits_for_worker_and_decision_quiescence()
 	{
 		fixture value;
@@ -5541,6 +5605,7 @@ int main()
 	maintenance_restart_recovery_covers_every_durable_phase();
 	maintenance_faults_fail_closed_and_restart_from_durable_phase();
 	retained_catalog_naming_absent_commits_asks_for_repair();
+	a_failed_git_subprocess_names_itself_rather_than_unavailable();
 	shutdown_waits_for_worker_and_decision_quiescence();
 	return EXIT_SUCCESS;
 }
