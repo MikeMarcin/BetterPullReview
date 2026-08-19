@@ -21,6 +21,25 @@ SPEC = importlib.util.spec_from_file_location("rfc0016_live", PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("could not load live runner")
 LIVE = importlib.util.module_from_spec(SPEC)
+
+
+# `run_rfc0016_device_capture_attended.main` refuses on any platform but macOS,
+# as its first statement, printing `RFC0016_ATTENDED_CAPTURE_REFUSED:platform`.
+# The runner is macOS-only by design and BPR-0311 keeps Windows device
+# capability out of scope, so the cases that drive its behaviour are skipped
+# where that behaviour does not exist. They had been reaching POSIX-only
+# internals - `os.getuid`, `pwd` - by calling past the refusal `main` performs,
+# and then reporting the platform's absence as a defect in the runner.
+#
+# `tests/CMakeLists.txt` already guards `designated_live_macos_capsule_contract`
+# with `if(APPLE)` for the same reason. This is the same judgement at case
+# granularity, so the suite keeps the 28 cases that are genuinely portable.
+RUNNER_PLATFORM_IS_SUPPORTED = sys.platform == "darwin"
+
+requires_macos_runner = unittest.skipUnless(
+    RUNNER_PLATFORM_IS_SUPPORTED,
+    "the attended live runner refuses every platform but macOS",
+)
 sys.modules[SPEC.name] = LIVE
 SPEC.loader.exec_module(LIVE)
 
@@ -486,6 +505,8 @@ class LiveRunnerTests(unittest.TestCase):
             LIVE.run_authorization_course(wire, CLIENT, "slow-down")
         self.assertEqual(wire.calls, [])
 
+    @requires_macos_runner
+
     def test_recovery_reservation_is_one_shot_before_wire_construction(self) -> None:
         with contained_temporary_directory() as directory:
             parent = Path(directory).resolve()
@@ -609,6 +630,8 @@ class LiveRunnerTests(unittest.TestCase):
                 )
         self.assertEqual(result, 1)
         constructor.assert_not_called()
+
+    @requires_macos_runner
 
     def test_original_marker_cannot_be_reused_as_recovery_marker(self) -> None:
         with contained_temporary_directory() as directory:
@@ -855,6 +878,8 @@ class LiveRunnerTests(unittest.TestCase):
             "RFC0016_ATTENDED_CAPTURE_FAILED:closed_failure\n",
         )
 
+    @requires_macos_runner
+
     def test_transport_rejects_non_github_authority_before_open(self) -> None:
         with mock.patch.dict(os.environ, {}, clear=True):
             wire = LIVE.HttpsWire()
@@ -873,6 +898,8 @@ class LiveRunnerTests(unittest.TestCase):
         with self.assertRaisesRegex(LIVE.LiveCaptureError, "user_code_invalid"):
             LIVE.request_device_grant(FakeWire([payload(hostile)]), CLIENT)
 
+    @requires_macos_runner
+
     def test_response_limit_is_enforced(self) -> None:
         class Reply:
             status = 200
@@ -890,6 +917,8 @@ class LiveRunnerTests(unittest.TestCase):
                     {"client_id": CLIENT},
                     timeout_seconds=1.0,
                 )
+
+    @requires_macos_runner
 
     def test_persisted_course_contains_no_transient_values(self) -> None:
         evidence = LIVE.CourseEvidence(
@@ -914,6 +943,8 @@ class LiveRunnerTests(unittest.TestCase):
                 self.assertNotIn(transient.encode(), durable)
             self.assertEqual(root.stat().st_mode & 0o077, 0)
             self.assertTrue(all(path.stat().st_mode & 0o077 == 0 for path in root.rglob("*.json")))
+
+    @requires_macos_runner
 
     def test_course_artifacts_use_execution_timestamp_not_registration_timestamp(self) -> None:
         with contained_temporary_directory() as directory:
@@ -1099,6 +1130,8 @@ class LiveRunnerTests(unittest.TestCase):
                 with self.assertRaisesRegex(LIVE.LiveCaptureError, "ambient"):
                     LIVE.HttpsWire()
 
+    @requires_macos_runner
+
     def test_response_metadata_is_not_synthesized(self) -> None:
         class Reply:
             status = 201
@@ -1116,6 +1149,8 @@ class LiveRunnerTests(unittest.TestCase):
                     {"client_id": CLIENT},
                     timeout_seconds=1.0,
                 )
+
+    @requires_macos_runner
 
     def test_write_failure_never_publishes_partial_final_tree(self) -> None:
         evidence = LIVE.CourseEvidence(
@@ -1148,6 +1183,8 @@ class LiveRunnerTests(unittest.TestCase):
                     LIVE.persist_sanitized_course(root, REGISTRATION, "slow-down", evidence)
             self.assertFalse(root.exists())
 
+    @requires_macos_runner
+
     def test_symlinked_output_parent_is_refused(self) -> None:
         with contained_temporary_directory() as directory:
             private = Path(directory).resolve()
@@ -1157,6 +1194,8 @@ class LiveRunnerTests(unittest.TestCase):
             alias.symlink_to(target, target_is_directory=True)
             with self.assertRaisesRegex(LIVE.LiveCaptureError, "link_refused"):
                 LIVE._publish_projection_tree(alias / "course", {"registration.json": b"{}"})
+
+    @requires_macos_runner
 
     def test_five_courses_assemble_atomically_into_exact_unattested_bundle(self) -> None:
         with contained_temporary_directory() as directory:
@@ -1185,6 +1224,8 @@ class LiveRunnerTests(unittest.TestCase):
             durable = b"".join(path.read_bytes() for path in bundle.rglob("*.json"))
             for transient in (DEVICE, USER, "access-secret-value", "refresh-secret-value"):
                 self.assertNotIn(transient.encode(), durable)
+
+    @requires_macos_runner
 
     def test_assembly_uses_execution_bound_runner_not_current_runner_bytes(self) -> None:
         with contained_temporary_directory() as directory:
@@ -1234,6 +1275,8 @@ class LiveRunnerTests(unittest.TestCase):
             evidence.capture_runner_sha256,
             LIVE.LOADED_RUNNER_SHA256,
         )
+
+    @requires_macos_runner
 
     def test_assembly_refuses_mismatched_registration_and_publishes_nothing(self) -> None:
         with contained_temporary_directory() as directory:
