@@ -1,7 +1,7 @@
 ---
 id: BPR-0366
 title: The capsule surface still pins the pre-BPR-0328 executable name
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: []
 ---
@@ -42,3 +42,12 @@ bundle — the same shape as the linking-is-not-composing lesson.
 ctest --preset dev -R '^(designated_live_macos_capsule_contract|macos_supervisor_provenance|macos_capsule_identity)$' --output-on-failure
 cmake --build build/bpr0256-release --target designated_live_macos_capsule
 ```
+
+## Result — 2026-08-18
+
+All four pins now name `Contents/MacOS/BetterPullReview`. The fix moved the
+capsule build past the name inspection immediately, which surfaced the next
+real defect — universal Mach-O framing, tracked and closed as [[BPR-0367]] —
+and with both fixes in place the capsule `build` subcommand prints
+`designated-live-macos-capsule:pass` against the freshly built tests-disabled
+Release bundle. The three focused selectors pass 3/3.

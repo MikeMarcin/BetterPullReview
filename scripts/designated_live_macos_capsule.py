@@ -188,44 +188,103 @@ def command(arguments: list[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
+def mach_architecture_sections(
+    path: pathlib.Path, stdout: str, label: str
+) -> list[list[str]]:
+    """Split otool output into one body per architecture, validating framing.
+
+    A thin file frames its output as ``<path>:``; a universal file repeats
+    ``<path> (architecture <name>):`` once per slice. Anything else is
+    unrecognized framing and fails closed.
+    """
+    lines = stdout.splitlines()
+    headers = [
+        index
+        for index, line in enumerate(lines)
+        if line == f"{path}:"
+        or (line.startswith(f"{path} (architecture ") and line.endswith("):"))
+    ]
+    if not headers or headers[0] != 0:
+        raise CapsuleFailure(f"{label} framing is invalid")
+    if lines[0] == f"{path}:" and len(headers) != 1:
+        raise CapsuleFailure(f"{label} framing is invalid")
+    sections: list[list[str]] = []
+    for position, start in enumerate(headers):
+        end = headers[position + 1] if position + 1 < len(headers) else len(lines)
+        sections.append(lines[start + 1 : end])
+    return sections
+
+
+def agreed_across_architectures(values: list, label: str):
+    """Every architecture slice must report the same fact."""
+    for value in values[1:]:
+        if value != values[0]:
+            raise CapsuleFailure(f"{label} disagrees between architectures")
+    return values[0]
+
+
+def parse_rpaths(path: pathlib.Path, stdout: str) -> list[str]:
+    sections = mach_architecture_sections(path, stdout, "LC_RPATH")
+    per_architecture: list[list[str]] = []
+    for body in sections:
+        rpaths: list[str] = []
+        for index, line in enumerate(body):
+            if line.strip() == "cmd LC_RPATH" and index + 2 < len(body):
+                value = body[index + 2].strip()
+                if not value.startswith("path ") or " (offset " not in value:
+                    raise CapsuleFailure("LC_RPATH framing is invalid")
+                rpaths.append(value[5 : value.index(" (offset ")])
+        per_architecture.append(rpaths)
+    return agreed_across_architectures(per_architecture, "LC_RPATH")
+
+
+def parse_install_id(path: pathlib.Path, stdout: str) -> str | None:
+    sections = mach_architecture_sections(path, stdout, "Mach-O install-name")
+    identities: list[str | None] = []
+    for body in sections:
+        if not body:
+            identities.append(None)
+        elif len(body) == 1:
+            identities.append(body[0].strip())
+        else:
+            raise CapsuleFailure("Mach-O install-name framing is invalid")
+    return agreed_across_architectures(identities, "Mach-O install-name")
+
+
+def parse_dependencies(
+    path: pathlib.Path, stdout: str, install_id: str | None
+) -> list[str]:
+    sections = mach_architecture_sections(path, stdout, "Mach-O dependency")
+    per_architecture: list[list[str]] = []
+    for body in sections:
+        dependencies: list[str] = []
+        for line in body:
+            dependency = line.strip().split(" (compatibility version", 1)[0]
+            if dependency and dependency != install_id:
+                dependencies.append(dependency)
+        per_architecture.append(dependencies)
+    return agreed_across_architectures(per_architecture, "Mach-O dependency")
+
+
 def mach_rpaths(path: pathlib.Path, otool: pathlib.Path) -> list[str]:
     result = command([str(otool), "-l", str(path)])
     if result.returncode != 0:
         raise CapsuleFailure("otool load-command inspection failed")
-    lines = result.stdout.splitlines()
-    rpaths: list[str] = []
-    for index, line in enumerate(lines):
-        if line.strip() == "cmd LC_RPATH" and index + 2 < len(lines):
-            value = lines[index + 2].strip()
-            if not value.startswith("path ") or " (offset " not in value:
-                raise CapsuleFailure("LC_RPATH framing is invalid")
-            rpaths.append(value[5 : value.index(" (offset ")])
-    return rpaths
+    return parse_rpaths(path, result.stdout)
 
 
 def mach_install_id(path: pathlib.Path, otool: pathlib.Path) -> str | None:
     result = command([str(otool), "-D", str(path)])
     if result.returncode != 0:
         raise CapsuleFailure("otool install-name inspection failed")
-    lines = result.stdout.splitlines()
-    if len(lines) == 1:
-        return None
-    if len(lines) != 2 or lines[0] != f"{path}:":
-        raise CapsuleFailure("Mach-O install-name framing is invalid")
-    return lines[1].strip()
+    return parse_install_id(path, result.stdout)
 
 
 def mach_dependencies(path: pathlib.Path, otool: pathlib.Path) -> list[str]:
     result = command([str(otool), "-L", str(path)])
     if result.returncode != 0:
         raise CapsuleFailure("otool dependency inspection failed")
-    install_id = mach_install_id(path, otool)
-    dependencies: list[str] = []
-    for line in result.stdout.splitlines()[1:]:
-        dependency = line.strip().split(" (compatibility version", 1)[0]
-        if dependency and dependency != install_id:
-            dependencies.append(dependency)
-    return dependencies
+    return parse_dependencies(path, result.stdout, mach_install_id(path, otool))
 
 
 def resolve_token_path(

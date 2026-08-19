@@ -163,7 +163,7 @@ class CapsuleRuntimeTests(unittest.TestCase):
                     "(compatibility version 6.0.0, current version 6.0.0)\n"
                     )
                 else:
-                    output = ""
+                    output = f"{application}:\n"
                 return subprocess.CompletedProcess(arguments, 0, output, "")
 
             with mock.patch.object(capsule, "command", side_effect=result):
@@ -186,7 +186,7 @@ class CapsuleRuntimeTests(unittest.TestCase):
                     "(compatibility version 1.0.0, current version 1.0.0)\n"
                     )
                 else:
-                    output = ""
+                    output = f"{application}:\n"
                 return subprocess.CompletedProcess(arguments, 0, output, "")
 
             with mock.patch.object(capsule, "command", side_effect=result):
@@ -245,6 +245,7 @@ class CapsuleClosureTests(unittest.TestCase):
                     output = f"{path}:\n{dependencies}"
                 else:
                     output = (
+                        f"{path}:\n"
                         "Load command 1\n"
                         "          cmd LC_RPATH\n"
                         "      cmdsize 32\n"
@@ -449,6 +450,85 @@ class CapsuleImageTests(unittest.TestCase):
                 text=True,
             )
             self.assertNotIn(str(image), listing.stdout)
+
+
+class MachFramingTests(unittest.TestCase):
+    """The otool parsers accept thin and universal framing, nothing else.
+
+    BPR-0367: the acquired Qt ships universal binaries, whose otool output
+    repeats one stanza per architecture. The install-name parser used to fail
+    closed on that framing, and the dependency parser used to merge slices
+    and ingest the second architecture header as a dependency name.
+    """
+
+    PATH = pathlib.Path("/capsule/BetterPullReview.app/Contents/Frameworks/QtCore")
+
+    def fat(self, first: str, second: str) -> str:
+        return (
+            f"{self.PATH} (architecture x86_64):\n{first}"
+            f"{self.PATH} (architecture arm64):\n{second}"
+        )
+
+    def test_thin_install_id(self) -> None:
+        stdout = f"{self.PATH}:\n@rpath/QtCore.framework/Versions/A/QtCore\n"
+        self.assertEqual(
+            capsule.parse_install_id(self.PATH, stdout),
+            "@rpath/QtCore.framework/Versions/A/QtCore",
+        )
+        self.assertIsNone(capsule.parse_install_id(self.PATH, f"{self.PATH}:\n"))
+
+    def test_fat_install_id_requires_agreement(self) -> None:
+        agreeing = self.fat("@rpath/QtCore\n", "@rpath/QtCore\n")
+        self.assertEqual(capsule.parse_install_id(self.PATH, agreeing), "@rpath/QtCore")
+        disagreeing = self.fat("@rpath/QtCore\n", "@rpath/QtHostile\n")
+        with self.assertRaises(capsule.CapsuleFailure):
+            capsule.parse_install_id(self.PATH, disagreeing)
+
+    def test_unrecognized_framing_fails_closed(self) -> None:
+        for hostile in (
+            "",
+            "no header at all\n@rpath/QtCore\n",
+            f"prefix\n{self.PATH}:\n@rpath/QtCore\n",
+            f"{self.PATH}:\n@rpath/QtCore\nextra line\n",
+        ):
+            with self.assertRaises(capsule.CapsuleFailure):
+                capsule.parse_install_id(self.PATH, hostile)
+
+    def test_fat_dependencies_exclude_headers_and_require_agreement(self) -> None:
+        body = (
+            "\t@rpath/QtCore (compatibility version 6.0.0, current version 6.10.3)\n"
+            "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1800.0.0)\n"
+        )
+        agreeing = self.fat(body, body)
+        self.assertEqual(
+            capsule.parse_dependencies(self.PATH, agreeing, "@rpath/QtCore"),
+            ["/usr/lib/libc++.1.dylib"],
+        )
+        hostile = self.fat(body, "\t@rpath/QtHostile (compatibility version 1.0.0, current version 1.0.0)\n")
+        with self.assertRaises(capsule.CapsuleFailure):
+            capsule.parse_dependencies(self.PATH, hostile, "@rpath/QtCore")
+
+    def test_fat_rpaths_require_agreement(self) -> None:
+        body = (
+            "Load command 1\n"
+            "          cmd LC_RPATH\n"
+            "      cmdsize 40\n"
+            "         path @executable_path/../Frameworks (offset 12)\n"
+        )
+        agreeing = self.fat(body, body)
+        self.assertEqual(
+            capsule.parse_rpaths(self.PATH, agreeing),
+            ["@executable_path/../Frameworks"],
+        )
+        hostile = self.fat(
+            body,
+            body.replace("../Frameworks", "../Hostile"),
+        )
+        with self.assertRaises(capsule.CapsuleFailure):
+            capsule.parse_rpaths(self.PATH, hostile)
+        malformed = f"{self.PATH}:\n          cmd LC_RPATH\n      cmdsize 40\n         path missing-offset\n"
+        with self.assertRaises(capsule.CapsuleFailure):
+            capsule.parse_rpaths(self.PATH, malformed)
 
 
 if __name__ == "__main__":

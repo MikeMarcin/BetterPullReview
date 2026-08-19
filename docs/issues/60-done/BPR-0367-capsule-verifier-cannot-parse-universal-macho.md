@@ -1,7 +1,7 @@
 ---
 id: BPR-0367
 title: The capsule verifier cannot parse universal Mach-O framing
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: []
 ---
@@ -40,3 +40,19 @@ magics, but all three `otool` parsers assume thin framing:
 ctest --preset dev -R '^(designated_live_macos_capsule_contract|macos_supervisor_provenance|macos_capsule_identity)$' --output-on-failure
 cmake --build build/bpr0256-release --target designated_live_macos_capsule
 ```
+
+## Result — 2026-08-18
+
+`mach_architecture_sections` now splits otool output into one validated body
+per architecture — thin `path:` framing or repeated
+`path (architecture …):` stanzas, anything else failing closed — and
+`parse_install_id`, `parse_rpaths`, and `parse_dependencies` are pure,
+hermetically tested functions that require every slice to agree before
+returning the shared value. The wrappers keep the exact `CapsuleFailure`
+vocabulary. New `MachFramingTests` cover thin framing, fat agreement, fat
+disagreement, hostile framing, and the old silent-merge defect where a fat
+`-L` run ingested the second architecture header as a dependency name. Three
+existing mocks gained the header line real otool always prints; their
+assertions are unchanged. The focused selectors pass 3/3, and the capsule
+`build` subcommand completes against the real universal-Qt deployment:
+`designated-live-macos-capsule:pass`.
