@@ -1,7 +1,7 @@
 ---
 id: BPR-0361
 title: Carry the retained git text past the catalog boundary
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0348]
 ---
