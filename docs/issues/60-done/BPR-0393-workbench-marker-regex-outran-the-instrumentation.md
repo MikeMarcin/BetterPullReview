@@ -1,7 +1,7 @@
 ---
 id: BPR-0393
 title: The workbench public path's marker regex outran BPR-0368's instrumentation
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: []
 ---
@@ -53,3 +53,19 @@ and then binding it.
 ```sh
 ctest --preset dev -R '^application_diff_workbench_public_path$' --output-on-failure
 ```
+
+## Result — 2026-08-19
+
+The pattern names both markers. `SYNTAX_DELIVERY` is bound to its five-field
+shape; `SYNTAX_DISPLAYED` is bound to `[01]:[01]`, with the reason written beside
+it in `tests/end_to_end/CMakeLists.txt` so the next reader does not mistake the
+looseness for an oversight.
+
+| Check | Result |
+|---|---|
+| `ctest --preset dev -R '^application_diff_workbench_public_path$'` before | Failed, `Required regular expression not found` |
+| same, after | Passed, 15.00 s |
+
+Measured at `HEAD` with no other change in the tree: the failing run was
+reproduced with the unrelated in-flight slice stashed, and the passing run was
+produced the same way, so neither verdict borrows from anything else.

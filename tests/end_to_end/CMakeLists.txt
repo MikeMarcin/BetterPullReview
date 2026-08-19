@@ -554,7 +554,15 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION
-            "PUBLIC_PATH_OK[\r\n]+GITHUB_FIXTURE_OK:github.com[\r\n]+DIFF_WORKBENCH_OK[\r\n]+DIFF_INTERACTION_EVIDENCE_OK[\r\n]+SYNTAX_THEME_REPAINT_OK[\r\n]+RENDER_OK[\r\n]+REVIEW_LEDGER_PRESENT_ON_ENTRY:0[\r\n]+REVIEW_LEDGER_OK[\r\n]+WORKBENCH_HOST_COMPOSED_OK[\r\n]+APPEARANCE_HOST_COMPOSED_OK[\r\n]+SYNTAX_CLASSIFIER_COMPOSED_OK[\r\n]+SYNTAX_CLASSIFICATION:[1-9][0-9]*:[1-9][0-9]*[\r\n]+APPEARANCE_SETTINGS:[a-z_]+:[0-9]+[\r\n]+NOTIFICATION_DELIVERY_COMPOSED_OK[\r\n]+NOTIFICATION_PERMISSION:[a-z-]+[\r\n]+APPEARANCE_DIVERGENCE:0[\r\n]+APPEARANCE_OBSERVED:[a-z]+:[a-z-]+:[0-9]+[\r\n]+APPEARANCE_APPLIED:#[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]:#[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]:from-profile"
+            # One contiguous block, so every line the status dump prints between
+            # the first and last marker has to be named here. An inserted line is
+            # a mismatch rather than extra output, which is how BPR-0368's two
+            # new markers left this test red from 9d63c4d until BPR-0393.
+            #
+            # SYNTAX_DISPLAYED is matched by shape on purpose. It reads 0:0 on
+            # this course today, which is BPR-0390's defect; binding it to 1:1
+            # here would take BPR-0390's own deterministic check away from it.
+            "PUBLIC_PATH_OK[\r\n]+GITHUB_FIXTURE_OK:github.com[\r\n]+DIFF_WORKBENCH_OK[\r\n]+DIFF_INTERACTION_EVIDENCE_OK[\r\n]+SYNTAX_THEME_REPAINT_OK[\r\n]+RENDER_OK[\r\n]+REVIEW_LEDGER_PRESENT_ON_ENTRY:0[\r\n]+REVIEW_LEDGER_OK[\r\n]+WORKBENCH_HOST_COMPOSED_OK[\r\n]+APPEARANCE_HOST_COMPOSED_OK[\r\n]+SYNTAX_CLASSIFIER_COMPOSED_OK[\r\n]+SYNTAX_CLASSIFICATION:[1-9][0-9]*:[1-9][0-9]*[\r\n]+SYNTAX_DELIVERY:[0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+[\r\n]+SYNTAX_DISPLAYED:[01]:[01][\r\n]+APPEARANCE_SETTINGS:[a-z_]+:[0-9]+[\r\n]+NOTIFICATION_DELIVERY_COMPOSED_OK[\r\n]+NOTIFICATION_PERMISSION:[a-z-]+[\r\n]+APPEARANCE_DIVERGENCE:0[\r\n]+APPEARANCE_OBSERVED:[a-z]+:[a-z-]+:[0-9]+[\r\n]+APPEARANCE_APPLIED:#[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]:#[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]:from-profile"
 )
 bpr_bound_automated_run(
     application_diff_workbench_public_path
