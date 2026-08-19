@@ -1,8 +1,9 @@
 ---
 id: BPR-0391
 title: The native appearance probe's dark-side measurement outruns the owner
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0006
+parked_on: awaiting-owner-verdict
 depends_on: []
 ---
 
@@ -185,3 +186,25 @@ the executable's path and bytes, and [[BPR-0390]] will change them again, so a
 packet generated now would be a v005 that needs a v006 before anyone could run
 it. The card stays in progress until the bytes settle, then gets one packet and
 parks.
+
+
+## Parked on the operator — 2026-08-19
+
+The packet is regenerated at
+`docs/verification/reviews/appearance-scheme-foreground-v005/operator-packet.md`,
+bound to the bundled executable
+`sha256:6ad6ad39b7c7b593b222c2c7c20ee567e78331f3034f73ce8d48a6f201bf8753` and to
+BPR-0249's implementation record. It was deliberately held until the bytes settled,
+because v004 exists only because v003 bound an executable that no longer matched
+its digest.
+
+The procedure is unchanged for the operator — click, switch, return — and the one
+substantive difference is stated up front: after the schemes settle the probe now
+prints `NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN` and waits, so there is no
+longer half a second to beat.
+
+Two honest warnings are in the packet rather than discovered during the run. The
+geometry capture window now spans the whole return trip, so attribution overflow
+and a rebuild delta above one are both likelier and neither is a reason to rerun.
+And a budget expiry while waiting is a clean result to report rather than an error
+to edit around — which is the branch the review found no registered case covers.

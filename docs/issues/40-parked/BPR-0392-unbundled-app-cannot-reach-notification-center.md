@@ -1,8 +1,9 @@
 ---
 id: BPR-0392
 title: The unbundled test build cannot register with Notification Center
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0010
+parked_on: awaiting-owner-verdict
 depends_on: []
 ---
 
@@ -220,3 +221,24 @@ The bundle is neither signed nor notarized, and `macdeployqt` does not run. So
 this establishes that the process *has* an identity Notification Center can
 register — not that a banner appears. That is a person looking at a screen, and
 it is [[BPR-0168]]'s, whose packet needs regenerating against these bytes.
+
+
+## Parked on the operator — 2026-08-19
+
+Every unattended bullet is done and the packet is regenerated:
+`docs/verification/reviews/native-notification-delivery-v003/operator-packet.md`,
+bound to the bundled executable
+`sha256:6ad6ad39b7c7b593b222c2c7c20ee567e78331f3034f73ce8d48a6f201bf8753` and to
+BPR-0251's implementation record.
+
+The packet says plainly what this slice does and does not establish. Bundle
+identity is *necessary* for Notification Center registration; the bundle is
+neither signed nor notarized, so whether macOS then displays a banner for an
+unsigned local build is what only a person looking at the screen can answer. The
+packet therefore names "no banner appeared and no Settings entry exists even now"
+as a specific and useful **rejection** rather than a retry condition — it would
+mean identity is necessary but not sufficient and signing is the next question,
+which is a materially different card from this one.
+
+The Settings entry will read `BetterPullReview (tests)`, which is deliberate and
+is stated in the procedure so it does not read as a defect.
