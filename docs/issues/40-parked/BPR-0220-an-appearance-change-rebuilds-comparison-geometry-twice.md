@@ -172,7 +172,8 @@ and the complete output must contain
 `NATIVE_APPEARANCE_DIFF_GEOMETRY_ATTRIBUTION_OK` plus the ordered cause line.
 
 Run only the digest-bound procedure in
-[`appearance-scheme-foreground-v002`](../../verification/reviews/appearance-scheme-foreground-v002/operator-packet.md).
-This card is parked in `10-backlog/` until that log is returned. No product fix and
-no change to either exact `== 1U` expectation is authorized before the causes
-are measured.
+[`appearance-scheme-foreground-v004`](../../verification/reviews/appearance-scheme-foreground-v004/operator-packet.md),
+which regenerated the never-run v002/v003 packets on 2026-08-18 after their
+bound executable digest went stale. This card is parked in `40-parked/` until
+that log is returned. No product fix and no change to either exact `== 1U`
+expectation is authorized before the causes are measured.

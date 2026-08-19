@@ -407,6 +407,17 @@ The run must also **capture and commit its marker log**, which closes the gap
 recorded above: the earlier successful run's log was never committed and no
 copy survives.
 
+## Packet regenerated, 2026-08-18
+
+The live procedure is now
+`docs/verification/reviews/appearance-scheme-foreground-v004/operator-packet.md`.
+The v001 through v003 packets were never run and each bound a dev executable
+that no longer exists at its recorded digest; v004 rebinds the same procedure
+to the executable built at commit `0e34519` and the unchanged BPR-0249
+implementation record at its current `60-done/` path. Its two deterministic
+preflights, `application_native_appearance_probe_contract` and the focused
+appearance selector, pass against those exact bytes.
+
 One prediction is on the record and will be checked rather than assumed. Seven
 of the eight failing terms should resolve when the window is frontmost, because
 they root in `StatePassed`. `DIFF_GEOMETRY_REBUILD` should **not** — it is

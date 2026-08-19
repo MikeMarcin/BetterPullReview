@@ -140,3 +140,14 @@ Driving `deliver()` from a test seam to make a banner appear for the owner. It
 would produce a real banner from a path no user can reach, and step 4 would
 still have nothing to select. The banner is not the claim; the queue item
 becoming a banner becoming a selected review is.
+
+## Packet regenerated, 2026-08-18
+
+The live procedure is now
+`docs/verification/reviews/native-notification-delivery-v002/operator-packet.md`.
+The v001 packet was never run and bound a dev executable that no longer exists
+at its recorded digest; v002 rebinds the same course to the executable built at
+commit `0e34519` and the unchanged BPR-0251 implementation record at its
+current `60-done/` path. Its deterministic preflight,
+`application_native_notification_attended_contract`, passes against those
+exact bytes.
