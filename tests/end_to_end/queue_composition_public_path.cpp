@@ -167,11 +167,16 @@ auto main(int argc, char** argv) -> int
 	application->show();
 	auto& window = application->window();
 	window.github_connect_action()->trigger();
-	if (!wait_until([&window] {
-			return window.github_status_text() == "GitHub account connected."
-				&& window.github_open_action()->isEnabled();
+	auto connected = wait_terms{ };
+	if (!wait_until_reporting(connected, [&window](wait_terms& aTerms) {
+			aTerms.note_identifier("status", window.github_status_text());
+			return aTerms.require(
+					   "status-is-connected",
+					   window.github_status_text() == "GitHub account connected.")
+				&& aTerms.require(
+					"open-enabled", window.github_open_action()->isEnabled());
 		})) {
-		return fail(*application, "connect");
+		return fail(*application, "connect", connected.render());
 	}
 	window.session_panel()->owner_editor()->setText(QStringLiteral("octo-org"));
 	window.session_panel()->repository_editor()->setText(
@@ -186,10 +191,12 @@ auto main(int argc, char** argv) -> int
 	if (refreshCourse) {
 		window.queue_rule_pattern_editor()->setText(
 			QString::fromStdString(rule.Pattern));
-		if (!wait_until([&window] {
-				return window.add_queue_rule_action()->isEnabled();
+		auto queueReady = wait_terms{ };
+		if (!wait_until_reporting(queueReady, [&window](wait_terms& aTerms) {
+				return aTerms.require(
+					"add-enabled", window.add_queue_rule_action()->isEnabled());
 			})) {
-			return fail(*application, "queue-ready");
+			return fail(*application, "queue-ready", queueReady.render());
 		}
 		window.add_queue_rule_action()->trigger();
 	}
@@ -231,14 +238,29 @@ auto main(int argc, char** argv) -> int
 	if (refreshCourse) {
 		const auto initialRef = fixture_ref();
 		window.github_refresh_action()->trigger();
-		if (!wait_until([&window, &initialRef] {
-				const auto item = window.queue_landing()->item_at(
-					window.queue_landing()->index(0));
-				return item.has_value() && item->Ref == initialRef
-					&& item->Bucket
-					== core::attention_bucket::changed_since_my_review;
-			})) {
-			return fail(*application, "same-ref-head-refresh-bucket-transition");
+		auto refreshed = wait_terms{ };
+		if (!wait_until_reporting(
+				refreshed, [&window, &initialRef](wait_terms& aTerms) {
+					const auto item = window.queue_landing()->item_at(
+						window.queue_landing()->index(0));
+					aTerms.note(
+						"rows",
+						static_cast<std::uint64_t>(
+							window.queue_landing()->rowCount()));
+					if (item.has_value()) {
+						aTerms.note_name("bucket", core::name(item->Bucket));
+					}
+					return aTerms.require("item-present", item.has_value())
+						&& aTerms.require("ref-unchanged", item->Ref == initialRef)
+						&& aTerms.require(
+							"bucket-is-changed-since-my-review",
+							item->Bucket
+								== core::attention_bucket::changed_since_my_review);
+				})) {
+			return fail(
+				*application,
+				"same-ref-head-refresh-bucket-transition",
+				refreshed.render());
 		}
 		const auto item = window.queue_landing()->item_at(
 			window.queue_landing()->index(0));
@@ -254,14 +276,20 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "request-cut-not-cut");
 			}
 		} else {
-			if (!wait_until([&application] {
+			auto submitted = wait_terms{ };
+			if (!wait_until_reporting(submitted, [&application](wait_terms& aTerms) {
 					const auto evidence = app::detail::github_application_fixture_access::
 						queue_notification_evidence(*application);
-					return evidence.RequestsAttempted == 1U
-						&& evidence.Submitted == 1U
-						&& evidence.LastSubmitted.has_value();
+					return aTerms.require(
+							   "requests-attempted-is-one",
+							   evidence.RequestsAttempted == 1U)
+						&& aTerms.require("submitted-is-one", evidence.Submitted == 1U)
+						&& aTerms.require(
+							"last-submitted-present",
+							evidence.LastSubmitted.has_value());
 				})) {
-				return fail(*application, "notification-submission");
+				return fail(
+					*application, "notification-submission", submitted.render());
 			}
 			const auto evidence = app::detail::github_application_fixture_access::
 				queue_notification_evidence(*application);
@@ -285,27 +313,62 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "duplicate-platform-activation");
 			}
 			if (course == "activation-cut") {
-				if (!wait_until([&application] {
-						const auto cut = app::detail::github_application_fixture_access::
-							queue_notification_evidence(*application);
-						return cut.Activations == 1U;
-					})
+				auto activationCut = wait_terms{ };
+				if (!wait_until_reporting(
+						activationCut,
+						[&application](wait_terms& aTerms) {
+							const auto cut = app::detail::
+								github_application_fixture_access::
+									queue_notification_evidence(*application);
+							aTerms.note(
+								"selections",
+								static_cast<std::uint64_t>(cut.Selections));
+							return aTerms.require(
+								"activations-is-one", cut.Activations == 1U);
+						})
 					|| app::detail::github_application_fixture_access::
 							queue_notification_evidence(*application)
 								.Selections
 						!= 0U) {
-					return fail(*application, "activation-cut-not-cut");
+					return fail(
+						*application,
+						"activation-cut-not-cut",
+						activationCut.render());
 				}
-			} else if (!wait_until([&application, &window, &initialRef] {
-						   const auto selected = window.queue_filter_model()->item_at(
-							   window.queue_view()->currentIndex());
-						   return application->status().NotificationActivations == 1U
-							   && application->status().NotificationSelections == 1U
-							   && selected.has_value()
-							   && selected->Ref == initialRef
-							   && QApplication::focusWidget() == window.queue_view();
-					   })) {
-				return fail(*application, "activation-selection");
+			} else if (auto selection = wait_terms{ };
+					   !wait_until_reporting(
+						   selection,
+						   [&application, &window, &initialRef](wait_terms& aTerms) {
+							   const auto selected
+								   = window.queue_filter_model()->item_at(
+									   window.queue_view()->currentIndex());
+							   const auto status = application->status();
+							   aTerms.note(
+								   "activations",
+								   static_cast<std::uint64_t>(
+									   status.NotificationActivations));
+							   aTerms.note(
+								   "selections",
+								   static_cast<std::uint64_t>(
+									   status.NotificationSelections));
+							   return aTerms.require(
+										  "activations-is-one",
+										  status.NotificationActivations == 1U)
+								   && aTerms.require(
+									   "selections-is-one",
+									   status.NotificationSelections == 1U)
+								   && aTerms.require(
+									   "row-selected", selected.has_value())
+								   && aTerms.require(
+									   "selected-ref-matches",
+									   selected->Ref == initialRef)
+								   && aTerms.require(
+									   "queue-view-focused",
+									   QApplication::focusWidget()
+										   == window.queue_view());
+						   })) {
+				return fail(
+					*application, "activation-selection", selection.render());
 			}
 		}
 
@@ -323,14 +386,29 @@ auto main(int argc, char** argv) -> int
 			window.queue_sort_selector()->setCurrentIndex(
 				window.queue_sort_selector()->findData(
 					static_cast<int>(application::queue_sort_order::pull_request_number)));
-			if (!wait_until([&application, &window, &preferences] {
-					return window.queue_filter_model()->preferences() == preferences
-						&& window.queue_filter_model()->rowCount() == 1
-						&& app::detail::github_application_fixture_access::
-							   queue_notification_evidence(*application)
-								   .QueueQuiescent;
-				})) {
-				return fail(*application, "preference-gesture-persist");
+			auto persisted = wait_terms{ };
+			if (!wait_until_reporting(
+					persisted,
+					[&application, &window, &preferences](wait_terms& aTerms) {
+						aTerms.note(
+							"filtered-rows",
+							static_cast<std::uint64_t>(
+								window.queue_filter_model()->rowCount()));
+						return aTerms.require(
+								   "preferences-match",
+								   window.queue_filter_model()->preferences()
+									   == preferences)
+							&& aTerms.require(
+								"filtered-rows-is-one",
+								window.queue_filter_model()->rowCount() == 1)
+							&& aTerms.require(
+								"queue-quiescent",
+								app::detail::github_application_fixture_access::
+									queue_notification_evidence(*application)
+										.QueueQuiescent);
+					})) {
+				return fail(
+					*application, "preference-gesture-persist", persisted.render());
 			}
 		}
 	} else {
@@ -344,12 +422,18 @@ auto main(int argc, char** argv) -> int
 			return fail(*application, "reopen-fabricated-delivery");
 		}
 		window.remove_queue_rule_action()->trigger();
-		if (!wait_until([&window] {
-				return !window.remove_queue_rule_action()->isEnabled()
-					&& window.queue_landing()->rowCount() == 0
-					&& window.queue_filter_model()->rowCount() == 0;
+		auto emptied = wait_terms{ };
+		if (!wait_until_reporting(emptied, [&window](wait_terms& aTerms) {
+				return aTerms.require(
+						   "remove-disabled",
+						   !window.remove_queue_rule_action()->isEnabled())
+					&& aTerms.require(
+						"landing-empty", window.queue_landing()->rowCount() == 0)
+					&& aTerms.require(
+						"filtered-empty",
+						window.queue_filter_model()->rowCount() == 0);
 			})) {
-			return fail(*application, "remove-empty");
+			return fail(*application, "remove-empty", emptied.render());
 		}
 	}
 	const auto mutation = app::detail::github_application_fixture_access::

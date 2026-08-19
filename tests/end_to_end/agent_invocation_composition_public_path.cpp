@@ -535,11 +535,16 @@ auto main(int argc, char** argv) -> int
 	application->show();
 	auto& window = application->window();
 	window.github_connect_action()->trigger();
-	if (!wait_until([&window] {
-			return window.github_status_text() == "GitHub account connected."
-				&& window.github_open_action()->isEnabled();
+	auto connected = wait_terms{ };
+	if (!wait_until_reporting(connected, [&window](wait_terms& aTerms) {
+			aTerms.note_identifier("status", window.github_status_text());
+			return aTerms.require(
+					   "status-is-connected",
+					   window.github_status_text() == "GitHub account connected.")
+				&& aTerms.require(
+					"open-enabled", window.github_open_action()->isEnabled());
 		})) {
-		return fail(*application, "connect");
+		return fail(*application, "connect", connected.render());
 	}
 	window.session_panel()->owner_editor()->setText(QStringLiteral("octo-org"));
 	window.session_panel()->repository_editor()->setText(
@@ -549,10 +554,13 @@ auto main(int argc, char** argv) -> int
 
 	auto* const panel = window.agent_panel();
 	if (course == "construction-cut") {
-		if (!wait_until([&window] {
-				return window.files_drawer()->contents_view()->model()->rowCount() != 0;
+		auto opened = wait_terms{ };
+		if (!wait_until_reporting(opened, [&window](wait_terms& aTerms) {
+				return aTerms.require(
+					"files-listed",
+					window.files_drawer()->contents_view()->model()->rowCount() != 0);
 			})) {
-			return fail(*application, "construction-cut-open");
+			return fail(*application, "construction-cut-open", opened.render());
 		}
 		panel->offer_profiles(core::built_in_agent_profiles());
 		panel->disclose_scope(QStringLiteral("construction cut test"));
@@ -573,12 +581,22 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 
-	if (!wait_until([&window, panel] {
-			return window.files_drawer()->contents_view()->model()->rowCount() != 0
-				&& panel->profile_selector()->count() == 4
-				&& !panel->disclosure_text().isEmpty();
+	auto offerings = wait_terms{ };
+	if (!wait_until_reporting(offerings, [&window, panel](wait_terms& aTerms) {
+			aTerms.note(
+				"profiles",
+				static_cast<std::uint64_t>(panel->profile_selector()->count()));
+			return aTerms.require(
+					   "files-listed",
+					   window.files_drawer()->contents_view()->model()->rowCount()
+						   != 0)
+				&& aTerms.require(
+					"profiles-is-four", panel->profile_selector()->count() == 4)
+				&& aTerms.require(
+					"disclosure-present", !panel->disclosure_text().isEmpty());
 		})) {
-		return fail(*application, "agent-authority-and-offerings");
+		return fail(
+			*application, "agent-authority-and-offerings", offerings.render());
 	}
 	if (course == "positive-reopen") {
 		const auto catalog = app::detail::github_application_fixture_access::
@@ -622,42 +640,60 @@ auto main(int argc, char** argv) -> int
 		files->selectionModel()->setCurrentIndex(
 			first,
 			QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
-		if (!wait_until([&window, panel] {
-				return window.comparison_surface()->current_result() != nullptr
-					&& panel->start_action()->isEnabled();
-			},
-						extended_agent_budget)) {
-			return fail(*application, "real-selected-diff");
+		auto selectedDiff = wait_terms{ };
+		if (!wait_until_reporting(
+				selectedDiff,
+				[&window, panel](wait_terms& aTerms) {
+					return aTerms.require(
+							   "comparison-shown",
+							   window.comparison_surface()->current_result()
+								   != nullptr)
+						&& aTerms.require(
+							"start-enabled", panel->start_action()->isEnabled());
+				},
+				extended_agent_budget)) {
+			return fail(*application, "real-selected-diff", selectedDiff.render());
 		}
 		auto* const surface = window.comparison_surface();
 		if (!surface->navigate_change(core::change_navigation_direction::next,
 									  core::change_navigation_policy::stop)) {
 			return fail(*application, "semantic-selection-action");
 		}
-		if (!wait_until([surface] {
-				return surface->selection().has_value();
+		auto semantic = wait_terms{ };
+		if (!wait_until_reporting(semantic, [surface](wait_terms& aTerms) {
+				return aTerms.require(
+					"selection-present", surface->selection().has_value());
 			})) {
-			return fail(*application, "semantic-selection");
+			return fail(*application, "semantic-selection", semantic.render());
 		}
 		if (!window.read_action()->isEnabled()) {
 			return fail(*application, "receipt-action");
 		}
 		window.read_action()->trigger();
-		if (!wait_until([&window] {
-				return window.read_action()->isChecked();
+		auto receipt = wait_terms{ };
+		if (!wait_until_reporting(receipt, [&window](wait_terms& aTerms) {
+				return aTerms.require(
+					"read-checked", window.read_action()->isChecked());
 			})) {
-			return fail(*application, "receipt-projection");
+			return fail(*application, "receipt-projection", receipt.render());
 		}
 		if (course == "positive" || course == "positive-seed") {
 			const auto  defectThread      = std::string{ "review-thread:PRRT_fixture_1" };
 			auto* const conversationView  = window.conversation_view();
 			auto* const conversationModel = window.conversation_model();
+			auto        defectThreadTerms = wait_terms{ };
 			if (
 				conversationView == nullptr || conversationModel == nullptr
-				|| !wait_until([conversationModel, &defectThread] {
-					   return conversationModel->index_for_id(defectThread).isValid();
-				   })) {
-				return fail(*application, "defect-thread");
+				|| !wait_until_reporting(
+					defectThreadTerms,
+					[conversationModel, &defectThread](wait_terms& aTerms) {
+						return aTerms.require(
+							"thread-index-valid",
+							conversationModel->index_for_id(defectThread)
+								.isValid());
+					})) {
+				return fail(
+					*application, "defect-thread", defectThreadTerms.render());
 			}
 			conversationView->setCurrentIndex(
 				conversationModel->index_for_id(defectThread));
@@ -665,10 +701,15 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "defect-action");
 			}
 			window.classify_defect_action()->trigger();
-			if (!wait_until([&window] {
-					return window.defect_count() == 1U;
+			auto defectPersisted = wait_terms{ };
+			if (!wait_until_reporting(defectPersisted, [&window](wait_terms& aTerms) {
+					aTerms.note(
+						"defects", static_cast<std::uint64_t>(window.defect_count()));
+					return aTerms.require(
+						"defect-count-is-one", window.defect_count() == 1U);
 				})) {
-				return fail(*application, "defect-persistence");
+				return fail(
+					*application, "defect-persistence", defectPersisted.render());
 			}
 			if (!app::detail::github_application_fixture_access::
 					seed_agent_private_context_canary(
@@ -685,11 +726,20 @@ auto main(int argc, char** argv) -> int
 				QString::fromUtf8(
 					selectedDraft.data(),
 					static_cast<qsizetype>(selectedDraft.size())));
-			if (!wait_until([panel] {
-					return panel->note_selector()->count() == 2
-						&& panel->draft_selector()->isEnabled();
+			auto privateOfferings = wait_terms{ };
+			if (!wait_until_reporting(privateOfferings, [panel](wait_terms& aTerms) {
+					aTerms.note(
+						"notes",
+						static_cast<std::uint64_t>(panel->note_selector()->count()));
+					return aTerms.require(
+							   "notes-is-two", panel->note_selector()->count() == 2)
+						&& aTerms.require(
+							"draft-enabled", panel->draft_selector()->isEnabled());
 				})) {
-				return fail(*application, "private-selection-offerings");
+				return fail(
+					*application,
+					"private-selection-offerings",
+					privateOfferings.render());
 			}
 			auto selectedNoteFound = false;
 			for (auto row = 0; row < panel->note_selector()->count(); ++row) {
@@ -738,12 +788,26 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	if (course == "cleanup-retry") {
-		if (!wait_until([panel] {
-				return panel->status_text().startsWith(QStringLiteral("Running in"))
-					&& panel->output_text().contains(QStringLiteral("canary-complete"));
-			},
-						extended_agent_budget)) {
-			return fail(*application, "cleanup-retry-running");
+		auto retryRunning = wait_terms{ };
+		if (!wait_until_reporting(
+				retryRunning,
+				[panel](wait_terms& aTerms) {
+					aTerms.note_identifier("status", panel->status_text().toStdString());
+					aTerms.note(
+						"output-bytes",
+						static_cast<std::uint64_t>(panel->output_text().size()));
+					return aTerms.require(
+							   "status-is-running",
+							   panel->status_text().startsWith(
+								   QStringLiteral("Running in")))
+						&& aTerms.require(
+							"canary-complete-seen",
+							panel->output_text().contains(
+								QStringLiteral("canary-complete")));
+				},
+				extended_agent_budget)) {
+			return fail(
+				*application, "cleanup-retry-running", retryRunning.render());
 		}
 		const auto output    = panel->output_text().toStdString();
 		const auto workspace = line_value(output, "cwd\t");
@@ -803,15 +867,35 @@ auto main(int argc, char** argv) -> int
 				return restoreThenFail("cleanup-retry-release");
 			}
 		}
-		if (!wait_until([&application, panel] {
-				const auto current = app::detail::github_application_fixture_access::
-					agent_invocation_evidence(*application);
-				return panel->status_text() == QStringLiteral("Finished: success")
-					&& current.Statistics.WorkspaceCleanupFailures == 1U
-					&& current.Statistics.WorkspaceCleanups == 0U
-					&& !current.Quiescent;
-			},
-						extended_agent_budget)) {
+		auto firstRefusal = wait_terms{ };
+		if (!wait_until_reporting(
+				firstRefusal,
+				[&application, panel](wait_terms& aTerms) {
+					const auto current = app::detail::github_application_fixture_access::
+						agent_invocation_evidence(*application);
+					aTerms.note_identifier("status", panel->status_text().toStdString());
+					aTerms.note(
+						"cleanup-failures",
+						static_cast<std::uint64_t>(
+							current.Statistics.WorkspaceCleanupFailures));
+					aTerms.note(
+						"cleanups",
+						static_cast<std::uint64_t>(
+							current.Statistics.WorkspaceCleanups));
+					return aTerms.require(
+							   "status-is-finished-success",
+							   panel->status_text()
+								   == QStringLiteral("Finished: success"))
+						&& aTerms.require(
+							"cleanup-failures-is-one",
+							current.Statistics.WorkspaceCleanupFailures == 1U)
+						&& aTerms.require(
+							"cleanups-is-zero",
+							current.Statistics.WorkspaceCleanups == 0U)
+						&& aTerms.require("not-quiescent", !current.Quiescent);
+				},
+				extended_agent_budget)) {
+			report("cleanup-retry-first-refusal", firstRefusal.render());
 			return restoreThenFail("cleanup-retry-first-refusal");
 		}
 		if (!restore()) {
@@ -855,12 +939,25 @@ auto main(int argc, char** argv) -> int
 	}
 	auto descendantMarker = std::optional<std::string>{ };
 	if (course == "cancellation" || course == "staleness") {
-		if (!wait_until([panel] {
-				return panel->status_text().startsWith(QStringLiteral("Running in"))
-					&& panel->output_text().contains(QStringLiteral("canary-complete"));
-			},
-						extended_agent_budget)) {
-			return fail(*application, "running-course");
+		auto running = wait_terms{ };
+		if (!wait_until_reporting(
+				running,
+				[panel](wait_terms& aTerms) {
+					aTerms.note_identifier("status", panel->status_text().toStdString());
+					aTerms.note(
+						"output-bytes",
+						static_cast<std::uint64_t>(panel->output_text().size()));
+					return aTerms.require(
+							   "status-is-running",
+							   panel->status_text().startsWith(
+								   QStringLiteral("Running in")))
+						&& aTerms.require(
+							"canary-complete-seen",
+							panel->output_text().contains(
+								QStringLiteral("canary-complete")));
+				},
+				extended_agent_budget)) {
+			return fail(*application, "running-course", running.render());
 		}
 		if (course == "cancellation") {
 			descendantMarker = line_value(
@@ -877,16 +974,32 @@ auto main(int argc, char** argv) -> int
 		const auto expectedTerminal = course == "cancellation"
 			? QStringLiteral("Finished: cancelled")
 			: QStringLiteral("Finished: stale_result");
-		if (!wait_until([panel, &expectedTerminal] {
-				return panel->status_text() == expectedTerminal;
-			},
-						extended_agent_budget)
-			|| !panel->output_text().isEmpty() || !wait_until([&application] {
-				   const auto evidence = app::detail::github_application_fixture_access::
-					   agent_invocation_evidence(*application);
-				   return evidence.Statistics.WorkspaceCleanups == 1U
-					   && evidence.Quiescent;
-			   })) {
+		auto       terminalReached  = wait_terms{ };
+		auto       terminalCleaned  = wait_terms{ };
+		if (!wait_until_reporting(
+				terminalReached,
+				[panel, &expectedTerminal](wait_terms& aTerms) {
+					aTerms.note_identifier("status", panel->status_text().toStdString());
+					return aTerms.require(
+						"status-is-expected-terminal",
+						panel->status_text() == expectedTerminal);
+				},
+				extended_agent_budget)
+			|| !panel->output_text().isEmpty()
+			|| !wait_until_reporting(
+				terminalCleaned,
+				[&application](wait_terms& aTerms) {
+					const auto evidence = app::detail::github_application_fixture_access::
+						agent_invocation_evidence(*application);
+					aTerms.note(
+						"cleanups",
+						static_cast<std::uint64_t>(
+							evidence.Statistics.WorkspaceCleanups));
+					return aTerms.require(
+							   "cleanups-is-one",
+							   evidence.Statistics.WorkspaceCleanups == 1U)
+						&& aTerms.require("quiescent", evidence.Quiescent);
+				})) {
 			const auto failureEvidence = app::detail::github_application_fixture_access::
 				agent_invocation_evidence(*application);
 			// The third independently shaped dump this file carried, now the same
@@ -904,6 +1017,8 @@ auto main(int argc, char** argv) -> int
 				static_cast<std::uint64_t>(
 					failureEvidence.Statistics.WorkspaceCleanups));
 			terminal.note("agent-terminal-quiescent", failureEvidence.Quiescent);
+			terminal.note_identifier("reached", terminalReached.failing_term());
+			terminal.note_identifier("cleaned", terminalCleaned.failing_term());
 			return fail(
 				*application, "typed-terminal-cleanup", terminal.render());
 		}
@@ -927,10 +1042,16 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 
-	if (!wait_until([panel] {
-			return panel->status_text().startsWith(QStringLiteral("Finished:"));
-		},
-					extended_agent_budget)
+	auto finished = wait_terms{ };
+	if (!wait_until_reporting(
+			finished,
+			[panel](wait_terms& aTerms) {
+				aTerms.note_identifier("status", panel->status_text().toStdString());
+				return aTerms.require(
+					"status-is-finished",
+					panel->status_text().startsWith(QStringLiteral("Finished:")));
+			},
+			extended_agent_budget)
 		|| panel->status_text() != "Finished: success") {
 		const auto failureEvidence = app::detail::github_application_fixture_access::
 			agent_invocation_evidence(*application);
@@ -957,15 +1078,20 @@ auto main(int argc, char** argv) -> int
 		success.note(
 			"output-bytes",
 			static_cast<std::uint64_t>(panel->output_text().size()));
+		success.note_identifier("reached", finished.failing_term());
 		return fail(*application, "typed-success", success.render());
 	}
-	if (!wait_until([&application] {
-			return app::detail::github_application_fixture_access::
-					   agent_invocation_evidence(*application)
-						   .Statistics.WorkspaceCleanups
-				== 1U;
+	auto cleaned = wait_terms{ };
+	if (!wait_until_reporting(cleaned, [&application](wait_terms& aTerms) {
+			const auto current = app::detail::github_application_fixture_access::
+				agent_invocation_evidence(*application);
+			aTerms.note(
+				"cleanups",
+				static_cast<std::uint64_t>(current.Statistics.WorkspaceCleanups));
+			return aTerms.require(
+				"cleanups-is-one", current.Statistics.WorkspaceCleanups == 1U);
 		})) {
-		return fail(*application, "workspace-cleanup");
+		return fail(*application, "workspace-cleanup", cleaned.render());
 	}
 	const auto evidence = app::detail::github_application_fixture_access::
 		agent_invocation_evidence(*application);

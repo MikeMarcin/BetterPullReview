@@ -157,12 +157,22 @@ line explaining why is in the header.
 | `clang-format --dry-run --Werror` on all five files | clean |
 | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
 
-### What remains
+### Every site, not just the one that hurt
 
-The two courses share one mechanism and every diagnostic now comes from it, but
-term-level conversion is complete only where it changes an answer: the queue's
-eight-term wait, the cleanup-retry shutdown, and the two former hand-rolled dumps.
-The remaining waits go through the shared loop with their budgets intact and their
-tags unchanged, so they are no worse than before and a new wait written against
-`require` gets the report for free — but they do not yet name their own conjuncts.
-Converting them is mechanical and is the honest remainder of this card.
+All 28 waits across the two files now name their terms. The only bare polls left are
+the two inside `shutdown()`, whose failure its callers report.
+
+The conversions are mechanical but not uniform, and two shapes needed care:
+
+- **Waits nested in an `||` chain.** `typed-terminal-cleanup` and `typed-success`
+  each combine two or three conditions with `||`, so a single recorder cannot say
+  which arm failed. Each arm gets its own recorder and the surviving dump folds in
+  their failing terms as `reached=` and `cleaned=`, so the report distinguishes "the
+  terminal never arrived" from "it arrived and the workspace was not cleaned".
+- **`restoreThenFail`.** `cleanup-retry-first-refusal` returns through a restore
+  helper rather than through `fail`, so it reports before restoring — otherwise the
+  state that failed would be gone by the time anything printed it.
+
+Where a value is more useful than a boolean it is noted alongside: profile and note
+counts, cleanup and cleanup-failure counts, output byte counts, defect counts, and
+the panel status as a bounded identifier.
