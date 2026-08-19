@@ -1752,6 +1752,8 @@ namespace bpr::app {
 						.ApprovalPath       = *aConfig.AttendedDesignatedLiveApproval,
 						.ExecutablePath     = aConfig.RunningExecutable,
 						.SourceSha256       = aConfig.AttendedSourceSha256,
+						.SupervisorSha256   = aConfig.AttendedSupervisorSha256,
+						.InventorySha256    = aConfig.AttendedInventorySha256,
 						.BuildConfiguration = aConfig.BuildConfiguration,
 						.Replay             = std::move(*replay),
 						.BuildTesting       = aConfig.BuildTesting,

@@ -3,6 +3,7 @@
 #include "designated_live_macos_provenance.hpp"
 #include <CoreFoundation/CoreFoundation.h>
 
+#include <CommonCrypto/CommonDigest.h>
 #include <Security/Security.h>
 #include <mach-o/dyld.h>
 
@@ -531,11 +532,42 @@ namespace {
 		return wait_success(process);
 	}
 
+	/// \brief The SHA-256 of a file, as lowercase hex.
+	///
+	/// \details BPR-0262 fact_5 binds the inventory into the approval subject.
+	/// The inventory describes the capsule and so cannot live inside it, which
+	/// means the application cannot compute this for itself and stage one has
+	/// to hand it over. Handing over the wrong one renders a subject the
+	/// operator never approved, so the failure direction is refusal.
+	[[nodiscard]] auto file_sha256_hex(const std::filesystem::path& aPath)
+		-> std::optional<std::string>
+	{
+		const auto bytes = read_file(aPath, maximum_inventory_bytes);
+		if (!bytes.has_value()) {
+			return std::nullopt;
+		}
+		auto digest = std::array<unsigned char, CC_SHA256_DIGEST_LENGTH>{ };
+		CC_SHA256(
+			bytes->data(),
+			static_cast<CC_LONG>(bytes->size()),
+			digest.data());
+		static constexpr auto hex  = std::string_view{ "0123456789abcdef" };
+		auto                  text = std::string{ };
+		text.reserve(digest.size() * 2U);
+		for (const auto byte : digest) {
+			text.push_back(hex[(byte >> 4U) & 0x0fU]);
+			text.push_back(hex[byte & 0x0fU]);
+		}
+		return text;
+	}
+
 	[[nodiscard]] auto launch_attended_application(
 		const std::filesystem::path& aRoot,
-		const std::filesystem::path& aApproval) -> bool
+		const std::filesystem::path& aApproval,
+		const std::string_view       aInventoryDigest) -> bool
 	{
-		if (!aApproval.is_absolute() || aApproval.lexically_normal() != aApproval) {
+		if (!aApproval.is_absolute() || aApproval.lexically_normal() != aApproval
+			|| aInventoryDigest.size() != 64U) {
 			return false;
 		}
 		const auto  application = aRoot / application_relative;
@@ -576,10 +608,16 @@ namespace {
 		auto executableArgument = application.string();
 		auto approvalFlag       = std::string{ "--attended-designated-live-approval" };
 		auto approvalArgument   = aApproval.string();
-		auto arguments          = std::array<char*, 4>{
+		auto inventoryFlag      = std::string{
+			"--attended-designated-live-inventory-sha256"
+		};
+		auto inventoryArgument = std::string{ aInventoryDigest };
+		auto arguments         = std::array<char*, 6>{
 			executableArgument.data(),
 			approvalFlag.data(),
 			approvalArgument.data(),
+			inventoryFlag.data(),
+			inventoryArgument.data(),
 			nullptr,
 		};
 		auto pathValue   = std::array{ 'P', 'A', 'T', 'H', '=', '/', 'u', 's', 'r', '/',
@@ -737,7 +775,12 @@ auto main(int argc, char** argv) -> int
 	if (!observed.has_value()) {
 		return EXIT_FAILURE;
 	}
-	return launch_attended_application(*root, attended->Approval)
+	const auto inventoryDigest = file_sha256_hex(attended->Inventory);
+	if (!inventoryDigest.has_value()) {
+		return EXIT_FAILURE;
+	}
+	return launch_attended_application(
+			   *root, attended->Approval, *inventoryDigest)
 		? EXIT_SUCCESS
 		: EXIT_FAILURE;
 }

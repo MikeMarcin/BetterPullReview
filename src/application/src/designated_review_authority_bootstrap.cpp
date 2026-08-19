@@ -1476,6 +1476,8 @@ namespace bpr::application::detail {
 			|| aRequest.BuildTesting
 			|| aRequest.BuildConfiguration != "Release"
 			|| !lowercase_sha256(aRequest.SourceSha256)
+			|| !lowercase_sha256(aRequest.SupervisorSha256)
+			|| !lowercase_sha256(aRequest.InventorySha256)
 			|| !lowercase_sha256(aApprovalId)
 			|| !lowercase_sha256(aApplicationSha256)) {
 			return std::unexpected(
@@ -1484,13 +1486,21 @@ namespace bpr::application::detail {
 		auto result = std::string{ };
 		result.reserve(1'024U + replayPath.size());
 		result.append("schema_name=bpr.designated_live_review_approval\n")
-			.append("schema_version=2\n")
+			// Three, not two. The subject now says which supervisor and which
+			// inventory the approval was granted against, so an approval bound
+			// to the two-field subject describes a different question and must
+			// be refused rather than read as though it answered this one.
+			.append("schema_version=3\n")
 			.append("approval_statement=")
 			.append(designated_approval_statement)
 			.append("\napplication_sha256=")
 			.append(aApplicationSha256)
 			.append("\nsource_sha256=")
 			.append(aRequest.SourceSha256)
+			.append("\nsupervisor_sha256=")
+			.append(aRequest.SupervisorSha256)
+			.append("\ninventory_sha256=")
+			.append(aRequest.InventorySha256)
 			.append("\napproval_id=")
 			.append(aApprovalId)
 			.append("\nbuild_configuration=Release\n")

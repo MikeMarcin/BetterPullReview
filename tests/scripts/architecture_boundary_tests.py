@@ -3683,15 +3683,20 @@ auto finish_background_reap(
             "\t\t= bpr::adapters::github::detail::"
             "observe_designated_live_public_target();"
         )
+        # BPR-0352 added the inventory digest to this call, so the literal the
+        # reorder case rewrites had to follow. It is the real source's text,
+        # not an approximation of it: a stale literal here silently stops
+        # rewriting anything and the case then proves nothing.
         launch = (
-            "return launch_attended_application(*root, attended->Approval)\n"
+            "return launch_attended_application(\n"
+            "\t\t\t   *root, attended->Approval, *inventoryDigest)\n"
             "\t\t? EXIT_SUCCESS\n"
             "\t\t: EXIT_FAILURE;"
         )
         reordered = DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE.replace(
             observation,
-            "const auto launchResult = "
-            "launch_attended_application(*root, attended->Approval);",
+            "const auto launchResult = launch_attended_application("
+            "*root, attended->Approval, *inventoryDigest);",
             1,
         ).replace(
             launch,

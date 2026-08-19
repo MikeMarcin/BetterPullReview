@@ -188,6 +188,8 @@ namespace {
 				.ApprovalPath       = Directory.path() / "approval.txt",
 				.ExecutablePath     = running_executable(),
 				.SourceSha256       = std::string(64U, 'a'),
+				.SupervisorSha256   = std::string(64U, 'c'),
+				.InventorySha256    = std::string(64U, 'd'),
 				.BuildConfiguration = "Release",
 				.Replay             = std::move(*replay),
 				.BuildTesting       = false,
@@ -781,9 +783,15 @@ namespace {
 	void test_each_digest_bound_identity_field_mismatch_fails_before_observation()
 	{
 		const auto variants = std::array{
-			std::pair{ "schema_version=2", "schema_version=1" },
+			// BPR-0352 advanced this to 3. An approval bound to the older
+			// subject describes a question that said nothing about the
+			// supervisor or the inventory, and must be refused rather than
+			// read as though it had answered this one.
+			std::pair{ "schema_version=3", "schema_version=2" },
 			std::pair{ "application_sha256=", "application_sha256=0" },
 			std::pair{ "source_sha256=", "source_sha256=0" },
+			std::pair{ "supervisor_sha256=", "supervisor_sha256=0" },
+			std::pair{ "inventory_sha256=", "inventory_sha256=0" },
 			std::pair{ "build_configuration=Release", "build_configuration=Debug" },
 			std::pair{ "build_testing=off", "build_testing=on" },
 			std::pair{ "replay_schema=bpr.designated_live_review_replay.v1", "replay_schema=other" },

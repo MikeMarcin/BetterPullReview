@@ -23,6 +23,8 @@
 #include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QCryptographicHash>
+#include <QFile>
 #include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
@@ -35,7 +37,6 @@
 
 #if defined(BPR_BUILD_TESTING)
 	#include <QDir>
-	#include <QFile>
 	#include <QFileInfo>
 	#include <QFont>
 	#include <QGuiApplication>
@@ -5101,6 +5102,41 @@ auto main(int argc, char** argv) -> int
 			config.AttendedSourceSha256           = BPR_ATTENDED_REVIEW_SOURCE_SHA256;
 			config.BuildConfiguration             = BPR_BUILD_CONFIGURATION;
 			config.BuildTesting                   = false;
+			// fact_5. The supervisor digest is computed here rather than
+			// accepted, from the fixed position stage one occupies inside this
+			// capsule -- the same derivation the handshake above already used
+			// to decide whose reply to believe.
+			const auto supervisorImage
+				= bpr::app::designated_live_provenance::supervisor_image_for(
+					config.RunningExecutable);
+			if (!supervisorImage.has_value()) {
+				QTextStream{ stdout } << "STARTUP_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			auto supervisorFile = QFile{ QString::fromStdString(
+				supervisorImage->string()) };
+			if (!supervisorFile.open(QIODevice::ReadOnly)) {
+				QTextStream{ stdout } << "STARTUP_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			auto supervisorHash = QCryptographicHash{ QCryptographicHash::Sha256 };
+			if (!supervisorHash.addData(&supervisorFile)) {
+				QTextStream{ stdout } << "STARTUP_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			config.AttendedSupervisorSha256
+				= supervisorHash.result().toHex().toStdString();
+			// The inventory describes the capsule and therefore cannot live
+			// inside it, so this one is supplied by the supervisor that
+			// verified it. A wrong value renders a subject the operator never
+			// approved, which refuses; it cannot make a bad capsule pass.
+			const auto inventoryDigest = argument_value(
+				argc, argv, "--attended-designated-live-inventory-sha256");
+			if (!inventoryDigest.has_value()) {
+				QTextStream{ stdout } << "STARTUP_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			config.AttendedInventorySha256 = std::string{ *inventoryDigest };
 		}
 #endif
 		if (const auto host = argument_value(argc, argv, "--ghes-host");

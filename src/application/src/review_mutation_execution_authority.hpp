@@ -82,10 +82,29 @@ namespace bpr::application::detail {
 
 	struct designated_review_bootstrap_request
 	{
-		std::filesystem::path                  ApprovalPath;
-		std::filesystem::path                  ExecutablePath;
-		std::string                            SourceSha256;
-		std::string                            BuildConfiguration;
+		std::filesystem::path ApprovalPath;
+		std::filesystem::path ExecutablePath;
+		std::string           SourceSha256;
+		std::string           BuildConfiguration;
+		/// \brief The stage-one supervisor this application was launched by.
+		///
+		/// \details BPR-0262 fact_5. Without it an approval authorizes an
+		/// application digest while saying nothing about which supervisor it
+		/// was granted against, so the same approval would be equally valid
+		/// under a different one. The application computes this itself, from
+		/// the fixed position the supervisor occupies inside its own capsule;
+		/// it is not told, because being told would make it a claim.
+		std::string SupervisorSha256;
+		/// \brief The capsule inventory the supervisor verified.
+		///
+		/// \details The other half of fact_5. The inventory cannot live inside
+		/// the capsule it describes — it would have to cover itself — so the
+		/// application cannot compute this one and the supervisor supplies it.
+		/// That is safe in the direction that matters: a supervisor that
+		/// supplied the wrong digest would render a subject the operator never
+		/// approved, and the approval would be refused. It can cause a refusal,
+		/// never an acceptance.
+		std::string                            InventorySha256;
 		designated_review_replay_configuration Replay;
 		bool                                   BuildTesting = true;
 

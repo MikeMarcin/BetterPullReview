@@ -25,8 +25,12 @@ namespace bpr::app {
 			= std::nullopt;
 		std::filesystem::path RunningExecutable;
 		std::string           AttendedSourceSha256;
-		std::string           BuildConfiguration;
-		bool                  BuildTesting = true;
+		/// The stage-one supervisor and the capsule inventory the attended
+		/// approval is granted against (BPR-0262 fact_5).
+		std::string AttendedSupervisorSha256;
+		std::string AttendedInventorySha256;
+		std::string BuildConfiguration;
+		bool        BuildTesting = true;
 	};
 
 	/// \brief Initializes or deliberately resets the designated-live replay
