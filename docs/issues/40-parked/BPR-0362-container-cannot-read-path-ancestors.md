@@ -299,3 +299,56 @@ it gives up neither the sandbox nor the policy.
 The implementation was reverted rather than left in the tree, along with a
 second attempt at [[BPR-0360]]'s descriptor fix that rode along with it: with the
 chain still failing, that fix remains unobservable and unproven.
+
+## The test list, now evidenced rather than guessed — 2026-08-18
+
+The original list was written before the other causes underneath these tests
+were fixed, and was then withdrawn as unproven. With [[BPR-0368]], [[BPR-0369]],
+[[BPR-0370]], [[BPR-0374]], [[BPR-0375]] and [[BPR-0377]] all landed, what is
+left is measurable, and this card owns more than it first claimed rather than
+less.
+
+Every one of these passes outside the launcher and fails inside it:
+
+| test | where it stops contained |
+|---|---|
+| `sqlite_epoch_catalog_behavior_contract` | `validate_ancestor_chain` |
+| `sqlite_review_ledger_storage` | `validate_ancestor_chain` |
+| `sqlite_review_mutation_recovery_storage` | `validate_ancestor_chain` |
+| `sqlite_epoch_catalog_storage_contract` | `validate_ancestor_chain` |
+| `rfc0016_device_capture_security` | `resolve(strict=True)`, `capture_rfc0016_device_contracts.py:2076` |
+| `test_network_isolation_structure_contract` | `resolve(strict=True)`, `verify_test_network_isolation.py:371` |
+
+`test_network_isolation_structure_contract` was the last one still filed as
+undiagnosed. Its symptom read as something else entirely —
+
+```
+live supervisor, inventory, or producer build is unavailable:
+[WinError 5] Access is denied: '…\AC\Temp\…\BetterPullReview.app\Contents
+\Helpers\better_pull_review_designated_live_supervisor'
+```
+
+— and looked like a permissions problem with a fixture the test had just
+created. The fixture is fine. `_live_supervisor_identity` calls
+`supervisor.resolve(strict=True)` on it, and that is this card.
+
+A false trail worth recording, so nobody follows it again: the fixture is
+created and then `chmod(0o700)`'d, which looked like the same DACL defect
+[[BPR-0350]] fixed. It is not. Measured inside the container, a file remains
+readable after `chmod` at `0o700`, `0o600`, and `0o755` alike — CPython's
+Windows `chmod` toggles the read-only attribute and writes no descriptor, unlike
+its `mkdir`.
+
+## Three code paths, one cause
+
+That makes three independent places, in two languages, that cannot work
+contained:
+
+1. `validate_ancestor_chain` — opens every ancestor, and cannot.
+2. `capture_rfc0016_device_contracts.py` — `resolve(strict=True)`.
+3. `verify_test_network_isolation.py` — `resolve(strict=True)`, three calls.
+
+Fixing them one at a time is not a repair, it is a pattern of concessions. That
+is the argument for answering this card as a policy rather than per site, and it
+strengthens option 4: file identity is available contained, and it is the one
+answer that serves all three.
