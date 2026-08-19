@@ -115,14 +115,27 @@ function(bpr_syntax_forward arguments_variable name)
     if(NOT DEFINED ${name})
         return()
     endif()
-    set(value "${${name}}")
-    if(value STREQUAL "")
+    set(bpr_syntax_forward_value "${${name}}")
+    if(bpr_syntax_forward_value STREQUAL "")
         return()
     endif()
-    string(REPLACE ";" "\\;" forwarded "${value}")
+    # The temporary below must not be able to share a name with the caller's
+    # accumulator. It used to be called `forwarded`, and every caller passes an
+    # accumulator called `forwarded`, so the local shadowed it: by the time
+    # `${${arguments_variable}}` was read it held this one escaped value rather
+    # than the list built so far. Each call therefore threw away everything
+    # accumulated before it, and only the last name survived -- as a bare value
+    # plus its own `-D`. The compiler, flags, build type, toolchain file, sysroot
+    # and prefix path were all silently dropped from the nested configure, which
+    # then found whatever Qt the host happened to have.
+    string(
+        REPLACE ";" "\\;"
+        bpr_syntax_forward_value
+        "${bpr_syntax_forward_value}"
+    )
     set(
         ${arguments_variable}
-        ${${arguments_variable}} "-D${name}=${forwarded}"
+        ${${arguments_variable}} "-D${name}=${bpr_syntax_forward_value}"
         PARENT_SCOPE
     )
 endfunction()

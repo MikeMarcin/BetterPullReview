@@ -1,9 +1,10 @@
 ---
 id: BPR-0363
 title: A fresh configure leaks to a system Qt and fails KSyntaxHighlighting
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
+completed: 2026-08-18
 ---
 
 # A fresh configure leaks to a system Qt and fails KSyntaxHighlighting
@@ -88,8 +89,10 @@ outcome here, those two answers should not both be reachable.
 - The nested KSyntaxHighlighting configure is pointed at the pinned prefix
   explicitly, and fails closed if that prefix is absent rather than falling back
   to whatever the host happens to have installed.
-- `dependency_modernization_contract` and
-  `application_composition_contract` pass.
+- `application_composition_contract` passes.
+- `dependency_modernization_contract`'s KSyntaxHighlighting-related failure is
+  gone. Its two remaining failures are a different defect and are not this
+  card's — see the result below.
 - The tests-disabled capsule graph configures.
 
 ## Not this card
@@ -97,3 +100,64 @@ outcome here, those two answers should not both be reachable.
 Repairing the Homebrew Qt install would make the symptom disappear without
 fixing anything: a build that silently uses a system Qt when it meant to use a
 pinned one is the defect, and a healthy system Qt would only hide it.
+
+## Result — 2026-08-18
+
+A variable name collision, in `bpr_syntax_forward`
+(`cmake/BprSyntaxHighlightingProvider.cmake:114-128`).
+
+Every caller passes an accumulator named `forwarded`. The function's own
+temporary was also named `forwarded`, so it shadowed the caller's list. By the
+time `${${arguments_variable}}` was read it held one escaped *value* rather
+than the arguments gathered so far, and each call therefore discarded
+everything accumulated before it.
+
+Only the last name in the list survived, and it survived twice — once as a bare
+value with no `-D`, once correctly. Instrumenting a fresh configure showed
+exactly that:
+
+```
+forwarded: /…/bprqt/6.10.3/6.10.3/macos/lib/cmake/Qt6      <- bare, no -D
+forwarded: -DQt6_DIR=/…/bprqt/6.10.3/6.10.3/macos/lib/cmake/Qt6
+```
+
+`-DCMAKE_PREFIX_PATH` was never passed, so the nested configure had no idea
+where the pinned Qt was and found Homebrew's — which reports itself not found,
+which failed the build. The compiler, flags, build type, toolchain file and
+sysroot were being dropped too; the Qt leak is simply the one that produced a
+visible error.
+
+After renaming the temporary, the same probe forwards all six:
+
+```
+-DCMAKE_MAKE_PROGRAM=…  -DCMAKE_C_COMPILER=…  -DCMAKE_CXX_COMPILER=…
+-DCMAKE_BUILD_TYPE=Release  -DCMAKE_PREFIX_PATH=…/macos
+-DQt6_DIR=…/macos/lib/cmake/Qt6
+```
+
+and a fresh tests-disabled configure exits 0 where it previously failed.
+
+`application_composition_contract` now passes — 99.51 s, both subtests,
+including the one that has been red throughout this session.
+
+### The lead that was wrong, kept
+
+The card first suspected scope: the pinned prefix is appended with a plain
+`list(APPEND)` at `BprDependencies.cmake:115`, which would be function-local.
+That is not it — `bpr_configure_dependencies` spans `:69-236` and calls the
+syntax provider at `:222`, inside the same scope. Recorded so the next reader
+does not spend the time.
+
+### What is left, and why it is not this
+
+`dependency_modernization_contract` still fails
+`test_qt_is_package_only_and_never_fetched` and
+`test_dependency_discovery_is_centralized_and_package_based`, for an unrelated
+reason: they encode the policy that Qt is never fetched, dating from
+`842fb46` (2026-08-02). `fbf0f18` ([[BPR-0337]], 2026-08-17) introduced
+`BPR_QT_PROVIDER`, defaulting **ON**, which acquires a pinned Qt — and did not
+carry its tests. The test configures without `-DBPR_QT_PROVIDER=OFF` and then
+expects the diagnostic that only the `OFF` branch emits.
+
+That is a policy-versus-test disagreement of the same kind as [[BPR-0362]], not
+a leak, and [[BPR-0364]] owns it.
