@@ -184,3 +184,15 @@ before this card — BPR-0390 added `BlobWait` without updating it — so the
 paragraph now names both bounds, their defaults and maxima, and states that the
 deadline is the backstop while the stop token is what makes an abandoned call
 prompt.
+
+### Full matrix — 2026-08-19
+
+The focused selectors were the transition gate, but this change alters the
+return values of three functions in a component most of the board composes, so
+the wider run was warranted rather than ceremonial:
+
+```
+ctest --preset dev   ->   100% tests passed out of 193   (1546 s)
+```
+
+Nothing regressed, and nothing red pre-existed at this commit.

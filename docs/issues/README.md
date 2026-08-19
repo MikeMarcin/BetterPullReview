@@ -455,6 +455,25 @@ operator command rather than a startup fallback, and the spend barrier is
 `F_FULLFSYNC` after capability-critical review showed bare `fsync` could not
 carry the durability claim on macOS.
 
+Done BPR-0390 closes the defect the owner found by looking: a real C++ file
+rendered monochrome while every composition marker stayed green. It cost two
+corrections along the way — the card's first two diagnoses were both falsified
+by its own later measurements — and the answer was adoption, not classification.
+Spans and the diff result were two unordered deliveries into one pane, so
+whichever landed second decided whether code was coloured. Adoption now happens
+at display time against the comparison the surface is actually showing, and
+`application_uiforetw_selected_diff_contract` fails if the selected comparison
+renders unclassified, which is the check whose absence let the defect ship.
+One blob still classifies after the automated course shuts down; that is
+measured, explained, and left visible rather than asserted away.
+
+Done BPR-0397 takes the three sibling waits BPR-0390 deliberately left. All four
+now carry a deadline and a stop callback that can actually signal. Its negative
+proof is the sharpest evidence on this board that the repair matters: reverting
+one `wait_for` to `wait` makes `application_epoch_host` time out rather than
+fail, because an unbounded wait does not produce a wrong answer — it produces
+no answer at all.
+
 Done BPR-0180 is the card that changed how this board reads evidence. It
 reconciled RFC-BPR-0006's ledger against what the application actually
 *composes* and found that several components were linked but never
@@ -594,12 +613,20 @@ three answers it needs:
 | BPR-0298 | `40-parked/` | A digest-bound attended packet, then a real GitHub call |
 | BPR-0240 | `30-in-progress/` | Nothing. Its portable gates have run and target-native Windows is this host |
 | BPR-0391, BPR-0392 | `40-parked/` | A person running a regenerated packet: the appearance foreground pass and the notification banner |
-| BPR-0397 | `20-ready/` | Nothing. Three unbounded actor waits BPR-0390 deliberately left for their own card |
+| BPR-0348, BPR-0362, BPR-0378 | `40-parked/` | A product decision nobody has made yet |
 
-This table had drifted twice, and both entries are corrected above rather
-than quietly dropped. It listed BPR-0262 as a `20-ready/` root; that card is
-in `60-done/`, and `20-ready/` was empty until BPR-0397 arrived. It also
-omitted BPR-0391 and BPR-0392, which parked on operator packets on 2026-08-19.
+This table had drifted and is corrected above rather than quietly patched. It
+listed BPR-0262 as a `20-ready/` root; that card is in `60-done/`, and
+`20-ready/` is empty. It also omitted five parked cards: BPR-0391 and BPR-0392,
+which parked on operator packets on 2026-08-19, and the three
+`awaiting-product-decision` roots, which were reachable the whole time and
+listed nowhere.
+
+The table is now the complete frontier rather than a selection from it. Every
+open card on this board is either one of these sixteen roots or reaches one
+transitively — checked by deriving it from the lanes rather than asserting it:
+of the 52 cards in `10-backlog/`, **none** has all its dependencies in
+`60-done/`.
 
 So the honest summary is narrower than the one this section used to give.
 That summary was written when hardware was the largest single blocker. It no
@@ -614,7 +641,17 @@ One caveat the lane names cannot carry: "this host" is the project's, not any
 one session's. The Windows roots are executable on the Windows 11 x64 machine
 BPR-0358 recorded, and are not executable from a macOS session. That is a queue
 position, not a `50-blocked/` condition, and the cards stay in their active
-lanes.
+lanes. BPR-0358 states the admission rule that settles it — `50-blocked/` takes
+a card only when its work "requires target-native execution on a **different**
+operating system" — and returning these would make the lane mean "was blocked
+once", which is the reading BPR-0319 built it to prevent.
+
+The consequence is worth stating plainly, because it is not a temporary
+condition of one afternoon. **No unattended work on this board is executable
+from a macOS session today.** The three active-lane roots need Windows; the
+thirteen parked roots need a person, a product decision, or a live GitHub call;
+the two blocked ones need Linux. A macOS session that finds itself with nothing
+to do here has read the board correctly.
 
 Everything else in `10-backlog/` reaches one of those roots transitively.
 
