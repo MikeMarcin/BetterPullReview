@@ -1,5 +1,12 @@
 # Auto detect text files and perform LF normalization
-* text=auto
+# The working tree is LF on every platform, because this repository pins the
+# exact bytes of checked-in files in many places - architecture digests, asset
+# canons, contract fixtures, and digest-bound attended-review evidence - and a
+# CRLF checkout silently changes every one of them. Git already stores LF; this
+# makes what is on disk agree with it. No file here needs CRLF: the tree has no
+# .bat, .cmd, .sln, .vcxproj, or .reg. Binaries are unaffected, being detected
+# as such. See BPR-0374.
+* text=auto eol=lf
 
 # Files whose exact bytes are pinned by a checked-in SHA-256 must not be
 # transformed on checkout. `text=auto` above would hand a CRLF working tree to
