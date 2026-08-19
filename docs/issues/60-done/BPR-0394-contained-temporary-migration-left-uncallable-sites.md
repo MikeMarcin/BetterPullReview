@@ -116,6 +116,55 @@ It names the file, the line, and what was accepted instead — which is what wou
 have turned either of these from a matrix archaeology exercise into a one-line
 read.
 
+### Widened after review — 2026-08-19
+
+An independent review found the gate did not close the class it claimed to. Four
+of its findings were real and are now covered; the rest are recorded as limits
+rather than as coverage, which is the part the first version got wrong by claiming
+closure it did not have.
+
+Fixed:
+
+- **Positional arguments.** Every parameter is keyword-only, so
+  `contained_temporary_directory("scratch")` is a `TypeError` of exactly the same
+  kind as `dir=`. The scan read `node.keywords` and never `node.args`. It now
+  checks both, and the support module's keyword-only-ness is itself asserted,
+  since that is what makes a positional call a failure at all.
+- **The `NameError` half.** The second original defect was
+  `tempfile.TemporaryDirectory()` in a file that never imported `tempfile`. Its
+  mirror — a helper called in a file that never imported it — is the same failure
+  and was undetected. Every call is now checked against the names its module
+  binds.
+- **The scan root.** It covered `tests/` only, while `scripts/` calls the helpers
+  too. Call checks now cover both. The `tempfile` prohibition stays scoped to
+  `tests/` deliberately: `scripts/run_network_isolated_test.py` is the launcher
+  that *creates* the AppContainer and runs outside it, and the capsule path is
+  tests-disabled macOS, so neither is subject to the constraint.
+- **`from tempfile import TemporaryDirectory`.** Reaching the same constructor
+  through a bare name bypassed an attribute-only scan. `NamedTemporaryFile`,
+  `TemporaryFile`, and `mkstemp` are also in the set now: the stated mechanism is
+  an owner-only descriptor, which the file-creating calls produce identically.
+
+Each was seeded into a real call site and fired by name; `git diff --stat` on that
+file is empty afterwards.
+
+| Seed | Verdict |
+|---|---|
+| `contained_temporary_directory(dir=…)` | fails, names the accepted keywords |
+| `contained_temporary_directory(configured_root)` | fails, names the positional count |
+| the helper's import removed | fails: "called but never imported" |
+| `from tempfile import TemporaryDirectory` and a call | fails: "imported from tempfile" |
+| all reverted | 6 cases pass |
+
+### Known limits, stated rather than implied
+
+The scan resolves names lexically, so it does not see an aliased import
+(`import … as ctd`), a `**kwargs` splat, a `functools.partial` binding, or
+`tempfile` reached through an alias other than its own name. Those are written into
+the module's docstring as limits. The card no longer claims to close the class —
+it closes the two shapes that actually occurred plus the four the review found, and
+says what is left.
+
 ### Evidence
 
 | Check | Result |
