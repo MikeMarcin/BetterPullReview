@@ -48,18 +48,38 @@ why it surfaces exclusively through tests that configure their own tree:
 Found while running the full `dev` matrix for [[BPR-0348]] and again while
 checking whether [[BPR-0256]] was actionable after [[BPR-0262]] closed.
 
-## Where to look first
+## What was checked, including one lead that is wrong
 
-`cmake/BprSyntaxHighlightingProvider.cmake:320-340` forwards `CMAKE_PREFIX_PATH`
-and `Qt6_DIR` to the nested configure, but `bpr_syntax_forward` (`:114-128`)
-drops any name that is not defined *at that moment* and any whose value is
-empty. So the question is whether those two are set, in this scope, by the time
-the syntax provider runs — `cmake/BprDependencies.cmake:113` acquires Qt and
-`:126` is where the syntax provider is reached.
+The obvious explanation is that the pinned prefix never reaches the nested
+configure. Two candidate mechanisms were tested and one is disproven, so nobody
+needs to spend the time again.
 
-Stated as the place to start rather than as the answer: the forwarding code is
-present and correct-looking, so the fault is more likely ordering or scope than
-a missing forward.
+**Scope — disproven.** `cmake/BprDependencies.cmake:115` appends the pinned
+prefix to `CMAKE_PREFIX_PATH` with a plain `list(APPEND)`, which would be
+function-local. But `bpr_configure_dependencies` spans `:69-236` and calls
+`bpr_acquire_syntax_highlighting()` at `:222`, inside that same scope. The
+append is visible where it is needed.
+
+**Acquisition — working.** A fresh capsule-graph configure resolved
+`Qt6_DIR` to the pinned tree
+(`build/.cpm-cache/bprqt/6.10.3/6.10.3/macos/lib/cmake/Qt6`). The provider did
+its job; the pinned Qt is there and is what the parent selected.
+
+So the leak happens between the parent's correct selection and the child's
+resolution. Two things left to examine:
+
+- `bpr_syntax_forward` (`BprSyntaxHighlightingProvider.cmake:114-128`) escapes a
+  list with `string(REPLACE ";" "\\;" ...)` before passing `-D...`. Whether that
+  survives `execute_process` into the child's cache is worth confirming
+  directly rather than reasoning about.
+- ECM calls `find_package(Qt6Core)`, which consults `Qt6Core_DIR` — a different
+  variable from the forwarded `Qt6_DIR`. Forwarding `Qt6_DIR` does not
+  constrain a component lookup; only `CMAKE_PREFIX_PATH` would.
+
+**An unrelated observation worth keeping.** The checked-in `build/dev` tree has
+`Qt6_DIR=/opt/homebrew/lib/cmake/Qt6` — it is configured against Homebrew's Qt,
+not the pinned one, while a fresh tree selects the pinned one. Whatever the
+outcome here, those two answers should not both be reachable.
 
 ## Required final state
 
