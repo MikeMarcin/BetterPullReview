@@ -1366,7 +1366,13 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             for relative_path, contents in files.items():
                 path = root / relative_path
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(contents, encoding="utf-8")
+                # `newline=""` writes the literal bytes. Without it Python
+                # translates every `\n` to `\r\n` on Windows, and the checker
+                # this stages for compares the designated-live canary surface
+                # against a SHA-256 taken over the LF form — so the fixture
+                # failed as "not exact" for a reason that had nothing to do with
+                # what the case was testing.
+                path.write_text(contents, encoding="utf-8", newline="")
 
             return subprocess.run(
                 [
