@@ -1,0 +1,173 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Combined focused-review acceptance",
+  "review_gate": "uiforetw_intraline_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "downstream_claims": {
+    "bpr_0233_closed": false,
+    "bpr_0257_closed": false,
+    "bpr_0258_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "reference_disclaimer": "This is a fresh immutable batch generated at commit 0e34519f2d49b035e2caa4c801ea4827ba8e07db from the real recorded google/UIforETW#74 selected-diff course. It presents the three still-open attended criteria together, each as its own decision, after the repairs that answered the earlier rejections landed: BPR-0259's accepted unselected-connector visibility (v005), BPR-0258's arrow recoloring confirmed inside the v004 note, and the BPR-0320/BPR-0321/BPR-0322/BPR-0323/BPR-0330 intraline-emphasis program. No earlier acceptance or rejection carries forward into these bytes; the v002, v003, and v004 rejections remain immutable evidence. The captures use Qt offscreen QFusionStyle at device pixel ratio 1; native platform-specific artwork, issue closure, RFC closeout, release readiness, and deferred Linux/Windows work are outside this batch.",
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0233/recorded-intraline-emphasis",
+      "subject_key": "recorded-intraline-emphasis",
+      "display_name": "Does the recorded selected diff show exact intraline emphasis?",
+      "description": "The recorded UIforETW#74 fixture is selected through the real file-row gesture and retained-cache comparison. Both coordinate replacements should carry narrow intraline marks aligned with the changed digits, distinct from the whole-line bands, with grounded gutter connectors, in all four appearance profiles. The v002 rejection's connector defect was repaired by BPR-0259 (accepted in v005) and the emphasis program landed through BPR-0320 to BPR-0330; this is the fresh integrated capture BPR-0233 requires.",
+      "acceptance_criteria": [
+        "The full-window review state is code-first: the Files and Conversations drawers and large secondary review details are collapsed, and the two code panes plus gutter dominate the window",
+        "Both removed coordinate replacements have a narrow intraline-removed mark aligned with the changed digits and distinct from the whole-line removed band",
+        "Both added coordinate replacements have a narrow intraline-added mark aligned with the changed digits and distinct from the whole-line added band",
+        "The gutter connector visibly reaches both pane edges and overlaps the corresponding changed rows instead of appearing to point from nothing to nothing",
+        "The code-first allocation, exact marks, and grounded connectors remain reviewable in Light, Dark, High-contrast Light, and High-contrast Dark"
+      ],
+      "known_concerns": [
+        "The v002 rejection also named poor or uncertain fixed-width code typeface/render quality. No dedicated typeface repair card has landed since, so judge the typeface deliberately rather than assuming it changed.",
+        "The v002 rejection named missing source-pane character emphasis while the destination span was highlighted; the BPR-0320 to BPR-0330 program reworked emphasis derivation, and this batch is the first integrated selected-diff capture since. Check both panes of each replacement.",
+        "These captures use offscreen QFusionStyle and judge the deterministic appearance profiles, not every native operating-system style."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "The focused matrix passed 6/6 in 116.30 seconds including the 84.46-second recorded course with its cut-selection-wire negative. Both replacement groups carry exact removed/added role pixels, and unselected connectors measure 840 above-floor contrast pixels in every profile."
+      },
+      "media_groups": [
+        {
+          "group_id": "intraline-comparisons",
+          "title": "Primary decision: intraline marks in the comparison crops",
+          "required": true,
+          "layout": "grid",
+          "note": "Each crop shows both coordinate replacements. Inspect the narrow marks against the whole-line bands and both pane sides. Click for native resolution.",
+          "items": [
+            { "label": "Light — comparison", "path": "captures/light-intraline-comparison.png" },
+            { "label": "Dark — comparison", "path": "captures/dark-intraline-comparison.png" },
+            { "label": "High-contrast Light — comparison", "path": "captures/high-contrast-light-intraline-comparison.png" },
+            { "label": "High-contrast Dark — comparison", "path": "captures/high-contrast-dark-intraline-comparison.png" }
+          ]
+        },
+        {
+          "group_id": "full-window-context",
+          "title": "Context: code-first allocation and grounded connectors",
+          "required": true,
+          "layout": "grid",
+          "note": "Confirm the collapsed drawers, dominant two-pane comparison, and connectors reaching both pane edges.",
+          "items": [
+            { "label": "Light — full window", "path": "captures/light-full-window.png" },
+            { "label": "Dark — full window", "path": "captures/dark-full-window.png" },
+            { "label": "High-contrast Light — full window", "path": "captures/high-contrast-light-full-window.png" },
+            { "label": "High-contrast Dark — full window", "path": "captures/high-contrast-dark-full-window.png" }
+          ]
+        }
+      ],
+      "identity_files": [
+        { "label": "Capture manifest", "path": "captures/manifest.json" },
+        { "label": "Light capture facts", "path": "captures/light-capture-facts.json" },
+        { "label": "Dark capture facts", "path": "captures/dark-capture-facts.json" },
+        { "label": "High-contrast Light capture facts", "path": "captures/high-contrast-light-capture-facts.json" },
+        { "label": "High-contrast Dark capture facts", "path": "captures/high-contrast-dark-capture-facts.json" }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0258/dark-navigation-icon-readability",
+      "subject_key": "dark-navigation-icon-readability",
+      "display_name": "Are the compact navigation arrows readable in dark modes?",
+      "description": "The four Previous/Next file and change arrows preserve the native QStyle silhouettes while taking their normal and disabled foreground colors from the live toolbar palette. Review Dark and High-contrast Dark first. The row order, edge placement, collapsed drawers, and two-pane comparison are unchanged from the compact-navigation design.",
+      "acceptance_criteria": [
+        "Previous file, Next file, Previous change, and Next change are immediately recognizable and readable in Dark",
+        "The same four arrows are immediately recognizable and readable in High-contrast Dark",
+        "Normal and disabled arrow treatments remain visually distinct without making disabled controls disappear",
+        "Files, Conversations, Review details, and private-progress symbols remain distinct from one another and from navigation",
+        "The one-row layout and focused two-pane diff remain coherent in Light, Dark, High-contrast Light, and High-contrast Dark"
+      ],
+      "known_concerns": [
+        "These captures use offscreen QFusionStyle and judge the deterministic appearance profiles, not every native operating-system style.",
+        "Disabled-mode pixmaps, palette refresh events, shortcuts, focus, accessibility, projection-driven enablement, semantic routes, drawer reopening, and scale behavior are mechanically asserted; a static full-window capture cannot show every interaction.",
+        "The v003 and v004 rejections remain immutable evidence. Accepting this subject approves only the icon-readability criterion in these exact v006 bytes."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "The focused matrix passed 6/6. Every arrow carries exact live-palette pixels in explicit normal and disabled modes. Dark measures 13.84:1 enabled and 4.45:1 disabled; High-contrast Dark measures 21.00:1 and 5.24:1; both light profiles exceed their floors."
+      },
+      "media_groups": [
+        {
+          "group_id": "dark-state-captures",
+          "title": "Primary decision: dark navigation readability",
+          "required": true,
+          "layout": "grid",
+          "note": "Inspect the four arrow buttons immediately to the right of Files. Click for native resolution.",
+          "items": [
+            { "label": "Dark — full window", "path": "captures/dark-full-window.png" },
+            { "label": "High-contrast Dark — full window", "path": "captures/high-contrast-dark-full-window.png" }
+          ]
+        },
+        {
+          "group_id": "light-regression-captures",
+          "title": "Regression check: light profiles",
+          "required": true,
+          "layout": "grid",
+          "note": "Confirm the palette-aware arrows remain clear without changing the compact allocation.",
+          "items": [
+            { "label": "Light — full window", "path": "captures/light-full-window.png" },
+            { "label": "High-contrast Light — full window", "path": "captures/high-contrast-light-full-window.png" }
+          ]
+        }
+      ],
+      "identity_files": [
+        { "label": "Capture manifest", "path": "captures/manifest.json" },
+        { "label": "Dark capture facts", "path": "captures/dark-capture-facts.json" },
+        { "label": "High-contrast Dark capture facts", "path": "captures/high-contrast-dark-capture-facts.json" }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0257/compact-focused-review-navigation",
+      "subject_key": "compact-focused-review-navigation",
+      "display_name": "Is the compact focused-review navigation acceptable as a whole?",
+      "description": "One persistent icon-only row presents, in order: Files at the left edge, Previous file, Next file, Previous change, Next change, the bounded Review details and private-progress controls, a flexible spacer, and Conversations at the right edge. The comparison surface carries no duplicate navigation buttons, and the code panes keep the focused allocation. This subject is the combined criterion the v003 and v004 batches could not accept; the arrow and connector repairs those rejections demanded are in these bytes.",
+      "acceptance_criteria": [
+        "The row order is exactly Files, Previous file, Next file, Previous change, Next change, Review details, private progress, spacer, Conversations",
+        "Every control is icon-only, with the drawer toggles at the window edges and no text labels consuming code-pane space",
+        "The dark-mode arrows and the unselected and selected swoosh connectors are all clearly visible together in Dark and High-contrast Dark",
+        "The focused two-pane comparison remains dominant, with drawers and secondary details collapsed",
+        "The complete row and comparison remain coherent in Light, Dark, High-contrast Light, and High-contrast Dark"
+      ],
+      "known_concerns": [
+        "These captures use offscreen QFusionStyle and judge the deterministic appearance profiles, not every native operating-system style.",
+        "Action routing, enablement projection, shortcuts, focus order, accessibility names, and drawer reopening are mechanically asserted by the focused matrix rather than visible in a static capture.",
+        "Accepting this subject approves the combined compact-navigation criterion in these exact v006 bytes only; it does not close BPR-0257, whose card the integrator moves separately."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "The focused matrix passed 6/6 in 116.30 seconds. The exact row order, icon-only presentation, live-palette arrow contrast, above-floor unselected-connector pixels in every profile, and the real four-action navigation course with both drawer toggles are all mechanically asserted at these bytes."
+      },
+      "media_groups": [
+        {
+          "group_id": "four-profile-full-windows",
+          "title": "Primary decision: the complete row in all four profiles",
+          "required": true,
+          "layout": "grid",
+          "note": "Judge the whole row and window together: order, edges, icons, connectors, and the focused comparison. Click for native resolution.",
+          "items": [
+            { "label": "Light — full window", "path": "captures/light-full-window.png" },
+            { "label": "Dark — full window", "path": "captures/dark-full-window.png" },
+            { "label": "High-contrast Light — full window", "path": "captures/high-contrast-light-full-window.png" },
+            { "label": "High-contrast Dark — full window", "path": "captures/high-contrast-dark-full-window.png" }
+          ]
+        }
+      ],
+      "identity_files": [
+        { "label": "Capture manifest", "path": "captures/manifest.json" },
+        { "label": "Light capture facts", "path": "captures/light-capture-facts.json" },
+        { "label": "Dark capture facts", "path": "captures/dark-capture-facts.json" },
+        { "label": "High-contrast Light capture facts", "path": "captures/high-contrast-light-capture-facts.json" },
+        { "label": "High-contrast Dark capture facts", "path": "captures/high-contrast-dark-capture-facts.json" }
+      ]
+    }
+  ]
+}

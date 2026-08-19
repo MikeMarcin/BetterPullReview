@@ -1,0 +1,101 @@
+{
+  "schema": "bpr.uiforetw_intraline_capture_manifest.v6",
+  "implementation_commit": "0e34519f2d49b035e2caa4c801ea4827ba8e07db",
+  "implementation_files": [
+    "docs/ux/appearance-and-accessibility.md",
+    "docs/ux/diff-link-map-and-alignment-space-scrolling.md",
+    "docs/ux/workbench-specification.md",
+    "src/adapters/qt/src/diff_link_map.cpp",
+    "src/app/src/github_application.cpp",
+    "tests/adapters_qt/appearance_profile_tests.cpp",
+    "tests/end_to_end/application_uiforetw_selected_diff_contract.cmake"
+  ],
+  "implementation_files_sha256": "c6334c6a5742266516c0c8edefb92b6399171ed1a1b08866b7a31930872ef390",
+  "implementation_digest_command": "shasum -a 256 <implementation_files in listed order> | shasum -a 256",
+  "carried_rejections": {
+    "uiforetw-intraline-acceptance-v002": "poor or uncertain fixed-width code typeface/render quality; missing corresponding source-pane character emphasis; invisible unselected dark-mode swoosh connectors",
+    "uiforetw-intraline-acceptance-v003": "the dark-mode Previous/Next icons are unreadable",
+    "uiforetw-intraline-acceptance-v004": "The arrows look good now but the dark mode mode swoosh connectors are too hard to see except for the selected one."
+  },
+  "accepted_isolated_repairs": {
+    "uiforetw-intraline-acceptance-v005": "criterion:/betterpullreview/bpr-0259/dark-connector-visibility accepted with every downstream claim false"
+  },
+  "build_preset": "dev",
+  "configuration": "Debug",
+  "platform": "macOS arm64",
+  "qt_version": "6.10.3",
+  "qt_platform": "offscreen",
+  "qt_style": "QFusionStyle",
+  "device_pixel_ratio": 1,
+  "logical_dimensions": [
+    1280,
+    1000
+  ],
+  "verification_command": "ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' --output-on-failure",
+  "verification_result": "pass: within the 6/6 focused matrix, 84.46 seconds; four profile captures plus cut-selection-wire negative",
+  "focused_matrix_command": "ctest --preset dev -R '^(qt_workbench_window_scale_(100|125|200)|qt_appearance_profile|application_uiforetw_selected_diff_contract|application_workbench_composition_contract)$' --output-on-failure",
+  "focused_matrix_result": "pass: 6/6 in 116.30 seconds",
+  "verified_course": [
+    "Files-drawer selection",
+    "Next file",
+    "Previous file",
+    "Next change",
+    "Previous change",
+    "Files drawer toggle",
+    "Conversations drawer toggle"
+  ],
+  "fixture": {
+    "identity": "google/UIforETW#74",
+    "selected_path": "UIforETW/UIforETW.rc",
+    "base_commit": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc",
+    "head_commit": "e40058be7d5fe319342dffb567ce30e42bc6f4de",
+    "base_blob": "b995e189fb58da146945e1fb22380cdf4a7f4e47",
+    "head_blob": "6335c1b2e14cd5e63142ce1dfc283fcf538fb134"
+  },
+  "captures": [
+    {
+      "profile": "light",
+      "full_window_sha256": "7daa5c877288b94233988276edb615f2ef7aedd32ec4bff4e793ec3b52f962b3",
+      "intraline_comparison_sha256": "1eaacff96f2a583ee676c584b009fb518975eb14150a54f04517e613cf876bb4",
+      "facts_sha256": "60a75499131c4878d02a542d04ced3a5eb4c8bad8570b5436179cf12aeec16f1",
+      "unselected_connector_contrast_pixels": 840,
+      "unselected_connector_dominant_path_pixels": 840,
+      "selected_connector_contrast_pixels": 250,
+      "navigation_normal_contrast_hundredths": 1473,
+      "navigation_disabled_contrast_hundredths": 311
+    },
+    {
+      "profile": "dark",
+      "full_window_sha256": "0c39cb79fa655df76e76667bee0d5993f048fb43fdc01cba41330bde4c3827c7",
+      "intraline_comparison_sha256": "078f8118d59578682a4cb4cebb60176c6ba69564cfca2c154bcb0745b5f4394d",
+      "facts_sha256": "68eff985f8c34350044f1cc586192097e3a304368e594808fc742ac982d4b5bf",
+      "unselected_connector_contrast_pixels": 840,
+      "unselected_connector_dominant_path_pixels": 840,
+      "selected_connector_contrast_pixels": 250,
+      "navigation_normal_contrast_hundredths": 1384,
+      "navigation_disabled_contrast_hundredths": 445
+    },
+    {
+      "profile": "high-contrast-light",
+      "full_window_sha256": "da5757c8e7ae83c24e682bd0d85a616e1a45bfd5a13479d9185059e75b151dad",
+      "intraline_comparison_sha256": "6aec54ac7b5e111c1a0d9cfc3d04d39c6ddde2a54e72fb9ee941064fcf1d65e3",
+      "facts_sha256": "5309aab20926b7ec487c7ca508d0819e9eca15ac2ff0aa6e87c44b233ce15d7c",
+      "unselected_connector_contrast_pixels": 840,
+      "unselected_connector_dominant_path_pixels": 840,
+      "selected_connector_contrast_pixels": 250,
+      "navigation_normal_contrast_hundredths": 2100,
+      "navigation_disabled_contrast_hundredths": 400
+    },
+    {
+      "profile": "high-contrast-dark",
+      "full_window_sha256": "4844bcca3de33730db4713a65e393c5a634fcf22d7cbde41d35b38a34cfb6a07",
+      "intraline_comparison_sha256": "ec0158434a3b26f84cd7d5fe6624dfb157c60d00f7b973de64f016b08c269b7b",
+      "facts_sha256": "e6d10e01ae0bbe5019fecb81714a2cdd6c41e009bff0d96530a8d360067d47c8",
+      "unselected_connector_contrast_pixels": 840,
+      "unselected_connector_dominant_path_pixels": 840,
+      "selected_connector_contrast_pixels": 250,
+      "navigation_normal_contrast_hundredths": 2100,
+      "navigation_disabled_contrast_hundredths": 524
+    }
+  ]
+}

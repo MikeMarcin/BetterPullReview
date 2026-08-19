@@ -92,3 +92,16 @@ validated and recorded at
 the dark-mode Previous/Next icons are unreadable. BPR-0258 owns that narrow
 repair and the required new attended batch. This card remains Backlog; the
 rejected v003 subject is evidence, not acceptance.
+
+## Fresh combined batch prepared — 2026-08-18
+
+Both defects that rejected the combined criterion are repaired in current
+bytes: the arrows by done [[BPR-0258]]'s recoloring, confirmed inside the v004
+note, and the unselected connectors by done [[BPR-0259]], accepted in
+isolation in v005 with every downstream claim false. The new immutable batch
+`bpr:/attended-review/betterpullreview/73e0d5752e89264d9731fe8a` at
+`docs/verification/reviews/uiforetw-intraline-acceptance-v006/` binds captures
+from commit `0e34519` and presents this card's combined
+`criterion:/betterpullreview/bpr-0257/compact-focused-review-navigation`
+subject. The focused matrix passed 6/6 in 116.30 seconds at those bytes. The
+attended verdict remains the only open dependency.

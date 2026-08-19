@@ -1,0 +1,328 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/73e0d5752e89264d9731fe8a",
+  "downstream_claims": {
+    "bpr_0233_closed": false,
+    "bpr_0257_closed": false,
+    "bpr_0258_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "This is a fresh immutable batch generated at commit 0e34519f2d49b035e2caa4c801ea4827ba8e07db from the real recorded google/UIforETW#74 selected-diff course. It presents the three still-open attended criteria together, each as its own decision, after the repairs that answered the earlier rejections landed: BPR-0259's accepted unselected-connector visibility (v005), BPR-0258's arrow recoloring confirmed inside the v004 note, and the BPR-0320/BPR-0321/BPR-0322/BPR-0323/BPR-0330 intraline-emphasis program. No earlier acceptance or rejection carries forward into these bytes; the v002, v003, and v004 rejections remain immutable evidence. The captures use Qt offscreen QFusionStyle at device pixel ratio 1; native platform-specific artwork, issue closure, RFC closeout, release readiness, and deferred Linux/Windows work are outside this batch.",
+  "review_gate": "uiforetw_intraline_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "The full-window review state is code-first: the Files and Conversations drawers and large secondary review details are collapsed, and the two code panes plus gutter dominate the window",
+        "Both removed coordinate replacements have a narrow intraline-removed mark aligned with the changed digits and distinct from the whole-line removed band",
+        "Both added coordinate replacements have a narrow intraline-added mark aligned with the changed digits and distinct from the whole-line added band",
+        "The gutter connector visibly reaches both pane edges and overlaps the corresponding changed rows instead of appearing to point from nothing to nothing",
+        "The code-first allocation, exact marks, and grounded connectors remain reviewable in Light, Dark, High-contrast Light, and High-contrast Dark"
+      ],
+      "audit_verdict": {
+        "note": "The focused matrix passed 6/6 in 116.30 seconds including the 84.46-second recorded course with its cut-selection-wire negative. Both replacement groups carry exact removed/added role pixels, and unselected connectors measure 840 above-floor contrast pixels in every profile.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "The recorded UIforETW#74 fixture is selected through the real file-row gesture and retained-cache comparison. Both coordinate replacements should carry narrow intraline marks aligned with the changed digits, distinct from the whole-line bands, with grounded gutter connectors, in all four appearance profiles. The v002 rejection's connector defect was repaired by BPR-0259 (accepted in v005) and the emphasis program landed through BPR-0320 to BPR-0330; this is the fresh integrated capture BPR-0233 requires.",
+      "detail_sections": [],
+      "display_name": "Does the recorded selected diff show exact intraline emphasis?",
+      "identity_files": [
+        {
+          "label": "Capture manifest",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/01-capture-manifest.json",
+          "sha256": "sha256:ce32796ec84a010f2c276bdcf55efcb1f8e61a15795d7855ee3ede8210dbda97"
+        },
+        {
+          "label": "Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/02-light-capture-facts.json",
+          "sha256": "sha256:60a75499131c4878d02a542d04ced3a5eb4c8bad8570b5436179cf12aeec16f1"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/03-dark-capture-facts.json",
+          "sha256": "sha256:68eff985f8c34350044f1cc586192097e3a304368e594808fc742ac982d4b5bf"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/04-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:5309aab20926b7ec487c7ca508d0819e9eca15ac2ff0aa6e87c44b233ce15d7c"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/05-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:e6d10e01ae0bbe5019fecb81714a2cdd6c41e009bff0d96530a8d360067d47c8"
+        }
+      ],
+      "known_concerns": [
+        "The v002 rejection also named poor or uncertain fixed-width code typeface/render quality. No dedicated typeface repair card has landed since, so judge the typeface deliberately rather than assuming it changed.",
+        "The v002 rejection named missing source-pane character emphasis while the destination span was highlighted; the BPR-0320 to BPR-0330 program reworked emphasis derivation, and this batch is the first integrated selected-diff capture since. Check both panes of each replacement.",
+        "These captures use offscreen QFusionStyle and judge the deterministic appearance profiles, not every native operating-system style."
+      ],
+      "media_groups": [
+        {
+          "group_id": "intraline-comparisons",
+          "items": [
+            {
+              "label": "Light — comparison",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/intraline-comparisons/01-light-comparison.png",
+              "sha256": "sha256:1eaacff96f2a583ee676c584b009fb518975eb14150a54f04517e613cf876bb4"
+            },
+            {
+              "label": "Dark — comparison",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/intraline-comparisons/02-dark-comparison.png",
+              "sha256": "sha256:078f8118d59578682a4cb4cebb60176c6ba69564cfca2c154bcb0745b5f4394d"
+            },
+            {
+              "label": "High-contrast Light — comparison",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/intraline-comparisons/03-high-contrast-light-comparison.png",
+              "sha256": "sha256:6aec54ac7b5e111c1a0d9cfc3d04d39c6ddde2a54e72fb9ee941064fcf1d65e3"
+            },
+            {
+              "label": "High-contrast Dark — comparison",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/intraline-comparisons/04-high-contrast-dark-comparison.png",
+              "sha256": "sha256:ec0158434a3b26f84cd7d5fe6624dfb157c60d00f7b973de64f016b08c269b7b"
+            }
+          ],
+          "layout": "grid",
+          "note": "Each crop shows both coordinate replacements. Inspect the narrow marks against the whole-line bands and both pane sides. Click for native resolution.",
+          "required": true,
+          "title": "Primary decision: intraline marks in the comparison crops"
+        },
+        {
+          "group_id": "full-window-context",
+          "items": [
+            {
+              "label": "Light — full window",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/full-window-context/01-light-full-window.png",
+              "sha256": "sha256:7daa5c877288b94233988276edb615f2ef7aedd32ec4bff4e793ec3b52f962b3"
+            },
+            {
+              "label": "Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/full-window-context/02-dark-full-window.png",
+              "sha256": "sha256:0c39cb79fa655df76e76667bee0d5993f048fb43fdc01cba41330bde4c3827c7"
+            },
+            {
+              "label": "High-contrast Light — full window",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/full-window-context/03-high-contrast-light-full-window.png",
+              "sha256": "sha256:da5757c8e7ae83c24e682bd0d85a616e1a45bfd5a13479d9185059e75b151dad"
+            },
+            {
+              "label": "High-contrast Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/full-window-context/04-high-contrast-dark-full-window.png",
+              "sha256": "sha256:4844bcca3de33730db4713a65e393c5a634fcf22d7cbde41d35b38a34cfb6a07"
+            }
+          ],
+          "layout": "grid",
+          "note": "Confirm the collapsed drawers, dominant two-pane comparison, and connectors reaching both pane edges.",
+          "required": true,
+          "title": "Context: code-first allocation and grounded connectors"
+        }
+      ],
+      "subject_digest": "sha256:4c501d0a53f566a2d2101bae4b59a177b7bcd3e405c008450f094de6ff531e2a",
+      "subject_id": "criterion:/betterpullreview/bpr-0233/recorded-intraline-emphasis",
+      "subject_key": "recorded-intraline-emphasis"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Previous file, Next file, Previous change, and Next change are immediately recognizable and readable in Dark",
+        "The same four arrows are immediately recognizable and readable in High-contrast Dark",
+        "Normal and disabled arrow treatments remain visually distinct without making disabled controls disappear",
+        "Files, Conversations, Review details, and private-progress symbols remain distinct from one another and from navigation",
+        "The one-row layout and focused two-pane diff remain coherent in Light, Dark, High-contrast Light, and High-contrast Dark"
+      ],
+      "audit_verdict": {
+        "note": "The focused matrix passed 6/6. Every arrow carries exact live-palette pixels in explicit normal and disabled modes. Dark measures 13.84:1 enabled and 4.45:1 disabled; High-contrast Dark measures 21.00:1 and 5.24:1; both light profiles exceed their floors.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "The four Previous/Next file and change arrows preserve the native QStyle silhouettes while taking their normal and disabled foreground colors from the live toolbar palette. Review Dark and High-contrast Dark first. The row order, edge placement, collapsed drawers, and two-pane comparison are unchanged from the compact-navigation design.",
+      "detail_sections": [],
+      "display_name": "Are the compact navigation arrows readable in dark modes?",
+      "identity_files": [
+        {
+          "label": "Capture manifest",
+          "media_kind": "file",
+          "path": "subjects/002-dark-navigation-icon-readability/identity/01-capture-manifest.json",
+          "sha256": "sha256:ce32796ec84a010f2c276bdcf55efcb1f8e61a15795d7855ee3ede8210dbda97"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/002-dark-navigation-icon-readability/identity/02-dark-capture-facts.json",
+          "sha256": "sha256:68eff985f8c34350044f1cc586192097e3a304368e594808fc742ac982d4b5bf"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/002-dark-navigation-icon-readability/identity/03-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:e6d10e01ae0bbe5019fecb81714a2cdd6c41e009bff0d96530a8d360067d47c8"
+        }
+      ],
+      "known_concerns": [
+        "These captures use offscreen QFusionStyle and judge the deterministic appearance profiles, not every native operating-system style.",
+        "Disabled-mode pixmaps, palette refresh events, shortcuts, focus, accessibility, projection-driven enablement, semantic routes, drawer reopening, and scale behavior are mechanically asserted; a static full-window capture cannot show every interaction.",
+        "The v003 and v004 rejections remain immutable evidence. Accepting this subject approves only the icon-readability criterion in these exact v006 bytes."
+      ],
+      "media_groups": [
+        {
+          "group_id": "dark-state-captures",
+          "items": [
+            {
+              "label": "Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/002-dark-navigation-icon-readability/dark-state-captures/01-dark-full-window.png",
+              "sha256": "sha256:0c39cb79fa655df76e76667bee0d5993f048fb43fdc01cba41330bde4c3827c7"
+            },
+            {
+              "label": "High-contrast Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/002-dark-navigation-icon-readability/dark-state-captures/02-high-contrast-dark-full-window.png",
+              "sha256": "sha256:4844bcca3de33730db4713a65e393c5a634fcf22d7cbde41d35b38a34cfb6a07"
+            }
+          ],
+          "layout": "grid",
+          "note": "Inspect the four arrow buttons immediately to the right of Files. Click for native resolution.",
+          "required": true,
+          "title": "Primary decision: dark navigation readability"
+        },
+        {
+          "group_id": "light-regression-captures",
+          "items": [
+            {
+              "label": "Light — full window",
+              "media_kind": "image",
+              "path": "subjects/002-dark-navigation-icon-readability/light-regression-captures/01-light-full-window.png",
+              "sha256": "sha256:7daa5c877288b94233988276edb615f2ef7aedd32ec4bff4e793ec3b52f962b3"
+            },
+            {
+              "label": "High-contrast Light — full window",
+              "media_kind": "image",
+              "path": "subjects/002-dark-navigation-icon-readability/light-regression-captures/02-high-contrast-light-full-window.png",
+              "sha256": "sha256:da5757c8e7ae83c24e682bd0d85a616e1a45bfd5a13479d9185059e75b151dad"
+            }
+          ],
+          "layout": "grid",
+          "note": "Confirm the palette-aware arrows remain clear without changing the compact allocation.",
+          "required": true,
+          "title": "Regression check: light profiles"
+        }
+      ],
+      "subject_digest": "sha256:ee4949dc01c572e69ac9d80c9eef24d24e7193d219cc164f67a6b94a1a7ce7c4",
+      "subject_id": "criterion:/betterpullreview/bpr-0258/dark-navigation-icon-readability",
+      "subject_key": "dark-navigation-icon-readability"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "The row order is exactly Files, Previous file, Next file, Previous change, Next change, Review details, private progress, spacer, Conversations",
+        "Every control is icon-only, with the drawer toggles at the window edges and no text labels consuming code-pane space",
+        "The dark-mode arrows and the unselected and selected swoosh connectors are all clearly visible together in Dark and High-contrast Dark",
+        "The focused two-pane comparison remains dominant, with drawers and secondary details collapsed",
+        "The complete row and comparison remain coherent in Light, Dark, High-contrast Light, and High-contrast Dark"
+      ],
+      "audit_verdict": {
+        "note": "The focused matrix passed 6/6 in 116.30 seconds. The exact row order, icon-only presentation, live-palette arrow contrast, above-floor unselected-connector pixels in every profile, and the real four-action navigation course with both drawer toggles are all mechanically asserted at these bytes.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "One persistent icon-only row presents, in order: Files at the left edge, Previous file, Next file, Previous change, Next change, the bounded Review details and private-progress controls, a flexible spacer, and Conversations at the right edge. The comparison surface carries no duplicate navigation buttons, and the code panes keep the focused allocation. This subject is the combined criterion the v003 and v004 batches could not accept; the arrow and connector repairs those rejections demanded are in these bytes.",
+      "detail_sections": [],
+      "display_name": "Is the compact focused-review navigation acceptable as a whole?",
+      "identity_files": [
+        {
+          "label": "Capture manifest",
+          "media_kind": "file",
+          "path": "subjects/003-compact-focused-review-navigation/identity/01-capture-manifest.json",
+          "sha256": "sha256:ce32796ec84a010f2c276bdcf55efcb1f8e61a15795d7855ee3ede8210dbda97"
+        },
+        {
+          "label": "Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/003-compact-focused-review-navigation/identity/02-light-capture-facts.json",
+          "sha256": "sha256:60a75499131c4878d02a542d04ced3a5eb4c8bad8570b5436179cf12aeec16f1"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/003-compact-focused-review-navigation/identity/03-dark-capture-facts.json",
+          "sha256": "sha256:68eff985f8c34350044f1cc586192097e3a304368e594808fc742ac982d4b5bf"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/003-compact-focused-review-navigation/identity/04-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:5309aab20926b7ec487c7ca508d0819e9eca15ac2ff0aa6e87c44b233ce15d7c"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/003-compact-focused-review-navigation/identity/05-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:e6d10e01ae0bbe5019fecb81714a2cdd6c41e009bff0d96530a8d360067d47c8"
+        }
+      ],
+      "known_concerns": [
+        "These captures use offscreen QFusionStyle and judge the deterministic appearance profiles, not every native operating-system style.",
+        "Action routing, enablement projection, shortcuts, focus order, accessibility names, and drawer reopening are mechanically asserted by the focused matrix rather than visible in a static capture.",
+        "Accepting this subject approves the combined compact-navigation criterion in these exact v006 bytes only; it does not close BPR-0257, whose card the integrator moves separately."
+      ],
+      "media_groups": [
+        {
+          "group_id": "four-profile-full-windows",
+          "items": [
+            {
+              "label": "Light — full window",
+              "media_kind": "image",
+              "path": "subjects/003-compact-focused-review-navigation/four-profile-full-windows/01-light-full-window.png",
+              "sha256": "sha256:7daa5c877288b94233988276edb615f2ef7aedd32ec4bff4e793ec3b52f962b3"
+            },
+            {
+              "label": "Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/003-compact-focused-review-navigation/four-profile-full-windows/02-dark-full-window.png",
+              "sha256": "sha256:0c39cb79fa655df76e76667bee0d5993f048fb43fdc01cba41330bde4c3827c7"
+            },
+            {
+              "label": "High-contrast Light — full window",
+              "media_kind": "image",
+              "path": "subjects/003-compact-focused-review-navigation/four-profile-full-windows/03-high-contrast-light-full-window.png",
+              "sha256": "sha256:da5757c8e7ae83c24e682bd0d85a616e1a45bfd5a13479d9185059e75b151dad"
+            },
+            {
+              "label": "High-contrast Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/003-compact-focused-review-navigation/four-profile-full-windows/04-high-contrast-dark-full-window.png",
+              "sha256": "sha256:4844bcca3de33730db4713a65e393c5a634fcf22d7cbde41d35b38a34cfb6a07"
+            }
+          ],
+          "layout": "grid",
+          "note": "Judge the whole row and window together: order, edges, icons, connectors, and the focused comparison. Click for native resolution.",
+          "required": true,
+          "title": "Primary decision: the complete row in all four profiles"
+        }
+      ],
+      "subject_digest": "sha256:94c8ce707fe0aa50148320e98fb0bb27a6bf75b0a8a1a9cde4a50d72dce54cf7",
+      "subject_id": "criterion:/betterpullreview/bpr-0257/compact-focused-review-navigation",
+      "subject_key": "compact-focused-review-navigation"
+    }
+  ],
+  "title": "Combined focused-review acceptance"
+}

@@ -83,3 +83,17 @@ This confirms the bounded arrow repair visually, but it does not accept the
 combined compact-review criterion or close this card. BPR-0259 owns the newly
 exposed unselected-connector contrast defect. The v004 rejection remains
 immutable and no acceptance is inferred from the positive sub-observation.
+
+## Fresh batch prepared — 2026-08-18
+
+Done [[BPR-0259]]'s connector repair was accepted in isolation in v005, so the
+defect that rejected v004 is answered in current bytes. The new immutable
+combined batch
+`bpr:/attended-review/betterpullreview/73e0d5752e89264d9731fe8a` at
+`docs/verification/reviews/uiforetw-intraline-acceptance-v006/` binds captures
+from commit `0e34519` and presents this card's
+`criterion:/betterpullreview/bpr-0258/dark-navigation-icon-readability`
+subject with fresh measured contrast: Dark 13.84:1 normal and 4.45:1 disabled,
+High-contrast Dark 21.00:1 and 5.24:1. The focused matrix passed 6/6 in
+116.30 seconds at those bytes. The exact exported verdict remains the only
+open dependency.

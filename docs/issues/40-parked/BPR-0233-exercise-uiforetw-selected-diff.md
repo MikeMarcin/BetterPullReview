@@ -101,3 +101,19 @@ batch is prepared.
 ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' --output-on-failure
 ctest --preset dev -R '^(github_recorded_fixture_contract|qt_diff_workbench_scale_100|application_workbench_composition_contract)$' --output-on-failure
 ```
+
+## Fresh integrated batch prepared — 2026-08-18
+
+The fresh integrated capture this card required after the v002 rejection now
+exists. The connector defect was repaired by done [[BPR-0259]] and accepted in
+isolation in v005, and the intraline-emphasis program landed through done
+[[BPR-0320]], [[BPR-0321]], [[BPR-0322]], [[BPR-0323]], and [[BPR-0330]]. The
+new immutable combined batch
+`bpr:/attended-review/betterpullreview/73e0d5752e89264d9731fe8a` at
+`docs/verification/reviews/uiforetw-intraline-acceptance-v006/` binds captures
+from commit `0e34519` and presents this card's
+`criterion:/betterpullreview/bpr-0233/recorded-intraline-emphasis` subject with
+the v002 typeface and source-pane-emphasis observations carried as explicit
+known concerns for the owner to re-judge. The focused matrix passed 6/6 in
+116.30 seconds at those bytes. The attended verdict remains the only open
+dependency; no acceptance is inferred from the mechanical pass.
