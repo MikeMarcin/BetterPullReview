@@ -141,6 +141,20 @@ would produce a real banner from a path no user can reach, and step 4 would
 still have nothing to select. The banner is not the claim; the queue item
 becoming a banner becoming a selected review is.
 
+## Attempt one falsified the packet's premise — 2026-08-18
+
+The owner ran the v002 course. It armed correctly and printed the exact
+payload, then waited at `NATIVE_NOTIFICATION_AWAITING_PLATFORM_CLICK` for a
+banner that structurally cannot exist: the tests-enabled executable is a
+bare Mach-O with no bundle identity, macOS registers Notification Center
+applications by bundle, and the owner confirmed System Settings →
+Notifications carries no BetterPullReview entry at all. The attempt log is
+preserved beside the packet as `notification-run-attempt-1.log`. This
+card's refrain applies a third time: attendance was never what was missing.
+[[BPR-0370]] owns the bundling repair and the preflight check that was
+missing; this card stays parked until a regenerated packet binds bytes that
+can actually produce the banner.
+
 ## Packet regenerated, 2026-08-18
 
 The live procedure is now

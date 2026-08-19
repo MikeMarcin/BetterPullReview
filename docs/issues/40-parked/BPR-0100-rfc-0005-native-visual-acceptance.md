@@ -77,3 +77,20 @@ binding the same dev executable as the two other pending packets, with
 `application_attended_launch_contract` and the recorded selected-diff
 contract green at those bytes as preflights. The card parks awaiting that
 judgment.
+
+## Attended result — rejected, 2026-08-18
+
+The owner ran the pass, reached the real C++ comparison through the Files
+drawer, and rejected on a defect no automated marker had caught, asking in
+their own words:
+
+> How come there's no syntax highlighting?
+
+`UIforETW/UIforETWDlg.cpp` renders monochrome in the dark profile while
+`SYNTAX_CLASSIFIER_COMPOSED_OK` stays green — the defect is recorded and
+root-caused as [[BPR-0368]], a delivery race between span adoption and the
+diff projection that no contract observes. This is precisely what the pass
+exists to produce; the rejection is evidence, not failure. The card stays
+parked: the packet is re-presented against repaired bytes after BPR-0368
+lands, and no acceptance is inferred from the aspects the owner did not
+reach.
