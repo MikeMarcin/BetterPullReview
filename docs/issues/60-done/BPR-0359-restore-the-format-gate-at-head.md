@@ -1,9 +1,10 @@
 ---
 id: BPR-0359
 title: Restore the format gate at HEAD again
-status: In Progress
+status: Done
 rfc: RFC-BPR-0011
 depends_on: []
+completed: 2026-08-18
 ---
 
 # Restore the format gate at HEAD again
@@ -45,3 +46,12 @@ with whoever owns the commit path, and this card owes only the repair.
 cmake --build --preset dev --target coding-format-check
 git diff -w HEAD -- src/app/src/github_application.cpp   # empty
 ```
+
+## Result — 2026-08-18
+
+`clang-format` applied to `src/app/src/github_application.cpp`. The change is
+two lines of continuation indent and one assignment-alignment column, and
+`git diff -w` for the slice is empty, so nothing but whitespace moved.
+
+`coding-format-check` now passes across all 375 files, and the application
+target rebuilds.

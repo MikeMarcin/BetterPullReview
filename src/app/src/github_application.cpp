@@ -2092,9 +2092,9 @@ namespace bpr::app {
 					  .parent_path();
 			const auto workspaceTemplate = workspaceNeighbourhood.empty()
 				? std::filesystem::path{ QDir::tempPath().toStdString() }
-					  / "betterpullreview-agent-XXXXXX"
+					/ "betterpullreview-agent-XXXXXX"
 				: workspaceNeighbourhood / "betterpullreview-agent-XXXXXX";
-			AgentWorkspaceRoot = std::make_unique<QTemporaryDir>(
+			AgentWorkspaceRoot           = std::make_unique<QTemporaryDir>(
 				QString::fromStdString(workspaceTemplate.string()));
 			if (!AgentWorkspaceRoot->isValid()) {
 				throw std::runtime_error{ "Agent workspace root is unavailable" };
