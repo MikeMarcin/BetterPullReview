@@ -711,15 +711,40 @@ namespace {
 			verify_pruned_and_delete,
 			verify_deleted,
 		};
-		epoch_maintenance_probe         MaintenanceProbe = epoch_maintenance_probe::none;
-		bpr::core::review_epoch_id      MaintenanceTarget;
-		int                             MaintenanceLeftRow       = -1;
-		int                             MaintenanceRightRow      = -1;
-		int                             MaintenanceAccountReads  = 0;
-		int                             MaintenanceSmartAcquires = 0;
-		std::size_t                     MaintenanceModelResets   = 0U;
-		int                             EpochLeftRow             = -1;
-		int                             EpochRightRow            = -1;
+		epoch_maintenance_probe MaintenanceProbe = epoch_maintenance_probe::none;
+		/// \brief The epoch every maintenance-evidence query in this run names.
+		///
+		/// \details `prune` and `verify_pruned_and_delete` assign this from the
+		/// catalog binding they captured. `verify_deleted` deliberately leaves
+		/// it default-constructed: it runs in a fresh process after the whole
+		/// cache was deleted, so there is no surviving binding to name, and an
+		/// invalid target asks `maintenance_evidence` about ordinal one of the
+		/// catalog it can currently derive. That is the intended question — but
+		/// the gate, the assertion and the diagnostic must all ask it through
+		/// this one field, or they are not talking about the same epoch and
+		/// nothing says they would agree. BPR-0345.
+		bpr::core::review_epoch_id MaintenanceTarget;
+		/// \brief The per-target deleted flags, as the probe observed them.
+		///
+		/// \details `maintenance_evidence` is a live observation: for a
+		/// retired target it reopens the catalog and reads the epoch's anchors
+		/// back out of it. Asking it again once shutdown has torn that catalog
+		/// down does not re-check the claim, it asks a question of an object
+		/// that is gone, and the honest answer to that is the struct's `false`
+		/// default. The closing assertion did exactly that and failed about
+		/// half the time on state that had been correct throughout the run.
+		/// So the probe records what it saw at the moment it was satisfied,
+		/// and the assertion reads the record. BPR-0345.
+		bool                            MaintenanceObserved               = false;
+		bool                            MaintenanceTargetBaseCacheDeleted = false;
+		bool                            MaintenanceTargetHeadCacheDeleted = false;
+		int                             MaintenanceLeftRow                = -1;
+		int                             MaintenanceRightRow               = -1;
+		int                             MaintenanceAccountReads           = 0;
+		int                             MaintenanceSmartAcquires          = 0;
+		std::size_t                     MaintenanceModelResets            = 0U;
+		int                             EpochLeftRow                      = -1;
+		int                             EpochRightRow                     = -1;
 		native_appearance_probe_state   Appearance;
 		std::optional<std::string_view> DiffEvidenceDirectory;
 		/// The appearance the diff captures are taken under, when one was
@@ -2277,15 +2302,37 @@ namespace {
 				github_application_fixture_access::evidence(aApplication);
 			const auto maintenance = bpr::app::detail::
 				github_application_fixture_access::maintenance_evidence(
-					aApplication, { });
-			return provider.SmartAcquireCount == 1
+					aApplication, aRun.MaintenanceTarget);
+			// Every condition the closing assertion checks, the two per-target
+			// deleted flags included. Returning true here is what ends the
+			// polling and begins shutdown, so a condition this gate omits is
+			// one the assertion then reads from whatever state happened to
+			// exist when the run stopped waiting.
+			//
+			// Those two flags settle later than the retired marker beside
+			// them. The marker is written by the deletion itself, while the
+			// flags are read back from a catalog this process — a fresh one,
+			// started after the delete — must first rediscover and rehydrate.
+			// Polling on the marker alone therefore declared success while the
+			// flags were still false, and the assertion failed about half the
+			// time, a quarter second into a sixty-second budget it never came
+			// close to expiring. BPR-0345.
+			const auto settled = provider.SmartAcquireCount == 1
 				&& provider.SmartDiscoveryCount == 1
 				&& provider.SmartLsRefsCount == 1
 				&& provider.SmartFetchCount == 1
+				&& maintenance.TargetBaseCacheDeleted
+				&& maintenance.TargetHeadCacheDeleted
 				&& !maintenance.RetiredRepositoryPresent
 				&& maintenance.RetiredCacheDeletionMarkerPresent
 				&& maintenance.PruneIntentDispatchCount == 0U
 				&& maintenance.DeleteIntentDispatchCount == 0U;
+			if (settled) {
+				aRun.MaintenanceObserved               = true;
+				aRun.MaintenanceTargetBaseCacheDeleted = maintenance.TargetBaseCacheDeleted;
+				aRun.MaintenanceTargetHeadCacheDeleted = maintenance.TargetHeadCacheDeleted;
+			}
+			return settled;
 		}
 		if (model->epoch_count() < 2U) {
 			if (control->return_to_newest_action()->isEnabled()) {
@@ -2626,9 +2673,17 @@ namespace {
 				== automated_run::epoch_maintenance_probe::verify_deleted) {
 				const auto maintenance = bpr::app::detail::
 					github_application_fixture_access::maintenance_evidence(
-						aApplication, { });
-				passed = passed && maintenance.TargetBaseCacheDeleted
-					&& maintenance.TargetHeadCacheDeleted
+						aApplication, aRun.MaintenanceTarget);
+				// The two deleted flags come from the probe's record rather
+				// than from this call. `MaintenanceObserved` is what keeps that
+				// from being a tautology: it is set only where the probe
+				// actually saw both flags true, so a run whose probe never
+				// settled — one that ended on its budget instead — arrives here
+				// with the record empty and fails. The remaining conditions are
+				// re-read, because they survive shutdown.
+				passed = passed && aRun.MaintenanceObserved
+					&& aRun.MaintenanceTargetBaseCacheDeleted
+					&& aRun.MaintenanceTargetHeadCacheDeleted
 					&& !maintenance.RetiredRepositoryPresent
 					&& maintenance.RetiredCacheDeletionMarkerPresent
 					&& maintenance.PruneIntentDispatchCount == 0U
