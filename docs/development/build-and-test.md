@@ -505,17 +505,67 @@ supplies before trusting a run: Visual Studio's bundled LLVM has satisfied the
 minimum since it moved to 22.x, and an instance still shipping 21 or earlier
 gets the refusal above.
 
+### On macOS the tests-enabled build is an application bundle
+
+Both macOS graphs are bundles. The executable is at
+
+```
+build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
+```
+
+and every path in this document uses that form. On Linux and Windows the
+executable is still flat at `build/dev/src/app/better_pull_review`; substitute
+accordingly.
+
+The reason is Notification Center, which registers applications by bundle
+identity. An unbundled process cannot request authorization, never gains a
+System Settings → Notifications entry, and its delivery requests go nowhere —
+so the attended notification course, which binds the tests-enabled executable,
+was asking a bare Mach-O to produce a banner nobody could have clicked.
+
+The two bundles carry **deliberately different identities**:
+
+| Graph | `OUTPUT_NAME` | `CFBundleName` | `CFBundleIdentifier` |
+|---|---|---|---|
+| tests-enabled | `better_pull_review` | `BetterPullReview (tests)` | `io.github.MikeMarcin.BetterPullReview.tests` |
+| tests-disabled | `BetterPullReview` | `BetterPullReview` | `io.github.MikeMarcin.BetterPullReview` |
+
+Notification Center keys authorization by identifier, so sharing one would let a
+tests-enabled build grant or consume the shipped application's permission.
+`OUTPUT_NAME` is left at the default for the tests-enabled graph on purpose: the
+executable inside the bundle keeps its established name, so
+`scripts/verify_dif_asset_boundaries.py` still finds it by name and only the
+directory portion of any recorded path changes.
+
+No registered test needed editing. They resolve the application through
+`$<TARGET_FILE:app_better_pull_review>`, which for a bundle target names the
+inner executable rather than the `.app` directory — the same distinction
+`$<TARGET_BUNDLE_DIR:...>` relies on for the designated-live capsule.
+
+The course refuses on its own when it has no identity, reporting
+`NATIVE_NOTIFICATION_REFUSED:bundle_identity_absent` before it arms anything,
+and prints `NATIVE_NOTIFICATION_BUNDLE_IDENTITY:<identifier>` so
+`application_native_notification_attended_contract` can require the exact
+expected one. A build that silently reused the shipped identity fails that
+second check.
+
+Two notes on what this does not do. The bundle is neither signed nor notarized,
+so whether macOS ultimately surfaces a banner is still a question only a person
+looking at the screen can answer — that remains BPR-0168's. And `macdeployqt`
+does not run: Qt is still resolved through the build's rpath, exactly as for the
+flat executable.
+
 ## Focused evidence
 
 ```sh
 cmake --build build/dev --target check_boundaries
 python3 scripts/verify_documentation.py --root .
 python3 scripts/verify_binary_dependencies.py \
-  build/dev/src/app/better_pull_review
+  build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
 python3 scripts/verify_runtime_surface.py \
-  build/dev/src/app/better_pull_review
-build/dev/src/app/better_pull_review --self-test
-build/dev/src/app/better_pull_review \
+  build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
+build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review --self-test
+build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review \
   --render-evidence build/dev/foundation-window.png
 ```
 
@@ -523,7 +573,7 @@ The public application provides built-in GitHub.com native-HTTPS and
 fail-closed CLI choices. Add explicit GHES 3.18 choices with:
 
 ```sh
-build/dev/src/app/better_pull_review --ghes-host ghe.example.com
+build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review --ghes-host ghe.example.com
 ```
 
 Activating native HTTPS opens the Qt-owned password prompt, then enrolls the
@@ -541,12 +591,12 @@ paths:
 
 ```sh
 QT_QPA_PLATFORM=offscreen \
-  build/dev/src/app/better_pull_review \
+  build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review \
   --github-fixture github-com \
   --render-evidence build/dev/github-public-path-github-com.png
 
 QT_QPA_PLATFORM=offscreen \
-  build/dev/src/app/better_pull_review \
+  build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review \
   --github-fixture ghes-3.18 \
   --render-evidence build/dev/github-public-path-ghes-3.18.png
 
@@ -554,7 +604,7 @@ QT_QPA_PLATFORM=offscreen \
 # tests/fixtures/github/pull-requests/uiforetw-74/. Serves the generated
 # commits rather than GitHub's; see docs/verification/fixture-catalog.md.
 QT_QPA_PLATFORM=offscreen \
-  build/dev/src/app/better_pull_review \
+  build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review \
   --github-fixture uiforetw-74 \
   --render-evidence build/dev/github-public-path-uiforetw-74.png
 ```
@@ -1177,7 +1227,7 @@ through the real application:
 ```sh
 defaults read -g AppleInterfaceStyle
 env -u QT_QPA_PLATFORM -u QT_STYLE_OVERRIDE \
-  build/dev/src/app/better_pull_review \
+  build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review \
   --github-fixture github-com \
   --render-evidence build/dev/github-native-system.png
 ```
@@ -1290,7 +1340,7 @@ bpr_after="$bpr_evidence_dir/system-dark.png"
 bpr_log="$bpr_evidence_dir/probe.log"
 
 env -u QT_QPA_PLATFORM -u QT_STYLE_OVERRIDE \
-  build/dev/src/app/better_pull_review \
+  build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review \
   --github-fixture github-com \
   --native-appearance-probe \
   --render-evidence "$bpr_before" \

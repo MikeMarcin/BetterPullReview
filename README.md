@@ -213,13 +213,18 @@ CPM script and SQLite source to exist in the selected `CPM_SOURCE_CACHE`.
 Run the application:
 
 ```sh
-build/dev/src/app/better_pull_review
+build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
 ```
+
+On macOS both graphs build application bundles, which is why the path is nested;
+on Linux and Windows the executable is flat at
+`build/dev/src/app/better_pull_review`. See
+[the bundle note](docs/development/build-and-test.md) for why.
 
 Add an explicit GHES 3.18 hostname when needed:
 
 ```sh
-build/dev/src/app/better_pull_review --ghes-host ghe.example.com
+build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review --ghes-host ghe.example.com
 ```
 
 The GitHub.com native HTTPS profile is built in. A supplied GHES hostname is

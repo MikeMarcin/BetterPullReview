@@ -36,9 +36,9 @@ shell inside the network sandbox. Windows inspection uses process-scoped PowerSh
 
 ```sh
 python3 scripts/verify_binary_dependencies.py \
-  build/dev/src/app/better_pull_review
+  build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
 python3 scripts/verify_runtime_surface.py \
-  build/dev/src/app/better_pull_review
+  build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
 ```
 
 The foundation does not claim provider credential or mutation safety; those

@@ -204,10 +204,13 @@ if(BPR_BUILD_QT)
                 OBJECT_DEPENDS
                     "${bpr_app_icon_root}/windows/better_pull_review.ico"
         )
-    elseif(APPLE AND NOT BUILD_TESTING)
-        # Release/package graphs are tests-disabled application bundles. The
-        # tests-enabled graph keeps its established directly executable path;
-        # the embedded QIcon still supplies its running application icon.
+    elseif(APPLE)
+        # Both macOS graphs are application bundles. macOS Notification Center
+        # registers applications by bundle identity, so an unbundled process
+        # cannot request authorization, never gains a System Settings entry,
+        # and its delivery requests go nowhere: the attended notification
+        # course binds the tests-enabled executable, and a bare Mach-O could
+        # not have produced a banner for anyone to click (BPR-0392).
         set(
             bpr_app_icon_macos
             "${bpr_app_icon_root}/macos/better_pull_review.icns"
@@ -222,20 +225,44 @@ if(BPR_BUILD_QT)
             PRIVATE
                 "${bpr_app_icon_macos}"
         )
-        set_target_properties(
-            app_better_pull_review
-            PROPERTIES
-                OUTPUT_NAME "BetterPullReview"
-                MACOSX_BUNDLE TRUE
-                MACOSX_BUNDLE_BUNDLE_NAME "BetterPullReview"
-                MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-                MACOSX_BUNDLE_GUI_IDENTIFIER
-                    "io.github.MikeMarcin.BetterPullReview"
-                MACOSX_BUNDLE_ICON_FILE "better_pull_review.icns"
-                MACOSX_BUNDLE_INFO_PLIST
-                    "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in"
-                MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-        )
+        if(BUILD_TESTING)
+            # A deliberately distinct identifier and display name. Notification
+            # Center keys authorization by bundle identity, so sharing the
+            # shipped identifier would let a tests-enabled build grant or
+            # consume the shipped application's permission. `OUTPUT_NAME` stays
+            # at `bpr_add_executable`'s default, so the executable inside the
+            # bundle is still `better_pull_review`: documented paths and the
+            # selected-graph boundary verifier keep finding it by name, and
+            # every registered test resolves it through `TARGET_FILE`.
+            set_target_properties(
+                app_better_pull_review
+                PROPERTIES
+                    MACOSX_BUNDLE TRUE
+                    MACOSX_BUNDLE_BUNDLE_NAME "BetterPullReview (tests)"
+                    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+                    MACOSX_BUNDLE_GUI_IDENTIFIER
+                        "io.github.MikeMarcin.BetterPullReview.tests"
+                    MACOSX_BUNDLE_ICON_FILE "better_pull_review.icns"
+                    MACOSX_BUNDLE_INFO_PLIST
+                        "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in"
+                    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+            )
+        else()
+            set_target_properties(
+                app_better_pull_review
+                PROPERTIES
+                    OUTPUT_NAME "BetterPullReview"
+                    MACOSX_BUNDLE TRUE
+                    MACOSX_BUNDLE_BUNDLE_NAME "BetterPullReview"
+                    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+                    MACOSX_BUNDLE_GUI_IDENTIFIER
+                        "io.github.MikeMarcin.BetterPullReview"
+                    MACOSX_BUNDLE_ICON_FILE "better_pull_review.icns"
+                    MACOSX_BUNDLE_INFO_PLIST
+                        "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in"
+                    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+            )
+        endif()
     endif()
 
     if(BUILD_TESTING)

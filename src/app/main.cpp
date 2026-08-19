@@ -8,10 +8,13 @@
 
 #if defined(BPR_BUILD_TESTING)
 	#include "github_application_fixture_access.hpp"
+#endif
 
-	#if defined(__APPLE__)
-		#include <CoreFoundation/CoreFoundation.h>
-	#endif
+#if defined(__APPLE__)
+	// Outside the tests-enabled guard because the unguarded evidence block
+	// reports the running process's bundle identity, so both configurations
+	// compile a CoreFoundation call. Both also link the framework.
+	#include <CoreFoundation/CoreFoundation.h>
 #endif
 
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
@@ -165,6 +168,54 @@ namespace {
 			return QStringLiteral("refused");
 		}
 		return QStringLiteral("unknown");
+	}
+
+	/// \brief The bundle identifier of the running process, or why there is none.
+	/// \details macOS Notification Center registers applications by bundle
+	/// identity: a process without one cannot request authorization, never gains
+	/// a System Settings entry, and its delivery requests go nowhere. The
+	/// permission above is therefore not the whole precondition, and reporting it
+	/// alone hid an entire attended course behind a plausible
+	/// `not-determined` (BPR-0392). Reported rather than asserted, because the
+	/// deterministic course substitutes the display boundary and so cannot
+	/// notice. Unguarded for the same reason as `notification_permission_name`,
+	/// and answered on every platform so a contract can match it without
+	/// branching: `not-applicable` where the question does not arise.
+	[[nodiscard]] auto notification_bundle_identity() -> QString
+	{
+#if defined(__APPLE__)
+		const auto bundle = CFBundleGetMainBundle();
+		if (bundle == nullptr) {
+			return QStringLiteral("none");
+		}
+		// Non-null for an unbundled executable too - CoreFoundation synthesizes a
+		// main bundle from the executable's directory - but with no identifier,
+		// which is exactly the condition that cannot reach Notification Center.
+		const auto identifier = CFBundleGetIdentifier(bundle);
+		if (identifier == nullptr) {
+			return QStringLiteral("none");
+		}
+		// The direct pointer is an optimization CoreFoundation may decline for
+		// any internal representation, so the bounded copy is a normal path and
+		// not a malformed-input fallback.
+		if (const auto* const borrowed
+			= CFStringGetCStringPtr(identifier, kCFStringEncodingUTF8);
+			borrowed != nullptr) {
+			return QString::fromUtf8(borrowed);
+		}
+		auto buffer = std::array<char, 512>{ };
+		if (CFStringGetCString(
+				identifier,
+				buffer.data(),
+				static_cast<CFIndex>(buffer.size()),
+				kCFStringEncodingUTF8)
+			== 0) {
+			return QStringLiteral("none");
+		}
+		return QString::fromUtf8(buffer.data());
+#else
+		return QStringLiteral("not-applicable");
+#endif
 	}
 
 	// How long an automated run may take before it stops waiting, records why,
@@ -3299,6 +3350,11 @@ namespace {
 			   << notification_permission_name(
 					  aApplication.status().NotificationPermission)
 			   << '\n';
+		// The precondition the permission above cannot express. A `none` here
+		// makes every other notification marker moot: nothing the desktop could
+		// have shown was ever addressed to a registered application.
+		stream << "NOTIFICATION_BUNDLE_IDENTITY:"
+			   << notification_bundle_identity() << '\n';
 		stream << "APPEARANCE_DIVERGENCE:"
 			   << aApplication.status().AppearanceDivergences << '\n';
 		// What was observed and what it resolved to, beside what was applied.
@@ -4779,10 +4835,31 @@ namespace {
 
 			auto& window = aApplication.window();
 			switch (aRun->Stage) {
-			case native_notification_stage::connect:
+			case native_notification_stage::connect: {
+				// Before anything is armed, because this is the precondition
+				// every later marker silently assumed. macOS Notification
+				// Center registers applications by bundle identity; a process
+				// without one cannot request authorization, never gains a
+				// System Settings entry, and its delivery requests go nowhere.
+				// The course substitutes the display boundary, so it is exactly
+				// the fact the course cannot otherwise notice, and an entire
+				// attended packet was built on a bare Mach-O that no banner
+				// could ever have been addressed to. Refused rather than
+				// reported: a preflight that passes here is claiming a banner is
+				// possible. BPR-0392.
+				const auto identity = notification_bundle_identity();
+				QTextStream{ stdout }
+					<< "NATIVE_NOTIFICATION_BUNDLE_IDENTITY:" << identity << '\n'
+					<< Qt::flush;
+				if (identity == QStringLiteral("none")) {
+					fail_native_notification_run(
+						aApplication, *aRun, "bundle_identity_absent");
+					break;
+				}
 				window.github_connect_action()->trigger();
 				aRun->Stage = native_notification_stage::await_connection;
 				break;
+			}
 
 			case native_notification_stage::await_connection:
 				if (window.github_status_text() == "GitHub account connected."

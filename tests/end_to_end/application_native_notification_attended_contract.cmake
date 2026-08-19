@@ -17,6 +17,28 @@ if(NOT course_source MATCHES "PlatformTray->messageClicked\\(\\);")
     message(FATAL_ERROR "native notification course omits the real tray signal")
 endif()
 
+# BPR-0392. The one precondition this contract could not check, and the one that
+# was false: macOS Notification Center registers applications by bundle
+# identity, so an unbundled process cannot request authorization, never gains a
+# System Settings entry, and its delivery requests go nowhere. Every marker
+# above stayed green from a bare Mach-O that no banner could ever have been
+# addressed to.
+#
+# The expected identifier is exact rather than merely non-`none`. A tests-enabled
+# build that reused the shipped identity would also be non-`none`, and it could
+# grant or consume the shipped application's Notification Center permission -
+# a different defect wearing the same green marker.
+#
+# The course refuses on its own when the identity is absent, before it arms
+# anything, so this is the second of two gates rather than the only one. What it
+# adds is the exact identifier, which the course cannot check without hard-coding
+# the build's own answer.
+if(APPLE)
+    set(expected_bundle_identity "io.github.MikeMarcin.BetterPullReview.tests")
+else()
+    set(expected_bundle_identity "not-applicable")
+endif()
+
 foreach(course IN ITEMS positive request-cut activation-cut)
     string(REPLACE "-" "_" course_name "${course}")
     set(course_root "${BPR_ROOT}_${course_name}")
@@ -54,6 +76,27 @@ foreach(course IN ITEMS positive request-cut activation-cut)
     endif()
     if(output MATCHES "NATIVE_NOTIFICATION_REFUSED:")
         message(FATAL_ERROR "native notification ${course} refused: ${output}${error}")
+    endif()
+    if(NOT output MATCHES "NATIVE_NOTIFICATION_BUNDLE_IDENTITY:([^\r\n]+)")
+        message(FATAL_ERROR
+            "native notification ${course} reported no bundle identity: "
+            "${output}${error}"
+        )
+    endif()
+    set(observed_bundle_identity "${CMAKE_MATCH_1}")
+    if(observed_bundle_identity STREQUAL "none")
+        message(FATAL_ERROR
+            "native notification ${course} ran without bundle identity, so "
+            "Notification Center cannot register it and no banner it requests "
+            "can appear: ${output}${error}"
+        )
+    endif()
+    if(NOT observed_bundle_identity STREQUAL "${expected_bundle_identity}")
+        message(FATAL_ERROR
+            "native notification ${course} reported bundle identity "
+            "'${observed_bundle_identity}' rather than the expected "
+            "'${expected_bundle_identity}': ${output}${error}"
+        )
     endif()
     if(course STREQUAL "request-cut")
         if(output MATCHES "NATIVE_NOTIFICATION_QT_ACTIVE_WINDOW_OK")

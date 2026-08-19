@@ -49,3 +49,106 @@ produce cannot be clicked.
 ```sh
 ctest --preset dev -R '^(application_native_notification_attended_contract|application_attended_launch_contract)$' --output-on-failure
 ```
+
+## The tests-enabled build is a bundle — 2026-08-19
+
+### The decision, from the build's own constraints
+
+`MACOSX_BUNDLE` for the tests-enabled macOS graph, `OUTPUT_NAME` left alone.
+`src/app/CMakeLists.txt`'s `elseif(APPLE AND NOT BUILD_TESTING)` is now
+`elseif(APPLE)` with an inner split on identity only; BPR-0328's tests-disabled
+properties are byte-for-byte unchanged.
+
+Four facts decided it, none of them a preference:
+
+1. The narrower alternative has no home. The only post-build bundling precedent
+   is the designated live macOS capsule, which raises `FATAL_ERROR` under
+   `BUILD_TESTING` by design. A second bundled target would duplicate the whole
+   composition graph.
+2. Nothing registered had to change. All ~30 end-to-end registrations resolve the
+   application through `$<TARGET_FILE:app_better_pull_review>`, which for a
+   bundle target names the inner executable — the same distinction
+   `$<TARGET_BUNDLE_DIR:...>` already relies on for the capsule.
+3. `.vscode/launch.json:28` already named
+   `build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review`
+   for the dev macOS configuration, and was broken. This exact shape was
+   anticipated; the build had simply never caught up.
+4. `scripts/verify_dif_asset_boundaries.py` rglobs for the literal name
+   `better_pull_review` and requires exactly one hit, so keeping `OUTPUT_NAME`
+   keeps it working — and a stale flat Mach-O left in the build tree would have
+   made it two.
+
+The identities are deliberately different:
+
+| Graph | `OUTPUT_NAME` | `CFBundleName` | `CFBundleIdentifier` |
+|---|---|---|---|
+| tests-enabled | `better_pull_review` | `BetterPullReview (tests)` | `io.github.MikeMarcin.BetterPullReview.tests` |
+| tests-disabled | `BetterPullReview` | `BetterPullReview` | `io.github.MikeMarcin.BetterPullReview` |
+
+Notification Center keys authorization by identifier. Sharing one would let a
+tests-enabled build grant or consume the shipped application's permission, which
+is a different defect wearing the same green marker.
+
+### The check the preflight was missing, in both places
+
+`notification_bundle_identity()` in `src/app/main.cpp` reads
+`CFBundleGetIdentifier(CFBundleGetMainBundle())` — pure C CoreFoundation, already
+included and already linked for this configuration, so no Objective-C++ entered
+the tree. Note that `CFBundleGetMainBundle()` is non-null for an unbundled
+executable too: CoreFoundation synthesizes a main bundle from the executable's
+directory. The identifier is the fact that distinguishes them.
+
+The notification course now answers it **before it arms anything**, prints
+`NATIVE_NOTIFICATION_BUNDLE_IDENTITY:<identifier>`, and refuses with
+`NATIVE_NOTIFICATION_REFUSED:bundle_identity_absent` when there is none. Refusal
+rather than report, because a preflight that passes is claiming a banner is
+possible.
+
+`application_native_notification_attended_contract` adds the second gate: the
+identifier must equal the exact expected one, which the course cannot check
+without hard-coding its own answer. The status dump also reports
+`NOTIFICATION_BUNDLE_IDENTITY:` beside `NOTIFICATION_PERMISSION:`, which is where
+this defect was originally visible as a plausible `not-determined`.
+
+### A wrong assumption, corrected rather than papered over
+
+The first attempt put the marker only in the status dump. The notification course
+never reaches it — `--native-notification-probe` runs its own tick loop and exits
+through `QCoreApplication::exit` from its shutdown stage — so the contract had
+nothing to read and failed. The card's own `NOTIFICATION_PERMISSION:not-determined`
+evidence is attributed to the *appearance* run's status dump, which is consistent.
+The marker now lives in the course.
+
+### Evidence
+
+| Check | Result |
+|---|---|
+| `cmake --preset dev` / `cmake --build --preset dev` | succeeded; links `src/app/better_pull_review.app/Contents/MacOS/better_pull_review` |
+| `PlistBuddy` on the produced `Info.plist` | `CFBundleIdentifier=io.github.MikeMarcin.BetterPullReview.tests`, `CFBundleName=BetterPullReview (tests)`, `CFBundleExecutable=better_pull_review` |
+| direct run of the bundled executable | `NOTIFICATION_BUNDLE_IDENTITY:io.github.MikeMarcin.BetterPullReview.tests` |
+| `ctest -R '^(application_native_notification_attended_contract\|application_attended_launch_contract\|application_diff_workbench_public_path)$'` | 3/3 passed |
+| identity forced to `none`, course re-run | `NATIVE_NOTIFICATION_REFUSED:bundle_identity_absent`, contract fails |
+| identifier seeded to the shipped one, contract re-run | fails: `'io.github.MikeMarcin.BetterPullReview' rather than the expected` |
+| both seeds reverted, re-run | 3/3 passed |
+| `clang-format --dry-run --Werror src/app/main.cpp` | clean |
+| `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+
+Documentation: the instructional flat paths in
+`docs/development/build-and-test.md`, `docs/security/foundation-security.md`, and
+`README.md` now name the bundled executable, with a subsection explaining the
+mechanism, the two identities, why no registered test changed, and the
+platform difference. Historical records under `docs/verification/` are
+deliberately untouched: they record what was run at a past commit.
+
+Three CMake `uninitialized variable` warnings for `MACOSX_BUNDLE_INFO_STRING`,
+`MACOSX_BUNDLE_LONG_VERSION_STRING`, and `MACOSX_BUNDLE_COPYRIGHT` now appear on
+the `dev` configure. They come from the shared `packaging/macos/Info.plist.in`
+and the tests-disabled configure already emitted them; `uninitialized` is not in
+the preset's `errors` list.
+
+### What remains, and what this does not claim
+
+The bundle is neither signed nor notarized, and `macdeployqt` does not run. So
+this establishes that the process *has* an identity Notification Center can
+register — not that a banner appears. That is a person looking at a screen, and
+it is [[BPR-0168]]'s, whose packet needs regenerating against these bytes.
