@@ -60,8 +60,24 @@ only two submissions exist where a two-comparison course owes four: one
 comparison's `classify_comparison` never ran at all. Two independent
 defects, then: **(A)** a display path that fails to submit for one of the
 comparisons, and **(B)** a submitted classification whose effect never
-completes — the blob read plausibly starving behind the epoch repository
-actor — with no timeout, no retry, and no marker until shutdown refuses it. The markers
+completes — with no timeout, no retry, and no marker until shutdown refuses
+it.
+
+Defect B's blocking point is identified in code. The classification
+effect's only blocking call is `composition_blob_source::blob_bytes` →
+`epoch_application_host::materialize`, whose caller side waits on a
+condition with **no timeout and no use of the caller's stop token**
+(`epoch_application_host.cpp:3494`); the enqueued actor work is FIFO behind
+whatever the repository actor is already running, and epoch maintenance can
+hold that actor for most of a minute. Shutdown's `BlobIngressClosing` is
+exactly what releases the wait — which is why the starved terminal arrived
+only after `retire_all` had already refused its record. Once refused,
+nothing retries: `classification_in_flight` keeps coalescing every later
+display of the same key, so the pane stays monochrome for the session. The
+repair therefore has three coupled parts: a bounded, stop-aware wait for
+classification blob reads; in-flight bookkeeping that clears on failure so
+a later display resubmits; and defect A's missing submission on the other
+comparison, still to be traced. The markers
 ask whether the classifier was composed and whether some classification was
 ever adopted; nobody asks whether the comparison on screen is classified,
 and no registered contract greps `SYNTAX_CLASSIFICATION` at all. This is
