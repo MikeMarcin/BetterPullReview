@@ -623,29 +623,37 @@ namespace bpr::adapters::sqlite {
 							|| (*transmission != 0 && *transmission != 1)) {
 					return std::unexpected(failure::integrity_failure);
 				}
-				auto record = application::review_mutation_recovery_record{
-					.IdempotencyKey       = aIdempotencyKey,
-					.RequestFingerprint   = *request,
-					.AuthorityFingerprint = *authority,
-					.Body                 = *body,
-					.Anchor               = {
-						.Semantic = {
-							.Comparison = core::file_comparison_digest{ *comparison },
-							.Side       = core::diff_side::right,
-							.Line       = static_cast<std::uint32_t>(line),
-						},
-						.Path   = *path,
-						.Commit = core::git_commit_oid{ static_cast<core::git_hash_algorithm>(algorithm), *commit },
-					},
-					.BaselineExactCommentIds = *baseline,
-					.Transmission            = transmission_from_storage(baselineMissing, transmission),
-					.State                   = static_cast<application::review_mutation_recovery_state>(state),
-					.Receipt                 = receipt.has_value() ? std::optional{ application::review_mutation_receipt{
-																		 .ServerCommentId = *receipt,
-																		 .Duplicate       = false,
-																	 } }
-																   : std::nullopt,
+				// Populated field by field from a value-initialized record rather than
+				// aggregate-initialized in place. GCC 15.2 at -O3 loses the correlation
+				// between the guard above and this object's string subobjects once the
+				// enclosing expected's inlining is folded in, and reports Anchor.Path as
+				// possibly uninitialized. This is the restructure BPR-0064 settled on.
+				auto record                 = application::review_mutation_recovery_record{ };
+				record.IdempotencyKey       = aIdempotencyKey;
+				record.RequestFingerprint   = *request;
+				record.AuthorityFingerprint = *authority;
+				record.Body                 = *body;
+
+				record.Anchor.Semantic.Comparison
+					= core::file_comparison_digest{ *comparison };
+				record.Anchor.Semantic.Side = core::diff_side::right;
+				record.Anchor.Semantic.Line = static_cast<std::uint32_t>(line);
+				record.Anchor.Path          = *path;
+				record.Anchor.Commit        = core::git_commit_oid{
+					static_cast<core::git_hash_algorithm>(algorithm), *commit
 				};
+
+				record.BaselineExactCommentIds = *baseline;
+				record.Transmission
+					= transmission_from_storage(baselineMissing, transmission);
+				record.State
+					= static_cast<application::review_mutation_recovery_state>(state);
+				if (receipt.has_value()) {
+					record.Receipt = application::review_mutation_receipt{
+						.ServerCommentId = *receipt,
+						.Duplicate       = false,
+					};
+				}
 				return application::valid(record)
 					? std::expected<
 						  std::optional<application::review_mutation_recovery_record>,
