@@ -112,7 +112,12 @@ class DependencyModernizationTests(unittest.TestCase):
                 provider,
                 rf"bpr_require_dependency_target_absent\(\s*{re.escape(target)}",
             )
-        self.assertIn("Qt is never fetched automatically", provider)
+        # BPR-0337 replaced the package-only policy with a pinned provider, so
+        # what this asserts is the policy that now exists: acquisition is
+        # centralized in the provider, and turning it off demands a
+        # caller-installed Qt rather than silently reaching for one.
+        self.assertIn("BPR_QT_PROVIDER=OFF requires caller-installed Qt", provider)
+        self.assertIn("bpr_acquire_qt(bpr_qt_prefix)", provider)
         self.assertFalse(
             (ROOT / "cmake/dependency-bootstrap/CMakeLists.txt").exists()
         )
@@ -350,18 +355,60 @@ class DependencyModernizationTests(unittest.TestCase):
             for dependency in ("Python3", "Git", "Qt6", "LibSecret"):
                 self.assertNotIn(dependency, audit)
 
-    def test_qt_is_package_only_and_never_fetched(self) -> None:
+    def test_qt_provider_off_requires_a_caller_installed_qt(self) -> None:
+        """The `OFF` branch fails closed rather than finding a stray Qt.
+
+        This used to be `test_qt_is_package_only_and_never_fetched`, and it
+        asserted a policy BPR-0337 deliberately replaced: Qt *is* fetched now,
+        by a pinned provider, and `BPR_QT_PROVIDER` defaults ON. The test kept
+        the old name and the old expectation, configured without turning the
+        provider off, and so asserted against a diagnostic only the other
+        branch emits.
+        """
         with contained_temporary_directory() as temporary_directory:
             configured = self.configure(
                 temporary_directory,
                 "-DBPR_BUILD_QT=ON",
                 "-DBUILD_TESTING=OFF",
+                "-DBPR_QT_PROVIDER=OFF",
                 "-DCMAKE_DISABLE_FIND_PACKAGE_Qt6=ON",
             )
         self.assertNotEqual(configured.returncode, 0)
         diagnostic = configured.stdout + configured.stderr
         self.assertIn("caller-installed Qt", diagnostic)
-        self.assertIn("never fetched automatically", diagnostic)
+        self.assertIn("re-enable the pinned provider", diagnostic)
+
+    def test_qt_provider_is_the_default_acquisition_path(self) -> None:
+        """The other branch, which nothing covered.
+
+        A test that only exercises `OFF` would pass with the provider removed
+        entirely, which is the half that actually ships.
+        """
+        provider = (ROOT / "cmake/BprQtProvider.cmake").read_text(
+            encoding="utf-8"
+        )
+        self.assertRegex(
+            provider,
+            r"option\(\s*BPR_QT_PROVIDER\s+\"[^\"]*\"\s+ON\s*\)",
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            configured = self.configure(
+                temporary_directory,
+                "-DBPR_BUILD_QT=ON",
+                "-DBUILD_TESTING=OFF",
+                "-DCMAKE_BUILD_TYPE=Release",
+            )
+            self.assertEqual(
+                configured.returncode,
+                0,
+                configured.stdout + configured.stderr,
+            )
+            audit = (
+                Path(temporary_directory)
+                / "build/_bpr/product-dependency-audit.cmake"
+            ).read_text(encoding="utf-8")
+            for component in ("Core", "Gui", "Widgets", "Network"):
+                self.assertIn(f"Qt6|CMAKE_CONFIG|Qt6::{component}", audit)
 
     def test_sqlite_is_download_only_and_not_vendored_or_system_resolved(self) -> None:
         provider = (ROOT / "cmake/BprSQLiteProvider.cmake").read_text(

@@ -1,9 +1,10 @@
 ---
 id: BPR-0364
 title: The Qt provider policy outran its own tests
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
+completed: 2026-08-18
 ---
 
 # The Qt provider policy outran its own tests
@@ -58,3 +59,40 @@ instance.
 Do not change the provider default to make the tests pass. BPR-0337 chose it
 deliberately, and the pinned acquisition is what [[BPR-0363]] just proved the
 nested configure depends on.
+
+## Result — 2026-08-18
+
+Both subtests now describe the build that exists.
+
+`test_dependency_discovery_is_centralized_and_package_based` asserted that
+`BprDependencies.cmake` contains the string "Qt is never fetched
+automatically". It does not, and should not: [[BPR-0337]] made the pinned
+provider the default acquisition path. It now asserts what centralization
+actually looks like — that acquisition goes through `bpr_acquire_qt`, and that
+turning the provider off demands a caller-installed Qt rather than silently
+reaching for one.
+
+`test_qt_is_package_only_and_never_fetched` is renamed
+`test_qt_provider_off_requires_a_caller_installed_qt` and now passes
+`-DBPR_QT_PROVIDER=OFF`, which is the branch whose diagnostic it was always
+checking. Its second assertion moved from "never fetched automatically", a
+phrase the tree no longer contains, to "re-enable the pinned provider", which
+is what that branch really tells an operator to do.
+
+The old name is worth a note. It asserted the opposite of the policy the build
+implements, which is worse than having no test there: a reader trusting the
+name would conclude Qt is never fetched, while a pinned Qt sits in the
+dependency cache being fetched.
+
+### The half that nothing covered
+
+Both existing subtests exercised the `OFF` branch. With the provider deleted
+outright they would have kept passing, and the provider is the half that ships.
+`test_qt_provider_is_the_default_acquisition_path` covers it: the option really
+defaults `ON`, and a default configure records
+`Qt6|CMAKE_CONFIG|Qt6::{Core,Gui,Widgets,Network}` in the dependency audit.
+
+Mutation-checked by flipping the default to `OFF`; that test fails and the
+other two do not, which is the point of adding it.
+
+`dependency_modernization_contract` passes.
