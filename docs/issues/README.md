@@ -588,7 +588,7 @@ three answers it needs:
 |---|---|---|
 | BPR-0347 | `30-in-progress/` | Nothing. The Windows suite runs here and its own remaining failures are the work |
 | BPR-0358 | `30-in-progress/` | Nothing. It records that the Windows platform arrived and repairs the lanes that assumed it had not |
-| BPR-0168, BPR-0220, BPR-0233, BPR-0257, BPR-0258 | `40-parked/` | A person looking, clicking, or returning an exported verdict |
+| BPR-0168, BPR-0220, BPR-0256 | `40-parked/` | A person looking, clicking, or returning an exported verdict |
 | BPR-0211, BPR-0212 | `40-parked/` | A product decision: owner-deferred, and RFC-scale rather than a slice |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | A digest-bound attended packet, then a real GitHub call |
@@ -598,10 +598,11 @@ three answers it needs:
 So the honest summary is narrower than the one this section used to give.
 That summary was written when hardware was the largest single blocker. It no
 longer is. A Windows host arrived, and `40-parked/` and `50-blocked/` now hold
-eleven cards between them rather than eighteen — nine waiting on a person, a
-product decision, or a live service, and two on a Linux host. The Windows
-roots are ordinary work again, which is why the table above now opens with
-active-lane cards that need nothing but implementation.
+eight cards between them — six waiting on a person, a product decision, or a
+live service, and two on a Linux host. The Windows roots are ordinary work
+again, which is why the table above now opens with active-lane cards that
+need nothing but implementation. The accepted v006 attended batch then
+closed BPR-0233, BPR-0257, and BPR-0258 together.
 
 Everything else in `10-backlog/` reaches one of those roots transitively.
 

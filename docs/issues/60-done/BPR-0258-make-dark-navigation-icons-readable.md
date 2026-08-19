@@ -1,10 +1,9 @@
 ---
 id: BPR-0258
 title: Make dark navigation icons readable
-status: Parked
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0246]
-parked_on: awaiting-owner-verdict
 ---
 
 # Make dark navigation icons readable
@@ -97,3 +96,14 @@ subject with fresh measured contrast: Dark 13.84:1 normal and 4.45:1 disabled,
 High-contrast Dark 21.00:1 and 5.24:1. The focused matrix passed 6/6 in
 116.30 seconds at those bytes. The exact exported verdict remains the only
 open dependency.
+
+## Attended result — accepted, 2026-08-18
+
+The product owner accepted the exact
+`criterion:/betterpullreview/bpr-0258/dark-navigation-icon-readability`
+subject in the v006 batch. The complete verdict validates against batch
+`bpr:/attended-review/betterpullreview/73e0d5752e89264d9731fe8a` and is
+recorded at `docs/verification/reviews/uiforetw-intraline-acceptance-v006/`.
+The v004 rejection remains immutable history; its cause was repaired by done
+BPR-0259 and the readability criterion is now accepted at current bytes, so
+the card moves to `60-done/`.

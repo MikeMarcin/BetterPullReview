@@ -1,10 +1,9 @@
 ---
 id: BPR-0257
 title: Compact focused-review navigation into one icon row
-status: Parked
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0246]
-parked_on: awaiting-owner-verdict
 ---
 
 # Compact focused-review navigation into one icon row
@@ -105,3 +104,16 @@ from commit `0e34519` and presents this card's combined
 `criterion:/betterpullreview/bpr-0257/compact-focused-review-navigation`
 subject. The focused matrix passed 6/6 in 116.30 seconds at those bytes. The
 attended verdict remains the only open dependency.
+
+## Attended result — accepted, 2026-08-18
+
+The product owner accepted the exact combined
+`criterion:/betterpullreview/bpr-0257/compact-focused-review-navigation`
+subject in the v006 batch: row order, icon-only presentation, dark-mode
+arrows and connectors together, and the focused allocation across all four
+profiles. The complete verdict validates against batch
+`bpr:/attended-review/betterpullreview/73e0d5752e89264d9731fe8a` and is
+recorded at `docs/verification/reviews/uiforetw-intraline-acceptance-v006/`.
+The v001 through v004 history stands unchanged; the combined criterion that
+those batches could not accept is accepted at these exact v006 bytes, and
+the card moves to `60-done/`.

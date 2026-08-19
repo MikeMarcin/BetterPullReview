@@ -1,10 +1,9 @@
 ---
 id: BPR-0233
 title: Exercise the recorded UIforETW diff and intraline pixels through the selected public path
-status: Parked
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0227, BPR-0246]
-parked_on: awaiting-owner-verdict
 ---
 
 # Exercise the recorded UIforETW diff and intraline pixels through the selected public path
@@ -117,3 +116,17 @@ the v002 typeface and source-pane-emphasis observations carried as explicit
 known concerns for the owner to re-judge. The focused matrix passed 6/6 in
 116.30 seconds at those bytes. The attended verdict remains the only open
 dependency; no acceptance is inferred from the mechanical pass.
+
+## Attended result — accepted, 2026-08-18
+
+The product owner accepted the exact
+`criterion:/betterpullreview/bpr-0233/recorded-intraline-emphasis` subject in
+the v006 batch, with the carried typeface and source-pane-emphasis concerns
+in view. The complete verdict validates against batch
+`bpr:/attended-review/betterpullreview/73e0d5752e89264d9731fe8a` and is
+recorded at `docs/verification/reviews/uiforetw-intraline-acceptance-v006/`
+as `human-verdict.json` with its `verdict-validation.json` record. With the
+mechanical selected-diff course, exact blob/role/connector assertions, and
+this four-profile attended acceptance in place, the card's required final
+state is met and it moves to `60-done/`. The verdict itself closes nothing
+downstream; the v002 rejection remains immutable history.
