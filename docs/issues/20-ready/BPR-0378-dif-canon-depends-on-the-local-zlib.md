@@ -80,3 +80,23 @@ py -3 -c "import zlib; print(zlib.ZLIB_RUNTIME_VERSION)"
 py -3 tests/scripts/dif_asset_tests.py
 ctest --preset core-only --output-on-failure -R '^dif_assets_contract$'
 ```
+
+## One hypothesis checked and rejected — 2026-08-18
+
+The failing path names a *source* file while the message says "canonical
+**product** PNG", which reads like the check being applied to something it was
+not meant for. It is not.
+
+`decode_png` is called on the source master at `dif_assets.py:932` and on every
+source frame at `:942`, deliberately: the sources have to be in the tool's own
+canonical form so that regeneration from them is deterministic. Applying the
+canon to sources is the design, not a slip, and narrowing it to `generated/`
+would drop a real property rather than fix anything.
+
+So the decision above stands as written. It is recorded here because two other
+cards in this program — [[BPR-0376]] and [[BPR-0364]] — turned out to be asking
+for decisions the codebase had already made, and this one was checked the same
+way before being left open.
+
+Under zlib-ng no PNG in the tree is canonical, not just the one the error names;
+that file is simply the first one read.
