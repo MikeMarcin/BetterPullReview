@@ -84,3 +84,46 @@ which [[BPR-0347]] owns.
 `dumpbin` is only on `PATH` inside a Visual Studio developer environment. Any
 selection that depends on it must say so, because a gate that silently degrades
 outside `vcvars64.bat` is the same defect in a new place.
+
+## The core-only half needed no decision — 2026-08-18
+
+This card said its `core-only` failure could not be fixed without answering the
+required-anchor question. That was wrong, and it was wrong the same way
+[[BPR-0376]] was: by reading the defect and not the code around it.
+
+The one failing case, `test_real_inspector_output_contains_defined_symbols`,
+asserts that the instrument returns defined symbols for a real linked binary. On
+Windows nothing can supply them — the MSVC linker consumes the COFF table, which
+[[BPR-0361]] measured, and Visual Studio ships no `llvm-nm`, `nm`, or `objdump`.
+`inspect_symbols` therefore raises `verification_error` and **fails closed**,
+which is the correct behaviour and was never in question.
+
+So the case now asserts the refusal where the capability does not exist and the
+table where it does. It asserts a real property on both platforms rather than
+skipping, and it does not touch what the gate proves.
+
+`tests/scripts/verify_test_network_isolation_tests.py` already takes exactly
+this position for `os.access(X_OK)`, and says so in almost these words:
+"Asserting the refusal only where the permission exists keeps this suite honest
+instead of asserting a property the platform cannot express."
+
+```
+py -3 tests/scripts/verify_composed_hosts_tests.py
+Ran 42 tests
+OK
+```
+
+`composed_host_verifier_contract` passes.
+
+## What is left, and it is smaller
+
+Only the real gate. `composed_application_hosts` audits
+`$<TARGET_FILE:app_better_pull_review>`, lives in the Qt graph, and that graph
+has never been run under the AppContainer boundary at all. It will fail closed
+on Windows with `no supported demangling symbol inspector is available`, which
+is honest but is not coverage.
+
+The required-anchor asymmetry stated above is unchanged and still real: reading
+objects is a safe superset for a forbidden anchor and an unsafe one for a
+required anchor. That question only has to be answered when the Qt graph runs,
+which [[BPR-0347]] owns, and it is the only reason this card is still open.

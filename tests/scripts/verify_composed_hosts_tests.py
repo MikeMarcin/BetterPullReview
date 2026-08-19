@@ -15,6 +15,11 @@ from scripts.contained_temporary_support import ContainedTemporaryDirectory  # n
 from scripts import verify_composed_hosts as VERIFIER  # noqa: E402
 
 
+# Whether this platform has any tool that reports a linked binary's defined
+# symbols. See test_real_inspector_output_contains_defined_symbols.
+INSPECTOR_READS_A_LINKED_BINARY = sys.platform != "win32"
+
+
 SHARED_LINES = {
     "GitHub application host constructor": "0001 T bpr::application::github_application_host::github_application_host()",
     "epoch application host constructor": "0002 T bpr::application::epoch_application_host::epoch_application_host()",
@@ -866,6 +871,26 @@ class ComposedHostVerifierTests(unittest.TestCase):
             )
 
     def test_real_inspector_output_contains_defined_symbols(self) -> None:
+        """The instrument reads a real binary, or refuses where it cannot.
+
+        `inspect_symbols` wants a linked binary's defined symbols, and on
+        Windows nothing can supply them: the MSVC linker consumes the COFF
+        table — [[BPR-0361]] measured `dumpbin /symbols` returning a section
+        summary and no symbols — and Visual Studio ships no `llvm-nm`, `nm`, or
+        `objdump`. The verifier fails closed there, which is the right answer.
+
+        So this asserts the refusal where the capability does not exist and the
+        table where it does, rather than asserting a property the platform
+        cannot express. `tests/scripts/verify_test_network_isolation_tests.py`
+        takes the same position for `os.access(X_OK)`, in the same words.
+
+        Giving the composed-application gate a Windows inspector of its own is
+        [[BPR-0364]]; it is not what this case is for.
+        """
+        if not INSPECTOR_READS_A_LINKED_BINARY:
+            with self.assertRaises(VERIFIER.verification_error):
+                VERIFIER.inspect_symbols(Path(sys.executable))
+            return
         table = VERIFIER.inspect_symbols(Path(sys.executable))
         self.assertTrue(table.symbols)
         self.assertTrue(all(symbol.strip() for symbol in table.symbols))
