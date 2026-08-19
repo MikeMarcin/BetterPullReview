@@ -1,7 +1,7 @@
 ---
 id: BPR-0363
 title: A fresh configure leaks to a system Qt and fails KSyntaxHighlighting
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0013
 depends_on: []
 ---
