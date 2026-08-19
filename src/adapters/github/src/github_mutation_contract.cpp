@@ -836,17 +836,15 @@ namespace bpr::adapters::github::detail {
 			|| *authorLogin != binding.ActingIdentity.Login) {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
-		return review_mutation_comment_observation{
-			.Receipt = {
-				.ServerCommentId = *node,
-				.Duplicate       = false,
-			},
-			.DatabaseId = *id,
-			.NodeId     = *node,
-			.Anchor     = binding.Anchor,
-			.Body       = *body,
-			.Author     = binding.ActingIdentity,
-		};
+		auto observation                    = review_mutation_comment_observation{ };
+		observation.Receipt.ServerCommentId = *node;
+		observation.Receipt.Duplicate       = false;
+		observation.DatabaseId              = *id;
+		observation.NodeId                  = *node;
+		observation.Anchor                  = binding.Anchor;
+		observation.Body                    = *body;
+		observation.Author                  = binding.ActingIdentity;
+		return observation;
 	}
 
 	auto parse_review_comment_observations(
