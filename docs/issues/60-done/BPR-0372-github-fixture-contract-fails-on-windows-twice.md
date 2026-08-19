@@ -95,9 +95,7 @@ without regenerating
 
 Neither of those two explanations was true. `scripts/build_recorded_pull_request_contract.py`
 wrote with a bare `path.write_text(...)`: no encoding and no newline control. So
-it emitted the platform's locale encoding with `
-` translated to `
-`, and
+it emitted the platform's locale encoding with LF translated to CRLF, and
 the contract that compares the served tree against this generator's output could
 only hold on whichever platform last regenerated it. Before the pin, both sides
 were CRLF on Windows and it passed for the wrong reason; after, the served tree
