@@ -1,7 +1,7 @@
 ---
 id: BPR-0369
 title: The bootstrap publication rename has never worked on Windows
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: []
 ---
