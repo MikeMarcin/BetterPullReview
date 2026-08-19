@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import os
 import pathlib
 import shutil
 import stat
 import subprocess
+import tempfile
 import sys
 from dataclasses import dataclass
 
@@ -27,6 +29,14 @@ VERIFIER_RELATIVE = pathlib.PurePosixPath(
     "BetterPullReview.app/Contents/Resources/designated_live_macos_capsule.py"
 )
 QT_CONF = b"[Paths]\nPlugins = PlugIns\n"
+
+# BPR-0262 fact_1. The image carries the capsule and the inventory that
+# describes it, side by side. The inventory cannot sit inside the capsule --
+# it would have to cover itself -- so it is a sibling, and both are inside the
+# image the digest binds.
+IMAGE_CAPSULE_RELATIVE = pathlib.PurePosixPath("capsule")
+IMAGE_INVENTORY_RELATIVE = pathlib.PurePosixPath("capsule.inventory")
+IMAGE_VOLUME_NAME = "BetterPullReviewCapsule"
 MACH_MAGICS = {
     b"\xfe\xed\xfa\xce",
     b"\xce\xfa\xed\xfe",
@@ -560,6 +570,165 @@ def build(arguments: argparse.Namespace) -> None:
     verify_inventory(output, arguments.inventory, expected_source_sha256=arguments.source_sha256)
 
 
+def image_sha256(path: pathlib.Path) -> str:
+    """The digest the image is bound by.
+
+    fact_5 permits a raw image pathname hash as release evidence but forbids
+    claiming it as an FD-atomic DiskImages attach identity. The operator packet
+    records why: the tested /dev/fd/N path is not accepted by DiskImages, so
+    there is no way to tie the bytes hashed here to the bytes attached later
+    without a window. This is evidence about a file, and it is not more.
+    """
+    return sha256(path)
+
+
+def build_image(arguments: argparse.Namespace) -> None:
+    """Stages the capsule and its inventory, then writes a read-only image."""
+    capsule = arguments.capsule.resolve(strict=True)
+    inventory = arguments.inventory.resolve(strict=True)
+    if arguments.output.exists():
+        raise CapsuleFailure(f"image already exists: {arguments.output}")
+    verify_inventory(
+        capsule,
+        inventory,
+        expected_source_sha256=arguments.source_sha256,
+    )
+    arguments.output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=arguments.output.parent) as staging:
+        stage = pathlib.Path(staging) / "image"
+        stage.mkdir(mode=0o700)
+        shutil.copytree(capsule, stage / IMAGE_CAPSULE_RELATIVE, symlinks=True)
+        shutil.copy2(inventory, stage / IMAGE_INVENTORY_RELATIVE)
+        result = command(
+            [
+                str(arguments.hdiutil),
+                "create",
+                "-srcfolder",
+                str(stage),
+                "-format",
+                "UDZO",
+                "-volname",
+                IMAGE_VOLUME_NAME,
+                "-quiet",
+                str(arguments.output),
+            ]
+        )
+        if result.returncode != 0:
+            raise CapsuleFailure(f"image creation failed: {result.stderr.strip()}")
+    arguments.output.chmod(0o600)
+    digest = image_sha256(arguments.output)
+    if arguments.image_digest is not None:
+        arguments.image_digest.write_text(f"{digest}\n", encoding="utf-8", newline="\n")
+        arguments.image_digest.chmod(0o600)
+    print(f"designated-live-macos-capsule:image:{digest}")
+
+
+def owner_private_mount_root(parent: pathlib.Path) -> pathlib.Path:
+    """A fresh mount root nobody else can reach into.
+
+    Anchored on a directory descriptor rather than re-resolved by name, so the
+    parent cannot be swapped between the check and the create.
+    """
+    parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        name = f"mount-{os.urandom(8).hex()}"
+        os.mkdir(name, mode=0o700, dir_fd=descriptor)
+        root = parent / name
+        status = os.stat(root, follow_symlinks=False)
+        if not stat.S_ISDIR(status.st_mode) or status.st_uid != os.geteuid():
+            raise CapsuleFailure("mount root is not an owner-private directory")
+        if status.st_mode & 0o077:
+            raise CapsuleFailure("mount root is reachable by others")
+        return root
+    finally:
+        os.close(descriptor)
+
+
+def attach_read_only(
+    image: pathlib.Path, root: pathlib.Path, hdiutil: pathlib.Path
+) -> None:
+    """Attaches beneath an existing owner-private root, read-only.
+
+    fact_6: a writable mount fails closed. The flag asks for read-only and the
+    check below establishes it, because asking is not the same as getting.
+    """
+    result = command(
+        [
+            str(hdiutil),
+            "attach",
+            "-readonly",
+            "-nobrowse",
+            "-noautoopen",
+            "-mountpoint",
+            str(root),
+            "-quiet",
+            str(image),
+        ]
+    )
+    if result.returncode != 0:
+        raise CapsuleFailure(f"attach failed: {result.stderr.strip()}")
+
+
+def require_read_only_mount(root: pathlib.Path) -> None:
+    probe = root / f".bpr-write-probe-{os.urandom(6).hex()}"
+    try:
+        with probe.open("wb") as sink:
+            sink.write(b"\0")
+    except OSError:
+        return
+    # The write succeeded, so the mount is writable. Remove the evidence and
+    # refuse: a writable capsule is the substitution this whole topology exists
+    # to prevent.
+    probe.unlink(missing_ok=True)
+    raise CapsuleFailure("attached capsule image is writable")
+
+
+def detach_without_force(root: pathlib.Path, hdiutil: pathlib.Path) -> None:
+    """fact_6: a detach that requires force fails closed.
+
+    Force is never attempted. If the plain detach does not succeed, something
+    still holds the mount, and that is the condition worth failing on rather
+    than papering over -- a forced detach would leave exactly the uncertainty
+    about what was still reading that this lane cannot carry.
+    """
+    result = command([str(hdiutil), "detach", str(root), "-quiet"])
+    if result.returncode != 0:
+        raise CapsuleFailure(f"detach required force: {result.stderr.strip()}")
+
+
+def stage_zero(arguments: argparse.Namespace) -> None:
+    """Mounts the image read-only and hands stage one to the caller."""
+    image = arguments.image.resolve(strict=True)
+    observed = image_sha256(image)
+    if observed != arguments.expected_image_sha256:
+        raise CapsuleFailure(
+            f"image digest drifted: expected {arguments.expected_image_sha256}, "
+            f"found {observed}"
+        )
+    root = owner_private_mount_root(arguments.mount_parent)
+    attached = False
+    try:
+        attach_read_only(image, root, arguments.hdiutil)
+        attached = True
+        require_read_only_mount(root)
+        capsule = root / IMAGE_CAPSULE_RELATIVE
+        inventory = root / IMAGE_INVENTORY_RELATIVE
+        # Both sides of fact_2: the mount is required here as well as by stage
+        # one, so neither is trusted to have checked on the other's behalf.
+        verify_inventory(
+            capsule,
+            inventory,
+            expected_source_sha256=arguments.source_sha256,
+        )
+        print(f"designated-live-macos-capsule:mounted:{root}")
+    finally:
+        if attached:
+            detach_without_force(root, arguments.hdiutil)
+        with contextlib.suppress(OSError):
+            root.rmdir()
+
+
 def verify(arguments: argparse.Namespace) -> None:
     root = arguments.capsule.resolve(strict=True)
     verify_inventory(
@@ -597,6 +766,19 @@ def parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("--require-owner-private", action="store_true")
     verify_parser.add_argument("--codesign", type=pathlib.Path, default=pathlib.Path("/usr/bin/codesign"))
     verify_parser.add_argument("--otool", type=pathlib.Path, default=pathlib.Path("/usr/bin/otool"))
+    image_parser = subcommands.add_parser("image")
+    image_parser.add_argument("--capsule", type=pathlib.Path, required=True)
+    image_parser.add_argument("--inventory", type=pathlib.Path, required=True)
+    image_parser.add_argument("--output", type=pathlib.Path, required=True)
+    image_parser.add_argument("--source-sha256")
+    image_parser.add_argument("--image-digest", type=pathlib.Path)
+    image_parser.add_argument("--hdiutil", type=pathlib.Path, default=pathlib.Path("/usr/bin/hdiutil"))
+    stage_zero_parser = subcommands.add_parser("stage-zero")
+    stage_zero_parser.add_argument("--image", type=pathlib.Path, required=True)
+    stage_zero_parser.add_argument("--expected-image-sha256", required=True)
+    stage_zero_parser.add_argument("--mount-parent", type=pathlib.Path, required=True)
+    stage_zero_parser.add_argument("--source-sha256")
+    stage_zero_parser.add_argument("--hdiutil", type=pathlib.Path, default=pathlib.Path("/usr/bin/hdiutil"))
     return result
 
 
@@ -605,6 +787,10 @@ def main() -> int:
     try:
         if arguments.action == "build":
             build(arguments)
+        elif arguments.action == "image":
+            build_image(arguments)
+        elif arguments.action == "stage-zero":
+            stage_zero(arguments)
         else:
             verify(arguments)
     except (CapsuleFailure, OSError, ValueError) as error:

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 import importlib.util
 import os
@@ -292,6 +293,162 @@ class CapsuleClosureTests(unittest.TestCase):
             self.assertTrue(
                 all((plugins / relative).is_file() for relative in capsule.ALLOWED_PLUGIN_FILES)
             )
+
+
+class CapsuleImageTests(unittest.TestCase):
+    """BPR-0353. The capsule now ships as a digest-bound read-only image.
+
+    Half of these mock `command`, because what they assert is which flags the
+    stage-zero launcher passes. The last one does not mock anything: it makes a
+    real image, attaches it, tries to write to it, and detaches. A mocked
+    read-only mount would prove only that the string "-readonly" was typed.
+    """
+
+    def image_arguments(self, **overrides: object) -> argparse.Namespace:
+        defaults = {
+            "hdiutil": pathlib.Path("/usr/bin/hdiutil"),
+            "source_sha256": SOURCE_DIGEST,
+        }
+        defaults.update(overrides)
+        return argparse.Namespace(**defaults)
+
+    def test_attach_asks_for_a_read_only_unbrowsable_mount(self) -> None:
+        recorded: list[list[str]] = []
+
+        def record(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+            recorded.append(arguments)
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+
+        with mock.patch.object(capsule, "command", record):
+            capsule.attach_read_only(
+                pathlib.Path("/image.dmg"),
+                pathlib.Path("/mnt"),
+                pathlib.Path("/usr/bin/hdiutil"),
+            )
+        self.assertEqual(len(recorded), 1)
+        self.assertIn("-readonly", recorded[0])
+        self.assertIn("-nobrowse", recorded[0])
+        self.assertIn("-mountpoint", recorded[0])
+
+    def test_detach_never_asks_for_force_and_refuses_when_it_would_need_it(
+        self,
+    ) -> None:
+        recorded: list[list[str]] = []
+
+        def refuse(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+            recorded.append(arguments)
+            return subprocess.CompletedProcess(arguments, 16, "", "busy")
+
+        with mock.patch.object(capsule, "command", refuse):
+            with self.assertRaises(capsule.CapsuleFailure):
+                capsule.detach_without_force(
+                    pathlib.Path("/mnt"), pathlib.Path("/usr/bin/hdiutil")
+                )
+        self.assertEqual(len(recorded), 1)
+        self.assertNotIn("-force", recorded[0])
+
+    def test_a_writable_mount_is_refused_and_leaves_nothing_behind(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            writable = pathlib.Path(directory)
+            with self.assertRaises(capsule.CapsuleFailure):
+                capsule.require_read_only_mount(writable)
+            self.assertEqual(list(writable.iterdir()), [])
+
+    def test_mount_root_is_fresh_and_owner_private(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = pathlib.Path(directory) / "mounts"
+            first = capsule.owner_private_mount_root(parent)
+            second = capsule.owner_private_mount_root(parent)
+            self.assertNotEqual(first, second)
+            for root in (first, second):
+                self.assertTrue(root.is_dir())
+                self.assertEqual(root.stat().st_mode & 0o777, 0o700)
+
+    def test_a_drifted_image_digest_refuses_before_anything_is_attached(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = pathlib.Path(directory)
+            image = parent / "capsule.dmg"
+            image.write_bytes(b"not the approved image")
+            attempted: list[list[str]] = []
+
+            def record(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+                attempted.append(arguments)
+                return subprocess.CompletedProcess(arguments, 0, "", "")
+
+            with mock.patch.object(capsule, "command", record):
+                with self.assertRaises(capsule.CapsuleFailure):
+                    capsule.stage_zero(
+                        self.image_arguments(
+                            image=image,
+                            expected_image_sha256="0" * 64,
+                            mount_parent=parent / "mounts",
+                        )
+                    )
+            self.assertEqual(attempted, [])
+
+    @unittest.skipUnless(
+        pathlib.Path("/usr/bin/hdiutil").exists(), "hdiutil is macOS-only"
+    )
+    def test_real_image_round_trip_is_read_only_and_detaches_without_force(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = pathlib.Path(directory)
+            root, inventory = make_capsule(parent)
+            image = parent / "capsule.dmg"
+            capsule.build_image(
+                self.image_arguments(
+                    capsule=root,
+                    inventory=inventory,
+                    output=image,
+                    image_digest=None,
+                )
+            )
+            self.assertTrue(image.is_file())
+            digest = capsule.image_sha256(image)
+
+            observed: dict[str, object] = {}
+            original = capsule.require_read_only_mount
+
+            def observe(mount_root: pathlib.Path) -> None:
+                # The mount is live exactly here, so this is the only place the
+                # read-only claim can be tested against the real filesystem.
+                observed["capsule"] = (
+                    mount_root / capsule.IMAGE_CAPSULE_RELATIVE / capsule.APP_RELATIVE
+                ).is_file()
+                observed["inventory"] = (
+                    mount_root / capsule.IMAGE_INVENTORY_RELATIVE
+                ).is_file()
+                probe = mount_root / "write-probe"
+                try:
+                    probe.write_bytes(b"x")
+                    observed["writable"] = True
+                except OSError:
+                    observed["writable"] = False
+                original(mount_root)
+
+            with mock.patch.object(capsule, "require_read_only_mount", observe):
+                capsule.stage_zero(
+                    self.image_arguments(
+                        image=image,
+                        expected_image_sha256=digest,
+                        mount_parent=parent / "mounts",
+                    )
+                )
+            self.assertTrue(observed["capsule"], "the app is inside the image")
+            self.assertTrue(observed["inventory"], "the inventory is inside the image")
+            self.assertFalse(observed["writable"], "the attached image refuses writes")
+            # stage_zero detaches on the way out, forcibly or not; nothing of
+            # this run may still be attached.
+            listing = subprocess.run(
+                ["/usr/bin/hdiutil", "info"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotIn(str(image), listing.stdout)
 
 
 if __name__ == "__main__":
