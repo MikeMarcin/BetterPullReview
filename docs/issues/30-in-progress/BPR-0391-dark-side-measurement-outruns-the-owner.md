@@ -126,3 +126,12 @@ impossible before and what bounds the wait.
 
 Only the attended bullet: the v004 packet regenerated against these bytes, and
 an operator willing to click, switch, return. That is a person, not a gate.
+
+The regeneration is deliberately held until the run boundary rather than done
+here. A packet binds an executable digest, and v004 exists only because v003
+bound a `dev` executable that no longer existed at its recorded digest — the
+procedure became unexecutable by construction. [[BPR-0392]] has already changed
+the executable's path and bytes, and [[BPR-0390]] will change them again, so a
+packet generated now would be a v005 that needs a v006 before anyone could run
+it. The card stays in progress until the bytes settle, then gets one packet and
+parks.
