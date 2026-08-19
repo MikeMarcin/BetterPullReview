@@ -1,9 +1,10 @@
 ---
 id: BPR-0262
 title: Authenticate supervisor launch and retain capsule identity
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0357, BPR-0351, BPR-0352, BPR-0353, BPR-0354]
+completed: 2026-08-18
 ---
 
 # Authenticate supervisor launch and retain capsule identity
@@ -198,3 +199,62 @@ implementer time, verified against the live tree:
 
 Everything else in the survey still holds, including the check/use window, the
 absent Mach machinery, the argv-only attended launch, and the pinned digests.
+
+## Closed — 2026-08-18
+
+All five decomposed cards are in `60-done/`, and the umbrella's own conditions
+hold.
+
+| Card | Fact | What it delivered |
+|---|---|---|
+| [[BPR-0357]] | 3, 4 mechanism | the SERVICE_SLOT handshake proven under the capsule's ad-hoc signature |
+| [[BPR-0351]] | 4 | provenance established before `QApplication`, from the kernel audit trailer |
+| [[BPR-0352]] | 5 | supervisor and inventory identity bound into the approval subject |
+| [[BPR-0353]] | 1 | the capsule as a digest-bound read-only image, mounted and detached without force |
+| [[BPR-0354]] | 2 | the nested check/use window closed against a retained descriptor |
+
+fact_6's fail-closed conditions were not a sixth card and did not become one:
+an occupied `SERVICE_SLOT`, a failed audit validation, a writable mount, a
+detach needing force, a drifted image digest, and a substituted nested entry
+each refuse in the card that owns the condition, and each is covered by a
+contract that fails when the refusal is removed.
+
+fact_7 is unchanged and unclaimed. Nothing in this program executed a live
+GitHub run, used a credential, published a comment, packaged or signed
+anything, or closed RFC-BPR-0014.
+
+### The umbrella's own two conditions
+
+- **The opt-in CTest manifest still names only the supervisor.**
+  `BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST` still defaults `OFF`
+  (`cmake/BprTestIsolation.cmake:12-15`) and still gates on the same four
+  pre-launch-validated inputs. The default graph registers zero occurrences of
+  `live_review_mutation_designated_target` — checked with `ctest -N` rather
+  than assumed.
+- **Tests-enabled applications remain fail-closed.** The tests-enabled binary
+  answers the attended approval flag with `STARTUP_FAILED` and exit 1, exactly
+  as before. The provenance handshake [[BPR-0351]] added is production-only and
+  does not soften that path.
+
+### What the survey got wrong, corrected by the work
+
+The tree survey said satisfying fact_4's ordering was "an ordering change to
+`main`, not a local edit", on the strength of ~600 lines between `QApplication`
+and `github_application`. Most of that span is `BPR_BUILD_TESTING` scaffolding
+that never compiles into the shipped application. The production Qt dependencies
+are three, `designated_review_authority_bootstrap::run` needs none of them, and
+a pre-`QApplication` hook already existed. The handshake sits beside it.
+
+The survey was right about everything else, including the check/use window, the
+absent Mach machinery, the argv-only attended launch, and the pinned digests —
+which moved four times over this program and were re-pinned each time by the
+procedure [[BPR-0360]] recorded.
+
+### The limit worth carrying forward
+
+`designated_live_macos_supervisor.cpp` is compiled by no graph that can be built
+here. Its edits across [[BPR-0351]], [[BPR-0352]] and [[BPR-0354]] type-check
+under `clang++ -fsyntax-only -std=c++23` with the project's include paths, and
+nothing more than that. Every component it calls is compiled and exercised; the
+file that calls them is not. A host that can build the capsule graph should
+compile it before this topology is relied on.
