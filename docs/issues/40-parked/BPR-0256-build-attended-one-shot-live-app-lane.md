@@ -1,9 +1,10 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263]
+parked_on: awaiting-owner-verdict
 ---
 
 # Build the attended one-shot live application lane
@@ -273,3 +274,28 @@ shape and ran no live/network/credential action. Those mechanical checks do not
 overcome the two remaining authority counterexamples. This card is parked in
 Backlog until BPR-0261 and BPR-0262 are done, the packet is regenerated again,
 the complete gates pass, and a fresh capability-critical review has no blocker.
+
+## Dependencies met, remaining work is not mine — 2026-08-18
+
+[[BPR-0261]] and [[BPR-0262]] are both `60-done/`, so the blocking
+counterexamples this card recorded are answered: the launch-provenance and
+retained-capsule-identity gaps are closed by [[BPR-0351]] through
+[[BPR-0354]], and replay authority by BPR-0261.
+
+What remains is not implementation:
+
+1. **Regenerate the capsule, source manifest, approval subject, and packet.**
+   Every bound source byte moved — `main.cpp`, `github_application.cpp`, the
+   supervisor, and two new `src/app` files are now in the attended-review source
+   surface — so the recorded digests are stale by construction. This cannot be
+   done here: the tests-disabled capsule graph will not configure, because a
+   fresh configure resolves a system Qt and fails the verified
+   KSyntaxHighlighting build. [[BPR-0363]] owns that.
+2. **A fresh capability-critical independent review** of the regenerated packet.
+3. **An exact attended operator decision.** This card prepares the packet; it
+   has never had authority to approve or execute it.
+
+So the card moves to `40-parked/` behind the operator verdict rather than to
+`20-ready/`: (1) is environment-blocked and tracked, and (3) is the terminal
+requirement in any case. No live lane was executed, no credential accessed, no
+mutation submitted.
