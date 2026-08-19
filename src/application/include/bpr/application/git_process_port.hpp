@@ -12,6 +12,8 @@
 #include <optional>
 #include <span>
 #include <stop_token>
+#include <string>
+#include <utility>
 #include <variant>
 
 namespace bpr::application {
@@ -342,8 +344,48 @@ namespace bpr::application {
 		reap_failure,
 	};
 
+	/// \brief Carries one git process failure with the subprocess's own explanation.
+	/// \details `Detail` is empty unless installed Git itself reported the failure
+	/// on standard error. It is bounded by the adapter's standard-error limit and
+	/// has remote URLs removed before it is stored, so the retained text is a local
+	/// diagnostic and never a host, account, or credential record. A failure code
+	/// alone remains a complete error, so every code converts implicitly.
+	struct git_process_error
+	{
+		git_process_failure Code = git_process_failure::invalid_configuration;
+		std::string         Detail;
+
+		git_process_error() = default;
+
+		// Implicit on purpose: a bare failure code is still a complete error.
+		git_process_error(const git_process_failure aCode)
+			: Code{ aCode }
+		{
+		}
+
+		git_process_error(
+			const git_process_failure aCode,
+			std::string               aDetail)
+			: Code{ aCode }
+			, Detail{ std::move(aDetail) }
+		{
+		}
+
+		auto operator<=>(const git_process_error&) const = default;
+	};
+
+	/// \brief Compares one git process error against a bare failure code.
+	/// \details Keeps the failure code the primary fact callers test, so retaining
+	/// explanatory text never forces a caller to inspect the text.
+	[[nodiscard]] inline auto operator==(
+		const git_process_error&  aError,
+		const git_process_failure aCode) noexcept -> bool
+	{
+		return aError.Code == aCode;
+	}
+
 	template <typename Value>
-	using git_process_result = std::expected<Value, git_process_failure>;
+	using git_process_result = std::expected<Value, git_process_error>;
 
 	/// \brief Provides the git process port contract.
 	class git_process_port

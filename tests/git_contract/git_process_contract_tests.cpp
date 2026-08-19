@@ -753,6 +753,21 @@ namespace {
 				std::cerr << std::string(20U * 1024U, 'x');
 				return 0;
 			}
+			if (input.starts_with("BPR_FAIL_MESSAGE")) {
+				std::cerr
+					<< "error: unable to write file "
+					   "/tmp/bpr-fixture/pack-f041bc5e.pack: "
+					   "Invalid cross-device link\n"
+					   "fatal: could not read from remote repository "
+					   "https://fixture-token@remote.invalid/owner/repo.git\n"
+					   "fatal: fallback remote "
+					   "git@remote.invalid:owner/repo.git denied\n";
+				return 128;
+			}
+			if (input.starts_with("BPR_QUIET_ERROR")) {
+				std::cerr << "note: accepted exit still wrote here\n";
+				return 0;
+			}
 			if (input.starts_with("BPR_MALFORMED")) {
 				std::cout << "pack\tinvalid\n";
 				return 0;
@@ -3218,6 +3233,140 @@ namespace {
 				&& nonempty->Path == nonemptyPath,
 			"nonempty exact parent is retained with its recovery capability");
 	}
+
+	// A failing git subprocess must surface Git's own message rather than only a
+	// code, an accepted exit must carry no text at all, and a remote URL must
+	// never reach the retained text.
+	auto run_process_error_detail_contract() -> void
+	{
+		const auto repeatedIdentityHex = [](const std::string_view aByte) {
+			auto result = std::string{ };
+			result.reserve(64U);
+			for (auto index = 0U; index < 32U; ++index) {
+				result += aByte;
+			}
+			return result;
+		};
+
+		{
+			temporary_root root{ "git-error-detail" };
+			auto           adapter = make_adapter(
+				std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE },
+				root.Path);
+			const auto repository = repository_path(root.Path, '7');
+			initialize_repository(
+				*adapter,
+				repository,
+				application::git_hash_algorithm::sha1);
+			const application::git_staging_ref absentRef{
+				.Operation = make_operation(0x77U),
+				.Endpoint  = application::git_private_ref_endpoint::base,
+			};
+			const std::array<application::git_ref_mutation, 1U> removeAbsent{
+				application::git_ref_remove{
+					.Ref         = absentRef,
+					.ExpectedOld = object<application::git_commit_id>(
+						sha1_commit_hex,
+						application::git_hash_algorithm::sha1),
+				}
+			};
+			const auto removed = adapter->update_refs(
+				{ .Repository = repository, .Mutations = removeAbsent },
+				{ });
+			require(
+				!removed.has_value(),
+				"removing an absent ref with an expected target fails");
+			require(
+				removed.error().Code
+					== application::git_process_failure::nonzero_exit,
+				"a real failing Git step reports a nonzero exit");
+			require(
+				removed.error()
+					== application::git_process_failure::nonzero_exit,
+				"a bare failure code still compares against the whole error");
+			require(
+				removed.error().Detail.find("cannot lock ref")
+					!= std::string::npos,
+				"the nonzero exit retains Git's own diagnosis");
+			require(
+				removed.error().Detail.find(
+					"refs/betterpullreview/v1/stage/"
+					+ repeatedIdentityHex("77") + "/base")
+					!= std::string::npos,
+				"the retained diagnosis names the exact ref Git could not lock");
+			const auto absent = adapter->inspect_ref(
+				{ .Repository = repository, .Ref = absentRef },
+				{ });
+			require(
+				absent.has_value() && !absent->has_value(),
+				"a succeeding real Git step returns no error to carry text in");
+		}
+
+		{
+			temporary_root root{ "git-error-detail-redaction" };
+			auto           adapter = make_adapter(
+				make_fake_git_executable(root.Path),
+				root.Path);
+			const auto repository = repository_path(root.Path, '8');
+			initialize_repository(
+				*adapter,
+				repository,
+				application::git_hash_algorithm::sha1);
+			const auto operation = make_operation(0x88U);
+			const auto failed    = fake_index_request(
+				*adapter,
+				repository,
+				operation,
+				"BPR_FAIL_MESSAGE");
+			require(
+				!failed.has_value()
+					&& failed.error().Code
+						== application::git_process_failure::nonzero_exit,
+				"a remote-naming failure still reports a nonzero exit");
+			const auto& detail = failed.error().Detail;
+			require(
+				detail.find("Invalid cross-device link") != std::string::npos
+					&& detail.find("/tmp/bpr-fixture/pack-f041bc5e.pack:")
+						!= std::string::npos,
+				"redaction keeps the exact filesystem diagnosis intact");
+			require(
+				detail.find(
+					"could not read from remote repository <redacted-url>")
+					!= std::string::npos,
+				"a URL token is replaced in place by the fixed placeholder");
+			require(
+				detail.find("fallback remote <redacted-url> denied")
+					!= std::string::npos,
+				"an SSH remote token is replaced in place by the fixed placeholder");
+			require(
+				detail.find("remote.invalid") == std::string::npos
+					&& detail.find("fixture-token") == std::string::npos
+					&& detail.find("://") == std::string::npos,
+				"no host, account, or URL scheme survives into the retained text");
+
+			const auto quiet = fake_index_request(
+				*adapter,
+				repository,
+				operation,
+				"BPR_QUIET_ERROR");
+			require(
+				!quiet.has_value()
+					&& quiet.error().Code
+						== application::git_process_failure::malformed_output,
+				"an accepted exit that wrote to standard error is still malformed output");
+			require(
+				quiet.error().Detail.empty(),
+				"an accepted exit carries no retained standard-error text");
+			require(
+				fake_index_request(
+					*adapter,
+					repository,
+					operation,
+					"BPR_SILENT_SUCCESS")
+					.has_value(),
+				"a silent accepted invocation still succeeds");
+		}
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -3246,6 +3395,7 @@ auto main(int argc, char** argv) -> int
 	run_input_validation_contract();
 	run_isolation_symlink_contract();
 	run_agent_workspace_parent_cleanup_contract();
+	run_process_error_detail_contract();
 	std::cout << "Git process contract passed\n";
 	return 0;
 }

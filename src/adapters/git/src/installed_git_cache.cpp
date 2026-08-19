@@ -1562,19 +1562,21 @@ namespace bpr::adapters::git {
 				return inventory(aStop, aEnforceLimits);
 			}
 
+			// Maps the process failure code only. Retained subprocess text stops
+			// here; carrying it further up is a separate change.
 			[[nodiscard]] auto process_failure(
-				const application::git_process_failure aFailure)
+				const application::git_process_error& aError)
 				-> application::git_cache_failure
 			{
-				if (aFailure == application::git_process_failure::reap_failure) {
+				if (aError.Code == application::git_process_failure::reap_failure) {
 					retain_after_reap_failure();
 					return application::git_cache_failure::repair_required;
 				}
-				if (aFailure == application::git_process_failure::cancelled) {
+				if (aError.Code == application::git_process_failure::cancelled) {
 					return application::git_cache_failure::cancelled;
 				}
 				if (
-					aFailure
+					aError.Code
 					== application::git_process_failure::invalid_repository) {
 					return application::git_cache_failure::invalid_repository;
 				}
@@ -5069,19 +5071,19 @@ namespace bpr::adapters::git {
 			}
 
 			[[nodiscard]] auto recovery_object_failure(
-				const application::git_process_failure aFailure)
+				const application::git_process_error& aError)
 				-> application::git_cache_result<
 					application::git_recovery_object_match>
 			{
 				if (
-					aFailure
+					aError.Code
 					== application::git_process_failure::object_unavailable) {
 					return application::git_recovery_object_match::unavailable;
 				}
-				if (aFailure == application::git_process_failure::nonzero_exit) {
+				if (aError.Code == application::git_process_failure::nonzero_exit) {
 					return application::git_recovery_object_match::mismatch;
 				}
-				return std::unexpected{ State->process_failure(aFailure) };
+				return std::unexpected{ State->process_failure(aError) };
 			}
 
 			[[nodiscard]] auto inspect_recovery_objects(

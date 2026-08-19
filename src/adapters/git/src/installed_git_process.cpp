@@ -61,6 +61,7 @@ namespace bpr::adapters::git {
 		using application::git_commit_id;
 		using application::git_hash_algorithm;
 		using application::git_pack_id;
+		using application::git_process_error;
 		using application::git_process_failure;
 		using application::git_process_result;
 		using application::git_tree_id;
@@ -84,7 +85,7 @@ namespace bpr::adapters::git {
 			std::string StandardOutput;
 		};
 
-		using process_result = std::expected<process_success, git_process_failure>;
+		using process_result = std::expected<process_success, git_process_error>;
 
 		struct memory_input
 		{
@@ -1412,6 +1413,66 @@ namespace bpr::adapters::git {
 			return std::nullopt;
 		}
 
+		inline constexpr std::string_view diagnostic_whitespace    = " \t\n\v\f\r";
+		inline constexpr std::string_view redacted_url_placeholder = "<redacted-url>";
+
+		// A remote URL is the one thing installed Git's own diagnostics can carry
+		// that names a host, an account, or a token. Everything else Git reports
+		// here is its own account of the local filesystem and its own arguments,
+		// so this deliberately is not general secret detection: a broad guess
+		// would fail silently, while this rule is exactly statable and testable.
+		[[nodiscard]] auto remote_url_token(
+			const std::string_view aToken) noexcept -> bool
+		{
+			if (aToken.find("://") != std::string_view::npos) {
+				return true;
+			}
+			// An SSH remote is `user@host:path`. The leading-`{` exclusion keeps
+			// Git's own `HEAD@{1}` revision syntax readable.
+			const auto separator = aToken.find('@');
+			return separator != std::string_view::npos && separator != 0U
+				&& separator + 1U < aToken.size()
+				&& aToken[separator + 1U] != '{';
+		}
+
+		/// \brief Removes remote URLs from retained subprocess diagnostic text.
+		/// \details Replaces every whitespace-delimited token that names a remote
+		/// with a fixed placeholder, preserves the surrounding text and whitespace
+		/// exactly, and bounds the result by the standard-error limit already
+		/// applied to the stream.
+		[[nodiscard]] auto redacted_diagnostic(
+			const std::string_view aText) -> std::string
+		{
+			std::string result;
+			result.reserve(std::min(aText.size(), standard_error_limit));
+			std::size_t index = 0U;
+			while (index < aText.size()) {
+				const auto tokenStart = aText.find_first_not_of(
+					diagnostic_whitespace,
+					index);
+				result.append(
+					aText.substr(
+						index,
+						std::min(tokenStart, aText.size()) - index));
+				if (tokenStart == std::string_view::npos) {
+					break;
+				}
+				const auto tokenEnd = std::min(
+					aText.find_first_of(diagnostic_whitespace, tokenStart),
+					aText.size());
+				const auto token = aText.substr(tokenStart, tokenEnd - tokenStart);
+				result.append(
+					remote_url_token(token)
+						? redacted_url_placeholder
+						: token);
+				index = tokenEnd;
+			}
+			if (result.size() > standard_error_limit) {
+				result.resize(standard_error_limit);
+			}
+			return result;
+		}
+
 		struct process_execution
 		{
 			process_result            Result;
@@ -1614,11 +1675,11 @@ namespace bpr::adapters::git {
 			std::unique_ptr<QProcess>& aProcess,
 			windows_job&               aJob,
 			const qint64               aProcessGroupId,
-			const git_process_failure  aFailure) -> process_execution
+			git_process_error          aFailure) -> process_execution
 		{
 			if (kill_and_reap(*aProcess, aJob, aProcessGroupId)) {
 				return {
-					.Result         = std::unexpected{ aFailure },
+					.Result         = std::unexpected{ std::move(aFailure) },
 					.AwaitingReap   = nullptr,
 					.ProcessGroupId = 0,
 				};
@@ -1728,6 +1789,7 @@ namespace bpr::adapters::git {
 
 				std::string standardOutput;
 				standardOutput.reserve(aRequest.StandardOutputLimit);
+				std::string standardError;
 				std::size_t standardOutputBytes = 0U;
 				std::size_t standardErrorBytes  = 0U;
 				const auto  drainStreams =
@@ -1748,7 +1810,7 @@ namespace bpr::adapters::git {
 							process_stream::standard_error,
 							standard_error_limit,
 							standardErrorBytes,
-							nullptr);
+							&standardError);
 						failure.has_value()) {
 						return failure;
 					}
@@ -1768,18 +1830,23 @@ namespace bpr::adapters::git {
 					return std::nullopt;
 				};
 				const auto failed =
-					[&](const git_process_failure aFailure)
+					[&](git_process_error aFailure)
 					-> process_execution {
 					std::fill(
 						standardOutput.begin(),
 						standardOutput.end(),
 						'\0');
 					standardOutput.clear();
+					std::fill(
+						standardError.begin(),
+						standardError.end(),
+						'\0');
+					standardError.clear();
 					return failed_execution(
 						process,
 						job,
 						processGroupId,
-						aFailure);
+						std::move(aFailure));
 				};
 
 				const auto startDeadline = std::min(aDeadline, clock::now() + start_timeout);
@@ -1906,8 +1973,13 @@ namespace bpr::adapters::git {
 				if (
 					exitCode != 0
 					&& !(aRequest.AllowExitOne && exitCode == 1)) {
-					return failed(git_process_failure::nonzero_exit);
+					return failed(
+						git_process_error{
+							git_process_failure::nonzero_exit,
+							redacted_diagnostic(standardError) });
 				}
+				// An accepted exit that still wrote to standard error is a
+				// grammar violation, not an explanation, so it carries no text.
 				if (standardErrorBytes != 0U) {
 					return failed(git_process_failure::malformed_output);
 				}
@@ -2739,10 +2811,10 @@ namespace bpr::adapters::git {
 						*identity,
 						true);
 				};
-				const auto fail = [&](const git_process_failure aFailure)
+				const auto fail = [&](git_process_error aFailure)
 					-> git_process_result<application::owned_agent_workspace> {
 					static_cast<void>(cleanup());
-					return std::unexpected{ aFailure };
+					return std::unexpected{ std::move(aFailure) };
 				};
 
 				auto initArguments = std::vector<std::string>{
@@ -5058,7 +5130,7 @@ namespace bpr::adapters::git {
 				},
 				aStop);
 			if (!execPathResult.has_value()) {
-				return std::unexpected{ execPathResult.error() };
+				return std::unexpected{ execPathResult.error().Code };
 			}
 			if (
 				execPathResult->StandardOutput.empty()
@@ -5123,10 +5195,10 @@ namespace bpr::adapters::git {
 				aStop);
 			const auto expectedExecPath = path_text(*execPath) + "\n";
 			if (!matchingExecPath.has_value()) {
-				return std::unexpected{ matchingExecPath.error() };
+				return std::unexpected{ matchingExecPath.error().Code };
 			}
 			if (!versionResult.has_value()) {
-				return std::unexpected{ versionResult.error() };
+				return std::unexpected{ versionResult.error().Code };
 			}
 			if (
 				matchingExecPath->StandardOutput
