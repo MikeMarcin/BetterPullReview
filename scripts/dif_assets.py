@@ -1095,11 +1095,49 @@ def validate_assets(root: Path) -> None:
         raise AssetError(f"committed generated products are stale: {differing}")
 
 
+def _remove_tree(path: Path) -> None:
+    """Delete a directory tree using only this tool's approved imports."""
+    for child in sorted(path.iterdir(), reverse=True):
+        if child.is_dir():
+            _remove_tree(child)
+        else:
+            child.unlink()
+    path.rmdir()
+
+
+def _make_scratch_root() -> Path:
+    """A scratch directory this tool can still use once it is contained.
+
+    `tempfile.mkdtemp` calls `os.mkdir(path, 0o700)`, and modern CPython turns
+    that mode into a protected Windows descriptor an AppContainer's lowbox token
+    cannot read back, so the tool was denied the directory it had just made.
+    `Path.mkdir()` with the default mode inherits the parent's entries instead,
+    which include the container's own grant — measured both ways inside the
+    launcher.
+
+    The repository has a shared helper for this, but
+    `verify_dif_asset_boundaries.py` holds `ALLOWED_TOOL_IMPORTS` to a closed
+    stdlib set and importing it would breach that boundary. Widening the
+    boundary to make a scratch directory would be the wrong trade, so this uses
+    only names already on the list.
+    """
+    base = Path(tempfile.gettempdir())
+    for attempt in range(1024):
+        candidate = base / f"bpr-dif-assets-{attempt:04d}"
+        try:
+            candidate.mkdir()
+        except FileExistsError:
+            continue
+        return candidate
+    raise AssetError("no unused scratch directory is available")
+
+
 def verify_assets(root: Path) -> None:
     validate_assets(root)
-    with tempfile.TemporaryDirectory(prefix="bpr-dif-assets-") as temporary:
-        first = Path(temporary) / "first"
-        second = Path(temporary) / "second"
+    temporary = _make_scratch_root()
+    try:
+        first = temporary / "first"
+        second = temporary / "second"
         products = generated_products(root)
         _write_products(products, first)
         _write_products(generated_products(root), second)
@@ -1108,6 +1146,8 @@ def verify_assets(root: Path) -> None:
             raise AssetError("two clean regenerations differ")
         if first_tree != _tree_bytes(root / "generated"):
             raise AssetError("clean regeneration differs from committed products")
+    finally:
+        _remove_tree(temporary)
 
 
 def _scale_nearest(image: RgbaImage, width: int, height: int) -> RgbaImage:
