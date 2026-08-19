@@ -468,6 +468,35 @@ if(APPLE)
         PROPERTIES
             PASS_REGULAR_EXPRESSION "macos-supervisor-provenance-tests:pass"
     )
+
+    # BPR-0354. The nested check/use window, closed against a retained
+    # descriptor. The barrier is a function call rather than a race.
+    bpr_add_executable(
+        test_better_pull_review_macos_capsule_identity_tests
+        platform/macos_capsule_identity_tests.cpp
+        "${PROJECT_SOURCE_DIR}/src/app/src/designated_live_macos_capsule_identity.cpp"
+    )
+    target_include_directories(
+        test_better_pull_review_macos_capsule_identity_tests
+        PRIVATE
+            "${PROJECT_SOURCE_DIR}/src/app/src"
+    )
+    target_compile_features(
+        test_better_pull_review_macos_capsule_identity_tests
+        PRIVATE
+            cxx_std_23
+    )
+    bpr_enable_hardening(test_better_pull_review_macos_capsule_identity_tests)
+    bpr_enable_warnings(test_better_pull_review_macos_capsule_identity_tests)
+    bpr_add_network_isolated_test(
+        NAME macos_capsule_identity
+        COMMAND test_better_pull_review_macos_capsule_identity_tests
+    )
+    set_tests_properties(
+        macos_capsule_identity
+        PROPERTIES
+            PASS_REGULAR_EXPRESSION "macos-capsule-identity-tests:pass"
+    )
 endif()
 
 set(bpr_network_isolation_verifier_command

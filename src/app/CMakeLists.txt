@@ -77,6 +77,7 @@ if(BPR_BUILD_QT)
             app_better_pull_review
             PRIVATE
                 src/designated_live_macos_provenance.cpp
+                src/designated_live_macos_capsule_identity.cpp
         )
         target_include_directories(
             app_better_pull_review
@@ -122,6 +123,8 @@ if(BPR_BUILD_QT)
 		src/app/src/designated_live_macos_supervisor.cpp
 		src/app/src/designated_live_macos_provenance.hpp
 		src/app/src/designated_live_macos_provenance.cpp
+		src/app/src/designated_live_macos_capsule_identity.hpp
+		src/app/src/designated_live_macos_capsule_identity.cpp
 		scripts/designated_live_macos_capsule.py
 	)
 	set(bpr_attended_review_source_manifest "")
@@ -292,6 +295,7 @@ if(BPR_BUILD_QT)
             tool_better_pull_review_designated_live_supervisor
             src/designated_live_macos_supervisor.cpp
             src/designated_live_macos_provenance.cpp
+            src/designated_live_macos_capsule_identity.cpp
         )
         target_link_libraries(
             tool_better_pull_review_designated_live_supervisor

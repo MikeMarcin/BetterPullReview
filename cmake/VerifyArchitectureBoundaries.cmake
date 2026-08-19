@@ -1773,7 +1773,7 @@ if(EXISTS "${app_designated_live_supervisor_file}")
         IN ITEMS
             [=[run_static_verifier(*root, *inventory)]=]
             [=[observe_designated_live_public_target()]=]
-            [=[*root, attended->Approval, *inventoryDigest]=]
+            [=[*root, attended->Approval, *inventoryDigest, *retainedRoot]=]
             [=[POSIX_SPAWN_START_SUSPENDED]=]
             [=[guest_signing_digest(process)]=]
             [=["--attended-designated-live-approval"]=]
@@ -1824,7 +1824,7 @@ if(EXISTS "${app_designated_live_supervisor_file}")
     string(
         FIND
         "${app_designated_live_supervisor_contents}"
-        "*root, attended->Approval, *inventoryDigest"
+        "*root, attended->Approval, *inventoryDigest, *retainedRoot"
         designated_live_supervisor_launch_index
     )
     if(

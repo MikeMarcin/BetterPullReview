@@ -1,5 +1,6 @@
 #include "designated_live_public_observer.hpp"
 
+#include "designated_live_macos_capsule_identity.hpp"
 #include "designated_live_macos_provenance.hpp"
 #include <CoreFoundation/CoreFoundation.h>
 
@@ -564,7 +565,11 @@ namespace {
 	[[nodiscard]] auto launch_attended_application(
 		const std::filesystem::path& aRoot,
 		const std::filesystem::path& aApproval,
-		const std::string_view       aInventoryDigest) -> bool
+		const std::string_view       aInventoryDigest,
+		const int                    aRetainedRoot,
+		const std::vector<
+			bpr::app::designated_live_capsule_identity::entry>& aCapturedCapsule)
+		-> bool
 	{
 		if (!aApproval.is_absolute() || aApproval.lexically_normal() != aApproval
 			|| aInventoryDigest.size() != 64U) {
@@ -666,8 +671,21 @@ namespace {
 		}
 		const auto childSigningDigest = guest_signing_digest(process);
 		if (!childSigningDigest.has_value()
-			|| *childSigningDigest != *expectedSigningDigest
-			|| ::kill(process, SIGCONT) != 0) {
+			|| *childSigningDigest != *expectedSigningDigest) {
+			return failChild();
+		}
+		// fact_2, and the last moment it can be asked. The Python verifier that
+		// walked this tree exited before the child was even spawned, and the
+		// checks above cover only the top-level executable -- a nested dylib,
+		// framework, plugin, or qt.conf could have been replaced in between and
+		// nothing would have looked. Asked through the descriptor retained
+		// before the verifier ran, so a swapped parent directory cannot answer
+		// in place of the one that was verified.
+		if (!bpr::app::designated_live_capsule_identity::unchanged(
+				aRetainedRoot, aCapturedCapsule)) {
+			return failChild();
+		}
+		if (::kill(process, SIGCONT) != 0) {
 			return failChild();
 		}
 		// fact_4. The handshake completes before the child reaches Qt or any
@@ -779,8 +797,22 @@ auto main(int argc, char** argv) -> int
 	if (!inventoryDigest.has_value()) {
 		return EXIT_FAILURE;
 	}
-	return launch_attended_application(
-			   *root, attended->Approval, *inventoryDigest)
-		? EXIT_SUCCESS
-		: EXIT_FAILURE;
+	// Retained across the whole window, and opened O_NOFOLLOW so the capsule
+	// this describes is the capsule the verifier was pointed at.
+	const auto retainedRoot
+		= bpr::app::designated_live_capsule_identity::open_root(*root);
+	if (!retainedRoot.has_value()) {
+		return EXIT_FAILURE;
+	}
+	const auto capturedCapsule
+		= bpr::app::designated_live_capsule_identity::capture(*retainedRoot);
+	if (!capturedCapsule.has_value()) {
+		static_cast<void>(::close(*retainedRoot));
+		return EXIT_FAILURE;
+	}
+	const auto launched = launch_attended_application(
+		*root, attended->Approval, *inventoryDigest, *retainedRoot,
+		*capturedCapsule);
+	static_cast<void>(::close(*retainedRoot));
+	return launched ? EXIT_SUCCESS : EXIT_FAILURE;
 }

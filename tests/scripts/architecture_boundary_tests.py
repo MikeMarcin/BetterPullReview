@@ -3688,22 +3688,22 @@ auto finish_background_reap(
         # not an approximation of it: a stale literal here silently stops
         # rewriting anything and the case then proves nothing.
         launch = (
-            "return launch_attended_application(\n"
-            "\t\t\t   *root, attended->Approval, *inventoryDigest)\n"
-            "\t\t? EXIT_SUCCESS\n"
-            "\t\t: EXIT_FAILURE;"
+            "const auto launched = launch_attended_application(\n"
+            "\t\t*root, attended->Approval, *inventoryDigest, *retainedRoot,\n"
+            "\t\t*capturedCapsule);"
         )
         reordered = DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE.replace(
             observation,
             "const auto launchResult = launch_attended_application("
-            "*root, attended->Approval, *inventoryDigest);",
+            "*root, attended->Approval, *inventoryDigest, *retainedRoot,"
+            " *capturedCapsule);",
             1,
         ).replace(
             launch,
             observation
             + "\n\tif (!observed.has_value()) {\n"
             "\t\treturn EXIT_FAILURE;\n\t}\n"
-            "\treturn launchResult ? EXIT_SUCCESS : EXIT_FAILURE;",
+            "\tconst auto launched = launchResult;",
             1,
         )
         self.assertNotEqual(
