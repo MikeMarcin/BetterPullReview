@@ -74,6 +74,47 @@ namespace {
 			.Sort           = application::queue_sort_order::pull_request_number,
 		};
 	}
+
+	// The bounded wait cannot distinguish a wrong first head from one that is
+	// merely late, and BPR-0344's ext4 failure collapsed both into one string.
+	// The timeout report therefore carries the observed terminal state: an
+	// exact-but-late row names a durability-latency mechanism, while a wrong
+	// field names a content mechanism.
+	[[nodiscard]] auto first_head_state(
+		qt::workbench_window& aWindow, const core::observer_rule& aRule)
+		-> std::string
+	{
+		auto state = std::string{ "rows=" };
+		state += std::to_string(aWindow.queue_landing()->rowCount());
+		state += ":remove-enabled=";
+		state += aWindow.remove_queue_rule_action()->isEnabled() ? "1" : "0";
+		if (aWindow.queue_landing()->rowCount() != 1) {
+			return state;
+		}
+		const auto item = aWindow.queue_landing()->item_at(
+			aWindow.queue_landing()->index(0));
+		if (!item.has_value()) {
+			state += ":item=absent";
+			return state;
+		}
+		state += ":ref=";
+		state += item->Ref.Host;
+		state += '/';
+		state += item->Ref.Account;
+		state += '/';
+		state += item->Ref.Repository;
+		state += '#';
+		state += std::to_string(item->Ref.Number);
+		state += ":role=";
+		state += core::name(item->Membership.Role);
+		state += ":matched-rule=";
+		state += item->Membership.MatchedRule ? "1" : "0";
+		state += ":rule-exact=";
+		state += item->Membership.Rule == aRule ? "1" : "0";
+		state += ":bucket=";
+		state += core::name(item->Bucket);
+		return state;
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -142,7 +183,9 @@ auto main(int argc, char** argv) -> int
 				&& item->Membership.Rule == rule
 				&& item->Bucket == core::attention_bucket::quiet;
 		})) {
-		return fail(*application, "first-head-is-exact-and-quiet");
+		return fail(
+			*application,
+			"first-head-is-exact-and-quiet:" + first_head_state(window, rule));
 	}
 	const auto initialEvidence = app::detail::github_application_fixture_access::
 		queue_notification_evidence(*application);
