@@ -19,7 +19,15 @@ from typing import Iterable, Iterator, List, Optional, Sequence, Set, TextIO, Tu
 # would make `format.py` rewrite every one of them.
 MINIMUM_CLANG_FORMAT_VERSION: Tuple[int, ...] = (22,)
 
-CLANG_FORMAT_VERSION_PATTERN = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
+# Anchored on the banner text rather than "the first number in the output". Every
+# distribution's banner contains this phrase, and some put digits before it: the
+# Android NDK prints `Android (10552028, +pgo, …) clang-format version 17.0.2`,
+# which an unanchored search reads as version 10552028 -- comfortably above any
+# minimum, and a release that cannot parse this project's style file at all. A
+# banner without the phrase is an unreadable version, which fails closed.
+CLANG_FORMAT_VERSION_PATTERN = re.compile(
+    r"clang-format version\s+(\d+)(?:\.(\d+))?(?:\.(\d+))?"
+)
 
 UNSUPPORTED_CLANG_FORMAT_OVERRIDE = "--allow-unsupported-clang-format"
 

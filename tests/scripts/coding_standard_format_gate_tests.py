@@ -105,12 +105,33 @@ class clang_format_version_parsing(unittest.TestCase):
                     ("Ubuntu clang-format version 21.1.8", (21, 1, 8)),
                     ("Apple clang-format version 16.0.0 (clang-1600.0.26.6)", (16, 0, 0)),
                     ("clang-format version 22.1.2", (22, 1, 2)),
+                    # A vendor prefix carrying a build number. An unanchored
+                    # parse reads this as version 10552028, comfortably above
+                    # any minimum -- and 17 cannot read `.clang-format` at all.
+                    (
+                        "Android (10552028, +pgo, +bolt, +lto, +mlgo, based on"
+                        " r487747c) clang-format version 17.0.2",
+                        (17, 0, 2),
+                    ),
+                    (
+                        "Debian clang-format version 21.1.0-1~exp1 (tags/RELEASE)",
+                        (21, 1, 0),
+                    ),
                 )
             ):
                 stub_root = root / f"banner-{index}"
                 stub_root.mkdir(parents=True, exist_ok=True)
                 stub = write_stub(stub_root, banner, marker)
                 self.assertEqual(CODING_STANDARD.clang_format_version(str(stub)), expected, banner)
+
+    def test_a_banner_without_the_phrase_is_unreadable_rather_than_guessed(
+        self,
+    ) -> None:
+        """No phrase, no version. Guessing from a stray number is how 17 passed."""
+        with ContainedTemporaryDirectory() as scratch:
+            root = Path(scratch)
+            stub = write_stub(root, "some other tool 99.9", root / "invoked.log")
+            self.assertIsNone(CODING_STANDARD.clang_format_version(str(stub)))
 
     def test_an_unreadable_version_is_not_silently_treated_as_supported(self) -> None:
         diagnostic = io.StringIO()

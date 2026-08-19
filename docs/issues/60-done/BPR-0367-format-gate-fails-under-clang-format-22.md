@@ -221,6 +221,55 @@ dangerous one because it produces a plausible-looking result:
 Both documentation sites now carry the three tiers rather than only the `{ }`
 difference.
 
+### A hole an independent review found — and it was real
+
+The version parser searched for the first digit run anywhere in the banner. The
+Android NDK prints
+
+```
+Android (10552028, +pgo, +bolt, +lto, +mlgo, based on r487747c) clang-format version 17.0.2
+```
+
+which parsed to `(10552028,)`. That is comfortably above the minimum, so a
+clang-format 17 — a release that cannot read `.clang-format` at all — was accepted
+as supported and the gate then reported the whole tree dirty for a reason unrelated
+to the files. Exactly the defect this card exists to prevent, reintroduced by the
+check meant to prevent it. Reproduced against a stub before fixing.
+
+The pattern is now anchored on `clang-format version` itself. Every distribution's
+banner contains that phrase; a banner without it is an unreadable version, which
+fails closed. The NDK banner and a Debian banner with a packaging suffix
+(`21.1.0-1~exp1`) are regression cases, alongside a case requiring that a tool
+whose banner lacks the phrase reports no version rather than a guess. Nine cases
+now, up from eight.
+
+### Every clang-format invocation path, audited
+
+The review flagged `install_git_hooks.py` and `tidy.py` as unaudited for a direct
+formatter call. They are not:
+
+| Path | Verdict |
+|---|---|
+| `_coding-standard/cmake/CodingStandard.cmake` | `coding-format` and `coding-format-check` run `format.py` / `format_check.py` and pass no override; the tool name appears only in `COMMENT` strings |
+| `install_git_hooks.py` | the hook it writes invokes `format_check.py`, so it is gated |
+| `tidy.py` | clang-tidy only; it never resolves clang-format |
+| `scripts/make_project_source_dumps.py` | names `.clang-format` as a file, invokes nothing |
+
+No ungated invocation exists.
+
+### Two evidence-wording corrections from the same review
+
+- `the_installed_tool_satisfies_the_recorded_minimum` calls `skipTest` when the
+  tool is absent or below the floor, so on a host provisioning 21 the contract
+  cannot turn red on it. That is deliberate — an environment fact should not fail
+  a contract — but the row "1/1 passed" does not distinguish a pass from a skip,
+  and now says so here.
+- Of the three cases that fail when the check is deleted, only
+  `test_format_check_refuses_before_it_checks_anything` is about the refusal; the
+  other two are the version print and the override diagnostic. The stub's marker
+  mechanism is real but is not load-bearing in isolation, since the exit status
+  already separates a refusal from a pass.
+
 ### Left open deliberately
 
 The Linux toolchain still provisions 21.1.8. This card does not change that; it
