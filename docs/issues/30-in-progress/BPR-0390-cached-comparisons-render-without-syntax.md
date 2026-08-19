@@ -324,6 +324,57 @@ grammar is embedded and the definition resolves.
 That leaves a timing or bookkeeping cause inside the classification path, which is
 what remains open. This card does not guess at it.
 
+### The right pane, located — 2026-08-19
+
+An instrumented run answered it, and the answer is the card's own Defect B,
+surviving in exactly one place.
+
+Probes at every point that can lose a classification — the blob-read failure, the
+invalid-key rejection, the terminal refusal at `claim`, the drop at
+`adopt_token_spans`, and the successful `retain` — over the recorded course:
+
+```
+RETAIN   blob=7da9aac4… spans=285      Resource.h base
+FAIL     blob=79a81a85… status=unavailable   Resource.h head
+RETAIN   blob=b9eeda5c… spans=492
+FAIL     blob=b32897b0… status=unavailable
+FAIL     blob=79a81a85… status=unavailable
+RETAIN   blob=b995e189… spans=1361     UIforETW.rc BASE  -> the left pane
+REFUSED  blob=6335c1b2… rejection=cancelled  UIforETW.rc HEAD -> the right pane
+```
+
+`6335c1b2…` is `UIforETW.rc`'s head blob and the final comparison's right side. Its
+classification **succeeded**; the terminal came back and `claim` refused it as
+`cancelled`, because `retire_all` had already retired the record. That is the
+card's opening observation verbatim — "one arrived only when shutdown retired its
+record" — still true for one blob after both slices.
+
+Its left sibling retained 1,361 spans from the same submission loop. The
+difference is order: both are submitted together, the left's read is ahead in the
+repository actor's FIFO, and the course shuts down between the two.
+
+So the right pane is empty because that classification loses a race with the
+course's own shutdown, not because anything refuses or mis-binds it. A reviewer
+watching the pane would see it colour a moment later; the automated course does not
+wait.
+
+This corrects what this card previously recorded. It said the counters "place it as
+the single recorded `ClassificationFailures` entry" — an inference, and wrong. The
+four failures are three superseded blob reads plus one terminal refused at `claim`,
+and the right blob is the refusal, not a read failure. Measured, not deduced.
+
+The three unattended eliminations that got here are worth keeping: both `.rc` blobs
+are valid UTF-8 at 12,147 and 12,424 bytes, far under the 8 MiB limit, so it was
+never a decode or size refusal; and neutering the departure cancellation returns
+every counter to its slice-one value with the right pane still zero, so neither
+slice caused it.
+
+**What this leaves.** Whether an automated course *should* wait for outstanding
+classification before capturing evidence is a product question, not a defect this
+card can close by itself: making the course wait would change what every
+`SYNTAX_DISPLAYED` reading means. The probes were temporary and are removed; the
+tree carries none of them.
+
 ### Deliberately not done
 
 The three sibling waits in the same file — `resolve`, `materialize_agent_workspace`,
