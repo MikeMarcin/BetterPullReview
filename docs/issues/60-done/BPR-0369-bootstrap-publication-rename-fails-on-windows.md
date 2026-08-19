@@ -1,7 +1,7 @@
 ---
 id: BPR-0369
 title: The bootstrap publication rename has never worked on Windows
-status: In Progress
+status: Done
 rfc: RFC-BPR-0003
 depends_on: []
 ---
@@ -93,3 +93,70 @@ ctest --preset core-only --output-on-failure \
 
 Run the binaries directly as well. The uncontained run is what separates this
 defect from the container's effects, and it is the run that found it.
+
+## Result — the cause was neither candidate
+
+The hypothesis this card recorded was wrong, and saying so is the point of
+having written it down as unmeasured.
+
+A standalone probe replicated the rename exactly and varied only the parent
+handle's access mask:
+
+```
+parent access                          no-null   with-null
+  none (what the product passes)        87       87
+  FILE_TRAVERSE                         87       87
+  FILE_LIST_DIRECTORY                   87       87
+  FILE_ADD_FILE                         87       87
+  FILE_LIST_DIRECTORY|FILE_TRAVERSE     87       87
+  FILE_GENERIC_READ                     87       87
+  FILE_GENERIC_WRITE                    87       87
+
+  RootDirectory=NULL, fully qualified name:  OK
+```
+
+No access mask helps. The terminating null does not help. The one thing that
+works is abandoning `RootDirectory` entirely.
+
+**`SetFileInformationByHandle` does not honour `RootDirectory`.** That field
+belongs to the native `NtSetInformationFile`; the Win32 wrapper requires a
+fully qualified destination and a null root. Every handle-relative attempt
+returns `ERROR_INVALID_PARAMETER`, and the original buffer sizing turned the
+same rejection into `ERROR_FILENAME_EXCED_RANGE` instead.
+
+So the retained-chain access rights are untouched, and the substitution defence
+[[BPR-0053]] requires of them is not weakened — which is the outcome this card
+asked for and the reason it refused to guess.
+
+### The security property is preserved
+
+`destination` is already `parent.Path / CatalogNameWide`, a `\?\`-extended
+path built from the retained parent. Every ancestor handle stays open across the
+rename, so the chain cannot be swapped underneath it, and the publication is
+read back through `identity_at(parent, CatalogNameWide, security)` — which is
+handle-relative and compares the exact expected `file_identity`. The rename is
+the only step that stopped being handle-relative, and it is bracketed on both
+sides by checks that are.
+
+## Result
+
+`sqlite_epoch_catalog_behavior_contract` **passes uncontained** for the first
+time: `sqlite-epoch-catalog-behavior-tests:pass`, exit 0. The bootstrap
+publishes.
+
+`sqlite_epoch_catalog_storage_contract` now runs deep into the suite — far
+enough to emit `SKIP: file-symlink rejection requires Windows symlink
+privilege` — and stops at a much later assertion, `live catalog retains
+no-delete-share handles for every ancestor and the catalog leaf`. That is new
+ground, not this defect.
+
+Under the launcher both still time out. Passing uncontained and hanging
+contained is the container's effect, and [[BPR-0362]] owns it.
+
+## What this exposed
+
+- `sqlite_review_ledger_storage` and `sqlite_review_mutation_recovery_storage`
+  still fail at their first step, and it is a **test-side** defect rather than
+  the product's. [[BPR-0370]] carries it.
+- The storage contract's later no-delete-share assertion is undiagnosed and
+  recorded in [[BPR-0347]].

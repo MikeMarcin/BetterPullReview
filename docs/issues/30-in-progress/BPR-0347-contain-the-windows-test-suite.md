@@ -194,3 +194,24 @@ The launcher also prints `Failed to find real location of <image>` on every
 invocation before the test runs. It is not fatal and the test proceeds, but it
 appears in the output of all 84 tests and nothing explains it. It is likely the
 same ancestor-read denial [[BPR-0362]] measures, seen from inside the launcher.
+
+## The SQLite storage path, opened — 2026-08-18
+
+[[BPR-0368]] and [[BPR-0369]] between them made the Windows epoch catalog work
+for the first time. `sqlite_epoch_catalog_behavior_contract` passes uncontained.
+
+Two new items land on this card's undiagnosed list as a result, both reachable
+only now:
+
+- `sqlite_epoch_catalog_storage_contract` runs deep into the suite and stops at
+  `live catalog retains no-delete-share handles for every ancestor and the
+  catalog leaf`. Undiagnosed.
+- The same test emits `SKIP: file-symlink rejection requires Windows symlink
+  privilege; directory-junction rejection remains covered`. That is a
+  deliberate, self-describing skip rather than a failure, but it means one
+  [[BPR-0053]] adversary is not covered on an unelevated host and should be
+  recorded there rather than discovered again.
+
+Both epoch-catalog tests still time out **under the launcher** while passing or
+progressing uncontained. That gap is the container's and belongs to
+[[BPR-0362]].

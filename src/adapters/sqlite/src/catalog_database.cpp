@@ -3497,9 +3497,22 @@ namespace bpr::adapters::sqlite::detail {
 						? failure::invalid_path
 						: windows_error_failure(::GetLastError()));
 			}
-			const auto name_bytes      = CatalogNameWide.size() * sizeof(wchar_t);
-			const auto structure_bytes = offsetof(FILE_RENAME_INFO, FileName)
-				+ name_bytes;
+			// `SetFileInformationByHandle` does not honour `RootDirectory`. That
+			// field belongs to the native `NtSetInformationFile`; the Win32
+			// wrapper requires a fully qualified destination and a null root.
+			// Measured against every access mask the parent handle could carry,
+			// with and without room for a terminating null: the handle-relative
+			// form fails with `ERROR_INVALID_PARAMETER` every time, and the
+			// qualified form succeeds.
+			//
+			// The retained chain still supplies the substitution defence. Every
+			// ancestor handle stays open across the rename, and the publication
+			// is read back below through `identity_at(parent, ...)`, which is
+			// handle-relative and compares the exact expected identity.
+			const auto& native_destination = destination.native();
+			const auto  name_bytes         = native_destination.size() * sizeof(wchar_t);
+			const auto  structure_bytes    = offsetof(FILE_RENAME_INFO, FileName)
+				+ name_bytes + sizeof(wchar_t);
 			if (name_bytes > std::numeric_limits<DWORD>::max()
 				|| structure_bytes > std::numeric_limits<DWORD>::max()) {
 				return std::unexpected(failure::invalid_path);
@@ -3507,9 +3520,9 @@ namespace bpr::adapters::sqlite::detail {
 			auto  storage           = std::vector<std::byte>(structure_bytes);
 			auto* rename            = reinterpret_cast<FILE_RENAME_INFO*>(storage.data());
 			rename->ReplaceIfExists = FALSE;
-			rename->RootDirectory   = parent.Handle.Value;
+			rename->RootDirectory   = nullptr;
 			rename->FileNameLength  = static_cast<DWORD>(name_bytes);
-			std::memcpy(rename->FileName, CatalogNameWide.data(), name_bytes);
+			std::memcpy(rename->FileName, native_destination.data(), name_bytes);
 			if (::SetFileInformationByHandle(
 					opened->Handle.Value,
 					FileRenameInfo,
