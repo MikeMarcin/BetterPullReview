@@ -94,3 +94,39 @@ exists to produce; the rejection is evidence, not failure. The card stays
 parked: the packet is re-presented against repaired bytes after BPR-0390
 lands, and no acceptance is inferred from the aspects the owner did not
 reach.
+
+## Re-presented against repaired bytes — v002, 2026-08-19
+
+[[BPR-0390]] repaired the defect this card's rejection found. Adoption now
+happens at display time against the comparison the surface is actually showing,
+rather than depending on which of two unordered deliveries landed second. On the
+recorded course the left pane went from zero token spans to 1,361, and
+`application_uiforetw_selected_diff_contract` now fails outright if the selected
+comparison renders unclassified — the check the rejection proved was missing.
+
+The live packet is
+`docs/verification/reviews/native-visual-acceptance-v002/operator-packet.md`,
+bound to the bundled executable
+`sha256:4e93884097bc92d4c56eb8f12712245ed4e0c2b173e1bed7a441cc8072e20c64` at
+51,050,832 bytes. v001 is preserved as history, and it had two independent
+reasons it could no longer be run: its digest is stale, and the path it names
+(`build/dev/src/app/better_pull_review`) stopped being a file when [[BPR-0392]]
+made the tests-enabled macOS build an application bundle. The v002 launch
+command is the corrected one.
+
+Two things are stated in the packet rather than left for the run to discover.
+The syntax criterion is now named explicitly in the judgment list, because it is
+what the previous pass rejected on. And one blob is known to classify late —
+`UIforETW.rc`'s right-hand side loses a race with the automated course's own
+shutdown, which a person at the keyboard does not — so a pane still uncoloured
+after a second or two is named as a finding worth rejecting on rather than
+something to wait out.
+
+The preflights pass at these exact bytes: `application_attended_launch_contract`,
+`application_uiforetw_selected_diff_contract`,
+`application_diff_workbench_public_path`,
+`application_workbench_composition_contract`, and `qt_diff_workbench_scale_100`,
+5/5. The same executable backs the pending BPR-0114/BPR-0220 and BPR-0168
+packets, so one attended session can serve all three.
+
+The card stays parked awaiting that judgment.

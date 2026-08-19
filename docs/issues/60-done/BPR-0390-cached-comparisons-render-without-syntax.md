@@ -1,7 +1,7 @@
 ---
 id: BPR-0390
 title: Cache-served comparisons render without syntax classification
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: []
 ---
@@ -384,3 +384,68 @@ the selected-diff resolution and agent workspace paths, which this card makes no
 claim about. Factoring the four into one helper is the obvious follow-up and wants
 its own card and its own matrix.
 - The attended visual pass re-presented against repaired bytes.
+
+## Closed — 2026-08-19
+
+Re-measured at `HEAD` rather than trusting the sections above. `cmake --build
+--preset dev` reported `ninja: no work to do`, so the tree and the binary agree,
+and the focused matrix passed 5/5:
+
+| Check | Result |
+|---|---|
+| `qt_diff_workbench_scale_100` | passed |
+| `application_uiforetw_selected_diff_contract` | passed |
+| `application_diff_workbench_public_path` | passed |
+| `application_workbench_composition_contract` | passed |
+| `application_attended_launch_contract` | passed |
+
+Against this card's required final state:
+
+- **Dominant drop point confirmed by an instrumented run** — done, and it cost
+  two corrections. The first instrumented run named coalescing and a missing
+  submission; both were falsified by the second. The answer is adoption: two
+  unordered deliveries into one pane, `set_loading` clearing spans, and
+  `adopt_classification` refusing anything whose blob is no longer current.
+- **Panes carry the classification for their exact blobs** — the left pane does,
+  through display-time adoption from `AppearanceHost::cached` guarded on
+  `current_result()->Alignment.Key`, with per-blob request binding replacing the
+  shared mutable context and the blob-identity drop policy retained as defence in
+  depth. One blob does not, and it is measured rather than asserted away:
+  `UIforETW.rc`'s head side classifies successfully and is refused at `claim`
+  because the automated course shuts down first. A reviewer waits; the course
+  does not.
+- **A deterministic check fails when a displayed comparison renders
+  unclassified** — `SYNTAX_DISPLAYED_SPANS:<left>:<right>:<display-adopted>:<shown>`
+  plus the assertion at
+  `tests/end_to_end/application_uiforetw_selected_diff_contract.cmake:130`, whose
+  fourth field distinguishes "shown and uncoloured" from "nothing shown". Proven
+  by negative: removing the `adopt_published_classification` call fails it with
+  `UIforETW light rendered the selected comparison unclassified`.
+- **The attended visual pass can be re-presented against repaired bytes** — done.
+  `docs/verification/reviews/native-visual-acceptance-v002/operator-packet.md`
+  binds
+  `sha256:4e93884097bc92d4c56eb8f12712245ed4e0c2b173e1bed7a441cc8072e20c64`
+  with the five preflights above green at exactly those bytes. The v001 packet
+  could not have been rerun for two independent reasons: a stale digest, and a
+  path that stopped being a file when [[BPR-0392]] bundled the build. Both are
+  corrected in v002.
+
+The rebuild invalidated the other two pending packets, which bound the same
+executable, so both were regenerated in the same slice —
+`appearance-scheme-foreground-v006` for [[BPR-0391]] and
+`native-notification-delivery-v004` for [[BPR-0392]]. That is not scope creep:
+those packets say themselves that rebuilding the binary reopens all three gates
+together, and BPR-0391's own text predicted this card would invalidate its v005.
+All three now bind one executable, so one attended session serves all three.
+
+**What this card does not close.** The owner's verdict on [[BPR-0100]] is the
+owner's; this card produces the bytes and the packet, not the judgment. Two
+follow-ups are carded rather than folded in:
+
+- [[BPR-0397]] — the three sibling waits in `epoch_application_host.cpp` share
+  the unbounded shape this card repaired in `materialize`. They are real latent
+  hangs on paths this card makes no claim about.
+- Whether an automated course should wait for outstanding classification before
+  capturing evidence stays open on the record above rather than becoming a card:
+  it would change what every `SYNTAX_DISPLAYED` reading means, and no reading
+  today is wrong because of it.

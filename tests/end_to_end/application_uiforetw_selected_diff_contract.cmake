@@ -123,8 +123,10 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
     # displayed" is not a defect while "displayed and uncoloured" is.
     #
     # The left pane only. The right pane of this course's final comparison is
-    # still uncoloured, which the card records as open rather than asserted away;
-    # binding `1:1` here would be binding a value that is not true.
+    # uncoloured, and BPR-0390 measured why: that blob's classification succeeds
+    # and is refused at `claim` because the course shuts down before its terminal
+    # lands. A reviewer at the keyboard waits and sees it colour; this course does
+    # not. Binding `1:1` here would assert something that is false of the course.
     if(
         NOT probe_output MATCHES
             "SYNTAX_DISPLAYED_SPANS:([0-9]+):([0-9]+):([0-9]+):1"

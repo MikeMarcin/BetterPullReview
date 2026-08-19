@@ -208,3 +208,26 @@ geometry capture window now spans the whole return trip, so attribution overflow
 and a rebuild delta above one are both likelier and neither is a reason to rerun.
 And a budget expiry while waiting is a clean result to report rather than an error
 to edit around — which is the branch the review found no registered case covers.
+
+## The bytes had not settled after all — v006, 2026-08-19
+
+v005 was never run, and this card's own earlier paragraph said why it would not
+be: "[[BPR-0390]] will change them again, so a packet generated now would be a
+v005 that needs a v006 before anyone could run it." That is what happened.
+BPR-0390's blob-read repair landed after v005 was written, and the bundled
+executable is now
+`sha256:4e93884097bc92d4c56eb8f12712245ed4e0c2b173e1bed7a441cc8072e20c64` at
+51,050,832 bytes.
+
+A changed byte reopens the gate, so v005 is preserved as history and the live
+packet is
+`docs/verification/reviews/appearance-scheme-foreground-v006/operator-packet.md`.
+Nothing the operator does changed between v005 and v006: same procedure, same
+markers, same two warnings, same acceptance statement, new digest and new
+artifact paths. The packet says so at the top so a reader of v005 can skip
+straight to the procedure.
+
+The three pending attended packets — this one, BPR-0100's, and BPR-0168's — now
+bind the same executable, so one attended session can serve all three.
+
+The card stays parked on the operator.

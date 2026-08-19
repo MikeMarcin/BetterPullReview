@@ -593,16 +593,28 @@ three answers it needs:
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | A digest-bound attended packet, then a real GitHub call |
 | BPR-0240 | `30-in-progress/` | Nothing. Its portable gates have run and target-native Windows is this host |
-| BPR-0262 | `20-ready/` | Nothing. Its approval is recorded and its remaining work is local |
+| BPR-0391, BPR-0392 | `40-parked/` | A person running a regenerated packet: the appearance foreground pass and the notification banner |
+| BPR-0397 | `20-ready/` | Nothing. Three unbounded actor waits BPR-0390 deliberately left for their own card |
+
+This table had drifted twice, and both entries are corrected above rather
+than quietly dropped. It listed BPR-0262 as a `20-ready/` root; that card is
+in `60-done/`, and `20-ready/` was empty until BPR-0397 arrived. It also
+omitted BPR-0391 and BPR-0392, which parked on operator packets on 2026-08-19.
 
 So the honest summary is narrower than the one this section used to give.
 That summary was written when hardware was the largest single blocker. It no
 longer is. A Windows host arrived, and `40-parked/` and `50-blocked/` now hold
-eight cards between them — six waiting on a person, a product decision, or a
-live service, and two on a Linux host. The Windows roots are ordinary work
-again, which is why the table above now opens with active-lane cards that
-need nothing but implementation. The accepted v006 attended batch then
-closed BPR-0233, BPR-0257, and BPR-0258 together.
+the cards waiting on a person, a product decision, a live service, or a Linux
+host. The Windows roots are ordinary work again, which is why the table above
+now opens with active-lane cards that need nothing but implementation. The
+accepted v006 attended batch then closed BPR-0233, BPR-0257, and BPR-0258
+together.
+
+One caveat the lane names cannot carry: "this host" is the project's, not any
+one session's. The Windows roots are executable on the Windows 11 x64 machine
+BPR-0358 recorded, and are not executable from a macOS session. That is a queue
+position, not a `50-blocked/` condition, and the cards stay in their active
+lanes.
 
 Everything else in `10-backlog/` reaches one of those roots transitively.
 

@@ -242,3 +242,25 @@ which is a materially different card from this one.
 
 The Settings entry will read `BetterPullReview (tests)`, which is deliberate and
 is stated in the procedure so it does not read as a defect.
+
+## Regenerated once more — v004, 2026-08-19
+
+v003 was never run. [[BPR-0390]]'s blob-read repair landed after it was written
+and rebuilt the executable, so v003's bound digest no longer matches anything on
+disk. That is the same failure mode this card was opened by — a packet whose
+procedure is unexecutable by construction — caught before an operator hit it
+rather than after.
+
+The live packet is
+`docs/verification/reviews/native-notification-delivery-v004/operator-packet.md`,
+bound to
+`sha256:4e93884097bc92d4c56eb8f12712245ed4e0c2b173e1bed7a441cc8072e20c64` at
+51,050,832 bytes and to the unchanged BPR-0251 implementation record. v003 is
+preserved as history.
+
+BPR-0390 touched the diff classification path and nothing this packet decides,
+so the procedure, the markers, the deliberate `BetterPullReview (tests)` Settings
+name, and the "no banner even now" rejection condition are all unchanged. The
+packet states that up front.
+
+The card stays parked on the operator.
