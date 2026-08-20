@@ -654,7 +654,8 @@ three answers it needs:
 | BPR-0405 | `20-ready/` | Nothing. It authors the RFC-0017 anonymous recorder and its authority packet, which are strictly upstream of the live capture |
 | BPR-0240 | `30-in-progress/` | A Windows session. Its portable gates have run; `windows_agent_process.cpp` has never been compiled and only a Windows toolchain can |
 | BPR-0391, BPR-0392 | `40-parked/` | A person running a regenerated packet: the appearance foreground pass and the notification banner |
-| BPR-0348, BPR-0362, BPR-0378 | `40-parked/` | A product decision nobody has made yet |
+| BPR-0362 | `40-parked/` | A product decision nobody has made yet |
+| BPR-0348, BPR-0378 | `20-ready/` | Nothing. Both decisions arrived on 2026-08-19: revise the gate, and compare decoded content |
 | BPR-0310, BPR-0314 | `50-blocked/` | A Linux host; both are `platform-linux` |
 
 This table had drifted and is corrected above rather than quietly patched. It

@@ -1,9 +1,8 @@
 ---
 id: BPR-0348
 title: Keep the git subprocess error text that failures currently discard
-status: Parked
+status: Ready
 rfc: RFC-BPR-0003
-parked_on: awaiting-product-decision
 depends_on: []
 ---
 
@@ -183,3 +182,54 @@ make a card pass, and a card is not evidence about a boundary.
 - The propagation hops were never covered by an executable test even in the
   reverted work: removing the text from the cache boundary broke no test,
   because only the far end was asserted.
+
+## Operator ruling — revise the gate — 2026-08-19
+
+**Selected: option 2, the gate is revised, with the revision written down.**
+
+Given as direct operator direction in session. Recorded verbatim:
+
+> Revise the gate
+
+This card correctly refused to choose, on the grounds that choosing would mean
+weakening a security boundary to make a card pass. The person who owns the
+architecture has now chosen, which is the only thing that was missing.
+
+### What the ruling obliges
+
+The ruling is not "delete the forbidden-pattern rule". The option as written
+carries its own conditions, and they are the deliverable:
+
+- the rule must **say** that the port may carry bounded, redacted diagnostic
+  text, rather than merely stopping short of forbidding it;
+- it must say **why that is not the same as carrying repository content**,
+  because the two architecture documents arguing for carrying nothing are about
+  content leaving the product, and this is not that;
+- it must therefore state what bounded diagnostic text still may **not** carry.
+  A revision that only widens is not a revision, it is a removal.
+
+A gate that permits something without saying what it still forbids would leave
+this card in exactly the position it refused to reach: a boundary weakened so a
+card could pass.
+
+### Sequencing, stated rather than left implicit
+
+This card has two halves and they are not equally reachable today.
+
+The **rule and its written rationale** live in `cmake/` and the architecture
+documents. Nothing there relinks the application.
+
+The **restoration itself** — letting `git_process_port` actually carry the text —
+is a change under `src/`, and the application links it. Three operator packets
+currently bind the exact bytes of the built `dev` application
+(`sha256:7b9d6be9…a78fcd93`), and a relink invalidates all three; see the
+dev-binary hold in the board README. Those three are attended runs only the owner
+can perform.
+
+So the `src/` half is deliberately queued behind them rather than taken now. That
+is a sequencing choice about somebody else's pending work, not a technical
+obstacle, and it reverses the moment those three verdicts come back — or on
+owner direction, if the diagnostic text is wanted sooner than the three runs.
+
+The card returns to `20-ready/`: the ruling has arrived, and what remains is
+implementation.

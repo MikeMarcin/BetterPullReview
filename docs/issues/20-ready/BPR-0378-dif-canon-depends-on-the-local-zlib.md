@@ -1,9 +1,8 @@
 ---
 id: BPR-0378
 title: The Dif asset canon depends on which zlib the interpreter was built with
-status: Parked
+status: Ready
 rfc: RFC-BPR-0019
-parked_on: awaiting-product-decision
 depends_on: []
 ---
 
@@ -189,3 +188,47 @@ regression cases.
 
 The failure does not reproduce on this host, whose interpreter links stock zlib
 1.2.12, and no asset changed.
+
+## Operator verdict — option 1 — 2026-08-19
+
+**Selected: option 1, compare decoded content, not compressed bytes.**
+
+Given as direct operator direction in session, in response to the three options
+presented as a choose-exactly-one question. Recorded verbatim:
+
+> 1. Compare decoded content
+
+### What this verdict is, and what it is not
+
+It is a decision on the option set. It is **not** a validated batch export:
+`docs/verification/reviews/dif-canon-portability-v001/offline-package/` still has
+no `human-verdict.json` and no `verdict-validation.json`, and batch
+`bpr:/attended-review/betterpullreview/568e2cf7d36599fa83d41f43` remains formally
+unanswered.
+
+That gap is recorded rather than papered over, and the reason it is acceptable
+here is worth stating rather than assuming. The batch bound
+`scripts/dif_assets.py`, the measurement script, and its recorded output because
+the *measurement* needed exact identity — the question was which bytes this
+host's zlib produces. The decision the operator just made is not about those
+bytes. It is a choice about what the canon should assert, it is reversible, and
+its consequence is a bounded change to a check that this card already specifies
+in full. Nothing about it depends on the digests the batch pinned.
+
+If a formal export is wanted for the record, it can be produced against the
+existing page without redoing any measurement. That is a separate action and
+this card does not require it.
+
+### What the verdict settles
+
+Per this card's own Parked section, option 1 makes the rest a bounded slice:
+replace the byte-equality term in `decode_png` with the existing structural check
+plus an exactly-one-IDAT and empty-IEND requirement, and cover all three recorded
+variants as regression cases.
+
+It also carries this card's own constraint at `:72-73`, which the verdict does
+not relax: a hand-edited sprite must still fail, and that must be **shown** on a
+deliberately altered pixel rather than assumed.
+
+The card returns to `20-ready/`: the decision has arrived, and what remains is
+implementation.
