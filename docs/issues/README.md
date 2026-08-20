@@ -661,7 +661,7 @@ three answers it needs:
 | BPR-0362 | `40-parked/` | A product decision nobody has made yet |
 | BPR-0409 | `20-ready/` | Nothing, but it relinks the application. Startable the moment the dev-binary hold lifts, or on owner direction |
 | BPR-0410 | `20-ready/` | Nothing, and it relinks too. Makes a failing appearance run say what actually happened; pairs with BPR-0409 so one relink pays for both |
-| BPR-0411 | `20-ready/` | Nothing. Gates a pending packet's source manifest against the tree, which is the window nothing currently checks |
+| BPR-0411 | `30-in-progress/` | Nothing. Gates a pending packet's source manifest against the tree, which is the window nothing currently checks |
 | BPR-0310, BPR-0314 | `50-blocked/` | A Linux host; both are `platform-linux` |
 
 This table had drifted and is corrected above rather than quietly patched. It

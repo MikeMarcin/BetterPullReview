@@ -1,7 +1,7 @@
 ---
 id: BPR-0411
 title: Verify a pending packet's source manifest against the tree
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0013
 depends_on: []
 ---
