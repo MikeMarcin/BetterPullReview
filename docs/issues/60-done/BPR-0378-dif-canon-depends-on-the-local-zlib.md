@@ -1,7 +1,7 @@
 ---
 id: BPR-0378
 title: The Dif asset canon depends on which zlib the interpreter was built with
-status: Backlog
+status: Done
 rfc: RFC-BPR-0019
 depends_on: [BPR-0408]
 ---
@@ -318,3 +318,29 @@ for.
 depends on it and moves to `10-backlog/` rather than closing, because closing it
 would claim a bullet that is demonstrably false — which is the exact failure this
 card was opened to correct one level down.
+
+## Closed — 2026-08-20
+
+[[BPR-0408]] is done, and with it this card's first required-final-state bullet
+is now true rather than aspirational. Re-checked against the live tree:
+
+| bullet | status |
+|---|---|
+| the canon holds under either zlib, and says which property it is asserting | **met.** `validate_assets` succeeds with the generator's level 9 substituted by level 6 and by level 1 — it previously failed both. `decode_png_bytes`' docstring states what canonical form now means and why the byte comparison was dropped |
+| a hand-edited sprite still fails it | **met**, by `_validate_provenance`'s per-file sha256, which no part of this work touched. `test_an_edited_pixel_is_caught_by_provenance_not_by_the_canon` asserts both halves so the two checks cannot be confused again |
+| `dif_assets_contract` passes, and is not made to pass by weakening the check | **met.** 42 tests, up from 35 across the two slices. Every check that replaced byte equality has a negative control that isolates it: the bare decoder accepts all four variants at the source site, and the two generated-tree rejection tests re-stamp the digest first so only the comparison under test can fire |
+
+No committed asset byte changed in either slice, and
+`docs/verification/reviews/dif-final-v001/review-identity.json`'s binding of
+`generated/dif-sprite-digests.json` still matches the file on disk.
+
+### What this card is worth remembering for
+
+Not the zlib difference. The card's own first analysis said byte equality
+defended against a hand-edited sprite; an independent review falsified that, and
+the corrected version listed three properties the comparison was really holding.
+Implementing it found a fourth — filter canonicality — and then a second call
+site the card had never looked at, where the same fault lived unnoticed.
+
+Each of those was found by measuring rather than by reading the previous
+sentence, and each one would have shipped as a silent loss.

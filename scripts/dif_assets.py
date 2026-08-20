@@ -1115,18 +1115,89 @@ def _validate_asset_inventory(root: Path, manifest: dict[str, Any]) -> None:
         )
 
 
+def _differing_generated_products(
+    committed: dict[PurePosixPath, bytes],
+    expected: dict[PurePosixPath, bytes],
+) -> list[str]:
+    """Compare committed products against a fresh build without pinning DEFLATE.
+
+    A PNG is compared as an image in canonical form rather than as a compressed
+    stream, for the reason BPR-0378 settled one level down: the same pixels
+    compress differently under zlib and zlib-ng, and which compressor built the
+    tree is not a property anyone wants asserted. Everything else here is
+    deterministic text and is still compared byte for byte.
+
+    The digest inventory is excluded and checked separately, because its own
+    contents are derived from the compressed payloads.
+    """
+    differing: list[str] = []
+    for relative in sorted(set(committed) | set(expected), key=str):
+        name = str(relative)
+        if name == GENERATED_DIGESTS:
+            continue
+        left = committed.get(relative)
+        right = expected.get(relative)
+        if left is None or right is None:
+            differing.append(name)
+        elif name.endswith(".png"):
+            try:
+                if decode_png_bytes(
+                    left, name, require_canonical_form=True
+                ) != decode_png_bytes(right, name, require_canonical_form=True):
+                    differing.append(name)
+            except AssetError:
+                differing.append(name)
+        elif left != right:
+            differing.append(name)
+    return differing
+
+
+def _digest_inventory_is_stale(
+    committed: dict[PurePosixPath, bytes],
+    expected: dict[PurePosixPath, bytes],
+) -> bool:
+    """Require the committed inventory to describe the committed products.
+
+    Comparing it against a freshly built inventory would reintroduce exactly the
+    DEFLATE dependence this function exists to avoid, because `output_sha256`
+    hashes compressed payloads. Asking instead whether the recorded digests match
+    the products actually on disk is portable, and it is what the field claims.
+    Every other field is environment-independent and still compared exactly.
+    """
+    key = PurePosixPath(GENERATED_DIGESTS)
+    if key not in committed or key not in expected:
+        return True
+    try:
+        recorded = json.loads(committed[key].decode("utf-8"))
+        fresh = json.loads(expected[key].decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return True
+    if not isinstance(recorded, dict) or not isinstance(fresh, dict):
+        return True
+    if {name: value for name, value in recorded.items() if name != "output_sha256"} != {
+        name: value for name, value in fresh.items() if name != "output_sha256"
+    }:
+        return True
+    on_disk = {
+        str(relative): sha256_bytes(payload)
+        for relative, payload in committed.items()
+        if str(relative) != GENERATED_DIGESTS
+    }
+    return recorded.get("output_sha256") != on_disk
+
+
 def validate_assets(root: Path) -> None:
     manifest, _provenance, _clips = compile_assets(root)
     _validate_asset_inventory(root, manifest)
     expected = generated_products(root)
     committed = _tree_bytes(root / "generated")
-    if committed != expected:
-        differing = sorted(
-            str(path)
-            for path in set(committed) | set(expected)
-            if committed.get(path) != expected.get(path)
+    differing = _differing_generated_products(committed, expected)
+    if _digest_inventory_is_stale(committed, expected):
+        differing.append(GENERATED_DIGESTS)
+    if differing:
+        raise AssetError(
+            f"committed generated products are stale: {sorted(set(differing))}"
         )
-        raise AssetError(f"committed generated products are stale: {differing}")
 
 
 def _remove_tree(path: Path) -> None:

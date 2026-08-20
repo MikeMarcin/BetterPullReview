@@ -702,6 +702,72 @@ class DifAssetTests(unittest.TestCase):
         with self.assertRaisesRegex(DIF.AssetError, "stale"):
             DIF.validate_assets(self.root)
 
+    def _restamp_generated_digest(self, name: str) -> None:
+        """Point the inventory at whatever `generated/<name>` now contains."""
+        path = self.root / "generated/dif-sprite-digests.json"
+        inventory = json.loads(path.read_text(encoding="utf-8"))
+        inventory["output_sha256"][name] = DIF.sha256_bytes(
+            (self.root / "generated" / name).read_bytes()
+        )
+        write_json(path, inventory)
+
+    def test_accepts_a_generated_product_recompressed_at_another_level(self) -> None:
+        # BPR-0408. The generated-tree comparison used to pin DEFLATE the same
+        # way decode_png did, so this is the property being traded away.
+        name = "dif-rest.png"
+        path = self.root / "generated" / name
+        image = DIF.decode_png(path, name)
+        path.write_bytes(
+            DIF.PNG_SIGNATURE
+            + DIF._png_chunk(
+                b"IHDR",
+                DIF.struct.pack(">IIBBBBB", image.width, image.height, 8, 6, 0, 0, 0),
+            )
+            + DIF._png_chunk(
+                b"IDAT", DIF.zlib.compress(DIF._filtered_rgba_rows(image), level=1)
+            )
+            + DIF._png_chunk(b"IEND", b"")
+        )
+        self._restamp_generated_digest(name)
+        DIF.validate_assets(self.root)
+
+    def test_rejects_a_generated_product_whose_pixels_differ(self) -> None:
+        # The digest is re-stamped so the inventory agrees with the file on
+        # disk. That leaves the decoded-content comparison as the only check
+        # that can reject this, which is the point.
+        name = "dif-rest.png"
+        path = self.root / "generated" / name
+        image = DIF.decode_png(path, name)
+        pixels = bytearray(image.pixels)
+        pixels[0] ^= 0xFF
+        path.write_bytes(
+            DIF.encode_png(DIF.RgbaImage(image.width, image.height, bytes(pixels)))
+        )
+        self._restamp_generated_digest(name)
+        with self.assertRaisesRegex(DIF.AssetError, "stale"):
+            DIF.validate_assets(self.root)
+
+    def test_rejects_a_generated_product_that_is_not_in_canonical_form(self) -> None:
+        # Same pixels, two IDAT chunks, digest re-stamped. Only the canonical
+        # form requirement can reject it.
+        name = "dif-rest.png"
+        path = self.root / "generated" / name
+        image = DIF.decode_png(path, name)
+        whole = DIF.zlib.compress(DIF._filtered_rgba_rows(image), level=9)
+        path.write_bytes(
+            DIF.PNG_SIGNATURE
+            + DIF._png_chunk(
+                b"IHDR",
+                DIF.struct.pack(">IIBBBBB", image.width, image.height, 8, 6, 0, 0, 0),
+            )
+            + DIF._png_chunk(b"IDAT", whole[:20])
+            + DIF._png_chunk(b"IDAT", whole[20:])
+            + DIF._png_chunk(b"IEND", b"")
+        )
+        self._restamp_generated_digest(name)
+        with self.assertRaisesRegex(DIF.AssetError, "stale"):
+            DIF.validate_assets(self.root)
+
     def test_rejects_unlisted_asset_file(self) -> None:
         (self.root / "source/extra.png").write_bytes(DIF.encode_png(synthetic_frame(0)))
         with self.assertRaisesRegex(DIF.AssetError, "unexpected=.*extra"):

@@ -1,7 +1,7 @@
 ---
 id: BPR-0408
 title: The generated-tree comparison is zlib-pinned too
-status: Ready
+status: Done
 rfc: RFC-BPR-0019
 depends_on: []
 ---
@@ -117,3 +117,66 @@ git diff --check
 plus a direct replay of the DEFLATE-substitution probe above, which must reach
 `validate_assets: OK` for whichever answer is chosen — or be recorded as
 deliberately still failing, under option 3.
+
+## Result — 2026-08-20
+
+Owner direction was "do whatever". The recommendation this card carried was
+option 1, hashing decoded content into `dif-sprite-digests.json`. **It was wrong,
+and checking before implementing is what caught it.**
+
+### Why the recommendation was withdrawn
+
+`docs/verification/reviews/dif-final-v001/review-identity.json:12` binds
+`generated/dif-sprite-digests.json` to
+`7e066db7b5415995e9b7e9cf72f985f3208b5fd9c39b34a4567410d01d2b4bc4`, and that is an
+**accepted** attended batch — it has both `human-verdict.json` and
+`verdict-validation.json`. The committed file still hashes to exactly that value.
+
+So option 1 would not have been a one-time rewrite of a generated file. It would
+have been this session breaking an accepted human verdict's recorded identity,
+which currently still holds. Nothing enforces that binding mechanically, which
+makes it easier to break and no more acceptable to break.
+
+### What was done instead
+
+The goal was never "rewrite the digests file". It was "stop asserting which
+compressor built the tree". Those come apart, and separating them costs nothing:
+
+| product | compared as | why |
+|---|---|---|
+| `*.png` | decoded image, in canonical form | the pixels are the claim; the compressed stream is not |
+| `dif-sprite-catalog.hpp` | bytes | deterministic text |
+| `dif-sprite-digests.json`, every field but `output_sha256` | bytes | schema version, manifest digest, source digests — all environment-independent |
+| `dif-sprite-digests.json`, `output_sha256` | against the **committed** payloads on disk | this is what the field actually claims, and hashing files that already exist gives the same answer everywhere |
+
+The last row is the whole trick. Comparing the inventory against a freshly built
+one reintroduced the exact dependence being removed, because a fresh inventory
+hashes fresh compressed payloads. Asking instead whether the recorded digests
+describe the products actually committed is portable, is a real check, and needs
+no byte to move.
+
+### Verification matrix
+
+| claim | surface | command | proves it | result | evidence |
+|---|---|---|---|---|---|
+| the comparison is portable across DEFLATE implementations | `validate_assets` on the real committed tree | substitute level 6, then level 1, for the generator's level 9 | a different compressor is exactly what zlib-ng is | **OK at 9, 6, and 1** — was `stale: [3 PNGs, dif-sprite-digests.json]` | this commit |
+| a wrong image is still rejected | `test_rejects_a_generated_product_whose_pixels_differ` | flip one channel, re-encode canonically, **re-stamp the digest** | re-stamping leaves the decoded-content comparison as the only check that can fire | rejected | this commit |
+| a non-canonical product is still rejected | `test_rejects_a_generated_product_that_is_not_in_canonical_form` | same pixels, two IDATs, digest re-stamped | only the canonical-form requirement can fire | rejected | this commit |
+| a recompression that changes no pixel is accepted | `test_accepts_a_generated_product_recompressed_at_another_level` | rewrite one product at level 1 | this is the property deliberately traded away | accepted | this commit |
+| a tampered inventory is still rejected | `test_rejects_stale_digest_inventory` | zero one recorded digest | the pre-existing case, unweakened | rejected | this commit |
+| the suite grew rather than shifted | `tests/scripts/dif_asset_tests.py` | `python3 tests/scripts/dif_asset_tests.py` | 42 cases | **42, OK**, was 39 | this commit |
+| the registered contract passes | `dif_assets_contract` | `ctest --test-dir build/core-only -R '^dif_assets_contract$'` | it runs the live boundary check over the real tree | pass, 34.4 s | this commit |
+| **no committed byte moved** | Git | `git status --short` | only the script and its tests are modified | 2 files | this commit |
+| **the accepted review identity still holds** | the bound file | `shasum -a 256 .../dif-sprite-digests.json` | it is what `dif-final-v001` recorded as reviewed | `7e066db7…`, unchanged | this commit |
+
+The two rejection tests re-stamp the digest deliberately. Without that step the
+inventory check would fire first and the test would pass while proving nothing
+about the comparison it names — the kind of pass that looks like coverage and is
+not.
+
+### The two options not taken
+
+Option 2, comparing the inventory semantically while leaving `output_sha256`
+unverified, would have left a field that looks like provenance and is checked
+against nothing. Option 3, narrowing the claim, is now unnecessary: the claim is
+true.
