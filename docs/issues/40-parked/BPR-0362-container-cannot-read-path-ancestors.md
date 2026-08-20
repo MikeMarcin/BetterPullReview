@@ -139,7 +139,14 @@ ctest --preset core-only --output-on-failure \
 Run the same selectors outside the launcher as the negative control, so a pass
 inside is evidence about the boundary rather than about the machine.
 
-## Operator decision packet — 2026-08-18
+## Operator decision packet — 2026-08-18 — SUPERSEDED
+
+**Status: superseded by "Operator decision packet v2 — 2026-08-19" at the end of
+this card. Do not answer this version.** It offers option 2, which this card
+later measured and struck; it presents option 4 as the one to examine first,
+which a later section falsified as an incomplete answer; and it states a stake of
+six tests that is now seven. It is kept unedited below because the reasoning it
+records is what the later measurements were run against.
 
 Parked here rather than decided. Every unattended piece of evidence this card
 can produce has been produced; what remains is a choice about how much sandbox
@@ -396,3 +403,103 @@ and it should not be presented as one.
 Six tests wait on this decision. Three separate mechanisms are involved — our
 product's retained chain, `resolve(strict=True)` in two scripts, and `getcwd()`
 in `git` — and only option 1 addresses all three.
+
+## Operator decision packet v2 — 2026-08-19
+
+The 2026-08-18 packet is superseded. It was written before option 2 was
+attempted, before `git init` was measured inside the container, and before the
+test list was evidenced, and every one of those changed the answer. An owner
+reading it would have been offered a dead option and pointed at the wrong one
+first. This version replaces it; nothing below repeats a claim the card has since
+falsified.
+
+**Status: pending operator decision.** Not RFC closeout, not a live GitHub call,
+not a credential, not release or remote-mutation authority.
+
+### The bounded decision requested
+
+Pick **option 1** or **option 3** for how the Windows AppContainer answers the
+ancestor-read denial. Option 2 is struck. Option 4 is a separate yes/no that does
+not settle this card on its own — see below.
+
+### Why the choice is down to two
+
+The container cannot read any path ancestor above its own `AC` directory, and
+three independent mechanisms hit that, in two languages plus a third-party
+binary:
+
+| # | mechanism | can we change it? |
+|---|---|---|
+| 1 | `validate_ancestor_chain` opens every ancestor | yes, it is our C++ |
+| 2 | `resolve(strict=True)` in `capture_rfc0016_device_contracts.py` and `verify_test_network_isolation.py` | yes, it is our Python |
+| 3 | `git` resolves its working directory at start-up via `getcwd()` | **no** |
+
+Mechanism 3 is what collapsed the option set. Any test that shells out to `git`
+inside the container fails no matter how we express our own checks, so no
+change to our code can be a complete answer.
+
+### The options, as they now stand
+
+| option | what it does | gives up | keeps |
+|---|---|---|---|
+| **1 — grant the container ACLs up the chain** | `icacls` grants in `cmake/WindowsTestIsolationSetup.cmake` extend to `C:\`, `C:\Users`, and the invoking user's profile directory | sandbox narrowness: the contained process gains traverse to the drive root, widening the boundary [[BPR-0347]] built | every mechanism fixed at once, including `git`; no product change; [[BPR-0053]]'s substitution criterion intact |
+| ~~2 — anchor the chain at a readable root~~ | **struck.** Implemented and measured: the chain relaxed correctly and then failed one step later, because `GetFinalPathNameByHandleW` cannot resolve a handle's own name inside a container even when `CreateFileW` succeeded on it. Reverted rather than left in the tree | — | — |
+| **3 — do not contain the tests that need this** | register the affected tests outside the AppContainer prefix | the default-deny boundary [[BPR-0235]] requires of *every* test, for exactly the tests whose subject is filesystem authority — and now for anything invoking `git`, which makes the exempt set larger than it looked | the sandbox and the security claim for every other test |
+
+### Option 4 is a separate question, and it is not a substitute
+
+**Verify the retained chain by file identity instead of by name.**
+`GetFileInformationByHandle` returns the volume serial and file index inside a
+container — measured working on the very handle whose name could not be
+resolved — and a file identity is a stronger statement than a name string,
+because a rename cannot forge it.
+
+It is probably right on its own merits, container or no container. But it only
+touches mechanism 1. It cannot help mechanism 3, so answering yes to option 4
+does **not** answer this card. Treat it as a second, independent yes/no.
+
+### What the verdict binds to
+
+The option set as written in **this v2 section**, at commit `cbf6f9f`. The
+superseded 2026-08-18 packet and its `c55f2d7` binding are void.
+
+### What is at stake
+
+**Seven tests**, each of which passes outside the launcher and fails inside it:
+
+| test | where it stops contained | mechanism |
+|---|---|---|
+| `sqlite_epoch_catalog_behavior_contract` | `validate_ancestor_chain` | 1 |
+| `sqlite_review_ledger_storage` | `validate_ancestor_chain` | 1 |
+| `sqlite_review_mutation_recovery_storage` | `validate_ancestor_chain` | 1 |
+| `sqlite_epoch_catalog_storage_contract` | `validate_ancestor_chain` | 1 |
+| `rfc0016_device_capture_security` | `resolve(strict=True)` at `capture_rfc0016_device_contracts.py:2076` | 2 |
+| `test_network_isolation_structure_contract` | `resolve(strict=True)` at `verify_test_network_isolation.py:371` | 2 |
+| `operator_response_validation_contract` | `git init` → 128, `unable to get current working directory` | 3 |
+
+The seventh arrived by re-filing rather than by measurement: [[BPR-0347]] and
+[[BPR-0358]] both carried it as separately undiagnosed until the taxonomy
+re-check showed `d348be9` had already recorded it as this exact cause.
+
+### What to look at
+
+- This card's measured table: the drive root is `win32=5` inside the container
+  and opens outside it.
+- `src/adapters/sqlite/src/catalog_database.cpp:2155` — `validate_ancestor_chain`.
+- `cmake/WindowsTestIsolationSetup.cmake` — where option 1's `icacls` grants go.
+- [[BPR-0053]]'s epoch-catalog substitution criterion, which is the claim under
+  discussion.
+- The option-2 probe output recorded in this card, which is the evidence that
+  the middle path is closed.
+
+### Explicit non-scope
+
+No change to macOS or Linux behaviour. Does not touch [[BPR-0360]]'s descriptor
+defect. Does not decide option 4. Does not close [[BPR-0347]], [[BPR-0358]], or
+any RFC.
+
+### What is not blocked by this
+
+Nothing else in the Windows program. [[BPR-0363]], [[BPR-0361]], [[BPR-0365]],
+[[BPR-0366]], [[BPR-0368]] through [[BPR-0375]], [[BPR-0377]] and [[BPR-0379]]
+were all completed while this stood.
