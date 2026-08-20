@@ -1,7 +1,7 @@
 ---
 id: BPR-0405
 title: Author the anonymous contract recorder and its authority packet
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: [BPR-0297]
 ---
