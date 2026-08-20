@@ -307,3 +307,40 @@ limited to a name and counts, and a click that opens the correct review.
 This card is what made a real banner possible at all: an unbundled binary cannot
 reach Notification Center, and the fix was structural rather than cosmetic. The
 grant is therefore the first time the repaired path can be observed end to end.
+
+## The banner was delivered, read, and activated — 2026-08-20
+
+The attended course passed. Exit 0, all eight of the packet's required markers
+present, log
+`sha256:307ec1f34a307a8d24e07d6165015ee1d40c5e8c3b70e8059301c5c911fbe9d4`:
+
+```
+NATIVE_NOTIFICATION_BUNDLE_IDENTITY:io.github.MikeMarcin.BetterPullReview.tests
+NATIVE_NOTIFICATION_QUIET_BASELINE_OK
+NATIVE_NOTIFICATION_REQUEST_SUBMITTED_OK
+NATIVE_NOTIFICATION_PAYLOAD:octo-org/review-repository #17|The code moved after you reviewed it.
+NATIVE_NOTIFICATION_AWAITING_PLATFORM_CLICK
+NATIVE_NOTIFICATION_TRAY_SIGNAL_OK
+NATIVE_NOTIFICATION_ACTIVATION_OK
+NATIVE_NOTIFICATION_EXACT_LANDING_SELECTION_OK
+NATIVE_NOTIFICATION_SHUTDOWN_OK
+NATIVE_NOTIFICATION_ATTENDED_RUN_OK
+```
+
+This is the first time this product has caused a real macOS banner and had its
+activation land on the intended review. That is precisely what this card
+existed for: an unbundled binary cannot reach Notification Center, and the fix
+was structural rather than cosmetic.
+
+### The first attempt reached the banner and lost the click
+
+Worth recording, because it is a property of the medium rather than a defect.
+The first run reached `NATIVE_NOTIFICATION_AWAITING_PLATFORM_CLICK` with the
+correct payload and then sat there: the banner had auto-dismissed into
+Notification Center before the click landed, and no activation arrived. The run
+was relaunched and the second banner was clicked while still on screen.
+
+An attended notification gate therefore has a real time window that no log line
+announces, and a run that misses it is indistinguishable from one where delivery
+failed until you look at which markers are absent. Relaunching costs nothing and
+consumes no packet, which is the right answer, but the packet should say so.

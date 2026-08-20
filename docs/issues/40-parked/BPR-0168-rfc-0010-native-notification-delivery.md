@@ -183,3 +183,37 @@ The cause was structural. This packet family serves both this card and
 [[BPR-0392]], and each regeneration updated only the card that ordered it.
 [[BPR-0398]] carries the verifier check that now fails when a card names a
 superseded packet.
+
+## The attended course ran and passed — 2026-08-20
+
+Permission was granted by the owner at the macOS prompt, not by a script. The
+banner was clicked on screen, not invoked directly. Exit 0, all eight required
+markers present, log
+`sha256:307ec1f34a307a8d24e07d6165015ee1d40c5e8c3b70e8059301c5c911fbe9d4`.
+
+Against this card's four steps:
+
+| step | evidence |
+|---|---|
+| 1. grant Notification Center permission | granted at the macOS prompt by the owner; the entry reads "BetterPullReview (tests)" under bundle identity `io.github.MikeMarcin.BetterPullReview.tests` |
+| 2. trigger a queue item that requests a notification | `NATIVE_NOTIFICATION_QUIET_BASELINE_OK` then `REQUEST_SUBMITTED_OK` |
+| 3. see the banner and read it | the request carried `octo-org/review-repository #17` and `The code moved after you reviewed it.` — **see the outstanding bullet below** |
+| 4. click it, and confirm the correct review is selected | `ACTIVATION_OK` followed by `EXACT_LANDING_SELECTION_OK`, then `SHUTDOWN_OK` and `ATTENDED_RUN_OK` |
+
+### One required bullet is still outstanding
+
+This card's "Required direct evidence" is deliberately stricter than the log:
+
+> The banner is described as seen, including what it says, not inferred from
+> the request.
+
+`NATIVE_NOTIFICATION_PAYLOAD` is the request, which is the thing this card
+exists *not* to trust. The owner clicked a banner that macOS actually drew, so
+delivery and activation are proven — but what that banner read is not yet on the
+record in the owner's own words, and neither is the negative half:
+
+> If any content beyond identity and counts appears, the run stops and the card
+> reopens against BPR-0164 rather than being noted as cosmetic.
+
+So the card stays parked on one short description rather than on a run. Nothing
+else in it is outstanding.
