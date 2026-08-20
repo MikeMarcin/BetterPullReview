@@ -314,3 +314,43 @@ Events.
 
 Recorded on the card rather than only in a session, because the failure is
 invisible until something unrelated cannot read a file.
+
+### Attended run, 2026-08-20 — did not satisfy the packet
+
+Log: `/tmp/bpr-appearance-foreground-v007.5giCUE/bpr-0114-foreground-v007.log`.
+Exit 1, `elapsed_ms=57627`, budget not expired. Both rasters missing.
+
+The scheme change itself worked — the owner confirms it, and the log agrees:
+
+```
+NATIVE_APPEARANCE_TRANSITION:Light->Dark
+NATIVE_APPEARANCE_GLOBAL_TRANSITION:Light->Dark
+NATIVE_APPEARANCE_PLATFORM:cocoa      NATIVE_APPEARANCE_STYLE:QMacStyle
+DIFF_PALETTE_BEFORE:#fff6f7f9:#ffffffff:#ff1f2328:#ff1f2328
+DIFF_PALETTE_AFTER: #ff1c2026:#ff0d1117:#ffe6edf3:#ffe6edf3
+```
+
+Both panes repainted, the selected diff was bound and wired, and the fixture
+helper was unused. What failed was `ACTIVE_FOCUS_FAILED`, and everything
+downstream of it: state, pixels-differ, and both render captures.
+
+The owner named the reason the instructions are hard to follow, and it is a fair
+description of the packet as written:
+
+> leave it frontmost and change system appearance is oxymoron, you cant do both
+
+The two cannot hold at once. Changing the setting requires System Settings to be
+frontmost, so the application necessarily loses focus in the middle of the
+procedure it is being measured through. `native_appearance_owner_returned`
+(`src/app/main.cpp:1139`) is what is supposed to bridge that, and it is strict:
+the window must be active, be `QApplication::activeWindow()`, **and** have the
+same `focusWidget()` it started with. Clicking the title bar, another pane, or
+the window generally does not satisfy it.
+
+So the packet's step 5 is not wrong about what to do, but it reads as a single
+instruction with a contradiction inside it rather than as: click the pane, lose
+focus on purpose, then click **that same pane** again. A regenerated packet
+should separate those, and say why the last click is the one that matters.
+
+Not recorded as operator error. The run is not counted as evidence and the packet
+stays pending.
