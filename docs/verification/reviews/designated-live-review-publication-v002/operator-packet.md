@@ -1,6 +1,6 @@
 # Designated one-shot live review publication operator packet
 
-Status: **INVALIDATED BY CAPABILITY-CRITICAL REVIEW — DO NOT APPROVE OR RUN**
+Status: **INVALIDATED BY CAPABILITY-CRITICAL REVIEW; superseded by [designated-live-review-publication-v003](../designated-live-review-publication-v003/operator-packet.md); do not run or approve.**
 
 The review this packet was pending has run, and its finding is that the packet's
 bound source surface does not describe this repository. Six of the 31 entries in

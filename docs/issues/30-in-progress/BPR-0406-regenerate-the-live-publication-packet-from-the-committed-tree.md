@@ -111,3 +111,77 @@ keeps, and `scripts/verify_documentation.py` already re-hashes bound artifacts
 for *answered* packets through `frozen_packets`. Extending that to verify a
 **pending** packet's `source-manifest.txt` against the tree would have caught
 this at the commit that introduced it. That is a separate card, not this one.
+
+## Result — 2026-08-20
+
+`designated-live-review-publication-v003` is written and the eleven-selector
+matrix is green at the regenerated digest. The fresh capability-critical review
+is the one remaining step before the operator may be asked.
+
+### The manifest was reproduced, not copied
+
+This card warned that the review's `b2e2c2d8…` figure was "a starting
+expectation, not evidence". It was reproduced from the algorithm instead: the 31
+paths read from `bpr_attended_review_source_surface` in
+`src/app/CMakeLists.txt:96-128`, each file hashed, the pairs concatenated as
+`path=sha256` lines **in list order**, and that string hashed — which is exactly
+what `file(SHA256)` plus `string(SHA256 …)` do at configure time.
+
+That produced `b2e2c2d8f005e62ff997ec4e4dd87f48af6da0decdcf64a48b54746131ef4a81`,
+and the freshly built capsule binary carries the same value compiled in. Manifest
+and binary agree, which is the check v002 failed.
+
+### The approval subject was rendered by a validated renderer
+
+`designated_review_approval_subject` is C++ and the capsule graph has
+`BUILD_TESTING=OFF`, so it cannot be called directly here. Rather than
+reimplement it and hope, the Python rendering follows the append sequence at
+`src/application/src/designated_review_authority_bootstrap.cpp:1488-1542`
+literally and was validated before use:
+
+- fed v002's own inputs it reproduces v002's `approval-subject.txt`
+  **byte-exactly** — 1,496 bytes, `sha256:929a013d44ee…`, identical;
+- `git log 1842216..HEAD` shows **zero** commits to either
+  `designated_review_authority_bootstrap.cpp` or
+  `review_mutation_execution_authority.hpp`, so the renderer that produced v002
+  is the renderer that would produce v003;
+- the resulting subject differs from v002 in exactly four fields, all measured
+  digests: `application_sha256`, `source_sha256`, `supervisor_sha256`,
+  `inventory_sha256`.
+
+A byte-exact reproduction of a known-good output, from an unchanged source, is
+evidence. It is not the same as running the real function, and that limit is
+recorded rather than glossed.
+
+### Verification matrix
+
+| claim | surface | command | proves it | result | evidence |
+|---|---|---|---|---|---|
+| the graph builds tests-disabled Release | `build/bpr0256-release` | `cmake -S . -B … && cmake --build …` | `BUILD_TESTING=OFF`, `Release`, `BPR_BUILD_QT=ON` in its cache | 89/89, exit 0 | this commit |
+| the binary carries the manifest digest | the built capsule app | `strings` for the 64-hex constant | a mismatch is the v002 defect exactly | `b2e2c2d8f005…` found | this commit |
+| the capsule verifies | `designated_live_macos_capsule.py verify` | `verify --capsule … --inventory … --source-sha256 …` | it checks signatures, inventory, and the source binding | `designated-live-macos-capsule:pass` | this commit |
+| the read-only image verifies from inside | `stage-zero` | `stage-zero --image … --expected-image-sha256 … --mount-parent …` | it mounts read-only, verifies the inventory from within the mount, detaches | `mounted:…` then `pass`, exit 0 | this commit |
+| the subject renderer is faithful | v002's own bytes | reproduce v002 from v002's inputs | a byte-exact match of a known-good rendering | 1,496 bytes, `929a013d…` identical | this commit |
+| the renderer has not moved | Git | `git log 1842216..HEAD -- <both files>` | a changed renderer would invalidate the reproduction | 0 commits each | this commit |
+| the matrix is green at the regenerated digest | eleven registered selectors | the RFC-BPR-0008 ledger selector against `build/dev` | it exercises bootstrap, host, composition, round trip, capsule, provenance, identity, isolation, architecture | **11/11**, 231.30 s | this commit |
+| the dev binary never moved | the bound executable | `shasum -a 256` before and after every build and run | a relink invalidates two pending attended packets | `7b9d6be9…a78fcd93` at all four checkpoints | this commit |
+
+### Three defects fixed rather than carried forward
+
+1. **The 15-minute authority lifetime is now disclosed** in the abort
+   conditions, with the distinction that matters: the 1,800 second CTest timeout
+   is the lane's bound, not the authority's, so a session that consumes the
+   approval and then pauses can lose it mid-run with no retry, and the approval
+   is spent either way.
+2. **The launch sequence is corrected.** v002 said the supervisor verifies the
+   child through the Mach handshake and "only then resumes it". A suspended
+   child cannot answer, so the handshake necessarily follows resume; what
+   precedes it is the pid-keyed signing check and the capsule revalidation. The
+   invariant was real, the description was not.
+3. **The manifest claim now states how it was checked** rather than that it was.
+
+### Not done
+
+Step (2), the fresh capability-critical review of v003, has not run. Step (3),
+the attended operator decision, has not been requested and this card has no
+authority to request it.
