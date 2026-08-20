@@ -10,6 +10,26 @@ from io import StringIO
 from pathlib import Path
 
 
+# Mirrors the guard in scripts/verify_documentation.py, which this imports.
+# Without it the failure surfaces as an import-time TypeError from inside that
+# module rather than as a wrong-interpreter message.
+MINIMUM_PYTHON = (3, 10)
+
+if sys.version_info < MINIMUM_PYTHON:
+    sys.stderr.write(
+        "verify_documentation_tests.py requires Python {}.{} or newer; this is "
+        "{}.{}.{} at {}.\n".format(
+            MINIMUM_PYTHON[0],
+            MINIMUM_PYTHON[1],
+            sys.version_info[0],
+            sys.version_info[1],
+            sys.version_info[2],
+            sys.executable,
+        )
+    )
+    raise SystemExit(2)
+
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT))
 

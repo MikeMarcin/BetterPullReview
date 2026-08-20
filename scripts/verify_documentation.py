@@ -10,6 +10,29 @@ import sys
 from pathlib import Path
 
 
+# This module uses 3.10 syntax and library behaviour, most visibly
+# ``zip(..., strict=True)`` in ``closeout_table``. Without this guard an older
+# interpreter fails deep inside a table parser with ``TypeError: zip() takes no
+# keyword arguments``, which reads like a malformed closeout card rather than
+# the wrong ``python3`` on PATH. Keep this block free of syntax newer than the
+# version it refuses, or it cannot report anything.
+MINIMUM_PYTHON = (3, 10)
+
+if sys.version_info < MINIMUM_PYTHON:
+    sys.stderr.write(
+        "verify_documentation.py requires Python {}.{} or newer; this is {}.{}.{} "
+        "at {}.\n".format(
+            MINIMUM_PYTHON[0],
+            MINIMUM_PYTHON[1],
+            sys.version_info[0],
+            sys.version_info[1],
+            sys.version_info[2],
+            sys.executable,
+        )
+    )
+    raise SystemExit(2)
+
+
 FRONT_MATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.S)
 LINK_RE = re.compile(r"!?\[[^\]]+\]\(([^)]+)\)")
 NAMED_LINK_RE = re.compile(r"!?\[([^\]]+)\]\(([^)]+)\)")

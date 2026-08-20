@@ -55,7 +55,14 @@ cmake --build --preset core-only
 ctest --preset core-only --output-on-failure
 
 python3 scripts/verify_documentation.py --root .
+python3 tests/scripts/verify_documentation_tests.py
 ```
+
+Both documentation commands require **Python 3.10 or newer** and refuse to run
+otherwise, naming the version they found and the interpreter they found it at.
+On macOS `/usr/bin/python3` is older than that, so `python3` must resolve to a
+newer interpreter. Run a gate without a pipe: `| tail` reports the pipe's exit
+status, not the gate's.
 
 Before RFC closeout, run the documentation gate over the immutable RFC base,
 the complete verification matrix from clean state, the selected runtime and
