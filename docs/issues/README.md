@@ -615,7 +615,6 @@ three answers it needs:
 | BPR-0391, BPR-0392 | `40-parked/` | A person running a regenerated packet: the appearance foreground pass and the notification banner |
 | BPR-0348, BPR-0362, BPR-0378 | `40-parked/` | A product decision nobody has made yet |
 | BPR-0310, BPR-0314 | `50-blocked/` | A Linux host; both are `platform-linux` |
-| BPR-0401 | `30-in-progress/` | Nothing. Marking the seven known-false Windows launch statements |
 
 This table had drifted and is corrected above rather than quietly patched. It
 listed BPR-0262 as a `20-ready/` root; that card is in `60-done/`, and
@@ -635,7 +634,7 @@ and fails when they disagree, so a card entering or leaving `20-ready/`,
 under the wrong lane, or left behind after it closes.
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these nineteen roots or reaches one
+card on this board is either one of these eighteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 52 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.

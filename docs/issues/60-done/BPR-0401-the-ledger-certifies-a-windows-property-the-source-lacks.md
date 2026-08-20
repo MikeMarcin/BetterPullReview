@@ -1,7 +1,7 @@
 ---
 id: BPR-0401
 title: The RFC-BPR-0011 ledger certifies a Windows property the source does not have
-status: In Progress
+status: Done
 rfc: RFC-BPR-0011
 depends_on: []
 ---
@@ -91,3 +91,41 @@ python3 tests/scripts/verify_documentation_tests.py
 ctest --test-dir build/core-only --output-on-failure \
   -R '^(documentation_structure|documentation_issue_graph_contract)$'
 ```
+
+## Result — 2026-08-19
+
+All seven sites are marked at `108ab88`. `DOCUMENTATION_OK`; 94/94 unit tests;
+`documentation_structure` and `documentation_issue_graph_contract` 2/2;
+`git diff --check` clean.
+
+Where a sentence is half true the marker says which half. `RFC-BPR-0011.md`'s
+non-goal bullet and `ai-agent-boundary.md`'s composition paragraph both still
+correctly claim that no Windows launch is proved; only their stated *mechanism*
+is wrong. Marking those whole would have overstated the defect.
+
+Marking the sites reflowed four of the line numbers [[BPR-0332]] cites, so that
+card's table, its "Line 118 is the one that matters most" sentence, its
+`ai-agent-boundary.md:321` reference, and its Required final state were corrected
+in the same commit. Leaving them would have created the same stale-reference
+defect [[BPR-0399]] and [[BPR-0400]] existed to repair — while repairing one.
+
+BPR-0332 is otherwise untouched: still `10-backlog/`, still `depends_on:
+[BPR-0240]`, still owning the choice between restoring the guard and rewriting
+the claims, and its Required final state is still unmet. The assertions remain;
+they are now labelled.
+
+### The matrix this card was found under
+
+The search that produced this card was a complete portable `dev` matrix at HEAD,
+run uncontended: **193 of 193 passed** in 1603 s. That is stronger than the
+checkpoint evidence on record — [[BPR-0240]] cites 184/186 at `be42eb7` with two
+environmental failures — and it was run to look for latent macOS defects that
+might constitute unattended work. There were none, which is the direct evidence
+behind the board's claim that no unattended work is executable from a macOS
+session today.
+
+`ctest` was used without a rebuild, deliberately. The three live attended packets
+bind `sha256:7b9d6be98c89b70a49f0616d2b32b10cb6b5d4a3f238366bed916379a78fcd93`
+at 51,085,872 bytes, and a relink would have invalidated all three. The digest
+was re-measured after the matrix and is unchanged, so
+[[BPR-0100]], [[BPR-0391]], and [[BPR-0392]] remain runnable exactly as written.
