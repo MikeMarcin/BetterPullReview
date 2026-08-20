@@ -62,6 +62,20 @@ PACKET_REFERENCE_RE = re.compile(
 )
 PACKET_STATUS_RE = re.compile(r"^Status:\s*\*\*(.+?)\*\*", re.M | re.S)
 PACKET_PENDING_RE = re.compile(r"pending\b", re.I)
+FRONTIER_HEADING_RE = re.compile(r"^#### Frontier roots\s*$", re.M)
+FRONTIER_HEADER_RE = re.compile(r"^\|\s*Root\s*\|\s*Lane\s*\|\s*Needs\s*\|\s*$", re.M)
+FRONTIER_LANE_CELL_RE = re.compile(r"^`(?P<lane>[0-9a-z-]+)/`$")
+FRONTIER_COUNT_RE = re.compile(
+    r"one of these (?P<count>[a-z]+) roots or reaches one"
+)
+FRONTIER_LANES = ("20-ready", "30-in-progress", "40-parked", "50-blocked")
+COUNT_WORDS = (
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+    "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+    "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "twenty-one",
+    "twenty-two", "twenty-three", "twenty-four", "twenty-five", "twenty-six",
+    "twenty-seven", "twenty-eight", "twenty-nine", "thirty",
+)
 BLOCKED_BY_VALUES = frozenset(
     {
         "platform-linux",
@@ -876,6 +890,80 @@ def verify_terminal_closeout_cards(root: Path) -> None:
             verify_closeout_card(root, path, metadata, filename_rfc_id)
 
 
+def verify_frontier_roots(root: Path) -> None:
+    """The frontier table claims to be complete, so derive it from the lanes.
+
+    A card in a waiting or active lane is a place work can start. Hand
+    maintenance has already lost two of them and mislabelled a third, and the
+    table's own text records an earlier round of the same drift.
+    """
+    path = root / "docs/issues/README.md"
+    text = path.read_text(encoding="utf-8")
+
+    heading = FRONTIER_HEADING_RE.search(text)
+    if not heading:
+        fail(f"{path} has no '#### Frontier roots' section")
+    header = FRONTIER_HEADER_RE.search(text, heading.end())
+    if not header:
+        fail(f"{path} frontier section has no '| Root | Lane | Needs |' table")
+
+    listed: dict[str, str] = {}
+    for line in text[header.end():].lstrip("\n").splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            break
+        cells = markdown_table_cells(line, path)
+        if len(cells) != 3:
+            fail(f"{path} frontier row does not have three cells: {stripped}")
+        if set(cells[0]) <= {"-", ":"}:
+            continue
+        lane_match = FRONTIER_LANE_CELL_RE.fullmatch(cells[1])
+        if not lane_match:
+            fail(f"{path} frontier row has an unreadable lane cell: {cells[1]!r}")
+        lane = lane_match.group("lane")
+        if lane not in FRONTIER_LANES:
+            fail(
+                f"{path} frontier row names {lane}/, which is not a lane where "
+                f"work can start; expected one of {list(FRONTIER_LANES)}"
+            )
+        for issue_id in re.findall(r"BPR-\d{4}", cells[0]):
+            if issue_id in listed:
+                fail(f"{path} frontier table lists {issue_id} more than once")
+            listed[issue_id] = lane
+
+    actual: dict[str, str] = {}
+    for lane in FRONTIER_LANES:
+        for card in sorted((root / "docs/issues" / lane).glob("BPR-*.md")):
+            actual[front_matter(card)["id"]] = lane
+
+    for issue_id in sorted(set(actual) - set(listed)):
+        fail(
+            f"{path} frontier table omits {issue_id}, which is in "
+            f"{actual[issue_id]}/; the table states it is complete"
+        )
+    for issue_id in sorted(set(listed) - set(actual)):
+        fail(
+            f"{path} frontier table lists {issue_id}, which is not in a lane "
+            "where work can start"
+        )
+    for issue_id in sorted(set(listed) & set(actual)):
+        if listed[issue_id] != actual[issue_id]:
+            fail(
+                f"{path} frontier table puts {issue_id} in "
+                f"{listed[issue_id]}/, but it is in {actual[issue_id]}/"
+            )
+
+    count = FRONTIER_COUNT_RE.search(text, heading.end())
+    if not count:
+        fail(f"{path} frontier section does not state how many roots it lists")
+    expected = COUNT_WORDS[len(listed)] if len(listed) < len(COUNT_WORDS) else None
+    if count.group("count") != expected:
+        fail(
+            f"{path} frontier section says {count.group('count')!r} roots but the "
+            f"table lists {len(listed)}"
+        )
+
+
 def operator_packets(root: Path) -> dict[tuple[str, int], Path]:
     """Every review directory holding an operator packet, keyed by family and version."""
     packets: dict[tuple[str, int], Path] = {}
@@ -1044,6 +1132,7 @@ def main() -> int:
     verify_issue_board(root)
     verify_terminal_closeout_cards(root)
     verify_operator_packet_records(root)
+    verify_frontier_roots(root)
     verify_links(root)
     verify_github_actions_not_selected(root)
 

@@ -19,6 +19,7 @@ from scripts.verify_documentation import (  # noqa: E402
     CLOSEOUT_COLUMNS,
     CLOSEOUT_NO_LIVE_BLOCKER,
     CLOSEOUT_REPLAY_STATEMENT,
+    verify_frontier_roots,
     verify_issue_board,
     verify_operator_packet_records,
     verify_terminal_closeout_cards,
@@ -1124,6 +1125,125 @@ class OperatorPacketRecordTests(unittest.TestCase):
         self.write_card("BPR-0001", "40-parked", "See capture-v001 and gate-v001.")
 
         verify_operator_packet_records(self.root)
+
+
+class FrontierRootsTests(unittest.TestCase):
+    """The frontier table says it is complete, so the lanes decide its rows."""
+
+    def setUp(self) -> None:
+        self.temporary = ContainedTemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.issue_root = self.root / "docs/issues"
+        for lane in (
+            "10-backlog",
+            "20-ready",
+            "30-in-progress",
+            "40-parked",
+            "50-blocked",
+            "60-done",
+        ):
+            (self.issue_root / lane).mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def write_card(self, issue_id: str, lane: str) -> None:
+        (self.issue_root / lane / f"{issue_id}-fixture.md").write_text(
+            "---\n"
+            f"id: {issue_id}\n"
+            "title: Fixture\n"
+            "status: Parked\n"
+            "rfc: RFC-BPR-TEST\n"
+            "depends_on: []\n"
+            "---\n",
+            encoding="utf-8",
+        )
+
+    def write_readme(self, rows: str, count: str) -> None:
+        (self.issue_root / "README.md").write_text(
+            "# Board\n\n"
+            "#### Frontier roots\n\n"
+            "| Root | Lane | Needs |\n"
+            "|---|---|---|\n"
+            f"{rows}"
+            "\n"
+            f"Every open card is one of these {count} roots or reaches one "
+            "transitively.\n",
+            encoding="utf-8",
+        )
+
+    def reject(self) -> None:
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            verify_frontier_roots(self.root)
+
+    def test_accepts_a_table_that_matches_the_lanes(self) -> None:
+        self.write_card("BPR-0001", "40-parked")
+        self.write_card("BPR-0002", "50-blocked")
+        self.write_card("BPR-0003", "60-done")
+        self.write_card("BPR-0004", "10-backlog")
+        self.write_readme(
+            "| BPR-0001 | `40-parked/` | A person |\n"
+            "| BPR-0002 | `50-blocked/` | A Linux host |\n",
+            "two",
+        )
+
+        verify_frontier_roots(self.root)
+
+    def test_rejects_an_omitted_root(self) -> None:
+        self.write_card("BPR-0001", "40-parked")
+        self.write_card("BPR-0002", "50-blocked")
+        self.write_readme("| BPR-0001 | `40-parked/` | A person |\n", "one")
+
+        self.reject()
+
+    def test_rejects_a_root_that_has_since_closed(self) -> None:
+        self.write_card("BPR-0001", "40-parked")
+        self.write_card("BPR-0002", "60-done")
+        self.write_readme(
+            "| BPR-0001, BPR-0002 | `40-parked/` | A person |\n",
+            "two",
+        )
+
+        self.reject()
+
+    def test_rejects_a_backlog_card_listed_as_a_root(self) -> None:
+        self.write_card("BPR-0001", "10-backlog")
+        self.write_readme("| BPR-0001 | `10-backlog/` | Another card |\n", "one")
+
+        self.reject()
+
+    def test_rejects_the_wrong_lane_for_a_listed_root(self) -> None:
+        self.write_card("BPR-0001", "50-blocked")
+        self.write_readme("| BPR-0001 | `40-parked/` | A person |\n", "one")
+
+        self.reject()
+
+    def test_rejects_a_count_that_disagrees_with_the_rows(self) -> None:
+        self.write_card("BPR-0001", "40-parked")
+        self.write_card("BPR-0002", "50-blocked")
+        self.write_readme(
+            "| BPR-0001 | `40-parked/` | A person |\n"
+            "| BPR-0002 | `50-blocked/` | A Linux host |\n",
+            "three",
+        )
+
+        self.reject()
+
+    def test_rejects_a_root_listed_twice(self) -> None:
+        self.write_card("BPR-0001", "40-parked")
+        self.write_readme(
+            "| BPR-0001 | `40-parked/` | A person |\n"
+            "| BPR-0001 | `40-parked/` | A person again |\n",
+            "one",
+        )
+
+        self.reject()
+
+    def test_rejects_a_missing_frontier_section(self) -> None:
+        self.write_card("BPR-0001", "40-parked")
+        (self.issue_root / "README.md").write_text("# Board\n", encoding="utf-8")
+
+        self.reject()
 
 
 if __name__ == "__main__":

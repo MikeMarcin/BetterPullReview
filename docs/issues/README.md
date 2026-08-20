@@ -446,7 +446,7 @@ BPR-0114/BPR-0115 retain attended and terminal closeout work. Done BPR-0260
 restores canonical formatting for the merged compact-navigation composition
 source and refreshes its exact integrity digests. BPR-0256's packet is not
 final: capability-critical review invalidated it and split the remaining
-portable authority/recovery work into BPR-0261, dependent backlog BPR-0262, and
+portable authority/recovery work into BPR-0261, dependent done BPR-0262, and
 done BPR-0263. The operator approved the narrowed replay and
 authenticated-containment designs for implementation and hermetic verification
 only; no live or package authority was granted. BPR-0261 is now in `60-done/`: one
@@ -566,7 +566,7 @@ pretending to complete them inside the review:
   BPR-0187 serves the recording, but the current registered public test only
   opens the pull request and saves a window grab; it does not request or assert
   the diff.
-- Blocked BPR-0235 replaces a structural live-mutation inventory with
+- Backlog BPR-0235 replaces a structural live-mutation inventory with
   process-boundary default network denial before BPR-0142 can use a live
   provider. Done BPR-0236 supplies the promised appearance fallback when its
   durable store cannot open.
@@ -614,6 +614,8 @@ three answers it needs:
 | BPR-0240 | `30-in-progress/` | Nothing. Its portable gates have run and target-native Windows is this host |
 | BPR-0391, BPR-0392 | `40-parked/` | A person running a regenerated packet: the appearance foreground pass and the notification banner |
 | BPR-0348, BPR-0362, BPR-0378 | `40-parked/` | A product decision nobody has made yet |
+| BPR-0310, BPR-0314 | `50-blocked/` | A Linux host; both are `platform-linux` |
+| BPR-0399 | `30-in-progress/` | Nothing. It is repairing this table and the check that now derives it |
 
 This table had drifted and is corrected above rather than quietly patched. It
 listed BPR-0262 as a `20-ready/` root; that card is in `60-done/`, and
@@ -622,8 +624,18 @@ which parked on operator packets on 2026-08-19, and the three
 `awaiting-product-decision` roots, which were reachable the whole time and
 listed nowhere.
 
-The table is now the complete frontier rather than a selection from it. Every
-open card on this board is either one of these sixteen roots or reaches one
+It drifted again, and [[BPR-0399]] is where that stopped being a matter of
+diligence. The table omitted BPR-0310 and BPR-0314 — not stale, never listed —
+although the definition four lines above it admits any card in `50-blocked/`.
+The count was sixteen because those two were missing.
+
+`scripts/verify_documentation.py` now derives this table's rows from the lanes
+and fails when they disagree, so a card entering or leaving `20-ready/`,
+`30-in-progress/`, `40-parked/`, or `50-blocked/` cannot be omitted, listed
+under the wrong lane, or left behind after it closes.
+
+The table is the complete frontier rather than a selection from it. Every open
+card on this board is either one of these nineteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 52 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
@@ -663,13 +675,13 @@ Everything else in `10-backlog/` reaches one of those roots transitively.
 | Real Windows x64 hardware | Answered. In-progress BPR-0347 and BPR-0358; backlog BPR-0036, BPR-0053, BPR-0235, BPR-0311, BPR-0315, BPR-0332, and transitively BPR-0035, BPR-0054, BPR-0083 | A Windows 11 x64 host answered the blocker, and BPR-0347 has already run target-native on it. Target-native execution is still required and no available-platform substitute counts; what is gone is the wait for the machine. The suite is 24 tests short of a matrix any of these cards can consume, which BPR-0347 and BPR-0350 own |
 | A Linux host | Done BPR-0156 and BPR-0235's Linux half; blocked BPR-0310 and BPR-0314 | An Ubuntu 26.04 x86_64 host answered the blocker. BPR-0156 re-established the matrix and BPR-0235's Linux criterion is discharged. BPR-0310 and BPR-0314 stay blocked on their own unmet backlog dependencies rather than on the platform. The run opened BPR-0341 through BPR-0345 |
 | A designated live GitHub pull request | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Disposable `MikeMarcin/BPR-Test#1` is identity-bound; the live provider, exact-target lane, owner-authenticated mutations, and attended/mixed-client checks remain |
-| Designated live-lane proof blockers | Backlog BPR-0262, done BPR-0261/BPR-0263/BPR-0264, gating backlog BPR-0256 | The approved narrowed replay authority is implemented and independently reviewed; the approved read-only-image and kernel-audited supervisor containment topology remains. No live or package authority was granted |
-| Owner-attended or native-display judgment | Backlog BPR-0100, BPR-0114, BPR-0210; parked BPR-0168 and BPR-0220 with done BPR-0251 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta; BPR-0251 makes the real notification course truthful. Done BPR-0214's capture question was answered by the accepted v006 batch |
+| Designated live-lane proof blockers | Done BPR-0261/BPR-0262/BPR-0263/BPR-0264, gating parked BPR-0256 | The approved narrowed replay authority is implemented and independently reviewed; the approved read-only-image and kernel-audited supervisor containment topology remains. No live or package authority was granted |
+| Owner-attended or native-display judgment | Backlog BPR-0114; parked BPR-0100, BPR-0168, and BPR-0220; done BPR-0210 and BPR-0251 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta; BPR-0251 makes the real notification course truthful. Done BPR-0214's capture question was answered by the accepted v006 batch |
 | Product composition | Backlog BPR-0232; done BPR-0223, BPR-0226 through BPR-0231, BPR-0247, and BPR-0250 | Notification request/activation, the workbench host, selected diff, ledger, actionability, fixture-safe review round trip, durable defect workflow, observer-rule queue, portable agent invocation, durable sessions, and explicit private-context selection are composed. BPR-0232 waits for deferred native Windows lifecycle proof and its final replay through that same surface. |
-| Missing component and resilience scope | Blocked BPR-0235; in-progress BPR-0240; done BPR-0237 through BPR-0239 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, and BPR-0236's appearance-storage fallback are done |
+| Missing component and resilience scope | Backlog BPR-0235; in-progress BPR-0240; done BPR-0237 through BPR-0239 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, and BPR-0236's appearance-storage fallback are done |
 | Recorded selected-diff proof | Done BPR-0233, BPR-0246, and BPR-0214; still gating BPR-0210's margin analysis and BPR-0100's native pass | The real selected-file course binds UIforETW commits/blobs, named replacement pairs, semantic roles, and a cut-wire negative. After the v001 through v004 rejections and the accepted v005 connector repair, the combined v006 batch was accepted whole on 2026-08-18: recorded intraline emphasis, dark icon readability, and the compact-navigation criterion together |
 | Closeout rigor and terminal cards | Done BPR-0234 and BPR-0248; backlog BPR-0241 through BPR-0245 | The standing shipped-binary composition inventory is reconciled with exact fixture/production profiles; replay each anchored executable checklist and retain a live terminal card for each Proposed RFC |
-| Deferred or not a slice | BPR-0211, BPR-0212, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering; BPR-0156 moved to `50-blocked/` because its blocker is a missing Linux host rather than a decision |
+| Deferred or not a slice | BPR-0211, BPR-0212, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering. BPR-0156 is no longer an example here: the Ubuntu host arrived, it re-established the matrix, and it is in `60-done/` |
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
 final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench
