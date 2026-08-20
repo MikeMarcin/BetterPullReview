@@ -652,8 +652,7 @@ three answers it needs:
 | BPR-0347 | `30-in-progress/` | A Windows session. The suite runs on the project's Windows 11 x64 host and its own remaining failures are the work; nothing else is in the way |
 | BPR-0358 | `30-in-progress/` | A Windows session. Its own five required-final-state bullets are met; it stays open as the anchor for the Windows program it records |
 | BPR-0100, BPR-0168, BPR-0220 | `40-parked/` | A person looking, clicking, or returning an exported verdict |
-| BPR-0256 | `30-in-progress/` | Nothing. Its capability-critical review returned BLOCKING: the v002 packet's manifest does not bind this tree, and never did. Regeneration is [[BPR-0406]] |
-| BPR-0406 | `30-in-progress/` | Nothing. Rebuilding the live-publication capsule and packet from the committed tree; the capsule graph is separate from `build/dev`, so the hold does not reach it |
+| BPR-0256 | `40-parked/` | One exact attended operator decision. v003 is regenerated and its capability-critical review has no blocking finding |
 | BPR-0211, BPR-0212 | `40-parked/` | A product decision: owner-deferred, and RFC-scale rather than a slice |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
@@ -662,6 +661,7 @@ three answers it needs:
 | BPR-0362 | `40-parked/` | A product decision nobody has made yet |
 | BPR-0409 | `20-ready/` | Nothing, but it relinks the application. Startable the moment the dev-binary hold lifts, or on owner direction |
 | BPR-0410 | `20-ready/` | Nothing, and it relinks too. Makes a failing appearance run say what actually happened; pairs with BPR-0409 so one relink pays for both |
+| BPR-0411 | `20-ready/` | Nothing. Gates a pending packet's source manifest against the tree, which is the window nothing currently checks |
 | BPR-0310, BPR-0314 | `50-blocked/` | A Linux host; both are `platform-linux` |
 
 This table had drifted and is corrected above rather than quietly patched. It

@@ -1,9 +1,10 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263]
+parked_on: awaiting-owner-verdict
 ---
 
 # Build the attended one-shot live application lane
@@ -517,3 +518,28 @@ than asserted.
 Step (3), the exact attended operator decision, is still the terminal
 requirement and has not been requested. Step (2), a fresh capability-critical
 review of v003, has not run — the one that invalidated v002 does not transfer.
+
+## Step (2) is clean; only the operator decision remains — 2026-08-20
+
+The fresh capability-critical review of v003 returned **no blocking finding**,
+and [[BPR-0406]] is done. Both remaining gates this card recorded on 2026-08-18
+are now discharged:
+
+1. regenerate the capsule, manifest, subject, and packet — done, from the
+   committed tree at `8ca12d9`, with the manifest verified against the tree and
+   against the constant compiled into the capsule binaries;
+2. a fresh capability-critical review — done, no blocker, with three
+   non-blocking findings fixed at BPR-0406 closure.
+
+Step (3) is the whole remainder: **one exact attended operator decision.** This
+card has never had authority to approve or execute it, and still does not.
+
+The live packet is
+`docs/verification/reviews/designated-live-review-publication-v003/`. The replay
+namespace holds zero spent markers, so the approval identity is unspent and the
+lane has never run. No credential was accessed, no approval file exists, and no
+mutation was submitted.
+
+This card returns to `40-parked/` under `awaiting-owner-verdict`, which is now
+exactly true — for the first time since it was written, nothing unattended
+remains on it.

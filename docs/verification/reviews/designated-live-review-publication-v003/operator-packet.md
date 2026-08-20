@@ -6,15 +6,28 @@ This v003 packet replaces v002, which was invalidated because its bound source
 manifest never described this repository. The mechanism was not implicated and
 is unchanged; only the artifacts are regenerated, from the committed tree.
 
-This v002 packet regenerates the invalidated v001 packet after its blocking
-counterexamples were answered: replay authority by BPR-0261, supervisor
-launch provenance by BPR-0351, supervisor/inventory identity binding by
-BPR-0352, the nested check/use window by BPR-0354, and indeterminate
-recovery by BPR-0263. It binds a fresh tests-disabled Release capsule built
-at commit `b04b43c` after BPR-0385 unblocked the graph and BPR-0388/BPR-0389
-repaired the capsule builder against the renamed executable and universal
-Qt. No operator decision is requested until the fresh capability-critical
-independent review completes with no blocker.
+**This packet's capsule was built from the committed tree at `8ca12d9`**, which
+is an ancestor of `main`, under source digest
+`b2e2c2d8f005e62ff997ec4e4dd87f48af6da0decdcf64a48b54746131ef4a81`.
+
+That sentence is the one v002 got wrong, so it is stated first. v002 said it
+bound a capsule "built at commit `b04b43c`" — a side-line commit that was never
+merged as written — and it was invalidated for exactly that. This packet is not
+v002 and does not inherit its provenance.
+
+The mechanism v002 described is unchanged and is the accumulated answer to
+v001's blocking counterexamples: replay authority by BPR-0261, supervisor launch
+provenance by BPR-0351, supervisor/inventory identity binding by BPR-0352, the
+nested check/use window by BPR-0354, and indeterminate recovery by BPR-0263.
+Only the artifacts were regenerated.
+
+One value **is** inherited deliberately, and is disclosed here rather than left
+to be discovered: `approval_id`
+`aa6dd849a0bc31e36e8585d1b5b8fc0d065f653ee92218c9f770729766c610d9` is v002's.
+The replay namespace it belongs to was never reset and holds zero spent markers,
+so the id is unspent and reusing it is correct — a fresh id would have required
+resetting the namespace, which this packet forbids. Any prior consume would make
+this packet refuse as replayed rather than grant.
 
 This packet requests one bounded decision: whether to authorize this exact
 tests-disabled BetterPullReview build to publish one ordinary source-line

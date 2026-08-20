@@ -1,7 +1,7 @@
 ---
 id: BPR-0406
 title: Regenerate the live publication packet from the committed tree
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: []
 ---
@@ -185,3 +185,70 @@ recorded rather than glossed.
 Step (2), the fresh capability-critical review of v003, has not run. Step (3),
 the attended operator decision, has not been requested and this card has no
 authority to request it.
+
+## The capability-critical review returned no blocking finding — 2026-08-20
+
+Step (2) is done. The review re-derived every attack target against live source
+and direct re-execution rather than against this card, and each came back sound.
+
+### It closed the limitation this card recorded
+
+The card said the Python rendering "is not the same as running the real
+function, and that limit is recorded rather than glossed". The review answered
+it two ways:
+
+- it reconstructed the subject byte-by-byte from the C++ append sequence itself
+  and got 1,496 bytes and `sha256:35200c89…`, identical — an independent path to
+  the same bytes;
+- and more decisively, **the application re-renders the subject through the real
+  renderer at run time and requires byte equality**
+  (`designated_review_authority_bootstrap.cpp:1598-1603`). A transcription
+  divergence therefore yields `approval_mismatch` and refuses. The failure mode
+  the limit was hedging against cannot produce a wrong grant, only a refusal.
+
+That is a better answer than the hedge, and it was found by attacking the hedge.
+
+### What it confirmed independently
+
+v002's failure mode is affirmatively absent: all 31 manifest entries match the
+tree, the aggregate equals both the manifest file's digest and the sole 64-hex
+constant in **both** capsule binaries, and the capsule was built from `8ca12d9`,
+which is an ancestor of `main`. One-time consumption holds under every ordering
+the reviewer constructed — hardlink, second parent, crash between record and
+consume, losing concurrent launch. Capsule bypass is closed in both directions.
+The corrected launch-sequence claim is now right: the pid-keyed signing check and
+the content-digest revalidation precede `SIGCONT` at
+`designated_live_macos_supervisor.cpp:688`, and the handshake follows at `:696`.
+
+The reviewer also ran selectors beyond this card's obligation — the provider,
+mutation-contract, recovery-store, and transport families — 7/7, and reproduced
+the eleven-selector matrix independently at 11/11 in 223.90 s.
+
+### Three non-blocking findings, all fixed here
+
+1. **v003 carried v002's preamble verbatim**, including "This v002 packet … binds
+   a fresh tests-disabled Release capsule built at commit `b04b43c`" — the exact
+   commit v002 was invalidated for, in a document whose predecessor died for
+   binding it, and v003 never named its own source state. The signed decision
+   anchors on the digest table so it could not have caused a wrong approval, but
+   it is the provenance sentence an operator reads. Rewritten to state v003's
+   own provenance first and mark v002's as history.
+2. **The pending-packet manifest gate was promised and not filed.** This card
+   said "that is a separate card, not this one" and then did not write it. Filed
+   as [[BPR-0411]]. `frozen_packets` only re-hashes *answered* packets, so the
+   window in which a packet is most dangerous — written, pending, being approved
+   — is exactly the window nothing checks.
+3. **The ledger row still named v002** as the regenerated packet.
+   `docs/verification/RFC-BPR-0008.md` now names v003, its digests, its matrix,
+   and this review.
+
+A fourth thing the review raised is now disclosed rather than fixed: `approval_id`
+is inherited from v002. Reusing it is correct — the namespace was never reset and
+holds zero spent markers, so the id is unspent, and minting a fresh one would
+require the reset this packet forbids. The packet now says so instead of leaving
+an operator to notice.
+
+### Status
+
+Step (1) regenerated, step (2) clean. Step (3), the exact attended operator
+decision, is the only thing left and this card has no authority to request it.
