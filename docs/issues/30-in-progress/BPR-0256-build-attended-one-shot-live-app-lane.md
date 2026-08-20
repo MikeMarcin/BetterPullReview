@@ -369,3 +369,126 @@ the regenerated `designated-live-review-publication-v002` packet, and then step
 `30-in-progress/` rather than `40-parked/`. The card returns to `40-parked/`
 under `awaiting-owner-verdict` when step (2) has no blocking finding, which is
 the point at which the operator decision really is the only thing left.
+
+## Step (2) ran, and v002 is invalidated — 2026-08-19
+
+The capability-critical review returned **BLOCKING**, and the finding is not
+about the mechanism. It is that the packet does not describe this repository.
+
+Every claim below was reproduced directly rather than accepted from the review.
+
+### The packet's bound source surface does not match the tree
+
+`source-manifest.txt` binds 31 files by digest. Recomputed at HEAD:
+
+```
+matched 25 / 31   mismatched 6
+  src/app/CMakeLists.txt
+  src/app/main.cpp
+  src/app/include/bpr/app/github_application.hpp
+  src/app/src/github_application.cpp
+  src/adapters/github/src/github_mutation_contract.cpp
+  src/adapters/sqlite/src/review_mutation_recovery_store.cpp
+```
+
+The other 25 — every supervisor, provenance, capsule-identity, bootstrap,
+observer, provider, and transport file, and `scripts/designated_live_macos_capsule.py`
+— are byte-identical. The drift is confined to the application composition and
+two mutation-path files.
+
+### It was stale the day it was written
+
+This is the part that matters more than the count. Recomputing the same manifest
+against the tree at `1842216`, the commit that *introduced this packet*:
+
+```
+AT THE PACKET'S OWN INTRODUCTION COMMIT: matched 28  mismatched 3
+  src/app/main.cpp
+  src/adapters/github/src/github_mutation_contract.cpp
+  src/adapters/sqlite/src/review_mutation_recovery_store.cpp
+```
+
+So the packet never bound the tree it was committed into. The capsule was built
+from `b04b43c`, and
+
+```
+$ git merge-base --is-ancestor b04b43c HEAD
+b04b43c is NOT an ancestor of HEAD   (merge-base 605aa56)
+```
+
+That commit was never merged as written; its BPR-0351/0352/0354 content reached
+`main` as different commits. "The 31-entry manifest was reproduced byte-exactly
+during preparation" was true of the side-branch build tree and of nothing else.
+
+### What that would have authorized
+
+An approval minted against subject `sha256:929a013d…` would have authorized a
+binary whose `main.cpp`, application composition, and the byte shapes of two
+mutation-path files are not what any reviewer of this tree reads. No hermetic
+test ever executed those exact capsule bytes: the 11-selector matrix drives
+dev-tree binaries built from mainline sources, and the capsule came from the
+side tree.
+
+This card's own rule already covered it — *"Any subsequent bound-source, capsule,
+inventory, subject, or packet byte change reopens this refresh and invalidates
+that decision"* — and the rule was written as a forward guard against future
+edits. It turned out to be needed backwards.
+
+### The mechanism is sound, and that is a real result
+
+The review re-derived all three of v001's blocking counterexamples against live
+source rather than against the cards claiming them, and all three are genuinely
+repaired: the spent marker lives in the subject-bound owner-private replay
+namespace with every path component walked `O_NOFOLLOW` from the filesystem
+root, `F_FULLFSYNC` on the marker and its directory, and a consume built from
+`renameatx_np(RENAME_EXCL)` → inode identity → unlink → retained-fd
+`st_nlink==0` recheck, so hardlinks, substitutions, and crash orderings all end
+in no-grant with the id burned; attended argv is refused before Qt exists unless
+the capsule's supervisor authenticates over the inherited Mach right with kernel
+audit trailer and dynamic code identity in both directions; and BPR-0263's
+recovery surfaces are green at this tree.
+
+So this is regeneration work, not redesign, and the drift content itself —
+syntax, appearance, epoch, bundle-banner work plus GCC-visibility reshapes — is
+semantically outside the designated-live lane. [[BPR-0406]] carries it.
+
+### Three things the regenerated packet must fix
+
+Non-blocking, and all three would otherwise survive regeneration unchanged:
+
+1. **An undisclosed 15-minute authority lifetime.**
+   `designated_review_authority_bootstrap.cpp:46` sets it, and
+   `review_mutation_application_host.cpp:82-86,122-125` auto-revokes on it. The
+   packet's timeout story is 1,800 s and its abort list never mentions expiry, so
+   a slow attended session consumes the approval at startup and then loses
+   authority mid-session with retry forbidden. Fail-closed, but the operator
+   should be told.
+2. **The packet misorders the launch sequence.** It says the supervisor verifies
+   the child's signing identity through the Mach handshake and revalidates
+   capsule identities "and only then resumes it". In
+   `designated_live_macos_supervisor.cpp:661-699` the pid-keyed signing check and
+   capsule revalidation precede `SIGCONT`, and the audit-token handshake
+   necessarily follows resume, because a suspended child cannot send. The
+   enforced invariant is real; the sentence describing it is wrong.
+3. **No test evidence exercises the exact bound capsule bytes.** Regeneration
+   from the committed tree closes this, provided the matrix is re-run at the
+   regenerated digest rather than reused from this one.
+
+### The verification finding this card owes elsewhere
+
+`docs/verification/RFC-BPR-0008.md:87` still records the round-trip contract and
+the review as "pending behind a deliberate dev-binary hold for **two**
+digest-bound attended packets". The round-trip passed at `0c4b3b7`, the review
+has now run, and the hold protects **three** packets. Corrected in this commit.
+
+The review also found that `scripts/verify_documentation.py` crashes under
+`/usr/bin/python3` 3.9 on `zip(strict=True)` at line 552 and requires ≥3.10,
+which nothing states. That is not this card's; it belongs to whoever owns the
+gate's invocation contract.
+
+### Status
+
+The dev binary is unchanged — `sha256:7b9d6be9…a78fcd93`, verified after both of
+the review's `ctest` runs — so the three attended packets bound to it are intact.
+No live lane was executed, no credential accessed, no mutation submitted, and no
+approval file exists.

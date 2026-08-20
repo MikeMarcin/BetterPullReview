@@ -1,6 +1,20 @@
 # Designated one-shot live review publication operator packet
 
-Status: **pending capability-critical review, then one operator decision**
+Status: **INVALIDATED BY CAPABILITY-CRITICAL REVIEW — DO NOT APPROVE OR RUN**
+
+The review this packet was pending has run, and its finding is that the packet's
+bound source surface does not describe this repository. Six of the 31 entries in
+`source-manifest.txt` do not match the tree, and three of them did not match at
+the commit that introduced this packet — it was stale the day it was written,
+because the capsule was built from a side-line commit that was never merged as
+written. An approval minted against subject `sha256:929a013d…` would authorize a
+binary whose `main.cpp`, application composition, and two mutation-path files are
+not what any reviewer of this tree reads.
+
+Nothing in the mechanism is wrong. The three counterexamples that invalidated
+v001 are repaired in live source and were re-verified against the code rather
+than against the cards that claim them. This is regeneration work, and
+[[BPR-0406]] carries it.
 
 This v002 packet regenerates the invalidated v001 packet after its blocking
 counterexamples were answered: replay authority by BPR-0261, supervisor
