@@ -30,17 +30,20 @@ The stale statements:
 | Location | Claim |
 |---|---|
 | `docs/verification/RFC-BPR-0011.md:13` | "Windows launch remains disabled before process start" |
-| `docs/verification/RFC-BPR-0011.md:109` | "Windows starts no child." — a claim-matrix **Result** cell |
-| `docs/verification/RFC-BPR-0011.md:115` | "Windows still proves pre-start refusal only." |
-| `docs/verification/RFC-BPR-0011.md:216` | "The adapter refuses before `QProcess::start`" |
+| `docs/verification/RFC-BPR-0011.md:118` | "Windows starts no child." — a claim-matrix **Result** cell |
+| `docs/verification/RFC-BPR-0011.md:124` | "Windows still proves pre-start refusal only." |
+| `docs/verification/RFC-BPR-0011.md:225` | "The adapter refuses before `QProcess::start`" |
 | `docs/architecture/ai-agent-boundary.md:140` | "refuses Windows launch before `QProcess::start`" |
-| `docs/architecture/ai-agent-boundary.md:335` | "Windows still refuses before child start" |
+| `docs/architecture/ai-agent-boundary.md:342` | "Windows still refuses before child start" |
 
-Line 109 is the one that matters most. A claim-matrix Result cell is what a
+Four of those line numbers moved when [[BPR-0401]] marked each site in place;
+the claims themselves are untouched and this card's work is unchanged.
+
+Line 118 is the one that matters most. A claim-matrix Result cell is what a
 reader consults to decide whether a path is safe, and it currently certifies a
 property the source does not have, for code nothing has ever compiled.
 
-A seventh entry is wrong in a different way. `ai-agent-boundary.md:314` cites
+A seventh entry is wrong in a different way. `ai-agent-boundary.md:321` cites
 `qt_agent_launch_canary` (Windows-conditional) as the evidence for "Windows
 launch is refused before start". The test it points at is now
 `test_windows_assignment_failure_has_no_pre_assignment_side_effect`, whose final
@@ -78,7 +81,7 @@ inside `#if defined(Q_OS_WIN)`, so no macOS selector could ever exercise it, and
 "a test fails without the guard" is unprovable here by construction.
 
 The cost is recorded rather than hidden. Until a Windows host exists, six
-statements — including the `RFC-BPR-0011.md:109` claim-matrix Result cell
+statements — including the `RFC-BPR-0011.md:118` claim-matrix Result cell
 reading "Windows starts no child" — continue to assert a property the source
 does not have. That is a known-false documentation claim being carried
 deliberately, with its falseness written down here, which is the honest form of
@@ -92,7 +95,7 @@ card returns to `20-ready/` immediately, with no other change required.
 
 - No document asserts a Windows pre-start refusal that the source does not
   perform, in either resolution.
-- `ai-agent-boundary.md:314`'s evidence row names a test whose assertions
+- `ai-agent-boundary.md:321`'s evidence row names a test whose assertions
   actually support the claim in the row, or the row is removed.
 - If the guard is restored, a test fails without it.
 - The documentation gate and the two documentation contract tests pass.

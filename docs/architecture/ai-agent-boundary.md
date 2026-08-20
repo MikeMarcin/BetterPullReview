@@ -140,6 +140,13 @@ post-start assignment leaves a descendant-escape race. The adapter therefore
 refuses Windows launch before `QProcess::start`. Windows support remains blocked
 until a suspended-create, assign-before-resume path has target-native proof.
 
+> **Known false at HEAD.** The adapter stopped refusing at `c6f3d96`, which
+> replaced that branch with a dispatch into `windows_agent_process.cpp` — a
+> translation unit no toolchain has yet compiled. The conclusion still holds
+> (no Windows launch is claimed and none has been proved), but the stated
+> mechanism is not the shipped one. BPR-0332 owns the resolution and BPR-0240
+> owns the compile. Marked by BPR-0401.
+
 The application composition follows one public route: the workbench panel emits
 an intent; `agent_invocation_host` reruns core legality and validates the full
 current context, durably admits an immutable session, then materializes the
@@ -311,7 +318,7 @@ so rather than pick the reassuring answer.
 | Partial stdout and pressured stderr make progress together | `qt_agent_launch_canary` |
 | Every terminal condition is distinct and failed runs publish nothing | `qt_agent_launch_canary` |
 | POSIX timeout terminates a live descendant heartbeat | `qt_agent_launch_canary` |
-| Windows launch is refused before start pending safe containment | `qt_agent_launch_canary` (Windows-conditional) |
+| Windows launch is refused before start pending safe containment — **known false at HEAD, and the cited test does not support it: `test_windows_assignment_failure_has_no_pre_assignment_side_effect` ends on `Outcome == success`. See BPR-0332.** | `qt_agent_launch_canary` (Windows-conditional) |
 | Existing-checkout mode needs a choice | `application_agent_workspace` |
 | Dirty state is reported, unknown stays unknown | `application_agent_workspace` |
 | The launch surface only emits intents | `qt_agent_launch_panel` |
@@ -333,4 +340,7 @@ The process and shipped composition contracts use the hostile local canary, not
 an installed agent tool or live provider. A smoke test against an installed
 Codex or Claude remains optional extra validation rather than a gate. Windows
 still refuses before child start; no Windows process-lifecycle success or
-descendant-containment claim is made.
+descendant-containment claim is made. **The first clause is known false at
+HEAD** — `c6f3d96` replaced the refusal with a dispatch into an uncompiled
+backend — while the second still holds. BPR-0332 owns the resolution. Marked by
+BPR-0401.
