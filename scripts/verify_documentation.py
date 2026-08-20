@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import re
 import shlex
 import sys
@@ -50,6 +52,16 @@ OPEN_ISSUE_STATUSES = frozenset(
     {"Backlog", "Blocked", "Parked", "Ready", "In Progress"}
 )
 DEFERRING_ISSUE_LANES = frozenset({"10-backlog", "50-blocked"})
+REVIEW_ROOT = "docs/verification/reviews"
+OPERATOR_PACKET_NAME = "operator-packet.md"
+PACKET_VERSION_RE = re.compile(
+    r"(?P<family>.+)-v(?P<version>\d{3})(?:-[A-Za-z0-9-]+)?"
+)
+PACKET_REFERENCE_RE = re.compile(
+    r"(?P<family>[a-z0-9][a-z0-9-]*?)-v(?P<version>\d{3})\b"
+)
+PACKET_STATUS_RE = re.compile(r"^Status:\s*\*\*(.+?)\*\*", re.M | re.S)
+PACKET_PENDING_RE = re.compile(r"pending\b", re.I)
 BLOCKED_BY_VALUES = frozenset(
     {
         "platform-linux",
@@ -864,6 +876,101 @@ def verify_terminal_closeout_cards(root: Path) -> None:
             verify_closeout_card(root, path, metadata, filename_rfc_id)
 
 
+def operator_packets(root: Path) -> dict[tuple[str, int], Path]:
+    """Every review directory holding an operator packet, keyed by family and version."""
+    packets: dict[tuple[str, int], Path] = {}
+    for directory in sorted((root / REVIEW_ROOT).glob("*")):
+        packet = directory / OPERATOR_PACKET_NAME
+        if not packet.is_file():
+            continue
+        match = PACKET_VERSION_RE.fullmatch(directory.name)
+        if not match:
+            fail(f"operator packet directory is not versioned: {directory}")
+        packets[(match.group("family"), int(match.group("version")))] = packet
+    return packets
+
+
+def packet_status(path: Path) -> str:
+    match = PACKET_STATUS_RE.search(path.read_text(encoding="utf-8"))
+    if not match:
+        fail(f"operator packet has no bolded Status line: {path}")
+    return normalize_whitespace(match.group(1))
+
+
+def frozen_packets(root: Path) -> set[Path]:
+    """Packets a validation record binds by digest, which must never be edited."""
+    frozen: set[Path] = set()
+    for record in sorted((root / REVIEW_ROOT).glob("*/validation-record.json")):
+        try:
+            recorded = json.loads(record.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            fail(f"invalid validation record {record}: {error}")
+        for key, entry in recorded.items():
+            if not isinstance(entry, dict) or "path" not in entry:
+                continue
+            bound = root / entry["path"]
+            # Only artifacts inside the record's own review directory are frozen.
+            # A reference outside it, such as the validator that produced the
+            # record, is a historical attribution anchored by `validated_commit`
+            # and is expected to move as that tool evolves.
+            if bound.parent != record.parent:
+                continue
+            if not bound.is_file():
+                fail(f"{record} binds a missing artifact: {entry['path']}")
+            content = bound.read_bytes()
+            digest = f"sha256:{hashlib.sha256(content).hexdigest()}"
+            if entry.get("sha256") != digest or entry.get("byte_length") != len(content):
+                fail(
+                    f"{record} binds {key} at {entry.get('sha256')} "
+                    f"({entry.get('byte_length')} bytes) but {entry['path']} is now "
+                    f"{digest} ({len(content)} bytes); an answered packet's bytes are "
+                    "the record of what the operator was shown and must not be edited"
+                )
+            if bound.name == OPERATOR_PACKET_NAME:
+                frozen.add(bound)
+    return frozen
+
+
+def verify_operator_packet_records(root: Path) -> None:
+    review_root = root / REVIEW_ROOT
+    if not review_root.is_dir():
+        return
+
+    packets = operator_packets(root)
+    frozen = frozen_packets(root)
+
+    live: dict[str, int] = {}
+    for family, version in packets:
+        live[family] = max(version, live.get(family, version))
+
+    for (family, version), path in sorted(packets.items()):
+        status = packet_status(path)
+        if version == live[family] or path in frozen:
+            continue
+        if PACKET_PENDING_RE.match(status):
+            fail(
+                f"{path} is superseded by v{live[family]:03d} but its Status line still "
+                f"claims to be pending: {status!r}"
+            )
+
+    for lane in OPEN_ISSUE_LANES:
+        for card in sorted((root / "docs/issues" / lane).glob("BPR-*.md")):
+            text = card.read_text(encoding="utf-8")
+            named: dict[str, set[int]] = {}
+            for match in PACKET_REFERENCE_RE.finditer(text):
+                family = match.group("family")
+                version = int(match.group("version"))
+                if (family, version) in packets:
+                    named.setdefault(family, set()).add(version)
+            for family, versions in sorted(named.items()):
+                if live[family] not in versions:
+                    fail(
+                        f"{card} names {family}-v{max(versions):03d} but not the live "
+                        f"{family}-v{live[family]:03d}; an open card that discusses a "
+                        "packet family must carry its current pointer"
+                    )
+
+
 def markdown_files(root: Path) -> list[Path]:
     files = [
         root / "AGENTS.md",
@@ -936,6 +1043,7 @@ def main() -> int:
     verify_rfc_index(root)
     verify_issue_board(root)
     verify_terminal_closeout_cards(root)
+    verify_operator_packet_records(root)
     verify_links(root)
     verify_github_actions_not_selected(root)
 

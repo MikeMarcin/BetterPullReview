@@ -65,6 +65,34 @@ attended operator gates.
   it), and the card parks with an `awaiting-user` label until the response
   arrives, per `references/integration.md`.
 
+## Retiring A Packet
+
+A bound digest changes more often than the procedure does, so a gate usually
+accumulates versions. Retire the old ones explicitly; a packet that stays silent
+about being superseded keeps advertising itself as the thing to run.
+
+- Replace the superseded packet's status line with
+  `Status: **superseded by [<gate>-vNNN](../<gate>-vNNN/operator-packet.md); do
+  not run or approve.**`, and follow it with a short paragraph giving that
+  version's own history — never run, attempted and could not have succeeded,
+  or run and rejected — and stating that no response to it can satisfy its
+  cards. Preserve the body; the banner goes at the top.
+- Update **every** card the family serves, not only the card that ordered the
+  regeneration. A packet family commonly serves several cards, and updating one
+  is the failure mode that produced this section.
+- An **answered** packet is different: leave its bytes exactly as they are.
+  Its `validation-record.json` binds `operator-packet.md` under
+  `reviewed_packet` by `sha256`, so an edit destroys the record of what the
+  operator was actually shown. A frozen packet that still reads "pending" is the
+  honest artifact — it is the question as asked, and the answer sits beside it
+  in `operator-response.md`.
+- A validation record's references to files *outside* its own directory, such
+  as the validator that produced it, are historical attributions anchored by
+  `validated_commit`. Those are expected to move and are not part of the frozen
+  set.
+
+`scripts/verify_documentation.py` enforces all four rules.
+
 ## BetterPullReview Examples
 
 - Accepting a third-party dependency and its license terms (a syntax

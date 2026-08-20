@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
 import unittest
 from contextlib import redirect_stderr
@@ -18,6 +20,7 @@ from scripts.verify_documentation import (  # noqa: E402
     CLOSEOUT_NO_LIVE_BLOCKER,
     CLOSEOUT_REPLAY_STATEMENT,
     verify_issue_board,
+    verify_operator_packet_records,
     verify_terminal_closeout_cards,
 )
 
@@ -986,6 +989,141 @@ class CloseoutContractTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.reject()
+
+
+class OperatorPacketRecordTests(unittest.TestCase):
+    """A superseded packet must stop calling itself pending, and an answered one
+    must never be edited at all."""
+
+    def setUp(self) -> None:
+        self.temporary = ContainedTemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.review_root = self.root / "docs/verification/reviews"
+        self.review_root.mkdir(parents=True)
+        for lane in (
+            "10-backlog",
+            "50-blocked",
+            "40-parked",
+            "20-ready",
+            "30-in-progress",
+        ):
+            (self.root / "docs/issues" / lane).mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def write_packet(self, gate: str, status: str) -> Path:
+        directory = self.review_root / gate
+        directory.mkdir(exist_ok=True)
+        packet = directory / "operator-packet.md"
+        packet.write_text(
+            f"# {gate} operator packet\n\nStatus: **{status}**\n\nBody.\n",
+            encoding="utf-8",
+        )
+        return packet
+
+    def write_card(self, issue_id: str, lane: str, body: str) -> None:
+        (self.root / "docs/issues" / lane / f"{issue_id}-fixture.md").write_text(
+            "---\n"
+            f"id: {issue_id}\n"
+            "title: Fixture\n"
+            "status: Parked\n"
+            "rfc: RFC-BPR-TEST\n"
+            "depends_on: []\n"
+            f"---\n\n{body}\n",
+            encoding="utf-8",
+        )
+
+    def bind_packet(self, gate: str) -> None:
+        """Record the packet's exact bytes the way an answered gate does."""
+        packet = self.review_root / gate / "operator-packet.md"
+        content = packet.read_bytes()
+        (self.review_root / gate / "validation-record.json").write_text(
+            json.dumps(
+                {
+                    "gate": gate,
+                    "reviewed_packet": {
+                        "path": f"docs/verification/reviews/{gate}/operator-packet.md",
+                        "sha256": f"sha256:{hashlib.sha256(content).hexdigest()}",
+                        "byte_length": len(content),
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def reject(self) -> None:
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            verify_operator_packet_records(self.root)
+
+    def test_accepts_a_family_whose_only_pending_packet_is_the_live_one(self) -> None:
+        self.write_packet("gate-v001", "superseded by gate-v002; do not run")
+        self.write_packet("gate-v002", "pending operator run")
+
+        verify_operator_packet_records(self.root)
+
+    def test_rejects_a_superseded_packet_still_claiming_pending(self) -> None:
+        self.write_packet("gate-v001", "pending operator run")
+        self.write_packet("gate-v002", "pending operator run")
+
+        self.reject()
+
+    def test_rejects_a_packet_without_a_status_line(self) -> None:
+        (self.review_root / "gate-v001").mkdir()
+        (self.review_root / "gate-v001/operator-packet.md").write_text(
+            "# gate-v001 operator packet\n\nNo status.\n",
+            encoding="utf-8",
+        )
+
+        self.reject()
+
+    def test_accepts_an_answered_superseded_packet_that_still_reads_pending(
+        self,
+    ) -> None:
+        """A digest-bound packet is frozen evidence: it keeps the question as
+        asked, and editing it would break the record of what the operator saw."""
+        self.write_packet("gate-v001", "pending operator decision")
+        self.bind_packet("gate-v001")
+        self.write_packet("gate-v002", "pending operator decision")
+
+        verify_operator_packet_records(self.root)
+
+    def test_rejects_an_edited_digest_bound_packet(self) -> None:
+        self.write_packet("gate-v001", "pending operator decision")
+        self.bind_packet("gate-v001")
+        self.write_packet("gate-v001", "answered; approved")
+
+        self.reject()
+
+    def test_rejects_an_open_card_naming_only_a_superseded_packet(self) -> None:
+        self.write_packet("gate-v001", "superseded by gate-v002; do not run")
+        self.write_packet("gate-v002", "pending operator run")
+        self.write_card("BPR-0001", "40-parked", "Run the procedure in gate-v001.")
+
+        self.reject()
+
+    def test_accepts_an_open_card_naming_the_live_packet_alongside_its_history(
+        self,
+    ) -> None:
+        self.write_packet("gate-v001", "superseded by gate-v002; do not run")
+        self.write_packet("gate-v002", "pending operator run")
+        self.write_card(
+            "BPR-0001",
+            "40-parked",
+            "gate-v001 was never run. The live procedure is gate-v002.",
+        )
+
+        verify_operator_packet_records(self.root)
+
+    def test_ignores_a_reference_to_a_directory_holding_no_packet(self) -> None:
+        """Not every review directory is an operator packet; log and capture
+        directories are versioned the same way and carry no status line."""
+        self.write_packet("gate-v001", "pending operator run")
+        (self.review_root / "capture-v001").mkdir()
+        (self.review_root / "capture-v001/run.log").write_text("x\n", encoding="utf-8")
+        self.write_card("BPR-0001", "40-parked", "See capture-v001 and gate-v001.")
+
+        verify_operator_packet_records(self.root)
 
 
 if __name__ == "__main__":
