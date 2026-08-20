@@ -295,7 +295,24 @@ def _paeth(a: int, b: int, c: int) -> int:
     return c
 
 
-def decode_png_bytes(data: bytes, context: str) -> RgbaImage:
+def decode_png_bytes(
+    data: bytes, context: str, *, require_canonical_form: bool = False
+) -> RgbaImage:
+    """Decode an 8-bit RGBA PNG, optionally requiring this tool's canonical form.
+
+    Without ``require_canonical_form`` this is a general decoder: it accepts any
+    of the five legal PNG row filters and any consecutive IDAT split, because
+    round-trip tests exercise exactly those shapes.
+
+    With it, the file must additionally be in the form ``encode_png`` writes:
+    one IDAT, an empty IEND payload, and filter 0 on every row. Those three
+    properties used to be held implicitly, by comparing the file against a fresh
+    ``encode_png`` of its own pixels. That comparison also pinned the exact
+    DEFLATE output, which is not a property of the image and differs between
+    zlib and zlib-ng, so BPR-0378 replaced it with these explicit checks. Stating
+    them here is the point: dropping the byte comparison without them would have
+    silently stopped enforcing all three.
+    """
     if len(data) > MAX_SOURCE_FILE_BYTES:
         raise AssetError(f"{context} exceeds the source PNG byte limit")
     if not data.startswith(PNG_SIGNATURE):
@@ -337,6 +354,13 @@ def decode_png_bytes(data: bytes, context: str) -> RgbaImage:
         range(idat_indices[0], idat_indices[-1] + 1)
     ):
         raise AssetError(f"{context} IDAT chunks must be consecutive")
+    if require_canonical_form:
+        if len(idat_indices) != 1:
+            raise AssetError(
+                f"{context} must contain exactly one IDAT chunk, not {len(idat_indices)}"
+            )
+        if chunks[-1][1]:
+            raise AssetError(f"{context} must have an empty IEND payload")
 
     header = chunks[0][1]
     if len(header) != 13:
@@ -376,6 +400,11 @@ def decode_png_bytes(data: bytes, context: str) -> RgbaImage:
     cursor = 0
     for row_index in range(height):
         filter_type = raw[cursor]
+        if require_canonical_form and filter_type != 0:
+            raise AssetError(
+                f"{context} row {row_index} uses PNG filter {filter_type}; "
+                "a canonical product PNG filters every row with 0"
+            )
         cursor += 1
         encoded = raw[cursor : cursor + stride]
         cursor += stride
@@ -405,12 +434,17 @@ def decode_png_bytes(data: bytes, context: str) -> RgbaImage:
 
 
 def decode_png(path: Path, context: str) -> RgbaImage:
+    """Read a source PNG and require this tool's canonical form.
+
+    What this does *not* assert is that the pixels are the committed ones. It
+    cannot: the only input here is the file's own bytes, so there is no expected
+    image to compare against. A hand-edited sprite is caught by the per-file
+    sha256 in ``provenance.json``, checked by ``_validate_provenance``, and that
+    check is untouched by BPR-0378.
+    """
     try:
         data = path.read_bytes()
-        image = decode_png_bytes(data, context)
-        if data != encode_png(image):
-            raise AssetError(f"{context} is not a canonical product PNG")
-        return image
+        return decode_png_bytes(data, context, require_canonical_form=True)
     except OSError as error:
         raise AssetError(f"cannot read {context}: {error.strerror}") from error
 

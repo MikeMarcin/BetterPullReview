@@ -515,25 +515,106 @@ class DifAssetTests(unittest.TestCase):
         with self.assertRaisesRegex(DIF.AssetError, "unexpected PNG chunk"):
             DIF.compile_assets(self.root)
 
-    def test_rejects_noncanonical_source_png(self) -> None:
+    def _rebuild_source_frame(
+        self,
+        relative: str,
+        *,
+        idat_payloads,
+        iend_payload: bytes = b"",
+    ) -> None:
+        """Replace a source frame with a hand-built PNG and re-stamp its digest."""
+        source = self.root / relative
+        image = DIF.decode_png(source, relative)
+        header = DIF.struct.pack(">IIBBBBB", image.width, image.height, 8, 6, 0, 0, 0)
+        rebuilt = DIF.PNG_SIGNATURE + DIF._png_chunk(b"IHDR", header)
+        for payload in idat_payloads(image):
+            rebuilt += DIF._png_chunk(b"IDAT", payload)
+        rebuilt += DIF._png_chunk(b"IEND", iend_payload)
+        source.write_bytes(rebuilt)
+        refresh_source_digest(self.root, relative)
+
+    def test_accepts_a_recompression_that_changes_no_pixel(self) -> None:
+        # BPR-0378. The canon used to compare the file against a fresh
+        # encode_png of its own pixels, which pinned the exact DEFLATE output
+        # and so failed under zlib-ng, where the same pixels compress smaller.
+        # A different compression level stands in for a different zlib.
+        relative = "source/rest/frame-000.png"
+        original = (self.root / relative).read_bytes()
+        self._rebuild_source_frame(
+            relative,
+            idat_payloads=lambda image: [
+                DIF.zlib.compress(DIF._filtered_rgba_rows(image), level=1)
+            ],
+        )
+        self.assertNotEqual((self.root / relative).read_bytes(), original)
+        DIF.compile_assets(self.root)
+
+    def test_rejects_a_source_png_split_across_two_idat_chunks(self) -> None:
+        relative = "source/rest/frame-000.png"
+
+        def split(image):
+            whole = DIF.zlib.compress(DIF._filtered_rgba_rows(image), level=9)
+            return [whole[:20], whole[20:]]
+
+        self._rebuild_source_frame(relative, idat_payloads=split)
+        with self.assertRaisesRegex(DIF.AssetError, "exactly one IDAT chunk"):
+            DIF.compile_assets(self.root)
+
+    def test_rejects_a_source_png_with_a_non_empty_iend_payload(self) -> None:
+        relative = "source/rest/frame-000.png"
+        self._rebuild_source_frame(
+            relative,
+            idat_payloads=lambda image: [
+                DIF.zlib.compress(DIF._filtered_rgba_rows(image), level=9)
+            ],
+            iend_payload=b"x",
+        )
+        with self.assertRaisesRegex(DIF.AssetError, "empty IEND payload"):
+            DIF.compile_assets(self.root)
+
+    def test_rejects_a_source_png_row_filtered_with_sub(self) -> None:
+        relative = "source/rest/frame-000.png"
+
+        def sub_filter_first_row(image):
+            stride = image.width * 4
+            rows = bytearray()
+            for row_index in range(image.height):
+                row = image.pixels[row_index * stride : (row_index + 1) * stride]
+                if row_index == 0:
+                    rows.append(1)
+                    rows.extend(
+                        (value - (row[index - 4] if index >= 4 else 0)) & 0xFF
+                        for index, value in enumerate(row)
+                    )
+                else:
+                    rows.append(0)
+                    rows.extend(row)
+            return [DIF.zlib.compress(bytes(rows), level=9)]
+
+        self._rebuild_source_frame(relative, idat_payloads=sub_filter_first_row)
+        with self.assertRaisesRegex(DIF.AssetError, "filters every row with 0"):
+            DIF.compile_assets(self.root)
+
+    def test_an_edited_pixel_is_caught_by_provenance_not_by_the_canon(self) -> None:
+        # BPR-0378's required final state says a hand-edited sprite must still
+        # fail. It does, and this records which check does it: re-encoding the
+        # edited pixels through encode_png produces a perfectly canonical PNG,
+        # so the canon accepts it and the per-file digest rejects it.
         relative = "source/rest/frame-000.png"
         source = self.root / relative
         image = DIF.decode_png(source, relative)
-        header = DIF.struct.pack(
-            ">IIBBBBB", image.width, image.height, 8, 6, 0, 0, 0
+        pixels = bytearray(image.pixels)
+        pixels[4:8] = bytes((pixels[4] ^ 0xFF, pixels[5], pixels[6], pixels[7]))
+        edited = DIF.encode_png(DIF.RgbaImage(image.width, image.height, bytes(pixels)))
+        source.write_bytes(edited)
+
+        # The canon itself is satisfied by the edited file.
+        self.assertEqual(
+            DIF.decode_png_bytes(edited, relative, require_canonical_form=True).pixels,
+            bytes(pixels),
         )
-        noncanonical = (
-            DIF.PNG_SIGNATURE
-            + DIF._png_chunk(b"IHDR", header)
-            + DIF._png_chunk(
-                b"IDAT", DIF.zlib.compress(DIF._filtered_rgba_rows(image), level=1)
-            )
-            + DIF._png_chunk(b"IEND", b"")
-        )
-        self.assertNotEqual(noncanonical, DIF.encode_png(image))
-        source.write_bytes(noncanonical)
-        refresh_source_digest(self.root, relative)
-        with self.assertRaisesRegex(DIF.AssetError, "not a canonical product PNG"):
+        # Without re-stamping the digest, provenance is what fails.
+        with self.assertRaisesRegex(DIF.AssetError, "provenance source digest"):
             DIF.compile_assets(self.root)
 
     def test_rejects_hidden_rgb_in_transparent_pixels(self) -> None:

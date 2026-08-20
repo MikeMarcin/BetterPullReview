@@ -1,9 +1,9 @@
 ---
 id: BPR-0378
 title: The Dif asset canon depends on which zlib the interpreter was built with
-status: Ready
+status: Backlog
 rfc: RFC-BPR-0019
-depends_on: []
+depends_on: [BPR-0408]
 ---
 
 # The Dif asset canon depends on which zlib the interpreter was built with
@@ -232,3 +232,89 @@ deliberately altered pixel rather than assumed.
 
 The card returns to `20-ready/`: the decision has arrived, and what remains is
 implementation.
+
+## The canon term is replaced — 2026-08-20
+
+`decode_png` no longer compares the file against a fresh `encode_png` of its own
+pixels. `decode_png_bytes` gained `require_canonical_form`, which `decode_png`
+passes and nothing else does, so the general decoder still accepts all five legal
+filters for the round-trip test while a source file must be in the form the
+generator writes.
+
+### Byte equality was holding four properties, not three
+
+The card's corrected analysis listed three. Measured directly, there is a fourth,
+and it is the one most easily lost in silence:
+
+| variant, same pixels | general decoder | old byte-equality | new canonical check |
+|---|---|---|---|
+| canonical (control) | accepts | accepts | accepts |
+| level-6 recompression | accepts | REJECTS | **accepts** |
+| IDAT split in two | accepts | REJECTS | REJECTS |
+| non-empty IEND payload | accepts | REJECTS | REJECTS |
+| **row 0 filtered with Sub** | accepts | REJECTS | REJECTS |
+
+The **general decoder** column is the negative control the card asked for: it is
+what the canon would have become had the byte comparison simply been deleted, and
+it accepts every one of them. So all three retained checks are load-bearing rather
+than decorative.
+
+The fourth property is filter canonicality. `decode_png_bytes` accepts filter
+types 0 through 4, `_filtered_rgba_rows` only ever writes 0, so a file that
+filtered one row with Sub decoded to identical pixels and was rejected only by the
+byte comparison. It is now rejected explicitly. That the committed tree actually
+holds this property was checked rather than assumed — all 13 PNGs under
+`src/adapters/qt/assets/dif` use filter 0 on every row, have exactly one IDAT, and
+have an empty IEND payload.
+
+The `level-6 recompression` row flipping to `accepts` is the trade the operator
+chose, stated plainly rather than buried.
+
+### A hand-edited sprite still fails, and this records which check does it
+
+The card's second required bullet is met, by the mechanism its own corrected
+section identified rather than by anything that changed here.
+`test_an_edited_pixel_is_caught_by_provenance_not_by_the_canon` edits a pixel,
+re-encodes through `encode_png`, and asserts both halves: the canon **accepts**
+the edited file, because it is perfectly canonical, and `_validate_provenance`
+rejects it on the per-file sha256. Writing it as one test keeps the two from
+being confused again, which is the confusion the card's first analysis made.
+
+### Verification matrix
+
+| claim | surface | command | proves it | result | evidence |
+|---|---|---|---|---|---|
+| the suite passes, with four new cases | `tests/scripts/dif_asset_tests.py` | `python3 tests/scripts/dif_asset_tests.py` | it exercises the canon through `compile_assets` | **39 tests, OK**, was 35 | this commit |
+| the registered contract passes | `dif_assets_contract` | `ctest --test-dir build/core-only -R '^dif_assets_contract$'` | it runs the same suite plus the live boundary check on the real tree | 1/1, 25.74 s | this commit |
+| each retained check is load-bearing | `decode_png_bytes` with and without the flag | the table above | the general decoder accepts all three variants; only the flag rejects them | pass | this commit |
+| a recompression that changes no pixel is now accepted | same | same table | this is the property being traded away | accepts | this commit |
+| the committed tree really is canonical | all 13 PNGs | chunk walk over each file | one IDAT, empty IEND, filter 0 on every row | 13/13 | this commit |
+| no committed asset byte changed | Git | `git status --short` | only the script and its tests are modified | 2 files | this commit |
+| the dev application is untouched | the bound binary | `shasum -a 256 build/dev/.../better_pull_review` | a relink would invalidate three pending operator packets | `7b9d6be9…a78fcd93`, unchanged | this commit |
+
+### The first required-final-state bullet is NOT met, and this card stays open
+
+> The canon holds on an interpreter linked against either zlib or zlib-ng
+
+It does not, and the fix above is not why. There is a **second** byte-equality
+term the card never found: `validate_assets:1089` compares the committed
+`generated/` tree against a fresh `generated_products(root)`, which re-encodes
+every product through the same `zlib.compress(level=9)`.
+
+Measured against the real tree with this fix already in place, substituting a
+different DEFLATE:
+
+```
+committed generated products are stale:
+  ['dif-calm-idle.png', 'dif-greet.png', 'dif-rest.png', 'dif-sprite-digests.json']
+```
+
+Three are PNGs the chosen principle answers directly. The fourth is not:
+`dif-sprite-digests.json` hashes the **compressed** payloads, so it is itself a
+function of the local zlib and needs an answer the operator has not been asked
+for.
+
+[[BPR-0408]] carries it, with that measurement and three options. This card now
+depends on it and moves to `10-backlog/` rather than closing, because closing it
+would claim a bullet that is demonstrably false — which is the exact failure this
+card was opened to correct one level down.
