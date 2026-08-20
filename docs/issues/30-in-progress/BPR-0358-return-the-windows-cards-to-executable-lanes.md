@@ -208,10 +208,11 @@ Cards closed: [[BPR-0359]], [[BPR-0363]], [[BPR-0361]], [[BPR-0365]],
 |---|---|---|
 | the container cannot read any path ancestor | 4 SQLite storage, 2 RFC-0016 security | [[BPR-0362]] — **parked on a product decision** |
 | no Windows symbol inspector for the composed host | `composed_host_verifier_contract` | [[BPR-0364]] |
-| `git init` returns 128 inside the container | `operator_response_validation_contract` | undiagnosed |
+| `git init` returns 128 inside the container — **the same ancestor-read denial as the row above, not a separate cause** | `operator_response_validation_contract` | [[BPR-0362]] — **parked on a product decision** |
 | ~~the isolation verifier rejects the Windows runner~~ — stale attribution, see below | `test_network_isolation_structure_contract` | unmeasured |
 | temporary root, inside the Dif tool's import boundary; and a PNG canon that may be zlib-version-dependent | `dif_assets_contract` | [[BPR-0350]] records the boundary |
-| undiagnosed | `architecture_boundary_contract`, `dependency_modernization_contract`, `github_contract_fixture_security` | — |
+| ~~undiagnosed~~ — **fixed after this table was written** | `architecture_boundary_contract` | [[BPR-0371]], closed at `8127b88` |
+| undiagnosed, and still genuinely so | `dependency_modernization_contract`, `github_contract_fixture_security` | — |
 
 ### What is blocked and what is not
 
@@ -291,6 +292,36 @@ the test still fails on Windows needs a fresh capture on that host.
 
 This is the shape worth noticing rather than the single row. A failure taxonomy
 copied forward across runs will keep a cause that a later commit removed, and
-nothing on this board re-checks one. The other five `undiagnosed` rows were
-measured at the same sitting and deserve the same suspicion before anyone spends
-a Windows session on them.
+nothing on this board re-checks one.
+
+### So the other rows were re-checked the same way, and two more moved
+
+Applying that method to the remaining `undiagnosed` rows, from macOS, without a
+Windows host:
+
+- **`architecture_boundary_contract` is stale.** BPR-0347 guessed it was the
+  CRLF class "through a different door" and labelled the guess unmeasured. The
+  guess was right and it has already been fixed:
+  `tests/scripts/architecture_boundary_tests.py:1375` now writes every fixture
+  with `newline=""`, landed by [[BPR-0371]] at `8127b88` on 2026-08-18 19:51 —
+  after both this table (`c55f2d7`, 11:05) and BPR-0347's (`f372f83`, 10:37).
+  BPR-0371 is in `60-done/` with a reverified 119-test run.
+- **`operator_response_validation_contract` was mis-filed rather than
+  undiagnosed.** Its cause is real and already known: `d348be9` records that
+  `git init` returns 128 with "unable to get current working directory:
+  Permission denied" because git resolves its working directory at start-up and
+  that walks the unreadable ancestor chain. That is exactly [[BPR-0362]]'s
+  cause, and BPR-0362 already names this test at `:370`. It belongs in that
+  bucket, which makes BPR-0362 worth **seven** tests rather than six.
+
+Both were verified against the live tree rather than taken from the reports that
+found them.
+
+`dependency_modernization_contract` and `github_contract_fixture_security` were
+not reached and remain genuinely undiagnosed; nothing should be inferred about
+them from this section. `dif_assets_contract` was likewise not re-checked here.
+
+The net effect on this table is that of the thirteen, one row is stale, one is
+unmeasured, and one merges into [[BPR-0362]] — so the decision that card carries
+now gates more of the suite than the table showed, and two of the remaining
+unknowns are fewer than they looked.

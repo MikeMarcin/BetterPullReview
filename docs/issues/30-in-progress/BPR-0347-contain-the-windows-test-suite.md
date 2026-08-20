@@ -256,3 +256,26 @@ message can be produced by the suite as it now stands, so the recorded cause is
 gone. It does not settle whether the test passes on Windows — that is unmeasured
 from here, and if it still fails it fails for some other reason and needs a fresh
 capture. The row should be treated as *unmeasured*, not as *diagnosed*.
+
+### Two more rows moved on the same method
+
+- **`architecture_boundary_contract`** — this card guessed the cause was the CRLF
+  class "through a different door" and correctly refused to record a guess as a
+  measurement. The guess was right, and it is already fixed:
+  `tests/scripts/architecture_boundary_tests.py:1375` writes fixtures with
+  `newline=""` as of [[BPR-0371]] at `8127b88`, 2026-08-18 19:51 — after this
+  card's taxonomy at `f372f83`, 10:37. BPR-0371 is in `60-done/` with a
+  reverified 119-test run. **Stale.**
+- **`operator_response_validation_contract`** — not undiagnosed but mis-filed.
+  `d348be9` records that `git init` returns 128 with "unable to get current
+  working directory: Permission denied" because git resolves its working
+  directory at start-up and that walks the unreadable ancestor chain — which is
+  [[BPR-0362]]'s cause exactly, and BPR-0362 already names this test at `:370`.
+  It belongs to that card, making it worth seven tests rather than six.
+
+`dependency_modernization_contract` and `github_contract_fixture_security` were
+not reached and remain genuinely undiagnosed.
+
+Three of this card's remaining rows therefore did not need a Windows session at
+all — they needed someone to re-read the taxonomy against the commits that landed
+after it.
