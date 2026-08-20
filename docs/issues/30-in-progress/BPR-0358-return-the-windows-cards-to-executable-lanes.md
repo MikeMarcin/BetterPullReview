@@ -212,7 +212,8 @@ Cards closed: [[BPR-0359]], [[BPR-0363]], [[BPR-0361]], [[BPR-0365]],
 | ~~the isolation verifier rejects the Windows runner~~ — stale attribution, see below | `test_network_isolation_structure_contract` | unmeasured |
 | temporary root, inside the Dif tool's import boundary; and a PNG canon that may be zlib-version-dependent | `dif_assets_contract` | [[BPR-0350]] records the boundary |
 | ~~undiagnosed~~ — **fixed after this table was written** | `architecture_boundary_contract` | [[BPR-0371]], closed at `8127b88` |
-| undiagnosed, and still genuinely so | `dependency_modernization_contract`, `github_contract_fixture_security` | — |
+| ~~undiagnosed~~ — **fixed after this table was written** | `github_contract_fixture_security` | [[BPR-0372]], closed at `ffd1b3a` |
+| ~~undiagnosed~~ — **never a Windows defect; failed everywhere** | `dependency_modernization_contract` | [[BPR-0373]], closed at `6e068a1`/`9050b93` |
 
 ### What is blocked and what is not
 
@@ -317,11 +318,32 @@ Windows host:
 Both were verified against the live tree rather than taken from the reports that
 found them.
 
-`dependency_modernization_contract` and `github_contract_fixture_security` were
-not reached and remain genuinely undiagnosed; nothing should be inferred about
-them from this section. `dif_assets_contract` was likewise not re-checked here.
+The last two resolved the same way:
 
-The net effect on this table is that of the thirteen, one row is stale, one is
-unmeasured, and one merges into [[BPR-0362]] — so the decision that card carries
-now gates more of the suite than the table showed, and two of the remaining
-unknowns are fewer than they looked.
+- **`github_contract_fixture_security` is stale.** [[BPR-0372]] — "repair the
+  fixture contract's two Windows failures" — closed it at `ffd1b3a` on
+  2026-08-18 19:54, after this table. `.gitattributes` now pins
+  `tests/fixtures/github/**/*.json` and `*.md` to `eol=lf` and cites that card.
+- **`dependency_modernization_contract` was never a Windows defect.**
+  [[BPR-0373]] opens by saying so outright: it "fails everywhere", because
+  `tests/scripts/dependency_modernization_tests.py:115` asserted a Qt policy
+  `fbf0f18` had deliberately replaced. Closed at `6e068a1` and `9050b93` on
+  2026-08-19. It was *found* during the Windows program and recorded so it would
+  not be mistaken for one — and this table mistook it for one anyway.
+
+`dif_assets_contract` is the only row not re-checked here; [[BPR-0350]] and
+[[BPR-0378]] hold its two halves.
+
+### What the table actually says now
+
+Of the thirteen, **five rows are gone**: three stale, one never platform-specific,
+one merged into [[BPR-0362]]. Not one of them needed a Windows session — they
+needed the taxonomy read against the commits that landed after it, which is work
+any host can do.
+
+That changes what the next Windows session should do first. The remaining real
+work is [[BPR-0362]]'s decision, now worth **seven** tests rather than six, plus
+[[BPR-0364]] and a fresh capture of the two rows this pass could only mark
+unmeasured. Re-running the suite to find out what still fails is now more
+valuable than diagnosing any single row, because the last measurement is a day
+old and five of its thirteen entries did not survive contact with the log.

@@ -273,9 +273,21 @@ capture. The row should be treated as *unmeasured*, not as *diagnosed*.
   [[BPR-0362]]'s cause exactly, and BPR-0362 already names this test at `:370`.
   It belongs to that card, making it worth seven tests rather than six.
 
-`dependency_modernization_contract` and `github_contract_fixture_security` were
-not reached and remain genuinely undiagnosed.
+- **`github_contract_fixture_security` is stale.** [[BPR-0372]] repaired "the
+  fixture contract's two Windows failures" at `ffd1b3a`, 2026-08-18 19:54, after
+  this card's taxonomy. `.gitattributes` now pins those fixtures to `eol=lf`.
+- **`dependency_modernization_contract` was never a Windows defect.**
+  [[BPR-0373]] says so in its first paragraph — it failed everywhere, because
+  `tests/scripts/dependency_modernization_tests.py:115` asserted a Qt policy
+  `fbf0f18` had replaced. Closed at `6e068a1` and `9050b93` on 2026-08-19.
 
-Three of this card's remaining rows therefore did not need a Windows session at
-all — they needed someone to re-read the taxonomy against the commits that landed
-after it.
+`dif_assets_contract` is the only remaining row not re-checked; [[BPR-0350]] and
+[[BPR-0378]] hold its two halves.
+
+**Five of this card's thirteen remaining rows did not need a Windows session at
+all.** They needed the taxonomy re-read against the commits that landed after it.
+Three were fixed by cards that are already in `60-done/`, one was never
+platform-specific, and one belongs to [[BPR-0362]]'s bucket. The next Windows
+session's most valuable first act is a fresh suite run, not a diagnosis: the last
+measurement is a day old and five of its thirteen entries did not survive contact
+with the log.
