@@ -1,7 +1,7 @@
 ---
 id: BPR-0406
 title: Regenerate the live publication packet from the committed tree
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: []
 ---

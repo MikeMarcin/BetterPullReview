@@ -648,7 +648,7 @@ three answers it needs:
 | BPR-0358 | `30-in-progress/` | A Windows session. Its own five required-final-state bullets are met; it stays open as the anchor for the Windows program it records |
 | BPR-0100, BPR-0168, BPR-0220 | `40-parked/` | A person looking, clicking, or returning an exported verdict |
 | BPR-0256 | `30-in-progress/` | Nothing. Its capability-critical review returned BLOCKING: the v002 packet's manifest does not bind this tree, and never did. Regeneration is [[BPR-0406]] |
-| BPR-0406 | `20-ready/` | Nothing. It rebuilds the live-publication capsule and packet from the committed tree; the capsule graph is separate from `build/dev`, so the hold does not reach it |
+| BPR-0406 | `30-in-progress/` | Nothing. Rebuilding the live-publication capsule and packet from the committed tree; the capsule graph is separate from `build/dev`, so the hold does not reach it |
 | BPR-0211, BPR-0212 | `40-parked/` | A product decision: owner-deferred, and RFC-scale rather than a slice |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0405 | `20-ready/` | Nothing. It authors the RFC-0017 anonymous recorder and its authority packet, which are strictly upstream of the live capture |
