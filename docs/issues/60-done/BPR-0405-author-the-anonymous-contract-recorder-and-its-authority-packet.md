@@ -1,7 +1,7 @@
 ---
 id: BPR-0405
 title: Author the anonymous contract recorder and its authority packet
-status: In Progress
+status: Done
 rfc: RFC-BPR-0017
 depends_on: [BPR-0297]
 ---
@@ -133,3 +133,71 @@ The documentation gate matters more than it looks here: `verify_documentation.py
 rejects a review directory whose name does not match `<gate>-vNNN`, and rejects
 an `operator-packet.md` with no bolded `Status:` line. A new
 `rfc0017-anonymous-probe-v001` trips neither rule as long as both are respected.
+
+## Result — 2026-08-20
+
+The recorder, its authority packet, and its tests exist. No live call was made
+and no captured byte was fabricated.
+
+### The three decisions, answered
+
+1. **One script or two.** One, as the ledger prescribes — but with RFC-0016's
+   property preserved by a different mechanism. The module holds **no network
+   client at import time**: `urllib` is imported inside `perform_request`, the
+   single function that issues a request. So importing this module to validate
+   cannot reach a network even by mistake, which is what RFC-0016 bought with a
+   file split.
+2. **`course-manifest.json`.** Designed here, since nothing in the repository
+   defined it: `schema_name`, `schema_version`, `packet_sha256`, and `courses`,
+   each course naming an authorized target and its expected status. Binding the
+   packet digest into the manifest is what stops a manifest from being pointed
+   at a different authority.
+3. **The rate-exhaustion fixture** stays [[BPR-0298]]'s, as settled at
+   `2e998d7`. Conditional `304` accounting is deferred with it and for the same
+   reason: both need values only the first capture can supply — a real `ETag`,
+   and real budget headers to shape a synthetic exhaustion from. The packet says
+   so rather than pretending the authority covers them.
+
+### The architecture that matters
+
+The authority names targets **within** hardcoded outer bounds it cannot widen.
+A packet asking for another host, another scheme, a port, an embedded
+credential, a fragment, an unknown operation, `POST` outside `/graphql`, or
+`GET` at `/graphql` is refused before its digest is considered — because a
+signed request for the wrong thing is still the wrong thing.
+
+Headers outside a retained allowlist are **dropped rather than redacted**. A
+dropped header cannot leak, and the architecture documents already argue that a
+redaction step is a place a silent mistake can live.
+
+### A rule of mine that could never fire
+
+The forbidden-byte table originally carried both `gh[pousr]_` and a separate
+`ghs_` rule. The `s` is in the first pattern's character class, so the second
+could never match — it read as coverage without being any. It is removed, and a
+test now asserts that all five token prefixes are caught by the one rule, so the
+subsumption is recorded rather than rediscovered.
+
+Found by a test failing. That is the argument for writing the negative cases
+first.
+
+### Verification matrix
+
+| claim | surface | command | proves it | result | evidence |
+|---|---|---|---|---|---|
+| the suite passes | `tests/scripts/record_rfc0017_anonymous_contracts_tests.py` | `python3 tests/scripts/record_rfc0017_anonymous_contracts_tests.py` | 36 cases over authority, allowlist, sanitization, containment, and no-traffic | **36 tests, OK** | this commit |
+| `--validate-existing` reaches no network | the same suite | `test_validate_existing_cannot_reach_a_network` | it replaces `perform_request` with a function that fails the test if called, then runs the full validation | pass | this commit |
+| every outer bound is load-bearing | `AllowlistTests` | nine refusal cases | each names a distinct way an authority might try to widen its own scope | pass | this commit |
+| every forbidden pattern is load-bearing | `ForbiddenByteTests` | one sample per pattern | a pattern with no sample is a pattern nobody has run | pass | this commit |
+| the packet's authority parses | the real parser | `parse_authority` over the committed packet | the packet is the input, so a packet the script cannot read is a broken packet | 5 targets | this commit |
+| the board stays consistent | `scripts/verify_documentation.py` | `python3 scripts/verify_documentation.py --root .` | it enforces the versioned review directory and the bolded `Status:` line | `DOCUMENTATION_OK` | this commit |
+| the dev application is untouched | the bound binary | `shasum -a 256` | two attended packets bind those bytes | `7b9d6be9…`, unchanged | this commit |
+
+### What this card does not claim
+
+No request was issued, so nothing here is evidence about GitHub's actual
+behaviour. The packet names `octocat/Hello-World` pull request 1 and says
+plainly that it could not confirm the pull request is live, because confirming
+it would require the request being authorized. If it is absent, the capture
+records a 404 and the target is replaced — which changes the authority digest,
+which is the mechanism working.
