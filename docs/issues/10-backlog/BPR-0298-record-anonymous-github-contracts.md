@@ -1,10 +1,9 @@
 ---
 id: BPR-0298
 title: Record anonymous GitHub service contracts
-status: Parked
+status: Backlog
 rfc: RFC-BPR-0017
-depends_on: [BPR-0297]
-parked_on: awaiting-live-github
+depends_on: [BPR-0297, BPR-0405]
 ---
 
 # Record anonymous GitHub service contracts
@@ -32,3 +31,29 @@ parked_on: awaiting-live-github
   Its `--validate-existing` mode performs no traffic and revalidates every
   packet, response, manifest, capture digest, minimization record, and owning
   commit at immutable closeout head.
+
+## The tooling half left this card — 2026-08-19
+
+This card was parked under `awaiting-live-github`, and roughly half of its
+required final state never needed the network: the recorder script, its
+digest-bound authority packet, the designated-target allowlist, the sanitizer,
+and the no-traffic `--validate-existing` mode. `docs/verification/RFC-BPR-0017.md:78`
+gates the live course on an operator statement recorded from an
+`operator-packet.md` that does not exist yet, so the tooling is not merely
+separable from the capture — it is strictly upstream of it.
+
+[[BPR-0405]] takes that half and is in `20-ready/`. This card keeps what is
+genuinely live: sanitized real-service records for anonymous GraphQL, REST
+review comments and paging, rate and conditional-request behaviour, and
+404 non-disclosure, plus the GHES disposition.
+
+It moves to `10-backlog/` rather than staying parked, because the honest answer
+to "what is in the way" is now another card rather than a service. `40-parked/`
+is not a deferring lane and takes no card with an unmet dependency; `10-backlog/`
+means exactly "waiting on another card", which `depends_on` now records.
+
+One question travels with the split and is recorded on [[BPR-0405]]: this card's
+synthetic rate-exhaustion fixture is specified as "shaped from the recorded
+stable headers", and whether that means headers this card captures or the stable
+publicly documented header names decides which card owns the fixture. Nothing
+should be built on an assumed answer.

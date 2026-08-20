@@ -650,7 +650,7 @@ three answers it needs:
 | BPR-0256 | `30-in-progress/` | Nothing, and it is the only root any session can advance today. Its held round-trip gate ran without a rebuild; the fresh capability-critical review of its packet is unattended work |
 | BPR-0211, BPR-0212 | `40-parked/` | A product decision: owner-deferred, and RFC-scale rather than a slice |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
-| BPR-0298 | `40-parked/` | A digest-bound attended packet, then a real GitHub call |
+| BPR-0405 | `20-ready/` | Nothing. It authors the RFC-0017 anonymous recorder and its authority packet, which are strictly upstream of the live capture |
 | BPR-0240 | `30-in-progress/` | A Windows session. Its portable gates have run; `windows_agent_process.cpp` has never been compiled and only a Windows toolchain can |
 | BPR-0391, BPR-0392 | `40-parked/` | A person running a regenerated packet: the appearance foreground pass and the notification banner |
 | BPR-0348, BPR-0362, BPR-0378 | `40-parked/` | A product decision nobody has made yet |
