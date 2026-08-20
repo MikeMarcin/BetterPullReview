@@ -81,14 +81,31 @@ expensive. They are recorded here rather than assumed.
    ledger names it as an input and nothing defines it. Its schema is new work,
    informed by RFC-0016's `outcomes/*.json` and `registration.json` shapes but
    not dictated by them.
-3. **Where the synthetic rate-exhaustion fixture is seeded from.** [[BPR-0298]]
-   says it is "shaped from the recorded stable headers". If that means *recorded
-   by the live capture*, then this half cannot fully complete before the capture
-   and the fixture is [[BPR-0298]]'s. If it means the stable, publicly documented
-   header names — `X-RateLimit-Limit`, `-Remaining`, `-Reset`, `-Used`,
-   `-Resource`, `ETag`, `Last-Modified` — then it belongs here. **This is the one
-   ordering risk on the card**, and it should be settled first, because the
-   answer decides whether this card can reach its own required final state.
+3. **Where the synthetic rate-exhaustion fixture is seeded from — settled.**
+   [[BPR-0298]] says it is "shaped from the recorded stable headers", and the
+   ambiguity is real enough to have been worth naming: "recorded" could mean
+   recorded by the live capture, or could mean the stable publicly documented
+   header names.
+
+   It means the capture's. Two things in the card decide it. The bullet directly
+   above names "**observed** primary/search budget headers" as part of what the
+   live records resolve, and "recorded" is the same verb that bullet uses for
+   live output. And the clause that follows gives the reason the fixture is
+   synthetic at all — "the live course never exhausts or intentionally evades
+   the shared GitHub quota" — which is only coherent if the real headers were
+   observed at some non-exhausted value and the exhausted one is then
+   constructed from their shape.
+
+   So the split is: **this card owns the injection mechanism and its validator
+   schema**, seeded with the documented header names (`X-RateLimit-Limit`,
+   `-Remaining`, `-Reset`, `-Used`, `-Resource`, `ETag`, `Last-Modified`), and
+   **[[BPR-0298]] owns the fixture's values**, which come from its capture. This
+   card can reach its own required final state without the network, which was
+   the thing at risk.
+
+   Recorded as an interpretation, not a measurement. If the implementing session
+   finds a reading that defeats it, correct it here rather than working around
+   it.
 
 ## Non-goals
 

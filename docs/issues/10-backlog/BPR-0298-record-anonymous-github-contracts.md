@@ -52,8 +52,15 @@ to "what is in the way" is now another card rather than a service. `40-parked/`
 is not a deferring lane and takes no card with an unmet dependency; `10-backlog/`
 means exactly "waiting on another card", which `depends_on` now records.
 
-One question travels with the split and is recorded on [[BPR-0405]]: this card's
+One question travelled with the split and is now settled on [[BPR-0405]]. The
 synthetic rate-exhaustion fixture is specified as "shaped from the recorded
-stable headers", and whether that means headers this card captures or the stable
-publicly documented header names decides which card owns the fixture. Nothing
-should be built on an assumed answer.
+stable headers", and "recorded" means recorded here: the bullet above it names
+"**observed** primary/search budget headers" as live output using the same verb,
+and the reason the fixture is synthetic at all — "the live course never exhausts
+or intentionally evades the shared GitHub quota" — only holds if the real headers
+were observed unexhausted and the exhausted one built from their shape.
+
+So [[BPR-0405]] owns the injection mechanism and its schema, seeded with the
+documented header names, and **this card owns the fixture's values**. That is an
+interpretation of this card's text, not a measurement; correct it there if a
+better reading appears.
