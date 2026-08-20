@@ -354,3 +354,29 @@ should separate those, and say why the last click is the one that matters.
 
 Not recorded as operator error. The run is not counted as evidence and the packet
 stays pending.
+
+### Why no v008 was written — 2026-08-20
+
+The obvious response to the failed run was a v008 packet separating the click
+from the Settings change. It was not written, and the reason is worth keeping.
+
+`NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN` is latched (`main.cpp:648`, set at
+`:4615`, cleared at `:4624`) and fires **once, on the first tick where the
+condition is false** — the moment the window appears, before the owner could
+have clicked. In the run's log it is line 3, ahead of `SELECTED_DIFF_READY` at
+line 40 and the transition at line 48.
+
+Because the latch clears when the condition becomes true, exactly one marker in
+a failing log is consistent with two opposite histories: the owner never
+satisfied the condition, or the owner satisfied it and focus was lost again
+later. Nothing in the log separates them.
+
+This card's repair may be working perfectly and be defeated by something after
+it, or may never be reached. Three runs across two packet versions cannot say
+which, and v005 was already a wording-and-wait fix for the same signature. A
+fourth attempt at prose would be guessing against evidence that guessing is not
+converging.
+
+[[BPR-0410]] makes the failure legible first. When a failing run can be
+attributed, the packet either needs new prose or does not — and that will be
+answerable rather than guessable.
