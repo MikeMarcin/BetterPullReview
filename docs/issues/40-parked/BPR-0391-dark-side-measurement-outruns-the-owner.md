@@ -281,3 +281,36 @@ run is against exactly the bytes the packet describes.
 One consequence worth stating before it happens: the probe changes the operating
 system appearance setting and restores it. Earlier runs of this family recorded
 restoring the owner's original System Dark setting, and this one must do the same.
+
+### Driving it that way cost the terminal its permissions — 2026-08-20
+
+The direction above was read as licence to script the System Settings step. It
+was tried and it must not be tried again.
+
+`osascript -e 'tell application "System Events" to tell appearance preferences
+to get dark mode'` — the **read**, before any change — makes macOS re-evaluate
+the Automation entitlement for the parent process. That process is the operator's
+terminal. The evaluation revoked its Documents-folder access, and every read
+under `~/Documents` began returning `EPERM: operation not permitted`, `git`
+included, which could not read its own working directory. `/tmp` and
+`~/.claude` stayed readable, which is the signature: the terminal's TCC grant
+went, not anything in this repository. The owner repaired it by hand.
+
+Two things worth separating, because only one of them was wrong:
+
+- The **authorisation** stands. The owner said to drive it and meant it.
+- The **mechanism** was mine to choose, and this one has a blast radius outside
+  the probe: it can take down the session that is running it. There is no safer
+  subset to retreat to, because reading the appearance mode and setting it go
+  through the same entitlement.
+
+So the System Settings steps in this packet — step 2, step 5, and the step 6
+restoration — are the owner's, and the packet was right to write them that way.
+What is genuinely unattended here is everything else: launching the bound binary
+with the packet's exact flags, holding it frontmost, collecting the log and both
+rasters, and reading the result. If that split is not enough to satisfy the
+probe, the answer is a different probe, not a different way to reach System
+Events.
+
+Recorded on the card rather than only in a session, because the failure is
+invisible until something unrelated cannot read a file.
