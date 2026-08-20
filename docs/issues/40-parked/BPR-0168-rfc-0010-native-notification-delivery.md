@@ -157,7 +157,7 @@ can actually produce the banner.
 
 ## Packet regenerated, 2026-08-18
 
-The live procedure is now
+The live procedure at the time was
 `docs/verification/reviews/native-notification-delivery-v002/operator-packet.md`.
 The v001 packet was never run and bound a dev executable that no longer exists
 at its recorded digest; v002 rebinds the same course to the executable built at
@@ -165,3 +165,21 @@ commit `0e34519` and the unchanged BPR-0251 implementation record at its
 current `60-done/` path. Its deterministic preflight,
 `application_native_notification_attended_contract`, passes against those
 exact bytes.
+
+## The live packet is v005 — corrected 2026-08-19
+
+The paragraph above stopped being true three regenerations ago and was still
+being read as an instruction. The live procedure is
+[`native-notification-delivery-v005`](../../verification/reviews/native-notification-delivery-v005/operator-packet.md).
+
+v002 is not merely stale. The owner ran it, no banner appeared, and System
+Settings carried no BetterPullReview entry — [[BPR-0392]] established that an
+unbundled Mach-O has no Notification Center identity at all, so v002 asked for a
+click no process could have produced. v003 moved the course onto a real
+application bundle; v004 and v005 rebound it as later repairs rebuilt the
+executable.
+
+The cause was structural. This packet family serves both this card and
+[[BPR-0392]], and each regeneration updated only the card that ordered it.
+[[BPR-0398]] carries the verifier check that now fails when a card names a
+superseded packet.

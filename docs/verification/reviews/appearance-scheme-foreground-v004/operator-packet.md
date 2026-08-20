@@ -1,6 +1,23 @@
 # BPR-0114/BPR-0220 selected-diff foreground appearance operator packet
 
-Status: **pending operator run**
+Status: **superseded by
+[`appearance-scheme-foreground-v007`](../appearance-scheme-foreground-v007/operator-packet.md);
+do not run or approve.**
+
+This packet is preserved as the superseded v004 procedure, and it is the one
+version here that must not be attempted again. The owner ran it twice and it
+failed both times with the same signature —
+`NATIVE_APPEARANCE_TRANSITION:Light->Dark` observed, then
+`NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED` and `NATIVE_APPEARANCE_STATE_FAILED`,
+and no rasters. The first attempt's log is preserved beside this file as
+`foreground-run-attempt-1.log`.
+
+That was not operator error. [[BPR-0391]] established that the dark-side
+measurement fired about half a second after all three schemes read Dark and
+measured **once**, requiring focus on the exact widget the baseline recorded —
+which a person who must surrender frontmost to System Settings cannot supply in
+time. The v004 procedure was humanly impossible, and v005 replaced it. No
+response to this version can satisfy [[BPR-0114]] or [[BPR-0220]].
 
 This packet requests one bounded human action on macOS: establish a frontmost
 real selected diff, change the desktop appearance from Light to Dark in System

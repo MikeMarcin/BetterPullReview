@@ -172,8 +172,20 @@ and the complete output must contain
 `NATIVE_APPEARANCE_DIFF_GEOMETRY_ATTRIBUTION_OK` plus the ordered cause line.
 
 Run only the digest-bound procedure in
-[`appearance-scheme-foreground-v004`](../../verification/reviews/appearance-scheme-foreground-v004/operator-packet.md),
-which regenerated the never-run v002/v003 packets on 2026-08-18 after their
-bound executable digest went stale. This card is parked in `40-parked/` until
-that log is returned. No product fix and no change to either exact `== 1U`
-expectation is authorized before the causes are measured.
+[`appearance-scheme-foreground-v007`](../../verification/reviews/appearance-scheme-foreground-v007/operator-packet.md).
+This card is parked in `40-parked/` until that log is returned. No product fix
+and no change to either exact `== 1U` expectation is authorized before the
+causes are measured.
+
+### The version this card used to name — corrected 2026-08-19
+
+Until [[BPR-0398]] this paragraph said to run v004, and that instruction had
+been wrong for three regenerations. v004 is worse than merely stale: the owner
+attempted it twice and could not complete it, because the dark-side measurement
+fired before a person returning from System Settings could restore focus.
+[[BPR-0391]] found and repaired that, and v005 through v007 followed.
+
+The cause was structural rather than careless. This packet family serves three
+cards — [[BPR-0114]], this one, and [[BPR-0391]] — and each regeneration updated
+only the card that ordered it. BPR-0398 carries the verifier check that now
+fails when a card names a superseded packet.

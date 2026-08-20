@@ -1,6 +1,22 @@
 # BPR-0100 native visual-acceptance operator packet
 
-Status: **pending operator run and judgment; not RFC closeout**
+Status: **answered — rejected 2026-08-18 — and superseded by
+[`native-visual-acceptance-v003`](../native-visual-acceptance-v003/operator-packet.md);
+do not run or approve.**
+
+This packet is preserved as the superseded v001 procedure, and unlike the other
+superseded packets in this directory it was run. The owner reached the real C++
+comparison through the Files drawer and rejected it on a defect no automated
+marker had caught, asking in their own words: *"How come there's no syntax
+highlighting?"* That rejection is the pass working — it is recorded and
+root-caused as [[BPR-0390]], and it produced the contract check that was
+missing.
+
+The version is also unrunnable now for two independent reasons: its bound digest
+is stale, and the path it names, `build/dev/src/app/better_pull_review`, stopped
+being a file when [[BPR-0392]] made the tests-enabled macOS build an application
+bundle. No acceptance is inferred from the aspects the owner did not reach, and
+no response to this version can satisfy [[BPR-0100]].
 
 This packet presents the owner-attended pass BPR-0100 inherited from the
 RFC-BPR-0003 and RFC-BPR-0004 ledgers: judge the assembled workbench's

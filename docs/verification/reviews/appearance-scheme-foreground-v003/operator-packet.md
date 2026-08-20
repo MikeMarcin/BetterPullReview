@@ -1,6 +1,13 @@
 # BPR-0114/BPR-0220 selected-diff foreground appearance operator packet
 
-Status: **pending operator run**
+Status: **superseded by
+[`appearance-scheme-foreground-v007`](../appearance-scheme-foreground-v007/operator-packet.md);
+do not run or approve.**
+
+This packet is preserved as the superseded v003 procedure. It was never run and
+the executable digest it binds no longer exists on disk; v004 rebound the same
+procedure to a rebuilt executable. No response to this version can satisfy
+[[BPR-0114]] or [[BPR-0220]].
 
 This packet requests one bounded human action on macOS: establish a frontmost
 real selected diff, change the desktop appearance from Light to Dark in System

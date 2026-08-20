@@ -1,6 +1,13 @@
 # BPR-0168 native notification delivery operator review
 
-Status: **pending operator decision; not RFC closeout or live GitHub mutation approval**
+Status: **superseded by
+[`native-notification-delivery-v005`](../native-notification-delivery-v005/operator-packet.md);
+do not run or approve.**
+
+This packet is preserved as the superseded v001 procedure. It was never run and
+the dev executable it binds no longer exists at its recorded digest; v002
+rebound the same course to a rebuilt executable. No response to this version can
+satisfy [[BPR-0168]].
 
 This packet presents the one target-native human decision required by BPR-0168.
 It does not infer Notification Center display from the submitted request, grant

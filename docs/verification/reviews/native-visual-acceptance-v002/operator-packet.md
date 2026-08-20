@@ -1,6 +1,14 @@
 # BPR-0100 native visual-acceptance operator packet
 
-Status: **pending operator run and judgment; not RFC closeout**
+Status: **superseded by
+[`native-visual-acceptance-v003`](../native-visual-acceptance-v003/operator-packet.md);
+do not run or approve.**
+
+This packet is preserved as the superseded v002 procedure. It was never run:
+[[BPR-0397]] bounded three unbounded waits in the epoch host and rebuilt the
+executable before the owner reached it. The procedure is unchanged in v003; the
+bound digest and the artifact paths are not. No response to this version can
+satisfy [[BPR-0100]].
 
 This packet presents the owner-attended pass BPR-0100 inherited from the
 RFC-BPR-0003 and RFC-BPR-0004 ledgers: judge the assembled workbench's

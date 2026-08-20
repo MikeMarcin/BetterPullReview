@@ -1,6 +1,15 @@
 # BPR-0114/BPR-0220 foreground appearance probe operator packet
 
-Status: **pending operator run**
+Status: **superseded by
+[`appearance-scheme-foreground-v007`](../appearance-scheme-foreground-v007/operator-packet.md);
+do not run or approve.**
+
+This packet is preserved as the superseded v002 procedure. It was never run, and
+two separate things have replaced it since: the executable digest it binds no
+longer exists, and v003 replaced the procedure itself — v002 asks only that the
+window be raised while a scripted transition runs, where every later version
+requires a real selected diff to be established first. No response to this
+version can satisfy [[BPR-0114]] or [[BPR-0220]].
 
 This packet requests one bounded human action: bring the application window to
 the front and leave it there while the already-scripted Light → Dark transition

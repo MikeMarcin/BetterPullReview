@@ -409,7 +409,7 @@ copy survives.
 
 ## Packet regenerated, 2026-08-18
 
-The live procedure is now
+The live procedure at the time was
 `docs/verification/reviews/appearance-scheme-foreground-v004/operator-packet.md`.
 The v001 through v003 packets were never run and each bound a dev executable
 that no longer exists at its recorded digest; v004 rebinds the same procedure
@@ -417,6 +417,22 @@ to the executable built at commit `0e34519` and the unchanged BPR-0249
 implementation record at its current `60-done/` path. Its two deterministic
 preflights, `application_native_appearance_probe_contract` and the focused
 appearance selector, pass against those exact bytes.
+
+## The live packet is v007 — corrected 2026-08-19
+
+The paragraph above stopped being true three regenerations ago and was still
+being read as an instruction. The live procedure is
+[`appearance-scheme-foreground-v007`](../../verification/reviews/appearance-scheme-foreground-v007/operator-packet.md).
+
+v004 must not be attempted: the owner tried it twice and could not complete it,
+because the dark-side measurement fired before a person returning from System
+Settings could restore focus. [[BPR-0391]] found and repaired that, and v005
+through v007 followed as later work rebuilt the executable.
+
+The cause was structural. This packet family serves three cards — this one,
+[[BPR-0220]], and [[BPR-0391]] — and each regeneration updated only the card
+that ordered it. [[BPR-0398]] carries the verifier check that now fails when a
+card names a superseded packet.
 
 One prediction is on the record and will be checked rather than assumed. Seven
 of the eight failing terms should resolve when the window is frontmost, because

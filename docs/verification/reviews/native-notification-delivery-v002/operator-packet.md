@@ -1,6 +1,22 @@
 # BPR-0168 native notification delivery operator review
 
-Status: **pending operator decision; not RFC closeout or live GitHub mutation approval**
+Status: **superseded by
+[`native-notification-delivery-v005`](../native-notification-delivery-v005/operator-packet.md);
+do not run or approve.**
+
+This packet is preserved as the superseded v002 procedure, and it is the one
+version here that must not be attempted again. The owner ran it, no banner
+appeared, and System Settings → Notifications carried no BetterPullReview entry
+at all. The attempt log is preserved beside this file as
+`notification-run-attempt-1.log`.
+
+That was not operator error. [[BPR-0392]] established that
+`build/dev/src/app/better_pull_review` was a bare Mach-O with no bundle and no
+`Info.plist`, and macOS Notification Center registers applications by bundle
+identity: an unbundled process cannot request authorization, never gains a
+Settings entry, and its delivery requests go nowhere. The v002 procedure asked a
+person to click a banner no process identity could have produced. No response to
+this version can satisfy [[BPR-0168]].
 
 This packet presents the one target-native human decision required by BPR-0168.
 It does not infer Notification Center display from the submitted request, grant
