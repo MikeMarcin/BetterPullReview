@@ -1,7 +1,7 @@
 ---
 id: BPR-0400
 title: BPR-0142 describes a blocker that moved twice
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
 ---
@@ -61,3 +61,27 @@ python3 scripts/verify_documentation.py --root .
 ctest --test-dir build/core-only --output-on-failure \
   -R '^(documentation_structure|documentation_issue_graph_contract)$'
 ```
+
+## Result — 2026-08-19
+
+The sentence now names `10-backlog/` and states that only the Windows half
+remains, citing [[BPR-0156]] and [[BPR-0358]] for the discharged Linux
+criterion. Nothing else in BPR-0142 changed, and neither card's scope moved.
+
+Re-running the normalized-text sweep afterwards returns no real mismatch across
+the 70 open cards. Three hits survive and all three are the scan's own artefacts,
+checked individually rather than waved off:
+
+| hit | why it is not drift |
+|---|---|
+| `BPR-0083:214` "Verify BPR-0054 is in `60-done/`" | a closeout-checklist instruction to check at closeout, not a claim; the same row's live-blocker cell correctly says BPR-0054 remains open |
+| `BPR-0083:79` "BPR-0054/RFC-BPR-0003 also remains a hard canonical closeout dependency, so **this card** stays in backlog" | "this card" is BPR-0083, which is in `10-backlog/`; the pattern mis-attributed the clause to the nearest preceding id |
+| this card, twice | it quotes the defect text it exists to describe |
+
+`DOCUMENTATION_OK`; `documentation_structure` and
+`documentation_issue_graph_contract` pass 2/2; `git diff --check` clean.
+
+A pattern that mis-attributes a clause to the nearest preceding id is not a
+verifier, which is the other half of why [[BPR-0399]] declined to pin prose. The
+scan is a one-off measurement, not a gate, and is deliberately left uncommitted
+as tooling.

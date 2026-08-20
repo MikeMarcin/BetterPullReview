@@ -100,9 +100,11 @@ or fixtured, and never typed into a shell that records history.
 [[BPR-0221]], now in `60-done/`, rebuilt the provider inventory and
 binary-symbol guard before a live implementation existed. It does not satisfy
 this card's whole-process requirement by itself. [[BPR-0235]] separately owns
-the CTest launcher boundary and remains in progress until Linux and Windows are
-proved target-native and the only live exception enforces the now-designated
-pull-request identity before child creation.
+the CTest launcher boundary and sits in `10-backlog/` until Windows is proved
+target-native and the only live exception enforces the now-designated
+pull-request identity before child creation. Its Linux criterion is no longer
+outstanding: [[BPR-0156]] re-established the Ubuntu 26.04 x86_64 matrix and
+[[BPR-0358]] records that half as discharged on 2026-08-17.
 
 Building the structural half before the live provider existed was the point: it is the only moment
 the guard could be shown to fail on a tree whose answer was already known, and
