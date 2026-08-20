@@ -1,10 +1,9 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Parked
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263]
-parked_on: awaiting-owner-verdict
 ---
 
 # Build the attended one-shot live application lane
@@ -334,3 +333,39 @@ capability-critical independent review runs after the full matrix is green.
 Step (3), the exact attended operator decision, remains the terminal
 requirement. No live lane was executed, no credential accessed, no mutation
 submitted, and no approval file exists.
+
+## The held gate ran, so this card is not parked on a person — 2026-08-19
+
+The previous section parked this card behind two gates and then filed it under
+`awaiting-owner-verdict`. That was half right. Step (3) is genuinely attended,
+but steps (2) and the round-trip contract are not, and a card whose *next*
+action is unattended does not belong in `40-parked/` — the lane means "nothing
+is in the way but a person or a live service", and something was.
+
+The first of the two gates has now run:
+
+| claim | surface | command | proves it | result | evidence |
+|---|---|---|---|---|---|
+| the composed review round trip still holds at HEAD | `application_review_round_trip_composition_contract` | `ctest --test-dir build/dev -R '^application_review_round_trip_composition_contract$'` | it drives the real dev application binary through the composed round trip and fails if the composition regressed | **pass**, 26.61 s, exit 0 | this commit, at `0c4b3b7` |
+
+It ran without lifting the dev-binary hold, which is the part worth recording.
+The hold exists because three pending operator packets bind the exact bytes of
+`build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review`,
+and three earlier rebuilds each invalidated a pending packet before an operator
+reached it. `ctest` does not build. Running a selector against an
+already-built tree therefore consumes the binary without changing it, and that
+was verified rather than assumed: the digest was
+`sha256:7b9d6be98c89b70a49f0616d2b32b10cb6b5d4a3f238366bed916379a78fcd93` at
+51,085,872 bytes before the run and byte-identical after it, with
+`git status --short` clean on both sides.
+
+So the sequencing note in the previous section — that this contract "waits for
+that hold to lift" — was stricter than the hold requires. What the hold forbids
+is a **rebuild**, not a **run**.
+
+What remains is step (2), the fresh capability-critical independent review of
+the regenerated `designated-live-review-publication-v002` packet, and then step
+(3). Step (2) is unattended and is the reason this card is in
+`30-in-progress/` rather than `40-parked/`. The card returns to `40-parked/`
+under `awaiting-owner-verdict` when step (2) has no blocking finding, which is
+the point at which the operator decision really is the only thing left.
