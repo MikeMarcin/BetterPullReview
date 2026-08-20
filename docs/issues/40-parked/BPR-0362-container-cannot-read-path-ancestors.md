@@ -503,3 +503,29 @@ any RFC.
 Nothing else in the Windows program. [[BPR-0363]], [[BPR-0361]], [[BPR-0365]],
 [[BPR-0366]], [[BPR-0368]] through [[BPR-0375]], [[BPR-0377]] and [[BPR-0379]]
 were all completed while this stood.
+
+## Operator direction — defer to a Windows session — 2026-08-20
+
+Recorded verbatim:
+
+> answer windows questions on windows host, delay this
+
+The v2 packet is not withdrawn and its option set is not reopened. What changed
+is **who** should answer it and **when**: this is a question about an
+AppContainer boundary on Windows, and the direction is that it be answered from
+the Windows host rather than from a macOS session presenting a summary of it.
+
+That is a better disposition than the one this card had, and worth stating why.
+Options 1 and 3 differ in what they cost *in practice on that machine* — option 1
+means modifying the ACLs of `C:\`, `C:\Users`, and the invoking user's profile
+directory, and whether that is acceptable is much easier to judge sitting at the
+host it applies to. Option 4's merit is also easier to see next to a running
+suite.
+
+`parked_on` stays `awaiting-product-decision`, which remains exactly true. The
+card is not blocked on a Windows host in the `50-blocked/` sense — the *decision*
+does not require one — but the owner has asked for it to be taken there, so it
+waits.
+
+The seven tests this decision is worth are unchanged, and nothing else in the
+Windows program is blocked by it.

@@ -80,3 +80,39 @@ The verification app is private and owner-only under
 `rfc0016-private-owner-only-2026-08-13`. This narrows the accepted registration
 authority; it does not establish an any-account production identity or permit
 production selection for other GitHub accounts.
+
+## Operator direction — one recovery early poll authorized — 2026-08-20
+
+Recorded verbatim:
+
+> Granted
+
+This is the plain operator direction this card's own text required:
+
+> After a new plain operator direction authorizes exactly one recovery early
+> poll, all five courses must be recaptured under the repaired runner and one
+> runner digest; mixed-runner assembly stays forbidden.
+
+### What this authorizes, stated narrowly
+
+Exactly **one** recovery early poll, against the device-authorization endpoint,
+under the repaired runner, using the private owner-only `BPR-Test` identity. It
+carries its own pre-traffic `O_EXCL` spent marker, and no further retry is
+admitted — the authorization is consumed whether or not the capture succeeds.
+
+It authorizes nothing else. Not repository mutation, not release, not GHES, not
+production selection for any other GitHub account, and not a second attempt if
+this one fails the way the last one did.
+
+### What is not yet established
+
+The last poll reached the wire, GitHub returned the documented `slow_down` with
+its new interval, and the fail-closed runner rejected the body and retained
+nothing — the authority was spent for no evidence. The parser and sanitizer
+repair landed at `69acab3` and `386176f`, and their focused gates pass 39/39,
+40/40, and 2/2 hermetically.
+
+Before spending this authorization, the repair must be shown to accept the exact
+shape that was rejected, hermetically, against a recorded response rather than a
+live one. Spending a single-use grant to discover a second parser gap would waste
+the thing just granted. That check is unattended and comes first.

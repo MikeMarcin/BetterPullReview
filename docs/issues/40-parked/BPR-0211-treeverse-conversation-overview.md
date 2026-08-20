@@ -52,3 +52,29 @@ window width.
 This is a *presentation* card. Nothing here changes what a conversation is, how
 it is fetched, or what RFC-BPR-0002 owns. The data is already a forest of trees
 with a single optional parent per node; both views read the same projection.
+
+## Operator direction — mockups first — 2026-08-20
+
+Recorded verbatim:
+
+> I would like to see mockups before deciding.
+
+This is a request for work, not a deferral. The card asked for a decision with
+nothing to decide against, which was the honest position while there was nothing
+to look at — but "build it, don't build it, or build the other one" is a hard
+question to answer in prose about an interface.
+
+So the disposition changes from *waiting on a decision* to *waiting on a
+deliverable that this session owes*. What is needed is a rendered mockup of each
+alternative, presented as one choose-exactly-one question, in the repository's own
+offline attended review page rather than any other surface — the owner stated that
+preference in the same exchange.
+
+The mockups are not an implementation and must not be mistaken for one. They are
+drawn against the real conversation model this product already has, so that what
+is being judged is a design this codebase could actually reach, not an
+illustration of a design in general.
+
+`parked_on` stays `awaiting-product-decision`: the decision is still what the card
+is for. What changed is that it is now blocked on something buildable rather than
+on the owner.

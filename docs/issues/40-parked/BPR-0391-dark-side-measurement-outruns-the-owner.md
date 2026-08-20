@@ -255,3 +255,29 @@ The preflights are stronger than any earlier version's, too — the complete
 selector set.
 
 The card stays parked on the operator.
+
+## Operator direction — drive it — 2026-08-20
+
+Recorded verbatim:
+
+> you can drive this
+
+This extends the standing authorisation. It previously covered scripting the
+appearance change but **not** focus, and the probe requires a frontmost window —
+which is why what remained was described as "one click". That click is now mine
+to make.
+
+The extension is to *driving the probe*, not to judging its result. [[BPR-0220]]
+rides the same run and asks a causal question — whether an appearance change
+rebuilds the comparison geometry twice because there are two legitimate causes or
+because one change is applied twice. Producing the log is now unattended;
+reading it is analysis, and if it turns out to need a judgement about acceptable
+behaviour rather than a fact about causes, that comes back.
+
+The packet's bound binary is unchanged at
+`sha256:7b9d6be98c89b70a49f0616d2b32b10cb6b5d4a3f238366bed916379a78fcd93`, so the
+run is against exactly the bytes the packet describes.
+
+One consequence worth stating before it happens: the probe changes the operating
+system appearance setting and restores it. Earlier runs of this family recorded
+restoring the owner's original System Dark setting, and this one must do the same.

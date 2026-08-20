@@ -82,3 +82,29 @@ presentation card. The two owners have to agree on it first.
 [[BPR-0211]] is a secondary *view* of a conversation that is hard to follow.
 This is a different thing: the conversation is not hard to follow, it is missing
 the axis that would make it make sense. Neither substitutes for the other.
+
+## Operator direction — mockups first — 2026-08-20
+
+Recorded verbatim:
+
+> I would like to see mockups before deciding.
+
+This is a request for work, not a deferral. The card asked for a decision with
+nothing to decide against, which was the honest position while there was nothing
+to look at — but "build it, don't build it, or build the other one" is a hard
+question to answer in prose about an interface.
+
+So the disposition changes from *waiting on a decision* to *waiting on a
+deliverable that this session owes*. What is needed is a rendered mockup of each
+alternative, presented as one choose-exactly-one question, in the repository's own
+offline attended review page rather than any other surface — the owner stated that
+preference in the same exchange.
+
+The mockups are not an implementation and must not be mistaken for one. They are
+drawn against the real conversation model this product already has, so that what
+is being judged is a design this codebase could actually reach, not an
+illustration of a design in general.
+
+`parked_on` stays `awaiting-product-decision`: the decision is still what the card
+is for. What changed is that it is now blocked on something buildable rather than
+on the owner.

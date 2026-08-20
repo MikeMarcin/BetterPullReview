@@ -288,3 +288,22 @@ The preflights are stronger than any earlier version's, too — the complete
 selector set.
 
 The card stays parked on the operator.
+
+## Operator direction — will grant when prompted — 2026-08-20
+
+Recorded verbatim:
+
+> I will grant if prompted
+
+So the remaining work splits, and only the smaller half is the owner's. Getting
+the application to the point where macOS presents the Notification Center
+permission dialog is unattended: launching the bundle, reaching the composed
+notification path, and requesting authorization. The grant itself, and then
+seeing the banner and clicking it, is the owner's.
+
+[[BPR-0168]] owns the attended pass that the grant enables — banner content
+limited to a name and counts, and a click that opens the correct review.
+
+This card is what made a real banner possible at all: an unbundled binary cannot
+reach Notification Center, and the fix was structural rather than cosmetic. The
+grant is therefore the first time the repaired path can be observed end to end.

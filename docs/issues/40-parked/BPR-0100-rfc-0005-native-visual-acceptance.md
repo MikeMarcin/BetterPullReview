@@ -154,3 +154,25 @@ The preflights are stronger than any earlier version's, too — the complete
 selector set.
 
 The card stays parked on the operator.
+
+## Operator direction — launch it or hand over the command — 2026-08-20
+
+Recorded verbatim:
+
+> I will judge if launched or given launch command
+
+The judgement stays the owner's, which is correct and unchanged — this is
+RFC-BPR-0005's native visual acceptance and no command can hold it. What the
+direction settles is that getting to the point of judgement is not the owner's
+work. Either the application is launched for them, or they are handed the exact
+line to run.
+
+The specific thing to look at first is on the record from the last rejection:
+
+> "How come there's no syntax highlighting?"
+
+so syntax classification on a real file is the first check, not a general
+impression.
+
+The packet's bound binary is unchanged, so a launch now is a launch of exactly
+the bytes `native-visual-acceptance-v003` describes.
