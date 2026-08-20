@@ -215,3 +215,44 @@ only now:
 Both epoch-catalog tests still time out **under the launcher** while passing or
 progressing uncontained. That gap is the container's and belongs to
 [[BPR-0362]].
+
+## One undiagnosed row was stale, diagnosed from macOS — 2026-08-19
+
+`test_network_isolation_structure_contract` is recorded here, and again in
+[[BPR-0358]]'s "13 that remain", as failing because "the isolation verifier's own
+contract rejects the Windows runner: `unsafe-fixture-root`,
+`profile-template-contains-network-allow`". That attribution cannot be right at
+HEAD, and the reason is a date.
+
+Both strings exist in exactly one place, `scripts/run_network_isolated_test.py:64`
+and `:79`, and they are reachable from the test suite only through
+`write_profile`, which `tests/scripts/verify_test_network_isolation_tests.py:31`
+imports directly and calls at `:614`, `:640`, and `:651`. Run against the
+suite's current fixtures on macOS:
+
+| case | fixture root | template | result |
+|---|---|---|---|
+| the `:651` shape | Windows-shaped `C:\Users\...` | pre-granting | `SystemExit 125` from **`profile-template-contains-network-allow`** — the template check runs first, so `seatbelt_string` is never reached |
+| a clean template | Windows-shaped `C:\Users\...` | benign | `SystemExit 125` from **`unsafe-fixture-root`** |
+| the `:614` shape as it stands today | `PurePosixPath("/private/tmp/bpr-fixture")` | benign | writes the profile, no failure |
+
+The middle row is the only way to produce `unsafe-fixture-root`, and it needs a
+Windows-shaped root reaching `seatbelt_string` with a benign template. That was
+the old shape of `test_derived_profile_pins_exact_ports_and_fixture_root`, which
+derived its fixture from the host temporary directory. [[BPR-0349]] replaced it
+with a pure POSIX path at `3b8964e`, 2026-08-17 21:17, and left the reasoning in
+a comment at `:601-608`.
+
+This card's taxonomy was written at `f372f83`, 2026-08-18 10:37, and BPR-0358's
+at `c55f2d7`, 11:05 — both **after** that fix. The row carried a symptom string
+forward from a measurement taken on an older tree.
+
+The `:651` call still passes a real host path, so it is Windows-shaped there, but
+the first row above shows that is harmless: it exits 125 on the template, which
+is the assertion that test makes, on every host.
+
+**What this does and does not settle.** It settles the attribution: neither named
+message can be produced by the suite as it now stands, so the recorded cause is
+gone. It does not settle whether the test passes on Windows — that is unmeasured
+from here, and if it still fails it fails for some other reason and needs a fresh
+capture. The row should be treated as *unmeasured*, not as *diagnosed*.

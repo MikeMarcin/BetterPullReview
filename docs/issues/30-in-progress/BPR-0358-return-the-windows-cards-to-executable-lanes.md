@@ -209,7 +209,7 @@ Cards closed: [[BPR-0359]], [[BPR-0363]], [[BPR-0361]], [[BPR-0365]],
 | the container cannot read any path ancestor | 4 SQLite storage, 2 RFC-0016 security | [[BPR-0362]] — **parked on a product decision** |
 | no Windows symbol inspector for the composed host | `composed_host_verifier_contract` | [[BPR-0364]] |
 | `git init` returns 128 inside the container | `operator_response_validation_contract` | undiagnosed |
-| the isolation verifier rejects the Windows runner | `test_network_isolation_structure_contract` | undiagnosed |
+| ~~the isolation verifier rejects the Windows runner~~ — stale attribution, see below | `test_network_isolation_structure_contract` | unmeasured |
 | temporary root, inside the Dif tool's import boundary; and a PNG canon that may be zlib-version-dependent | `dif_assets_contract` | [[BPR-0350]] records the boundary |
 | undiagnosed | `architecture_boundary_contract`, `dependency_modernization_contract`, `github_contract_fixture_security` | — |
 
@@ -274,3 +274,23 @@ in this program waiting on a person.
 
 The contained matrix still reads 72 of 85. That number understates the run:
 four of the thirteen failures are now the boundary rather than the code.
+
+## One of the thirteen was never diagnosed here — 2026-08-19
+
+`test_network_isolation_structure_contract`'s row above named
+`unsafe-fixture-root` and `profile-template-contains-network-allow` as its cause.
+[[BPR-0347]] carries the measurement that retires that attribution: both strings
+live only in `scripts/run_network_isolated_test.py`, both were reproduced and
+bounded on macOS, and the only suite shape that could emit the first was replaced
+by [[BPR-0349]] at `3b8964e` on 2026-08-17 — hours **before** this table and
+BPR-0347's were written at `c55f2d7` and `f372f83` on 2026-08-18.
+
+So the row was a symptom string carried forward from an older tree, not a
+diagnosis. It is now `unmeasured`: the recorded cause cannot occur, and whether
+the test still fails on Windows needs a fresh capture on that host.
+
+This is the shape worth noticing rather than the single row. A failure taxonomy
+copied forward across runs will keep a cause that a later commit removed, and
+nothing on this board re-checks one. The other five `undiagnosed` rows were
+measured at the same sitting and deserve the same suspicion before anyone spends
+a Windows session on them.
