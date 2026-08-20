@@ -1,9 +1,9 @@
 ---
 id: BPR-0348
 title: Keep the git subprocess error text that failures currently discard
-status: Ready
+status: Backlog
 rfc: RFC-BPR-0003
-depends_on: []
+depends_on: [BPR-0409]
 ---
 
 # Keep the git subprocess error text that failures currently discard
@@ -233,3 +233,80 @@ owner direction, if the diagnostic text is wanted sooner than the three runs.
 
 The card returns to `20-ready/`: the ruling has arrived, and what remains is
 implementation.
+
+## The rule is revised — 2026-08-20
+
+The `cmake/` and documentation half of the ruling is done. The `src/` half is
+[[BPR-0409]], and this card now depends on it.
+
+### What changed
+
+`cmake/VerifyArchitectureBoundaries.cmake` no longer forbids the port any text.
+The revision is a narrowing, and it is written down in three places rather than
+one: the rule itself carries its rationale as comments, the mechanism is
+enforced, and `docs/architecture/security-threat-model.md` gains "A failing
+subprocess may explain itself" under Process handling — the section whose
+standing instruction already reads "use bounded stdin/stdout/stderr, timeouts,
+cancellation, and redaction".
+
+The distinction the ruling demanded is stated where someone will hit it: both
+documents arguing for carrying nothing — `review-queue.md` for the operating
+system's notification store, `ai-agent-boundary.md` for the AI supplement — are
+about repository content **leaving the product**, and both reject redaction on
+the grounds that it is a place a silent mistake can live. A git diagnostic
+travels from an adapter to the application that invoked it and reaches the
+operator who caused it. It does not leave the product and it is not repository
+content.
+
+### What it still forbids, which is the half that makes it a revision
+
+- **Collections stay forbidden.** `std::string` and `std::vector` shared one
+  alternation, `"(std::string|std::vector)"`. Dropping the string half without
+  separating them would have admitted argument and environment lists in the same
+  edit — a removal wearing a revision's name. They are now separate rules.
+- **Exactly one text member, named `Detail`**, enforced by count, so a second
+  string cannot arrive unnoticed and be argued about afterwards.
+- **The named-authority patterns still apply to it**, so a URL, credential,
+  authorization, proxy, or certificate field is rejected by name whatever its
+  type.
+
+### The mechanism, and the bug the test caught
+
+The check counts occurrences of `std::string` and of `std::string[ \t]+Detail`
+and requires them equal. The first attempt iterated matched *lines* instead, and
+the meta-test rejected the very shape the rule exists to permit:
+
+```
+Git application port carries text outside its one permitted diagnostic
+member 'Detail': struct git_process_error { int Code
+```
+
+`string(REGEX MATCHALL)` yields a CMake list, a CMake list splits on `;`, and a
+C++ declaration is full of semicolons — so the loop was handed the fragment
+`struct git_process_error { int Code` and failed it. Counting sidesteps this,
+because neither match can contain a semicolon. Recorded because a gate that
+rejects correct code is worse than the gate it replaced, and only the positive
+fixture caught it.
+
+### Verification matrix
+
+| claim | surface | command | proves it | result | evidence |
+|---|---|---|---|---|---|
+| the live tree still passes the gate | `architecture_boundaries` | `ctest -R '^architecture_boundaries$'` | it runs `cmake -P` over the real port header | pass, 4.71 s | this commit |
+| the narrowed rule behaves in both directions | `architecture_boundary_contract` | `ctest -R '^architecture_boundary_contract$'` | it plants synthetic port contents and asserts the scan fires or does not | pass, 56.76 s | this commit |
+| the permitted shape is accepted | new fixture | `std::string Detail` planted on the port | without this the revision would be unusable | exit 0 | this commit |
+| a second string is rejected | new fixture | `std::string Chatter` planted | `Chatter` matches no named-authority pattern, so only the new rule can reject it | fails as designed | this commit |
+| collections are still rejected | new fixture | `std::vector<int> Values` planted | `Values` matches no named-authority pattern, so only the collection rule can reject it | fails as designed | this commit |
+| the meta-test suite grew rather than shifted | `tests/scripts/architecture_boundary_tests.py` | `python3 tests/scripts/architecture_boundary_tests.py` | 122 cases | **122, OK**, was 119 | this commit |
+| the board stays consistent | `scripts/verify_documentation.py` | `python3 scripts/verify_documentation.py --root .` | lane, status, dependency, and frontier rules | `DOCUMENTATION_OK` | this commit |
+| the dev application is untouched | the bound binary | `shasum -a 256 build/dev/.../better_pull_review` | a relink invalidates three pending operator packets | `7b9d6be9…a78fcd93`, unchanged | this commit |
+
+### This card does not close
+
+Its own required final state is entirely about behaviour — bounded stderr
+retained, success textless, URLs redacted, an unmaterializable workspace
+distinguished from a launch failure, proven by a test. None of that is true yet,
+because none of it is in `cmake/`. What exists now is a permissive rule with no
+user, named as such rather than left to be discovered.
+
+[[BPR-0409]] carries the restoration and this card depends on it.

@@ -227,6 +227,49 @@ All API, Git, diff, syntax, Markdown, agent, and settings inputs are untrusted. 
 - Construct explicit child environments from approved names for sensitive
   processes; never inherit everything and then scrub known names.
 
+### A failing subprocess may explain itself
+
+The Git application port carries one bounded, redacted diagnostic member. This is
+a narrowing of a rule that previously forbade the port any text at all, and the
+reason for writing it down is that two other documents in this directory argue
+the opposite for their own destinations, and the difference between them is not
+obvious from either one.
+
+`review-queue.md` says a notification carries no source and no comment body,
+because the operating system's notification store outlives the application, is
+readable by other software, and may be synchronised to the user's other devices.
+`ai-agent-boundary.md` says a supplement carries only explicitly selected notes,
+because it goes to a tool the reviewer did not write. Both rules are about
+**repository content leaving the product**, and both reject redaction as the
+remedy on the same grounds: a redaction step is a place a silent mistake can
+live.
+
+A git diagnostic is not that. It does not leave the product — it travels from an
+adapter to the application that invoked it, and reaches the operator who caused
+it. It is not repository content; it is the subprocess describing why it refused.
+And "use bounded stdin/stdout/stderr, timeouts, cancellation, and redaction" is
+already the standing instruction directly above, so redaction here is the rule
+rather than an exception to one.
+
+What forbidding it cost was concrete: a pack-write failure three layers down
+surfaced to the operator as "agent failed to start", and diagnosing it needed an
+instrumented build to recover text the process had already printed.
+
+The narrowing is bounded in four ways, and `cmake/VerifyArchitectureBoundaries.cmake`
+enforces the first three mechanically:
+
+- exactly one text member on the port, so a second cannot arrive unnoticed;
+- collections stay forbidden — an argument or environment list is authority, not
+  diagnosis, and text and collections are now separate rules precisely so that
+  permitting one cannot permit the other in a single edit;
+- the named-authority patterns still apply to that member, so a URL, credential,
+  authorization, proxy, or certificate field is rejected by name whatever its
+  type;
+- remote URLs are redacted in the adapter before the text reaches the port. Refs
+  and local paths are not, deliberately: they are the diagnosis.
+
+Product-owner ruling, BPR-0348, 2026-08-19.
+
 Native HTTPS is the sole milestone-one production authentication transport.
 Visible CLI selections return fixed typed `cli_unavailable` before transport
 construction, CLI executable/configuration discovery, or process launch. The

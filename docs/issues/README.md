@@ -655,7 +655,7 @@ three answers it needs:
 | BPR-0240 | `30-in-progress/` | A Windows session. Its portable gates have run; `windows_agent_process.cpp` has never been compiled and only a Windows toolchain can |
 | BPR-0391, BPR-0392 | `40-parked/` | A person running a regenerated packet: the appearance foreground pass and the notification banner |
 | BPR-0362 | `40-parked/` | A product decision nobody has made yet |
-| BPR-0348 | `20-ready/` | Nothing. The ruling arrived on 2026-08-19: revise the gate, with the revision written down |
+| BPR-0409 | `20-ready/` | Nothing, but it relinks the application. Startable the moment the dev-binary hold lifts, or on owner direction |
 | BPR-0408 | `20-ready/` | Nothing for its PNG half. Its digests-file half carries one question the BPR-0378 verdict did not reach |
 | BPR-0310, BPR-0314 | `50-blocked/` | A Linux host; both are `platform-linux` |
 

@@ -2092,13 +2092,34 @@ foreach(forbidden_git_process_pattern IN LISTS forbidden_git_process_patterns)
     endif()
 endforeach()
 
+# The Git application port may carry bounded, redacted diagnostic text.
+#
+# This rule used to forbid `std::string` outright, alongside `std::vector`. That
+# cost real diagnosis: a failing `git` subprocess explains itself on standard
+# error, the port had nowhere to put that explanation, and BPR-0341 needed an
+# instrumented build to recover text the process had already printed.
+#
+# Two architecture documents argue that a destination should carry nothing —
+# `docs/architecture/review-queue.md` for the operating system's notification
+# store, and `docs/architecture/ai-agent-boundary.md` for the supplement sent to
+# a third-party agent. Both are about **repository content leaving the product**:
+# a notification store outlives the application and may sync to other devices, and
+# an AI supplement goes to a tool the reviewer did not write. Neither describes
+# this port. A diagnostic returned from an adapter to the application that invoked
+# it does not leave the product, is read by the operator who caused it, and is
+# already the standing instruction for subprocesses — see
+# `docs/architecture/security-threat-model.md`, "Use bounded stdin/stdout/stderr,
+# timeouts, cancellation, and redaction."
+#
+# So the rule is narrowed rather than removed, and what it still forbids is
+# stated below. Product-owner ruling on BPR-0348, 2026-08-19.
 set(
     forbidden_git_public_port_patterns
     "#[ \t]*include[ \t]*[<\"]Q"
     "(^|[^A-Za-z0-9_])Q[A-Z][A-Za-z0-9_]*"
     "(Arguments|Environment|WorkingDirectory|Timeout|OutputLimit)"
     "(URL|Url|URI|Credential|Authorization|Proxy|Certificate)"
-    "(std::string|std::vector)"
+    "std::vector"
 )
 foreach(forbidden_pattern IN LISTS forbidden_git_public_port_patterns)
     if(git_process_port_contents MATCHES "${forbidden_pattern}")
@@ -2109,6 +2130,50 @@ foreach(forbidden_pattern IN LISTS forbidden_git_public_port_patterns)
         )
     endif()
 endforeach()
+
+# `std::vector` stays forbidden above, because an argument or environment list is
+# authority rather than diagnosis. Dropping `std::string` from that same
+# alternation would have admitted both in one edit, which is why they are now
+# separate: text is permitted, collections are not.
+#
+# Permitting text is not permitting arbitrary text. The port may carry exactly one
+# diagnostic member, so a second string cannot arrive unnoticed and be argued
+# about afterwards. The named-authority patterns above still apply to it, so a
+# `std::string Url` or `std::string Credential` is rejected by name regardless of
+# this allowance.
+#
+# Counted rather than matched line by line: a declaration contains semicolons,
+# `string(REGEX MATCHALL)` yields a CMake list, and a list splits on `;` — so
+# iterating "lines" would hand this loop the fragment `struct git_process_error {
+# int Code` and reject the very shape the rule exists to permit. Counting the two
+# forms sidesteps that, because neither match can contain a semicolon.
+string(
+    REGEX MATCHALL "std::string"
+    git_process_port_text_uses "${git_process_port_contents}"
+)
+string(
+    REGEX MATCHALL "std::string[ \t]+Detail"
+    git_process_port_permitted_text_uses "${git_process_port_contents}"
+)
+list(LENGTH git_process_port_text_uses git_process_port_text_count)
+list(
+    LENGTH
+    git_process_port_permitted_text_uses
+    git_process_port_permitted_text_count
+)
+if(NOT git_process_port_text_count EQUAL git_process_port_permitted_text_count)
+    message(
+        FATAL_ERROR
+        "Git application port carries text outside its one permitted "
+        "diagnostic member 'Detail'"
+    )
+endif()
+if(git_process_port_permitted_text_count GREATER 1)
+    message(
+        FATAL_ERROR
+        "Git application port declares more than one diagnostic member 'Detail'"
+    )
+endif()
 if(
     git_process_factory_contents MATCHES "#[ \t]*include[ \t]*[<\"]Q"
     OR git_process_factory_contents MATCHES "BPR_[A-Z0-9_]*TEST"

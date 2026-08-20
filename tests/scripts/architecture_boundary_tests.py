@@ -1645,6 +1645,55 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             },
         )
 
+    def test_git_application_port_permits_one_bounded_diagnostic_string(
+        self,
+    ) -> None:
+        # BPR-0348. The gate used to forbid `std::string` outright, which is why
+        # a failing git subprocess could not explain itself. The ruling permits
+        # exactly one diagnostic member.
+        result = self.run_check(
+            {
+                "src/application/include/bpr/application/"
+                "git_process_port.hpp":
+                    GIT_PROCESS_PORT
+                    + "\nstruct git_process_error { int Code; "
+                    "std::string Detail; };\n"
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_git_application_port_rejects_text_outside_the_diagnostic_member(
+        self,
+    ) -> None:
+        # Permitting text is not permitting arbitrary text: a second string
+        # cannot arrive unnoticed. `Chatter` matches none of the named-authority
+        # patterns, so this isolates the new rule rather than an older one.
+        self.assert_failure(
+            "carries text outside",
+            {
+                "src/application/include/bpr/application/"
+                "git_process_port.hpp":
+                    GIT_PROCESS_PORT
+                    + "\nstruct hostile { std::string Chatter; };\n"
+            },
+        )
+
+    def test_git_application_port_still_rejects_collections(self) -> None:
+        # `std::string` and `std::vector` used to share one alternation. Removing
+        # the string half without separating them would have admitted argument
+        # and environment lists in the same edit. `Values` matches no
+        # named-authority pattern, so only the collection rule can reject this.
+        self.assert_failure(
+            "Git application port exposes forbidden process/provider "
+            "authority",
+            {
+                "src/application/include/bpr/application/"
+                "git_process_port.hpp":
+                    GIT_PROCESS_PORT
+                    + "\nstruct hostile { std::vector<int> Values; };\n"
+            },
+        )
+
     def test_installed_git_target_rejects_test_only_seams(self) -> None:
         self.assert_failure(
             "must not compile a test-only production seam",
