@@ -116,3 +116,49 @@ Before spending this authorization, the repair must be shown to accept the exact
 shape that was rejected, hermetically, against a recorded response rather than a
 live one. Spending a single-use grant to discover a second parser gap would waste
 the thing just granted. That check is unattended and comes first.
+
+## The precondition is discharged, and the poll is still attended — 2026-08-20
+
+### The repair admits the shape that was rejected
+
+This card recorded that spending the grant to discover a second parser gap would
+waste it, so the repair was proven hermetically first. Same body, same
+registration provenance built by each version's own functions, no network:
+
+| parser | result |
+|---|---|
+| before the repair, `69acab3^` | **REJECTED** — `ContractError: response schema mismatch` |
+| at HEAD | **ACCEPTED** — `interval=10`, projection values `['error', 'interval', 'official_error_uri']` |
+
+The body is the documented one: `error=slow_down`, its description, the
+`docs.github.com` error URI, and `interval`. The cause is visible in one line of
+the exact-key table, `capture_rfc0016_device_contracts.py:234`:
+
+```
+before:  "slow_down": ["error", "error_description", "error_uri"]
+at HEAD: "slow_down": ["error", "error_description", "error_uri", "interval"]
+```
+
+Exact-key enforcement is what discarded the real response and left the first
+authorization spent for nothing. It no longer does. Both hermetic suites also
+pass at HEAD: 39/39 and 40/40.
+
+### The grant authorizes the poll; it does not make it unattended
+
+The owner granted one recovery early poll and asked for unattended work from that
+point. Those do not compose here, and it is a property of the protocol rather
+than of the authorization.
+
+Device authorization requires a person. `run_rfc0016_device_capture_attended.py`
+has `show_device_code(user_code)` at `:805` and `present(grant.user_code)` at
+`:1034`, and the capture's own provenance records
+`observation_method: attended_github_settings_page` at `:1374`. Someone must read
+the user code, open the verification URL, enter it, and authorize. No unattended
+session can supply that, and a run that reaches the poll without it consumes the
+single-use marker and captures nothing — exactly the failure this card is
+recovering from.
+
+So the card stays in `40-parked/` under `awaiting-owner-verdict`. What changed is
+that the last unattended obstacle is gone: the authorization is granted, the
+parser is proven against the shape that defeated it, and the next action is one
+attended session that recaptures all five courses under one runner digest.
