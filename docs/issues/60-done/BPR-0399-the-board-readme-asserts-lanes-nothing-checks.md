@@ -1,7 +1,7 @@
 ---
 id: BPR-0399
 title: The board README asserts lanes that nothing checks
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
 ---
@@ -85,3 +85,44 @@ python3 tests/scripts/verify_documentation_tests.py
 ctest --test-dir build/core-only --output-on-failure \
   -R '^(documentation_structure|documentation_issue_graph_contract)$'
 ```
+
+## Result — 2026-08-19
+
+Base `d9f73f3`. `7d944d9` claimed the card, `dcffbe9` repaired the file and added
+`verify_frontier_roots`, and this commit closes it.
+
+### What each rule was proven against
+
+Every rule was run against a tree where its claim is false. The controls are
+`git archive` extractions outside the working tree, so none touched the shared
+checkout.
+
+| claim | control | result |
+|---|---|---|
+| an omitted root fails | archive of `7d944d9`, the real pre-repair file | fails: `omits BPR-0310, which is in 50-blocked/` |
+| a wrong lane fails | repaired file with the blocked row relabelled `40-parked/` | fails: `puts BPR-0310 in 40-parked/, but it is in 50-blocked/` |
+| a closed card listed as a root fails | repaired file with BPR-0262 added to a row | fails: `lists BPR-0262, which is not in a lane where work can start` |
+| a stated count that disagrees fails | repaired file with the count set back to sixteen | fails: `says 'sixteen' roots but the table lists 19` |
+| the repaired tree passes | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+| the rules hold in isolation | `python3 tests/scripts/verify_documentation_tests.py` | 94 tests, OK — was 86 |
+| the registered gates still pass | `ctest -R '^(documentation_structure\|documentation_issue_graph_contract)$'` | 2/2 pass |
+| no whitespace damage | `git diff --check` | clean |
+
+### The check was exercised in both directions
+
+This card put itself in the table while it was in `30-in-progress/`, at a count
+of nineteen, and took the row out again on closing, back to eighteen. That is
+the friction the rule buys, and it is worth stating plainly: every card that
+enters or leaves an active or waiting lane now costs one table row. The
+alternative was to keep a completeness claim that had already failed twice.
+
+### What this does not claim
+
+The transitive-closure sentence — that all 52 backlog cards reach a root — is
+still derived from the dependency graph the verifier already checks, not from
+this table. The check proves the table lists the right roots; it does not prove
+the closure.
+
+Prose outside the table is deliberately unchecked. A sentence may narrate a past
+lane legitimately, and the eight repairs above were made by reading each card's
+folder rather than by pattern.
