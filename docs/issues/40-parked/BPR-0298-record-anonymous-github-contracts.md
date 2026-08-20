@@ -1,9 +1,10 @@
 ---
 id: BPR-0298
 title: Record anonymous GitHub service contracts
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0017
 depends_on: [BPR-0297, BPR-0405]
+parked_on: awaiting-live-github
 ---
 
 # Record anonymous GitHub service contracts
@@ -64,3 +65,38 @@ So [[BPR-0405]] owns the injection mechanism and its schema, seeded with the
 documented header names, and **this card owns the fixture's values**. That is an
 interpretation of this card's text, not a measurement; correct it there if a
 better reading appears.
+
+## The upstream half landed, so this is parked rather than queued — 2026-08-20
+
+[[BPR-0405]] is done: `scripts/record_rfc0017_anonymous_contracts.py` exists
+with the interface the ledger commits to, its 36 hermetic tests pass, and
+`docs/verification/reviews/rfc0017-anonymous-probe-v001/operator-packet.md`
+carries the authority block the script parses. [[BPR-0297]] was already done.
+
+So no card is in front of this one any more, which is what `10-backlog/` meant.
+What is in front of it is a person and a service, which is `40-parked/` under
+`awaiting-live-github`.
+
+Two things must happen in order, and neither is a card:
+
+1. The operator returns the packet's exact statement. Until then the script
+   refuses to issue a single request — that refusal is tested, not asserted.
+2. The five authorized requests run once, against a 60-per-hour unauthenticated
+   budget, and their sanitized responses are written under the packet's own
+   directory.
+
+### What this card still owns, unchanged
+
+The conditional-`304` accounting and the synthetic rate-exhaustion fixture are
+still this card's, for the reason settled at `2e998d7`: both need values only
+the first capture can supply — a real `ETag`, and real budget headers to shape
+an exhaustion from. [[BPR-0405]]'s packet says so rather than implying its
+authority covers them.
+
+One thing to check before running: the packet names `octocat/Hello-World` pull
+request 1 and states plainly that it could not confirm the pull request is live,
+because confirming it would have required the request being authorized. If it is
+absent the capture records a 404 and the target should be replaced with a public
+pull request of the operator's choosing — which changes the authority digest,
+and therefore invalidates any capture already taken under the old one. That is
+the mechanism working.

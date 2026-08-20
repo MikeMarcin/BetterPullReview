@@ -656,6 +656,7 @@ three answers it needs:
 | BPR-0406 | `30-in-progress/` | Nothing. Rebuilding the live-publication capsule and packet from the committed tree; the capsule graph is separate from `build/dev`, so the hold does not reach it |
 | BPR-0211, BPR-0212 | `40-parked/` | A product decision: owner-deferred, and RFC-scale rather than a slice |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
+| BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
 | BPR-0240 | `30-in-progress/` | A Windows session. Its portable gates have run; `windows_agent_process.cpp` has never been compiled and only a Windows toolchain can |
 | BPR-0391, BPR-0392 | `40-parked/` | A person running a regenerated packet: the appearance foreground pass and the notification banner |
 | BPR-0362 | `40-parked/` | A product decision nobody has made yet |
@@ -680,7 +681,7 @@ and fails when they disagree, so a card entering or leaving `20-ready/`,
 under the wrong lane, or left behind after it closes.
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these seventeen roots or reaches one
+card on this board is either one of these eighteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 52 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
