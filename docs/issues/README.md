@@ -77,13 +77,18 @@ sha256:7b9d6be98c89b70a49f0616d2b32b10cb6b5d4a3f238366bed916379a78fcd93
 51,085,872 bytes
 ```
 
-They are `appearance-scheme-foreground-v007` ([[BPR-0391]], with [[BPR-0220]]'s
-causal question on the same run), `native-notification-delivery-v005`
-([[BPR-0392]], with [[BPR-0168]]'s attended pass on the same run), and
-`native-visual-acceptance-v003` ([[BPR-0100]]), all under
-`docs/verification/reviews/`.
+**Two** remain pending: `appearance-scheme-foreground-v007` ([[BPR-0391]], with
+[[BPR-0220]]'s causal question on the same run) and `native-visual-acceptance-v003`
+([[BPR-0100]]), both under `docs/verification/reviews/`.
 
-**Relinking that executable invalidates all three at once, and it has already
+The third, `native-notification-delivery-v005` ([[BPR-0392]] and [[BPR-0168]]),
+**was run on 2026-08-20 and passed** — exit 0 with all eight required markers, a
+real macOS banner delivered, read, and activated onto the intended review. Its
+evidence is captured, so it no longer needs these bytes and no longer holds them.
+[[BPR-0168]] stays parked on one short description of the banner as seen rather
+than on another run.
+
+**Relinking that executable invalidates both at once, and it has already
 happened three times in a row.** Each time the rebuild was a legitimate repair
 made by a session with no reason to know three attended artifacts were
 downstream of the link step.
