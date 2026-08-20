@@ -1,7 +1,7 @@
 ---
 id: BPR-0398
 title: Superseded operator packets still advertise themselves as live
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
 ---
@@ -116,3 +116,51 @@ ctest --test-dir build/core-only --output-on-failure \
 
 The verifier check must fail before the fix and pass after it; a check that only
 passes proves routing, not the claim.
+
+## Result — 2026-08-19
+
+Base `8a44fb6`. Three commits: `8ffb581` claimed the card, `db8ff1f` repaired the
+packets and the three cards, `07b7b34` added the guard and its tests.
+
+### The guard, and what each rule was proven against
+
+Every rule was run against a tree where its claim is false, not only against the
+repaired one. Each negative control is a `git archive` of a real commit extracted
+outside the working tree, so none of them touched a shared checkout.
+
+| claim | command | proves it | result |
+|---|---|---|---|
+| a superseded packet cannot keep claiming pending | `verify_documentation.py --root <archive of 8ffb581>` | the pre-repair tree is the real failing case | fails: `appearance-scheme-foreground-v002 ... still claims to be pending` |
+| an open card cannot name only a superseded packet | archive of `db8ff1f` with BPR-0220's pointer reverted to v004 | reproduces the exact defect this card opened on | fails: `names appearance-scheme-foreground-v004 but not the live ...-v007` |
+| an answered packet's bytes cannot be edited | archive of `db8ff1f` with one word changed in `rfc0016-prerequisite-exception-v001` | the digest is the operator's authority | fails: `binds reviewed_packet at sha256:4a58fa... but ... is now sha256:6eeb60...` |
+| the repaired tree passes all three | `python3 scripts/verify_documentation.py --root .` | — | `DOCUMENTATION_OK` |
+| the rules hold in isolation | `python3 tests/scripts/verify_documentation_tests.py` | 8 new cases, including both accept cases | 86 tests, OK — was 78 |
+| the registered gates still pass | `ctest --test-dir build/core-only -R '^(documentation_structure\|documentation_issue_graph_contract)$'` | the board's own contract suite | 2/2 pass |
+| no whitespace damage | `git diff --check 8a44fb6..HEAD` | — | clean |
+
+No C++ changed, so no `clang-format` was owed. The repository has no Python
+format or lint gate to run.
+
+### A digest sweep, and the one drift that is not a defect
+
+Checking every artifact bound by a `validation-record.json` found all ten
+packet-local bindings intact — which is the direct evidence that leaving the two
+answered rfc0016 packets alone was right, rather than merely cautious.
+
+One binding does not match: `official_validator` names
+`.agents/skills/bpr-attended-review/scripts/validate_operator_packet.py` at 20,829
+bytes, and the file is now 21,401. That is not drift to repair. Both records pin
+`validated_commit: e36c2b4`, and the validator was deliberately changed afterwards
+at `d348be9`. The record attributes a past validation to the tool as it stood
+then. The guard therefore freezes only artifacts inside a record's own review
+directory, and this case is why the boundary is drawn there rather than at "every
+bound path".
+
+### What this does not close
+
+Nothing attended. The three live packets — `appearance-scheme-foreground-v007`,
+`native-notification-delivery-v005`, `native-visual-acceptance-v003` — are
+unchanged and still pending, and their bound executable digest is untouched:
+every commit here is documentation, tests, or the verifier script, so no card in
+this run could rebuild the binary. [[BPR-0114]], [[BPR-0168]], [[BPR-0220]],
+[[BPR-0100]], [[BPR-0391]], and [[BPR-0392]] all remain open on the owner.
