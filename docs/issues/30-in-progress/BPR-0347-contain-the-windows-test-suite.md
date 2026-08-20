@@ -281,8 +281,15 @@ capture. The row should be treated as *unmeasured*, not as *diagnosed*.
   `tests/scripts/dependency_modernization_tests.py:115` asserted a Qt policy
   `fbf0f18` had replaced. Closed at `6e068a1` and `9050b93` on 2026-08-19.
 
-`dif_assets_contract` is the only remaining row not re-checked; [[BPR-0350]] and
-[[BPR-0378]] hold its two halves.
+`dif_assets_contract` was the only remaining row not re-checked. [[BPR-0402]]
+has now measured it, and the result is weaker than the five retirements above:
+it passes here — `core-only` 1/1 in 27.34 s, `dif_asset_tests.py` 35/35 — and
+that discharges nothing. This interpreter links stock zlib 1.2.12, which is the
+stated precondition of [[BPR-0378]]'s exemption rather than a test of it, and
+[[BPR-0350]]'s import-boundary half was reverted at `acb36e5`, so the path that
+failed is not present to fail. The row is **measured and still unmeasured for
+Windows**, which is not the same as retired: nothing removed its cause, this
+host merely cannot reach it.
 
 **Five of this card's thirteen remaining rows did not need a Windows session at
 all.** They needed the taxonomy re-read against the commits that landed after it.

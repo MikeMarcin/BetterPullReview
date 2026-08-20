@@ -232,13 +232,21 @@ py -3 tests/scripts/verify_documentation_tests.py     78 tests, OK
 git diff --check 605aa56..HEAD                        clean
 clang-format on the one C++ file this run changed     clean
 ctest --preset core-only                              72/85
-cmake --build --target coding-format-check            FAILS, pre-existing, [[BPR-0367]]
+cmake --build --target coding-format-check            FAILED here; see below
 ```
 
-The format gate's failure is one file, `src/app/src/github_application.cpp`,
-last touched before this program's base and untouched by it. [[BPR-0367]] carries
-it, including the open question of whether the file is misformatted or the tool
-version disagrees.
+The format gate's failure was one file, `src/app/src/github_application.cpp`,
+last touched before this program's base and untouched by it. [[BPR-0367]]
+carried it, including the open question of whether the file was misformatted or
+the tool version disagreed.
+
+**That question is answered and this line is stale.** [[BPR-0367]] is in
+`60-done/` and its fix landed at `14a654d`. Measured at HEAD with the tool the
+gate uses, `clang-format --dry-run --Werror -style=file
+src/app/src/github_application.cpp` is clean under Homebrew clang-format 22.1.8.
+Corrected by [[BPR-0402]], which found it the same way this card found its own
+five stale taxonomy rows: by reading a recorded result against the commits that
+landed after it.
 
 The Qt graph under the boundary is still not attempted, unchanged by any of this.
 
@@ -331,7 +339,11 @@ The last two resolved the same way:
   2026-08-19. It was *found* during the Windows program and recorded so it would
   not be mistaken for one — and this table mistook it for one anyway.
 
-`dif_assets_contract` is the only row not re-checked here; [[BPR-0350]] and
+`dif_assets_contract` was the only row not re-checked here. [[BPR-0402]] has
+since measured it and it does **not** join the retirements: it passes on macOS
+for reasons that cannot speak to Windows — stock zlib 1.2.12 is the precondition
+of [[BPR-0378]]'s exemption, and [[BPR-0350]]'s half was reverted at `acb36e5` —
+so the row is measured and still unmeasured for Windows. [[BPR-0350]] and
 [[BPR-0378]] hold its two halves.
 
 ### What the table actually says now

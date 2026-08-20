@@ -1,7 +1,7 @@
 ---
 id: BPR-0402
 title: Re-check the last Windows row, and two claims the board outran
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
 ---
@@ -129,3 +129,36 @@ python3 scripts/verify_documentation.py --root .
 python3 tests/scripts/verify_documentation_tests.py
 git diff --check
 ```
+
+## Result — 2026-08-19
+
+All three corrections landed. Nothing under `src/` was touched, so the dev
+application binary is unchanged and the three pending operator packets that bind
+its bytes are intact.
+
+| claim | surface | command | proves it | result | evidence |
+|---|---|---|---|---|---|
+| `dif_assets_contract` passes on this host | `core-only` graph | `ctest --test-dir build/core-only -R '^dif_assets_contract$'` | the registered contract runs and reports | 1/1 pass, 27.34 s | this commit |
+| …and the same assets check passes directly | `tests/scripts/dif_asset_tests.py` | `python3 tests/scripts/dif_asset_tests.py` | it exercises the canon without CTest framing | 35 tests, OK | this commit |
+| …and neither result can speak to Windows | `zlib` linkage; `scripts/dif_assets.py` imports | `python3 -c "import zlib; print(zlib.ZLIB_RUNTIME_VERSION)"`; read the import list | stock `1.2.12` is [[BPR-0378]]'s stated exemption precondition, and [[BPR-0350]]'s reverted half is absent at HEAD | `1.2.12`; `tempfile` only | this commit |
+| the format gate does not fail at HEAD | the tool the gate invokes | `clang-format --dry-run --Werror -style=file src/app/src/github_application.cpp` | `--Werror` makes any disagreement a nonzero exit | clean, exit 0, clang-format 22.1.8 | this commit |
+| [[BPR-0367]] is terminal | issue board | front matter of the card in `60-done/` | lane placement is authoritative | `status: Done`, fix at `14a654d` | this commit |
+| the README sentence was falsified by later commits | `git log` | `git log -1 --format='%ci' 7dd4641` and `0c4b3b7` | the sentence's commit precedes three commits that are counterexamples to it | 21:30:10 vs 21:44:38, same day | this commit |
+| the corrections keep the board consistent | `scripts/verify_documentation.py` | `python3 scripts/verify_documentation.py --root .` | it rejects lane/status disagreement and a frontier table that does not match the lanes | `DOCUMENTATION_OK` | this commit |
+| the documentation contract suite still passes | `tests/scripts/verify_documentation_tests.py` | `python3 tests/scripts/verify_documentation_tests.py` | 94 cases including the frontier-derivation cases [[BPR-0399]] added | 94 tests, OK | this commit |
+| no whitespace damage | Git | `git diff --check` | it fails on trailing whitespace and conflict markers | clean | this commit |
+
+### What this card deliberately did not do
+
+The `dif_assets_contract` row is **not** retired. Measuring a green result on a
+host that cannot reproduce the failure is evidence about the host, not about the
+claim, and recording it as a retirement would repeat the exact error this card
+was opened to correct.
+
+[[BPR-0334]]'s extraction of the duplicated agent protocol loop was identified
+as portable — the shared loop can be written and proven behind a fake transport
+without compiling the Windows translation unit — and was still not done here,
+for a reason that is not about portability: it edits `src/`, and a relink
+invalidates three operator packets a person is currently expected to act on.
+That is a sequencing constraint worth naming rather than a hidden one, and it
+expires the moment those three verdicts are returned.

@@ -613,7 +613,6 @@ three answers it needs:
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | A digest-bound attended packet, then a real GitHub call |
 | BPR-0240 | `30-in-progress/` | Nothing. Its portable gates have run and target-native Windows is this host |
-| BPR-0402 | `30-in-progress/` | Nothing. It re-checks the last unchecked Windows row and two board claims that later commits falsified |
 | BPR-0391, BPR-0392 | `40-parked/` | A person running a regenerated packet: the appearance foreground pass and the notification banner |
 | BPR-0348, BPR-0362, BPR-0378 | `40-parked/` | A product decision nobody has made yet |
 | BPR-0310, BPR-0314 | `50-blocked/` | A Linux host; both are `platform-linux` |
@@ -636,7 +635,7 @@ and fails when they disagree, so a card entering or leaving `20-ready/`,
 under the wrong lane, or left behind after it closes.
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these nineteen roots or reaches one
+card on this board is either one of these eighteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 52 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
@@ -659,12 +658,26 @@ a card only when its work "requires target-native execution on a **different**
 operating system" — and returning these would make the lane mean "was blocked
 once", which is the reading BPR-0319 built it to prevent.
 
-The consequence is worth stating plainly, because it is not a temporary
-condition of one afternoon. **No unattended work on this board is executable
-from a macOS session today.** The three active-lane roots need Windows; the
-thirteen parked roots need a person, a product decision, or a live GitHub call;
-the two blocked ones need Linux. A macOS session that finds itself with nothing
-to do here has read the board correctly.
+This section used to draw a stronger consequence: **"No unattended work on this
+board is executable from a macOS session today."** [[BPR-0402]] retired that
+sentence, and the counterexample was already in the log when it was written. It
+landed at `7dd4641`, 2026-08-19 21:30:10. The next three commits — `365c662`,
+`e07183d`, and `0c4b3b7` at 21:44:38 — are unattended macOS work on this board,
+and they are the commits that retired five of BPR-0347's thirteen taxonomy rows.
+
+What is true is narrower, and it is about *execution*, not about work. **No
+target-native execution and no attended verdict is available from a macOS
+session.** The three Windows active-lane roots cannot run their suites here, the
+parked roots need a person, a product decision, or a live GitHub call, and the
+two blocked ones need Linux.
+
+What that leaves is not nothing. A recorded claim can be re-read against the
+commits that landed after it from any host, and on the current evidence that is
+the highest-yield portable work on this board: it has retired five taxonomy rows
+and three board claims across two sessions without a single Windows run. A card
+whose *next* action is unattended also does not belong in `40-parked/`, which is
+how [[BPR-0256]] came back to an active lane. A macOS session that finds itself
+with nothing to do here should check that reading before accepting it.
 
 Everything else in `10-backlog/` reaches one of those roots transitively.
 
