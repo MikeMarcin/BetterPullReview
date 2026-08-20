@@ -64,6 +64,45 @@ spending that on every slice buys nothing a focused selector did not already
 prove. Run them when a change plausibly reaches beyond its slice, and at
 closeout, where a clean full replay is the actual requirement.
 
+### The dev-binary hold
+
+Read this before editing anything under `src/`.
+
+Three operator packets are pending a person right now, and all three bind the
+exact bytes of the built `dev` application:
+
+```
+build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
+sha256:7b9d6be98c89b70a49f0616d2b32b10cb6b5d4a3f238366bed916379a78fcd93
+51,085,872 bytes
+```
+
+They are `appearance-scheme-foreground-v007` ([[BPR-0391]], with [[BPR-0220]]'s
+causal question on the same run), `native-notification-delivery-v005`
+([[BPR-0392]], with [[BPR-0168]]'s attended pass on the same run), and
+`native-visual-acceptance-v003` ([[BPR-0100]]), all under
+`docs/verification/reviews/`.
+
+**Relinking that executable invalidates all three at once, and it has already
+happened three times in a row.** Each time the rebuild was a legitimate repair
+made by a session with no reason to know three attended artifacts were
+downstream of the link step.
+
+The hold forbids a **rebuild**. It does not forbid a **run**: `ctest` against
+the already-built tree consumes the binary without changing it, which is how
+[[BPR-0256]] discharged a gate at `5245c12` — digest checked before and after,
+byte-identical. Verify the hold is still in force in one command rather than
+trusting this paragraph:
+
+```sh
+shasum -a 256 build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
+```
+
+The hold is not permanent and is not a repository invariant. It lifts when the
+three verdicts are returned, or when an owner decides a repair outranks them.
+[[BPR-0334]] is a known piece of portable work that would relink, and it is
+deliberately waiting.
+
 ## Current frontiers
 
 RFC-BPR-0001 is `Auto-Verified`, and every linked card is in `60-done/`.
