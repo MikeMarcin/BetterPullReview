@@ -1042,6 +1042,54 @@ def frozen_packets(root: Path) -> set[Path]:
     return frozen
 
 
+def verify_pending_packet_manifests(root: Path) -> None:
+    """A pending packet's source manifest must describe the tree it claims to.
+
+    `frozen_packets` re-hashes bound artifacts, but only for *answered* packets,
+    because only an answered packet has a validation record. That leaves the
+    window in which a packet is most dangerous unchecked: written, pending, and
+    being put in front of an operator.
+
+    `designated-live-review-publication-v002` went through exactly that window
+    stale at birth. Six of its 31 entries did not match the tree and three did
+    not match at the commit that introduced it, and nothing noticed until a
+    reviewer hashed the files by hand. A stale manifest is invisible by
+    construction — same shape, same 64-hex values, same byte count — so this is
+    a gate rather than a matter of diligence. BPR-0411.
+    """
+    review_root = root / REVIEW_ROOT
+    if not review_root.is_dir():
+        return
+    for manifest in sorted(review_root.glob("*/source-manifest.txt")):
+        packet = manifest.parent / OPERATOR_PACKET_NAME
+        if not packet.is_file():
+            continue
+        # Only a *pending* packet is checked. An answered, superseded, or
+        # invalidated one describes the tree as it was on purpose, and the first
+        # draft of this gate failed v001 for doing exactly that — "not frozen"
+        # is not the same as "pending", because a retired packet never earns a
+        # validation record either.
+        if not PACKET_PENDING_RE.search(packet_status(packet)):
+            continue
+        for number, line in enumerate(
+            manifest.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if not line.strip():
+                continue
+            relative, separator, expected = line.partition("=")
+            if not separator or len(expected) != 64:
+                fail(f"{manifest}:{number} is not a path=sha256 entry")
+            bound = root / relative
+            if not bound.is_file():
+                fail(f"{manifest}:{number} names a missing file: {relative}")
+            actual = hashlib.sha256(bound.read_bytes()).hexdigest()
+            if actual != expected:
+                fail(
+                    f"{manifest}:{number} does not match the tree: {relative} "
+                    f"is {actual}, the manifest says {expected}"
+                )
+
+
 def verify_operator_packet_records(root: Path) -> None:
     review_root = root / REVIEW_ROOT
     if not review_root.is_dir():
@@ -1155,6 +1203,7 @@ def main() -> int:
     verify_issue_board(root)
     verify_terminal_closeout_cards(root)
     verify_operator_packet_records(root)
+    verify_pending_packet_manifests(root)
     verify_frontier_roots(root)
     verify_links(root)
     verify_github_actions_not_selected(root)

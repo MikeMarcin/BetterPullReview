@@ -42,6 +42,7 @@ from scripts.verify_documentation import (  # noqa: E402
     verify_frontier_roots,
     verify_issue_board,
     verify_operator_packet_records,
+    verify_pending_packet_manifests,
     verify_terminal_closeout_cards,
 )
 
@@ -1076,6 +1077,55 @@ class OperatorPacketRecordTests(unittest.TestCase):
     def reject(self) -> None:
         with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
             verify_operator_packet_records(self.root)
+
+    # ---- BPR-0411: a pending packet's manifest must describe the tree ----
+
+    def write_manifest(self, gate: str, entries: dict[str, bytes]) -> None:
+        """Write source files and a manifest naming them, the way a packet does."""
+        lines = []
+        for relative, content in entries.items():
+            target = self.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+            lines.append(f"{relative}={hashlib.sha256(content).hexdigest()}")
+        (self.review_root / gate / "source-manifest.txt").write_text(
+            "\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_accepts_a_pending_manifest_that_matches_the_tree(self) -> None:
+        self.write_packet("gate-v001", "pending operator decision")
+        self.write_manifest("gate-v001", {"src/thing.txt": b"exact bytes\n"})
+
+        verify_pending_packet_manifests(self.root)
+
+    def test_rejects_a_pending_manifest_that_disagrees_with_the_tree(self) -> None:
+        """v002 shipped stale at birth and nothing caught it. This is that check."""
+        self.write_packet("gate-v001", "pending operator decision")
+        self.write_manifest("gate-v001", {"src/thing.txt": b"exact bytes\n"})
+        (self.root / "src/thing.txt").write_bytes(b"different bytes\n")
+
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            verify_pending_packet_manifests(self.root)
+
+    def test_rejects_a_pending_manifest_naming_a_missing_file(self) -> None:
+        self.write_packet("gate-v001", "pending operator decision")
+        self.write_manifest("gate-v001", {"src/thing.txt": b"exact bytes\n"})
+        (self.root / "src/thing.txt").unlink()
+
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            verify_pending_packet_manifests(self.root)
+
+    def test_ignores_a_retired_packets_manifest(self) -> None:
+        """A superseded or invalidated packet describes a past tree on purpose.
+
+        The first draft of this gate failed v001 for exactly that, because it
+        keyed on `frozen` rather than on the status line — and a retired packet
+        never earns a validation record either.
+        """
+        self.write_packet("gate-v001", "superseded by gate-v002; do not run")
+        self.write_manifest("gate-v001", {"src/thing.txt": b"exact bytes\n"})
+        (self.root / "src/thing.txt").write_bytes(b"the tree moved on\n")
+
+        verify_pending_packet_manifests(self.root)
 
     def test_accepts_a_family_whose_only_pending_packet_is_the_live_one(self) -> None:
         self.write_packet("gate-v001", "superseded by gate-v002; do not run")
