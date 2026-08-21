@@ -1,7 +1,7 @@
 ---
 id: BPR-0409
 title: Let the Git port actually carry the diagnostic
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: []
 ---
@@ -16,20 +16,34 @@ describe. Nothing yet uses the permission. This card is the restoration.
 Until it lands the repository holds a permissive rule with no user, which is a
 deliberate and stated intermediate state rather than an oversight.
 
+## Owner release and claim
+
+The product owner released the protected-binary hold for this slice on
+2026-08-20:
+
+> I authorize replacing the protected dev binary to implement BPR-0409,
+> BPR-0410, and BPR-0334.
+
+The exact held executable was checked immediately before this card moved to
+`30-in-progress/`: it was still 51,085,872 bytes with SHA-256
+`7b9d6be98c89b70a49f0616d2b32b10cb6b5d4a3f238366bed916379a78fcd93`.
+BPR-0409 is the first separately implemented and verified slice in that bounded
+batch.
+
 ## Read this before starting
 
-**This card relinks the application.** Two attended packet families still bind
+**This card relinks the application.** Two attended packet families bind
 the exact bytes of
 `build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review`
 (`sha256:7b9d6be9…a78fcd93`), and a relink invalidates both at once. See the
 dev-binary hold in the board README. The notification packet was already run
 successfully and no longer holds these bytes.
 
-That is a sequencing constraint, not a dependency. BPR-0100's visual verdict is
-the remaining no-rebuild action; the failed appearance run needs [[BPR-0410]]'s
-diagnostic repair and therefore an explicit owner decision to release the held
-bytes. Check the digest in one command before starting, rather than trusting
-this paragraph:
+That was a sequencing constraint, not a dependency. BPR-0100's visual verdict
+was recorded before the owner released these bytes. The failed appearance run
+still needs [[BPR-0410]]'s diagnostic repair before its successor packet can be
+run. The digest above was checked in one command before this claim rather than
+trusted from prose:
 
 ```sh
 shasum -a 256 build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
@@ -105,7 +119,7 @@ operator-facing claim: the Qt terminal must display it too.
   string or a collection, that is a signal to stop and reopen [[BPR-0348]]'s
   ruling, not to edit the gate.
 - Do not redact refs or paths.
-- Do not start while the dev-binary hold is in force without owner direction.
+- Do not widen the owner's release beyond BPR-0409, BPR-0410, and BPR-0334.
 
 ## Verification
 
