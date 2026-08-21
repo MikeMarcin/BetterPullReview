@@ -1,9 +1,9 @@
 ---
 id: BPR-0334
 title: Extract the shared agent protocol loop out of the Windows-only translation unit
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0011
-depends_on: [BPR-0240]
+depends_on: []
 ---
 
 # Extract the shared agent protocol loop out of the Windows-only translation unit
@@ -46,11 +46,33 @@ compares them.
   is a real difference worth deciding, and it is a separate card, not a rider on
   an extraction.
 
-## Why this waits on BPR-0240
+## Why this waited on BPR-0240, and why it no longer does
 
-[[BPR-0240]] still owns `windows_agent_process.cpp` and has an unfinished slice
-in it. Extracting shared code from under an in-flight card would collide. This
-card starts when that one settles.
+This card carried `depends_on: [BPR-0240]` with this reason:
+
+> [[BPR-0240]] still owns `windows_agent_process.cpp` and has an unfinished
+> slice in it. Extracting shared code from under an in-flight card would
+> collide. This card starts when that one settles.
+
+That is collision-avoidance, not a technical requirement, and the card's own
+non-goals concede the point — "do not attempt to make `windows_agent_process.cpp`
+compile on macOS". Every bullet of the required final state is reachable on this
+host.
+
+**Lifted by product-owner direction on 2026-08-20**, and the argument for it is
+stronger than permission. The ~250 duplicated lines are *portable* logic that
+already compiles cleanly on macOS in `agent_process_launcher.cpp`. Their copy was
+written blind into a translation unit no toolchain has ever compiled, which makes
+those lines the ones most likely to be wrong. Extracting them first means
+[[BPR-0240]]'s Windows session compiles 250 fewer lines of never-compiled code,
+and fixes one shared loop rather than two divergent copies.
+
+So the order is not merely permissible, it is probably the better one.
+
+**The residual risk, stated plainly:** if [[BPR-0240]]'s Windows session finds
+compile errors needing source edits in `windows_agent_process.cpp`, those land on
+a file this card has just restructured, and someone rebases. That is merge work,
+not lost work, and it is smaller than the duplication it removes.
 
 ## Verification
 
