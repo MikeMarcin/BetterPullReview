@@ -4,7 +4,7 @@ title: Build the attended one-shot live application lane
 status: Parked
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263]
-parked_on: awaiting-owner-verdict
+parked_on: awaiting-live-github
 ---
 
 # Build the attended one-shot live application lane
@@ -635,3 +635,32 @@ stale. The attended v004 checkpoint must be resolved before BPR-0334 changes
 `src/`; otherwise v004 must not run and a complete successor regeneration,
 fresh capability-critical review, and new exact operator decision are required.
 The guard must never be weakened or bypassed.
+
+## v004 approved, then aborted before GUI creation — 2026-08-21
+
+The owner returned the exact approval alternative bound to subject
+`7daa46aa18dfc0cd804c9060f1b790089e17a1db972d074b38e61a78769dcb39`.
+The complete response and attended result are recorded in
+`docs/verification/reviews/designated-live-review-publication-v004/operator-response.md`.
+
+The private approval was materialized byte-exactly and the fresh static
+manifest passed: 195 tests, exactly one `bpr_live_mutation` entry, the exact
+supervisor/inventory/approval command, and no credential or verdict environment.
+The attended lane then failed closed after 1.84 seconds with no supervisor
+output and before a usable GUI or credential prompt appeared. The approval
+remained unconsumed, the replay namespace retained zero spent records, no
+credential was entered, and no mutation was submitted.
+
+An immediate redirect-free, unauthenticated request to the same GitHub REST
+pull-request endpoint returned HTTP 404. The supervisor does not expose which
+early refusal branch fired, so this is recorded as a direct diagnostic fact
+consistent with mandatory public-observation failure, not as an invented
+stage-specific verdict. The packet forbids retry after startup refusal. The
+unconsumed private approval was deleted, and v004 must not run again.
+
+The owner decision is discharged, but the live publication criterion is not.
+This card remains `40-parked/` under `awaiting-live-github`: a future attempt
+needs a publicly observable designated target and a complete successor packet,
+fresh capability-critical review, and new exact operator decision. BPR-0334 may
+now proceed; its source edit will make the already-aborted v004 producer stale
+as expected.
