@@ -8,6 +8,193 @@ if(NOT DEFINED BPR_RUN_BUDGET_MS OR "${BPR_RUN_BUDGET_MS}" STREQUAL "")
     message(FATAL_ERROR "BPR_RUN_BUDGET_MS is required")
 endif()
 
+file(READ "${CMAKE_CURRENT_LIST_DIR}/../../src/app/main.cpp" probe_source)
+foreach(
+    required_source_fact
+    IN ITEMS
+    "NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN:"
+    "NATIVE_APPEARANCE_OWNER_RETURNED\\n"
+    "NATIVE_APPEARANCE_OWNER_WINDOW_ACTIVE:"
+    "NATIVE_APPEARANCE_OWNER_APPLICATION_ACTIVE_WINDOW:"
+    "NATIVE_APPEARANCE_OWNER_EXACT_FOCUS:"
+    "NATIVE_APPEARANCE_INITIAL_CAPTURE:"
+    "NATIVE_APPEARANCE_CHANGED_CAPTURE:"
+    "NATIVE_APPEARANCE_PERSISTENCE:"
+    "not_attempted_state_precondition"
+    "window_grab_null"
+    "normalization_failed"
+    "initial_write_failed"
+    "changed_write_failed"
+    "persisted_readback_failed"
+    "OwnerWaitEpisode"
+)
+    string(FIND "${probe_source}" "${required_source_fact}" source_fact_index)
+    if(source_fact_index EQUAL -1)
+        message(
+            FATAL_ERROR
+            "native appearance source omitted diagnostic fact: "
+            "${required_source_fact}"
+        )
+    endif()
+endforeach()
+if(probe_source MATCHES "NATIVE_APPEARANCE_ACTIVE_FOCUS_")
+    message(FATAL_ERROR "native appearance source retained the collapsed focus verdict")
+endif()
+foreach(unmeasured_hypothesis IN ITEMS "screen_recording_denied" "window_occluded")
+    if(probe_source MATCHES "${unmeasured_hypothesis}")
+        message(
+            FATAL_ERROR
+            "native appearance source reports unmeasured platform cause: "
+            "${unmeasured_hypothesis}"
+        )
+    endif()
+endforeach()
+
+string(FIND
+    "${probe_source}"
+    "[[nodiscard]] auto native_appearance_owner_returned("
+    owner_predicate_start
+)
+string(FIND
+    "${probe_source}"
+    "[[nodiscard]] auto native_appearance_dark_state_passed("
+    owner_predicate_end
+)
+if(
+    owner_predicate_start EQUAL -1
+    OR owner_predicate_end EQUAL -1
+    OR owner_predicate_end LESS_EQUAL owner_predicate_start
+)
+    message(FATAL_ERROR "cannot isolate the native owner-return predicate")
+endif()
+math(
+    EXPR
+    owner_predicate_length
+    "${owner_predicate_end} - ${owner_predicate_start}"
+)
+string(
+    SUBSTRING
+    "${probe_source}"
+    ${owner_predicate_start}
+    ${owner_predicate_length}
+    owner_predicate_source
+)
+foreach(
+    strict_owner_term
+    IN ITEMS
+    "aRun.Appearance.InitialFocus != nullptr"
+    "aWindow.isActiveWindow()"
+    "QApplication::activeWindow() == &aWindow"
+    "QApplication::focusWidget() == aRun.Appearance.InitialFocus"
+)
+    string(FIND "${owner_predicate_source}" "${strict_owner_term}" strict_term_index)
+    if(strict_term_index EQUAL -1)
+        message(
+            FATAL_ERROR
+            "native owner-return predicate lost strict term: ${strict_owner_term}"
+        )
+    endif()
+endforeach()
+if(owner_predicate_source MATCHES "StatePassed")
+    message(FATAL_ERROR "native owner-return predicate depends on appearance state")
+endif()
+string(
+    REGEX REPLACE
+    "[ \t\r\n]"
+    ""
+    owner_predicate_compact
+    "${owner_predicate_source}"
+)
+set(
+    expected_owner_predicate
+    "returnaRun.Appearance.InitialFocus!=nullptr&&aWindow.isActiveWindow()&&QApplication::activeWindow()==&aWindow&&QApplication::focusWidget()==aRun.Appearance.InitialFocus;"
+)
+string(
+    FIND
+    "${owner_predicate_compact}"
+    "${expected_owner_predicate}"
+    exact_owner_predicate_index
+)
+if(exact_owner_predicate_index EQUAL -1)
+    message(FATAL_ERROR "native owner-return predicate no longer has its exact strict conjunction")
+endif()
+
+string(FIND
+    "${probe_source}"
+    "aRun->Appearance.OwnerReturnEvaluated"
+    owner_observation_start
+)
+string(FIND
+    "${probe_source}"
+    "if (!native_appearance_owner_returned(window, *aRun))"
+    owner_observation_end
+)
+if(
+    owner_observation_start EQUAL -1
+    OR owner_observation_end EQUAL -1
+    OR owner_observation_end LESS_EQUAL owner_observation_start
+)
+    message(FATAL_ERROR "cannot isolate the native owner-return observation")
+endif()
+math(
+    EXPR
+    owner_observation_length
+    "${owner_observation_end} - ${owner_observation_start}"
+)
+string(
+    SUBSTRING
+    "${probe_source}"
+    ${owner_observation_start}
+    ${owner_observation_length}
+    owner_observation_source
+)
+foreach(
+    independent_owner_operand
+    IN ITEMS
+    "OwnerWindowActive[ \t]*=[ \t]*window\\.isActiveWindow\\(\\)"
+    "OwnerApplicationActiveWindow[ \t]*=[ \t]*QApplication::activeWindow\\(\\)[ \t]*==[ \t]*&window"
+    "OwnerExactFocus[ \t]*=[ \t]*QApplication::focusWidget\\(\\)"
+)
+    if(NOT owner_observation_source MATCHES "${independent_owner_operand}")
+        message(
+            FATAL_ERROR
+            "native owner-return observation lost independent operand: "
+            "${independent_owner_operand}"
+        )
+    endif()
+endforeach()
+if(owner_observation_source MATCHES "StatePassed")
+    message(FATAL_ERROR "native owner-return observation is contaminated by appearance state")
+endif()
+
+string(REGEX REPLACE "[ \t\r\n]" "" probe_source_compact "${probe_source}")
+foreach(
+    required_structural_fact
+    IN ITEMS
+    "if(!native_appearance_owner_returned(window,*aRun)){if(!aRun->Appearance.WaitingForOwnerReturn){++aRun->Appearance.OwnerWaitEpisode;"
+    "break;}if(!aRun->Appearance.OwnerReturnReported){QTextStreamstream{stdout};stream<<\"NATIVE_APPEARANCE_OWNER_RETURNED\\n\";"
+    "if(windowGrab.isNull()){return{.Disposition=native_appearance_capture_disposition::window_grab_null,};}"
+    "if(image.isNull()){return{.Disposition=native_appearance_capture_disposition::normalization_failed,};}"
+    "if(!save_new_png(aInitial,aPaths.Initial)){returnnative_appearance_persistence_disposition::initial_write_failed;}"
+    "if(!save_new_png(aChanged,aPaths.Changed)){QFile::remove(aPaths.Initial);returnnative_appearance_persistence_disposition::changed_write_failed;}"
+    "returnnative_appearance_persistence_disposition::persisted_readback_failed;"
+    "returnnative_appearance_persistence_disposition::persisted;"
+)
+    string(
+        FIND
+        "${probe_source_compact}"
+        "${required_structural_fact}"
+        structural_fact_index
+    )
+    if(structural_fact_index EQUAL -1)
+        message(
+            FATAL_ERROR
+            "native appearance diagnostic control flow changed: "
+            "${required_structural_fact}"
+        )
+    endif()
+endforeach()
+
 # A backstop, not the bound. The probe bounds itself at `BPR_RUN_BUDGET_MS` and
 # reports what it was doing; this only catches a process that never reached its
 # own limit, and is derived from that limit so it can never fire first. The
@@ -230,6 +417,13 @@ set(
     "NATIVE_APPEARANCE_TRANSITION:"
     "NATIVE_APPEARANCE_GLOBAL_TRANSITION:"
     "NATIVE_APPEARANCE_ACTIVE_FOCUS_"
+    "NATIVE_APPEARANCE_OWNER_RETURNED"
+    "NATIVE_APPEARANCE_OWNER_WINDOW_ACTIVE:"
+    "NATIVE_APPEARANCE_OWNER_APPLICATION_ACTIVE_WINDOW:"
+    "NATIVE_APPEARANCE_OWNER_EXACT_FOCUS:"
+    "NATIVE_APPEARANCE_INITIAL_CAPTURE:"
+    "NATIVE_APPEARANCE_CHANGED_CAPTURE:"
+    "NATIVE_APPEARANCE_PERSISTENCE:"
     "NATIVE_APPEARANCE_SIGNAL_"
     "NATIVE_APPEARANCE_STATE_"
     "NATIVE_APPEARANCE_PIXELS_DIFFER_"

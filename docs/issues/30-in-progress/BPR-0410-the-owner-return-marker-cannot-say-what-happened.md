@@ -207,3 +207,26 @@ ctest --test-dir build/dev --output-on-failure \
 python3 scripts/verify_documentation.py --root .
 git diff --check
 ```
+
+## Implementation checkpoint — 2026-08-21
+
+The strict owner-return predicate remains unchanged. The probe now emits an
+indexed marker for every wait entry, reports the first strict owner return, and
+records window-active, application-active-window, and exact-focus operands
+independently of `StatePassed`. Initial and changed capture distinguish
+state-precondition skip, null grab, normalization failure, and capture success;
+persistence distinguishes initial write, changed write, persisted readback,
+and success. None claims screen-recording denial or occlusion.
+
+The focused native-probe contract passes on the final tree, as do all four
+`application_appearance` contracts. The current authorized development
+executable is 51,303,392 bytes with SHA-256
+`333e88c9298f5a57182b7b3dda9994974485ffc77f07fb7496ac9ee43f40204a`.
+The real Cocoa owner-return/capture timeline is deliberately not claimed from
+offscreen source checks; it remains the successor attended run after the shared
+relink batch.
+
+Because `src/app/main.cpp` also belongs to BPR-0256's capability-critical
+source manifest, v003 is explicitly invalidated rather than silently rebound.
+A committed-tree v004 regeneration and fresh capability-critical review are
+required before BPR-0256 can again request an operator decision.

@@ -1281,21 +1281,21 @@ The dark side waits for the same thing at the other end of the transition.
 Changing the appearance is precisely what takes focus away — a person has to go
 to System Settings — and the one-shot measurement requires the window active,
 the application's active window, and focus on the exact widget the Light
-baseline recorded. So once the local, global, and style-hint schemes all read
-Dark and the settle counter has elapsed, the probe prints
-`NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN` once and waits for the owner to
-come back before measuring. Without that wait the attended procedure is not
-merely strict but impossible: no operator can leave System Settings and restore
-focus to one particular widget inside the settle window, so the run reports
-`NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED` and `NATIVE_APPEARANCE_STATE_FAILED`
-for the operator's trip rather than for anything about the appearance. The wait
-is bounded only by the run budget, which is evaluated at the top of every tick
+baseline recorded. Once the local, global, and style-hint schemes all read Dark
+and the settle counter has elapsed, every wait entry is reported as
+`NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN:<episode>` together with independent
+`OWNER_WINDOW_ACTIVE`, `OWNER_APPLICATION_ACTIVE_WINDOW`, and
+`OWNER_EXACT_FOCUS` facts. The first strict success emits
+`NATIVE_APPEARANCE_OWNER_RETURNED`. A state failure can therefore no longer
+masquerade as a focus failure, and a repeated wait cannot be silent. The wait is
+bounded only by the run budget, which is evaluated at the top of every tick
 ahead of the stage that contains it; a run that never gets the owner back
 expires and still emits its complete marker record. No automated course can
 enter the wait, because every one of them refuses at `platform_not_cocoa`
 before the stage exists, and
-`application_native_appearance_probe_contract` asserts the marker's absence in
-all three of its offscreen courses.
+`application_native_appearance_probe_contract` asserts the new owner-return,
+operand, capture, and persistence markers are absent in all three offscreen
+courses.
 
 Only run the live Light-to-Dark gate after the desktop owner explicitly
 authorizes changing the global appearance. The test-build-only probe reads the
@@ -1406,7 +1406,13 @@ for bpr_marker in \
   'NATIVE_APPEARANCE_GLOBAL_TRANSITION:Light->Dark' \
   'NATIVE_APPEARANCE_PLATFORM:cocoa' \
   'NATIVE_APPEARANCE_STYLE:QMacStyle' \
-  'NATIVE_APPEARANCE_ACTIVE_FOCUS_OK' \
+  'NATIVE_APPEARANCE_OWNER_RETURNED' \
+  'NATIVE_APPEARANCE_OWNER_WINDOW_ACTIVE:true' \
+  'NATIVE_APPEARANCE_OWNER_APPLICATION_ACTIVE_WINDOW:true' \
+  'NATIVE_APPEARANCE_OWNER_EXACT_FOCUS:true' \
+  'NATIVE_APPEARANCE_INITIAL_CAPTURE:captured' \
+  'NATIVE_APPEARANCE_CHANGED_CAPTURE:captured' \
+  'NATIVE_APPEARANCE_PERSISTENCE:persisted' \
   'NATIVE_APPEARANCE_SIGNAL_OK' \
   'NATIVE_APPEARANCE_STATE_OK' \
   'NATIVE_APPEARANCE_PIXELS_DIFFER_OK' \

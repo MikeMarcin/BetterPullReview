@@ -1,10 +1,9 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Parked
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263]
-parked_on: awaiting-owner-verdict
 ---
 
 # Build the attended one-shot live application lane
@@ -543,3 +542,17 @@ mutation was submitted.
 This card returns to `40-parked/` under `awaiting-owner-verdict`, which is now
 exactly true — for the first time since it was written, nothing unattended
 remains on it.
+
+## v003 invalidated by the authorized BPR-0410 source change — 2026-08-21
+
+BPR-0410 changed bound source `src/app/main.cpp` under the product owner's
+explicit authorization to replace the protected development binary. That makes
+v003 immutable history rather than a packet an operator may approve. Its status
+line now says so, and none of its manifest, subject, capsule, inventory, or
+operator-decision bytes were rebound to the new tree.
+
+The next unattended action is a complete v004 regeneration from committed
+source followed by a fresh capability-critical review, so this card returns to
+`30-in-progress/`; it is not currently waiting on an owner. Only a clean
+successor can return it to an exact operator decision. No approval file was
+created, no credential was accessed, and the live lane was not run.

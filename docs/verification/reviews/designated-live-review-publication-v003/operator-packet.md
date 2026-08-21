@@ -1,6 +1,11 @@
 # Designated one-shot live review publication operator packet
 
-Status: **pending one operator decision; capability-critical review complete; not live mutation authority**
+Status: **INVALIDATED BY THE AUTHORIZED BPR-0410 SOURCE CHANGE; do not run or approve; a regenerated v004 is required**
+
+This packet is immutable history. BPR-0410 changed its bound `src/app/main.cpp`
+after the product owner explicitly authorized that relink batch. The approval
+subject, capsule, inventory, and source manifest below remain the exact v003
+record, but they no longer describe the current tree and cannot authorize it.
 
 The fresh capability-critical review of this v003 packet found no blocking
 issue. [[BPR-0406]] closed the three non-blocking findings; only the exact

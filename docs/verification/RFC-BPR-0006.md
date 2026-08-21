@@ -59,6 +59,14 @@ two-rebuild result. BPR-0220 now records the coalesced measured-axis mask and
 exact Qt trigger mask for every successful rebuild; the foreground Light →
 Dark run that supplies those records remains attended.
 
+BPR-0410 replaces the collapsed `ACTIVE_FOCUS` verdict with the three exact
+owner-return operands, indexes every wait entry, reports the first strict owner
+return, and records factual capture and persistence dispositions without
+inferring permission or occlusion. The strict predicate is unchanged. Portable
+offscreen courses prove refusal emits none of those verdicts; the owner-attended
+Cocoa timeline remains the direct runtime gate after the shared authorized
+relink batch is complete.
+
 BPR-0249 repairs the course leading to that attended checkpoint. The native
 probe now selects the synthetic `review.cpp` row through BPR-0227's shipped
 Files-drawer wire, awaits host progress within the existing 30-second run

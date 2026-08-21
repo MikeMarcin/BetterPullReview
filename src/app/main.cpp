@@ -308,6 +308,28 @@ namespace {
 		QString Changed;
 	};
 
+	enum class native_appearance_capture_disposition {
+		not_attempted_state_precondition,
+		window_grab_null,
+		normalization_failed,
+		captured,
+	};
+
+	struct native_appearance_capture_result
+	{
+		QImage                                Image;
+		native_appearance_capture_disposition Disposition
+			= native_appearance_capture_disposition::not_attempted_state_precondition;
+	};
+
+	enum class native_appearance_persistence_disposition {
+		not_attempted,
+		initial_write_failed,
+		changed_write_failed,
+		persisted_readback_failed,
+		persisted,
+	};
+
 	[[nodiscard]] auto resolved_fresh_render_path(
 		const std::string_view aRawPath) -> std::optional<QString>
 	{
@@ -360,17 +382,37 @@ namespace {
 	}
 
 	[[nodiscard]] auto capture_normalized_render(
-		bpr::qt::workbench_window& aWindow) -> QImage
+		bpr::qt::workbench_window& aWindow)
+		-> native_appearance_capture_result
 	{
-		auto image = aWindow.grab().toImage();
-		if (image.isNull()) {
-			return { };
+		const auto windowGrab = aWindow.grab();
+		if (windowGrab.isNull()) {
+			return {
+				.Disposition
+				= native_appearance_capture_disposition::window_grab_null,
+			};
 		}
 
+		auto image = windowGrab.toImage();
+		if (image.isNull()) {
+			return {
+				.Disposition
+				= native_appearance_capture_disposition::normalization_failed,
+			};
+		}
 		const auto devicePixelRatio = image.devicePixelRatio();
 		image                       = image.convertToFormat(QImage::Format_RGBA8888);
+		if (image.isNull()) {
+			return {
+				.Disposition
+				= native_appearance_capture_disposition::normalization_failed,
+			};
+		}
 		image.setDevicePixelRatio(devicePixelRatio);
-		return image;
+		return {
+			.Image       = std::move(image),
+			.Disposition = native_appearance_capture_disposition::captured,
+		};
 	}
 
 	[[nodiscard]] auto same_render_pixels(
@@ -419,14 +461,15 @@ namespace {
 	[[nodiscard]] auto persist_native_appearance_evidence(
 		const QImage&                           aInitial,
 		const QImage&                           aChanged,
-		const native_appearance_evidence_paths& aPaths) -> bool
+		const native_appearance_evidence_paths& aPaths)
+		-> native_appearance_persistence_disposition
 	{
 		if (!save_new_png(aInitial, aPaths.Initial)) {
-			return false;
+			return native_appearance_persistence_disposition::initial_write_failed;
 		}
 		if (!save_new_png(aChanged, aPaths.Changed)) {
 			QFile::remove(aPaths.Initial);
-			return false;
+			return native_appearance_persistence_disposition::changed_write_failed;
 		}
 
 		const auto persistedInitial = QImage{ aPaths.Initial, "PNG" };
@@ -437,8 +480,9 @@ namespace {
 		if (!passed) {
 			QFile::remove(aPaths.Initial);
 			QFile::remove(aPaths.Changed);
+			return native_appearance_persistence_disposition::persisted_readback_failed;
 		}
-		return passed;
+		return native_appearance_persistence_disposition::persisted;
 	}
 
 	[[nodiscard]] auto macos_global_color_scheme() noexcept
@@ -642,37 +686,47 @@ namespace {
 #if defined(BPR_BUILD_TESTING)
 		struct native_appearance_probe_state
 		{
-			bool                                         Enabled                       = false;
-			bool                                         StageEntered                  = false;
-			bool                                         WaitingForOwnerFocusReported  = false;
-			bool                                         WaitingForOwnerReturnReported = false;
-			bool                                         SignalObserved                = false;
-			bool                                         StatePassed                   = false;
-			bool                                         PixelsDiffer                  = false;
-			std::size_t                                  SettleAttempts                = 0U;
-			std::size_t                                  GlobalPollTicks               = 0U;
-			Qt::ColorScheme                              InitialColorScheme            = Qt::ColorScheme::Unknown;
-			Qt::ColorScheme                              ObservedColorScheme           = Qt::ColorScheme::Unknown;
-			Qt::ColorScheme                              InitialGlobalColorScheme      = Qt::ColorScheme::Unknown;
-			Qt::ColorScheme                              ObservedGlobalColorScheme     = Qt::ColorScheme::Unknown;
-			QPalette                                     InitialPalette;
-			QString                                      InitialPlatformName;
-			QString                                      InitialStyleClass;
-			QPersistentModelIndex                        Thread;
-			bool                                         InitialWindowActive = false;
-			QWidget*                                     InitialFocus        = nullptr;
-			std::size_t                                  InitialModelResets  = 0U;
-			QString                                      ExpectedEpochLeftOid;
-			QString                                      ExpectedEpochRightOid;
-			QPersistentModelIndex                        EpochLeft;
-			QPersistentModelIndex                        EpochRight;
-			QString                                      EpochLeftIdentity;
-			QString                                      EpochRightIdentity;
-			QPalette                                     InitialEpochPalette;
-			std::size_t                                  InitialEpochModelResets       = 0U;
-			std::size_t                                  InitialEpochAppearanceUpdates = 0U;
-			QImage                                       InitialRender;
-			QImage                                       ChangedRender;
+			bool                                  Enabled                      = false;
+			bool                                  StageEntered                 = false;
+			bool                                  WaitingForOwnerFocusReported = false;
+			bool                                  WaitingForOwnerReturn        = false;
+			bool                                  OwnerReturnReported          = false;
+			bool                                  OwnerReturnEvaluated         = false;
+			bool                                  OwnerWindowActive            = false;
+			bool                                  OwnerApplicationActiveWindow = false;
+			bool                                  OwnerExactFocus              = false;
+			bool                                  SignalObserved               = false;
+			bool                                  StatePassed                  = false;
+			bool                                  PixelsDiffer                 = false;
+			std::size_t                           OwnerWaitEpisode             = 0U;
+			std::size_t                           SettleAttempts               = 0U;
+			std::size_t                           GlobalPollTicks              = 0U;
+			Qt::ColorScheme                       InitialColorScheme           = Qt::ColorScheme::Unknown;
+			Qt::ColorScheme                       ObservedColorScheme          = Qt::ColorScheme::Unknown;
+			Qt::ColorScheme                       InitialGlobalColorScheme     = Qt::ColorScheme::Unknown;
+			Qt::ColorScheme                       ObservedGlobalColorScheme    = Qt::ColorScheme::Unknown;
+			QPalette                              InitialPalette;
+			QString                               InitialPlatformName;
+			QString                               InitialStyleClass;
+			QPersistentModelIndex                 Thread;
+			bool                                  InitialWindowActive = false;
+			QWidget*                              InitialFocus        = nullptr;
+			std::size_t                           InitialModelResets  = 0U;
+			QString                               ExpectedEpochLeftOid;
+			QString                               ExpectedEpochRightOid;
+			QPersistentModelIndex                 EpochLeft;
+			QPersistentModelIndex                 EpochRight;
+			QString                               EpochLeftIdentity;
+			QString                               EpochRightIdentity;
+			QPalette                              InitialEpochPalette;
+			std::size_t                           InitialEpochModelResets       = 0U;
+			std::size_t                           InitialEpochAppearanceUpdates = 0U;
+			QImage                                InitialRender;
+			QImage                                ChangedRender;
+			native_appearance_capture_disposition InitialCaptureDisposition
+				= native_appearance_capture_disposition::not_attempted_state_precondition;
+			native_appearance_capture_disposition ChangedCaptureDisposition
+				= native_appearance_capture_disposition::not_attempted_state_precondition;
 			std::optional<bpr::core::semantic_selection> InitialDiffSelection;
 			QPalette                                     InitialDiffPalette;
 			QPalette                                     ObservedDiffPalette;
@@ -824,6 +878,52 @@ namespace {
 			return "Dark";
 		}
 		return "Unknown";
+	}
+
+	[[nodiscard]] auto native_appearance_capture_disposition_name(
+		const native_appearance_capture_disposition aDisposition) noexcept
+		-> const char*
+	{
+		switch (aDisposition) {
+		case native_appearance_capture_disposition::not_attempted_state_precondition:
+			return "not_attempted_state_precondition";
+		case native_appearance_capture_disposition::window_grab_null:
+			return "window_grab_null";
+		case native_appearance_capture_disposition::normalization_failed:
+			return "normalization_failed";
+		case native_appearance_capture_disposition::captured:
+			return "captured";
+		}
+		return "unknown";
+	}
+
+	[[nodiscard]] auto native_appearance_persistence_disposition_name(
+		const native_appearance_persistence_disposition aDisposition) noexcept
+		-> const char*
+	{
+		switch (aDisposition) {
+		case native_appearance_persistence_disposition::not_attempted:
+			return "not_attempted";
+		case native_appearance_persistence_disposition::initial_write_failed:
+			return "initial_write_failed";
+		case native_appearance_persistence_disposition::changed_write_failed:
+			return "changed_write_failed";
+		case native_appearance_persistence_disposition::persisted_readback_failed:
+			return "persisted_readback_failed";
+		case native_appearance_persistence_disposition::persisted:
+			return "persisted";
+		}
+		return "unknown";
+	}
+
+	[[nodiscard]] auto observed_boolean_name(
+		const bool aObserved,
+		const bool aValue) noexcept -> const char*
+	{
+		if (!aObserved) {
+			return "not_observed";
+		}
+		return aValue ? "true" : "false";
 	}
 
 	[[nodiscard]] auto native_selected_diff_reason_name(
@@ -1380,13 +1480,14 @@ namespace {
 			return native_appearance_precondition_refusal::light_context_refused;
 		}
 
-		auto initialRender = capture_normalized_render(aWindow);
+		auto initialCapture                       = capture_normalized_render(aWindow);
+		aRun.Appearance.InitialCaptureDisposition = initialCapture.Disposition;
 		if (
-			initialRender.isNull()
+			initialCapture.Image.isNull()
 			|| !native_appearance_light_state_passed(aWindow, aRun)) {
 			return native_appearance_precondition_refusal::initial_render_refused;
 		}
-		aRun.Appearance.InitialRender = std::move(initialRender);
+		aRun.Appearance.InitialRender = std::move(initialCapture.Image);
 
 		QTextStream stream{ stdout };
 		stream << "NATIVE_APPEARANCE_READY:"
@@ -2676,6 +2777,10 @@ namespace {
 			&& nativeVaultEvidencePassed
 			&& cliUnavailableEvidencePassed;
 		auto renderSaved = aRun.RenderSaved;
+#if defined(BPR_BUILD_TESTING)
+		auto nativeAppearancePersistence
+			= native_appearance_persistence_disposition::not_attempted;
+#endif
 
 		// `passed` is narrowed in four places. Reporting only the first group
 		// meant a failure in any later one printed a verdict in which
@@ -2777,11 +2882,15 @@ namespace {
 			const auto appearancePassed = aRun.Appearance.SignalObserved
 				&& aRun.Appearance.StatePassed
 				&& aRun.Appearance.PixelsDiffer;
-			renderSaved = passed && appearancePassed
-				&& persist_native_appearance_evidence(
-							  aRun.Appearance.InitialRender,
-							  aRun.Appearance.ChangedRender,
-							  aRun.Appearance.EvidencePaths);
+			if (passed && appearancePassed) {
+				nativeAppearancePersistence
+					= persist_native_appearance_evidence(
+						aRun.Appearance.InitialRender,
+						aRun.Appearance.ChangedRender,
+						aRun.Appearance.EvidencePaths);
+			}
+			renderSaved = nativeAppearancePersistence
+				== native_appearance_persistence_disposition::persisted;
 			passed = passed && appearancePassed && renderSaved;
 		} else {
 			passed = passed && renderSaved;
@@ -3430,6 +3539,14 @@ namespace {
 					   << ':' << native_selected_diff_reason_name(selected.Reason)
 					   << '\n';
 			}
+			if (aRun.Appearance.InitialCaptureDisposition
+				!= native_appearance_capture_disposition::
+					not_attempted_state_precondition) {
+				stream << "NATIVE_APPEARANCE_INITIAL_CAPTURE:"
+					   << native_appearance_capture_disposition_name(
+							  aRun.Appearance.InitialCaptureDisposition)
+					   << '\n';
+			}
 			if (aRun.Appearance.StageEntered) {
 				stream << (aRun.Appearance.ProfileFollowsPassed
 							   ? "APPEARANCE_SYSTEM_FOLLOWS_OK\n"
@@ -3460,11 +3577,29 @@ namespace {
 					   << aRun.Appearance.InitialPlatformName << '\n'
 					   << "NATIVE_APPEARANCE_STYLE:"
 					   << aRun.Appearance.InitialStyleClass << '\n'
-					   << (aRun.Appearance.InitialWindowActive
-								   && aRun.Appearance.InitialFocus != nullptr
-								   && aRun.Appearance.StatePassed
-							   ? "NATIVE_APPEARANCE_ACTIVE_FOCUS_OK\n"
-							   : "NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED\n")
+					   << "NATIVE_APPEARANCE_OWNER_WINDOW_ACTIVE:"
+					   << observed_boolean_name(
+							  aRun.Appearance.OwnerReturnEvaluated,
+							  aRun.Appearance.OwnerWindowActive)
+					   << '\n'
+					   << "NATIVE_APPEARANCE_OWNER_APPLICATION_ACTIVE_WINDOW:"
+					   << observed_boolean_name(
+							  aRun.Appearance.OwnerReturnEvaluated,
+							  aRun.Appearance.OwnerApplicationActiveWindow)
+					   << '\n'
+					   << "NATIVE_APPEARANCE_OWNER_EXACT_FOCUS:"
+					   << observed_boolean_name(
+							  aRun.Appearance.OwnerReturnEvaluated,
+							  aRun.Appearance.OwnerExactFocus)
+					   << '\n'
+					   << "NATIVE_APPEARANCE_CHANGED_CAPTURE:"
+					   << native_appearance_capture_disposition_name(
+							  aRun.Appearance.ChangedCaptureDisposition)
+					   << '\n'
+					   << "NATIVE_APPEARANCE_PERSISTENCE:"
+					   << native_appearance_persistence_disposition_name(
+							  nativeAppearancePersistence)
+					   << '\n'
 					   << (aRun.Appearance.SignalObserved
 							   ? "NATIVE_APPEARANCE_SIGNAL_OK\n"
 							   : "NATIVE_APPEARANCE_SIGNAL_FAILED\n")
@@ -4606,22 +4741,43 @@ namespace {
 					// failure. Bounded only by the run budget, which is checked
 					// at the top of every tick before this switch, so the wait
 					// cannot outlive the run. BPR-0391.
+					aRun->Appearance.OwnerReturnEvaluated         = true;
+					aRun->Appearance.OwnerWindowActive            = window.isActiveWindow();
+					aRun->Appearance.OwnerApplicationActiveWindow = QApplication::activeWindow() == &window;
+					aRun->Appearance.OwnerExactFocus              = QApplication::focusWidget()
+						== aRun->Appearance.InitialFocus;
 					if (!native_appearance_owner_returned(window, *aRun)) {
-						if (!aRun->Appearance.WaitingForOwnerReturnReported) {
+						if (!aRun->Appearance.WaitingForOwnerReturn) {
+							++aRun->Appearance.OwnerWaitEpisode;
 							QTextStream stream{ stdout };
 							stream
-								<< "NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN\n";
+								<< "NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN:"
+								<< static_cast<unsigned long long>(
+									   aRun->Appearance.OwnerWaitEpisode)
+								<< '\n'
+								<< "NATIVE_APPEARANCE_OWNER_WINDOW_ACTIVE:"
+								<< (aRun->Appearance.OwnerWindowActive ? "true" : "false")
+								<< '\n'
+								<< "NATIVE_APPEARANCE_OWNER_APPLICATION_ACTIVE_WINDOW:"
+								<< (aRun->Appearance.OwnerApplicationActiveWindow ? "true" : "false")
+								<< '\n'
+								<< "NATIVE_APPEARANCE_OWNER_EXACT_FOCUS:"
+								<< (aRun->Appearance.OwnerExactFocus ? "true" : "false")
+								<< '\n';
 							stream.flush();
-							aRun->Appearance.WaitingForOwnerReturnReported = true;
+							aRun->Appearance.WaitingForOwnerReturn = true;
 						}
 						break;
 					}
-					// Armed again for a second episode. The scheme can settle,
-					// the owner return, and focus be lost again before the
-					// measurement completes; without this the second wait would
-					// be silent and the log would show a gap nobody could
-					// attribute.
-					aRun->Appearance.WaitingForOwnerReturnReported = false;
+					if (!aRun->Appearance.OwnerReturnReported) {
+						QTextStream stream{ stdout };
+						stream << "NATIVE_APPEARANCE_OWNER_RETURNED\n";
+						stream.flush();
+						aRun->Appearance.OwnerReturnReported = true;
+					}
+					// A later loss starts a new indexed wait episode instead of
+					// silently re-arming the old one.
+					aRun->Appearance.WaitingForOwnerReturn = false;
 					const auto* const appearanceWorkbench
 						= window.comparison_surface();
 					aRun->Appearance.ObservedDiffPalette
@@ -4664,22 +4820,26 @@ namespace {
 						&& historyCount
 							<= aRun->Appearance.DiffGeometryRebuildCauses.size();
 					const auto stateBeforeRender = native_appearance_dark_state_passed(window, *aRun);
-					const auto changedRender     = stateBeforeRender
+					auto       changedCapture    = stateBeforeRender
 						? capture_normalized_render(window)
-						: QImage{ };
-					const auto stateAfterRender  = stateBeforeRender && !changedRender.isNull()
+						: native_appearance_capture_result{ };
+					aRun->Appearance.ChangedCaptureDisposition
+						= changedCapture.Disposition;
+					const auto stateAfterRender = stateBeforeRender
+						&& !changedCapture.Image.isNull()
 						&& native_appearance_dark_state_passed(window, *aRun);
 					aRun->Appearance.StatePassed  = stateAfterRender;
 					aRun->Appearance.PixelsDiffer = aRun->Appearance.StatePassed
 						&& aRun->Appearance.InitialRender.size()
-							== changedRender.size()
+							== changedCapture.Image.size()
 						&& aRun->Appearance.InitialRender.devicePixelRatio()
-							== changedRender.devicePixelRatio()
+							== changedCapture.Image.devicePixelRatio()
 						&& !same_render_pixels(
 														aRun->Appearance.InitialRender,
-														changedRender);
+														changedCapture.Image);
 					if (aRun->Appearance.PixelsDiffer) {
-						aRun->Appearance.ChangedRender = changedRender;
+						aRun->Appearance.ChangedRender
+							= std::move(changedCapture.Image);
 					}
 					// BPR-0114 proper. The scheme has moved and the mode is
 					// still System, so the profile's variant must have moved
