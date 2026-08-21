@@ -1,6 +1,10 @@
 # Designated one-shot live review publication operator packet
 
-Status: **pending capability-critical review, then one operator decision**
+Status: **pending one operator decision; capability-critical review complete; not live mutation authority**
+
+The fresh capability-critical review of this v003 packet found no blocking
+issue. [[BPR-0406]] closed the three non-blocking findings; only the exact
+operator decision at the end of this packet remains.
 
 This v003 packet replaces v002, which was invalidated because its bound source
 manifest never described this repository. The mechanism was not implicated and
