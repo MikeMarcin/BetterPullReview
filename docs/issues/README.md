@@ -674,7 +674,7 @@ three answers it needs:
 | BPR-0240 | `30-in-progress/` | A Windows session. Its portable gates have run; `windows_agent_process.cpp` has never been compiled and only a Windows toolchain can |
 | BPR-0391, BPR-0392 | `40-parked/` | BPR-0391's failed foreground run first needs BPR-0410's attributable diagnostics; BPR-0392's native notification course passed and shares BPR-0168's outstanding owner description |
 | BPR-0362 | `40-parked/` | A product decision nobody has made yet |
-| BPR-0334 | `20-ready/` | Nothing. BPR-0256's v004 checkpoint is resolved as an aborted, non-mutating run, so this authorized shared-relink slice may now start |
+| BPR-0334 | `30-in-progress/` | Current macOS session. The authorized extraction moves the portable protocol loop behind one fake-tested seam while preserving POSIX behavior and leaving native Windows handle/Job plumbing in its existing translation unit |
 | BPR-0410 | `30-in-progress/` | Current macOS session. It makes a failing appearance run say what actually happened and is explicitly authorized in the shared relink batch |
 | BPR-0310, BPR-0314 | `50-blocked/` | A Linux host; both are `platform-linux` |
 

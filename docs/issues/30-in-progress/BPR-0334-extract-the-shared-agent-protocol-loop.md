@@ -1,7 +1,7 @@
 ---
 id: BPR-0334
 title: Extract the shared agent protocol loop out of the Windows-only translation unit
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0011
 depends_on: []
 ---
@@ -166,3 +166,26 @@ where in the sequence** — which is what pins the ordering decision above.
   `:292,298`). The shared struct carries it universally; POSIX's `write()` must
   never return `cancelled` or `timeout`, or the non-goal's write asymmetry is
   reintroduced from the other direction.
+
+## Claimed for the authorized shared relink — 2026-08-21
+
+The current macOS session claims this card after the attended BPR-0256 v004
+checkpoint failed closed before GUI creation and was frozen as non-mutating
+evidence. The product owner's exact authorization remains:
+
+> I authorize replacing the protected dev binary to implement BPR-0409,
+> BPR-0410, and BPR-0334.
+
+The predecessor protected development executable is 51,303,392 bytes with
+SHA-256
+`333e88c9298f5a57182b7b3dda9994974485ffc77f07fb7496ac9ee43f40204a`.
+BPR-0256's approval was not consumed and was deleted after the refused lane;
+its v004 packet must not be retried. This card's first `src/` edit is therefore
+allowed to make that already-aborted producer stale.
+
+Implementation remains bounded to the shared protocol loop, the two adapter
+backends, focused fake-transport tests, build wiring, and directly affected
+architecture/RFC/issue documentation. Native Windows process and Job Object
+plumbing stays in `windows_agent_process.cpp`; no Windows success claim will be
+made from macOS. POSIX behavior and its drain/finish/classify/terminate ordering
+are the reference contract.
