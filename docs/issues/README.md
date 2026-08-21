@@ -672,7 +672,7 @@ three answers it needs:
 | BPR-0391, BPR-0392 | `40-parked/` | BPR-0391's failed foreground run first needs BPR-0410's attributable diagnostics; BPR-0392's native notification course passed and shares BPR-0168's outstanding owner description |
 | BPR-0362 | `40-parked/` | A product decision nobody has made yet |
 | BPR-0334 | `20-ready/` | Nothing. Its BPR-0240 edge was collision-avoidance and is lifted; the owner authorized it in the shared relink batch |
-| BPR-0410 | `20-ready/` | Nothing. It makes a failing appearance run say what actually happened and is explicitly authorized in the shared relink batch |
+| BPR-0410 | `30-in-progress/` | Current macOS session. It makes a failing appearance run say what actually happened and is explicitly authorized in the shared relink batch |
 | BPR-0310, BPR-0314 | `50-blocked/` | A Linux host; both are `platform-linux` |
 
 This table had drifted and is corrected above rather than quietly patched. It

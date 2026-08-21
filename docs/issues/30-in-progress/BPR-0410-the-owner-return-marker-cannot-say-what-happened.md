@@ -1,12 +1,28 @@
 ---
 id: BPR-0410
 title: The owner-return marker cannot say what happened
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0006
 depends_on: []
 ---
 
 # The owner-return marker cannot say what happened
+
+## Owner release and claim
+
+The product owner released the protected-binary hold for this slice on
+2026-08-20:
+
+> I authorize replacing the protected dev binary to implement BPR-0409,
+> BPR-0410, and BPR-0334.
+
+Immediately before this card moved to `30-in-progress/`, the completed BPR-0409
+development executable was 51,302,640 bytes with SHA-256
+`cb044fcab11545b181ae35ea6b4114d1f5ab0eef4457ec1945a03bc39fa7e8b7`.
+That identity was checked from the executable rather than trusted from the board
+prose. BPR-0410 is the second separately implemented slice in the authorized
+batch, and its relink will supersede that development identity without rebinding
+either historical attended packet.
 
 The foreground appearance probe has now failed three times with an identical
 signature, across two packet versions, one of which was written specifically to
