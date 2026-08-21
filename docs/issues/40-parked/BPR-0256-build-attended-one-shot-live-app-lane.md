@@ -1,9 +1,10 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263]
+parked_on: awaiting-owner-verdict
 ---
 
 # Build the attended one-shot live application lane
@@ -556,3 +557,81 @@ source followed by a fresh capability-critical review, so this card returns to
 `30-in-progress/`; it is not currently waiting on an owner. Only a clean
 successor can return it to an exact operator decision. No approval file was
 created, no credential was accessed, and the live lane was not run.
+
+## v004 regenerated from committed BPR-0410 source — 2026-08-21
+
+The complete v004 unattended regeneration is now recorded at
+`docs/verification/reviews/designated-live-review-publication-v004/`. It was
+built from committed tree `a83bfd0` in a fresh tests-disabled Release graph at
+`build/bpr0256-release`, not from the development graph.
+
+The exact 31-entry source manifest is 3,615 bytes with SHA-256
+`c5023d4f81b02c6663afa813a2a3e1876ddfcce481537feb59ee24f974fa9f79`.
+That digest is compiled into both capsule binaries and selects the artifact
+directory. The bound artifacts are:
+
+| artifact | SHA-256 | bytes |
+|---|---|---:|
+| capsule application | `2a1c65bf1249ba25333f949deac674ded204cd9ce0653d7fdbb165fcbb4a2216` | 7,682,464 |
+| signed-capsule supervisor | `6ff0d7c7949dc446e8d4e63d04d2eda762d1d6155aab84fdbb6beaae97f35a6f` | 197,200 |
+| capsule inventory | `ca4fbe45e2a6ed6198a90b1b114b4617c1008bc8739c3662c2f4e7f1665a25ee` | 11,112 |
+| schema-3 approval subject | `7daa46aa18dfc0cd804c9060f1b790089e17a1db972d074b38e61a78769dcb39` | 1,496 |
+| operator packet | `08cc6f277cb92c89760c94f263f8c4813e6e1eca1e5bd55482d03b991bddd4e2` | 16,628 |
+
+The approval subject reuses the unchanged, unspent approval ID
+`aa6dd849a0bc31e36e8585d1b5b8fc0d065f653ee92218c9f770729766c610d9`.
+Preparation read the existing owner-private replay namespace without changing
+it: its schema, path, and ID still match, and it contains zero spent records.
+No reset or initialization command ran.
+
+The capsule builds and verifies with
+`designated-live-macos-capsule:pass`. Its separate read-only image is
+29,978,636 bytes with SHA-256
+`cb45d813452913f142f6128c1ede5010c5c4361ae146612f9e61a997bd0d6769`;
+`stage-zero` mounted that exact image read-only, verified the inventory and
+source binding from inside the mount, detached, and passed.
+
+The first exact eleven-selector replay passed 9/11 and caught one BPR-0410
+closeout omission: the production-application source aggregate expected by
+`application_review_round_trip_composition_contract.cmake` still named the
+pre-BPR-0410 value. It found
+`f6d1c03d7fe4f50abcdaea2e93fec93d341f4325882f992f7f3d629643c2595c`
+instead. The verifier pin was corrected without changing any bound production
+source. The two failed composition selectors then passed 2/2 in 122.28 seconds,
+and the complete exact matrix passed 11/11 in 217.92 seconds. The protected
+development executable remained byte-identical throughout at 51,303,392 bytes
+and SHA-256
+`333e88c9298f5a57182b7b3dda9994974485ffc77f07fb7496ac9ee43f40204a`.
+
+The v004 packet was initially **pending fresh capability-critical review and
+not operator-ready**. No approval file was materialized, no credential was
+accessed, no live or public observation lane was executed, and no mutation was
+submitted during that state.
+
+## v004 capability-critical review is clean — 2026-08-21
+
+The fresh independent review returned **no blocking finding**. It recomputed
+the manifest and artifact identities from the current tree and directly reran
+the relevant authority and adjacent effect surfaces. Its exact results were:
+
+- 11/11 authority/composition selectors passed in 211.50 seconds;
+- 6/6 provider/native-HTTPS/SQLite selectors passed in 12.97 seconds;
+- 1/1 hermetic public-observer selector passed in 0.33 seconds;
+- the default configured manifest contained 194 tests and zero live entries;
+- documentation, `git diff --check`, capsule, image/stage-zero, replay-state,
+  and protected dev-executable identity checks were clean.
+
+The reviewed packet now says **operator-ready** and requests its one exact
+decision. Its final bytes are 16,628 bytes with SHA-256
+`08cc6f277cb92c89760c94f263f8c4813e6e1eca1e5bd55482d03b991bddd4e2`.
+No approval file has been materialized and the lane has not been configured or
+run. This card therefore returns to `40-parked/` under
+`awaiting-owner-verdict`; the exact operator decision is its sole remaining
+work.
+
+The review also exposed a high-risk sequencing constraint. Any BPR-0334 edit
+under `src/` makes the live-lane timestamp guard reject this v004 producer as
+stale. The attended v004 checkpoint must be resolved before BPR-0334 changes
+`src/`; otherwise v004 must not run and a complete successor regeneration,
+fresh capability-critical review, and new exact operator decision are required.
+The guard must never be weakened or bypassed.
