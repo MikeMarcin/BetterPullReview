@@ -161,3 +161,33 @@ the thing to measure first, ahead of anything about focus.
 
 The original framing — that the failure cannot be attributed — survives. Only
 its evidence changed, and the answer it points to changed with it.
+
+## Bounded implementation map
+
+This remains a single-source-file diagnostic slice in `src/app/main.cpp`.
+Retain the strict `native_appearance_owner_returned()` predicate and record its
+three operands independently: the window is active, it is
+`QApplication::activeWindow()`, and `focusWidget()` is the original widget.
+Emit an indexed marker on every wait entry and a distinct
+`NATIVE_APPEARANCE_OWNER_RETURNED` marker when the predicate first becomes
+true. Silent latch re-arming is not sufficient evidence.
+
+Capture diagnostics must report only facts Qt observed. Distinguish at least a
+state-precondition skip, a null window grab, normalization failure, initial or
+changed image-write failure, and persisted readback failure. Do not label any
+of those as screen-recording permission denial or occlusion without a measured
+platform API that proves it.
+
+The existing offscreen contract is a refusal-path guard, not proof of the Cocoa
+sequence. It must continue to reject owner-return and capture-verdict markers on
+the precondition-refusal path. Direct proof comes from a successor to the v007
+appearance packet after the shared relink batch: replay the 2026-08-20 failure
+conditions and require the log to show no owner return, a later re-entry, or a
+capture/state failure after a recorded owner return.
+
+```sh
+ctest --test-dir build/dev --output-on-failure \
+  -R '^application_native_appearance_probe_contract$'
+python3 scripts/verify_documentation.py --root .
+git diff --check
+```

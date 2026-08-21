@@ -18,14 +18,18 @@ deliberate and stated intermediate state rather than an oversight.
 
 ## Read this before starting
 
-**This card relinks the application.** Three operator packets bind the exact
-bytes of `build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review`
-(`sha256:7b9d6be9…a78fcd93`), and a relink invalidates all three at once. See the
-dev-binary hold in the board README.
+**This card relinks the application.** Two attended packet families still bind
+the exact bytes of
+`build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review`
+(`sha256:7b9d6be9…a78fcd93`), and a relink invalidates both at once. See the
+dev-binary hold in the board README. The notification packet was already run
+successfully and no longer holds these bytes.
 
-That is a sequencing constraint, not a dependency: the hold lifts when those
-three attended verdicts come back, or on owner direction. Check it in one command
-before starting, rather than trusting this paragraph:
+That is a sequencing constraint, not a dependency. BPR-0100's visual verdict is
+the remaining no-rebuild action; the failed appearance run needs [[BPR-0410]]'s
+diagnostic repair and therefore an explicit owner decision to release the held
+bytes. Check the digest in one command before starting, rather than trusting
+this paragraph:
 
 ```sh
 shasum -a 256 build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
@@ -81,10 +85,13 @@ threading it through types that today keep bare codes:
 | 3 | `src/adapters/git/src/installed_git_cache.cpp` | `process_failure()` reads only the code today — this is where the reverted work stopped |
 | 4 | `src/application/include/bpr/application/git_cache_port.hpp` | `git_cache_failure` is a bare enum |
 | 5 | `src/application/include/bpr/application/agent_workspace.hpp` | same, plus `cleanup_agent_workspace` |
-| 6 | `src/application/src/epoch_application_host.cpp` | where it becomes `agent_run_result::StandardError` |
+| 6 | `src/application/src/epoch_application_host.cpp` | preserve the workspace materialization and cleanup detail instead of returning a bare `agent_workspace_failure` |
+| 7 | `src/application/src/agent_invocation_host.cpp` | turn the workspace error into `agent_run_result::StandardError` alongside `workspace_unavailable` |
+| 8 | `src/adapters/qt/src/agent_launch_panel.cpp` | render the bounded `StandardError` on the failed terminal; today every failure clears output and shows only the outcome |
 
-Hops 3 through 6 are what turn "agent failed to start" back into the pack-write
-failure it actually was.
+Hops 3 through 8 are what turn "agent failed to start" back into the pack-write
+failure it actually was. Reaching `agent_run_result::StandardError` is not the
+operator-facing claim: the Qt terminal must display it too.
 
 ## Also unaddressed, from [[BPR-0348]]
 
@@ -103,11 +110,13 @@ failure it actually was.
 ## Verification
 
 ```sh
-ctest --test-dir build/core-only --output-on-failure \
-  -R '^(architecture_boundaries|architecture_boundary_contract)$'
+ctest --test-dir build/dev --output-on-failure \
+  -R '^(git_process_contract|git_cache_contract|application_epoch_host|application_agent_invocation_host|qt_agent_launch_panel|architecture_boundaries|architecture_boundary_contract)$'
 python3 scripts/verify_documentation.py --root .
 git diff --check
 ```
 
-plus the git contract selectors covering hops 1 through 6, and `clang-format` on
-every touched file.
+Each hop needs a negative mutation that proves removing `Detail` there breaks
+the selector. The end-to-end failure fixture must assert the same redacted
+diagnostic at the Git process, cache, workspace, application result, and visible
+Qt terminal. Run `clang-format` on every touched file.
