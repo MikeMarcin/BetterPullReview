@@ -83,3 +83,86 @@ ctest --test-dir build/dev --output-on-failure \
 
 Plus a new focused selector for the shared loop against its fake transport, and
 `clang-format` on every file touched.
+
+## The design, and why "extraction, not redesign" needs qualifying — 2026-08-20
+
+Five of the six duplicated behaviours are faithful copies and move mechanically:
+driving `agent_protocol_decoder::push`
+(`agent_process_launcher.cpp:237-242` / `windows_agent_process.cpp:586-591`),
+the App Server phase gate (`:250-260` / `:600-610`), the publish and
+backpressure path (`:206-221` / `:531-546`), the stderr ceiling arithmetic
+(`:223-231` / `:550-573`), and the follow-up build/acknowledge ordering
+(`:261-278` / `:611-636`).
+
+**The sixth is not a copy, and this card's own scope statement does not survive
+it.**
+
+### The two backends tear down in opposite orders
+
+| | POSIX | Windows |
+|---|---|---|
+| final drain | `drain()` at `agent_process_launcher.cpp:307` | after termination, `windows_agent_process.cpp:678-685` |
+| `decoder.finish()` + trailing gate | `:308-326` | `:699-707` |
+| exit code | `:340` | `:662-667` |
+| terminate | `end_process_tree` at `:343` | `terminate_and_reap` at `:668-677` |
+
+POSIX drains, decides, then tears down. Windows tears down, *then* drains. A
+shared loop cannot do both, so this card has to choose — and choosing is a
+behaviour decision, not an extraction.
+
+**The choice is made here, and it is POSIX's order**: drain to exhaustion,
+`finish()` and classify, then `terminate()` exactly once at the end. The card's
+own non-goal decides it — "No behaviour changes on POSIX" — and it is the only
+option that satisfies that bullet by construction.
+
+**The consequence must be stated rather than absorbed: this changes Windows
+behaviour, on a platform no test here can exercise.** `terminate_and_reap` moves
+after the final drain. [[BPR-0240]]'s Windows session is where that first
+executes, and it should be told to expect it.
+
+### A latent bug in the Windows copy, which extraction will fix in passing
+
+`windows_agent_process.cpp:661` resets the input handle *before* the
+post-termination drain at `:678-685`. If that drain decodes a control frame
+requiring a follow-up write, `write_all` runs against a null handle, returns
+`write_status::failed`, and `set_write_failure` (`:513-517`) maps it to a generic
+`malformed_frame` — losing whatever the exchange should actually have reported.
+
+POSIX has the same shape in theory (`closeWriteChannel()` at `:277`, one more
+`drain()` at `:307`), but Windows' drain-to-exhaustion pass gives it strictly
+more opportunity. Reordering to POSIX's sequence narrows the window rather than
+entrenching it. **Reachability is unproven** — it needs a child emitting a
+trailing App Server control frame at phase 2 as it exits — so this is recorded as
+a candidate, not a fixed defect.
+
+### The seam cannot move as far as it looks
+
+`cmake/VerifyArchitectureBoundaries.cmake:90-96,1568-1575` restricts
+`TerminateJobObject`, `QueryInformationJobObject`, `CancelSynchronousIo` and
+their siblings to exactly two hardcoded paths. So the concrete Windows `write`
+and `terminate` implementations **must stay inside
+`windows_agent_process.cpp`**; only the loop moves. Splitting the transport
+backend into a file beside the loop — the obvious refactor — fails
+`architecture_boundaries`, and that gate is not in this card's verification list.
+
+### What the fake transport must drive
+
+No test covers the loop today. `qt_agent_launch_canary` is the only end-to-end
+exercise and it runs the real `QProcess` transport on POSIX only. The fake needs
+`write` returning each of the five `write_status` values including mid-follow-up
+cancellation and timeout, `read_output`/`read_error` returning scripted partial,
+oversized, and split frames with `pipe_read_status`, `wait` reporting scripted
+exit transitions, and a `terminate` that records **that it was called once and
+where in the sequence** — which is what pins the ordering decision above.
+
+### Two seam decisions the card does not settle
+
+- `read-available` either fills a caller buffer, which makes POSIX copy out of
+  its `QByteArray`, or returns owned bytes, which makes Windows allocate where it
+  does not today. Taking the buffer form, because it matches the Windows
+  primitive and keeps the allocation behaviour of the platform that cannot be
+  tested here unchanged.
+- `forcedOutcome` has no POSIX slot today (POSIX inlines the checks at
+  `:292,298`). The shared struct carries it universally; POSIX's `write()` must
+  never return `cancelled` or `timeout`, or the non-goal's write asymmetry is
+  reintroduced from the other direction.
