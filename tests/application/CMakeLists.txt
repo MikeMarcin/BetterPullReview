@@ -462,6 +462,33 @@ set_tests_properties(
 )
 
 bpr_add_executable(
+    test_better_pull_review_agent_protocol_loop_tests
+    agent_protocol_loop_tests.cpp
+    "${PROJECT_SOURCE_DIR}/src/adapters/agent/src/agent_protocol_loop.cpp"
+)
+target_include_directories(
+    test_better_pull_review_agent_protocol_loop_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/agent/src"
+)
+target_link_libraries(
+    test_better_pull_review_agent_protocol_loop_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_agent_protocol_loop_tests)
+bpr_enable_warnings(test_better_pull_review_agent_protocol_loop_tests)
+bpr_add_network_isolated_test(
+    NAME application_agent_protocol_loop
+    COMMAND test_better_pull_review_agent_protocol_loop_tests
+)
+set_tests_properties(
+    application_agent_protocol_loop
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "agent-protocol-loop-tests:pass"
+)
+
+bpr_add_executable(
     test_better_pull_review_agent_invocation_host_tests
     agent_invocation_host_tests.cpp
 )

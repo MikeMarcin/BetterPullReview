@@ -138,10 +138,13 @@ findings, each reproduced directly rather than taken on the reviewer's word:
    bound. Tracked as [[BPR-0333]].
 3. **Core-tier evidence was missing.** Closed by this matrix run, above.
 4. **~250 lines of portable protocol logic were duplicated into the
-   Windows-only translation unit.** `windows_agent_process.cpp:480-729`
-   re-implements the decoder loop, follow-up gating, publish path, stderr
-   arithmetic, and outcome classification from
-   `agent_process_launcher.cpp:201-345`. Tracked as [[BPR-0334]].
+   Windows-only translation unit. Closed by [[BPR-0334]].** One private,
+   fake-tested loop now owns decoding, availability-batch causal gating,
+   follow-up writes, publish/backpressure, stderr accounting, first-cause
+   terminal classification, and exactly-once teardown. POSIX and Windows keep
+   only their native process transports. This removes uncompiled policy from
+   the Windows session; it does not replace that session's required native
+   compile, Job Object, cancellation, and descendant-containment evidence.
 
 The review also corrected an overclaim on this card. The required final state
 says "A canary asserts all required context fields"; the canary checks eight

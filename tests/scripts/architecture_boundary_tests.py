@@ -137,6 +137,14 @@ AGENT_PROCESS_RUNNER_SOURCE = (
     / "src"
     / "agent_process_launcher.cpp"
 ).read_text(encoding="utf-8")
+AGENT_PROTOCOL_LOOP_SOURCE = (
+    REPOSITORY_ROOT
+    / "src"
+    / "adapters"
+    / "agent"
+    / "src"
+    / "agent_protocol_loop.cpp"
+).read_text(encoding="utf-8")
 AGENT_WINDOWS_PROCESS_SOURCE = (
     REPOSITORY_ROOT
     / "src"
@@ -1318,6 +1326,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "installed_git_process.hpp": GIT_PROCESS_FACTORY,
                 "src/adapters/agent/src/agent_process_launcher.cpp":
                     AGENT_PROCESS_RUNNER_SOURCE,
+                "src/adapters/agent/src/agent_protocol_loop.cpp":
+                    AGENT_PROTOCOL_LOOP_SOURCE,
                 "src/adapters/agent/src/windows_agent_process.cpp":
                     AGENT_WINDOWS_PROCESS_SOURCE,
             }
@@ -1454,6 +1464,83 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "",
             ),
         )
+
+    def test_agent_backends_select_one_shared_protocol_loop(self) -> None:
+        self.assert_failure(
+            "Agent process adapter target contract is incomplete",
+            agent_target=AGENT_TARGET.replace(
+                "        src/agent_protocol_loop.cpp\n",
+                "",
+            ),
+        )
+        for backend in (
+            "src/adapters/agent/src/agent_process_launcher.cpp",
+            "src/adapters/agent/src/windows_agent_process.cpp",
+        ):
+            with self.subTest(backend=backend):
+                source = (
+                    AGENT_PROCESS_RUNNER_SOURCE
+                    if backend.endswith("agent_process_launcher.cpp")
+                    else AGENT_WINDOWS_PROCESS_SOURCE
+                )
+                self.assert_failure(
+                    "Agent process backend must select the shared protocol loop",
+                    {backend: source.replace(
+                        "run_agent_protocol_loop",
+                        "removed_shared_protocol_loop",
+                    )},
+                )
+                self.assert_failure(
+                    "Agent process backend duplicates shared protocol logic",
+                    {backend: source + "\nagent_protocol_decoder duplicate;\n"},
+                )
+
+    def test_posix_agent_transport_preserves_exit_first_bounded_batches(
+        self,
+    ) -> None:
+        self.assertNotIn("readAllStandardOutput", AGENT_PROCESS_RUNNER_SOURCE)
+        self.assertNotIn("readAllStandardError", AGENT_PROCESS_RUNNER_SOURCE)
+        for bounded_read_part in (
+            "setReadChannel",
+            "aBatchRemaining = State.Process.bytesAvailable()",
+            "State.Process.read(aBuffer.data(), requested)",
+            ".BatchComplete = aBatchRemaining == 0",
+        ):
+            with self.subTest(bounded_read_part=bounded_read_part):
+                self.assertIn(
+                    bounded_read_part,
+                    AGENT_PROCESS_RUNNER_SOURCE,
+                )
+
+        wait_start = AGENT_PROCESS_RUNNER_SOURCE.index(
+            "[[nodiscard]] auto wait()"
+        )
+        wait_end = AGENT_PROCESS_RUNNER_SOURCE.index(
+            "[[nodiscard]] auto terminate()",
+            wait_start,
+        )
+        wait_body = AGENT_PROCESS_RUNNER_SOURCE[wait_start:wait_end]
+        self.assertLess(
+            wait_body.index("QProcess::NotRunning"),
+            wait_body.index("Cancelled()"),
+        )
+        self.assertLess(
+            wait_body.index("QProcess::NotRunning"),
+            wait_body.index("Elapsed.elapsed()"),
+        )
+
+    def test_windows_agent_transport_preserves_bounded_batches(self) -> None:
+        for bounded_read_part in (
+            "aBatchRemaining = static_cast<std::size_t>(available)",
+            "std::min(aBuffer.size(), aBatchRemaining)",
+            "aBatchRemaining -= static_cast<std::size_t>(read)",
+            ".BatchComplete = aBatchRemaining == 0U",
+        ):
+            with self.subTest(bounded_read_part=bounded_read_part):
+                self.assertIn(
+                    bounded_read_part,
+                    AGENT_WINDOWS_PROCESS_SOURCE,
+                )
 
     def test_native_windows_agent_requires_suspended_containment_sequence(
         self,

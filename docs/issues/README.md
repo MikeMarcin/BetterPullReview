@@ -562,7 +562,9 @@ RFC-BPR-0007 through RFC-BPR-0011 have substantial component implementations
 on available targets, but BPR-0225 found both missing required component scope
 and absent public product paths. Done BPR-0238 supplies durable
 notes/heads/defect metadata; done BPR-0239 and in-progress BPR-0240 own queue
-filters/sorting and complete agent context/process lifecycle. Done BPR-0223 and
+filters/sorting and complete agent context/process lifecycle. Done BPR-0334
+removes the duplicated portable protocol loop from the platform backends while
+leaving BPR-0240's target-native Windows proof open. Done BPR-0223 and
 BPR-0228 through BPR-0231, plus backlog BPR-0232, own the corresponding
 composition; notification request/activation, the review ledger, round trip,
 durable defect workflow, and honest observer-rule queue now reach the public
@@ -629,10 +631,12 @@ pretending to complete them inside the review:
   process-boundary default network denial before BPR-0142 can use a live
   provider. Done BPR-0236 supplies the promised appearance fallback when its
   durable store cannot open.
-- In-progress BPR-0240 and done BPR-0237, BPR-0238, and BPR-0239 own
+- In-progress BPR-0240 and done BPR-0237, BPR-0238, BPR-0239, and BPR-0334 own
   required component scope missed by the first review pass: theme
   customization/import, durable ledger state, queue filtering/sorting, and
-  exact agent context/process lifecycle.
+  exact agent context/process lifecycle. BPR-0334 places decoder, follow-up,
+  output-bound, and terminal policy in one portable fake-tested loop; only the
+  native process primitives remain in the two platform transports.
 - Done BPR-0234 hardens the closeout contract. BPR-0241 through BPR-0245 are
   the newly explicit terminal closeout cards for RFC-BPR-0007 through
   RFC-BPR-0011.
@@ -671,10 +675,9 @@ three answers it needs:
 | BPR-0211, BPR-0212 | `40-parked/` | A product decision: owner-deferred, and RFC-scale rather than a slice |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
-| BPR-0240 | `30-in-progress/` | A Windows session. Its portable gates have run; `windows_agent_process.cpp` has never been compiled and only a Windows toolchain can |
+| BPR-0240 | `30-in-progress/` | A Windows session. Done BPR-0334 removed the duplicated portable protocol policy, but `windows_agent_process.cpp` still has never been compiled and only a Windows toolchain can prove its HANDLE/Job/cancellation transport |
 | BPR-0391, BPR-0392 | `40-parked/` | BPR-0391's failed foreground run first needs BPR-0410's attributable diagnostics; BPR-0392's native notification course passed and shares BPR-0168's outstanding owner description |
 | BPR-0362 | `40-parked/` | A product decision nobody has made yet |
-| BPR-0334 | `30-in-progress/` | Current macOS session. The authorized extraction moves the portable protocol loop behind one fake-tested seam while preserving POSIX behavior and leaving native Windows handle/Job plumbing in its existing translation unit |
 | BPR-0410 | `30-in-progress/` | Current macOS session. It makes a failing appearance run say what actually happened and is explicitly authorized in the shared relink batch |
 | BPR-0310, BPR-0314 | `50-blocked/` | A Linux host; both are `platform-linux` |
 
@@ -696,7 +699,7 @@ and fails when they disagree, so a card entering or leaving `20-ready/`,
 under the wrong lane, or left behind after it closes.
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these eighteen roots or reaches one
+card on this board is either one of these seventeen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 53 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
@@ -753,7 +756,7 @@ Everything else in `10-backlog/` reaches one of those roots transitively.
 | Designated live-lane proof blockers | Done BPR-0261/BPR-0262/BPR-0263/BPR-0264, parked BPR-0256 | The approved narrowed replay authority is implemented and independently reviewed. The owner approved v004 exactly, but the lane failed closed before GUI creation; an immediate unauthenticated diagnostic returned HTTP 404, the approval remained unconsumed and was deleted, and no mutation occurred. A publicly observable target and complete successor packet are required |
 | Owner-attended or native-display judgment | Backlog BPR-0114; parked BPR-0100, BPR-0168, and BPR-0220; done BPR-0210 and BPR-0251 | BPR-0100's exact v003 native pass is accepted and frozen; its authorized relink requires a successor final-head packet. BPR-0168 still needs an observed banner description; the owner explicitly said they were not looking, so no verdict is inferred. BPR-0220 retains the unexplained native geometry delta. Done BPR-0214's capture question was answered by the accepted v006 batch |
 | Product composition | Backlog BPR-0232; done BPR-0223, BPR-0226 through BPR-0231, BPR-0247, and BPR-0250 | Notification request/activation, the workbench host, selected diff, ledger, actionability, fixture-safe review round trip, durable defect workflow, observer-rule queue, portable agent invocation, durable sessions, and explicit private-context selection are composed. BPR-0232 waits for deferred native Windows lifecycle proof and its final replay through that same surface. |
-| Missing component and resilience scope | Backlog BPR-0235; in-progress BPR-0240; done BPR-0237 through BPR-0239 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, and BPR-0236's appearance-storage fallback are done |
+| Missing component and resilience scope | Backlog BPR-0235; in-progress BPR-0240; done BPR-0237 through BPR-0239 and BPR-0334 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, BPR-0236's appearance-storage fallback, and the single portable agent protocol loop are done. Native Windows transport proof remains with BPR-0240 |
 | Recorded selected-diff proof | Done BPR-0233, BPR-0246, and BPR-0214; accepted-v003 but parked BPR-0100; still gating BPR-0210's margin analysis | The real selected-file course binds UIforETW commits/blobs, named replacement pairs, semantic roles, and a cut-wire negative. After the v001 through v004 rejections and the accepted v005 connector repair, the combined v006 batch was accepted whole on 2026-08-18; BPR-0100 then accepted the native assembled workbench against the exact v003 executable on 2026-08-20, and stays open only for the successor identity after the authorized relink |
 | Closeout rigor and terminal cards | Done BPR-0234 and BPR-0248; backlog BPR-0241 through BPR-0245 | The standing shipped-binary composition inventory is reconciled with exact fixture/production profiles; replay each anchored executable checklist and retain a live terminal card for each Proposed RFC |
 | Deferred or not a slice | BPR-0211, BPR-0212, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering. BPR-0156 is no longer an example here: the Ubuntu host arrived, it re-established the matrix, and it is in `60-done/` |

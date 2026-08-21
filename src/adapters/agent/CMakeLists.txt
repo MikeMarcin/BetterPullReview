@@ -10,6 +10,7 @@ add_library(
     better_pull_review_adapter_agent
     STATIC
         src/agent_process_launcher.cpp
+        src/agent_protocol_loop.cpp
 )
 if(WIN32)
     target_sources(

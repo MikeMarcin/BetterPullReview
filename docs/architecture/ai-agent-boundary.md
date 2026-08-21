@@ -129,6 +129,20 @@ more child output, which makes consumer backpressure part of the contract;
 stderr is drained on every polling pass so a full error pipe cannot deadlock
 stdout. Provisional events carry the exact session ID and an ordered sequence.
 
+The portable protocol lifecycle lives once in
+`src/adapters/agent/src/agent_protocol_loop.cpp`. POSIX and Windows transports
+own only their process primitives and present bounded stdout/stderr reads,
+wait, input-close, and termination to that loop. A transport marks whether a
+bounded read completes the availability snapshot it observed; the loop defers
+decoded events and follow-up writes until that snapshot is complete, so an
+already-buffered later App Server response cannot cross a 16 KiB read boundary
+and escape causal validation. A natural process exit is drained, decoding is
+finished, and its result is classified; write, cancellation, timeout, and
+protocol failures retain their already-recorded cause without forcing a final
+decoder pass. Every path attempts teardown exactly once. Teardown failure
+replaces an otherwise successful result but cannot overwrite nonzero exit,
+protocol, cancellation, or timeout.
+
 The terminal result distinguishes failed start, nonzero exit, protocol
 failure, explicit cancellation, timeout, stale result, and success. Failed,
 cancelled, timed-out, and stale results expose no final event collection.
@@ -269,6 +283,12 @@ is now in a tool they meant to ask about a diff.
 adds `src/adapters/agent/src/agent_process_launcher.cpp` as the third, and the
 scan checks that the adapter's own CMake target owns it.
 
+That target also owns the private portable protocol loop. The POSIX translation
+unit wraps `QProcess`; the Windows translation unit retains `HANDLE`, Job
+Object, and cancellation primitives. Architecture checks require both backends
+to select the one shared loop and forbid them from regaining decoder,
+follow-up, stderr-accounting, or protocol-phase policy.
+
 The launcher is **not** in `src/adapters/qt`. That whole directory is an
 effect-free region, because presentation starts no processes — and the scan
 refused the first attempt to put it there. `qt::agent_launch_panel` holds no
@@ -328,6 +348,7 @@ so rather than pick the reassuring answer.
 | A same-path, same-marker substitute cannot retarget cleanup | `git_process_contract` |
 | Two fresh processes prove selected stdin, durable reopen, and next ID | `application_agent_invocation_composition_contract` |
 | Direct construction or gesture bypass cannot satisfy the public canary | `application_agent_invocation_construction_cut_contract`, `application_agent_invocation_gesture_cut_contract` |
+| Protocol policy exists once, preserves complete availability-batch causality, and terminates once with the first cause intact | `application_agent_protocol_loop`, `architecture_boundaries`, `architecture_boundary_contract` |
 | Process ownership is enumerated | `architecture_boundaries` |
 
 ### What is not claimed

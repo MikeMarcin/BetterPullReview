@@ -1,7 +1,7 @@
 ---
 id: BPR-0334
 title: Extract the shared agent protocol loop out of the Windows-only translation unit
-status: In Progress
+status: Done
 rfc: RFC-BPR-0011
 depends_on: []
 ---
@@ -189,3 +189,60 @@ architecture/RFC/issue documentation. Native Windows process and Job Object
 plumbing stays in `windows_agent_process.cpp`; no Windows success claim will be
 made from macOS. POSIX behavior and its drain/finish/classify/terminate ordering
 are the reference contract.
+
+## Implemented and independently reviewed — 2026-08-21
+
+Portable protocol policy now exists once in the private
+`agent_protocol_loop.cpp`. The POSIX `QProcess` and native Windows backends
+implement only the narrow write, bounded availability-batch read, wait,
+close-input, and terminate seam. Windows HANDLE, pipe, cancellation, suspended
+process, and Job Object operations remain in `windows_agent_process.cpp`.
+
+The shared loop preserves first-cause-wins classification, clears provisional
+events on every non-success, retains the stderr ceiling, publishes through
+synchronous backpressure, and advances App Server phases only after the
+complete follow-up write succeeds and the decoder acknowledges it. Both
+transports snapshot one availability batch and expose it through bounded 16 KiB
+caller buffers; no decoded event or follow-up effect is processed until that
+snapshot is fully decoded. This preserves the causal refusal when a later App
+Server phase was already present in the same batch.
+
+The independent review found and the implementation fixed two POSIX
+regressions before closeout:
+
+1. an already-finished child was initially checked after cancellation/deadline,
+   reversing the old exit precedence;
+2. chunking one Qt availability batch could acknowledge a phase before a
+   preemptive later response in the same batch was decoded.
+
+The regression contract now pins exit-first ordering, a deterministic padded
+greater-than-16-KiB same-batch causal violation with only the initial write,
+all five write statuses, all pipe and wait statuses, partial/oversize output,
+stderr ceiling arithmetic, App Server 0→1→2, sink refusal, finish behavior,
+and teardown failure against clean, nonzero, cancelled, timed-out, and earlier
+protocol outcomes. Architecture mutations require both backends to select the
+shared loop and forbid either from regaining decoder, follow-up, stderr, or
+phase policy.
+
+Direct final verification passed:
+
+- the six-selector development matrix passed 6/6, including both architecture
+  gates, the new loop contract, the existing launch/invocation tests, and the
+  relinked Qt canary;
+- `conditional_branch_identifiers` passed;
+- the new loop contract built and passed under `core-only`;
+- focused architecture mutation cases passed 3/3;
+- repository format and `git diff --check` passed.
+
+The protected macOS development executable is now 51,383,520 bytes with
+SHA-256
+`10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`.
+The behavior-preserving simplification pass found no smaller safe decomposition
+after the shared loop and transport-only backends were established.
+
+Independent re-review returned no blocking or non-blocking code finding. The
+remaining uncertainty is explicit: the Windows translation unit was inspected
+and structurally mutation-tested but could not be natively compiled or run on
+macOS. [[BPR-0240]] retains target-native Windows compile, handle-lifetime,
+Job Object containment, and the intentional drain → finish/classify → terminate
+runtime proof. No Windows success claim is made here.

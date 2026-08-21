@@ -1,5 +1,7 @@
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 
+#include "agent_protocol_loop.hpp"
+
 #if defined(Q_OS_WIN)
 	#include "windows_agent_process.hpp"
 #else
@@ -15,6 +17,8 @@
 #include <atomic>
 #include <cerrno>
 #include <filesystem>
+#include <functional>
+#include <span>
 #include <string_view>
 
 #if defined(Q_OS_UNIX)
@@ -63,6 +67,124 @@ namespace bpr::adapters::agent {
 				static_cast<void>(aState.Process.waitForFinished(5'000));
 			}
 		}
+
+		class qt_agent_protocol_transport final
+			: public detail::agent_protocol_transport
+		{
+		public:
+			qt_agent_protocol_transport(
+				process_state&               aState,
+				const QElapsedTimer&         aElapsed,
+				const int                    aTimeoutMilliseconds,
+				const std::function<bool()>& aCancelled)
+				: State{ aState }
+				, Elapsed{ aElapsed }
+				, TimeoutMilliseconds{ aTimeoutMilliseconds }
+				, Cancelled{ aCancelled }
+			{
+			}
+
+			[[nodiscard]] auto write(const std::string_view aBytes)
+				-> detail::agent_protocol_write_status override
+			{
+				const auto bytes = QByteArray{
+					aBytes.data(), static_cast<qsizetype>(aBytes.size())
+				};
+				return State.Process.write(bytes) == bytes.size()
+					? detail::agent_protocol_write_status::success
+					: detail::agent_protocol_write_status::failed;
+			}
+
+			void close_input() noexcept override
+			{
+				State.Process.closeWriteChannel();
+			}
+
+			[[nodiscard]] auto read_standard_output(std::span<char> aBuffer)
+				-> detail::agent_protocol_pipe_read_result override
+			{
+				return read_available(
+					QProcess::StandardOutput,
+					StandardOutputBatchRemaining,
+					aBuffer);
+			}
+
+			[[nodiscard]] auto read_standard_error(std::span<char> aBuffer)
+				-> detail::agent_protocol_pipe_read_result override
+			{
+				return read_available(
+					QProcess::StandardError,
+					StandardErrorBatchRemaining,
+					aBuffer);
+			}
+
+			[[nodiscard]] auto wait() -> detail::agent_protocol_wait_result override
+			{
+				if (State.Process.state() == QProcess::NotRunning) {
+					return {
+						.Status         = detail::agent_protocol_wait_status::exited,
+						.ExitCode       = State.Process.exitCode(),
+						.ExitedNormally = State.Process.exitStatus()
+							== QProcess::NormalExit,
+					};
+				}
+				if (Cancelled()) {
+					return { .Status = detail::agent_protocol_wait_status::cancelled };
+				}
+				if (Elapsed.elapsed() >= TimeoutMilliseconds) {
+					return { .Status = detail::agent_protocol_wait_status::timeout };
+				}
+				static_cast<void>(State.Process.waitForReadyRead(
+					wait_slice(Elapsed, TimeoutMilliseconds)));
+				return { };
+			}
+
+			[[nodiscard]] auto terminate() noexcept -> bool override
+			{
+				end_process_tree(State);
+				return true;
+			}
+
+		private:
+			[[nodiscard]] auto read_available(
+				const QProcess::ProcessChannel aChannel,
+				qint64&                        aBatchRemaining,
+				std::span<char>                aBuffer) -> detail::agent_protocol_pipe_read_result
+			{
+				State.Process.setReadChannel(aChannel);
+				if (aBatchRemaining == 0) {
+					aBatchRemaining = State.Process.bytesAvailable();
+				}
+				if (aBatchRemaining <= 0) {
+					aBatchRemaining = 0;
+					return {
+						.Status = State.Process.state() == QProcess::NotRunning
+							? detail::agent_protocol_pipe_read_status::closed
+							: detail::agent_protocol_pipe_read_status::no_data,
+					};
+				}
+				const auto requested = std::min(
+					static_cast<qint64>(aBuffer.size()), aBatchRemaining);
+				const auto count = State.Process.read(aBuffer.data(), requested);
+				if (count <= 0) {
+					aBatchRemaining = 0;
+					return { .Status = detail::agent_protocol_pipe_read_status::failed };
+				}
+				aBatchRemaining -= count;
+				return {
+					.Status        = detail::agent_protocol_pipe_read_status::data,
+					.Count         = static_cast<std::size_t>(count),
+					.BatchComplete = aBatchRemaining == 0,
+				};
+			}
+
+			process_state&               State;
+			const QElapsedTimer&         Elapsed;
+			int                          TimeoutMilliseconds;
+			const std::function<bool()>& Cancelled;
+			qint64                       StandardOutputBatchRemaining = 0;
+			qint64                       StandardErrorBatchRemaining  = 0;
+		};
 #endif
 	} // namespace
 
@@ -180,174 +302,11 @@ namespace bpr::adapters::agent {
 		state.ProcessGroup = state.Process.processId();
 	#endif
 
-		auto writeInput = [&state](const std::string_view aInput) {
-			const auto bytes
-				= QByteArray{ aInput.data(), static_cast<qsizetype>(aInput.size()) };
-			return state.Process.write(bytes) == bytes.size();
+		const auto cancellationProbe = std::function<bool()>{ cancelled };
+		auto       transport         = qt_agent_protocol_transport{
+			state, elapsed, aTimeoutMilliseconds, cancellationProbe
 		};
-		if (!writeInput(aRequest.Input)) {
-			end_process_tree(state);
-			result.Outcome = application::agent_run_outcome::protocol_failure;
-			result.ProtocolFailure
-				= application::agent_protocol_failure::malformed_frame;
-			return result;
-		}
-		const auto isAppServer
-			= aRequest.Protocol == core::agent_protocol::codex_app_server;
-		if (!isAppServer) {
-			state.Process.closeWriteChannel();
-		}
-
-		auto decoder  = application::agent_protocol_decoder{ aRequest.Protocol };
-		auto sequence = std::uint64_t{ 0U };
-		auto protocolFailure
-			= std::optional<application::agent_protocol_failure>{ };
-		auto appServerPhase = std::uint8_t{ 0U };
-		auto publish        = [&](const application::agent_protocol_event& aMessage) {
-			auto event = application::agent_stream_event{
-				.Session  = aRequest.Session,
-				.Sequence = sequence++,
-				.Text     = aMessage.Text,
-			};
-			result.Events.push_back(event);
-			if (aSink) {
-				try {
-					aSink(event);
-				} catch (...) {
-					return false;
-				}
-			}
-			return true;
-		};
-		auto drain = [&] {
-			const auto error = state.Process.readAllStandardError();
-			if (
-				static_cast<std::size_t>(error.size())
-				> application::maximum_agent_stderr_bytes
-					- result.StandardError.size()) {
-				protocolFailure = application::agent_protocol_failure::output_too_large;
-				return;
-			}
-			result.StandardError += error.toStdString();
-
-			const auto output = state.Process.readAllStandardOutput();
-			if (output.isEmpty()) {
-				return;
-			}
-			const auto decoded = decoder.push(std::string_view{
-				output.constData(), static_cast<std::size_t>(output.size()) });
-			if (!decoded) {
-				protocolFailure = decoded.error();
-				return;
-			}
-			for (const auto& message : *decoded) {
-				if (message.Kind == application::agent_protocol_event_kind::output) {
-					if (!publish(message)) {
-						protocolFailure
-							= application::agent_protocol_failure::malformed_frame;
-						return;
-					}
-				} else {
-					const auto expectedPhase
-						= message.Kind
-							== application::agent_protocol_event_kind::initialization_complete
-						? 0U
-						: 1U;
-					if (!isAppServer || appServerPhase != expectedPhase) {
-						protocolFailure
-							= application::agent_protocol_failure::malformed_frame;
-						return;
-					}
-					const auto followup = application::build_agent_protocol_followup(
-						aRequest, message);
-					if (!followup || !writeInput(*followup)) {
-						protocolFailure = followup
-							? application::agent_protocol_failure::malformed_frame
-							: followup.error();
-						return;
-					}
-					const auto acknowledged
-						= decoder.acknowledge_followup(message.Kind);
-					if (!acknowledged) {
-						protocolFailure = acknowledged.error();
-						return;
-					}
-					++appServerPhase;
-					if (appServerPhase == 2U) {
-						state.Process.closeWriteChannel();
-					}
-				}
-			}
-		};
-
-		while (state.Process.state() != QProcess::NotRunning) {
-			drain();
-			if (protocolFailure) {
-				end_process_tree(state);
-				result.Events.clear();
-				result.Outcome         = application::agent_run_outcome::protocol_failure;
-				result.ProtocolFailure = protocolFailure;
-				return result;
-			}
-			if (cancelled()) {
-				end_process_tree(state);
-				result.Events.clear();
-				result.Outcome = application::agent_run_outcome::cancelled;
-				return result;
-			}
-			if (elapsed.elapsed() >= aTimeoutMilliseconds) {
-				end_process_tree(state);
-				result.Events.clear();
-				result.Outcome = application::agent_run_outcome::timeout;
-				return result;
-			}
-			static_cast<void>(state.Process.waitForReadyRead(
-				wait_slice(elapsed, aTimeoutMilliseconds)));
-		}
-		drain();
-		const auto trailing = decoder.finish();
-		// The trailing decode is the first refusal for an exchange that simply
-		// stopped early, so its cause must still be adopted. It is not new
-		// information once the drain above recorded one: a refused decoder
-		// restates the generic cause on every later call, and adopting that
-		// would adopt the restatement over the exact cause.
-		if (!trailing && !protocolFailure) {
-			protocolFailure = trailing.error();
-		}
-		if (
-			protocolFailure || !trailing
-			|| (isAppServer && appServerPhase != 2U)) {
-			end_process_tree(state);
-			result.Events.clear();
-			result.Outcome         = application::agent_run_outcome::protocol_failure;
-			result.ProtocolFailure = protocolFailure.value_or(
-				application::agent_protocol_failure::malformed_frame);
-			return result;
-		}
-		for (const auto& message : *trailing) {
-			if (
-				message.Kind != application::agent_protocol_event_kind::output
-				|| !publish(message)) {
-				end_process_tree(state);
-				result.Events.clear();
-				result.Outcome = application::agent_run_outcome::protocol_failure;
-				result.ProtocolFailure
-					= application::agent_protocol_failure::malformed_frame;
-				return result;
-			}
-		}
-
-		result.ExitCode          = state.Process.exitCode();
-		const auto exitedCleanly = state.Process.exitStatus() == QProcess::NormalExit
-			&& *result.ExitCode == 0;
-		end_process_tree(state);
-		if (!exitedCleanly) {
-			result.Events.clear();
-			result.Outcome = application::agent_run_outcome::nonzero_exit;
-			return result;
-		}
-		result.Outcome = application::agent_run_outcome::success;
-		return result;
+		return detail::run_agent_protocol_loop(aRequest, aSink, transport);
 #endif
 	}
 

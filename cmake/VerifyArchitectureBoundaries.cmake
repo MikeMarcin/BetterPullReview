@@ -91,6 +91,10 @@ set(
     "src/adapters/agent/src/agent_process_launcher.cpp"
 )
 set(
+    agent_protocol_loop_relative
+    "src/adapters/agent/src/agent_protocol_loop.cpp"
+)
+set(
     agent_windows_process_relative
     "src/adapters/agent/src/windows_agent_process.cpp"
 )
@@ -159,6 +163,7 @@ if(NOT agent_cmake_contents STREQUAL "")
         IN ITEMS
             "add_library\\([ \t\r\n]*better_pull_review_adapter_agent([ \t\r\n]|\\))"
             "src/agent_process_launcher\\.cpp"
+            "src/agent_protocol_loop\\.cpp"
             "if\\(WIN32\\)"
             "src/windows_agent_process\\.cpp"
             "Kernel32"
@@ -172,6 +177,31 @@ if(NOT agent_cmake_contents STREQUAL "")
             )
         endif()
     endforeach()
+    foreach(
+        required_agent_source
+        IN ITEMS
+            "${agent_process_runner_relative}"
+            "${agent_protocol_loop_relative}"
+            "${agent_windows_process_relative}"
+    )
+        if(NOT EXISTS "${BPR_ROOT}/${required_agent_source}")
+            message(
+                FATAL_ERROR
+                "The selected agent process source is required: "
+                "${required_agent_source}"
+            )
+        endif()
+    endforeach()
+    file(
+        READ
+        "${BPR_ROOT}/${agent_process_runner_relative}"
+        agent_process_runner_contents
+    )
+    file(
+        READ
+        "${BPR_ROOT}/${agent_protocol_loop_relative}"
+        agent_protocol_loop_contents
+    )
     if(NOT EXISTS "${BPR_ROOT}/${agent_windows_process_relative}")
         message(
             FATAL_ERROR
@@ -184,6 +214,62 @@ if(NOT agent_cmake_contents STREQUAL "")
         "${BPR_ROOT}/${agent_windows_process_relative}"
         agent_windows_process_contents
     )
+    foreach(
+        required_shared_agent_protocol_pattern
+        IN ITEMS
+            "agent_protocol_decoder"
+            "build_agent_protocol_followup"
+            "maximum_agent_stderr_bytes"
+            "AppServerPhase"
+    )
+        if(
+            NOT agent_protocol_loop_contents
+                MATCHES "${required_shared_agent_protocol_pattern}"
+        )
+            message(
+                FATAL_ERROR
+                "Shared agent protocol loop contract is incomplete: "
+                "${required_shared_agent_protocol_pattern}"
+            )
+        endif()
+    endforeach()
+    foreach(
+        agent_protocol_backend_contents
+        IN ITEMS
+            "${agent_process_runner_contents}"
+            "${agent_windows_process_contents}"
+    )
+        if(
+            NOT agent_protocol_backend_contents
+                MATCHES "agent_protocol_loop\\.hpp"
+            OR NOT agent_protocol_backend_contents
+                MATCHES "run_agent_protocol_loop"
+        )
+            message(
+                FATAL_ERROR
+                "Agent process backend must select the shared protocol loop"
+            )
+        endif()
+        foreach(
+            duplicated_agent_protocol_pattern
+            IN ITEMS
+                "agent_protocol_decoder"
+                "build_agent_protocol_followup"
+                "maximum_agent_stderr_bytes"
+                "[Aa]ppServerPhase"
+        )
+            if(
+                agent_protocol_backend_contents
+                    MATCHES "${duplicated_agent_protocol_pattern}"
+            )
+                message(
+                    FATAL_ERROR
+                    "Agent process backend duplicates shared protocol logic: "
+                    "${duplicated_agent_protocol_pattern}"
+                )
+            endif()
+        endforeach()
+    endforeach()
     foreach(
         required_native_agent_process_pattern
         IN ITEMS

@@ -1,5 +1,7 @@
 #include "windows_agent_process.hpp"
 
+#include "agent_protocol_loop.hpp"
+
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -13,6 +15,7 @@
 #include <limits>
 #include <optional>
 #include <ranges>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -321,20 +324,12 @@ namespace bpr::adapters::agent::detail {
 			return AssignProcessToJobObject(aJob, aProcess) != FALSE;
 		}
 
-		enum class write_status : std::uint8_t {
-			success,
-			cancelled,
-			timeout,
-			process_exited,
-			failed,
-		};
-
 		[[nodiscard]] auto write_all(
 			const HANDLE              aPipe,
 			const HANDLE              aProcess,
 			const std::string_view    aBytes,
 			const clock::time_point   aDeadline,
-			const cancellation_probe& aCancelled) -> write_status
+			const cancellation_probe& aCancelled) -> agent_protocol_write_status
 		{
 			auto completed = std::atomic_bool{ false };
 			auto succeeded = std::atomic_bool{ false };
@@ -363,18 +358,18 @@ namespace bpr::adapters::agent::detail {
 				completed.store(true, std::memory_order_release);
 			} };
 
-			auto interrupted = write_status::failed;
+			auto interrupted = agent_protocol_write_status::failed;
 			while (!completed.load(std::memory_order_acquire)) {
 				if (aCancelled()) {
-					interrupted = write_status::cancelled;
+					interrupted = agent_protocol_write_status::cancelled;
 					break;
 				}
 				if (clock::now() >= aDeadline) {
-					interrupted = write_status::timeout;
+					interrupted = agent_protocol_write_status::timeout;
 					break;
 				}
 				if (WaitForSingleObject(aProcess, 0U) == WAIT_OBJECT_0) {
-					interrupted = write_status::process_exited;
+					interrupted = agent_protocol_write_status::process_exited;
 					break;
 				}
 				static_cast<void>(WaitForSingleObject(
@@ -386,46 +381,64 @@ namespace bpr::adapters::agent::detail {
 				static_cast<void>(CancelSynchronousIo(writer.native_handle()));
 			}
 			writer.join();
-			if (interrupted != write_status::failed) {
+			if (interrupted != agent_protocol_write_status::failed) {
 				return interrupted;
 			}
 			return succeeded.load(std::memory_order_acquire)
-				? write_status::success
-				: write_status::failed;
+				? agent_protocol_write_status::success
+				: agent_protocol_write_status::failed;
 		}
 
-		enum class pipe_read_status : std::uint8_t {
-			no_data,
-			data,
-			closed,
-			failed,
-		};
-
 		[[nodiscard]] auto read_available(
-			const HANDLE aPipe, std::array<char, 16U * 1024U>& aBuffer)
-			-> std::pair<pipe_read_status, std::size_t>
+			const HANDLE          aPipe,
+			std::size_t&          aBatchRemaining,
+			const std::span<char> aBuffer)
+			-> agent_protocol_pipe_read_result
 		{
-			auto available = DWORD{ 0U };
-			if (
-				PeekNamedPipe(aPipe, nullptr, 0U, nullptr, &available, nullptr)
-				== FALSE) {
-				return GetLastError() == ERROR_BROKEN_PIPE
-					? std::pair{ pipe_read_status::closed, std::size_t{ 0U } }
-					: std::pair{ pipe_read_status::failed, std::size_t{ 0U } };
+			if (aBatchRemaining == 0U) {
+				auto available = DWORD{ 0U };
+				if (
+					PeekNamedPipe(aPipe, nullptr, 0U, nullptr, &available, nullptr)
+					== FALSE) {
+					return GetLastError() == ERROR_BROKEN_PIPE
+						? agent_protocol_pipe_read_result{
+							  .Status = agent_protocol_pipe_read_status::closed,
+						  }
+						: agent_protocol_pipe_read_result{
+							  .Status = agent_protocol_pipe_read_status::failed,
+						  };
+				}
+				aBatchRemaining = static_cast<std::size_t>(available);
 			}
-			if (available == 0U) {
-				return { pipe_read_status::no_data, 0U };
+			if (aBatchRemaining == 0U) {
+				return { .Status = agent_protocol_pipe_read_status::no_data };
 			}
-			const auto requested = static_cast<DWORD>(
-				std::min<std::size_t>(aBuffer.size(), available));
-			auto read = DWORD{ 0U };
+			const auto requestedSize
+				= std::min(aBuffer.size(), aBatchRemaining);
+			const auto requested = static_cast<DWORD>(requestedSize);
+			auto       read      = DWORD{ 0U };
 			if (
 				ReadFile(aPipe, aBuffer.data(), requested, &read, nullptr) == FALSE) {
-				return GetLastError() == ERROR_BROKEN_PIPE
-					? std::pair{ pipe_read_status::closed, std::size_t{ 0U } }
-					: std::pair{ pipe_read_status::failed, std::size_t{ 0U } };
+				const auto error = GetLastError();
+				aBatchRemaining  = 0U;
+				return error == ERROR_BROKEN_PIPE
+					? agent_protocol_pipe_read_result{
+						  .Status = agent_protocol_pipe_read_status::closed,
+					  }
+					: agent_protocol_pipe_read_result{
+						  .Status = agent_protocol_pipe_read_status::failed,
+					  };
 			}
-			return { pipe_read_status::data, read };
+			if (read == 0U || read > aBatchRemaining) {
+				aBatchRemaining = 0U;
+				return { .Status = agent_protocol_pipe_read_status::failed };
+			}
+			aBatchRemaining -= static_cast<std::size_t>(read);
+			return {
+				.Status        = agent_protocol_pipe_read_status::data,
+				.Count         = static_cast<std::size_t>(read),
+				.BatchComplete = aBatchRemaining == 0U,
+			};
 		}
 
 		[[nodiscard]] auto active_job_processes(const HANDLE aJob)
@@ -477,256 +490,96 @@ namespace bpr::adapters::agent::detail {
 			return false;
 		}
 
-		[[nodiscard]] auto protocol_result(
-			const application::agent_launch_request& aRequest,
-			const application::agent_output_sink&    aSink,
-			const cancellation_probe&                aCancelled,
-			const clock::time_point                  aDeadline,
-			unique_handle&                           aInput,
-			unique_handle&                           aOutput,
-			unique_handle&                           aError,
-			const HANDLE                             aProcess,
-			const HANDLE                             aJob)
-			-> application::agent_run_result
+		class windows_agent_protocol_transport final
+			: public agent_protocol_transport
 		{
-			auto result   = application::agent_run_result{ .Session = aRequest.Session };
-			auto decoder  = application::agent_protocol_decoder{ aRequest.Protocol };
-			auto sequence = std::uint64_t{ 0U };
-			auto protocolFailure
-				= std::optional<application::agent_protocol_failure>{ };
-			auto forcedOutcome
-				= std::optional<application::agent_run_outcome>{ };
-			auto       appServerPhase = std::uint8_t{ 0U };
-			const auto isAppServer
-				= aRequest.Protocol == core::agent_protocol::codex_app_server;
-
-			const auto set_write_failure = [&](const write_status aStatus) {
-				switch (aStatus) {
-				case write_status::success:
-					return;
-				case write_status::cancelled:
-					forcedOutcome = application::agent_run_outcome::cancelled;
-					return;
-				case write_status::timeout:
-					forcedOutcome = application::agent_run_outcome::timeout;
-					return;
-				case write_status::process_exited:
-				case write_status::failed:
-					protocolFailure
-						= application::agent_protocol_failure::malformed_frame;
-					return;
-				}
-			};
-
-			set_write_failure(write_all(
-				aInput.get(),
-				aProcess,
-				aRequest.Input,
-				aDeadline,
-				aCancelled));
-			if (!isAppServer) {
-				aInput.reset();
+		public:
+			windows_agent_protocol_transport(
+				unique_handle&            aInput,
+				unique_handle&            aOutput,
+				unique_handle&            aError,
+				const HANDLE              aProcess,
+				const HANDLE              aJob,
+				const clock::time_point   aDeadline,
+				const cancellation_probe& aCancelled)
+				: Input{ aInput }
+				, Output{ aOutput }
+				, Error{ aError }
+				, Process{ aProcess }
+				, Job{ aJob }
+				, Deadline{ aDeadline }
+				, Cancelled{ aCancelled }
+			{
 			}
 
-			auto publish = [&](const application::agent_protocol_event& aMessage) {
-				auto event = application::agent_stream_event{
-					.Session  = aRequest.Session,
-					.Sequence = sequence++,
-					.Text     = aMessage.Text,
-				};
-				result.Events.push_back(event);
-				if (aSink) {
-					try {
-						aSink(event);
-					} catch (...) {
-						return false;
-					}
-				}
-				return true;
-			};
+			[[nodiscard]] auto write(const std::string_view aBytes)
+				-> agent_protocol_write_status override
+			{
+				return write_all(
+					Input.get(), Process, aBytes, Deadline, Cancelled);
+			}
 
-			auto outputBuffer = std::array<char, 16U * 1024U>{ };
-			auto errorBuffer  = std::array<char, 16U * 1024U>{ };
-			auto drainError   = [&] {
-				while (!protocolFailure) {
-					const auto [status, count]
-						= read_available(aError.get(), errorBuffer);
-					if (
-						status == pipe_read_status::no_data
-						|| status == pipe_read_status::closed) {
-						return;
-					}
-					if (status == pipe_read_status::failed) {
-						protocolFailure
-							= application::agent_protocol_failure::malformed_frame;
-						return;
-					}
-					const auto remaining = application::maximum_agent_stderr_bytes
-						- result.StandardError.size();
-					if (count > remaining) {
-						protocolFailure
-							= application::agent_protocol_failure::output_too_large;
-						return;
-					}
-					result.StandardError.append(errorBuffer.data(), count);
-				}
-			};
+			void close_input() noexcept override
+			{
+				Input.reset();
+			}
 
-			auto drainOutput = [&] {
-				const auto [status, count]
-					= read_available(aOutput.get(), outputBuffer);
-				if (status == pipe_read_status::failed) {
-					protocolFailure
-						= application::agent_protocol_failure::malformed_frame;
-					return false;
-				}
-				if (status != pipe_read_status::data) {
-					return false;
-				}
-				const auto decoded = decoder.push(
-					std::string_view{ outputBuffer.data(), count });
-				if (!decoded) {
-					protocolFailure = decoded.error();
-					return false;
-				}
-				for (const auto& message : *decoded) {
-					if (message.Kind == application::agent_protocol_event_kind::output) {
-						if (!publish(message)) {
-							protocolFailure
-								= application::agent_protocol_failure::malformed_frame;
-							return false;
-						}
-						continue;
-					}
-					const auto expectedPhase
-						= message.Kind
-							== application::agent_protocol_event_kind::initialization_complete
-						? 0U
-						: 1U;
-					if (!isAppServer || appServerPhase != expectedPhase) {
-						protocolFailure
-							= application::agent_protocol_failure::malformed_frame;
-						return false;
-					}
-					const auto followup = application::build_agent_protocol_followup(
-						aRequest, message);
-					if (!followup) {
-						protocolFailure = followup.error();
-						return false;
-					}
-					set_write_failure(write_all(
-						aInput.get(),
-						aProcess,
-						*followup,
-						aDeadline,
-						aCancelled));
-					if (forcedOutcome || protocolFailure) {
-						return false;
-					}
-					const auto acknowledged
-						= decoder.acknowledge_followup(message.Kind);
-					if (!acknowledged) {
-						protocolFailure = acknowledged.error();
-						return false;
-					}
-					++appServerPhase;
-					if (appServerPhase == 2U) {
-						aInput.reset();
-					}
-				}
-				return true;
-			};
+			[[nodiscard]] auto read_standard_output(std::span<char> aBuffer)
+				-> agent_protocol_pipe_read_result override
+			{
+				return read_available(Output.get(), OutputBatchRemaining, aBuffer);
+			}
 
-			while (!protocolFailure && !forcedOutcome) {
-				drainError();
-				drainOutput();
-				if (protocolFailure || forcedOutcome) {
-					break;
+			[[nodiscard]] auto read_standard_error(std::span<char> aBuffer)
+				-> agent_protocol_pipe_read_result override
+			{
+				return read_available(Error.get(), ErrorBatchRemaining, aBuffer);
+			}
+
+			[[nodiscard]] auto wait() -> agent_protocol_wait_result override
+			{
+				if (Cancelled()) {
+					return { .Status = agent_protocol_wait_status::cancelled };
 				}
-				if (aCancelled()) {
-					forcedOutcome = application::agent_run_outcome::cancelled;
-					break;
+				if (clock::now() >= Deadline) {
+					return { .Status = agent_protocol_wait_status::timeout };
 				}
-				if (clock::now() >= aDeadline) {
-					forcedOutcome = application::agent_run_outcome::timeout;
-					break;
+				const auto state = WaitForSingleObject(Process, 0U);
+				if (state == WAIT_OBJECT_0) {
+					auto exitCode = DWORD{ 0U };
+					if (GetExitCodeProcess(Process, &exitCode) == FALSE) {
+						return { .Status = agent_protocol_wait_status::failed };
+					}
+					return {
+						.Status   = agent_protocol_wait_status::exited,
+						.ExitCode = static_cast<int>(exitCode),
+					};
 				}
-				if (WaitForSingleObject(aProcess, 0U) == WAIT_OBJECT_0) {
-					break;
+				if (state == WAIT_FAILED) {
+					return { .Status = agent_protocol_wait_status::failed };
 				}
 				static_cast<void>(WaitForSingleObject(
-					aProcess, static_cast<DWORD>(io_poll_interval.count())));
+					Process, static_cast<DWORD>(io_poll_interval.count())));
+				return { };
 			}
 
-			aInput.reset();
-			auto       exitCode = DWORD{ 0U };
-			const auto processExited
-				= WaitForSingleObject(aProcess, 0U) == WAIT_OBJECT_0;
-			if (processExited) {
-				static_cast<void>(GetExitCodeProcess(aProcess, &exitCode));
-			}
-			const auto reaped = terminate_and_reap(
-				aJob,
-				aProcess,
-				nullptr,
-				aOutput.get(),
-				aError.get());
-			if (!reaped) {
-				protocolFailure = application::agent_protocol_failure::malformed_frame;
-				forcedOutcome.reset();
-			}
-			if (!protocolFailure && !forcedOutcome) {
-				drainError();
-				while (drainOutput()) {
-					if (protocolFailure || forcedOutcome) {
-						break;
-					}
-				}
+			[[nodiscard]] auto terminate() noexcept -> bool override
+			{
+				return terminate_and_reap(
+					Job, Process, Input.get(), Output.get(), Error.get());
 			}
 
-			if (forcedOutcome) {
-				result.Events.clear();
-				result.Outcome = *forcedOutcome;
-				return result;
-			}
-			if (protocolFailure) {
-				result.Events.clear();
-				result.Outcome         = application::agent_run_outcome::protocol_failure;
-				result.ProtocolFailure = protocolFailure;
-				return result;
-			}
-
-			const auto trailing = decoder.finish();
-			if (!trailing || (isAppServer && appServerPhase != 2U)) {
-				result.Events.clear();
-				result.Outcome         = application::agent_run_outcome::protocol_failure;
-				result.ProtocolFailure = trailing
-					? application::agent_protocol_failure::malformed_frame
-					: trailing.error();
-				return result;
-			}
-			for (const auto& message : *trailing) {
-				if (
-					message.Kind != application::agent_protocol_event_kind::output
-					|| !publish(message)) {
-					result.Events.clear();
-					result.Outcome
-						= application::agent_run_outcome::protocol_failure;
-					result.ProtocolFailure
-						= application::agent_protocol_failure::malformed_frame;
-					return result;
-				}
-			}
-
-			result.ExitCode = static_cast<int>(exitCode);
-			if (!processExited || exitCode != 0U) {
-				result.Events.clear();
-				result.Outcome = application::agent_run_outcome::nonzero_exit;
-				return result;
-			}
-			result.Outcome = application::agent_run_outcome::success;
-			return result;
-		}
+		private:
+			unique_handle&            Input;
+			unique_handle&            Output;
+			unique_handle&            Error;
+			HANDLE                    Process;
+			HANDLE                    Job;
+			clock::time_point         Deadline;
+			const cancellation_probe& Cancelled;
+			std::size_t               OutputBatchRemaining = 0U;
+			std::size_t               ErrorBatchRemaining  = 0U;
+		};
 	} // namespace
 
 	auto run_windows_agent_process(
@@ -866,16 +719,16 @@ namespace bpr::adapters::agent::detail {
 		}
 		thread.reset();
 
-		return protocol_result(
-			aRequest,
-			aSink,
-			aCancelled,
-			deadline,
+		auto transport = windows_agent_protocol_transport{
 			input->Parent,
 			output->Parent,
 			error->Parent,
 			process.get(),
-			job.get());
+			job.get(),
+			deadline,
+			aCancelled,
+		};
+		return run_agent_protocol_loop(aRequest, aSink, transport);
 	}
 
 #if defined(BPR_BUILD_TESTING)
