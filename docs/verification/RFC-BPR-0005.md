@@ -150,21 +150,25 @@ Every row's `Direct surface` now names the harness it was proven against.
 | Qt is a presentation adapter | Qt adapter harness | Drive every primary action and bounded state change | Actions produce semantic intents, `QAction` state follows command projections, and bounded changes use incremental signals rather than full resets | Verified. Toggles and navigation emit core intents only; enablement and disabled reasons come from projections; drawer contents use insert/remove/data-change rather than reset |
 | Navigation and state are correct | UI automation | Exercise navigation, selection synchronisation, focus order, loading, failure, cancellation, and restart | Selection follows the filtered actionable order and every state is explicit in text as well as enabled state | Verified. Exact untruncated OIDs, four distinguishable textual states, declared focus order, unique accessible names and key sequences |
 | Shipped workbench host and selected diff are connected | Real `application_workbench_composition_contract` executable | Accept the recorded pull request, select the real file row, navigate, invalidate exact and mismatched identities, and force SQLite-open and observation failures | Exact bounded authority reaches the host; each selected endpoint resolves on the retained cache session; complete repository/PR/anchor/blob/file/options/algorithm/generation identity reaches the diff host; mismatches preserve state | Verified by BPR-0226 and BPR-0227. Independent file-gesture, selected-request, and exact-comparison markers pass; runtime fixture-helper calls remain zero; a test-only cut of the real Qt-to-host selection wire deterministically fails the public trace while that helper still exists |
-| Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench | Readable contrast and correct native control rendering at supported sizes and scales | Deferred, BPR-0100. BPR-0186 added the attended fixture launch and an owner successfully inspected it; BPR-0187 added the recorded pull request. Final acceptance still waits for BPR-0233's meaningful recorded comparison evidence |
+| Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench through the recorded selected-diff path | Readable contrast, native control rendering, coherent supported-size/profile layout, and C++ syntax colouring in both panes | Accepted by BPR-0100 on 2026-08-20 against executable `sha256:7b9d6be98c89b70a49f0616d2b32b10cb6b5d4a3f238366bed916379a78fcd93`; exact response and validation record are in `reviews/native-visual-acceptance-v003/`. This identity-bound result does not itself authorize RFC closeout or waive final-head replay. |
 
 ## Deferred gates
 
 RFC-BPR-0005's own text names no owner-attended requirement. One is inherited:
 the RFC-BPR-0003 and RFC-BPR-0004 ledgers both defer the integrated-workbench
 presentation-polish and native visual-acceptance pass to this RFC. BPR-0100
-owns it and is the only owner-attended card here.
+owns it, carries an exact accepted v003 response, and remains Parked for the
+successor final-head identity after the authorized relink. It is the only
+owner-attended card in this RFC.
 
 The 2026-08-06 sitting initially could not proceed because no fixture launch
 could remain open for a person. BPR-0186 added `--attended-launch`, and the
 owner subsequently used it successfully; BPR-0187 supplied the recorded pull
-request. The remaining attended gate is about the final selected comparison,
-not launchability. BPR-0227 made the selected state real; BPR-0233 must add its
-meaningful recorded comparison evidence before BPR-0100 is regenerated.
+request. The gate is about the final selected comparison, not launchability.
+BPR-0227 made the selected state real, BPR-0233 added the meaningful recorded
+comparison evidence, and the owner accepted the resulting v003 native workbench
+pass on 2026-08-20. The separately authorized relink means ordered RFC closeout
+still owns the successor final-head replay.
 
 No RFC-BPR-0005 requirement needs target-native Windows execution, a GitHub
 mutation, a credential, or a network service. Non-goals exclude full GitHub

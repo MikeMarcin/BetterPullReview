@@ -217,3 +217,16 @@ record in the owner's own words, and neither is the negative half:
 
 So the card stays parked on one short description rather than on a run. Nothing
 else in it is outstanding.
+
+## Latest operator response does not supply the missing observation — 2026-08-20
+
+The owner replied:
+
+> I didn't see any notice a notification banner but I wasnt looking.
+
+That is neither the packet's exact approval nor an observed rejection: the owner
+explicitly says they were not looking. It cannot establish what macOS drew or
+whether extra private content was absent, and it does not contradict the
+already-recorded exit-zero delivery and activation course. This card therefore
+remains parked on the same observed banner description; no rerun or verdict is
+inferred from this response.

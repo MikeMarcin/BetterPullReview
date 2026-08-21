@@ -176,3 +176,38 @@ impression.
 
 The packet's bound binary is unchanged, so a launch now is a launch of exactly
 the bytes `native-visual-acceptance-v003` describes.
+
+## Accepted against the bound native executable — 2026-08-20
+
+The owner closed the application normally after the attended pass and returned
+the packet's acceptance statement byte-for-byte:
+
+> I ran the BPR-0100 native visual-acceptance pass against executable
+> sha256:7b9d6be98c89b70a49f0616d2b32b10cb6b5d4a3f238366bed916379a78fcd93
+> on a real macOS display under Cocoa/QMacStyle, inspected the recorded
+> UIforETW review through the real selected-diff path at supported window
+> sizes and appearance profiles, saw the C++ comparison rendered with syntax
+> colouring in both panes, and I accept the assembled workbench's
+> presentation quality.
+
+The immutable response is
+[`operator-response.md`](../../verification/reviews/native-visual-acceptance-v003/operator-response.md),
+and its exact-statement and artifact binding is recorded in
+[`validation-record.json`](../../verification/reviews/native-visual-acceptance-v003/validation-record.json).
+The record binds the reviewed packet at
+`sha256:58b44c8d870173a8ec1564b96f1c1b166747a063adf172bc1608f12e9f7cc1d1`,
+the response at
+`sha256:d849ba890499a71e0110368c3f9fe84e10492e1ca164ab46299cbb504f5d91a2`,
+and the executable at the accepted `sha256:7b9d6b…fcd93` identity.
+
+This verdict is only BPR-0100's native presentation acceptance. In the same
+response the owner said they were not looking for a notification banner, so no
+BPR-0168 observation or rejection is inferred. The owner separately authorized
+replacing the protected executable for BPR-0409, BPR-0410, and BPR-0334; that
+direction releases the byte hold but does not widen this visual verdict.
+
+Because that authorized batch relinks the exact executable the verdict binds,
+this card remains Parked as the owning final-head attended procedure. v003 is an
+accepted, frozen result rather than a pending question; after the shared batch,
+only a successor packet bound to the materially changed executable can close
+the card. No part of the accepted v003 record is rewritten or downgraded.

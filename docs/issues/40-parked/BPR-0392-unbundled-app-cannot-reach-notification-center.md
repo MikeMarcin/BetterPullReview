@@ -344,3 +344,15 @@ An attended notification gate therefore has a real time window that no log line
 announces, and a run that misses it is indistinguishable from one where delivery
 failed until you look at which markers are absent. Relaunching costs nothing and
 consumes no packet, which is the right answer, but the packet should say so.
+
+## Latest operator response is not a banner observation — 2026-08-20
+
+The owner replied:
+
+> I didn't see any notice a notification banner but I wasnt looking.
+
+The course evidence above remains valid, but this statement cannot satisfy the
+shared packet's display-content decision because the owner explicitly was not
+observing the banner. It is not treated as a delivery failure or as approval.
+This card remains parked with [[BPR-0168]] until the banner is described as
+actually seen.

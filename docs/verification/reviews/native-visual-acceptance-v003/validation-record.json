@@ -1,0 +1,40 @@
+{
+  "bound_executable": {
+    "byte_length": 51085872,
+    "path": "build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+    "sha256": "sha256:7b9d6be98c89b70a49f0616d2b32b10cb6b5d4a3f238366bed916379a78fcd93"
+  },
+  "checks": {
+    "approval_statement_exact": true,
+    "bound_executable_exact": true,
+    "committed_artifacts_exact": true,
+    "overall": "pass"
+  },
+  "claims": {
+    "bpr_0100_native_visual_acceptance_v003_approved": true,
+    "live_github_mutation_authorized": false,
+    "package_or_release_authorized": false,
+    "rfc_bpr_0005_closeout_authorized": false,
+    "rfc_bpr_0006_closeout_authorized": false
+  },
+  "extraction_rule": "first contiguous blockquote after the unique LF acceptance marker; remove exactly '> ' when present; preserve UTF-8/LF and one terminal LF",
+  "gate": "native-visual-acceptance-v003",
+  "legacy_packet_reason": "The frozen packet predates the decision-subject schema, uses an acceptance marker rather than the newer approval marker, and carries no decision-subject digest. Rewriting it after the operator answered would invalidate the evidence.",
+  "operator_response": {
+    "byte_length": 443,
+    "path": "docs/verification/reviews/native-visual-acceptance-v003/operator-response.md",
+    "sha256": "sha256:d849ba890499a71e0110368c3f9fe84e10492e1ca164ab46299cbb504f5d91a2"
+  },
+  "outcome": "approved",
+  "recorded_at": "2026-08-20T23:42:08-07:00",
+  "result": "pass",
+  "reviewed_packet": {
+    "byte_length": 7240,
+    "path": "docs/verification/reviews/native-visual-acceptance-v003/operator-packet.md",
+    "sha256": "sha256:58b44c8d870173a8ec1564b96f1c1b166747a063adf172bc1608f12e9f7cc1d1"
+  },
+  "schema_name": "bpr.legacy_operator_response_validation",
+  "schema_version": 1,
+  "validated_commit": "93e468f935f33326801aabfd87af3de0930e2121",
+  "validation_command": "python3 -c 'import pathlib; p=pathlib.Path(\"docs/verification/reviews/native-visual-acceptance-v003/operator-packet.md\").read_bytes(); r=pathlib.Path(\"docs/verification/reviews/native-visual-acceptance-v003/operator-response.md\").read_bytes(); m=b\"To accept, reply with this exact statement:\\n\\n\"; q=p.split(m,1)[1].split(b\"\\n\\nTo reject\",1)[0].splitlines(); expected=b\"\\n\".join((line[2:] if line.startswith(b\"> \") else line[1:]) for line in q)+b\"\\n\"; assert expected==r; print(\"OPERATOR_RESPONSE_EXACT:native-visual-acceptance-v003\")'"
+}
