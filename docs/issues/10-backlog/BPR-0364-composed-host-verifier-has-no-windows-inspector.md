@@ -3,7 +3,7 @@ id: BPR-0364
 title: The composed-host verifier has no Windows symbol inspector
 status: Backlog
 rfc: RFC-BPR-0013
-depends_on: [BPR-0347]
+depends_on: [BPR-0412]
 ---
 
 # The composed-host verifier has no Windows symbol inspector
@@ -127,3 +127,32 @@ The required-anchor asymmetry stated above is unchanged and still real: reading
 objects is a safe superset for a forbidden anchor and an unsafe one for a
 required anchor. That question only has to be answered when the Qt graph runs,
 which [[BPR-0347]] owns, and it is the only reason this card is still open.
+
+## The edge pointed at a card that disclaims the work — 2026-08-20
+
+This card declared `depends_on: [BPR-0347]` because its last unmet bullet needs
+the Qt graph running under the AppContainer boundary. [[BPR-0347]] does not do
+that, and says so twice: "`BPR_BUILD_QT=ON` still has never been run under this
+boundary, unchanged by any of this." So BPR-0347 could have closed exactly as
+scoped with this card still waiting on something nobody owned.
+
+The dependency now names [[BPR-0412]], which owns that run. The chain is one
+step longer and one step truer.
+
+Two other facts worth recording while the audit is fresh:
+
+- **The core-only half of this card already landed**, at `bf12fa0`, while the
+  card sat in `10-backlog/`. `test_real_inspector_output_contains_defined_symbols`
+  now branches on platform capability and fails closed where it cannot read, and
+  `composed_host_verifier_contract` is not blocked.
+- **`scripts/verify_composed_hosts.py` still has no Windows candidate at all** —
+  `inspect_symbols` offers only `llvm-nm`, `nm` with a demangler, and
+  `objdump`/`llvm-objdump`. Bullet 1 is therefore met today by fail-closed
+  behaviour rather than by an MSVC-aware selection, which is the honest reading
+  and not what the bullet asks for.
+
+Naming `dumpbin` explicitly — as tried and rejected, per [[BPR-0361]]'s
+measurement that it "returns a section summary and no symbols" for a linked
+image — is writable from any host and needs no relink. It is left here rather
+than split out, because a candidate nobody can run end to end is the kind of
+half-evidence this program has been correcting all week.
