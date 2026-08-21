@@ -68,8 +68,8 @@ closeout, where a clean full replay is the actual requirement.
 
 Read this before editing anything under `src/`.
 
-Three operator packets are pending a person right now, and all three bind the
-exact bytes of the built `dev` application:
+Two attended packet families still bind the exact bytes of the built `dev`
+application:
 
 ```
 build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
@@ -77,11 +77,14 @@ sha256:7b9d6be98c89b70a49f0616d2b32b10cb6b5d4a3f238366bed916379a78fcd93
 51,085,872 bytes
 ```
 
-**Two** remain pending: `appearance-scheme-foreground-v007` ([[BPR-0391]], with
-[[BPR-0220]]'s causal question on the same run) and `native-visual-acceptance-v003`
-([[BPR-0100]]), both under `docs/verification/reviews/`.
+They are `appearance-scheme-foreground-v007` ([[BPR-0391]], with [[BPR-0220]]'s
+causal question on the same run) and `native-visual-acceptance-v003`
+([[BPR-0100]]), both under `docs/verification/reviews/`. The appearance packet
+was run on 2026-08-20 but did not satisfy its gate; [[BPR-0410]] must make its
+next failure attributable before another foreground run can be meaningful.
 
-The third, `native-notification-delivery-v005` ([[BPR-0392]] and [[BPR-0168]]),
+The former third, `native-notification-delivery-v005` ([[BPR-0392]] and
+[[BPR-0168]]),
 **was run on 2026-08-20 and passed** — exit 0 with all eight required markers, a
 real macOS banner delivered, read, and activated onto the intended review. Its
 evidence is captured, so it no longer needs these bytes and no longer holds them.
@@ -103,10 +106,13 @@ trusting this paragraph:
 shasum -a 256 build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
 ```
 
-The hold is not permanent and is not a repository invariant. It lifts when the
-three verdicts are returned, or when an owner decides a repair outranks them.
-[[BPR-0334]] is a known piece of portable work that would relink, and it is
-deliberately waiting.
+The hold is not permanent and is not a repository invariant. The remaining
+no-rebuild action is [[BPR-0100]]'s visual verdict. After that, the path forward
+is an explicit owner decision to prioritize [[BPR-0410]]'s diagnostic repair
+over preserving an appearance packet that cannot currently produce
+attributable evidence; an owner may release the held bytes sooner by equivalent
+direction. [[BPR-0334]] is a known piece of portable work that would relink,
+and it is deliberately waiting.
 
 ## Current frontiers
 
@@ -651,13 +657,13 @@ three answers it needs:
 |---|---|---|
 | BPR-0347 | `30-in-progress/` | A Windows session. The suite runs on the project's Windows 11 x64 host and its own remaining failures are the work; nothing else is in the way |
 | BPR-0358 | `30-in-progress/` | A Windows session. Its own five required-final-state bullets are met; it stays open as the anchor for the Windows program it records |
-| BPR-0100, BPR-0168, BPR-0220 | `40-parked/` | A person looking, clicking, or returning an exported verdict |
+| BPR-0100, BPR-0168, BPR-0220 | `40-parked/` | BPR-0100 needs the native visual verdict; BPR-0168 needs the owner's short description of the banner already seen and clicked; BPR-0220 shares the appearance measurement that first needs BPR-0410's diagnostic repair |
 | BPR-0256 | `40-parked/` | One exact attended operator decision. v003 is regenerated and its capability-critical review has no blocking finding |
 | BPR-0211, BPR-0212 | `40-parked/` | A product decision: owner-deferred, and RFC-scale rather than a slice |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
 | BPR-0240 | `30-in-progress/` | A Windows session. Its portable gates have run; `windows_agent_process.cpp` has never been compiled and only a Windows toolchain can |
-| BPR-0391, BPR-0392 | `40-parked/` | A person running a regenerated packet: the appearance foreground pass and the notification banner |
+| BPR-0391, BPR-0392 | `40-parked/` | BPR-0391's failed foreground run first needs BPR-0410's attributable diagnostics; BPR-0392's native notification course passed and shares BPR-0168's outstanding owner description |
 | BPR-0362 | `40-parked/` | A product decision nobody has made yet |
 | BPR-0409 | `20-ready/` | Nothing, but it relinks the application. Startable the moment the dev-binary hold lifts, or on owner direction |
 | BPR-0334 | `20-ready/` | Nothing. Its BPR-0240 edge was collision-avoidance and is lifted; it relinks, so it joins the shared batch |
