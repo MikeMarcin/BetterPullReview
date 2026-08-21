@@ -40,6 +40,12 @@ namespace {
 	inline constexpr std::string_view sha1_commit_hex = "826bb464b84352d60b3d7c56481a599a838d998d";
 	inline constexpr std::string_view sha1_tree_hex   = "4ce9ffbf7ccd31debb0a343022131f0fde64e35d";
 	inline constexpr std::string_view sha1_pack_hex   = "e248b08f09a75116fdb2397c928a84f6a93f6c34";
+	inline constexpr std::string_view raw_git_diagnostic
+		= "fatal: could not materialize /tmp/bpr-agent-workspace from "
+		  "https://fixture-token@remote.invalid/owner/repo.git\n";
+	inline constexpr std::string_view redacted_git_diagnostic
+		= "fatal: could not materialize /tmp/bpr-agent-workspace from "
+		  "<redacted-url>\n";
 	inline constexpr std::string_view sha256_tree_hex = "d1b1a86a6b5182208ff0345ff6f64d9c48b9d058e0e8a88fbaefcf192384aa8d";
 	inline constexpr std::string_view sha256_pack_hex = "3e3468388a66c6475d2c1fdb8fb7286bc0ae1f934b6352358cc98e4e5e823b69";
 
@@ -697,6 +703,13 @@ namespace {
 	{
 		fake_log_invocation(aArguments);
 		if (aArguments == QStringList{ "--exec-path" }) {
+			if (
+				std::filesystem::exists(
+					aExecutable.parent_path()
+					/ "fail-bootstrap-exec-path")) {
+				std::cerr << raw_git_diagnostic;
+				return 128;
+			}
 			std::cout
 				<< aExecutable.parent_path().string()
 				<< '\n';
@@ -751,6 +764,23 @@ namespace {
 			}
 			if (input.starts_with("BPR_BIG_ERROR")) {
 				std::cerr << std::string(20U * 1024U, 'x');
+				return 0;
+			}
+			if (input.starts_with("BPR_FAIL_MESSAGE")) {
+				std::cerr << raw_git_diagnostic;
+				return 128;
+			}
+			if (input.starts_with("BPR_REMOTE_SHAPES")) {
+				std::cerr
+					<< "fatal: local /tmp/user@host:dir/pack-f041bc5e.pack "
+					   "remains diagnostic\n"
+					   "fatal: fallback remote "
+					   "git@remote.invalid:owner/repo.git denied\n"
+					   "fatal: local reflog HEAD@{1} remains diagnostic\n";
+				return 128;
+			}
+			if (input.starts_with("BPR_QUIET_ERROR")) {
+				std::cerr << "note: accepted exit still wrote here\n";
 				return 0;
 			}
 			if (input.starts_with("BPR_MALFORMED")) {
@@ -873,7 +903,7 @@ namespace {
 			});
 		if (!made.has_value()) {
 			const auto message = "construct installed Git adapter, failure="
-				+ std::to_string(static_cast<unsigned int>(made.error()));
+				+ std::to_string(static_cast<unsigned int>(made.error().Code));
 			require(false, message);
 		}
 		return std::move(*made);
@@ -2498,15 +2528,17 @@ namespace {
 					.error()
 				== application::git_process_failure::standard_output_limit,
 			"standard output limit");
+		const auto bigError = fake_index_request(
+			*adapter,
+			repository,
+			operation,
+			"BPR_BIG_ERROR");
 		require(
-			fake_index_request(
-				*adapter,
-				repository,
-				operation,
-				"BPR_BIG_ERROR")
-					.error()
-				== application::git_process_failure::standard_error_limit,
-			"standard error limit");
+			!bigError.has_value()
+				&& bigError.error()
+					== application::git_process_failure::standard_error_limit
+				&& bigError.error().Detail.empty(),
+			"standard error limit remains textless rather than retaining partial stderr");
 		require(
 			fake_index_request(
 				*adapter,
@@ -3218,6 +3250,148 @@ namespace {
 				&& nonempty->Path == nonemptyPath,
 			"nonempty exact parent is retained with its recovery capability");
 	}
+
+	auto run_process_error_detail_contract() -> void
+	{
+		const auto repeated_identity_hex = [](const std::string_view aByte) {
+			auto result = std::string{ };
+			result.reserve(64U);
+			for (auto index = 0U; index < 32U; ++index) {
+				result += aByte;
+			}
+			return result;
+		};
+
+		{
+			temporary_root root{ "git-factory-error-detail" };
+			const auto     executable = make_fake_git_executable(root.Path);
+			write_text(
+				executable.parent_path() / "fail-bootstrap-exec-path",
+				"fail exact bootstrap command");
+			const auto made = git_adapter::make_installed_git_process({
+				.GitExecutable = executable,
+				.IsolationRoot = root.Path,
+			});
+			require(
+				!made.has_value()
+					&& made.error()
+						== application::git_process_failure::nonzero_exit,
+				"the installed-Git factory preserves its failing process code");
+			require(
+				made.error().Detail == redacted_git_diagnostic,
+				"the installed-Git factory preserves the bounded redacted diagnostic");
+		}
+
+		{
+			temporary_root root{ "git-error-detail" };
+			auto           adapter = make_adapter(
+				std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE },
+				root.Path);
+			const auto repository = repository_path(root.Path, '7');
+			initialize_repository(
+				*adapter,
+				repository,
+				application::git_hash_algorithm::sha1);
+			const application::git_staging_ref absentRef{
+				.Operation = make_operation(0x77U),
+				.Endpoint  = application::git_private_ref_endpoint::base,
+			};
+			const std::array<application::git_ref_mutation, 1U> removeAbsent{
+				application::git_ref_remove{
+					.Ref         = absentRef,
+					.ExpectedOld = object<application::git_commit_id>(
+						sha1_commit_hex,
+						application::git_hash_algorithm::sha1),
+				}
+			};
+			const auto removed = adapter->update_refs(
+				{ .Repository = repository, .Mutations = removeAbsent },
+				{ });
+			require(
+				!removed.has_value()
+					&& removed.error()
+						== application::git_process_failure::nonzero_exit,
+				"a real failing Git step reports a nonzero exit");
+			require(
+				removed.error().Detail.find("cannot lock ref")
+					!= std::string::npos,
+				"the nonzero exit retains Git's own diagnosis");
+			require(
+				removed.error().Detail.find(
+					"refs/betterpullreview/v1/stage/"
+					+ repeated_identity_hex("77") + "/base")
+					!= std::string::npos,
+				"the retained diagnosis preserves the exact ref");
+			const auto absent = adapter->inspect_ref(
+				{ .Repository = repository, .Ref = absentRef },
+				{ });
+			require(
+				absent.has_value() && !absent->has_value(),
+				"a successful Git step has no error text");
+		}
+
+		{
+			temporary_root root{ "git-error-detail-redaction" };
+			auto           adapter = make_adapter(
+				make_fake_git_executable(root.Path),
+				root.Path);
+			const auto repository = repository_path(root.Path, '8');
+			initialize_repository(
+				*adapter,
+				repository,
+				application::git_hash_algorithm::sha1);
+			const auto operation = make_operation(0x88U);
+			const auto failed    = fake_index_request(
+				*adapter,
+				repository,
+				operation,
+				"BPR_FAIL_MESSAGE");
+			require(
+				!failed.has_value()
+					&& failed.error()
+						== application::git_process_failure::nonzero_exit,
+				"a remote-naming failure reports a nonzero exit");
+			require(
+				failed.error().Detail == redacted_git_diagnostic,
+				"the URL-bearing failure retains the exact bounded redacted diagnostic");
+
+			const auto remoteShapes = fake_index_request(
+				*adapter,
+				repository,
+				operation,
+				"BPR_REMOTE_SHAPES");
+			require(
+				!remoteShapes.has_value()
+					&& remoteShapes.error()
+						== application::git_process_failure::nonzero_exit
+					&& remoteShapes.error().Detail
+						== "fatal: local /tmp/user@host:dir/pack-f041bc5e.pack "
+						   "remains diagnostic\n"
+						   "fatal: fallback remote <redacted-url> denied\n"
+						   "fatal: local reflog HEAD@{1} remains diagnostic\n",
+				"local paths and reflogs remain exact while SSH-style remotes are redacted");
+
+			const auto quiet = fake_index_request(
+				*adapter,
+				repository,
+				operation,
+				"BPR_QUIET_ERROR");
+			require(
+				!quiet.has_value()
+					&& quiet.error()
+						== application::git_process_failure::malformed_output
+					&& quiet.error().Detail.empty(),
+				"accepted output with stderr is malformed and textless");
+			require(
+				fake_index_request(
+					*adapter,
+					repository,
+					operation,
+					"BPR_SILENT_SUCCESS")
+					.has_value(),
+				"a silent accepted invocation succeeds");
+		}
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -3246,6 +3420,7 @@ auto main(int argc, char** argv) -> int
 	run_input_validation_contract();
 	run_isolation_symlink_contract();
 	run_agent_workspace_parent_cleanup_contract();
+	run_process_error_detail_contract();
 	std::cout << "Git process contract passed\n";
 	return 0;
 }

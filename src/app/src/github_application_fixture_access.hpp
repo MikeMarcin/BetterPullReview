@@ -57,6 +57,7 @@ namespace bpr::app::detail {
 		bool                                 DisableAgentHostComposition      = false;
 		bool                                 DisableAgentGestureWire          = false;
 		std::optional<std::filesystem::path> ExternalAgentExecutable;
+		std::optional<std::filesystem::path> GitExecutable;
 	};
 
 	struct queue_notification_fixture_evidence

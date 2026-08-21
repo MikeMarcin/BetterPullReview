@@ -293,7 +293,7 @@ namespace {
 		}
 	}
 
-	/// \brief Terminal projection is visible and failed output is never retained.
+	/// \brief Terminal projection is visible and failed answer output is cleared.
 	void test_projection_uses_the_shipped_visible_controls()
 	{
 		auto panel = qt::agent_launch_panel{ };
@@ -404,8 +404,25 @@ namespace {
 				"cancel, stale, and workspace-failure terminals remain visible before start");
 		}
 
-		const auto active  = identity(4U);
-		const auto foreign = identity(5U);
+		const auto workspaceFailure = identity(4U);
+		const auto diagnostic       = QStringLiteral(
+			"fatal: could not materialize /tmp/bpr-agent-workspace from "
+			"<redacted-url>\n");
+		panel.admit(workspaceFailure);
+		panel.finish(
+			workspaceFailure,
+			application::agent_run_result{
+				.Session       = workspaceFailure.Session.Id,
+				.Outcome       = application::agent_run_outcome::workspace_unavailable,
+				.StandardError = diagnostic.toStdString(),
+			});
+		expect(
+			panel.status_text() == "Finished: workspace_unavailable"
+				&& panel.output_text() == diagnostic,
+			"a failed workspace terminal visibly renders its bounded diagnostic");
+
+		const auto active  = identity(5U);
+		const auto foreign = identity(6U);
 		panel.admit(active);
 		panel.admit(foreign);
 		panel.start(

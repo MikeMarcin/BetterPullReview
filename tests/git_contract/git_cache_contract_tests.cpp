@@ -73,6 +73,12 @@ namespace {
 	inline constexpr std::string_view sha1_commit_hex = "826bb464b84352d60b3d7c56481a599a838d998d";
 	inline constexpr std::string_view sha1_tree_hex   = "4ce9ffbf7ccd31debb0a343022131f0fde64e35d";
 	inline constexpr std::string_view sha1_pack_hex   = "e248b08f09a75116fdb2397c928a84f6a93f6c34";
+	inline constexpr std::string_view raw_git_diagnostic
+		= "fatal: could not materialize /tmp/bpr-agent-workspace from "
+		  "https://fixture-token@remote.invalid/owner/repo.git\n";
+	inline constexpr std::string_view redacted_git_diagnostic
+		= "fatal: could not materialize /tmp/bpr-agent-workspace from "
+		  "<redacted-url>\n";
 
 	inline constexpr std::array<std::uint8_t, 230U> sha1_pack{
 		0x50,
@@ -1189,6 +1195,38 @@ namespace {
 
 	auto run_cache_contract() -> void
 	{
+		{
+			auto diagnosticRoot  = temporary_root{ };
+			auto diagnosticCache = git_adapter::make_installed_git_cache({
+				.GitExecutable = std::filesystem::path{
+					QCoreApplication::applicationFilePath().toStdString() },
+				.StorageRoot = diagnosticRoot.Path,
+			});
+			require(
+				diagnosticCache.has_value(),
+				"construct cache around deterministic diagnostic Git candidate");
+			const auto opened = (*diagnosticCache)->open(request(0x31U, 0x41U), { });
+			if (
+				opened.has_value()
+				|| opened.error()
+					!= application::git_cache_failure::process_failure
+				|| opened.error().Detail != redacted_git_diagnostic) {
+				std::cerr << "diagnostic cache result: value=" << opened.has_value();
+				if (!opened.has_value()) {
+					std::cerr << " code="
+							  << static_cast<unsigned int>(opened.error().Code)
+							  << " detail=[" << opened.error().Detail << ']';
+				}
+				std::cerr << '\n';
+			}
+			require(
+				!opened.has_value()
+					&& opened.error()
+						== application::git_cache_failure::process_failure
+					&& opened.error().Detail == redacted_git_diagnostic,
+				"cache open preserves the exact redacted Git bootstrap diagnostic");
+		}
+
 		const auto executable = std::filesystem::canonical(BPR_TEST_GIT_EXECUTABLE);
 		auto       root       = temporary_root{ };
 		const auto forcePush  = make_force_push_fixture(executable, root.Path);
@@ -2482,6 +2520,43 @@ namespace {
 				&& wrongTypeBlob.error()
 					== application::git_cache_failure::process_failure,
 			"cache session fails closed on a non-blob object identity");
+
+		auto missingHeadBytes = std::array<std::uint8_t, 32U>{ };
+		std::fill_n(missingHeadBytes.begin(), 20U, 0xeeU);
+		const auto missingHead = core::git_commit_oid{
+			core::git_hash_algorithm::sha1,
+			missingHeadBytes,
+		};
+		auto       workspaceRoot        = temporary_root{ };
+		const auto workspaceParent      = workspaceRoot.Path;
+		const auto unavailableWorkspace = (*primary)->materialize_agent_workspace(
+			{
+				.ApplicationSession = primaryRequest.ApplicationSession,
+				.Authority          = primaryRequest.Authority,
+				.Session            = {
+					.Id      = core::agent_session_id{ 77U },
+					.Profile = core::agent_profile_id{ 88U },
+					.Binding = {
+						.Host        = primaryRequest.Authority.Host,
+						.Repository  = primaryRequest.Authority.Repository,
+						.PullRequest = primaryRequest.Authority.PullRequest,
+						.BaseOid     = *commit,
+						.HeadOid     = missingHead,
+						.LeftEpoch   = core::epoch_ordinal{ 1 },
+						.RightEpoch  = core::epoch_ordinal{ 2 },
+					},
+				},
+				.ParentDirectory = workspaceParent,
+			},
+			{ });
+		require(
+			!unavailableWorkspace.has_value()
+				&& unavailableWorkspace.error()
+					== application::git_cache_failure::process_failure,
+			"cache maps an unmaterializable exact head to process failure");
+		require(
+			!unavailableWorkspace.error().Detail.empty(),
+			"cache retains the installed-Git diagnosis for the exact missing head");
 		auto invalidLineage        = *prepared;
 		invalidLineage.HeadLineage = static_cast<core::head_lineage>(0xffU);
 		require(
@@ -3935,6 +4010,10 @@ namespace {
 
 auto main(int argc, char** argv) -> int
 {
+	if (argc == 2 && QString::fromUtf8(argv[1]) == "--exec-path") {
+		std::cerr << raw_git_diagnostic;
+		return 128;
+	}
 	QCoreApplication application{ argc, argv };
 	if (
 		argc == 8

@@ -1,7 +1,7 @@
 ---
 id: BPR-0348
 title: Keep the git subprocess error text that failures currently discard
-status: Backlog
+status: Done
 rfc: RFC-BPR-0003
 depends_on: [BPR-0409]
 ---
@@ -310,3 +310,16 @@ because none of it is in `cmake/`. What exists now is a permissive rule with no
 user, named as such rather than left to be discovered.
 
 [[BPR-0409]] carries the restoration and this card depends on it.
+
+## Closure — 2026-08-21
+
+[[BPR-0409]] completed the behavior this card deferred. Bounded, redacted
+nonzero-exit stderr now crosses the installed-Git process and cache factories,
+cache session, workspace materialization and cleanup, agent result, and visible
+Qt terminal. Success and every non-diagnostic failure stay textless; exact
+tests preserve refs and local paths while redacting HTTP(S) and SSH-style remote
+tokens. A real selected-diff composition course proves the same redacted
+diagnostic reaches `Finished: workspace_unavailable` before any agent process
+starts. The architecture ruling, implementation, negative mutations,
+documentation ledger, and independent closeout review now agree, so the
+original card closes with its restoration card rather than returning to Ready.

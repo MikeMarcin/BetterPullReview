@@ -308,6 +308,8 @@ namespace {
 		std::function<void()>                               AfterRefCommitInProgress;
 		std::function<void(std::stop_token)>                DuringBlobMaterialization;
 		std::function<void(std::stop_token)>                DuringTreeEntryLookup;
+		std::optional<application::git_cache_error>         WorkspaceMaterializationFailure;
+		std::optional<application::git_cache_error>         WorkspaceCleanupFailure;
 		std::vector<std::uint64_t>                          AuthorityRevocations;
 		std::vector<application::epoch_presentation_update> Updates;
 		std::size_t                                         CacheMutationCalls          = 0U;
@@ -1367,6 +1369,39 @@ namespace {
 				.Commit = aCommit,
 				.Tree   = oid<core::git_tree_oid>(80U),
 			};
+		}
+
+		[[nodiscard]] auto materialize_agent_workspace(
+			const application::agent_workspace_materialization_request&,
+			const std::stop_token aStop)
+			-> application::git_cache_result<application::owned_agent_workspace> override
+		{
+			State.Calls.emplace_back("cache.materialize-agent-workspace");
+			if (aStop.stop_requested()) {
+				return std::unexpected{ application::git_cache_failure::cancelled };
+			}
+			if (State.WorkspaceMaterializationFailure.has_value()) {
+				auto failure = std::move(*State.WorkspaceMaterializationFailure);
+				State.WorkspaceMaterializationFailure.reset();
+				return std::unexpected{ std::move(failure) };
+			}
+			return std::unexpected{ application::git_cache_failure::invalid_request };
+		}
+
+		[[nodiscard]] auto cleanup_agent_workspace(
+			const application::owned_agent_workspace&,
+			const std::stop_token aStop) -> application::git_cache_result<void> override
+		{
+			State.Calls.emplace_back("cache.cleanup-agent-workspace");
+			if (aStop.stop_requested()) {
+				return std::unexpected{ application::git_cache_failure::cancelled };
+			}
+			if (State.WorkspaceCleanupFailure.has_value()) {
+				auto failure = std::move(*State.WorkspaceCleanupFailure);
+				State.WorkspaceCleanupFailure.reset();
+				return std::unexpected{ std::move(failure) };
+			}
+			return { };
 		}
 
 		[[nodiscard]] auto materialize_blob(
@@ -4566,6 +4601,59 @@ namespace {
 			"the invalidated retained-cache rejection remains quiescent");
 	}
 
+	void agent_workspace_failures_preserve_the_cache_diagnostic()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto diagnostic = std::string{
+			"fatal: could not materialize /tmp/bpr-agent-workspace from "
+			"<redacted-url>\n"
+		};
+
+		value.State.WorkspaceMaterializationFailure = application::git_cache_error{
+			application::git_cache_failure::process_failure,
+			diagnostic,
+		};
+		auto materialized      = std::optional<std::expected<
+			application::owned_agent_workspace,
+			application::agent_workspace_error>>{ };
+		auto materializeCaller = std::jthread{ [&] {
+			materialized = value.Host->materialize_agent_workspace(
+				workspace_request_for(value.Host->state()),
+				{ });
+		} };
+		value.Effects.wait_for_pending();
+		value.Effects.run_next();
+		materializeCaller.join();
+		expect(
+			materialized.has_value() && !materialized->has_value()
+				&& materialized->error()
+					== application::agent_workspace_failure::unavailable
+				&& materialized->error().Detail == diagnostic,
+			"workspace materialization maps the code and preserves cache detail exactly");
+
+		value.State.WorkspaceCleanupFailure = application::git_cache_error{
+			application::git_cache_failure::process_failure,
+			diagnostic,
+		};
+		auto cleaned = std::optional<
+			std::expected<void, application::agent_workspace_error>>{ };
+		auto cleanupCaller = std::jthread{ [&] {
+			cleaned = value.Host->cleanup_agent_workspace(
+				owned_workspace_for(value.Host->state()),
+				{ });
+		} };
+		value.Effects.wait_for_pending();
+		value.Effects.run_next();
+		cleanupCaller.join();
+		expect(
+			cleaned.has_value() && !cleaned->has_value()
+				&& cleaned->error()
+					== application::agent_workspace_failure::cleanup_failed
+				&& cleaned->error().Detail == diagnostic,
+			"workspace cleanup maps the code and preserves cache detail exactly");
+	}
+
 	void invalidated_inflight_blob_cannot_publish_bytes()
 	{
 		fixture value;
@@ -5802,6 +5890,7 @@ int main()
 	selected_diff_rename_resolution_is_directional_and_ambiguous_closed();
 	selected_diff_multi_hop_rename_uses_the_exact_selected_pair();
 	invalidated_authority_cannot_materialize_retained_cache();
+	agent_workspace_failures_preserve_the_cache_diagnostic();
 	invalidated_inflight_blob_cannot_publish_bytes();
 	cancellation_before_ponr_aborts_without_publication();
 	stop_immediately_after_ponr_cannot_replace_committed_terminal();

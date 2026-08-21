@@ -112,6 +112,13 @@ answered v003 packet remains frozen as the record of what the owner judged; a
 future final-head visual replay is a separate exact-identity gate if materially
 changed governed presentation still requires one.
 
+BPR-0409 performed the first authorized relink on 2026-08-21. Its completed
+development executable is 51,302,640 bytes with SHA-256
+`cb044fcab11545b181ae35ea6b4114d1f5ab0eef4457ec1945a03bc39fa7e8b7`.
+The old `7b9d6be9…a78fcd93` identity remains the immutable subject of the accepted
+BPR-0100 response, but it is no longer the executable in `build/dev`; v003 and
+v007 cannot be reused for the new bytes.
+
 ## Current frontiers
 
 RFC-BPR-0001 is `Auto-Verified`, and every linked card is in `60-done/`.
@@ -664,7 +671,6 @@ three answers it needs:
 | BPR-0240 | `30-in-progress/` | A Windows session. Its portable gates have run; `windows_agent_process.cpp` has never been compiled and only a Windows toolchain can |
 | BPR-0391, BPR-0392 | `40-parked/` | BPR-0391's failed foreground run first needs BPR-0410's attributable diagnostics; BPR-0392's native notification course passed and shares BPR-0168's outstanding owner description |
 | BPR-0362 | `40-parked/` | A product decision nobody has made yet |
-| BPR-0409 | `30-in-progress/` | Current macOS session. The owner released the dev-binary hold for this shared relink batch |
 | BPR-0334 | `20-ready/` | Nothing. Its BPR-0240 edge was collision-avoidance and is lifted; the owner authorized it in the shared relink batch |
 | BPR-0410 | `20-ready/` | Nothing. It makes a failing appearance run say what actually happened and is explicitly authorized in the shared relink batch |
 | BPR-0310, BPR-0314 | `50-blocked/` | A Linux host; both are `platform-linux` |
@@ -687,9 +693,9 @@ and fails when they disagree, so a card entering or leaving `20-ready/`,
 under the wrong lane, or left behind after it closes.
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these nineteen roots or reaches one
+card on this board is either one of these eighteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
-of the 53 cards in `10-backlog/`, **none** has all its dependencies in
+of the 52 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
 
 So the honest summary is narrower than the one this section used to give.

@@ -42,6 +42,11 @@ namespace {
 	using e2e::default_agent_budget;
 	using e2e::extended_agent_budget;
 	using e2e::wait_terms;
+	inline constexpr std::string_view workspace_failure_marker
+		= ".bpr-fail-workspace-pack";
+	inline constexpr std::string_view redacted_git_diagnostic
+		= "fatal: could not materialize /tmp/bpr-agent-workspace from "
+		  "<redacted-url>\n";
 
 	// The course's own budgets, unchanged, including the six sites that have
 	// always asked for the longer one. This used to be a second copy of the queue
@@ -464,14 +469,21 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication qtApplication{ argc, argv };
 	QApplication::setQuitOnLastWindowClosed(false);
-	if (argc != 3 && argc != 4) {
+	if (argc < 2) {
 		return EXIT_FAILURE;
 	}
-	const auto course = std::string_view{ argv[1] };
+	const auto course              = std::string_view{ argv[1] };
+	const auto workspaceDiagnostic = course == "workspace-diagnostic";
+	if (
+		(workspaceDiagnostic && argc != 4)
+		|| (!workspaceDiagnostic && argc != 3 && argc != 4)) {
+		return EXIT_FAILURE;
+	}
 	if (course != "positive" && course != "positive-seed"
 		&& course != "positive-reopen" && course != "construction-cut"
 		&& course != "gesture-cut" && course != "cancellation"
-		&& course != "staleness" && course != "cleanup-retry") {
+		&& course != "staleness" && course != "cleanup-retry"
+		&& !workspaceDiagnostic) {
 		return EXIT_FAILURE;
 	}
 	constexpr std::string_view selectedNote
@@ -487,13 +499,45 @@ auto main(int argc, char** argv) -> int
 	if (!data.isValid()) {
 		return EXIT_FAILURE;
 	}
-	const auto      dataRoot = argc == 4
+	const auto      dataRoot = argc == 4 && !workspaceDiagnostic
 		? std::filesystem::path{ argv[3] }
 		: std::filesystem::path{ data.path().toStdString() };
 	std::error_code dataError;
 	std::filesystem::create_directories(dataRoot, dataError);
 	if (dataError) {
 		return EXIT_FAILURE;
+	}
+	auto diagnosticGitRoot = QTemporaryDir{ };
+	if (!diagnosticGitRoot.isValid()) {
+		return EXIT_FAILURE;
+	}
+	auto diagnosticGit = std::optional<std::filesystem::path>{ };
+	if (workspaceDiagnostic) {
+		const auto source = std::filesystem::path{ argv[3] };
+		auto       target = std::filesystem::path{
+			diagnosticGitRoot.path().toStdString()
+		} / source.filename();
+		std::error_code copyError;
+		std::filesystem::copy_file(
+			source,
+			target,
+			std::filesystem::copy_options::overwrite_existing,
+			copyError);
+		if (copyError) {
+			return EXIT_FAILURE;
+		}
+		std::filesystem::permissions(
+			target,
+			std::filesystem::status(source).permissions(),
+			std::filesystem::perm_options::replace,
+			copyError);
+		if (copyError) {
+			return EXIT_FAILURE;
+		}
+		diagnosticGit = std::filesystem::canonical(target, copyError);
+		if (copyError) {
+			return EXIT_FAILURE;
+		}
 	}
 	auto externalExecutable = std::filesystem::path{ argv[2] };
 	if (
@@ -531,6 +575,7 @@ auto main(int argc, char** argv) -> int
 			.DisableAgentHostComposition = course == "construction-cut",
 			.DisableAgentGestureWire     = course == "gesture-cut",
 			.ExternalAgentExecutable     = externalExecutable,
+			.GitExecutable               = diagnosticGit,
 		});
 	application->show();
 	auto& window = application->window();
@@ -770,6 +815,19 @@ auto main(int argc, char** argv) -> int
 		}
 	}
 
+	if (workspaceDiagnostic) {
+		if (!diagnosticGit.has_value()) {
+			return fail(*application, "workspace-diagnostic-git");
+		}
+		auto marker = std::ofstream{
+			diagnosticGit->parent_path() / workspace_failure_marker,
+			std::ios::binary | std::ios::trunc,
+		};
+		marker << "fail the agent workspace pack only\n";
+		if (!marker) {
+			return fail(*application, "workspace-diagnostic-marker");
+		}
+	}
 	panel->start_button()->click();
 	if (course == "gesture-cut") {
 		QThread::msleep(100);
@@ -785,6 +843,57 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 		std::cout << "agent-invocation-gesture-cut:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (workspaceDiagnostic) {
+		auto terminal = wait_terms{ };
+		if (!wait_until_reporting(
+				terminal,
+				[&application, panel](wait_terms& aTerms) {
+					const auto evidence = app::detail::github_application_fixture_access::
+						agent_invocation_evidence(*application);
+					aTerms.note_identifier(
+						"status", panel->status_text().toStdString());
+					aTerms.note(
+						"output-bytes",
+						static_cast<std::uint64_t>(panel->output_text().size()));
+					aTerms.note(
+						"process-starts",
+						static_cast<std::uint64_t>(
+							evidence.Statistics.ProcessStarts));
+					aTerms.note("quiescent", evidence.Quiescent);
+					return aTerms.require(
+							   "status-is-workspace-unavailable",
+							   panel->status_text()
+								   == QStringLiteral(
+									   "Finished: workspace_unavailable"))
+						&& aTerms.require(
+							"diagnostic-is-exact",
+							panel->output_text().toStdString()
+								== redacted_git_diagnostic)
+						&& aTerms.require(
+							"workspace-starts-is-one",
+							evidence.Statistics.WorkspaceStarts == 1U)
+						&& aTerms.require(
+							"process-starts-is-zero",
+							evidence.Statistics.ProcessStarts == 0U)
+						&& aTerms.require("host-is-quiescent", evidence.Quiescent);
+				},
+				extended_agent_budget)) {
+			return fail(
+				*application, "workspace-diagnostic-terminal", terminal.render());
+		}
+		const auto evidence = app::detail::github_application_fixture_access::
+			agent_invocation_evidence(*application);
+		const auto exact = evidence.Statistics.CoreDecisions == 1U
+			&& evidence.Statistics.WorkspaceStarts == 1U
+			&& evidence.Statistics.ProcessStarts == 0U
+			&& evidence.Statistics.WorkspaceCleanups == 0U
+			&& evidence.Quiescent;
+		if (!shutdown(*application) || !exact) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-invocation-workspace-diagnostic:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (course == "cleanup-retry") {

@@ -45,7 +45,7 @@ namespace bpr::adapters::git {
 		std::stop_token                            aStop = { })
 		-> std::expected<
 			std::unique_ptr<application::git_process_port>,
-			application::git_process_failure>;
+			application::git_process_error>;
 }
 
 #endif // BPR_SRC_ADAPTERS_GIT_INCLUDE_BPR_ADAPTERS_GIT_INSTALLED_GIT_PROCESS_HPP

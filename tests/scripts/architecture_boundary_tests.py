@@ -1650,17 +1650,24 @@ class ArchitectureBoundaryTests(unittest.TestCase):
     ) -> None:
         # BPR-0348. The gate used to forbid `std::string` outright, which is why
         # a failing git subprocess could not explain itself. The ruling permits
-        # exactly one diagnostic member.
-        result = self.run_check(
+        # exactly one diagnostic member. BPR-0409 now supplies that member on
+        # the live port, so the unmodified fixture is the positive case.
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_git_application_port_rejects_a_second_diagnostic_member(
+        self,
+    ) -> None:
+        self.assert_failure(
+            "more than one diagnostic member",
             {
                 "src/application/include/bpr/application/"
                 "git_process_port.hpp":
                     GIT_PROCESS_PORT
-                    + "\nstruct git_process_error { int Code; "
+                    + "\nstruct hostile { "
                     "std::string Detail; };\n"
             },
         )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_git_application_port_rejects_text_outside_the_diagnostic_member(
         self,

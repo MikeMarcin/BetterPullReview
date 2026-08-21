@@ -291,10 +291,10 @@ namespace bpr::application {
 			return core::epoch_failure::unavailable;
 		}
 
-		[[nodiscard]] auto cache_failure(const git_cache_failure aFailure) noexcept
+		[[nodiscard]] auto cache_failure(const git_cache_error& aFailure) noexcept
 			-> core::epoch_failure
 		{
-			switch (aFailure) {
+			switch (aFailure.Code) {
 			case git_cache_failure::cancelled:
 				return core::epoch_failure::unavailable;
 			case git_cache_failure::quota_exceeded:
@@ -816,7 +816,7 @@ namespace bpr::application {
 			std::mutex              Mutex;
 			std::condition_variable Completed;
 			std::optional<
-				std::expected<owned_agent_workspace, agent_workspace_failure>>
+				std::expected<owned_agent_workspace, agent_workspace_error>>
 				Result;
 			// See `blob_waiter::Abandoned`. Abandoning this one is not free the
 			// way abandoning a read is: if the work later succeeds it has written
@@ -827,9 +827,9 @@ namespace bpr::application {
 
 		struct workspace_cleanup_waiter final
 		{
-			std::mutex                                                  Mutex;
-			std::condition_variable                                     Completed;
-			std::optional<std::expected<void, agent_workspace_failure>> Result;
+			std::mutex                                                Mutex;
+			std::condition_variable                                   Completed;
+			std::optional<std::expected<void, agent_workspace_error>> Result;
 			// See `blob_waiter::Abandoned`. Abandoning a cleanup is safe: the
 			// removal still runs, and only its outcome goes unread. BPR-0397.
 			bool Abandoned = false;
@@ -1901,7 +1901,7 @@ namespace bpr::application {
 			const std::stop_token   aStop)
 			-> std::expected<void, core::epoch_failure>
 		{
-			const auto failedCache = [&](const git_cache_failure aFailure)
+			const auto failedCache = [&](const git_cache_error& aFailure)
 				-> std::expected<void, core::epoch_failure> {
 				const auto mapped = cache_failure(aFailure);
 				if (mapped == core::epoch_failure::repair_required) {
@@ -2224,7 +2224,7 @@ namespace bpr::application {
 				}
 				return std::unexpected{ mapped };
 			};
-			const auto failCache = [&](const git_cache_failure aFailure)
+			const auto failCache = [&](const git_cache_error& aFailure)
 				-> std::expected<core::epoch_catalog_identity, core::epoch_failure> {
 				const auto mapped = cache_failure(aFailure);
 				if (mapped == core::epoch_failure::repair_required) {
@@ -3566,7 +3566,7 @@ namespace bpr::application {
 		[[nodiscard]] auto materialize_agent_workspace(
 			const agent_workspace_materialization_request& aRequest,
 			const std::stop_token                          aStop)
-			-> std::expected<owned_agent_workspace, agent_workspace_failure>
+			-> std::expected<owned_agent_workspace, agent_workspace_error>
 		{
 			if (!begin_blob_call()) {
 				return std::unexpected{ agent_workspace_failure::cancelled };
@@ -3640,7 +3640,7 @@ namespace bpr::application {
 					 control] {
 						auto result = std::expected<
 							owned_agent_workspace,
-							agent_workspace_failure>{
+							agent_workspace_error>{
 							std::unexpected{ agent_workspace_failure::unavailable }
 						};
 						try {
@@ -3689,16 +3689,20 @@ namespace bpr::application {
 									} else {
 										result = std::move(*materialized);
 									}
-								} else if (
-									materialized.error()
-									== git_cache_failure::cancelled) {
-									result = std::unexpected{
-										agent_workspace_failure::cancelled
-									};
-								} else if (
-									materialized.error()
-									== git_cache_failure::invalid_authority) {
-									result = std::unexpected{ agent_workspace_failure::stale };
+								} else {
+									auto failure = agent_workspace_failure::unavailable;
+									if (
+										materialized.error()
+										== git_cache_failure::cancelled) {
+										failure = agent_workspace_failure::cancelled;
+									} else if (
+										materialized.error()
+										== git_cache_failure::invalid_authority) {
+										failure = agent_workspace_failure::stale;
+									}
+									result = std::unexpected{ agent_workspace_error{
+										failure,
+										std::move(materialized.error().Detail) } };
 								}
 							}
 						} catch (...) {
@@ -3770,7 +3774,7 @@ namespace bpr::application {
 		[[nodiscard]] auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
 			const std::stop_token        aStop)
-			-> std::expected<void, agent_workspace_failure>
+			-> std::expected<void, agent_workspace_error>
 		{
 			static_cast<void>(begin_cleanup_call());
 			struct cleanup_call_guard final
@@ -3826,7 +3830,7 @@ namespace bpr::application {
 				enqueue_actor_work(
 					actor,
 					[this, actor, expected, aWorkspace, aStop, waiter, control] {
-						auto result = std::expected<void, agent_workspace_failure>{ };
+						auto result = std::expected<void, agent_workspace_error>{ };
 						try {
 							auto forwardCallerStop = std::stop_callback{
 								aStop,
@@ -3845,11 +3849,11 @@ namespace bpr::application {
 									aWorkspace,
 									control->Stop.get_token());
 								if (!cleaned.has_value()) {
-									result = std::unexpected{
+									result = std::unexpected{ agent_workspace_error{
 										cleaned.error() == git_cache_failure::cancelled
 											? agent_workspace_failure::cancelled
-											: agent_workspace_failure::cleanup_failed
-									};
+											: agent_workspace_failure::cleanup_failed,
+										std::move(cleaned.error().Detail) } };
 								}
 							}
 						} catch (...) {
@@ -6336,7 +6340,7 @@ namespace bpr::application {
 	auto epoch_application_host::materialize_agent_workspace(
 		const agent_workspace_materialization_request& aRequest,
 		const std::stop_token                          aStop)
-		-> std::expected<owned_agent_workspace, agent_workspace_failure>
+		-> std::expected<owned_agent_workspace, agent_workspace_error>
 	{
 		return Implementation->materialize_agent_workspace(aRequest, aStop);
 	}
@@ -6344,7 +6348,7 @@ namespace bpr::application {
 	auto epoch_application_host::cleanup_agent_workspace(
 		const owned_agent_workspace& aWorkspace,
 		const std::stop_token        aStop)
-		-> std::expected<void, agent_workspace_failure>
+		-> std::expected<void, agent_workspace_error>
 	{
 		return Implementation->cleanup_agent_workspace(aWorkspace, aStop);
 	}

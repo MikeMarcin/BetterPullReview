@@ -1563,22 +1563,22 @@ namespace bpr::adapters::git {
 			}
 
 			[[nodiscard]] auto process_failure(
-				const application::git_process_failure aFailure)
-				-> application::git_cache_failure
+				const application::git_process_error& aError)
+				-> application::git_cache_error
 			{
-				if (aFailure == application::git_process_failure::reap_failure) {
+				auto failure = application::git_cache_failure::process_failure;
+				if (aError.Code == application::git_process_failure::reap_failure) {
 					retain_after_reap_failure();
-					return application::git_cache_failure::repair_required;
-				}
-				if (aFailure == application::git_process_failure::cancelled) {
-					return application::git_cache_failure::cancelled;
-				}
-				if (
-					aFailure
+					failure = application::git_cache_failure::repair_required;
+				} else if (
+					aError.Code == application::git_process_failure::cancelled) {
+					failure = application::git_cache_failure::cancelled;
+				} else if (
+					aError.Code
 					== application::git_process_failure::invalid_repository) {
-					return application::git_cache_failure::invalid_repository;
+					failure = application::git_cache_failure::invalid_repository;
 				}
-				return application::git_cache_failure::process_failure;
+				return { failure, aError.Detail };
 			}
 
 			auto retain_after_reap_failure() -> void
@@ -3396,11 +3396,11 @@ namespace bpr::adapters::git {
 					};
 				}
 				const auto rollbackFailure =
-					[&](const application::git_cache_failure aFailure)
+					[&](application::git_cache_error aFailure)
 					-> application::git_cache_result<
 						application::git_prepared_revision> {
 					if (aRequest.Inventory.ExpectedPackPreexisting) {
-						return std::unexpected{ aFailure };
+						return std::unexpected{ std::move(aFailure) };
 					}
 					const auto rolledBack = rollback_new_pack(
 						State->Repository,
@@ -3419,7 +3419,7 @@ namespace bpr::adapters::git {
 							&& same_inventory(*current, *reconciled)
 						? application::git_cache_result<
 							  application::git_prepared_revision>{
-							  std::unexpected{ aFailure }
+							  std::unexpected{ std::move(aFailure) }
 						  }
 						: application::git_cache_result<application::git_prepared_revision>{ std::unexpected{ application::git_cache_failure::repair_required } };
 				};
@@ -5069,7 +5069,7 @@ namespace bpr::adapters::git {
 			}
 
 			[[nodiscard]] auto recovery_object_failure(
-				const application::git_process_failure aFailure)
+				const application::git_process_error& aFailure)
 				-> application::git_cache_result<
 					application::git_recovery_object_match>
 			{
@@ -5516,13 +5516,13 @@ namespace bpr::adapters::git {
 					},
 					aStop);
 				if (!process.has_value()) {
-					return std::unexpected{
-						process.error()
-								== application::git_process_failure::cancelled
-							? application::git_cache_failure::cancelled
-							: application::git_cache_failure::
-								  process_failure
-					};
+					const auto failure = process.error()
+							== application::git_process_failure::cancelled
+						? application::git_cache_failure::cancelled
+						: application::git_cache_failure::process_failure;
+					return std::unexpected{ application::git_cache_error{
+						failure,
+						std::move(process.error().Detail) } };
 				}
 
 				auto state = std::make_shared<cache_state>(
@@ -6129,7 +6129,7 @@ namespace bpr::adapters::git {
 		const installed_git_cache_configuration& aConfiguration)
 		-> std::expected<
 			std::unique_ptr<application::git_cache_port>,
-			application::git_cache_failure>
+			application::git_cache_error>
 	{
 		const auto root       = canonical_existing(aConfiguration.StorageRoot);
 		const auto executable = canonical_existing(aConfiguration.GitExecutable);

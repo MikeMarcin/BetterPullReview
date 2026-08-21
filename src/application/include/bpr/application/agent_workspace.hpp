@@ -14,6 +14,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace bpr::application {
 	/// \brief Whether an existing checkout has uncommitted work in it.
@@ -138,6 +139,39 @@ namespace bpr::application {
 		cleanup_failed,
 	};
 
+	/// \brief Carries a workspace failure and any safe cache explanation.
+	struct agent_workspace_error
+	{
+		agent_workspace_failure Code = agent_workspace_failure::invalid_request;
+		std::string             Detail;
+
+		agent_workspace_error() = default;
+
+		// Implicit on purpose: a bare failure code is still a complete error.
+		agent_workspace_error(const agent_workspace_failure aCode)
+			: Code{ aCode }
+		{
+		}
+
+		agent_workspace_error(
+			const agent_workspace_failure aCode,
+			decltype(Detail)              aDetail)
+			: Code{ aCode }
+			, Detail{ std::move(aDetail) }
+		{
+		}
+
+		auto operator<=>(const agent_workspace_error&) const = default;
+	};
+
+	/// \brief Compares a workspace error with its primary failure code.
+	[[nodiscard]] inline auto operator==(
+		const agent_workspace_error&  aError,
+		const agent_workspace_failure aCode) noexcept -> bool
+	{
+		return aError.Code == aCode;
+	}
+
 	/// \brief Materializes and cleans workspaces on the retained cache actor.
 	class agent_workspace_port
 	{
@@ -147,11 +181,11 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto materialize_agent_workspace(
 			const agent_workspace_materialization_request& aRequest,
 			std::stop_token                                aStop)
-			-> std::expected<owned_agent_workspace, agent_workspace_failure> = 0;
+			-> std::expected<owned_agent_workspace, agent_workspace_error> = 0;
 		[[nodiscard]] virtual auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
 			std::stop_token              aStop)
-			-> std::expected<void, agent_workspace_failure> = 0;
+			-> std::expected<void, agent_workspace_error> = 0;
 	};
 
 	/// \brief Prepares the workspace one invocation runs in.

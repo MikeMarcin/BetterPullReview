@@ -17,6 +17,8 @@
 #include <optional>
 #include <span>
 #include <stop_token>
+#include <string>
+#include <utility>
 #include <vector>
 
 namespace bpr::application {
@@ -592,8 +594,41 @@ namespace bpr::application {
 		cancelled,
 	};
 
+	/// \brief Carries a cache failure and any safe installed-Git explanation.
+	struct git_cache_error
+	{
+		git_cache_failure Code = git_cache_failure::invalid_request;
+		std::string       Detail;
+
+		git_cache_error() = default;
+
+		// Implicit on purpose: a bare failure code is still a complete error.
+		git_cache_error(const git_cache_failure aCode)
+			: Code{ aCode }
+		{
+		}
+
+		git_cache_error(
+			const git_cache_failure aCode,
+			decltype(Detail)        aDetail)
+			: Code{ aCode }
+			, Detail{ std::move(aDetail) }
+		{
+		}
+
+		auto operator<=>(const git_cache_error&) const = default;
+	};
+
+	/// \brief Compares a Git cache error with its primary failure code.
+	[[nodiscard]] inline auto operator==(
+		const git_cache_error&  aError,
+		const git_cache_failure aCode) noexcept -> bool
+	{
+		return aError.Code == aCode;
+	}
+
 	template <typename Value>
-	using git_cache_result = std::expected<Value, git_cache_failure>;
+	using git_cache_result = std::expected<Value, git_cache_error>;
 
 	/// \brief Provides the git cache session contract.
 	class git_cache_session

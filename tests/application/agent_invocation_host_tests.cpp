@@ -188,7 +188,7 @@ namespace {
 			const application::agent_workspace_materialization_request& aRequest,
 			const std::stop_token                                       aStop)
 			-> std::expected<application::owned_agent_workspace,
-							 application::agent_workspace_failure> override
+							 application::agent_workspace_error> override
 		{
 			++Starts;
 			LastRequest = aRequest;
@@ -220,7 +220,7 @@ namespace {
 		[[nodiscard]] auto cleanup_agent_workspace(
 			const application::owned_agent_workspace& aWorkspace,
 			const std::stop_token)
-			-> std::expected<void, application::agent_workspace_failure> override
+			-> std::expected<void, application::agent_workspace_error> override
 		{
 			++Cleanups;
 			LastCleanup = aWorkspace;
@@ -240,7 +240,7 @@ namespace {
 		std::optional<application::owned_agent_workspace>                   LastCleanup;
 		std::vector<application::owned_agent_workspace>                     CleanupAttempts;
 		std::function<void()>                                               AfterMaterialization;
-		std::optional<application::agent_workspace_failure>                 MaterializationFailure;
+		std::optional<application::agent_workspace_error>                   MaterializationFailure;
 		bool                                                                FailNextCleanup = false;
 	};
 
@@ -677,9 +677,15 @@ namespace {
 
 	void test_prestart_workspace_failure_is_an_admitted_typed_terminal()
 	{
-		auto test = harness{ };
-		test.Workspaces.MaterializationFailure
-			= application::agent_workspace_failure::unavailable;
+		auto       test       = harness{ };
+		const auto diagnostic = std::string{
+			"fatal: could not materialize /tmp/bpr-agent-workspace from "
+			"<redacted-url>\n"
+		};
+		test.Workspaces.MaterializationFailure = application::agent_workspace_error{
+			application::agent_workspace_failure::unavailable,
+			diagnostic,
+		};
 		test.Host.observe(
 			core::application_session_id{ 1U },
 			authority(core::git_host_id{ 1U }),
@@ -693,8 +699,9 @@ namespace {
 				&& test.Projection.Finished.size() == 1U
 				&& test.Projection.Finished.front().Outcome
 					== application::agent_run_outcome::workspace_unavailable
+				&& test.Projection.Finished.front().StandardError == diagnostic
 				&& test.Processes.Starts == 0U && test.Host.is_quiescent(),
-			"workspace failure retains the admitted identity through its typed terminal");
+			"workspace failure retains identity and diagnostic through its typed terminal");
 		// BPR-0348. `Starts == 0U` above already says no executable was reached,
 		// and the terminal must say the same thing. It used to answer
 		// `failed_to_start`, which sends whoever reads it to look at the agent

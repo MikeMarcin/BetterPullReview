@@ -1245,11 +1245,15 @@ namespace bpr::app::detail {
 			application::effect_executor&                          aVaultEffects,
 			github_public_path_fixture_options                     aOptions)
 		{
-			GitExecutable = QFileInfo{
-				QStandardPaths::findExecutable(QStringLiteral("git"))
+			if (aOptions.GitExecutable.has_value()) {
+				GitExecutable = aOptions.GitExecutable->lexically_normal();
+			} else {
+				GitExecutable = QFileInfo{
+					QStandardPaths::findExecutable(QStringLiteral("git"))
+				}
+									.canonicalFilePath()
+									.toStdString();
 			}
-								.canonicalFilePath()
-								.toStdString();
 			if (GitExecutable.empty()) {
 				throw std::runtime_error{
 					"GitHub public-path installed Git is unavailable"

@@ -255,6 +255,10 @@ namespace bpr::qt {
 		}
 		if (aResult.Outcome != application::agent_run_outcome::success) {
 			Output->clear();
+			if (!aResult.StandardError.empty()) {
+				Output->setPlainText(
+					QString::fromStdString(aResult.StandardError));
+			}
 		}
 		Status->setText(
 			QStringLiteral("Finished: %1")

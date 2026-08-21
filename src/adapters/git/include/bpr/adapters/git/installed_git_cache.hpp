@@ -22,7 +22,7 @@ namespace bpr::adapters::git {
 		const installed_git_cache_configuration& aConfiguration)
 		-> std::expected<
 			std::unique_ptr<application::git_cache_port>,
-			application::git_cache_failure>;
+			application::git_cache_error>;
 }
 
 #endif // BPR_SRC_ADAPTERS_GIT_INCLUDE_BPR_ADAPTERS_GIT_INSTALLED_GIT_CACHE_HPP

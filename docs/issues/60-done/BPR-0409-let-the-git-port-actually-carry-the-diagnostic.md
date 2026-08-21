@@ -1,7 +1,7 @@
 ---
 id: BPR-0409
 title: Let the Git port actually carry the diagnostic
-status: In Progress
+status: Done
 rfc: RFC-BPR-0003
 depends_on: []
 ---
@@ -125,7 +125,7 @@ operator-facing claim: the Qt terminal must display it too.
 
 ```sh
 ctest --test-dir build/dev --output-on-failure \
-  -R '^(git_process_contract|git_cache_contract|application_epoch_host|application_agent_invocation_host|qt_agent_launch_panel|architecture_boundaries|architecture_boundary_contract)$'
+  -R '^(git_process_contract|git_cache_contract|application_epoch_host|application_agent_invocation_host|qt_agent_launch_panel|application_agent_invocation_workspace_diagnostic_contract|architecture_boundaries|architecture_boundary_contract)$'
 python3 scripts/verify_documentation.py --root .
 git diff --check
 ```
@@ -134,3 +134,34 @@ Each hop needs a negative mutation that proves removing `Detail` there breaks
 the selector. The end-to-end failure fixture must assert the same redacted
 diagnostic at the Git process, cache, workspace, application result, and visible
 Qt terminal. Run `clang-format` on every touched file.
+
+## Result — 2026-08-21
+
+The port now carries exactly one `std::string Detail`. Installed Git retains
+only bounded nonzero-exit stderr, replaces HTTP(S) and SSH-style remote tokens
+with `<redacted-url>`, and keeps local paths, refs, and reflog syntax exact.
+Success, accepted stderr (`malformed_output`), and the standard-error limit
+remain textless.
+
+The same exact diagnostic now crosses process construction, cache construction
+and open, cache process mapping, workspace materialization and cleanup, the
+agent application's `StandardError`, and the visible Qt terminal. A real
+selected-diff composition course uses a test-only Git wrapper that forwards all
+ordinary commands to installed Git and fails only the marker-authorized agent
+workspace `pack-objects --revs` operation. It proves one workspace start, zero
+agent-process starts, `Finished: workspace_unavailable`, the exact redacted
+diagnostic, and host quiescence. The wrapper and Git-executable override are
+testing-only; ordinary product composition is unchanged.
+
+The final augmented selector passed 8/8 in 384.98 seconds on macOS. The positive
+agent composition and conditional-platform branch gate also passed, the
+repository-wide C++ format check passed across 384 files, all 98 documentation
+tests passed, `DOCUMENTATION_OK` passed, and `git diff --check` was clean. The
+independent RFC re-review found no blocking or non-blocking issue. Its Windows
+wrapper branch was source-reviewed and covered by the conditional branch gate,
+but this macOS slice makes no new target-native Windows runtime claim.
+
+The final BPR-0409 development executable is 51,302,640 bytes with SHA-256
+`cb044fcab11545b181ae35ea6b4114d1f5ab0eef4457ec1945a03bc39fa7e8b7`.
+That identity supersedes the historical attended binary for development work;
+no earlier attended packet is presented as evidence for these bytes.

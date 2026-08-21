@@ -67,11 +67,11 @@ namespace bpr::application {
 		[[nodiscard]] auto materialize_agent_workspace(
 			const agent_workspace_materialization_request& aRequest,
 			std::stop_token                                aStop)
-			-> std::expected<owned_agent_workspace, agent_workspace_failure> override;
+			-> std::expected<owned_agent_workspace, agent_workspace_error> override;
 		[[nodiscard]] auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
 			std::stop_token              aStop)
-			-> std::expected<void, agent_workspace_failure> override;
+			-> std::expected<void, agent_workspace_error> override;
 		[[nodiscard]] auto context(
 			const workbench_pull_request_authority& aAuthority) const
 			-> std::optional<workbench_selected_diff_context> override;

@@ -21,9 +21,9 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] auto workspace_outcome(
-			const agent_workspace_failure aFailure) noexcept -> agent_run_outcome
+			const agent_workspace_error& aFailure) noexcept -> agent_run_outcome
 		{
-			switch (aFailure) {
+			switch (aFailure.Code) {
 			case agent_workspace_failure::cancelled:
 				return agent_run_outcome::cancelled;
 			case agent_workspace_failure::stale:
@@ -521,8 +521,9 @@ namespace bpr::application {
 					aInvocation->Stop->get_token());
 				if (!materialized.has_value()) {
 					complete(
-						{ .Session = aInvocation->Identity.Session.Id,
-						  .Outcome = workspace_outcome(materialized.error()) },
+						{ .Session       = aInvocation->Identity.Session.Id,
+						  .Outcome       = workspace_outcome(materialized.error()),
+						  .StandardError = std::move(materialized.error().Detail) },
 						aInvocation);
 					return;
 				}

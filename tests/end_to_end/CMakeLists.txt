@@ -277,6 +277,30 @@ if(UNIX AND NOT APPLE)
 endif()
 
 bpr_add_executable(
+    test_better_pull_review_git_diagnostic_wrapper
+    "${PROJECT_SOURCE_DIR}/tests/fixtures/git/git_diagnostic_wrapper_main.cpp"
+)
+target_compile_features(
+    test_better_pull_review_git_diagnostic_wrapper
+    PRIVATE
+        cxx_std_23
+)
+target_compile_definitions(
+    test_better_pull_review_git_diagnostic_wrapper
+    PRIVATE
+        BPR_REAL_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
+)
+set_target_properties(
+    test_better_pull_review_git_diagnostic_wrapper
+    PROPERTIES
+        OUTPUT_NAME git
+        RUNTIME_OUTPUT_DIRECTORY
+            "${CMAKE_CURRENT_BINARY_DIR}/git-diagnostic-wrapper"
+)
+bpr_enable_hardening(test_better_pull_review_git_diagnostic_wrapper)
+bpr_enable_warnings(test_better_pull_review_git_diagnostic_wrapper)
+
+bpr_add_executable(
     test_better_pull_review_agent_invocation_composition_public_path
     agent_invocation_composition_public_path.cpp
 )
@@ -293,6 +317,7 @@ target_compile_definitions(
 add_dependencies(
     test_better_pull_review_agent_invocation_composition_public_path
     test_better_pull_review_agent_canary
+    test_better_pull_review_git_diagnostic_wrapper
 )
 bpr_enable_hardening(
     test_better_pull_review_agent_invocation_composition_public_path
@@ -310,6 +335,7 @@ foreach(
         cancellation
         staleness
         cleanup-retry
+        workspace-diagnostic
 )
 	if(course STREQUAL "positive")
 		set(test_name application_agent_invocation_composition_contract)
@@ -331,12 +357,21 @@ foreach(
 				"${CMAKE_CURRENT_SOURCE_DIR}/application_agent_invocation_composition_contract.cmake"
 		)
 	else()
+		if(course STREQUAL "workspace-diagnostic")
+			set(
+				course_extra_argument
+				$<TARGET_FILE:test_better_pull_review_git_diagnostic_wrapper>
+			)
+		else()
+			set(course_extra_argument "")
+		endif()
 		bpr_add_network_isolated_test(
 			NAME "${test_name}"
 			COMMAND
 				test_better_pull_review_agent_invocation_composition_public_path
 				"${course}"
 				$<TARGET_FILE:test_better_pull_review_agent_canary>
+				${course_extra_argument}
 		)
 	endif()
     set_tests_properties(
