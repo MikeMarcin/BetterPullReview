@@ -189,3 +189,15 @@ The cause was structural rather than careless. This packet family serves three
 cards — [[BPR-0114]], this one, and [[BPR-0391]] — and each regeneration updated
 only the card that ordered it. BPR-0398 carries the verifier check that now
 fails when a card names a superseded packet.
+
+## The final-head diagnostic packet is v008 — 2026-08-21
+
+The v007 attempt was real but could not separate focus, state, capture, and
+persistence causes. [[BPR-0410]] has made those facts independently observable.
+Run only
+[`appearance-scheme-foreground-v008`](../../verification/reviews/appearance-scheme-foreground-v008/operator-packet.md),
+which binds executable
+`sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`
+and requires the complete raw log. This card remains parked until that log
+records the geometry delta and ordered causes; no `== 1U` expectation is changed
+in advance.

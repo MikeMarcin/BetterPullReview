@@ -1,8 +1,9 @@
 ---
 id: BPR-0410
 title: The owner-return marker cannot say what happened
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0006
+parked_on: awaiting-owner-verdict
 depends_on: []
 ---
 
@@ -230,3 +231,32 @@ Because `src/app/main.cpp` also belongs to BPR-0256's capability-critical
 source manifest, v003 is explicitly invalidated rather than silently rebound.
 A committed-tree v004 regeneration and fresh capability-critical review are
 required before BPR-0256 can again request an operator decision.
+
+## Final-head native replay prepared — 2026-08-21
+
+The authorized shared relink batch is complete at committed source HEAD
+`145f6d4c6345c65c42c6d5ea00dfc9b67fa514b0`. The resulting executable is
+51,383,520 bytes with SHA-256
+`10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`;
+an explicit rebuild reports no work. Seven final-head review preflights pass,
+including the native appearance contract, real attended launch, recorded
+UIforETW selected-diff path, notification course, public workbench, composition,
+and scale check.
+
+The live native diagnostic replay is
+[`appearance-scheme-foreground-v008`](../../verification/reviews/appearance-scheme-foreground-v008/operator-packet.md).
+It asks for the complete raw log and audits the indexed reachable wait, strict
+owner return, three owner operands, capture dispositions, and persistence
+disposition. This card is parked on the owner: source and deterministic evidence
+are complete, but only the real Cocoa replay can satisfy its required negative
+control without inferring from the offscreen refusal path.
+
+Independent packet review corrected one claim before attendance. A later wait
+re-entry is not reachable in the current one-shot stage: once the strict return
+predicate succeeds, the same event callback captures and transitions to shutdown
+without evaluating the predicate again. Persistence and reporting follow during
+finalization without another owner-return poll. The reachable entry is therefore
+episode `1`; the counter identifies that entry but does not prove a second
+episode. The original two-history concern is ruled out structurally, while v008
+still directly tests the revised defect that matters: whether return occurred
+and what capture/persistence disposition followed it.

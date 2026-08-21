@@ -440,3 +440,15 @@ they root in `StatePassed`. `DIFF_GEOMETRY_REBUILD` should **not** — it is
 [[BPR-0220]], a product question about an appearance change rebuilding
 comparison geometry twice. If it goes green, that is a result to record, not a
 relief.
+
+## The final-head diagnostic packet is v008 — 2026-08-21
+
+v007 was attempted and remains historical evidence; its collapsed focus/state
+marker could not attribute the failure. [[BPR-0410]] now supplies an indexed
+reachable wait episode, independent owner-return operands, and factual capture/persistence
+dispositions. The live procedure is
+[`appearance-scheme-foreground-v008`](../../verification/reviews/appearance-scheme-foreground-v008/operator-packet.md),
+bound to the settled shared-batch executable at
+`sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`.
+This card remains backlog because it still depends on parked [[BPR-0220]]; the
+packet prepares evidence and does not bypass that dependency.

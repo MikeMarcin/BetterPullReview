@@ -230,3 +230,15 @@ whether extra private content was absent, and it does not contradict the
 already-recorded exit-zero delivery and activation course. This card therefore
 remains parked on the same observed banner description; no rerun or verdict is
 inferred from this response.
+
+## The final-head observation packet is v006 — 2026-08-21
+
+The earlier exit-zero course remains evidence for its original executable, but
+the missing firsthand banner text cannot be inferred from it and the shared
+authorized batch has since relinked the app. The live procedure is
+[`native-notification-delivery-v006`](../../verification/reviews/native-notification-delivery-v006/operator-packet.md),
+bound to executable
+`sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`.
+It requests a fresh exact run, the complete log, and the owner's personally read
+title/body plus confirmation that no private content appeared. This card stays
+parked until that observation is returned.

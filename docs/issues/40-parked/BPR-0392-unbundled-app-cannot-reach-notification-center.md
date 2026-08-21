@@ -356,3 +356,14 @@ shared packet's display-content decision because the owner explicitly was not
 observing the banner. It is not treated as a delivery failure or as approval.
 This card remains parked with [[BPR-0168]] until the banner is described as
 actually seen.
+
+## The final-head observation packet is v006 — 2026-08-21
+
+The shared final-head procedure is now
+[`native-notification-delivery-v006`](../../verification/reviews/native-notification-delivery-v006/operator-packet.md),
+bound to executable
+`sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`.
+It retains the useful auto-dismiss/retry rule, requires every raw attempt log,
+and asks the owner to read the visible banner before clicking. The prior
+exit-zero course is not withdrawn; this card remains parked only because its
+shared BPR-0168 banner-content judgment is still absent for the current bytes.

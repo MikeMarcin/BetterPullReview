@@ -407,3 +407,15 @@ neither raster was written, which is the first thing to measure.
 signature and the second one this session had to withdraw; the pattern is that
 the markers are not saying what they are read as saying, which is exactly what
 BPR-0410 now exists to fix.
+
+## The attributable replay is v008 — 2026-08-21
+
+[[BPR-0410]] is implemented and the authorized shared relink is complete. The
+live packet is
+[`appearance-scheme-foreground-v008`](../../verification/reviews/appearance-scheme-foreground-v008/operator-packet.md),
+bound to executable
+`sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`.
+It preserves v007 as the failed historical attempt and requires the full raw
+log so indexed wait entry/return, the three owner operands, and Qt's factual
+capture/persistence dispositions can be audited directly. This card stays
+parked until that native Cocoa replay is returned.

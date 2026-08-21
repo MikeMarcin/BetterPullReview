@@ -173,4 +173,3 @@ One deliberate non-change: `40-parked` is inserted beside `50-blocked` in
 `OPEN_ISSUE_LANES` and `lane_status` rather than in ordinal position, because
 those structures were never in ordinal order and iteration order there decides
 only which diagnostic fires first, never a verdict.
-

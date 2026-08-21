@@ -211,3 +211,14 @@ this card remains Parked as the owning final-head attended procedure. v003 is an
 accepted, frozen result rather than a pending question; after the shared batch,
 only a successor packet bound to the materially changed executable can close
 the card. No part of the accepted v003 record is rewritten or downgraded.
+
+## The final-head successor is v004 — 2026-08-21
+
+The authorized BPR-0409/BPR-0410/BPR-0334 relink batch is complete at committed
+source HEAD `145f6d4c6345c65c42c6d5ea00dfc9b67fa514b0`. The live final-head judgment is
+[`native-visual-acceptance-v004`](../../verification/reviews/native-visual-acceptance-v004/operator-packet.md),
+bound to executable
+`sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`.
+The accepted v003 response and validation record remain immutable and valid for
+their original bytes. This card remains parked until the owner accepts or
+rejects the new exact identity.
