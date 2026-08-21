@@ -101,3 +101,63 @@ replay the 2026-08-20 conditions and confirm the log now distinguishes them.
 ctest --test-dir build/dev --output-on-failure -R '^application_appearance'
 python3 scripts/verify_documentation.py --root .
 ```
+
+## Correction — the marker-timing premise was wrong — 2026-08-20
+
+This card's opening diagnosis is withdrawn. It said
+`NATIVE_APPEARANCE_WAITING_FOR_OWNER_RETURN` "is emitted once, on the first tick
+where the owner-return condition is false — which is the moment the window
+appears", citing its position at line 3 of the run log.
+
+That misread the log. The run merges stdout and stderr into one pipe, so lines
+from the two streams interleave arbitrarily — but `NATIVE_APPEARANCE_READY`,
+`WAITING_FOR_OWNER_RETURN`, `PUBLIC_PATH_BUDGET` and `NATIVE_APPEARANCE_TRANSITION`
+all use `QTextStream{ stdout }`, so their order relative to *each other* is real.
+In that order the marker sits after `READY` and **before**
+`PUBLIC_PATH_BUDGET:… elapsed_ms=57627`, which is an end-of-run summary. The
+`NATIVE_APPEARANCE_TRANSITION` line is in the end-of-run report block too, not a
+live event.
+
+So the marker fired mid-run, which is exactly where `main.cpp:4601` can reach it:
+the branch requires all three schemes to read Dark and fifty settle ticks first.
+The wait behaved as designed. The owner switched to Dark and the probe waited.
+
+## What is actually wrong, on better evidence
+
+The conflation this card named is real, and worse than described.
+`main.cpp:3463-3466` prints `ACTIVE_FOCUS_OK` only when
+
+```cpp
+InitialWindowActive && InitialFocus != nullptr && StatePassed
+```
+
+so `NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED` is **not a focus verdict**. Its third
+conjunct is `StatePassed`, which is itself the whole palette-and-state
+comparison. The 2026-08-20 log carries `STATE_FAILED` alongside it, which is
+sufficient on its own to force `ACTIVE_FOCUS_FAILED` with focus perfectly
+healthy — and three sessions have now read that marker as an operator-focus
+problem, including this one.
+
+That is the same defect [[BPR-0381]] fixed for the public-path waits: a conjunct
+count collapsed into one boolean, where the name of the boolean names only the
+first conjunct.
+
+The likelier root cause is upstream of both. The log carries `RENDER_FAILED` and
+`NATIVE_APPEARANCE_CHANGED_RENDER_FAILED`, and neither raster was written. A
+probe that cannot capture its rasters cannot pass `PIXELS_DIFFER`, and may not
+pass `StatePassed` either. Whether that capture failure is a screen-recording
+permission, an occluded window, or something else is **unmeasured** — and it is
+the thing to measure first, ahead of anything about focus.
+
+## Required final state, revised
+
+- `ACTIVE_FOCUS_FAILED` is replaced by markers that name each conjunct, so a
+  state failure is never again read as a focus failure.
+- `RENDER_FAILED` and `CHANGED_RENDER_FAILED` say **why** the capture failed,
+  not merely that it did.
+- The owner-return wait reports leaving as well as entering, so a log records
+  that the owner returned rather than only that the probe waited.
+- No change to what the probe requires.
+
+The original framing — that the failure cannot be attributed — survives. Only
+its evidence changed, and the answer it points to changed with it.

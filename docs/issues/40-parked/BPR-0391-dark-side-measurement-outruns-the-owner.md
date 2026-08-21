@@ -380,3 +380,30 @@ converging.
 [[BPR-0410]] makes the failure legible first. When a failing run can be
 attributed, the packet either needs new prose or does not — and that will be
 answerable rather than guessable.
+
+### That reading was wrong too — 2026-08-20
+
+The section above concluded the owner-return marker "fires once, on the first
+tick where the condition is false — the moment the window appears". It does not.
+The log merges stdout and stderr, but the four `NATIVE_APPEARANCE_*` and
+`PUBLIC_PATH_*` markers involved all write to `QTextStream{ stdout }`, so their
+relative order is real, and in it the marker sits after `READY` and **before** an
+end-of-run summary carrying `elapsed_ms=57627`. It fired mid-run, which is the
+only place `main.cpp:4601` can reach it — that branch needs all three schemes
+reading Dark and fifty settle ticks first.
+
+So this card's repair worked. The owner switched to Dark, and the probe waited
+for him as designed.
+
+What actually failed is upstream and was misread by the marker's name.
+`main.cpp:3463-3466` emits `ACTIVE_FOCUS_OK` only when
+`InitialWindowActive && InitialFocus != nullptr && StatePassed`, so
+`ACTIVE_FOCUS_FAILED` is not a focus verdict — its third conjunct is the entire
+state comparison, and `STATE_FAILED` in the same log forces it with focus
+healthy. Ahead of both, `RENDER_FAILED` and `CHANGED_RENDER_FAILED` appear and
+neither raster was written, which is the first thing to measure.
+
+[[BPR-0410]] is corrected accordingly. This is the third diagnosis on this
+signature and the second one this session had to withdraw; the pattern is that
+the markers are not saying what they are read as saying, which is exactly what
+BPR-0410 now exists to fix.
