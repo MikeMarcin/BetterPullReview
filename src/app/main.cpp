@@ -1293,7 +1293,7 @@ namespace {
 			&& aWindow.epoch_selectors()->statistics().AppearanceUpdates
 			> aRun.Appearance.InitialEpochAppearanceUpdates
 			&& workbench->statistics().GeometryRebuilds
-			== aRun.Appearance.InitialDiffGeometryRebuilds + 1U
+			== aRun.Appearance.InitialDiffGeometryRebuilds
 			&& native_appearance_context_passed(aWindow, aRun);
 	}
 
@@ -3650,7 +3650,7 @@ namespace {
 								   && aRun.Appearance.StatePassed
 							   ? "NATIVE_APPEARANCE_DIFF_FONT_INHERITED_OK\n"
 							   : "NATIVE_APPEARANCE_DIFF_FONT_INHERITED_FAILED\n")
-					   << (aRun.Appearance.DiffGeometryRebuildDelta == 1U
+					   << (aRun.Appearance.DiffGeometryRebuildDelta == 0U
 								   && aRun.Appearance.StatePassed
 							   ? "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_OK\n"
 							   : "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_FAILED\n")

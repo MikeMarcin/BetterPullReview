@@ -8,6 +8,32 @@ if(NOT DEFINED BPR_RUN_BUDGET_MS OR "${BPR_RUN_BUDGET_MS}" STREQUAL "")
     message(FATAL_ERROR "BPR_RUN_BUDGET_MS is required")
 endif()
 
+function(bpr_compact_cpp_source_slice source_variable start_token end_token output_variable description)
+    set(source_text "${${source_variable}}")
+    string(FIND "${source_text}" "${start_token}" slice_start)
+    string(FIND "${source_text}" "${end_token}" slice_end)
+    if(slice_start EQUAL -1 OR slice_end EQUAL -1 OR slice_end LESS_EQUAL slice_start)
+        message(FATAL_ERROR "cannot isolate ${description}")
+    endif()
+    math(EXPR slice_length "${slice_end} - ${slice_start}")
+    string(SUBSTRING "${source_text}" ${slice_start} ${slice_length} source_slice)
+    string(REGEX REPLACE "/\\*([^*]|\\*+[^*/])*\\*+/" "" source_slice "${source_slice}")
+    string(REGEX REPLACE "//[^\r\n]*" "" source_slice "${source_slice}")
+    string(REGEX REPLACE "[ \t\r\n]" "" source_slice "${source_slice}")
+    set(${output_variable} "${source_slice}" PARENT_SCOPE)
+endfunction()
+
+function(bpr_require_literal_count source token expected description)
+    string(LENGTH "${source}" source_length)
+    string(LENGTH "${token}" token_length)
+    string(REPLACE "${token}" "" source_without_token "${source}")
+    string(LENGTH "${source_without_token}" source_without_token_length)
+    math(EXPR token_count "(${source_length} - ${source_without_token_length}) / ${token_length}")
+    if(NOT token_count EQUAL expected)
+        message(FATAL_ERROR "${description} expected ${expected}, found ${token_count}")
+    endif()
+endfunction()
+
 file(READ "${CMAKE_CURRENT_LIST_DIR}/../../src/app/main.cpp" probe_source)
 foreach(
     required_source_fact
@@ -166,6 +192,50 @@ endforeach()
 if(owner_observation_source MATCHES "StatePassed")
     message(FATAL_ERROR "native owner-return observation is contaminated by appearance state")
 endif()
+
+bpr_compact_cpp_source_slice(
+    probe_source
+    "[[nodiscard]] auto native_appearance_dark_state_passed("
+    "[[nodiscard]] auto comparison_is_wholly_visible("
+    geometry_state_source
+    "native appearance dark-state predicate"
+)
+set(
+    exact_zero_geometry_state
+    "workbench->statistics().GeometryRebuilds==aRun.Appearance.InitialDiffGeometryRebuilds&&native_appearance_context_passed(aWindow,aRun);"
+)
+string(FIND "${geometry_state_source}" "${exact_zero_geometry_state}" geometry_state_index)
+if(geometry_state_index EQUAL -1)
+    message(FATAL_ERROR "native dark-state predicate no longer requires exactly zero geometry rebuilds")
+endif()
+bpr_require_literal_count(
+    "${geometry_state_source}"
+    "workbench->statistics().GeometryRebuilds"
+    1
+    "native dark-state geometry comparison count"
+)
+
+bpr_compact_cpp_source_slice(
+    probe_source
+    "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_DELTA:"
+    "NATIVE_APPEARANCE_DIFF_SELECTION_OK"
+    geometry_report_source
+    "native appearance geometry verdict"
+)
+set(
+    exact_zero_geometry_verdict
+    "<<(aRun.Appearance.DiffGeometryRebuildDelta==0U&&aRun.Appearance.StatePassed?\"NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_OK\\n\":\"NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_FAILED\\n\")"
+)
+string(FIND "${geometry_report_source}" "${exact_zero_geometry_verdict}" geometry_verdict_index)
+if(geometry_verdict_index EQUAL -1)
+    message(FATAL_ERROR "native geometry verdict no longer requires exactly zero rebuilds")
+endif()
+bpr_require_literal_count(
+    "${geometry_report_source}"
+    "aRun.Appearance.DiffGeometryRebuildDelta"
+    2
+    "native geometry report delta-reference count"
+)
 
 string(REGEX REPLACE "[ \t\r\n]" "" probe_source_compact "${probe_source}")
 foreach(
