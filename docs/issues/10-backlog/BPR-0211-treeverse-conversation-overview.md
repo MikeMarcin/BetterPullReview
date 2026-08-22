@@ -1,10 +1,9 @@
 ---
 id: BPR-0211
 title: A secondary overview for conversations too large to follow inline
-status: Parked
+status: Backlog
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191, BPR-0413]
-parked_on: awaiting-product-decision
 ---
 
 # A secondary overview for conversations too large to follow inline
@@ -95,15 +94,20 @@ batch `bpr:/attended-review/betterpullreview/40a5fd691f86739e55c6860a`, and it
 presents the alternatives as one choose-exactly-one question. Rejecting every
 alternative is a recordable answer and means build neither.
 
-So this card is parked again, and this time the label is accurate: the owner is
-the only thing left. Nothing is queued in front of it.
+That page was then held back rather than presented. An independent review
+falsified its central cost claim before the owner ever saw it, so [[BPR-0413]]
+reopened to correct the batch, and this card waits on that correction rather
+than on a person.
 
 One finding from building them belongs on this card, because it changes what
 the choice costs. The two alternatives are not equally expensive. The
-whole-review view needs no model change. The Treeverse map needs one line:
-`comment.ReplyTo` is fetched and validated, and
-`github_projection_mapping.cpp:175` writes the thread root over it, which is
-why today's tree is two levels deep. And no recorded pull request here carries
+whole-review view needs no model change. The Treeverse map needs a real change,
+not the one line an earlier draft of this note claimed: `comment.ReplyTo` is
+fetched and validated and then overwritten by the thread root at
+`github_projection_mapping.cpp:175`, but the Qt model also refuses any parent
+that is not a `review_thread` (`github_conversation_model.cpp:317-326`), so
+changing the mapping alone would flatten the drawer to one level instead of
+deepening it. And no recorded pull request here carries
 a conversation at all, so the deep thread was drawn synthesized — the
 precondition this card set, that a conversation deep enough to be a problem is
 recorded, is measured now rather than merely suspected, and it is still unmet.

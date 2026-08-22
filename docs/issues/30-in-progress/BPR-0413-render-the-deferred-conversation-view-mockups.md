@@ -1,7 +1,7 @@
 ---
 id: BPR-0413
 title: Render the deferred conversation-view mockups the owner asked for
-status: Done
+status: In Progress
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191]
 ---
@@ -149,7 +149,7 @@ python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py \
 git diff --check
 ```
 
-## Done — 2026-08-21
+## Built, then reopened — 2026-08-21
 
 The page is built and committed at `01908c3`. It carries three decision
 subjects under batch
@@ -211,6 +211,67 @@ rather than suspected.
 | `offline-review-input.json` | 14,159 | `sha256:2d1db035043031b03ad20ea80ddecc8b…` |
 | `offline-package/attended-review-manifest.json` | 18,377 | `sha256:9c34a87d4ce84b881804568cbf0e6879…` |
 | `offline-package/index.html` | 66,071 | `sha256:2af4d87199966a87e423638f27428eb8…` |
+
+### Reopened by independent review — 2026-08-21
+
+The page above was built, committed at `01908c3`, and then **not presented**. An
+independent reviewer was asked to falsify what the owner would read, and it did.
+Three findings were reproduced directly before any correction was made, and each
+is a case of the card asserting a cost or a feasibility it had not measured.
+
+**The "one line" claim is false, and it was this card's central argument.**
+`comment.ReplyTo` really is fetched, validated, and overwritten at
+`github_projection_mapping.cpp:175`. But `github_conversation_model.cpp:317-326`
+accepts a parent only when that parent's `Kind` is `review_thread`. Change the
+mapping alone and every reply's parent becomes a `review_comment`, which the
+model rejects, so the node is promoted to a root: the drawer would go from two
+levels to **one**, thread rows would lose every child, and
+`github_conversation_delegate.cpp:81-83` would start printing "Review comment by"
+where it prints "Reply by". The naive edit makes the product worse, not deeper.
+The real change is the mapping, the model's parent-kind filter, a fallback for
+the null `ReplyTo` that a thread's first comment carries, and the tests that
+encode the current shape. The asymmetry between A and B is still real; it is
+smaller than this card claimed, and it was claimed after reading one file.
+
+**BPR-0212's feasibility concern is falsified by this repository.** The subject
+told the owner that whether GitHub exposes the revision a comment was made
+against "has not been checked" — "unauthenticated or at all". But
+`github_read_model.hpp:223` carries `std::optional<commit_oid> Commit` per
+review, `github_read_contract.cpp:1214-1241` **requires** `commit_id` on every
+review object and rejects a response without it, and
+`github_projection_mapping.cpp:145-156` then drops it — the same discard this
+card made so much of for `ReplyTo`, and never noticed. When BPR writes a review
+comment it sends `commit_id` itself
+(`github_mutation_contract.cpp:117-122`). What is genuinely open is narrow: the
+review-thread GraphQL selection asks for `originalLine` but not the comment's
+commit, so the per-comment datum is not requested today. Presenting that as
+"nobody has checked whether this is possible" understates a feature the owner is
+being asked to fund.
+
+**The git-graph drawer the owner asked for was settled in one clause.**
+[[BPR-0191]]:92-93 records that the owner "asked for a threaded conversations
+drawer drawn in a git-graph / DAGVIZ style, with filtering by lane". The
+narrowing at :108-110 — "filtering by lane therefore means filtering by thread" —
+is that card's own engineering argument, not an owner statement; the owner's
+quoted words at :120-122 are about anchoring to the current file and say nothing
+about rails. This card wrote that the language was "narrowed by the owner", which
+the record does not support, and the baseline mockup told the owner the same
+thing on its face. A request the owner made and never withdrew was being reported
+back to them as already settled.
+
+Smaller corrections the same review found: the delegate renders authors as
+`@login` (`github_conversation_delegate.cpp:44-45`) and no mockup showed the `@`;
+seven neutral chrome colours are not product palette roles, against this card's
+claim that none appear; there are three `review_threads.json` fixtures, not one,
+so "the only conversation content in the tree" is wrong even though the
+maximum-depth statement it supports is right; and the Treeverse map legends a
+per-node read state that `github_conversation_projection` does not carry.
+
+The verification matrix below is also short: it proved the board gates, the
+tooling, and byte-regeneration, and had no row for the palette, the label
+format, the cost of alternative B, or the exhaustiveness of the fixture search.
+All nine rows could pass with every one of those wrong — which is exactly what
+happened. Rows for them are added with the correction.
 
 ### What this card does not claim
 
