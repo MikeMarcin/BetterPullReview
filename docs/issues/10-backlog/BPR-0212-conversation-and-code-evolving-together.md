@@ -1,10 +1,9 @@
 ---
 id: BPR-0212
 title: Show conversation and code evolving together across revisions
-status: Parked
+status: Backlog
 rfc: none
-depends_on: [BPR-0191]
-parked_on: awaiting-product-decision
+depends_on: [BPR-0191, BPR-0413]
 ---
 
 # Show conversation and code evolving together across revisions
@@ -105,6 +104,14 @@ drawn against the real conversation model this product already has, so that what
 is being judged is a design this codebase could actually reach, not an
 illustration of a design in general.
 
-`parked_on` stays `awaiting-product-decision`: the decision is still what the card
-is for. What changed is that it is now blocked on something buildable rather than
-on the owner.
+That direction originally ended by keeping `parked_on: awaiting-product-decision`,
+reasoning that the decision is still what this card is for. The lane rule does not
+work that way. `40-parked/` is a frontier-root lane — a card sits there when a
+person, a live service, or a product decision is the only thing left — and the
+verifier fails a parked card that still has an unmet dependency. While a session
+owes a deliverable, this card is waiting on another card, and that lane is
+`10-backlog/`.
+
+[[BPR-0413]] now owns that deliverable. This card returns to `40-parked/` as
+`awaiting-product-decision` the moment the page exists, because that is when the
+label becomes true.

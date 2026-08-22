@@ -705,7 +705,7 @@ three answers it needs:
 | BPR-0347 | `30-in-progress/` | A Windows session. The suite runs on the project's Windows 11 x64 host and its own remaining failures are the work; nothing else is in the way |
 | BPR-0358 | `30-in-progress/` | A Windows session. Its own five required-final-state bullets are met; it stays open as the anchor for the Windows program it records |
 | BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; an immediate credential-free REST diagnostic returned HTTP 404, the approval stayed unconsumed and was deleted, and no mutation occurred. v004 must not be retried |
-| BPR-0211, BPR-0212 | `40-parked/` | A product decision: owner-deferred, and RFC-scale rather than a slice |
+| BPR-0413 | `30-in-progress/` | Nothing. It is the deliverable [[BPR-0211]] and [[BPR-0212]] were parked on: rendered mockups of each alternative, presented as one choose-exactly-one question |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
 | BPR-0240 | `30-in-progress/` | A Windows session. Done BPR-0334 removed the duplicated portable protocol policy, but `windows_agent_process.cpp` still has never been compiled and only a Windows toolchain can prove its HANDLE/Job/cancellation transport |
@@ -729,14 +729,26 @@ and fails when they disagree, so a card entering or leaving `20-ready/`,
 `30-in-progress/`, `40-parked/`, or `50-blocked/` cannot be omitted, listed
 under the wrong lane, or left behind after it closes.
 
+What the derivation cannot check is whether a lane is the *right* one, and
+[[BPR-0413]] found two rows where it was not. BPR-0211 and BPR-0212 sat in
+`40-parked/` as `awaiting-product-decision` while their own text, added the same
+day, said the disposition had changed to "waiting on a deliverable that this
+session owes" — the owner had asked to see mockups before deciding. Nothing was
+waiting on a person. A deliverable was owed and no card owned it, so both cards
+moved to `10-backlog/` behind [[BPR-0413]], which owns it. They return to
+`40-parked/` when the page exists and the owner is genuinely the only thing left.
+That is the same reading that brought [[BPR-0256]] back to an active lane, and it
+is the caveat this section already states two paragraphs down: a card whose next
+action is unattended does not belong in the parked lane.
+
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these eleven roots or reaches one
+card on this board is either one of these ten roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
-of the 54 cards in `10-backlog/`, **none** has all its dependencies in
+of the 56 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
 
 The post-BPR-0334 audit on 2026-08-21 found no backlog dependency on that
-card, so its move to `60-done/` promoted nothing. All 54 backlog cards still
+card, so its move to `60-done/` promoted nothing. All 56 backlog cards still
 have at least one direct dependency outside the terminal lane.
 
 So the honest summary is narrower than the one this section used to give.
@@ -794,7 +806,7 @@ Everything else in `10-backlog/` reaches one of those roots transitively.
 | Missing component and resilience scope | Backlog BPR-0235; in-progress BPR-0240; done BPR-0237 through BPR-0239 and BPR-0334 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, BPR-0236's appearance-storage fallback, and the single portable agent protocol loop are done. Native Windows transport proof remains with BPR-0240 |
 | Recorded selected-diff proof | Done BPR-0233, BPR-0246, and BPR-0214; BPR-0100 waits on BPR-0083 for terminal replay; still gating BPR-0210's margin analysis | The real selected-file course binds UIforETW commits/blobs, named replacement pairs, semantic roles, and a cut-wire negative. After the v001 through v004 rejections and the accepted v005 connector repair, the combined v006 batch was accepted whole on 2026-08-18; BPR-0100 accepted the assembled workbench, and no interim presentation rerun is required for BPR-0220's probe-only change |
 | Closeout rigor and terminal cards | Done BPR-0234 and BPR-0248; backlog BPR-0241 through BPR-0245 | The standing shipped-binary composition inventory is reconciled with exact fixture/production profiles; replay each anchored executable checklist and retain a live terminal card for each Proposed RFC |
-| Deferred or not a slice | BPR-0211, BPR-0212, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering. BPR-0156 is no longer an example here: the Ubuntu host arrived, it re-established the matrix, and it is in `60-done/` |
+| Deferred or not a slice | BPR-0101, BPR-0115 | Blocked by closure ordering. BPR-0211 and BPR-0212 are no longer examples here: the owner asked for mockups before deciding, so they are ordinary backlog work behind [[BPR-0413]] rather than deferred. BPR-0156 is no longer an example here: the Ubuntu host arrived, it re-established the matrix, and it is in `60-done/` |
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
 final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench
