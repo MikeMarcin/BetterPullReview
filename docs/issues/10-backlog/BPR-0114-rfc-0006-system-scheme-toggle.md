@@ -452,3 +452,24 @@ bound to the settled shared-batch executable at
 `sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`.
 This card remains backlog because it still depends on parked [[BPR-0220]]; the
 packet prepares evidence and does not bypass that dependency.
+
+## v008 returned an attributable observed failure — 2026-08-21
+
+The owner completed the exact foreground procedure against the bound final-head
+binary, restored and visibly confirmed the original desktop appearance, and
+returned the packet's exact statement with the complete unedited log. The
+immutable
+[`operator response`](../../verification/reviews/appearance-scheme-foreground-v008/operator-response.md),
+[`raw log`](../../verification/reviews/appearance-scheme-foreground-v008/foreground-run-attempt-1.log),
+and [`validation record`](../../verification/reviews/appearance-scheme-foreground-v008/validation-record.json)
+show the selected `review.cpp` comparison, Light-to-Dark local and global
+transitions, System-follow and explicit-ignore markers, strict owner return,
+and all three final focus operands true.
+
+This is not an acceptance of BPR-0114. The run exits `1` because the state
+predicate expects one comparison-geometry rebuild and the attributable native
+measurement records zero, with no rebuild causes. That keeps changed capture
+and persistence from running. [[BPR-0391]] and [[BPR-0410]] are Done because
+their wait and diagnostic claims are directly satisfied; [[BPR-0220]] remains
+Parked on the supported zero-expectation repair and protected-binary
+sequencing. This card remains Backlog on that dependency.

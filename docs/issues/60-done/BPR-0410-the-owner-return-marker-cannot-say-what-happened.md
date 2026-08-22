@@ -1,9 +1,8 @@
 ---
 id: BPR-0410
 title: The owner-return marker cannot say what happened
-status: Parked
+status: Done
 rfc: RFC-BPR-0006
-parked_on: awaiting-owner-verdict
 depends_on: []
 ---
 
@@ -260,3 +259,26 @@ episode `1`; the counter identifies that entry but does not prove a second
 episode. The original two-history concern is ruled out structurally, while v008
 still directly tests the revised defect that matters: whether return occurred
 and what capture/persistence disposition followed it.
+
+## The attributable failure is returned — 2026-08-21
+
+The owner returned the packet's exact statement and complete unedited v008 log.
+The immutable
+[`operator response`](../../verification/reviews/appearance-scheme-foreground-v008/operator-response.md),
+[`raw log`](../../verification/reviews/appearance-scheme-foreground-v008/foreground-run-attempt-1.log),
+and [`validation record`](../../verification/reviews/appearance-scheme-foreground-v008/validation-record.json)
+bind executable
+`sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`
+and BPR-0249 record
+`sha256:fe76c86329e9eb6650a9fa11103739fb0bfae0480a174b69689a74d057ff153b`.
+
+The record supplies the distinction this card required. Episode `1` is entered
+with all three owner operands false, then `NATIVE_APPEARANCE_OWNER_RETURNED`
+appears and the final window-active, application-active-window, and exact-focus
+operands are independently true. The initial capture is `captured`; the changed
+capture is `not_attempted_state_precondition`; persistence is `not_attempted`.
+The failure is therefore attributable to the state precondition after a
+successful strict owner return, not to an unreadable collapsed focus marker.
+The current one-shot state then transitions to shutdown, so a second wait
+episode is structurally unreachable. BPR-0220 owns the measured zero-rebuild
+expectation. This diagnostic slice is Done.

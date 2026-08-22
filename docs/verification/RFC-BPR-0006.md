@@ -3,8 +3,9 @@
 RFC base: `91e6b7044ced7b73af6a1d1993c9ed97f4f6b2d4`
 
 Status: **semantic palette customization, safe local import, and the recorded
-UIforETW comparison now reach the real selected-file path; required attended
-and native-appearance gates remain open.** BPR-0181
+UIforETW comparison now reach the real selected-file path; the final-head
+native appearance observation is returned, while its measured zero-rebuild
+expectation repair and other attended gates remain open.** BPR-0181
 through BPR-0185 connected the appearance host, predefined profiles, gesture,
 and syntax classifier. BPR-0236 adds the composition-owned session fallback:
 the window starts from System defaults, keeps session profile switching and
@@ -53,19 +54,22 @@ not promote adjacent states. The integrator subsequently rebuilt the current
 tree, replayed the exact six-test selector at 6/6, passed documentation and
 diff validation, and closed BPR-0259 as a separate tracker decision. BPR-0257,
 BPR-0258, the release gate, and RFC closeout remain open.
-BPR-0114
-and BPR-0220 retain the frontmost native appearance run and its unexplained
-two-rebuild result. BPR-0220 now records the coalesced measured-axis mask and
-exact Qt trigger mask for every successful rebuild; the foreground Light →
-Dark run that supplies those records remains attended.
+BPR-0114 and BPR-0220 now have their final-head native appearance observation.
+The complete v008 Cocoa log records zero geometry rebuilds, no rebuild causes,
+and complete attribution after a strict owner return. That directly supports
+changing both exact-one native-state expectations to zero; the repair is not
+yet authorized because it would replace the executable still bound by the
+pending visual and notification packets.
 
-BPR-0410 replaces the collapsed `ACTIVE_FOCUS` verdict with the three exact
-owner-return operands, indexes every wait entry, reports the first strict owner
-return, and records factual capture and persistence dispositions without
-inferring permission or occlusion. The strict predicate is unchanged. Portable
-offscreen courses prove refusal emits none of those verdicts; the owner-attended
-Cocoa timeline remains the direct runtime gate after the shared authorized
-relink batch is complete.
+Done BPR-0410 replaces the collapsed `ACTIVE_FOCUS` verdict with the three
+exact owner-return operands, indexes the reachable wait entry, reports the first
+strict owner return, and records factual capture and persistence dispositions
+without inferring permission or occlusion. The returned v008 timeline enters
+episode `1` with all three operands false, then reports owner return and all
+three operands true. Changed capture is skipped on the state precondition and
+persistence is not attempted, so the failure is now attributable without a
+focus inference. Done BPR-0391 is the corresponding native proof that the
+dark-side wait reaches strict owner return.
 
 BPR-0249 repairs the course leading to that attended checkpoint. The native
 probe now selects the synthetic `review.cpp` row through BPR-0227's shipped
@@ -80,9 +84,10 @@ or budget refusal before the Light baseline emits one typed precondition marker
 and no appearance verdict markers. The 1 ms startup-budget executable branch
 also fixes the pre-initialization boundary: it reports pending
 `awaiting_workbench_observation`, derives helper-unused from the live counter,
-shuts down normally, and writes no render. This does not supply the
-still-required frontmost Light → Dark verdict or decide BPR-0220's geometry
-result.
+shuts down normally, and writes no render. The later v008 replay supplies the
+frontmost Light → Dark observation and decides BPR-0220's measurement as zero
+attributed rebuilds; BPR-0249 itself still makes no acceptance or product-fix
+claim.
 
 BPR-0265 repairs the shared diff-interaction course consumed by the appearance
 public paths after compact navigation made the old one-third divider request
@@ -243,7 +248,7 @@ out.
 | Font change preserves semantics | An `appearance_profile` and a `diff_workbench` constructed together by a test | Change the code font | The measured axis and ribbon geometry invalidate, semantic selection survives, and the shared position reprojects without changing mapping or confidence | Verified of that pair. Geometry rebuilds and the measured extent grow while the mapping is byte-identical and selection survives. **This row previously named its surface `Composed comparison`.** The application now constructs an appearance profile and the window owns a diff workbench with either durable settings or BPR-0236's session fallback, but this row remains pair-harness evidence. Product reachability waits for BPR-0227 |
 | Fresh install defaults to System | `appearance_settings`, the type's own default | Inspect the default with no persisted value | The resolved mode is System | Verified of the type and of the product. With no persisted value the resolved selection is System, and the composed application now reads it: `application_appearance_gesture_contract`'s first phase reports `system` from a fresh root. Previously verified of the type alone, when no application path constructed the host |
 | Appearance and syntax survive appearance-store open failure | Two processes of the real executable with only `appearance-settings.sqlite3` obstructed | `ctest --preset dev -R application_appearance_store_fallback_contract --output-on-failure` | The first process reports the host, classifier, profile-applied window colours, nonzero adopted classifications, session gesture, persistence-unavailable status, and zero durable writes; the second reports System mode and tab width four, and neither may report persistence available | Verified. The exact database-path obstruction leaves the epoch catalog, review ledger, and workbench settings on their ordinary paths. Removing the fallback makes the host assertion fail; restoring the durable-store classification guard makes the nonzero syntax-adoption assertion fail; treating the session write as durable makes the zero-write or restart-default assertion fail |
-| System mode follows the OS; explicit does not | Real macOS composition | Scripted OS scheme change under the owner's standing authorisation, on a real display | System mode follows and an explicit mode does not | **Both halves proven, 2026-08-08, unattended.** On a real display with the scheme driven Light→Dark: `NATIVE_APPEARANCE_TRANSITION:Light->Dark`, `APPEARANCE_SYSTEM_FOLLOWS_OK`, `APPEARANCE_EXPLICIT_IGNORES_OK`, `NATIVE_APPEARANCE_SIGNAL_OK`, and `APPEARANCE_VARIANTS:0:1:0:1` — System resolved light→dark, an explicit mode selected through BPR-0184's gesture stayed **light** across the same change, and returning to System resolved dark again. The middle value is the one QMacStyle following the operating system cannot fake. What remains is narrower than the claim: the probe must be **frontmost**, which cannot be scripted, and eight probe terms rooted in `StatePassed` are unaudited until that foreground run — one of them, `DIFF_GEOMETRY_REBUILD_DELTA:2`, is a product question rather than a focus artefact. Formerly: *"Unblocked by BPR-0184, still attended"*, and before that, filed as owner-attended when no mode existed to select |
+| System mode follows the OS; explicit does not | Real macOS composition | Scripted OS scheme change under the owner's standing authorisation, then the attended final-head v008 foreground procedure | System mode follows and an explicit mode does not | **Both behavior halves proven; final-head foreground observation returned 2026-08-21.** v008 binds the selected `review.cpp` comparison and records local/global Light→Dark transitions, `APPEARANCE_SYSTEM_FOLLOWS_OK`, `APPEARANCE_EXPLICIT_IGNORES_OK`, `NATIVE_APPEARANCE_SIGNAL_OK`, `APPEARANCE_VARIANTS:0:1:0:1`, strict owner return, and all three final focus operands true. It is an observed failure rather than BPR-0114 acceptance: zero attributed geometry rebuilds fail the probe's exact-one state expectations before changed capture or persistence. [[BPR-0220]] owns that supported repair; the immutable evidence is the v008 operator response, raw log, and validation record. Formerly proven unattended on 2026-08-08 with the frontmost audit still open |
 | Predefined settings persist and preview immediately | The composed application with a healthy durable store, across separate processes | Drive the composed predefined-profile settings surface, then run a second process against the same application data root | Each implemented predefined value previews without restart and survives one | Verified for the healthy-store predefined subset. **BPR-0184 added the gesture and `application_appearance_gesture_contract`**, three phases of the real binary: a fresh composition reports `system` and a tab width of four, a run driving the composed controls reports `dark:8` with `APPEARANCE_GESTURE_OK`, and a separate process against the same root making no gesture reports `dark:8`. BPR-0236 separately proves that unavailable storage is labeled session-only and restores System defaults rather than claiming persistence; semantic palette customization is BPR-0237. Previously verified of the component only, with the note below. | <!-- superseded:  **This row previously named its surface `Real application`.** The host is absent from the shipped binary and no adapter implements `appearance_settings_port`, so nothing persists and nothing previews; BPR-0181 and BPR-0182 own that. Within the component: each typography field previews without restart and a core-rejected record is refused whole rather than clamped, and BPR-0116 added the typography publication so a tab-width-only change invalidates measured geometry. The code line height is **retired**, not outstanding: `QPlainTextDocumentLayout` ignores every line-height mode Qt offers — measured, not assumed — so the product owner retired it on 2026-08-06 and BPR-0118 removed it structurally. `code_font_settings` now has no field one could occupy, and the RFC's goal and criterion were amended in place  -->|
 | Theme import is safe | Core import validator, application host, Qt settings surface, and the composed executable | Offer unknown fields, URLs, includes, oversized files, executable/style payloads, unsupported versions, malformed colours, a POSIX FIFO, and a valid local theme; inspect typed structural and all-variant contrast refusals | Every invalid input is distinctly refused with zero writes; a valid document becomes a preview only, special files cannot block shutdown, and a catch-all that refuses everything is insufficient | Verified from the core through the product path. Existing `core_theme_exchange` cases preserve round-trip and forward-version behavior. BPR-0237's host tests prove the selected path is read through the bounded effect port at `theme_document_byte_limit + 1`, `core::import_theme` supplies the structural reasons, all four variants are checked with typed `contrast_finding` data, and refusals preserve settings with zero writes. The Qt test proves the widget dispatches only the path and renders structural and contrast data. The real-executable contract imports a valid local regular file and refuses to pass unless it reaches preview without a write; its POSIX special-file phase passes a FIFO, requires a typed failure and `shutdown_complete=1`, and rejects a harness timeout as failure |
 | Semantic colors can be customized and previewed | Product appearance controls and tests-enabled fixture-selected composed comparison | `ctest --preset dev -R '^application_appearance_theme_customization_contract$' --output-on-failure` | The fixture-selected comparison changes immediately, cancellation restores the exact host-adopted palette, committed roles survive a second process, and colour-only changes preserve semantics and geometry | Verified of the product controls and tests-enabled composed comparison, not of production file-selection reachability. Process one edits a real semantic-role control, previews it across unrelated native-observation adoption both before and after a durable palette exists with Commit and Cancel still aligned, cancels it, then imports, previews, cancels, reimports, and commits one total palette. It finally reimports that exact stored palette and requires the host's typed adoption acknowledgement to clear preview and controls without a duplicate write; a restore or other palette invalidation carries no such acknowledgement. The exact probe facts require no settings write before commit, one write after commit, unchanged selected result/context/semantic selection/shared position, identical left/right span objects, unchanged lexical-submission, span-adoption, semantic-index, selection-change, and geometry counts, plus an advanced presentation generation and paint work. Process two opens the same application-data root without a gesture and reports the System mode, committed semantic colours, and zero writes. BPR-0227 still owns an end-user workbench selection that reaches this already-composed diff host; BPR-0233 owns UIforETW through that path. Removing manual dispatch, host import, preview/cancel restoration, typed equal-commit acknowledgement, persistence, restart restore, paint-only palette handling, or any retained-identity assertion makes a distinct marker fail |
@@ -397,9 +402,12 @@ all in `done/`, and the composed application reports its own composition at
 runtime rather than being read off a symbol table. BPR-0236 additionally proves
 the same host, profile-to-window, and syntax-to-pane path under exact appearance
 store-open failure, with a separate process proving session changes do not
-survive as false durable state. BPR-0114 has been run against something real and
-its two headline claims hold; it stays in `backlog/` for the frontmost-focus run
-and the eight-term audit, not for the behaviour.
+survive as false durable state. BPR-0114 has been run against the final-head
+native executable and its two headline behavior claims hold. The frontmost
+owner-return path is now directly observed, but the attributable zero
+geometry-rebuild delta fails the probe's exact-one expectations. BPR-0114 stays
+in `backlog/` on parked BPR-0220's supported expectation repair and
+protected-binary sequencing.
 
 BPR-0115 therefore stays in `backlog/` and makes no closure claim, but its
 autonomous preparation — replaying the claim matrix against the composed

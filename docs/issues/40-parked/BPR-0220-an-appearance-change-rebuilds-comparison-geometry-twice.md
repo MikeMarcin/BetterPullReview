@@ -201,3 +201,30 @@ which binds executable
 and requires the complete raw log. This card remains parked until that log
 records the geometry delta and ordered causes; no `== 1U` expectation is changed
 in advance.
+
+## v008 measured zero rebuilds — 2026-08-21
+
+The owner returned the exact v008 statement and complete unedited native Cocoa
+log. The immutable
+[`operator response`](../../verification/reviews/appearance-scheme-foreground-v008/operator-response.md),
+[`raw log`](../../verification/reviews/appearance-scheme-foreground-v008/foreground-run-attempt-1.log),
+and [`validation record`](../../verification/reviews/appearance-scheme-foreground-v008/validation-record.json)
+record `NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_DELTA:0`, no rebuild causes,
+and complete attribution after a strict owner return whose three focus operands
+are all true.
+
+That measurement supports one narrow repair. The appearance change is
+colour-only and the focused Qt contract already proves that palette changes do
+not rebuild comparison geometry, so both native-state expectations requiring
+exactly one rebuild are wrong together; the supported value is zero. The
+failure then prevents changed capture and persistence, which is why v008
+reports `not_attempted_state_precondition` and `not_attempted`. The palette,
+font, geometry, selection, and changed-render verdicts share that failed state
+predicate, so their `FAILED` suffixes are not independent evidence of six more
+product defects.
+
+The returned observation authorizes no source edit or executable replacement.
+Changing the two expectations in `src/app/main.cpp` would relink the exact
+binary still bound by the pending final-head visual and notification packets.
+This card therefore remains Parked until the owner authorizes that replacement
+or those exact-byte gates are retired or answered.

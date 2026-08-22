@@ -1,9 +1,8 @@
 ---
 id: BPR-0391
 title: The native appearance probe's dark-side measurement outruns the owner
-status: Parked
+status: Done
 rfc: RFC-BPR-0006
-parked_on: awaiting-owner-verdict
 depends_on: []
 ---
 
@@ -419,3 +418,24 @@ It preserves v007 as the failed historical attempt and requires the full raw
 log so indexed wait entry/return, the three owner operands, and Qt's factual
 capture/persistence dispositions can be audited directly. This card stays
 parked until that native Cocoa replay is returned.
+
+## The owner-return repair is verified — 2026-08-21
+
+The owner returned the exact statement required by v008 together with the
+complete unedited log. The immutable
+[`operator response`](../../verification/reviews/appearance-scheme-foreground-v008/operator-response.md),
+[`raw log`](../../verification/reviews/appearance-scheme-foreground-v008/foreground-run-attempt-1.log),
+and [`validation record`](../../verification/reviews/appearance-scheme-foreground-v008/validation-record.json)
+bind executable
+`sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`
+and the BPR-0249 implementation record.
+
+The native Cocoa timeline directly exercises this card's repair. Wait episode
+`1` begins with the owner window inactive, no application active window, and
+the exact focus absent. After the Light-to-Dark transition and the owner's
+return, all three operands are true and
+`NATIVE_APPEARANCE_OWNER_RETURNED` is present. The probe then reaches its
+one-shot measurement and bounded shutdown instead of measuring while the
+owner is still in System Settings. The later presentation failure is the
+separate zero-rebuild expectation recorded by [[BPR-0220]]; it does not
+invalidate the owner-return wait. This card is Done.
