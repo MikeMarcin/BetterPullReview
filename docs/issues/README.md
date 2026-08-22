@@ -77,9 +77,12 @@ sha256:7b9d6be98c89b70a49f0616d2b32b10cb6b5d4a3f238366bed916379a78fcd93
 51,085,872 bytes
 ```
 
-`native-visual-acceptance-v003` is now answered: the owner accepted [[BPR-0100]]
-against those bytes, and its immutable response and validation record sit beside
-the packet. `appearance-scheme-foreground-v007` was run on 2026-08-20 but could
+`native-visual-acceptance-v003` is answered: the owner accepted [[BPR-0100]]
+against those historical bytes, and its immutable response and validation record
+sit beside the packet. The final-head v004 successor is now accepted against
+`10899f24…181b28`, clearing the current BPR-0100 checkpoint without widening
+either verdict.
+`appearance-scheme-foreground-v007` was run on 2026-08-20 but could
 not attribute its failure. The final-head v008 successor was returned on
 2026-08-21: it directly satisfies [[BPR-0391]]'s owner-return wait and
 [[BPR-0410]]'s diagnostic attribution, while [[BPR-0220]] records zero geometry
@@ -97,12 +100,12 @@ The authorized BPR-0409/BPR-0410/BPR-0334 relink batch is now complete at
 `145f6d4`. Its settled development executable is 51,383,520 bytes with SHA-256
 `10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`.
 The appearance packet `appearance-scheme-foreground-v008` is answered with an
-observed failure. The live final-head attended set is now visual
-`native-visual-acceptance-v004` and notification
-`native-notification-delivery-v006`; both bind those exact bytes and preserve
+observed failure, and visual `native-visual-acceptance-v004` is accepted. The
+sole live final-head attended packet is notification
+`native-notification-delivery-v006`; it binds those exact bytes and preserves
 the earlier accepted or attempted records as history. BPR-0220 may not relink
-that executable without separate owner authorization or retirement of those
-exact-byte gates.
+that executable without separate owner authorization or retirement of that
+remaining exact-byte gate.
 
 The owner then gave this bounded direction:
 
@@ -121,9 +124,11 @@ shasum -a 256 build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pul
 
 After that relink, no procedure may present v007 as a packet for the new bytes.
 Regenerate its whole family only after BPR-0410's diagnostics exist. BPR-0100's
-answered v003 packet remains frozen as the record of what the owner judged; a
-future final-head visual replay is a separate exact-identity gate if materially
-changed governed presentation still requires one.
+answered v003 packet remains frozen as the record of what the owner judged at
+those bytes; the separate final-head v004 replay is now also accepted and clears
+the current checkpoint without rewriting v003. BPR-0100 waits in Backlog behind
+BPR-0083 for terminal identity replay. A later relink must obtain a successor
+verdict rather than inherit either acceptance.
 
 BPR-0409 performed the first authorized relink on 2026-08-21. Its completed
 development executable is 51,302,640 bytes with SHA-256
@@ -432,10 +437,10 @@ The RFC composes the existing RFC-BPR-0004 panes, shared scroll controller, and
 regrouping, follower-scroll coupling, or synthetic alignment rows would be a
 defect. No RFC-BPR-0005 requirement needs Windows execution, a GitHub mutation,
 a credential, or a network service. Its inherited owner-attended gate,
-BPR-0100, is accepted against the exact v003 native executable. It remains
-Parked as the owning final-head procedure; the authorized shared relink is now
-complete and v004 requests the successor exact-identity verdict. Backlog BPR-0101 makes no
-closure claim.
+BPR-0100, is accepted against both its historical v003 executable and the exact
+final-head v004 executable. It now waits in Backlog behind BPR-0083 for terminal
+identity replay; BPR-0101 still makes no closure claim because the ordered
+prior-RFC chain remains open.
 
 RFC-BPR-0006 is now the implementation frontier. Done BPR-0103 plans it as
 thirteen cards, BPR-0104 through BPR-0115, and settles the one genuinely forced
@@ -687,7 +692,7 @@ three answers it needs:
 |---|---|---|
 | BPR-0347 | `30-in-progress/` | A Windows session. The suite runs on the project's Windows 11 x64 host and its own remaining failures are the work; nothing else is in the way |
 | BPR-0358 | `30-in-progress/` | A Windows session. Its own five required-final-state bullets are met; it stays open as the anchor for the Windows program it records |
-| BPR-0100, BPR-0168, BPR-0220 | `40-parked/` | The final-head packets bind executable `10899f24…181b28`: BPR-0100 v004 asks for the successor visual verdict and notification v006 asks for BPR-0168's personally observed banner text. Appearance v008 is answered: BPR-0220 measured zero attributed geometry rebuilds and now awaits authorization or retirement of the remaining exact-byte gates before its supported expectation repair can relink the binary |
+| BPR-0168, BPR-0220 | `40-parked/` | Notification v006 asks for BPR-0168's personally observed banner text. Appearance v008 is answered; BPR-0220 measured zero attributed geometry rebuilds and awaits authorization or retirement of the remaining notification exact-byte gate before its supported repair can relink the binary. Visual v004 is accepted; BPR-0100 is no longer parked and waits transitively on BPR-0083 |
 | BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; an immediate credential-free REST diagnostic returned HTTP 404, the approval stayed unconsumed and was deleted, and no mutation occurred. v004 must not be retried |
 | BPR-0211, BPR-0212 | `40-parked/` | A product decision: owner-deferred, and RFC-scale rather than a slice |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
@@ -715,13 +720,13 @@ and fails when they disagree, so a card entering or leaving `20-ready/`,
 under the wrong lane, or left behind after it closes.
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these fifteen roots or reaches one
+card on this board is either one of these fourteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
-of the 52 cards in `10-backlog/`, **none** has all its dependencies in
+of the 53 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
 
 The post-BPR-0334 audit on 2026-08-21 found no backlog dependency on that
-card, so its move to `60-done/` promoted nothing. All 52 backlog cards still
+card, so its move to `60-done/` promoted nothing. All 53 backlog cards still
 have at least one direct dependency outside the terminal lane.
 
 So the honest summary is narrower than the one this section used to give.
@@ -774,10 +779,10 @@ Everything else in `10-backlog/` reaches one of those roots transitively.
 | A Linux host | Done BPR-0156 and BPR-0235's Linux half; blocked BPR-0310 and BPR-0314 | An Ubuntu 26.04 x86_64 host answered the blocker. BPR-0156 re-established the matrix and BPR-0235's Linux criterion is discharged. BPR-0310 and BPR-0314 stay blocked on their own unmet backlog dependencies rather than on the platform. The run opened BPR-0341 through BPR-0345 |
 | A designated live GitHub pull request | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Disposable `MikeMarcin/BPR-Test#1` is identity-bound; the live provider, exact-target lane, owner-authenticated mutations, and attended/mixed-client checks remain |
 | Designated live-lane proof blockers | Done BPR-0261/BPR-0262/BPR-0263/BPR-0264, parked BPR-0256 | The approved narrowed replay authority is implemented and independently reviewed. The owner approved v004 exactly, but the lane failed closed before GUI creation; an immediate unauthenticated diagnostic returned HTTP 404, the approval remained unconsumed and was deleted, and no mutation occurred. A publicly observable target and complete successor packet are required |
-| Owner-attended or native-display judgment | Backlog BPR-0114; parked BPR-0100, BPR-0168, and BPR-0220; done BPR-0210, BPR-0251, BPR-0391, and BPR-0410 | Final-head visual v004 and notification v006 still bind executable `10899f24…181b28` and respectively request BPR-0100's successor visual verdict and BPR-0168's personally read banner text. Appearance v008 is answered: owner return and diagnostic attribution pass, while its measured zero geometry rebuilds leave BPR-0220's expectation repair and protected-binary sequencing open. Earlier accepted and attempted evidence remains frozen |
+| Owner-attended or native-display judgment | Backlog BPR-0100 and BPR-0114; parked BPR-0168 and BPR-0220; done BPR-0210, BPR-0251, BPR-0391, and BPR-0410 | Final-head visual v004 is accepted against executable `10899f24…181b28`; BPR-0100 waits on BPR-0083 for terminal identity replay and needs no new human response if the bytes remain exact. Notification v006 still binds those bytes and requests BPR-0168's personally read banner text. Appearance v008 is answered: owner return and diagnostic attribution pass, while its measured zero geometry rebuilds leave BPR-0220's repair and protected-binary sequencing open |
 | Product composition | Backlog BPR-0232; done BPR-0223, BPR-0226 through BPR-0231, BPR-0247, and BPR-0250 | Notification request/activation, the workbench host, selected diff, ledger, actionability, fixture-safe review round trip, durable defect workflow, observer-rule queue, portable agent invocation, durable sessions, and explicit private-context selection are composed. BPR-0232 waits for deferred native Windows lifecycle proof and its final replay through that same surface. |
 | Missing component and resilience scope | Backlog BPR-0235; in-progress BPR-0240; done BPR-0237 through BPR-0239 and BPR-0334 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, BPR-0236's appearance-storage fallback, and the single portable agent protocol loop are done. Native Windows transport proof remains with BPR-0240 |
-| Recorded selected-diff proof | Done BPR-0233, BPR-0246, and BPR-0214; accepted-v003 but parked BPR-0100; still gating BPR-0210's margin analysis | The real selected-file course binds UIforETW commits/blobs, named replacement pairs, semantic roles, and a cut-wire negative. After the v001 through v004 rejections and the accepted v005 connector repair, the combined v006 batch was accepted whole on 2026-08-18; BPR-0100 then accepted v003 on 2026-08-20, and final-head visual v004 now binds the post-relink executable without rewriting that acceptance |
+| Recorded selected-diff proof | Done BPR-0233, BPR-0246, and BPR-0214; accepted-v004 BPR-0100 waits on BPR-0083 for terminal identity replay; still gating BPR-0210's margin analysis | The real selected-file course binds UIforETW commits/blobs, named replacement pairs, semantic roles, and a cut-wire negative. After the v001 through v004 rejections and the accepted v005 connector repair, the combined v006 batch was accepted whole on 2026-08-18; BPR-0100 accepted v003 on 2026-08-20 and its exact final-head v004 successor on 2026-08-21 |
 | Closeout rigor and terminal cards | Done BPR-0234 and BPR-0248; backlog BPR-0241 through BPR-0245 | The standing shipped-binary composition inventory is reconciled with exact fixture/production profiles; replay each anchored executable checklist and retain a live terminal card for each Proposed RFC |
 | Deferred or not a slice | BPR-0211, BPR-0212, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering. BPR-0156 is no longer an example here: the Ubuntu host arrived, it re-established the matrix, and it is in `60-done/` |
 

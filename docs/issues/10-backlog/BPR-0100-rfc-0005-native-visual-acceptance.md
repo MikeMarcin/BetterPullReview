@@ -1,10 +1,9 @@
 ---
 id: BPR-0100
 title: Run the inherited native visual-acceptance pass
-status: Parked
+status: Backlog
 rfc: RFC-BPR-0005
-depends_on: [BPR-0097, BPR-0186, BPR-0187, BPR-0233]
-parked_on: awaiting-owner-verdict
+depends_on: [BPR-0083, BPR-0097, BPR-0186, BPR-0187, BPR-0233]
 ---
 
 # Run the inherited native visual-acceptance pass
@@ -222,3 +221,29 @@ bound to executable
 The accepted v003 response and validation record remain immutable and valid for
 their original bytes. This card remains parked until the owner accepts or
 rejects the new exact identity.
+
+## Final-head v004 accepted — 2026-08-21
+
+The owner ran the attended pass against the final-head executable and returned
+the v004 acceptance statement exactly. The immutable
+[`operator response`](../../verification/reviews/native-visual-acceptance-v004/operator-response.md)
+and [`validation record`](../../verification/reviews/native-visual-acceptance-v004/validation-record.json)
+bind the accepted packet at
+`sha256:0d22f0c601d3239bdea180a1f9e556dbac68974f635698ec35d603c156aa241e`,
+the response at
+`sha256:e17a477d9a533e0797a3a6fc692ebec38cf603c4319e74fd322b672166941fc0`,
+and executable
+`sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`.
+
+The verdict accepts the assembled workbench's native presentation quality at
+supported sizes and appearance profiles, including C++ syntax colouring in
+both panes through the real selected-diff path. It authorizes no notification,
+appearance, product-fix, live-mutation, package, release, or RFC-closeout
+claim. The earlier v003 acceptance remains valid only for its own bytes.
+
+This exact acceptance completes BPR-0100's current human checkpoint. The card
+now waits in Backlog for BPR-0083 and the ordered prior-RFC closure chain before
+its terminal identity replay. If the executable is still byte-identical, that
+replay can reuse v004 without another human response. If a later relink changes
+the identity first, the visual criterion requires a successor verdict rather
+than silently inheriting v004.

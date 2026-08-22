@@ -225,6 +225,7 @@ product defects.
 
 The returned observation authorizes no source edit or executable replacement.
 Changing the two expectations in `src/app/main.cpp` would relink the exact
-binary still bound by the pending final-head visual and notification packets.
-This card therefore remains Parked until the owner authorizes that replacement
-or those exact-byte gates are retired or answered.
+binary still bound by the pending final-head notification packet. The visual
+v004 gate is now accepted; notification v006 remains. This card therefore stays
+Parked until the owner authorizes that replacement or the remaining exact-byte
+gate is retired or answered.
