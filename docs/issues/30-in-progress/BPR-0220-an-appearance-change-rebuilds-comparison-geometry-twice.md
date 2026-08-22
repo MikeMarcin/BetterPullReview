@@ -1,7 +1,7 @@
 ---
 id: BPR-0220
 title: An appearance change rebuilds comparison geometry twice
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0006
 depends_on: [BPR-0249]
 ---
@@ -242,3 +242,11 @@ native-state expectations move together to exact zero, with a structural
 contract that prevents them from drifting apart. The relink will create a new
 binary identity and therefore requires successor final-head attended packets;
 it does not inherit v004, v006, or v008 across changed bytes.
+
+## Claimed for implementation — 2026-08-21
+
+The Ready slice is now claimed. Scope is the two native-state exact-zero
+expectations, a structural contract that pins them together, the established
+composition manifest repin if required, focused verification, and successor
+digest-bound attended packets. It does not change comparison geometry,
+provider behavior, notification behavior, or live-service authority.

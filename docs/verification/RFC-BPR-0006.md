@@ -59,7 +59,7 @@ The complete v008 Cocoa log records zero geometry rebuilds, no rebuild causes,
 and complete attribution after a strict owner return. That directly supports
 changing both exact-one native-state expectations to zero; the repair is not
 yet applied. The visual v004 and notification v006 verdicts now clear the
-exact-byte hold, so BPR-0220 is Ready for that supported repair; its relink will
+exact-byte hold, so BPR-0220 is In Progress on that supported repair; its relink will
 require successor attended packets bound to the new executable.
 
 Done BPR-0410 replaces the collapsed `ACTIVE_FOCUS` verdict with the three
@@ -407,7 +407,7 @@ survive as false durable state. BPR-0114 has been run against the final-head
 native executable and its two headline behavior claims hold. The frontmost
 owner-return path is now directly observed, but the attributable zero
 geometry-rebuild delta fails the probe's exact-one expectations. BPR-0114 stays
-in `backlog/` on Ready BPR-0220's supported expectation repair and successor
+in `backlog/` on in-progress BPR-0220's supported expectation repair and successor
 native replay.
 
 BPR-0115 therefore stays in `backlog/` and makes no closure claim, but its
