@@ -707,7 +707,6 @@ three answers it needs:
 | BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; an immediate credential-free REST diagnostic returned HTTP 404, the approval stayed unconsumed and was deleted, and no mutation occurred. v004 must not be retried |
 | BPR-0417 | `20-ready/` | Nothing. [[BPR-0416]] is done, so the tree now carries depth and the missing piece is content: a conversation with real reply depth, which is [[BPR-0211]]'s own precondition and still unmet |
 | BPR-0414 | `20-ready/` | Nothing. The same verdict named a gap in the shipped drawer: the root comment is not anchored to its line. The geometry exists and is unwired; two data gaps bound how far it can go |
-| BPR-0415 | `20-ready/` | Nothing. The revision-axis acceptance authorizes writing the RFC, which is this card; [[BPR-0212]] stays the recorded seed rather than being worked as a slice |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
 | BPR-0240 | `30-in-progress/` | A Windows session. Done BPR-0334 removed the duplicated portable protocol policy, but `windows_agent_process.cpp` still has never been compiled and only a Windows toolchain can prove its HANDLE/Job/cancellation transport |
@@ -754,21 +753,25 @@ umbrella for it in `10-backlog/`, broken into [[BPR-0416]] for the reply edge,
 [[BPR-0417]] for a conversation with real depth, and [[BPR-0418]] for the map
 surface itself; the whole-review view is recorded *not chosen*
 rather than rejected, so it stays available without being on the record as
-defective. The revision-axis RFC is authorized, so [[BPR-0415]] writes it while
-[[BPR-0212]] stays the recorded seed in `10-backlog/`. The git-graph drawer is
+defective. The revision-axis RFC is authorized, and done [[BPR-0415]] wrote it:
+`RFC-BPR-0021` is registered `Deferred` behind RFC-BPR-0002, RFC-BPR-0003, and
+probe evidence that a real service returns a per-comment commit — a gate the RFC
+records rather than assumes, because the review-thread selection this product
+issues never asks for one. [[BPR-0212]] is done, superseded by the RFC that now
+carries it. The git-graph drawer is
 declined — "Don't see the need at this time" — which closes a request that had
 been open since 2026-08-08 and that no card had ever put back in front of the
 person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these twelve roots or reaches one
+card on this board is either one of these eleven roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
-of the 57 cards in `10-backlog/`, **none** has all its dependencies in
+of the 56 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
 
 The post-BPR-0334 audit on 2026-08-21 found no backlog dependency on that
-card, so its move to `60-done/` promoted nothing. All 57 backlog cards still
+card, so its move to `60-done/` promoted nothing. All 56 backlog cards still
 have at least one direct dependency outside the terminal lane.
 
 So the honest summary is narrower than the one this section used to give.

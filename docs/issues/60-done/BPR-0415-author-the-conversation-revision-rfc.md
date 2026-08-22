@@ -1,7 +1,7 @@
 ---
 id: BPR-0415
 title: Author the conversation-revision RFC
-status: Ready
+status: Done
 rfc: none
 depends_on: [BPR-0413]
 ---
@@ -65,3 +65,47 @@ RFC-BPR-0003. Both owners have to agree before a field is added.
 python3 scripts/verify_documentation.py --root .
 python3 tests/scripts/verify_documentation_tests.py
 ```
+
+## Done — 2026-08-22
+
+`docs/rfcs/future/RFC-BPR-0021-conversation-revision-identity.md` exists and is
+registered in `docs/rfcs/README.md`.
+
+### This card's own instruction was wrong about where it goes
+
+The required final state said "a new RFC exists in `docs/rfcs/` … at
+`status: Proposed`". That is the convention for the canonical fourteen. This RFC
+is not one of them: it depends on RFC-BPR-0002 and RFC-BPR-0003, both still
+open, and it cannot block their closeout. The live convention for post-pack work
+is `docs/rfcs/future/`, `status: Deferred`, `milestone: Post-Pack v2`, and an
+eligibility line in the index — which is what RFC-BPR-0015 through RFC-BPR-0020
+all do. It follows that instead.
+
+### What the RFC settles, and what it deliberately does not
+
+It carries in every measurement rather than restating the problem: the revision
+axis is strong and already selectable, the conversation axis exists, the
+projection carries no revision identity, a review's `commit_id` is required on
+read and then dropped, and the write path already sends one.
+
+It also records two hazards this card did not know about when it was written and
+that any implementation will hit immediately — `Line` silently means
+`originalLine` once a thread is outdated, and there is no `Side`, so a comment
+on a deleted line cannot be expressed at all.
+
+Its eligibility gate is the honest one. The design is complete; one fact it
+rests on is unproven, because the review-thread selection this product issues
+asks for `originalLine` and never for a comment's commit. The RFC records that
+as requiring probe evidence against a real service — including unauthenticated,
+which RFC-BPR-0017 needs, and on GHES 3.18, which the fixture-security contract
+requires — rather than assuming the field is there.
+
+### Verification
+
+| claim | command | result |
+|---|---|---|
+| the RFC and index agree, and front matter is valid | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+| the documentation contract suite still passes | `python3 tests/scripts/verify_documentation_tests.py` | 98 tests, OK |
+
+No projection field was added, which is the whole of what the owner's acceptance
+did and did not authorize.

@@ -63,6 +63,7 @@ closeout, and remain deferred until their eligibility gates exist:
 | [RFC-BPR-0018](future/RFC-BPR-0018-robust-settings-center.md) | Robust Settings Center and Preference Ownership | Deferred | RFC-BPR-0014 closed or an explicit post-pack frontier exception, plus a complete existing-setting authority and persistence inventory |
 | [RFC-BPR-0019](future/RFC-BPR-0019-dif-visual-identity-sprite-assets.md) | Dif Visual Identity, Sprite Assets, and Animation Contract | Deferred | RFC-BPR-0006 and RFC-BPR-0013 closed, RFC-BPR-0014 closed or an explicit post-pack frontier exception, and confirmed asset ownership/provenance |
 | [RFC-BPR-0020](future/RFC-BPR-0020-animated-dif-mascot-qt-composition.md) | Animated Dif Mascot Qt Presentation and Workbench Composition | Deferred | RFC-BPR-0019 closed, its live appearance/workbench/resource paths inventoried, and RFC-BPR-0014 closed or an explicit post-pack frontier exception |
+| [RFC-BPR-0021](future/RFC-BPR-0021-conversation-revision-identity.md) | Conversation Revision Identity and the Comment-Code History Join | Deferred | RFC-BPR-0002 and RFC-BPR-0003 closed, and recorded probe evidence that a real service returns a per-comment commit — including unauthenticated and on GHES 3.18 |
 
 RFC-BPR-0016 and RFC-BPR-0017 address the same operator complaint by opposite
 routes and are alternatives rather than companions. RFC-BPR-0017 records why
@@ -72,6 +73,15 @@ RFC-BPR-0018 adopts the interaction system of the product owner's
 AllTheThings settings center while preserving BetterPullReview's typed domain
 ownership. It is a presentation and preference-orchestration RFC, not authority
 to copy unrelated AllTheThings settings or to centralize domain state.
+
+RFC-BPR-0021 is the product owner's own request, accepted from a rendered
+mockup on 2026-08-21 after two weeks recorded in [[BPR-0212]] without an RFC.
+Its eligibility gate is unusual and deliberate: the design is complete but one
+fact it rests on is unproven, because the review-thread selection this product
+issues does not currently ask GitHub for a comment's commit. The RFC records
+that as requiring probe evidence rather than assuming it, since the same datum
+must also be readable unauthenticated for RFC-BPR-0017 and identically on GHES
+3.18 for the fixture-security contract.
 
 RFC-BPR-0019 and RFC-BPR-0020 are the ordered Dif mascot program. RFC-BPR-0019
 creates the original, provenance-complete BPR asset and clip contract;
