@@ -49,3 +49,45 @@ siblings at the same depth.
 ctest --preset dev --output-on-failure -R 'github_conversation|github_fixture'
 python3 scripts/verify_documentation.py --root .
 ```
+
+## What deepening the shared fixture actually costs — 2026-08-22
+
+Attempted and backed out, so the next session prices this from a measurement
+rather than a guess. The obvious route — add a deep thread to
+`tests/fixtures/github/contracts/v1/github-com/responses/review_threads.json`,
+which is the fixture the application actually loads — was tried at a nine-comment
+thread five replies deep. It reached green on two gates and broke eight.
+
+| gate | why it broke |
+|---|---|
+| `github_contract_fixture_security` | requires the `github-com` and `ghes-3.18` copies to be **byte-identical**; the two hosts must return equivalent semantics |
+| `github_read_contract` | `canonical_normalized_read()` in `tests/github_contract/github_read_contract_tests.cpp` is an independent C++ description of the same fixture, asserted equal to the normalized read |
+| `application_github_public_path_github_com` | `REVIEW_LEDGER_FAILED` |
+| `application_fixture_verdict_contract`, `application_diff_workbench_public_path`, `application_diff_workbench_shutdown_public_path`, `application_epoch_persistence_github-com`, `application_epoch_maintenance_public_path` | not individually diagnosed before the change was reverted |
+
+The first two are exactly the gates that should fire, and both were satisfiable:
+mirroring the file fixed the first, and generating the C++ block from the same
+data that generated the JSON fixed the second. The ledger failure is the
+informative one. `review_ledger_round_trip`
+(`src/app/src/github_application.cpp:9880-9925`) does not read conversations at
+all — it returns false until a diff is selected and the retained material
+matches. So the extra content perturbed the **sequencing** of a fixed-length
+public-path course rather than any conversation expectation, which is a much
+larger surface than a data edit and is not what this card is for.
+
+### Two routes, now priced
+
+- **Deepen the shared contract fixture.** Truest to the product, because the
+  depth then flows through the real public path. Costs: a byte-identical mirror,
+  a regenerated C++ fact block, and reconciling every public-path course whose
+  step budget or ordering the extra content disturbs. That last part is the
+  unknown and it is the whole cost.
+- **A separate deep-conversation fixture consumed only by the map.** Cheap and
+  contained, and honest if it is labelled constructed — but it does not prove
+  anything about the shipped public path.
+
+This card should not choose between them alone. [[BPR-0418]] is the consumer,
+and the choice belongs with whoever has that surface in hand: a fixture with no
+consumer gets reshaped by its first one. What is settled is that the first route
+is a slice of its own, not a data edit, and that the second is available
+immediately if the map only needs content to render.
