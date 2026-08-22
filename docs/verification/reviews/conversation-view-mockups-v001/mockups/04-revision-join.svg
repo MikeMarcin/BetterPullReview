@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1600" viewBox="0 0 1600 1600">
+	<rect width="1600" height="1600" fill="#F6F7F9"/>
+	<rect x="0" y="0" width="1600" height="132" fill="#FFFFFF"/>
+	<line x1="0" y1="132" x2="1600" y2="132" stroke="#D4D9E0" stroke-width="2"/>
+	<text x="56" y="58" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="30" font-weight="600" fill="#1F2328">BPR-0212: conversation and code, on the same revision axis</text>
+	<text x="56" y="96" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="400" fill="#5B6570">Which comments were live on each side, and what went outdated in between.</text>
+	<rect x="1214" y="34" width="330" height="42" fill="#FFF1D6" rx="6" stroke="#C79A2E" stroke-width="1"/>
+	<text x="1379" y="62" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#7A5A0B" text-anchor="middle">MOCKUP - NOT IMPLEMENTED</text>
+	<line x1="56" y1="1472" x2="1544" y2="1472" stroke="#8C8C8C" stroke-width="1"/>
+	<text x="56" y="1504" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">The epoch axis is real: epoch_comparison_control already offers independent left and right selectors, and the labels above are the exact format at</text>
+	<text x="56" y="1532" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">epoch_history_model.cpp:132-137. The conversation axis is real. The join is not: github_conversation_projection carries no commit OID, no epoch, no</text>
+	<text x="56" y="1560" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">ordinal - verified field by field at github_projection.hpp:124-139. Every cell in the grid above is a value the product cannot compute today.</text>
+	<rect x="56" y="180" width="1488" height="150" fill="#FFFFFF" rx="10" stroke="#D4D9E0" stroke-width="1"/>
+	<rect x="56" y="180" width="1488" height="56" fill="#F0F2F5" rx="10"/>
+	<rect x="56" y="220" width="1488" height="16" fill="#F0F2F5"/>
+	<line x1="56" y1="236" x2="1544" y2="236" stroke="#D4D9E0" stroke-width="1"/>
+	<text x="76" y="216" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Comparison</text>
+	<text x="1524" y="216" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570" text-anchor="end">Whole PR · Previous upload · Last reviewed</text>
+	<text x="80" y="276" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6570">Left</text>
+	<rect x="80" y="290" width="696" height="44" fill="#FFFFFF" rx="6" stroke="#8C93A0" stroke-width="1"/>
+	<text x="94" y="318" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#1F2328">Epoch 2 · Head — Author upload — Available</text>
+	<text x="748" y="318" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6570">▾</text>
+	<text x="824" y="276" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6570">Right</text>
+	<rect x="824" y="290" width="696" height="44" fill="#FFFFFF" rx="6" stroke="#8C93A0" stroke-width="1"/>
+	<text x="838" y="318" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#1F2328">Epoch 4 · Head — Force-push/rebase — Available</text>
+	<text x="1492" y="318" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6570">▾</text>
+	<rect x="56" y="358" width="1488" height="620" fill="#FFFFFF" rx="10" stroke="#D4D9E0" stroke-width="1"/>
+	<rect x="56" y="358" width="1488" height="56" fill="#F0F2F5" rx="10"/>
+	<rect x="56" y="398" width="1488" height="16" fill="#F0F2F5"/>
+	<line x1="56" y1="414" x2="1544" y2="414" stroke="#D4D9E0" stroke-width="1"/>
+	<text x="76" y="394" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Comments against revisions</text>
+	<text x="1524" y="394" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570" text-anchor="end">outlined cells are the join that does not exist</text>
+	<text x="506" y="458" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#1F2328">Epoch 1</text>
+	<text x="506" y="482" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">First observation</text>
+	<rect x="753" y="426" width="245" height="578" fill="#F2F6FC" rx="6"/>
+	<text x="763" y="458" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#1F2328">Epoch 2</text>
+	<text x="763" y="482" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">Author upload</text>
+	<text x="1020" y="458" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#1F2328">Epoch 3</text>
+	<text x="1020" y="482" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">Base update</text>
+	<rect x="1267" y="426" width="245" height="578" fill="#F2F6FC" rx="6"/>
+	<text x="1277" y="458" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#1F2328">Epoch 4</text>
+	<text x="1277" y="482" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">Force-push/rebase</text>
+	<text x="80" y="560" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#1F2328">dcarter on :214</text>
+	<text x="80" y="586" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">live throughout</text>
+	<rect x="506" y="542" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
+	<text x="612.5" y="574" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
+	<rect x="763" y="542" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
+	<text x="869.5" y="574" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
+	<rect x="1020" y="542" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
+	<text x="1126.5" y="574" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
+	<rect x="1277" y="542" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
+	<text x="1383.5" y="574" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
+	<text x="80" y="684" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#1F2328">mikemarcin on :214</text>
+	<text x="80" y="710" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">written at epoch 2</text>
+	<rect x="506" y="666" width="213" height="52" fill="#F0F2F5" rx="6" stroke="#B6BCC6" stroke-width="1"/>
+	<text x="612.5" y="698" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#B6BCC6" text-anchor="middle">not yet written</text>
+	<rect x="763" y="666" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
+	<text x="869.5" y="698" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
+	<rect x="1020" y="666" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
+	<text x="1126.5" y="698" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
+	<rect x="1277" y="666" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
+	<text x="1383.5" y="698" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
+	<text x="80" y="808" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#1F2328">rlindgren on :288</text>
+	<text x="80" y="834" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">the base update moved its anchor</text>
+	<rect x="506" y="790" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
+	<text x="612.5" y="822" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
+	<rect x="763" y="790" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
+	<text x="869.5" y="822" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
+	<rect x="1020" y="790" width="213" height="52" fill="#FFEBE9" rx="6" stroke="#CF222E" stroke-width="1"/>
+	<text x="1126.5" y="822" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#CF222E" text-anchor="middle">outdated</text>
+	<rect x="1277" y="790" width="213" height="52" fill="#FFEBE9" rx="6" stroke="#CF222E" stroke-width="1"/>
+	<text x="1383.5" y="822" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#CF222E" text-anchor="middle">outdated</text>
+	<text x="80" y="932" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#1F2328">apatel on :96</text>
+	<text x="80" y="958" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">the force-push rewrote the line</text>
+	<rect x="506" y="914" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
+	<text x="612.5" y="946" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
+	<rect x="763" y="914" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
+	<text x="869.5" y="946" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
+	<rect x="1020" y="914" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
+	<text x="1126.5" y="946" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
+	<rect x="1277" y="914" width="213" height="52" fill="#FFEBE9" rx="6" stroke="#CF222E" stroke-width="1"/>
+	<text x="1383.5" y="946" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#CF222E" text-anchor="middle">outdated</text>
+	<rect x="56" y="1002" width="1488" height="424" fill="#FFFFFF" rx="10" stroke="#D4D9E0" stroke-width="1"/>
+	<rect x="56" y="1002" width="1488" height="56" fill="#F0F2F5" rx="10"/>
+	<rect x="56" y="1042" width="1488" height="16" fill="#F0F2F5"/>
+	<line x1="56" y1="1058" x2="1544" y2="1058" stroke="#D4D9E0" stroke-width="1"/>
+	<text x="76" y="1038" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">What the join needs, and what exists</text>
+	<text x="80" y="1098" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">The revision axis</text>
+	<text x="356" y="1098" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#1A7F37">exists</text>
+	<text x="80" y="1128" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#24292F">accepted_pull_request_revision carries Base and Head OIDs and an Origin of live or explicit_historical_import.</text>
+	<text x="80" y="1188" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">The conversation axis</text>
+	<text x="356" y="1188" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#1A7F37">exists</text>
+	<text x="80" y="1218" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#24292F">github_conversation_projection carries Path, Line, Resolved and Outdated for every node.</text>
+	<text x="80" y="1278" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">A comment's revision</text>
+	<text x="356" y="1278" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#CF222E">does not exist</text>
+	<text x="80" y="1308" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#24292F">No commit OID, no epoch, no ordinal on the projection. Outdated is a boolean GitHub computed, with nothing behind it.</text>
+	<text x="80" y="1368" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Therefore</text>
+	<text x="80" y="1398" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#24292F">Every cell above is uncomputable today. This is a model question before it is a presentation one, which is why the card asks for an RFC rather than a slice.</text>
+</svg>

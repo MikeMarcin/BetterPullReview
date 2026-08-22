@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1600" viewBox="0 0 1600 1600">
+	<rect width="1600" height="1600" fill="#F6F7F9"/>
+	<rect x="0" y="0" width="1600" height="132" fill="#FFFFFF"/>
+	<line x1="0" y1="132" x2="1600" y2="132" stroke="#D4D9E0" stroke-width="2"/>
+	<text x="56" y="58" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="30" font-weight="600" fill="#1F2328">Today: the conversations drawer as it ships</text>
+	<text x="56" y="96" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="400" fill="#5B6570">Filtered to the current file. This is the baseline the two alternatives are judged against, not a proposal.</text>
+	<rect x="1214" y="34" width="330" height="42" fill="#FFF1D6" rx="6" stroke="#C79A2E" stroke-width="1"/>
+	<text x="1379" y="62" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#7A5A0B" text-anchor="middle">MOCKUP - NOT IMPLEMENTED</text>
+	<line x1="56" y1="1472" x2="1544" y2="1472" stroke="#8C8C8C" stroke-width="1"/>
+	<text x="56" y="1504" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">Every row above is painted by github_conversation_delegate.cpp:68-144: heading, body, then a facts line joined with "  ·  ".</text>
+	<text x="56" y="1532" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">There are no lane rails and no git-graph rendering anywhere in the shipped code; BPR-0191 narrowed that language to mean filtering by thread.</text>
+	<text x="56" y="1560" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">Note the heading on every comment. A thread's first comment reads "Reply by" too, because the delegate asks whether the row has a parent and every comment's parent is the thread.</text>
+	<rect x="56" y="180" width="760" height="1180" fill="#FFFFFF" rx="10" stroke="#D4D9E0" stroke-width="1"/>
+	<rect x="56" y="180" width="760" height="56" fill="#F0F2F5" rx="10"/>
+	<rect x="56" y="220" width="760" height="16" fill="#F0F2F5"/>
+	<line x1="56" y1="236" x2="816" y2="236" stroke="#D4D9E0" stroke-width="1"/>
+	<text x="76" y="216" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">diff_alignment.cpp</text>
+	<text x="796" y="216" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570" text-anchor="end">Whole PR</text>
+	<rect x="56" y="252" width="760" height="960" fill="#FFFFFF"/>
+	<rect x="56" y="252" width="68" height="960" fill="#F0F2F5"/>
+	<text x="112" y="273" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">206</text>
+	<text x="138" y="273" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">  /// Pair rows of two documents by exact content first,</text>
+	<text x="112" y="303" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">207</text>
+	<text x="138" y="303" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">  /// then by similarity within the remaining runs.</text>
+	<text x="112" y="333" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">208</text>
+	<text x="138" y="333" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">  [[nodiscard]] auto align_rows(</text>
+	<text x="112" y="363" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">209</text>
+	<text x="138" y="363" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      const document&amp; left,</text>
+	<text x="112" y="393" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">210</text>
+	<text x="138" y="393" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      const document&amp; right) -&gt; alignment</text>
+	<text x="112" y="423" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">211</text>
+	<text x="138" y="423" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">  {</text>
+	<text x="112" y="453" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">212</text>
+	<text x="138" y="453" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      auto result = alignment{ };</text>
+	<rect x="124" y="462" width="692" height="30" fill="#FFEBE9"/>
+	<text x="112" y="483" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">213</text>
+	<text x="138" y="483" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">-     auto cursor = left.begin();</text>
+	<rect x="124" y="492" width="692" height="30" fill="#E6FFEC"/>
+	<text x="112" y="513" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">214</text>
+	<text x="138" y="513" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">+     auto cursor = left.cbegin();</text>
+	<text x="112" y="543" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">215</text>
+	<text x="138" y="543" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      while (cursor != left.cend()) {</text>
+	<text x="112" y="573" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">216</text>
+	<text x="138" y="573" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">          if (const auto exact = pair_exact(cursor, right);</text>
+	<text x="112" y="603" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">217</text>
+	<text x="138" y="603" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">              exact.has_value()) {</text>
+	<text x="112" y="633" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">218</text>
+	<text x="138" y="633" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">              result.push_back(*exact);</text>
+	<text x="112" y="663" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">219</text>
+	<text x="138" y="663" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">              ++cursor;</text>
+	<text x="112" y="693" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">220</text>
+	<text x="138" y="693" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">              continue;</text>
+	<text x="112" y="723" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">221</text>
+	<text x="138" y="723" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">          }</text>
+	<text x="112" y="753" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">222</text>
+	<text x="138" y="753" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">          break;</text>
+	<text x="112" y="783" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">223</text>
+	<text x="138" y="783" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      }</text>
+	<text x="112" y="813" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">224</text>
+	<text x="138" y="813" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">  </text>
+	<text x="112" y="843" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">225</text>
+	<text x="138" y="843" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      pair_similar(cursor, left.cend(), right, result);</text>
+	<text x="112" y="873" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">226</text>
+	<text x="138" y="873" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      return result;</text>
+	<text x="112" y="903" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">227</text>
+	<text x="138" y="903" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">  }</text>
+	<text x="112" y="933" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">228</text>
+	<text x="138" y="933" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">  </text>
+	<text x="112" y="963" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">229</text>
+	<text x="138" y="963" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">  [[nodiscard]] auto pair_similar(</text>
+	<text x="112" y="993" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">230</text>
+	<text x="138" y="993" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      document::const_iterator first,</text>
+	<text x="112" y="1023" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">231</text>
+	<text x="138" y="1023" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      document::const_iterator last,</text>
+	<text x="112" y="1053" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">232</text>
+	<text x="138" y="1053" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      const document&amp; right,</text>
+	<text x="112" y="1083" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">233</text>
+	<text x="138" y="1083" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      alignment&amp; out) -&gt; void</text>
+	<text x="112" y="1113" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">234</text>
+	<text x="138" y="1113" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">  {</text>
+	<text x="112" y="1143" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">235</text>
+	<text x="138" y="1143" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      for (; first != last; ++first) {</text>
+	<text x="112" y="1173" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">236</text>
+	<text x="138" y="1173" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">          out.push_back(best_match(*first, right));</text>
+	<text x="112" y="1203" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#5B6570" text-anchor="end">237</text>
+	<text x="138" y="1203" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="15" font-weight="400" fill="#1F2328" xml:space="preserve">      }</text>
+	<line x1="76" y1="1236" x2="796" y2="1236" stroke="#8C8C8C" stroke-width="1"/>
+	<text x="76" y="1274" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6570">Selected line 214 carries two threads; line 288 carries a</text>
+	<text x="76" y="1302" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6570">third that GitHub has already marked outdated.</text>
+	<rect x="844" y="180" width="700" height="1180" fill="#FFFFFF" rx="10" stroke="#D4D9E0" stroke-width="1"/>
+	<rect x="844" y="180" width="700" height="56" fill="#F0F2F5" rx="10"/>
+	<rect x="844" y="220" width="700" height="16" fill="#F0F2F5"/>
+	<line x1="844" y1="236" x2="1544" y2="236" stroke="#D4D9E0" stroke-width="1"/>
+	<text x="864" y="216" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Conversations</text>
+	<text x="1524" y="216" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570" text-anchor="end">3 threads in this file</text>
+	<text x="864" y="270" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#0969DA">Anchored to src/core/src/diff_alignment.cpp</text>
+	<rect x="844" y="292" width="700" height="62" fill="#F2F6FC" rx="4"/>
+	<text x="864" y="318" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Review thread</text>
+	<text x="864" y="346" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214  ·  Open</text>
+	<text x="902" y="390" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by dcarter</text>
+	<text x="902" y="418" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">begin() on a const document returns a const_iterator already;</text>
+	<text x="902" y="446" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214</text>
+	<line x1="884" y1="364" x2="884" y2="452" stroke="#D4D9E0" stroke-width="2"/>
+	<text x="902" y="492" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by mikemarcin</text>
+	<text x="902" y="520" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">It does, but the overload set makes that accidental. Keep cbegin().</text>
+	<text x="902" y="548" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214</text>
+	<line x1="884" y1="466" x2="884" y2="554" stroke="#D4D9E0" stroke-width="2"/>
+	<text x="902" y="594" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by apatel</text>
+	<text x="902" y="622" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">Agreed - it also matches the cend() below it.</text>
+	<text x="902" y="650" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214</text>
+	<line x1="884" y1="568" x2="884" y2="656" stroke="#D4D9E0" stroke-width="2"/>
+	<text x="864" y="710" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Review thread</text>
+	<text x="864" y="738" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214  ·  Resolved</text>
+	<text x="902" y="782" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by rlindgren</text>
+	<text x="902" y="810" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">Does this still hold when the document is empty?</text>
+	<text x="902" y="838" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214  ·  Resolved</text>
+	<line x1="884" y1="756" x2="884" y2="844" stroke="#D4D9E0" stroke-width="2"/>
+	<text x="864" y="898" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Review thread</text>
+	<text x="864" y="926" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:288  ·  Open  ·  Outdated</text>
+	<text x="902" y="970" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by dcarter</text>
+	<text x="902" y="998" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">This branch is unreachable after the rewrite above.</text>
+	<text x="902" y="1026" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:288  ·  Outdated</text>
+	<line x1="884" y1="944" x2="884" y2="1032" stroke="#D4D9E0" stroke-width="2"/>
+	<text x="864" y="1086" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6570">Threads on other files are filtered out entirely.</text>
+</svg>

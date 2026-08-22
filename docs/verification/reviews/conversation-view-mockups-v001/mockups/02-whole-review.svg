@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1600" viewBox="0 0 1600 1600">
+	<rect width="1600" height="1600" fill="#F6F7F9"/>
+	<rect x="0" y="0" width="1600" height="132" fill="#FFFFFF"/>
+	<line x1="0" y1="132" x2="1600" y2="132" stroke="#D4D9E0" stroke-width="2"/>
+	<text x="56" y="58" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="30" font-weight="600" fill="#1F2328">Alternative A: the whole review in one place</text>
+	<text x="56" y="96" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="400" fill="#5B6570">Every thread across every file, plus the pull-request-level comments the file drawer never shows.</text>
+	<rect x="1214" y="34" width="330" height="42" fill="#FFF1D6" rx="6" stroke="#C79A2E" stroke-width="1"/>
+	<text x="1379" y="62" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#7A5A0B" text-anchor="middle">MOCKUP - NOT IMPLEMENTED</text>
+	<line x1="56" y1="1472" x2="1544" y2="1472" stroke="#8C8C8C" stroke-width="1"/>
+	<text x="56" y="1504" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">Reachable from the projection exactly as it is today: this drops the set_anchor_file filter and groups by Path. No model change, no fetch change.</text>
+	<text x="56" y="1532" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">The row vocabulary is unchanged, so "Review by", "Pull request comment by" and the Open/Resolved/Outdated facts are the strings the delegate already paints.</text>
+	<text x="56" y="1560" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">What it costs is a second surface to keep in sync with the drawer, and a second place a reviewer can lose their position.</text>
+	<rect x="56" y="180" width="1488" height="1010" fill="#FFFFFF" rx="10" stroke="#D4D9E0" stroke-width="1"/>
+	<rect x="56" y="180" width="1488" height="56" fill="#F0F2F5" rx="10"/>
+	<rect x="56" y="220" width="1488" height="16" fill="#F0F2F5"/>
+	<line x1="56" y1="236" x2="1544" y2="236" stroke="#D4D9E0" stroke-width="1"/>
+	<text x="76" y="216" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Review conversation</text>
+	<text x="1524" y="216" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570" text-anchor="end">12 threads · 4 unresolved</text>
+	<rect x="72" y="264" width="1456" height="44" fill="#F0F2F5" rx="6"/>
+	<text x="88" y="294" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#1F2328">Pull request</text>
+	<text x="1512" y="294" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570" text-anchor="end">2 comments</text>
+	<text x="76" y="346" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Review by mikemarcin</text>
+	<text x="76" y="374" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">Two things below, then this is good to go.</text>
+	<text x="76" y="402" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">Changes requested</text>
+	<text x="76" y="448" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Pull request comment by rlindgren</text>
+	<text x="76" y="476" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">Rebased onto main to pick up the alignment fix.</text>
+	<text x="76" y="504" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570"></text>
+	<rect x="72" y="544" width="1456" height="44" fill="#F0F2F5" rx="6"/>
+	<text x="88" y="574" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="18" font-weight="600" fill="#1F2328">src/core/src/diff_alignment.cpp</text>
+	<text x="1512" y="574" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570" text-anchor="end">3 threads · 1 unresolved</text>
+	<text x="76" y="626" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Review thread</text>
+	<text x="76" y="654" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214  ·  Open</text>
+	<text x="114" y="698" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by dcarter</text>
+	<text x="114" y="726" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">begin() on a const document returns a const_iterator already;</text>
+	<text x="114" y="754" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214</text>
+	<line x1="96" y1="672" x2="96" y2="760" stroke="#D4D9E0" stroke-width="2"/>
+	<text x="76" y="800" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Review thread</text>
+	<text x="76" y="828" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:288  ·  Open  ·  Outdated</text>
+	<rect x="72" y="866" width="1456" height="44" fill="#F0F2F5" rx="6"/>
+	<text x="88" y="896" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="18" font-weight="600" fill="#1F2328">src/adapters/qt/src/diff_pane.cpp</text>
+	<text x="1512" y="896" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570" text-anchor="end">5 threads · 2 unresolved</text>
+	<text x="76" y="948" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Review thread</text>
+	<text x="76" y="976" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/adapters/qt/src/diff_pane.cpp:96  ·  Open</text>
+	<text x="114" y="1020" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by apatel</text>
+	<text x="114" y="1048" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">Can this repaint be coalesced with the one below?</text>
+	<text x="114" y="1076" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/adapters/qt/src/diff_pane.cpp:96</text>
+	<line x1="96" y1="994" x2="96" y2="1082" stroke="#D4D9E0" stroke-width="2"/>
+	<text x="88" y="1140" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#5B6570">… 4 more files</text>
+</svg>

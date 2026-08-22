@@ -1,0 +1,320 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/40a5fd691f86739e55c6860a",
+  "downstream_claims": {
+    "bpr_0211_closed": false,
+    "bpr_0212_closed": false,
+    "implementation_exists": false,
+    "recorded_conversation_evidence": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "These are mockups, not screenshots. Nothing shown is implemented, composed, or reachable from the running application: no widget, projection, or fetch was changed to produce them. Each one is generated from checked-in SVG by render_mockups.py, and every colour, row shape, label format and field name in it was read from live source and is cited on the subject. The conversations themselves are invented, because no recorded pull request in this repository carries a conversation at all - the deepest real structure anywhere is a single replyTo edge in a contract fixture. The first image in every comparison is the same baseline: the drawer exactly as it ships today.",
+  "review_gate": "conversation_view_direction",
+  "review_scope": "product_direction_mockup_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "selection_groups": [
+    {
+      "group_id": "secondary-view",
+      "max_accept": 1,
+      "min_accept": 1,
+      "note": "",
+      "title": "Which secondary conversation view should exist, if any"
+    }
+  ],
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "It answers a question the current drawer cannot: what is open elsewhere in this review",
+        "The pull-request-level review and comment rows are worth surfacing",
+        "It is worth having as well as the anchored drawer, not instead of it"
+      ],
+      "audit_verdict": {
+        "note": "Reachable from github_conversation_projection as it stands: the row vocabulary drawn is the delegate's own, and no field that does not exist is used. Verified by reading the projection and the delegate rather than by running anything.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Every thread across every file in one surface, grouped by file, plus the pull-request-level reviews and comments that the file-anchored drawer never shows at all. Choose this if the case you hit is 'I have lost track of what is still open across this review', rather than 'this one thread is too tangled to follow'. It reads the projection exactly as it is today: the only change is dropping the current-file filter and grouping by Path, so no model change and no fetch change is implied. Its real cost is a second surface that has to stay consistent with the drawer, and a second place a reviewer can lose their position.",
+      "detail_sections": [
+        {
+          "heading": "What this would cost",
+          "items": [
+            "No change to the conversation projection, the read model, or the GraphQL contract.",
+            "One new surface that groups the existing rows by Path and stops filtering to the current file.",
+            "Ongoing: two views of the same threads that must agree on read, resolved and selection state."
+          ],
+          "kind": "list"
+        },
+        {
+          "heading": "Checked against live source",
+          "items": [
+            {
+              "definition": "src/adapters/qt/src/github_conversation_delegate.cpp:68-144 - heading, body, then facts joined with two-space-dot-two-space",
+              "term": "Row shape"
+            },
+            {
+              "definition": "github_conversation_panel::set_anchor_file keeps whole threads or none, filtered by core::file_identity_of(Path)",
+              "term": "Current filter"
+            },
+            {
+              "definition": "src/adapters/qt/src/appearance_profile.cpp:76-103, BetterPullReview Light",
+              "term": "Palette"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "A - the whole review in one place",
+      "identity_files": [
+        {
+          "label": "SVG source - baseline",
+          "media_kind": "file",
+          "path": "subjects/001-alternative-a-whole-review/identity/01-svg-source-baseline.svg",
+          "sha256": "sha256:0c8247f1614eda642a9ff89550d062e3fa1b4e5fc03d6c98353fb5ede9eafafd"
+        },
+        {
+          "label": "SVG source - alternative A",
+          "media_kind": "file",
+          "path": "subjects/001-alternative-a-whole-review/identity/02-svg-source-alternative-a.svg",
+          "sha256": "sha256:a4631f2b67c8763ecad47ba74af4d4ffaa93c916cd818ff57a8773931449108c"
+        },
+        {
+          "label": "Generator",
+          "media_kind": "file",
+          "path": "subjects/001-alternative-a-whole-review/identity/03-generator.py",
+          "sha256": "sha256:225323dfc9bbb55a2bb463ec443ce5a1de897a99d292627628ea8c7e2438f258"
+        }
+      ],
+      "known_concerns": [
+        "Two surfaces showing the same threads can disagree about what is read, resolved, or selected, and keeping them consistent is ongoing work rather than one slice",
+        "The owner narrowed this drawer to the current file's threads on 2026-08-08 and called a whole-review view 'might be nice' rather than what they typically want; this alternative reopens exactly that decision"
+      ],
+      "media_groups": [
+        {
+          "group_id": "compare",
+          "items": [
+            {
+              "label": "Today - the drawer as it ships",
+              "media_kind": "image",
+              "path": "subjects/001-alternative-a-whole-review/compare/01-today-the-drawer-as-it-ships.png",
+              "sha256": "sha256:94a4d82dc676753e1341a5147aa1a5914b8c4ac06f7ba23aed6d43e401cab9a3"
+            },
+            {
+              "label": "A - the whole review in one place",
+              "media_kind": "image",
+              "path": "subjects/001-alternative-a-whole-review/compare/02-a-the-whole-review-in-one-place.png",
+              "sha256": "sha256:0fa13f472293d0174a71dd6911ea892b875c92b98e7cb6a24a68761f326b9866"
+            }
+          ],
+          "layout": "compare",
+          "note": "Click either image to open it full size; arrow keys step between them.",
+          "required": true,
+          "title": "Today, then this alternative"
+        }
+      ],
+      "selection_group": "secondary-view",
+      "subject_digest": "sha256:c2096862714d557c05ec3a72d729d779649e78a2bd143676b7ac36566c94fc54",
+      "subject_id": "direction:/betterpullreview/bpr-0211/whole-review-conversation",
+      "subject_key": "alternative-a-whole-review"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Depth is a real problem worth a second view, not a hypothetical one",
+        "A map plus a focused reply is the right shape for it, rather than better inline nesting",
+        "It is worth building before a conversation deep enough to need it has ever been recorded"
+      ],
+      "audit_verdict": {
+        "note": "The reply edge this depends on was verified to exist upstream at github_read_model.hpp:233 and to be discarded at github_projection_mapping.cpp:175. The absence of any deep recorded conversation was verified against both PR recordings and the contract fixtures, and is recorded as a concern rather than an audit failure because it bears on the decision, not on whether the mockup is honest.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "A map of one thread's reply structure, with the path from the root to where you are highlighted and one reply in focus. This is the alternative your own reference points at: Treeverse, which you reach for on Twitter threads because a linear presentation gets confusing at depth. Choose this if the case you hit is 'this one conversation is too tangled to follow inline'. Two things you should weigh before choosing it. First, the reply edge it needs is already fetched: the read model carries ReplyTo per comment and the GraphQL contract validates it, but the projection throws it away and writes the thread root as every comment's parent, so today's tree is two levels deep by construction and this view would need that one line changed. Second, and more seriously, nothing in this repository could exercise it - the conversation drawn here is invented.",
+      "detail_sections": [
+        {
+          "heading": "What this would cost",
+          "items": [
+            "One projection line: github_projection_mapping.cpp:175 currently writes .ParentId = threadId where comment.ReplyTo is already in scope.",
+            "A new map surface plus its focus pane, keyboard navigation, and accessibility.",
+            "A recorded conversation with real depth, which does not exist yet and cannot be manufactured honestly."
+          ],
+          "kind": "list"
+        },
+        {
+          "heading": "The data that does and does not exist",
+          "items": [
+            {
+              "definition": "replyTo is requested and validated in github_read_contract.cpp and normalized into github_read_model.hpp:233",
+              "term": "Fetched"
+            },
+            {
+              "definition": "github_projection_mapping.cpp:175 writes the thread root as ParentId for every comment",
+              "term": "Discarded"
+            },
+            {
+              "definition": "none; directxmath-336 and uiforetw-74 recordings carry no conversation keys",
+              "term": "Recorded conversations"
+            },
+            {
+              "definition": "one replyTo edge, in tests/fixtures/github/contracts/v1/github-com/responses/review_threads.json",
+              "term": "Deepest real structure"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "B - a Treeverse-style map of one deep thread",
+      "identity_files": [
+        {
+          "label": "SVG source - baseline",
+          "media_kind": "file",
+          "path": "subjects/002-alternative-b-treeverse/identity/01-svg-source-baseline.svg",
+          "sha256": "sha256:0c8247f1614eda642a9ff89550d062e3fa1b4e5fc03d6c98353fb5ede9eafafd"
+        },
+        {
+          "label": "SVG source - alternative B",
+          "media_kind": "file",
+          "path": "subjects/002-alternative-b-treeverse/identity/02-svg-source-alternative-b.svg",
+          "sha256": "sha256:3062a82e3da11ccd5b6b27c1b5aecc1b7fdf0debc1a8ff94e27602bbb442bb3e"
+        },
+        {
+          "label": "Generator",
+          "media_kind": "file",
+          "path": "subjects/002-alternative-b-treeverse/identity/03-generator.py",
+          "sha256": "sha256:225323dfc9bbb55a2bb463ec443ce5a1de897a99d292627628ea8c7e2438f258"
+        }
+      ],
+      "known_concerns": [
+        "The conversation shown is SYNTHESIZED. No recorded pull request here has any conversation, and the deepest real structure in the tree is one replyTo edge in a contract fixture - so this design has never been seen against real content",
+        "BPR-0211's own stated precondition, that a conversation deep or wide enough to be a problem is recorded, is still unmet",
+        "GitHub's own review threads are largely flat in practice, so restoring the reply edge may yield less depth than this map suggests",
+        "Needs the projection to carry ReplyTo instead of the thread root - one line, but a model change rather than a pure view"
+      ],
+      "media_groups": [
+        {
+          "group_id": "compare",
+          "items": [
+            {
+              "label": "Today - the drawer as it ships",
+              "media_kind": "image",
+              "path": "subjects/002-alternative-b-treeverse/compare/01-today-the-drawer-as-it-ships.png",
+              "sha256": "sha256:94a4d82dc676753e1341a5147aa1a5914b8c4ac06f7ba23aed6d43e401cab9a3"
+            },
+            {
+              "label": "B - a map of one deep thread",
+              "media_kind": "image",
+              "path": "subjects/002-alternative-b-treeverse/compare/02-b-a-map-of-one-deep-thread.png",
+              "sha256": "sha256:bc4f9a764dc36a0c06d091b8bdd0d2ed6e88f6dfd83bb77284d245c76a2ba836"
+            }
+          ],
+          "layout": "compare",
+          "note": "The same thread renders in today's drawer as a flat list of replies.",
+          "required": true,
+          "title": "Today, then this alternative"
+        }
+      ],
+      "selection_group": "secondary-view",
+      "subject_digest": "sha256:08be19a18ce2fdf613ce28dfad284ed76e30907f6d37134cf39ab50b2cce78dd",
+      "subject_id": "direction:/betterpullreview/bpr-0211/treeverse-deep-thread",
+      "subject_key": "alternative-b-treeverse"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "The join is worth having enough to justify a model change, not only a view",
+        "An RFC is the right vehicle, because this crosses the conversation model and the epoch axis",
+        "It is worth doing before the earlier RFCs in the canonical order close"
+      ],
+      "audit_verdict": {
+        "note": "The absence of any revision identity on github_conversation_projection was verified field by field at github_projection.hpp:124-139, and the epoch label format drawn was read from epoch_history_model.cpp:132-137. The mockup asserts the gap rather than papering over it.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "A separate question from the one above, so it is a separate decision rather than a third alternative. This is the thing you said GitHub is extra terrible at: seeing conversations and code evolve together as a PR gets new revisions. The mockup shows what it would look like if a comment knew which revision it was written against - which comments were live on each side of a comparison, and what went outdated in between. Accept means it is worth writing the RFC that this needs. Reject means not now, and the card stays recorded rather than started. Be aware of what the mockup is: the epoch axis is real and the conversation axis is real, but the join between them is not. github_conversation_projection carries no commit OID, no epoch, and no ordinal, so every cell in that grid is a value the product cannot compute today. Outdated is a boolean GitHub handed us with nothing behind it.",
+      "detail_sections": [
+        {
+          "heading": "What exists and what does not",
+          "items": [
+            {
+              "definition": "accepted_pull_request_revision carries Base and Head OIDs and an Origin of live or explicit_historical_import; epoch_comparison_control already offers independent left and right selectors over retained epochs",
+              "term": "The revision axis - exists"
+            },
+            {
+              "definition": "github_conversation_projection carries Path, Line, Resolved and Outdated for every node",
+              "term": "The conversation axis - exists"
+            },
+            {
+              "definition": "No commit OID, no epoch, no ordinal anywhere on the projection record",
+              "term": "A comment's revision - does not exist"
+            }
+          ],
+          "kind": "definitions"
+        },
+        {
+          "heading": "Why this is not a slice",
+          "items": [
+            "It changes what a conversation is in the model, which is RFC-BPR-0002's territory.",
+            "It consumes the epoch axis, which is RFC-BPR-0003's.",
+            "It implies a fetch that records the revision a comment was made against, whose availability has not been checked."
+          ],
+          "kind": "list"
+        }
+      ],
+      "display_name": "Conversation and code on the same revision axis - worth an RFC?",
+      "identity_files": [
+        {
+          "label": "SVG source - revision join",
+          "media_kind": "file",
+          "path": "subjects/003-revision-axis-rfc/identity/01-svg-source-revision-join.svg",
+          "sha256": "sha256:783df943aeec8c224ae60ab3d9eb2f36d8930c6a56cbeecc164e46b2d8c41b25"
+        },
+        {
+          "label": "SVG source - baseline",
+          "media_kind": "file",
+          "path": "subjects/003-revision-axis-rfc/identity/02-svg-source-baseline.svg",
+          "sha256": "sha256:0c8247f1614eda642a9ff89550d062e3fa1b4e5fc03d6c98353fb5ede9eafafd"
+        },
+        {
+          "label": "Generator",
+          "media_kind": "file",
+          "path": "subjects/003-revision-axis-rfc/identity/03-generator.py",
+          "sha256": "sha256:225323dfc9bbb55a2bb463ec443ce5a1de897a99d292627628ea8c7e2438f258"
+        }
+      ],
+      "known_concerns": [
+        "Whether GitHub exposes the revision a comment was made against, unauthenticated or at all, has not been checked - if it does not, the datum has to be inferred and the whole feature weakens",
+        "This crosses RFC-BPR-0002's conversation model and RFC-BPR-0003's epoch axis, so two owners have to agree before a field is added",
+        "The card explicitly warns against adding a revision field to the projection as a side effect of a presentation card, which is the cheap path this must not take"
+      ],
+      "media_groups": [
+        {
+          "group_id": "proposal",
+          "items": [
+            {
+              "label": "Comments against revisions",
+              "media_kind": "image",
+              "path": "subjects/003-revision-axis-rfc/proposal/01-comments-against-revisions.png",
+              "sha256": "sha256:51e26baf8cd008cc4a23c6f27eaba7463596ab0968fc50f7411c29ae86a1e201"
+            },
+            {
+              "label": "Today - the drawer, with no revision axis at all",
+              "media_kind": "image",
+              "path": "subjects/003-revision-axis-rfc/proposal/02-today-the-drawer-with-no-revision-axis-at-all.png",
+              "sha256": "sha256:94a4d82dc676753e1341a5147aa1a5914b8c4ac06f7ba23aed6d43e401cab9a3"
+            }
+          ],
+          "layout": "grid",
+          "note": "The lower panel states which half of this exists today and which does not.",
+          "required": true,
+          "title": "What the join would look like"
+        }
+      ],
+      "subject_digest": "sha256:c7f4b46dbd70a82d8beb259ff6c3ceb4e32a65bd3a0514fb9e6900a2f0b8bec0",
+      "subject_id": "direction:/betterpullreview/bpr-0212/revision-axis-rfc",
+      "subject_key": "revision-axis-rfc"
+    }
+  ],
+  "title": "Which secondary conversation view, if any (BPR-0211, BPR-0212)"
+}
