@@ -282,14 +282,39 @@ capture. The row should be treated as *unmeasured*, not as *diagnosed*.
   `fbf0f18` had replaced. Closed at `6e068a1` and `9050b93` on 2026-08-19.
 
 `dif_assets_contract` was the only remaining row not re-checked. [[BPR-0402]]
-has now measured it, and the result is weaker than the five retirements above:
-it passes here — `core-only` 1/1 in 27.34 s, `dif_asset_tests.py` 35/35 — and
-that discharges nothing. This interpreter links stock zlib 1.2.12, which is the
-stated precondition of [[BPR-0378]]'s exemption rather than a test of it, and
-[[BPR-0350]]'s import-boundary half was reverted at `acb36e5`, so the path that
-failed is not present to fail. The row is **measured and still unmeasured for
-Windows**, which is not the same as retired: nothing removed its cause, this
-host merely cannot reach it.
+measured it on 2026-08-19 and correctly refused to retire it: it passed here,
+but both of its named causes were still standing, so a green macOS run
+discharged nothing.
+
+Both causes have since been closed, and by portable work rather than by a
+Windows run.
+
+- The zlib cause is gone. [[BPR-0402]] noted that this interpreter links stock
+  zlib, making a pass the *precondition* of [[BPR-0378]]'s exemption rather
+  than a test of it. [[BPR-0378]] and [[BPR-0408]] then closed at `400f894`
+  and `e04fb16` on 2026-08-20, and its first required-final-state bullet is now
+  recorded **met**: the canon holds under either zlib, proven by substituting
+  the generator's compression level rather than by which zlib happens to be
+  linked. The byte comparison that was implementation-sensitive is gone.
+- The import cause is gone, and predates the sentence that named it.
+  [[BPR-0402]] pointed at [[BPR-0350]]'s import-boundary revert at `acb36e5`.
+  But [[BPR-0377]] closed on 2026-08-18 by giving the tool its own scratch root
+  from `tempfile`/`pathlib`, and `scripts/dif_assets.py` imports nothing but
+  the standard library today — so the reverted shared helper is not on this
+  path at all.
+
+Re-measured at `1d82161`: `dif_asset_tests.py` 42/42 in 32.17 s (up from 35,
+which is [[BPR-0378]]'s added negative controls), and `core-only`
+`dif_assets_contract` 1/1 in 32.83 s.
+
+So the row's status changes, and it is worth being exact about how far. It is
+**not retired** — only a target-native run retires a Windows row. What changed
+is that a Windows session should now expect this test to **confirm rather than
+diagnose**: no named cause remains, and if it still fails there, the cause is a
+third one nobody has identified. One residual: [[BPR-0378]] proved
+implementation-independence by varying compression *level*, not by running
+against zlib-ng, which [[BPR-0377]] measured as what Windows' interpreter
+actually bundles. That is a strong proxy, not the identical condition.
 
 **Five of this card's thirteen remaining rows did not need a Windows session at
 all.** They needed the taxonomy re-read against the commits that landed after it.

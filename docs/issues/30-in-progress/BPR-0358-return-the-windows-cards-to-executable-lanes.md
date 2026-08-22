@@ -210,7 +210,7 @@ Cards closed: [[BPR-0359]], [[BPR-0363]], [[BPR-0361]], [[BPR-0365]],
 | no Windows symbol inspector for the composed host | `composed_host_verifier_contract` | [[BPR-0364]] |
 | `git init` returns 128 inside the container — **the same ancestor-read denial as the row above, not a separate cause** | `operator_response_validation_contract` | [[BPR-0362]] — **parked on a product decision** |
 | ~~the isolation verifier rejects the Windows runner~~ — stale attribution, see below | `test_network_isolation_structure_contract` | unmeasured |
-| temporary root, inside the Dif tool's import boundary; and a PNG canon that may be zlib-version-dependent | `dif_assets_contract` | [[BPR-0350]] records the boundary |
+| temporary root, inside the Dif tool's import boundary; and a PNG canon that may be zlib-version-dependent | `dif_assets_contract` | both causes closed since; see below |
 | ~~undiagnosed~~ — **fixed after this table was written** | `architecture_boundary_contract` | [[BPR-0371]], closed at `8127b88` |
 | ~~undiagnosed~~ — **fixed after this table was written** | `github_contract_fixture_security` | [[BPR-0372]], closed at `ffd1b3a` |
 | ~~undiagnosed~~ — **never a Windows defect; failed everywhere** | `dependency_modernization_contract` | [[BPR-0373]], closed at `6e068a1`/`9050b93` |
@@ -339,12 +339,23 @@ The last two resolved the same way:
   2026-08-19. It was *found* during the Windows program and recorded so it would
   not be mistaken for one — and this table mistook it for one anyway.
 
-`dif_assets_contract` was the only row not re-checked here. [[BPR-0402]] has
-since measured it and it does **not** join the retirements: it passes on macOS
-for reasons that cannot speak to Windows — stock zlib 1.2.12 is the precondition
-of [[BPR-0378]]'s exemption, and [[BPR-0350]]'s half was reverted at `acb36e5` —
-so the row is measured and still unmeasured for Windows. [[BPR-0350]] and
-[[BPR-0378]] hold its two halves.
+`dif_assets_contract` was the only row not re-checked here. [[BPR-0402]]
+measured it on 2026-08-19 and correctly refused to retire it: it passed on macOS
+for reasons that could not speak to Windows, because both of its named causes
+were still standing.
+
+Both are now closed, by portable work. [[BPR-0378]] and [[BPR-0408]] closed at
+`400f894`/`e04fb16` on 2026-08-20 with "the canon holds under either zlib"
+recorded **met**, so the zlib precondition is no longer load-bearing;
+[[BPR-0377]] had already given the Dif tool its own `tempfile`/`pathlib` scratch
+root on 2026-08-18, so [[BPR-0350]]'s reverted shared import is not on this path.
+Re-measured at `1d82161`: 42/42 and `core-only` 1/1.
+
+The row is still not retired — only a target-native run retires a Windows row —
+but its expectation has changed from *diagnose* to *confirm*. [[BPR-0347]]
+carries the full reasoning and the one residual: implementation-independence was
+proven by varying compression level, not by running against the zlib-ng that
+Windows' interpreter actually bundles.
 
 ### What the table actually says now
 
