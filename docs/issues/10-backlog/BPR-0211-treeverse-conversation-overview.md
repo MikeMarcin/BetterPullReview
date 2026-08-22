@@ -1,9 +1,9 @@
 ---
 id: BPR-0211
 title: Build the Treeverse-style overview of a deep thread
-status: Ready
+status: Backlog
 rfc: RFC-BPR-0005
-depends_on: [BPR-0191, BPR-0413]
+depends_on: [BPR-0191, BPR-0413, BPR-0416, BPR-0417, BPR-0418]
 ---
 
 # Build the Treeverse-style overview of a deep thread
@@ -181,3 +181,17 @@ evidence from synthesized content that it has not labelled as such.
 The owner's other remark on the same verdict — that the existing drawer needs to
 anchor the root comment to the line of code it comments on — is a gap in the
 shipped anchored drawer, not in this secondary view. [[BPR-0414]] owns it.
+
+## Broken into slices — 2026-08-21
+
+This card is now the umbrella and closes when its slices do. The required final
+state above is a view plus a cross-layer data change plus content that does not
+exist yet, which is three different kinds of work with three different ways of
+failing.
+
+- [[BPR-0416]] — carry the reply edge into the tree. The data foundation, and
+  the half an independent review found missing from the original cost.
+- [[BPR-0417]] — record a conversation with real depth. This card's own unmet
+  precondition, now carded rather than restated.
+- [[BPR-0418]] — build the map surface, including the owner's requirement that
+  the full clicked branch be visible.
