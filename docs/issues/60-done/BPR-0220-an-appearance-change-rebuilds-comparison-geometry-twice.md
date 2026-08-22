@@ -1,7 +1,7 @@
 ---
 id: BPR-0220
 title: An appearance change rebuilds comparison geometry twice
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0249]
 ---
@@ -250,3 +250,19 @@ expectations, a structural contract that pins them together, the established
 composition manifest repin if required, focused verification, and successor
 digest-bound attended packets. It does not change comparison geometry,
 provider behavior, notification behavior, or live-service authority.
+
+## Exact-zero repair accepted — 2026-08-21
+
+Committed source `761d416` changes both native appearance geometry expectations
+to exact zero and adds location-bound structural checks that strip comment
+decoys and reject drift at either live predicate. The independent reviewer
+reproduced the former decoy bypass, verified its repair, recomputed the
+production source-manifest digest, and passed the five-test focused selector.
+
+The resulting executable is 51,383,520 bytes with SHA-256
+`b351456d6ec3090e24a28b13754aa74e7cd971ab1d1cdc1b1a6f46256d11d7f4e`.
+The owner accepted the repair and explicitly declined another digest-only
+appearance replay. That decision is sufficient for this narrow expectation
+correction: the prior native observation measured the exact zero now encoded,
+the location-bound negative tests reject drift and comment decoys, and the
+focused public-path selector passes. BPR-0220 is Done.

@@ -247,3 +247,11 @@ its terminal identity replay. If the executable is still byte-identical, that
 replay can reuse v004 without another human response. If a later relink changes
 the identity first, the visual criterion requires a successor verdict rather
 than silently inheriting v004.
+
+## BPR-0220 relink accepted — 2026-08-21
+
+The owner accepted the assembled workbench and explicitly declined a redundant
+digest-only replay after BPR-0220 changed the native appearance probe's expected
+geometry count. The presentation implementation did not change. This card
+remains Backlog on BPR-0083 for terminal closeout, not on another interim visual
+review.

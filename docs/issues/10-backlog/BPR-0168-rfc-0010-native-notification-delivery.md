@@ -259,3 +259,11 @@ live GitHub mutation, package, release, or RFC closeout. BPR-0168 now waits in
 Backlog behind BPR-0169 so terminal RFC-BPR-0010 replay can recheck final
 executable identity after the remaining implementation chain. Byte-identical
 output may reuse v006; a later relink requires a successor verdict.
+
+## BPR-0220 relink accepted — 2026-08-21
+
+The owner explicitly declined a redundant notification replay after BPR-0220
+changed only the appearance probe's expected geometry count. The notification
+implementation and accepted v006 behavior did not change. This card remains
+Backlog behind BPR-0169 for terminal closeout, not on another interim banner
+review.

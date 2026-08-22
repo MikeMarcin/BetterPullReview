@@ -3,7 +3,7 @@ id: BPR-0114
 title: Verify System mode follows a live OS scheme change
 status: Backlog
 rfc: RFC-BPR-0006
-depends_on: [BPR-0106, BPR-0183, BPR-0184, BPR-0220, BPR-0249]
+depends_on: [BPR-0101, BPR-0106, BPR-0183, BPR-0184, BPR-0220, BPR-0249]
 ---
 
 # Verify System mode follows a live OS scheme change
@@ -471,6 +471,18 @@ predicate expects one comparison-geometry rebuild and the attributable native
 measurement records zero, with no rebuild causes. That keeps changed capture
 and persistence from running. [[BPR-0391]] and [[BPR-0410]] are Done because
 their wait and diagnostic claims are directly satisfied. Notification v006 is
-also accepted, so [[BPR-0220]] is In Progress on the supported zero-expectation
-repair; its relink will require a successor native appearance packet. This card
-remains Backlog on that dependency and replay.
+also accepted, and [[BPR-0220]] has implemented the supported zero-expectation
+repair. The owner accepted that repair without requiring another digest-only
+appearance run.
+
+## Owner acceptance; terminal procedure retained — 2026-08-21
+
+The v008 native run directly observed the real System Light-to-Dark transition,
+the global transition, explicit-mode isolation, restored desktop appearance,
+strict owner return, retained selected diff, and zero attributed geometry
+rebuilds. BPR-0220 changed only the two stale exact-one expectations to that
+measured zero and passed the focused public-path contract. The owner accepted
+the result and asked that no redundant evidence-preservation rerun be required.
+The current checkpoint is accepted. BPR-0114 remains open behind BPR-0101 only
+because the RFC closeout card uses it as the terminal native procedure; no
+additional interim run is pending.
