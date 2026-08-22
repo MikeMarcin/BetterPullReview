@@ -1,7 +1,7 @@
 ---
 id: BPR-0347
 title: Contain the Windows test suite in an AppContainer
-status: In Progress
+status: Ready
 rfc: RFC-BPR-0008
 depends_on: [BPR-0339]
 ---

@@ -1,10 +1,9 @@
 ---
 id: BPR-0314
 title: Verify anonymous preview remains unavailable on Linux
-status: Blocked
+status: Ready
 rfc: RFC-BPR-0017
 depends_on: [BPR-0306]
-blocked_by: platform-linux
 ---
 
 # Verify anonymous preview remains unavailable on Linux

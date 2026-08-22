@@ -63,18 +63,33 @@ CLOSEOUT_COLUMNS = (
     "Gate class",
     "Live blocker",
 )
+# Ready splits by platform because a lane has to tell a session what it can
+# actually start. "Blocked" said something was unresolved when nothing was: the
+# machine exists and the work is specified, so it is ready somewhere else.
+BLOCKED_BY_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+PLATFORM_READY_LANES = {
+    "21-ready-win": "Windows",
+    "22-ready-mac": "macOS",
+    "23-ready-lin": "Linux",
+}
 OPEN_ISSUE_LANES = (
     "10-backlog",
-    "50-blocked",
     "40-parked",
+    "50-blocked",
     "20-ready",
+    *PLATFORM_READY_LANES,
     "30-in-progress",
 )
 DONE_ISSUE_LANE = "60-done"
 OPEN_ISSUE_STATUSES = frozenset(
     {"Backlog", "Blocked", "Parked", "Ready", "In Progress"}
 )
-DEFERRING_ISSUE_LANES = frozenset({"10-backlog", "50-blocked"})
+# A platform lane defers exactly as the blocked lane it replaces did: the
+# platform is why the card is not in `20-ready/`, and its dependency graph is a
+# separate question that stays in `depends_on`.
+DEFERRING_ISSUE_LANES = frozenset(
+    {"10-backlog", "50-blocked", *PLATFORM_READY_LANES}
+)
 REVIEW_ROOT = "docs/verification/reviews"
 OPERATOR_PACKET_NAME = "operator-packet.md"
 PACKET_VERSION_RE = re.compile(
@@ -91,20 +106,19 @@ FRONTIER_LANE_CELL_RE = re.compile(r"^`(?P<lane>[0-9a-z-]+)/`$")
 FRONTIER_COUNT_RE = re.compile(
     r"one of these (?P<count>[a-z]+) roots or reaches one"
 )
-FRONTIER_LANES = ("20-ready", "30-in-progress", "40-parked", "50-blocked")
+FRONTIER_LANES = (
+    "20-ready",
+    *PLATFORM_READY_LANES,
+    "30-in-progress",
+    "40-parked",
+    "50-blocked",
+)
 COUNT_WORDS = (
     "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
     "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
     "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "twenty-one",
     "twenty-two", "twenty-three", "twenty-four", "twenty-five", "twenty-six",
     "twenty-seven", "twenty-eight", "twenty-nine", "thirty",
-)
-BLOCKED_BY_VALUES = frozenset(
-    {
-        "platform-linux",
-        "platform-windows",
-        "platform-linux-and-windows",
-    }
 )
 PARKED_ON_VALUES = frozenset(
     {
@@ -244,9 +258,10 @@ def verify_issue_board(root: Path) -> None:
     issue_root = root / "docs/issues"
     lane_status = {
         "10-backlog": "Backlog",
-        "50-blocked": "Blocked",
         "40-parked": "Parked",
+        "50-blocked": "Blocked",
         "20-ready": "Ready",
+        **{lane: "Ready" for lane in PLATFORM_READY_LANES},
         "30-in-progress": "In Progress",
         DONE_ISSUE_LANE: "Done",
     }
@@ -276,14 +291,20 @@ def verify_issue_board(root: Path) -> None:
                     f"duplicate dependency in {path}: "
                     f"{metadata.get('depends_on')}"
                 )
+            # `50-blocked/` is for a real blocker: something unresolved that
+            # is not a platform, a person, or another card. A platform is a
+            # lane now, so naming one here would hide the card from the session
+            # that could actually run it.
             blocked_by = metadata.get("blocked_by")
             if lane == "50-blocked":
                 if not blocked_by:
                     fail(f"blocked card does not declare blocked_by: {path}")
-                if blocked_by not in BLOCKED_BY_VALUES:
+                if not BLOCKED_BY_RE.fullmatch(blocked_by):
+                    fail(f"malformed blocked_by in {path}: {blocked_by}")
+                if blocked_by.startswith("platform-"):
                     fail(
-                        f"unknown blocked_by in {path}: {blocked_by}; "
-                        f"expected one of {sorted(BLOCKED_BY_VALUES)}"
+                        f"{path} declares {blocked_by}; a platform is a lane, "
+                        f"not a blocker: use one of {sorted(PLATFORM_READY_LANES)}"
                     )
             elif blocked_by is not None:
                 fail(f"blocked_by outside the blocked lane: {path}")

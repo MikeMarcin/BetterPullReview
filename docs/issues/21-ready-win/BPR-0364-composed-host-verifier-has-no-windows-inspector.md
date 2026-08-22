@@ -1,7 +1,7 @@
 ---
 id: BPR-0364
 title: The composed-host verifier has no Windows symbol inspector
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0013
 depends_on: [BPR-0412]
 ---

@@ -7,10 +7,13 @@ Issue IDs use the `BPR-NNNN` sequence allocated by `NEXT_ID`.
 | Folder | Status | Meaning |
 |---|---|---|
 | `10-backlog/` | Backlog | Planned but waiting on another card |
-| `20-ready/` | Ready | Unblocked and available to start |
+| `20-ready/` | Ready | Unblocked, and portable — any session can start it |
+| `21-ready-win/` | Ready | Unblocked, and requires target-native Windows |
+| `22-ready-mac/` | Ready | Unblocked, and requires target-native macOS |
+| `23-ready-lin/` | Ready | Unblocked, and requires target-native Linux |
 | `30-in-progress/` | In Progress | The current implementation slice |
 | `40-parked/` | Parked | Nothing is in the way but a person or a live service |
-| `50-blocked/` | Blocked | Cannot be executed here; needs a different operating system |
+| `50-blocked/` | Blocked | Something is genuinely unresolved, and it is not a platform, a person, or another card |
 | `60-done/` | Done | Verified terminal state |
 
 Folder placement is authoritative. Front-matter `status` must agree with the
@@ -18,38 +21,64 @@ folder. Move a card rather than copying it, and update dependencies when new
 work is discovered. The two-digit prefix exists so that a directory listing
 sorts the lanes in workflow order rather than alphabetically.
 
-The two lanes at the end both mean "this card is not going to move", and they
-are separated because the reasons are answered by different things. Neither is
-terminal.
+### Ready, and ready where
 
-`50-blocked/` holds a card whose own remaining work cannot be executed on this
-host because it requires target-native execution on a different operating
-system, together with any card whose every unmet dependency resolves only
-through such a card. Each one carries a `blocked_by` field naming the exact
-platform: `platform-linux`, `platform-windows`, or
-`platform-linux-and-windows`. A card returns to `10-backlog/` or `20-ready/` on
-the day the platform exists.
+A lane has to tell a session what it can actually start. That is the whole
+reason the ready lanes split by platform, and it took two wrong answers to get
+here.
+
+[[BPR-0319]] created `50-blocked/` for work needing an operating system this
+checkout did not have. [[BPR-0358]] then argued the opposite: the project owns a
+Windows 11 x64 host, so a Windows card is a queue position rather than a
+hardware wait, and it moved nine cards back into active lanes. Both readings are
+defensible and both were useless in practice. The first told a macOS session
+that work was blocked when the machine existed; the second told it the work was
+active when the session could not touch it. Either way, the only way to learn
+that nothing here was startable was to read the cards.
+
+So `2X-ready-<platform>/` says the true thing: the work is *ready*. It is
+specified, its blockers are gone, and it will run the day a session opens on
+that host. It is ready somewhere else.
+
+- `20-ready/` is ready **and portable** — the lane a session picks from when it
+  does not care which machine it is on.
+- `21-ready-win/`, `22-ready-mac/`, `23-ready-lin/` are ready **on that
+  platform**. A session that is not on it skips the lane; a session that is
+  reads it as its queue.
+- All four carry `status: Ready`. The folder names the platform, and a second
+  copy of that fact in front matter is a second thing to keep in sync.
+- The platform lanes **defer**, exactly as `50-blocked/` did: a card in one may
+  still have an unmet dependency. The platform is why it is not in `20-ready/`;
+  the dependency graph is a separate question and stays in `depends_on`.
+
+`50-blocked/` survives that change with a narrower and more honest meaning:
+something is genuinely unresolved. Not a platform, which is a lane; not a
+person, which is `40-parked/`; not another card, which is `depends_on`. Its
+`blocked_by` field is a free token rather than a closed set, because the
+blockers worth recording are the ones nobody enumerated in advance — and
+`scripts/verify_documentation.py` rejects a `platform-` value there, since
+naming a platform would hide the card from the session that could run it.
+
+When a card mixes portable work with work that needs another platform, split the
+platform part into its own card so the generic part stays workable. That is
+product-owner direction, given 2026-08-22. It has one condition: the portable
+half must be *verifiable* here. A slice whose only proof is a target-native run
+is not separable, and splitting it manufactures a card that cannot close —
+[[BPR-0360]] and [[BPR-0364]] both considered exactly that split and correctly
+declined it.
 
 `40-parked/` holds a card whose every dependency is already done, and whose own
 remaining work needs a person or a live service. Each one carries a `parked_on`
 field: `awaiting-owner-verdict` for a person who must look, click, or return an
 exported verdict; `awaiting-live-github` for a real GitHub call against a
 designated target; `awaiting-product-decision` for a decision nobody has made
-yet. A card returns to `20-ready/` when the verdict, the session, or the
+yet. A card returns to a ready lane when the verdict, the session, or the
 decision arrives.
 
-Both halves of that rule carry weight. A parked card is a *frontier root* —
-nothing is queued in front of it, so it is the only kind of open card someone
-could act on today. That is enforced rather than asserted: `40-parked/` is not
-a deferring lane, so the dependency check fails a parked card that still has an
-unmet dependency.
-
-Unlike `50-blocked/`, this lane takes no transitive dependents, and the counts
-are why. The platform closure is three cards. The person-and-service closure is
-most of the board, because nearly every open card reaches an attended verdict or
-a live call eventually — folding it in would empty `10-backlog/` and leave it
-meaning nothing. So `10-backlog/` keeps its own meaning: waiting on another
-card, which `depends_on` already records exactly.
+A parked card is a *frontier root* — nothing is queued in front of it, so it is
+the only kind of open card someone could act on today. That is enforced rather
+than asserted: `40-parked/` is not a deferring lane, so the dependency check
+fails a parked card that still has an unmet dependency.
 
 Each card links one RFC, names its dependencies, defines completion evidence,
 and is committed with the implementation slice it tracks. RFC closeout is
@@ -697,21 +726,20 @@ only places work can actually start.
 This used to be a hand-maintained list, and it drifted — it claimed BPR-0262
 was waiting on an operator statement that the card's own text records as
 already given. The lanes carry it now. A frontier root is a card in
-`40-parked/`, `50-blocked/`, or an active lane, and the lane says which of the
-three answers it needs:
+`40-parked/`, `50-blocked/`, or an active lane — including the per-platform
+ready lanes — and the lane says which answer it needs:
 
 | Root | Lane | Needs |
 |---|---|---|
-| BPR-0347 | `30-in-progress/` | A Windows session. The suite runs on the project's Windows 11 x64 host and its own remaining failures are the work; nothing else is in the way |
-| BPR-0358 | `30-in-progress/` | A Windows session. Its own five required-final-state bullets are met; it stays open as the anchor for the Windows program it records |
-| BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; an immediate credential-free REST diagnostic returned HTTP 404, the approval stayed unconsumed and was deleted, and no mutation occurred. v004 must not be retried |
-| BPR-0417 | `20-ready/` | Nothing. [[BPR-0416]] is done, so the tree now carries depth and the missing piece is content: a conversation with real reply depth, which is [[BPR-0211]]'s own precondition and still unmet |
-| BPR-0414 | `20-ready/` | Nothing. The same verdict named a gap in the shipped drawer: the root comment is not anchored to its line. The geometry exists and is unwired; two data gaps bound how far it can go |
+| BPR-0414 | `20-ready/` | Nothing. The owner named this gap on the 2026-08-21 verdict: the drawer does not anchor a comment to its line. Its wiring half is portable; the question of whether the body belongs in the code view goes back to the owner |
+| BPR-0417 | `20-ready/` | Nothing. [[BPR-0416]] landed the depth, so what is missing is content — and the card now carries the measured cost of both routes to it |
+| BPR-0036, BPR-0053, BPR-0311, BPR-0315, BPR-0347, BPR-0350, BPR-0358, BPR-0360, BPR-0364, BPR-0412 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]] and [[BPR-0350]] are the head of the chain and the rest queue behind them |
+| BPR-0310, BPR-0314 | `23-ready-lin/` | A Linux session. Both also have unmet dependencies of their own, which the platform lane defers exactly as the blocked lane did |
+| BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
+| BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; v004 must not be retried |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
-| BPR-0240 | `30-in-progress/` | A Windows session. Done BPR-0334 removed the duplicated portable protocol policy, but `windows_agent_process.cpp` still has never been compiled and only a Windows toolchain can prove its HANDLE/Job/cancellation transport |
-| BPR-0362 | `40-parked/` | A product decision nobody has made yet |
-| BPR-0310, BPR-0314 | `50-blocked/` | A Linux host; both are `platform-linux` |
+| BPR-0362 | `40-parked/` | A product decision nobody has made yet. It gates 41 backlog cards, which makes it the highest-leverage unanswered question on this board |
 
 This table had drifted and is corrected above rather than quietly patched. It
 listed BPR-0262 as a `20-ready/` root; that card is in `60-done/`. BPR-0220 was
@@ -727,8 +755,9 @@ The count was sixteen because those two were missing.
 
 `scripts/verify_documentation.py` now derives this table's rows from the lanes
 and fails when they disagree, so a card entering or leaving `20-ready/`,
-`30-in-progress/`, `40-parked/`, or `50-blocked/` cannot be omitted, listed
-under the wrong lane, or left behind after it closes.
+`21-ready-win/`, `22-ready-mac/`, `23-ready-lin/`, `30-in-progress/`,
+`40-parked/`, or `50-blocked/` cannot be omitted, listed under the wrong lane,
+or left behind after it closes.
 
 What the derivation cannot check is whether a lane is the *right* one, and
 [[BPR-0413]] found two rows where it was not. BPR-0211 and BPR-0212 sat in
@@ -765,7 +794,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these eleven roots or reaches one
+card on this board is either one of these nineteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 56 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
@@ -776,21 +805,15 @@ have at least one direct dependency outside the terminal lane.
 
 So the honest summary is narrower than the one this section used to give.
 That summary was written when hardware was the largest single blocker. It no
-longer is. A Windows host arrived, and `40-parked/` and `50-blocked/` now hold
-the cards waiting on a person, a product decision, a live service, or a Linux
-host. The Windows roots are ordinary work again, which is why the table above
-now opens with active-lane cards that need nothing but implementation. The
-accepted v006 attended batch then closed BPR-0233, BPR-0257, and BPR-0258
-together.
+longer is: a Windows host arrived, and the accepted v006 attended batch closed
+BPR-0233, BPR-0257, and BPR-0258 together.
 
-One caveat the lane names cannot carry: "this host" is the project's, not any
-one session's. The Windows roots are executable on the Windows 11 x64 machine
-BPR-0358 recorded, and are not executable from a macOS session. That is a queue
-position, not a `50-blocked/` condition, and the cards stay in their active
-lanes. BPR-0358 states the admission rule that settles it — `50-blocked/` takes
-a card only when its work "requires target-native execution on a **different**
-operating system" — and returning these would make the lane mean "was blocked
-once", which is the reading BPR-0319 built it to prevent.
+The caveat this section used to carry — "'this host' is the project's, not any
+one session's", so Windows work stays in active lanes as a queue position — is
+retired by [[BPR-0419]]. It was true and unhelpful. A macOS session still had to
+read every card to discover it could start none of them. The lanes say it now:
+the Windows program sits in `21-ready-win/`, which is a queue for the machine
+that can run it and an empty shelf for every other session.
 
 This section used to draw a stronger consequence: **"No unattended work on this
 board is executable from a macOS session today."** [[BPR-0402]] retired that

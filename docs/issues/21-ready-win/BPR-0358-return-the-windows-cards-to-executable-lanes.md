@@ -1,7 +1,7 @@
 ---
 id: BPR-0358
 title: Return the Windows cards to executable lanes
-status: In Progress
+status: Ready
 rfc: RFC-BPR-0013
 depends_on: []
 ---

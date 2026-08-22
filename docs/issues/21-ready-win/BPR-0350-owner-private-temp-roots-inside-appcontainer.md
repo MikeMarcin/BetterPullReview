@@ -1,7 +1,7 @@
 ---
 id: BPR-0350
 title: Owner-private temporary roots are unusable inside an AppContainer
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0008
 depends_on: [BPR-0347, BPR-0360]
 ---

@@ -57,6 +57,9 @@ class IssueGraphTests(unittest.TestCase):
             "50-blocked",
             "40-parked",
             "20-ready",
+            "21-ready-win",
+            "22-ready-mac",
+            "23-ready-lin",
             "30-in-progress",
             "60-done",
         )
@@ -130,17 +133,34 @@ class IssueGraphTests(unittest.TestCase):
             "50-blocked",
             "Blocked",
             "",
-            blocked_by="platform-windows",
+            blocked_by="upstream-toolchain-defect",
         )
         self.write_card(
             "BPR-0002",
             "50-blocked",
             "Blocked",
             "BPR-0001",
-            blocked_by="platform-windows",
+            blocked_by="upstream-toolchain-defect",
         )
 
         self.verify("BPR-0003")
+
+    def test_accepts_platform_ready_card_with_open_dependency(self) -> None:
+        """A platform lane defers exactly as the blocked lane it replaced did.
+
+        The platform is why the card is not in `20-ready/`; its dependency
+        graph is a separate question and stays in `depends_on`.
+        """
+        self.write_card("BPR-0001", "21-ready-win", "Ready", "")
+        self.write_card("BPR-0002", "21-ready-win", "Ready", "BPR-0001")
+
+        self.verify("BPR-0003")
+
+    def test_rejects_platform_ready_card_with_wrong_status(self) -> None:
+        self.write_card("BPR-0001", "23-ready-lin", "Blocked", "")
+
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0002")
 
     def test_rejects_blocked_card_without_blocked_by(self) -> None:
         self.write_card("BPR-0001", "50-blocked", "Blocked", "")
@@ -148,13 +168,46 @@ class IssueGraphTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.verify("BPR-0002")
 
-    def test_rejects_unknown_blocked_by_value(self) -> None:
+    def test_accepts_a_real_blocker_reason(self) -> None:
+        """`50-blocked/` is for something genuinely unresolved.
+
+        The value is a free token rather than a closed set, because the
+        interesting blockers are the ones nobody enumerated in advance.
+        """
         self.write_card(
             "BPR-0001",
             "50-blocked",
             "Blocked",
             "",
-            blocked_by="waiting-on-the-product-owner",
+            blocked_by="waiting-on-an-upstream-fix",
+        )
+
+        self.verify("BPR-0002")
+
+    def test_rejects_a_platform_as_a_blocker(self) -> None:
+        """A platform is a lane, not a blocker.
+
+        Naming one here would hide the card from the session that could
+        actually run it, which is the failure the platform lanes exist to fix.
+        """
+        self.write_card(
+            "BPR-0001",
+            "50-blocked",
+            "Blocked",
+            "",
+            blocked_by="platform-windows",
+        )
+
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0002")
+
+    def test_rejects_malformed_blocked_by_value(self) -> None:
+        self.write_card(
+            "BPR-0001",
+            "50-blocked",
+            "Blocked",
+            "",
+            blocked_by="Waiting On Something",
         )
 
         with self.assertRaises(SystemExit):
@@ -1027,6 +1080,9 @@ class OperatorPacketRecordTests(unittest.TestCase):
             "50-blocked",
             "40-parked",
             "20-ready",
+            "21-ready-win",
+            "22-ready-mac",
+            "23-ready-lin",
             "30-in-progress",
         ):
             (self.root / "docs/issues" / lane).mkdir(parents=True)
@@ -1207,6 +1263,9 @@ class FrontierRootsTests(unittest.TestCase):
         for lane in (
             "10-backlog",
             "20-ready",
+            "21-ready-win",
+            "22-ready-mac",
+            "23-ready-lin",
             "30-in-progress",
             "40-parked",
             "50-blocked",
@@ -1258,6 +1317,23 @@ class FrontierRootsTests(unittest.TestCase):
         )
 
         verify_frontier_roots(self.root)
+
+    def test_derives_a_platform_ready_lane(self) -> None:
+        self.write_card("BPR-0001", "21-ready-win")
+        self.write_card("BPR-0002", "23-ready-lin")
+        self.write_readme(
+            "| BPR-0001 | `21-ready-win/` | A Windows session |\n"
+            "| BPR-0002 | `23-ready-lin/` | A Linux session |\n",
+            "two",
+        )
+
+        verify_frontier_roots(self.root)
+
+    def test_rejects_an_omitted_platform_root(self) -> None:
+        self.write_card("BPR-0001", "21-ready-win")
+        self.write_readme("", "zero")
+
+        self.reject()
 
     def test_rejects_an_omitted_root(self) -> None:
         self.write_card("BPR-0001", "40-parked")
