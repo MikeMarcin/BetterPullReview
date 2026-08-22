@@ -1,6 +1,8 @@
 #include "github_projection_mapping.hpp"
 
+#include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 
 namespace bpr::application {
@@ -102,6 +104,57 @@ namespace bpr::application {
 		{
 			return aAuthor.has_value() ? aAuthor->Login : std::string{ };
 		}
+
+		using review_comments_by_id
+			= std::unordered_map<std::string_view, const github_review_comment_record*>;
+
+		/// \brief Resolves the parent identity of one review comment.
+		///
+		/// A reply's parent is the comment it replied to, so that the projected
+		/// forest carries the shape GitHub reported rather than one flattened
+		/// against the thread. Three inputs cannot produce that shape and each
+		/// falls back to the thread root, because a projection that drops a
+		/// comment is worse than one that under-nests it:
+		///
+		/// - no `ReplyTo`, which is what a thread's first comment carries;
+		/// - a `ReplyTo` naming a comment outside this thread, which happens
+		///   when the target was deleted or fell outside the fetched page;
+		/// - a chain that never reaches a comment without a `ReplyTo`, which a
+		///   cycle produces and which would otherwise leave every comment in
+		///   the cycle descending from no root at all.
+		[[nodiscard]] auto review_comment_parent(
+			const github_review_comment_record& aComment,
+			const review_comments_by_id&        aCommentsById,
+			const std::string_view              aThreadId) -> std::string
+		{
+			auto threadRoot = std::string{ aThreadId };
+			if (!aComment.ReplyTo.has_value()) {
+				return threadRoot;
+			}
+			const auto target = aCommentsById.find(aComment.ReplyTo->value());
+			if (target == aCommentsById.end()) {
+				return threadRoot;
+			}
+
+			// Walk upward from the target. Every comment in the thread can be
+			// visited at most once before a chain must have terminated, so a
+			// walk that outlives that bound is in a cycle.
+			const auto* walk = target->second;
+			for (auto remaining = aCommentsById.size(); remaining != 0U; --remaining) {
+				if (!walk->ReplyTo.has_value()) {
+					return prefixed_id("review-comment:", aComment.ReplyTo->value());
+				}
+				const auto next = aCommentsById.find(walk->ReplyTo->value());
+				if (next == aCommentsById.end()) {
+					// The chain leaves the thread, so the comment it leaves
+					// through takes the thread root and this one still descends
+					// from it.
+					return prefixed_id("review-comment:", aComment.ReplyTo->value());
+				}
+				walk = next->second;
+			}
+			return threadRoot;
+		}
 	}
 
 	auto project_github_transition(const core::github_transition_output& aOutput)
@@ -169,10 +222,17 @@ namespace bpr::application {
 				.Resolved    = thread.Resolved,
 				.Outdated    = thread.Outdated,
 			});
+			auto commentsById = review_comments_by_id{ };
+			commentsById.reserve(thread.Comments.size());
+			for (const auto& comment : thread.Comments) {
+				commentsById.try_emplace(comment.Comment.value(), &comment);
+			}
+
 			for (const auto& comment : thread.Comments) {
 				conversations.push_back(github_conversation_projection{
-					.Id          = prefixed_id("review-comment:", comment.Comment.value()),
-					.ParentId    = threadId,
+					.Id = prefixed_id("review-comment:", comment.Comment.value()),
+					.ParentId
+					= review_comment_parent(comment, commentsById, threadId),
 					.Kind        = github_conversation_kind::review_comment,
 					.AuthorLogin = author_login(comment.Author),
 					.Body        = comment.Body,

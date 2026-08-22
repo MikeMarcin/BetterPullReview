@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -105,12 +106,38 @@ namespace {
 				&& value.ParentId.has_value() && *value.ParentId != identity) {
 				if (const auto candidate = result.ValueById.find(*value.ParentId);
 					candidate != result.ValueById.end()
-					&& candidate->second.Kind
-						== conversation_kind::review_thread) {
+					&& (candidate->second.Kind == conversation_kind::review_thread
+						|| candidate->second.Kind
+							== conversation_kind::review_comment)) {
 					parent = *value.ParentId;
 				}
 			}
 			result.ParentById.emplace(identity, std::move(parent));
+		}
+
+		// Mirror the model's cycle break: every node on a chain that never
+		// terminates becomes a root, so that no row is lost to an unexpected
+		// shape. Decided by reading the parent map rather than rewriting it as
+		// it is walked, because an in-place break depends on container order
+		// and can produce two different trees from one input.
+		std::unordered_set<std::string> promoteToRoot;
+		for (const auto& [identity, parent] : result.ParentById) {
+			auto walk = parent;
+			for (auto remaining = result.ParentById.size(); walk.has_value();
+				 --remaining) {
+				if (remaining == 0U) {
+					promoteToRoot.insert(identity);
+					break;
+				}
+				const auto next = result.ParentById.find(*walk);
+				if (next == result.ParentById.end()) {
+					break;
+				}
+				walk = next->second;
+			}
+		}
+		for (const auto& identity : promoteToRoot) {
+			result.ParentById.at(identity).reset();
 		}
 
 		std::unordered_set<std::string> ordered;
@@ -365,73 +392,62 @@ namespace {
 
 		const auto  validateEveryLookup = aExpected.ValueById.size() <= 512U;
 		std::size_t visited             = 0;
-		for (std::size_t rootRow = 0; rootRow < aExpected.Roots.size(); ++rootRow) {
-			const auto  root     = aModel.index(static_cast<int>(rootRow), 0, QModelIndex{ });
-			const auto& identity = aExpected.Roots[rootRow];
-			expect(
-				root.row() == static_cast<int>(rootRow),
-				aSuite,
-				aCaseNumber,
-				"root index reports its exact row");
-			expect(
-				!aModel.parent(root).isValid(),
-				aSuite,
-				aCaseNumber,
-				"root index has no parent");
-			validate_index(
-				aModel,
-				root,
-				identity,
-				aExpected,
-				aSuite,
-				aCaseNumber,
-				validateEveryLookup);
-			++visited;
 
-			const auto children   = aExpected.Children.find(identity);
-			const auto childCount = children == aExpected.Children.end()
-				? 0U
-				: children->second.size();
+		// Descend to whatever depth the projection carries. This walk was fixed at
+		// root and child while every comment's parent was its own thread; a comment
+		// now nests under the comment it replied to, so a two-level walk would stop
+		// above the rows it exists to check and report a pass for rows it never
+		// visited.
+		std::function<void(const QModelIndex&, const std::vector<std::string>&)> walk;
+		walk = [&](const QModelIndex&              aParent,
+				   const std::vector<std::string>& aIdentities) {
 			expect(
-				aModel.rowCount(root) == static_cast<int>(childCount),
+				aModel.rowCount(aParent) == static_cast<int>(aIdentities.size()),
 				aSuite,
 				aCaseNumber,
-				"child row count matches normalized projection");
+				"row count matches normalized projection at every depth");
 			expect(
-				aModel.columnCount(root) == 1,
+				aModel.columnCount(aParent) == 1,
 				aSuite,
 				aCaseNumber,
-				"root child collection exposes exactly one column");
+				"every child collection exposes exactly one column");
 
-			for (std::size_t childRow = 0; childRow < childCount; ++childRow) {
-				const auto  child         = aModel.index(static_cast<int>(childRow), 0, root);
-				const auto& childIdentity = children->second[childRow];
+			for (std::size_t row = 0; row < aIdentities.size(); ++row) {
+				const auto  index    = aModel.index(static_cast<int>(row), 0, aParent);
+				const auto& identity = aIdentities[row];
 				expect(
-					child.row() == static_cast<int>(childRow),
+					index.row() == static_cast<int>(row),
 					aSuite,
 					aCaseNumber,
-					"child index reports its exact row");
+					"index reports its exact row");
 				expect(
-					aModel.parent(child) == root,
+					aModel.parent(index) == aParent,
 					aSuite,
 					aCaseNumber,
-					"child index returns the exact root parent");
-				expect(
-					aModel.rowCount(child) == 0,
-					aSuite,
-					aCaseNumber,
-					"normalized conversation tree has only root and child levels");
+					"index returns the exact parent it was reached through");
 				validate_index(
 					aModel,
-					child,
-					childIdentity,
+					index,
+					identity,
 					aExpected,
 					aSuite,
 					aCaseNumber,
 					validateEveryLookup);
 				++visited;
+
+				const auto children = aExpected.Children.find(identity);
+				if (children == aExpected.Children.end()) {
+					expect(
+						aModel.rowCount(index) == 0,
+						aSuite,
+						aCaseNumber,
+						"a node with no normalized children exposes no rows");
+					continue;
+				}
+				walk(index, children->second);
 			}
-		}
+		};
+		walk(QModelIndex{ }, aExpected.Roots);
 
 		expect(
 			visited == aExpected.ValueById.size(),
@@ -475,16 +491,36 @@ namespace {
 		return result;
 	}
 
+	/// The model rebuilds a subtree when a node is reparented, which invalidates
+	/// the persistent indexes of everything beneath it. Comparing only the
+	/// node's own parent was sufficient while every parent was a root: nothing
+	/// could sit between a node and the top. A comment now nests under the
+	/// comment it replied to, so an ancestor several levels up can move while
+	/// this node's own parent identity is untouched, and the index still dies
+	/// with the subtree. The guarantee this asserts is therefore the exact one
+	/// the model provides: an unchanged ancestor chain preserves the index.
 	[[nodiscard]] auto preserves_persistent_index(
 		const expected_tree& aBefore,
 		const expected_tree& aAfter,
 		const std::string&   aIdentity) -> bool
 	{
-		const auto priorParent = aBefore.ParentById.find(aIdentity);
-		const auto nextParent  = aAfter.ParentById.find(aIdentity);
-		return priorParent != aBefore.ParentById.end()
-			&& nextParent != aAfter.ParentById.end()
-			&& priorParent->second == nextParent->second;
+		auto identity = aIdentity;
+		for (auto remaining = aBefore.ParentById.size() + 1U; remaining != 0U;
+			 --remaining) {
+			const auto priorParent = aBefore.ParentById.find(identity);
+			const auto nextParent  = aAfter.ParentById.find(identity);
+			if (
+				priorParent == aBefore.ParentById.end()
+				|| nextParent == aAfter.ParentById.end()
+				|| priorParent->second != nextParent->second) {
+				return false;
+			}
+			if (!priorParent->second.has_value()) {
+				return true;
+			}
+			identity = *priorParent->second;
+		}
+		return false;
 	}
 
 	struct varied_role_coverage

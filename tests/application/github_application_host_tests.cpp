@@ -904,6 +904,16 @@ namespace {
 					.Outdated = true,
 					.Deleted  = true,
 				},
+				application::github_review_comment_record{
+					.Comment  = application::github_comment_id{ "review-comment-3" },
+					.ReplyTo  = application::github_comment_id{ "review-comment-2" },
+					.Author   = reviewer,
+					.Body     = "Third level",
+					.Path     = std::string{ path },
+					.Line     = 42U,
+					.Outdated = false,
+					.Deleted  = false,
+				},
 			},
 		});
 		result.IssueComments.push_back(application::github_issue_comment_record{
@@ -1538,7 +1548,7 @@ namespace {
 					== projected_rate_limits(acceptedSnapshot.RateLimits),
 			"pull-request projection retains presentation-safe snapshot facts");
 		expect(
-			pullRequest.Conversations.size() == 5U
+			pullRequest.Conversations.size() == 6U
 				&& pullRequest.Conversations[0U].Id == "review:review-1"
 				&& pullRequest.Conversations[1U].Id
 					== "review-thread:thread-1"
@@ -1547,6 +1557,8 @@ namespace {
 				&& pullRequest.Conversations[3U].Id
 					== "review-comment:review-comment-2"
 				&& pullRequest.Conversations[4U].Id
+					== "review-comment:review-comment-3"
+				&& pullRequest.Conversations[5U].Id
 					== "issue-comment:issue-comment-1",
 			"review conversation identities are stable, prefixed, and ordered");
 
@@ -1554,7 +1566,8 @@ namespace {
 		const auto& thread       = pullRequest.Conversations[1U];
 		const auto& threadRoot   = pullRequest.Conversations[2U];
 		const auto& threadReply  = pullRequest.Conversations[3U];
-		const auto& issueComment = pullRequest.Conversations[4U];
+		const auto& deepReply    = pullRequest.Conversations[4U];
+		const auto& issueComment = pullRequest.Conversations[5U];
 		expect(
 			review.Kind == application::github_conversation_kind::review
 				&& !review.ParentId.has_value()
@@ -1583,12 +1596,17 @@ namespace {
 		expect(
 			threadReply.Kind
 					== application::github_conversation_kind::review_comment
-				&& threadReply.ParentId == thread.Id
+				&& threadReply.ParentId == threadRoot.Id
 				&& threadReply.AuthorLogin == "octo-author"
 				&& threadReply.Body == "Follow-up"
 				&& threadReply.Resolved && threadReply.Outdated
 				&& threadReply.Deleted,
-			"reply review comment retains thread state and comment flags");
+			"reply review comment nests under the comment it replied to and "
+			"retains thread state and comment flags");
+		expect(
+			deepReply.ParentId == threadReply.Id,
+			"a reply to a reply nests three levels deep rather than flattening "
+			"against the thread");
 		expect(
 			issueComment.Kind
 					== application::github_conversation_kind::issue_comment

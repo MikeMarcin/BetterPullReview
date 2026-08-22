@@ -317,14 +317,52 @@ namespace bpr::qt {
 			if (
 				value->Kind == application::github_conversation_kind::review_comment
 				&& value->ParentId.has_value() && *value->ParentId != identity) {
+				// A comment nests under its thread or under the comment it
+				// replied to. The projection resolves the reply edge and
+				// guarantees every chain terminates at a thread, so accepting a
+				// comment parent here cannot orphan a row.
 				if (const auto parent = desiredByIdentity.find(*value->ParentId);
 					parent != desiredByIdentity.end()
-					&& parent->second->Kind
-						== application::github_conversation_kind::review_thread) {
+					&& (parent->second->Kind
+							== application::github_conversation_kind::review_thread
+						|| parent->second->Kind
+							== application::github_conversation_kind::review_comment)) {
 					parentIdentity = *value->ParentId;
 				}
 			}
 			desiredParent.emplace(identity, std::move(parentIdentity));
+		}
+
+		// A parent chain that never terminates descends from no root, so the
+		// rows in it would be built and then attached to nothing. Promote every
+		// node on such a chain to a root instead: an unexpected shape should
+		// cost nesting, never a row. The projection resolves reply edges so
+		// this cannot arise from GitHub, but the model is fed by whoever calls
+		// it.
+		//
+		// The decision reads the parent map and never writes it, so it does not
+		// depend on the order an unordered container happens to iterate in.
+		// Breaking a cycle in place does: whichever member was visited first
+		// became the root, and the same input could produce two different
+		// trees.
+		std::unordered_set<std::string> promoteToRoot;
+		for (const auto& [identity, parentIdentity] : desiredParent) {
+			auto walk = parentIdentity;
+			for (auto remaining = desiredParent.size(); walk.has_value();
+				 --remaining) {
+				if (remaining == 0U) {
+					promoteToRoot.insert(identity);
+					break;
+				}
+				const auto next = desiredParent.find(*walk);
+				if (next == desiredParent.end()) {
+					break;
+				}
+				walk = next->second;
+			}
+		}
+		for (const auto& identity : promoteToRoot) {
+			desiredParent.at(identity).reset();
 		}
 
 		std::vector<const conversation*> desiredRoots;

@@ -705,7 +705,7 @@ three answers it needs:
 | BPR-0347 | `30-in-progress/` | A Windows session. The suite runs on the project's Windows 11 x64 host and its own remaining failures are the work; nothing else is in the way |
 | BPR-0358 | `30-in-progress/` | A Windows session. Its own five required-final-state bullets are met; it stays open as the anchor for the Windows program it records |
 | BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; an immediate credential-free REST diagnostic returned HTTP 404, the approval stayed unconsumed and was deleted, and no mutation occurred. v004 must not be retried |
-| BPR-0416 | `30-in-progress/` | Nothing. The first slice of the chosen Treeverse map: carry the reply edge into the tree, which is the cross-layer change an independent review found missing from the original one-line cost |
+| BPR-0417 | `20-ready/` | Nothing. [[BPR-0416]] is done, so the tree now carries depth and the missing piece is content: a conversation with real reply depth, which is [[BPR-0211]]'s own precondition and still unmet |
 | BPR-0414 | `20-ready/` | Nothing. The same verdict named a gap in the shipped drawer: the root comment is not anchored to its line. The geometry exists and is unwired; two data gaps bound how far it can go |
 | BPR-0415 | `20-ready/` | Nothing. The revision-axis acceptance authorizes writing the RFC, which is this card; [[BPR-0212]] stays the recorded seed rather than being worked as a slice |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
@@ -764,11 +764,11 @@ drawer does not anchor a comment to its line, which is [[BPR-0414]].
 The table is the complete frontier rather than a selection from it. Every open
 card on this board is either one of these twelve roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
-of the 58 cards in `10-backlog/`, **none** has all its dependencies in
+of the 57 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
 
 The post-BPR-0334 audit on 2026-08-21 found no backlog dependency on that
-card, so its move to `60-done/` promoted nothing. All 58 backlog cards still
+card, so its move to `60-done/` promoted nothing. All 57 backlog cards still
 have at least one direct dependency outside the terminal lane.
 
 So the honest summary is narrower than the one this section used to give.

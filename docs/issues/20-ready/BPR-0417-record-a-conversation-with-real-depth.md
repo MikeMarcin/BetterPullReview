@@ -1,7 +1,7 @@
 ---
 id: BPR-0417
 title: Record a conversation fixture with real reply depth
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0005
 depends_on: [BPR-0416]
 ---
