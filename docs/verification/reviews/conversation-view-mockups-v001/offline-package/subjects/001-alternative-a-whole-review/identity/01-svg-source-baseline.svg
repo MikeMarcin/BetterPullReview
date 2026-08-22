@@ -8,8 +8,9 @@
 	<text x="1379" y="62" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#7A5A0B" text-anchor="middle">MOCKUP - NOT IMPLEMENTED</text>
 	<line x1="56" y1="1472" x2="1544" y2="1472" stroke="#8C8C8C" stroke-width="1"/>
 	<text x="56" y="1504" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">Every row above is painted by github_conversation_delegate.cpp:68-144: heading, body, then a facts line joined with "  ·  ".</text>
-	<text x="56" y="1532" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">There are no lane rails and no git-graph rendering anywhere in the shipped code; BPR-0191 narrowed that language to mean filtering by thread.</text>
-	<text x="56" y="1560" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">Note the heading on every comment. A thread's first comment reads "Reply by" too, because the delegate asks whether the row has a parent and every comment's parent is the thread.</text>
+	<text x="56" y="1532" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">There are no lane rails and no git-graph rendering in the shipped code. You asked for that style in BPR-0191; the reading that "filtering by lane means</text>
+	<text x="56" y="1560" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">filtering by thread" is that card's own argument, not something you said - see mockup 05, which draws what you asked for so it can be decided rather than assumed.</text>
+	<text x="56" y="1588" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">A thread's first comment reads "Reply by" too, because the delegate asks whether the row has a parent and every comment's parent is the thread.</text>
 	<rect x="56" y="180" width="760" height="1180" fill="#FFFFFF" rx="10" stroke="#D4D9E0" stroke-width="1"/>
 	<rect x="56" y="180" width="760" height="56" fill="#F0F2F5" rx="10"/>
 	<rect x="56" y="220" width="760" height="16" fill="#F0F2F5"/>
@@ -97,27 +98,27 @@
 	<rect x="844" y="292" width="700" height="62" fill="#F2F6FC" rx="4"/>
 	<text x="864" y="318" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Review thread</text>
 	<text x="864" y="346" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214  ·  Open</text>
-	<text x="902" y="390" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by dcarter</text>
+	<text x="902" y="390" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by @dcarter</text>
 	<text x="902" y="418" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">begin() on a const document returns a const_iterator already;</text>
 	<text x="902" y="446" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214</text>
 	<line x1="884" y1="364" x2="884" y2="452" stroke="#D4D9E0" stroke-width="2"/>
-	<text x="902" y="492" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by mikemarcin</text>
+	<text x="902" y="492" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by @mikemarcin</text>
 	<text x="902" y="520" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">It does, but the overload set makes that accidental. Keep cbegin().</text>
 	<text x="902" y="548" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214</text>
 	<line x1="884" y1="466" x2="884" y2="554" stroke="#D4D9E0" stroke-width="2"/>
-	<text x="902" y="594" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by apatel</text>
+	<text x="902" y="594" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by @apatel</text>
 	<text x="902" y="622" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">Agreed - it also matches the cend() below it.</text>
 	<text x="902" y="650" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214</text>
 	<line x1="884" y1="568" x2="884" y2="656" stroke="#D4D9E0" stroke-width="2"/>
 	<text x="864" y="710" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Review thread</text>
 	<text x="864" y="738" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214  ·  Resolved</text>
-	<text x="902" y="782" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by rlindgren</text>
+	<text x="902" y="782" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by @rlindgren</text>
 	<text x="902" y="810" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">Does this still hold when the document is empty?</text>
 	<text x="902" y="838" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:214  ·  Resolved</text>
 	<line x1="884" y1="756" x2="884" y2="844" stroke="#D4D9E0" stroke-width="2"/>
 	<text x="864" y="898" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Review thread</text>
 	<text x="864" y="926" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:288  ·  Open  ·  Outdated</text>
-	<text x="902" y="970" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by dcarter</text>
+	<text x="902" y="970" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Reply by @dcarter</text>
 	<text x="902" y="998" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#24292F">This branch is unreachable after the rewrite above.</text>
 	<text x="902" y="1026" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#5B6570">src/core/src/diff_alignment.cpp:288  ·  Outdated</text>
 	<line x1="884" y1="944" x2="884" y2="1032" stroke="#D4D9E0" stroke-width="2"/>

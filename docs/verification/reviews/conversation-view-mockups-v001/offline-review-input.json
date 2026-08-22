@@ -2,7 +2,7 @@
   "schema_name": "bpr.attended_review_batch_input",
   "schema_version": 1,
   "project_id": "betterpullreview",
-  "title": "Which secondary conversation view, if any (BPR-0211, BPR-0212)",
+  "title": "Which conversation views should exist (BPR-0191, BPR-0211, BPR-0212)",
   "review_gate": "conversation_view_direction",
   "review_scope": "product_direction_mockup_only",
   "downstream_claims": {
@@ -11,9 +11,11 @@
     "bpr_0211_closed": false,
     "bpr_0212_closed": false,
     "recorded_conversation_evidence": false,
-    "release_gate_satisfied": false
+    "release_gate_satisfied": false,
+    "cost_estimates_verified": false,
+    "projection_field_authorized": false
   },
-  "reference_disclaimer": "These are mockups, not screenshots. Nothing shown is implemented, composed, or reachable from the running application: no widget, projection, or fetch was changed to produce them. Each one is generated from checked-in SVG by render_mockups.py, and every colour, row shape, label format and field name in it was read from live source and is cited on the subject. The conversations themselves are invented, because no recorded pull request in this repository carries a conversation at all - the deepest real structure anywhere is a single replyTo edge in a contract fixture. The first image in every comparison is the same baseline: the drawer exactly as it ships today.",
+  "reference_disclaimer": "These are mockups, not screenshots. Nothing shown is implemented, composed, or reachable from the running application. Each is generated from checked-in SVG by render_mockups.py. The product-surface colours and every label format, row shape and field name are read from live source and cited on the subject; the panel borders and the mockup stamp are neutral chrome that no appearance role defines. The conversations are invented, because no recorded pull request in this repository carries a conversation - the deepest real structure in any fixture is a single replyTo edge. The cost lines on each subject are estimates from reading the code, not measured by building anything: an earlier draft of this batch claimed one of them was 'one line' and an independent review falsified it before you saw this page. The first image in every comparison is the same baseline: the drawer as it ships today.",
   "selection_groups": [
     {
       "group_id": "secondary-view",
@@ -35,7 +37,7 @@
       ],
       "known_concerns": [
         "Two surfaces showing the same threads can disagree about what is read, resolved, or selected, and keeping them consistent is ongoing work rather than one slice",
-        "The owner narrowed this drawer to the current file's threads on 2026-08-08 and called a whole-review view 'might be nice' rather than what they typically want; this alternative reopens exactly that decision"
+        "BPR-0191 recorded you saying a whole-review view 'might be nice' but that what you typically want is the anchored one. Read in full, that card re-homed the whole-review idea to BPR-0211 rather than deciding against it, so this is the question it deferred, not a settled one being reopened"
       ],
       "selection_group": "secondary-view",
       "audit_verdict": {
@@ -50,8 +52,14 @@
           "layout": "compare",
           "note": "Click either image to open it full size; arrow keys step between them.",
           "items": [
-            {"label": "Today - the drawer as it ships", "path": "mockups/01-today.png"},
-            {"label": "A - the whole review in one place", "path": "mockups/02-whole-review.png"}
+            {
+              "label": "Today - the drawer as it ships",
+              "path": "mockups/01-today.png"
+            },
+            {
+              "label": "A - the whole review in one place",
+              "path": "mockups/02-whole-review.png"
+            }
           ]
         }
       ],
@@ -69,38 +77,57 @@
           "heading": "Checked against live source",
           "kind": "definitions",
           "items": [
-            {"term": "Row shape", "definition": "src/adapters/qt/src/github_conversation_delegate.cpp:68-144 - heading, body, then facts joined with two-space-dot-two-space"},
-            {"term": "Current filter", "definition": "github_conversation_panel::set_anchor_file keeps whole threads or none, filtered by core::file_identity_of(Path)"},
-            {"term": "Palette", "definition": "src/adapters/qt/src/appearance_profile.cpp:76-103, BetterPullReview Light"}
+            {
+              "term": "Row shape",
+              "definition": "src/adapters/qt/src/github_conversation_delegate.cpp:68-144 - heading, body, then facts joined with two-space-dot-two-space"
+            },
+            {
+              "term": "Current filter",
+              "definition": "github_conversation_panel::set_anchor_file keeps whole threads or none, filtered by core::file_identity_of(Path)"
+            },
+            {
+              "term": "Palette",
+              "definition": "src/adapters/qt/src/appearance_profile.cpp:76-103, BetterPullReview Light"
+            }
           ]
         }
       ],
       "identity_files": [
-        {"label": "SVG source - baseline", "path": "mockups/01-today.svg"},
-        {"label": "SVG source - alternative A", "path": "mockups/02-whole-review.svg"},
-        {"label": "Generator", "path": "render_mockups.py"}
+        {
+          "label": "SVG source - baseline",
+          "path": "mockups/01-today.svg"
+        },
+        {
+          "label": "SVG source - alternative A",
+          "path": "mockups/02-whole-review.svg"
+        },
+        {
+          "label": "Generator",
+          "path": "render_mockups.py"
+        }
       ]
     },
     {
       "subject_id": "direction:/betterpullreview/bpr-0211/treeverse-deep-thread",
       "subject_key": "alternative-b-treeverse",
       "display_name": "B - a Treeverse-style map of one deep thread",
-      "description": "A map of one thread's reply structure, with the path from the root to where you are highlighted and one reply in focus. This is the alternative your own reference points at: Treeverse, which you reach for on Twitter threads because a linear presentation gets confusing at depth. Choose this if the case you hit is 'this one conversation is too tangled to follow inline'. Two things you should weigh before choosing it. First, the reply edge it needs is already fetched: the read model carries ReplyTo per comment and the GraphQL contract validates it, but the projection throws it away and writes the thread root as every comment's parent, so today's tree is two levels deep by construction and this view would need that one line changed. Second, and more seriously, nothing in this repository could exercise it - the conversation drawn here is invented.",
+      "description": "A map of one thread's reply structure, with the path from the root to where you are highlighted and one reply in focus. This is the alternative your own reference points at: Treeverse, which you reach for on Twitter threads because a linear presentation gets confusing at depth. Choose this if the case you hit is 'this one conversation is too tangled to follow inline'. Two things to weigh. First the cost, which an earlier draft of this page got wrong. The reply edge is already fetched and validated - the read model carries ReplyTo per comment - and the projection throws it away at github_projection_mapping.cpp:175, writing the thread root as every comment's parent. That much is true. But changing only that line would make the drawer WORSE: github_conversation_model.cpp:317-326 accepts a parent only when the parent is a review_thread, so every reply would be rejected and promoted to a root, flattening two levels into one. The real change is the mapping, that filter, a fallback for the null ReplyTo a thread's first comment carries, and the tests that encode today's shape. Second, and unchanged: nothing in this repository could exercise it. The conversation drawn here is invented.",
       "acceptance_criteria": [
         "Depth is a real problem worth a second view, not a hypothetical one",
         "A map plus a focused reply is the right shape for it, rather than better inline nesting",
         "It is worth building before a conversation deep enough to need it has ever been recorded"
       ],
       "known_concerns": [
-        "The conversation shown is SYNTHESIZED. No recorded pull request here has any conversation, and the deepest real structure in the tree is one replyTo edge in a contract fixture - so this design has never been seen against real content",
+        "The conversation shown is SYNTHESIZED. No recorded pull request here has any conversation, and the deepest real structure in any fixture is one replyTo edge - so this design has never been seen against real content",
         "BPR-0211's own stated precondition, that a conversation deep or wide enough to be a problem is recorded, is still unmet",
         "GitHub's own review threads are largely flat in practice, so restoring the reply edge may yield less depth than this map suggests",
-        "Needs the projection to carry ReplyTo instead of the thread root - one line, but a model change rather than a pure view"
+        "The cost is not one line. It spans github_projection_mapping.cpp, the Qt model's parent-kind filter, a null-ReplyTo fallback, and two test files; the naive one-line edit flattens the drawer rather than deepening it",
+        "The map legends a per-node read/unread state that the product does not carry. github_conversation_projection has no read flag; the ledger's unread notion is a per-conversation cursor, so that state would have to be built too"
       ],
       "selection_group": "secondary-view",
       "audit_verdict": {
         "status": "pass",
-        "note": "The reply edge this depends on was verified to exist upstream at github_read_model.hpp:233 and to be discarded at github_projection_mapping.cpp:175. The absence of any deep recorded conversation was verified against both PR recordings and the contract fixtures, and is recorded as a concern rather than an audit failure because it bears on the decision, not on whether the mockup is honest."
+        "note": "The reply edge was verified to exist at github_read_model.hpp:233 and to be discarded at github_projection_mapping.cpp:175, and the Qt model's parent-kind filter at github_conversation_model.cpp:317-326 was verified as the reason the mapping change alone is insufficient. The absence of any deep recorded conversation was verified against both PR recordings and all three contract fixtures."
       },
       "media_groups": [
         {
@@ -110,8 +137,14 @@
           "layout": "compare",
           "note": "The same thread renders in today's drawer as a flat list of replies.",
           "items": [
-            {"label": "Today - the drawer as it ships", "path": "mockups/01-today.png"},
-            {"label": "B - a map of one deep thread", "path": "mockups/03-treeverse.png"}
+            {
+              "label": "Today - the drawer as it ships",
+              "path": "mockups/01-today.png"
+            },
+            {
+              "label": "B - a map of one deep thread",
+              "path": "mockups/03-treeverse.png"
+            }
           ]
         }
       ],
@@ -120,8 +153,11 @@
           "heading": "What this would cost",
           "kind": "list",
           "items": [
-            "One projection line: github_projection_mapping.cpp:175 currently writes .ParentId = threadId where comment.ReplyTo is already in scope.",
+            "github_projection_mapping.cpp:175 - carry comment.ReplyTo instead of the thread root, with a fallback for the thread's first comment, whose replyTo is null.",
+            "github_conversation_model.cpp:317-326 - stop rejecting a parent whose Kind is review_comment, or the change above flattens the tree instead of deepening it.",
             "A new map surface plus its focus pane, keyboard navigation, and accessibility.",
+            "Per-comment read state, which nothing currently carries.",
+            "Tests that encode the two-level shape today, in the application host and the Qt panel.",
             "A recorded conversation with real depth, which does not exist yet and cannot be manufactured honestly."
           ]
         },
@@ -129,17 +165,38 @@
           "heading": "The data that does and does not exist",
           "kind": "definitions",
           "items": [
-            {"term": "Fetched", "definition": "replyTo is requested and validated in github_read_contract.cpp and normalized into github_read_model.hpp:233"},
-            {"term": "Discarded", "definition": "github_projection_mapping.cpp:175 writes the thread root as ParentId for every comment"},
-            {"term": "Recorded conversations", "definition": "none; directxmath-336 and uiforetw-74 recordings carry no conversation keys"},
-            {"term": "Deepest real structure", "definition": "one replyTo edge, in tests/fixtures/github/contracts/v1/github-com/responses/review_threads.json"}
+            {
+              "term": "Fetched",
+              "definition": "replyTo is requested and validated in github_read_contract.cpp and normalized into github_read_model.hpp:233"
+            },
+            {
+              "term": "Discarded",
+              "definition": "github_projection_mapping.cpp:175 writes the thread root as ParentId for every comment"
+            },
+            {
+              "term": "Recorded conversations",
+              "definition": "none; directxmath-336 and uiforetw-74 recordings carry no conversation keys"
+            },
+            {
+              "term": "Deepest real structure",
+              "definition": "one replyTo edge, in tests/fixtures/github/contracts/v1/github-com/responses/review_threads.json"
+            }
           ]
         }
       ],
       "identity_files": [
-        {"label": "SVG source - baseline", "path": "mockups/01-today.svg"},
-        {"label": "SVG source - alternative B", "path": "mockups/03-treeverse.svg"},
-        {"label": "Generator", "path": "render_mockups.py"}
+        {
+          "label": "SVG source - baseline",
+          "path": "mockups/01-today.svg"
+        },
+        {
+          "label": "SVG source - alternative B",
+          "path": "mockups/03-treeverse.svg"
+        },
+        {
+          "label": "Generator",
+          "path": "render_mockups.py"
+        }
       ]
     },
     {
@@ -153,9 +210,9 @@
         "It is worth doing before the earlier RFCs in the canonical order close"
       ],
       "known_concerns": [
-        "Whether GitHub exposes the revision a comment was made against, unauthenticated or at all, has not been checked - if it does not, the datum has to be inferred and the whole feature weakens",
+        "The narrow open question is whether the per-comment commit can be read: the review-thread GraphQL selection asks for originalLine but not the comment's commit, and whether it is available unauthenticated has not been checked. An earlier draft of this page put that far more broadly - 'whether GitHub exposes it at all' - which this repository's own code falsifies",
         "This crosses RFC-BPR-0002's conversation model and RFC-BPR-0003's epoch axis, so two owners have to agree before a field is added",
-        "The card explicitly warns against adding a revision field to the projection as a side effect of a presentation card, which is the cheap path this must not take"
+        "The card explicitly warns against adding a revision field to the projection as a side effect of a presentation card, which is the cheap path this must not take; accepting this subject authorizes an RFC, not a field"
       ],
       "audit_verdict": {
         "status": "pass",
@@ -169,8 +226,14 @@
           "layout": "grid",
           "note": "The lower panel states which half of this exists today and which does not.",
           "items": [
-            {"label": "Comments against revisions", "path": "mockups/04-revision-join.png"},
-            {"label": "Today - the drawer, with no revision axis at all", "path": "mockups/01-today.png"}
+            {
+              "label": "Comments against revisions",
+              "path": "mockups/04-revision-join.png"
+            },
+            {
+              "label": "Today - the drawer, with no revision axis at all",
+              "path": "mockups/01-today.png"
+            }
           ]
         }
       ],
@@ -179,9 +242,26 @@
           "heading": "What exists and what does not",
           "kind": "definitions",
           "items": [
-            {"term": "The revision axis - exists", "definition": "accepted_pull_request_revision carries Base and Head OIDs and an Origin of live or explicit_historical_import; epoch_comparison_control already offers independent left and right selectors over retained epochs"},
-            {"term": "The conversation axis - exists", "definition": "github_conversation_projection carries Path, Line, Resolved and Outdated for every node"},
-            {"term": "A comment's revision - does not exist", "definition": "No commit OID, no epoch, no ordinal anywhere on the projection record"}
+            {
+              "term": "The revision axis - exists",
+              "definition": "accepted_pull_request_revision carries Base and Head OIDs; epoch_comparison_control already offers independent left and right selectors over retained epochs"
+            },
+            {
+              "term": "The conversation axis - exists",
+              "definition": "github_conversation_projection carries Path, Line, Resolved and Outdated for every node"
+            },
+            {
+              "term": "A review's revision - fetched, then dropped",
+              "definition": "github_read_model.hpp:223 carries an optional commit per review and github_read_contract.cpp:1214-1241 requires commit_id on every review object; github_projection_mapping.cpp:145-156 then discards it"
+            },
+            {
+              "term": "The write path already does this",
+              "definition": "github_mutation_contract.cpp:117-122 sends commit_id - the exact anchor commit - when BPR creates a review comment, and rejects a mismatched echo"
+            },
+            {
+              "term": "A comment's revision on read - not requested",
+              "definition": "the review-thread selection in github_read_contract.cpp asks for id, bodyText, path, line, originalLine, outdated, author and replyTo; no commit field"
+            }
           ]
         },
         {
@@ -195,9 +275,104 @@
         }
       ],
       "identity_files": [
-        {"label": "SVG source - revision join", "path": "mockups/04-revision-join.svg"},
-        {"label": "SVG source - baseline", "path": "mockups/01-today.svg"},
-        {"label": "Generator", "path": "render_mockups.py"}
+        {
+          "label": "SVG source - revision join",
+          "path": "mockups/04-revision-join.svg"
+        },
+        {
+          "label": "SVG source - baseline",
+          "path": "mockups/01-today.svg"
+        },
+        {
+          "label": "Generator",
+          "path": "render_mockups.py"
+        }
+      ]
+    },
+    {
+      "subject_id": "direction:/betterpullreview/bpr-0191/lane-rail-drawer",
+      "subject_key": "lane-rail-drawer",
+      "display_name": "The git-graph drawer you asked for was never built - still want it?",
+      "description": "This one is on the page because a review found it missing, not because a card asked for it. BPR-0191 records, on 2026-08-08: 'The product owner took route 2 and asked for a threaded conversations drawer drawn in a git-graph / DAGVIZ style, with filtering by lane.' What shipped has no rails and no graph. The card reasoned that 'filtering by lane therefore means filtering by thread' and built that instead - but that sentence is the card's argument, not yours. Your own quoted words on that card are about anchoring the drawer to the current file, and say nothing about dropping the visual. So the request was reinterpreted rather than withdrawn, and until now nothing put it back in front of you. Accept means the rails are still wanted and a card should exist for them. Reject means the thread-filtering reading was right and this is settled - which is a fine answer, and the point is that it should be your answer.",
+      "acceptance_criteria": [
+        "The git-graph / lane rendering is still something you want in the anchored drawer",
+        "It is worth a card of its own rather than being folded into whichever secondary view wins above",
+        "Lanes drawn per thread, as shown, is what you meant by 'filtering by lane'"
+      ],
+      "known_concerns": [
+        "This is the primary drawer, not a secondary view, so it sits outside the question the two alternatives above answer - it is deliberately not part of that choice",
+        "The conversation forest cannot have merges, so a git-graph renderer here draws strictly less than the style it borrows from; BPR-0191 made that point and it stands",
+        "Presentation-only, so it is compatible with either alternative above and with neither - accepting it does not change what you pick there"
+      ],
+      "audit_verdict": {
+        "status": "pass",
+        "note": "The quoted request was verified at docs/issues/60-done/BPR-0191-shell-becomes-the-application-window.md:92-93, and the narrowing that replaced it at :108-110 was verified to be that card's own reasoning rather than a quoted owner statement. The absence of any rail or branch painting in the shipped Qt code was verified by search."
+      },
+      "media_groups": [
+        {
+          "group_id": "compare",
+          "title": "Today, then what was asked for",
+          "required": true,
+          "layout": "compare",
+          "note": "The baseline is the same first image as every other subject.",
+          "items": [
+            {
+              "label": "Today - no rails",
+              "path": "mockups/01-today.png"
+            },
+            {
+              "label": "Lanes with rails, filtered by lane",
+              "path": "mockups/05-lane-rails.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "The record, in order",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "What you asked for",
+              "definition": "BPR-0191:92-93 - a threaded conversations drawer drawn in a git-graph / DAGVIZ style, with filtering by lane"
+            },
+            {
+              "term": "What the card concluded",
+              "definition": "BPR-0191:108-110 - 'Roots are the threads... filtering by lane therefore means filtering by thread'. This is the card's reasoning, unquoted"
+            },
+            {
+              "term": "What you actually narrowed",
+              "definition": "BPR-0191:120-122 - a SmartBear Collaborator style conversation anchored to a line of code for the currently viewed file. About scope, not about rails"
+            },
+            {
+              "term": "What ships",
+              "definition": "a plain QTreeView with a text delegate; no lane, branch, or graph painting exists anywhere in src/adapters/qt/src"
+            }
+          ]
+        },
+        {
+          "heading": "What this would cost",
+          "kind": "list",
+          "items": [
+            "Presentation only: a lane is a thread, and the projection already carries that.",
+            "A custom delegate or item view that paints rails and nodes, plus its accessibility surface.",
+            "No model change, no fetch change, no projection change."
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "SVG source - baseline",
+          "path": "mockups/01-today.svg"
+        },
+        {
+          "label": "SVG source - lane rails",
+          "path": "mockups/05-lane-rails.svg"
+        },
+        {
+          "label": "Generator",
+          "path": "render_mockups.py"
+        }
       ]
     }
   ]

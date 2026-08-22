@@ -8,8 +8,9 @@
 	<text x="1379" y="62" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#7A5A0B" text-anchor="middle">MOCKUP - NOT IMPLEMENTED</text>
 	<line x1="56" y1="1472" x2="1544" y2="1472" stroke="#8C8C8C" stroke-width="1"/>
 	<text x="56" y="1504" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">The epoch axis is real: epoch_comparison_control already offers independent left and right selectors, and the labels above are the exact format at</text>
-	<text x="56" y="1532" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">epoch_history_model.cpp:132-137. The conversation axis is real. The join is not: github_conversation_projection carries no commit OID, no epoch, no</text>
-	<text x="56" y="1560" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">ordinal - verified field by field at github_projection.hpp:124-139. Every cell in the grid above is a value the product cannot compute today.</text>
+	<text x="56" y="1532" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">epoch_history_model.cpp:132-137. The conversation axis is real. The projection carries no commit OID, epoch, or ordinal - verified field by field at</text>
+	<text x="56" y="1560" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">github_projection.hpp:124-139 - so no cell above can be computed from it. But a review's commit_id is already REQUIRED on read and then dropped, so this</text>
+	<text x="56" y="1588" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#5B6570">is nearer than "unknown": what is missing for a per-comment row is a field the review-thread GraphQL selection does not yet ask for.</text>
 	<rect x="56" y="180" width="1488" height="150" fill="#FFFFFF" rx="10" stroke="#D4D9E0" stroke-width="1"/>
 	<rect x="56" y="180" width="1488" height="56" fill="#F0F2F5" rx="10"/>
 	<rect x="56" y="220" width="1488" height="16" fill="#F0F2F5"/>
@@ -40,7 +41,7 @@
 	<rect x="1267" y="426" width="245" height="578" fill="#F2F6FC" rx="6"/>
 	<text x="1277" y="458" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#1F2328">Epoch 4</text>
 	<text x="1277" y="482" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">Force-push/rebase</text>
-	<text x="80" y="560" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#1F2328">dcarter on :214</text>
+	<text x="80" y="560" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#1F2328">@dcarter on :214</text>
 	<text x="80" y="586" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">live throughout</text>
 	<rect x="506" y="542" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
 	<text x="612.5" y="574" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
@@ -50,7 +51,7 @@
 	<text x="1126.5" y="574" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
 	<rect x="1277" y="542" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
 	<text x="1383.5" y="574" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
-	<text x="80" y="684" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#1F2328">mikemarcin on :214</text>
+	<text x="80" y="684" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#1F2328">@mikemarcin on :214</text>
 	<text x="80" y="710" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">written at epoch 2</text>
 	<rect x="506" y="666" width="213" height="52" fill="#F0F2F5" rx="6" stroke="#B6BCC6" stroke-width="1"/>
 	<text x="612.5" y="698" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#B6BCC6" text-anchor="middle">not yet written</text>
@@ -60,7 +61,7 @@
 	<text x="1126.5" y="698" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
 	<rect x="1277" y="666" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
 	<text x="1383.5" y="698" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
-	<text x="80" y="808" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#1F2328">rlindgren on :288</text>
+	<text x="80" y="808" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#1F2328">@rlindgren on :288</text>
 	<text x="80" y="834" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">the base update moved its anchor</text>
 	<rect x="506" y="790" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
 	<text x="612.5" y="822" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
@@ -70,7 +71,7 @@
 	<text x="1126.5" y="822" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#CF222E" text-anchor="middle">outdated</text>
 	<rect x="1277" y="790" width="213" height="52" fill="#FFEBE9" rx="6" stroke="#CF222E" stroke-width="1"/>
 	<text x="1383.5" y="822" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#CF222E" text-anchor="middle">outdated</text>
-	<text x="80" y="932" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#1F2328">apatel on :96</text>
+	<text x="80" y="932" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#1F2328">@apatel on :96</text>
 	<text x="80" y="958" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#5B6570">the force-push rewrote the line</text>
 	<rect x="506" y="914" width="213" height="52" fill="#E6FFEC" rx="6" stroke="#1A7F37" stroke-width="1"/>
 	<text x="612.5" y="946" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#1A7F37" text-anchor="middle">live</text>
@@ -92,8 +93,8 @@
 	<text x="356" y="1188" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#1A7F37">exists</text>
 	<text x="80" y="1218" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#24292F">github_conversation_projection carries Path, Line, Resolved and Outdated for every node.</text>
 	<text x="80" y="1278" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">A comment's revision</text>
-	<text x="356" y="1278" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#CF222E">does not exist</text>
-	<text x="80" y="1308" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#24292F">No commit OID, no epoch, no ordinal on the projection. Outdated is a boolean GitHub computed, with nothing behind it.</text>
+	<text x="356" y="1278" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#CF222E">not projected</text>
+	<text x="80" y="1308" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#24292F">Nothing on github_conversation_projection keys a node to a revision. A review's commit_id is required on read and dropped here; a comment's commit is not requested at all.</text>
 	<text x="80" y="1368" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#1F2328">Therefore</text>
-	<text x="80" y="1398" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#24292F">Every cell above is uncomputable today. This is a model question before it is a presentation one, which is why the card asks for an RFC rather than a slice.</text>
+	<text x="80" y="1398" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#24292F">Not computable from the projection today, and nearer than it looks: the write path already sends commit_id. It is still a model question before a presentation one, which is why this asks for an RFC.</text>
 </svg>

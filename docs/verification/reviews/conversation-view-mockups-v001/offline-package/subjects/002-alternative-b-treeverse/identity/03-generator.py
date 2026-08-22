@@ -46,6 +46,18 @@ STATE_ACCEPTED = "#1A7F37"
 STATE_DEFECT = "#CF222E"
 STATE_STALE = "#5B6570"
 
+# Neutral mockup chrome. These are NOT product palette roles and no appearance
+# profile defines them; they exist because a mockup needs page furniture -
+# panel borders, a synthesized-content stamp - that the product has no role for.
+# Everything that represents a product surface uses the roles above.
+CHROME_BORDER = "#D4D9E0"
+CHROME_EDGE = "#C3C9D2"
+CHROME_TINT = "#EAF2FD"
+CHROME_CONTROL = "#8C93A0"
+CHROME_MUTED = "#B6BCC6"
+STAMP_BORDER = "#C79A2E"
+STAMP_TEXT = "#7A5A0B"
+
 UI_FONT = "-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif"
 CODE_FONT = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
 
@@ -162,15 +174,15 @@ class Canvas:
 def chrome(canvas: Canvas, title: str, subtitle: str, footer: str) -> None:
 	"""The shared banner. Every mockup says what it is on its face."""
 	canvas.rect(0, 0, CANVAS, 132, "#FFFFFF")
-	canvas.line(0, 132, CANVAS, 132, "#D4D9E0", width=2)
+	canvas.line(0, 132, CANVAS, 132, CHROME_BORDER, width=2)
 	canvas.text(56, 58, title, size=30, weight="600")
 	canvas.text(56, 96, subtitle, size=19, fill=LINE_NUMBER_TEXT)
 
 	stamp = "MOCKUP - NOT IMPLEMENTED"
 	canvas.rect(CANVAS - 56 - 330, 34, 330, 42, "#FFF1D6", radius=6,
-				stroke="#C79A2E")
+				stroke=STAMP_BORDER)
 	canvas.text(CANVAS - 56 - 165, 62, stamp, size=17, weight="600",
-				fill="#7A5A0B", anchor="middle")
+				fill=STAMP_TEXT, anchor="middle")
 
 	canvas.line(56, CANVAS - 128, CANVAS - 56, CANVAS - 128,
 				GROUP_BOUNDARY_RULE, width=1)
@@ -211,7 +223,7 @@ def conversation_row(
 				fill=LINE_NUMBER_TEXT)
 	if depth:
 		canvas.line(x + 20 + indent - 18, y - 4, x + 20 + indent - 18,
-					y + height - 8, "#D4D9E0", width=2)
+					y + height - 8, CHROME_BORDER, width=2)
 	return y + height + 10
 
 
@@ -224,10 +236,10 @@ def panel(
 	title: str,
 	note: str = "",
 ) -> float:
-	canvas.rect(x, y, width, height, "#FFFFFF", radius=10, stroke="#D4D9E0")
+	canvas.rect(x, y, width, height, "#FFFFFF", radius=10, stroke=CHROME_BORDER)
 	canvas.rect(x, y, width, 56, "#F0F2F5", radius=10)
 	canvas.rect(x, y + 40, width, 16, "#F0F2F5")
-	canvas.line(x, y + 56, x + width, y + 56, "#D4D9E0")
+	canvas.line(x, y + 56, x + width, y + 56, CHROME_BORDER)
 	canvas.text(x + 20, y + 36, title, size=19, weight="600")
 	if note:
 		canvas.text(x + width - 20, y + 36, note, size=16,
@@ -281,8 +293,9 @@ def mockup_today(out: pathlib.Path) -> None:
 		"Filtered to the current file. This is the baseline the two alternatives "
 		"are judged against, not a proposal.",
 		"Every row above is painted by github_conversation_delegate.cpp:68-144: heading, body, then a facts line joined with \"  ·  \".\n"
-		"There are no lane rails and no git-graph rendering anywhere in the shipped code; BPR-0191 narrowed that language to mean filtering by thread.\n"
-		"Note the heading on every comment. A thread's first comment reads \"Reply by\" too, because the delegate asks whether the row has a parent and every comment's parent is the thread.",
+		"There are no lane rails and no git-graph rendering in the shipped code. You asked for that style in BPR-0191; the reading that \"filtering by lane means\n"
+		"filtering by thread\" is that card's own argument, not something you said - see mockup 05, which draws what you asked for so it can be decided rather than assumed.\n"
+		"A thread's first comment reads \"Reply by\" too, because the delegate asks whether the row has a parent and every comment's parent is the thread.",
 	)
 
 	left = 56
@@ -348,15 +361,15 @@ def mockup_today(out: pathlib.Path) -> None:
 		canvas, drawer_left, y, drawer_width, 0, "Review thread", "",
 		f"{ANCHOR_FILE}:214{FACT_SEPARATOR}Open", selected=True)
 	y = conversation_row(
-		canvas, drawer_left, y, drawer_width, 1, "Reply by dcarter",
+		canvas, drawer_left, y, drawer_width, 1, "Reply by @dcarter",
 		"begin() on a const document returns a const_iterator already;",
 		f"{ANCHOR_FILE}:214")
 	y = conversation_row(
-		canvas, drawer_left, y, drawer_width, 1, "Reply by mikemarcin",
+		canvas, drawer_left, y, drawer_width, 1, "Reply by @mikemarcin",
 		"It does, but the overload set makes that accidental. Keep cbegin().",
 		f"{ANCHOR_FILE}:214")
 	y = conversation_row(
-		canvas, drawer_left, y, drawer_width, 1, "Reply by apatel",
+		canvas, drawer_left, y, drawer_width, 1, "Reply by @apatel",
 		"Agreed - it also matches the cend() below it.",
 		f"{ANCHOR_FILE}:214")
 
@@ -365,7 +378,7 @@ def mockup_today(out: pathlib.Path) -> None:
 		canvas, drawer_left, y, drawer_width, 0, "Review thread", "",
 		f"{ANCHOR_FILE}:214{FACT_SEPARATOR}Resolved")
 	y = conversation_row(
-		canvas, drawer_left, y, drawer_width, 1, "Reply by rlindgren",
+		canvas, drawer_left, y, drawer_width, 1, "Reply by @rlindgren",
 		"Does this still hold when the document is empty?",
 		f"{ANCHOR_FILE}:214{FACT_SEPARATOR}Resolved")
 
@@ -374,7 +387,7 @@ def mockup_today(out: pathlib.Path) -> None:
 		canvas, drawer_left, y, drawer_width, 0, "Review thread", "",
 		f"{ANCHOR_FILE}:288{FACT_SEPARATOR}Open{FACT_SEPARATOR}Outdated")
 	y = conversation_row(
-		canvas, drawer_left, y, drawer_width, 1, "Reply by dcarter",
+		canvas, drawer_left, y, drawer_width, 1, "Reply by @dcarter",
 		"This branch is unreachable after the rewrite above.",
 		f"{ANCHOR_FILE}:288{FACT_SEPARATOR}Outdated")
 
@@ -411,11 +424,11 @@ def mockup_whole_review(out: pathlib.Path) -> None:
 				fill=LINE_NUMBER_TEXT, anchor="end")
 	y += 60
 	y = conversation_row(
-		canvas, left, y, width, 0, "Review by mikemarcin",
+		canvas, left, y, width, 0, "Review by @mikemarcin",
 		"Two things below, then this is good to go.",
 		"Changes requested")
 	y = conversation_row(
-		canvas, left, y, width, 0, "Pull request comment by rlindgren",
+		canvas, left, y, width, 0, "Pull request comment by @rlindgren",
 		"Rebased onto main to pick up the alignment fix.", "")
 
 	y += 16
@@ -429,7 +442,7 @@ def mockup_whole_review(out: pathlib.Path) -> None:
 		canvas, left, y, width, 0, "Review thread", "",
 		f"{ANCHOR_FILE}:214{FACT_SEPARATOR}Open")
 	y = conversation_row(
-		canvas, left, y, width, 1, "Reply by dcarter",
+		canvas, left, y, width, 1, "Reply by @dcarter",
 		"begin() on a const document returns a const_iterator already;",
 		f"{ANCHOR_FILE}:214")
 	y = conversation_row(
@@ -447,7 +460,7 @@ def mockup_whole_review(out: pathlib.Path) -> None:
 		canvas, left, y, width, 0, "Review thread", "",
 		f"{other}:96{FACT_SEPARATOR}Open")
 	y = conversation_row(
-		canvas, left, y, width, 1, "Reply by apatel",
+		canvas, left, y, width, 1, "Reply by @apatel",
 		"Can this repaint be coalesced with the one below?",
 		f"{other}:96")
 
@@ -466,7 +479,8 @@ def mockup_treeverse(out: pathlib.Path) -> None:
 		"node in focus.",
 		"The conversation drawn here is SYNTHESIZED. No recorded pull request in this repository has any conversation, and the deepest real structure anywhere\n"
 		"is one replyTo edge in a contract fixture. This mockup therefore shows a shape the product could carry, not one it has ever displayed.\n"
-		"Cost: the reply edge already exists at github_read_model.hpp:233 and is discarded at github_projection_mapping.cpp:175, which writes the thread root as ParentId.",
+		"Cost: the reply edge exists at github_read_model.hpp:233 and is discarded at github_projection_mapping.cpp:175 - but changing that line alone would FLATTEN the\n"
+		"drawer, because github_conversation_model.cpp:317-326 drops any parent that is not a review_thread. The read/unread state legended below is also proposed, not carried.",
 	)
 
 	left = 56
@@ -521,13 +535,13 @@ def mockup_treeverse(out: pathlib.Path) -> None:
 		canvas.path(
 			f"M {x1:g} {start_y:g} C {x1:g} {waist:g} {x2:g} {waist:g} "
 			f"{x2:g} {end_y:g}",
-			STATE_UNREAD if on_path else "#C3C9D2", width=4 if on_path else 2)
+			STATE_UNREAD if on_path else CHROME_EDGE, width=4 if on_path else 2)
 
 	fills = {
 		"root": ("#FFFFFF", STATE_UNREAD),
-		"read": ("#FFFFFF", "#D4D9E0"),
-		"unread": ("#EAF2FD", STATE_UNREAD),
-		"focus": ("#FFF1D6", "#C79A2E"),
+		"read": ("#FFFFFF", CHROME_BORDER),
+		"unread": (CHROME_TINT, STATE_UNREAD),
+		"focus": ("#FFF1D6", STAMP_BORDER),
 	}
 	for index, (_, _, author, state) in enumerate(nodes):
 		x, y = position(index)
@@ -535,7 +549,7 @@ def mockup_treeverse(out: pathlib.Path) -> None:
 		canvas.rect(x - NODE_WIDTH / 2, y - 22, NODE_WIDTH, 44, fill,
 					radius=8, stroke=stroke,
 					stroke_width=2 if state in ("focus", "unread") else 1)
-		canvas.text(x, y + 6, author, size=15, anchor="middle")
+		canvas.text(x, y + 6, f"@{author}", size=15, anchor="middle")
 
 	legend_y = map_top + 720
 	canvas.line(left + 20, legend_y - 30, left + map_width - 20, legend_y - 30,
@@ -561,7 +575,7 @@ def mockup_treeverse(out: pathlib.Path) -> None:
 					   "In focus", "3 of 18")
 	y = detail_top + 40
 	y = conversation_row(
-		canvas, detail_left, y, detail_width, 0, "Reply by apatel",
+		canvas, detail_left, y, detail_width, 0, "Reply by @apatel",
 		"Then cend() is the comparison that matters.",
 		f"{ANCHOR_FILE}:214")
 
@@ -569,7 +583,7 @@ def mockup_treeverse(out: pathlib.Path) -> None:
 	canvas.text(detail_left + 20, y, "Path to this reply", size=17,
 				weight="600")
 	y += 34
-	for label in ["dcarter (root)", "mikemarcin", "rlindgren", "apatel"]:
+	for label in ["@dcarter (root)", "@mikemarcin", "@rlindgren", "@apatel"]:
 		canvas.text(detail_left + 32, y, label, size=17,
 					fill=LINE_NUMBER_TEXT)
 		y += 30
@@ -592,8 +606,9 @@ def mockup_revision_join(out: pathlib.Path) -> None:
 		"Which comments were live on each side, and what went outdated in "
 		"between.",
 		"The epoch axis is real: epoch_comparison_control already offers independent left and right selectors, and the labels above are the exact format at\n"
-		"epoch_history_model.cpp:132-137. The conversation axis is real. The join is not: github_conversation_projection carries no commit OID, no epoch, no\n"
-		"ordinal - verified field by field at github_projection.hpp:124-139. Every cell in the grid above is a value the product cannot compute today.",
+		"epoch_history_model.cpp:132-137. The conversation axis is real. The projection carries no commit OID, epoch, or ordinal - verified field by field at\n"
+		"github_projection.hpp:124-139 - so no cell above can be computed from it. But a review's commit_id is already REQUIRED on read and then dropped, so this\n"
+		"is nearer than \"unknown\": what is missing for a per-comment row is a field the review-thread GraphQL selection does not yet ask for.",
 	)
 
 	left = 56
@@ -610,7 +625,7 @@ def mockup_revision_join(out: pathlib.Path) -> None:
 		canvas.text(x, selector_top + 40, side, size=17,
 					fill=LINE_NUMBER_TEXT)
 		canvas.rect(x, selector_top + 54, width // 2 - 48, 44, "#FFFFFF",
-					radius=6, stroke="#8C93A0")
+					radius=6, stroke=CHROME_CONTROL)
 		canvas.text(x + 14, selector_top + 82, label, size=17)
 		canvas.text(x + width // 2 - 76, selector_top + 82, "▾", size=17,
 					fill=LINE_NUMBER_TEXT)
@@ -644,15 +659,15 @@ def mockup_revision_join(out: pathlib.Path) -> None:
 	states = {
 		"live": (DIFF_ADDED, STATE_ACCEPTED, "live"),
 		"outdated": (DIFF_REMOVED, STATE_DEFECT, "outdated"),
-		"absent": (CODE_GUTTER, "#B6BCC6", "not yet written"),
+		"absent": (CODE_GUTTER, CHROME_MUTED, "not yet written"),
 	}
 	rows = [
-		("dcarter on :214", ["live"] * 4, "live throughout"),
-		("mikemarcin on :214", ["absent", "live", "live", "live"],
+		("@dcarter on :214", ["live"] * 4, "live throughout"),
+		("@mikemarcin on :214", ["absent", "live", "live", "live"],
 		 "written at epoch 2"),
-		("rlindgren on :288", ["live", "live", "outdated", "outdated"],
+		("@rlindgren on :288", ["live", "live", "outdated", "outdated"],
 		 "the base update moved its anchor"),
-		("apatel on :96", ["live", "live", "live", "outdated"],
+		("@apatel on :96", ["live", "live", "live", "outdated"],
 		 "the force-push rewrote the line"),
 	]
 	y = grid_top + 120
@@ -678,13 +693,14 @@ def mockup_revision_join(out: pathlib.Path) -> None:
 		("The conversation axis", "exists",
 		 "github_conversation_projection carries Path, Line, Resolved and "
 		 "Outdated for every node."),
-		("A comment's revision", "does not exist",
-		 "No commit OID, no epoch, no ordinal on the projection. Outdated is a "
-		 "boolean GitHub computed, with nothing behind it."),
+		("A comment's revision", "not projected",
+		 "Nothing on github_conversation_projection keys a node to a revision. "
+		 "A review's commit_id is required on read and dropped here; a "
+		 "comment's commit is not requested at all."),
 		("Therefore", "",
-		 "Every cell above is uncomputable today. This is a model question "
-		 "before it is a presentation one, which is why the card asks for an "
-		 "RFC rather than a slice."),
+		 "Not computable from the projection today, and nearer than it looks: "
+		 "the write path already sends commit_id. It is still a model question "
+		 "before a presentation one, which is why this asks for an RFC."),
 	]
 	for title, state, detail in entries:
 		canvas.text(left + 24, y, title, size=19, weight="600")
@@ -696,6 +712,82 @@ def mockup_revision_join(out: pathlib.Path) -> None:
 		y += 90
 
 	(out / "04-revision-join.svg").write_text(canvas.render(), encoding="utf-8")
+
+
+def mockup_lane_rails(out: pathlib.Path) -> None:
+	"""What BPR-0191 recorded the owner asking for, which was never drawn.
+
+	[[BPR-0191]]:92-93: "The product owner took route 2 and asked for a threaded
+	conversations drawer drawn in a git-graph / DAGVIZ style, with filtering by
+	lane." The narrowing at :108-110 - filtering by lane means filtering by
+	thread - is that card's engineering argument. The owner's own quoted words
+	at :120-122 are about anchoring to the current file and say nothing about
+	rails. So this is an open request, not a settled one, and it is drawn here
+	so it can be answered rather than assumed away.
+	"""
+	canvas = Canvas()
+	chrome(
+		canvas,
+		"05: the git-graph drawer you asked for, which was never built",
+		"Threads as lanes with rails, filtered by lane. BPR-0191 recorded this "
+		"request and then reinterpreted it.",
+		"This is not a secondary view - it is the anchored drawer itself, drawn the way BPR-0191 recorded you asking for it. It is on the page because that card\n"
+		"settled the request with its own reasoning rather than yours, and the baseline mockup repeated the conclusion. Decide it rather than inherit it.\n"
+		"Cost is presentation-only: lanes are threads, which the projection already carries. It changes no model, and it is compatible with either alternative above.",
+	)
+
+	left = 56
+	top = 180
+	width = CANVAS - left * 2
+
+	body_top = panel(canvas, left, top, width, 940, "Conversations",
+					 "3 lanes in this file · filtered by lane")
+
+	lane_colours = [STATE_UNREAD, STATE_ACCEPTED, STATE_DEFECT]
+	lane_labels = [
+		("Lane 1", f"{ANCHOR_FILE}:214", "Open", 3),
+		("Lane 2", f"{ANCHOR_FILE}:214", "Resolved", 1),
+		("Lane 3", f"{ANCHOR_FILE}:288", "Outdated", 1),
+	]
+
+	rail_x = left + 60
+	y = body_top + 50
+	for index, (lane, anchor, state, replies) in enumerate(lane_labels):
+		colour = lane_colours[index]
+		height = 84 + replies * 74
+		canvas.line(rail_x + index * 34, y + 14, rail_x + index * 34,
+					y + height - 20, colour, width=4)
+		canvas.rect(left + 20, y - 10, width - 40, height, "#FFFFFF", radius=8,
+					stroke=CHROME_BORDER)
+		canvas.line(rail_x + index * 34, y + 14, rail_x + index * 34,
+					y + height - 20, colour, width=4)
+
+		canvas.text(left + 150, y + 20, lane, size=19, weight="600",
+					fill=colour)
+		canvas.text(left + 150, y + 48, f"{anchor}{FACT_SEPARATOR}{state}",
+					size=16, fill=LINE_NUMBER_TEXT)
+
+		node_y = y + 88
+		authors = ["@dcarter", "@mikemarcin", "@apatel"][:replies]
+		for author in authors:
+			canvas.rect(rail_x + index * 34 - 9, node_y - 9, 18, 18, colour,
+						radius=9)
+			canvas.text(left + 150, node_y + 6, author, size=18)
+			canvas.text(left + 150 + 190, node_y + 6,
+						"replied on this lane", size=16,
+						fill=LINE_NUMBER_TEXT)
+			node_y += 74
+		y += height + 22
+
+	canvas.text(left + 40, y + 30,
+				"Filter: show only lanes with something unresolved  ·  "
+				"collapse a lane to its root", size=17, fill=STATE_UNREAD)
+	canvas.text(left + 40, y + 62,
+				"A lane is a thread. That is BPR-0191's own reading, and it is "
+				"the part of it that was right.", size=17,
+				fill=LINE_NUMBER_TEXT)
+
+	(out / "05-lane-rails.svg").write_text(canvas.render(), encoding="utf-8")
 
 
 def main(argv: list[str]) -> int:
@@ -711,6 +803,7 @@ def main(argv: list[str]) -> int:
 	mockup_whole_review(out)
 	mockup_treeverse(out)
 	mockup_revision_join(out)
+	mockup_lane_rails(out)
 
 	for path in sorted(out.glob("*.svg")):
 		print(f"wrote {path}")

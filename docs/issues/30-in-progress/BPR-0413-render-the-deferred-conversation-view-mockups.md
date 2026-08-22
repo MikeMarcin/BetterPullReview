@@ -60,8 +60,15 @@ trees with a single optional parent" is real as a type and flat as populated.
 per comment; the read contract requests and validates `replyTo`
 (`src/adapters/github/src/github_read_contract.cpp:35,563,1259-1279`). At
 `github_projection_mapping.cpp:175` that edge is in scope on `comment` and the
-thread root is written instead. This is the single most decision-relevant fact
-on this card and it is why the two alternatives are not equally expensive.
+thread root is written instead.
+
+**And the Qt model would reject the deeper parent anyway.**
+`github_conversation_model.cpp:317-326` sets a parent only when that parent's
+`Kind` is `review_thread`. Carrying `ReplyTo` through the mapping without
+touching this filter promotes every reply to a root and flattens the drawer to
+one level. The two facts together are what make the alternatives unequal; the
+first one alone, which is all this card originally had, made them look further
+apart than they are.
 
 **What the drawer renders today.** `github_conversation_delegate.cpp:68-144`
 paints three stacked runs per row: a heading (`Review thread`,
@@ -96,8 +103,11 @@ when the cards were written.
 | Alternative | What it needs | Cost |
 |---|---|---|
 | A — whole-review conversation | nothing; the same projection, unfiltered and grouped by file | a view |
-| B — Treeverse-style deep thread | `ParentId` carrying `ReplyTo` instead of the thread root, at one line | a view plus one projection line |
-| [[BPR-0212]] — conversation × revision | a datum that exists nowhere: per-comment revision identity | a model and fetch question, correctly RFC-scale |
+| B — Treeverse-style deep thread | the mapping to carry `ReplyTo`, **and** the Qt model to stop rejecting a non-thread parent, plus a null-`ReplyTo` fallback and the tests that encode today's shape | a view plus a small cross-layer change |
+| [[BPR-0212]] — conversation × revision | a per-comment revision the read path does not request; a review's commit is already required and then dropped | a model and fetch question, correctly RFC-scale |
+
+The B row is the corrected one. Its first version said "one line", which an
+independent review falsified; see the reopening record below.
 
 ## What no mockup can honestly show
 
@@ -200,6 +210,13 @@ rather than suspected.
 | every comment's parent is the thread root | `github_projection_mapping.cpp` | `grep -n 'ParentId' src/application/src/github_projection_mapping.cpp` | four assignments; three `nullopt`, one `threadId` | pass | lines 148, 162, 175, 192 |
 | the reply edge exists and is discarded | `github_read_model.hpp:233` | read the loop at mapping line 172-186 | `comment.ReplyTo` is in scope where `threadId` is written | pass | quoted on the card above |
 | no recorded conversation exists to draw | recorded fixtures | `python3` load of both `recording.json` files | top-level keys carry no conversation; contract fixture peaks at one `replyTo` | pass | `directxmath-336`, `uiforetw-74` |
+| the drawer prefixes every author with `@` | `github_conversation_delegate.cpp:44-45` | read `author_text` | it returns `QStringLiteral("@%1")`, so a mockup without the `@` misdraws every heading | pass, after correction | mockups regenerated at this commit |
+| the Qt model rejects a non-thread parent | `github_conversation_model.cpp:317-326` | read the parent resolution | `parentIdentity` is set only when the parent's `Kind` is `review_thread` | pass | falsifies the earlier one-line cost |
+| a review's commit is fetched and dropped | `github_read_contract.cpp:1214-1241`, `github_projection_mapping.cpp:145-156` | read the required-key set and the review node construction | `commit_id` is a required key; the projected node carries no revision | pass | corrects BPR-0212's concern text |
+| the epoch label strings are real enumerator text | `epoch_history_model.cpp:26-137` | read `display_text` and its helpers | the format and every cause/availability word used in mockup 04 appear verbatim | pass | added after review found no row for it |
+| the palette values match the Light profile | `appearance_profile.cpp:76-96` | compare the twelve constants in `render_mockups.py` | each hex equals the `srgb(0x…)` for its role | pass | added after review found no row for it |
+| the conversation-fixture search was exhaustive | `tests/fixtures` | `find tests -name 'review_threads*.json'` | three fixtures, not one; depths 1/2/1, 1/2/1, and none | pass, after correction | corrects "the only conversation content in the tree" |
+| the git-graph request was reinterpreted, not withdrawn | `BPR-0191:92-93,108-110,120-122` | read the three passages in order | the request is quoted; the narrowing is the card's own prose; the owner's quote is about file anchoring | pass | added subject `lane-rail-drawer` |
 | the board gates still pass | `scripts/verify_documentation.py` | `python3 scripts/verify_documentation.py --root .` | lane, status, dependency, and frontier-table derivation | `DOCUMENTATION_OK` | every commit in this run |
 | the review tooling is sound | attended-review tests | `python3 -m unittest discover -s .agents/skills/bpr-attended-review/scripts -p 'test_*.py'` | 17 cases including verdict validation | 17 tests, OK | `01908c3` |
 
@@ -280,3 +297,46 @@ costed, not made. No RFC status moved, and neither [[BPR-0211]] nor
 [[BPR-0212]] is closed — they return to `40-parked/` because the owner is now
 genuinely the only thing left, which is the first time that label has been
 true for either of them.
+
+## Corrected and re-closed — 2026-08-21
+
+The batch was rebuilt with every reproduced finding addressed. It is now
+`bpr:/attended-review/betterpullreview/c285f6948ed054de1342cfb1`
+and carries **four** decision subjects:
+
+| Subject | Shape | Question |
+|---|---|---|
+| `alternative-a-whole-review` | member of `secondary-view` | the whole review in one place |
+| `alternative-b-treeverse` | member of `secondary-view` | a map of one deep thread |
+| `revision-axis-rfc` | independent | is the revision join worth an RFC |
+| `lane-rail-drawer` | independent | the git-graph drawer was never built — still wanted? |
+
+The fourth is new, and it exists because the review found the page settling a
+request the owner had made and never withdrawn. Mockup `05-lane-rails.svg`
+draws it so it can be answered instead of inherited. It is deliberately outside
+the selection group: it is the primary drawer, not a secondary view, so it is
+compatible with either alternative and with neither.
+
+What else changed: alternative B's cost is corrected and its flattening trap
+stated on the subject; [[BPR-0212]]'s falsified concern is replaced with the
+narrow question that is genuinely open, and its detail section now records that
+a review's `commit_id` is required on read and dropped, and that the write path
+already sends one; alternative A's concern no longer describes a decision
+BPR-0191 made, because BPR-0191 re-homed the idea to [[BPR-0211]] rather than
+refusing it; every author heading carries the `@` the delegate paints; the seven
+neutral chrome colours are named as chrome rather than counted as palette roles;
+the read/unread state the Treeverse map legends is disclosed as proposed; and
+two new `downstream_claims` keys fence what the earlier fence missed —
+`cost_estimates_verified` and `projection_field_authorized` are both false.
+
+### Bound artifacts
+
+| path | bytes | digest |
+|---|---|---|
+| `render_mockups.py` | 29,922 | `sha256:500ec73043a268540ff0885bc9d88886…` |
+| `offline-review-input.json` | 22,211 | `sha256:54bfd97f8f6b536caecb9f8d06969b51…` |
+| `offline-package/attended-review-manifest.json` | 26,503 | `sha256:879cc89e48fc8bc784b10d51f37e32b7…` |
+| `offline-package/index.html` | 81,463 | `sha256:beb8c9a863c713b7239c1ed91385d4cd…` |
+
+The first build's digests are superseded and are not carried forward: no verdict
+was ever recorded against them, because the page was never presented.
