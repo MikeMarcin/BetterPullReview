@@ -1,7 +1,7 @@
 ---
 id: BPR-0413
 title: Render the deferred conversation-view mockups the owner asked for
-status: In Progress
+status: Done
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191]
 ---
@@ -148,3 +148,74 @@ python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py \
   --out <package-dir>
 git diff --check
 ```
+
+## Done — 2026-08-21
+
+The page is built and committed at `01908c3`. It carries three decision
+subjects under batch
+`bpr:/attended-review/betterpullreview/40a5fd691f86739e55c6860a`:
+
+| Subject | Shape | Question |
+|---|---|---|
+| `alternative-a-whole-review` | member of `secondary-view` | the whole review in one place |
+| `alternative-b-treeverse` | member of `secondary-view` | a map of one deep thread |
+| `revision-axis-rfc` | independent | is the revision join worth an RFC |
+
+`secondary-view` is a `min_accept: 1, max_accept: 1` selection group, so the
+two alternatives are one question and the loser is recorded as not chosen
+rather than rejected. Rejecting both members is the recordable "build neither"
+answer, which is the outcome [[BPR-0211]] deliberately left open. The
+[[BPR-0212]] subject is deliberately outside the group: it is a different
+decision, and folding it in would have forced a choice between three things
+that are not alternatives to each other.
+
+### What the work found
+
+The mockups were the means; this was the result. The two alternatives are not
+equally expensive, and nothing in either card said so:
+
+- Alternative A needs no model change at all. Dropping the anchor filter and
+  grouping by `Path` reads the projection exactly as it stands.
+- Alternative B needs one line. `comment.ReplyTo` is requested and validated by
+  the read contract, normalized into `github_read_model.hpp:233`, and is in
+  scope at `github_projection_mapping.cpp:175` — where the thread root is
+  written instead. The flat two-level tree is a projection decision, not a
+  GitHub limitation.
+- [[BPR-0212]] needs a datum that exists nowhere, which is what its own text
+  already said and what this confirmed field by field.
+
+The honest caveat that came with it: no recorded pull request in this
+repository carries a conversation at all, so alternative B is drawn against a
+synthesized thread. That is [[BPR-0211]]'s own unmet precondition, now measured
+rather than suspected.
+
+### Verification matrix
+
+| claim | direct surface | command | what proves it | result | evidence |
+|---|---|---|---|---|---|
+| the batch is one choose-exactly-one question plus one independent decision | built manifest | `build_attended_review.py build --input offline-review-input.json --out offline-package` | the manifest carries `selection_groups` with `min_accept`/`max_accept` of 1 and exactly two members | pass | `01908c3`; batch `40a5fd69…5c6860a` |
+| the page cannot be read as closing anything | built page | inspect the rendered scope banner | six downstream claims render false, including `implementation_exists` and both card-closed claims | pass | `offline-package/index.html` |
+| the mockups regenerate from checked-in source | `render_mockups.py` | `python3 render_mockups.py --out mockups` | stdlib-only, no clock or randomness; SVG bytes reproduce | pass | `01908c3` |
+| the projection carries no revision identity | `github_projection.hpp:124-139` | read the struct field by field | eleven fields, none of them a commit OID, epoch, or ordinal | pass | quoted on the card above |
+| every comment's parent is the thread root | `github_projection_mapping.cpp` | `grep -n 'ParentId' src/application/src/github_projection_mapping.cpp` | four assignments; three `nullopt`, one `threadId` | pass | lines 148, 162, 175, 192 |
+| the reply edge exists and is discarded | `github_read_model.hpp:233` | read the loop at mapping line 172-186 | `comment.ReplyTo` is in scope where `threadId` is written | pass | quoted on the card above |
+| no recorded conversation exists to draw | recorded fixtures | `python3` load of both `recording.json` files | top-level keys carry no conversation; contract fixture peaks at one `replyTo` | pass | `directxmath-336`, `uiforetw-74` |
+| the board gates still pass | `scripts/verify_documentation.py` | `python3 scripts/verify_documentation.py --root .` | lane, status, dependency, and frontier-table derivation | `DOCUMENTATION_OK` | every commit in this run |
+| the review tooling is sound | attended-review tests | `python3 -m unittest discover -s .agents/skills/bpr-attended-review/scripts -p 'test_*.py'` | 17 cases including verdict validation | 17 tests, OK | `01908c3` |
+
+### Bound artifacts
+
+| path | bytes | digest |
+|---|---|---|
+| `render_mockups.py` | 25,590 | `sha256:225323dfc9bbb55a2bb463ec443ce5a1…` |
+| `offline-review-input.json` | 14,159 | `sha256:2d1db035043031b03ad20ea80ddecc8b…` |
+| `offline-package/attended-review-manifest.json` | 18,377 | `sha256:9c34a87d4ce84b881804568cbf0e6879…` |
+| `offline-package/index.html` | 66,071 | `sha256:2af4d87199966a87e423638f27428eb8…` |
+
+### What this card does not claim
+
+No product code changed. The one-line `ParentId` change is described and
+costed, not made. No RFC status moved, and neither [[BPR-0211]] nor
+[[BPR-0212]] is closed — they return to `40-parked/` because the owner is now
+genuinely the only thing left, which is the first time that label has been
+true for either of them.

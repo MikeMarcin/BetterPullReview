@@ -1,9 +1,10 @@
 ---
 id: BPR-0211
 title: A secondary overview for conversations too large to follow inline
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191, BPR-0413]
+parked_on: awaiting-product-decision
 ---
 
 # A secondary overview for conversations too large to follow inline
@@ -85,3 +86,24 @@ owes a deliverable, this card is waiting on another card, and that lane is
 [[BPR-0413]] now owns that deliverable. This card returns to `40-parked/` as
 `awaiting-product-decision` the moment the page exists, because that is when the
 label becomes true.
+
+## The mockups exist — 2026-08-21
+
+[[BPR-0413]] built them. The page is
+`docs/verification/reviews/conversation-view-mockups-v001/offline-package/index.html`,
+batch `bpr:/attended-review/betterpullreview/40a5fd691f86739e55c6860a`, and it
+presents the alternatives as one choose-exactly-one question. Rejecting every
+alternative is a recordable answer and means build neither.
+
+So this card is parked again, and this time the label is accurate: the owner is
+the only thing left. Nothing is queued in front of it.
+
+One finding from building them belongs on this card, because it changes what
+the choice costs. The two alternatives are not equally expensive. The
+whole-review view needs no model change. The Treeverse map needs one line:
+`comment.ReplyTo` is fetched and validated, and
+`github_projection_mapping.cpp:175` writes the thread root over it, which is
+why today's tree is two levels deep. And no recorded pull request here carries
+a conversation at all, so the deep thread was drawn synthesized — the
+precondition this card set, that a conversation deep enough to be a problem is
+recorded, is measured now rather than merely suspected, and it is still unmet.
