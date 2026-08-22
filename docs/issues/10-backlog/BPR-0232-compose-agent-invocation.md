@@ -3,7 +3,7 @@ id: BPR-0232
 title: Compose explicit agent invocation into the shipped workbench
 status: Backlog
 rfc: RFC-BPR-0011
-depends_on: [BPR-0226, BPR-0228, BPR-0229, BPR-0230, BPR-0240, BPR-0247, BPR-0250]
+depends_on: [BPR-0226, BPR-0228, BPR-0229, BPR-0230, BPR-0240, BPR-0247, BPR-0250, BPR-0420]
 ---
 
 # Compose explicit agent invocation into the shipped workbench
@@ -65,4 +65,5 @@ configured agent remains a typed failed-to-start result.
   `window.agent_panel()`, clicks `start_button()`, asserts
   `StartIntents == 1U`, and carries a construction-cut negative. What remains on
   this card is the launcher's own construction-and-invocation assertion, named
-  separately from its linked symbol.
+  separately from its linked symbol — now split out as [[BPR-0420]] under the
+  owner's 2026-08-22 direction, because it is portable and this umbrella is not.
