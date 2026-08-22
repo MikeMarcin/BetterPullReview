@@ -1,10 +1,9 @@
 ---
 id: BPR-0362
 title: The container cannot read the ancestors every path check walks
-status: Parked
+status: Ready
 rfc: RFC-BPR-0008
 depends_on: []
-parked_on: awaiting-product-decision
 ---
 
 # The container cannot read the ancestors every path check walks
@@ -54,7 +53,7 @@ resolves every component. Walking up confirms it: `AC` and `AC\Temp` stat fine,
 
 ### The product retains the whole ancestor chain by design
 
-`validate_ancestor_chain` in `src/adapters/sqlite/src/catalog_database.cpp:2155`
+`validate_ancestor_chain` in `src/adapters/sqlite/src/catalog_database.cpp:2030`
 starts at `\\?\C:\` — the first seven characters of the native path — and opens,
 identifies, and retains **every** ancestor down to the target, comparing each
 handle against its path. That is a deliberate anti-substitution defence, and
@@ -529,3 +528,139 @@ waits.
 
 The seven tests this decision is worth are unchanged, and nothing else in the
 Windows program is blocked by it.
+
+## Answered — option 1 — 2026-08-22
+
+### Provenance, stated exactly
+
+**The product owner did not weigh these options.** On 2026-08-22 they delegated
+this decision — "spawn a fable subagent to answer the decision for me" — and
+then, told that the result would be an agent recommendation rather than their
+verdict, directed: "Write the honest provenance but move forward, dont wait for
+further action from me."
+
+So this is an **owner-delegated agent decision**, recorded unreviewed. It was
+produced by an independent capability-critical analysis on the deep-max route,
+which read this card and verified its claims against live source rather than
+accepting its summary. The reasoning is recorded below so a future session can
+weigh it rather than inherit it. It carries the authority the owner delegated
+and no more: it does not become the owner's own judgement by being written down,
+and the owner may overturn it on sight.
+
+The integrator reproduced every checkable claim before recording it. The Windows
+host measurements in this card are not re-verifiable from macOS and are accepted
+as recorded.
+
+### Decision: option 1
+
+Extend the `icacls` grants so the container can open the ancestor chains —
+**non-inheritable, this-folder-only, minimal mask, on every strict ancestor of
+every granted scope**.
+
+### Why
+
+**Network containment and filesystem narrowness are separable, and only Windows
+couples them.** That is the whole decision.
+
+- [[BPR-0235]]'s required final state claims exactly one property:
+  "Automated tests run with **network** denied by default at the process
+  boundary." Nothing claims the container cannot read `C:\`.
+- The Linux backend is a network namespace
+  (`cmake/BprTestIsolation.cmake:281`, `linux-network-namespace`) and leaves the
+  filesystem alone. The macOS backend leaves ancestor resolution working — the
+  isolation runner itself calls `resolve(strict=True)` three times at
+  `scripts/run_network_isolated_test.py:168-180` and the suite passes.
+- So the ancestor denial is an **accidental side effect** of the only
+  unprivileged network boundary Windows offers, not a property any card asserts.
+
+Option 1 therefore spends an unclaimed accident. Option 3 spends the claimed
+invariant — and not cheaply: `scripts/verify_test_network_isolation.py` exists to
+verify that *every* configured test crosses the boundary, so option 3 requires
+building a third registration class and teaching that verifier a
+platform-conditional exempt list. New contract code whose only purpose is
+punching holes in the invariant it verifies. It would also leave [[BPR-0235]]'s
+Windows criterion permanently undischargeable as written.
+
+Filesystem DACL grants confer no network capability: the container keeps zero
+capability SIDs either way.
+
+### Option 4: no
+
+Verifying the retained chain by file identity **instead of** by name weakens the
+defence. At first open there is no reference identity, so
+`GetFileInformationByHandle` returns an equally valid identity for the wrong
+directory — unforgeable but unanchored. The name check is the only thing binding
+each retained handle to the *configured* path string, and it has already earned
+its place: [[BPR-0368]]'s doubled-separator defect was caught by that check
+failing loudly, where an identity comparison would have silently retained a
+mis-built chain. This card's claim that identity "is a stronger statement than a
+name string" inverts the property — identity is stronger only for
+re-verification against an already-trusted reference, which this loop does not
+have.
+
+The genuinely stronger design is opening each component *relative to the
+retained parent handle*, never resolving names at all. That is a redesign of the
+open discipline, not a comparison swap, and after option 2's history it belongs
+on its own card with target-native adversary measurement.
+
+### What this costs, including a cost this card never stated
+
+The stated cost: contained test processes gain names-and-attributes visibility of
+`C:\`, `C:\Users`, the profile chain, and the repository's ancestors. The ACE
+names only the `bprautomatedtest` SID, so no other principal gains anything.
+
+**The unstated cost, and the strongest argument against this choice:** `C:\` and
+`C:\Users` are not user-owned, so those grants need a **one-time elevated step**
+— the exact cost class [[BPR-0347]] deliberately removed when it deleted its
+elevated-prompt refusal. It does not change the answer, because that removal was
+argued on "authority the suite never exercises", and this authority is
+load-bearing for seven tests and for the boundary's universality. It is
+once-per-machine, auditable, and reversible with `icacls /remove`. The
+alternative permanently falsifies a standing security claim *and* grants those
+seven tests full network and filesystem authority — strictly more total
+authority than option 1 grants.
+
+### Corrections to this card, verified against live source
+
+| card said | live tree | checked |
+|---|---|---|
+| `validate_ancestor_chain` at `catalog_database.cpp:2155` | **2030**; 2155 is inside `reliable_local_filesystem` | corrected above |
+| `open_state_directory` at 3862 | **3758** | — |
+| `_live_supervisor_identity` calls the failing resolve | the live function is **`live_supervisor_failures`** (`verify_test_network_isolation.py:360`); the line numbers and symptom string do match | — |
+| option 1 grants `C:\`, `C:\Users`, and the profile directory — three | **understated by this card's own evidence.** Its option-2 probe lists seven denied profile-chain ancestors, and its measured table shows `C:\code` denied, so the repository chain needs grants too or `REPOSITORY_ROOT.resolve(strict=True)` still fails | the grant set is "every strict ancestor of every granted scope and of the AC root" |
+| the elevation asymmetry | **omitted from every packet version**, and material to the cost judgement | stated above |
+
+`rfc0016_device_live_runner_security` appears at this card's line 90 as failing on
+this cause and then vanishes from both the evidenced list and the v2 stake table
+with no disposition. Either an intervening card fixed it or it is an unlisted
+eighth mechanism-2 test. The Windows session should measure it; it does not
+change the choice.
+
+### Required implementation, and why it is not split
+
+The decision is made; the work is not. Implementing it means measuring the
+minimal mask on the host, writing the grants into
+`cmake/WindowsTestIsolationSetup.cmake`, and proving the seven tests pass
+contained. **Never `(OI)(CI)` on any ancestor** — an inheritable grant on `C:\`
+or the profile root would hand the container the drive or `Documents` and
+`.ssh`. The configure must fail closed with a message naming the exact elevated
+command.
+
+None of that is portable. A CMake edit written from macOS could not be measured,
+and this card has already recorded what that produces: [[BPR-0360]] wrote an
+implementation and reverted it rather than land it unverifiable. So the card
+moves whole to `21-ready-win/` rather than splitting, which is the condition the
+board's own splitting rule carries.
+
+### What would reverse this
+
+- A Windows session grants the complete chains non-inheritably and measures that
+  `GetFinalPathNameByHandleW`, `resolve(strict=True)`, and `git init` **still**
+  fail — meaning the denial is lowbox-intrinsic rather than ACL-caused. Option 1
+  then joins option 2 as measured-dead and option 3 is taken explicitly, with its
+  exempt list pinned by its own contract and [[BPR-0235]]'s Windows criterion
+  rewritten honestly.
+- The owner refuses the one-time elevated step — a legitimate call this card
+  never surfaced, and the same fallback applies.
+- Any claim or test appears that binds AppContainer *filesystem* narrowness as a
+  required property. None exists today.
