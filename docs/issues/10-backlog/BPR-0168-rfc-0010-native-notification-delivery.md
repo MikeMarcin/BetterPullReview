@@ -1,10 +1,9 @@
 ---
 id: BPR-0168
 title: Confirm a native notification is delivered and its link opens the review
-status: Parked
+status: Backlog
 rfc: RFC-BPR-0010
-depends_on: [BPR-0164, BPR-0193, BPR-0223, BPR-0251]
-parked_on: awaiting-owner-verdict
+depends_on: [BPR-0164, BPR-0169, BPR-0193, BPR-0223, BPR-0251]
 ---
 
 # Confirm a native notification is delivered and its link opens the review
@@ -242,3 +241,21 @@ bound to executable
 It requests a fresh exact run, the complete log, and the owner's personally read
 title/body plus confirmation that no private content appeared. This card stays
 parked until that observation is returned.
+
+## Final-head v006 accepted — 2026-08-21
+
+The owner personally read and clicked the native macOS banner from the exact
+v006 course. The immutable
+[`operator response`](../../verification/reviews/native-notification-delivery-v006/operator-response.md),
+[`raw log`](../../verification/reviews/native-notification-delivery-v006/notification-run-attempt-1.log),
+and [`validation record`](../../verification/reviews/native-notification-delivery-v006/validation-record.json)
+bind executable
+`sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28`,
+the BPR-0251 implementation record, the visible title/body, absence of private
+content, the real tray click, exact focused landing selection, and exit zero.
+
+This completes the current human checkpoint without authorizing a source edit,
+live GitHub mutation, package, release, or RFC closeout. BPR-0168 now waits in
+Backlog behind BPR-0169 so terminal RFC-BPR-0010 replay can recheck final
+executable identity after the remaining implementation chain. Byte-identical
+output may reuse v006; a later relink requires a successor verdict.

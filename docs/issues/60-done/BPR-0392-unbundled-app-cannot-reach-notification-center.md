@@ -1,9 +1,8 @@
 ---
 id: BPR-0392
 title: The unbundled test build cannot register with Notification Center
-status: Parked
+status: Done
 rfc: RFC-BPR-0010
-parked_on: awaiting-owner-verdict
 depends_on: []
 ---
 
@@ -367,3 +366,19 @@ It retains the useful auto-dismiss/retry rule, requires every raw attempt log,
 and asks the owner to read the visible banner before clicking. The prior
 exit-zero course is not withdrawn; this card remains parked only because its
 shared BPR-0168 banner-content judgment is still absent for the current bytes.
+
+## Final-head native course accepted — 2026-08-21
+
+The exact v006 run closes the structural question this card owns. The bundled
+tests-enabled application reported
+`NATIVE_NOTIFICATION_BUNDLE_IDENTITY:io.github.MikeMarcin.BetterPullReview.tests`,
+macOS displayed the expected banner, the owner personally read and clicked it,
+the real tray signal selected and focused the exact landing row, and the process
+exited zero without an icon warning or refusal marker. The immutable response,
+raw log, and validation record live in
+[`native-notification-delivery-v006`](../../verification/reviews/native-notification-delivery-v006/validation-record.json).
+
+BPR-0392 is Done. This proves the repaired bundle identity can reach
+Notification Center; it grants no live GitHub, package, release, or RFC-closeout
+authority. BPR-0168 separately retains the final-identity replay obligation for
+RFC-BPR-0010.

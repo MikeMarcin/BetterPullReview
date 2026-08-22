@@ -1,0 +1,62 @@
+{
+  "bound_executable": {
+    "byte_length": 51383520,
+    "path": "build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+    "sha256": "sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28"
+  },
+  "bound_implementation_record": {
+    "byte_length": 5183,
+    "path": "docs/issues/60-done/BPR-0251-compose-attended-native-notification-course.md",
+    "sha256": "sha256:9576aef7f125a62d88c0f1e7928357906d47d7a1a8a8b48617f09945f4110be6"
+  },
+  "checks": {
+    "approval_statement_exact_after_markdown_reflow_normalization": true,
+    "bound_executable_exact": true,
+    "bound_implementation_record_exact": true,
+    "complete_raw_log_exact": true,
+    "forbidden_markers_absent": true,
+    "overall": "pass",
+    "required_markers_present": true
+  },
+  "claims": {
+    "bpr_0168_native_notification_delivery_approved": true,
+    "bpr_0220_product_fix_authorized": false,
+    "bpr_0392_bundled_notification_center_path_approved": true,
+    "live_github_mutation_authorized": false,
+    "package_or_release_authorized": false,
+    "rfc_bpr_0010_closeout_authorized": false
+  },
+  "gate": "native-notification-delivery-v006",
+  "observation": {
+    "banner_body": "The code moved after you reviewed it.",
+    "banner_private_content_absent_by_owner_observation": true,
+    "banner_title": "octo-org/review-repository #17",
+    "bundle_identity": "io.github.MikeMarcin.BetterPullReview.tests",
+    "exit_status": 0,
+    "landing_selection": "github.com / octo-reviewer / octo-org/review-repository #17",
+    "tray_signal_marker_count": 97
+  },
+  "operator_response": {
+    "byte_length": 1056,
+    "path": "docs/verification/reviews/native-notification-delivery-v006/operator-response.md",
+    "sha256": "sha256:29d921787daed8ba5e58825d0e88cb5f35045b94ee1e5facb4ae2df266123090"
+  },
+  "outcome": "approved",
+  "raw_log": {
+    "byte_length": 4014,
+    "path": "docs/verification/reviews/native-notification-delivery-v006/notification-run-attempt-1.log",
+    "sha256": "sha256:b56f2c9fe60790235408950943e5af607658896f99021f89e8e3b2e058cd90fa"
+  },
+  "recorded_at": "2026-08-21T18:19:13-07:00",
+  "result": "pass",
+  "reviewed_packet": {
+    "byte_length": 8839,
+    "path": "docs/verification/reviews/native-notification-delivery-v006/operator-packet.md",
+    "sha256": "sha256:008cf5d50e8e2878e99a0360e1f284d07158f1b96a401acf7bb92f6b438b292d"
+  },
+  "schema_name": "bpr.operator_response_validation",
+  "schema_version": 1,
+  "statement_extraction_rule": "take the blockquote after the unique v006 approval marker, remove the Markdown quote prefix, trim authoring wraps, join wrapped lines with one ASCII space, and append one LF",
+  "validated_commit": "06f6573507f81b86e99fd7b74d26e6614511e2d2",
+  "validation_command": "python3 -c 'from pathlib import Path; p=Path(\"docs/verification/reviews/native-notification-delivery-v006/operator-packet.md\").read_text(); r=Path(\"docs/verification/reviews/native-notification-delivery-v006/operator-response.md\").read_text(); marker=\"To approve, paste the complete v006 log or logs and reply with this exact\\nstatement:\\n\\n\"; block=p.split(marker,1)[1].split(\"\\n\\nTo reject\",1)[0].splitlines(); expected=\" \".join((line[2:] if line.startswith(\"> \") else line[1:]).strip() for line in block)+\"\\n\"; assert r==expected' && cmp -s /tmp/bpr-0168-native-notification-v006.st8bHK docs/verification/reviews/native-notification-delivery-v006/notification-run-attempt-1.log"
+}

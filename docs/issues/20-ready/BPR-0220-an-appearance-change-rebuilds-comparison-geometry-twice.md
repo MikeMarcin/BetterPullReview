@@ -1,10 +1,9 @@
 ---
 id: BPR-0220
 title: An appearance change rebuilds comparison geometry twice
-status: Parked
+status: Ready
 rfc: RFC-BPR-0006
 depends_on: [BPR-0249]
-parked_on: awaiting-owner-verdict
 ---
 
 # An appearance change rebuilds comparison geometry twice
@@ -229,3 +228,17 @@ binary still bound by the pending final-head notification packet. The visual
 v004 gate is now accepted; notification v006 remains. This card therefore stays
 Parked until the owner authorizes that replacement or the remaining exact-byte
 gate is retired or answered.
+
+## Exact-byte hold cleared — 2026-08-21
+
+The owner returned the exact notification v006 approval after personally
+reading and clicking the banner; its complete raw log exits zero and the
+validation record binds the same executable as v008. No attended question now
+holds `sha256:10899f24…181b28` against this supported repair.
+
+BPR-0220 therefore moves to Ready. Its implementation remains exactly the
+measurement-supported change already recorded here: both stale exact-one
+native-state expectations move together to exact zero, with a structural
+contract that prevents them from drifting apart. The relink will create a new
+binary identity and therefore requires successor final-head attended packets;
+it does not inherit v004, v006, or v008 across changed bytes.

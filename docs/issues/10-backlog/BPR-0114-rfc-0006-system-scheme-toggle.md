@@ -470,6 +470,7 @@ This is not an acceptance of BPR-0114. The run exits `1` because the state
 predicate expects one comparison-geometry rebuild and the attributable native
 measurement records zero, with no rebuild causes. That keeps changed capture
 and persistence from running. [[BPR-0391]] and [[BPR-0410]] are Done because
-their wait and diagnostic claims are directly satisfied; [[BPR-0220]] remains
-Parked on the supported zero-expectation repair and protected-binary
-sequencing. This card remains Backlog on that dependency.
+their wait and diagnostic claims are directly satisfied. Notification v006 is
+also accepted, so [[BPR-0220]] is Ready for the supported zero-expectation
+repair; its relink will require a successor native appearance packet. This card
+remains Backlog on that dependency and replay.
