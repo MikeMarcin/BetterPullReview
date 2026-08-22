@@ -1,9 +1,10 @@
 ---
 id: BPR-0211
 title: A secondary overview for conversations too large to follow inline
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191, BPR-0413]
+parked_on: awaiting-product-decision
 ---
 
 # A secondary overview for conversations too large to follow inline
@@ -94,10 +95,15 @@ batch `bpr:/attended-review/betterpullreview/40a5fd691f86739e55c6860a`, and it
 presents the alternatives as one choose-exactly-one question. Rejecting every
 alternative is a recordable answer and means build neither.
 
-That page was then held back rather than presented. An independent review
-falsified its central cost claim before the owner ever saw it, so [[BPR-0413]]
-reopened to correct the batch, and this card waits on that correction rather
-than on a person.
+That page was held back rather than presented: an independent review falsified
+its central cost claim before the owner saw it, so [[BPR-0413]] reopened and
+corrected the batch. The corrected page is
+`bpr:/attended-review/betterpullreview/c285f6948ed054de1342cfb1`, and it carries
+a fourth subject the first build omitted — the git-graph drawer [[BPR-0191]]
+recorded the owner asking for and never built.
+
+So this card is parked, and the label is accurate: the owner is the only thing
+left. Nothing is queued in front of it.
 
 One finding from building them belongs on this card, because it changes what
 the choice costs. The two alternatives are not equally expensive. The
