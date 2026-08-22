@@ -1,10 +1,9 @@
 ---
 id: BPR-0212
 title: Show conversation and code evolving together across revisions
-status: Parked
+status: Backlog
 rfc: none
-depends_on: [BPR-0191, BPR-0413]
-parked_on: awaiting-product-decision
+depends_on: [BPR-0191, BPR-0413, BPR-0415]
 ---
 
 # Show conversation and code evolving together across revisions
@@ -147,3 +146,42 @@ deepening it. And no recorded pull request here carries
 a conversation at all, so the deep thread was drawn synthesized — the
 precondition this card set, that a conversation deep enough to be a problem is
 recorded, is measured now rather than merely suspected, and it is still unmet.
+
+## Decided — 2026-08-21
+
+The owner answered the [[BPR-0413]] page. Verdict
+`bpr:/attended-review/betterpullreview/c285f6948ed054de1342cfb1`, validated at
+`docs/verification/reviews/conversation-view-mockups-v001/verdict-validation.json`.
+
+**Accepted: the join is worth an RFC.** That is the whole of what was
+authorized, and this card's own warning is now the load-bearing one — accepting
+the subject authorized an RFC, not a projection field. Nobody may add a revision
+to `github_conversation_projection` as a side effect of a presentation card.
+
+This card stays what it has always been: the recorded idea and the measurement
+behind it, not an issue slice. [[BPR-0415]] owns writing the RFC, so this card
+waits in `10-backlog/` behind it rather than being worked directly.
+
+## What the page corrected about this card
+
+The batch's first build told the owner that whether GitHub exposes the revision
+a comment was made against "has not been checked — unauthenticated or at all".
+An independent review falsified that from this repository's own code before the
+page was presented, and the correction belongs here because it changes how
+expensive the idea is:
+
+- `src/application/include/bpr/application/github_read_model.hpp:223` carries
+  `std::optional<commit_oid> Commit` per review, and
+  `src/adapters/github/src/github_read_contract.cpp:1214-1241` **requires**
+  `commit_id` on every review object, rejecting a response without it.
+- `src/application/src/github_projection_mapping.cpp:145-156` then drops it —
+  the same discard this card documents for the conversation nodes.
+- The write path already models a comment written against a revision:
+  `src/adapters/github/src/github_mutation_contract.cpp:117-122` sends
+  `commit_id`, the exact anchor commit, and rejects a mismatched echo.
+
+So a review-level join is nearer than "the datum exists nowhere" implied. What
+is genuinely missing is narrower and still real: the review-thread GraphQL
+selection asks for `id bodyText path line originalLine outdated author replyTo`
+and does not ask for a comment's commit at all. Whether that field is available
+unauthenticated remains unchecked, and the RFC has to answer it.

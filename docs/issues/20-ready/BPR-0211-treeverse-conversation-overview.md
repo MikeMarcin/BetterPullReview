@@ -1,13 +1,12 @@
 ---
 id: BPR-0211
-title: A secondary overview for conversations too large to follow inline
-status: Parked
+title: Build the Treeverse-style overview of a deep thread
+status: Ready
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191, BPR-0413]
-parked_on: awaiting-product-decision
 ---
 
-# A secondary overview for conversations too large to follow inline
+# Build the Treeverse-style overview of a deep thread
 
 > **Scope widened, 2026-08-08.** The owner narrowed the drawer to the *current
 > file's* line-anchored threads, SmartBear Collaborator style, and called a
@@ -117,3 +116,68 @@ deepening it. And no recorded pull request here carries
 a conversation at all, so the deep thread was drawn synthesized — the
 precondition this card set, that a conversation deep enough to be a problem is
 recorded, is measured now rather than merely suspected, and it is still unmet.
+
+## Decided — 2026-08-21
+
+The owner answered the [[BPR-0413]] page. Verdict
+`bpr:/attended-review/betterpullreview/c285f6948ed054de1342cfb1`, validated at
+`docs/verification/reviews/conversation-view-mockups-v001/verdict-validation.json`.
+
+**Alternative B — the Treeverse-style map — is chosen.** The whole-review view
+is recorded as *not chosen*, which is not a rejection: it was the losing side of
+one question, and if B is later withdrawn this card does not have to
+re-litigate whether A was defective. It was not.
+
+The owner's words, verbatim:
+
+> I prefer this view, it still needs to show the full branch that you clicked
+> on, or at least up to the noce you selected. I think this could use some more
+> iteration but that can come after experience.
+
+So this card stops being "should a second view exist" and becomes "build this
+one". Two things follow directly.
+
+**The map must show the branch, not just the node.** The mockup highlighted the
+root-to-focus path and put the focused reply in a side pane; the owner wants the
+full branch that was clicked visible, or at minimum everything from the root
+down to the selected node. Treat the highlighted path in
+`mockups/03-treeverse.svg` as the floor, not the design.
+
+**Iteration is expected and is not a defect.** "This could use some more
+iteration but that can come after experience" is explicit permission to ship a
+first version and learn from it, and an instruction not to hold the card open
+chasing a final shape before anyone has used it.
+
+## What it actually costs
+
+Corrected during [[BPR-0413]], after an independent review falsified the first
+estimate. This is not a one-line change:
+
+- `src/application/src/github_projection_mapping.cpp:175` — carry
+  `comment.ReplyTo` instead of the thread root, with a fallback for a thread's
+  first comment, whose `replyTo` is null.
+- `src/adapters/qt/src/github_conversation_model.cpp:317-326` — stop rejecting a
+  parent whose `Kind` is `review_comment`. **Without this the mapping change
+  makes things worse**: every reply is rejected, promoted to a root, and the
+  drawer flattens from two levels to one.
+- The map surface itself, its focus pane, keyboard navigation, and
+  accessibility.
+- Per-comment read state, which nothing currently carries — the ledger's unread
+  notion is a per-conversation cursor.
+- The tests that encode today's two-level shape, in the application host and the
+  Qt panel.
+
+## Known before starting
+
+No recorded pull request in this repository carries a conversation, and the
+deepest real structure in any fixture is one `replyTo` edge. This card's own
+earlier precondition — that a conversation deep enough to be a problem is
+recorded — is still unmet, and the owner chose to proceed anyway. A first slice
+should expect to build its own fixture with real depth, and should not claim
+evidence from synthesized content that it has not labelled as such.
+
+## Not this card
+
+The owner's other remark on the same verdict — that the existing drawer needs to
+anchor the root comment to the line of code it comments on — is a gap in the
+shipped anchored drawer, not in this secondary view. [[BPR-0414]] owns it.

@@ -705,7 +705,9 @@ three answers it needs:
 | BPR-0347 | `30-in-progress/` | A Windows session. The suite runs on the project's Windows 11 x64 host and its own remaining failures are the work; nothing else is in the way |
 | BPR-0358 | `30-in-progress/` | A Windows session. Its own five required-final-state bullets are met; it stays open as the anchor for the Windows program it records |
 | BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; an immediate credential-free REST diagnostic returned HTTP 404, the approval stayed unconsumed and was deleted, and no mutation occurred. v004 must not be retried |
-| BPR-0211, BPR-0212 | `40-parked/` | A product decision, and now an answerable one. [[BPR-0413]] built the mockups, an independent review corrected them before anyone saw them, and the page asks four bounded questions — including one about the git-graph drawer that was asked for and never built |
+| BPR-0211 | `20-ready/` | Nothing. The owner chose the Treeverse map on 2026-08-21; the card carries the chosen scope, the corrected cross-layer cost, and the owner's refinement that the full clicked branch must be visible |
+| BPR-0414 | `20-ready/` | Nothing. The same verdict named a gap in the shipped drawer: the root comment is not anchored to its line. The geometry exists and is unwired; two data gaps bound how far it can go |
+| BPR-0415 | `20-ready/` | Nothing. The revision-axis acceptance authorizes writing the RFC, which is this card; [[BPR-0212]] stays the recorded seed rather than being worked as a slice |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
 | BPR-0240 | `30-in-progress/` | A Windows session. Done BPR-0334 removed the duplicated portable protocol policy, but `windows_agent_process.cpp` still has never been compiled and only a Windows toolchain can prove its HANDLE/Job/cancellation transport |
@@ -738,8 +740,8 @@ waiting on a person. A deliverable was owed and no card owned it, so both cards
 moved to `10-backlog/` behind [[BPR-0413]], and returned here when it landed the
 page. They were parked again when it landed, unparked once
 more when an independent review falsified the page's central cost claim before
-the owner saw it, and parked a third time once [[BPR-0413]] had corrected the
-batch. That is the
+the owner saw it, parked a third time once [[BPR-0413]] had corrected the batch,
+and unparked for the last time when the owner answered it the same day. That is the
 same reading that brought [[BPR-0256]] back to an active lane, and it is the
 caveat this section already states two paragraphs down: a card whose next action
 is unattended does not belong in the parked lane. The churn is the rule working, not drift — the lane
@@ -747,14 +749,24 @@ moved each time because what these cards were waiting on genuinely changed, and
 the one move that looks like thrash is the one that matters: a page with a false
 cost claim was stopped before it reached the person it would have misled.
 
+The verdict came back the same day. The Treeverse map is chosen and [[BPR-0211]]
+is `20-ready/` to build it; the whole-review view is recorded *not chosen*
+rather than rejected, so it stays available without being on the record as
+defective. The revision-axis RFC is authorized, so [[BPR-0415]] writes it while
+[[BPR-0212]] stays the recorded seed in `10-backlog/`. The git-graph drawer is
+declined — "Don't see the need at this time" — which closes a request that had
+been open since 2026-08-08 and that no card had ever put back in front of the
+person who made it. And the owner named a gap nobody had carded: the shipped
+drawer does not anchor a comment to its line, which is [[BPR-0414]].
+
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these eleven roots or reaches one
+card on this board is either one of these twelve roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
-of the 54 cards in `10-backlog/`, **none** has all its dependencies in
+of the 55 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
 
 The post-BPR-0334 audit on 2026-08-21 found no backlog dependency on that
-card, so its move to `60-done/` promoted nothing. All 54 backlog cards still
+card, so its move to `60-done/` promoted nothing. All 55 backlog cards still
 have at least one direct dependency outside the terminal lane.
 
 So the honest summary is narrower than the one this section used to give.

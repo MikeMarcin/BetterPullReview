@@ -1,0 +1,43 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/c285f6948ed054de1342cfb1",
+  "review_gate": "conversation_view_direction",
+  "review_scope": "product_direction_mockup_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "direction:/betterpullreview/bpr-0211/treeverse-deep-thread",
+      "subject_digest": "sha256:3a72106f2fcbdc4890812d2574d625f9ca957f643c601f00d35572f79b62d290"
+    },
+    {
+      "subject_id": "direction:/betterpullreview/bpr-0212/revision-axis-rfc",
+      "subject_digest": "sha256:f4e2fb397ee25b8a6eca8f1dded5fd75b47ae37b650ee0c4c549866c766e2439"
+    }
+  ],
+  "rejected_subjects": [
+    {
+      "subject_id": "direction:/betterpullreview/bpr-0191/lane-rail-drawer",
+      "subject_digest": "sha256:f9944751930a489a26d2534828ec234f3039bdd0d8937b88c5ef050315d96bdd"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "direction:/betterpullreview/bpr-0211/treeverse-deep-thread@sha256:3a72106f2fcbdc4890812d2574d625f9ca957f643c601f00d35572f79b62d290": "The existing drawer today needs to anchor the root comment to the line of code it's commenting on like code collaborator does.\n\nI prefer this view, it still needs to show the full branch that you clicked on, or at least up to the noce you selected. I think this could use some more iteration but that can come after experience.",
+    "direction:/betterpullreview/bpr-0191/lane-rail-drawer@sha256:f9944751930a489a26d2534828ec234f3039bdd0d8937b88c5ef050315d96bdd": "Don't see the need at this time."
+  },
+  "downstream_claims": {
+    "bpr_0211_closed": false,
+    "bpr_0212_closed": false,
+    "cost_estimates_verified": false,
+    "implementation_exists": false,
+    "projection_field_authorized": false,
+    "recorded_conversation_evidence": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "not_chosen_subjects": [
+    {
+      "subject_id": "direction:/betterpullreview/bpr-0211/whole-review-conversation",
+      "subject_digest": "sha256:cc51950d6542749eae9ea63b360da2974f2691f23f4e58724e77260215485389"
+    }
+  ]
+}

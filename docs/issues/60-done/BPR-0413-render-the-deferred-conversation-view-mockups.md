@@ -340,3 +340,42 @@ two new `downstream_claims` keys fence what the earlier fence missed —
 
 The first build's digests are superseded and are not carried forward: no verdict
 was ever recorded against them, because the page was never presented.
+
+## Answered — 2026-08-21
+
+The owner returned a complete verdict the same day. It validates against its own
+batch manifest, and the record is immutable at
+`docs/verification/reviews/conversation-view-mockups-v001/verdict-validation.json`.
+
+| Subject | Outcome |
+|---|---|
+| `alternative-b-treeverse` | **chosen** |
+| `alternative-a-whole-review` | not chosen |
+| `revision-axis-rfc` | **accepted** — the RFC is authorized |
+| `lane-rail-drawer` | **rejected** — "Don't see the need at this time." |
+
+Three things this card is worth remembering for.
+
+**The selection group earned its keep.** The whole-review view is recorded as
+*not chosen*, not rejected. It lost one question; it was not judged defective,
+and if the Treeverse view is later withdrawn nothing has to distinguish a
+runner-up from a failure. That distinction is exactly why `choice_group` and
+`selection_group` exist.
+
+**The subject the first build omitted is the one that produced a decision.**
+`lane-rail-drawer` existed only because an independent review noticed the page
+was settling a request the owner had made in [[BPR-0191]] and never withdrawn.
+The answer was "Don't see the need at this time" — so the request is now
+genuinely closed, by the person who made it, instead of by a card's reasoning.
+Had the review not caught it, the page would have quietly carried BPR-0191's
+narrowing forward as though the owner had agreed to it.
+
+**The correction mattered to the answer.** The owner chose the alternative whose
+cost this card originally understated by an order of magnitude. They chose it
+against the corrected description, which named the flattening trap and the
+cross-layer change. A verdict given against the first build would have been a
+verdict against a claim that was false.
+
+The verdict also produced work this card did not anticipate: [[BPR-0414]] for
+the anchoring gap the owner named, and [[BPR-0415]] to author the RFC the
+revision-axis acceptance authorizes.
