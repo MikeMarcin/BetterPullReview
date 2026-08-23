@@ -420,3 +420,23 @@ matrix needs them.
 - [ ] documentation gate passed over `RFC_BASE_SHA..HEAD`
 - [ ] independent review done
 - [ ] status flipped — every RFC in this program remains `Proposed`
+
+### BPR-0360 — 2026-08-22
+
+Done. The product's owner-private descriptor now names the container's
+package SID when the process is contained, the validator requires exactly
+that pair inside and exactly the user outside, and
+`sqlite_appcontainer_private_descriptor` proves it contained through the
+product's own validator — the one `sqlite_contract` test that stays inside
+the boundary. Implemented by a bounded worker lane; reviewed and reproduced
+by the integrator.
+
+| claim | surface | command | proves it | result | evidence |
+|---|---|---|---|---|---|
+| a contained process can use the catalog objects it creates | the product's descriptor builder and validator, via the `BPR_SQLITE_TESTING` seam | `ctest -R '^sqlite_appcontainer_private_descriptor$'`, contained; the same binary uncontained | fails `usable=0 last_error=5` before the fix, passes `ace_count=2` after; `ace_count=1` uncontained | pass | BPR-0360 |
+
+One gap for the Qt-graph replay ([[BPR-0412]]): `RELEASE_BINARY_FORBIDDEN_BYTES`
+in `tests/end_to_end/composition_contract_tests.py` never listed the two
+older SQLite seam symbols, `interrupt_next_bootstrap_before_publication` and
+`classify_sqlite_result_code`; the new `probe_private_descriptor` is listed,
+and the contract itself runs only in the Qt graph.

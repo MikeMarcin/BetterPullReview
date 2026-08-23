@@ -59,6 +59,7 @@ RELEASE_BINARY_FORBIDDEN_BYTES = (
     b"github_application_fixture_access",
     b"fail_next_epoch_job_admission",
     b"clear_epoch_job_admission_failure",
+    b"probe_private_descriptor",
     b"github_public_path_fixture",
     b"tests/fixtures/github/",
     b"tests\\fixtures\\github\\",

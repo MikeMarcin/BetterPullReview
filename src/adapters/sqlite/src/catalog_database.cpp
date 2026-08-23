@@ -3,6 +3,7 @@
 #include "sqlite_connection.hpp"
 #include "state_directory.hpp"
 
+#include "bpr/adapters/sqlite/testing.hpp"
 #include "bpr/application/epoch_catalog_port.hpp"
 
 #include <sqlite3.h>
@@ -1644,6 +1645,68 @@ namespace bpr::adapters::sqlite::detail {
 				if (::CopySid(sid_bytes, result.Sid.data(), user->User.Sid) == 0) {
 					return std::unexpected(failure::unavailable);
 				}
+				// A lowbox token's access check additionally requires the object to
+				// grant the container's own package SID. The container is recorded
+				// beside the user here so that every owner-private object this
+				// adapter writes names the identity the process actually runs as.
+				DWORD contained = 0U;
+				DWORD returned  = 0U;
+				if (::GetTokenInformation(
+						token.Value,
+						TokenIsAppContainer,
+						&contained,
+						sizeof(contained),
+						&returned)
+					== 0) {
+					return std::unexpected(
+						windows_error_failure(::GetLastError()));
+				}
+				if (contained == 0U) {
+					return result;
+				}
+				DWORD container_required = 0U;
+				(void)::GetTokenInformation(
+					token.Value,
+					TokenAppContainerSid,
+					nullptr,
+					0U,
+					&container_required);
+				if (container_required == 0U
+					|| ::GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+					return std::unexpected(failure::unavailable);
+				}
+				auto container_information = std::vector<std::byte>(
+					container_required);
+				if (::GetTokenInformation(
+						token.Value,
+						TokenAppContainerSid,
+						container_information.data(),
+						container_required,
+						&container_required)
+					== 0) {
+					return std::unexpected(
+						windows_error_failure(::GetLastError()));
+				}
+				const auto* container
+					= reinterpret_cast<const TOKEN_APPCONTAINER_INFORMATION*>(
+						container_information.data());
+				if (container->TokenAppContainer == nullptr
+					|| ::IsValidSid(container->TokenAppContainer) == 0) {
+					return std::unexpected(failure::invalid_permissions);
+				}
+				const auto container_bytes = ::GetLengthSid(
+					container->TokenAppContainer);
+				if (container_bytes == 0U) {
+					return std::unexpected(failure::invalid_permissions);
+				}
+				result.ContainerSid = std::vector<std::byte>(container_bytes);
+				if (::CopySid(
+						container_bytes,
+						result.ContainerSid.data(),
+						container->TokenAppContainer)
+					== 0) {
+					return std::unexpected(failure::unavailable);
+				}
 				return result;
 			}
 
@@ -1652,8 +1715,22 @@ namespace bpr::adapters::sqlite::detail {
 				return const_cast<std::byte*>(Sid.data());
 			}
 
+			// Null unless this process runs in an AppContainer.
+			[[nodiscard]] auto container_sid() const noexcept -> PSID
+			{
+				return ContainerSid.empty()
+					? nullptr
+					: static_cast<PSID>(const_cast<std::byte*>(ContainerSid.data()));
+			}
+
+			[[nodiscard]] auto contained() const noexcept -> bool
+			{
+				return !ContainerSid.empty();
+			}
+
 		private:
 			std::vector<std::byte> Sid;
+			std::vector<std::byte> ContainerSid;
 		};
 
 		class private_security_attributes final
@@ -1663,9 +1740,16 @@ namespace bpr::adapters::sqlite::detail {
 				const private_security&   security,
 				const windows_object_kind kind) -> bool
 			{
-				const auto sid_bytes = ::GetLengthSid(security.sid());
-				const auto required  = sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE)
+				const auto sid_bytes       = ::GetLengthSid(security.sid());
+				const auto container_bytes = security.contained()
+					? ::GetLengthSid(security.container_sid())
+					: 0U;
+				auto       required        = sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE)
 					- sizeof(DWORD) + static_cast<std::size_t>(sid_bytes);
+				if (security.contained()) {
+					required += sizeof(ACCESS_ALLOWED_ACE) - sizeof(DWORD)
+						+ static_cast<std::size_t>(container_bytes);
+				}
 				if (required > std::numeric_limits<DWORD>::max()) {
 					return false;
 				}
@@ -1683,9 +1767,25 @@ namespace bpr::adapters::sqlite::detail {
 						   inheritance,
 						   FILE_ALL_ACCESS,
 						   security.sid())
-						== 0
-					|| ::InitializeSecurityDescriptor(
-						   &Descriptor, SECURITY_DESCRIPTOR_REVISION)
+						== 0) {
+					return false;
+				}
+				// The container is the identity the process actually runs as, not a
+				// second principal: a lowbox access check refuses an object whose
+				// DACL names only the token user, so without this entry an
+				// owner-private object excludes its own creator.
+				if (security.contained()
+					&& ::AddAccessAllowedAceEx(
+						   acl,
+						   ACL_REVISION,
+						   inheritance,
+						   FILE_ALL_ACCESS,
+						   security.container_sid())
+						== 0) {
+					return false;
+				}
+				if (::InitializeSecurityDescriptor(
+						&Descriptor, SECURITY_DESCRIPTOR_REVISION)
 						== 0
 					|| ::SetSecurityDescriptorOwner(
 						   &Descriptor, security.sid(), FALSE)
@@ -1747,6 +1847,11 @@ namespace bpr::adapters::sqlite::detail {
 			SECURITY_DESCRIPTOR_CONTROL control  = 0U;
 			DWORD                       revision = 0U;
 			ACL_SIZE_INFORMATION        information{ };
+			// Inside a container the owner-private descriptor carries exactly one
+			// extra entry, for the package SID that the restricted access check
+			// requires. Anything beyond that pair is not owner-private.
+			const auto expected_ace_count = static_cast<ULONG>(
+				expected.contained() ? 2U : 1U);
 			if (owner == nullptr || dacl == nullptr
 				|| ::EqualSid(owner, expected.sid()) == 0
 				|| ::GetSecurityDescriptorControl(
@@ -1760,28 +1865,48 @@ namespace bpr::adapters::sqlite::detail {
 					   sizeof(information),
 					   AclSizeInformation)
 					== 0
-				|| information.AceCount != 1U) {
+				|| information.AceCount != expected_ace_count) {
 				return std::unexpected(failure::invalid_permissions);
 			}
-			void* raw_ace = nullptr;
-			if (::GetAce(dacl, 0U, &raw_ace) == 0 || raw_ace == nullptr) {
-				return std::unexpected(failure::invalid_permissions);
-			}
-			const auto* ace             = static_cast<const ACCESS_ALLOWED_ACE*>(raw_ace);
-			const auto  expected_flags  = kind == windows_object_kind::directory
+			const auto expected_flags = kind == windows_object_kind::directory
 				? static_cast<BYTE>(OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE)
 				: static_cast<BYTE>(0U);
-			const auto  exact_protected = (control & SE_DACL_PROTECTED) != 0U
-				&& ace->Header.AceFlags == expected_flags;
-			const auto exact_inherited_file = kind == windows_object_kind::regular_file && allow_inherited
-				&& (control & SE_DACL_PROTECTED) == 0U
-				&& ace->Header.AceFlags == static_cast<BYTE>(INHERITED_ACE);
-			if (ace->Header.AceType != ACCESS_ALLOWED_ACE_TYPE
-				|| ace->Mask != FILE_ALL_ACCESS
-				|| (!exact_protected && !exact_inherited_file)
-				|| ::EqualSid(
-					   const_cast<DWORD*>(&ace->SidStart), expected.sid())
-					== 0) {
+			const auto dacl_protected = (control & SE_DACL_PROTECTED) != 0U;
+			const auto inherited_file = kind == windows_object_kind::regular_file
+				&& allow_inherited && !dacl_protected;
+			// The order the entries were written in is not part of the contract, so
+			// each expected trustee is required exactly once as a set, and any other
+			// trustee refuses the object outright.
+			auto user_grants      = 0U;
+			auto container_grants = 0U;
+			for (auto index = ULONG{ 0U }; index < expected_ace_count; ++index) {
+				void* raw_ace = nullptr;
+				if (::GetAce(dacl, index, &raw_ace) == 0 || raw_ace == nullptr) {
+					return std::unexpected(failure::invalid_permissions);
+				}
+				const auto* ace             = static_cast<const ACCESS_ALLOWED_ACE*>(raw_ace);
+				const auto  exact_protected = dacl_protected
+					&& ace->Header.AceFlags == expected_flags;
+				const auto exact_inherited_file = inherited_file
+					&& ace->Header.AceFlags == static_cast<BYTE>(INHERITED_ACE);
+				if (ace->Header.AceType != ACCESS_ALLOWED_ACE_TYPE
+					|| ace->Mask != FILE_ALL_ACCESS
+					|| (!exact_protected && !exact_inherited_file)) {
+					return std::unexpected(failure::invalid_permissions);
+				}
+				auto* granted = static_cast<PSID>(const_cast<DWORD*>(&ace->SidStart));
+				if (::EqualSid(granted, expected.sid()) != 0) {
+					++user_grants;
+				} else if (
+					expected.contained()
+					&& ::EqualSid(granted, expected.container_sid()) != 0) {
+					++container_grants;
+				} else {
+					return std::unexpected(failure::invalid_permissions);
+				}
+			}
+			if (user_grants != 1U
+				|| container_grants != (expected.contained() ? 1U : 0U)) {
 				return std::unexpected(failure::invalid_permissions);
 			}
 			return { };
@@ -3909,6 +4034,111 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			return output::unavailable;
 		}
+	#if defined(_WIN32)
+		// Whether an owner-private catalog object is usable by the process that
+		// created it. The directory, the file, the write, and both validations run
+		// through the product's own primitives, so the answer is about the
+		// product's descriptor rather than about a copy of its rule kept in a test.
+		auto probe_private_descriptor(const std::filesystem::path& aDirectory)
+			-> private_descriptor_probe
+		{
+			const auto ace_count = [](const HANDLE handle) -> std::uint32_t {
+				PACL                 dacl       = nullptr;
+				PSECURITY_DESCRIPTOR descriptor = nullptr;
+				if (::GetSecurityInfo(
+						handle,
+						SE_FILE_OBJECT,
+						DACL_SECURITY_INFORMATION,
+						nullptr,
+						nullptr,
+						&dacl,
+						nullptr,
+						&descriptor)
+					!= ERROR_SUCCESS) {
+					return 0U;
+				}
+				const auto           owned = local_memory{ descriptor };
+				ACL_SIZE_INFORMATION information{ };
+				if (dacl == nullptr
+					|| ::GetAclInformation(
+						   dacl, &information, sizeof(information), AclSizeInformation)
+						== 0) {
+					return 0U;
+				}
+				return static_cast<std::uint32_t>(information.AceCount);
+			};
+
+			private_descriptor_probe result;
+			const auto               security = private_security::load();
+			if (!security) {
+				result.LastError = ::GetLastError();
+				return result;
+			}
+			result.Contained = security->contained();
+
+			const auto                  directory = aDirectory / L"private-descriptor-probe";
+			const auto                  file      = directory / L"probe.bin";
+			private_security_attributes directory_attributes;
+			private_security_attributes file_attributes;
+			if (!directory_attributes.initialize(
+					*security, windows_object_kind::directory)
+				|| !file_attributes.initialize(
+					*security, windows_object_kind::regular_file)) {
+				return result;
+			}
+			if (::CreateDirectoryW(
+					directory.c_str(), directory_attributes.attributes())
+				== 0) {
+				result.LastError = ::GetLastError();
+				return result;
+			}
+			result.Created = true;
+
+			if (auto opened = open_existing_object(
+					directory,
+					windows_object_kind::directory,
+					FILE_LIST_DIRECTORY | FILE_TRAVERSE);
+				opened) {
+				result.DirectoryValid    = validate_private_security(
+											   opened->Value, *security, windows_object_kind::directory)
+											   .has_value();
+				result.DirectoryAceCount = ace_count(opened->Value);
+			} else {
+				result.LastError = ::GetLastError();
+			}
+
+			windows_handle handle{ ::CreateFileW(
+				file.c_str(),
+				GENERIC_READ | GENERIC_WRITE | READ_CONTROL,
+				FILE_SHARE_READ | FILE_SHARE_WRITE,
+				file_attributes.attributes(),
+				CREATE_NEW,
+				FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT
+					| FILE_FLAG_WRITE_THROUGH,
+				nullptr) };
+			if (!handle.valid()) {
+				result.LastError = ::GetLastError();
+			} else {
+				const auto payload = std::byte{ 0x42 };
+				DWORD      written = 0U;
+				result.Usable
+					= ::WriteFile(handle.Value, &payload, 1U, &written, nullptr) != 0
+					&& written == 1U && ::FlushFileBuffers(handle.Value) != 0;
+				if (!result.Usable) {
+					result.LastError = ::GetLastError();
+				}
+				result.FileValid    = validate_private_security(
+										  handle.Value, *security, windows_object_kind::regular_file)
+										  .has_value();
+				result.FileAceCount = ace_count(handle.Value);
+				handle.reset();
+			}
+
+			(void)::DeleteFileW(file.c_str());
+			(void)::RemoveDirectoryW(directory.c_str());
+			return result;
+		}
+	#endif
 	} // namespace testing
 #endif
 

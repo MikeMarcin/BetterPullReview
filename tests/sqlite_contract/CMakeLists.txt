@@ -242,3 +242,49 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "appearance-settings-storage-tests:pass"
         TIMEOUT 60
 )
+
+# The Windows boundary is an AppContainer, and this is the one sqlite_contract
+# test that has to run inside it: the claim under test is that the product's
+# own owner-private descriptor stays usable by a contained process. It carries
+# no `WINDOWS_UNCONTAINED` keyword for that reason. The scratch parent is the
+# build tree, which the container is granted at configure time.
+if(WIN32)
+    bpr_add_executable(
+        test_better_pull_review_sqlite_appcontainer_private_descriptor_tests
+        appcontainer_private_descriptor_tests.cpp
+    )
+    target_link_libraries(
+        test_better_pull_review_sqlite_appcontainer_private_descriptor_tests
+        PRIVATE
+            BetterPullReview::AdapterSQLite
+            advapi32
+    )
+    target_compile_definitions(
+        test_better_pull_review_sqlite_appcontainer_private_descriptor_tests
+        PRIVATE BPR_SQLITE_TESTING=1
+    )
+    bpr_enable_hardening(
+        test_better_pull_review_sqlite_appcontainer_private_descriptor_tests
+    )
+    bpr_enable_warnings(
+        test_better_pull_review_sqlite_appcontainer_private_descriptor_tests
+    )
+
+    bpr_add_network_isolated_test(
+        NAME sqlite_appcontainer_private_descriptor
+        COMMAND
+            test_better_pull_review_sqlite_appcontainer_private_descriptor_tests
+            "${CMAKE_CURRENT_BINARY_DIR}"
+    )
+    set_tests_properties(
+        sqlite_appcontainer_private_descriptor
+        PROPERTIES
+            PASS_REGULAR_EXPRESSION
+                "appcontainer-private-descriptor-tests:pass"
+            TIMEOUT 30
+    )
+    set_property(
+        TEST sqlite_appcontainer_private_descriptor
+        APPEND PROPERTY LABELS "BPR-0360;target-native-windows"
+    )
+endif()
