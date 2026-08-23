@@ -363,6 +363,32 @@ function(bpr_acquire_syntax_highlighting)
         bpr_syntax_forward(forwarded "${name}")
     endforeach()
 
+    # A multi-configuration generator builds and installs the framework once
+    # per configuration into this one prefix, and the framework names its
+    # library identically in every one of them, so without a postfix the last
+    # install overwrote the rest and every configuration linked whichever
+    # runtime that happened to be: a Debug application against a
+    # release-runtime library, which the linker refuses (LNK2038). Release
+    # keeps the bare name; every other configuration gets its own, and the
+    # exported IMPORTED_LOCATION_<CONFIG> then names the library that
+    # configuration actually built. These join the forwarded list so the
+    # stamp signature below changes with them.
+    get_property(bpr_syntax_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(bpr_syntax_multi_config)
+        foreach(configuration IN LISTS CMAKE_CONFIGURATION_TYPES)
+            if(configuration STREQUAL "Release")
+                continue()
+            endif()
+            string(TOUPPER "${configuration}" configuration_upper)
+            string(TOLOWER "${configuration}" configuration_lower)
+            list(
+                APPEND
+                forwarded
+                "-DCMAKE_${configuration_upper}_POSTFIX=_${configuration_lower}"
+            )
+        endforeach()
+    endif()
+
     set(signature "")
     foreach(
         recorded

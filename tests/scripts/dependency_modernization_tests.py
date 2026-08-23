@@ -399,6 +399,40 @@ class DependencyModernizationTests(unittest.TestCase):
             "-DCMAKE_CONFIGURATION_TYPES=Debug;Release;MinSizeRel;RelWithDebInfo",
         )
 
+    def test_syntax_prefix_installs_one_library_per_configuration(self) -> None:
+        # A multi-configuration generator builds and installs KSyntaxHighlighting
+        # once per configuration into one prefix. Without a per-configuration
+        # postfix every install wrote the same library name, so the last one
+        # won and a Debug application linked a release-runtime library
+        # (BPR-0429). This reads the installed exports of the configured build
+        # and requires each configuration to name its own library. On a
+        # single-configuration tree there is one export and nothing to compare.
+        exports = sorted(
+            BUILD_DIR.glob(
+                "_bpr/ksyntaxhighlighting/*/prefix/lib/cmake/KF6SyntaxHighlighting/"
+                "KF6SyntaxHighlightingTargets-*.cmake"
+            )
+        )
+        if len(exports) < 2:
+            self.skipTest(
+                "fewer than two installed KSyntaxHighlighting configurations: "
+                "not a multi-configuration tree"
+            )
+        locations: dict[str, str] = {}
+        for export in exports:
+            text = export.read_text(encoding="utf-8")
+            match = re.search(
+                r'IMPORTED_LOCATION_(?P<config>[A-Z]+) "(?P<location>[^"]+)"', text
+            )
+            self.assertIsNotNone(match, export)
+            assert match is not None
+            locations[match.group("config")] = match.group("location")
+        self.assertEqual(
+            len(set(locations.values())),
+            len(locations),
+            f"configurations share an installed library: {locations!r}",
+        )
+
     def test_configured_dependency_audit_uses_supported_providers(self) -> None:
         audit = BUILD_DIR / "_bpr/product-dependency-audit.cmake"
         self.assertTrue(audit.is_file(), audit)
