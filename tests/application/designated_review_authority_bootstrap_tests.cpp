@@ -188,9 +188,9 @@ namespace {
 				.ApprovalPath       = Directory.path() / "approval.txt",
 				.ExecutablePath     = running_executable(),
 				.SourceSha256       = std::string(64U, 'a'),
+				.BuildConfiguration = "Release",
 				.SupervisorSha256   = std::string(64U, 'c'),
 				.InventorySha256    = std::string(64U, 'd'),
-				.BuildConfiguration = "Release",
 				.Replay             = std::move(*replay),
 				.BuildTesting       = false,
 			};
