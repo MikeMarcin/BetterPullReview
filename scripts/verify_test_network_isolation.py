@@ -271,6 +271,21 @@ def expected_prefix(
     raise ValueError(f"unknown backend: {backend}")
 
 
+def manifest_command(
+    ctest: pathlib.Path, build_dir: pathlib.Path, build_config: str | None
+) -> list[str]:
+    """The `ctest --show-only` invocation that yields the configured manifest.
+
+    A multi-configuration generator lists nothing until told which
+    configuration, so the registration names the one it runs in.
+    """
+    command = [str(ctest), "--test-dir", str(build_dir)]
+    if build_config:
+        command.extend(["--build-config", build_config])
+    command.append("--show-only=json-v1")
+    return command
+
+
 def comparable_command(value: Any) -> Any:
     """Compare a configured command the way the host compares paths.
 
@@ -520,6 +535,10 @@ def main() -> int:
     parser.add_argument("--ctest", required=True, type=pathlib.Path)
     parser.add_argument("--cmake", required=True, type=pathlib.Path)
     parser.add_argument("--backend", required=True)
+    # A multi-configuration generator registers its tests per configuration,
+    # and `ctest --show-only` lists nothing for such a tree until told which
+    # one; without this the gate saw an empty manifest on Windows (BPR-0432).
+    parser.add_argument("--build-config")
     parser.add_argument("--profile", type=pathlib.Path)
     parser.add_argument("--python", type=pathlib.Path)
     parser.add_argument("--macos-runner", type=pathlib.Path)
@@ -552,12 +571,7 @@ def main() -> int:
         )
 
     shown = subprocess.run(
-        [
-            str(arguments.ctest),
-            "--test-dir",
-            str(arguments.build_dir),
-            "--show-only=json-v1",
-        ],
+        manifest_command(arguments.ctest, arguments.build_dir, arguments.build_config),
         capture_output=True,
         text=True,
         check=False,

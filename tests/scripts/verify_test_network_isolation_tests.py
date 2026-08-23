@@ -28,6 +28,7 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     configured_failures,
     environment_injection_failures,
     live_supervisor_failures,
+    manifest_command,
     registration_inventory,
     uncontained_registration_count,
 )
@@ -333,6 +334,21 @@ class ConfiguredManifestTests(unittest.TestCase):
             )
             self.assertEqual(uncontained_registration_count(root), 2)
             self.assertNotEqual(uncontained_registration_count(root), len(WINDOWS_UNCONTAINED_TESTS))
+
+    def test_manifest_command_names_the_configuration_when_given(self) -> None:
+        # A multi-configuration generator's `ctest --show-only` lists nothing
+        # until told which configuration; the first Windows Qt-graph gate saw
+        # an empty manifest for exactly that reason (BPR-0432).
+        ctest = pathlib.Path("/ctest")
+        build = pathlib.Path("/build")
+        self.assertEqual(
+            manifest_command(ctest, build, "Debug"),
+            [str(ctest), "--test-dir", str(build), "--build-config", "Debug", "--show-only=json-v1"],
+        )
+        self.assertEqual(
+            manifest_command(ctest, build, None),
+            [str(ctest), "--test-dir", str(build), "--show-only=json-v1"],
+        )
 
     def test_every_pinned_exemption_names_a_measured_cause(self) -> None:
         self.assertEqual(

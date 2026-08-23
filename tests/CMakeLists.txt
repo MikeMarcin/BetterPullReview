@@ -566,6 +566,17 @@ elseif(WIN32)
         "$<TARGET_FILE:tool_better_pull_review_network_sandbox>"
     )
 endif()
+get_property(bpr_network_isolation_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(bpr_network_isolation_multi_config)
+    # `ctest --show-only` lists nothing for a multi-configuration tree until
+    # told which configuration, so the gate names the one it runs in.
+    list(
+        APPEND
+        bpr_network_isolation_verifier_command
+        --build-config
+        "$<CONFIG>"
+    )
+endif()
 if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
     list(
         APPEND
