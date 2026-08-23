@@ -1,7 +1,7 @@
 ---
 id: BPR-0439
 title: The syntax classification contract expects a POSIX-shaped Qt test sandbox
-status: Ready
+status: Done
 rfc: RFC-BPR-0006
 depends_on: []
 ---
@@ -42,3 +42,23 @@ than from a home directory.
 ```sh
 ctest --preset windows-dev --output-on-failure -R '^syntax_classification_contract$'
 ```
+
+## Implemented — 2026-08-23
+
+The contract now derives the sandbox from Qt on Windows: with test mode
+briefly off it asks `QStandardPaths::writableLocation(GenericDataLocation)`
+for the local application data directory — the one the AppContainer
+redirects — and expects the test-mode location under `<that>/qttest`; on
+macOS and Linux the sandbox stays `~/.qttest`, which is where Qt puts it and
+what the check asserted before. The property is unchanged: with test mode
+off the writable location is the real data directory and the check fails;
+a location outside the sandbox fails.
+
+### Evidence
+
+| claim | command | result |
+|---|---|---|
+| the contract passes on Windows as registered (contained) | `ctest --preset windows-dev -R '^syntax_classification_contract$'` | Passed, 1.02 s contained (`cards-run-3.log`, 2026-08-23); Passed again in every later run |
+| macOS and Linux are unchanged | the `#else` branch is the previous expression | by construction |
+
+Implemented by the integrator.

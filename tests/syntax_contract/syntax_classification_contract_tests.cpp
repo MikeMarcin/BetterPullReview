@@ -443,12 +443,23 @@ namespace {
 			   "the catalog adds no search path");
 
 		// Qt's test mode redirects the generic data location into a reserved
-		// sandbox under the home directory, so the canary below is planted where
-		// a standard-path lookup would look without touching a real data
-		// directory.
+		// sandbox, so the canary below is planted where a standard-path lookup
+		// would look without touching a real data directory. Where that sandbox
+		// is depends on the platform: `~/.qttest` on macOS and Linux, and on
+		// Windows `qttest` under the local application data directory — which
+		// an AppContainer redirects, so it is asked of Qt rather than composed
+		// from a home directory (BPR-0439).
 		const auto writable = QStandardPaths::writableLocation(
 			QStandardPaths::GenericDataLocation);
+#if defined(Q_OS_WIN)
+		QStandardPaths::setTestModeEnabled(false);
+		const auto sandbox = QStandardPaths::writableLocation(
+								 QStandardPaths::GenericDataLocation)
+			+ QStringLiteral("/qttest");
+		QStandardPaths::setTestModeEnabled(true);
+#else
 		const auto sandbox = QDir::homePath() + QStringLiteral("/.qttest");
+#endif
 		if (!writable.startsWith(sandbox)) {
 			std::cerr << "FAILED: the generic data location '"
 					  << writable.toStdString() << "' is outside the Qt test sandbox '"
