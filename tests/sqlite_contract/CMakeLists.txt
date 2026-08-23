@@ -317,3 +317,30 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "storage-root-tests:pass"
         TIMEOUT 60
 )
+
+bpr_add_executable(
+    test_better_pull_review_contained_catalog_probe_tests
+    contained_catalog_probe_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_contained_catalog_probe_tests
+    PRIVATE
+        BetterPullReview::AdapterSQLite
+)
+bpr_enable_hardening(test_better_pull_review_contained_catalog_probe_tests)
+bpr_enable_warnings(test_better_pull_review_contained_catalog_probe_tests)
+
+# BPR-0427's deliberate contained probe: the two catalog contracts run
+# outside the container by BPR-0362's measured pins, so this is the one
+# registration that asks the catalog for a typed, bounded answer with the
+# ancestor chain as the container presents it.
+bpr_add_network_isolated_test(
+    NAME contained_catalog_probe
+    COMMAND test_better_pull_review_contained_catalog_probe_tests
+)
+set_tests_properties(
+    contained_catalog_probe
+    PROPERTIES
+        TIMEOUT 60
+        PASS_REGULAR_EXPRESSION "CONTAINED_CATALOG_PROBE_OK"
+)
