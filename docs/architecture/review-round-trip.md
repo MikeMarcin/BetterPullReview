@@ -179,10 +179,11 @@ that grants only runner-selected free loopback ports and one fresh mode-0700
 Unix-socket directory; an occupied-port race makes the fixture bind fail before
 its client runs. Unrelated loopback and Unix listeners remain denied. Linux has
 a fail-closed user/network-namespace launcher awaiting target-native replay, and
-Windows refuses all original test commands until a validated whole-suite
-boundary exists. The boundary therefore includes Python, CMake, arbitrary
-helper descendants, and test-driven production-application launches. The
-structural provider inventory remains defense in depth.
+Windows enters each test into a zero-capability AppContainer, with the exact
+set of tests that need something a lowbox token cannot do - DOS volume names,
+a batch stub, or ninja's named pipe - pinned to run uncontained there. The boundary therefore includes Python, CMake,
+arbitrary helper descendants, and test-driven production-application launches.
+The structural provider inventory remains defense in depth.
 
 The default configured CTest manifest has no live exception. An explicitly
 enabled build may register exactly one exception,

@@ -248,6 +248,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME operator_response_validation_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/.agents/skills/bpr-attended-review/scripts/test_validate_operator_packet.py"
@@ -295,6 +296,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME coding_standard_format_gate_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/coding_standard_format_gate_tests.py"
@@ -325,6 +327,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME dependency_modernization_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/dependency_modernization_tests.py"
@@ -347,6 +350,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME rfc0016_device_capture_security
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_device_capture_tests.py"
@@ -361,6 +365,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME test_network_isolation_structure_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/verify_test_network_isolation_tests.py"

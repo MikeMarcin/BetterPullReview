@@ -317,11 +317,23 @@ else()
     )
 endif()
 
+# WINDOWS_UNCONTAINED opts a test out of the Windows AppContainer, and only
+# there. A lowbox token cannot translate a volume device into a drive letter,
+# cannot run a batch file through cmd.exe, and cannot give ninja its named
+# pipe, because the objects involved - the `\GLOBAL??\C:` link, the
+# mount-point manager, the volume device, the pipe namespace - carry no
+# application-package grant and no directory ACL can reach them (BPR-0362).
+# A test that needs one of those runs without the launcher on Windows,
+# labelled `bpr_windows_uncontained` instead of `bpr_network_isolated`, and
+# `scripts/verify_test_network_isolation.py` pins the exact set with each
+# member's measured cause, so the exemption can neither grow quietly nor
+# outlive its reason. On macOS and Linux the keyword changes nothing: those
+# boundaries leave all three intact and the test stays contained.
 function(bpr_add_network_isolated_test)
     cmake_parse_arguments(
         PARSE_ARGV 0
         bpr_test
-        "COMMAND_EXPAND_LISTS;UNRELATED_ENDPOINT_PROBE"
+        "COMMAND_EXPAND_LISTS;UNRELATED_ENDPOINT_PROBE;WINDOWS_UNCONTAINED"
         "NAME;WORKING_DIRECTORY;LOOPBACK_PORT_COUNT"
         "COMMAND;CONFIGURATIONS"
     )
@@ -400,6 +412,14 @@ function(bpr_add_network_isolated_test)
     else()
         set(bpr_isolation_prefix ${BPR_AUTOMATED_TEST_ISOLATION_PREFIX})
     endif()
+    set(bpr_isolation_label "bpr_network_isolated")
+    if(
+        bpr_test_WINDOWS_UNCONTAINED
+        AND BPR_AUTOMATED_TEST_ISOLATION_BACKEND STREQUAL "windows-appcontainer"
+    )
+        set(bpr_isolation_prefix "")
+        set(bpr_isolation_label "bpr_windows_uncontained")
+    endif()
 
     add_test(
         NAME "${bpr_test_NAME}"
@@ -412,7 +432,7 @@ function(bpr_add_network_isolated_test)
     set_property(
         TEST "${bpr_test_NAME}"
         APPEND
-        PROPERTY LABELS "bpr_network_isolated"
+        PROPERTY LABELS "${bpr_isolation_label}"
     )
     set_property(
         TEST "${bpr_test_NAME}"

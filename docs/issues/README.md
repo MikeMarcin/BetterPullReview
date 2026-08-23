@@ -737,7 +737,6 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0036, BPR-0053, BPR-0311, BPR-0315, BPR-0347, BPR-0350, BPR-0358, BPR-0360, BPR-0364, BPR-0412, BPR-0424, BPR-0425, BPR-0426, BPR-0427 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]] and [[BPR-0350]] are the head of the chain and the rest queue behind them. [[BPR-0424]] through [[BPR-0427]] are the four causes the 2026-08-22 fresh run isolated from the container's own |
 | BPR-0310, BPR-0314 | `23-ready-lin/` | A Linux session. Both also have unmet dependencies of their own, which the platform lane defers exactly as the blocked lane did |
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
-| BPR-0362 | `30-in-progress/` | Nothing. A Windows session opened on 2026-08-22 in the `windows-lane` worktree and is measuring the ancestor-read denial on the host, as the owner directed |
 | BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; v004 must not be retried |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
@@ -795,7 +794,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these twenty-four roots or reaches one
+card on this board is either one of these twenty-three roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 56 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.

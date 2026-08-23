@@ -27,6 +27,7 @@ bpr_enable_warnings(
 
 bpr_add_network_isolated_test(
     NAME sqlite_epoch_catalog_storage_contract
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_sqlite_storage_contract_tests
 )
 set_tests_properties(
@@ -67,6 +68,7 @@ bpr_enable_warnings(
 
 bpr_add_network_isolated_test(
     NAME sqlite_epoch_catalog_behavior_contract
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_sqlite_behavior_contract_tests
 )
 set_tests_properties(
@@ -105,6 +107,7 @@ bpr_enable_warnings(
 )
 bpr_add_network_isolated_test(
     NAME sqlite_review_mutation_recovery_storage
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_review_mutation_recovery_storage_tests
 )
 set_tests_properties(
@@ -134,6 +137,7 @@ bpr_enable_warnings(test_better_pull_review_sqlite_review_ledger_tests)
 
 bpr_add_network_isolated_test(
     NAME sqlite_review_ledger_storage
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_sqlite_review_ledger_tests
 )
 

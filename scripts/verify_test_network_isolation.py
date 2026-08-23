@@ -23,9 +23,49 @@ LIVE_REGISTRATION = re.compile(
 EXACT_LIVE_REGISTRATION = re.compile(
     r"\bbpr_add_designated_live_mutation_test\s*\(\s*\)", re.IGNORECASE
 )
+ISOLATED_REGISTRATION_ARGUMENTS = re.compile(
+    r"\bbpr_add_network_isolated_test\s*\(([^()]*)\)", re.IGNORECASE
+)
+UNCONTAINED_KEYWORD = re.compile(r"\bWINDOWS_UNCONTAINED\b")
 RAW_REGISTRATION_OWNER = "cmake/BprTestIsolation.cmake"
 LIVE_TEST_NAME = "live_review_mutation_designated_target"
 LIVE_TEST_LABEL = "bpr_live_mutation"
+WINDOWS_BACKEND = "windows-appcontainer"
+WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
+# The Windows boundary is an AppContainer, and three things a lowbox token
+# cannot do are needed by the tests below; each was measured on the Windows
+# host on 2026-08-22 (BPR-0362), passing uncontained and failing contained at
+# exactly the named call. None is a property of the test, and none can be
+# granted with a directory ACL, because every object involved is a kernel
+# object whose DACL names Everyone, SYSTEM, Administrators and RESTRICTED and
+# never ALL APPLICATION PACKAGES.
+#
+# - `dos-volume-name`: `GetFinalPathNameByHandleW` with VOLUME_NAME_DOS fails
+#   while the NT form resolves completely, because translating the volume
+#   device into a drive letter needs `\GLOBAL??\C:` and the mount-point
+#   manager. The product's retained ancestor chain asks for the DOS form, as do
+#   CPython's `realpath` (`Path.resolve(strict=True)`) and Git's `getcwd`.
+# - `batch-stub`: `cmd.exe` refuses to run a `.bat` file, so a test whose
+#   stand-in tool is a batch script gets no tool at all. CPython's own startup
+#   `realpath` warning also lands on stderr, which the format gate compares.
+# - `ninja-named-pipe`: `ninja` fails with `CreateNamedPipe: Access is denied`,
+#   so a test that configures a CMake fixture stops inside the compiler check.
+#
+# The set is exact in both directions: an uncontained test outside it fails
+# the manifest gate, and a member found contained fails it too, so the pin has
+# to move when the truth does. The value names the cause so the next reader
+# does not have to re-measure it.
+WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
+    "sqlite_epoch_catalog_storage_contract": "dos-volume-name",
+    "sqlite_epoch_catalog_behavior_contract": "dos-volume-name",
+    "sqlite_review_mutation_recovery_storage": "dos-volume-name",
+    "sqlite_review_ledger_storage": "dos-volume-name",
+    "rfc0016_device_capture_security": "dos-volume-name",
+    "test_network_isolation_structure_contract": "dos-volume-name",
+    "operator_response_validation_contract": "dos-volume-name",
+    "coding_standard_format_gate_contract": "batch-stub",
+    "dependency_modernization_contract": "ninja-named-pipe",
+}
 EXIT_VERDICT_TESTS = {
     LIVE_TEST_NAME,
     "architecture_boundaries",
@@ -116,6 +156,21 @@ def registration_inventory(root: pathlib.Path) -> tuple[list[str], int, int, int
         live += len(LIVE_REGISTRATION.findall(text))
         exact_live += len(EXACT_LIVE_REGISTRATION.findall(text))
     return raw, isolated, live, exact_live
+
+
+def uncontained_registration_count(root: pathlib.Path) -> int:
+    """Count the registrations that opt a test out of Windows containment.
+
+    Only the argument list of a `bpr_add_network_isolated_test(...)` call
+    counts; the wrapper's own option declaration and comments do not.
+    """
+    count = 0
+    for path in cmake_sources(root):
+        text = path.read_text(encoding="utf-8", errors="strict")
+        for arguments in ISOLATED_REGISTRATION_ARGUMENTS.findall(text):
+            if UNCONTAINED_KEYWORD.search(arguments):
+                count += 1
+    return count
 
 
 def property_value(test: dict[str, Any], name: str) -> Any | None:
@@ -239,7 +294,13 @@ def configured_failures(
     macos_runner: bool = False,
     live_command: list[str] | None = None,
     required_commands: dict[str, list[str]] | None = None,
+    windows_uncontained: frozenset[str] = frozenset(),
 ) -> list[str]:
+    """Check every configured test against the boundary.
+
+    `windows_uncontained` is the exact set of test names permitted to run
+    without the launcher prefix; it is non-empty only for the Windows backend.
+    """
     failures: list[str] = []
     tests = manifest.get("tests")
     if not isinstance(tests, list) or not tests:
@@ -314,6 +375,25 @@ def configured_failures(
         if isinstance(labels, list) and LIVE_TEST_LABEL in labels:
             failures.append(
                 f"{name} uses {LIVE_TEST_LABEL}; only {LIVE_TEST_NAME} may be live"
+            )
+        uncontained_labelled = isinstance(labels, list) and WINDOWS_UNCONTAINED_LABEL in labels
+        if name in windows_uncontained:
+            if isinstance(command, list) and command[: len(prefix)] == prefix:
+                failures.append(
+                    f"{name} is pinned as {WINDOWS_UNCONTAINED_LABEL} but is registered "
+                    "contained; retire it from the pinned set"
+                )
+            if not uncontained_labelled:
+                failures.append(f"{name} lacks the {WINDOWS_UNCONTAINED_LABEL} label")
+            if isinstance(labels, list) and "bpr_network_isolated" in labels:
+                failures.append(
+                    f"{name} carries bpr_network_isolated while running uncontained"
+                )
+            continue
+        if uncontained_labelled:
+            failures.append(
+                f"{name} uses {WINDOWS_UNCONTAINED_LABEL} but is not in the pinned "
+                "Windows set"
             )
         if not isinstance(command, list) or command[: len(prefix)] != prefix:
             failures.append(f"{name} does not start with {prefix!r}: {command!r}")
@@ -464,6 +544,12 @@ def main() -> int:
             "designated live source registration must be exactly one empty fixed call: "
             f"calls={live}, exact={exact_live}"
         )
+    uncontained = uncontained_registration_count(arguments.root)
+    if uncontained != len(WINDOWS_UNCONTAINED_TESTS):
+        failures.append(
+            f"WINDOWS_UNCONTAINED appears {uncontained} times in the sources, "
+            f"expected exactly {len(WINDOWS_UNCONTAINED_TESTS)}, one per pinned test"
+        )
 
     shown = subprocess.run(
         [
@@ -574,6 +660,11 @@ def main() -> int:
                 macos_runner=arguments.backend == "macos-sandbox-exec",
                 live_command=live_command,
                 required_commands=required_commands,
+                windows_uncontained=(
+                    frozenset(WINDOWS_UNCONTAINED_TESTS)
+                    if arguments.backend == WINDOWS_BACKEND
+                    else frozenset()
+                ),
             )
         )
 

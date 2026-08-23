@@ -23,10 +23,13 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     LIVE_TEST_NAME,
     PRE_BOUNDARY_INJECTION_VARIABLES,
     RAW_REGISTRATION_OWNER,
+    WINDOWS_UNCONTAINED_LABEL,
+    WINDOWS_UNCONTAINED_TESTS,
     configured_failures,
     environment_injection_failures,
     live_supervisor_failures,
     registration_inventory,
+    uncontained_registration_count,
 )
 from scripts.run_network_isolated_test import write_profile  # noqa: E402
 
@@ -210,6 +213,132 @@ class ConfiguredManifestTests(unittest.TestCase):
             ["/usr/bin/sandbox-exec", "-f", "/profile"],
         )
         self.assertEqual(len(failures), 2)
+
+    # The Windows exemption is exact in both directions and exists on no other
+    # backend. Each case below would pass if the verifier merely tolerated a
+    # missing prefix, which is the failure these tests exist to refuse.
+    def test_pinned_windows_test_passes_uncontained_only_with_its_label(self) -> None:
+        name = sorted(WINDOWS_UNCONTAINED_TESTS)[0]
+        self.assertEqual(
+            configured_failures(
+                {
+                    "tests": [
+                        {
+                            "name": name,
+                            "command": ["/python", "/test.py"],
+                            "properties": [
+                                {"name": "LABELS", "value": [WINDOWS_UNCONTAINED_LABEL]},
+                                scrub_property(),
+                            ],
+                        }
+                    ]
+                },
+                ["/launcher"],
+                windows_uncontained=frozenset(WINDOWS_UNCONTAINED_TESTS),
+            ),
+            [],
+        )
+        failures = configured_failures(
+            {
+                "tests": [
+                    {
+                        "name": name,
+                        "command": ["/python", "/test.py"],
+                        "properties": [
+                            {"name": "LABELS", "value": ["bpr_network_isolated"]},
+                            scrub_property(),
+                        ],
+                    }
+                ]
+            },
+            ["/launcher"],
+            windows_uncontained=frozenset(WINDOWS_UNCONTAINED_TESTS),
+        )
+        self.assertTrue(any(f"lacks the {WINDOWS_UNCONTAINED_LABEL}" in value for value in failures))
+        self.assertTrue(any("while running uncontained" in value for value in failures))
+
+    def test_pinned_windows_test_found_contained_is_a_stale_pin(self) -> None:
+        name = sorted(WINDOWS_UNCONTAINED_TESTS)[0]
+        failures = configured_failures(
+            {
+                "tests": [
+                    {
+                        "name": name,
+                        "command": ["/launcher", "/python", "/test.py"],
+                        "properties": [
+                            {"name": "LABELS", "value": [WINDOWS_UNCONTAINED_LABEL]},
+                            scrub_property(),
+                        ],
+                    }
+                ]
+            },
+            ["/launcher"],
+            windows_uncontained=frozenset(WINDOWS_UNCONTAINED_TESTS),
+        )
+        self.assertTrue(any("retire it from the pinned set" in value for value in failures))
+
+    def test_unpinned_test_cannot_claim_the_windows_exemption(self) -> None:
+        failures = configured_failures(
+            {
+                "tests": [
+                    {
+                        "name": "arbitrary_uncontained",
+                        "command": ["/python", "/test.py"],
+                        "properties": [
+                            {"name": "LABELS", "value": [WINDOWS_UNCONTAINED_LABEL]},
+                            scrub_property(),
+                        ],
+                    }
+                ]
+            },
+            ["/launcher"],
+            windows_uncontained=frozenset(WINDOWS_UNCONTAINED_TESTS),
+        )
+        self.assertTrue(any("not in the pinned Windows set" in value for value in failures))
+        self.assertTrue(any("does not start with" in value for value in failures))
+
+    def test_windows_exemption_does_not_exist_on_other_backends(self) -> None:
+        name = sorted(WINDOWS_UNCONTAINED_TESTS)[0]
+        failures = configured_failures(
+            {
+                "tests": [
+                    {
+                        "name": name,
+                        "command": ["/python", "/test.py"],
+                        "properties": [
+                            {"name": "LABELS", "value": [WINDOWS_UNCONTAINED_LABEL]},
+                            scrub_property(),
+                        ],
+                    }
+                ]
+            },
+            ["/sandbox"],
+        )
+        self.assertTrue(any("not in the pinned Windows set" in value for value in failures))
+        self.assertTrue(any("does not start with" in value for value in failures))
+        self.assertTrue(any("lacks the bpr_network_isolated label" in value for value in failures))
+
+    def test_uncontained_keyword_count_is_pinned_to_the_set(self) -> None:
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory)
+            write(root, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
+            write(
+                root,
+                "tests/CMakeLists.txt",
+                "bpr_add_network_isolated_test(NAME a WINDOWS_UNCONTAINED COMMAND x)\n"
+                "bpr_add_network_isolated_test(\n    NAME c\n    WINDOWS_UNCONTAINED\n    COMMAND x\n)\n"
+                "bpr_add_network_isolated_test(NAME b COMMAND x)\n"
+                "# WINDOWS_UNCONTAINED in a comment is not a registration\n"
+                'cmake_parse_arguments(PARSE_ARGV 0 t "WINDOWS_UNCONTAINED" "" "")\n',
+            )
+            self.assertEqual(uncontained_registration_count(root), 2)
+            self.assertNotEqual(uncontained_registration_count(root), len(WINDOWS_UNCONTAINED_TESTS))
+
+    def test_every_pinned_exemption_names_a_measured_cause(self) -> None:
+        self.assertEqual(
+            set(WINDOWS_UNCONTAINED_TESTS.values()),
+            {"dos-volume-name", "batch-stub", "ninja-named-pipe"},
+        )
 
     def test_disabled_graph_rejects_any_live_exception(self) -> None:
         failures = configured_failures(
