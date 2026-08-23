@@ -685,18 +685,18 @@ namespace {
 		environment.insert("LC_ALL", "C");
 		environment.insert("TZ", "UTC");
 
-		auto process   = QProcess{ };
-		auto arguments = aArguments;
+		auto process          = QProcess{ };
+		auto fixtureArguments = aArguments;
 #if defined(Q_OS_WIN)
 		// The refs this fixture writes cross MAX_PATH the same way the
 		// adapter's do; the adapter's isolation carries core.longpaths for
 		// Git, and this helper runs Git with its own environment, so it says
 		// so itself (BPR-0437).
-		arguments.prepend(QStringLiteral("core.longpaths=true"));
-		arguments.prepend(QStringLiteral("-c"));
+		fixtureArguments.prepend(QStringLiteral("core.longpaths=true"));
+		fixtureArguments.prepend(QStringLiteral("-c"));
 #endif
 		process.setProgram(QString::fromStdString(aExecutable.string()));
-		process.setArguments(arguments);
+		process.setArguments(fixtureArguments);
 		process.setWorkingDirectory(QString::fromStdString(aRoot.string()));
 		process.setProcessEnvironment(environment);
 		process.start();
