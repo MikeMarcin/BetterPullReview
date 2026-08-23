@@ -459,6 +459,22 @@ function(bpr_add_network_isolated_test)
             "LD_DEBUG=unset:"
             "LD_PROFILE=unset:"
     )
+    # A Windows loader finds a shared Qt only on PATH: nothing deploys the
+    # DLLs beside the executables, and unlike a Mach-O or ELF link the import
+    # libraries carry no runtime path. The provider resolves Qt outside the
+    # build tree, so the directory of Qt6::Core's DLL is prepended for every
+    # test, contained or not; the launcher hands its environment to the child
+    # unchanged, and the isolation setup already grants that prefix to the
+    # container. Without this every Qt-linked test exits before main with
+    # STATUS_DLL_NOT_FOUND (BPR-0430).
+    if(WIN32 AND TARGET Qt6::Core)
+        set_property(
+            TEST "${bpr_test_NAME}"
+            APPEND
+            PROPERTY ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
+        )
+    endif()
     if(bpr_test_LOOPBACK_PORT_COUNT GREATER 0)
         set_property(
             TEST "${bpr_test_NAME}"
