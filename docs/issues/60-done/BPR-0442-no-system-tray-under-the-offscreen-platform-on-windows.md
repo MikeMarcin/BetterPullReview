@@ -1,7 +1,7 @@
 ---
 id: BPR-0442
 title: No system tray under the offscreen platform on Windows
-status: Ready
+status: Done
 rfc: RFC-BPR-0003
 depends_on: []
 ---
@@ -52,3 +52,34 @@ platform.
 ```sh
 ctest --preset windows-dev --output-on-failure -R '^application_native_notification_attended_contract$'
 ```
+
+## Measured and repaired — 2026-08-23
+
+The measurement: `QSystemTrayIcon::isSystemTrayAvailable()` is false under
+the offscreen platform on Windows — the offscreen integration offers no
+platform tray there, where Linux answers through the session bus — and the
+sink's guard is the right product behaviour: a tray icon the platform
+cannot show is not a notification surface. The contract's failing course
+was the one course that composed through that guard:
+`CaptureSystemNotificationDisplay` is `probe && !request-cut`, so the
+request-cut course alone asked the platform for a tray and was refused
+with `platform_tray_not_composed`.
+
+The repair is the card's first option, scoped to the fixture: under
+`BPR_BUILD_TESTING`, a fixture-driven run composes the captured display
+boundary whenever the platform truthfully reports no tray. The courses
+that leave capture off assert what reaches the sink — a cut request wire
+delivers nothing — not the native display mechanics, and the captured
+boundary counts exactly that. Where a tray exists (Linux offscreen, a real
+Windows session), the condition is false and nothing changes; production
+composition is untouched.
+
+### Evidence
+
+| claim | command | result |
+|---|---|---|
+| the contract passes on Windows as registered | `ctest --preset windows-dev -R '^application_native_notification_attended_contract$'` | Passed, 7.5 s, all three courses (`attended-1.log`, 2026-08-23), alongside the composition and round-trip contracts that pin the changed file |
+| macOS and Linux are unchanged | the fallback triggers only when `isSystemTrayAvailable()` is false during a fixture run; where the platform has a tray, the previous path is taken verbatim | by construction; the Linux lane's next run is the check |
+| production is unchanged | the fallback lives inside `BPR_BUILD_TESTING` and requires `Fixture != nullptr` | by construction |
+
+Implemented by the integrator.
