@@ -147,8 +147,13 @@ function(bpr_syntax_forward arguments_variable name)
 endfunction()
 
 function(bpr_syntax_execute label log)
+    # The command arrives with forwarded `-D<name>=<list>` arguments whose
+    # semicolons are escaped. `ARGN` would re-join every argument with a bare
+    # `;` and hand execute_process four arguments where the caller passed one;
+    # PARSE_ARGV keeps each argument exactly as it was given.
+    cmake_parse_arguments(PARSE_ARGV 2 bpr_syntax_execute "" "" "")
     execute_process(
-        COMMAND ${ARGN}
+        COMMAND ${bpr_syntax_execute_UNPARSED_ARGUMENTS}
         RESULT_VARIABLE result
         OUTPUT_VARIABLE output
         ERROR_VARIABLE output

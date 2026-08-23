@@ -83,3 +83,25 @@ passes; `dependency_modernization_contract` runs 23 cases on this host with
 the same five [[BPR-0426]] failures as before and no new one. The
 `windows-dev` configure's four-configuration KSyntaxHighlighting build is
 recorded on [[BPR-0412]], whose run this defect interrupted.
+
+## Necessary, not sufficient — the same list flattened once more
+
+The rerun after the fix above failed identically, and the nested cache still
+read `CMAKE_CONFIGURATION_TYPES=Debug`. The accumulator was whole; the
+command line was not. `bpr_syntax_execute(label log)` receives the nested
+command through `ARGN`, and CMake re-joins a function's arguments into
+`ARGN` with plain `;`, so an argument that contained an escaped list arrived
+as one argument and left as four. Measured in script mode with the same
+wrapper shape:
+
+```
+via ARGN        : -DA=x -DB=Debug Release MinSizeRel
+via PARSE_ARGV  : -DA=x -DB=Debug;Release;MinSizeRel
+```
+
+`cmake_parse_arguments(PARSE_ARGV …)` exists for exactly this: it hands back
+arguments with their escapes intact. `bpr_syntax_execute` now takes its
+command that way, and a second unit case drives the real helper with a
+forwarded list through `cmake -E echo` and reads the log it writes. Two
+rounds of the same escape were lost in two places; the probe for each is
+recorded because the first looked complete and was not.

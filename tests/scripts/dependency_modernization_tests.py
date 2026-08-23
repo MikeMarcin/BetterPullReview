@@ -366,6 +366,39 @@ class DependencyModernizationTests(unittest.TestCase):
             output,
         )
 
+    def test_syntax_provider_executes_forwarded_lists_whole(self) -> None:
+        # The accumulator being whole is not enough: the helper that runs the
+        # nested configure receives the command as function arguments, and
+        # ARGN re-joins those with bare semicolons. This drives the real
+        # helper with a forwarded list and reads the log it writes (BPR-0428).
+        with contained_temporary_directory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            script = temporary / "execute.cmake"
+            log = temporary / "echo.log"
+            provider = ROOT / "cmake" / "BprSyntaxHighlightingProvider.cmake"
+            script.write_text(
+                "cmake_minimum_required(VERSION 3.25)\n"
+                f"include([==[{provider}]==])\n"
+                'set(CMAKE_CONFIGURATION_TYPES "Debug;Release;MinSizeRel;RelWithDebInfo")\n'
+                "set(forwarded)\n"
+                'bpr_syntax_forward(forwarded "CMAKE_CONFIGURATION_TYPES")\n'
+                f'bpr_syntax_execute("echo" [==[{log}]==] "${{CMAKE_COMMAND}}" -E echo ${{forwarded}})\n',
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [str(CMAKE_COMMAND), "-P", str(script)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            output = completed.stdout + completed.stderr
+            self.assertEqual(completed.returncode, 0, output)
+            echoed = log.read_text(encoding="utf-8").strip()
+        self.assertEqual(
+            echoed,
+            "-DCMAKE_CONFIGURATION_TYPES=Debug;Release;MinSizeRel;RelWithDebInfo",
+        )
+
     def test_configured_dependency_audit_uses_supported_providers(self) -> None:
         audit = BUILD_DIR / "_bpr/product-dependency-audit.cmake"
         self.assertTrue(audit.is_file(), audit)
