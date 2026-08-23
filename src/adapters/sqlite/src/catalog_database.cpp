@@ -3,6 +3,7 @@
 #include "sqlite_connection.hpp"
 #include "state_directory.hpp"
 
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/testing.hpp"
 #include "bpr/application/epoch_catalog_port.hpp"
 
@@ -3978,6 +3979,102 @@ namespace bpr::adapters::sqlite::detail {
 		return state_directory{ std::move(opened) };
 #endif
 	}
+} // namespace bpr::adapters::sqlite::detail
+
+namespace bpr::adapters::sqlite {
+	auto make_storage_root_owner_private(const std::filesystem::path& aRoot) -> bool
+	{
+#if defined(_WIN32)
+		using namespace detail;
+		try {
+			auto canonicalRoot = canonical_windows_root(aRoot);
+			if (!canonicalRoot) {
+				return false;
+			}
+			auto security = private_security::load();
+			if (!security) {
+				return false;
+			}
+			// The same descriptor the adapter writes on every directory it
+			// creates, applied to the one it is handed. Opened without delete
+			// sharing and without following a reparse point, exactly as the
+			// later validation opens it, so what is narrowed is what will be
+			// checked. WRITE_DAC is what an owner holds implicitly; ownership
+			// itself is verified, never taken, so a root that belongs to
+			// another principal is refused here as the store would refuse it.
+			auto handle = open_existing_object(
+				*canonicalRoot, windows_object_kind::directory, WRITE_DAC, false);
+			if (!handle) {
+				return false;
+			}
+			FILE_ATTRIBUTE_TAG_INFO tag{ };
+			if (::GetFileInformationByHandleEx(
+					handle->Value, FileAttributeTagInfo, &tag, sizeof(tag))
+					== 0
+				|| (tag.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0U
+				|| (tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U) {
+				return false;
+			}
+			PSID                 owner      = nullptr;
+			PSECURITY_DESCRIPTOR descriptor = nullptr;
+			if (::GetSecurityInfo(
+					handle->Value,
+					SE_FILE_OBJECT,
+					OWNER_SECURITY_INFORMATION,
+					&owner,
+					nullptr,
+					nullptr,
+					nullptr,
+					&descriptor)
+				!= ERROR_SUCCESS) {
+				return false;
+			}
+			const auto owned = local_memory{ descriptor };
+			if (owner == nullptr || ::EqualSid(owner, security->sid()) == 0) {
+				return false;
+			}
+			private_security_attributes attributes;
+			if (!attributes.initialize(*security, windows_object_kind::directory)) {
+				return false;
+			}
+			if (::SetSecurityInfo(
+					handle->Value,
+					SE_FILE_OBJECT,
+					DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+					nullptr,
+					nullptr,
+					attributes.acl(),
+					nullptr)
+				!= ERROR_SUCCESS) {
+				return false;
+			}
+			return validate_private_security(
+					   handle->Value, *security, windows_object_kind::directory)
+				.has_value();
+		} catch (...) {
+			return false;
+		}
+#else
+		std::error_code error;
+		if (!std::filesystem::is_directory(aRoot, error) || error) {
+			return false;
+		}
+		std::filesystem::permissions(
+			aRoot,
+			std::filesystem::perms::owner_all,
+			std::filesystem::perm_options::replace,
+			error);
+		if (error) {
+			return false;
+		}
+		const auto status = std::filesystem::symlink_status(aRoot, error);
+		return !error && std::filesystem::is_directory(status)
+			&& status.permissions() == std::filesystem::perms::owner_all;
+#endif
+	}
+} // namespace bpr::adapters::sqlite
+
+namespace bpr::adapters::sqlite::detail {
 
 	struct catalog_database_platform_state final
 	{

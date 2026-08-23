@@ -288,3 +288,32 @@ if(WIN32)
         APPEND PROPERTY LABELS "BPR-0360;target-native-windows"
     )
 endif()
+
+bpr_add_executable(
+    test_better_pull_review_sqlite_storage_root_tests
+    storage_root_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_sqlite_storage_root_tests
+    PRIVATE
+        BetterPullReview::AdapterSQLite
+)
+bpr_enable_hardening(test_better_pull_review_sqlite_storage_root_tests)
+bpr_enable_warnings(test_better_pull_review_sqlite_storage_root_tests)
+
+# Opens the catalog through its public path, whose retained ancestor chain
+# needs the DOS volume name a lowbox cannot resolve (BPR-0362), so on Windows
+# this runs outside the container like the other storage contracts.
+bpr_add_network_isolated_test(
+    NAME sqlite_storage_root_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        test_better_pull_review_sqlite_storage_root_tests
+        "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+    sqlite_storage_root_contract
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "storage-root-tests:pass"
+        TIMEOUT 60
+)

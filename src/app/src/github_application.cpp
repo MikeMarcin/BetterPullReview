@@ -36,6 +36,7 @@
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/agent_invocation_host.hpp"
@@ -770,11 +771,11 @@ namespace bpr::app {
 			if (error) {
 				return { };
 			}
-			std::filesystem::permissions(aRoot,
-										 std::filesystem::perms::owner_all,
-										 std::filesystem::perm_options::replace,
-										 error);
-			if (error) {
+			// The stores refuse a root another local principal can reach, and
+			// what private means is the adapter's definition: mode 0700 on
+			// POSIX, and on Windows an owner-only protected DACL that
+			// std::filesystem::permissions cannot express (BPR-0436).
+			if (!adapters::sqlite::make_storage_root_owner_private(aRoot)) {
 				return { };
 			}
 			const auto canonical = std::filesystem::canonical(aRoot, error);

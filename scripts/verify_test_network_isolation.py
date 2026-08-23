@@ -65,6 +65,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "operator_response_validation_contract": "dos-volume-name",
     "coding_standard_format_gate_contract": "batch-stub",
     "dependency_modernization_contract": "ninja-named-pipe",
+    "sqlite_storage_root_contract": "dos-volume-name",
 }
 EXIT_VERDICT_TESTS = {
     LIVE_TEST_NAME,
