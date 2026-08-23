@@ -370,3 +370,53 @@ work is [[BPR-0362]]'s decision, now worth **seven** tests rather than six, plus
 unmeasured. Re-running the suite to find out what still fails is now more
 valuable than diagnosing any single row, because the last measurement is a day
 old and five of its thirteen entries did not survive contact with the log.
+
+## Run state at `3470ce9` — 2026-08-22, the `windows-lane` worktree
+
+A Windows session opened on the host in a dedicated worktree and branch,
+`C:\code\git\bpr-windows` on `windows-lane`, from `3cc9393`. That commit is
+this run's base; the program's `RFC_BASE_SHA` above is unchanged.
+
+| commit | card | effect |
+|---|---|---|
+| `5ce0bc1` | [[BPR-0421]] | the core-only graph compiles under MSVC again; one misplaced designator |
+| `f2bf9dd`, `a74e1df` | [[BPR-0362]] | measured on the host: option 1 is dead, and for a reason no packet had — the volume-name translation is a kernel-object DACL, not a directory ACL |
+| `48c5e0c` | [[BPR-0422]], [[BPR-0423]] | two portable test defects the first Windows run exposed |
+| `169b6ec` | [[BPR-0424]]–[[BPR-0427]] | the four non-container causes, carded; the frontier count regex fixed for hyphenated words |
+| `3470ce9` | [[BPR-0362]] | option 3 taken: nine tests `WINDOWS_UNCONTAINED`, pinned by name and cause, gate enforced both ways |
+
+**The contained suite went from 72 of 85 to 86 of 88.** Both remaining
+failures are carded and reproduce uncontained.
+
+### Verification matrix, continued
+
+| claim | surface | command | proves it | result | evidence |
+|---|---|---|---|---|---|
+| the graph compiles under MSVC 14.51 | `core-only` | `ninja -k 0` over the whole graph | 364/364 edges, one error found and fixed | pass | `5ce0bc1` |
+| the ancestor denial is not a directory ACL | the container, probed | `GetFinalPathNameByHandleW` under all four `VOLUME_NAME_*` flags, `QueryDosDeviceW`, the mount-point manager, SDDL of each object | NT form resolves, DOS form fails, and every object the DOS form needs names no application package | pass | `a74e1df`, BPR-0362 |
+| the pinned set is exact in both directions | `scripts/verify_test_network_isolation.py` | `ctest -R '^test_network_isolation_manifest$'`, contained; `py -3 tests/scripts/verify_test_network_isolation_tests.py` | `TEST_NETWORK_ISOLATION_OK` on 88 configured; 31 unit cases | pass | `3470ce9` |
+| nothing regressed and the nine now pass or fail for carded causes | full Qt-free graph, contained | `ctest --preset core-only` | 86/88; the two failures are [[BPR-0425]] and [[BPR-0426]] | pass | `3470ce9` |
+| the machine is unchanged | `icacls` | `icacls C:\`, `C:\Users`, `C:\code`, the profile chain | no grant was made; only the configure-time repository and build-tree grants exist, as before | pass | this session |
+| the Qt graph under the boundary | `windows-dev` | not run | — | **not attempted** | [[BPR-0412]] |
+
+### The order, revised again
+
+[[BPR-0347]] closes with this commit. [[BPR-0362]] is done, which unblocks
+[[BPR-0360]] — but not the way that card expected: the four SQLite tests it
+planned to become observable through now run *uncontained* on Windows, so the
+descriptor defect needs its own contained probe, and that is the next slice.
+After it, [[BPR-0350]] closes on its third criterion, then [[BPR-0412]] runs
+the Qt graph, [[BPR-0364]] follows it, and [[BPR-0036]] and [[BPR-0053]] get
+their matrices — with [[BPR-0424]] through [[BPR-0427]] interleaved where the
+matrix needs them.
+
+### Phase checklist
+
+- [x] planning committed — `d8404e6`
+- [ ] implementation cards done — BPR-0347 and BPR-0362 now join the done
+      set; BPR-0360, BPR-0350, BPR-0412, BPR-0364, BPR-0036, BPR-0053 remain,
+      plus the four opened by this run
+- [ ] simplify committed
+- [ ] documentation gate passed over `RFC_BASE_SHA..HEAD`
+- [ ] independent review done
+- [ ] status flipped — every RFC in this program remains `Proposed`
