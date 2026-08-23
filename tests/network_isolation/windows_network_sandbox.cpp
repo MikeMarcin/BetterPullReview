@@ -271,6 +271,14 @@ namespace {
 	/// uncontained launch would.
 	[[nodiscard]] auto run_contained(const PSID aContainerSid, wchar_t* const aCommandLine) -> DWORD
 	{
+		// A child inherits this process's error mode. Without it a test whose
+		// loader cannot find a library raises a modal dialog on the desktop
+		// and the run waits on a person; with it the launch fails at once
+		// with STATUS_DLL_NOT_FOUND, which is the verdict an unattended
+		// runner can act on. Crash dialogs are suppressed for the same reason.
+		static_cast<void>(::SetErrorMode(
+			SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX));
+
 		auto capabilities            = SECURITY_CAPABILITIES{ };
 		capabilities.AppContainerSid = aContainerSid;
 
