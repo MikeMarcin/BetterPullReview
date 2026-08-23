@@ -468,11 +468,19 @@ function(bpr_add_network_isolated_test)
     # container. Without this every Qt-linked test exits before main with
     # STATUS_DLL_NOT_FOUND (BPR-0430).
     if(WIN32 AND TARGET Qt6::Core)
+        # Qt ships no fonts, and the offscreen platform every contract runs
+        # under has no fontconfig here: without a font directory QFontDatabase
+        # writes "Cannot find font directory …/lib/fonts" to stderr of every
+        # Qt GUI process, which the contracts that read stderr take for a
+        # failure of their own. The Windows font directory is readable from
+        # inside the container as well (BPR-0412).
+        file(TO_CMAKE_PATH "$ENV{WINDIR}" bpr_windows_directory)
         set_property(
             TEST "${bpr_test_NAME}"
             APPEND
             PROPERTY ENVIRONMENT_MODIFICATION
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
+                "QT_QPA_FONTDIR=set:${bpr_windows_directory}/Fonts"
         )
     endif()
     if(bpr_test_LOOPBACK_PORT_COUNT GREATER 0)

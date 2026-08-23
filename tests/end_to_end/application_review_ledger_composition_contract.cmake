@@ -109,11 +109,11 @@ file(MAKE_DIRECTORY
     "${bpr_unavailable_root}/state/v1"
     "${bpr_unavailable_root}/state/v1/review-ledger.sqlite3"
 )
-file(CHMOD
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
+bpr_narrow_owner_private(
     "${bpr_unavailable_root}/state"
     "${bpr_unavailable_root}/state/v1"
     "${bpr_unavailable_root}/state/v1/review-ledger.sqlite3"
-    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
 )
 bpr_run_review_ledger_probe(
     unavailable
