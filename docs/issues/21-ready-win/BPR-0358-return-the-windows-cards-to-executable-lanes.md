@@ -440,3 +440,15 @@ in `tests/end_to_end/composition_contract_tests.py` never listed the two
 older SQLite seam symbols, `interrupt_next_bootstrap_before_publication` and
 `classify_sqlite_result_code`; the new `probe_private_descriptor` is listed,
 and the contract itself runs only in the Qt graph.
+
+### BPR-0350 closed, BPR-0412 taken — 2026-08-22
+
+The contained `core-only` matrix after [[BPR-0360]] reads **87 of 89** in
+415 s; the two failures are [[BPR-0425]] and [[BPR-0426]]. No test fails on a
+temporary root, so [[BPR-0350]]'s third criterion is met by the measured
+suite and the card is done. [[BPR-0412]] is the current slice: the Qt graph
+under the boundary, configured in this worktree with `BPR_QT_ROOT` pointing
+at the Qt 6.10.3 tree the provider already acquired for the main checkout,
+which the isolation setup grants to the container as an outside-project read
+scope. That reuse is a deliberate deviation from the card's bare
+`cmake --preset windows-dev`, recorded here, and it changes no test.
