@@ -124,3 +124,16 @@ Practical consequence, now recorded for [[BPR-0036]]'s procedure: after any
 relink of the launcher, the whole contained suite is unrunnable until the
 policy answers, and `BPR_NETWORK_ISOLATION_UNAVAILABLE:launch:win32=4551` on
 every test is that wait, not a boundary failure.
+
+## Third sample — 2026-08-23, the whole relinked suite
+
+[[BPR-0434]] linked a new unit into every automated executable, so every
+test image was fresh at once. Between 08:30 and 08:50 the policy refused, by
+image: the `core-only` launcher three more times before it cleared, the
+framework indexer once more inside a nested build (which the provider
+retried), and `better_pull_review_github_application_liveness_tests.exe`
+during an uncontained control run, where the helper saw it as
+`[WinError 4551]`. Everything else relinked in the same minute ran on first
+use. Three samples now; the shape holds: per image, unpredictable, a quarter
+to three quarters of an hour, and a relink of the launcher stalls the whole
+contained suite until it clears.
