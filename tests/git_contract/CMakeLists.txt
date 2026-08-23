@@ -57,6 +57,7 @@ bpr_enable_warnings(
 
 bpr_add_network_isolated_test(
     NAME git_process_contract
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_git_process_contract_tests
 )
 set_tests_properties(
@@ -105,6 +106,7 @@ bpr_enable_warnings(
 
 bpr_add_network_isolated_test(
     NAME git_cache_contract
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_git_cache_contract_tests
 )
 set_tests_properties(
@@ -154,3 +156,25 @@ set_tests_properties(
     PROPERTIES
         TIMEOUT 90
 )
+
+if(WIN32)
+    # Both contracts launch this executable again as their fake Git, through
+    # the adapter's own environment, whose PATH is the executable's directory
+    # and nothing else: the shared Qt it links must sit beside it
+    # (BPR-0437).
+    foreach(bpr_fake_git_target IN ITEMS
+        test_better_pull_review_git_process_contract_tests
+        test_better_pull_review_git_cache_contract_tests
+    )
+        add_custom_command(
+            TARGET "${bpr_fake_git_target}"
+            POST_BUILD
+            COMMAND
+                "${CMAKE_COMMAND}" -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:${bpr_fake_git_target}>
+                $<TARGET_FILE_DIR:${bpr_fake_git_target}>
+            COMMAND_EXPAND_LISTS
+            VERBATIM
+        )
+    endforeach()
+endif()

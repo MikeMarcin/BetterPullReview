@@ -102,6 +102,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "gh_cli_transport": "dos-volume-name",
     "epoch_history_fixture_contract": "dos-volume-name",
     "epoch_maintenance_integration": "dos-volume-name",
+    "git_process_contract": "qprocess-named-pipe",
+    "git_cache_contract": "qprocess-named-pipe",
     "live_review_mutation_restart_recovery": "dos-volume-name",
     "application_agent_invocation_composition_contract": "dos-volume-name",
     "application_agent_invocation_construction_cut_contract": "dos-volume-name",

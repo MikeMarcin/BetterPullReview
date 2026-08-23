@@ -3,9 +3,15 @@
 #include "bpr/application/git_cache_port.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/epoch_transition.hpp"
+#include "windows_system_root.hpp"
 
 #include <QByteArray>
 #include <QCoreApplication>
+
+#if defined(_WIN32)
+	#include <fcntl.h>
+	#include <io.h>
+#endif
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QString>
@@ -679,9 +685,18 @@ namespace {
 		environment.insert("LC_ALL", "C");
 		environment.insert("TZ", "UTC");
 
-		auto process = QProcess{ };
+		auto process   = QProcess{ };
+		auto arguments = aArguments;
+#if defined(Q_OS_WIN)
+		// The refs this fixture writes cross MAX_PATH the same way the
+		// adapter's do; the adapter's isolation carries core.longpaths for
+		// Git, and this helper runs Git with its own environment, so it says
+		// so itself (BPR-0437).
+		arguments.prepend(QStringLiteral("core.longpaths=true"));
+		arguments.prepend(QStringLiteral("-c"));
+#endif
 		process.setProgram(QString::fromStdString(aExecutable.string()));
-		process.setArguments(aArguments);
+		process.setArguments(arguments);
 		process.setWorkingDirectory(QString::fromStdString(aRoot.string()));
 		process.setProcessEnvironment(environment);
 		process.start();
@@ -699,6 +714,14 @@ namespace {
 			output.size() <= 1024 * 1024
 				&& error.size() <= 64 * 1024,
 			"bound fixture Git output");
+		if (!aLlowFailure && process.exitCode() != 0) {
+			// Name the command and what Git said before failing; a bare
+			// verdict sent this investigation through a probe rebuild
+			// (BPR-0437).
+			std::cerr << "fixture Git failed, exit=" << process.exitCode()
+					  << " argv=" << aArguments.join(' ').toStdString()
+					  << " stderr=[" << error.toStdString() << "]\n";
+		}
 		require(
 			aLlowFailure || process.exitCode() == 0,
 			"fixture Git exits successfully");
@@ -1170,8 +1193,9 @@ namespace {
 		const std::filesystem::path& aRelease) -> int
 	{
 		auto cache = git_adapter::make_installed_git_cache({
-			.GitExecutable = aExecutable,
-			.StorageRoot   = aRoot,
+			.GitExecutable     = aExecutable,
+			.StorageRoot       = aRoot,
+			.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 		});
 		if (!cache.has_value()) {
 			return 20;
@@ -1200,7 +1224,8 @@ namespace {
 			auto diagnosticCache = git_adapter::make_installed_git_cache({
 				.GitExecutable = std::filesystem::path{
 					QCoreApplication::applicationFilePath().toStdString() },
-				.StorageRoot = diagnosticRoot.Path,
+				.StorageRoot       = diagnosticRoot.Path,
+				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 			});
 			require(
 				diagnosticCache.has_value(),
@@ -1236,8 +1261,9 @@ namespace {
 			forcePush.Remote);
 		const auto sha256Fixture = make_sha256_fixture(executable, root.Path);
 		auto       cache         = git_adapter::make_installed_git_cache({
-			.GitExecutable = executable,
-			.StorageRoot   = root.Path,
+			.GitExecutable     = executable,
+			.StorageRoot       = root.Path,
+			.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 		});
 		require(cache.has_value(), "construct installed Git cache");
 		verify_descendant_lineage(**cache, descendant);
@@ -3710,6 +3736,17 @@ namespace {
 		expectTopologyRejection("cache rejects worktree drift");
 		std::filesystem::remove(worktrees);
 
+#if defined(Q_OS_WIN)
+		// A POSIX group-read bit has no Windows expression:
+		// std::filesystem::permissions toggles the read-only attribute and
+		// nothing else, so the drift this case plants does not exist here.
+		// What keeps another principal out on Windows is the storage root's
+		// protected owner-only DACL (BPR-0436), which BPR-0053's target-native
+		// adversaries exercise directly.
+		std::cout << "SKIP: private-permission drift is a POSIX mode "
+					 "property; Windows privacy is the root's protected "
+					 "DACL\n";
+#else
 		std::filesystem::permissions(
 			manifest,
 			std::filesystem::perms::owner_read
@@ -3723,6 +3760,7 @@ namespace {
 			std::filesystem::perms::owner_read
 				| std::filesystem::perms::owner_write,
 			std::filesystem::perm_options::replace);
+#endif
 
 		const auto manifestBackup = primaryRepository / "manifest-backup";
 		std::filesystem::rename(manifest, manifestBackup);
@@ -3733,15 +3771,27 @@ namespace {
 		std::filesystem::rename(manifestBackup, manifest);
 
 		std::filesystem::rename(manifest, manifestBackup);
-		std::filesystem::create_symlink(manifestBackup, manifest);
-		const auto followed = (*cache)->open(primaryRequest, { });
-		require(
-			!followed.has_value()
-				&& followed.error()
-					== application::git_cache_failure::invalid_manifest,
-			"manifest symlink is never followed");
-		std::filesystem::remove(manifest);
-		std::filesystem::rename(manifestBackup, manifest);
+		std::error_code symlinkError;
+		std::filesystem::create_symlink(manifestBackup, manifest, symlinkError);
+		if (symlinkError) {
+			// The same boundary BPR-0425 records for the storage contract: an
+			// unelevated host without Developer Mode cannot create the file
+			// symlink this adversary needs, and the junction cases above
+			// already cover reparse-point substitution.
+			std::cout << "SKIP: manifest-symlink rejection requires Windows "
+						 "symlink privilege; junction rejection remains "
+						 "covered\n";
+			std::filesystem::rename(manifestBackup, manifest);
+		} else {
+			const auto followed = (*cache)->open(primaryRequest, { });
+			require(
+				!followed.has_value()
+					&& followed.error()
+						== application::git_cache_failure::invalid_manifest,
+				"manifest symlink is never followed");
+			std::filesystem::remove(manifest);
+			std::filesystem::rename(manifestBackup, manifest);
+		}
 
 		auto sha256Request         = request(0x35U, 0x45U);
 		sha256Request.ObjectFormat = core::git_hash_algorithm::sha256;
@@ -3850,25 +3900,34 @@ namespace {
 		const auto collision = quarantineRoot
 			/ (lower_hex(primaryRequest.Authority.Cache.bytes())
 			   + "-" + lower_hex(collisionToken) + ".git");
+		std::error_code collisionError;
 		std::filesystem::create_directory_symlink(
 			isolatedRepository,
-			collision);
-		const auto collisionDelete = (*cache)->delete_cache(
-			primaryRequest,
-			application::git_cache_delete_authorization{
-				.ApplicationSession = primaryRequest.ApplicationSession,
-				.Cache              = primaryRequest.Authority.Cache,
-				.DurableIntentToken = collisionToken,
-			},
-			{ });
-		require(
-			!collisionDelete.has_value()
-				&& collisionDelete.error()
-					== application::git_cache_failure::repair_required
-				&& std::filesystem::is_directory(primaryRepository)
-				&& std::filesystem::is_directory(isolatedRepository),
-			"cache deletion refuses a quarantine collision without escaping");
-		std::filesystem::remove(collision);
+			collision,
+			collisionError);
+		if (collisionError) {
+			// The same boundary BPR-0425 records: no symlink privilege on an
+			// unelevated host without Developer Mode.
+			std::cout << "SKIP: quarantine-collision rejection requires "
+						 "Windows symlink privilege\n";
+		} else {
+			const auto collisionDelete = (*cache)->delete_cache(
+				primaryRequest,
+				application::git_cache_delete_authorization{
+					.ApplicationSession = primaryRequest.ApplicationSession,
+					.Cache              = primaryRequest.Authority.Cache,
+					.DurableIntentToken = collisionToken,
+				},
+				{ });
+			require(
+				!collisionDelete.has_value()
+					&& collisionDelete.error()
+						== application::git_cache_failure::repair_required
+					&& std::filesystem::is_directory(primaryRepository)
+					&& std::filesystem::is_directory(isolatedRepository),
+				"cache deletion refuses a quarantine collision without escaping");
+			std::filesystem::remove(collision);
+		}
 
 		const auto primaryDeleteAuthorization = application::git_cache_delete_authorization{
 			.ApplicationSession = primaryRequest.ApplicationSession,
@@ -4010,6 +4069,13 @@ namespace {
 
 auto main(int argc, char** argv) -> int
 {
+#if defined(_WIN32)
+	// As the fake Git this executable writes what Git writes: bytes with
+	// `\n`, not the `\r\n` the CRT's text mode would substitute (BPR-0437).
+	static_cast<void>(::_setmode(::_fileno(stdin), _O_BINARY));
+	static_cast<void>(::_setmode(::_fileno(stdout), _O_BINARY));
+	static_cast<void>(::_setmode(::_fileno(stderr), _O_BINARY));
+#endif
 	if (argc == 2 && QString::fromUtf8(argv[1]) == "--exec-path") {
 		std::cerr << raw_git_diagnostic;
 		return 128;

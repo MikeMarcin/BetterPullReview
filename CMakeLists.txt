@@ -92,6 +92,17 @@ function(bpr_add_executable target)
     add_executable("${target}" ${ARGN})
     string(REGEX REPLACE "^[^_]+_" "" output_name "${target}")
     set_target_properties("${target}" PROPERTIES OUTPUT_NAME "${output_name}")
+    if(MSVC)
+        # The Git cache's ref layout crosses MAX_PATH by design; Git writes
+        # through the extended-length form on its own, and every first-party
+        # process that walks those paths with std::filesystem needs the
+        # manifest opt-in for the Win32 APIs to do the same (BPR-0437).
+        target_sources(
+            "${target}"
+            PRIVATE
+                "${PROJECT_SOURCE_DIR}/cmake/bpr_long_paths.manifest"
+        )
+    endif()
 
     # Every first-party executable passes through here, which is the only
     # place that can enumerate them without a directory walk guessing at the

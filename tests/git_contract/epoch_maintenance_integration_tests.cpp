@@ -2,6 +2,7 @@
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/epoch_application_host.hpp"
+#include "windows_system_root.hpp"
 
 #include <QCoreApplication>
 
@@ -622,8 +623,9 @@ namespace {
 			: Root{ aLabel }
 		{
 			auto madeCache   = git_adapter::make_installed_git_cache({
-				.GitExecutable = std::filesystem::canonical(BPR_TEST_GIT_EXECUTABLE),
-				.StorageRoot   = Root.Path / "git",
+				.GitExecutable     = std::filesystem::canonical(BPR_TEST_GIT_EXECUTABLE),
+				.StorageRoot       = Root.Path / "git",
+				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 			});
 			auto madeCatalog = sqlite_adapter::make_epoch_catalog({
 				.StorageRoot = Root.Path / "catalog",

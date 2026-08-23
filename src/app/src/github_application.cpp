@@ -793,7 +793,18 @@ namespace bpr::app {
 			if (length == 0U || length >= value.size()) {
 				return std::nullopt;
 			}
-			return std::filesystem::path{ value.data() };
+			// The API spells it `C:\WINDOWS` while the directory is
+			// `C:\Windows`, and the adapter accepts a system root only in its
+			// canonical spelling; the uncanonical one made every Git process
+			// refuse its configuration, which the epoch pipeline reported as
+			// `failed` with nothing to name (BPR-0441).
+			std::error_code error;
+			auto            canonical = std::filesystem::canonical(
+				std::filesystem::path{ value.data() }, error);
+			if (error) {
+				return std::nullopt;
+			}
+			return canonical;
 #else
 			return std::nullopt;
 #endif

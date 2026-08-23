@@ -1,7 +1,13 @@
 #include "bpr/adapters/git/installed_git_process.hpp"
+#include "windows_system_root.hpp"
 
 #include <QByteArray>
 #include <QCoreApplication>
+
+#if defined(_WIN32)
+	#include <fcntl.h>
+	#include <io.h>
+#endif
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
@@ -425,7 +431,12 @@ namespace {
 		const std::filesystem::path& aMarker,
 		const std::string_view       aLabel) -> void
 	{
-#if defined(Q_OS_UNIX)
+		// The canary has two jobs: make the policy directory non-empty, which
+		// the adapter must refuse before Git runs, and record an invocation
+		// if Git ever does run it. On Windows the file is written the same
+		// way without the mode bits; the adapter's refusal needs only the
+		// entry, and a hook Git cannot execute records nothing, which is the
+		// expected count (BPR-0437).
 		write_text(
 			aPath,
 			"#!/bin/sh\n"
@@ -433,14 +444,11 @@ namespace {
 				+ std::string{ aLabel }
 				+ "' >> '" + aMarker.string() + "'\n"
 												"exit 91\n");
+#if defined(Q_OS_UNIX)
 		std::filesystem::permissions(
 			aPath,
 			std::filesystem::perms::owner_all,
 			std::filesystem::perm_options::replace);
-#else
-		static_cast<void>(aPath);
-		static_cast<void>(aMarker);
-		static_cast<void>(aLabel);
 #endif
 	}
 
@@ -535,9 +543,13 @@ namespace {
 		}
 		const auto log = std::filesystem::path{ home.toStdString() }.parent_path()
 			/ "invocations.log";
-		std::ofstream output{ log, std::ios::app };
+		// Binary, like every other fixture write: the assertions search for
+		// exact `\n`-terminated records (BPR-0437).
+		std::ofstream output{ log, std::ios::app | std::ios::binary };
 		output << "BEGIN\n";
-		output << "cwd=" << QDir::currentPath().toStdString() << '\n';
+		output << "cwd="
+			   << QDir::toNativeSeparators(QDir::currentPath()).toStdString()
+			   << '\n';
 		for (const auto& argument : aArguments) {
 			output << "arg=" << argument.toStdString() << '\n';
 		}
@@ -898,12 +910,14 @@ namespace {
 	{
 		auto made = git_adapter::make_installed_git_process(
 			{
-				.GitExecutable = std::filesystem::canonical(aExecutable),
-				.IsolationRoot = std::filesystem::canonical(aRoot),
+				.GitExecutable     = std::filesystem::canonical(aExecutable),
+				.IsolationRoot     = std::filesystem::canonical(aRoot),
+				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 			});
 		if (!made.has_value()) {
 			const auto message = "construct installed Git adapter, failure="
-				+ std::to_string(static_cast<unsigned int>(made.error().Code));
+				+ std::to_string(static_cast<unsigned int>(made.error().Code))
+				+ " detail=[" + made.error().Detail + "]";
 			require(false, message);
 		}
 		return std::move(*made);
@@ -931,6 +945,24 @@ namespace {
 			executable,
 			std::filesystem::perms::owner_all,
 			std::filesystem::perm_options::replace);
+#if defined(Q_OS_WIN)
+		// The copy is launched through the adapter's own environment, whose
+		// PATH is this directory and nothing else, so the shared Qt the copy
+		// links has to travel with it: every DLL beside this executable —
+		// put there after each link for the same reason — is copied beside
+		// the fake (BPR-0437).
+		const auto origin = std::filesystem::path{
+			QCoreApplication::applicationDirPath().toStdString()
+		};
+		for (const auto& entry : std::filesystem::directory_iterator{ origin }) {
+			if (entry.is_regular_file() && entry.path().extension() == ".dll") {
+				std::filesystem::copy_file(
+					entry.path(),
+					directory / entry.path().filename(),
+					std::filesystem::copy_options::overwrite_existing);
+			}
+		}
+#endif
 		return executable;
 	}
 
@@ -2409,25 +2441,9 @@ namespace {
 	auto run_hostile_process_contract() -> void
 	{
 		temporary_root root{ "git-hostile" };
-		const auto     fakeExec = root.Path / "fake-exec";
-		std::filesystem::create_directories(fakeExec);
-		std::filesystem::permissions(
-			fakeExec,
-			std::filesystem::perms::owner_all,
-			std::filesystem::perm_options::replace);
-		const auto fakeGitPath = fakeExec
-#if defined(Q_OS_WIN)
-			/ "git.exe";
-#else
-			/ "git";
-#endif
-		std::filesystem::copy_file(
-			QCoreApplication::applicationFilePath().toStdString(),
-			fakeGitPath);
-		std::filesystem::permissions(
-			fakeGitPath,
-			std::filesystem::perms::owner_all,
-			std::filesystem::perm_options::replace);
+		// The shared helper, not an inline copy: on Windows the fake's Qt has
+		// to travel beside it (BPR-0437).
+		const auto fakeGitPath = make_fake_git_executable(root.Path);
 
 		const auto hostileConfig = root.Path / "hostile-global-config";
 		write_text(
@@ -2731,8 +2747,9 @@ namespace {
 				write_text(root.Path / aMarker, "induced probe failure");
 
 				const auto adapter = git_adapter::make_installed_git_process({
-					.GitExecutable = fakeGitPath,
-					.IsolationRoot = root.Path,
+					.GitExecutable     = fakeGitPath,
+					.IsolationRoot     = root.Path,
+					.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 				});
 				require(
 					!adapter.has_value()
@@ -2852,8 +2869,9 @@ namespace {
 				root.Path / "inject-probe-post-create-substitution",
 				"replace both exact artifact names");
 			const auto adapter = git_adapter::make_installed_git_process({
-				.GitExecutable = fakeGitPath,
-				.IsolationRoot = root.Path,
+				.GitExecutable     = fakeGitPath,
+				.IsolationRoot     = root.Path,
+				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 			});
 			require(
 				!adapter.has_value()
@@ -2910,8 +2928,9 @@ namespace {
 				root.Path / "inject-probe-reap-failure",
 				"retain exact probe boundary");
 			const auto adapter = git_adapter::make_installed_git_process({
-				.GitExecutable = fakeGitPath,
-				.IsolationRoot = root.Path,
+				.GitExecutable     = fakeGitPath,
+				.IsolationRoot     = root.Path,
+				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 			});
 			require(
 				!adapter.has_value()
@@ -2940,8 +2959,9 @@ namespace {
 			cancellation.request_stop();
 			const auto adapter = git_adapter::make_installed_git_process(
 				{
-					.GitExecutable = fakeGitPath,
-					.IsolationRoot = root.Path,
+					.GitExecutable     = fakeGitPath,
+					.IsolationRoot     = root.Path,
+					.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 				},
 				cancellation.get_token());
 			require(
@@ -2964,8 +2984,9 @@ namespace {
 			root.Path / "block-capability-probe-index-pack",
 			"block exact probe command");
 		const auto configuration = git_adapter::installed_git_process_configuration{
-			.GitExecutable = fakeGitPath,
-			.IsolationRoot = root.Path,
+			.GitExecutable     = fakeGitPath,
+			.IsolationRoot     = root.Path,
+			.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 		};
 		using factory_result = decltype(git_adapter::make_installed_git_process(configuration));
 		std::optional<factory_result> probing;
@@ -3097,8 +3118,9 @@ namespace {
 			directoryIsolation / "home");
 		const auto rejectedDirectory = git_adapter::make_installed_git_process(
 			{
-				.GitExecutable = executable,
-				.IsolationRoot = std::filesystem::canonical(directoryIsolation),
+				.GitExecutable     = executable,
+				.IsolationRoot     = std::filesystem::canonical(directoryIsolation),
+				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 			});
 		require(
 			!rejectedDirectory.has_value()
@@ -3126,8 +3148,9 @@ namespace {
 			fileIsolation / "config-system");
 		const auto rejectedFile = git_adapter::make_installed_git_process(
 			{
-				.GitExecutable = executable,
-				.IsolationRoot = std::filesystem::canonical(fileIsolation),
+				.GitExecutable     = executable,
+				.IsolationRoot     = std::filesystem::canonical(fileIsolation),
+				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 			});
 		require(
 			!rejectedFile.has_value()
@@ -3150,8 +3173,9 @@ namespace {
 		write_text(existingConfig, "must-not-be-truncated");
 		const auto rejectedContent = git_adapter::make_installed_git_process(
 			{
-				.GitExecutable = executable,
-				.IsolationRoot = std::filesystem::canonical(contentIsolation),
+				.GitExecutable     = executable,
+				.IsolationRoot     = std::filesystem::canonical(contentIsolation),
+				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 			});
 		require(
 			!rejectedContent.has_value()
@@ -3182,8 +3206,9 @@ namespace {
 			"preexisting-policy-hook");
 		const auto rejectedPolicy = git_adapter::make_installed_git_process(
 			{
-				.GitExecutable = executable,
-				.IsolationRoot = std::filesystem::canonical(policyIsolation),
+				.GitExecutable     = executable,
+				.IsolationRoot     = std::filesystem::canonical(policyIsolation),
+				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 			});
 		require(
 			!rejectedPolicy.has_value()
@@ -3269,8 +3294,9 @@ namespace {
 				executable.parent_path() / "fail-bootstrap-exec-path",
 				"fail exact bootstrap command");
 			const auto made = git_adapter::make_installed_git_process({
-				.GitExecutable = executable,
-				.IsolationRoot = root.Path,
+				.GitExecutable     = executable,
+				.IsolationRoot     = root.Path,
+				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 			});
 			require(
 				!made.has_value()
@@ -3396,6 +3422,13 @@ namespace {
 
 auto main(int argc, char** argv) -> int
 {
+#if defined(_WIN32)
+	// As the fake Git this executable writes what Git writes: bytes with
+	// `\n`, not the `\r\n` the CRT's text mode would substitute (BPR-0437).
+	static_cast<void>(::_setmode(::_fileno(stdin), _O_BINARY));
+	static_cast<void>(::_setmode(::_fileno(stdout), _O_BINARY));
+	static_cast<void>(::_setmode(::_fileno(stderr), _O_BINARY));
+#endif
 	const auto executablePath = argc > 0
 		? std::filesystem::absolute(argv[0])
 		: std::filesystem::path{ };

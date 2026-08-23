@@ -235,9 +235,31 @@ namespace bpr::adapters::git {
 				&& (information.st_mode & (S_IRWXG | S_IRWXO)) == 0;
 #else
 	#if defined(Q_OS_WIN)
-			const auto attributes = GetFileAttributesW(aPath.c_str());
-			return attributes != INVALID_FILE_ATTRIBUTES
-				&& (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0U;
+			// Attributes alone cannot see a hard link: the POSIX rule above
+			// requires exactly one name (st_nlink == 1), and NTFS answers the
+			// same question through the open handle (BPR-0437).
+			const auto handle = CreateFileW(
+				aPath.c_str(),
+				FILE_READ_ATTRIBUTES,
+				FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+				nullptr,
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT,
+				nullptr);
+			if (handle == INVALID_HANDLE_VALUE) {
+				return false;
+			}
+			BY_HANDLE_FILE_INFORMATION information{ };
+			const auto                 valid
+				= GetFileInformationByHandle(handle, &information) != 0;
+			static_cast<void>(CloseHandle(handle));
+			return valid
+				&& (information.dwFileAttributes
+					& FILE_ATTRIBUTE_REPARSE_POINT)
+				== 0U
+				&& (information.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+				== 0U
+				&& information.nNumberOfLinks == 1U;
 	#else
 			return true;
 	#endif
@@ -665,8 +687,7 @@ namespace bpr::adapters::git {
 			if (
 				error
 				&& error
-					!= std::make_error_code(
-						std::errc::no_such_file_or_directory)) {
+					!= std::errc::no_such_file_or_directory) {
 				return false;
 			}
 			if (
@@ -2786,7 +2807,7 @@ namespace bpr::adapters::git {
 					destination.parent_path() != *parent
 					|| (presenceError
 						&& presenceError
-							!= std::make_error_code(std::errc::no_such_file_or_directory))
+							!= std::errc::no_such_file_or_directory)
 					|| (!presenceError
 						&& destinationStatus.type()
 							!= std::filesystem::file_type::not_found)) {
@@ -4508,8 +4529,7 @@ namespace bpr::adapters::git {
 					if (
 						error
 						&& error
-							!= std::make_error_code(
-								std::errc::no_such_file_or_directory)) {
+							!= std::errc::no_such_file_or_directory) {
 						return std::nullopt;
 					}
 					return !error
@@ -4954,10 +4974,23 @@ namespace bpr::adapters::git {
 				aIsolation / "repositories",
 				aIsolation / "repositories" / "v1",
 			};
+			// The isolation's global configuration is the adapter's own — the
+			// system one is written too but `GIT_CONFIG_NOSYSTEM` keeps Git
+			// from reading it — and on Windows it carries the one setting Git
+			// needs there: a ref under `refs/betterpullreview/v1/stage/<sha-256>/`
+			// beneath a cache under `%LOCALAPPDATA%` or `%TEMP%` is longer than
+			// MAX_PATH, and without `core.longpaths` Git cannot create the
+			// directory for its lock file (BPR-0437).
+#if defined(Q_OS_WIN)
+			constexpr std::string_view globalConfiguration
+				= "[core]\n\tlongpaths = true\n";
+#else
+			constexpr std::string_view globalConfiguration{ };
+#endif
 			const std::array files{
-				aIsolation / "config-system",
-				aIsolation / "config-global",
-				aIsolation / "attributes-system",
+				std::pair{ aIsolation / "config-system", std::string_view{ } },
+				std::pair{ aIsolation / "config-global", globalConfiguration },
+				std::pair{ aIsolation / "attributes-system", std::string_view{ } },
 			};
 			const std::array emptyPolicyDirectories{
 				aIsolation / "templates",
@@ -4973,16 +5006,15 @@ namespace bpr::adapters::git {
 							   && status.type()
 								   == std::filesystem::file_type::not_found)
 						|| error
-						== std::make_error_code(
-							   std::errc::no_such_file_or_directory);
+						== std::errc::no_such_file_or_directory;
 				};
 			for (const auto& directory : directories) {
 				if (!missing(directory) && !private_directory(directory)) {
 					return false;
 				}
 			}
-			for (const auto& file : files) {
-				if (!missing(file) && !read_exact_file(file, { })) {
+			for (const auto& [file, contents] : files) {
+				if (!missing(file) && !read_exact_file(file, contents)) {
 					return false;
 				}
 			}
@@ -4997,8 +5029,8 @@ namespace bpr::adapters::git {
 					return false;
 				}
 			}
-			for (const auto& file : files) {
-				if (!write_private_file(file, std::string_view{ })) {
+			for (const auto& [file, contents] : files) {
+				if (!write_private_file(file, contents)) {
 					return false;
 				}
 			}
