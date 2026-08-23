@@ -738,7 +738,6 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0310, BPR-0314 | `23-ready-lin/` | A Linux session. Both also have unmet dependencies of their own, which the platform lane defers exactly as the blocked lane did |
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
 | BPR-0412 | `30-in-progress/` | Nothing. The Windows session took it on 2026-08-22: the first `windows-dev` configure and build in the `windows-lane` worktree, reusing the host's already-acquired Qt 6.10.3 through `BPR_QT_ROOT` |
-| BPR-0436 | `30-in-progress/` | Nothing. The Windows session opened it on 2026-08-23 when the first Qt-graph run's thirty-five `STARTUP_FAILED`s traced to a state root Windows never narrows; the product fix is the current slice |
 | BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; v004 must not be retried |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
@@ -796,7 +795,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these twenty-six roots or reaches one
+card on this board is either one of these twenty-five roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 56 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.

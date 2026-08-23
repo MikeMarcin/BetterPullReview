@@ -99,6 +99,7 @@ endif()
 
 bpr_add_network_isolated_test(
     NAME application_public_path
+    WINDOWS_UNCONTAINED
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --self-test
@@ -122,6 +123,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_public_path_ghes_cli_unavailable
+    WINDOWS_UNCONTAINED
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --self-test
@@ -255,6 +257,7 @@ list(
 )
 bpr_add_network_isolated_test(
     NAME application_composition_contract
+    WINDOWS_UNCONTAINED
     COMMAND ${bpr_application_composition_contract_command}
 )
 # No PASS_REGULAR_EXPRESSION. This is a `unittest` suite and its exit code is
@@ -347,6 +350,7 @@ foreach(
 	if(course STREQUAL "positive")
 		bpr_add_network_isolated_test(
 			NAME "${test_name}"
+			WINDOWS_UNCONTAINED
 			COMMAND
 				"${CMAKE_COMMAND}"
 				"-DBPR_APPLICATION=$<TARGET_FILE:test_better_pull_review_agent_invocation_composition_public_path>"
@@ -367,6 +371,7 @@ foreach(
 		endif()
 		bpr_add_network_isolated_test(
 			NAME "${test_name}"
+			WINDOWS_UNCONTAINED
 			COMMAND
 				test_better_pull_review_agent_invocation_composition_public_path
 				"${course}"
@@ -390,6 +395,7 @@ endforeach()
 
 bpr_add_network_isolated_test(
     NAME application_queue_composition_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:test_better_pull_review_queue_composition_public_path>"
@@ -413,6 +419,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_native_notification_attended_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
@@ -462,6 +469,7 @@ bpr_enable_warnings(test_better_pull_review_github_application_liveness_tests)
 # the destructor, not a course.
 bpr_add_network_isolated_test(
     NAME application_poller_liveness
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_github_application_liveness_tests
 )
 set_tests_properties(
@@ -488,6 +496,7 @@ set_tests_properties(
 
 bpr_add_network_isolated_test(
     NAME application_native_appearance_probe_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
@@ -516,6 +525,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_github_public_path_github_com
+    WINDOWS_UNCONTAINED
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --github-fixture
@@ -548,6 +558,7 @@ bpr_bound_automated_run(
 # --check-self-contained-and-connected` followed by `fsck --connectivity-only`.
 bpr_add_network_isolated_test(
     NAME application_github_public_path_uiforetw_74
+    WINDOWS_UNCONTAINED
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --github-fixture
@@ -574,6 +585,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_uiforetw_selected_diff_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
@@ -599,6 +611,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_diff_workbench_public_path
+    WINDOWS_UNCONTAINED
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --github-fixture
@@ -636,6 +649,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_workbench_composition_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
@@ -661,6 +675,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_review_ledger_composition_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
@@ -686,6 +701,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_review_round_trip_composition_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
@@ -714,6 +730,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_defect_composition_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
@@ -740,6 +757,7 @@ bpr_bound_automated_run(
 set(bpr_appearance_theme_budget_ms 50000)
 bpr_add_network_isolated_test(
     NAME application_appearance_theme_customization_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
@@ -764,6 +782,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_fixture_verdict_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${CMAKE_CURRENT_SOURCE_DIR}/fixture_verdict_contract.py"
@@ -779,6 +798,7 @@ set_tests_properties(
 
 bpr_add_network_isolated_test(
     NAME application_attended_launch_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${CMAKE_CURRENT_SOURCE_DIR}/attended_launch_contract.py"
@@ -794,6 +814,7 @@ set_tests_properties(
 
 bpr_add_network_isolated_test(
     NAME application_diff_workbench_shutdown_public_path
+    WINDOWS_UNCONTAINED
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --github-fixture
@@ -829,6 +850,7 @@ bpr_bound_automated_run(
 # which a missing bound still passes.
 bpr_add_network_isolated_test(
     NAME application_automated_run_budget
+    WINDOWS_UNCONTAINED
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --github-fixture
@@ -858,6 +880,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_github_public_path_ghes_3_18
+    WINDOWS_UNCONTAINED
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --github-fixture
@@ -894,6 +917,7 @@ foreach(
     string(REPLACE "." "_" fixture_test_name "${fixture_name}")
     bpr_add_network_isolated_test(
         NAME application_epoch_persistence_${fixture_test_name}
+        WINDOWS_UNCONTAINED
         COMMAND
             "${CMAKE_COMMAND}"
             "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
@@ -923,6 +947,7 @@ endforeach()
 
 bpr_add_network_isolated_test(
     NAME application_epoch_maintenance_public_path
+    WINDOWS_UNCONTAINED
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
@@ -948,6 +973,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_appearance_gesture_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
@@ -973,6 +999,7 @@ bpr_bound_automated_run(
 
 bpr_add_network_isolated_test(
     NAME application_appearance_store_fallback_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
@@ -1013,6 +1040,7 @@ set_tests_properties(
 
 bpr_add_network_isolated_test(
     NAME runtime_process_surface
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/scripts/verify_runtime_surface.py"
@@ -1042,6 +1070,7 @@ set_tests_properties(
 
 bpr_add_network_isolated_test(
     NAME application_render
+    WINDOWS_UNCONTAINED
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --render-evidence

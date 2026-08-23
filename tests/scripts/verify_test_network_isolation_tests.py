@@ -333,7 +333,7 @@ class ConfiguredManifestTests(unittest.TestCase):
                 'cmake_parse_arguments(PARSE_ARGV 0 t "WINDOWS_UNCONTAINED" "" "")\n',
             )
             self.assertEqual(uncontained_registration_count(root), 2)
-            self.assertNotEqual(uncontained_registration_count(root), len(WINDOWS_UNCONTAINED_TESTS))
+            self.assertLessEqual(uncontained_registration_count(root), len(WINDOWS_UNCONTAINED_TESTS))
 
     def test_manifest_command_names_the_configuration_when_given(self) -> None:
         # A multi-configuration generator's `ctest --show-only` lists nothing
@@ -353,7 +353,13 @@ class ConfiguredManifestTests(unittest.TestCase):
     def test_every_pinned_exemption_names_a_measured_cause(self) -> None:
         self.assertEqual(
             set(WINDOWS_UNCONTAINED_TESTS.values()),
-            {"dos-volume-name", "batch-stub", "ninja-named-pipe"},
+            {
+                "dos-volume-name",
+                "batch-stub",
+                "ninja-named-pipe",
+                "qprocess-named-pipe",
+                "credential-manager",
+            },
         )
 
     def test_disabled_graph_rejects_any_live_exception(self) -> None:

@@ -221,6 +221,7 @@ bpr_enable_warnings(
 
 bpr_add_network_isolated_test(
     NAME gh_cli_transport
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_gh_cli_transport_tests
 )
 set_tests_properties(
@@ -254,6 +255,7 @@ bpr_enable_warnings(
 
 bpr_add_network_isolated_test(
     NAME github_cli_process_runner
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_github_cli_process_runner_tests
 )
 set_tests_properties(
@@ -343,6 +345,7 @@ bpr_add_network_isolated_test(
 )
 bpr_add_network_isolated_test(
     NAME live_review_mutation_restart_recovery
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/review_mutation_restart_recovery_tests.py"
@@ -727,17 +730,20 @@ if(WIN32)
 
     bpr_add_network_isolated_test(
         NAME windows_credential_manager_native_setup
+        WINDOWS_UNCONTAINED
         COMMAND
             test_better_pull_review_windows_credential_manager_native_tests
             --fixture-setup
     )
     bpr_add_network_isolated_test(
         NAME windows_credential_manager_native
+        WINDOWS_UNCONTAINED
         COMMAND
             test_better_pull_review_windows_credential_manager_native_tests
     )
     bpr_add_network_isolated_test(
         NAME windows_credential_manager_native_cleanup
+        WINDOWS_UNCONTAINED
         COMMAND
             test_better_pull_review_windows_credential_manager_native_tests
             --fixture-cleanup

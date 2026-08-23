@@ -1311,6 +1311,23 @@ namespace bpr::app::detail {
 					"GitHub public-path installed Git is unavailable"
 				};
 			}
+			// A QTemporaryDir carries the entries its parent grants; the stores
+			// refuse that, so it is narrowed the way every other root is
+			// (BPR-0436).
+			if (!adapters::sqlite::make_storage_root_owner_private(ApplicationDataRoot)) {
+				throw std::runtime_error{
+					"GitHub public-path application data is unavailable"
+				};
+			}
+			// The Git cache accepts a root only in its canonical native
+			// spelling; Qt's forward slashes are not that on Windows.
+			std::error_code canonicalError;
+			ApplicationDataRoot = std::filesystem::canonical(ApplicationDataRoot, canonicalError);
+			if (canonicalError) {
+				throw std::runtime_error{
+					"GitHub public-path application data is unavailable"
+				};
+			}
 		}
 
 		std::shared_ptr<fixture_recording_state>          Recording;

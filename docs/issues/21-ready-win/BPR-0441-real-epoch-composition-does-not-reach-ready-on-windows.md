@@ -29,6 +29,19 @@ candidates are the ones this host has already exposed elsewhere: the
 installed-Git adapter under `Q_OS_WIN` ([[BPR-0437]]'s family) and the
 fixture packs it is asked to read.
 
+The shipped public path shows the same shape once its roots are narrowed
+([[BPR-0436]]): `application_github_public_path_github_com` composes both
+stores, renders, and then waits out its whole budget in stage 2 with
+`PUBLIC_PATH_EPOCH_CORE_STATUS:8` (`epoch_status::failed`),
+`PUBLIC_PATH_EPOCH_STATUS:Review history could not be updated.`, and the
+last recorded interaction never consumed (`GITHUB_FIXTURE_EVIDENCE:11111110`).
+The epoch pipeline fails before the presentation completes, so that test is
+this card's second witness, not a separate defect.
+`application_workbench_composition_contract` is the third: once its script
+narrows the `state` tree it pre-creates, the application starts and its
+first phase ends on the same `PUBLIC_PATH_EPOCH_CORE_STATUS:8` with the
+budget expired.
+
 ## Required final state
 
 - The failing effect is named from its own diagnostic, not inferred: the

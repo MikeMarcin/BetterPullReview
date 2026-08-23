@@ -1147,6 +1147,8 @@ auto main(const int aCount, char** aValues) -> int
 		return EXIT_SUCCESS;
 	}
 	if (aCount == 3 && std::string_view{ aValues[1] } == "--write-prepared-crash") {
+		expect(bpr::adapters::sqlite::make_storage_root_owner_private(aValues[2]),
+			   "narrow the prepared-crash fixture root to owner-private");
 		write_prepared_crash_fixture(aValues[2]);
 	}
 	if (aCount == 3 && std::string_view{ aValues[1] } == "--recover-prepared") {

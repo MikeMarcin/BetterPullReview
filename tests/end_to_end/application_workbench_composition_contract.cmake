@@ -67,6 +67,38 @@ function(bpr_prepare_workbench_root root)
         "${root}/state/v1/workbench-settings.sqlite3"
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
     )
+    if(WIN32)
+        # file(CHMOD) only toggles the read-only attribute here. The stores
+        # refuse a directory another local principal can reach, and the catalog
+        # finds `state` and `state/v1` already present: each one needs the
+        # owner-private descriptor the catalog would have written itself, a
+        # protected DACL whose single entry grants the token user full access
+        # and inherits to children (BPR-0436).
+        foreach(directory IN ITEMS
+            "${root}"
+            "${root}/state"
+            "${root}/state/v1"
+            "${root}/state/v1/workbench-settings.sqlite3"
+        )
+            file(TO_NATIVE_PATH "${directory}" native_directory)
+            execute_process(
+                COMMAND
+                    icacls
+                    "${native_directory}"
+                    /inheritance:r
+                    /grant:r
+                    "$ENV{USERDOMAIN}\\$ENV{USERNAME}:(OI)(CI)F"
+                RESULT_VARIABLE narrow_result
+                OUTPUT_QUIET
+                ERROR_VARIABLE narrow_error
+            )
+            if(NOT narrow_result EQUAL 0)
+                message(FATAL_ERROR
+                    "could not narrow ${native_directory}: ${narrow_error}"
+                )
+            endif()
+        endforeach()
+    endif()
 endfunction()
 
 bpr_prepare_workbench_root("${BPR_ROOT}")

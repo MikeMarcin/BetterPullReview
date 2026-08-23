@@ -50,6 +50,14 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 #   `realpath` warning also lands on stderr, which the format gate compares.
 # - `ninja-named-pipe`: `ninja` fails with `CreateNamedPipe: Access is denied`,
 #   so a test that configures a CMake fixture stops inside the compiler check.
+# - `qprocess-named-pipe`: the same denial reaching `QProcess`, which carries
+#   a child's standard streams over a named pipe.
+# - `credential-manager`: the Windows Credential Manager refuses a lowbox
+#   token; the native vault tests pass uncontained and fail inside.
+#
+# The application tests are `dos-volume-name` through one step: the
+# application canonicalises its data root and the catalog walks that root's
+# ancestor chain, both of which need the drive letter (BPR-0412, BPR-0436).
 #
 # The set is exact in both directions: an uncontained test outside it fails
 # the manifest gate, and a member found contained fails it too, so the pin has
@@ -66,6 +74,49 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "coding_standard_format_gate_contract": "batch-stub",
     "dependency_modernization_contract": "ninja-named-pipe",
     "sqlite_storage_root_contract": "dos-volume-name",
+    "application_public_path": "dos-volume-name",
+    "application_public_path_ghes_cli_unavailable": "dos-volume-name",
+    "application_queue_composition_contract": "dos-volume-name",
+    "application_native_notification_attended_contract": "dos-volume-name",
+    "application_poller_liveness": "dos-volume-name",
+    "application_native_appearance_probe_contract": "dos-volume-name",
+    "application_github_public_path_github_com": "dos-volume-name",
+    "application_github_public_path_uiforetw_74": "dos-volume-name",
+    "application_uiforetw_selected_diff_contract": "dos-volume-name",
+    "application_diff_workbench_public_path": "dos-volume-name",
+    "application_workbench_composition_contract": "dos-volume-name",
+    "application_review_ledger_composition_contract": "dos-volume-name",
+    "application_review_round_trip_composition_contract": "dos-volume-name",
+    "application_defect_composition_contract": "dos-volume-name",
+    "application_appearance_theme_customization_contract": "dos-volume-name",
+    "application_fixture_verdict_contract": "dos-volume-name",
+    "application_attended_launch_contract": "dos-volume-name",
+    "application_diff_workbench_shutdown_public_path": "dos-volume-name",
+    "application_automated_run_budget": "dos-volume-name",
+    "application_github_public_path_ghes_3_18": "dos-volume-name",
+    "application_epoch_maintenance_public_path": "dos-volume-name",
+    "application_appearance_gesture_contract": "dos-volume-name",
+    "application_appearance_store_fallback_contract": "dos-volume-name",
+    "runtime_process_surface": "dos-volume-name",
+    "application_render": "dos-volume-name",
+    "gh_cli_transport": "dos-volume-name",
+    "epoch_history_fixture_contract": "dos-volume-name",
+    "epoch_maintenance_integration": "dos-volume-name",
+    "live_review_mutation_restart_recovery": "dos-volume-name",
+    "application_agent_invocation_composition_contract": "dos-volume-name",
+    "application_agent_invocation_construction_cut_contract": "dos-volume-name",
+    "application_agent_invocation_gesture_cut_contract": "dos-volume-name",
+    "application_agent_invocation_cancellation_contract": "dos-volume-name",
+    "application_agent_invocation_staleness_contract": "dos-volume-name",
+    "application_agent_invocation_cleanup_retry_contract": "dos-volume-name",
+    "application_agent_invocation_workspace_diagnostic_contract": "dos-volume-name",
+    "application_epoch_persistence_github-com": "dos-volume-name",
+    "application_epoch_persistence_ghes-3_18": "dos-volume-name",
+    "application_composition_contract": "ninja-named-pipe",
+    "windows_credential_manager_native_setup": "credential-manager",
+    "windows_credential_manager_native": "credential-manager",
+    "windows_credential_manager_native_cleanup": "credential-manager",
+    "github_cli_process_runner": "qprocess-named-pipe",
 }
 EXIT_VERDICT_TESTS = {
     LIVE_TEST_NAME,
@@ -564,11 +615,15 @@ def main() -> int:
             "designated live source registration must be exactly one empty fixed call: "
             f"calls={live}, exact={exact_live}"
         )
+    # A registration inside a foreach covers several pinned names, so the
+    # source count bounds the set from above rather than matching it; the
+    # manifest check below pins every name exactly, in both directions.
     uncontained = uncontained_registration_count(arguments.root)
-    if uncontained != len(WINDOWS_UNCONTAINED_TESTS):
+    if uncontained == 0 or uncontained > len(WINDOWS_UNCONTAINED_TESTS):
         failures.append(
             f"WINDOWS_UNCONTAINED appears {uncontained} times in the sources, "
-            f"expected exactly {len(WINDOWS_UNCONTAINED_TESTS)}, one per pinned test"
+            f"expected between one and {len(WINDOWS_UNCONTAINED_TESTS)}, the "
+            "size of the pinned set"
         )
 
     shown = subprocess.run(

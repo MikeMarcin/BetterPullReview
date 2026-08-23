@@ -2009,6 +2009,17 @@ namespace bpr::app {
 			auto catalog = adapters::sqlite::make_epoch_catalog({
 				.StorageRoot = applicationDataRoot,
 			});
+			// Two stores, two refusals; a developer build reading
+			// STARTUP_FAILED_CAUSE needs to know which one (BPR-0436).
+			if (!cache) {
+				throw std::runtime_error{ "Git cache composition failed" };
+			}
+			if (!catalog) {
+				throw std::runtime_error{
+					"epoch catalog composition failed ("
+					+ std::to_string(static_cast<unsigned int>(catalog.error())) + ")"
+				};
+			}
 			if (!cache || !catalog) {
 				throw std::runtime_error{
 					"Git cache or epoch catalog composition failed"

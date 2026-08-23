@@ -1,5 +1,6 @@
 bpr_add_network_isolated_test(
     NAME epoch_history_fixture_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/verify_epoch_history_fixture.py"
@@ -145,6 +146,7 @@ bpr_enable_warnings(
 
 bpr_add_network_isolated_test(
     NAME epoch_maintenance_integration
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_epoch_maintenance_integration_tests
 )
 set_tests_properties(
