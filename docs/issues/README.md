@@ -795,7 +795,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these twenty-three roots or reaches one
+card on this board is either one of these twenty-two roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 56 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
