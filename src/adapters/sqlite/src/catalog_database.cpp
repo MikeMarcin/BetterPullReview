@@ -3918,6 +3918,19 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(
 					state_directory_failure::platform_unsupported);
 			}
+			// The ancestor chain's handles carry only attributes and control,
+			// which impose no sharing restrictions — right for `C:\Users`,
+			// wrong for the root this catalog must keep deletable by no one:
+			// only a handle holding data access enforces its share mode, so
+			// the root is re-held the way its children are (BPR-0425).
+			if (auto retainedRoot
+				= open_private_directory(root.Path, *security, false);
+				retainedRoot) {
+				root = std::move(*retainedRoot);
+			} else {
+				return std::unexpected(
+					as_state_directory_failure(retainedRoot.error()));
+			}
 			auto state = ensure_private_child(root, L"state", *security);
 			if (!state) {
 				return std::unexpected(
