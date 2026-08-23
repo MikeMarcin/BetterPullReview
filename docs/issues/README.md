@@ -734,10 +734,11 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0414 | `20-ready/` | Nothing. The owner named this gap on the 2026-08-21 verdict: the drawer does not anchor a comment to its line. Its wiring half is portable; the question of whether the body belongs in the code view goes back to the owner |
 | BPR-0417 | `20-ready/` | Nothing. [[BPR-0416]] landed the depth, so what is missing is content — and the card now carries the measured cost of both routes to it |
 | BPR-0420 | `20-ready/` | Nothing. The portable half of [[BPR-0232]], split out because that umbrella waits on Windows and this assertion does not |
-| BPR-0036, BPR-0053, BPR-0311, BPR-0315, BPR-0358, BPR-0364, BPR-0424, BPR-0425, BPR-0426, BPR-0427 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]], [[BPR-0362]], [[BPR-0360]], and [[BPR-0350]] closed on 2026-08-22 with the contained matrix at 87 of 89; [[BPR-0036]] and [[BPR-0053]] wait only on that matrix's two carded failures and on the Qt graph. [[BPR-0424]] through [[BPR-0427]] are the four causes that run isolated from the container's own |
+| BPR-0036, BPR-0053, BPR-0311, BPR-0315, BPR-0358, BPR-0364, BPR-0424, BPR-0425, BPR-0426, BPR-0427, BPR-0437, BPR-0438, BPR-0439, BPR-0440 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]], [[BPR-0362]], [[BPR-0360]], and [[BPR-0350]] closed on 2026-08-22 with the contained matrix at 87 of 89; [[BPR-0036]] and [[BPR-0053]] wait only on that matrix's two carded failures and on the Qt graph. [[BPR-0424]] through [[BPR-0427]] are the four causes that run isolated from the container's own |
 | BPR-0310, BPR-0314 | `23-ready-lin/` | A Linux session. Both also have unmet dependencies of their own, which the platform lane defers exactly as the blocked lane did |
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
 | BPR-0412 | `30-in-progress/` | Nothing. The Windows session took it on 2026-08-22: the first `windows-dev` configure and build in the `windows-lane` worktree, reusing the host's already-acquired Qt 6.10.3 through `BPR_QT_ROOT` |
+| BPR-0436 | `30-in-progress/` | Nothing. The Windows session opened it on 2026-08-23 when the first Qt-graph run's thirty-five `STARTUP_FAILED`s traced to a state root Windows never narrows; the product fix is the current slice |
 | BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; v004 must not be retried |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
@@ -795,7 +796,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these twenty roots or reaches one
+card on this board is either one of these twenty-five roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 56 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
