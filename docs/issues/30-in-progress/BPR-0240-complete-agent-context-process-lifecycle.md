@@ -171,3 +171,19 @@ toolchain this project has had" is no longer true; what remains Windows-bound
 on this card — Job Object pre-resume assignment, descendant containment, and
 the target-native lifecycle proof — is unchanged and still owed here. This
 note records the fact; it takes nothing else.
+
+## The first target-native run of the canary — 2026-08-23
+
+With the backend compiled, the Qt graph ran it. `qt_agent_launch_canary`
+fails on the Windows host, contained and uncontained alike, at
+
+```
+FAILED: each selected protocol reaches a typed successful terminal
+```
+
+in 20 s. That is this card's Windows half speaking for the first time: the
+protocol loop [[BPR-0334]] made portable does not reach a successful
+terminal through `windows_agent_process.cpp`. It is recorded here rather
+than on [[BPR-0412]], whose matrix it appears in, because the cause is the
+backend's and the card that owns the backend is this one. Not yet
+diagnosed.
