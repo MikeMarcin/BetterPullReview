@@ -234,7 +234,10 @@ class DependencyModernizationTests(unittest.TestCase):
                 "file(MAKE_DIRECTORY \"${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}\")\n"
                 "file(WRITE \"${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/"
                 "python3-config.cmake\" \"file(WRITE [==["
-                f"{marker}"
+                # Inside a quoted CMake string a Windows separator is an
+                # escape (`\U`), so the marker is spelled with forward
+                # slashes, which CMake accepts on every platform (BPR-0426).
+                f"{marker.as_posix()}"
                 "]==] executed)\\n\")\n"
                 "set(BPR_BUILD_QT OFF)\n"
                 "set(BUILD_TESTING ON)\n"
@@ -309,7 +312,11 @@ class DependencyModernizationTests(unittest.TestCase):
                 temporary_directory,
                 "-DBPR_BUILD_QT=OFF",
                 "-DBUILD_TESTING=OFF",
-                f"-DCMAKE_MODULE_PATH={fake_modules}",
+                # CMake re-emits the module path into every try-compile
+                # as a quoted `set()`, where a Windows separator is an
+                # escape; forward slashes survive that on every platform
+                # (BPR-0426).
+                f"-DCMAKE_MODULE_PATH={fake_modules.as_posix()}",
             )
         self.assertEqual(
             configured.returncode,
@@ -780,9 +787,13 @@ class DependencyModernizationTests(unittest.TestCase):
                 entry for entry in commands if entry["file"].endswith("sqlite3.c")
             ]
             self.assertEqual(len(sqlite_commands), 1)
-            command = sqlite_commands[0]["command"]
+            # MSVC's line spells the staged include with backslashes and
+            # `-external:I`; the property is the directory on the include
+            # path, not the separator, so both are compared with one spelling
+            # (BPR-0426).
+            command = sqlite_commands[0]["command"].replace("\\", "/")
             self.assertIn("_bpr/sqlite/3.53.4", command)
-            self.assertNotIn(str(cache / "bprsqlite"), command)
+            self.assertNotIn((cache / "bprsqlite").as_posix(), command)
 
     def test_sqlite_staging_rejects_unexpected_generated_entries(self) -> None:
         with contained_temporary_directory() as temporary_directory:
@@ -884,10 +895,14 @@ class DependencyModernizationTests(unittest.TestCase):
             provider = (ROOT / "cmake/BprSQLiteProvider.cmake").read_text(
                 encoding="utf-8"
             )
+            # A local path, not a `file://` URI: ExternalProject strips the
+            # scheme and keeps the leading slash, which on Windows leaves
+            # `/C:/...` and "File not found" instead of the hash check this
+            # test exists for (BPR-0426).
             provider = provider.replace(
                 "https://sqlite.org/2026/sqlite-amalgamation-"
                 "${BPR_SQLITE_SOURCE_NUMBER}.zip",
-                corrupt_archive.as_uri(),
+                corrupt_archive.as_posix(),
             )
             (provider_directory / "BprSQLiteProvider.cmake").write_text(
                 provider,
