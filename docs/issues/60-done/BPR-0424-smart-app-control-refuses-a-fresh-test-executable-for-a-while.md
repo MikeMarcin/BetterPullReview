@@ -1,7 +1,7 @@
 ---
 id: BPR-0424
 title: Smart App Control refuses a freshly linked test executable for a while
-status: Ready
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
 ---
@@ -137,3 +137,29 @@ during an uncontained control run, where the helper saw it as
 use. Three samples now; the shape holds: per image, unpredictable, a quarter
 to three quarters of an hour, and a relink of the launcher stalls the whole
 contained suite until it clears.
+
+## Closed — 2026-08-23
+
+The required final state is met by the three samples above and by the
+procedure they produced:
+
+- The window was measured again with event-log timestamps — twice, in
+  fact: the launcher relink for [[BPR-0433]] (refused 08:11:07, allowed
+  08:32) and the suite-wide relink for [[BPR-0434]] (per image, between
+  08:30 and 08:50). Three samples, one shape.
+- [[BPR-0036]]'s procedure now records the condition under "Procedure —
+  host policy on a freshly linked image": a `4551` refusal on a fresh image
+  is a host-policy wait, confirmed from the Code Integrity log and re-run
+  once the verdict clears, and not a matrix failure until it persists past
+  that; it covers test images, the contained launcher, try-run probes, and
+  nested build tools.
+- Nothing has persisted. Every refused image in the session cleared without
+  intervention, so the owner's decision stays unmade and written here as
+  the three options it would choose between.
+
+Verification as written — `application_github_capability_cache`
+immediately after a relink, then again after the log showed no new 3077 —
+was the first sample itself: refused four times from 19:18:56, allowed from
+≈19:45, passing since.
+
+Implemented by the integrator; documentation only, no code.

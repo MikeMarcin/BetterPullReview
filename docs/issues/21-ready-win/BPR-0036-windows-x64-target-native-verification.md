@@ -32,3 +32,32 @@ GitHub Actions are not acceptable substitutes. Its open state does not block
 implementation, tests, documentation, security review, or simplification on
 the other available targets or later RFC work; it blocks only the affected
 Windows claims and final RFC-BPR-0002 Auto-Verified closeout.
+
+## Procedure — host policy on a freshly linked image
+
+Recorded from [[BPR-0424]]'s three samples on the designated host, which
+runs Smart App Control in its evaluation state
+(`VerifiedAndReputablePolicyState=1`). Before any result below is read as a
+matrix failure:
+
+- A launch refusal with `win32=4551` (`ERROR_VIRUS_INFECTED`, reported by
+  the test as `BPR_NETWORK_ISOLATION_UNAVAILABLE:launch:win32=4551`, by the
+  uncontained control as `[WinError 4551]`, and by a nested build as "blocked
+  by your organization's Device Guard policy", `MSB8066`) on an image linked
+  in the current session is the host policy waiting for a reputation verdict.
+  It is per image, not per source, and clears on its own between about
+  fifteen and forty-five minutes after the link.
+- Confirm it from the Code Integrity operational log: events 3033/3077 name
+  the image. Re-run once no new 3077 appears for that image and a probe run
+  is allowed.
+- A relink of the contained launcher
+  (`tests/network_isolation/windows_network_sandbox.cpp`) stalls the whole
+  contained suite until the launcher clears; every test then reports the
+  same `4551`, and none of those rows is evidence about the boundary.
+- It also lands on CMake try-run probes (`cmTC_*.exe`) and build tools run
+  inside nested configures; the launcher try-run and the syntax provider's
+  nested build already retry for it, and a configure that fails on a
+  `cmTC_*` refusal is simply re-run.
+- Only a refusal that persists past the verdict is a failure, and then the
+  decision is the owner's, written on [[BPR-0424]]: sign the executables,
+  switch the policy off, or record the exclusion.
