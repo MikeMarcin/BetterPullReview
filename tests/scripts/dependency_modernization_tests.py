@@ -318,6 +318,54 @@ class DependencyModernizationTests(unittest.TestCase):
         )
         self.assertFalse(marker.exists())
 
+    def test_syntax_provider_forwards_list_values_whole(self) -> None:
+        # The provider escapes a value's `;` and appends `-D<name>=<value>` to
+        # an accumulator. Appending by expanding the accumulator unquoted
+        # unescaped every earlier element, so a list such as
+        # CMAKE_CONFIGURATION_TYPES survived its own round and was split on
+        # the next; the nested configure then built one configuration and the
+        # provider asked for four. Only a multi-configuration generator could
+        # reach it, which is why it was first seen on Windows (BPR-0428).
+        with contained_temporary_directory() as temporary_directory:
+            script = Path(temporary_directory) / "forward.cmake"
+            provider = ROOT / "cmake" / "BprSyntaxHighlightingProvider.cmake"
+            script.write_text(
+                "cmake_minimum_required(VERSION 3.25)\n"
+                f"include([==[{provider}]==])\n"
+                'set(CMAKE_CXX_FLAGS "/W4 /EHsc")\n'
+                'set(CMAKE_CONFIGURATION_TYPES "Debug;Release;MinSizeRel;RelWithDebInfo")\n'
+                'set(CMAKE_PREFIX_PATH "first;second")\n'
+                "set(forwarded)\n"
+                "foreach(name IN ITEMS CMAKE_CXX_FLAGS CMAKE_CONFIGURATION_TYPES CMAKE_PREFIX_PATH)\n"
+                '    bpr_syntax_forward(forwarded "${name}")\n'
+                "endforeach()\n"
+                "list(LENGTH forwarded count)\n"
+                'message(STATUS "FORWARDED_COUNT=${count}")\n'
+                "foreach(element IN LISTS forwarded)\n"
+                '    message(STATUS "FORWARDED_ELEMENT=${element}")\n'
+                "endforeach()\n",
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [str(CMAKE_COMMAND), "-P", str(script)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        output = completed.stdout + completed.stderr
+        self.assertEqual(completed.returncode, 0, output)
+        elements = re.findall(r"FORWARDED_ELEMENT=(.*)", output)
+        self.assertIn("FORWARDED_COUNT=3", output, output)
+        self.assertEqual(
+            elements,
+            [
+                "-DCMAKE_CXX_FLAGS=/W4 /EHsc",
+                "-DCMAKE_CONFIGURATION_TYPES=Debug;Release;MinSizeRel;RelWithDebInfo",
+                "-DCMAKE_PREFIX_PATH=first;second",
+            ],
+            output,
+        )
+
     def test_configured_dependency_audit_uses_supported_providers(self) -> None:
         audit = BUILD_DIR / "_bpr/product-dependency-audit.cmake"
         self.assertTrue(audit.is_file(), audit)

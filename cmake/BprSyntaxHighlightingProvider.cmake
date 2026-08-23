@@ -133,11 +133,17 @@ function(bpr_syntax_forward arguments_variable name)
         bpr_syntax_forward_value
         "${bpr_syntax_forward_value}"
     )
-    set(
-        ${arguments_variable}
-        ${${arguments_variable}} "-D${name}=${bpr_syntax_forward_value}"
-        PARENT_SCOPE
-    )
+    # Append without re-expanding what is already there. Expanding the
+    # accumulator unquoted turns every `\;` a previous call escaped back into
+    # a bare `;`, so a list value such as CMAKE_CONFIGURATION_TYPES survived
+    # its own round and was split on the next one: the nested configure then
+    # received `-DCMAKE_CONFIGURATION_TYPES=Debug` followed by `Release`,
+    # `MinSizeRel`, and `RelWithDebInfo` as stray arguments, and the
+    # multi-configuration build that followed asked for a Release it had never
+    # generated. `list(APPEND)` and the quoted PARENT_SCOPE copy keep each
+    # escaped element intact until the command line is formed.
+    list(APPEND ${arguments_variable} "-D${name}=${bpr_syntax_forward_value}")
+    set(${arguments_variable} "${${arguments_variable}}" PARENT_SCOPE)
 endfunction()
 
 function(bpr_syntax_execute label log)
