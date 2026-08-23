@@ -92,3 +92,10 @@ target-native ledger with it.
 Implemented by the integrator; the root re-hold is a storage-boundary
 change and is marked for the capability-critical closeout review with
 [[BPR-0436]]'s and [[BPR-0437]]'s.
+
+## Independent review — 2026-08-23
+
+Reviewed read-only by `rfc-reviewer` with the session's other
+capability-critical changes: confirmed sound, no blocking findings. The
+review's non-blocking risks and verification gaps are recorded on
+[[BPR-0036]]'s procedure and [[BPR-0053]]'s ledger.

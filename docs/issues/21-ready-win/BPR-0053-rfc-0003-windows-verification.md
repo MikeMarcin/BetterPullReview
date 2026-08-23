@@ -94,3 +94,21 @@ mocks, other operating systems, and CI substitutes were not used; every run
 above is this machine.
 
 Implemented by the integrator.
+
+## Ledger addendum from the independent review — 2026-08-23
+
+Four verification gaps the review named, each a target-native adversary
+this card owns:
+
+- the installed-Git process adapter's one-link rule
+  (`installed_git_process.cpp`) has no hard-link adversary, where the
+  cache's does (`git_cache_contract_tests.cpp`'s hardlinked-manifest
+  drift);
+- no adversary plants foreign content on `config-global`, the isolation
+  file that now carries `core.longpaths` on Windows — a mirror of the
+  existing `config-system` content case would pin it;
+- no test aborts an operation while its `pack_sink` still holds the
+  receiving spool, the single path the spool's `FILE_SHARE_DELETE`
+  exists for;
+- no test opens two stores on one root to prove the re-held root
+  (BPR-0425) does not sharing-violate a sibling store.

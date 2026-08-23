@@ -96,3 +96,14 @@ and the secret-free command transcripts in each; nothing here required a
 credential and none was written.
 
 Implemented by the integrator.
+
+## Procedure addendum from the independent review — 2026-08-23
+
+`longPathAware` in the executables' manifests is necessary but not
+sufficient: it takes effect only while the machine-wide `LongPathsEnabled`
+policy is 1, which this host has and stock Windows does not. On a host
+without it, the adapters' filesystem walks over the staged refs fail with
+`ERROR_PATH_NOT_FOUND` and the epoch pipeline reports `failed` with
+nothing named — BPR-0441's original symptom. A named refusal at
+composition time when the policy is off would keep the claim honest; until
+one exists, the policy value is part of this procedure's preconditions.

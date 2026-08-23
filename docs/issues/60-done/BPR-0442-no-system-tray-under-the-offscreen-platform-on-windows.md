@@ -83,3 +83,19 @@ composition is untouched.
 | production is unchanged | the fallback lives inside `BPR_BUILD_TESTING` and requires `Fixture != nullptr` | by construction |
 
 Implemented by the integrator.
+
+## Independent review — 2026-08-23
+
+Reviewed read-only by `rfc-reviewer` with the session's other
+capability-critical changes: confirmed sound, no blocking findings. The
+review's non-blocking risks and verification gaps are recorded on
+[[BPR-0036]]'s procedure and [[BPR-0053]]'s ledger.
+
+One risk from that review is this card's own: the fixture fallback keys on
+the fixture pointer, not the course, so a manual
+`--native-notification-attended` run on a tray-less host now composes the
+captured sink and waits out its budget where it used to refuse fast and by
+name with `platform_tray_not_composed`. The automated contract is
+unaffected (its three courses all pass `--native-notification-probe`).
+Narrowing the guard to non-attended fixture options would restore the
+named refusal.
