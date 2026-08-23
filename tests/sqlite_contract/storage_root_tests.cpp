@@ -73,6 +73,12 @@ auto main(int aArgumentCount, char** aArguments) -> int
 		sqlite_adapter::make_storage_root_owner_private(root),
 		"narrowing again is accepted and changes nothing the catalog can see");
 	expect(catalog_opens(root), "the catalog still accepts the root after the second narrowing");
+	// Qt spells the application's data root with forward slashes, and that
+	// spelling is what the application hands over; the directory is the same.
+	expect(
+		sqlite_adapter::make_storage_root_owner_private(
+			std::filesystem::path{ root.generic_string() }),
+		"a forward-slash spelling of the same root is accepted");
 	expect(
 		!sqlite_adapter::make_storage_root_owner_private(root / "missing"),
 		"a directory that does not exist is refused rather than created");

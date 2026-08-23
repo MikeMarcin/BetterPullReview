@@ -3987,7 +3987,10 @@ namespace bpr::adapters::sqlite {
 #if defined(_WIN32)
 		using namespace detail;
 		try {
-			auto canonicalRoot = canonical_windows_root(aRoot);
+			// Callers arrive with whatever spelling their source used - Qt's
+			// forward slashes included - and the root rules below read the
+			// native spelling only. The directory is the same either way.
+			auto canonicalRoot = canonical_windows_root(aRoot.lexically_normal());
 			if (!canonicalRoot) {
 				return false;
 			}
