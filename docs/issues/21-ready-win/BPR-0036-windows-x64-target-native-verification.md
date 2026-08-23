@@ -61,3 +61,38 @@ matrix failure:
 - Only a refusal that persists past the verdict is a failure, and then the
   decision is the owner's, written on [[BPR-0424]]: sign the executables,
   switch the policy off, or record the exclusion.
+
+## Run on the designated host — 2026-08-23
+
+The checked-in `windows-dev` configure, build, and complete CTest matrix
+ran on the project's Windows 11 x64 host (10.0.26200, MSVC 14.51,
+Qt 6.10.3, CMake 4.4.2, Git for Windows 2.55.0.windows.3), through the
+AppContainer launcher for every test the boundary supports and uncontained
+for the fifty-three registrations [[BPR-0362]] pins by measured cause.
+The matrix result and every failure's attribution live in [[BPR-0412]]'s
+closeout; the milestone-one deferrals this card names — native HTTPS
+matrix, runtime scope inspection, PE imports — follow the cards that own
+those slices, and GitHub CLI process execution remains out of scope
+exactly as written.
+
+What this card's own bullets asked:
+
+- **Complete matrix**: 147 of 188 Passed outright in the final run (`windows-dev-matrix-8.log`, 2026-08-23), and all 41 remaining rows are attributed from their own lines: 22 print the host policy's `win32=4551` or `Process not started` outright, 13 are script-driven contracts whose application process was refused the same way and captured nothing, and 6 are the agent-launch family [[BPR-0240]] owns (its canary and the five invocation contracts). The refused images are the suite-wide relink's reputation verdicts still unanswered two hours on — persistence past every window [[BPR-0424]] recorded, written on [[BPR-0036]]'s procedure where the owner's three options stand — and every policy-refused contract that was rerun individually today after its verdict landed passed, the shipped public path among them.
+- **Credential Manager sequence**: `windows_credential_manager_native_setup`,
+  `windows_credential_manager_native`, and
+  `windows_credential_manager_native_cleanup` pass in order, uncontained as
+  registered (the lowbox refuses the vault, measured on [[BPR-0362]]), and
+  cleanup proves exact absence afterward — the sequence's own final
+  assertions.
+- **Public application fixture**: `application_public_path` and
+  `application_github_public_path_github_com` pass; `PUBLIC_PATH_OK`,
+  `GITHUB_FIXTURE_OK:github.com`, `RENDER_OK`.
+- **Host policy**: the "Procedure — host policy on a freshly linked image"
+  section above, written from [[BPR-0424]]'s three measured samples, is
+  part of running this matrix unattended.
+
+Evidence retained: the matrix log, the per-card closeouts in `60-done/`,
+and the secret-free command transcripts in each; nothing here required a
+credential and none was written.
+
+Implemented by the integrator.

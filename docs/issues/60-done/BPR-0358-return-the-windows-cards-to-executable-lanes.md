@@ -1,7 +1,7 @@
 ---
 id: BPR-0358
 title: Return the Windows cards to executable lanes
-status: Ready
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
 ---
@@ -465,3 +465,39 @@ time on Windows.
 | claim | surface | command | proves it | result | evidence |
 |---|---|---|---|---|---|
 | the composed-host gate reads the linked image on Windows | `scripts/verify_composed_hosts.py` with the app's `.map` | `ctest --preset windows-dev -R '^composed_application_hosts$'`, contained | `COMPOSED_HOSTS_OK … inspector=link /MAP \| undname`, 20 required and 2 forbidden anchors audited | pass | BPR-0364 |
+
+### The Qt graph, opened — 2026-08-22/23
+
+[[BPR-0412]] ran the first `windows-dev` configure, build, and CTest matrix
+under the boundary. Nothing about it was a single step; the commits below
+are what it took, and every one closed a card of its own.
+
+| commit | card | effect |
+|---|---|---|
+| `127ac95`, `3cceae3` | [[BPR-0428]] | the syntax provider keeps forwarded lists whole across two rounds of escaping; the nested configure sees all four configurations |
+| `c6638fd` | [[BPR-0429]] | each configuration installs its own KSyntaxHighlighting library; the Qt graph links on Windows for the first time |
+| `42729ed` | [[BPR-0433]] | a contained child inherits a suppressed error mode; no loader or crash box |
+| `50a22ee` | [[BPR-0430]] | Qt's runtime directory on every Windows test's `PATH`; a Qt widget test reaches `main` inside the container |
+| `9a0a08e` | [[BPR-0431]], [[BPR-0432]] | the live-mutation guard ignores `dumpbin`'s header; the manifest gate names its configuration |
+| `a1c3032` | [[BPR-0364]] | the composed-host gate reads the application's linker map through `undname`; `composed_application_hosts` passes contained |
+| `22b991c` | [[BPR-0434]] | every automated executable routes the Debug CRT's reports to stderr; no `abort()` box |
+| `34c609d` | [[BPR-0435]] | a developer build names the exception behind `STARTUP_FAILED` |
+| `91d40e2`, `368ab58` | [[BPR-0436]] | the state root is narrowed on Windows in the adapter's own terms; the application starts |
+| `9001735` | [[BPR-0437]]–[[BPR-0440]] | the other causes the run isolated, carded for the Windows lane |
+
+Smart App Control's first-seen refusals were measured three times during
+this stretch ([[BPR-0424]]): a test image, two try-run probes, the
+framework's indexer, the launcher itself, and a whole relinked suite. A
+relink of the launcher stalls the entire contained suite until the policy
+answers, which is now written into the matrix procedure.
+
+### Verification matrix, continued
+
+| claim | surface | command | proves it | result | evidence |
+|---|---|---|---|---|---|
+| the Qt graph configures and builds under MSVC with the provider's four configurations | `windows-dev` | `cmake --preset windows-dev -DBPR_QT_ROOT=…`, `cmake --build --preset windows-dev` | `BUILD_OK`; four `KF6SyntaxHighlighting*.lib`; `better_pull_review.exe` and its `.map` | pass | BPR-0428, BPR-0429 |
+| a Qt-linked test runs inside the container | `qt_foundation_window` | `ctest --preset windows-dev -R '^qt_foundation_window$'` | `Passed` where `0xc0000135` stood | pass | BPR-0430 |
+| the composed-host gate reads the linked image | `composed_application_hosts` | `ctest --preset windows-dev -R '^composed_application_hosts$'` | `COMPOSED_HOSTS_OK … inspector=link /MAP \| undname` | pass | BPR-0364 |
+| an unattended run raises no dialog | the launcher's error mode; every automated executable's CRT | `GetErrorMode()` inside the container = `0x8003`; control runs of fifty failing tests end as exit codes | measured | pass | BPR-0433, BPR-0434 |
+| the application starts on Windows | `application_public_path` | `ctest --preset windows-dev -R '^application_public_path$'` | `Passed` where thirty-five tests printed `STARTUP_FAILED` in the first run | pass | BPR-0436 |
+| the contained Qt-graph matrix | `ctest --preset windows-dev` | full run | 147 of 188 Passed outright in the final run (`windows-dev-matrix-8.log`, 2026-08-23), and all 41 remaining rows are attributed from their own lines: 22 print the host policy's `win32=4551` or `Process not started` outright, 13 are script-driven contracts whose application process was refused the same way and captured nothing, and 6 are the agent-launch family [[BPR-0240]] owns (its canary and the five invocation contracts). The refused images are the suite-wide relink's reputation verdicts still unanswered two hours on — persistence past every window [[BPR-0424]] recorded, written on [[BPR-0036]]'s procedure where the owner's three options stand — and every policy-refused contract that was rerun individually today after its verdict landed passed, the shipped public path among them | attributed | BPR-0412 |
