@@ -54,11 +54,16 @@ def write_stub(aDirectory: Path, aBanner: str, aMarker: Path) -> Path:
     pass".
     """
     if os.name == "nt":
+        # Inside a parenthesised `if` block cmd reads an unescaped `)` as the
+        # end of the block, so a banner such as `Android (10552028, ...)` or
+        # `Debian ... (tags/RELEASE)` was truncated and the stub reported no
+        # version at all. `^` escapes both brackets.
+        escaped = aBanner.replace("(", "^(").replace(")", "^)")
         stub = aDirectory / "clang-format-stub.bat"
         stub.write_text(
             "@echo off\r\n"
             'if "%~1"=="--version" (\r\n'
-            f"  echo {aBanner}\r\n"
+            f"  echo {escaped}\r\n"
             "  exit /b 0\r\n"
             ")\r\n"
             'if "%~1"=="--help" (\r\n'

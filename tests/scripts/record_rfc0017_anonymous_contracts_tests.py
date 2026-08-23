@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -26,6 +25,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from scripts import record_rfc0017_anonymous_contracts as REC  # noqa: E402
+from scripts.contained_temporary_support import ContainedTemporaryDirectory  # noqa: E402
 
 STATEMENT = (
     "I authorize exactly the credential-free read-only requests named below "
@@ -206,7 +206,7 @@ class ForbiddenByteTests(unittest.TestCase):
 
 class OutputContainmentTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
+        self.temporary = ContainedTemporaryDirectory()
         self.review = Path(self.temporary.name) / "review"
         self.review.mkdir()
         self.packet = self.review / "operator-packet.md"
@@ -235,7 +235,7 @@ class NoTrafficTests(unittest.TestCase):
     """`--validate-existing` must not be able to reach a network."""
 
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
+        self.temporary = ContainedTemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.review = Path(self.temporary.name) / "review"
         self.review.mkdir()
