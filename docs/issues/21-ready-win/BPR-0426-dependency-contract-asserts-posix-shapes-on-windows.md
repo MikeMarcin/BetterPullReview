@@ -56,3 +56,13 @@ lines look different, which no run before this week could reach.
 ```sh
 ctest --preset core-only --output-on-failure -R '^dependency_modernization_contract$'
 ```
+
+## One confound to separate first — 2026-08-22, later
+
+Both uncontained runs of this test coincided with a Smart App Control
+refusal of a CMake try-run probe (`cmTC_d5f9a.exe` at 19:37:06, `cmTC_c53f9.exe`
+at 20:05:46; [[BPR-0424]]). A fixture configure whose compiler check was the
+refused probe fails before reaching the assertion the test makes. The
+diagnosed failure — the POSIX include spelling — is not that, but the four
+undiagnosed ones must each be shown to fail on their assertion, with the
+Code Integrity log clean for the run, before they are called this card's.

@@ -76,3 +76,32 @@ ctest --preset core-only --output-on-failure -R '^application_github_capability_
 
 immediately after a relink, and again once the Code Integrity log shows no
 new 3077 for the image.
+
+## It is not only tests — 2026-08-22, later
+
+The Code Integrity log for the session, every 3033/3077 pair by image:
+
+| time | image | what it was doing |
+|---|---|---|
+| 19:18:56, 19:29:06, 19:29:25, 19:30:21 | `better_pull_review_application_github_capability_cache_tests.exe` | the test above; allowed from ≈19:45 |
+| 19:37:06 | `cmTC_d5f9a.exe` | a CMake try-run probe, during a fixture configure |
+| 20:05:46 | `cmTC_c53f9.exe` | a CMake try-run probe, during a fixture configure |
+| 21:02:47 | `katehighlightingindexer.exe` | KSyntaxHighlighting's own build tool, RelWithDebInfo, inside the nested build the syntax provider runs at configure time |
+
+The indexer refusal was fatal: the nested build reported
+`'…\katehighlightingindexer.exe' was blocked by your organization's Device
+Guard policy` and `MSB8066`, the provider failed the configure, and the same
+tool had just run for Debug, Release, and MinSizeRel minutes earlier. The
+configure was simply retried.
+
+Two things follow. `cmake/WindowsTestIsolationSetup.cmake` already retries
+its launcher try-run three times for "a freshly linked executable
+occasionally unrunnable for a moment while a scanner holds it" — that is this
+policy, seen before it had a name, and the `cmTC_*` rows are it hitting
+try-run probes elsewhere. And [[BPR-0426]]'s fixture configures ran at both
+`cmTC_*` times, so any of its five failures that dies inside a compiler check
+rather than on its assertion has to be separated from this before it is
+attributed.
+
+The required final state above stands; the procedure it asks for covers
+build tools and try-run probes as well as test images.
