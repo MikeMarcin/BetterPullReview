@@ -734,9 +734,10 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0414 | `20-ready/` | Nothing. The owner named this gap on the 2026-08-21 verdict: the drawer does not anchor a comment to its line. Its wiring half is portable; the question of whether the body belongs in the code view goes back to the owner |
 | BPR-0417 | `20-ready/` | Nothing. [[BPR-0416]] landed the depth, so what is missing is content — and the card now carries the measured cost of both routes to it |
 | BPR-0420 | `20-ready/` | Nothing. The portable half of [[BPR-0232]], split out because that umbrella waits on Windows and this assertion does not |
-| BPR-0036, BPR-0053, BPR-0311, BPR-0315, BPR-0347, BPR-0350, BPR-0358, BPR-0360, BPR-0362, BPR-0364, BPR-0412 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0362]]'s product decision was answered on 2026-08-22 and its remaining work is target-native. [[BPR-0347]] and [[BPR-0350]] are the head of the chain and the rest queue behind them |
+| BPR-0036, BPR-0053, BPR-0311, BPR-0315, BPR-0347, BPR-0350, BPR-0358, BPR-0360, BPR-0364, BPR-0412 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]] and [[BPR-0350]] are the head of the chain and the rest queue behind them |
 | BPR-0310, BPR-0314 | `23-ready-lin/` | A Linux session. Both also have unmet dependencies of their own, which the platform lane defers exactly as the blocked lane did |
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
+| BPR-0362 | `30-in-progress/` | Nothing. A Windows session opened on 2026-08-22 in the `windows-lane` worktree and is measuring the ancestor-read denial on the host, as the owner directed |
 | BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; v004 must not be retried |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
 | BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
