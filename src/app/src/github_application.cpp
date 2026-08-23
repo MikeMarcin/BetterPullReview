@@ -2366,7 +2366,15 @@ namespace bpr::app {
 			if (NotificationSink == nullptr) {
 				auto sink = std::unique_ptr<qt::system_tray_notification_sink>{ };
 #if defined(BPR_BUILD_TESTING)
-				if (CaptureSystemNotificationDisplay) {
+				// A fixture run also takes the captured boundary when the
+				// platform truthfully reports no tray — the offscreen
+				// platform on Windows — because the courses that leave
+				// capture off assert what reaches the sink, not the native
+				// display mechanics; where a tray exists, nothing changes
+				// (BPR-0442). Production composition is untouched.
+				if (CaptureSystemNotificationDisplay
+					|| (Fixture != nullptr
+						&& !QSystemTrayIcon::isSystemTrayAvailable())) {
 					sink = std::make_unique<qt::system_tray_notification_sink>(
 						[this](QSystemTrayIcon&, const QString&, const QString&) {
 							++CapturedNotificationDisplays;
