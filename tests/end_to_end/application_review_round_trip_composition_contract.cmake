@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
     set(bpr_expected_full_application_digest
-		"990d179d4d4025b96b5d6d061eaee759b873a86e30251c4ea0591d6c94403f92"
+		"ac8e869d8ad09e4d294ca522656dd8cc9db206534af14b02be864922e61a3ee6"
     )
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -136,7 +136,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
     set(bpr_expected_production_app_manifest_digest
-		"fb8a085dcedd3175079c3b00bdb74a01ebcce4736db8cb69ebd3720e83919430"
+		"ee2f2309f7976988c042b66486f7a85528a0c75d924ebec27e4b0d5ef15b270a"
     )
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -708,6 +708,8 @@ execute_process(
         "${BPR_SOURCE_ROOT}"
         --manifest
         "${BPR_MANIFEST}"
+        --object-manifest
+        "${BPR_OBJECT_MANIFEST}"
     RESULT_VARIABLE isolation_result
     OUTPUT_VARIABLE isolation_output
     ERROR_VARIABLE isolation_error

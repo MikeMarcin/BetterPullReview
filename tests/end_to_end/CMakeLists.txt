@@ -708,6 +708,7 @@ bpr_add_network_isolated_test(
         "-DBPR_APP_SOURCE=${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp"
         "-DBPR_ISOLATION_SCRIPT=${PROJECT_SOURCE_DIR}/scripts/verify_live_mutation_isolation.py"
         "-DBPR_MANIFEST=${CMAKE_BINARY_DIR}/_bpr/$<CONFIG>/automated-executables.txt"
+        "-DBPR_OBJECT_MANIFEST=${CMAKE_BINARY_DIR}/_bpr/$<CONFIG>/automated-executable-objects.txt"
         "-DBPR_PYTHON=$<TARGET_FILE:Python3::Interpreter>"
         "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/review-round-trip-composition-contract"
         "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
