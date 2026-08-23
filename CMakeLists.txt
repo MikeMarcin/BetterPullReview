@@ -105,6 +105,18 @@ function(bpr_add_executable target)
             APPEND
             PROPERTY BPR_AUTOMATED_EXECUTABLES "${target}"
         )
+        # The Debug CRT reports abort() and failed assertions with a modal box
+        # that waits for a person. Every automated executable gets the unit
+        # that routes those to stderr instead, so a failure is an exit code
+        # CTest can act on rather than a dialog an unattended run stalls on
+        # (BPR-0434). It is empty on every other toolchain.
+        if(MSVC)
+            target_sources(
+                "${target}"
+                PRIVATE
+                    "${PROJECT_SOURCE_DIR}/tests/msvc_quiet_crt_reports.cpp"
+            )
+        endif()
     endif()
 endfunction()
 
