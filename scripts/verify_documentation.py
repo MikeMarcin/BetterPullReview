@@ -104,7 +104,7 @@ FRONTIER_HEADING_RE = re.compile(r"^#### Frontier roots\s*$", re.M)
 FRONTIER_HEADER_RE = re.compile(r"^\|\s*Root\s*\|\s*Lane\s*\|\s*Needs\s*\|\s*$", re.M)
 FRONTIER_LANE_CELL_RE = re.compile(r"^`(?P<lane>[0-9a-z-]+)/`$")
 FRONTIER_COUNT_RE = re.compile(
-    r"one of these (?P<count>[a-z]+) roots or reaches one"
+    r"one of these (?P<count>[a-z]+(?:-[a-z]+)?) roots or reaches one"
 )
 FRONTIER_LANES = (
     "20-ready",
