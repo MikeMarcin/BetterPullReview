@@ -105,3 +105,22 @@ attributed.
 
 The required final state above stands; the procedure it asks for covers
 build tools and try-run probes as well as test images.
+
+## Second sample — 2026-08-23
+
+The required final state asked for a second measurement, and the next relink
+supplied it. `tests/network_isolation/windows_network_sandbox.cpp` changed for
+[[BPR-0433]] and the `core-only` launcher was relinked at 08:11; the policy
+refused it at 08:11:07 (events 3033/3077) and a probe run through it every
+minute was first allowed at **08:32**, twenty-one minutes later. The
+`windows-dev` build's copy of the same source, linked at 08:11 as well with a
+different hash, was allowed on its first run at 08:12. So the window is not a
+fixed delay and not a property of the source: it is per image, between about
+fifteen and forty minutes on the two samples, and it lands on whichever fresh
+image the reputation service has not yet answered for — a test, a try-run
+probe, a build tool, or the launcher that every contained test needs.
+
+Practical consequence, now recorded for [[BPR-0036]]'s procedure: after any
+relink of the launcher, the whole contained suite is unrunnable until the
+policy answers, and `BPR_NETWORK_ISOLATION_UNAVAILABLE:launch:win32=4551` on
+every test is that wait, not a boundary failure.
