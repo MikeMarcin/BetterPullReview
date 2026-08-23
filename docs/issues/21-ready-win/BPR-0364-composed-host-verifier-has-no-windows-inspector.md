@@ -156,3 +156,89 @@ measurement that it "returns a section summary and no symbols" for a linked
 image — is writable from any host and needs no relink. It is left here rather
 than split out, because a candidate nobody can run end to end is the kind of
 half-evidence this program has been correcting all week.
+
+## The Qt graph ran, and the gate said what this card predicted — 2026-08-22
+
+[[BPR-0412]]'s first run of the Qt graph under the boundary:
+
+```
+composed_application_hosts ...........***Failed    0.12 sec
+COMPOSED_HOSTS_FAILED: no supported demangling symbol inspector is available
+  (llvm-nm, nm plus c++filt/llvm-cxxfilt, or objdump/llvm-objdump)
+```
+
+Honest, and not coverage. The line number this card cites for the
+registration has drifted to `tests/end_to_end/CMakeLists.txt:1029`.
+
+## The inspector, and why it is the map
+
+Everything measured before choosing, on this host:
+
+- `dumpbin /symbols` on a linked image: a section summary and no symbols
+  ([[BPR-0361]]).
+- `dumpbin /exports` on an `.exe`: nothing to export.
+- A PDB reader: none on the command line. No `llvm-pdbutil`, no `cvdump`;
+  twenty-six copies of `msdia140.dll`, all COM, none a tool.
+- Objects via the `$<TARGET_OBJECTS>` manifest, [[BPR-0361]]'s route: a
+  superset, which is the unsafe direction for a required anchor — an object
+  may define what the linker then discards — and the application is not in
+  that manifest anyway.
+- **The linker's map.** `link /MAP` writes, beside the executable, every
+  public and static symbol the linker *kept* in the image it produced, by
+  section and offset, and `undname` — in the same directory as `link` —
+  turns the decorated names into the declarations the anchors are written
+  against. A tiny probe linked with `/MAP` on this host listed
+  `??0github_application_host@application@bpr@@QEAA@H@Z` in `.text`, the
+  free function, the factory, and the type's `??_7…@@6B@` vftable in data,
+  and `undname` rendered each into exactly the form `symbol_anchor.matches`
+  already accepts, including `const …::`vftable'`, which the matcher had
+  anticipated for a different demangler.
+
+So the map answers the required-anchor asymmetry directly rather than
+resolving it by narrowing: a required anchor found in the map is in the
+linked image.
+
+### What changed
+
+- `src/app/CMakeLists.txt` links `app_better_pull_review` with `/MAP` under
+  MSVC, so the map is produced wherever the application is — including the
+  tests-disabled Release tree `application_composition_contract` builds for
+  the `production` profile.
+- `scripts/verify_composed_hosts.py` reads `<binary>.map` when it exists,
+  before any POSIX inspector: `parse_map_defined_symbols` walks the publics
+  and statics tables, rejects a malformed record, skips the absolute
+  pseudo-section (`__ImageBase`, the debug directory), and refuses an empty
+  table; `demangle_map_symbols` sends decorated names to `undname` in chunks,
+  requires an answer for every question, and feeds each through
+  `normalize_symbol_name`, leaving C names as they are. The inspector is
+  reported as `link /MAP | undname`. A map without `undname` on `PATH` fails
+  closed naming the tool, because a gate that silently degrades outside
+  `vcvars64.bat` is the defect this card was opened about. No map means the
+  POSIX candidates as before, and the fail-closed message now names the map.
+- Seven unit cases in `tests/scripts/verify_composed_hosts_tests.py`: the
+  map wins over `llvm-nm` and the four anchor kinds match; no `undname`
+  fails closed; a malformed record, a missing table, an incomplete `undname`
+  answer, and a nonzero `undname` each fail closed; publics and statics are
+  counted once and the absolute section is not. 49 cases pass.
+- `docs/development/build-and-test.md` no longer describes the pre-[[BPR-0361]]
+  image-read attempt; it says what the two Windows inspectors read.
+
+`test_real_inspector_output_contains_defined_symbols` keeps its Windows
+branch: `sys.executable` has no map beside it, so the refusal it asserts is
+still the truth for that binary.
+
+### Verification
+
+| claim | command | result |
+|---|---|---|
+| the map inspector selects and reads a real linked image | `composed_application_hosts` in the Qt graph under the boundary | `COMPOSED_HOSTS_OK: profile=development-fixture required=20 forbidden=2 inspector=link /MAP \| undname`; `composed_application_hosts` Passed in 6.51 s under the launcher, after the first attempt hit Windows' 32 767-character command-line limit on a map of 214 441 names and the inspector learned to demangle only the 247 names that carry an anchor's scope chain |
+| every drift direction fails closed | `py -3 tests/scripts/verify_composed_hosts_tests.py` | 49 cases, OK |
+| macOS and Linux selection is unchanged | no map exists there; the POSIX candidate order is untouched, and the existing candidate-order cases still pass | OK |
+| `composed_host_verifier_contract` in `core-only` | `ctest --preset core-only -R '^composed_host_verifier_contract$'` | Passed |
+
+### Closes with BPR-0412
+
+The board's dependency rule holds this card in its lane until [[BPR-0412]]
+closes, and that is right: the bullet above about `composed_application_hosts`
+is a statement about that card's Qt-graph run. Every other bullet is met and
+committed; the card moves to `60-done/` in the same step as BPR-0412.

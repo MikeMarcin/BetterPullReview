@@ -291,6 +291,13 @@ if(BPR_BUILD_QT)
     endif()
     bpr_enable_hardening(app_better_pull_review)
     bpr_enable_warnings(app_better_pull_review)
+    # An MSVC-linked image carries no symbol table, so the composed-host
+    # gate reads the linker's map of the image instead: every public and
+    # static symbol the linker kept, beside the executable as <name>.map
+    # (BPR-0364). Nothing else consumes it.
+    if(MSVC)
+        target_link_options(app_better_pull_review PRIVATE /MAP)
+    endif()
 
     if(BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE)
         if(NOT APPLE OR BUILD_TESTING)

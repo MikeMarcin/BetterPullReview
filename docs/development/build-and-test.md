@@ -214,9 +214,12 @@ name resolves completely), running a `.bat` file through `cmd.exe`, and giving
 `WINDOWS_UNCONTAINED` and run uncontained on Windows only, labelled
 `bpr_windows_uncontained`; `scripts/verify_test_network_isolation.py` pins
 that set exactly in both directions, with each member's measured cause, so it
-can neither grow quietly nor outlive its reason. The structural symbol guard selects `dumpbin`,
-`llvm-readobj`, or `objdump` on Windows and fails when none can inspect the
-binaries.
+can neither grow quietly nor outlive its reason. On Windows the structural
+symbol guard reads each automated executable's objects with `dumpbin`, since
+an MSVC-linked image carries no symbol table, and the composed-host gate reads
+the linker's map of the application (`link /MAP`, beside the executable) and
+demangles it with `undname`; both fail closed when the tool is absent, which
+outside the Visual Studio developer environment it is.
 
 The default graph registers no live-test exception. The earlier trusted runner,
 gate, fork protocol, and harmless canary remain regression-only surfaces and

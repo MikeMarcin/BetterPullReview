@@ -81,6 +81,54 @@ def gnu_objdump_output(lines: dict[str, str]) -> str:
     )
 
 
+MAP_DECORATED = {
+    "GitHub application host constructor": "??0github_application_host@application@bpr@@QEAA@XZ",
+    "review reconciliation decision": "?reconcile@application@bpr@@YA_NXZ",
+    "live review mutation provider": "??_7live_review_mutation_provider@github@adapters@bpr@@6B@",
+    "live review mutation provider factory": "?make_live_review_mutation_provider@github@adapters@bpr@@YAPEAUlive_review_mutation_provider@123@XZ",
+}
+MAP_DEMANGLED = {
+    "??0github_application_host@application@bpr@@QEAA@XZ": "public: __cdecl bpr::application::github_application_host::github_application_host(void) __ptr64",
+    "?reconcile@application@bpr@@YA_NXZ": "bool __cdecl bpr::application::reconcile(void)",
+    "??_7live_review_mutation_provider@github@adapters@bpr@@6B@": "const bpr::adapters::github::live_review_mutation_provider::`vftable'",
+    "?make_live_review_mutation_provider@github@adapters@bpr@@YAPEAUlive_review_mutation_provider@123@XZ": "struct bpr::adapters::github::live_review_mutation_provider * __ptr64 __cdecl bpr::adapters::github::make_live_review_mutation_provider(void)",
+}
+MAP_STATIC_SYMBOL = "?hidden@?A0x1234@@YAHH@Z"
+
+
+def msvc_map_output(decorated: dict[str, str], *, statics: bool = True) -> str:
+    """Render a linker map in the shape `link /MAP` writes for an x64 image."""
+    publics = "\n".join(
+        f" 0001:{index:08x}       {name} 00000001400{index:05x} f   probe.obj"
+        for index, name in enumerate(decorated.values(), start=0x1000)
+    )
+    text = (
+        " probe\n\n Timestamp is 6a8a69d7 (Sat Aug 22 20:32:39 2026)\n\n"
+        " Preferred load address is 0000000140000000\n\n"
+        " Start         Length     Name                   Class\n"
+        " 0001:00000000 00001000H .text$mn                CODE\n\n"
+        "  Address         Publics by Value              Rva+Base               Lib:Object\n\n"
+        " 0000:00000000       __ImageBase                0000000140000000     <linker-defined>\n"
+        f"{publics}\n"
+        " 0001:00002000       main                       0000000140003000 f   probe.obj\n\n"
+        " entry point at        0001:00002000\n"
+    )
+    if statics:
+        text += (
+            "\n Static symbols\n\n"
+            f" 0001:00003000       {MAP_STATIC_SYMBOL}   0000000140004000 f   probe.obj\n"
+        )
+    return text
+
+
+def undname_output(names: list[str]) -> str:
+    lines = ["Microsoft (R) C++ Name Undecorator", ""]
+    for name in names:
+        lines.append(f'Undecoration of :- "{name}"')
+        lines.append(f'is :- "{MAP_DEMANGLED.get(name, name)}"')
+    return "\n".join(lines) + "\n"
+
+
 class fake_toolchain:
     def __init__(
         self,
@@ -869,6 +917,109 @@ class ComposedHostVerifierTests(unittest.TestCase):
                 which=tools.which,
                 run=tools.run,
             )
+
+    def test_linker_map_is_read_before_any_posix_inspector(self) -> None:
+        """A map beside the binary describes the linked image and wins."""
+        self.Binary.with_suffix(".map").write_text(
+            msvc_map_output(MAP_DECORATED), encoding="utf-8"
+        )
+        decorated = list(MAP_DECORATED.values())
+        tools = fake_toolchain(
+            {"undname": "/tools/undname", "llvm-nm": "/tools/llvm-nm"},
+            [completed(undname_output(decorated))],
+        )
+        table = VERIFIER.inspect_symbols(self.Binary, which=tools.which, run=tools.run)
+        self.assertEqual(table.inspector, "link /MAP | undname")
+        self.assertEqual(len(tools.Commands), 1)
+        self.assertEqual(tools.Commands[0][0], "/tools/undname")
+        # Only names carrying an anchor's scope chain are sent; the anonymous
+        # static symbol cannot match any anchor and stays undemangled.
+        self.assertEqual(tools.Commands[0][1:], decorated)
+        self.assertIn("bpr::application::reconcile(void)", table.symbols)
+        self.assertIn("main", table.symbols)
+        self.assertNotIn("__ImageBase", table.symbols)
+        failures = VERIFIER.audit_symbols(table.symbols, VERIFIER.PRODUCTION_PROFILE)
+        for name in MAP_DECORATED:
+            self.assertNotIn(
+                f"required exact demangled anchor is absent: {name}", failures
+            )
+
+    def test_linker_map_without_undname_fails_closed(self) -> None:
+        self.Binary.with_suffix(".map").write_text(
+            msvc_map_output(MAP_DECORATED), encoding="utf-8"
+        )
+        tools = fake_toolchain({"llvm-nm": "/tools/llvm-nm"}, [])
+        with self.assertRaisesRegex(VERIFIER.verification_error, "needs undname"):
+            VERIFIER.inspect_symbols(self.Binary, which=tools.which, run=tools.run)
+        self.assertEqual(tools.Commands, [])
+
+    def test_linker_map_malformed_record_fails_closed(self) -> None:
+        text = msvc_map_output(MAP_DECORATED).replace(
+            " 0001:00002000       main", " garbage line here"
+        )
+        self.Binary.with_suffix(".map").write_text(text, encoding="utf-8")
+        tools = fake_toolchain({"undname": "/tools/undname"}, [])
+        with self.assertRaisesRegex(VERIFIER.verification_error, "malformed symbol record"):
+            VERIFIER.inspect_symbols(self.Binary, which=tools.which, run=tools.run)
+
+    def test_linker_map_without_a_table_fails_closed(self) -> None:
+        self.Binary.with_suffix(".map").write_text(" probe\n\n Timestamp is 0\n", encoding="utf-8")
+        tools = fake_toolchain({"undname": "/tools/undname"}, [])
+        with self.assertRaisesRegex(VERIFIER.verification_error, "no public-symbol table"):
+            VERIFIER.inspect_symbols(self.Binary, which=tools.which, run=tools.run)
+
+    def test_undname_must_answer_every_name(self) -> None:
+        self.Binary.with_suffix(".map").write_text(
+            msvc_map_output(MAP_DECORATED), encoding="utf-8"
+        )
+        decorated = list(MAP_DECORATED.values())
+        tools = fake_toolchain(
+            {"undname": "/tools/undname"}, [completed(undname_output(decorated[:2]))]
+        )
+        with self.assertRaisesRegex(VERIFIER.verification_error, "demangled 2 of 4"):
+            VERIFIER.inspect_symbols(self.Binary, which=tools.which, run=tools.run)
+
+    def test_constructor_and_type_anchors_have_the_class_chain(self) -> None:
+        self.assertEqual(
+            VERIFIER.decorated_scope_chain(
+                "bpr::application::github_application_host::github_application_host"
+            ),
+            "github_application_host@application@bpr@@",
+        )
+        self.assertEqual(
+            VERIFIER.decorated_scope_chain("bpr::application::reconcile"),
+            "reconcile@application@bpr@@",
+        )
+        self.assertIn(
+            VERIFIER.decorated_scope_chain("bpr::adapters::github::live_review_mutation_provider"),
+            MAP_DECORATED["live review mutation provider"],
+        )
+        for name in MAP_DECORATED.values():
+            self.assertTrue(any(chain in name for chain in VERIFIER.ANCHOR_SCOPE_CHAINS), name)
+
+    def test_undname_command_lines_stay_under_the_budget(self) -> None:
+        names = [f"?n{index}@x@@YAXXZ" + "A" * 3000 for index in range(20)]
+        chunks = VERIFIER.undname_command_chunks(names)
+        self.assertEqual(sum(len(chunk) for chunk in chunks), len(names))
+        for chunk in chunks:
+            self.assertLessEqual(
+                sum(len(name) + 1 for name in chunk), VERIFIER.UNDNAME_COMMAND_BUDGET
+            )
+        self.assertGreater(len(chunks), 1)
+
+    def test_undname_nonzero_fails_closed(self) -> None:
+        self.Binary.with_suffix(".map").write_text(
+            msvc_map_output(MAP_DECORATED), encoding="utf-8"
+        )
+        tools = fake_toolchain({"undname": "/tools/undname"}, [completed(returncode=5)])
+        with self.assertRaisesRegex(VERIFIER.verification_error, "status 5"):
+            VERIFIER.inspect_symbols(self.Binary, which=tools.which, run=tools.run)
+
+    def test_parse_map_counts_public_and_static_symbols_once(self) -> None:
+        parsed = VERIFIER.parse_map_defined_symbols(msvc_map_output(MAP_DECORATED))
+        self.assertEqual(len(parsed), len(MAP_DECORATED) + 2)
+        self.assertNotIn("__ImageBase", parsed)
+        self.assertIn(MAP_STATIC_SYMBOL, parsed)
 
     def test_real_inspector_output_contains_defined_symbols(self) -> None:
         """The instrument reads a real binary, or refuses where it cannot.

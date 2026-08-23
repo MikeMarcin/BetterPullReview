@@ -225,6 +225,35 @@ OBJDUMP_ELF_RECORD = re.compile(
     r"(?:0[xX])?[0-9A-Fa-f]+\s+(?P<name>\S.*)\s*$"
 )
 
+# An MSVC-linked image has no symbol table for nm or objdump to read; the
+# linker consumed it. What the linker writes instead, on request, is a map of
+# the image it produced: every public symbol by section and offset with the
+# object it came from, then the static symbols. `link /MAP` puts it beside the
+# executable as `<name>.map`, and `undname` -- shipped in the same toolchain
+# directory as `link` -- turns its decorated names into the declarations the
+# anchors above are written against. The map describes the linked image, so a
+# required anchor found here is present in the binary the gate audits, not
+# merely in an object the linker might have discarded (BPR-0364).
+MAP_PUBLICS_HEADER = re.compile(
+    r"^\s*Address\s+Publics by Value\s+Rva\+Base\s+Lib:Object\s*$"
+)
+MAP_STATICS_HEADER = re.compile(r"^\s*Static symbols\s*$")
+MAP_ENTRY_POINT = re.compile(r"^\s*entry point at\s+\S+\s*$")
+MAP_SYMBOL_RECORD = re.compile(
+    r"^\s*(?P<section>[0-9A-Fa-f]{4}):(?P<offset>[0-9A-Fa-f]{8,16})\s+"
+    r"(?P<name>\S+)\s+(?P<rva>[0-9A-Fa-f]{16})(?P<flags>(?:\s+[fi])*)\s+"
+    r"(?P<object>\S.*?)\s*$"
+)
+UNDNAME_DECORATED_RECORD = re.compile(
+    r'^Undecoration of :- "(?P<decorated>[^"]*)"\s*$'
+)
+UNDNAME_DEMANGLED_RECORD = re.compile(r'^is :- "(?P<demangled>.*)"\s*$')
+# A Windows command line holds at most 32 767 characters and the real map
+# lists two hundred thousand decorated names, so `undname` is asked only
+# about the names that can match an anchor, in command lines under this
+# many characters.
+UNDNAME_COMMAND_BUDGET = 20000
+
 # LLVM's Microsoft demangler can retain an access specifier, member qualifier,
 # and calling convention before a constructor or method. Only these documented
 # declaration prefixes are removed; arbitrary return types or surrounding
@@ -500,6 +529,132 @@ def parse_objdump_defined_symbols(contents: str) -> tuple[str, ...]:
     return parsed_symbols
 
 
+def parse_map_defined_symbols(contents: str) -> tuple[str, ...]:
+    """Return the decorated names a linker map lists for the linked image.
+
+    Only the public and static symbol tables count, and only records whose
+    section is a real section: `0000:` is the absolute pseudo-section that
+    carries `__ImageBase` and the debug directory, never implementation.
+    """
+    symbols: list[str] = []
+    in_table = False
+    saw_table = False
+    for line_number, line in enumerate(contents.splitlines(), start=1):
+        stripped = line.strip()
+        if MAP_PUBLICS_HEADER.fullmatch(line) or MAP_STATICS_HEADER.fullmatch(line):
+            in_table = True
+            saw_table = True
+            continue
+        if MAP_ENTRY_POINT.fullmatch(line):
+            in_table = False
+            continue
+        if not in_table or not stripped:
+            continue
+        record = MAP_SYMBOL_RECORD.fullmatch(line)
+        if record is None:
+            raise verification_error(
+                f"linker map produced a malformed symbol record on line {line_number}"
+            )
+        if int(record.group("section"), 16) == 0:
+            continue
+        symbols.append(record.group("name"))
+
+    if not saw_table:
+        raise verification_error("linker map has no public-symbol table")
+    parsed = unique_symbols(symbols)
+    if not parsed:
+        raise verification_error("linker map lists zero defined symbols")
+    return parsed
+
+
+def decorated_scope_chain(qualified_name: str) -> str:
+    """The reversed scope chain an MSVC-decorated name carries for this anchor.
+
+    `bpr::application::reconcile` is decorated `?reconcile@application@bpr@@…`
+    and every member or metadata symbol of `bpr::adapters::github::provider`
+    carries `provider@github@adapters@bpr@@`. A constructor is written
+    `??0Class@scope@@`, not `Class@Class@scope@@`, so an anchor of the form
+    `X::X` uses the class's own chain, which the matcher then narrows.
+    """
+    parts = qualified_name.split("::")
+    if len(parts) >= 2 and parts[-1] == parts[-2]:
+        parts = parts[:-1]
+    return parts[-1] + "@" + "@".join(reversed(parts[:-1])) + "@@"
+
+
+ANCHOR_SCOPE_CHAINS = tuple(
+    dict.fromkeys(
+        decorated_scope_chain(anchor.qualified_name)
+        for anchor in (
+            *SHARED_REQUIRED,
+            *FIXTURE_REQUIRED,
+            *PRODUCTION_REQUIRED,
+            *FIXTURE_FORBIDDEN,
+            *PRODUCTION_FORBIDDEN,
+        )
+    )
+)
+
+
+def undname_command_chunks(names: Sequence[str]) -> list[list[str]]:
+    """Split names into command lines that stay under the Windows limit."""
+    chunks: list[list[str]] = []
+    current: list[str] = []
+    size = 0
+    for name in names:
+        if current and size + len(name) + 1 > UNDNAME_COMMAND_BUDGET:
+            chunks.append(current)
+            current = []
+            size = 0
+        current.append(name)
+        size += len(name) + 1
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def demangle_map_symbols(
+    undname: str,
+    decorated: Sequence[str],
+    run: Callable[..., subprocess.CompletedProcess[str]],
+) -> tuple[str, ...]:
+    """Demangle the decorated names that can match an anchor; keep C names as is.
+
+    The audit asks only whether each anchor is present, and an anchor's
+    decorated form always contains its reversed scope chain, so a name without
+    any anchor's chain cannot satisfy or violate the audit and is not sent to
+    `undname`. `undname` answers each name with a two-line record, and the
+    count of answers must equal the count of questions: a name it cannot
+    decorate is a refusal, not a symbol to skip.
+    """
+    demangled: list[str] = []
+    pending = [
+        name
+        for name in decorated
+        if name.startswith("?") and any(chain in name for chain in ANCHOR_SCOPE_CHAINS)
+    ]
+    for chunk in undname_command_chunks(pending):
+        output = checked_output((undname, *chunk), "undname", run)
+        answered = 0
+        expecting: str | None = None
+        for line in output.splitlines():
+            question = UNDNAME_DECORATED_RECORD.fullmatch(line)
+            if question is not None:
+                expecting = question.group("decorated")
+                continue
+            answer = UNDNAME_DEMANGLED_RECORD.fullmatch(line)
+            if answer is not None and expecting is not None:
+                demangled.append(normalize_symbol_name(answer.group("demangled")))
+                answered += 1
+                expecting = None
+        if answered != len(chunk):
+            raise verification_error(
+                f"undname demangled {answered} of {len(chunk)} names"
+            )
+    demangled.extend(name for name in decorated if not name.startswith("?"))
+    return unique_symbols(demangled)
+
+
 def checked_output(
     command: Sequence[str],
     description: str,
@@ -534,6 +689,20 @@ def inspect_symbols(
 
     find_tool = which if which is not None else shutil.which
     run_tool = run if run is not None else subprocess.run
+
+    linker_map = binary.with_suffix(".map")
+    if linker_map.is_file():
+        undname = find_tool("undname")
+        if undname is None:
+            raise verification_error(
+                f"linker map {linker_map.name} needs undname to demangle it; "
+                "run inside the Visual Studio developer environment"
+            )
+        contents = linker_map.read_text(encoding="utf-8", errors="strict")
+        return symbol_table(
+            demangle_map_symbols(undname, parse_map_defined_symbols(contents), run_tool),
+            "link /MAP | undname",
+        )
 
     llvm_nm = find_tool("llvm-nm")
     if llvm_nm is not None:
@@ -581,7 +750,8 @@ def inspect_symbols(
 
     raise verification_error(
         "no supported demangling symbol inspector is available "
-        "(llvm-nm, nm plus c++filt/llvm-cxxfilt, or objdump/llvm-objdump)"
+        "(a linker map beside the binary plus undname, llvm-nm, nm plus "
+        "c++filt/llvm-cxxfilt, or objdump/llvm-objdump)"
     )
 
 

@@ -452,3 +452,16 @@ at the Qt 6.10.3 tree the provider already acquired for the main checkout,
 which the isolation setup grants to the container as an outside-project read
 scope. That reuse is a deliberate deviation from the card's bare
 `cmake --preset windows-dev`, recorded here, and it changes no test.
+
+### BPR-0364 — 2026-08-23
+
+Done. `verify_composed_hosts.py` reads the linker's map of the application
+(`link /MAP`, beside the executable) and demangles only the names that carry
+an anchor's scope chain with `undname`, so a required anchor is proven in the
+linked image rather than in an object the linker might have discarded.
+`composed_application_hosts` passes contained in the Qt graph for the first
+time on Windows.
+
+| claim | surface | command | proves it | result | evidence |
+|---|---|---|---|---|---|
+| the composed-host gate reads the linked image on Windows | `scripts/verify_composed_hosts.py` with the app's `.map` | `ctest --preset windows-dev -R '^composed_application_hosts$'`, contained | `COMPOSED_HOSTS_OK … inspector=link /MAP \| undname`, 20 required and 2 forbidden anchors audited | pass | BPR-0364 |
