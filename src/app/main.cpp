@@ -6069,6 +6069,16 @@ auto main(int argc, char** argv) -> int
 		}
 
 		return QApplication::exec();
+	} catch (const std::exception& error) {
+#if defined(BPR_BUILD_TESTING)
+		// The verdict on stdout stays one word. A developer build says on
+		// stderr what threw, because the first Windows Qt-graph run spent
+		// thirty-five tests on a startup failure nothing could name
+		// (BPR-0435). A tests-disabled build says nothing more, as before.
+		QTextStream{ stderr } << "STARTUP_FAILED_CAUSE: " << error.what() << '\n';
+#endif
+		QTextStream{ stdout } << "STARTUP_FAILED\n";
+		return EXIT_FAILURE;
 	} catch (...) {
 		QTextStream{ stdout } << "STARTUP_FAILED\n";
 		return EXIT_FAILURE;
