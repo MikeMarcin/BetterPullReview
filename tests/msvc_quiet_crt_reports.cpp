@@ -15,12 +15,27 @@
 	#if defined(_DEBUG)
 		#include <crtdbg.h>
 	#endif
+	#ifndef WIN32_LEAN_AND_MEAN
+		#define WIN32_LEAN_AND_MEAN
+	#endif
+	#ifndef NOMINMAX
+		#define NOMINMAX
+	#endif
+	#include <windows.h>
 
 namespace {
 	struct quiet_crt_reports final
 	{
 		quiet_crt_reports() noexcept
 		{
+			// The launcher sets this for a contained child; an uncontained
+			// test is its own first process, and the children it starts
+			// inherit whatever it holds. A child that cannot load — the CLI
+			// runner's helper with the empty PATH the runner requires — put
+			// the loader's "Qt6Cored.dll was not found" box on the desktop and
+			// sat there until the runner's timeout (BPR-0438).
+			static_cast<void>(::SetErrorMode(
+				SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX));
 			static_cast<void>(::_set_abort_behavior(0U, _WRITE_ABORT_MSG | _CALL_REPORTFAULT));
 	#if defined(_DEBUG)
 			route_to_stderr(_CRT_WARN);

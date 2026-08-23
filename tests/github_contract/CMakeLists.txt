@@ -246,6 +246,22 @@ target_include_directories(
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
 )
+if(WIN32)
+    # The test is its own helper child, and the runner's Windows contract
+    # hands a child an empty PATH: the only place the loader can then find
+    # the shared Qt this executable links is beside the executable, so its
+    # runtime DLLs are copied there after each link (BPR-0438).
+    add_custom_command(
+        TARGET test_better_pull_review_github_cli_process_runner_tests
+        POST_BUILD
+        COMMAND
+            "${CMAKE_COMMAND}" -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:test_better_pull_review_github_cli_process_runner_tests>
+            $<TARGET_FILE_DIR:test_better_pull_review_github_cli_process_runner_tests>
+        COMMAND_EXPAND_LISTS
+        VERBATIM
+    )
+endif()
 bpr_enable_hardening(
     test_better_pull_review_github_cli_process_runner_tests
 )
