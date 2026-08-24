@@ -1,7 +1,7 @@
 ---
 id: BPR-0445
 title: The sanitizer persists the caller's IP in the anonymous GraphQL refusal
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: []
 ---
