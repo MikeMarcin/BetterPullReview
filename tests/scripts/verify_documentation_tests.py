@@ -1130,6 +1130,17 @@ class OperatorPacketRecordTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def bind_packet_response(self, gate: str, digest: str | None = None) -> None:
+        """Record an exact sibling response binding without a validation record."""
+        packet = self.review_root / gate / "operator-packet.md"
+        packet_digest = digest or hashlib.sha256(packet.read_bytes()).hexdigest()
+        (self.review_root / gate / "operator-response.md").write_text(
+            "# operator response\n\n"
+            f"Packet SHA-256: `{packet_digest}`\n\n"
+            "## Exact operator decision\n\n> approved\n",
+            encoding="utf-8",
+        )
+
     def reject(self) -> None:
         with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
             verify_operator_packet_records(self.root)
@@ -1214,6 +1225,22 @@ class OperatorPacketRecordTests(unittest.TestCase):
         self.write_packet("gate-v002", "pending operator decision")
 
         verify_operator_packet_records(self.root)
+
+    def test_accepts_a_response_bound_superseded_packet_still_reading_pending(
+        self,
+    ) -> None:
+        self.write_packet("gate-v001", "pending operator decision")
+        self.bind_packet_response("gate-v001")
+        self.write_packet("gate-v002", "pending operator decision")
+
+        verify_operator_packet_records(self.root)
+
+    def test_rejects_a_response_bound_to_different_packet_bytes(self) -> None:
+        self.write_packet("gate-v001", "pending operator decision")
+        self.bind_packet_response("gate-v001", "f" * 64)
+        self.write_packet("gate-v002", "pending operator decision")
+
+        self.reject()
 
     def test_rejects_an_edited_digest_bound_packet(self) -> None:
         self.write_packet("gate-v001", "pending operator decision")

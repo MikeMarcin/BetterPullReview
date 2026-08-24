@@ -92,6 +92,7 @@ DEFERRING_ISSUE_LANES = frozenset(
 )
 REVIEW_ROOT = "docs/verification/reviews"
 OPERATOR_PACKET_NAME = "operator-packet.md"
+OPERATOR_RESPONSE_NAME = "operator-response.md"
 PACKET_VERSION_RE = re.compile(
     r"(?P<family>.+)-v(?P<version>\d{3})(?:-[A-Za-z0-9-]+)?"
 )
@@ -100,6 +101,9 @@ PACKET_REFERENCE_RE = re.compile(
 )
 PACKET_STATUS_RE = re.compile(r"^Status:\s*\*\*(.+?)\*\*", re.M | re.S)
 PACKET_PENDING_RE = re.compile(r"pending\b", re.I)
+RESPONSE_PACKET_SHA_RE = re.compile(
+    r"^Packet SHA-256: `([0-9a-f]{64})`(?: \([^\r\n]*\))?$", re.M
+)
 FRONTIER_HEADING_RE = re.compile(r"^#### Frontier roots\s*$", re.M)
 FRONTIER_HEADER_RE = re.compile(r"^\|\s*Root\s*\|\s*Lane\s*\|\s*Needs\s*\|\s*$", re.M)
 FRONTIER_LANE_CELL_RE = re.compile(r"^`(?P<lane>[0-9a-z-]+)/`$")
@@ -1030,7 +1034,7 @@ def packet_status(path: Path) -> str:
 
 
 def frozen_packets(root: Path) -> set[Path]:
-    """Packets a validation record binds by digest, which must never be edited."""
+    """Packets an answered artifact binds by digest; never edit these bytes."""
     frozen: set[Path] = set()
     for record in sorted((root / REVIEW_ROOT).glob("*/validation-record.json")):
         try:
@@ -1060,16 +1064,31 @@ def frozen_packets(root: Path) -> set[Path]:
                 )
             if bound.name == OPERATOR_PACKET_NAME:
                 frozen.add(bound)
+
+    for response in sorted((root / REVIEW_ROOT).glob(
+        f"*/{OPERATOR_RESPONSE_NAME}"
+    )):
+        packet = response.parent / OPERATOR_PACKET_NAME
+        if not packet.is_file():
+            continue
+        digests = RESPONSE_PACKET_SHA_RE.findall(
+            response.read_text(encoding="utf-8"))
+        if len(digests) != 1:
+            continue
+        actual = hashlib.sha256(packet.read_bytes()).hexdigest()
+        if digests[0] != actual:
+            continue
+        frozen.add(packet)
     return frozen
 
 
 def verify_pending_packet_manifests(root: Path) -> None:
     """A pending packet's source manifest must describe the tree it claims to.
 
-    `frozen_packets` re-hashes bound artifacts, but only for *answered* packets,
-    because only an answered packet has a validation record. That leaves the
-    window in which a packet is most dangerous unchecked: written, pending, and
-    being put in front of an operator.
+    `frozen_packets` re-hashes artifacts bound by an answered validation record
+    or exact digest-bearing response. That leaves the window in which a packet
+    is most dangerous unchecked: written, pending, and being put in front of an
+    operator.
 
     `designated-live-review-publication-v002` went through exactly that window
     stale at birth. Six of its 31 entries did not match the tree and three did
@@ -1081,16 +1100,14 @@ def verify_pending_packet_manifests(root: Path) -> None:
     review_root = root / REVIEW_ROOT
     if not review_root.is_dir():
         return
+    answered = frozen_packets(root)
     for manifest in sorted(review_root.glob("*/source-manifest.txt")):
         packet = manifest.parent / OPERATOR_PACKET_NAME
         if not packet.is_file():
             continue
-        # Only a *pending* packet is checked. An answered, superseded, or
-        # invalidated one describes the tree as it was on purpose, and the first
-        # draft of this gate failed v001 for doing exactly that — "not frozen"
-        # is not the same as "pending", because a retired packet never earns a
-        # validation record either.
-        if not PACKET_PENDING_RE.search(packet_status(packet)):
+        # Only an unanswered *pending* packet is checked. An answered,
+        # superseded, or invalidated one describes the tree as it was on purpose.
+        if packet in answered or not PACKET_PENDING_RE.search(packet_status(packet)):
             continue
         for number, line in enumerate(
             manifest.read_text(encoding="utf-8").splitlines(), start=1
