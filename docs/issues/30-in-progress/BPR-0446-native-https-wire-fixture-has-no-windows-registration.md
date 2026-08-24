@@ -1,7 +1,7 @@
 ---
 id: BPR-0446
 title: The native HTTPS wire fixture has no Windows registration
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0002
 depends_on: []
 ---
