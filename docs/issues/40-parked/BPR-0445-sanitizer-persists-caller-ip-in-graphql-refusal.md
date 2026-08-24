@@ -1,9 +1,10 @@
 ---
 id: BPR-0445
 title: The sanitizer persists the caller's IP in the anonymous GraphQL refusal
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0017
 depends_on: []
+parked_on: awaiting-owner-verdict
 ---
 
 # The sanitizer persists the caller's IP in the anonymous GraphQL refusal
@@ -132,6 +133,18 @@ authentication. BPR-0298's still-pending immutable closeout owns authentication
 of every minimized record against its owning commit; BPR-0445 does not change
 the older records' schema or artifacts.
 
-The remaining phase is attended. It requires a new digest-bound packet and
-the operator's fresh exact response before the recorder may issue the one
-`graphql-refusal` request. The consumed v001 response is not reused.
+## Attended packet — 2026-08-24
+
+The fresh packet is prepared at
+`docs/verification/reviews/rfc0017-anonymous-probe-v002/operator-packet.md`.
+Its SHA-256 is
+`8ff060e82c04f30010ad11e5410200d8797d8f1c5b08557768ded86ed0eafdd0`
+(7,144 bytes). Its packet-bound selection and manifest name exactly one
+`graphql-refusal` course with expected status 403, and its canonical authority
+identity equals v001 so a successful fifth capture can join the four immutable
+records under one authority.
+
+No operator response, capture, or attempt receipt exists, and no network
+request ran. The card is parked for the operator's fresh exact response. The
+consumed v001 response is not reused. Approval permits one attempt; rejection
+or any non-exact response leaves the live phase unexecuted.

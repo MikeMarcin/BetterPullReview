@@ -163,9 +163,11 @@ The repaired recorder normalizes exactly one caller IPv4 or IPv6 address,
 records that normalization explicitly, and persists no raw-body digest. The
 four existing captures remain unchanged and validate as `VALID:4`.
 
-The fifth course has not been recaptured. It still requires BPR-0445's fresh
-exact operator authorization and exactly one live GraphQL request before this
-card can inherit a five-course manifest or claim `VALID:5`.
+The fifth course has not been recaptured. BPR-0445's current attended artifact
+is `docs/verification/reviews/rfc0017-anonymous-probe-v002/operator-packet.md`.
+It still requires the fresh exact operator authorization and exactly one live
+GraphQL request before this card can inherit a five-course manifest or claim
+`VALID:5`.
 
 Independent review of the sanitizer repair also made an older unfinished
 requirement concrete: the four non-GraphQL records persist canonicalized bodies
