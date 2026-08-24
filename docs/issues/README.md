@@ -731,7 +731,7 @@ ready lanes — and the lane says which answer it needs:
 
 | Root | Lane | Needs |
 |---|---|---|
-| BPR-0414 | `20-ready/` | Nothing. The owner named this gap on the 2026-08-21 verdict: the drawer does not anchor a comment to its line. Its wiring half is portable; the question of whether the body belongs in the code view goes back to the owner |
+| BPR-0414 | `30-in-progress/` | This session. The owner named this gap on the 2026-08-21 verdict: the drawer does not anchor a comment to its line. Its wiring half is portable; the question of whether the body belongs in the code view goes back to the owner |
 | BPR-0417 | `20-ready/` | Nothing. [[BPR-0416]] landed the depth, so what is missing is content — and the card now carries the measured cost of both routes to it |
 | BPR-0420 | `20-ready/` | Nothing. The portable half of [[BPR-0232]], split out because that umbrella waits on Windows and this assertion does not |
 | BPR-0445 | `20-ready/` | Nothing. The first authorized capture proved the anonymous GraphQL refusal embeds the caller's IP; the sanitizer rule is portable work, and the recapture behind it needs a fresh exact authorization once the rule is proven |
