@@ -86,6 +86,12 @@ DESIGNATED_LIVE_MACOS_SUPERVISOR_LAUNCH_SOURCE = (
 DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT = (
     REPOSITORY_ROOT / "scripts" / "designated_live_macos_capsule.py"
 ).read_text(encoding="utf-8")
+DESIGNATED_LIVE_STAGE_ZERO_PRELOADER = (
+    REPOSITORY_ROOT / "cmake" / "BprDesignatedLiveStageZero.cmake"
+).read_text(encoding="utf-8")
+DESIGNATED_LIVE_TEST_ISOLATION = (
+    REPOSITORY_ROOT / "cmake" / "BprTestIsolation.cmake"
+).read_text(encoding="utf-8")
 
 DESIGNATED_LIVE_MACOS_SUPERVISOR_TARGET = """\
 target_sources(
@@ -106,7 +112,12 @@ target_compile_definitions(
 )
 add_custom_command(
     OUTPUT capsule.stamp
-    COMMAND helper --probe-launch --inventory capsule.inventory
+    COMMAND ${bpr_designated_live_probe_command}
+)
+set(bpr_designated_live_capsule_image capsule.dmg)
+set(bpr_designated_live_source_manifest source-manifest.txt)
+bpr_designated_live_stage_zero_command(
+    bpr_designated_live_probe_command
 )
 """
 
@@ -3822,6 +3833,10 @@ auto finish_background_reap(
                 DESIGNATED_LIVE_MACOS_SUPERVISOR_LAUNCH_SOURCE,
             "scripts/designated_live_macos_capsule.py":
                 DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT,
+            "cmake/BprDesignatedLiveStageZero.cmake":
+                DESIGNATED_LIVE_STAGE_ZERO_PRELOADER,
+            "cmake/BprTestIsolation.cmake":
+                DESIGNATED_LIVE_TEST_ISOLATION,
         }
         target = GITHUB_TARGET + DESIGNATED_LIVE_PUBLIC_OBSERVER_TARGET
         allowed = self.run_check(sources, github_target=target)
@@ -4044,6 +4059,164 @@ auto finish_background_reap(
                                 required_retained_verifier_fragment,
                                 "disabled_retained_verifier_fragment",
                             ),
+                    },
+                    github_target=target,
+                )
+
+        for required_stage_zero_fragment in (
+            "retained_image = retain_image(arguments.image)",
+            "attach_read_only(retained_image.path, root, arguments.hdiutil)",
+            "retained_image = rebaseline_attached_image(retained_image)",
+            '"-readonly"',
+            '"-nobrowse"',
+            '"-noautoopen"',
+            "mounted = capture_runtime_identity(root)",
+            "mount_descriptor = os.open(",
+            "capsule_descriptor = os.open(",
+            "filesystem_identity(os.fstat(expected.mount_descriptor))",
+            "filesystem_identity(os.fstat(expected.capsule_descriptor))",
+            "inventory = root / IMAGE_INVENTORY_RELATIVE",
+            "helper = root / IMAGE_CAPSULE_RELATIVE / HELPER_RELATIVE",
+            "launched = run_stage_one(helper, inventory, approval)",
+            "close_runtime_identity(mounted)",
+            "require_underlying_mount_root(root, underlying)",
+        ):
+            with self.subTest(required_stage_zero_fragment=required_stage_zero_fragment):
+                hostile = DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT.replace(
+                    required_stage_zero_fragment,
+                    "disabled_stage_zero_fragment",
+                    1,
+                )
+                self.assertNotEqual(hostile, DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT)
+                self.assert_failure(
+                    "Designated live image stage zero is incomplete",
+                    {
+                        **sources,
+                        "scripts/designated_live_macos_capsule.py": hostile,
+                    },
+                    github_target=target,
+                )
+
+        for required_hash_identity_fragment in (
+            "filesystem_identity(os.fstat(image.descriptor)) != image.identity",
+            "filesystem_identity(os.fstat(path_descriptor)) != image.identity",
+        ):
+            with self.subTest(
+                required_hash_identity_fragment=required_hash_identity_fragment
+            ):
+                hostile = DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT.replace(
+                    required_hash_identity_fragment,
+                    "disabled_hash_identity_fragment",
+                    1,
+                )
+                self.assert_failure(
+                    "hashes must be bracketed by full retained",
+                    {
+                        **sources,
+                        "scripts/designated_live_macos_capsule.py": hostile,
+                    },
+                    github_target=target,
+                )
+
+        detach_line = (
+            "                detach_without_force(root, arguments.hdiutil)\n"
+        )
+        detach_before_wait = DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT.replace(
+            detach_line,
+            "",
+            1,
+        ).replace(
+            "            launched = run_stage_one(helper, inventory, approval)\n",
+            "            detach_without_force(root, arguments.hdiutil)\n"
+            "            launched = run_stage_one(helper, inventory, approval)\n",
+            1,
+        )
+        self.assert_failure(
+            "only then detach",
+            {
+                **sources,
+                "scripts/designated_live_macos_capsule.py": detach_before_wait,
+            },
+            github_target=target,
+        )
+
+        post_runtime = (
+            "revalidate_runtime_identity(root, mounted, arguments.source_sha256)"
+        )
+        before_last, separator, after_last = (
+            DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT.rpartition(post_runtime)
+        )
+        self.assertEqual(separator, post_runtime)
+        missing_post_child_revalidation = (
+            before_last + "disabled_post_child_revalidation" + after_last
+        )
+        self.assert_failure(
+            "must revalidate before and after",
+            {
+                **sources,
+                "scripts/designated_live_macos_capsule.py":
+                    missing_post_child_revalidation,
+            },
+            github_target=target,
+        )
+
+        forced_detach = DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT.replace(
+            '[str(hdiutil), "detach", str(root), "-quiet"]',
+            '[str(hdiutil), "detach", "-force", str(root), "-quiet"]',
+            1,
+        )
+        self.assertNotEqual(forced_detach, DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT)
+        self.assert_failure(
+            "must never force detach",
+            {
+                **sources,
+                "scripts/designated_live_macos_capsule.py": forced_detach,
+            },
+            github_target=target,
+        )
+
+        for required_preloader_fragment in (
+            '"/usr/bin/python3"',
+            "os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW",
+            "before = os.fstat(descriptor)",
+            "after = os.fstat(descriptor)",
+            "before.st_size > 1048576",
+            "identity(before) != identity(after)",
+            "hashlib.sha256(captured).hexdigest() != expected",
+            'exec(compile(captured, path, "exec"), scope, scope)',
+        ):
+            with self.subTest(required_preloader_fragment=required_preloader_fragment):
+                hostile = DESIGNATED_LIVE_STAGE_ZERO_PRELOADER.replace(
+                    required_preloader_fragment,
+                    "disabled_preloader_fragment",
+                    1,
+                )
+                self.assertNotEqual(hostile, DESIGNATED_LIVE_STAGE_ZERO_PRELOADER)
+                self.assert_failure(
+                    "Designated live stage-zero protected loader is incomplete",
+                    {
+                        **sources,
+                        "cmake/BprDesignatedLiveStageZero.cmake": hostile,
+                    },
+                    github_target=target,
+                )
+
+        for direct_plain_command in (
+            "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}",
+            "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}",
+        ):
+            with self.subTest(direct_plain_command=direct_plain_command):
+                direct_plain_registration = (
+                    DESIGNATED_LIVE_TEST_ISOLATION
+                    + "\nadd_test(NAME hostile COMMAND "
+                    + direct_plain_command
+                    + ")\n"
+                )
+                self.assert_failure(
+                    "must not register a plain supervisor or inventory",
+                    {
+                        **sources,
+                        "cmake/BprTestIsolation.cmake": direct_plain_registration,
                     },
                     github_target=target,
                 )

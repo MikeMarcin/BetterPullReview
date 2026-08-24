@@ -55,6 +55,7 @@ ALLOWED_PLUGIN_FILES = {
     pathlib.PurePosixPath("networkinformation/libqapplenetworkinformation.dylib"),
 }
 MAXIMUM_INVENTORY_BYTES = 16 * 1024 * 1024
+MAXIMUM_IMAGE_BYTES = 16 * 1024 * 1024 * 1024
 
 
 class CapsuleFailure(RuntimeError):
@@ -72,12 +73,173 @@ class Entry:
         return f"{self.kind}\t{self.mode:04o}\t{self.digest_or_target}\t{self.relative}"
 
 
+@dataclass(frozen=True)
+class FilesystemIdentity:
+    device: int
+    inode: int
+    mode: int
+    owner: int
+    group: int
+    size: int
+    modified_ns: int
+    changed_ns: int
+
+
+@dataclass(frozen=True)
+class RetainedImage:
+    path: pathlib.Path
+    descriptor: int
+    identity: FilesystemIdentity
+    digest: str
+
+
+@dataclass(frozen=True)
+class RuntimeIdentity:
+    mount: FilesystemIdentity
+    capsule: FilesystemIdentity
+    files: tuple[tuple[pathlib.PurePosixPath, FilesystemIdentity, str], ...]
+    mount_descriptor: int = -1
+    capsule_descriptor: int = -1
+
+
 def sha256(path: pathlib.Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:
         while block := source.read(1024 * 1024):
             digest.update(block)
     return digest.hexdigest()
+
+
+def sha256_descriptor(descriptor: int) -> str:
+    digest = hashlib.sha256()
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    while block := os.read(descriptor, 1024 * 1024):
+        digest.update(block)
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    return digest.hexdigest()
+
+
+def filesystem_identity(status: os.stat_result) -> FilesystemIdentity:
+    return FilesystemIdentity(
+        device=status.st_dev,
+        inode=status.st_ino,
+        mode=status.st_mode,
+        owner=status.st_uid,
+        group=status.st_gid,
+        size=status.st_size,
+        modified_ns=status.st_mtime_ns,
+        changed_ns=status.st_ctime_ns,
+    )
+
+
+def require_resolved_absolute(path: pathlib.Path, label: str) -> pathlib.Path:
+    if not path.is_absolute() or pathlib.Path(os.path.normpath(path)) != path:
+        raise CapsuleFailure(f"{label} path is not absolute and normalized")
+    resolved = path.resolve(strict=True)
+    if path != resolved:
+        raise CapsuleFailure(f"{label} path is not resolved")
+    return path
+
+
+def retain_image(path: pathlib.Path) -> RetainedImage:
+    path = require_resolved_absolute(path, "image")
+    descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    try:
+        status = os.fstat(descriptor)
+        if not stat.S_ISREG(status.st_mode) or status.st_uid != os.geteuid():
+            raise CapsuleFailure("image is not an owner-controlled regular file")
+        if status.st_mode & 0o077:
+            raise CapsuleFailure("image is reachable by group or world")
+        if status.st_size <= 0 or status.st_size > MAXIMUM_IMAGE_BYTES:
+            raise CapsuleFailure("image size is outside the bounded range")
+        identity = filesystem_identity(status)
+        digest = sha256_descriptor(descriptor)
+        if filesystem_identity(os.fstat(descriptor)) != identity:
+            raise CapsuleFailure("image changed while it was hashed")
+        return RetainedImage(path, descriptor, identity, digest)
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def image_identity_except_ctime(identity: FilesystemIdentity) -> tuple[int, ...]:
+    # DiskImages changes the image inode's ctime while attaching even though
+    # the data fork, inode, size, mode, owner, and mtime remain unchanged.
+    # This exception is used exactly once to establish the post-attach
+    # baseline. Later checks include ctime, so it is not an ongoing blind spot.
+    return (
+        identity.device,
+        identity.inode,
+        identity.mode,
+        identity.owner,
+        identity.group,
+        identity.size,
+        identity.modified_ns,
+    )
+
+
+def rebaseline_attached_image(image: RetainedImage) -> RetainedImage:
+    """Accepts only DiskImages' attach ctime transition, then closes it."""
+    attached_identity = filesystem_identity(os.fstat(image.descriptor))
+    if image_identity_except_ctime(attached_identity) != image_identity_except_ctime(
+        image.identity
+    ):
+        raise CapsuleFailure("retained image identity drifted during attach")
+    if sha256_descriptor(image.descriptor) != image.digest:
+        raise CapsuleFailure("retained image bytes drifted during attach")
+    if filesystem_identity(os.fstat(image.descriptor)) != attached_identity:
+        raise CapsuleFailure("retained image changed while rebaselined")
+    try:
+        path_status = os.lstat(image.path)
+    except OSError as error:
+        raise CapsuleFailure("image path identity drifted") from error
+    if filesystem_identity(path_status) != attached_identity:
+        raise CapsuleFailure("image path identity drifted")
+    path_descriptor = os.open(
+        image.path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
+    )
+    try:
+        if filesystem_identity(os.fstat(path_descriptor)) != attached_identity:
+            raise CapsuleFailure("image path identity drifted")
+        if sha256_descriptor(path_descriptor) != image.digest:
+            raise CapsuleFailure("image path bytes drifted")
+        if filesystem_identity(os.fstat(path_descriptor)) != attached_identity:
+            raise CapsuleFailure("image path changed while rebaselined")
+    finally:
+        os.close(path_descriptor)
+    return RetainedImage(
+        image.path,
+        image.descriptor,
+        attached_identity,
+        image.digest,
+    )
+
+
+def revalidate_image(image: RetainedImage) -> None:
+    if filesystem_identity(os.fstat(image.descriptor)) != image.identity:
+        raise CapsuleFailure("retained image identity drifted")
+    if sha256_descriptor(image.descriptor) != image.digest:
+        raise CapsuleFailure("retained image bytes drifted")
+    if filesystem_identity(os.fstat(image.descriptor)) != image.identity:
+        raise CapsuleFailure("retained image changed while revalidated")
+    try:
+        path_status = os.lstat(image.path)
+    except OSError as error:
+        raise CapsuleFailure("image path identity drifted") from error
+    if filesystem_identity(path_status) != image.identity:
+        raise CapsuleFailure("image path identity drifted")
+    path_descriptor = os.open(
+        image.path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
+    )
+    try:
+        if filesystem_identity(os.fstat(path_descriptor)) != image.identity:
+            raise CapsuleFailure("image path identity drifted")
+        if sha256_descriptor(path_descriptor) != image.digest:
+            raise CapsuleFailure("image path bytes drifted")
+        if filesystem_identity(os.fstat(path_descriptor)) != image.identity:
+            raise CapsuleFailure("image path changed while revalidated")
+    finally:
+        os.close(path_descriptor)
 
 
 def relative_text(root: pathlib.Path, path: pathlib.Path) -> str:
@@ -767,7 +929,19 @@ def owner_private_mount_root(parent: pathlib.Path) -> pathlib.Path:
     Anchored on a directory descriptor rather than re-resolved by name, so the
     parent cannot be swapped between the check and the create.
     """
-    parent.mkdir(parents=True, exist_ok=True)
+    if not parent.is_absolute() or pathlib.Path(os.path.normpath(parent)) != parent:
+        raise CapsuleFailure("mount parent is not absolute and normalized")
+    parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if parent.resolve(strict=True) != parent:
+        raise CapsuleFailure("mount parent is not resolved")
+    parent_status = os.lstat(parent)
+    if (
+        not stat.S_ISDIR(parent_status.st_mode)
+        or stat.S_ISLNK(parent_status.st_mode)
+        or parent_status.st_uid != os.geteuid()
+        or parent_status.st_mode & 0o077
+    ):
+        raise CapsuleFailure("mount parent is not owner-private")
     descriptor = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         name = f"mount-{os.urandom(8).hex()}"
@@ -809,6 +983,8 @@ def attach_read_only(
 
 
 def require_read_only_mount(root: pathlib.Path) -> None:
+    if not os.statvfs(root).f_flag & os.ST_RDONLY:
+        raise CapsuleFailure("attached capsule image is not a read-only mount")
     probe = root / f".bpr-write-probe-{os.urandom(6).hex()}"
     try:
         with probe.open("wb") as sink:
@@ -832,39 +1008,224 @@ def detach_without_force(root: pathlib.Path, hdiutil: pathlib.Path) -> None:
     """
     result = command([str(hdiutil), "detach", str(root), "-quiet"])
     if result.returncode != 0:
-        raise CapsuleFailure(f"detach required force: {result.stderr.strip()}")
+        raise CapsuleFailure(f"ordinary detach failed: {result.stderr.strip()}")
+
+
+def capture_directory_identity(path: pathlib.Path, label: str) -> FilesystemIdentity:
+    status = os.lstat(path)
+    if stat.S_ISLNK(status.st_mode) or not stat.S_ISDIR(status.st_mode):
+        raise CapsuleFailure(f"{label} is not a real directory")
+    return filesystem_identity(status)
+
+
+def capture_runtime_identity(root: pathlib.Path) -> RuntimeIdentity:
+    capsule = root / IMAGE_CAPSULE_RELATIVE
+    mount_descriptor = os.open(
+        root, os.O_RDONLY | os.O_CLOEXEC | os.O_DIRECTORY | os.O_NOFOLLOW
+    )
+    capsule_descriptor = -1
+    try:
+        capsule_descriptor = os.open(
+            capsule, os.O_RDONLY | os.O_CLOEXEC | os.O_DIRECTORY | os.O_NOFOLLOW
+        )
+        files: list[tuple[pathlib.PurePosixPath, FilesystemIdentity, str]] = []
+        for relative in (
+            IMAGE_INVENTORY_RELATIVE,
+            IMAGE_CAPSULE_RELATIVE / APP_RELATIVE,
+            IMAGE_CAPSULE_RELATIVE / HELPER_RELATIVE,
+            IMAGE_CAPSULE_RELATIVE / VERIFIER_RELATIVE,
+        ):
+            path = root / relative
+            status = os.lstat(path)
+            if stat.S_ISLNK(status.st_mode) or not stat.S_ISREG(status.st_mode):
+                raise CapsuleFailure(f"mounted runtime file is not regular: {relative}")
+            files.append((relative, filesystem_identity(status), sha256(path)))
+        return RuntimeIdentity(
+            mount=filesystem_identity(os.fstat(mount_descriptor)),
+            capsule=filesystem_identity(os.fstat(capsule_descriptor)),
+            files=tuple(files),
+            mount_descriptor=mount_descriptor,
+            capsule_descriptor=capsule_descriptor,
+        )
+    except BaseException:
+        if capsule_descriptor >= 0:
+            os.close(capsule_descriptor)
+        os.close(mount_descriptor)
+        raise
+
+
+def close_runtime_identity(identity: RuntimeIdentity) -> None:
+    if identity.capsule_descriptor >= 0:
+        os.close(identity.capsule_descriptor)
+    if identity.mount_descriptor >= 0:
+        os.close(identity.mount_descriptor)
+
+
+def revalidate_runtime_identity(
+    root: pathlib.Path,
+    expected: RuntimeIdentity,
+    source_sha256: str,
+) -> None:
+    if (
+        expected.mount_descriptor < 0
+        or expected.capsule_descriptor < 0
+        or filesystem_identity(os.fstat(expected.mount_descriptor)) != expected.mount
+        or filesystem_identity(os.fstat(expected.capsule_descriptor)) != expected.capsule
+    ):
+        raise CapsuleFailure("retained mounted runtime identity drifted")
+    if capture_directory_identity(root, "mounted image root") != expected.mount:
+        raise CapsuleFailure("mounted image identity drifted")
+    if (
+        capture_directory_identity(root / IMAGE_CAPSULE_RELATIVE, "mounted capsule")
+        != expected.capsule
+    ):
+        raise CapsuleFailure("mounted capsule identity drifted")
+    require_read_only_mount(root)
+    for relative, identity, digest in expected.files:
+        path = root / relative
+        try:
+            status = os.lstat(path)
+        except OSError as error:
+            raise CapsuleFailure(f"mounted runtime identity drifted: {relative}") from error
+        if filesystem_identity(status) != identity or sha256(path) != digest:
+            raise CapsuleFailure(f"mounted runtime identity drifted: {relative}")
+    verify_inventory(
+        root / IMAGE_CAPSULE_RELATIVE,
+        root / IMAGE_INVENTORY_RELATIVE,
+        expected_source_sha256=source_sha256,
+    )
+
+
+def require_underlying_mount_root(
+    root: pathlib.Path, expected: FilesystemIdentity
+) -> None:
+    if capture_directory_identity(root, "underlying mount root") != expected:
+        raise CapsuleFailure("underlying mount root did not return after detach")
+
+
+def approval_path(
+    arguments: argparse.Namespace,
+    mount_root: pathlib.Path,
+) -> pathlib.Path | None:
+    if arguments.attended_launch:
+        if arguments.approval is None:
+            raise CapsuleFailure("attended launch requires an external approval")
+        approval = require_resolved_absolute(arguments.approval, "approval")
+        status = os.lstat(approval)
+        parent_status = os.lstat(approval.parent)
+        if (
+            stat.S_ISLNK(status.st_mode)
+            or not stat.S_ISREG(status.st_mode)
+            or status.st_uid != os.geteuid()
+            or status.st_mode & 0o077
+            or stat.S_ISLNK(parent_status.st_mode)
+            or not stat.S_ISDIR(parent_status.st_mode)
+            or parent_status.st_uid != os.geteuid()
+            or parent_status.st_mode & 0o077
+        ):
+            raise CapsuleFailure("approval is not an external owner-private file")
+        if approval.is_relative_to(mount_root):
+            raise CapsuleFailure("approval must remain outside the mounted image")
+        return approval
+    if arguments.approval is not None:
+        raise CapsuleFailure("probe launch cannot receive an approval")
+    return None
+
+
+def expected_image_digest(arguments: argparse.Namespace) -> str:
+    if arguments.expected_image_sha256_file is None:
+        expected = arguments.expected_image_sha256
+    else:
+        if not arguments.probe_launch:
+            raise CapsuleFailure("only the build probe may read an image digest file")
+        digest_path = require_resolved_absolute(
+            arguments.expected_image_sha256_file, "image digest"
+        )
+        if digest_path.is_symlink() or not digest_path.is_file():
+            raise CapsuleFailure("image digest is not a regular file")
+        text = digest_path.read_text(encoding="utf-8")
+        if not text.endswith("\n") or text.count("\n") != 1:
+            raise CapsuleFailure("image digest file framing is invalid")
+        expected = text.removesuffix("\n")
+    if expected is None or len(expected) != 64 or any(
+        character not in "0123456789abcdef" for character in expected
+    ):
+        raise CapsuleFailure("expected image SHA-256 is not canonical")
+    return expected
+
+
+def run_stage_one(
+    helper: pathlib.Path,
+    inventory: pathlib.Path,
+    approval: pathlib.Path | None,
+) -> subprocess.CompletedProcess[bytes]:
+    arguments = [str(helper)]
+    if approval is None:
+        arguments.extend(["--probe-launch", "--inventory", str(inventory)])
+    else:
+        arguments.extend(
+            [
+                "--attended-launch",
+                "--inventory",
+                str(inventory),
+                "--approval",
+                str(approval),
+            ]
+        )
+    return subprocess.run(arguments, check=False)
 
 
 def stage_zero(arguments: argparse.Namespace) -> None:
-    """Mounts the image read-only and hands stage one to the caller."""
-    image = arguments.image.resolve(strict=True)
-    observed = image_sha256(image)
-    if observed != arguments.expected_image_sha256:
-        raise CapsuleFailure(
-            f"image digest drifted: expected {arguments.expected_image_sha256}, "
-            f"found {observed}"
-        )
-    root = owner_private_mount_root(arguments.mount_parent)
-    attached = False
+    """Runs the complete supervisor/application lane from one read-only image."""
+    retained_image = retain_image(arguments.image)
     try:
-        attach_read_only(image, root, arguments.hdiutil)
-        attached = True
-        require_read_only_mount(root)
-        capsule = root / IMAGE_CAPSULE_RELATIVE
-        inventory = root / IMAGE_INVENTORY_RELATIVE
-        # Both sides of fact_2: the mount is required here as well as by stage
-        # one, so neither is trusted to have checked on the other's behalf.
-        verify_inventory(
-            capsule,
-            inventory,
-            expected_source_sha256=arguments.source_sha256,
-        )
-        print(f"designated-live-macos-capsule:mounted:{root}")
+        expected = expected_image_digest(arguments)
+        if retained_image.digest != expected:
+            raise CapsuleFailure(
+                f"image digest drifted: expected {expected}, "
+                f"found {retained_image.digest}"
+            )
+        root = owner_private_mount_root(arguments.mount_parent)
+        underlying = capture_directory_identity(root, "underlying mount root")
+        attached = False
+        mounted: RuntimeIdentity | None = None
+        try:
+            attach_read_only(retained_image.path, root, arguments.hdiutil)
+            attached = True
+            retained_image = rebaseline_attached_image(retained_image)
+            require_read_only_mount(root)
+            mounted = capture_runtime_identity(root)
+            if mounted.mount == underlying:
+                raise CapsuleFailure("image was not mounted over the private root")
+            capsule = root / IMAGE_CAPSULE_RELATIVE
+            inventory = root / IMAGE_INVENTORY_RELATIVE
+            verify_inventory(
+                capsule,
+                inventory,
+                expected_source_sha256=arguments.source_sha256,
+            )
+            approval = approval_path(arguments, root)
+            revalidate_image(retained_image)
+            revalidate_runtime_identity(root, mounted, arguments.source_sha256)
+            helper = root / IMAGE_CAPSULE_RELATIVE / HELPER_RELATIVE
+            print(f"designated-live-macos-capsule:mounted:{root}")
+            launched = run_stage_one(helper, inventory, approval)
+            revalidate_image(retained_image)
+            revalidate_runtime_identity(root, mounted, arguments.source_sha256)
+            if launched.returncode != 0:
+                raise CapsuleFailure(
+                    f"mounted supervisor exited with status {launched.returncode}"
+                )
+        finally:
+            if mounted is not None:
+                close_runtime_identity(mounted)
+            if attached:
+                detach_without_force(root, arguments.hdiutil)
+                require_underlying_mount_root(root, underlying)
+            with contextlib.suppress(OSError):
+                root.rmdir()
     finally:
-        if attached:
-            detach_without_force(root, arguments.hdiutil)
-        with contextlib.suppress(OSError):
-            root.rmdir()
+        os.close(retained_image.descriptor)
 
 
 def verify(arguments: argparse.Namespace) -> None:
@@ -934,9 +1295,15 @@ def parser() -> argparse.ArgumentParser:
     image_parser.add_argument("--hdiutil", type=pathlib.Path, default=pathlib.Path("/usr/bin/hdiutil"))
     stage_zero_parser = subcommands.add_parser("stage-zero")
     stage_zero_parser.add_argument("--image", type=pathlib.Path, required=True)
-    stage_zero_parser.add_argument("--expected-image-sha256", required=True)
+    expected_image = stage_zero_parser.add_mutually_exclusive_group(required=True)
+    expected_image.add_argument("--expected-image-sha256")
+    expected_image.add_argument("--expected-image-sha256-file", type=pathlib.Path)
     stage_zero_parser.add_argument("--mount-parent", type=pathlib.Path, required=True)
-    stage_zero_parser.add_argument("--source-sha256")
+    stage_zero_parser.add_argument("--source-sha256", required=True)
+    stage_zero_mode = stage_zero_parser.add_mutually_exclusive_group(required=True)
+    stage_zero_mode.add_argument("--probe-launch", action="store_true")
+    stage_zero_mode.add_argument("--attended-launch", action="store_true")
+    stage_zero_parser.add_argument("--approval", type=pathlib.Path)
     stage_zero_parser.add_argument("--hdiutil", type=pathlib.Path, default=pathlib.Path("/usr/bin/hdiutil"))
     return result
 

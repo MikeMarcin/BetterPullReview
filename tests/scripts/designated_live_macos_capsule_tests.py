@@ -12,6 +12,7 @@ import socket
 import stat
 import subprocess
 import sys
+import time
 import unittest
 from unittest import mock
 
@@ -388,8 +389,22 @@ class CapsuleImageTests(unittest.TestCase):
         defaults = {
             "hdiutil": pathlib.Path("/usr/bin/hdiutil"),
             "source_sha256": SOURCE_DIGEST,
+            "expected_image_sha256": None,
+            "expected_image_sha256_file": None,
+            "probe_launch": True,
+            "attended_launch": False,
+            "approval": None,
         }
         defaults.update(overrides)
+        for name in (
+            "image",
+            "expected_image_sha256_file",
+            "mount_parent",
+            "approval",
+        ):
+            value = defaults.get(name)
+            if isinstance(value, pathlib.Path):
+                defaults[name] = value.resolve(strict=False)
         return argparse.Namespace(**defaults)
 
     def test_attach_asks_for_a_read_only_unbrowsable_mount(self) -> None:
@@ -437,6 +452,7 @@ class CapsuleImageTests(unittest.TestCase):
     def test_mount_root_is_fresh_and_owner_private(self) -> None:
         with contained_temporary_directory() as directory:
             parent = pathlib.Path(directory) / "mounts"
+            parent = parent.resolve(strict=False)
             first = capsule.owner_private_mount_root(parent)
             second = capsule.owner_private_mount_root(parent)
             self.assertNotEqual(first, second)
@@ -468,6 +484,283 @@ class CapsuleImageTests(unittest.TestCase):
                     )
             self.assertEqual(attempted, [])
 
+    def test_in_place_image_restore_cannot_hide_behind_restored_mtime(self) -> None:
+        with contained_temporary_directory() as directory:
+            image = pathlib.Path(directory) / "capsule.dmg"
+            original = b"exact retained image bytes"
+            image.write_bytes(original)
+            image.chmod(0o600)
+            retained = capsule.retain_image(image.resolve())
+            try:
+                retained = capsule.rebaseline_attached_image(retained)
+                original_atime = image.stat().st_atime_ns
+                time.sleep(0.01)
+                with image.open("r+b") as stream:
+                    stream.write(b"hostile transient bytes")
+                    stream.seek(0)
+                    stream.write(original)
+                    stream.truncate()
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.utime(
+                    image,
+                    ns=(original_atime, retained.identity.modified_ns),
+                )
+                self.assertEqual(capsule.image_sha256(image), retained.digest)
+                self.assertEqual(
+                    image.stat().st_mtime_ns,
+                    retained.identity.modified_ns,
+                )
+                self.assertNotEqual(
+                    image.stat().st_ctime_ns,
+                    retained.identity.changed_ns,
+                )
+                with self.assertRaisesRegex(
+                    capsule.CapsuleFailure,
+                    "retained image identity drifted",
+                ):
+                    capsule.revalidate_image(retained)
+            finally:
+                os.close(retained.descriptor)
+
+    def test_stage_zero_orders_mounted_probe_revalidation_and_detach(self) -> None:
+        with contained_temporary_directory() as directory:
+            parent = pathlib.Path(directory)
+            image = parent / "capsule.dmg"
+            image.write_bytes(b"exact image")
+            image.chmod(0o600)
+            events: list[str] = []
+            mounted = capsule.RuntimeIdentity(
+                mount=capsule.FilesystemIdentity(91, 92, stat.S_IFDIR | 0o555, os.geteuid(), os.getegid(), 0, 0, 0),
+                capsule=capsule.FilesystemIdentity(91, 93, stat.S_IFDIR | 0o700, os.geteuid(), os.getegid(), 0, 0, 0),
+                files=(),
+            )
+
+            def event(name: str, value: object = None) -> object:
+                events.append(name)
+                return value
+
+            with (
+                mock.patch.object(capsule, "attach_read_only", side_effect=lambda *args: event("attach")),
+                mock.patch.object(capsule, "require_read_only_mount", side_effect=lambda *args: event("read-only")),
+                mock.patch.object(capsule, "capture_runtime_identity", side_effect=lambda *args: event("capture-runtime", mounted)),
+                mock.patch.object(capsule, "verify_inventory", side_effect=lambda *args, **kwargs: event("verify-static", SOURCE_DIGEST)),
+                mock.patch.object(capsule, "approval_path", side_effect=lambda *args: event("approval", None)),
+                mock.patch.object(capsule, "revalidate_image", side_effect=lambda *args: event("image")),
+                mock.patch.object(capsule, "revalidate_runtime_identity", side_effect=lambda *args: event("runtime")),
+                mock.patch.object(
+                    capsule,
+                    "run_stage_one",
+                    side_effect=lambda *args: event(
+                        "wait-child",
+                        subprocess.CompletedProcess(["probe"], 0, b"", b""),
+                    ),
+                ),
+                mock.patch.object(
+                    capsule,
+                    "close_runtime_identity",
+                    side_effect=lambda *args: event("close-runtime"),
+                ),
+                mock.patch.object(capsule, "detach_without_force", side_effect=lambda *args: event("detach")),
+                mock.patch.object(capsule, "require_underlying_mount_root", side_effect=lambda *args: event("underlying")),
+            ):
+                capsule.stage_zero(
+                    self.image_arguments(
+                        image=image,
+                        expected_image_sha256=capsule.image_sha256(image),
+                        mount_parent=parent / "mounts",
+                    )
+                )
+
+            self.assertEqual(
+                events,
+                [
+                    "attach",
+                    "read-only",
+                    "capture-runtime",
+                    "verify-static",
+                    "approval",
+                    "image",
+                    "runtime",
+                    "wait-child",
+                    "image",
+                    "runtime",
+                    "close-runtime",
+                    "detach",
+                    "underlying",
+                ],
+            )
+
+    def test_supervisor_failure_is_revalidated_before_cleanup(self) -> None:
+        with contained_temporary_directory() as directory:
+            parent = pathlib.Path(directory)
+            image = parent / "capsule.dmg"
+            image.write_bytes(b"exact image")
+            image.chmod(0o600)
+            events: list[str] = []
+            mounted = capsule.RuntimeIdentity(
+                mount=capsule.FilesystemIdentity(81, 82, stat.S_IFDIR | 0o555, os.geteuid(), os.getegid(), 0, 0, 0),
+                capsule=capsule.FilesystemIdentity(81, 83, stat.S_IFDIR | 0o700, os.geteuid(), os.getegid(), 0, 0, 0),
+                files=(),
+            )
+            with (
+                mock.patch.object(capsule, "attach_read_only"),
+                mock.patch.object(capsule, "require_read_only_mount"),
+                mock.patch.object(capsule, "capture_runtime_identity", return_value=mounted),
+                mock.patch.object(capsule, "verify_inventory", return_value=SOURCE_DIGEST),
+                mock.patch.object(capsule, "approval_path", return_value=None),
+                mock.patch.object(capsule, "revalidate_image", side_effect=lambda *args: events.append("image")),
+                mock.patch.object(capsule, "revalidate_runtime_identity", side_effect=lambda *args: events.append("runtime")),
+                mock.patch.object(
+                    capsule,
+                    "run_stage_one",
+                    side_effect=lambda *args: (
+                        events.append("wait-child")
+                        or subprocess.CompletedProcess(["probe"], 17, b"", b"")
+                    ),
+                ),
+                mock.patch.object(
+                    capsule,
+                    "close_runtime_identity",
+                    side_effect=lambda *args: events.append("close-runtime"),
+                ),
+                mock.patch.object(capsule, "detach_without_force", side_effect=lambda *args: events.append("detach")),
+                mock.patch.object(capsule, "require_underlying_mount_root"),
+            ):
+                with self.assertRaisesRegex(capsule.CapsuleFailure, "status 17"):
+                    capsule.stage_zero(
+                        self.image_arguments(
+                            image=image,
+                            expected_image_sha256=capsule.image_sha256(image),
+                            mount_parent=parent / "mounts",
+                        )
+                    )
+            self.assertEqual(
+                events,
+                [
+                    "image",
+                    "runtime",
+                    "wait-child",
+                    "image",
+                    "runtime",
+                    "close-runtime",
+                    "detach",
+                ],
+            )
+
+    def test_prelaunch_image_or_runtime_drift_performs_zero_launches(self) -> None:
+        for drift in ("image", "runtime"):
+            with self.subTest(drift=drift), contained_temporary_directory() as directory:
+                parent = pathlib.Path(directory)
+                image = parent / "capsule.dmg"
+                image.write_bytes(b"exact image")
+                image.chmod(0o600)
+                mounted = capsule.RuntimeIdentity(
+                    mount=capsule.FilesystemIdentity(71, 72, stat.S_IFDIR | 0o555, os.geteuid(), os.getegid(), 0, 0, 0),
+                    capsule=capsule.FilesystemIdentity(71, 73, stat.S_IFDIR | 0o700, os.geteuid(), os.getegid(), 0, 0, 0),
+                    files=(),
+                )
+                launched = mock.Mock()
+                image_check = mock.Mock(
+                    side_effect=(capsule.CapsuleFailure("image drift") if drift == "image" else None)
+                )
+                runtime_check = mock.Mock(
+                    side_effect=(capsule.CapsuleFailure("runtime drift") if drift == "runtime" else None)
+                )
+                detached = mock.Mock()
+                with (
+                    mock.patch.object(capsule, "attach_read_only"),
+                    mock.patch.object(capsule, "require_read_only_mount"),
+                    mock.patch.object(capsule, "capture_runtime_identity", return_value=mounted),
+                    mock.patch.object(capsule, "verify_inventory", return_value=SOURCE_DIGEST),
+                    mock.patch.object(capsule, "approval_path", return_value=None),
+                    mock.patch.object(capsule, "revalidate_image", image_check),
+                    mock.patch.object(capsule, "revalidate_runtime_identity", runtime_check),
+                    mock.patch.object(capsule, "run_stage_one", launched),
+                    mock.patch.object(capsule, "detach_without_force", detached),
+                    mock.patch.object(capsule, "require_underlying_mount_root"),
+                ):
+                    with self.assertRaises(capsule.CapsuleFailure):
+                        capsule.stage_zero(
+                            self.image_arguments(
+                                image=image,
+                                expected_image_sha256=capsule.image_sha256(image),
+                                mount_parent=parent / "mounts",
+                            )
+                        )
+                launched.assert_not_called()
+                detached.assert_called_once()
+
+    def test_detach_during_child_is_detected_after_wait(self) -> None:
+        with contained_temporary_directory() as directory:
+            parent = pathlib.Path(directory)
+            image = parent / "capsule.dmg"
+            image.write_bytes(b"exact image")
+            image.chmod(0o600)
+            mounted = capsule.RuntimeIdentity(
+                mount=capsule.FilesystemIdentity(61, 62, stat.S_IFDIR | 0o555, os.geteuid(), os.getegid(), 0, 0, 0),
+                capsule=capsule.FilesystemIdentity(61, 63, stat.S_IFDIR | 0o700, os.geteuid(), os.getegid(), 0, 0, 0),
+                files=(),
+            )
+            runtime_checks = 0
+
+            def revalidate(*args: object) -> None:
+                nonlocal runtime_checks
+                runtime_checks += 1
+                if runtime_checks == 2:
+                    raise capsule.CapsuleFailure("mounted image identity drifted")
+
+            detached = mock.Mock()
+            with (
+                mock.patch.object(capsule, "attach_read_only"),
+                mock.patch.object(capsule, "require_read_only_mount"),
+                mock.patch.object(capsule, "capture_runtime_identity", return_value=mounted),
+                mock.patch.object(capsule, "verify_inventory", return_value=SOURCE_DIGEST),
+                mock.patch.object(capsule, "approval_path", return_value=None),
+                mock.patch.object(capsule, "revalidate_image"),
+                mock.patch.object(capsule, "revalidate_runtime_identity", side_effect=revalidate),
+                mock.patch.object(
+                    capsule,
+                    "run_stage_one",
+                    return_value=subprocess.CompletedProcess(["probe"], 0, b"", b""),
+                ),
+                mock.patch.object(capsule, "detach_without_force", detached),
+                mock.patch.object(capsule, "require_underlying_mount_root"),
+            ):
+                with self.assertRaisesRegex(capsule.CapsuleFailure, "mounted image identity drifted"):
+                    capsule.stage_zero(
+                        self.image_arguments(
+                            image=image,
+                            expected_image_sha256=capsule.image_sha256(image),
+                            mount_parent=parent / "mounts",
+                        )
+                    )
+            self.assertEqual(runtime_checks, 2)
+            detached.assert_called_once()
+
+    def test_digest_file_is_reserved_for_the_build_probe(self) -> None:
+        with contained_temporary_directory() as directory:
+            parent = pathlib.Path(directory)
+            image = parent / "capsule.dmg"
+            image.write_bytes(b"exact image")
+            image.chmod(0o600)
+            digest_file = parent / "capsule.dmg.sha256"
+            digest_file.write_text(capsule.image_sha256(image) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(capsule.CapsuleFailure, "only the build probe"):
+                capsule.stage_zero(
+                    self.image_arguments(
+                        image=image,
+                        expected_image_sha256_file=digest_file,
+                        probe_launch=False,
+                        attended_launch=True,
+                        approval=parent / "approval",
+                        mount_parent=parent / "mounts",
+                    )
+                )
+
+    def test_stage_zero_source_contains_no_forced_detach_argument(self) -> None:
+        self.assertNotIn('"-force"', SCRIPT.read_text(encoding="utf-8"))
+
     @unittest.skipUnless(
         pathlib.Path("/usr/bin/hdiutil").exists(), "hdiutil is macOS-only"
     )
@@ -477,6 +770,8 @@ class CapsuleImageTests(unittest.TestCase):
         with contained_temporary_directory() as directory:
             parent = pathlib.Path(directory)
             root, inventory = make_capsule(parent)
+            approval = parent / "external-approval.txt"
+            approval.write_text("must stay outside the image\n", encoding="utf-8")
             image = parent / "capsule.dmg"
             capsule.build_image(
                 self.image_arguments(
@@ -501,6 +796,9 @@ class CapsuleImageTests(unittest.TestCase):
                 observed["inventory"] = (
                     mount_root / capsule.IMAGE_INVENTORY_RELATIVE
                 ).is_file()
+                observed["approval"] = any(
+                    path.name == approval.name for path in mount_root.rglob("*")
+                )
                 probe = mount_root / "write-probe"
                 try:
                     probe.write_bytes(b"x")
@@ -509,7 +807,31 @@ class CapsuleImageTests(unittest.TestCase):
                     observed["writable"] = False
                 original(mount_root)
 
-            with mock.patch.object(capsule, "require_read_only_mount", observe):
+            launched: list[tuple[pathlib.Path, pathlib.Path, pathlib.Path | None]] = []
+
+            def probe(
+                helper: pathlib.Path,
+                mounted_inventory: pathlib.Path,
+                approval: pathlib.Path | None,
+            ) -> subprocess.CompletedProcess[bytes]:
+                launched.append((helper, mounted_inventory, approval))
+                early_detach = subprocess.run(
+                    [
+                        "/usr/bin/hdiutil",
+                        "detach",
+                        str(mounted_inventory.parent),
+                        "-quiet",
+                    ],
+                    check=False,
+                    capture_output=True,
+                )
+                observed["early_detach"] = early_detach.returncode
+                return subprocess.CompletedProcess([str(helper)], 0, b"", b"")
+
+            with (
+                mock.patch.object(capsule, "require_read_only_mount", observe),
+                mock.patch.object(capsule, "run_stage_one", probe),
+            ):
                 capsule.stage_zero(
                     self.image_arguments(
                         image=image,
@@ -519,9 +841,18 @@ class CapsuleImageTests(unittest.TestCase):
                 )
             self.assertTrue(observed["capsule"], "the app is inside the image")
             self.assertTrue(observed["inventory"], "the inventory is inside the image")
+            self.assertFalse(observed["approval"], "approval never enters the image")
             self.assertFalse(observed["writable"], "the attached image refuses writes")
-            # stage_zero detaches on the way out, forcibly or not; nothing of
-            # this run may still be attached.
+            self.assertEqual(len(launched), 1)
+            self.assertIn("mount-", str(launched[0][0]))
+            self.assertIsNone(launched[0][2])
+            self.assertNotEqual(
+                observed["early_detach"],
+                0,
+                "retained mount descriptors must refuse ordinary early detach",
+            )
+            # stage_zero ordinary-detaches on the way out; nothing of this run
+            # may still be attached.
             listing = subprocess.run(
                 ["/usr/bin/hdiutil", "info"],
                 check=False,

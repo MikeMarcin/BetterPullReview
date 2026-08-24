@@ -52,6 +52,14 @@ set(
     "scripts/designated_live_macos_capsule.py"
 )
 set(
+    designated_live_stage_zero_preloader_relative
+    "cmake/BprDesignatedLiveStageZero.cmake"
+)
+set(
+    designated_live_test_isolation_relative
+    "cmake/BprTestIsolation.cmake"
+)
+set(
     app_entry_point_relative
     "src/app/main.cpp"
 )
@@ -1877,6 +1885,16 @@ get_filename_component(
     "${BPR_ROOT}/${designated_live_macos_capsule_script_relative}"
     ABSOLUTE
 )
+get_filename_component(
+    designated_live_stage_zero_preloader_file
+    "${BPR_ROOT}/${designated_live_stage_zero_preloader_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    designated_live_test_isolation_file
+    "${BPR_ROOT}/${designated_live_test_isolation_relative}"
+    ABSOLUTE
+)
 if(EXISTS "${app_designated_live_supervisor_file}")
     file(
         READ
@@ -1927,7 +1945,10 @@ if(EXISTS "${app_designated_live_supervisor_file}")
             [=[target_compile_definitions( tool_better_pull_review_designated_live_supervisor PRIVATE]=]
             [=["BPR_DESIGNATED_LIVE_VERIFIER_SHA256]=]
             [=[src/designated_live_macos_supervisor_launch.cpp]=]
-            [=[--probe-launch]=]
+            [=[bpr_designated_live_stage_zero_command(]=]
+            [=[bpr_designated_live_probe_command]=]
+            [=[bpr_designated_live_capsule_image]=]
+            [=[bpr_designated_live_source_manifest]=]
     )
         string(
             REGEX REPLACE
@@ -2226,6 +2247,266 @@ if(EXISTS "${designated_live_macos_capsule_script_file}")
                 FATAL_ERROR
                 "Designated live verifier can regain mutable pathname authority: "
                 "${required_retained_verifier_fragment}"
+            )
+        endif()
+    endforeach()
+
+    foreach(
+        required_stage_zero_fragment
+        IN ITEMS
+            [=[retained_image = retain_image(arguments.image)]=]
+            [=[attach_read_only(retained_image.path, root, arguments.hdiutil)]=]
+            [=[retained_image = rebaseline_attached_image(retained_image)]=]
+            [=["-readonly"]=]
+            [=["-nobrowse"]=]
+            [=["-noautoopen"]=]
+            [=[mounted = capture_runtime_identity(root)]=]
+            [=[mount_descriptor = os.open(]=]
+            [=[capsule_descriptor = os.open(]=]
+            [=[filesystem_identity(os.fstat(expected.mount_descriptor))]=]
+            [=[filesystem_identity(os.fstat(expected.capsule_descriptor))]=]
+            [=[if filesystem_identity(os.fstat(image.descriptor)) != image.identity:]=]
+            [=[if filesystem_identity(os.fstat(path_descriptor)) != image.identity:]=]
+            [=[approval = approval_path(arguments, root)]=]
+            [=[inventory = root / IMAGE_INVENTORY_RELATIVE]=]
+            [=[helper = root / IMAGE_CAPSULE_RELATIVE / HELPER_RELATIVE]=]
+            [=[launched = run_stage_one(helper, inventory, approval)]=]
+            [=[if launched.returncode != 0:]=]
+            [=[close_runtime_identity(mounted)]=]
+            [=[detach_without_force(root, arguments.hdiutil)]=]
+            [=[require_underlying_mount_root(root, underlying)]=]
+    )
+        string(
+            FIND
+            "${designated_live_macos_capsule_script_contents}"
+            "${required_stage_zero_fragment}"
+            required_stage_zero_fragment_index
+        )
+        if(required_stage_zero_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live image stage zero is incomplete: "
+                "${required_stage_zero_fragment}"
+            )
+        endif()
+    endforeach()
+
+    string(
+        REGEX MATCHALL
+        "revalidate_image[(]retained_image[)]"
+        designated_live_image_revalidations
+        "${designated_live_macos_capsule_script_contents}"
+    )
+    list(LENGTH designated_live_image_revalidations designated_live_image_revalidation_count)
+    string(
+        REGEX MATCHALL
+        "revalidate_runtime_identity[(]root, mounted, arguments[.]source_sha256[)]"
+        designated_live_runtime_revalidations
+        "${designated_live_macos_capsule_script_contents}"
+    )
+    list(LENGTH designated_live_runtime_revalidations designated_live_runtime_revalidation_count)
+    string(
+        REGEX MATCHALL
+        "detach_without_force[(]root, arguments[.]hdiutil[)]"
+        designated_live_detach_calls
+        "${designated_live_macos_capsule_script_contents}"
+    )
+    list(LENGTH designated_live_detach_calls designated_live_detach_call_count)
+    string(
+        REGEX MATCHALL
+        "filesystem_identity[(]os[.]fstat[(]image[.]descriptor[)][)] != image[.]identity"
+        designated_live_retained_image_identity_checks
+        "${designated_live_macos_capsule_script_contents}"
+    )
+    list(
+        LENGTH
+        designated_live_retained_image_identity_checks
+        designated_live_retained_image_identity_check_count
+    )
+    string(
+        REGEX MATCHALL
+        "filesystem_identity[(]os[.]fstat[(]path_descriptor[)][)] != image[.]identity"
+        designated_live_path_image_identity_checks
+        "${designated_live_macos_capsule_script_contents}"
+    )
+    list(
+        LENGTH
+        designated_live_path_image_identity_checks
+        designated_live_path_image_identity_check_count
+    )
+    if(
+        NOT designated_live_image_revalidation_count EQUAL 2
+        OR NOT designated_live_runtime_revalidation_count EQUAL 2
+        OR NOT designated_live_detach_call_count EQUAL 1
+    )
+        message(
+            FATAL_ERROR
+            "Designated live image stage zero must revalidate before and after "
+            "the child, then detach exactly once"
+        )
+    endif()
+    if(
+        NOT designated_live_retained_image_identity_check_count EQUAL 2
+        OR NOT designated_live_path_image_identity_check_count EQUAL 2
+    )
+        message(
+            FATAL_ERROR
+            "Designated live image hashes must be bracketed by full retained "
+            "descriptor and path identity checks"
+        )
+    endif()
+    string(
+        FIND
+        "${designated_live_macos_capsule_script_contents}"
+        "launched = run_stage_one(helper, inventory, approval)"
+        designated_live_child_index
+    )
+    string(
+        FIND
+        "${designated_live_macos_capsule_script_contents}"
+        "revalidate_image(retained_image)"
+        designated_live_post_image_index
+        REVERSE
+    )
+    string(
+        FIND
+        "${designated_live_macos_capsule_script_contents}"
+        "revalidate_runtime_identity(root, mounted, arguments.source_sha256)"
+        designated_live_post_runtime_index
+        REVERSE
+    )
+    string(
+        FIND
+        "${designated_live_macos_capsule_script_contents}"
+        "if launched.returncode != 0:"
+        designated_live_child_status_index
+    )
+    string(
+        FIND
+        "${designated_live_macos_capsule_script_contents}"
+        "close_runtime_identity(mounted)"
+        designated_live_close_runtime_index
+    )
+    string(
+        FIND
+        "${designated_live_macos_capsule_script_contents}"
+        "detach_without_force(root, arguments.hdiutil)"
+        designated_live_detach_index
+    )
+    if(
+        designated_live_child_index GREATER_EQUAL designated_live_post_image_index
+        OR designated_live_post_image_index GREATER_EQUAL designated_live_post_runtime_index
+        OR designated_live_post_runtime_index GREATER_EQUAL designated_live_child_status_index
+        OR designated_live_child_status_index GREATER_EQUAL designated_live_close_runtime_index
+        OR designated_live_close_runtime_index GREATER_EQUAL designated_live_detach_index
+    )
+        message(
+            FATAL_ERROR
+            "Designated live image stage zero must wait, post-child revalidate, "
+            "close retained mount descriptors, and only then detach"
+        )
+    endif()
+    string(
+        FIND
+        "${designated_live_macos_capsule_script_contents}"
+        [=["-force"]=]
+        designated_live_force_detach_index
+    )
+    if(NOT designated_live_force_detach_index EQUAL -1)
+        message(FATAL_ERROR "Designated live image stage zero must never force detach")
+    endif()
+endif()
+
+if(EXISTS "${designated_live_stage_zero_preloader_file}")
+    file(
+        READ
+        "${designated_live_stage_zero_preloader_file}"
+        designated_live_stage_zero_preloader_contents
+    )
+    foreach(
+        required_preloader_fragment
+        IN ITEMS
+            [=["/usr/bin/python3"]=]
+            [=[os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW]=]
+            [=[before = os.fstat(descriptor)]=]
+            [=[after = os.fstat(descriptor)]=]
+            [=[before.st_size > 1048576]=]
+            [=[identity(before) != identity(after)]=]
+            [=[hashlib.sha256(captured).hexdigest() != expected]=]
+            [=[exec(compile(captured, path, "exec"), scope, scope)]=]
+    )
+        string(
+            FIND
+            "${designated_live_stage_zero_preloader_contents}"
+            "${required_preloader_fragment}"
+            required_preloader_fragment_index
+        )
+        if(required_preloader_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live stage-zero protected loader is incomplete: "
+                "${required_preloader_fragment}"
+            )
+        endif()
+    endforeach()
+endif()
+
+if(EXISTS "${designated_live_test_isolation_file}")
+    file(
+        READ
+        "${designated_live_test_isolation_file}"
+        designated_live_test_isolation_contents
+    )
+    foreach(
+        required_live_image_fragment
+        IN ITEMS
+            [=[BPR_DESIGNATED_LIVE_MUTATION_IMAGE]=]
+            [=[BPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256]=]
+            [=[BPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT]=]
+            [=[BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR]=]
+            [=[source-manifest.txt]=]
+            [=[bpr_designated_live_stage_zero_sha256]=]
+            [=[bpr_designated_live_stage_zero_command(]=]
+            [=[EXPECTED_IMAGE_SHA256 "${BPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256}"]=]
+            [=[COMMAND ${bpr_designated_live_attended_command}]=]
+    )
+        string(
+            FIND
+            "${designated_live_test_isolation_contents}"
+            "${required_live_image_fragment}"
+            required_live_image_fragment_index
+        )
+        if(required_live_image_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live CTest image registration is incomplete: "
+                "${required_live_image_fragment}"
+            )
+        endif()
+    endforeach()
+    string(
+        REGEX REPLACE
+        "[ \t\r\n]+"
+        " "
+        designated_live_test_isolation_compact
+        "${designated_live_test_isolation_contents}"
+    )
+    foreach(
+        forbidden_plain_live_command
+        IN ITEMS
+            [=[COMMAND ${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}]=]
+            [=[COMMAND ${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}]=]
+    )
+        string(
+            FIND
+            "${designated_live_test_isolation_compact}"
+            "${forbidden_plain_live_command}"
+            forbidden_plain_live_command_index
+        )
+        if(NOT forbidden_plain_live_command_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live CTest must not register a plain supervisor or inventory"
             )
         endif()
     endforeach()

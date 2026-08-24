@@ -1,5 +1,17 @@
 include_guard(GLOBAL)
 
+include("${PROJECT_SOURCE_DIR}/cmake/BprDesignatedLiveStageZero.cmake")
+
+if(
+    BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR
+    OR BPR_DESIGNATED_LIVE_MUTATION_INVENTORY
+)
+    message(
+        FATAL_ERROR
+        "Designated live plain supervisor/inventory selection is removed; use the exact image topology"
+    )
+endif()
+
 set(
     BPR_MACOS_TEST_SANDBOX_PROFILE
     "${PROJECT_SOURCE_DIR}/cmake/sandbox/macos-network-deny.sb"
@@ -20,16 +32,22 @@ set(
     "Absolute path to the one-shot designated live-mutation approval artifact"
 )
 set(
-    BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR
+    BPR_DESIGNATED_LIVE_MUTATION_IMAGE
     ""
     CACHE FILEPATH
-    "Absolute path to the signed-capsule designated live supervisor"
+    "Absolute path to the exact designated live capsule image"
 )
 set(
-    BPR_DESIGNATED_LIVE_MUTATION_INVENTORY
+    BPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256
     ""
-    CACHE FILEPATH
-    "Absolute path to the signed-capsule inventory"
+    CACHE STRING
+    "Literal SHA-256 of the exact designated live capsule image"
+)
+set(
+    BPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT
+    ""
+    CACHE PATH
+    "Absolute owner-private parent for the fresh designated live mount root"
 )
 set(
     BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR
@@ -38,10 +56,10 @@ set(
     "Absolute build directory that produced the designated shipped application"
 )
 if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
-    if(NOT BPR_BUILD_QT)
+    if(NOT APPLE OR NOT BPR_BUILD_QT)
         message(
             FATAL_ERROR
-            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires BPR_BUILD_QT=ON"
+            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires macOS and BPR_BUILD_QT=ON"
         )
     endif()
     if(
@@ -57,28 +75,42 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
         )
     endif()
     if(
-        NOT BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR
-        OR NOT IS_ABSOLUTE "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
-        OR NOT EXISTS "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
-        OR IS_DIRECTORY "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
-        OR IS_SYMLINK "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
-        OR NOT IS_EXECUTABLE "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
+        NOT BPR_DESIGNATED_LIVE_MUTATION_IMAGE
+        OR NOT IS_ABSOLUTE "${BPR_DESIGNATED_LIVE_MUTATION_IMAGE}"
+        OR NOT EXISTS "${BPR_DESIGNATED_LIVE_MUTATION_IMAGE}"
+        OR IS_DIRECTORY "${BPR_DESIGNATED_LIVE_MUTATION_IMAGE}"
+        OR IS_SYMLINK "${BPR_DESIGNATED_LIVE_MUTATION_IMAGE}"
     )
         message(
             FATAL_ERROR
-            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires an existing absolute BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR executable"
+            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires an existing absolute non-symlink BPR_DESIGNATED_LIVE_MUTATION_IMAGE file"
         )
     endif()
     if(
-        NOT BPR_DESIGNATED_LIVE_MUTATION_INVENTORY
-        OR NOT IS_ABSOLUTE "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
-        OR NOT EXISTS "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
-        OR IS_DIRECTORY "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
-        OR IS_SYMLINK "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
+        NOT BPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256
+        OR NOT BPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256 MATCHES "^[0-9a-f]+$"
     )
         message(
             FATAL_ERROR
-            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires an existing absolute BPR_DESIGNATED_LIVE_MUTATION_INVENTORY file"
+            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires a literal canonical BPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256"
+        )
+    endif()
+    string(LENGTH "${BPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256}" bpr_live_image_digest_length)
+    if(NOT bpr_live_image_digest_length EQUAL 64)
+        message(
+            FATAL_ERROR
+            "BPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256 must contain exactly 64 lowercase hexadecimal characters"
+        )
+    endif()
+    if(
+        NOT BPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT
+        OR NOT IS_ABSOLUTE "${BPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT}"
+        OR NOT IS_DIRECTORY "${BPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT}"
+        OR IS_SYMLINK "${BPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT}"
+    )
+        message(
+            FATAL_ERROR
+            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires an existing absolute non-symlink BPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT directory"
         )
     endif()
     if(
@@ -95,13 +127,13 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
 
     file(
         REAL_PATH
-        "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
-        bpr_designated_live_supervisor_real
+        "${BPR_DESIGNATED_LIVE_MUTATION_IMAGE}"
+        bpr_designated_live_image_real
     )
     file(
         REAL_PATH
-        "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
-        bpr_designated_live_inventory_real
+        "${BPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT}"
+        bpr_designated_live_mount_parent_real
     )
     file(
         REAL_PATH
@@ -114,10 +146,10 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
         bpr_designated_live_approval_real
     )
     if(
-        NOT BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR
-            STREQUAL bpr_designated_live_supervisor_real
-        OR NOT BPR_DESIGNATED_LIVE_MUTATION_INVENTORY
-            STREQUAL bpr_designated_live_inventory_real
+        NOT BPR_DESIGNATED_LIVE_MUTATION_IMAGE
+            STREQUAL bpr_designated_live_image_real
+        OR NOT BPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT
+            STREQUAL bpr_designated_live_mount_parent_real
         OR NOT BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR
             STREQUAL bpr_designated_live_build_real
         OR NOT BPR_DESIGNATED_LIVE_MUTATION_APPROVAL
@@ -125,51 +157,161 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
     )
         message(
             FATAL_ERROR
-            "Designated live supervisor, inventory, producer build, and approval paths must already be resolved absolute paths"
+            "Designated live image, mount parent, producer build, and approval paths must already be resolved absolute paths"
+        )
+    endif()
+    cmake_path(
+        IS_PREFIX
+        bpr_designated_live_build_real
+        "${bpr_designated_live_image_real}"
+        NORMALIZE
+        bpr_designated_live_image_in_build
+    )
+    if(NOT bpr_designated_live_image_in_build)
+        message(
+            FATAL_ERROR
+            "Designated live image must be inside its exact producer build directory"
+        )
+    endif()
+    cmake_path(
+        IS_PREFIX
+        bpr_designated_live_build_real
+        "${bpr_designated_live_approval_real}"
+        NORMALIZE
+        bpr_designated_live_approval_in_build
+    )
+    cmake_path(
+        IS_PREFIX
+        bpr_designated_live_mount_parent_real
+        "${bpr_designated_live_approval_real}"
+        NORMALIZE
+        bpr_designated_live_approval_in_mount_parent
+    )
+    if(
+        bpr_designated_live_approval_in_build
+        OR bpr_designated_live_approval_in_mount_parent
+    )
+        message(
+            FATAL_ERROR
+            "Designated live approval must remain external to the producer and mount parent"
+        )
+    endif()
+
+    file(SHA256 "${bpr_designated_live_image_real}" bpr_designated_live_image_sha256)
+    if(
+        NOT bpr_designated_live_image_sha256
+            STREQUAL BPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256
+    )
+        message(
+            FATAL_ERROR
+            "Designated live image digest does not match its literal expected SHA-256"
         )
     endif()
 
     get_filename_component(
-        bpr_designated_live_supervisor_name
-        "${bpr_designated_live_supervisor_real}"
+        bpr_designated_live_image_parent
+        "${bpr_designated_live_image_real}"
+        DIRECTORY
+    )
+    get_filename_component(
+        bpr_designated_live_source_identity
+        "${bpr_designated_live_image_parent}"
         NAME
     )
-    string(TOLOWER
-        "${bpr_designated_live_supervisor_name}"
-        bpr_designated_live_supervisor_name_lower
+    set(
+        bpr_designated_live_source_manifest
+        "${bpr_designated_live_image_parent}/source-manifest.txt"
     )
     if(
-        NOT bpr_designated_live_supervisor_name_lower
-            STREQUAL "better_pull_review_designated_live_supervisor"
+        NOT EXISTS "${bpr_designated_live_source_manifest}"
+        OR IS_DIRECTORY "${bpr_designated_live_source_manifest}"
+        OR IS_SYMLINK "${bpr_designated_live_source_manifest}"
+    )
+        message(FATAL_ERROR "Designated live producer source-manifest.txt is unavailable")
+    endif()
+    file(
+        SHA256
+        "${bpr_designated_live_source_manifest}"
+        bpr_designated_live_source_manifest_sha256
+    )
+    if(
+        NOT bpr_designated_live_source_manifest_sha256
+            STREQUAL bpr_designated_live_source_identity
     )
         message(
             FATAL_ERROR
-            "Designated live command must be the signed-capsule BetterPullReview supervisor, never the regression runner, application, or a fixture"
+            "Designated live source manifest digest does not match the producer source identity"
         )
     endif()
-    cmake_path(
-        IS_PREFIX
-        bpr_designated_live_build_real
-        "${bpr_designated_live_supervisor_real}"
-        NORMALIZE
-        bpr_designated_live_supervisor_in_build
+
+    file(STRINGS "${bpr_designated_live_source_manifest}" bpr_designated_live_source_entries)
+    set(
+        bpr_designated_live_required_source_entries
+        src/app/CMakeLists.txt
+        cmake/BprDesignatedLiveStageZero.cmake
+        cmake/BprTestIsolation.cmake
+        scripts/designated_live_macos_capsule.py
     )
-    cmake_path(
-        IS_PREFIX
-        bpr_designated_live_build_real
-        "${bpr_designated_live_inventory_real}"
-        NORMALIZE
-        bpr_designated_live_inventory_in_build
-    )
-    if(
-        NOT bpr_designated_live_supervisor_in_build
-        OR NOT bpr_designated_live_inventory_in_build
-    )
-        message(
-            FATAL_ERROR
-            "Designated live supervisor and inventory must be inside their exact producer build directory"
+    set(bpr_designated_live_seen_source_entries "")
+    unset(bpr_designated_live_stage_zero_sha256)
+    foreach(bpr_designated_live_source_entry IN LISTS bpr_designated_live_source_entries)
+        if(NOT bpr_designated_live_source_entry MATCHES "^([^=]+)=([0-9a-f]+)$")
+            message(FATAL_ERROR "Designated live producer source manifest is malformed")
+        endif()
+        set(bpr_designated_live_source_relative "${CMAKE_MATCH_1}")
+        set(bpr_designated_live_source_sha256 "${CMAKE_MATCH_2}")
+        string(
+            LENGTH
+            "${bpr_designated_live_source_sha256}"
+            bpr_designated_live_source_sha256_length
         )
-    endif()
+        if(
+            NOT bpr_designated_live_source_sha256_length EQUAL 64
+            OR bpr_designated_live_source_relative MATCHES "(^|/)\\.\\.(/|$)"
+            OR IS_ABSOLUTE "${bpr_designated_live_source_relative}"
+            OR bpr_designated_live_source_relative IN_LIST bpr_designated_live_seen_source_entries
+        )
+            message(FATAL_ERROR "Designated live producer source manifest entry is unsafe")
+        endif()
+        list(
+            APPEND
+            bpr_designated_live_seen_source_entries
+            "${bpr_designated_live_source_relative}"
+        )
+        set(
+            bpr_designated_live_current_source
+            "${PROJECT_SOURCE_DIR}/${bpr_designated_live_source_relative}"
+        )
+        if(
+            NOT EXISTS "${bpr_designated_live_current_source}"
+            OR IS_DIRECTORY "${bpr_designated_live_current_source}"
+            OR IS_SYMLINK "${bpr_designated_live_current_source}"
+        )
+            message(FATAL_ERROR "Designated live current source entry is unavailable")
+        endif()
+        file(
+            SHA256
+            "${bpr_designated_live_current_source}"
+            bpr_designated_live_current_sha256
+        )
+        if(
+            NOT bpr_designated_live_current_sha256
+                STREQUAL bpr_designated_live_source_sha256
+        )
+            message(
+                FATAL_ERROR
+                "Designated live current source differs from producer entry: ${bpr_designated_live_source_relative}"
+            )
+        endif()
+        if(bpr_designated_live_source_relative STREQUAL "scripts/designated_live_macos_capsule.py")
+            set(bpr_designated_live_stage_zero_sha256 "${bpr_designated_live_source_sha256}")
+        endif()
+    endforeach()
+    foreach(required IN LISTS bpr_designated_live_required_source_entries)
+        if(NOT required IN_LIST bpr_designated_live_seen_source_entries)
+            message(FATAL_ERROR "Designated live producer source manifest lacks ${required}")
+        endif()
+    endforeach()
 
     file(
         REAL_PATH
@@ -186,6 +328,7 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
         IN ITEMS
             "BUILD_TESTING:BOOL=OFF"
             "BPR_BUILD_QT:BOOL=ON"
+            "BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE:BOOL=ON"
             "CMAKE_BUILD_TYPE:STRING=Release"
             "CMAKE_HOME_DIRECTORY:INTERNAL=${bpr_designated_live_source_real}"
     )
@@ -217,8 +360,15 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
     )
     file(
         TIMESTAMP
-        "${bpr_designated_live_supervisor_real}"
-        bpr_designated_live_supervisor_timestamp
+        "${bpr_designated_live_image_real}"
+        bpr_designated_live_image_timestamp
+        "%Y%m%d%H%M%S"
+        UTC
+    )
+    file(
+        TIMESTAMP
+        "${bpr_designated_live_source_manifest}"
+        bpr_designated_live_manifest_timestamp
         "%Y%m%d%H%M%S"
         UTC
     )
@@ -232,11 +382,13 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
         )
         if(
             bpr_designated_live_product_input_timestamp
-                STRGREATER bpr_designated_live_supervisor_timestamp
+                STRGREATER bpr_designated_live_image_timestamp
+            OR bpr_designated_live_product_input_timestamp
+                STRGREATER bpr_designated_live_manifest_timestamp
         )
             message(
                 FATAL_ERROR
-                "Designated live supervisor predates product source or build configuration: ${bpr_designated_live_product_input}"
+                "Designated live image or source manifest predates product source or build configuration: ${bpr_designated_live_product_input}"
             )
         endif()
     endforeach()
@@ -509,15 +661,20 @@ function(bpr_add_designated_live_mutation_test)
     if(NOT BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
         return()
     endif()
+    bpr_designated_live_stage_zero_command(
+        bpr_designated_live_attended_command
+        ATTENDED
+        SCRIPT "${PROJECT_SOURCE_DIR}/scripts/designated_live_macos_capsule.py"
+        SCRIPT_SHA256 "${bpr_designated_live_stage_zero_sha256}"
+        IMAGE "${BPR_DESIGNATED_LIVE_MUTATION_IMAGE}"
+        EXPECTED_IMAGE_SHA256 "${BPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256}"
+        MOUNT_PARENT "${BPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT}"
+        SOURCE_SHA256 "${bpr_designated_live_source_identity}"
+        APPROVAL "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
+    )
     add_test(
         NAME live_review_mutation_designated_target
-        COMMAND
-            "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
-            --attended-launch
-            --inventory
-            "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
-            --approval
-            "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
+        COMMAND ${bpr_designated_live_attended_command}
     )
     set_property(
         TEST live_review_mutation_designated_target

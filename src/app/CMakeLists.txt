@@ -129,6 +129,8 @@ if(BPR_BUILD_QT)
 		src/app/src/designated_live_macos_supervisor_identity.cpp
 		src/app/src/designated_live_macos_supervisor_launch.hpp
 		src/app/src/designated_live_macos_supervisor_launch.cpp
+		cmake/BprDesignatedLiveStageZero.cmake
+		cmake/BprTestIsolation.cmake
 		scripts/designated_live_macos_capsule.py
 	)
 	set(bpr_attended_review_source_manifest "")
@@ -316,6 +318,7 @@ if(BPR_BUILD_QT)
                 "The designated live macOS capsule requires the configured Python interpreter"
             )
         endif()
+        include("${PROJECT_SOURCE_DIR}/cmake/BprDesignatedLiveStageZero.cmake")
         find_library(BPR_DESIGNATED_LIVE_SECURITY_FRAMEWORK Security REQUIRED)
         find_library(
             BPR_DESIGNATED_LIVE_COREFOUNDATION_FRAMEWORK
@@ -380,16 +383,62 @@ if(BPR_BUILD_QT)
             bpr_designated_live_capsule_stamp
             "${bpr_designated_live_capsule_parent}/capsule.stamp"
         )
+        set(
+            bpr_designated_live_capsule_image
+            "${bpr_designated_live_capsule_parent}/capsule.dmg"
+        )
+        set(
+            bpr_designated_live_capsule_image_digest
+            "${bpr_designated_live_capsule_parent}/capsule.dmg.sha256"
+        )
+        set(
+            bpr_designated_live_source_manifest
+            "${bpr_designated_live_capsule_parent}/source-manifest.txt"
+        )
+        set(
+            bpr_designated_live_probe_mount_parent
+            "${bpr_designated_live_capsule_parent}/probe-mounts"
+        )
+        file(
+            GENERATE
+            OUTPUT "${bpr_designated_live_source_manifest}"
+            CONTENT "${bpr_attended_review_source_manifest}"
+        )
+        set(
+            bpr_designated_live_producer_loader_command
+            "$<TARGET_FILE:Python3::Interpreter>"
+            -I
+            -S
+            -c
+            "${BPR_DESIGNATED_LIVE_STAGE_ZERO_PRELOADER}"
+            "${PROJECT_SOURCE_DIR}/scripts/designated_live_macos_capsule.py"
+            "${BPR_DESIGNATED_LIVE_VERIFIER_SHA256}"
+        )
+        bpr_designated_live_stage_zero_command(
+            bpr_designated_live_probe_command
+            PROBE
+            SCRIPT "${PROJECT_SOURCE_DIR}/scripts/designated_live_macos_capsule.py"
+            SCRIPT_SHA256 "${BPR_DESIGNATED_LIVE_VERIFIER_SHA256}"
+            IMAGE "${bpr_designated_live_capsule_image}"
+            EXPECTED_IMAGE_SHA256_FILE "${bpr_designated_live_capsule_image_digest}"
+            MOUNT_PARENT "${bpr_designated_live_probe_mount_parent}"
+            SOURCE_SHA256 "${BPR_ATTENDED_REVIEW_SOURCE_SHA256}"
+        )
         add_custom_command(
             OUTPUT
                 "${bpr_designated_live_capsule_stamp}"
                 "${bpr_designated_live_capsule_inventory}"
+                "${bpr_designated_live_capsule_image}"
+                "${bpr_designated_live_capsule_image_digest}"
             COMMAND
                 "${CMAKE_COMMAND}" -E remove_directory
                 "${bpr_designated_live_capsule_root}"
             COMMAND
-                Python3::Interpreter
-                "${PROJECT_SOURCE_DIR}/scripts/designated_live_macos_capsule.py"
+                "${CMAKE_COMMAND}" -E rm -f
+                "${bpr_designated_live_capsule_image}"
+                "${bpr_designated_live_capsule_image_digest}"
+            COMMAND
+                ${bpr_designated_live_producer_loader_command}
                 build
                 --application "$<TARGET_BUNDLE_DIR:app_better_pull_review>"
                 --supervisor
@@ -401,9 +450,15 @@ if(BPR_BUILD_QT)
                 --source-sha256 "${BPR_ATTENDED_REVIEW_SOURCE_SHA256}"
                 --macdeployqt "${BPR_DESIGNATED_LIVE_MACDEPLOYQT}"
             COMMAND
-                "${bpr_designated_live_capsule_root}/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor"
-                --probe-launch
+                ${bpr_designated_live_producer_loader_command}
+                image
+                --capsule "${bpr_designated_live_capsule_root}"
                 --inventory "${bpr_designated_live_capsule_inventory}"
+                --output "${bpr_designated_live_capsule_image}"
+                --image-digest "${bpr_designated_live_capsule_image_digest}"
+                --source-sha256 "${BPR_ATTENDED_REVIEW_SOURCE_SHA256}"
+            COMMAND
+                ${bpr_designated_live_probe_command}
             COMMAND
                 "${CMAKE_COMMAND}" -E touch
                 "${bpr_designated_live_capsule_stamp}"
@@ -411,6 +466,9 @@ if(BPR_BUILD_QT)
                 app_better_pull_review
                 tool_better_pull_review_designated_live_supervisor
                 "${PROJECT_SOURCE_DIR}/scripts/designated_live_macos_capsule.py"
+                "${PROJECT_SOURCE_DIR}/cmake/BprDesignatedLiveStageZero.cmake"
+                "${PROJECT_SOURCE_DIR}/cmake/BprTestIsolation.cmake"
+                "${bpr_designated_live_source_manifest}"
             VERBATIM
         )
         add_custom_target(
@@ -418,6 +476,9 @@ if(BPR_BUILD_QT)
             DEPENDS
                 "${bpr_designated_live_capsule_stamp}"
                 "${bpr_designated_live_capsule_inventory}"
+                "${bpr_designated_live_capsule_image}"
+                "${bpr_designated_live_capsule_image_digest}"
+                "${bpr_designated_live_source_manifest}"
         )
         set_property(
             TARGET designated_live_macos_capsule
@@ -428,6 +489,21 @@ if(BPR_BUILD_QT)
             TARGET designated_live_macos_capsule
             PROPERTY BPR_DESIGNATED_LIVE_CAPSULE_INVENTORY
                 "${bpr_designated_live_capsule_inventory}"
+        )
+        set_property(
+            TARGET designated_live_macos_capsule
+            PROPERTY BPR_DESIGNATED_LIVE_CAPSULE_IMAGE
+                "${bpr_designated_live_capsule_image}"
+        )
+        set_property(
+            TARGET designated_live_macos_capsule
+            PROPERTY BPR_DESIGNATED_LIVE_CAPSULE_IMAGE_DIGEST
+                "${bpr_designated_live_capsule_image_digest}"
+        )
+        set_property(
+            TARGET designated_live_macos_capsule
+            PROPERTY BPR_DESIGNATED_LIVE_SOURCE_MANIFEST
+                "${bpr_designated_live_source_manifest}"
         )
     endif()
 else()

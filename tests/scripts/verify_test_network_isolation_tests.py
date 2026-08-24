@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import pathlib
 import os
 import shutil
 import subprocess
 import sys
+import time
 import unittest
 
 
@@ -21,29 +23,22 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     LIVE_CREDENTIAL_VARIABLES,
     LIVE_TEST_LABEL,
     LIVE_TEST_NAME,
+    LiveImageIdentity,
     PRE_BOUNDARY_INJECTION_VARIABLES,
     RAW_REGISTRATION_OWNER,
+    STAGE_ZERO_PRELOADER,
+    STAGE_ZERO_PRELOADER_SOURCE,
     WINDOWS_UNCONTAINED_LABEL,
     WINDOWS_UNCONTAINED_TESTS,
     configured_failures,
     environment_injection_failures,
-    live_supervisor_failures,
+    live_image_failures,
+    live_stage_zero_command,
     manifest_command,
     registration_inventory,
     uncontained_registration_count,
 )
 from scripts.run_network_isolated_test import write_profile  # noqa: E402
-
-
-# The verifier refuses a live supervisor that is not an executable regular
-# file, which it asks with os.access(X_OK). Windows has no execute permission
-# for that call to read: it ignores X_OK and answers as it would for R_OK, so
-# chmod(0o600) leaves the file just as executable as before and the refusal
-# cannot fire. That is a real gap, but it belongs to the Windows designated
-# live lane, which BPR-0235 records as deliberately unimplemented. Asserting
-# the refusal only where the permission exists keeps this suite honest instead
-# of asserting a property the platform cannot express.
-EXECUTE_PERMISSION_IS_EXPRESSIBLE = os.name != "nt"
 
 
 def write(root: pathlib.Path, relative: str, text: str) -> None:
@@ -75,14 +70,14 @@ def live_scrub_property() -> dict[str, object]:
 
 
 def live_command() -> list[str]:
-    return [
-        "/build/better_pull_review_designated_live_supervisor",
-        "--attended-launch",
-        "--inventory",
-        "/build/capsule.inventory",
-        "--approval",
-        "/approval",
-    ]
+    return live_stage_zero_command(
+        pathlib.Path("/source"),
+        pathlib.Path("/build/capsule.dmg"),
+        "a" * 64,
+        pathlib.Path("/private/mounts"),
+        pathlib.Path("/private/approval"),
+        LiveImageIdentity("b" * 64, "c" * 64),
+    )
 
 
 def protected_commands() -> dict[str, list[str]]:
@@ -590,54 +585,75 @@ class ConfiguredManifestTests(unittest.TestCase):
         self.assertEqual(len(failures), 2)
 
 
-class LiveSupervisorIdentityTests(unittest.TestCase):
+class LiveImageIdentityTests(unittest.TestCase):
     def make_fixture(
         self, root: pathlib.Path
-    ) -> tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
-        source = root / "src" / "app" / "main.cpp"
-        source.parent.mkdir(parents=True)
-        source.write_text("int main() {}\n", encoding="utf-8")
+    ) -> tuple[pathlib.Path, str, pathlib.Path, pathlib.Path, pathlib.Path]:
+        sources = {
+            "src/app/CMakeLists.txt": "set(app safe)\n",
+            "cmake/BprDesignatedLiveStageZero.cmake": "set(loader safe)\n",
+            "cmake/BprTestIsolation.cmake": "set(isolation safe)\n",
+            "scripts/designated_live_macos_capsule.py": "print('safe stage zero')\n",
+        }
+        manifest = ""
+        for relative, contents in sources.items():
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(contents, encoding="utf-8")
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            manifest += f"{relative}={digest}\n"
+        source_digest = hashlib.sha256(manifest.encode("utf-8")).hexdigest()
         build = root / "build" / "release"
-        supervisor = (
-            build
-            / "designated-live"
-            / "source"
-            / "capsule"
-            / "BetterPullReview.app"
-            / "Contents"
-            / "Helpers"
-            / "better_pull_review_designated_live_supervisor"
-        )
-        supervisor.parent.mkdir(parents=True)
-        supervisor.write_bytes(b"signed-supervisor")
-        supervisor.chmod(0o700)
-        inventory = build / "designated-live" / "source" / "capsule.inventory"
-        inventory.write_text("schema_name=bpr.designated_live_macos_capsule\n", encoding="utf-8")
+        image_parent = build / "designated-live" / source_digest
+        image_parent.mkdir(parents=True)
+        image = image_parent / "capsule.dmg"
+        image.write_bytes(b"read-only-image")
+        image.chmod(0o600)
+        image_sha256 = hashlib.sha256(image.read_bytes()).hexdigest()
+        source_manifest = image_parent / "source-manifest.txt"
+        source_manifest.write_text(manifest, encoding="utf-8", newline="\n")
+        source_manifest.chmod(0o600)
+        mount_parent = root / "private-mounts"
+        mount_parent.mkdir(mode=0o700)
+        approval_parent = root / "private-approval"
+        approval_parent.mkdir(mode=0o700)
+        approval = approval_parent / "approval"
+        approval.write_text("not a real approval\n", encoding="utf-8")
+        approval.chmod(0o600)
         (build / "CMakeCache.txt").write_text(
             "BUILD_TESTING:BOOL=OFF\n"
             "BPR_BUILD_QT:BOOL=ON\n"
+            "BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE:BOOL=ON\n"
             "CMAKE_BUILD_TYPE:STRING=Release\n"
             f"CMAKE_HOME_DIRECTORY:INTERNAL={root.resolve()}\n",
             encoding="utf-8",
         )
-        source_time = source.stat().st_mtime_ns
-        os.utime(supervisor, ns=(source_time + 1, source_time + 1))
-        os.utime(inventory, ns=(source_time + 1, source_time + 1))
-        return supervisor.resolve(), inventory.resolve(), build.resolve()
+        source_time = max((root / relative).stat().st_mtime_ns for relative in sources)
+        for artifact in (image, source_manifest):
+            os.utime(artifact, ns=(source_time + 1_000_000, source_time + 1_000_000))
+        return (
+            image.resolve(),
+            image_sha256,
+            mount_parent.resolve(),
+            build.resolve(),
+            approval.resolve(),
+        )
 
-    def test_exact_fresh_tests_disabled_supervisor_passes(self) -> None:
+    def test_exact_fresh_tests_disabled_image_passes(self) -> None:
         with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
-            supervisor, inventory, build = self.make_fixture(root)
+            image, digest, mounts, build, approval = self.make_fixture(root)
             self.assertEqual(
-                live_supervisor_failures(supervisor, inventory, build, root),
+                live_image_failures(
+                    image, digest, mounts, build, root, approval
+                ),
                 [],
             )
 
-    def test_fixture_alternate_stale_and_tests_enabled_supervisors_fail(self) -> None:
+    def test_digest_stale_and_tests_enabled_images_fail(self) -> None:
         with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
-            supervisor, inventory, build = self.make_fixture(root)
+            image, digest, mounts, build, approval = self.make_fixture(root)
             cache = build / "CMakeCache.txt"
             cache.write_text(
                 cache.read_text(encoding="utf-8").replace(
@@ -645,38 +661,34 @@ class LiveSupervisorIdentityTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            supervisor.chmod(0o600)
-            os.utime(supervisor, ns=(1, 1))
-            failures = live_supervisor_failures(supervisor, inventory, build, root)
-            if EXECUTE_PERMISSION_IS_EXPRESSIBLE:
-                self.assertTrue(
-                    any("executable regular file" in value for value in failures)
-                )
+            os.utime(image, ns=(1, 1))
+            failures = live_image_failures(
+                image, "0" * 64, mounts, build, root, approval
+            )
+            self.assertTrue(any("image digest" in value for value in failures))
             self.assertTrue(any("BUILD_TESTING:BOOL" in value for value in failures))
             self.assertTrue(any("predates" in value for value in failures))
 
-            alternate = root / "fixture-supervisor"
-            alternate.write_bytes(b"fixture")
-            alternate.chmod(0o700)
-            failures = live_supervisor_failures(alternate, inventory, build, root)
-            self.assertTrue(any("signed-capsule BetterPullReview" in value for value in failures))
+            alternate = root / "fixture-image.dmg"
+            alternate.write_bytes(image.read_bytes())
+            alternate.chmod(0o600)
+            failures = live_image_failures(
+                alternate.resolve(), digest, mounts, build, root, approval
+            )
             self.assertTrue(any("outside" in value for value in failures))
 
-    def test_regression_runner_cannot_be_selected_as_the_live_supervisor(self) -> None:
+    def test_source_manifest_and_launcher_drift_fail(self) -> None:
         with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
-            supervisor, inventory, build = self.make_fixture(root)
-            runner = build / "tool_better_pull_review_designated_live_mutation_runner"
-            runner.write_bytes(supervisor.read_bytes())
-            runner.chmod(0o700)
-            os.utime(runner, ns=(supervisor.stat().st_mtime_ns,) * 2)
-
-            failures = live_supervisor_failures(runner.resolve(), inventory, build, root)
-            self.assertTrue(
-                any("signed-capsule BetterPullReview" in value for value in failures)
+            image, digest, mounts, build, approval = self.make_fixture(root)
+            launcher = root / "scripts/designated_live_macos_capsule.py"
+            launcher.write_text("print('substitute')\n", encoding="utf-8")
+            failures = live_image_failures(
+                image, digest, mounts, build, root, approval
             )
+            self.assertTrue(any("current source differs" in value for value in failures))
 
-    def test_registration_rejects_runner_and_tests_enabled_producer_directly(
+    def test_registration_rejects_plain_supervisor_selection_directly(
         self,
     ) -> None:
         cmake = shutil.which("cmake") or "cmake"
@@ -688,59 +700,193 @@ class LiveSupervisorIdentityTests(unittest.TestCase):
 
         with contained_temporary_directory() as directory:
             root = pathlib.Path(directory).resolve()
-            approval = root / "approval"
-            approval.write_text("not an approval\n", encoding="utf-8")
-            producer = root / "producer"
-            producer.mkdir()
-
-            def configure(supervisor_name: str, build_testing: str) -> subprocess.CompletedProcess[str]:
-                supervisor = producer / supervisor_name
-                supervisor.write_bytes(b"candidate")
-                supervisor.chmod(0o700)
-                inventory = producer / "capsule.inventory"
-                inventory.write_text("candidate\n", encoding="utf-8")
-                (producer / "CMakeCache.txt").write_text(
-                    f"BUILD_TESTING:BOOL={build_testing}\n"
-                    "BPR_BUILD_QT:BOOL=ON\n"
-                    "CMAKE_BUILD_TYPE:STRING=Release\n"
-                    f"CMAKE_HOME_DIRECTORY:INTERNAL={root}\n",
-                    encoding="utf-8",
-                )
-                return subprocess.run(
-                    [
-                        cmake,
-                        "-DBPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST=ON",
-                        "-DBPR_BUILD_QT=ON",
-                        f"-DBPR_DESIGNATED_LIVE_MUTATION_APPROVAL={approval}",
-                        f"-DBPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR={supervisor}",
-                        f"-DBPR_DESIGNATED_LIVE_MUTATION_INVENTORY={inventory}",
-                        f"-DBPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR={producer}",
-                        f"-DPROJECT_SOURCE_DIR={root}",
-                        "-P",
-                        str(module),
-                    ],
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-
-            runner = configure(
-                "tool_better_pull_review_designated_live_mutation_runner",
-                "OFF",
+            preloader = pathlib.Path(__file__).resolve().parents[2] / "cmake" / "BprDesignatedLiveStageZero.cmake"
+            copied = root / "cmake" / preloader.name
+            copied.parent.mkdir(parents=True)
+            shutil.copy2(preloader, copied)
+            result = subprocess.run(
+                [
+                    cmake,
+                    "-DBPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST=ON",
+                    "-DBPR_BUILD_QT=ON",
+                    "-DBPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR=/plain/supervisor",
+                    "-DBPR_DESIGNATED_LIVE_MUTATION_INVENTORY=/plain/inventory",
+                    f"-DPROJECT_SOURCE_DIR={root}",
+                    "-P",
+                    str(module),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
-            self.assertNotEqual(runner.returncode, 0)
+            self.assertNotEqual(result.returncode, 0)
             self.assertIn(
-                "never the regression runner, application, or a fixture",
-                runner.stdout + runner.stderr,
+                "plain supervisor/inventory selection is removed",
+                result.stdout + result.stderr,
             )
 
-            tests_enabled = configure("better_pull_review_designated_live_supervisor", "ON")
-            self.assertNotEqual(tests_enabled.returncode, 0)
-            self.assertIn(
-                "BUILD_TESTING:BOOL=OFF",
-                tests_enabled.stdout + tests_enabled.stderr,
+
+@unittest.skipUnless(
+    pathlib.Path("/usr/bin/python3").is_file(),
+    "the protected stage-zero loader has a fixed macOS interpreter",
+)
+class ProtectedStageZeroLoaderTests(unittest.TestCase):
+    def protected_command(
+        self,
+        launcher: pathlib.Path,
+        expected: str,
+        *arguments: pathlib.Path,
+    ) -> list[str]:
+        return [
+            "/usr/bin/python3",
+            "-I",
+            "-S",
+            "-c",
+            STAGE_ZERO_PRELOADER,
+            str(launcher),
+            expected,
+            *(str(argument) for argument in arguments),
+        ]
+
+    def test_verifier_and_cmake_use_identical_literal_preloader(self) -> None:
+        module = (
+            pathlib.Path(__file__).resolve().parents[2]
+            / "cmake"
+            / "BprDesignatedLiveStageZero.cmake"
+        )
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory)
+            output = root / "literal"
+            harness = root / "preloader.cmake"
+            harness.write_text(
+                f'include("{module}")\n'
+                'file(WRITE "${OUTPUT}" '
+                '"${BPR_DESIGNATED_LIVE_STAGE_ZERO_PRELOADER}")\n',
+                encoding="utf-8",
             )
+            result = subprocess.run(
+                [
+                    shutil.which("cmake") or "cmake",
+                    f"-DOUTPUT={output}",
+                    "-P",
+                    str(harness),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(output.read_text(encoding="utf-8"), STAGE_ZERO_PRELOADER)
+
+    def test_launcher_replacement_is_refused_before_any_effect(self) -> None:
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory)
+            launcher = root / "stage-zero.py"
+            marker = root / "effect"
+            source_a = b"import pathlib, sys\npathlib.Path(sys.argv[1]).write_text('A')\n"
+            source_b = b"import pathlib, sys\npathlib.Path(sys.argv[1]).write_text('B')\n"
+            launcher.write_bytes(source_a)
+            expected = hashlib.sha256(source_a).hexdigest()
+            replacement = root / "replacement.py"
+            replacement.write_bytes(source_b)
+            replacement.replace(launcher)
+
+            result = subprocess.run(
+                self.protected_command(launcher, expected, marker),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("launcher digest mismatch", result.stderr)
+            self.assertFalse(marker.exists())
+
+    def test_symlink_substitution_is_refused_before_any_effect(self) -> None:
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory)
+            target = root / "target.py"
+            marker = root / "effect"
+            source = b"import pathlib, sys\npathlib.Path(sys.argv[1]).write_text('ran')\n"
+            target.write_bytes(source)
+            launcher = root / "stage-zero.py"
+            launcher.symlink_to(target)
+
+            result = subprocess.run(
+                self.protected_command(
+                    launcher,
+                    hashlib.sha256(source).hexdigest(),
+                    marker,
+                ),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(marker.exists())
+
+    def test_same_inode_mutation_after_capture_executes_captured_bytes(self) -> None:
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory)
+            launcher = root / "stage-zero.py"
+            ready = root / "ready"
+            release = root / "release"
+            outcome = root / "outcome"
+            source_a = (
+                b"import pathlib, sys\n"
+                b"pathlib.Path(sys.argv[3]).write_text('A')\n"
+            )
+            source_b = (
+                b"import pathlib, sys\n"
+                b"pathlib.Path(sys.argv[3]).write_text('B')\n"
+            )
+            launcher.write_bytes(source_a)
+            exec_anchor = "sys.argv = [path, *sys.argv[3:]]"
+            self.assertEqual(STAGE_ZERO_PRELOADER_SOURCE.count(exec_anchor), 1)
+            synchronized_source = STAGE_ZERO_PRELOADER_SOURCE.replace(
+                exec_anchor,
+                "import time\n"
+                "with open(sys.argv[3], 'w', encoding='utf-8') as signal:\n"
+                "    signal.write('ready')\n"
+                "while not os.path.exists(sys.argv[4]):\n"
+                "    time.sleep(0.01)\n"
+                + exec_anchor,
+                1,
+            )
+            synchronized_preloader = f"exec({synchronized_source!r})"
+            command = self.protected_command(
+                launcher,
+                hashlib.sha256(source_a).hexdigest(),
+                ready,
+                release,
+                outcome,
+            )
+            command[4] = synchronized_preloader
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            for _ in range(100):
+                if ready.exists():
+                    break
+                if process.poll() is not None:
+                    break
+                time.sleep(0.01)
+            self.assertTrue(ready.exists())
+            # The derived exact preloader is paused after its identity/hash
+            # checks and before argv setup/compile-exec. write_bytes truncates
+            # and rewrites the same inode; release then proves it executes the
+            # bytes already captured instead of reopening the path.
+            launcher.write_bytes(source_b)
+            release.write_text("continue", encoding="utf-8")
+            stdout, stderr = process.communicate(timeout=30)
+            self.assertEqual(process.returncode, 0, stdout + stderr)
+            self.assertEqual(outcome.read_text(encoding="utf-8"), "A")
 
 
 class ConfiguredManifestAndProfileTests(unittest.TestCase):

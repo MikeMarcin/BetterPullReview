@@ -631,10 +631,12 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
     list(
         APPEND
         bpr_network_isolation_verifier_command
-        --live-supervisor
-        "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
-        --live-inventory
-        "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
+        --live-image
+        "${BPR_DESIGNATED_LIVE_MUTATION_IMAGE}"
+        --live-image-sha256
+        "${BPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256}"
+        --live-mount-parent
+        "${BPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT}"
         --live-build-dir
         "${BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR}"
         --live-approval

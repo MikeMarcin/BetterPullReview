@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import pathlib
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -185,6 +187,69 @@ LIVE_CREDENTIAL_VARIABLES = (
     "GH_ENTERPRISE_TOKEN",
     "GITHUB_ENTERPRISE_TOKEN",
 )
+
+STAGE_ZERO_PRELOADER_SOURCE = """import hashlib
+import os
+import stat
+import sys
+
+path = sys.argv[1]
+expected = sys.argv[2]
+descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+try:
+    before = os.fstat(descriptor)
+    if not stat.S_ISREG(before.st_mode) or before.st_size <= 0 or before.st_size > 1048576:
+        raise SystemExit("designated-live-stage-zero: launcher is not a bounded regular file")
+    source = bytearray()
+    while len(source) <= 1048576:
+        block = os.read(descriptor, min(65536, 1048577 - len(source)))
+        if not block:
+            break
+        source.extend(block)
+    after = os.fstat(descriptor)
+finally:
+    os.close(descriptor)
+
+identity = lambda value: (
+    value.st_dev,
+    value.st_ino,
+    value.st_mode,
+    value.st_uid,
+    value.st_gid,
+    value.st_size,
+    value.st_mtime_ns,
+    value.st_ctime_ns,
+)
+captured = bytes(source)
+if identity(before) != identity(after) or len(captured) != before.st_size:
+    raise SystemExit("designated-live-stage-zero: launcher changed while captured")
+if hashlib.sha256(captured).hexdigest() != expected:
+    raise SystemExit("designated-live-stage-zero: launcher digest mismatch")
+sys.argv = [path, *sys.argv[3:]]
+scope = {"__name__": "__main__", "__file__": path}
+exec(compile(captured, path, "exec"), scope, scope)
+"""
+STAGE_ZERO_PRELOADER = f"exec({STAGE_ZERO_PRELOADER_SOURCE!r})"
+LIVE_SOURCE_REQUIRED = {
+    "src/app/CMakeLists.txt",
+    "cmake/BprDesignatedLiveStageZero.cmake",
+    "cmake/BprTestIsolation.cmake",
+    "scripts/designated_live_macos_capsule.py",
+}
+
+
+@dataclass(frozen=True)
+class LiveImageIdentity:
+    source_sha256: str
+    stage_zero_sha256: str
+
+
+def sha256_path(path: pathlib.Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        while block := source.read(1024 * 1024):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def cmake_sources(root: pathlib.Path) -> list[pathlib.Path]:
@@ -506,47 +571,86 @@ def configured_failures(
     return failures
 
 
-def live_supervisor_failures(
-    supervisor: pathlib.Path,
-    inventory: pathlib.Path,
+def inspect_live_image(
+    image: pathlib.Path,
+    expected_sha256: str,
+    mount_parent: pathlib.Path,
     build_dir: pathlib.Path,
     root: pathlib.Path,
-) -> list[str]:
-    """Validate the explicit tests-disabled signed-capsule supervisor identity."""
+    approval: pathlib.Path,
+) -> tuple[LiveImageIdentity | None, list[str]]:
+    """Validate the tests-disabled producer and exact read-only image inputs."""
     failures: list[str] = []
-    if not supervisor.is_absolute() or not inventory.is_absolute() or not build_dir.is_absolute():
-        return ["live supervisor, inventory, and producer build directory must be absolute"]
-    try:
-        resolved_supervisor = supervisor.resolve(strict=True)
-        resolved_inventory = inventory.resolve(strict=True)
-        resolved_build = build_dir.resolve(strict=True)
-    except OSError as error:
-        return [f"live supervisor, inventory, or producer build is unavailable: {error}"]
-    if supervisor != resolved_supervisor or inventory != resolved_inventory:
-        failures.append("live supervisor and inventory paths must be resolved and immutable")
-    if not resolved_supervisor.is_file() or not os.access(resolved_supervisor, os.X_OK):
-        failures.append("live supervisor is not an executable regular file")
-    if resolved_supervisor.name != "better_pull_review_designated_live_supervisor":
-        failures.append("live command is not the signed-capsule BetterPullReview supervisor")
-    if not resolved_inventory.is_file():
-        failures.append("live capsule inventory is not a regular file")
-    for artifact, label in (
-        (resolved_supervisor, "supervisor"),
-        (resolved_inventory, "inventory"),
+    if not all(
+        path.is_absolute()
+        for path in (image, mount_parent, build_dir, approval)
     ):
+        return None, [
+            "live image, mount parent, producer build, and approval must be absolute"
+        ]
+    if len(expected_sha256) != 64 or any(
+        character not in "0123456789abcdef" for character in expected_sha256
+    ):
+        return None, ["live image SHA-256 is not a literal canonical digest"]
+    try:
+        resolved_image = image.resolve(strict=True)
+        resolved_mount_parent = mount_parent.resolve(strict=True)
+        resolved_build = build_dir.resolve(strict=True)
+        resolved_approval = approval.resolve(strict=True)
+    except OSError as error:
+        return None, [f"live image producer input is unavailable: {error}"]
+    if (
+        image != resolved_image
+        or mount_parent != resolved_mount_parent
+        or build_dir != resolved_build
+        or approval != resolved_approval
+    ):
+        failures.append("live image producer paths must be resolved and immutable")
+    if image.is_symlink() or not resolved_image.is_file():
+        failures.append("live image is not a non-symlink regular file")
+    if mount_parent.is_symlink() or not resolved_mount_parent.is_dir():
+        failures.append("live mount parent is not a non-symlink directory")
+    else:
+        mount_status = resolved_mount_parent.stat()
+        if mount_status.st_uid != os.geteuid() or mount_status.st_mode & 0o077:
+            failures.append("live mount parent is not owner-private")
+    if approval.is_symlink() or not resolved_approval.is_file():
+        failures.append("live approval is not a non-symlink regular file")
+    else:
+        approval_status = resolved_approval.stat()
+        parent_status = resolved_approval.parent.stat()
+        if (
+            approval_status.st_uid != os.geteuid()
+            or approval_status.st_mode & 0o077
+            or parent_status.st_uid != os.geteuid()
+            or parent_status.st_mode & 0o077
+        ):
+            failures.append("live approval is not external and owner-private")
+    try:
+        resolved_image.relative_to(resolved_build)
+    except ValueError:
+        failures.append("live image is outside its explicit producer build directory")
+    for private_scope in (resolved_build, resolved_mount_parent):
         try:
-            artifact.relative_to(resolved_build)
+            resolved_approval.relative_to(private_scope)
         except ValueError:
-            failures.append(f"live {label} is outside its explicit producer build directory")
+            continue
+        failures.append("live approval is not external to producer and mount paths")
+
+    if resolved_image.is_file():
+        observed_image_sha256 = sha256_path(resolved_image)
+        if observed_image_sha256 != expected_sha256:
+            failures.append("live image digest differs from its literal expected SHA-256")
 
     cache = resolved_build / "CMakeCache.txt"
     if not cache.is_file():
         failures.append("live producer build has no CMakeCache.txt")
-        return failures
+        return None, failures
     text = cache.read_text(encoding="utf-8", errors="strict")
     required_cache = {
         "BUILD_TESTING:BOOL": "OFF",
         "BPR_BUILD_QT:BOOL": "ON",
+        "BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE:BOOL": "ON",
         "CMAKE_BUILD_TYPE:STRING": "Release",
         "CMAKE_HOME_DIRECTORY:INTERNAL": str(root.resolve()),
     }
@@ -557,6 +661,52 @@ def live_supervisor_failures(
                 f"live producer cache {key} is "
                 f"{None if match is None else match.group(1)!r}, expected {expected!r}"
             )
+
+    source_manifest = resolved_image.parent / "source-manifest.txt"
+    source_sha256: str | None = None
+    stage_zero_sha256: str | None = None
+    if source_manifest.is_symlink() or not source_manifest.is_file():
+        failures.append("live producer source-manifest.txt is unavailable")
+    else:
+        source_bytes = source_manifest.read_bytes()
+        source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+        if source_sha256 != resolved_image.parent.name:
+            failures.append(
+                "live producer source manifest digest differs from source identity"
+            )
+        seen: set[str] = set()
+        try:
+            lines = source_bytes.decode("utf-8").splitlines()
+        except UnicodeDecodeError:
+            lines = []
+            failures.append("live producer source manifest is not UTF-8")
+        for line in lines:
+            match = re.fullmatch(r"([^=]+)=([0-9a-f]{64})", line)
+            if match is None:
+                failures.append("live producer source manifest entry is malformed")
+                continue
+            relative, digest = match.groups()
+            pure = pathlib.PurePosixPath(relative)
+            if (
+                pure.is_absolute()
+                or ".." in pure.parts
+                or relative in seen
+                or pure.as_posix() != relative
+            ):
+                failures.append("live producer source manifest entry is unsafe")
+                continue
+            seen.add(relative)
+            current = root / relative
+            if current.is_symlink() or not current.is_file():
+                failures.append(f"live current source entry is unavailable: {relative}")
+                continue
+            current_digest = sha256_path(current)
+            if current_digest != digest:
+                failures.append(f"live current source differs from producer: {relative}")
+            if relative == "scripts/designated_live_macos_capsule.py":
+                stage_zero_sha256 = digest
+        for required in sorted(LIVE_SOURCE_REQUIRED - seen):
+            failures.append(f"live producer source manifest lacks {required}")
 
     source_candidates = [
         path
@@ -573,13 +723,67 @@ def live_supervisor_failures(
     if not source_candidates:
         failures.append("live freshness inventory found no product source")
     elif min(
-        resolved_supervisor.stat().st_mtime_ns,
-        resolved_inventory.stat().st_mtime_ns,
+        resolved_image.stat().st_mtime_ns,
+        source_manifest.stat().st_mtime_ns if source_manifest.is_file() else 0,
     ) < max(
         path.stat().st_mtime_ns for path in source_candidates
     ):
-        failures.append("live supervisor or inventory predates product source or build configuration")
-    return failures
+        failures.append("live image or source manifest predates product source or build configuration")
+    identity = (
+        LiveImageIdentity(source_sha256, stage_zero_sha256)
+        if source_sha256 is not None and stage_zero_sha256 is not None
+        else None
+    )
+    return identity, failures
+
+
+def live_image_failures(
+    image: pathlib.Path,
+    expected_sha256: str,
+    mount_parent: pathlib.Path,
+    build_dir: pathlib.Path,
+    root: pathlib.Path,
+    approval: pathlib.Path,
+) -> list[str]:
+    return inspect_live_image(
+        image,
+        expected_sha256,
+        mount_parent,
+        build_dir,
+        root,
+        approval,
+    )[1]
+
+
+def live_stage_zero_command(
+    root: pathlib.Path,
+    image: pathlib.Path,
+    expected_sha256: str,
+    mount_parent: pathlib.Path,
+    approval: pathlib.Path,
+    identity: LiveImageIdentity,
+) -> list[str]:
+    return [
+        "/usr/bin/python3",
+        "-I",
+        "-S",
+        "-c",
+        STAGE_ZERO_PRELOADER,
+        str((root / "scripts/designated_live_macos_capsule.py").absolute()),
+        identity.stage_zero_sha256,
+        "stage-zero",
+        "--image",
+        str(image.absolute()),
+        "--expected-image-sha256",
+        expected_sha256,
+        "--mount-parent",
+        str(mount_parent.absolute()),
+        "--source-sha256",
+        identity.source_sha256,
+        "--attended-launch",
+        "--approval",
+        str(approval.absolute()),
+    ]
 
 
 def main() -> int:
@@ -598,8 +802,9 @@ def main() -> int:
     parser.add_argument("--macos-runner", type=pathlib.Path)
     parser.add_argument("--linux-launcher", type=pathlib.Path)
     parser.add_argument("--windows-launcher", type=pathlib.Path)
-    parser.add_argument("--live-supervisor", type=pathlib.Path)
-    parser.add_argument("--live-inventory", type=pathlib.Path)
+    parser.add_argument("--live-image", type=pathlib.Path)
+    parser.add_argument("--live-image-sha256")
+    parser.add_argument("--live-mount-parent", type=pathlib.Path)
     parser.add_argument("--live-build-dir", type=pathlib.Path)
     parser.add_argument("--live-approval", type=pathlib.Path)
     arguments = parser.parse_args()
@@ -658,8 +863,9 @@ def main() -> int:
         prefix = []
     if prefix:
         live_arguments = (
-            arguments.live_supervisor,
-            arguments.live_inventory,
+            arguments.live_image,
+            arguments.live_image_sha256,
+            arguments.live_mount_parent,
             arguments.live_build_dir,
             arguments.live_approval,
         )
@@ -667,25 +873,30 @@ def main() -> int:
             value is not None for value in live_arguments
         ):
             failures.append(
-                "live supervisor, inventory, producer build, and approval arguments must be supplied together"
+                "live image, literal digest, mount parent, producer build, and approval arguments must be supplied together"
             )
             live_command = None
         elif all(value is not None for value in live_arguments):
-            live_command = [
-                str(arguments.live_supervisor.absolute()),
-                "--attended-launch",
-                "--inventory",
-                str(arguments.live_inventory.absolute()),
-                "--approval",
-                str(arguments.live_approval.absolute()),
-            ]
-            failures.extend(
-                live_supervisor_failures(
-                    arguments.live_supervisor,
-                    arguments.live_inventory,
-                    arguments.live_build_dir,
+            identity, live_failures = inspect_live_image(
+                arguments.live_image,
+                arguments.live_image_sha256,
+                arguments.live_mount_parent,
+                arguments.live_build_dir,
+                arguments.root,
+                arguments.live_approval,
+            )
+            failures.extend(live_failures)
+            live_command = (
+                live_stage_zero_command(
                     arguments.root,
+                    arguments.live_image,
+                    arguments.live_image_sha256,
+                    arguments.live_mount_parent,
+                    arguments.live_approval,
+                    identity,
                 )
+                if identity is not None
+                else None
             )
         else:
             live_command = None
