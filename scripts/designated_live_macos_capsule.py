@@ -9,12 +9,15 @@ import hashlib
 import os
 import pathlib
 import shutil
+import signal
 import socket
 import stat
 import subprocess
 import tempfile
 import sys
+import time
 from dataclasses import dataclass
+from typing import Iterator
 
 
 SCHEMA = "bpr.designated_live_macos_capsule"
@@ -56,10 +59,84 @@ ALLOWED_PLUGIN_FILES = {
 }
 MAXIMUM_INVENTORY_BYTES = 16 * 1024 * 1024
 MAXIMUM_IMAGE_BYTES = 16 * 1024 * 1024 * 1024
+STAGE_ONE_TIMEOUT_SECONDS = 1500.0
+STAGE_ONE_TERM_GRACE_SECONDS = 10.0
+STAGE_ONE_KILL_GRACE_SECONDS = 10.0
+STAGE_ZERO_SIGNALS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
 
 
 class CapsuleFailure(RuntimeError):
     """One fail-closed capsule contract violation."""
+
+
+class StageZeroInterrupted(CapsuleFailure):
+    """A handled termination request that must unwind through cleanup."""
+
+    def __init__(self, signum: int) -> None:
+        super().__init__(f"stage zero interrupted by signal {signum}")
+        self.signum = signum
+
+
+class StageZeroSignalScope:
+    """Raises one termination request and ignores signals during cleanup."""
+
+    def __init__(self) -> None:
+        self.previous: dict[int, signal.Handlers] = {}
+        self.deferred = 0
+        self.pending: int | None = None
+        self.cleaning = False
+        self.interrupted = False
+
+    def install(self) -> None:
+        for signum in STAGE_ZERO_SIGNALS:
+            self.previous[signum] = signal.getsignal(signum)
+            signal.signal(signum, self.handle)
+
+    def restore(self) -> None:
+        for signum, handler in self.previous.items():
+            signal.signal(signum, handler)
+
+    def ignore(self) -> None:
+        for signum in STAGE_ZERO_SIGNALS:
+            signal.signal(signum, signal.SIG_IGN)
+
+    def handle(self, signum: int, _frame: object) -> None:
+        if self.cleaning or self.interrupted or self.pending is not None:
+            return
+        if self.deferred:
+            self.pending = signum
+            return
+        self.interrupted = True
+        self.ignore()
+        raise StageZeroInterrupted(signum)
+
+    @contextlib.contextmanager
+    def defer_interrupts(self) -> Iterator[None]:
+        self.deferred += 1
+        try:
+            yield
+        finally:
+            self.deferred -= 1
+            if not self.deferred and self.pending is not None:
+                signum = self.pending
+                self.pending = None
+                self.interrupted = True
+                self.ignore()
+                raise StageZeroInterrupted(signum)
+
+    def begin_cleanup(self) -> None:
+        self.cleaning = True
+        self.ignore()
+
+
+@contextlib.contextmanager
+def scoped_stage_zero_signals() -> Iterator[StageZeroSignalScope]:
+    scope = StageZeroSignalScope()
+    scope.install()
+    try:
+        yield scope
+    finally:
+        scope.restore()
 
 
 @dataclass(frozen=True)
@@ -1154,10 +1231,59 @@ def expected_image_digest(arguments: argparse.Namespace) -> str:
     return expected
 
 
+def process_group_exists(process_group: int) -> bool:
+    try:
+        os.killpg(process_group, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def wait_for_process_group_exit(process_group: int, deadline: float) -> bool:
+    while process_group_exists(process_group):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.05, remaining))
+    return True
+
+
+def signal_process_group(process_group: int, requested: signal.Signals) -> None:
+    try:
+        os.killpg(process_group, requested)
+    except ProcessLookupError:
+        return
+
+
+def terminate_process_group(process: subprocess.Popen[bytes]) -> None:
+    """Terminates and reaps the complete stage-one process group."""
+    process_group = process.pid
+    term_deadline = time.monotonic() + STAGE_ONE_TERM_GRACE_SECONDS
+    signal_process_group(process_group, signal.SIGTERM)
+    try:
+        process.wait(timeout=max(0.0, term_deadline - time.monotonic()))
+    except subprocess.TimeoutExpired:
+        pass
+    if wait_for_process_group_exit(process_group, term_deadline):
+        return
+
+    kill_deadline = time.monotonic() + STAGE_ONE_KILL_GRACE_SECONDS
+    signal_process_group(process_group, signal.SIGKILL)
+    try:
+        process.wait(timeout=max(0.0, kill_deadline - time.monotonic()))
+    except subprocess.TimeoutExpired as error:
+        raise CapsuleFailure("stage-one process leader could not be reaped") from error
+    if not wait_for_process_group_exit(process_group, kill_deadline):
+        raise CapsuleFailure("stage-one process group survived SIGKILL")
+
+
 def run_stage_one(
     helper: pathlib.Path,
     inventory: pathlib.Path,
     approval: pathlib.Path | None,
+    signals: StageZeroSignalScope | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     arguments = [str(helper)]
     if approval is None:
@@ -1172,10 +1298,40 @@ def run_stage_one(
                 str(approval),
             ]
         )
-    return subprocess.run(arguments, check=False)
+    process: subprocess.Popen[bytes] | None = None
+    spawn_scope = (
+        signals.defer_interrupts()
+        if signals is not None
+        else contextlib.nullcontext()
+    )
+    try:
+        with spawn_scope:
+            process = subprocess.Popen(arguments, start_new_session=True)
+        try:
+            returncode = process.wait(timeout=STAGE_ONE_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired as error:
+            if signals is not None:
+                signals.begin_cleanup()
+            terminate_process_group(process)
+            raise CapsuleFailure("mounted supervisor exceeded its 1500-second deadline") from error
+        if process_group_exists(process.pid):
+            if signals is not None:
+                signals.begin_cleanup()
+            terminate_process_group(process)
+            raise CapsuleFailure("mounted supervisor left a live process group")
+        return subprocess.CompletedProcess(arguments, returncode)
+    except BaseException:
+        if process is not None and process_group_exists(process.pid):
+            if signals is not None:
+                signals.begin_cleanup()
+            terminate_process_group(process)
+        raise
 
 
-def stage_zero(arguments: argparse.Namespace) -> None:
+def run_stage_zero(
+    arguments: argparse.Namespace,
+    signals: StageZeroSignalScope,
+) -> None:
     """Runs the complete supervisor/application lane from one read-only image."""
     retained_image = retain_image(arguments.image)
     try:
@@ -1190,8 +1346,9 @@ def stage_zero(arguments: argparse.Namespace) -> None:
         attached = False
         mounted: RuntimeIdentity | None = None
         try:
-            attach_read_only(retained_image.path, root, arguments.hdiutil)
-            attached = True
+            with signals.defer_interrupts():
+                attach_read_only(retained_image.path, root, arguments.hdiutil)
+                attached = True
             retained_image = rebaseline_attached_image(retained_image)
             require_read_only_mount(root)
             mounted = capture_runtime_identity(root)
@@ -1208,15 +1365,32 @@ def stage_zero(arguments: argparse.Namespace) -> None:
             revalidate_image(retained_image)
             revalidate_runtime_identity(root, mounted, arguments.source_sha256)
             helper = root / IMAGE_CAPSULE_RELATIVE / HELPER_RELATIVE
-            print(f"designated-live-macos-capsule:mounted:{root}")
-            launched = run_stage_one(helper, inventory, approval)
-            revalidate_image(retained_image)
-            revalidate_runtime_identity(root, mounted, arguments.source_sha256)
+            print(f"designated-live-macos-capsule:mounted:{root}", flush=True)
+            interrupted_during_postcheck: StageZeroInterrupted | None = None
+            try:
+                launched = run_stage_one(helper, inventory, approval, signals)
+            finally:
+                # Recheck every exit path, retrying if the handled termination
+                # request arrived during this final identity observation.
+                while True:
+                    try:
+                        revalidate_image(retained_image)
+                        revalidate_runtime_identity(
+                            root,
+                            mounted,
+                            arguments.source_sha256,
+                        )
+                        break
+                    except StageZeroInterrupted as error:
+                        interrupted_during_postcheck = error
+            if interrupted_during_postcheck is not None:
+                raise interrupted_during_postcheck
             if launched.returncode != 0:
                 raise CapsuleFailure(
                     f"mounted supervisor exited with status {launched.returncode}"
                 )
         finally:
+            signals.begin_cleanup()
             if mounted is not None:
                 close_runtime_identity(mounted)
             if attached:
@@ -1226,6 +1400,12 @@ def stage_zero(arguments: argparse.Namespace) -> None:
                 root.rmdir()
     finally:
         os.close(retained_image.descriptor)
+
+
+def stage_zero(arguments: argparse.Namespace) -> None:
+    """Runs the complete supervisor/application lane from one read-only image."""
+    with scoped_stage_zero_signals() as signals:
+        run_stage_zero(arguments, signals)
 
 
 def verify(arguments: argparse.Namespace) -> None:

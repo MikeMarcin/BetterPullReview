@@ -726,6 +726,141 @@ class LiveImageIdentityTests(unittest.TestCase):
                 result.stdout + result.stderr,
             )
 
+    def test_manifest_swap_after_capture_cannot_authenticate_substitute(self) -> None:
+        cmake = shutil.which("cmake") or "cmake"
+        repository = pathlib.Path(__file__).resolve().parents[2]
+        module_source = (repository / "cmake" / "BprTestIsolation.cmake").read_text(
+            encoding="utf-8"
+        )
+        capture = """\
+    file(
+        READ
+        "${bpr_designated_live_source_manifest}"
+        bpr_designated_live_source_manifest_bytes
+        LIMIT 1048577
+    )
+"""
+        self.assertEqual(module_source.count(capture), 1)
+
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory).resolve()
+            ready = root / "barrier-ready"
+            release = root / "barrier-release"
+            barrier = root / "barrier.py"
+            barrier.write_text(
+                "import pathlib, sys, time\n"
+                "pathlib.Path(sys.argv[1]).write_text('ready')\n"
+                "while not pathlib.Path(sys.argv[2]).exists():\n"
+                "    time.sleep(0.01)\n",
+                encoding="utf-8",
+            )
+            barrier_call = (
+                capture
+                + "    execute_process(\n"
+                + f'        COMMAND "{sys.executable}" "{barrier}" "{ready}" "{release}"\n'
+                + "        COMMAND_ERROR_IS_FATAL ANY\n"
+                + "    )\n"
+            )
+            guarded_module = module_source.replace(capture, barrier_call, 1)
+
+            source_a = "print('captured A')\n"
+            source_b = "print('substitute B')\n"
+            sources = {
+                "src/app/CMakeLists.txt": "set(app safe)\n",
+                "cmake/BprDesignatedLiveStageZero.cmake": (
+                    repository / "cmake" / "BprDesignatedLiveStageZero.cmake"
+                ).read_text(encoding="utf-8"),
+                "cmake/BprTestIsolation.cmake": guarded_module,
+                "scripts/designated_live_macos_capsule.py": source_a,
+            }
+            manifest_a = ""
+            for relative, contents in sources.items():
+                write(root, relative, contents)
+                digest = hashlib.sha256(contents.encode("utf-8")).hexdigest()
+                manifest_a += f"{relative}={digest}\n"
+            manifest_b = manifest_a.replace(
+                hashlib.sha256(source_a.encode("utf-8")).hexdigest(),
+                hashlib.sha256(source_b.encode("utf-8")).hexdigest(),
+                1,
+            )
+            write(root, "CMakeLists.txt", "cmake_minimum_required(VERSION 3.25)\n")
+            write(root, "CMakePresets.json", "{}\n")
+            write(root, "cmake/sandbox/macos-network-deny.sb", "(version 1)\n")
+            write(root, "scripts/run_network_isolated_test.py", "# fixture\n")
+
+            source_identity = hashlib.sha256(manifest_a.encode("ascii")).hexdigest()
+            build = root / "build" / "release"
+            artifact_root = build / "designated-live" / source_identity
+            artifact_root.mkdir(parents=True)
+            image = artifact_root / "capsule.dmg"
+            image.write_bytes(b"captured image")
+            image.chmod(0o600)
+            manifest = artifact_root / "source-manifest.txt"
+            manifest.write_text(manifest_a, encoding="ascii", newline="\n")
+            manifest.chmod(0o600)
+            replacement_manifest = root / "replacement-manifest"
+            replacement_manifest.write_text(manifest_b, encoding="ascii", newline="\n")
+            replacement_source = root / "replacement-stage-zero"
+            replacement_source.write_text(source_b, encoding="utf-8")
+            mount_parent = root / "mounts"
+            mount_parent.mkdir(mode=0o700)
+            (build / "CMakeCache.txt").write_text(
+                "BUILD_TESTING:BOOL=OFF\n"
+                "BPR_BUILD_QT:BOOL=ON\n"
+                "BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE:BOOL=ON\n"
+                "CMAKE_BUILD_TYPE:STRING=Release\n"
+                f"CMAKE_HOME_DIRECTORY:INTERNAL={root}\n",
+                encoding="utf-8",
+            )
+            newest_source = max(
+                path.stat().st_mtime_ns
+                for path in (root / "src", root / "cmake")
+                for path in path.rglob("*")
+                if path.is_file()
+            )
+            for artifact in (image, manifest):
+                os.utime(
+                    artifact,
+                    ns=(newest_source + 1_000_000, newest_source + 1_000_000),
+                )
+
+            command = [
+                cmake,
+                "-DAPPLE=TRUE",
+                "-DBPR_BUILD_QT=ON",
+                "-DBPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST=ON",
+                f"-DBPR_DESIGNATED_LIVE_MUTATION_IMAGE={image}",
+                "-DBPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256="
+                + hashlib.sha256(image.read_bytes()).hexdigest(),
+                f"-DBPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT={mount_parent}",
+                f"-DBPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR={build}",
+                "-DBPR_DESIGNATED_LIVE_MUTATION_APPROVAL=/dev/null",
+                f"-DPROJECT_SOURCE_DIR={root}",
+                "-P",
+                str(root / "cmake" / "BprTestIsolation.cmake"),
+            ]
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            for _ in range(300):
+                if ready.exists() or process.poll() is not None:
+                    break
+                time.sleep(0.01)
+            self.assertTrue(ready.exists())
+            replacement_manifest.replace(manifest)
+            replacement_source.replace(
+                root / "scripts" / "designated_live_macos_capsule.py"
+            )
+            release.write_text("continue", encoding="utf-8")
+            stdout, stderr = process.communicate(timeout=30)
+            self.assertNotEqual(process.returncode, 0)
+            output = stdout + stderr
+            self.assertIn("current source differs from producer entry", output)
+            self.assertIn("scripts/designated_live_macos_capsule.py", output)
+
 
 @unittest.skipUnless(
     pathlib.Path("/usr/bin/python3").is_file(),

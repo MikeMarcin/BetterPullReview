@@ -4065,6 +4065,10 @@ auto finish_background_reap(
 
         for required_stage_zero_fragment in (
             "retained_image = retain_image(arguments.image)",
+            "with signals.defer_interrupts():\n"
+            "                attach_read_only("
+            "retained_image.path, root, arguments.hdiutil)\n"
+            "                attached = True",
             "attach_read_only(retained_image.path, root, arguments.hdiutil)",
             "retained_image = rebaseline_attached_image(retained_image)",
             '"-readonly"',
@@ -4077,7 +4081,34 @@ auto finish_background_reap(
             "filesystem_identity(os.fstat(expected.capsule_descriptor))",
             "inventory = root / IMAGE_INVENTORY_RELATIVE",
             "helper = root / IMAGE_CAPSULE_RELATIVE / HELPER_RELATIVE",
-            "launched = run_stage_one(helper, inventory, approval)",
+            "launched = run_stage_one(helper, inventory, approval, signals)",
+            "STAGE_ONE_TIMEOUT_SECONDS = 1500.0",
+            "STAGE_ONE_TERM_GRACE_SECONDS = 10.0",
+            "STAGE_ONE_KILL_GRACE_SECONDS = 10.0",
+            "STAGE_ZERO_SIGNALS = "
+            "(signal.SIGTERM, signal.SIGINT, signal.SIGHUP)",
+            "signal.signal(signum, self.handle)",
+            "signal.signal(signum, signal.SIG_IGN)",
+            "subprocess.Popen(arguments, start_new_session=True)",
+            "process.wait(timeout=STAGE_ONE_TIMEOUT_SECONDS)",
+            "signals.defer_interrupts()\n"
+            "        if signals is not None\n"
+            "        else contextlib.nullcontext()",
+            "signal_process_group(process_group, signal.SIGTERM)",
+            "process.wait(timeout=max(0.0, term_deadline - time.monotonic()))",
+            "wait_for_process_group_exit(process_group, term_deadline)",
+            "signal_process_group(process_group, signal.SIGKILL)",
+            "process.wait(timeout=max(0.0, kill_deadline - time.monotonic()))",
+            "wait_for_process_group_exit(process_group, kill_deadline)",
+            "except BaseException:\n"
+            "        if process is not None and "
+            "process_group_exists(process.pid):",
+            "with scoped_stage_zero_signals() as signals:",
+            "scope.install()",
+            "scope.restore()",
+            "finally:\n"
+            "            signals.begin_cleanup()\n"
+            "            if mounted is not None:",
             "close_runtime_identity(mounted)",
             "require_underlying_mount_root(root, underlying)",
         ):
@@ -4126,11 +4157,14 @@ auto finish_background_reap(
             "",
             1,
         ).replace(
-            "            launched = run_stage_one(helper, inventory, approval)\n",
+            "            launched = run_stage_one("
+            "helper, inventory, approval, signals)\n",
             "            detach_without_force(root, arguments.hdiutil)\n"
-            "            launched = run_stage_one(helper, inventory, approval)\n",
+            "            launched = run_stage_one("
+            "helper, inventory, approval, signals)\n",
             1,
         )
+        self.assertNotEqual(detach_before_wait, DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT)
         self.assert_failure(
             "only then detach",
             {
@@ -4141,7 +4175,11 @@ auto finish_background_reap(
         )
 
         post_runtime = (
-            "revalidate_runtime_identity(root, mounted, arguments.source_sha256)"
+            "revalidate_runtime_identity(\n"
+            "                            root,\n"
+            "                            mounted,\n"
+            "                            arguments.source_sha256,\n"
+            "                        )"
         )
         before_last, separator, after_last = (
             DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT.rpartition(post_runtime)
@@ -4175,6 +4213,26 @@ auto finish_background_reap(
             github_target=target,
         )
 
+        for forbidden_stage_one_fragment in (
+            "subprocess.run(arguments",
+            "signal.pthread_sigmask",
+        ):
+            with self.subTest(
+                forbidden_stage_one_fragment=forbidden_stage_one_fragment
+            ):
+                self.assert_failure(
+                    "must own a bounded, signal-safe process group",
+                    {
+                        **sources,
+                        "scripts/designated_live_macos_capsule.py":
+                            DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT
+                            + "\n# hostile stage-one path: "
+                            + forbidden_stage_one_fragment
+                            + "\n",
+                    },
+                    github_target=target,
+                )
+
         for required_preloader_fragment in (
             '"/usr/bin/python3"',
             "os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW",
@@ -4197,6 +4255,67 @@ auto finish_background_reap(
                     {
                         **sources,
                         "cmake/BprDesignatedLiveStageZero.cmake": hostile,
+                    },
+                    github_target=target,
+                )
+
+        compact_test_isolation = " ".join(
+            DESIGNATED_LIVE_TEST_ISOLATION.split()
+        )
+        required_manifest_capture_fragments = (
+            'file( READ "${bpr_designated_live_source_manifest}" '
+            "bpr_designated_live_source_manifest_bytes LIMIT 1048577 )",
+            "string( SHA256 bpr_designated_live_source_manifest_sha256 "
+            '"${bpr_designated_live_source_manifest_bytes}" )',
+            'string( SUBSTRING "${bpr_designated_live_source_manifest_bytes}" '
+            '"${bpr_designated_live_source_manifest_last}" 1 '
+            "bpr_designated_live_source_manifest_terminator )",
+            'string( SUBSTRING "${bpr_designated_live_source_manifest_bytes}" '
+            '0 "${bpr_designated_live_source_manifest_last}" '
+            "bpr_designated_live_source_manifest_body )",
+            'string( REPLACE "\\n" ";" bpr_designated_live_source_entries '
+            '"${bpr_designated_live_source_manifest_body}" )',
+        )
+        for required_manifest_capture_fragment in (
+            required_manifest_capture_fragments
+        ):
+            with self.subTest(
+                required_manifest_capture_fragment=
+                    required_manifest_capture_fragment
+            ):
+                self.assertIn(
+                    required_manifest_capture_fragment,
+                    compact_test_isolation,
+                )
+                hostile = compact_test_isolation.replace(
+                    required_manifest_capture_fragment,
+                    "disabled_manifest_capture_fragment",
+                    1,
+                )
+                self.assert_failure(
+                    "must hash and parse one bounded capture",
+                    {
+                        **sources,
+                        "cmake/BprTestIsolation.cmake": hostile,
+                    },
+                    github_target=target,
+                )
+
+        for forbidden_manifest_reopen in (
+            'file( SHA256 "${bpr_designated_live_source_manifest}"',
+            'file( STRINGS "${bpr_designated_live_source_manifest}"',
+            'file( TIMESTAMP "${bpr_designated_live_source_manifest}"',
+        ):
+            with self.subTest(forbidden_manifest_reopen=forbidden_manifest_reopen):
+                self.assert_failure(
+                    "must not be reopened after capture",
+                    {
+                        **sources,
+                        "cmake/BprTestIsolation.cmake":
+                            DESIGNATED_LIVE_TEST_ISOLATION
+                            + "\n"
+                            + forbidden_manifest_reopen
+                            + " hostile)\n",
                     },
                     github_target=target,
                 )

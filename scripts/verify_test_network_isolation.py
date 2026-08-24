@@ -236,6 +236,7 @@ LIVE_SOURCE_REQUIRED = {
     "cmake/BprTestIsolation.cmake",
     "scripts/designated_live_macos_capsule.py",
 }
+MAXIMUM_LIVE_SOURCE_MANIFEST_BYTES = 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -668,7 +669,18 @@ def inspect_live_image(
     if source_manifest.is_symlink() or not source_manifest.is_file():
         failures.append("live producer source-manifest.txt is unavailable")
     else:
-        source_bytes = source_manifest.read_bytes()
+        with source_manifest.open("rb") as source:
+            source_bytes = source.read(MAXIMUM_LIVE_SOURCE_MANIFEST_BYTES + 1)
+        if (
+            not source_bytes
+            or len(source_bytes) > MAXIMUM_LIVE_SOURCE_MANIFEST_BYTES
+            or not source_bytes.endswith(b"\n")
+            or b"\r" in source_bytes
+            or b"\n\n" in source_bytes
+        ):
+            failures.append(
+                "live producer source manifest framing is not bounded canonical ASCII/LF"
+            )
         source_sha256 = hashlib.sha256(source_bytes).hexdigest()
         if source_sha256 != resolved_image.parent.name:
             failures.append(
@@ -676,12 +688,12 @@ def inspect_live_image(
             )
         seen: set[str] = set()
         try:
-            lines = source_bytes.decode("utf-8").splitlines()
+            lines = source_bytes.removesuffix(b"\n").decode("ascii").split("\n")
         except UnicodeDecodeError:
             lines = []
-            failures.append("live producer source manifest is not UTF-8")
+            failures.append("live producer source manifest is not ASCII")
         for line in lines:
-            match = re.fullmatch(r"([^=]+)=([0-9a-f]{64})", line)
+            match = re.fullmatch(r"([A-Za-z0-9_./+-]+)=([0-9a-f]{64})", line)
             if match is None:
                 failures.append("live producer source manifest entry is malformed")
                 continue
@@ -722,13 +734,10 @@ def inspect_live_image(
     )
     if not source_candidates:
         failures.append("live freshness inventory found no product source")
-    elif min(
-        resolved_image.stat().st_mtime_ns,
-        source_manifest.stat().st_mtime_ns if source_manifest.is_file() else 0,
-    ) < max(
+    elif resolved_image.stat().st_mtime_ns < max(
         path.stat().st_mtime_ns for path in source_candidates
     ):
-        failures.append("live image or source manifest predates product source or build configuration")
+        failures.append("live image predates product source or build configuration")
     identity = (
         LiveImageIdentity(source_sha256, stage_zero_sha256)
         if source_sha256 is not None and stage_zero_sha256 is not None

@@ -230,9 +230,29 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
         message(FATAL_ERROR "Designated live producer source-manifest.txt is unavailable")
     endif()
     file(
-        SHA256
+        READ
         "${bpr_designated_live_source_manifest}"
+        bpr_designated_live_source_manifest_bytes
+        LIMIT 1048577
+    )
+    string(
+        LENGTH
+        "${bpr_designated_live_source_manifest_bytes}"
+        bpr_designated_live_source_manifest_length
+    )
+    if(
+        bpr_designated_live_source_manifest_length EQUAL 0
+        OR bpr_designated_live_source_manifest_length GREATER 1048576
+    )
+        message(
+            FATAL_ERROR
+            "Designated live producer source manifest is outside its bounded size"
+        )
+    endif()
+    string(
+        SHA256
         bpr_designated_live_source_manifest_sha256
+        "${bpr_designated_live_source_manifest_bytes}"
     )
     if(
         NOT bpr_designated_live_source_manifest_sha256
@@ -244,7 +264,43 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
         )
     endif()
 
-    file(STRINGS "${bpr_designated_live_source_manifest}" bpr_designated_live_source_entries)
+    math(
+        EXPR
+        bpr_designated_live_source_manifest_last
+        "${bpr_designated_live_source_manifest_length} - 1"
+    )
+    string(
+        SUBSTRING
+        "${bpr_designated_live_source_manifest_bytes}"
+        "${bpr_designated_live_source_manifest_last}"
+        1
+        bpr_designated_live_source_manifest_terminator
+    )
+    if(
+        NOT bpr_designated_live_source_manifest_terminator STREQUAL "\n"
+        OR bpr_designated_live_source_manifest_bytes MATCHES "\r"
+        OR bpr_designated_live_source_manifest_bytes MATCHES ";"
+        OR bpr_designated_live_source_manifest_bytes MATCHES "(^|\n)\n"
+    )
+        message(
+            FATAL_ERROR
+            "Designated live producer source manifest framing is not canonical ASCII/LF"
+        )
+    endif()
+    string(
+        SUBSTRING
+        "${bpr_designated_live_source_manifest_bytes}"
+        0
+        "${bpr_designated_live_source_manifest_last}"
+        bpr_designated_live_source_manifest_body
+    )
+    string(
+        REPLACE
+        "\n"
+        ";"
+        bpr_designated_live_source_entries
+        "${bpr_designated_live_source_manifest_body}"
+    )
     set(
         bpr_designated_live_required_source_entries
         src/app/CMakeLists.txt
@@ -255,7 +311,10 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
     set(bpr_designated_live_seen_source_entries "")
     unset(bpr_designated_live_stage_zero_sha256)
     foreach(bpr_designated_live_source_entry IN LISTS bpr_designated_live_source_entries)
-        if(NOT bpr_designated_live_source_entry MATCHES "^([^=]+)=([0-9a-f]+)$")
+        if(
+            NOT bpr_designated_live_source_entry
+                MATCHES "^([A-Za-z0-9_./+-]+)=([0-9a-f]+)$"
+        )
             message(FATAL_ERROR "Designated live producer source manifest is malformed")
         endif()
         set(bpr_designated_live_source_relative "${CMAKE_MATCH_1}")
@@ -268,6 +327,8 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
         if(
             NOT bpr_designated_live_source_sha256_length EQUAL 64
             OR bpr_designated_live_source_relative MATCHES "(^|/)\\.\\.(/|$)"
+            OR bpr_designated_live_source_relative MATCHES "(^|/)[.](/|$)"
+            OR bpr_designated_live_source_relative MATCHES "//|/$"
             OR IS_ABSOLUTE "${bpr_designated_live_source_relative}"
             OR bpr_designated_live_source_relative IN_LIST bpr_designated_live_seen_source_entries
         )
@@ -365,13 +426,6 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
         "%Y%m%d%H%M%S"
         UTC
     )
-    file(
-        TIMESTAMP
-        "${bpr_designated_live_source_manifest}"
-        bpr_designated_live_manifest_timestamp
-        "%Y%m%d%H%M%S"
-        UTC
-    )
     foreach(bpr_designated_live_product_input IN LISTS bpr_designated_live_product_inputs)
         file(
             TIMESTAMP
@@ -383,12 +437,10 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
         if(
             bpr_designated_live_product_input_timestamp
                 STRGREATER bpr_designated_live_image_timestamp
-            OR bpr_designated_live_product_input_timestamp
-                STRGREATER bpr_designated_live_manifest_timestamp
         )
             message(
                 FATAL_ERROR
-                "Designated live image or source manifest predates product source or build configuration: ${bpr_designated_live_product_input}"
+                "Designated live image predates product source or build configuration: ${bpr_designated_live_product_input}"
             )
         endif()
     endforeach()

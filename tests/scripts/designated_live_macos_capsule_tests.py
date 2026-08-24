@@ -8,6 +8,8 @@ from pathlib import Path
 import importlib.util
 import os
 import pathlib
+import select
+import signal
 import socket
 import stat
 import subprocess
@@ -407,6 +409,41 @@ class CapsuleImageTests(unittest.TestCase):
                 defaults[name] = value.resolve(strict=False)
         return argparse.Namespace(**defaults)
 
+    def assert_process_gone(self, process_id: int) -> None:
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            try:
+                os.kill(process_id, 0)
+            except ProcessLookupError:
+                return
+            time.sleep(0.05)
+        self.fail(f"process {process_id} remained alive")
+
+    def blocking_helper(
+        self,
+        root: pathlib.Path,
+        *,
+        ignore_term: bool,
+    ) -> tuple[pathlib.Path, pathlib.Path]:
+        process_id = root / "process-id"
+        helper = root / "helper.py"
+        handler = (
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+            if ignore_term
+            else ""
+        )
+        helper.write_text(
+            "#!/usr/bin/python3\n"
+            "import os, pathlib, signal, time\n"
+            + handler
+            + f"pathlib.Path({str(process_id)!r}).write_text(str(os.getpid()))\n"
+            + "while True:\n"
+            + "    time.sleep(1)\n",
+            encoding="utf-8",
+        )
+        helper.chmod(0o700)
+        return helper, process_id
+
     def test_attach_asks_for_a_read_only_unbrowsable_mount(self) -> None:
         recorded: list[list[str]] = []
 
@@ -441,6 +478,50 @@ class CapsuleImageTests(unittest.TestCase):
                 )
         self.assertEqual(len(recorded), 1)
         self.assertNotIn("-force", recorded[0])
+
+    def test_stage_one_timeout_terminates_cooperative_process_group(self) -> None:
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory)
+            helper, process_id = self.blocking_helper(root, ignore_term=False)
+            delivered: list[signal.Signals] = []
+            original = capsule.signal_process_group
+
+            def record(process_group: int, requested: signal.Signals) -> None:
+                delivered.append(requested)
+                original(process_group, requested)
+
+            with (
+                mock.patch.object(capsule, "STAGE_ONE_TIMEOUT_SECONDS", 1.0),
+                mock.patch.object(capsule, "STAGE_ONE_TERM_GRACE_SECONDS", 1.0),
+                mock.patch.object(capsule, "STAGE_ONE_KILL_GRACE_SECONDS", 1.0),
+                mock.patch.object(capsule, "signal_process_group", side_effect=record),
+            ):
+                with self.assertRaisesRegex(capsule.CapsuleFailure, "deadline"):
+                    capsule.run_stage_one(helper, root / "inventory", None)
+            self.assertEqual(delivered, [signal.SIGTERM])
+            self.assert_process_gone(int(process_id.read_text(encoding="utf-8")))
+
+    def test_stage_one_timeout_kills_term_ignoring_process_group(self) -> None:
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory)
+            helper, process_id = self.blocking_helper(root, ignore_term=True)
+            delivered: list[signal.Signals] = []
+            original = capsule.signal_process_group
+
+            def record(process_group: int, requested: signal.Signals) -> None:
+                delivered.append(requested)
+                original(process_group, requested)
+
+            with (
+                mock.patch.object(capsule, "STAGE_ONE_TIMEOUT_SECONDS", 1.0),
+                mock.patch.object(capsule, "STAGE_ONE_TERM_GRACE_SECONDS", 0.2),
+                mock.patch.object(capsule, "STAGE_ONE_KILL_GRACE_SECONDS", 1.0),
+                mock.patch.object(capsule, "signal_process_group", side_effect=record),
+            ):
+                with self.assertRaisesRegex(capsule.CapsuleFailure, "deadline"):
+                    capsule.run_stage_one(helper, root / "inventory", None)
+            self.assertEqual(delivered, [signal.SIGTERM, signal.SIGKILL])
+            self.assert_process_gone(int(process_id.read_text(encoding="utf-8")))
 
     def test_a_writable_mount_is_refused_and_leaves_nothing_behind(self) -> None:
         with contained_temporary_directory() as directory:
@@ -591,6 +672,47 @@ class CapsuleImageTests(unittest.TestCase):
                 ],
             )
 
+    def test_sigterm_during_attach_unwinds_through_ordinary_detach(self) -> None:
+        with contained_temporary_directory() as directory:
+            parent = pathlib.Path(directory)
+            image = parent / "capsule.dmg"
+            image.write_bytes(b"exact image")
+            image.chmod(0o600)
+            detached = mock.Mock()
+            previous_handlers = tuple(
+                signal.getsignal(signum) for signum in capsule.STAGE_ZERO_SIGNALS
+            )
+
+            def interrupt_attach(*_arguments: object) -> None:
+                os.kill(os.getpid(), signal.SIGTERM)
+
+            with (
+                mock.patch.object(
+                    capsule,
+                    "attach_read_only",
+                    side_effect=interrupt_attach,
+                ),
+                mock.patch.object(capsule, "detach_without_force", detached),
+                mock.patch.object(capsule, "require_underlying_mount_root"),
+            ):
+                with self.assertRaises(capsule.StageZeroInterrupted):
+                    capsule.stage_zero(
+                        self.image_arguments(
+                            image=image,
+                            expected_image_sha256=capsule.image_sha256(image),
+                            mount_parent=parent / "mounts",
+                        )
+                    )
+
+            detached.assert_called_once()
+            self.assertEqual(
+                tuple(
+                    signal.getsignal(signum)
+                    for signum in capsule.STAGE_ZERO_SIGNALS
+                ),
+                previous_handlers,
+            )
+
     def test_supervisor_failure_is_revalidated_before_cleanup(self) -> None:
         with contained_temporary_directory() as directory:
             parent = pathlib.Path(directory)
@@ -628,6 +750,57 @@ class CapsuleImageTests(unittest.TestCase):
                 mock.patch.object(capsule, "require_underlying_mount_root"),
             ):
                 with self.assertRaisesRegex(capsule.CapsuleFailure, "status 17"):
+                    capsule.stage_zero(
+                        self.image_arguments(
+                            image=image,
+                            expected_image_sha256=capsule.image_sha256(image),
+                            mount_parent=parent / "mounts",
+                        )
+                    )
+            self.assertEqual(
+                events,
+                [
+                    "image",
+                    "runtime",
+                    "wait-child",
+                    "image",
+                    "runtime",
+                    "close-runtime",
+                    "detach",
+                ],
+            )
+
+    def test_stage_one_exception_is_revalidated_before_cleanup(self) -> None:
+        with contained_temporary_directory() as directory:
+            parent = pathlib.Path(directory)
+            image = parent / "capsule.dmg"
+            image.write_bytes(b"exact image")
+            image.chmod(0o600)
+            events: list[str] = []
+            mounted = capsule.RuntimeIdentity(
+                mount=capsule.FilesystemIdentity(51, 52, stat.S_IFDIR | 0o555, os.geteuid(), os.getegid(), 0, 0, 0),
+                capsule=capsule.FilesystemIdentity(51, 53, stat.S_IFDIR | 0o700, os.geteuid(), os.getegid(), 0, 0, 0),
+                files=(),
+            )
+
+            def interrupted(*_arguments: object) -> None:
+                events.append("wait-child")
+                raise capsule.CapsuleFailure("stage one interrupted")
+
+            with (
+                mock.patch.object(capsule, "attach_read_only"),
+                mock.patch.object(capsule, "require_read_only_mount"),
+                mock.patch.object(capsule, "capture_runtime_identity", return_value=mounted),
+                mock.patch.object(capsule, "verify_inventory", return_value=SOURCE_DIGEST),
+                mock.patch.object(capsule, "approval_path", return_value=None),
+                mock.patch.object(capsule, "revalidate_image", side_effect=lambda *args: events.append("image")),
+                mock.patch.object(capsule, "revalidate_runtime_identity", side_effect=lambda *args: events.append("runtime")),
+                mock.patch.object(capsule, "run_stage_one", side_effect=interrupted),
+                mock.patch.object(capsule, "close_runtime_identity", side_effect=lambda *args: events.append("close-runtime")),
+                mock.patch.object(capsule, "detach_without_force", side_effect=lambda *args: events.append("detach")),
+                mock.patch.object(capsule, "require_underlying_mount_root"),
+            ):
+                with self.assertRaisesRegex(capsule.CapsuleFailure, "interrupted"):
                     capsule.stage_zero(
                         self.image_arguments(
                             image=image,
@@ -813,6 +986,7 @@ class CapsuleImageTests(unittest.TestCase):
                 helper: pathlib.Path,
                 mounted_inventory: pathlib.Path,
                 approval: pathlib.Path | None,
+                _signals: capsule.StageZeroSignalScope,
             ) -> subprocess.CompletedProcess[bytes]:
                 launched.append((helper, mounted_inventory, approval))
                 early_detach = subprocess.run(
@@ -860,6 +1034,111 @@ class CapsuleImageTests(unittest.TestCase):
                 text=True,
             )
             self.assertNotIn(str(image), listing.stdout)
+
+    @unittest.skipUnless(
+        pathlib.Path("/usr/bin/hdiutil").exists(), "hdiutil is macOS-only"
+    )
+    def test_sigterm_reaps_blocked_child_group_and_detaches_real_image(
+        self,
+    ) -> None:
+        with contained_temporary_directory() as directory:
+            parent = pathlib.Path(directory)
+            root, inventory = make_capsule(parent)
+            helper_ready = parent / "helper-ready"
+            helper_pid = parent / "helper-pid"
+            descendant_ready = parent / "descendant-ready"
+            descendant_pid = parent / "descendant-pid"
+            descendant_source = (
+                "import os, pathlib, signal, time\n"
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                f"pathlib.Path({str(descendant_pid)!r}).write_text(str(os.getpid()))\n"
+                f"pathlib.Path({str(descendant_ready)!r}).write_text('ready')\n"
+                "while True:\n"
+                "    time.sleep(1)\n"
+            )
+            helper_source = (
+                "#!/usr/bin/python3\n"
+                "import os, pathlib, subprocess, time\n"
+                f"subprocess.Popen(['/usr/bin/python3', '-c', {descendant_source!r}])\n"
+                f"descendant_ready = pathlib.Path({str(descendant_ready)!r})\n"
+                "while not descendant_ready.exists():\n"
+                "    time.sleep(0.01)\n"
+                f"pathlib.Path({str(helper_pid)!r}).write_text(str(os.getpid()))\n"
+                f"pathlib.Path({str(helper_ready)!r}).write_text('ready')\n"
+                "while True:\n"
+                "    time.sleep(1)\n"
+            )
+            helper = root / capsule.HELPER_RELATIVE
+            helper.write_text(helper_source, encoding="utf-8")
+            helper.chmod(0o755)
+            inventory.write_text(
+                capsule.render_inventory(root, SOURCE_DIGEST),
+                encoding="utf-8",
+                newline="\n",
+            )
+            image = parent / "capsule.dmg"
+            capsule.build_image(
+                self.image_arguments(
+                    capsule=root,
+                    inventory=inventory,
+                    output=image,
+                    image_digest=None,
+                )
+            )
+            mount_parent = (parent / "mounts").resolve(strict=False)
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "stage-zero",
+                    "--image",
+                    str(image.resolve()),
+                    "--expected-image-sha256",
+                    capsule.image_sha256(image),
+                    "--mount-parent",
+                    str(mount_parent),
+                    "--source-sha256",
+                    SOURCE_DIGEST,
+                    "--probe-launch",
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            self.assertIsNotNone(process.stdout)
+            mounted_marker = ""
+            deadline = time.monotonic() + 20.0
+            while time.monotonic() < deadline and process.poll() is None:
+                readable, _, _ = select.select([process.stdout], [], [], 0.1)
+                if not readable:
+                    continue
+                line = process.stdout.readline()
+                if "designated-live-macos-capsule:mounted:" in line:
+                    mounted_marker = line
+                    break
+            self.assertIn("designated-live-macos-capsule:mounted:", mounted_marker)
+            while time.monotonic() < deadline and not helper_ready.exists():
+                if process.poll() is not None:
+                    break
+                time.sleep(0.01)
+            self.assertTrue(helper_ready.exists())
+            child_processes = (
+                int(helper_pid.read_text(encoding="utf-8")),
+                int(descendant_pid.read_text(encoding="utf-8")),
+            )
+            process.send_signal(signal.SIGTERM)
+            stdout, stderr = process.communicate(timeout=30)
+            self.assertNotEqual(process.returncode, 0, stdout + stderr)
+            self.assertIn("stage zero interrupted by signal", stderr)
+            for process_id in child_processes:
+                self.assert_process_gone(process_id)
+            listing = subprocess.run(
+                ["/usr/bin/hdiutil", "info"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotIn(str(image.resolve()), listing.stdout)
 
 
 class MachFramingTests(unittest.TestCase):

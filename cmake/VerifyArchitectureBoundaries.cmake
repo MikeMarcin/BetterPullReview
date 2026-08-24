@@ -2255,6 +2255,9 @@ if(EXISTS "${designated_live_macos_capsule_script_file}")
         required_stage_zero_fragment
         IN ITEMS
             [=[retained_image = retain_image(arguments.image)]=]
+            [=[with signals.defer_interrupts():
+                attach_read_only(retained_image.path, root, arguments.hdiutil)
+                attached = True]=]
             [=[attach_read_only(retained_image.path, root, arguments.hdiutil)]=]
             [=[retained_image = rebaseline_attached_image(retained_image)]=]
             [=["-readonly"]=]
@@ -2270,8 +2273,33 @@ if(EXISTS "${designated_live_macos_capsule_script_file}")
             [=[approval = approval_path(arguments, root)]=]
             [=[inventory = root / IMAGE_INVENTORY_RELATIVE]=]
             [=[helper = root / IMAGE_CAPSULE_RELATIVE / HELPER_RELATIVE]=]
-            [=[launched = run_stage_one(helper, inventory, approval)]=]
+            [=[launched = run_stage_one(helper, inventory, approval, signals)]=]
             [=[if launched.returncode != 0:]=]
+            [=[STAGE_ONE_TIMEOUT_SECONDS = 1500.0]=]
+            [=[STAGE_ONE_TERM_GRACE_SECONDS = 10.0]=]
+            [=[STAGE_ONE_KILL_GRACE_SECONDS = 10.0]=]
+            [=[STAGE_ZERO_SIGNALS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)]=]
+            [=[signal.signal(signum, self.handle)]=]
+            [=[signal.signal(signum, signal.SIG_IGN)]=]
+            [=[subprocess.Popen(arguments, start_new_session=True)]=]
+            [=[process.wait(timeout=STAGE_ONE_TIMEOUT_SECONDS)]=]
+            [=[signals.defer_interrupts()
+        if signals is not None
+        else contextlib.nullcontext()]=]
+            [=[signal_process_group(process_group, signal.SIGTERM)]=]
+            [=[process.wait(timeout=max(0.0, term_deadline - time.monotonic()))]=]
+            [=[wait_for_process_group_exit(process_group, term_deadline)]=]
+            [=[signal_process_group(process_group, signal.SIGKILL)]=]
+            [=[process.wait(timeout=max(0.0, kill_deadline - time.monotonic()))]=]
+            [=[wait_for_process_group_exit(process_group, kill_deadline)]=]
+            [=[except BaseException:
+        if process is not None and process_group_exists(process.pid):]=]
+            [=[with scoped_stage_zero_signals() as signals:]=]
+            [=[scope.install()]=]
+            [=[scope.restore()]=]
+            [=[finally:
+            signals.begin_cleanup()
+            if mounted is not None:]=]
             [=[close_runtime_identity(mounted)]=]
             [=[detach_without_force(root, arguments.hdiutil)]=]
             [=[require_underlying_mount_root(root, underlying)]=]
@@ -2292,31 +2320,38 @@ if(EXISTS "${designated_live_macos_capsule_script_file}")
     endforeach()
 
     string(
+        REGEX REPLACE
+        "[ \t\r\n]+"
+        " "
+        designated_live_macos_capsule_script_compact
+        "${designated_live_macos_capsule_script_contents}"
+    )
+    string(
         REGEX MATCHALL
         "revalidate_image[(]retained_image[)]"
         designated_live_image_revalidations
-        "${designated_live_macos_capsule_script_contents}"
+        "${designated_live_macos_capsule_script_compact}"
     )
     list(LENGTH designated_live_image_revalidations designated_live_image_revalidation_count)
     string(
         REGEX MATCHALL
-        "revalidate_runtime_identity[(]root, mounted, arguments[.]source_sha256[)]"
+        "revalidate_runtime_identity[(][ ]*root, mounted, arguments[.]source_sha256,?[ ]*[)]"
         designated_live_runtime_revalidations
-        "${designated_live_macos_capsule_script_contents}"
+        "${designated_live_macos_capsule_script_compact}"
     )
     list(LENGTH designated_live_runtime_revalidations designated_live_runtime_revalidation_count)
     string(
         REGEX MATCHALL
         "detach_without_force[(]root, arguments[.]hdiutil[)]"
         designated_live_detach_calls
-        "${designated_live_macos_capsule_script_contents}"
+        "${designated_live_macos_capsule_script_compact}"
     )
     list(LENGTH designated_live_detach_calls designated_live_detach_call_count)
     string(
         REGEX MATCHALL
         "filesystem_identity[(]os[.]fstat[(]image[.]descriptor[)][)] != image[.]identity"
         designated_live_retained_image_identity_checks
-        "${designated_live_macos_capsule_script_contents}"
+        "${designated_live_macos_capsule_script_compact}"
     )
     list(
         LENGTH
@@ -2327,7 +2362,7 @@ if(EXISTS "${designated_live_macos_capsule_script_file}")
         REGEX MATCHALL
         "filesystem_identity[(]os[.]fstat[(]path_descriptor[)][)] != image[.]identity"
         designated_live_path_image_identity_checks
-        "${designated_live_macos_capsule_script_contents}"
+        "${designated_live_macos_capsule_script_compact}"
     )
     list(
         LENGTH
@@ -2357,39 +2392,39 @@ if(EXISTS "${designated_live_macos_capsule_script_file}")
     endif()
     string(
         FIND
-        "${designated_live_macos_capsule_script_contents}"
-        "launched = run_stage_one(helper, inventory, approval)"
+        "${designated_live_macos_capsule_script_compact}"
+        "launched = run_stage_one(helper, inventory, approval, signals)"
         designated_live_child_index
     )
     string(
         FIND
-        "${designated_live_macos_capsule_script_contents}"
+        "${designated_live_macos_capsule_script_compact}"
         "revalidate_image(retained_image)"
         designated_live_post_image_index
         REVERSE
     )
     string(
         FIND
-        "${designated_live_macos_capsule_script_contents}"
-        "revalidate_runtime_identity(root, mounted, arguments.source_sha256)"
+        "${designated_live_macos_capsule_script_compact}"
+        "revalidate_runtime_identity("
         designated_live_post_runtime_index
         REVERSE
     )
     string(
         FIND
-        "${designated_live_macos_capsule_script_contents}"
+        "${designated_live_macos_capsule_script_compact}"
         "if launched.returncode != 0:"
         designated_live_child_status_index
     )
     string(
         FIND
-        "${designated_live_macos_capsule_script_contents}"
+        "${designated_live_macos_capsule_script_compact}"
         "close_runtime_identity(mounted)"
         designated_live_close_runtime_index
     )
     string(
         FIND
-        "${designated_live_macos_capsule_script_contents}"
+        "${designated_live_macos_capsule_script_compact}"
         "detach_without_force(root, arguments.hdiutil)"
         designated_live_detach_index
     )
@@ -2415,6 +2450,25 @@ if(EXISTS "${designated_live_macos_capsule_script_file}")
     if(NOT designated_live_force_detach_index EQUAL -1)
         message(FATAL_ERROR "Designated live image stage zero must never force detach")
     endif()
+    foreach(
+        forbidden_stage_one_fragment
+        IN ITEMS
+            [=[subprocess.run(arguments]=]
+            [=[signal.pthread_sigmask]=]
+    )
+        string(
+            FIND
+            "${designated_live_macos_capsule_script_contents}"
+            "${forbidden_stage_one_fragment}"
+            designated_live_forbidden_stage_one_index
+        )
+        if(NOT designated_live_forbidden_stage_one_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live stage one must own a bounded, signal-safe process group"
+            )
+        endif()
+    endforeach()
 endif()
 
 if(EXISTS "${designated_live_stage_zero_preloader_file}")
@@ -2491,6 +2545,49 @@ if(EXISTS "${designated_live_test_isolation_file}")
         designated_live_test_isolation_compact
         "${designated_live_test_isolation_contents}"
     )
+    foreach(
+        required_manifest_capture_fragment
+        IN ITEMS
+            [=[file( READ "${bpr_designated_live_source_manifest}" bpr_designated_live_source_manifest_bytes LIMIT 1048577 )]=]
+            [=[string( SHA256 bpr_designated_live_source_manifest_sha256 "${bpr_designated_live_source_manifest_bytes}" )]=]
+            [=[string( SUBSTRING "${bpr_designated_live_source_manifest_bytes}" "${bpr_designated_live_source_manifest_last}" 1 bpr_designated_live_source_manifest_terminator )]=]
+            [=[string( SUBSTRING "${bpr_designated_live_source_manifest_bytes}" 0 "${bpr_designated_live_source_manifest_last}" bpr_designated_live_source_manifest_body )]=]
+            [=[string( REPLACE "\n" ";" bpr_designated_live_source_entries "${bpr_designated_live_source_manifest_body}" )]=]
+    )
+        string(
+            FIND
+            "${designated_live_test_isolation_compact}"
+            "${required_manifest_capture_fragment}"
+            required_manifest_capture_fragment_index
+        )
+        if(required_manifest_capture_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live source manifest must hash and parse one bounded capture: "
+                "${required_manifest_capture_fragment}"
+            )
+        endif()
+    endforeach()
+    foreach(
+        forbidden_manifest_reopen
+        IN ITEMS
+            [=[file( SHA256 "${bpr_designated_live_source_manifest}"]=]
+            [=[file( STRINGS "${bpr_designated_live_source_manifest}"]=]
+            [=[file( TIMESTAMP "${bpr_designated_live_source_manifest}"]=]
+    )
+        string(
+            FIND
+            "${designated_live_test_isolation_compact}"
+            "${forbidden_manifest_reopen}"
+            forbidden_manifest_reopen_index
+        )
+        if(NOT forbidden_manifest_reopen_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live source manifest must not be reopened after capture"
+            )
+        endif()
+    endforeach()
     foreach(
         forbidden_plain_live_command
         IN ITEMS
