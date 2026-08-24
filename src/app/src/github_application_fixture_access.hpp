@@ -203,16 +203,17 @@ namespace bpr::app::detail {
 
 	struct defect_composition_probe_evidence
 	{
-		bool ExactThreads          = false;
-		bool LocalClassification   = false;
-		bool CorrelatedEvidence    = false;
-		bool ExplicitVerification  = false;
-		bool DurableHistory        = false;
-		bool MultiDefectNavigation = false;
-		bool SharedActionSeparate  = false;
-		bool RestartRestored       = false;
-		bool ZeroReopenWrites      = false;
-		bool VisibleProjection     = false;
+		bool ExactThreads              = false;
+		bool LocalClassification       = false;
+		bool CorrelatedEvidence        = false;
+		bool ExplicitVerification      = false;
+		bool DurableHistory            = false;
+		bool MultiDefectNavigation     = false;
+		bool SharedActionSeparate      = false;
+		bool RestartRestored           = false;
+		bool ZeroReopenWrites          = false;
+		bool VisibleProjection         = false;
+		bool PersistFailureFailsClosed = false;
 
 		auto operator<=>(const defect_composition_probe_evidence&) const = default;
 	};

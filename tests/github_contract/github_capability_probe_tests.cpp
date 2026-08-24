@@ -461,15 +461,17 @@ namespace {
 			payload.size() == 1 && payload.value("query").isString(),
 			"probe body contains only the static query");
 		const auto query = payload.value("query").toString().toStdString();
+		expect(query == capability_probe_graphql_document(),
+			   "probe payload contains the canonical query");
+		expect(query.starts_with("query BetterPullReviewCapabilityProbeV1"),
+			   "probe operation uses the stable query name");
+		expect(capability_probe_document_is_query_only(query),
+			   "probe operation is a query and never a mutation document");
 		expect(
-			query == capability_probe_graphql_document()
-				&& query.starts_with(
-					"query BetterPullReviewCapabilityProbeV1")
-				&& capability_probe_document_is_query_only(query)
-				&& sha256(query)
-					== QStringLiteral("892ad33dcb73ef8b9ed7a4e4e6f6e628"
-									  "568e4de5267eca87ed246122701feb10"),
-			"probe operation is a query and never a mutation document");
+			sha256(query)
+				== QStringLiteral("62ae9a45c13abe671bf7329ed43260d6"
+								  "59afd52f93e4ddd62809bf73e500e184"),
+			"probe query digest binds the exact diff-side and head-revision selection");
 		expect(
 			capability_probe_document_is_query_only(
 				R"(query Safe{mutationType{name} probe(value:"mutation"){name}} fragment MutationFields on __Type{name})")
@@ -1047,6 +1049,38 @@ namespace {
 	{
 		const auto supported = load_supported_fixture(
 			fixture_root() / "github-com/supported.json");
+		const auto missingDiffSide = observe(without_named_field(
+			supported,
+			QStringLiteral("reviewThread"),
+			QStringLiteral("diffSide")));
+		expect(
+			missingDiffSide.Complete
+				&& missingDiffSide.Capabilities.ReviewThreads
+					== core::github_capability_state::unsupported
+				&& fact(
+					   missingDiffSide,
+					   capability_schema_fact::review_threads_read)
+					== capability_schema_fact_state::missing,
+			"missing diffSide makes review-thread reads unsupported");
+
+		const auto wrongDiffSide = observe(with_named_field_type(
+			supported,
+			QStringLiteral("reviewThread"),
+			QStringLiteral("diffSide"),
+			QJsonObject{
+				{ "kind", "NON_NULL" },
+				{ "name", QJsonValue::Null },
+				{ "ofType", QJsonObject{ { "kind", "SCALAR" }, { "name", "String" } } },
+			}));
+		expect(
+			wrongDiffSide.Complete
+				&& wrongDiffSide.Capabilities.ReviewThreads
+					== core::github_capability_state::unsupported
+				&& fact(
+					   wrongDiffSide,
+					   capability_schema_fact::review_threads_read)
+					== capability_schema_fact_state::incompatible,
+			"wrong diffSide type makes review-thread reads incompatible");
 		const auto missingResolvePermission = observe(without_named_field(
 			supported,
 			QStringLiteral("reviewThread"),
@@ -1260,6 +1294,19 @@ namespace {
 			capability_schema_fact_state::incompatible,
 			capability_schema_fact_state::incompatible,
 			"incompatible PullRequest.id disables both compiled read shapes");
+
+		expectFacts(
+			observe(without_named_field(supported, QStringLiteral("pullRequest"),
+										QStringLiteral("headRefOid"))),
+			capability_schema_fact_state::missing,
+			capability_schema_fact_state::missing,
+			"missing PullRequest.headRefOid disables revision-bound read shapes");
+		expectFacts(
+			observe(with_named_field_type(supported, QStringLiteral("pullRequest"),
+										  QStringLiteral("headRefOid"), wrongType)),
+			capability_schema_fact_state::incompatible,
+			capability_schema_fact_state::incompatible,
+			"incompatible PullRequest.headRefOid disables revision-bound read shapes");
 
 		expectFacts(observe(without_schema_root_field(supported,
 													  QStringLiteral("queryType"),

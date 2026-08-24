@@ -69,7 +69,10 @@ thread, comment, commit, check, and search identities. GraphQL repository and
 pull-request node IDs are correlated with REST, and actor node IDs plus logins
 are correlated across every normalized author. GraphQL file paths map
 bijectively to the REST file collection and carry viewed state; threads carry
-per-target resolve/unresolve availability. Contract variants directly
+per-target resolve/unresolve availability, non-null `diffSide`, and separate
+current and original line coordinates. Every GraphQL pull-request-bearing page
+also carries `headRefOid`; acceptance requires it to match the REST head OID, so
+a cross-endpoint head race cannot become one normalized snapshot. Contract variants directly
 exercise null/deleted and non-User actors, fork heads, nullable review commit
 IDs, renamed files, every viewed state, queued checks, and both line- and
 file-level review threads. Every selected response is explicitly marked
@@ -77,6 +80,16 @@ complete; unknown completeness or a transport-declared continuation fails.
 The files, threads, and nested comments GraphQL connections each have
 terminal `pageInfo`; a true `hasNextPage` result fails rather than being
 normalized as a truncated snapshot.
+
+A current line thread requires a known `LEFT` or `RIGHT` side and its current
+one-based root line; an outdated root may retain only its original line. A
+line-thread reply may omit both of its own nullable coordinates and then
+inherits the root anchor; any present reply coordinate is still validated. A
+file thread carries neither line.
+Missing, null, wrong-type, or unknown side values and invalid subject/line
+relationships reject the complete response before projection. Application
+projection preserves current and original lines independently; it never
+substitutes an original line into the current comparison.
 
 The fixture security gate verifies the exact tree and operations, rejects
 duplicate JSON members and encoded secret/path/email/foreign-authority

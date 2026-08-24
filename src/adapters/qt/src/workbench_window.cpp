@@ -41,6 +41,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <utility>
 
 namespace bpr::qt {
@@ -593,7 +594,40 @@ namespace bpr::qt {
 		// the tree instead of its own list model. The files drawer is unchanged:
 		// a file list is a list.
 		ConversationPanel = new github_conversation_panel{ Drawers[1].Panel };
-		ReviewEditor      = new review_draft_editor{
+		ConversationPanel->set_current_endpoint_placement(false, false);
+		ComparisonSurface->set_selection_observer(
+			[this](const std::optional<core::semantic_selection>& aSelection,
+				   const bool                                     aInteractive) {
+				if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
+					return;
+				}
+				const auto& context           = ComparisonSurface->current_context();
+				const auto  endpointIsCurrent = aSelection.has_value()
+					&& (aSelection->PreferredLine.Side == core::diff_side::left
+							? LeftConversationEndpointCurrent
+							: RightConversationEndpointCurrent);
+				const auto line            = aInteractive && aSelection.has_value()
+						&& aSelection->Kind == core::semantic_selection_kind::line
+						&& endpointIsCurrent
+					? std::optional<core::source_line_ref>{ aSelection->PreferredLine }
+					: std::nullopt;
+				ApplyingConversationAnchor = true;
+				ConversationPanel->set_anchor_file(
+					context.has_value()
+						? std::optional<core::file_identity>{
+							  context->Key.File }
+						: std::nullopt);
+				ConversationPanel->set_anchor_line(line);
+				if (aInteractive && !line.has_value()) {
+					ConversationPanel->view()->setCurrentIndex({ });
+					ConversationPanel->view()->selectionModel()->clearSelection();
+				}
+				ApplyingConversationAnchor = false;
+				if (aInteractive && !line.has_value()) {
+					update_defect_surface();
+				}
+			});
+		ReviewEditor = new review_draft_editor{
 			[this](core::review_draft_command aCommand) {
 				if (ReviewDraftDispatch) {
 					ReviewDraftDispatch(std::move(aCommand));
@@ -696,7 +730,12 @@ namespace bpr::qt {
 			ConversationPanel->view()->selectionModel(),
 			&QItemSelectionModel::currentChanged,
 			this,
-			[this](const QModelIndex&) { update_defect_surface(); });
+			[this](const QModelIndex& aCurrent) {
+				if (!ApplyingConversationAnchor) {
+					synchronize_selected_conversation(aCurrent);
+				}
+				update_defect_surface();
+			});
 		update_defect_surface();
 	}
 
@@ -1606,24 +1645,15 @@ namespace bpr::qt {
 
 	void workbench_window::classify_selected_conversation()
 	{
-		if (!DefectClassificationDispatch || ConversationPanel == nullptr
-			|| ConversationPanel->view() == nullptr
-			|| ConversationPanel->model() == nullptr) {
+		if (!DefectClassificationDispatch) {
 			return;
 		}
-		const auto current = ConversationPanel->view()->currentIndex();
-		if (current.data(github_conversation_model::kind_role).toInt()
-				!= static_cast<int>(
-					application::github_conversation_kind::review_thread)
-			|| !current.data(github_conversation_model::line_role).isValid()) {
-			return;
-		}
-		const auto identity = ConversationPanel->model()->id_for_index(current);
-		if (identity.empty()) {
+		auto classification = selected_conversation_classification();
+		if (!classification.has_value()) {
 			return;
 		}
 		++Statistics.DefectClassifications;
-		DefectClassificationDispatch(identity);
+		DefectClassificationDispatch(std::move(*classification));
 	}
 
 	void workbench_window::navigate_defect(const int aDirection)
@@ -1641,19 +1671,62 @@ namespace bpr::qt {
 		update_defect_surface();
 	}
 
+	void workbench_window::synchronize_selected_conversation(
+		const QModelIndex& aIndex)
+	{
+		if (ComparisonSurface == nullptr) {
+			return;
+		}
+		auto root = aIndex;
+		while (root.parent().isValid()) {
+			root = root.parent();
+		}
+		if (!root.isValid()
+			|| root.data(github_conversation_model::anchor_availability_role).toInt()
+				!= static_cast<int>(
+					application::github_conversation_anchor_availability::current)) {
+			ComparisonSurface->clear_conversation_anchor();
+			return;
+		}
+		bool       validLine = false;
+		const auto oneBased  = root.data(github_conversation_model::line_role)
+								   .toULongLong(&validLine);
+		const auto sideValue = root.data(github_conversation_model::diff_side_role);
+		if (!validLine || oneBased == 0U
+			|| oneBased > std::numeric_limits<std::uint32_t>::max()
+			|| !sideValue.isValid()) {
+			ComparisonSurface->clear_conversation_anchor();
+			return;
+		}
+		const auto side = github_conversation_source_side(sideValue.toInt());
+		if (!side.has_value()) {
+			ComparisonSurface->clear_conversation_anchor();
+			ConversationPanel->model()->set_anchor_availability(
+				root,
+				application::github_conversation_anchor_availability::missing_side);
+			return;
+		}
+		const auto endpointIsCurrent = *side == core::diff_side::left
+			? LeftConversationEndpointCurrent
+			: RightConversationEndpointCurrent;
+		if (!endpointIsCurrent) {
+			ComparisonSurface->clear_conversation_anchor();
+			return;
+		}
+		if (!ComparisonSurface->reveal_conversation_line(
+				*side, static_cast<std::uint32_t>(oneBased - 1U))) {
+			ComparisonSurface->clear_conversation_anchor();
+			ConversationPanel->model()->set_anchor_availability(
+				root,
+				application::github_conversation_anchor_availability::selected_line_out_of_bounds);
+		}
+	}
+
 	void workbench_window::update_defect_surface()
 	{
-		const auto current     = ConversationPanel != nullptr
-				&& ConversationPanel->view() != nullptr
-			? ConversationPanel->view()->currentIndex()
-			: QModelIndex{ };
-		const auto canClassify = current.isValid()
-			&& current.data(github_conversation_model::kind_role).toInt()
-				== static_cast<int>(
-					application::github_conversation_kind::review_thread)
-			&& current.data(github_conversation_model::line_role).isValid();
 		ClassifyDefect->setEnabled(
-			canClassify && static_cast<bool>(DefectClassificationDispatch));
+			static_cast<bool>(DefectClassificationDispatch)
+			&& selected_conversation_classification().has_value());
 		const auto validIndex = ShownDefectIndex.has_value()
 			&& *ShownDefectIndex < Defects.size();
 		PreviousDefect->setEnabled(validIndex && *ShownDefectIndex > 0U);
@@ -1672,6 +1745,71 @@ namespace bpr::qt {
 			return;
 		}
 		DefectCard->setVisible(true);
+	}
+
+	auto workbench_window::selected_conversation_classification() const
+		-> std::optional<workbench_defect_classification>
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->view() == nullptr
+			|| ConversationPanel->model() == nullptr || ComparisonSurface == nullptr
+			|| ComparisonSurface->current_result() == nullptr) {
+			return std::nullopt;
+		}
+		const auto current = ConversationPanel->view()->currentIndex();
+		if (!current.isValid() || current.parent().isValid()
+			|| current.data(github_conversation_model::kind_role).toInt()
+				!= static_cast<int>(
+					application::github_conversation_kind::review_thread)
+			|| current
+					.data(github_conversation_model::anchor_availability_role)
+					.toInt()
+				!= static_cast<int>(
+					application::github_conversation_anchor_availability::current)) {
+			return std::nullopt;
+		}
+		bool       validLine = false;
+		const auto oneBased  = current.data(github_conversation_model::line_role)
+								   .toULongLong(&validLine);
+		const auto sideValue = current.data(github_conversation_model::diff_side_role);
+		if (!validLine || oneBased == 0U
+			|| oneBased > std::numeric_limits<std::uint32_t>::max()
+			|| !sideValue.isValid()) {
+			return std::nullopt;
+		}
+		const auto projectedSide = sideValue.toInt();
+		if (projectedSide
+				!= static_cast<int>(
+					application::github_conversation_diff_side::left)
+			&& projectedSide
+				!= static_cast<int>(
+					application::github_conversation_diff_side::right)) {
+			return std::nullopt;
+		}
+		const auto  side              = projectedSide
+				== static_cast<int>(
+							  application::github_conversation_diff_side::left)
+			? core::diff_side::left
+			: core::diff_side::right;
+		const auto  endpointIsCurrent = side == core::diff_side::left
+			? LeftConversationEndpointCurrent
+			: RightConversationEndpointCurrent;
+		const auto& alignment         = ComparisonSurface->current_result()->Alignment;
+		const auto  line              = static_cast<std::uint32_t>(oneBased - 1U);
+		const auto  lineCount         = side == core::diff_side::left
+			? alignment.LeftLineCount
+			: alignment.RightLineCount;
+		const auto  identity          = ConversationPanel->model()->id_for_index(current);
+		if (!endpointIsCurrent || line >= lineCount || identity.empty()) {
+			return std::nullopt;
+		}
+		return workbench_defect_classification{
+			.Conversation = identity,
+			.Anchor       = {
+				.Comparison = alignment.Digest,
+				.Side       = side,
+				.Line       = line,
+			},
+		};
 	}
 
 	auto workbench_window::primary_toolbar() const noexcept -> QToolBar*
@@ -1821,12 +1959,17 @@ namespace bpr::qt {
 				? std::optional<core::file_identity>{
 					  ComparisonSurface->current_context()->Key.File }
 				: std::nullopt);
+		ApplyingConversationAnchor = true;
 		ConversationPanel->adopt(
 			aPullRequest.Conversations,
 			detail::review_thread_availability_text(
 				aPullRequest.ReviewThreadsAvailable,
 				aPullRequest.ReviewThreadCount,
 				aPullRequest.Capabilities.ReviewThreads));
+		ApplyingConversationAnchor = false;
+		synchronize_selected_conversation(
+			ConversationPanel->view()->currentIndex());
+		update_defect_surface();
 		HasGithubPullRequest = true;
 		SessionPanel->apply_capabilities(aPullRequest.Capabilities);
 		SessionPanel->apply_rate_limits(aPullRequest.RateLimits);
@@ -2332,6 +2475,24 @@ namespace bpr::qt {
 	auto workbench_window::comparison_surface() const noexcept -> diff_workbench*
 	{
 		return ComparisonSurface;
+	}
+
+	void workbench_window::set_conversation_endpoint_placement(
+		const bool aLeftHasCurrentDiffRevision,
+		const bool aRightHasCurrentDiffRevision)
+	{
+		LeftConversationEndpointCurrent  = aLeftHasCurrentDiffRevision;
+		RightConversationEndpointCurrent = aRightHasCurrentDiffRevision;
+		if (ConversationPanel == nullptr) {
+			return;
+		}
+		ApplyingConversationAnchor = true;
+		ConversationPanel->set_current_endpoint_placement(
+			aLeftHasCurrentDiffRevision, aRightHasCurrentDiffRevision);
+		ApplyingConversationAnchor = false;
+		synchronize_selected_conversation(
+			ConversationPanel->view()->currentIndex());
+		update_defect_surface();
 	}
 
 	auto workbench_window::detail_pane() const noexcept -> QPlainTextEdit*

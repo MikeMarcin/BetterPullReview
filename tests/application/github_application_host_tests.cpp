@@ -879,40 +879,45 @@ namespace {
 			.Subject                   = application::github_review_thread_subject::line,
 			.Path                      = std::string{ path },
 			.Line                      = 42U,
+			.OriginalLine              = 37U,
+			.DiffSide                  = application::github_diff_side::right,
 			.Resolved                  = true,
 			.Outdated                  = false,
 			.ViewerResolvePermission   = application::github_permission_state::denied,
 			.ViewerUnresolvePermission = application::github_permission_state::allowed,
 			.Comments                  = {
 				application::github_review_comment_record{
-					.Comment  = application::github_comment_id{ "review-comment-1" },
-					.ReplyTo  = std::nullopt,
-					.Author   = reviewer,
-					.Body     = "Thread root",
-					.Path     = std::string{ path },
-					.Line     = 42U,
-					.Outdated = false,
-					.Deleted  = false,
+					.Comment      = application::github_comment_id{ "review-comment-1" },
+					.ReplyTo      = std::nullopt,
+					.Author       = reviewer,
+					.Body         = "Thread root",
+					.Path         = std::string{ path },
+					.Line         = 42U,
+					.OriginalLine = 37U,
+					.Outdated     = false,
+					.Deleted      = false,
 				},
 				application::github_review_comment_record{
-					.Comment  = application::github_comment_id{ "review-comment-2" },
-					.ReplyTo  = application::github_comment_id{ "review-comment-1" },
-					.Author   = author,
-					.Body     = "Follow-up",
-					.Path     = std::string{ path },
-					.Line     = 42U,
-					.Outdated = true,
-					.Deleted  = true,
+					.Comment      = application::github_comment_id{ "review-comment-2" },
+					.ReplyTo      = application::github_comment_id{ "review-comment-1" },
+					.Author       = author,
+					.Body         = "Follow-up",
+					.Path         = std::string{ path },
+					.Line         = 42U,
+					.OriginalLine = 37U,
+					.Outdated     = true,
+					.Deleted      = true,
 				},
 				application::github_review_comment_record{
-					.Comment  = application::github_comment_id{ "review-comment-3" },
-					.ReplyTo  = application::github_comment_id{ "review-comment-2" },
-					.Author   = reviewer,
-					.Body     = "Third level",
-					.Path     = std::string{ path },
-					.Line     = 42U,
-					.Outdated = false,
-					.Deleted  = false,
+					.Comment      = application::github_comment_id{ "review-comment-3" },
+					.ReplyTo      = application::github_comment_id{ "review-comment-2" },
+					.Author       = reviewer,
+					.Body         = "Third level",
+					.Path         = std::string{ path },
+					.Line         = 42U,
+					.OriginalLine = 37U,
+					.Outdated     = false,
+					.Deleted      = false,
 				},
 			},
 		});
@@ -1581,7 +1586,12 @@ namespace {
 			thread.Kind == application::github_conversation_kind::review_thread
 				&& !thread.ParentId.has_value()
 				&& thread.Path == "src/application/host.cpp"
-				&& thread.Line == 42U && thread.Resolved && !thread.Outdated,
+				&& thread.Line == 42U && thread.OriginalLine == 37U
+				&& thread.DiffSide
+					== application::github_conversation_diff_side::right
+				&& thread.AnchorAvailability
+					== application::github_conversation_anchor_availability::current
+				&& thread.Resolved && !thread.Outdated,
 			"review thread projects its location and state");
 		expect(
 			threadRoot.Kind
@@ -1590,6 +1600,9 @@ namespace {
 				&& threadRoot.AuthorLogin == "reviewer"
 				&& threadRoot.Body == "Thread root"
 				&& threadRoot.Path == thread.Path && threadRoot.Line == 42U
+				&& threadRoot.OriginalLine == thread.OriginalLine
+				&& threadRoot.DiffSide == thread.DiffSide
+				&& threadRoot.AnchorAvailability == thread.AnchorAvailability
 				&& threadRoot.Resolved && !threadRoot.Outdated
 				&& !threadRoot.Deleted,
 			"root review comment projects under its stable thread identity");

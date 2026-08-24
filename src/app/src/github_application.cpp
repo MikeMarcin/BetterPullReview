@@ -2121,8 +2121,8 @@ namespace bpr::app {
 					dispatch_defect(std::move(aCommand));
 				});
 			Window->set_defect_classification_dispatch(
-				[this](std::string aConversation) {
-					classify_defect(std::move(aConversation));
+				[this](qt::workbench_defect_classification aClassification) {
+					classify_defect(std::move(aClassification));
 				});
 
 			QueueStore   = adapters::sqlite::make_queue_enrollment_store({
@@ -2274,6 +2274,13 @@ namespace bpr::app {
 			DiffProjections = std::make_unique<composition_diff_projection>(
 				*Window->comparison_surface(),
 				[this](const application::diff_publication& aPublication) {
+					if (SelectedDiffPublication.has_value()) {
+						Window->set_conversation_endpoint_placement(
+							false,
+							conversation_endpoint_is_current(
+								SelectedDiffPublication->Request.Diff.Comparison,
+								core::diff_side::right));
+					}
 					// Before the ledger observation, because it is about the
 					// panes rather than about the review, and because
 					// `observe_selected_material` returns early for reasons
@@ -2281,6 +2288,7 @@ namespace bpr::app {
 					// screen is coloured.
 					adopt_published_classification(aPublication);
 					observe_selected_material(aPublication);
+					correlate_defects();
 				});
 			DiffHost = std::make_unique<application::diff_application_host>(
 				core::diff_state{
@@ -2620,6 +2628,20 @@ namespace bpr::app {
 			Window->present_defects(std::move(histories));
 		}
 
+		[[nodiscard]] auto persist_correlated_defect(
+			const application::durable_defect_record& aDefect) -> bool
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (DefectCompositionProbe.has_value()
+				&& DefectCompositionProbe->RefuseCorrelatedPersistence) {
+				++DefectCompositionProbe->RefusedPersistenceAttempts;
+				return false;
+			}
+#endif
+			return ReviewLedgerHost != nullptr
+				&& ReviewLedgerHost->persist(aDefect).has_value();
+		}
+
 		void correlate_defects(
 			const std::span<const core::source_line_ref> aChangedAnchors = { })
 		{
@@ -2664,9 +2686,8 @@ namespace bpr::app {
 					if (history != durable.History) {
 						auto changed    = durable;
 						changed.History = history;
-						if (ReviewLedgerHost->persist(changed)) {
-							durable = std::move(changed);
-						}
+						static_cast<void>(persist_correlated_defect(changed));
+						durable = std::move(changed);
 					}
 					records.push_back(durable.History.Defect);
 					continue;
@@ -2690,18 +2711,17 @@ namespace bpr::app {
 					.Resolved           = found->Resolved,
 					.AuthorRepliedSince = authorReplied,
 				});
-				const auto availability = found->Outdated
-					? core::defect_anchor_availability::outdated
-					: core::defect_anchor_availability::available;
+				const auto availability = defect_anchor_is_current(durable, *found)
+					? core::defect_anchor_availability::available
+					: core::defect_anchor_availability::outdated;
 				if (found->Outdated) {
 					changedAnchors.push_back(durable.History.Defect.Anchor);
 				}
 				if (availability != durable.History.Availability) {
 					auto changed                 = durable;
 					changed.History.Availability = availability;
-					if (ReviewLedgerHost->persist(changed)) {
-						durable = std::move(changed);
-					}
+					static_cast<void>(persist_correlated_defect(changed));
+					durable = std::move(changed);
 				}
 				records.push_back(durable.History.Defect);
 			}
@@ -2744,22 +2764,87 @@ namespace bpr::app {
 			present_defects();
 		}
 
-		void classify_defect(std::string aConversation)
+		[[nodiscard]] auto conversation_endpoint_is_current(
+			const core::comparison_pair& aComparison,
+			const core::diff_side        aSide) const -> bool
+		{
+			if (aSide == core::diff_side::left || Host == nullptr) {
+				return false;
+			}
+			const auto& snapshot = Host->accepted_snapshot();
+			const auto  head     = snapshot.has_value()
+				? core::parse_git_commit_oid(snapshot->PullRequest.HeadOid.value())
+				: std::nullopt;
+			return head.has_value() && aComparison.Right.Commit == *head;
+		}
+
+		[[nodiscard]] auto current_thread_anchor(
+			const application::github_review_thread_record& aThread) const
+			-> std::optional<core::source_line_ref>
+		{
+			if (aThread.Subject != application::github_review_thread_subject::line
+				|| aThread.Outdated || !aThread.Line.has_value()
+				|| *aThread.Line == 0U || aThread.Path.empty()
+				|| !SelectedDiffPublication.has_value() || Window == nullptr
+				|| Window->comparison_surface() == nullptr
+				|| Window->comparison_surface()->current_result() == nullptr) {
+				return std::nullopt;
+			}
+			const auto  side     = aThread.DiffSide == application::github_diff_side::left
+				? std::optional{ core::diff_side::left }
+				: aThread.DiffSide == application::github_diff_side::right
+				? std::optional{ core::diff_side::right }
+				: std::nullopt;
+			const auto& selected = *SelectedDiffPublication;
+			if (!side.has_value()
+				|| core::file_identity_of(aThread.Path)
+					!= selected.Request.File.File
+				|| !conversation_endpoint_is_current(
+					selected.Request.Diff.Comparison, *side)) {
+				return std::nullopt;
+			}
+			const auto anchor = core::source_line_ref{
+				.Comparison = core::comparison_digest(selected.Key),
+				.Side       = *side,
+				.Line       = *aThread.Line - 1U,
+			};
+			const auto& alignment
+				= Window->comparison_surface()->current_result()->Alignment;
+			const auto lineCount = anchor.Side == core::diff_side::left
+				? alignment.LeftLineCount
+				: alignment.RightLineCount;
+			return alignment.Digest == anchor.Comparison && anchor.Line < lineCount
+				? std::optional{ anchor }
+				: std::nullopt;
+		}
+
+		[[nodiscard]] auto defect_anchor_is_current(
+			const application::durable_defect_record&       aDefect,
+			const application::github_review_thread_record& aThread) const -> bool
+		{
+			const auto anchor = current_thread_anchor(aThread);
+			return anchor.has_value()
+				&& aDefect.File == core::file_identity_of(aThread.Path)
+				&& aDefect.History.Defect.Anchor == *anchor
+				&& aDefect.History.OriginalAnchor == *anchor;
+		}
+
+		void classify_defect(qt::workbench_defect_classification aClassification)
 		{
 			if (Closing || ReviewLedgerHost == nullptr
-				|| !SelectedDiffPublication.has_value()) {
+				|| !SelectedDiffPublication.has_value() || Window == nullptr
+				|| Window->comparison_surface() == nullptr
+				|| Window->comparison_surface()->current_result() == nullptr) {
 				return;
 			}
-			const auto* const thread = accepted_thread(aConversation);
-			if (thread == nullptr
-				|| thread->Subject
-					!= application::github_review_thread_subject::line
-				|| !thread->Line.has_value() || thread->Path.empty()
-				|| core::file_identity_of(thread->Path)
-					!= SelectedDiffPublication->Request.File.File) {
+			const auto* const thread = accepted_thread(aClassification.Conversation);
+			const auto        anchor = thread == nullptr
+				? std::nullopt
+				: current_thread_anchor(*thread);
+			if (!anchor.has_value() || aClassification.Anchor != *anchor) {
 				return;
 			}
-			const auto identity = defect_identity(aConversation);
+			const auto identity = defect_identity(aClassification.Conversation);
 			if (std::ranges::any_of(
 					DurableDefects,
 					[identity](const application::durable_defect_record& aDefect) {
@@ -2768,18 +2853,13 @@ namespace bpr::app {
 					})) {
 				return;
 			}
-			const auto anchor = core::source_line_ref{
-				.Comparison = core::comparison_digest(SelectedDiffPublication->Key),
-				.Side       = core::diff_side::right,
-				.Line       = *thread->Line,
-			};
 			auto durable = application::durable_defect_record{
 				.File         = SelectedDiffPublication->Request.File.File,
 				.Conversation = core::review_conversation_id{ identity.Conversation },
 				.History      = core::defect_history{
 					.Defect = core::defect_record{
-						.Id = core::defect_id{ identity.Defect }, .Anchor = anchor },
-					.OriginalAnchor = anchor,
+						.Id = core::defect_id{ identity.Defect }, .Anchor = *anchor },
+					.OriginalAnchor = *anchor,
 				},
 			};
 			if (!ReviewLedgerHost->persist(durable)) {
@@ -3919,6 +3999,9 @@ namespace bpr::app {
 					qt::review_draft_editor_clear_reason::selection_invalidated);
 			}
 			SelectedDiffPublication.reset();
+			if (Window != nullptr) {
+				Window->set_conversation_endpoint_placement(false, false);
+			}
 			if (DiffHost != nullptr) {
 				DiffHost->cancel();
 			}
@@ -3971,6 +4054,7 @@ namespace bpr::app {
 			SelectedDiffPublication = aPublication;
 			request_diff(
 				aPublication.Key,
+				aPublication.Request.Diff.Comparison,
 				aPublication.Request.Diff.Options,
 				aPublication.Request.File.PresentationPath);
 #if defined(BPR_BUILD_TESTING)
@@ -4042,12 +4126,25 @@ namespace bpr::app {
 		/// is carried alongside because choosing a syntax definition is the one
 		/// thing that needs the name a file was given.
 		void request_diff(
-			core::file_comparison_key aKey,
-			core::diff_options        aOptions,
-			const std::string_view    aPath)
+			core::file_comparison_key    aKey,
+			const core::comparison_pair& aComparison,
+			core::diff_options           aOptions,
+			const std::string_view       aPath)
 		{
 			if (Closing || DiffHost == nullptr) {
 				return;
+			}
+			// GitHub's current PR diff uses a merge-base coordinate on LEFT,
+			// while BPR's retained Branch base is explicitly the accepted base
+			// tip. The provider snapshot carries no exact merge-base identity, so
+			// LEFT remains unplaced instead of applying a numeric line to a
+			// potentially unrelated blob.
+			constexpr auto leftHasCurrentDiffRevision = false;
+			const auto     rightIsCurrentHead         = conversation_endpoint_is_current(
+				aComparison, core::diff_side::right);
+			if (Window != nullptr) {
+				Window->set_conversation_endpoint_placement(
+					leftHasCurrentDiffRevision, rightIsCurrentHead);
 			}
 			DiffHost->request(std::move(aKey), std::move(aOptions));
 			if (!DiffHost->state().Pending.has_value()) {
@@ -4750,8 +4847,10 @@ namespace bpr::app {
 				= detail::defect_composition_probe::seed;
 			phase                        Phase = phase::awaiting_ready;
 			core::file_comparison_digest BeforeComparison;
-			int                          ReverseLeftRow  = -1;
-			int                          ReverseRightRow = -1;
+			int                          ReverseLeftRow              = -1;
+			int                          ReverseRightRow             = -1;
+			bool                         RefuseCorrelatedPersistence = false;
+			std::size_t                  RefusedPersistenceAttempts  = 0U;
 		};
 		std::optional<defect_composition_probe_state> DefectCompositionProbe;
 		std::size_t                                   WorkbenchIntentDispatches = 0U;
@@ -4969,7 +5068,7 @@ namespace bpr::app {
 		// than counted as it is adopted, because the question is about the
 		// present state of the surface and a count kept alongside would only
 		// agree with it by luck. BPR-0390.
-		const auto displayed_span_count
+		const auto displayedSpanCount
 			= [this](const core::diff_side aSide) noexcept -> std::size_t {
 			if (Implementation->Window == nullptr) {
 				return 0U;
@@ -5029,9 +5128,9 @@ namespace bpr::app {
 			.DisplayedRightClassified = Implementation->Window != nullptr
 				&& static_cast<bool>(Implementation->Window->comparison_surface()
 										 ->token_spans(core::diff_side::right)),
-			.DisplayedLeftSpans = displayed_span_count(
+			.DisplayedLeftSpans = displayedSpanCount(
 				core::diff_side::left),
-			.DisplayedRightSpans = displayed_span_count(
+			.DisplayedRightSpans = displayedSpanCount(
 				core::diff_side::right),
 			.DisplayedComparison = Implementation->Window != nullptr
 				&& static_cast<bool>(Implementation->Window->comparison_surface()
@@ -8684,6 +8783,9 @@ namespace bpr::app {
 			return acceptedIdentity == review_ledger_probe_thread_identity()
 				&& aThread.Subject
 				== application::github_review_thread_subject::line
+				&& !aThread.Outdated
+				&& (aThread.DiffSide == application::github_diff_side::left
+					|| aThread.DiffSide == application::github_diff_side::right)
 				&& aThread.Line.has_value() && *aThread.Line != 0U
 				&& !aThread.Path.empty()
 				&& core::file_identity_of(aThread.Path) == aFile;
@@ -8698,12 +8800,14 @@ namespace bpr::app {
 			if (!review_ledger_probe_thread_matches_file(aFile, aThread)) {
 				return std::nullopt;
 			}
-			const auto identity = defect_identity(
-				review_ledger_probe_thread_identity());
-			const auto anchor = core::source_line_ref{
+			const auto identity = defect_identity(review_ledger_probe_thread_identity());
+			const auto side     = aThread.DiffSide == application::github_diff_side::left
+				? core::diff_side::left
+				: core::diff_side::right;
+			const auto anchor   = core::source_line_ref{
 				.Comparison = aComparison,
-				.Side       = core::diff_side::right,
-				.Line       = *aThread.Line,
+				.Side       = side,
+				.Line       = *aThread.Line - 1U,
 			};
 			return application::durable_defect_record{
 				.File         = aFile,
@@ -8731,12 +8835,14 @@ namespace bpr::app {
 			if (!review_ledger_probe_thread_matches_file(aFile, aThread)) {
 				return false;
 			}
-			const auto identity = defect_identity(
-				review_ledger_probe_thread_identity());
-			const auto anchor = core::source_line_ref{
+			const auto identity = defect_identity(review_ledger_probe_thread_identity());
+			const auto side     = aThread.DiffSide == application::github_diff_side::left
+				? core::diff_side::left
+				: core::diff_side::right;
+			const auto anchor   = core::source_line_ref{
 				.Comparison = aComparison,
-				.Side       = core::diff_side::right,
-				.Line       = *aThread.Line,
+				.Side       = side,
+				.Line       = *aThread.Line - 1U,
 			};
 			return aDefect.File == aFile
 				&& aDefect.Conversation.value() == identity.Conversation
@@ -8760,10 +8866,19 @@ namespace bpr::app {
 				= wrongLine.History.Defect.Anchor.Line == 1U ? 2U : 1U;
 			wrongLine.History.Defect.Anchor.Line  = counterexampleLine;
 			wrongLine.History.OriginalAnchor.Line = counterexampleLine;
+			auto wrongSide                        = *expected;
+			wrongSide.History.Defect.Anchor.Side  = aThread.DiffSide
+					== application::github_diff_side::left
+				? core::diff_side::right
+				: core::diff_side::left;
+			wrongSide.History.OriginalAnchor.Side
+				= wrongSide.History.Defect.Anchor.Side;
 			return review_ledger_probe_defect_matches_thread(
 					   *expected, aFile, aComparison, aThread)
 				&& !review_ledger_probe_defect_matches_thread(
-					   wrongLine, aFile, aComparison, aThread);
+					   wrongLine, aFile, aComparison, aThread)
+				&& !review_ledger_probe_defect_matches_thread(
+					   wrongSide, aFile, aComparison, aThread);
 		}
 	} // namespace
 
@@ -8983,8 +9098,15 @@ namespace bpr::app {
 					&& privateState->Notes.front().Attachment.has_value()) {
 					const auto storedComparison
 						= privateState->Notes.front().Attachment->Comparison;
-					const auto defect = review_ledger_probe_defect(
+					auto defect = review_ledger_probe_defect(
 						probe.File, storedComparison, *defectThread);
+					// The reuse course advances to head two. The conversation-backed
+					// defect from head one must survive, but its old comparison can no
+					// longer prove an exact placement.
+					if (defect.has_value()) {
+						defect->History.Availability
+							= core::defect_anchor_availability::outdated;
+					}
 					probe.Evidence.PrivateRecords
 						= defect.has_value()
 						&& review_ledger_probe_defect_match_is_non_vacuous(
@@ -9003,7 +9125,7 @@ namespace bpr::app {
 							  probe.File,
 							  storedComparison,
 							  *defectThread)
-						&& ledger->statistics().PrivateWrites == 0U;
+						&& ledger->statistics().PrivateWrites == 1U;
 				}
 				implementation->ReviewLedgerRoundTripPassed
 					= probe.Evidence.DurableReceipt;
@@ -9629,7 +9751,7 @@ namespace bpr::app {
 		};
 		auto* const window               = implementation->Window.get();
 		const auto  firstIdentity        = std::string{ "review-thread:PRRT_fixture_1" };
-		const auto  secondIdentity       = std::string{ "review-thread:PRRT_fixture_2" };
+		const auto  secondIdentity       = std::string{ "review-thread:PRRT_fixture_3" };
 		const auto  fileIdentity         = std::string{ "review-thread:PRRT_fixture_file" };
 		const auto  firstDefectIdentity  = defect_identity(firstIdentity);
 		const auto  secondDefectIdentity = defect_identity(secondIdentity);
@@ -9643,6 +9765,23 @@ namespace bpr::app {
 				});
 			return found == implementation->DurableDefects.end() ? nullptr : &*found;
 		};
+		const auto anchorMatchesThread = [implementation](
+											 const application::durable_defect_record* const aDefect,
+											 const std::string_view                          aConversation) {
+			const auto* const thread = implementation->accepted_thread(aConversation);
+			if (aDefect == nullptr || thread == nullptr || thread->Outdated
+				|| !thread->Line.has_value() || *thread->Line == 0U) {
+				return false;
+			}
+			const auto side = thread->DiffSide == application::github_diff_side::left
+				? std::optional{ core::diff_side::left }
+				: thread->DiffSide == application::github_diff_side::right
+				? std::optional{ core::diff_side::right }
+				: std::nullopt;
+			return side.has_value()
+				&& aDefect->History.OriginalAnchor.Side == *side
+				&& aDefect->History.OriginalAnchor.Line == *thread->Line - 1U;
+		};
 
 		if (aCourse == detail::defect_composition_probe::reopen) {
 			const auto* const first  = findDefect(firstDefectIdentity);
@@ -9650,8 +9789,8 @@ namespace bpr::app {
 			if (first == nullptr || second == nullptr) {
 				return result::pending;
 			}
-			probe.Evidence.ExactThreads = implementation->accepted_thread(firstIdentity)
-				&& implementation->accepted_thread(secondIdentity);
+			probe.Evidence.ExactThreads = anchorMatchesThread(first, firstIdentity)
+				&& anchorMatchesThread(second, secondIdentity);
 			probe.Evidence.LocalClassification
 				= first->History.Defect.Severity == core::defect_severity::critical
 				&& first->History.Defect.Category == core::defect_category::security;
@@ -9711,14 +9850,23 @@ namespace bpr::app {
 			return result::passed;
 		}
 
-		auto* const model       = window->conversation_model();
-		auto* const view        = window->conversation_view();
-		const auto  firstIndex  = model->index_for_id(firstIdentity);
-		const auto  secondIndex = model->index_for_id(secondIdentity);
-		const auto  fileIndex   = model->index_for_id(fileIdentity);
-		if (!firstIndex.isValid() || !secondIndex.isValid() || !fileIndex.isValid()) {
+		auto* const model = window->conversation_model();
+		auto* const view  = window->conversation_view();
+		if (!model->index_for_id(firstIdentity).isValid()
+			|| !model->index_for_id(secondIdentity).isValid()
+			|| !model->index_for_id(fileIdentity).isValid()) {
 			return result::pending;
 		}
+		const auto selectConversation = [window, model, view](
+											const std::string_view aIdentity) {
+			window->conversation_panel()->set_anchor_line(std::nullopt);
+			const auto index = model->index_for_id(aIdentity);
+			if (!index.isValid()) {
+				return false;
+			}
+			view->setCurrentIndex(index);
+			return true;
+		};
 
 		if (probe.Phase
 			== github_application::implementation::defect_composition_probe_state::phase::awaiting_ready) {
@@ -9741,24 +9889,29 @@ namespace bpr::app {
 
 		if (probe.Phase
 			== github_application::implementation::defect_composition_probe_state::phase::awaiting_diff) {
-			if (!implementation->SelectedDiffPublication.has_value()) {
+			if (!implementation->SelectedDiffPublication.has_value()
+				|| window->comparison_surface()->current_result() == nullptr) {
 				return result::pending;
 			}
-			view->setCurrentIndex(firstIndex);
-			if (!window->classify_defect_action()->isEnabled()) {
+			if (!selectConversation(firstIdentity)
+				|| !window->classify_defect_action()->isEnabled()) {
 				return fail();
 			}
 			window->classify_defect_action()->trigger();
-			view->setCurrentIndex(secondIndex);
+			if (!selectConversation(secondIdentity)
+				|| !window->classify_defect_action()->isEnabled()) {
+				return fail();
+			}
 			window->classify_defect_action()->trigger();
-			view->setCurrentIndex(fileIndex);
-			if (window->classify_defect_action()->isEnabled()) {
+			if (!selectConversation(fileIdentity)
+				|| window->classify_defect_action()->isEnabled()) {
 				return fail();
 			}
 			window->classify_defect_action()->trigger();
 			const auto* const first     = findDefect(firstDefectIdentity);
 			const auto* const second    = findDefect(secondDefectIdentity);
-			probe.Evidence.ExactThreads = first != nullptr && second != nullptr;
+			probe.Evidence.ExactThreads = anchorMatchesThread(first, firstIdentity)
+				&& anchorMatchesThread(second, secondIdentity);
 			probe.Evidence.LocalClassification
 				= implementation->Fixture->review_mutation_evidence().Submissions == 0U;
 			probe.Evidence.CorrelatedEvidence = first != nullptr && second != nullptr
@@ -9767,7 +9920,7 @@ namespace bpr::app {
 					== core::defect_state::needs_verification;
 			probe.Evidence.DurableHistory = second != nullptr
 				&& second->History.Availability
-					== core::defect_anchor_availability::outdated
+					== core::defect_anchor_availability::available
 				&& second->History.Defect.Anchor == second->History.OriginalAnchor;
 			probe.Evidence.VisibleProjection = window->defect_count() == 2U
 				&& window->defect_count_label()->text().contains(QStringLiteral("/2"));
@@ -9785,8 +9938,9 @@ namespace bpr::app {
 			if (leftRow < 0 || rightRow < 0 || leftRow == rightRow) {
 				return fail();
 			}
-			probe.ReverseLeftRow  = rightRow;
-			probe.ReverseRightRow = leftRow;
+			probe.ReverseLeftRow              = rightRow;
+			probe.ReverseRightRow             = leftRow;
+			probe.RefuseCorrelatedPersistence = true;
 			control->left_selector()->setCurrentIndex(rightRow);
 			probe.Phase = github_application::implementation::
 				defect_composition_probe_state::phase::awaiting_reverse_right;
@@ -9811,13 +9965,44 @@ namespace bpr::app {
 				== probe.BeforeComparison) {
 			return result::pending;
 		}
+		const auto& reversedResult
+			= window->comparison_surface()->current_result();
+		if (reversedResult == nullptr
+			|| reversedResult->Alignment.Digest
+				!= core::comparison_digest(
+					implementation->SelectedDiffPublication->Key)) {
+			return result::pending;
+		}
+		if (!selectConversation(firstIdentity)) {
+			return fail();
+		}
+		const auto defectCountBeforeRefusal = implementation->DurableDefects.size();
+		if (window->comparison_surface()->conversation_anchor().has_value()
+			|| window->classify_defect_action()->isEnabled()
+			|| defectCountBeforeRefusal != 2U) {
+			return fail();
+		}
+		window->classify_defect_action()->trigger();
+		if (implementation->DurableDefects.size() != defectCountBeforeRefusal) {
+			return fail();
+		}
 		const auto* first  = findDefect(firstDefectIdentity);
 		const auto* second = findDefect(secondDefectIdentity);
 		if (first == nullptr || second == nullptr
 			|| first->History.Defect.State
 				!= core::defect_state::open
 			|| second->History.Defect.State
-				!= core::defect_state::needs_verification) {
+				!= core::defect_state::needs_verification
+			|| first->History.Availability
+				!= core::defect_anchor_availability::outdated
+			|| second->History.Availability
+				!= core::defect_anchor_availability::outdated) {
+			return fail();
+		}
+		probe.Evidence.PersistFailureFailsClosed
+			= probe.RefusedPersistenceAttempts >= 2U;
+		probe.RefuseCorrelatedPersistence = false;
+		if (!probe.Evidence.PersistFailureFailsClosed) {
 			return fail();
 		}
 		while (window->defect_card()->shown_defect().has_value()
@@ -10004,9 +10189,10 @@ namespace bpr::app {
 		if (!leftBlob.has_value() || !rightBlob.has_value() || !digest.has_value()) {
 			return false;
 		}
-		auto                              fileBytes = std::array<std::uint8_t, 32U>{ };
-		static constexpr std::string_view identity  = "fixture/review.cpp/v1";
-		std::ranges::copy(identity, fileBytes.begin());
+		const auto file = core::file_identity_of("review.cpp");
+		if (!file.valid()) {
+			return false;
+		}
 		implementation->request_diff(
 			core::file_comparison_key{
 				.Authority   = *state.Authority,
@@ -10016,10 +10202,11 @@ namespace bpr::app {
 				.RightAnchor = state.AcceptedComparison->Right.Identity,
 				.LeftBlob    = leftBlob,
 				.RightBlob   = rightBlob,
-				.File        = core::file_identity{ fileBytes },
+				.File        = file,
 				.Options     = *digest,
 				.Algorithm   = core::supported_diff_algorithm_revision,
 			},
+			*state.AcceptedComparison,
 			options,
 			// The fixture repository's single file. Named here because the
 			// comparison key carries a digest and the syntax definition needs

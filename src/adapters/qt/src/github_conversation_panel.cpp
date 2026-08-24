@@ -21,6 +21,51 @@
 
 namespace bpr::qt {
 	namespace {
+		[[nodiscard]] auto endpoint_is_current(
+			const application::github_conversation_projection& aNode,
+			const bool                                         aLeftHasCurrentDiffRevision,
+			const bool                                         aRightHasCurrentDiffRevision) noexcept -> bool
+		{
+			if (!aNode.DiffSide.has_value()) {
+				return false;
+			}
+			const auto side = github_conversation_source_side(
+				static_cast<int>(*aNode.DiffSide));
+			return side.has_value()
+				&& (*side == core::diff_side::left
+						? aLeftHasCurrentDiffRevision
+						: aRightHasCurrentDiffRevision);
+		}
+
+		[[nodiscard]] auto with_endpoint_placement(
+			std::vector<application::github_conversation_projection> aConversations,
+			const bool                                               aLeftHasCurrentDiffRevision,
+			const bool                                               aRightHasCurrentDiffRevision)
+			-> std::vector<application::github_conversation_projection>
+		{
+			for (auto& conversation : aConversations) {
+				if (conversation.AnchorAvailability
+					!= application::github_conversation_anchor_availability::current) {
+					continue;
+				}
+				const auto side = conversation.DiffSide.has_value()
+					? github_conversation_source_side(
+						  static_cast<int>(*conversation.DiffSide))
+					: std::nullopt;
+				if (!side.has_value()) {
+					conversation.AnchorAvailability = application::
+						github_conversation_anchor_availability::missing_side;
+				} else if (!endpoint_is_current(
+							   conversation,
+							   aLeftHasCurrentDiffRevision,
+							   aRightHasCurrentDiffRevision)) {
+					conversation.AnchorAvailability = application::
+						github_conversation_anchor_availability::selected_comparison_mismatch;
+				}
+			}
+			return aConversations;
+		}
+
 		/// \brief Keeps the threads whose root is anchored in one file.
 		///
 		/// \details A reply carries no anchor — only a thread's root names a
@@ -33,10 +78,13 @@ namespace bpr::qt {
 		/// projection is treated as a root: the alternative is discarding a
 		/// comment because its ancestor is missing, and a visible orphan is
 		/// better than a silent omission.
-		[[nodiscard]] auto anchored_in(
+		[[nodiscard]] auto anchored_to(
 			const std::vector<application::github_conversation_projection>&
-									  aConversations,
-			const core::file_identity aFile)
+														aConversations,
+			const std::optional<core::file_identity>&   aFile,
+			const std::optional<core::source_line_ref>& aLine,
+			const bool                                  aLeftHasCurrentDiffRevision,
+			const bool                                  aRightHasCurrentDiffRevision)
 			-> std::vector<application::github_conversation_projection>
 		{
 			auto byId = std::unordered_map<std::string, std::size_t>{ };
@@ -46,20 +94,41 @@ namespace bpr::qt {
 				byId.emplace(aConversations[index].Id, index);
 			}
 
-			const auto rootedInFile = [&](std::size_t aIndex) {
+			const auto rootMatches = [&](std::size_t aIndex) {
+				const auto anchorMatches = [&](const auto& aNode) {
+					if (aFile.has_value()
+						&& (aNode.Path.empty()
+							|| core::file_identity_of(aNode.Path) != *aFile)) {
+						return false;
+					}
+					if (!aLine.has_value()) {
+						return true;
+					}
+					if (aNode.AnchorAvailability
+							!= application::github_conversation_anchor_availability::current
+						|| !aNode.Line.has_value() || *aNode.Line == 0U
+						|| !endpoint_is_current(
+							aNode,
+							aLeftHasCurrentDiffRevision,
+							aRightHasCurrentDiffRevision)) {
+						return false;
+					}
+					const auto side = github_conversation_source_side(
+						static_cast<int>(*aNode.DiffSide));
+					return side.has_value() && *side == aLine->Side
+						&& *aNode.Line - 1U == aLine->Line;
+				};
 				// Bounded by the node count, so a projection that somehow
 				// contained a cycle cannot spin here.
 				for (auto step = std::size_t{ 0U }; step <= aConversations.size();
 					 ++step) {
 					const auto& node = aConversations[aIndex];
 					if (!node.ParentId.has_value()) {
-						return !node.Path.empty()
-							&& core::file_identity_of(node.Path) == aFile;
+						return anchorMatches(node);
 					}
 					const auto parent = byId.find(*node.ParentId);
 					if (parent == byId.end()) {
-						return !node.Path.empty()
-							&& core::file_identity_of(node.Path) == aFile;
+						return anchorMatches(node);
 					}
 					aIndex = parent->second;
 				}
@@ -70,7 +139,7 @@ namespace bpr::qt {
 			kept.reserve(aConversations.size());
 			for (auto index = std::size_t{ 0U }; index < aConversations.size();
 				 ++index) {
-				if (rootedInFile(index)) {
+				if (rootMatches(index)) {
 					kept.push_back(aConversations[index]);
 				}
 			}
@@ -149,9 +218,18 @@ namespace bpr::qt {
 		Retained             = aConversations;
 		RetainedAvailability = aAvailabilityText;
 		AvailabilityLabel->setText(std::move(aAvailabilityText));
-		const auto shown = AnchorFile.has_value()
-			? anchored_in(aConversations, *AnchorFile)
+		auto shown = AnchorFile.has_value() || AnchorLine.has_value()
+			? anchored_to(
+				  aConversations,
+				  AnchorFile,
+				  AnchorLine,
+				  LeftHasCurrentDiffRevision,
+				  RightHasCurrentDiffRevision)
 			: aConversations;
+		shown      = with_endpoint_placement(
+			std::move(shown),
+			LeftHasCurrentDiffRevision,
+			RightHasCurrentDiffRevision);
 		Model->apply(shown);
 		Stack->setCurrentIndex(shown.empty() ? 0 : 1);
 		View->doItemsLayout();
@@ -201,10 +279,47 @@ namespace bpr::qt {
 		}
 	}
 
+	void github_conversation_panel::set_anchor_line(
+		std::optional<core::source_line_ref> aLine)
+	{
+		if (AnchorLine == aLine) {
+			return;
+		}
+		AnchorLine = std::move(aLine);
+		if (!Retained.empty()) {
+			const auto retained     = Retained;
+			const auto availability = RetainedAvailability;
+			adopt(retained, availability);
+		}
+	}
+
+	void github_conversation_panel::set_current_endpoint_placement(
+		const bool aLeftHasCurrentDiffRevision,
+		const bool aRightHasCurrentDiffRevision)
+	{
+		if (LeftHasCurrentDiffRevision == aLeftHasCurrentDiffRevision
+			&& RightHasCurrentDiffRevision == aRightHasCurrentDiffRevision) {
+			return;
+		}
+		LeftHasCurrentDiffRevision  = aLeftHasCurrentDiffRevision;
+		RightHasCurrentDiffRevision = aRightHasCurrentDiffRevision;
+		if (!Retained.empty()) {
+			const auto retained     = Retained;
+			const auto availability = RetainedAvailability;
+			adopt(retained, availability);
+		}
+	}
+
 	auto github_conversation_panel::anchor_file() const noexcept
 		-> const std::optional<core::file_identity>&
 	{
 		return AnchorFile;
+	}
+
+	auto github_conversation_panel::anchor_line() const noexcept
+		-> const std::optional<core::source_line_ref>&
+	{
+		return AnchorLine;
 	}
 
 	void github_conversation_panel::set_reveal_action(QAction* const aAction)

@@ -120,16 +120,35 @@ namespace bpr::application {
 		issue_comment,
 	};
 
+	enum class github_conversation_diff_side : std::uint8_t {
+		left,
+		right,
+	};
+
+	enum class github_conversation_anchor_availability : std::uint8_t {
+		current,
+		selected_comparison_mismatch,
+		selected_line_out_of_bounds,
+		outdated_revision,
+		file_level,
+		missing_side,
+		missing_current_line,
+	};
+
 	/// \brief Describes the github conversation projection record.
 	struct github_conversation_projection
 	{
-		std::string                    Id{ };
-		std::optional<std::string>     ParentId = std::nullopt;
-		github_conversation_kind       Kind     = github_conversation_kind::issue_comment;
-		std::string                    AuthorLogin{ };
-		std::string                    Body{ };
-		std::string                    Path{ };
-		std::optional<std::uint32_t>   Line        = std::nullopt;
+		std::string                                  Id{ };
+		std::optional<std::string>                   ParentId = std::nullopt;
+		github_conversation_kind                     Kind     = github_conversation_kind::issue_comment;
+		std::string                                  AuthorLogin{ };
+		std::string                                  Body{ };
+		std::string                                  Path{ };
+		std::optional<std::uint32_t>                 Line         = std::nullopt;
+		std::optional<std::uint32_t>                 OriginalLine = std::nullopt;
+		std::optional<github_conversation_diff_side> DiffSide     = std::nullopt;
+		github_conversation_anchor_availability      AnchorAvailability
+			= github_conversation_anchor_availability::missing_current_line;
 		github_review_state_projection ReviewState = github_review_state_projection::none;
 		bool                           Resolved    = false;
 		bool                           Outdated    = false;

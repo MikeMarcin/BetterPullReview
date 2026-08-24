@@ -253,6 +253,7 @@ namespace {
 					.Subject                   = application::github_review_thread_subject::line,
 					.Path                      = "src/github.cpp",
 					.Line                      = 42,
+					.DiffSide                  = application::github_diff_side::right,
 					.Resolved                  = false,
 					.Outdated                  = false,
 					.ViewerResolvePermission   = application::github_permission_state::allowed,
@@ -409,6 +410,29 @@ namespace {
 		expect(
 			application::validate(fileSubject, request).valid(),
 			"file-level review thread with no line is accepted");
+
+		auto originalOnlyComment = snapshot;
+		originalOnlyComment.ReviewThreads.front().Comments.front().Line.reset();
+		originalOnlyComment.ReviewThreads.front().Comments.front().OriginalLine = 42U;
+		expect(
+			application::validate(originalOnlyComment, request).valid(),
+			"line-level review comment may retain only its nullable original line");
+
+		auto missingCommentLine = snapshot;
+		missingCommentLine.ReviewThreads.front().Comments.front().Line.reset();
+		missingCommentLine.ReviewThreads.front().Comments.front().OriginalLine.reset();
+		expect(
+			application::validate(missingCommentLine, request).valid(),
+			"line-level reply may inherit the root anchor with no comment coordinate");
+
+		auto unexpectedCommentOriginalLine = fileSubject;
+		unexpectedCommentOriginalLine.ReviewThreads.front()
+			.Comments.front()
+			.OriginalLine = 42U;
+		expect_error(
+			application::validate(unexpectedCommentOriginalLine, request),
+			application::github_read_validation_error::invalid_relationship,
+			"file-level review comment rejects an original line");
 
 		auto missingLine = snapshot;
 		missingLine.ReviewThreads.front().Line.reset();

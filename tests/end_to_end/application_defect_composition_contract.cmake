@@ -127,7 +127,7 @@ foreach(fixture_spec IN ITEMS "github-com|github.com" "ghes-3.18|ghes-3.18")
         "${fixture_root}"
         seed
         seed
-        1111111001
+        11111110011
     )
     bpr_run_defect_probe(
         "${fixture}"
@@ -135,7 +135,7 @@ foreach(fixture_spec IN ITEMS "github-com|github.com" "ghes-3.18|ghes-3.18")
         "${fixture_root}"
         reopen
         reuse
-        1111111111
+        11111111110
     )
 endforeach()
 file(REMOVE_RECURSE "${BPR_ROOT}")

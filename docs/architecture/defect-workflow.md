@@ -170,12 +170,29 @@ The workbench now composes this policy over the accepted pull-request snapshot.
 Selecting an ordinary review-thread row and choosing **Classify selected
 conversation as defect** binds the exact thread identity, selected file, and
 comparison digest to a private `durable_defect_record`. The application rejects
-file-level threads rather than inventing a line. It derives two independent
+file-level, outdated, non-current-endpoint, out-of-bounds, and mismatched
+path/side/line selections rather than inventing an anchor. A current GitHub
+right-side thread must match the accepted head and the exact rendered
+comparison before it is classifiable. The application derives two independent
 positive 63-bit values from SHA-256 of the canonical thread identity, persists
 both in the existing conversation/defect identity columns, and requires both
 on every correlation. This collision-resistant full identity prevents a
 single lossy integer from rebinding a durable defect after its original thread
 disappears.
+
+Schema-v5 ledger migration marks every pre-BPR-0414 defect anchor outdated.
+Those legacy rows stored a one-based line but did not retain enough provenance
+to distinguish a current right thread from a forced-right left thread, an
+outdated original line, or an unrelated retained comparison. Reconciliation
+restores availability only after the accepted snapshot and rendered comparison
+re-prove the exact file, right-side current line, comparison digest,
+accepted-head endpoint, and line bound. Until then the immutable history stays
+visible but unavailable and cannot enter an agent supplement as current code.
+Losing that proof is fail-closed in the live projection: reconciliation adopts
+`outdated` or `thread_deleted` in memory before republishing even when the
+ledger write fails. A later restart reloads the durable row, rederives the same
+safe state, and can retry persistence; an I/O failure cannot keep a stale
+anchor placeable.
 
 Author replies and provider-reported outdated state enter the pure correlator
 as evidence. Outdated state names the defect's exact semantic source-line
@@ -191,16 +208,17 @@ position/count label and previous/next actions. Lost shared context remains
 visible on the card while the immutable original semantic anchor stays in the
 ledger. Restart loads the same two-level authority—ordinary GitHub thread as
 shared state, private classification/history as local state—with no repair or
-write when the durable rows are already current.
+write when the schema and durable rows are already current.
 
 The registered `application_defect_composition_contract` runs against both the
 GitHub.com and GHES 3.18 profiles. It drives the shipped file row, line-thread
 and file-thread conversation rows, epoch selectors, defect actions, and the
 separate review Publish action. Its seed/reopen trace proves that file-level
 classification is refused, retained-epoch browsing does not create evidence,
-local classification causes zero fixture mutations, and the durable
-multi-defect projection returns unchanged after restart. RFC-BPR-0008's
-separate round-trip contract remains the authority for the eventual shared
+local classification causes zero fixture mutations, a refused ledger update
+cannot keep a reversed-comparison anchor available in memory, and the durable
+multi-defect projection returns unchanged after restart. RFC-BPR-0008's separate
+round-trip contract remains the authority for the eventual shared
 publication.
 
 ## What is not proven here

@@ -335,6 +335,18 @@ namespace {
 		missing_cursor,
 		repeated_cursor,
 		truncated_total,
+		thread_side_missing,
+		thread_side_null,
+		thread_side_wrong,
+		thread_side_unknown,
+		current_thread_original_line_only,
+		line_comment_original_line_only,
+		line_comment_no_coordinates,
+		file_comment_original_line,
+		paged_line_comment_original_line_only,
+		paged_line_comment_no_coordinates,
+		paged_file_comment_original_line,
+		graphql_head_moved,
 		graphql_extensions,
 		graphql_errors_type_rate_limited,
 		graphql_partial_errors_extension_type,
@@ -1100,10 +1112,29 @@ namespace {
 			}
 			QJsonArray comments;
 			for (std::size_t index = 0U; index < 100U; ++index) {
-				comments.push_back(comment_node(index));
+				auto comment = comment_node(index);
+				if ((Scenario == fixture_scenario::line_comment_original_line_only
+					 || Scenario == fixture_scenario::line_comment_no_coordinates)
+					&& index == 0U) {
+					comment.insert("line", QJsonValue::Null);
+					comment.insert(
+						"originalLine",
+						Scenario == fixture_scenario::line_comment_no_coordinates
+							? QJsonValue{ QJsonValue::Null }
+							: QJsonValue{ 42 });
+				} else if (Scenario == fixture_scenario::file_comment_original_line) {
+					comment.insert("line", QJsonValue::Null);
+					comment.insert(
+						"originalLine", index == 0U ? QJsonValue{ 42 } : QJsonValue::Null);
+				} else if (Scenario
+						   == fixture_scenario::paged_file_comment_original_line) {
+					comment.insert("line", QJsonValue::Null);
+					comment.insert("originalLine", QJsonValue::Null);
+				}
+				comments.push_back(std::move(comment));
 			}
 			const auto missing = Scenario == fixture_scenario::missing_cursor;
-			const auto thread  = QJsonObject{
+			auto       thread  = QJsonObject{
 				{
 					"comments",
 					connection(total,
@@ -1117,12 +1148,35 @@ namespace {
 				{ "isOutdated", false },
 				{ "isResolved", false },
 				{ "line", 42 },
-				{ "originalLine", QJsonValue::Null },
+				{ "originalLine", 41 },
 				{ "path", "src/file0.cpp" },
+				{ "diffSide", "RIGHT" },
 				{ "subjectType", "LINE" },
 				{ "viewerCanUnresolve", true },
 			};
+			if (Scenario == fixture_scenario::thread_side_missing) {
+				thread.remove("diffSide");
+			} else if (Scenario == fixture_scenario::thread_side_null) {
+				thread.insert("diffSide", QJsonValue::Null);
+			} else if (Scenario == fixture_scenario::thread_side_wrong) {
+				thread.insert("diffSide", 7);
+			} else if (Scenario == fixture_scenario::thread_side_unknown) {
+				thread.insert("diffSide", "UNCHANGED");
+			} else if (Scenario
+					   == fixture_scenario::current_thread_original_line_only) {
+				thread.insert("line", QJsonValue::Null);
+			} else if (Scenario == fixture_scenario::file_comment_original_line
+					   || Scenario
+						   == fixture_scenario::paged_file_comment_original_line) {
+				thread.insert("subjectType", "FILE");
+				thread.insert("line", QJsonValue::Null);
+				thread.insert("originalLine", QJsonValue::Null);
+			}
 			const auto pullRequest = QJsonObject{
+				{ "headRefOid",
+				  Scenario == fixture_scenario::graphql_head_moved
+					  ? QString::fromUtf8(base_oid)
+					  : QString::fromUtf8(head_oid) },
 				{ "id", "PR_17" },
 				{
 					"reviewThreads",
@@ -1216,7 +1270,21 @@ namespace {
 			QJsonArray comments;
 			const auto count = repeat ? 100U : 1U;
 			for (std::size_t index = 0U; index < count; ++index) {
-				comments.push_back(comment_node(100U + index));
+				auto comment = comment_node(100U + index);
+				if (index == 0U
+					&& (Scenario
+							== fixture_scenario::paged_line_comment_original_line_only
+						|| Scenario == fixture_scenario::paged_line_comment_no_coordinates
+						|| Scenario
+							== fixture_scenario::paged_file_comment_original_line)) {
+					comment.insert("line", QJsonValue::Null);
+					comment.insert(
+						"originalLine",
+						Scenario == fixture_scenario::paged_line_comment_no_coordinates
+							? QJsonValue{ QJsonValue::Null }
+							: QJsonValue{ 42 });
+				}
+				comments.push_back(std::move(comment));
 			}
 			const auto total             = repeat
 				? 201U
@@ -1243,7 +1311,10 @@ namespace {
 								{ "id", "R_repository" },
 								{
 									"pullRequest",
-									QJsonObject{ { "id", "PR_17" } },
+									QJsonObject{
+										{ "headRefOid", QString::fromUtf8(head_oid) },
+										{ "id", "PR_17" },
+									},
 								},
 							},
 						},
@@ -1508,6 +1579,7 @@ namespace {
 		});
 		expect(request.has_value(), "capability-shaped query compiles");
 		expect(request->Body.find("reviewThreads") != std::string::npos
+				   && request->Body.find("headRefOid") != std::string::npos
 				   && request->Body.find("viewerCanUnresolve") != std::string::npos
 				   && request->Body.find("viewerCanResolve") == std::string::npos
 				   && request->Body.find("viewerViewedState") == std::string::npos
@@ -1518,6 +1590,25 @@ namespace {
 		invalid.Page = 2U;
 		expect(!compile_read_request(invalid).has_value(),
 			   "initial GraphQL page is sequence one only");
+	}
+
+	auto test_graphql_head_is_bound_to_rest_snapshot() -> void
+	{
+		auto       transport = paged_fixture_transport{ fixture_scenario::graphql_head_moved };
+		const auto result    = perform_paged_github_read(transport,
+														 profile(),
+														 provider_request(),
+														 core::provider_snapshot_id{ 55U },
+														 std::stop_token{ });
+		expect(
+			!result.has_value()
+				&& provider_failure_of(result)
+					== application::github_provider_failure::malformed_response
+				&& !transport.Requests.empty()
+				&& transport.Requests.back().Wire.Operation
+					== read_operation::list_review_threads,
+			"a force-pushed GraphQL thread page cannot attach head-B line numbers "
+			"to the REST snapshot retained for head A");
 	}
 
 	auto test_successful_exhaustive_read() -> void
@@ -1549,6 +1640,77 @@ namespace {
 				&& result->ReviewThreads.front().ViewerUnresolvePermission
 					== application::github_permission_state::allowed,
 			"nested comments exhaust and omitted permissions remain unavailable");
+		expect(result->ReviewThreads.front().Line == 42U
+				   && result->ReviewThreads.front().OriginalLine == 41U
+				   && result->ReviewThreads.front().DiffSide
+					   == application::github_diff_side::right,
+			   "current and original line remain distinct beside the exact diff side");
+		auto originalOnlyTransport = paged_fixture_transport{
+			fixture_scenario::line_comment_original_line_only
+		};
+		const auto originalOnlyResult = perform_paged_github_read(
+			originalOnlyTransport,
+			profile(),
+			provider_request(),
+			core::provider_snapshot_id{ 56U },
+			std::stop_token{ });
+		expect(originalOnlyResult.has_value()
+				   && !originalOnlyResult->ReviewThreads.front().Comments.front().Line.has_value()
+				   && originalOnlyResult->ReviewThreads.front().Comments.front().OriginalLine
+					   == 42U,
+			   "a line-thread comment with only its nullable original line matches the strict contract");
+		auto noCoordinateTransport = paged_fixture_transport{
+			fixture_scenario::line_comment_no_coordinates
+		};
+		const auto noCoordinateResult = perform_paged_github_read(
+			noCoordinateTransport,
+			profile(),
+			provider_request(),
+			core::provider_snapshot_id{ 57U },
+			std::stop_token{ });
+		expect(noCoordinateResult.has_value()
+				   && !noCoordinateResult->ReviewThreads.front()
+						   .Comments.front()
+						   .Line.has_value()
+				   && !noCoordinateResult->ReviewThreads.front()
+						   .Comments.front()
+						   .OriginalLine.has_value(),
+			   "a LINE reply may omit both nullable coordinates and inherit the root anchor");
+		auto pagedOriginalOnlyTransport = paged_fixture_transport{
+			fixture_scenario::paged_line_comment_original_line_only
+		};
+		const auto pagedOriginalOnlyResult = perform_paged_github_read(
+			pagedOriginalOnlyTransport,
+			profile(),
+			provider_request(),
+			core::provider_snapshot_id{ 57U },
+			std::stop_token{ });
+		expect(pagedOriginalOnlyResult.has_value()
+				   && !pagedOriginalOnlyResult->ReviewThreads.front()
+						   .Comments.at(100U)
+						   .Line.has_value()
+				   && pagedOriginalOnlyResult->ReviewThreads.front()
+						   .Comments.at(100U)
+						   .OriginalLine
+					   == 42U,
+			   "a nested LINE comment page accepts originalLine-only coordinates");
+		auto pagedNoCoordinateTransport = paged_fixture_transport{
+			fixture_scenario::paged_line_comment_no_coordinates
+		};
+		const auto pagedNoCoordinateResult = perform_paged_github_read(
+			pagedNoCoordinateTransport,
+			profile(),
+			provider_request(),
+			core::provider_snapshot_id{ 58U },
+			std::stop_token{ });
+		expect(pagedNoCoordinateResult.has_value()
+				   && !pagedNoCoordinateResult->ReviewThreads.front()
+						   .Comments.at(100U)
+						   .Line.has_value()
+				   && !pagedNoCoordinateResult->ReviewThreads.front()
+						   .Comments.at(100U)
+						   .OriginalLine.has_value(),
+			   "a paged LINE reply may omit both coordinates and inherit the root anchor");
 		expect(result->Commits.size() == 1U
 				   && result->Commits.front().Headline == "Paged read"
 				   && result->Reviews.size() == 1U
@@ -1938,6 +2100,13 @@ namespace {
 			fixture_scenario::missing_cursor,
 			fixture_scenario::repeated_cursor,
 			fixture_scenario::truncated_total,
+			fixture_scenario::thread_side_missing,
+			fixture_scenario::thread_side_null,
+			fixture_scenario::thread_side_wrong,
+			fixture_scenario::thread_side_unknown,
+			fixture_scenario::current_thread_original_line_only,
+			fixture_scenario::file_comment_original_line,
+			fixture_scenario::paged_file_comment_original_line,
 		};
 		for (const auto scenario : malformed) {
 			auto       transport = paged_fixture_transport{ scenario };
@@ -2089,6 +2258,7 @@ auto main() -> int
 	test_metadata_and_viewer();
 	test_capability_shaped_query();
 	test_successful_exhaustive_read();
+	test_graphql_head_is_bound_to_rest_snapshot();
 	test_raw_structural_limits();
 	test_search_form_links();
 	test_graphql_error_envelopes();

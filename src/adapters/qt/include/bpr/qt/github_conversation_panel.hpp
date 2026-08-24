@@ -86,9 +86,22 @@ namespace bpr::qt {
 		/// Absent means show everything, which is what the review-wide view
 		/// needs.
 		void set_anchor_file(std::optional<core::file_identity> aFile);
+		/// \brief Restricts the drawer to the exact selected diff side and line.
+		void set_anchor_line(std::optional<core::source_line_ref> aLine);
+		/// \brief States which selected endpoints expose current PR-diff coordinates.
+		///
+		/// \details A GitHub current line is meaningful only against the current
+		/// pull-request diff. Retained comparisons may contain the same file and
+		/// numeric line at unrelated revisions, so an endpoint mismatch remains
+		/// visible but is never treated as a placeable source anchor.
+		void set_current_endpoint_placement(
+			bool aLeftHasCurrentDiffRevision,
+			bool aRightHasCurrentDiffRevision);
 
 		[[nodiscard]] auto anchor_file() const noexcept
 			-> const std::optional<core::file_identity>&;
+		[[nodiscard]] auto anchor_line() const noexcept
+			-> const std::optional<core::source_line_ref>&;
 
 		/// \brief Binds the action that reveals the threads.
 		///
@@ -115,7 +128,10 @@ namespace bpr::qt {
 		/// next refresh, which re-expanding on every projection would undo.
 		bool ExpandOnNextProjection = true;
 		/// The file whose threads are shown, or nothing for all of them.
-		std::optional<core::file_identity> AnchorFile;
+		std::optional<core::file_identity>   AnchorFile;
+		std::optional<core::source_line_ref> AnchorLine;
+		bool                                 LeftHasCurrentDiffRevision  = true;
+		bool                                 RightHasCurrentDiffRevision = true;
 		/// Retained so a change of anchor file re-filters without waiting for
 		/// the next projection. A reviewer moving between files expects the
 		/// drawer to follow immediately, and the projection does not arrive

@@ -153,15 +153,13 @@ namespace bpr::adapters::github::detail {
 			return static_cast<std::uint32_t>(number);
 		}
 
-		[[nodiscard]] auto optional_line(
-			const QJsonValue& aPreferred,
-			const QJsonValue& aFallback) -> std::optional<std::uint32_t>
+		[[nodiscard]] auto optional_line(const QJsonValue& aValue)
+			-> std::optional<std::uint32_t>
 		{
-			const auto selected = aPreferred.isNull() ? aFallback : aPreferred;
-			if (selected.isNull()) {
+			if (aValue.isNull()) {
 				return std::nullopt;
 			}
-			return uint32(selected);
+			return uint32(aValue);
 		}
 
 		[[nodiscard]] auto optional_rest_actor(const QJsonValue& aValue)
@@ -274,6 +272,18 @@ namespace bpr::adapters::github::detail {
 			return aValue == "FILE"
 				? application::github_review_thread_subject::file
 				: application::github_review_thread_subject::line;
+		}
+
+		[[nodiscard]] auto diff_side(const QString& aValue)
+			-> std::optional<application::github_diff_side>
+		{
+			if (aValue == QStringLiteral("LEFT")) {
+				return application::github_diff_side::left;
+			}
+			if (aValue == QStringLiteral("RIGHT")) {
+				return application::github_diff_side::right;
+			}
+			return std::nullopt;
 		}
 
 		[[nodiscard]] auto check_status(const QString& aValue)
@@ -687,7 +697,8 @@ namespace bpr::adapters::github::detail {
 				text(graphqlRepository.value("id"))
 					!= text(repository.value("node_id"))
 				|| text(graphqlPullRequest.value("id"))
-					!= text(pullRequest.value("node_id"))) {
+					!= text(pullRequest.value("node_id"))
+				|| text(graphqlPullRequest.value("headRefOid")) != headOid) {
 				return failed(contract_failure_code::identity_mismatch);
 			}
 			const auto graphqlFiles = graphqlPullRequest.value("files")
@@ -734,13 +745,19 @@ namespace bpr::adapters::github::detail {
 			result.PullRequest.ReviewThreads.reserve(
 				static_cast<std::size_t>(threads.size()));
 			for (const auto& threadValue : threads) {
-				const auto                               thread = threadValue.toObject();
+				const auto thread = threadValue.toObject();
+				const auto side   = diff_side(thread.value("diffSide").toString());
+				if (!side.has_value()) {
+					return failed(contract_failure_code::unexpected_response_shape);
+				}
 				application::github_review_thread_record threadRecord{
 					.Thread = application::github_thread_id{
 						text(thread.value("id")) },
 					.Subject                   = review_thread_subject(thread.value("subjectType").toString()),
 					.Path                      = text(thread.value("path")),
-					.Line                      = optional_line(thread.value("line"), thread.value("originalLine")),
+					.Line                      = optional_line(thread.value("line")),
+					.OriginalLine              = optional_line(thread.value("originalLine")),
+					.DiffSide                  = *side,
 					.Resolved                  = thread.value("isResolved").toBool(),
 					.Outdated                  = thread.value("isOutdated").toBool(),
 					.ViewerResolvePermission   = thread.value("viewerCanResolve").toBool() ? application::github_permission_state::allowed : application::github_permission_state::denied,
@@ -768,13 +785,14 @@ namespace bpr::adapters::github::detail {
 						application::github_review_comment_record{
 							.Comment = application::github_comment_id{
 								text(comment.value("id")) },
-							.ReplyTo  = std::move(replyTo),
-							.Author   = optional_graphql_actor(comment.value("author")),
-							.Body     = text(comment.value("bodyText")),
-							.Path     = text(comment.value("path")),
-							.Line     = optional_line(comment.value("line"), comment.value("originalLine")),
-							.Outdated = comment.value("outdated").toBool(),
-							.Deleted  = false,
+							.ReplyTo      = std::move(replyTo),
+							.Author       = optional_graphql_actor(comment.value("author")),
+							.Body         = text(comment.value("bodyText")),
+							.Path         = text(comment.value("path")),
+							.Line         = optional_line(comment.value("line")),
+							.OriginalLine = optional_line(comment.value("originalLine")),
+							.Outdated     = comment.value("outdated").toBool(),
+							.Deleted      = false,
 						});
 				}
 				result.PullRequest.ReviewThreads.push_back(

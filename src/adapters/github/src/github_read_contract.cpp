@@ -26,11 +26,11 @@ namespace bpr::adapters::github::detail {
 
 		constexpr std::string_view review_threads_document = "query GetReviewThreads($owner:String!,$name:String!,"
 															 "$number:Int!){repository(owner:$owner,name:$name){id "
-															 "pullRequest(number:$number){id files(first:100){nodes{"
+															 "pullRequest(number:$number){id headRefOid files(first:100){nodes{"
 															 "path viewerViewedState} pageInfo{hasNextPage endCursor}} "
 															 "reviewThreads(first:100){nodes{"
 															 "id isResolved isOutdated viewerCanResolve viewerCanUnresolve "
-															 "subjectType path line originalLine "
+															 "subjectType path diffSide line originalLine "
 															 "comments(first:100){nodes{id bodyText path line originalLine outdated "
 															 "author{login ... on Node{id}} replyTo{id}} "
 															 "pageInfo{hasNextPage endCursor}}} "
@@ -579,7 +579,7 @@ namespace bpr::adapters::github::detail {
 			if (aShape.UnresolvePermission) {
 				result += " viewerCanUnresolve";
 			}
-			result += " subjectType path line originalLine ";
+			result += " subjectType path diffSide line originalLine ";
 			result += comment_connection_selection("first:100");
 			result += "} ";
 			result += page_info_selection();
@@ -596,7 +596,7 @@ namespace bpr::adapters::github::detail {
 			case github_graphql_page_kind::initial:
 				query = "query GetReviewData($owner:String!,$name:String!,"
 						"$number:Int!){repository(owner:$owner,name:$name){id "
-						"pullRequest(number:$number){id";
+						"pullRequest(number:$number){id headRefOid";
 				if (aPage.Shape.ViewedFileState) {
 					query += " ";
 					query += file_connection_selection("first:100", aPage.Shape);
@@ -610,7 +610,7 @@ namespace bpr::adapters::github::detail {
 			case github_graphql_page_kind::files:
 				query = "query GetReviewFilesPage($owner:String!,$name:String!,"
 						"$number:Int!,$after:String!){repository(owner:$owner,"
-						"name:$name){id pullRequest(number:$number){id ";
+						"name:$name){id pullRequest(number:$number){id headRefOid ";
 				query += file_connection_selection(
 					"first:100,after:$after",
 					aPage.Shape);
@@ -619,7 +619,7 @@ namespace bpr::adapters::github::detail {
 			case github_graphql_page_kind::threads:
 				query = "query GetReviewThreadsPage($owner:String!,$name:String!,"
 						"$number:Int!,$after:String!){repository(owner:$owner,"
-						"name:$name){id pullRequest(number:$number){id ";
+						"name:$name){id pullRequest(number:$number){id headRefOid ";
 				query += thread_connection_selection(
 					"first:100,after:$after",
 					aPage.Shape);
@@ -629,7 +629,7 @@ namespace bpr::adapters::github::detail {
 				query = "query GetReviewCommentsPage($owner:String!,$name:String!,"
 						"$number:Int!,$thread:ID!,$after:String!){"
 						"repository(owner:$owner,name:$name){id "
-						"pullRequest(number:$number){id}} "
+						"pullRequest(number:$number){id headRefOid}} "
 						"node(id:$thread){... on PullRequestReviewThread{id ";
 				query += comment_connection_selection(
 					"first:100,after:$after");
@@ -1307,7 +1307,8 @@ namespace bpr::adapters::github::detail {
 				!pullRequest.isObject()
 				|| !has_exact_keys(
 					pullRequest.toObject(),
-					{ "files", "id", "reviewThreads" })
+					{ "files", "headRefOid", "id", "reviewThreads" })
+				|| !nonempty_string(pullRequest.toObject().value("headRefOid"))
 				|| !nonempty_string(pullRequest.toObject().value("id"))) {
 				return false;
 			}
@@ -1351,6 +1352,7 @@ namespace bpr::adapters::github::detail {
 					threads.toObject().value("nodes"),
 					{
 						"comments",
+						"diffSide",
 						"id",
 						"isOutdated",
 						"isResolved",
@@ -1376,6 +1378,7 @@ namespace bpr::adapters::github::detail {
 			for (const auto& threadValue : threadNodes) {
 				const auto thread       = threadValue.toObject();
 				const auto comments     = thread.value("comments");
+				const auto diffSide     = thread.value("diffSide");
 				const auto line         = thread.value("line");
 				const auto originalLine = thread.value("originalLine");
 				const auto commentNodes = comments.toObject().value("nodes").toArray();
@@ -1387,6 +1390,7 @@ namespace bpr::adapters::github::detail {
 					|| !thread.value("isOutdated").isBool()
 					|| !thread.value("viewerCanResolve").isBool()
 					|| !thread.value("viewerCanUnresolve").isBool()
+					|| !one_of(diffSide, { "LEFT", "RIGHT" })
 					|| (!fileSubject && !lineSubject)
 					|| !nonempty_string(thread.value("path"))
 					|| !(
@@ -1397,7 +1401,10 @@ namespace bpr::adapters::github::detail {
 					|| (fileSubject
 						&& (!line.isNull() || !originalLine.isNull()))
 					|| (lineSubject
-						&& line.isNull() && originalLine.isNull())
+						&& ((!thread.value("isOutdated").toBool()
+							 && line.isNull())
+							|| (thread.value("isOutdated").toBool()
+								&& line.isNull() && originalLine.isNull())))
 					|| !comments.isObject()
 					|| !has_exact_keys(
 						comments.toObject(),
@@ -1425,9 +1432,6 @@ namespace bpr::adapters::github::detail {
 							fileSubject
 							&& (!commentLine.isNull()
 								|| !commentOriginalLine.isNull()))
-						|| (lineSubject
-							&& commentLine.isNull()
-							&& commentOriginalLine.isNull())
 						|| comment.value("path") != thread.value("path")) {
 						return false;
 					}

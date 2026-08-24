@@ -27,11 +27,14 @@ namespace {
 	[[nodiscard]] auto root(std::string aId, std::string aPath) -> conversation
 	{
 		return conversation{
-			.Id   = std::move(aId),
-			.Kind = application::github_conversation_kind::review_thread,
-			.Body = std::string{ "a remark" },
-			.Path = std::move(aPath),
-			.Line = 12U,
+			.Id       = std::move(aId),
+			.Kind     = application::github_conversation_kind::review_thread,
+			.Body     = std::string{ "a remark" },
+			.Path     = std::move(aPath),
+			.Line     = 12U,
+			.DiffSide = application::github_conversation_diff_side::right,
+			.AnchorAvailability
+			= application::github_conversation_anchor_availability::current,
 		};
 	}
 
@@ -40,7 +43,7 @@ namespace {
 		return conversation{
 			.Id       = std::move(aId),
 			.ParentId = std::move(aParent),
-			.Kind     = application::github_conversation_kind::review_thread,
+			.Kind     = application::github_conversation_kind::review_comment,
 			.Body     = std::string{ "a reply" },
 		};
 	}
@@ -87,6 +90,11 @@ namespace {
 		panel.adopt(two_files(), QStringLiteral("five conversations"));
 		const auto everything = shown(panel);
 		expect(everything.size() == 5U, "unanchored, the panel shows every node");
+		const auto rootIndex  = panel.model()->index_for_id("left-root");
+		const auto replyIndex = panel.model()->index_for_id("left-reply");
+		const auto deepIndex  = panel.model()->index_for_id("left-deep");
+		expect(replyIndex.parent() == rootIndex && deepIndex.parent() == replyIndex,
+			   "reply rows nest under the root and preserve reply-to-reply depth");
 
 		panel.set_anchor_file(core::file_identity_of("src/left.cpp"));
 		const auto anchored = shown(panel);
@@ -187,6 +195,107 @@ namespace {
 			"its own anchor, because discarding a comment for having a missing "
 			"ancestor loses it silently");
 	}
+
+	auto test_exact_source_anchor_filters_file_side_and_line() -> void
+	{
+		auto conversations = std::vector<conversation>{
+			root("right-12", "src/file.cpp"),
+			root("left-12", "src/file.cpp"),
+			root("right-13", "src/file.cpp"),
+		};
+		conversations[1].DiffSide = application::github_conversation_diff_side::left;
+		conversations[2].Line     = 13U;
+		qt::github_conversation_panel panel;
+		panel.adopt(conversations, QStringLiteral("three conversations"));
+		panel.set_anchor_file(core::file_identity_of("src/file.cpp"));
+		const auto rightAccessible = panel.model()
+										 ->index_for_id("right-12")
+										 .data(Qt::AccessibleTextRole)
+										 .toString();
+		const auto leftAccessible  = panel.model()
+										 ->index_for_id("left-12")
+										 .data(Qt::AccessibleTextRole)
+										 .toString();
+		expect(rightAccessible.contains(QStringLiteral("head/right side"))
+				   && leftAccessible.contains(QStringLiteral("base/left side"))
+				   && rightAccessible != leftAccessible,
+			   "accessible current-line roots name the pane side that selection targets");
+		panel.set_anchor_line(core::source_line_ref{
+			.Side = core::diff_side::right,
+			.Line = 11U,
+		});
+		expect(
+			shown(panel) == std::vector<std::string>{ "right-12" },
+			"source selection keeps only the exact file, side, and one-based-to-zero-based line");
+	}
+
+	auto test_unplaced_anchor_wording_is_explicit() -> void
+	{
+		auto outdated = root("outdated", "src/file.cpp");
+		outdated.Line.reset();
+		outdated.OriginalLine       = 19U;
+		outdated.AnchorAvailability = application::github_conversation_anchor_availability::outdated_revision;
+		auto file                   = root("file", "src/file.cpp");
+		file.Line.reset();
+		file.AnchorAvailability = application::github_conversation_anchor_availability::file_level;
+		auto missingSide        = root("missing-side", "src/file.cpp");
+		missingSide.DiffSide.reset();
+		missingSide.AnchorAvailability = application::github_conversation_anchor_availability::missing_side;
+		auto missingLine               = root("missing-line", "src/file.cpp");
+		missingLine.Line.reset();
+		missingLine.AnchorAvailability        = application::github_conversation_anchor_availability::missing_current_line;
+		auto                          current = root("current", "src/file.cpp");
+		qt::github_conversation_panel panel;
+		panel.adopt(
+			{ outdated, file, missingSide, missingLine, current },
+			QStringLiteral("five conversations"));
+		panel.set_current_endpoint_placement(true, false);
+		const auto outdatedText = panel.model()->index(0, 0).data().toString();
+		const auto fileText     = panel.model()->index(1, 0).data().toString();
+		const auto sideText     = panel.model()->index(2, 0).data().toString();
+		const auto lineText     = panel.model()->index(3, 0).data().toString();
+		const auto currentText  = panel.model()->index(4, 0).data().toString();
+		expect(outdatedText.contains(QStringLiteral("outdated revision"))
+				   && outdatedText.contains(QStringLiteral("original line 19")),
+			   "outdated anchors remain visibly unplaced without guessing a current line");
+		expect(fileText.contains(QStringLiteral("File-level thread"))
+				   && fileText.contains(QStringLiteral("no source line anchor")),
+			   "file-level anchors explicitly explain why no source line can be selected");
+		expect(sideText.contains(QStringLiteral("diff side is missing"))
+				   && lineText.contains(QStringLiteral("current line is missing")),
+			   "missing placement facts remain explicit instead of defaulting a pane or line");
+		expect(currentText.contains(
+				   QStringLiteral("does not expose the current pull-request diff revision")),
+			   "current GitHub coordinates name a selected-revision mismatch instead of appearing placed");
+	}
+
+	auto test_invalid_projected_side_is_never_guessed_as_right() -> void
+	{
+		auto invalid     = root("invalid-side", "src/file.cpp");
+		invalid.DiffSide = static_cast<application::github_conversation_diff_side>(
+			255U);
+		qt::github_conversation_panel panel;
+		panel.adopt({ invalid }, QStringLiteral("one conversation"));
+		panel.set_current_endpoint_placement(true, true);
+		const auto index = panel.model()->index_for_id("invalid-side");
+		expect(index.isValid()
+				   && index.data(qt::github_conversation_model::anchor_availability_role)
+						   .toInt()
+					   == static_cast<int>(application::
+											   github_conversation_anchor_availability::missing_side)
+				   && index.data().toString().contains(
+					   QStringLiteral("diff side is missing"))
+				   && !index.data().toString().contains(
+					   QStringLiteral("head/right side")),
+			   "an invalid projected side is visibly unplaced instead of guessed as right");
+		panel.set_anchor_file(core::file_identity_of("src/file.cpp"));
+		panel.set_anchor_line(core::source_line_ref{
+			.Side = core::diff_side::right,
+			.Line = 11U,
+		});
+		expect(panel.model()->rowCount() == 0,
+			   "an invalid projected side cannot match a right-side source selection");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -199,6 +308,9 @@ auto main(int argc, char** argv) -> int
 	test_changing_the_anchor_follows_immediately();
 	test_a_file_without_threads_is_empty();
 	test_an_orphan_is_kept_by_its_own_anchor();
+	test_exact_source_anchor_filters_file_side_and_line();
+	test_unplaced_anchor_wording_is_explicit();
+	test_invalid_projected_side_is_never_guessed_as_right();
 	std::cout << "conversation-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }

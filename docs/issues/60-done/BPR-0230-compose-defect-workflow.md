@@ -43,13 +43,14 @@ the application constructs none of them.
 - Classification and every accepted lifecycle, availability, or
   reclassification change persist through the BPR-0238 review-ledger host
   before projection. Restart loads the exact histories without rewriting them.
-- Author replies and provider-outdated exact source-line anchors enter
-  `application::correlate` as evidence. Retained-epoch browsing alone produces
-  none. Evidence can produce `needs_verification`; only the card's explicit
-  Verify command reaches `verified`.
+- Author replies on identity-proven current source anchors enter
+  `application::correlate` as evidence. Outdated anchors and retained-epoch
+  browsing alone produce none. Evidence can produce `needs_verification`; only
+  the card's explicit Verify command reaches `verified`.
 - The shipped-executable seed/reopen contract selects the real file row,
-  classifies two real line threads, refuses a real file-level thread, drives a
-  reverse epoch pair without changing the unaffected defect, explicitly
+  classifies two current right-side line threads, refuses a real file-level
+  thread, drives a reverse epoch pair without changing either defect or
+  permitting a third classification, explicitly
   verifies the evidence-bearing defect, reclassifies the other, navigates both
   stable identities, invokes the separate BPR-0229 Publish action, and proves
   exact restart state with zero reopen writes for GitHub.com and GHES 3.18.

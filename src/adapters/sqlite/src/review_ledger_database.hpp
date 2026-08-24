@@ -18,11 +18,12 @@ struct sqlite3;
 namespace bpr::adapters::sqlite::detail {
 	/// \brief The schema version this build writes and validates.
 	///
-	/// \details Version 1 held the review scope and file receipts. Version 2
-	/// added conversation receipts. The value is deliberately not "1": a
+	/// \details Version 1 held the review scope and file receipts. Later versions
+	/// added conversation receipts, private records, agent sessions, and the
+	/// source-line coordinate correction. The value is deliberately not "1": a
 	/// migration mechanism whose only version is the initial one has never
 	/// migrated anything, and would be first exercised by a user's database.
-	inline constexpr std::int64_t review_ledger_schema_version = 4;
+	inline constexpr std::int64_t review_ledger_schema_version = 5;
 
 	/// \brief Classifies a valid defect write at the SQLite authority boundary.
 	enum class defect_store_outcome : std::uint8_t {

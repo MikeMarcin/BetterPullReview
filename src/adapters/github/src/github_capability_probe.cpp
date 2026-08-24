@@ -45,6 +45,7 @@ namespace bpr::adapters::github::detail {
 													  "nodePossibleTypes:__type(name:\"Node\"){...PossibleType}"
 													  "threadSubject:__type(name:\"PullRequestReviewThreadSubjectType\")"
 													  "{...EnumType}"
+													  "diffSide:__type(name:\"DiffSide\"){...EnumType}"
 													  "fileViewedState:__type(name:\"FileViewedState\"){...EnumType}"
 													  "markInput:__type(name:\"MarkFileAsViewedInput\"){...InputType}"
 													  "markPayload:__type(name:\"MarkFileAsViewedPayload\"){...FieldType}"
@@ -77,7 +78,7 @@ namespace bpr::adapters::github::detail {
 			inspect_graphql_operation_policy(graphql_document)
 			== graphql_operation_policy_result::query_only);
 
-		constexpr std::array<std::string_view, 25> response_aliases{
+		constexpr std::array<std::string_view, 26> response_aliases{
 			"schemaRoot",
 			"repository",
 			"pullRequest",
@@ -94,6 +95,7 @@ namespace bpr::adapters::github::detail {
 			"actorPossibleTypes",
 			"nodePossibleTypes",
 			"threadSubject",
+			"diffSide",
 			"fileViewedState",
 			"markInput",
 			"markPayload",
@@ -1430,6 +1432,7 @@ namespace bpr::adapters::github::detail {
 			selected_schema_type actorPossibleTypes;
 			selected_schema_type nodePossibleTypes;
 			selected_schema_type threadSubject;
+			selected_schema_type diffSide;
 			selected_schema_type viewedState;
 			selected_schema_type markInput;
 			selected_schema_type markPayload;
@@ -1472,6 +1475,7 @@ namespace bpr::adapters::github::detail {
 							   selected_type_shape::possible_types, nodePossibleTypes)
 				|| !parseEnum("threadSubject", "PullRequestReviewThreadSubjectType",
 							  threadSubject)
+				|| !parseEnum("diffSide", "DiffSide", diffSide)
 				|| !parseEnum("fileViewedState", "FileViewedState", viewedState)
 				|| !parseInput("markInput", "MarkFileAsViewedInput", markInput)
 				|| !parseFields("markPayload", "MarkFileAsViewedPayload",
@@ -1521,7 +1525,9 @@ namespace bpr::adapters::github::detail {
 				field_requirement(repository, "OBJECT", "id", scalar("ID", true)),
 				field_requirement(repository, "OBJECT", "pullRequest",
 								  object_type("PullRequest"), { number }),
-				field_requirement(pullRequest, "OBJECT", "id", scalar("ID", true)));
+				field_requirement(pullRequest, "OBJECT", "id", scalar("ID", true)),
+				field_requirement(pullRequest, "OBJECT", "headRefOid",
+								  scalar("GitObjectID", true)));
 
 			const auto reviewRead = combined_fact(
 				repositoryPullRequestRead,
@@ -1551,6 +1557,9 @@ namespace bpr::adapters::github::detail {
 					enum_type("PullRequestReviewThreadSubjectType", true)),
 				field_requirement(reviewThread, "OBJECT", "path",
 								  scalar("String", true)),
+				field_requirement(reviewThread, "OBJECT", "diffSide",
+								  enum_type("DiffSide", true)),
+				enum_requirement(diffSide, { "LEFT", "RIGHT" }),
 				field_requirement(reviewThread, "OBJECT", "line", scalar("Int")),
 				field_requirement(reviewThread, "OBJECT", "originalLine",
 								  scalar("Int")),

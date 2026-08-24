@@ -566,6 +566,7 @@ def _validate_graphql_thread_node(value: object) -> None:
         value,
         {
             "comments",
+            "diffSide",
             "id",
             "isOutdated",
             "isResolved",
@@ -580,6 +581,7 @@ def _validate_graphql_thread_node(value: object) -> None:
     if (
         not isinstance(node["id"], str)
         or not isinstance(node["path"], str)
+        or node["diffSide"] not in {"LEFT", "RIGHT"}
         or node["subjectType"] not in {"FILE", "LINE"}
     ):
         raise LiveCaptureError("probe_graphql_invalid")
@@ -601,9 +603,13 @@ def _validate_graphql_review_reply(document: object) -> None:
     if not isinstance(repository["id"], str):
         raise LiveCaptureError("probe_graphql_invalid")
     pull_request = _exact_probe_object(
-        repository["pullRequest"], {"files", "id", "reviewThreads"}
+        repository["pullRequest"], {"files", "headRefOid", "id", "reviewThreads"}
     )
-    if not isinstance(pull_request["id"], str):
+    if (
+        not isinstance(pull_request["id"], str)
+        or not isinstance(pull_request["headRefOid"], str)
+        or not pull_request["headRefOid"]
+    ):
         raise LiveCaptureError("probe_graphql_invalid")
     _validate_graphql_connection(pull_request["files"], _validate_graphql_file_node)
     _validate_graphql_connection(

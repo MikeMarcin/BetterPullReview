@@ -23,6 +23,7 @@
 #include <QListView>
 #include <QMenu>
 #include <QModelIndex>
+#include <QMouseEvent>
 #include <QPersistentModelIndex>
 #include <QPlainTextEdit>
 #include <QPoint>
@@ -67,6 +68,30 @@ namespace {
 			std::cerr << "FAILED: " << aMessage << '\n';
 			std::exit(EXIT_FAILURE);
 		}
+	}
+
+	void send_click(QWidget& aSurface, const QPointF aPosition)
+	{
+		auto press = QMouseEvent{
+			QEvent::MouseButtonPress,
+			aPosition,
+			aPosition,
+			aPosition,
+			Qt::LeftButton,
+			Qt::LeftButton,
+			Qt::NoModifier,
+		};
+		auto release = QMouseEvent{
+			QEvent::MouseButtonRelease,
+			aPosition,
+			aPosition,
+			aPosition,
+			Qt::LeftButton,
+			Qt::NoButton,
+			Qt::NoModifier,
+		};
+		QCoreApplication::sendEvent(&aSurface, &press);
+		QCoreApplication::sendEvent(&aSurface, &release);
 	}
 
 	/// \brief Records one reported host-owned drawer width.
@@ -1251,8 +1276,10 @@ namespace {
 	/// harness that publishes several different files into one window keeps a
 	/// distinct immutable comparison for each. Seed zero is the original key.
 	[[nodiscard]] auto comparison_key(
-		const core::diff_options& aOptions,
-		const std::uint8_t        aSeed = 0U) -> core::file_comparison_key
+		const core::diff_options&                 aOptions,
+		const std::uint8_t                        aSeed = 0U,
+		const std::optional<core::file_identity>& aFile = std::nullopt)
+		-> core::file_comparison_key
 	{
 		const auto digest = core::options_digest(aOptions);
 		expect(digest.has_value(), "the comparison fixture options normalize");
@@ -1288,7 +1315,7 @@ namespace {
 			},
 			.LeftBlob  = blob(static_cast<std::uint8_t>(21U + aSeed)),
 			.RightBlob = blob(static_cast<std::uint8_t>(51U + aSeed)),
-			.File      = opaque<core::file_identity>(static_cast<std::uint8_t>(31U + aSeed)),
+			.File      = aFile.value_or(opaque<core::file_identity>(static_cast<std::uint8_t>(31U + aSeed))),
 			.Options   = *digest,
 			.Algorithm = core::supported_diff_algorithm_revision,
 		};
@@ -1302,15 +1329,17 @@ namespace {
 
 	/// \brief Computes one immutable RFC-BPR-0004 comparison fixture.
 	[[nodiscard]] auto computed_comparison(
-		const std::string_view aLeft,
-		const std::string_view aRight,
-		const std::uint8_t     aSeed = 0U) -> core::computed_file_diff
+		const std::string_view                    aLeft,
+		const std::string_view                    aRight,
+		const std::uint8_t                        aSeed = 0U,
+		const std::optional<core::file_identity>& aFile = std::nullopt)
+		-> core::computed_file_diff
 	{
 		const auto options = core::diff_options{ };
 		auto       left    = source_bytes(aLeft);
 		auto       right   = source_bytes(aRight);
 		const auto outcome = core::compute_file_diff({
-			.Key        = comparison_key(options, aSeed),
+			.Key        = comparison_key(options, aSeed, aFile),
 			.Options    = options,
 			.LeftBytes  = std::span<const std::uint8_t>{ left },
 			.RightBytes = std::span<const std::uint8_t>{ right },
@@ -1582,6 +1611,424 @@ namespace {
 		expect(surface->current_result() != nullptr,
 			   "the composed surface accepts its exact publication");
 		return surface;
+	}
+
+	void test_same_automatically_selected_line_click_filters_conversations()
+	{
+		const auto diff = computed_comparison(
+			"shared-0\nshared-1\nshared-2\n",
+			"shared-0\nshared-1\nshared-2\n",
+			0U,
+			core::file_identity_of("src/file.cpp"));
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		auto* const surface = publish_fixture(window, diff);
+		expect(surface->selection().has_value()
+				   && surface->selection()->Kind
+					   == core::semantic_selection_kind::line,
+			   "the fixture publication begins with an automatic semantic line selection");
+		const auto automaticallySelected = surface->selection()->PreferredLine;
+		window.set_conversation_endpoint_placement(true, true);
+		window.conversation_panel()->adopt({
+											   application::github_conversation_projection{
+												   .Id       = "automatic-line-thread",
+												   .Kind     = application::github_conversation_kind::review_thread,
+												   .Path     = "src/file.cpp",
+												   .Line     = automaticallySelected.Line + 1U,
+												   .DiffSide = automaticallySelected.Side == core::diff_side::left
+													   ? application::github_conversation_diff_side::left
+													   : application::github_conversation_diff_side::right,
+												   .AnchorAvailability
+												   = application::github_conversation_anchor_availability::current,
+											   },
+										   },
+										   QStringLiteral("one conversation"));
+		expect(!window.conversation_panel()->anchor_line().has_value(),
+			   "an automatic publication selection leaves conversations at file scope");
+
+		auto applicationSelections = 0U;
+		surface->set_selection_sink([&applicationSelections](const auto&) {
+			++applicationSelections;
+		});
+		const auto  before = applicationSelections;
+		auto* const pane   = automaticallySelected.Side == core::diff_side::left
+			? surface->left_pane()
+			: surface->right_pane();
+		const auto  block  = pane->document()->findBlockByNumber(
+			static_cast<int>(automaticallySelected.Line));
+		send_click(
+			*pane->viewport(),
+			pane->cursorRect(QTextCursor{ block }).center());
+		process_events();
+		expect(
+			window.conversation_panel()->anchor_line()
+					== std::optional{ automaticallySelected }
+				&& window.conversation_model()->rowCount() == 1
+				&& window.conversation_model()
+					   ->index_for_id("automatic-line-thread")
+					   .isValid(),
+			"clicking the already-selected line still reports an interactive gesture "
+			"and filters to its exact conversation");
+		expect(applicationSelections == before,
+			   "an unchanged same-line click does not duplicate the application selection sink");
+	}
+
+	void test_conversation_selection_reveals_exact_diff_anchor()
+	{
+		const auto diff = computed_comparison(
+			"left-0\nleft-1\nleft-2\nleft-3\n",
+			"right-0\nright-1\nright-2\nright-3\n",
+			0U,
+			core::file_identity_of("src/file.cpp"));
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		auto* const surface = publish_fixture(window, diff);
+		window.set_conversation_endpoint_placement(true, true);
+		window.conversation_panel()->set_anchor_line(std::nullopt);
+		window.conversation_panel()->adopt({
+											   application::github_conversation_projection{
+												   .Id       = "right-thread",
+												   .Kind     = application::github_conversation_kind::review_thread,
+												   .Path     = "src/file.cpp",
+												   .Line     = 3U,
+												   .DiffSide = application::github_conversation_diff_side::right,
+												   .AnchorAvailability
+												   = application::github_conversation_anchor_availability::current,
+											   },
+											   application::github_conversation_projection{
+												   .Id       = "right-reply",
+												   .ParentId = "right-thread",
+												   .Kind     = application::github_conversation_kind::review_comment,
+												   .Path     = "src/file.cpp",
+												   .Line     = 3U,
+												   .DiffSide = application::github_conversation_diff_side::right,
+												   .AnchorAvailability
+												   = application::github_conversation_anchor_availability::current,
+											   },
+											   application::github_conversation_projection{
+												   .Id       = "right-deep-reply",
+												   .ParentId = "right-reply",
+												   .Kind     = application::github_conversation_kind::review_comment,
+												   .Path     = "src/file.cpp",
+												   .Line     = 3U,
+												   .DiffSide = application::github_conversation_diff_side::right,
+												   .AnchorAvailability
+												   = application::github_conversation_anchor_availability::current,
+											   },
+											   application::github_conversation_projection{
+												   .Id       = "left-thread",
+												   .Kind     = application::github_conversation_kind::review_thread,
+												   .Path     = "src/file.cpp",
+												   .Line     = 4U,
+												   .DiffSide = application::github_conversation_diff_side::left,
+												   .AnchorAvailability
+												   = application::github_conversation_anchor_availability::current,
+											   },
+											   application::github_conversation_projection{
+												   .Id   = "file-thread",
+												   .Kind = application::github_conversation_kind::review_thread,
+												   .Path = "src/file.cpp",
+												   .AnchorAvailability
+												   = application::github_conversation_anchor_availability::file_level,
+											   },
+										   },
+										   QStringLiteral("three conversations"));
+		expect(window.conversation_model()->rowCount() == 3
+				   && window.conversation_model()->index_for_id("right-thread").isValid(),
+			   "the unanchored real panel path initially exposes all fixture threads");
+		window.conversation_view()->setCurrentIndex(
+			window.conversation_model()->index_for_id("right-thread"));
+		process_events();
+		expect(surface->conversation_anchor().has_value()
+				   && surface->conversation_anchor()->Side == core::diff_side::right
+				   && surface->conversation_anchor()->Line == 2U,
+			   "right drawer anchor converts one-based GitHub line to the exact zero-based later pane line");
+		expect(window.conversation_model()->rowCount() == 1
+				   && window.conversation_model()->index_for_id("right-thread").isValid()
+				   && window.conversation_model()->index_for_id("right-reply").parent()
+					   == window.conversation_model()->index_for_id("right-thread")
+				   && window.conversation_model()->index_for_id("right-deep-reply").parent()
+					   == window.conversation_model()->index_for_id("right-reply"),
+			   "the real panel path retains the selected thread while reverse-filtering to its exact source line");
+		auto applicationSelections = 0U;
+		surface->set_selection_sink([&applicationSelections](const auto&) {
+			++applicationSelections;
+		});
+		const auto selectionsBeforeSameLine = applicationSelections;
+		const auto rightBlock               = surface->right_pane()->document()->findBlockByNumber(2);
+		send_click(
+			*surface->right_pane()->viewport(),
+			surface->right_pane()->cursorRect(QTextCursor{ rightBlock }).center());
+		process_events();
+		expect(window.conversation_view()->currentIndex()
+					   == window.conversation_model()->index_for_id("right-thread")
+				   && surface->conversation_anchor().has_value()
+				   && surface->conversation_anchor()->Side == core::diff_side::right
+				   && surface->conversation_anchor()->Line == 2U
+				   && !surface->conversation_anchor_marker_rect(core::diff_side::right)
+						   .isEmpty()
+				   && applicationSelections == selectionsBeforeSameLine,
+			   "a physical click on the selected root's exact line retains the root and marker without duplicating the application sink");
+		const auto visibleConnectors = surface->link_map()->visible_links();
+		const auto connector         = std::ranges::find_if(
+			visibleConnectors,
+			[](const qt::visible_diff_link& aLink) {
+				return aLink.Identity.Group.has_value();
+			});
+		expect(connector != visibleConnectors.end(),
+			   "the fixture exposes a semantic connector for the selection-lifetime course");
+		const auto connectorPoint = QPointF{
+			connector->Path.boundingRect().center().x(),
+			(connector->LeftTop + connector->LeftBottom + connector->RightTop
+			 + connector->RightBottom)
+				/ 4.0,
+		};
+		send_click(*surface->link_map(), connectorPoint);
+		process_events();
+		expect(!surface->conversation_anchor().has_value()
+				   && !window.conversation_view()->currentIndex().isValid()
+				   && !window.conversation_panel()->anchor_line().has_value()
+				   && !window.classify_defect_action()->isEnabled(),
+			   "a connector gesture clears the drawer selection and defect action with its conversation marker");
+		window.conversation_panel()->set_anchor_line(std::nullopt);
+		surface->clear_conversation_anchor();
+		window.conversation_view()->setCurrentIndex(
+			window.conversation_model()->index_for_id("right-deep-reply"));
+		process_events();
+		expect(surface->conversation_anchor().has_value()
+				   && surface->conversation_anchor()->Side == core::diff_side::right
+				   && surface->conversation_anchor()->Line == 2U
+				   && window.conversation_model()->rowCount() == 1
+				   && window.conversation_model()->index_for_id("right-thread").isValid()
+				   && window.conversation_model()->index_for_id("right-reply").isValid()
+				   && window.conversation_model()
+						  ->index_for_id("right-deep-reply")
+						  .isValid(),
+			   "selecting a deep reply resolves its root and reveals the same exact line while retaining the full thread forest");
+		window.conversation_panel()->set_anchor_line(std::nullopt);
+		window.conversation_view()->setCurrentIndex(
+			window.conversation_model()->index_for_id("left-thread"));
+		process_events();
+		expect(surface->conversation_anchor().has_value()
+				   && surface->conversation_anchor()->Side == core::diff_side::left
+				   && surface->conversation_anchor()->Line == 3U,
+			   "left drawer anchor converts one-based GitHub line to the exact zero-based earlier pane line");
+		window.conversation_panel()->set_anchor_line(std::nullopt);
+		window.conversation_view()->setCurrentIndex(
+			window.conversation_model()->index_for_id("file-thread"));
+		process_events();
+		expect(!surface->conversation_anchor().has_value(),
+			   "an explicitly unplaced file-level thread clears the source marker without guessing");
+
+		window.set_conversation_endpoint_placement(false, false);
+		window.conversation_panel()->set_anchor_line(std::nullopt);
+		window.conversation_view()->setCurrentIndex(
+			window.conversation_model()->index_for_id("right-thread"));
+		process_events();
+		const auto mismatched = window.conversation_model()->index_for_id(
+			"right-thread");
+		expect(!surface->conversation_anchor().has_value()
+				   && mismatched.data().toString().contains(
+					   QStringLiteral("does not expose the current pull-request diff revision")),
+			   "a current-head line remains visibly unplaced against a different retained revision");
+		const auto anchoredRightBlock = surface->right_pane()->document()->findBlockByNumber(2);
+		send_click(
+			*surface->right_pane()->viewport(),
+			surface->right_pane()
+				->cursorRect(QTextCursor{ anchoredRightBlock })
+				.center());
+		process_events();
+		expect(!window.conversation_panel()->anchor_line().has_value()
+				   && window.conversation_model()->rowCount() == 3,
+			   "a line gesture on a non-current endpoint keeps file scope instead of guessing a thread");
+
+		window.conversation_model()->apply({
+			application::github_conversation_projection{
+				.Id       = "invalid-side-thread",
+				.Kind     = application::github_conversation_kind::review_thread,
+				.Path     = "src/file.cpp",
+				.Line     = 3U,
+				.DiffSide = static_cast<application::github_conversation_diff_side>(
+					255U),
+				.AnchorAvailability
+				= application::github_conversation_anchor_availability::current,
+			},
+		});
+		window.conversation_view()->setCurrentIndex(
+			window.conversation_model()->index_for_id("invalid-side-thread"));
+		process_events();
+		const auto invalidSide = window.conversation_model()->index_for_id("invalid-side-thread");
+		expect(!surface->conversation_anchor().has_value()
+				   && invalidSide
+						   .data(qt::github_conversation_model::anchor_availability_role)
+						   .toInt()
+					   == static_cast<int>(application::
+											   github_conversation_anchor_availability::missing_side)
+				   && !window.classify_defect_action()->isEnabled(),
+			   "the composed Qt boundary refuses an invalid projected side instead of revealing or classifying it as right");
+
+		window.set_conversation_endpoint_placement(false, true);
+		auto pullRequest = application::github_pull_request_projection{
+			.ReviewThreadCount      = 1U,
+			.ReviewThreadsAvailable = true,
+			.Conversations          = {
+				application::github_conversation_projection{
+					.Id       = "refresh-thread",
+					.Kind     = application::github_conversation_kind::review_thread,
+					.Path     = "src/file.cpp",
+					.Line     = 3U,
+					.DiffSide = application::github_conversation_diff_side::right,
+					.AnchorAvailability
+					= application::github_conversation_anchor_availability::current,
+				},
+			},
+		};
+		window.publish(application::github_presentation_update{
+			.PullRequest = pullRequest,
+		});
+		window.conversation_view()->setCurrentIndex(
+			window.conversation_model()->index_for_id("refresh-thread"));
+		process_events();
+		expect(surface->conversation_anchor().has_value()
+				   && surface->conversation_anchor()->Line == 2U,
+			   "the refresh fixture begins with its current right-side line anchored");
+
+		window.conversation_panel()->set_anchor_line(std::nullopt);
+		pullRequest.Conversations.front().Line.reset();
+		pullRequest.Conversations.front().OriginalLine       = 3U;
+		pullRequest.Conversations.front().AnchorAvailability = application::
+			github_conversation_anchor_availability::outdated_revision;
+		window.publish(application::github_presentation_update{
+			.PullRequest = pullRequest,
+		});
+		process_events();
+		expect(!surface->conversation_anchor().has_value()
+				   && window.conversation_model()
+						   ->index_for_id("refresh-thread")
+						   .data(qt::github_conversation_model::anchor_availability_role)
+						   .toInt()
+					   == static_cast<int>(application::
+											   github_conversation_anchor_availability::outdated_revision),
+			   "same-identity current-to-outdated refresh clears the stale source marker");
+
+		pullRequest.Conversations.front().Line = 4U;
+		pullRequest.Conversations.front().OriginalLine.reset();
+		pullRequest.Conversations.front().AnchorAvailability = application::
+			github_conversation_anchor_availability::current;
+		window.publish(application::github_presentation_update{
+			.PullRequest = pullRequest,
+		});
+		process_events();
+		expect(surface->conversation_anchor().has_value()
+				   && surface->conversation_anchor()->Side == core::diff_side::right
+				   && surface->conversation_anchor()->Line == 3U,
+			   "same-identity line-change refresh moves the marker to the new exact line");
+	}
+
+	void test_conversation_line_outside_selected_comparison_is_explicit()
+	{
+		const auto diff = computed_comparison(
+			"left-0\nleft-1\nleft-2\nleft-3\n",
+			"right-0\nright-1\nright-2\nright-3\n",
+			0U,
+			core::file_identity_of("src/file.cpp"));
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		auto* const surface = publish_fixture(window, diff);
+		window.set_conversation_endpoint_placement(false, true);
+		window.conversation_panel()->adopt(
+			{
+				application::github_conversation_projection{
+					.Id       = "outside-thread",
+					.Kind     = application::github_conversation_kind::review_thread,
+					.Path     = "src/file.cpp",
+					.Line     = 999U,
+					.DiffSide = application::github_conversation_diff_side::right,
+					.AnchorAvailability
+					= application::github_conversation_anchor_availability::current,
+				},
+			},
+			QStringLiteral("one conversation"));
+		const auto outside = window.conversation_model()->index_for_id("outside-thread");
+		window.conversation_view()->setCurrentIndex(outside);
+		process_events();
+		const auto refused = window.conversation_model()->index_for_id("outside-thread");
+		expect(
+			!surface->conversation_anchor().has_value()
+				&& refused
+						.data(qt::github_conversation_model::anchor_availability_role)
+						.toInt()
+					== static_cast<int>(application::
+											github_conversation_anchor_availability::selected_line_out_of_bounds)
+				&& refused.data(Qt::DisplayRole)
+					   .toString()
+					   .contains(QStringLiteral("outside the selected comparison")),
+			"a provider-valid line beyond the selected blob receives an explicit refusal and no marker");
+	}
+
+	void test_failed_replacement_keeps_conversations_on_the_requested_file()
+	{
+		const auto           fileA = core::file_identity_of("src/a.cpp");
+		const auto           fileB = core::file_identity_of("src/b.cpp");
+		const auto           diffA = computed_comparison("a-left\n", "a-right\n", 0U, fileA);
+		const auto           diffB = computed_comparison("b-left\n", "b-right\n", 1U, fileB);
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		auto* const surface = publish_fixture(window, diffA);
+		window.set_conversation_endpoint_placement(false, true);
+		window.conversation_panel()->adopt(
+			{
+				application::github_conversation_projection{
+					.Id       = "thread-a",
+					.Kind     = application::github_conversation_kind::review_thread,
+					.Path     = "src/a.cpp",
+					.Line     = 1U,
+					.DiffSide = application::github_conversation_diff_side::right,
+					.AnchorAvailability
+					= application::github_conversation_anchor_availability::current,
+				},
+				application::github_conversation_projection{
+					.Id       = "thread-b",
+					.Kind     = application::github_conversation_kind::review_thread,
+					.Path     = "src/b.cpp",
+					.Line     = 1U,
+					.DiffSide = application::github_conversation_diff_side::right,
+					.AnchorAvailability
+					= application::github_conversation_anchor_availability::current,
+				},
+			},
+			QStringLiteral("two conversations"));
+		expect(
+			window.conversation_panel()->anchor_file() == std::optional{ fileA }
+				&& window.conversation_model()->index_for_id("thread-a").isValid(),
+			"the published comparison filters conversations to its exact file");
+
+		const auto contextB = request_context(diffB);
+		surface->set_loading(contextB);
+		process_events();
+		expect(
+			window.conversation_panel()->anchor_file() == std::optional{ fileB }
+				&& window.conversation_model()->index_for_id("thread-b").isValid()
+				&& !window.conversation_model()->index_for_id("thread-a").isValid(),
+			"loading a replacement synchronizes the drawer to the new request before completion");
+		surface->fail({
+			.Context = contextB,
+			.Reason  = core::diff_reason_code::host_failure,
+		});
+		process_events();
+		expect(
+			window.conversation_panel()->anchor_file() == std::optional{ fileB }
+				&& window.conversation_model()->index_for_id("thread-b").isValid()
+				&& !surface->current_result(),
+			"an exact replacement failure keeps conversations on the requested file instead of restoring stale scope");
 	}
 
 	void test_the_centre_is_the_composed_rfc_0004_comparison_surface()
@@ -2908,22 +3355,42 @@ namespace {
 	void test_defect_queue_navigation_and_semantic_dispatch()
 	{
 		qt::workbench_window window;
-		auto                 commands        = std::vector<core::defect_command>{ };
-		auto                 classifications = std::vector<std::string>{ };
+		auto                 commands = std::vector<core::defect_command>{ };
+		auto                 classifications
+			= std::vector<qt::workbench_defect_classification>{ };
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		const auto diff = computed_comparison(text, text);
+		static_cast<void>(publish_fixture(window, diff));
+		window.set_conversation_endpoint_placement(false, true);
 		window.set_defect_dispatch(
 			[&commands](core::defect_command aCommand) {
 				commands.push_back(std::move(aCommand));
 			});
 		window.set_defect_classification_dispatch(
-			[&classifications](std::string aIdentity) {
-				classifications.push_back(std::move(aIdentity));
+			[&classifications](qt::workbench_defect_classification aClassification) {
+				classifications.push_back(std::move(aClassification));
 			});
 		window.conversation_model()->apply({
 			application::github_conversation_projection{
-				.Id   = "review-thread:thread-2",
-				.Kind = application::github_conversation_kind::review_thread,
-				.Path = "review.cpp",
-				.Line = 22U,
+				.Id       = "review-thread:thread-2",
+				.Kind     = application::github_conversation_kind::review_thread,
+				.Path     = "review.cpp",
+				.Line     = 22U,
+				.DiffSide = application::github_conversation_diff_side::right,
+				.AnchorAvailability
+				= application::github_conversation_anchor_availability::current,
+			},
+			application::github_conversation_projection{
+				.Id       = "review-thread:left-thread",
+				.Kind     = application::github_conversation_kind::review_thread,
+				.Path     = "review.cpp",
+				.Line     = 12U,
+				.DiffSide = application::github_conversation_diff_side::left,
+				.AnchorAvailability
+				= application::github_conversation_anchor_availability::current,
 			},
 			application::github_conversation_projection{
 				.Id   = "review-thread:file-thread",
@@ -2941,8 +3408,25 @@ namespace {
 		window.classify_defect_action()->trigger();
 		expect(
 			classifications
-				== std::vector<std::string>{ "review-thread:thread-2" },
-			"classification emits the exact selected conversation identity");
+				== std::vector<qt::workbench_defect_classification>{
+					{
+						.Conversation = "review-thread:thread-2",
+						.Anchor       = {
+							.Comparison = diff.Alignment.Digest,
+							.Side       = core::diff_side::right,
+							.Line       = 21U,
+						},
+					},
+				},
+			"classification emits the exact selected identity, side, comparison, "
+			"and zero-based line");
+		window.conversation_view()->setCurrentIndex(
+			window.conversation_model()->index_for_id(
+				"review-thread:left-thread"));
+		expect(!window.classify_defect_action()->isEnabled(),
+			   "a current LEFT thread cannot classify when the selected comparison "
+			   "does not expose GitHub's exact merge-base revision");
+		window.classify_defect_action()->trigger();
 		window.conversation_view()->setCurrentIndex(
 			window.conversation_model()->index_for_id(
 				"review-thread:file-thread"));
@@ -2956,7 +3440,8 @@ namespace {
 			   "a non-thread conversation cannot enter local defect classification");
 		window.classify_defect_action()->trigger();
 		expect(classifications.size() == 1U,
-			   "unsupported conversation kinds emit no classification intent");
+			   "unplaceable anchors and unsupported conversation kinds emit no "
+			   "classification intent");
 
 		window.present_defects({
 			defect_history(2U, core::defect_anchor_availability::outdated),
@@ -3380,6 +3865,10 @@ auto main(int argc, char** argv) -> int
 	test_file_rows_emit_only_semantic_user_selection();
 	test_the_conversations_drawer_hosts_the_threaded_conversation();
 	test_the_centre_is_the_composed_rfc_0004_comparison_surface();
+	test_same_automatically_selected_line_click_filters_conversations();
+	test_conversation_selection_reveals_exact_diff_anchor();
+	test_conversation_line_outside_selected_comparison_is_explicit();
+	test_failed_replacement_keeps_conversations_on_the_requested_file();
 	test_composed_ribbons_follow_the_group_model_through_scroll_and_resize();
 	test_the_lower_detail_pane_is_full_width_line_over_line();
 	test_composed_epoch_selectors_show_exact_retained_epochs();

@@ -205,6 +205,7 @@ def graphql_reply() -> bytes:
                             "pageInfo": {"endCursor": None, "hasNextPage": False},
                             "totalCount": 0,
                         },
+                        "headRefOid": "2222222222222222222222222222222222222222",
                         "id": "PR_test",
                         "reviewThreads": {
                             "nodes": [],

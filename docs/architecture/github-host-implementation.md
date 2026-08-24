@@ -1283,6 +1283,18 @@ the prior metadata and conversation projection immediately, while a refresh
 keeps the last accepted projection through loading, failure, cancellation, or
 stale completion.
 
+Review-thread projection keeps `diffSide`, current `line`, and `originalLine`
+as separate facts on the root and copies that anchor identity to its replies.
+The provider accepts a current line thread only with a known side and current
+root line; an outdated root may instead retain only its original line. A reply
+may omit both of its own nullable coordinates and inherits that root anchor.
+File threads carry neither. Every GraphQL page repeats the pull request's
+`headRefOid`, and the host rejects a snapshot whose REST and GraphQL head OIDs
+differ. The selected-comparison composition may therefore place a current
+right-side anchor only when its right commit equals that accepted head. It does
+not place a left-side pull-request-diff line against the accepted base tip,
+because the provider contract does not carry GitHub's merge-base identity.
+
 The window inherits the application and operating-system palette, style, and
 font. It does not force a palette or style, apply QSS, or install a replacement
 application font. Qt application palette, font, style, and theme events refresh

@@ -718,12 +718,10 @@ namespace bpr::adapters::github::detail {
 				<= static_cast<double>(application::maximum_github_line);
 		}
 
-		[[nodiscard]] auto optional_line(const QJsonValue& aPreferred,
-										 const QJsonValue& aFallback)
+		[[nodiscard]] auto optional_line(const QJsonValue& aValue)
 			-> std::optional<std::uint32_t>
 		{
-			const auto selected = aPreferred.isNull() ? aFallback : aPreferred;
-			return selected.isNull() ? std::nullopt : uint32(selected);
+			return aValue.isNull() ? std::nullopt : uint32(aValue);
 		}
 
 		[[nodiscard]] auto response_byte_count(const wire_response& aResponse) noexcept
@@ -1766,6 +1764,21 @@ namespace bpr::adapters::github::detail {
 			return std::nullopt;
 		}
 
+		[[nodiscard]] auto diff_side(const QJsonValue& aValue) noexcept
+			-> std::optional<application::github_diff_side>
+		{
+			if (!aValue.isString()) {
+				return std::nullopt;
+			}
+			if (aValue.toString() == QStringLiteral("LEFT")) {
+				return application::github_diff_side::left;
+			}
+			if (aValue.toString() == QStringLiteral("RIGHT")) {
+				return application::github_diff_side::right;
+			}
+			return std::nullopt;
+		}
+
 		[[nodiscard]] auto bounded_graphql_token(const std::string_view aValue,
 												 const std::size_t      aMaximum) noexcept
 			-> bool
@@ -1882,14 +1895,15 @@ namespace bpr::adapters::github::detail {
 				replyTo = application::github_comment_id{ text(reply.toObject().value("id")) };
 			}
 			return application::github_review_comment_record{
-				.Comment  = application::github_comment_id{ text(comment.value("id")) },
-				.ReplyTo  = std::move(replyTo),
-				.Author   = author.Actor,
-				.Body     = text(comment.value("bodyText")),
-				.Path     = text(comment.value("path")),
-				.Line     = optional_line(line, originalLine),
-				.Outdated = comment.value("outdated").toBool(),
-				.Deleted  = false,
+				.Comment      = application::github_comment_id{ text(comment.value("id")) },
+				.ReplyTo      = std::move(replyTo),
+				.Author       = author.Actor,
+				.Body         = text(comment.value("bodyText")),
+				.Path         = text(comment.value("path")),
+				.Line         = optional_line(line),
+				.OriginalLine = optional_line(originalLine),
+				.Outdated     = comment.value("outdated").toBool(),
+				.Deleted      = false,
 			};
 		}
 
@@ -1911,6 +1925,7 @@ namespace bpr::adapters::github::detail {
 			}
 			std::vector<std::string_view> keys{
 				"comments",
+				"diffSide",
 				"id",
 				"isOutdated",
 				"isResolved",
@@ -1939,6 +1954,7 @@ namespace bpr::adapters::github::detail {
 			}
 			const auto line         = thread.value("line");
 			const auto originalLine = thread.value("originalLine");
+			const auto side         = diff_side(thread.value("diffSide"));
 			const auto fileSubject  = thread.value("subjectType").toString() == QStringLiteral("FILE");
 			const auto lineSubject  = thread.value("subjectType").toString() == QStringLiteral("LINE");
 			if (!nonempty_string(thread.value("id"))
@@ -1946,10 +1962,14 @@ namespace bpr::adapters::github::detail {
 				|| !thread.value("isResolved").isBool()
 				|| !nonempty_string(thread.value("path"))
 				|| (!fileSubject && !lineSubject)
+				|| !side.has_value()
 				|| (!line.isNull() && !valid_line(line))
 				|| (!originalLine.isNull() && !valid_line(originalLine))
 				|| (fileSubject && (!line.isNull() || !originalLine.isNull()))
-				|| (lineSubject && line.isNull() && originalLine.isNull())
+				|| (lineSubject
+					&& ((!thread.value("isOutdated").toBool() && line.isNull())
+						|| (thread.value("isOutdated").toBool()
+							&& line.isNull() && originalLine.isNull())))
 				|| (aShape.ResolvePermission
 					&& !thread.value("viewerCanResolve").isBool())
 				|| (aShape.UnresolvePermission
@@ -1963,7 +1983,9 @@ namespace bpr::adapters::github::detail {
 					? application::github_review_thread_subject::file
 					: application::github_review_thread_subject::line,
 				.Path                      = text(thread.value("path")),
-				.Line                      = optional_line(line, originalLine),
+				.Line                      = optional_line(line),
+				.OriginalLine              = optional_line(originalLine),
+				.DiffSide                  = *side,
 				.Resolved                  = thread.value("isResolved").toBool(),
 				.Outdated                  = thread.value("isOutdated").toBool(),
 				.ViewerResolvePermission   = aShape.ResolvePermission
@@ -1986,9 +2008,8 @@ namespace bpr::adapters::github::detail {
 				}
 				if (comment->Path != record.Path
 					|| (record.Subject == application::github_review_thread_subject::file
-						&& comment->Line.has_value())
-					|| (record.Subject == application::github_review_thread_subject::line
-						&& !comment->Line.has_value())) {
+						&& (comment->Line.has_value()
+							|| comment->OriginalLine.has_value()))) {
 					return failed(
 						application::github_provider_failure::malformed_response);
 				}
@@ -2028,8 +2049,12 @@ namespace bpr::adapters::github::detail {
 			}
 			const auto pullRequestValue = repositoryValue.toObject().value("pullRequest");
 			if (!pullRequestValue.isObject()
+				|| !has_required_keys(
+					pullRequestValue.toObject(), { "headRefOid", "id" })
 				|| text(pullRequestValue.toObject().value("id"))
-					!= aPullRequest.Node.value()) {
+					!= aPullRequest.Node.value()
+				|| text(pullRequestValue.toObject().value("headRefOid"))
+					!= aPullRequest.HeadOid.value()) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			*aDataOutput        = dataValue.toObject();
@@ -2639,7 +2664,7 @@ namespace bpr::adapters::github::detail {
 				!identity.has_value()) {
 				return std::unexpected{ identity.error() };
 			}
-			std::vector<std::string_view> initialPullKeys{ "id" };
+			std::vector<std::string_view> initialPullKeys{ "headRefOid", "id" };
 			if (aShape.ViewedFileState) {
 				initialPullKeys.emplace_back("files");
 			}
@@ -2727,7 +2752,8 @@ namespace bpr::adapters::github::detail {
 						!identity.has_value()) {
 						return std::unexpected{ identity.error() };
 					}
-					if (!has_exact_keys(pullRequest, { "files", "id" })) {
+					if (!has_exact_keys(
+							pullRequest, { "files", "headRefOid", "id" })) {
 						return failed(
 							application::github_provider_failure::malformed_response);
 					}
@@ -2858,7 +2884,8 @@ namespace bpr::adapters::github::detail {
 					!identity.has_value()) {
 					return std::unexpected{ identity.error() };
 				}
-				if (!has_exact_keys(pullRequest, { "id", "reviewThreads" })) {
+				if (!has_exact_keys(
+						pullRequest, { "headRefOid", "id", "reviewThreads" })) {
 					return failed(
 						application::github_provider_failure::malformed_response);
 				}
@@ -2934,9 +2961,12 @@ namespace bpr::adapters::github::detail {
 					}
 					const auto pullRequestValue = repositoryValue.toObject().value("pullRequest");
 					if (!pullRequestValue.isObject()
-						|| !has_exact_keys(pullRequestValue.toObject(), { "id" })
+						|| !has_exact_keys(
+							pullRequestValue.toObject(), { "headRefOid", "id" })
 						|| text(pullRequestValue.toObject().value("id"))
-							!= aSnapshot.PullRequest.Node.value()) {
+							!= aSnapshot.PullRequest.Node.value()
+						|| text(pullRequestValue.toObject().value("headRefOid"))
+							!= aSnapshot.PullRequest.HeadOid.value()) {
 						return failed(
 							application::github_provider_failure::malformed_response);
 					}
@@ -2965,10 +2995,8 @@ namespace bpr::adapters::github::detail {
 						if (comment->Path != thread.Path
 							|| (thread.Subject
 									== application::github_review_thread_subject::file
-								&& comment->Line.has_value())
-							|| (thread.Subject
-									== application::github_review_thread_subject::line
-								&& !comment->Line.has_value())) {
+								&& (comment->Line.has_value()
+									|| comment->OriginalLine.has_value()))) {
 							return failed(application::github_provider_failure::
 											  malformed_response);
 						}

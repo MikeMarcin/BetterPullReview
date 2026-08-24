@@ -62,6 +62,27 @@ namespace bpr::qt {
 				viewport()->update();
 			}
 
+			void set_conversation_anchor(std::optional<std::uint32_t> aLine)
+			{
+				ConversationAnchor = aLine;
+				viewport()->update();
+			}
+
+			[[nodiscard]] auto conversation_anchor_rect() const -> QRect
+			{
+				if (!ConversationAnchor.has_value()) {
+					return { };
+				}
+				const auto block = document()->findBlockByNumber(
+					static_cast<int>(*ConversationAnchor));
+				if (!block.isValid() || !block.isVisible()) {
+					return { };
+				}
+				const auto geometry = blockBoundingGeometry(block).translated(contentOffset());
+				return QRect{ 1, qRound(geometry.top()), 4,
+							  std::max(1, qRound(geometry.height())) };
+			}
+
 			[[nodiscard]] auto painted_rules() const noexcept -> std::uint64_t
 			{
 				return PaintedRules;
@@ -131,9 +152,6 @@ namespace bpr::qt {
 			void paintEvent(QPaintEvent* const aEvent) override
 			{
 				QPlainTextEdit::paintEvent(aEvent);
-				if (Boundaries.empty() || !RuleColor.isValid()) {
-					return;
-				}
 				auto block = firstVisibleBlock();
 				if (!block.isValid()) {
 					return;
@@ -147,25 +165,34 @@ namespace bpr::qt {
 					Boundaries,
 					static_cast<std::uint32_t>(std::max(block.blockNumber(), 0)));
 				auto painter = QPainter{ viewport() };
-				painter.setPen(QPen{ RuleColor, BoundaryRuleWidth });
-				while (block.isValid() && top <= limit && next != Boundaries.end()) {
-					if (
-						block.isVisible()
-						&& *next == static_cast<std::uint32_t>(block.blockNumber())) {
-						const auto y = qRound(top);
-						painter.drawLine(0, y, width, y);
-						++PaintedRules;
-						++next;
+				if (!Boundaries.empty() && RuleColor.isValid()) {
+					painter.setPen(QPen{ RuleColor, BoundaryRuleWidth });
+					while (block.isValid() && top <= limit && next != Boundaries.end()) {
+						if (block.isVisible()
+							&& *next == static_cast<std::uint32_t>(block.blockNumber())) {
+							const auto y = qRound(top);
+							painter.drawLine(0, y, width, y);
+							++PaintedRules;
+							++next;
+						}
+						top += blockBoundingRect(block).height();
+						block = block.next();
 					}
-					top += blockBoundingRect(block).height();
-					block = block.next();
+				}
+				if (const auto marker = conversation_anchor_rect(); !marker.isEmpty()) {
+					auto color = palette().color(QPalette::Highlight);
+					color.setAlpha(220);
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(color);
+					painter.drawRoundedRect(marker, 2.0, 2.0);
 				}
 			}
 
 		private:
-			std::vector<std::uint32_t> Boundaries;
-			QColor                     RuleColor;
-			std::uint64_t              PaintedRules = 0U;
+			std::vector<std::uint32_t>   Boundaries;
+			QColor                       RuleColor;
+			std::optional<std::uint32_t> ConversationAnchor;
+			std::uint64_t                PaintedRules = 0U;
 		};
 
 		[[nodiscard]] auto pane(QPlainTextEdit* const aPane) noexcept
@@ -681,8 +708,12 @@ namespace bpr::qt {
 			return;
 		}
 		++Statistics.Invalidations;
+		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentContext.reset();
 		clear_projection(QStringLiteral("Comparison invalidated"));
+		if (!hadSelection) {
+			emit_selection_observer(false);
+		}
 	}
 
 	void diff_workbench::set_loading(const core::diff_request_context& aContext)
@@ -690,20 +721,81 @@ namespace bpr::qt {
 		if (!core::valid(aContext)) {
 			return;
 		}
+		const auto hadSelection = Interaction.Selection.has_value();
+		CurrentContext          = aContext;
 		clear_projection(QStringLiteral("Loading selected file comparison…"));
-		CurrentContext = aContext;
+		if (!hadSelection) {
+			emit_selection_observer(false);
+		}
 	}
 
 	void diff_workbench::clear()
 	{
+		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentContext.reset();
 		clear_projection(QStringLiteral("Select a file comparison"));
+		if (!hadSelection) {
+			emit_selection_observer(false);
+		}
 	}
 
 	void diff_workbench::set_selection_sink(selection_sink aSink)
 	{
 		SelectionSink = std::move(aSink);
 		emit_selection();
+	}
+
+	void diff_workbench::set_selection_observer(selection_observer aObserver)
+	{
+		SelectionObserver = std::move(aObserver);
+		emit_selection();
+	}
+
+	auto diff_workbench::reveal_conversation_line(
+		const core::diff_side aSide,
+		const std::uint32_t   aLine) -> bool
+	{
+		if (!CurrentResult) {
+			return false;
+		}
+		const auto requested = core::source_line_ref{
+			.Comparison = CurrentResult->Alignment.Digest,
+			.Side       = aSide,
+			.Line       = aLine,
+		};
+		const auto previous = Interaction.Selection;
+		if (!select_line(aSide, aLine)) {
+			return false;
+		}
+		ConversationAnchor = requested;
+		static_cast<void>(reveal_exact_line(*Interaction.Selection, requested));
+		update_diff_paint();
+		if (Interaction.Selection == previous) {
+			emit_selection_observer(true);
+		}
+		return true;
+	}
+
+	void diff_workbench::clear_conversation_anchor()
+	{
+		if (!ConversationAnchor.has_value()) {
+			return;
+		}
+		ConversationAnchor.reset();
+		update_diff_paint();
+	}
+
+	auto diff_workbench::conversation_anchor() const noexcept
+		-> const std::optional<core::source_line_ref>&
+	{
+		return ConversationAnchor;
+	}
+
+	auto diff_workbench::conversation_anchor_marker_rect(
+		const core::diff_side aSide) const -> QRect
+	{
+		return pane(aSide == core::diff_side::left ? Left : Right)
+			->conversation_anchor_rect();
 	}
 
 	auto diff_workbench::left_pane() const noexcept -> QPlainTextEdit*
@@ -891,11 +983,12 @@ namespace bpr::qt {
 				auto* const source = aWatched == Left->viewport() ? Left : Right;
 				const auto  cursor = source->cursorForPosition(mouse->position().toPoint());
 				if (cursor.blockNumber() >= 0) {
-					select_line(
+					static_cast<void>(select_line(
 						aWatched == Left->viewport()
 							? core::diff_side::left
 							: core::diff_side::right,
-						static_cast<std::uint32_t>(cursor.blockNumber()));
+						static_cast<std::uint32_t>(cursor.blockNumber()),
+						true));
 				}
 			}
 		}
@@ -963,7 +1056,8 @@ namespace bpr::qt {
 			return;
 		}
 		const auto axis            = *AxisCache.axis();
-		const auto revealSelection = !Controller->current_frame().has_value()
+		const auto revealSelection = ConversationAnchor.has_value()
+			|| !Controller->current_frame().has_value()
 			|| Controller->current_frame()->Comparison != axis.comparison();
 		declare_link_map_band();
 		LinkMap->set_geometry(axis, CurrentResult->Alignment.Moves);
@@ -1032,35 +1126,52 @@ namespace bpr::qt {
 		++Statistics.FrameApplications;
 	}
 
-	void diff_workbench::select_line(
+	auto diff_workbench::select_line(
 		const core::diff_side aSide,
-		const std::uint32_t   aLine)
+		const std::uint32_t   aLine,
+		const bool            aReportUnchangedInteraction) -> bool
 	{
 		if (!CurrentResult || !SemanticIndex.has_value()) {
-			return;
+			clear_conversation_anchor();
+			return false;
+		}
+		const auto requested = core::source_line_ref{
+			.Comparison = CurrentResult->Alignment.Digest,
+			.Side       = aSide,
+			.Line       = aLine,
+		};
+		if (ConversationAnchor != requested) {
+			clear_conversation_anchor();
 		}
 		++Statistics.SemanticQueries;
 		const auto changed = core::transition(
 			Interaction,
 			*SemanticIndex,
 			core::select_diff_line_intent{
-				.Line = {
-					.Comparison = CurrentResult->Alignment.Digest,
-					.Side       = aSide,
-					.Line       = aLine,
-				},
+				.Line = requested,
 			});
 		if (changed) {
 			++Statistics.SelectionChanges;
 			apply_interaction(false, true);
-			emit_selection();
+			emit_selection(true);
 		}
+		const auto selected = Interaction.Selection.has_value()
+			&& Interaction.Selection->PreferredLine == requested;
+		if (!changed && selected && aReportUnchangedInteraction) {
+			// A physical click remains an interaction even when the core selection
+			// was already reconciled to this exact line.  The application sink has
+			// no new state to persist, but the Qt-local observer still needs the
+			// gesture origin to reverse-filter conversations from file scope.
+			emit_selection_observer(true);
+		}
+		return selected;
 	}
 
 	void diff_workbench::select_link(
 		const diff_link_map_identity& aIdentity,
 		const bool                    aReveal)
 	{
+		clear_conversation_anchor();
 		if (!CurrentResult || !SemanticIndex.has_value()
 			|| !aIdentity.Group.has_value()) {
 			return;
@@ -1075,7 +1186,7 @@ namespace bpr::qt {
 		}
 		apply_interaction(aReveal, changed);
 		if (changed) {
-			emit_selection();
+			emit_selection(true);
 		}
 	}
 
@@ -1084,6 +1195,7 @@ namespace bpr::qt {
 		const core::change_navigation_policy    aPolicy)
 		-> bool
 	{
+		clear_conversation_anchor();
 		if (!CurrentResult || !SemanticIndex.has_value()) {
 			return false;
 		}
@@ -1098,7 +1210,7 @@ namespace bpr::qt {
 		if (changed) {
 			++Statistics.SelectionChanges;
 			apply_interaction(true, changed);
-			emit_selection();
+			emit_selection(true);
 		}
 		return changed;
 	}
@@ -1118,11 +1230,44 @@ namespace bpr::qt {
 				},
 				false);
 			if (aReveal) {
-				static_cast<void>(Controller->reveal_segment(*selection.Segment));
+				const auto exact = ConversationAnchor.has_value()
+					&& reveal_exact_line(selection, *ConversationAnchor);
+				if (!exact) {
+					static_cast<void>(Controller->reveal_segment(*selection.Segment));
+				}
 			}
 		} else {
 			LinkMap->set_selected(std::nullopt, false);
 		}
+	}
+
+	auto diff_workbench::reveal_exact_line(
+		const core::semantic_selection& aSelection,
+		const core::source_line_ref&    aLine) -> bool
+	{
+		const auto* const axis = AxisCache.axis();
+		if (axis == nullptr || !aSelection.Segment.has_value()) {
+			return false;
+		}
+		const auto measured = std::ranges::find(
+			axis->segments(), *aSelection.Segment, &measured_alignment_segment::Id);
+		if (measured == axis->segments().end()) {
+			return false;
+		}
+		const auto origin = aLine.Side == core::diff_side::left
+			? axis->left_line_origin(aLine.Line)
+			: axis->right_line_origin(aLine.Line);
+		if (!origin.has_value()) {
+			return false;
+		}
+		const auto begin    = aLine.Side == core::diff_side::left
+			? measured->LeftBegin
+			: measured->RightBegin;
+		const auto end      = aLine.Side == core::diff_side::left
+			? measured->LeftEnd
+			: measured->RightEnd;
+		const auto fraction = end > begin ? (*origin - begin) / (end - begin) : 0.0;
+		return Controller->reveal_segment(*aSelection.Segment, fraction);
 	}
 
 	void diff_workbench::apply_interaction(
@@ -1248,6 +1393,16 @@ namespace bpr::qt {
 	/// the defect RFC-BPR-0005's reuse rules forbid.
 	void diff_workbench::update_diff_paint()
 	{
+		pane(Left)->set_conversation_anchor(
+			ConversationAnchor.has_value()
+					&& ConversationAnchor->Side == core::diff_side::left
+				? std::optional{ ConversationAnchor->Line }
+				: std::nullopt);
+		pane(Right)->set_conversation_anchor(
+			ConversationAnchor.has_value()
+					&& ConversationAnchor->Side == core::diff_side::right
+				? std::optional{ ConversationAnchor->Line }
+				: std::nullopt);
 		apply_group_boundaries();
 
 		const auto paint = [this](
@@ -1679,13 +1834,25 @@ namespace bpr::qt {
 		announce_accessible_status(Status->text());
 	}
 
-	void diff_workbench::emit_selection() noexcept
+	void diff_workbench::emit_selection(const bool aInteractive) noexcept
 	{
-		if (!SelectionSink) {
+		if (SelectionSink) {
+			try {
+				SelectionSink(Interaction.Selection);
+			} catch (...) {
+			}
+		}
+		emit_selection_observer(aInteractive);
+	}
+
+	void diff_workbench::emit_selection_observer(
+		const bool aInteractive) noexcept
+	{
+		if (!SelectionObserver) {
 			return;
 		}
 		try {
-			SelectionSink(Interaction.Selection);
+			SelectionObserver(Interaction.Selection, aInteractive);
 		} catch (...) {
 		}
 	}
@@ -1704,6 +1871,7 @@ namespace bpr::qt {
 		RightSpans.reset();
 		MovedSegments.clear();
 		Interaction.Selection.reset();
+		ConversationAnchor.reset();
 		Left->clear();
 		Right->clear();
 		Detail->setPlainText(QStringLiteral("No change selected"));
@@ -1711,6 +1879,8 @@ namespace bpr::qt {
 		LinkMap->clear_geometry();
 		set_line_selection(*Left, std::nullopt);
 		set_line_selection(*Right, std::nullopt);
+		pane(Left)->set_conversation_anchor(std::nullopt);
+		pane(Right)->set_conversation_anchor(std::nullopt);
 		AxisCache.invalidate(measured_geometry_change::file_or_epoch);
 		PendingGeometryTriggers = diff_geometry_rebuild_trigger::none;
 		update_status(std::move(aStatus));

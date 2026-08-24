@@ -803,11 +803,11 @@ namespace {
 		constexpr std::int64_t scope = 1;
 
 		auto migrated = review_ledger_database::open(path, { });
-		expect(opened_ok(migrated), "the version-two ledger migrates to four");
+		expect(opened_ok(migrated), "the version-two ledger migrates to current");
 		const auto stored = migrated->load_receipt(scope, receipt.File);
 		expect(
 			stored.has_value() && stored->has_value() && **stored == receipt,
-			"the file receipt survives the two-to-three-to-four migration");
+			"the file receipt survives every migration after version two");
 		const auto conversations = scalar_integer(
 			migrated->handle(),
 			"SELECT COUNT(*) FROM conversation_receipt WHERE conversation = 5 "
@@ -876,11 +876,151 @@ namespace {
 				&& **restoredReceipt == receipt && restoredPrivate
 				&& restoredPrivate->Notes == std::vector{ storedNote }
 				&& restoredPrivate->LastReviewedHead == storedHead,
-			"every prior receipt, note, and reviewed head survives v3-to-v4");
+			"every prior receipt, note, and reviewed head survives migration");
 		expect(
 			sessions && !sessions->Latest.has_value()
 				&& sessions->Next == core::agent_session_id{ 1U },
 			"migration creates an empty session catalog without allocating an id");
+	}
+
+	void test_version_four_conversation_defect_lines_migrate_to_zero_based_once()
+	{
+		const scratch_directory directory;
+		const auto              path  = directory.file("l.db");
+		std::int64_t            scope = 0;
+		const auto              storedNote
+			= note(54U, 55U, "non-line private state");
+
+		auto currentLeft                        = defect(42U, 420U, 51U);
+		currentLeft.History.Defect.Anchor.Side  = core::diff_side::left;
+		currentLeft.History.OriginalAnchor.Side = core::diff_side::left;
+
+		// In the legacy schema an outdated thread's original line was
+		// indistinguishable from a current line after persistence.
+		auto outdatedOriginal = defect(1U, 10U, 52U);
+
+		auto       arbitraryComparison = defect(2U, 20U, 53U);
+		const auto retainedComparison
+			= opaque<core::file_comparison_digest>(90U);
+		arbitraryComparison.History.Defect.Anchor.Comparison
+			= retainedComparison;
+		arbitraryComparison.History.OriginalAnchor.Comparison
+			= retainedComparison;
+		arbitraryComparison.History.Defect.Anchor.Line  = 73U;
+		arbitraryComparison.History.OriginalAnchor.Line = 73U;
+
+		auto zeroBoundary                        = defect(3U, 30U, 54U);
+		zeroBoundary.History.Defect.Anchor.Line  = 0U;
+		zeroBoundary.History.OriginalAnchor.Line = 0U;
+
+		const auto migratedRecord
+			= [](application::durable_defect_record aLegacy) {
+				  if (aLegacy.History.Defect.Anchor.Line > 0U) {
+					  --aLegacy.History.Defect.Anchor.Line;
+				  }
+				  if (aLegacy.History.OriginalAnchor.Line > 0U) {
+					  --aLegacy.History.OriginalAnchor.Line;
+				  }
+				  aLegacy.History.Availability
+					  = core::defect_anchor_availability::outdated;
+				  return aLegacy;
+			  };
+		const auto expectedOutdatedOriginal
+			= migratedRecord(outdatedOriginal);
+		const auto expectedArbitraryComparison
+			= migratedRecord(arbitraryComparison);
+		const auto expectedZeroBoundary = migratedRecord(zeroBoundary);
+		const auto expectedCurrentLeft  = migratedRecord(currentLeft);
+		const auto expectedLegacy       = std::vector{
+			expectedOutdatedOriginal,
+			expectedArbitraryComparison,
+			expectedZeroBoundary,
+			expectedCurrentLeft,
+		};
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the version-four fixture ledger opens");
+			const auto id = opened->scope_id(
+				scope_of("github.com", "octo", "app", 7));
+			expect(id.has_value(), "the version-four fixture scope resolves");
+			scope = *id;
+
+			expect(
+				opened->store_defect(scope, currentLeft)
+					&& opened->store_defect(scope, outdatedOriginal)
+					&& opened->store_defect(scope, arbitraryComparison)
+					&& opened->store_defect(scope, zeroBoundary)
+					&& opened->store_note(scope, storedNote),
+				"the unsafe legacy anchor shapes and unrelated private state are seeded");
+			for (const auto sql : {
+					 std::string_view{ "UPDATE ledger_meta SET schema_format = 4" },
+					 std::string_view{ "PRAGMA user_version = 4" },
+				 }) {
+				expect(
+					execute(opened->handle(), sql, { }).has_value(),
+					"the exact canonical version-four fixture is stamped");
+			}
+		}
+
+		{
+			auto migrated = review_ledger_database::open(path, { });
+			expect(opened_ok(migrated), "the canonical version-four ledger migrates");
+			const auto version
+				= scalar_integer(migrated->handle(), "PRAGMA user_version");
+			const auto privateState = migrated->load_private(scope);
+			expect(
+				version && *version == review_ledger_schema_version && privateState,
+				"the migrated ledger reports the current schema and loads private state");
+
+			expect(
+				privateState->Defects == expectedLegacy,
+				"migration preserves every stored anchor identity while normalizing lines");
+			expect(
+				expectedCurrentLeft.History.Defect.Anchor.Line == 41U
+					&& expectedCurrentLeft.History.Defect.Anchor.Side
+						== core::diff_side::left
+					&& expectedOutdatedOriginal.History.Defect.Anchor.Line == 0U
+					&& expectedArbitraryComparison.History.Defect.Anchor.Comparison
+						== retainedComparison
+					&& expectedZeroBoundary.History.Defect.Anchor.Line == 0U,
+				"left, outdated-original, arbitrary-comparison, and zero boundaries remain auditable");
+			expect(
+				std::ranges::all_of(
+					privateState->Defects,
+					[](const application::durable_defect_record& aDefect) {
+						return aDefect.History.Availability
+							== core::defect_anchor_availability::outdated
+							&& !core::context_available(aDefect.History);
+					}),
+				"no pre-version-five defect remains placeable from SQLite alone");
+			expect(
+				privateState->Notes == std::vector{ storedNote },
+				"the line migration leaves non-conversation private state unchanged");
+
+			auto currentLine42                        = defect(84U, 840U, 56U);
+			currentLine42.History.Defect.Anchor.Line  = 42U;
+			currentLine42.History.OriginalAnchor.Line = 42U;
+			currentLine42.History.Availability
+				= core::defect_anchor_availability::available;
+			expect(
+				migrated->store_defect(scope, currentLine42).has_value(),
+				"the new schema stores an explicitly available zero-based anchor");
+		}
+
+		auto reopened = review_ledger_database::open(path, { });
+		expect(opened_ok(reopened), "the migrated ledger reopens without remigration");
+		const auto reopenedPrivate                = reopened->load_private(scope);
+		auto       expectedReopened               = expectedLegacy;
+		auto       currentLine42                  = defect(84U, 840U, 56U);
+		currentLine42.History.Defect.Anchor.Line  = 42U;
+		currentLine42.History.OriginalAnchor.Line = 42U;
+		currentLine42.History.Availability
+			= core::defect_anchor_availability::available;
+		expectedReopened.push_back(currentLine42);
+		expect(
+			reopenedPrivate && reopenedPrivate->Defects == expectedReopened
+				&& reopenedPrivate->Notes == std::vector{ storedNote },
+			"reopen is idempotent and preserves the new-schema availability choice");
 	}
 
 	void test_wrong_application_version_three_is_refused_byte_for_byte()
@@ -1018,7 +1158,10 @@ namespace {
 			const auto              original   = directory.file("original.db");
 			const auto              substitute = directory.file("substitute.db");
 			create_retained_wal_fixture(
-				target, "UPDATE ledger_meta SET schema_format = 4", true);
+				target,
+				"UPDATE ledger_meta SET schema_format = "
+					+ std::to_string(review_ledger_schema_version),
+				true);
 			create_retained_wal_fixture(substitute, fixture.Mutation, true);
 			const auto originalBefore   = capture_ledger_files(target);
 			const auto substituteBefore = capture_ledger_files(substitute);
@@ -2296,6 +2439,7 @@ auto main() -> int
 	test_a_wrong_application_prior_version_is_refused_without_mutation();
 	test_a_version_two_database_migrates_without_dropping_receipts();
 	test_a_canonical_version_three_database_migrates_without_dropping_private_state();
+	test_version_four_conversation_defect_lines_migrate_to_zero_based_once();
 	test_wrong_application_version_three_is_refused_byte_for_byte();
 	test_incompatible_retained_wal_is_refused_without_touching_any_file();
 	test_preflight_revalidates_the_original_namespace_before_open();

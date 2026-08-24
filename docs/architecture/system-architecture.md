@@ -450,7 +450,7 @@ catalog and is not published into the replacement identity.
 - `QAbstractItemModel` instances adapt stable identities into Qt indexes. They apply insert/remove/move/data-change deltas incrementally.
 - `beginResetModel()` is not acceptable for a selection change, comment arrival, single receipt update, or other bounded change.
 - Semantic selection uses stable IDs and synchronizes with `QItemSelectionModel` without recursive event loops.
-- Custom diff widgets paint visible rows only and retain layout caches; comments remain in the conversation drawer.
+- Custom diff widgets paint visible rows only and retain layout caches; comments remain in the conversation drawer. A conversation selection may reuse the semantic line transition and paint a narrow margin marker only after the application proves the selected comparison contains that exact endpoint revision. Source-line gestures reverse-filter the retained thread forest by exact file, side, and line; reply selection resolves through its root. An interactive non-line gesture clears the selected conversation with its marker rather than leaving a selected root that no longer owns the diff selection.
 - Dialogs, notifications, native menus, focus, accessibility, themes, layout, and high-DPI behavior belong to the Qt adapter.
 - Reusable widgets do not invoke application persistence, global service registries, or unrelated windows.
 

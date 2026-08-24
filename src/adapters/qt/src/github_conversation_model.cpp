@@ -51,8 +51,47 @@ namespace bpr::qt {
 					result.append(QLatin1Char(':'));
 				}
 				result.append(QString::number(*aValue.Line));
+				if (aValue.DiffSide.has_value()) {
+					if (const auto side = github_conversation_source_side(
+							static_cast<int>(*aValue.DiffSide));
+						side.has_value()) {
+						result.append(*side == core::diff_side::left
+										  ? QStringLiteral(" (base/left side)")
+										  : QStringLiteral(" (head/right side)"));
+					}
+				}
 			}
 			return result;
+		}
+
+		[[nodiscard]] auto anchor_text(const conversation& aValue) -> QString
+		{
+			if (aValue.Kind == application::github_conversation_kind::review
+				|| aValue.Kind == application::github_conversation_kind::issue_comment) {
+				return { };
+			}
+			switch (aValue.AnchorAvailability) {
+			case application::github_conversation_anchor_availability::current:
+				return { };
+			case application::github_conversation_anchor_availability::selected_comparison_mismatch:
+				return QStringLiteral(
+					"Anchor unavailable: selected comparison does not expose the current pull-request diff revision for this side");
+			case application::github_conversation_anchor_availability::selected_line_out_of_bounds:
+				return QStringLiteral(
+					"Anchor unavailable: line is outside the selected comparison");
+			case application::github_conversation_anchor_availability::outdated_revision:
+				return aValue.OriginalLine.has_value()
+					? QStringLiteral("Anchor unavailable: outdated revision (original line %1)")
+						  .arg(*aValue.OriginalLine)
+					: QStringLiteral("Anchor unavailable: outdated revision");
+			case application::github_conversation_anchor_availability::file_level:
+				return QStringLiteral("File-level thread; no source line anchor");
+			case application::github_conversation_anchor_availability::missing_side:
+				return QStringLiteral("Anchor unavailable: diff side is missing");
+			case application::github_conversation_anchor_availability::missing_current_line:
+				return QStringLiteral("Anchor unavailable: current line is missing");
+			}
+			return QStringLiteral("Anchor unavailable");
 		}
 
 		[[nodiscard]] auto author_text(const conversation& aValue) -> QString
@@ -106,6 +145,9 @@ namespace bpr::qt {
 					heading.append(QStringLiteral("\nOutdated"));
 				}
 			}
+			if (const auto anchor = anchor_text(aValue); !anchor.isEmpty()) {
+				heading.append(QStringLiteral("\n%1").arg(anchor));
+			}
 			return heading;
 		}
 
@@ -124,6 +166,9 @@ namespace bpr::qt {
 			if (aValue.ParentId.has_value()) {
 				facts.push_back(QStringLiteral("Reply in a review thread"));
 			}
+			if (const auto anchor = anchor_text(aValue); !anchor.isEmpty()) {
+				facts.push_back(anchor);
+			}
 			return facts.join(QStringLiteral(", "));
 		}
 
@@ -139,6 +184,9 @@ namespace bpr::qt {
 				github_conversation_model::body_role,
 				github_conversation_model::path_role,
 				github_conversation_model::line_role,
+				github_conversation_model::original_line_role,
+				github_conversation_model::diff_side_role,
+				github_conversation_model::anchor_availability_role,
 				github_conversation_model::review_state_role,
 				github_conversation_model::resolved_role,
 				github_conversation_model::outdated_role,
@@ -146,6 +194,22 @@ namespace bpr::qt {
 			};
 			return roles;
 		}
+	}
+
+	auto github_conversation_source_side(const int aProjectedSide) noexcept
+		-> std::optional<core::diff_side>
+	{
+		if (aProjectedSide
+			== static_cast<int>(
+				application::github_conversation_diff_side::left)) {
+			return core::diff_side::left;
+		}
+		if (aProjectedSide
+			== static_cast<int>(
+				application::github_conversation_diff_side::right)) {
+			return core::diff_side::right;
+		}
+		return std::nullopt;
 	}
 
 	struct github_conversation_model::node
@@ -247,6 +311,17 @@ namespace bpr::qt {
 			return conversation.Line.has_value()
 				? QVariant::fromValue(static_cast<qulonglong>(*conversation.Line))
 				: QVariant{ };
+		case original_line_role:
+			return conversation.OriginalLine.has_value()
+				? QVariant::fromValue(
+					  static_cast<qulonglong>(*conversation.OriginalLine))
+				: QVariant{ };
+		case diff_side_role:
+			return conversation.DiffSide.has_value()
+				? QVariant{ static_cast<int>(*conversation.DiffSide) }
+				: QVariant{ };
+		case anchor_availability_role:
+			return static_cast<int>(conversation.AnchorAvailability);
 		case review_state_role:
 			return static_cast<int>(conversation.ReviewState);
 		case resolved_role:
@@ -290,6 +365,10 @@ namespace bpr::qt {
 		roles.insert(body_role, QByteArrayLiteral("body"));
 		roles.insert(path_role, QByteArrayLiteral("path"));
 		roles.insert(line_role, QByteArrayLiteral("line"));
+		roles.insert(original_line_role, QByteArrayLiteral("originalLine"));
+		roles.insert(diff_side_role, QByteArrayLiteral("diffSide"));
+		roles.insert(
+			anchor_availability_role, QByteArrayLiteral("anchorAvailability"));
 		roles.insert(review_state_role, QByteArrayLiteral("reviewState"));
 		roles.insert(resolved_role, QByteArrayLiteral("resolved"));
 		roles.insert(outdated_role, QByteArrayLiteral("outdated"));
@@ -582,6 +661,30 @@ namespace bpr::qt {
 				}
 			};
 		synchronize(Roots, nullptr, { }, desiredRoots);
+	}
+
+	void github_conversation_model::set_anchor_availability(
+		const QModelIndex&                                         aIndex,
+		const application::github_conversation_anchor_availability aAvailability)
+	{
+		if (!aIndex.isValid() || aIndex.model() != this || aIndex.column() != 0) {
+			return;
+		}
+		auto* const value = static_cast<node*>(aIndex.internalPointer());
+		if (value == nullptr || value->Value.AnchorAvailability == aAvailability) {
+			return;
+		}
+		value->Value.AnchorAvailability = aAvailability;
+		++Statistics.RowsChanged;
+		emit dataChanged(
+			aIndex,
+			aIndex,
+			{
+				Qt::DisplayRole,
+				Qt::AccessibleTextRole,
+				Qt::AccessibleDescriptionRole,
+				anchor_availability_role,
+			});
 	}
 
 	void github_conversation_model::clear()

@@ -118,14 +118,22 @@ pointer.
 Version 1 introduced `ledger_meta`, `review_scope`, and `file_receipt`. Version
 2 added `conversation_receipt`. Version 3 adds `local_note`,
 `last_reviewed_head`, and `local_defect`. Version 4 adds
-`agent_session_sequence` and `agent_session`.
+`agent_session_sequence` and `agent_session`. Version 5 normalizes the
+historically one-based conversation-defect line to the core's zero-based
+coordinate and marks every migrated defect anchor outdated. The legacy row did
+not retain enough facts to prove whether it came from a current right thread,
+a left thread, an outdated original line, or an unrelated retained comparison;
+arithmetic alone cannot make it trustworthy. Application reconciliation may
+restore availability only when the accepted current thread and rendered
+comparison prove the exact file, right-side current line, comparison digest,
+accepted-head endpoint, and in-bounds source row.
 
 Every table is `STRICT`, so a value of the wrong type is refused rather than
 coerced. The two 256-bit digest columns — `file_receipt.file_identity` and
 `file_receipt.material_id` — additionally carry `length(...) = 32` checks, so a
 truncated digest fails at the row that caused it instead of becoming a puzzle
 read back later. Comment and conversation identities are integers and need no
-such check. Opening versions 3 and 4 compares every non-internal `sqlite_schema`
+such check. Opening versions 3, 4, and 5 compares every non-internal `sqlite_schema`
 object with the canonical table definition. A same-name table with changed
 columns, checks, foreign keys, uniqueness, or without `STRICT` is a schema
 mismatch rather than a partially understood ledger.

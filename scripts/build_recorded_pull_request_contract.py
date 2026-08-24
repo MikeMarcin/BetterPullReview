@@ -46,11 +46,11 @@ GRAPHQL_HEADERS = {
 # built the same way rather than pasted as a string.
 GRAPHQL_QUERY = (
     "query GetReviewData($owner:String!,$name:String!,$number:Int!){"
-    "repository(owner:$owner,name:$name){id pullRequest(number:$number){id "
+    "repository(owner:$owner,name:$name){id pullRequest(number:$number){id headRefOid "
     "files(first:100){totalCount nodes{path viewerViewedState} "
     "pageInfo{hasNextPage endCursor}} reviewThreads(first:100){totalCount "
     "nodes{id isResolved isOutdated viewerCanResolve viewerCanUnresolve "
-    "subjectType path line originalLine comments(first:100){totalCount "
+    "subjectType path diffSide line originalLine comments(first:100){totalCount "
     "nodes{id bodyText path line originalLine outdated author{login ... on "
     "Node{id}} replyTo{id}} "
     "pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}"
@@ -213,6 +213,7 @@ def main() -> int:
                 "id": f"R_{name}",
                 "pullRequest": {
                     "id": f"PR_{number}",
+                    "headRefOid": HEAD_OID_PLACEHOLDER,
                     "files": {
                         "nodes": file_nodes,
                         "pageInfo": {

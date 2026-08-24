@@ -105,6 +105,38 @@ namespace bpr::application {
 			return aAuthor.has_value() ? aAuthor->Login : std::string{ };
 		}
 
+		[[nodiscard]] auto project(const github_diff_side aSide) noexcept
+			-> std::optional<github_conversation_diff_side>
+		{
+			switch (aSide) {
+			case github_diff_side::left:
+				return github_conversation_diff_side::left;
+			case github_diff_side::right:
+				return github_conversation_diff_side::right;
+			case github_diff_side::uninitialized:
+				return std::nullopt;
+			}
+			return std::nullopt;
+		}
+
+		[[nodiscard]] auto anchor_availability(
+			const github_review_thread_record& aThread) noexcept
+			-> github_conversation_anchor_availability
+		{
+			if (aThread.Subject == github_review_thread_subject::file) {
+				return github_conversation_anchor_availability::file_level;
+			}
+			if (aThread.DiffSide == github_diff_side::uninitialized) {
+				return github_conversation_anchor_availability::missing_side;
+			}
+			if (aThread.Outdated) {
+				return github_conversation_anchor_availability::outdated_revision;
+			}
+			return aThread.Line.has_value()
+				? github_conversation_anchor_availability::current
+				: github_conversation_anchor_availability::missing_current_line;
+		}
+
 		using review_comments_by_id
 			= std::unordered_map<std::string_view, const github_review_comment_record*>;
 
@@ -209,18 +241,23 @@ namespace bpr::application {
 		}
 
 		for (const auto& thread : aSnapshot.ReviewThreads) {
-			const auto threadId = prefixed_id("review-thread:", thread.Thread.value());
+			const auto threadId     = prefixed_id("review-thread:", thread.Thread.value());
+			const auto side         = project(thread.DiffSide);
+			const auto availability = anchor_availability(thread);
 			conversations.push_back(github_conversation_projection{
-				.Id          = threadId,
-				.ParentId    = std::nullopt,
-				.Kind        = github_conversation_kind::review_thread,
-				.AuthorLogin = { },
-				.Body        = { },
-				.Path        = thread.Path,
-				.Line        = thread.Line,
-				.ReviewState = github_review_state_projection::none,
-				.Resolved    = thread.Resolved,
-				.Outdated    = thread.Outdated,
+				.Id                 = threadId,
+				.ParentId           = std::nullopt,
+				.Kind               = github_conversation_kind::review_thread,
+				.AuthorLogin        = { },
+				.Body               = { },
+				.Path               = thread.Path,
+				.Line               = thread.Line,
+				.OriginalLine       = thread.OriginalLine,
+				.DiffSide           = side,
+				.AnchorAvailability = availability,
+				.ReviewState        = github_review_state_projection::none,
+				.Resolved           = thread.Resolved,
+				.Outdated           = thread.Outdated,
 			});
 			auto commentsById = review_comments_by_id{ };
 			commentsById.reserve(thread.Comments.size());
@@ -233,15 +270,18 @@ namespace bpr::application {
 					.Id = prefixed_id("review-comment:", comment.Comment.value()),
 					.ParentId
 					= review_comment_parent(comment, commentsById, threadId),
-					.Kind        = github_conversation_kind::review_comment,
-					.AuthorLogin = author_login(comment.Author),
-					.Body        = comment.Body,
-					.Path        = comment.Path,
-					.Line        = comment.Line,
-					.ReviewState = github_review_state_projection::none,
-					.Resolved    = thread.Resolved,
-					.Outdated    = comment.Outdated || thread.Outdated,
-					.Deleted     = comment.Deleted,
+					.Kind               = github_conversation_kind::review_comment,
+					.AuthorLogin        = author_login(comment.Author),
+					.Body               = comment.Body,
+					.Path               = thread.Path,
+					.Line               = thread.Line,
+					.OriginalLine       = thread.OriginalLine,
+					.DiffSide           = side,
+					.AnchorAvailability = availability,
+					.ReviewState        = github_review_state_projection::none,
+					.Resolved           = thread.Resolved,
+					.Outdated           = comment.Outdated || thread.Outdated,
+					.Deleted            = comment.Deleted,
 				});
 			}
 		}

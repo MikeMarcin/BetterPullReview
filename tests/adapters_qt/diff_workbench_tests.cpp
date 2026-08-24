@@ -1011,6 +1011,99 @@ namespace {
 			   "clearing the projection emits an absent semantic selection");
 	}
 
+	void test_conversation_anchor_reveals_and_paints_exact_line()
+	{
+		const auto [leftText, rightText] = representative_text();
+		const auto diff                  = computed(leftText, rightText, { }, 54U);
+		auto       workbench             = qt::diff_workbench{ };
+		auto       externalCalls         = 0U;
+		auto       observerCalls         = 0U;
+		workbench.set_selection_sink([&externalCalls](const auto&) {
+			++externalCalls;
+		});
+		workbench.set_selection_observer([&observerCalls](const auto&, const bool) {
+			++observerCalls;
+		});
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		const auto selected = context(diff, 107U, 107U);
+		workbench.set_loading(selected);
+		workbench.publish({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+		const auto externalBefore = externalCalls;
+		const auto observerBefore = observerCalls;
+		expect(workbench.reveal_conversation_line(core::diff_side::right, 2U),
+			   "drawer anchor selects a valid exact right-side line");
+		process_events();
+		expect(workbench.conversation_anchor().has_value()
+				   && workbench.conversation_anchor()->Side == core::diff_side::right
+				   && workbench.conversation_anchor()->Line == 2U,
+			   "conversation marker retains the exact zero-based side and line");
+		expect(externalCalls == externalBefore + 1U
+				   && observerCalls == observerBefore + 1U,
+			   "drawer selection reaches both the retained application sink and Qt-local observer");
+
+		const auto marker = workbench.conversation_anchor_marker_rect(
+			core::diff_side::right);
+		const auto block  = workbench.right_pane()->document()->findBlockByNumber(2);
+		const auto target = workbench.right_pane()->cursorRect(QTextCursor{ block });
+		expect(!marker.isEmpty() && marker.width() <= 4
+				   && marker.top() == target.top()
+				   && marker.bottom() >= target.bottom() - 1,
+			   "marker geometry is a narrow margin shape on the requested target line");
+		const auto pixels      = workbench.right_pane()->viewport()->grab().toImage();
+		const auto ratio       = pixels.devicePixelRatio();
+		const auto markerPixel = QPoint{
+			qRound(marker.center().x() * ratio),
+			qRound(marker.center().y() * ratio),
+		};
+		expect(pixels.pixelColor(markerPixel)
+				   != workbench.right_pane()->palette().color(QPalette::Base),
+			   "rendered target-line marker contributes a visible palette-derived pixel");
+
+		const auto externalBeforeSameLine = externalCalls;
+		const auto observerBeforeSameLine = observerCalls;
+		send_click(*workbench.right_pane()->viewport(), target.center());
+		process_events();
+		expect(workbench.conversation_anchor().has_value()
+				   && workbench.conversation_anchor()->Side == core::diff_side::right
+				   && workbench.conversation_anchor()->Line == 2U
+				   && !workbench.conversation_anchor_marker_rect(
+									core::diff_side::right)
+						   .isEmpty(),
+			   "clicking the exact anchored line retains its conversation marker");
+		expect(externalCalls == externalBeforeSameLine
+				   && observerCalls == observerBeforeSameLine + 1U,
+			   "an unchanged anchored-line click reports only the Qt-local gesture");
+
+		workbench.scroll_controller()->end();
+		const auto farPosition = workbench.scroll_controller()->position();
+		expect(workbench.reveal_conversation_line(core::diff_side::right, 2U)
+				   && workbench.scroll_controller()->position() < farPosition,
+			   "reselecting the already-selected drawer line still performs the exact reveal");
+
+		workbench.scroll_controller()->end();
+		const auto beforeDeferredReveal = workbench.scroll_controller()->position();
+		workbench.resize(1'190, 750);
+		expect(workbench.reveal_conversation_line(core::diff_side::right, 0U),
+			   "a drawer line remains a valid request while resized geometry is pending");
+		process_events();
+		const auto deferredMarker = workbench.conversation_anchor_marker_rect(
+			core::diff_side::right);
+		expect(workbench.scroll_controller()->position() < beforeDeferredReveal
+				   && workbench.right_pane()->viewport()->rect().intersects(
+					   deferredMarker),
+			   "the queued geometry rebuild retries the exact conversation reveal into the viewport");
+		send_click(*workbench.right_pane()->viewport(), target.center());
+		process_events();
+		expect(!workbench.conversation_anchor().has_value(),
+			   "a pane gesture clears the conversation-specific marker");
+	}
+
 	void test_scale_and_high_frequency_evidence()
 	{
 		const auto [leftText, rightText] = large_comparison_text(2'000U, 8U);
@@ -2252,6 +2345,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
 	test_selected_composition();
 	test_semantic_selection_callback_tracks_both_panes_and_clear();
+	test_conversation_anchor_reveals_and_paints_exact_line();
 	test_scale_and_high_frequency_evidence();
 	test_line_painting_stays_bounded_by_the_viewport();
 	test_syntax_spans_colour_the_panes();

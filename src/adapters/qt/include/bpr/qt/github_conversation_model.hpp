@@ -2,16 +2,22 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_GITHUB_CONVERSATION_MODEL_HPP
 
 #include "bpr/application/github_projection.hpp"
+#include "bpr/core/diff_model.hpp"
 
 #include <QAbstractItemModel>
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace bpr::qt {
+	/// \brief Converts only the two valid projected GitHub diff-side values.
+	[[nodiscard]] auto github_conversation_source_side(int aProjectedSide) noexcept
+		-> std::optional<core::diff_side>;
+
 	/// \brief Describes the github conversation model statistics record.
 	struct github_conversation_model_statistics
 	{
@@ -34,6 +40,9 @@ namespace bpr::qt {
 			body_role,
 			path_role,
 			line_role,
+			original_line_role,
+			diff_side_role,
+			anchor_availability_role,
 			review_state_role,
 			resolved_role,
 			outdated_role,
@@ -73,6 +82,10 @@ namespace bpr::qt {
 		void apply(
 			const std::vector<application::github_conversation_projection>&
 				aConversations);
+		/// \brief Applies a Qt-local placement refusal to one visible node.
+		void set_anchor_availability(
+			const QModelIndex&                                   aIndex,
+			application::github_conversation_anchor_availability aAvailability);
 		void clear();
 
 		[[nodiscard]] auto index_for_id(std::string_view aIdentity) const

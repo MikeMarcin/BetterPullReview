@@ -245,6 +245,27 @@ namespace bpr::adapters::sqlite::detail {
 				") STRICT" },
 		};
 
+		/// \brief The statements that carry schema version 4 to version 5.
+		///
+		/// \details Every `local_defect` is a private classification of an ordinary
+		/// GitHub conversation. Before version 5, classification could persist a
+		/// one-based line, force a left-side thread to the right, use an outdated
+		/// original line, and bind the thread to an arbitrary retained comparison.
+		/// The line correction keeps both immutable copies consistent, but none of
+		/// the remaining identity can be recovered from SQLite. Marking every legacy
+		/// row outdated retains its audit anchor without presenting it as placeable.
+		static_assert(
+			static_cast<std::uint8_t>(
+				core::defect_anchor_availability::outdated)
+			== 1U);
+		constexpr std::array SchemaVersion4To5{
+			std::string_view{
+				"UPDATE local_defect SET anchor_line = CASE WHEN anchor_line > 0 "
+				"THEN anchor_line - 1 ELSE anchor_line END, original_line = CASE "
+				"WHEN original_line > 0 THEN original_line - 1 ELSE original_line "
+				"END, availability = 1 WHERE conversation > 0" },
+		};
+
 		struct schema_table
 		{
 			std::string_view Name;
@@ -291,6 +312,8 @@ namespace bpr::adapters::sqlite::detail {
 			schema_table{ "local_note", SchemaVersion2To3[0] },
 			schema_table{ "review_scope", SchemaVersion1[1] },
 		};
+
+		constexpr auto SchemaVersion5Tables = SchemaVersion4Tables;
 
 		[[nodiscard]] auto run_all(
 			::sqlite3*                              aDatabase,
@@ -410,6 +433,15 @@ namespace bpr::adapters::sqlite::detail {
 				}
 				version = 4;
 			}
+			if (version == 4) {
+				if (auto migrated
+					= run_all(aDatabase, SchemaVersion4To5, aStop);
+					!migrated) {
+					rollback();
+					return migrated;
+				}
+				version = 5;
+			}
 
 			if (auto recorded = execute(
 					aDatabase,
@@ -515,7 +547,7 @@ namespace bpr::adapters::sqlite::detail {
 			return validate_at_version(
 				aDatabase,
 				review_ledger_schema_version,
-				SchemaVersion4Tables);
+				SchemaVersion5Tables);
 		}
 
 		struct preflight_file_image
@@ -925,6 +957,8 @@ namespace bpr::adapters::sqlite::detail {
 						expected = SchemaVersion3Tables;
 					} else if (*version == 4) {
 						expected = SchemaVersion4Tables;
+					} else if (*version == 5) {
+						expected = SchemaVersion5Tables;
 					} else {
 						validation = std::unexpected(failure::schema_mismatch);
 					}

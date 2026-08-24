@@ -8,6 +8,7 @@
 #include "bpr/qt/diff_link_map.hpp"
 #include <QColor>
 #include <QList>
+#include <QRect>
 #include <QTextEdit>
 
 #include <QPointer>
@@ -122,8 +123,11 @@ namespace bpr::qt {
 		  public application::diff_projection_port
 	{
 	public:
-		using selection_sink = std::function<void(
+		using selection_sink     = std::function<void(
 			const std::optional<core::semantic_selection>&)>;
+		using selection_observer = std::function<void(
+			const std::optional<core::semantic_selection>&,
+			bool)>;
 
 		explicit diff_workbench(QWidget* aParent = nullptr);
 		~diff_workbench() override;
@@ -142,6 +146,17 @@ namespace bpr::qt {
 		void clear();
 		/// \brief Publishes exact semantic selections for application binding.
 		void set_selection_sink(selection_sink aSink);
+		/// \brief Observes Qt-local selections without replacing the application sink.
+		void set_selection_observer(selection_observer aObserver);
+		/// \brief Selects and reveals one exact zero-based conversation anchor.
+		[[nodiscard]] auto reveal_conversation_line(
+			core::diff_side aSide,
+			std::uint32_t   aLine) -> bool;
+		void               clear_conversation_anchor();
+		[[nodiscard]] auto conversation_anchor() const noexcept
+			-> const std::optional<core::source_line_ref>&;
+		[[nodiscard]] auto conversation_anchor_marker_rect(
+			core::diff_side aSide) const -> QRect;
 
 		[[nodiscard]] auto left_pane() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto right_pane() const noexcept -> QPlainTextEdit*;
@@ -270,17 +285,24 @@ namespace bpr::qt {
 		void schedule_geometry_rebuild(
 			measured_geometry_change      aChange,
 			diff_geometry_rebuild_trigger aTrigger);
-		void rebuild_geometry();
-		void apply_frame(const comparison_scroll_frame& aFrame);
-		void select_line(core::diff_side aSide, std::uint32_t aLine);
-		void select_link(const diff_link_map_identity& aIdentity, bool aReveal);
-		void synchronize_geometry_selection(bool aReveal);
+		void               rebuild_geometry();
+		void               apply_frame(const comparison_scroll_frame& aFrame);
+		[[nodiscard]] auto select_line(
+			core::diff_side aSide,
+			std::uint32_t   aLine,
+			bool            aReportUnchangedInteraction = false) -> bool;
+		void               select_link(const diff_link_map_identity& aIdentity, bool aReveal);
+		void               synchronize_geometry_selection(bool aReveal);
+		[[nodiscard]] auto reveal_exact_line(
+			const core::semantic_selection& aSelection,
+			const core::source_line_ref&    aLine) -> bool;
 		void apply_interaction(bool aReveal, bool aAnnounceSelection);
 		void update_detail();
 		void update_selection_paint();
 		void announce_accessible_status(QString aText);
 		void update_status(QString aText);
-		void emit_selection() noexcept;
+		void emit_selection(bool aInteractive = false) noexcept;
+		void emit_selection_observer(bool aInteractive) noexcept;
 		void clear_projection(QString aStatus);
 
 		QLabel*                       Status       = nullptr;
@@ -307,6 +329,8 @@ namespace bpr::qt {
 		std::optional<core::line_detail_input>          CurrentDetail;
 		core::diff_interaction_state                    Interaction;
 		selection_sink                                  SelectionSink;
+		selection_observer                              SelectionObserver;
+		std::optional<core::source_line_ref>            ConversationAnchor;
 		measured_alignment_axis_cache                   AxisCache;
 		diff_workbench_statistics                       Statistics;
 		QString                                         LastAnnouncement;

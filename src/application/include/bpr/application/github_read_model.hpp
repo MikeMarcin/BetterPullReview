@@ -121,6 +121,12 @@ namespace bpr::application {
 		file,
 	};
 
+	enum class github_diff_side : std::uint8_t {
+		uninitialized,
+		left,
+		right,
+	};
+
 	enum class github_check_status : std::uint8_t {
 		uninitialized,
 		queued,
@@ -235,6 +241,7 @@ namespace bpr::application {
 		std::string                        Body;
 		std::string                        Path;
 		std::optional<std::uint32_t>       Line;
+		std::optional<std::uint32_t>       OriginalLine;
 		bool                               Outdated = false;
 		bool                               Deleted  = false;
 
@@ -248,6 +255,8 @@ namespace bpr::application {
 		github_review_thread_subject              Subject = github_review_thread_subject::line;
 		std::string                               Path;
 		std::optional<std::uint32_t>              Line;
+		std::optional<std::uint32_t>              OriginalLine;
+		github_diff_side                          DiffSide                  = github_diff_side::uninitialized;
 		bool                                      Resolved                  = false;
 		bool                                      Outdated                  = false;
 		github_permission_state                   ViewerResolvePermission   = github_permission_state::unavailable;
@@ -810,6 +819,19 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] constexpr auto valid_enum(
+			const github_diff_side aValue) noexcept -> bool
+		{
+			switch (aValue) {
+			case github_diff_side::left:
+			case github_diff_side::right:
+				return true;
+			case github_diff_side::uninitialized:
+				return false;
+			}
+			return false;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
 			const github_check_status aValue) noexcept -> bool
 		{
 			switch (aValue) {
@@ -1118,10 +1140,11 @@ namespace bpr::application {
 			const github_read_limits&           aLimits) noexcept
 			-> github_read_validation_error
 		{
-			if (
-				aRecord.Line.has_value()
-				&& (*aRecord.Line == 0U
-					|| *aRecord.Line > maximum_github_line)) {
+			const auto invalidLine = [](const std::optional<std::uint32_t>& aLine) {
+				return aLine.has_value()
+					&& (*aLine == 0U || *aLine > maximum_github_line);
+			};
+			if (invalidLine(aRecord.Line) || invalidLine(aRecord.OriginalLine)) {
 				return github_read_validation_error::invalid_line;
 			}
 			if (const auto error = consume_id(aBudget, aRecord.Comment.value(), aLimits);
@@ -1157,7 +1180,7 @@ namespace bpr::application {
 			if (aRecord.Comments.size() > aLimits.MaximumCommentsPerThread) {
 				return github_read_validation_error::collection_too_large;
 			}
-			if (!valid_enum(aRecord.Subject)) {
+			if (!valid_enum(aRecord.Subject) || !valid_enum(aRecord.DiffSide)) {
 				return github_read_validation_error::invalid_enum;
 			}
 			if (
@@ -1165,15 +1188,18 @@ namespace bpr::application {
 				|| !valid_enum(aRecord.ViewerUnresolvePermission)) {
 				return github_read_validation_error::invalid_enum;
 			}
-			if (
-				(
-					aRecord.Subject == github_review_thread_subject::line
-					&& !aRecord.Line.has_value())
+			const auto invalidLine = [](const std::optional<std::uint32_t>& aLine) {
+				return aLine.has_value()
+					&& (*aLine == 0U || *aLine > maximum_github_line);
+			};
+			if ((aRecord.Subject == github_review_thread_subject::line
+				 && ((!aRecord.Outdated && !aRecord.Line.has_value())
+					 || (aRecord.Outdated && !aRecord.Line.has_value()
+						 && !aRecord.OriginalLine.has_value())))
 				|| (aRecord.Subject == github_review_thread_subject::file
-					&& aRecord.Line.has_value())
-				|| (aRecord.Line.has_value()
-					&& (*aRecord.Line == 0U
-						|| *aRecord.Line > maximum_github_line))) {
+					&& (aRecord.Line.has_value()
+						|| aRecord.OriginalLine.has_value()))
+				|| invalidLine(aRecord.Line) || invalidLine(aRecord.OriginalLine)) {
 				return github_read_validation_error::invalid_line;
 			}
 			if (const auto error = consume_id(aBudget, aRecord.Thread.value(), aLimits);
@@ -1185,16 +1211,12 @@ namespace bpr::application {
 				return error;
 			}
 			for (const auto& comment : aRecord.Comments) {
-				if (comment.Path != aRecord.Path) {
-					return github_read_validation_error::invalid_relationship;
-				}
-				if (
-					(
-						aRecord.Subject == github_review_thread_subject::line
-						&& !comment.Line.has_value())
+				const auto hasLine = comment.Line.has_value()
+					|| comment.OriginalLine.has_value();
+				if (comment.Path != aRecord.Path
 					|| (aRecord.Subject == github_review_thread_subject::file
-						&& comment.Line.has_value())) {
-					return github_read_validation_error::invalid_line;
+						&& hasLine)) {
+					return github_read_validation_error::invalid_relationship;
 				}
 				if (const auto error = validate_review_comment(comment, aBudget, aLimits);
 					error != github_read_validation_error::none) {

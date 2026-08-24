@@ -49,11 +49,11 @@ GRAPHQL_HEADERS = {
 }
 GRAPHQL_QUERY = (
     "query GetReviewData($owner:String!,$name:String!,$number:Int!){"
-    "repository(owner:$owner,name:$name){id pullRequest(number:$number){id "
+    "repository(owner:$owner,name:$name){id pullRequest(number:$number){id headRefOid "
     "files(first:100){totalCount nodes{path viewerViewedState} "
     "pageInfo{hasNextPage endCursor}} reviewThreads(first:100){totalCount "
     "nodes{id isResolved isOutdated viewerCanResolve viewerCanUnresolve "
-    "subjectType path line originalLine comments(first:100){totalCount "
+    "subjectType path diffSide line originalLine comments(first:100){totalCount "
     "nodes{id bodyText path line originalLine outdated author{login ... on "
     "Node{id}} replyTo{id}} "
     "pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}"
@@ -287,11 +287,13 @@ EXPECTED_RESPONSE_FIELDS = {
         "reviewThreads",
         "nodes",
         "id",
+        "headRefOid",
         "isResolved",
         "isOutdated",
         "viewerCanResolve",
         "viewerCanUnresolve",
         "subjectType",
+        "diffSide",
         "path",
         "line",
         "originalLine",
@@ -350,7 +352,7 @@ RECORDED_RESPONSE_FIELDS = {
     "ListPullRequestFiles": {"additions", "deletions", "filename", "status"},
     "ListPullRequestCommits": {"author", "commit", "login", "message", "node_id", "sha"},
     "ListReviews": set(),
-    "ListReviewThreads": {"data", "endCursor", "files", "hasNextPage", "id", "nodes", "pageInfo", "path", "pullRequest", "repository", "reviewThreads", "totalCount", "viewerViewedState"},
+    "ListReviewThreads": {"data", "endCursor", "files", "hasNextPage", "headRefOid", "id", "nodes", "pageInfo", "path", "pullRequest", "repository", "reviewThreads", "totalCount", "viewerViewedState"},
     "ListIssueComments": set(),
     "ListChecks": {"check_runs", "total_count"},
     "SearchPullRequests": {"incomplete_results", "items", "total_count"},
@@ -658,8 +660,8 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                     "74beb2502143f244fdb4da3"
                 ),
                 "response_sha256": (
-                    "07bb01a60bf0c640d1b98bce84a7f405503421fa"
-                    "faa2b50fd753e63b2dedfa01"
+                    "07a996da71d3265e931d498465f8dcf5b52a2fb"
+                    "988e4927e4c42c9571dc9f72d"
                 ),
                 "query_fields": 31,
                 "mutation_fields": 271,
@@ -682,8 +684,8 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                     "3f02bbabfec17c3c1320b066"
                 ),
                 "response_sha256": (
-                    "eb36681a142fd49d6086a9fa629ffe50850504571"
-                    "0272c27bde79ffa974d768a"
+                    "cf6b4d665d4df7c93ed5ca612f4b050fe706df0"
+                    "2f09d74335b67b2b99b0edd65"
                 ),
                 "query_fields": 24,
                 "mutation_fields": 224,
@@ -694,8 +696,8 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
             },
         }
         query_sha256 = (
-            "892ad33dcb73ef8b9ed7a4e4e6f6e628568e4de5"
-            "267eca87ed246122701feb10"
+            "62ae9a45c13abe671bf7329ed43260d659afd52f9"
+            "3e4ddd62809bf73e500e184"
         )
 
         responses = []

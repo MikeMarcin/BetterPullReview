@@ -591,14 +591,22 @@ is then unavailable. Neither provider nor host substitutes an older resident
 review, current head, local time, or guessed commit.
 
 The GraphQL review-thread/viewed-state projection includes repository and
-pull-request node IDs and must match the corresponding REST records. Each
+pull-request node IDs and must match the corresponding REST records. Every
+pull-request-bearing GraphQL page also repeats non-null `headRefOid`; it must
+equal the REST head OID, so a head change between endpoints or pages rejects
+the whole candidate. Each
 GraphQL file path maps exactly once to the REST file collection and carries
 `DISMISSED`, `UNVIEWED`, or `VIEWED`. Each thread carries an explicit `LINE`
-or `FILE` subject plus per-target resolve/unresolve availability: line
-threads require line anchors, file threads prohibit them, and every comment
-path must match its thread path. REST and GraphQL records therefore cannot be
-replayed across repository, pull-request, file, actor, or thread authority
-without the complete candidate failing atomically.
+or `FILE` subject, non-null `LEFT` or `RIGHT` diff side, separate current and
+original lines, and per-target resolve/unresolve availability. Line threads
+require a current root line while current; an outdated root requires at least
+one current or original line. File threads prohibit both. A line-thread reply
+may omit both of its own nullable coordinates and inherits the validated root
+anchor; any reply coordinate that is present remains independently typed and
+bounded. The normalizer never substitutes an original line for a missing current
+one. Every comment path must match its thread path. REST and GraphQL
+records therefore cannot be replayed across repository, pull-request, file,
+actor, or thread authority without the complete candidate failing atomically.
 
 The v1 selected contract admits at most 4 MiB per response page, 100 selected
 records per page, JSON nesting depth 32, 256 raw members per object, and

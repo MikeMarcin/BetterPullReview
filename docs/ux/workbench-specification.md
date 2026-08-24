@@ -244,6 +244,38 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
 - The lower pane is a full-width line-over-line detail view for the selected change group.
 - Comments are shown beside code in the right drawer, not inserted into the source layout.
 
+Conversation synchronization is exact rather than proximity-based. Selecting a
+current root thread, or any reply below it, resolves the root's path, current
+line, and GitHub diff side. When the selected comparison proves that endpoint's
+revision identity, Qt converts the provider's one-based line to the
+comparison's zero-based source index and uses the same semantic line-selection
+transition as a source-pane gesture. The shared comparison controller reveals
+that line in the correct natural-layout pane. A narrow four-pixel mark at the
+pane's inner margin distinguishes the conversation anchor from the ordinary
+selected-line wash; the comment body remains in the drawer and creates no
+source row.
+
+The reverse path uses the same identity. A reviewer-selected source line filters
+the conversation drawer to roots on the exact current file, side, and line;
+replies remain attached to their root. A group, connector, or file-level
+selection clears the line filter and selected conversation with its marker
+while retaining the current-file scope.
+Automatic selection created while a diff is first published does not pretend
+the reviewer selected that line.
+
+Only a current anchor whose endpoint identity matches the selected comparison
+is placeable. The composed GitHub path proves the right endpoint by matching
+the selected right commit to the accepted `headRefOid`. It leaves `LEFT`
+unplaced because GitHub's pull-request diff uses a merge-base coordinate and the
+current provider snapshot does not carry that merge-base identity. Outdated,
+file-level, endpoint-mismatched, and selected-comparison-out-of-bounds roots stay
+visible at file scope with an explicit reason.
+`OriginalLine` is retained as history but is never treated as a current
+comparison coordinate, and Qt never guesses a side or revision. Missing or null
+provider side and a line thread with neither current nor original line are
+malformed provider responses rejected before this presentation boundary;
+defensive Qt fixtures still prove their unplaced rendering.
+
 The live GitHub window now composes this selected-file comparison surface with
 the production natural-layout panes, link map, shared controller/scrollbar,
 semantic previous/next selection reached through the single top-row presenter,
@@ -290,7 +322,14 @@ signals; a bounded row or state change never resets the model.
 
 ## Conversation drawer
 
-Filters include New, Unresolved, Defects, Needs Verification, Pending Drafts, Outdated, and All. Selecting a conversation navigates to current or retained historical code context.
+Filters include New, Unresolved, Defects, Needs Verification, Pending Drafts,
+Outdated, and All. The current comparison filters roots to the exact file. A
+reviewer-selected source line narrows that forest to the exact diff side and
+line; selecting a root or reply drives the reciprocal code reveal described
+above. Unplaceable threads remain readable at file scope and state why no code
+marker is drawn. Retained historical navigation requires a revision identity
+and remains separate work; an outdated thread is never placed against the
+current panes by reusing its original line.
 
 ## Command placement
 

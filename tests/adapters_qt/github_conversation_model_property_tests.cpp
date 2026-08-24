@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QPersistentModelIndex>
 #include <QString>
+#include <QStringList>
 
 #include <algorithm>
 #include <cstddef>
@@ -30,6 +31,59 @@ namespace {
 	{
 		return QString::fromUtf8(
 			aValue.data(), static_cast<qsizetype>(aValue.size()));
+	}
+
+	[[nodiscard]] auto expected_anchor_description(const conversation& aValue)
+		-> QString
+	{
+		if (aValue.Kind == conversation_kind::review
+			|| aValue.Kind == conversation_kind::issue_comment) {
+			return { };
+		}
+		switch (aValue.AnchorAvailability) {
+		case application::github_conversation_anchor_availability::current:
+			return { };
+		case application::github_conversation_anchor_availability::selected_comparison_mismatch:
+			return QStringLiteral(
+				"Anchor unavailable: selected comparison does not expose the current pull-request diff revision for this side");
+		case application::github_conversation_anchor_availability::selected_line_out_of_bounds:
+			return QStringLiteral(
+				"Anchor unavailable: line is outside the selected comparison");
+		case application::github_conversation_anchor_availability::outdated_revision:
+			return aValue.OriginalLine.has_value()
+				? QStringLiteral("Anchor unavailable: outdated revision (original line %1)")
+					  .arg(*aValue.OriginalLine)
+				: QStringLiteral("Anchor unavailable: outdated revision");
+		case application::github_conversation_anchor_availability::file_level:
+			return QStringLiteral("File-level thread; no source line anchor");
+		case application::github_conversation_anchor_availability::missing_side:
+			return QStringLiteral("Anchor unavailable: diff side is missing");
+		case application::github_conversation_anchor_availability::missing_current_line:
+			return QStringLiteral("Anchor unavailable: current line is missing");
+		}
+		return QStringLiteral("Anchor unavailable");
+	}
+
+	[[nodiscard]] auto expected_accessible_description(const conversation& aValue)
+		-> QString
+	{
+		QStringList facts;
+		if (aValue.Resolved) {
+			facts.push_back(QStringLiteral("Resolved"));
+		}
+		if (aValue.Outdated) {
+			facts.push_back(QStringLiteral("Outdated"));
+		}
+		if (aValue.Deleted) {
+			facts.push_back(QStringLiteral("Deleted"));
+		}
+		if (aValue.ParentId.has_value()) {
+			facts.push_back(QStringLiteral("Reply in a review thread"));
+		}
+		if (const auto anchor = expected_anchor_description(aValue); !anchor.isEmpty()) {
+			facts.push_back(anchor);
+		}
+		return facts.join(QStringLiteral(", "));
 	}
 
 	[[noreturn]] auto fail(
@@ -299,6 +353,37 @@ namespace {
 			aCaseNumber,
 			"line role preserves exact optional presence and value");
 
+		const auto originalLineValue = aModel.data(aIndex, qt::github_conversation_model::original_line_role);
+		expect(
+			projection.OriginalLine.has_value()
+				? originalLineValue.isValid()
+					&& originalLineValue.toULongLong()
+						== static_cast<qulonglong>(*projection.OriginalLine)
+				: !originalLineValue.isValid(),
+			aSuite,
+			aCaseNumber,
+			"original-line role preserves exact optional presence and value");
+
+		const auto diffSideValue = aModel.data(aIndex, qt::github_conversation_model::diff_side_role);
+		expect(
+			projection.DiffSide.has_value()
+				? diffSideValue.isValid()
+					&& diffSideValue.toInt()
+						== static_cast<int>(*projection.DiffSide)
+				: !diffSideValue.isValid(),
+			aSuite,
+			aCaseNumber,
+			"diff-side role preserves exact optional presence and value");
+
+		const auto anchorAvailabilityValue = aModel.data(aIndex, qt::github_conversation_model::anchor_availability_role);
+		expect(
+			anchorAvailabilityValue.isValid()
+				&& anchorAvailabilityValue.toInt()
+					== static_cast<int>(projection.AnchorAvailability),
+			aSuite,
+			aCaseNumber,
+			"anchor-availability role matches the projection");
+
 		const auto reviewStateValue = aModel.data(aIndex, qt::github_conversation_model::review_state_role);
 		expect(
 			reviewStateValue.isValid()
@@ -345,20 +430,10 @@ namespace {
 
 		const auto accessibleDescriptionValue = aModel.data(aIndex, Qt::AccessibleDescriptionRole);
 		const auto accessibleDescription      = accessibleDescriptionValue.toString();
-		const auto hasDescription             = projection.Resolved || projection.Outdated
-			|| projection.Deleted || projection.ParentId.has_value();
 		expect(
 			accessibleDescriptionValue.isValid()
-				&& accessibleDescription.isEmpty() == !hasDescription
-				&& accessibleDescription.contains(QStringLiteral("Resolved"))
-					== projection.Resolved
-				&& accessibleDescription.contains(QStringLiteral("Outdated"))
-					== projection.Outdated
-				&& accessibleDescription.contains(QStringLiteral("Deleted"))
-					== projection.Deleted
-				&& accessibleDescription.contains(
-					   QStringLiteral("Reply in a review thread"))
-					== projection.ParentId.has_value(),
+				&& accessibleDescription
+					== expected_accessible_description(projection),
 			aSuite,
 			aCaseNumber,
 			"accessible description exposes exactly the applicable state facts");
@@ -525,16 +600,19 @@ namespace {
 
 	struct varied_role_coverage
 	{
-		bool Kind        = false;
-		bool ParentId    = false;
-		bool AuthorLogin = false;
-		bool Body        = false;
-		bool Path        = false;
-		bool Line        = false;
-		bool ReviewState = false;
-		bool Resolved    = false;
-		bool Outdated    = false;
-		bool Deleted     = false;
+		bool Kind               = false;
+		bool ParentId           = false;
+		bool AuthorLogin        = false;
+		bool Body               = false;
+		bool Path               = false;
+		bool Line               = false;
+		bool OriginalLine       = false;
+		bool DiffSide           = false;
+		bool AnchorAvailability = false;
+		bool ReviewState        = false;
+		bool Resolved           = false;
+		bool Outdated           = false;
+		bool Deleted            = false;
 	};
 
 	[[nodiscard]] auto visible_body(const conversation& aValue) noexcept
@@ -554,13 +632,17 @@ namespace {
 				continue;
 			}
 
-			const auto& next      = aAfter.ValueById.at(identity);
-			aCoverage.Kind        = aCoverage.Kind || prior.Kind != next.Kind;
-			aCoverage.ParentId    = aCoverage.ParentId || prior.ParentId != next.ParentId;
-			aCoverage.AuthorLogin = aCoverage.AuthorLogin || prior.AuthorLogin != next.AuthorLogin;
-			aCoverage.Body        = aCoverage.Body || visible_body(prior) != visible_body(next);
-			aCoverage.Path        = aCoverage.Path || prior.Path != next.Path;
-			aCoverage.Line        = aCoverage.Line || prior.Line != next.Line;
+			const auto& next             = aAfter.ValueById.at(identity);
+			aCoverage.Kind               = aCoverage.Kind || prior.Kind != next.Kind;
+			aCoverage.ParentId           = aCoverage.ParentId || prior.ParentId != next.ParentId;
+			aCoverage.AuthorLogin        = aCoverage.AuthorLogin || prior.AuthorLogin != next.AuthorLogin;
+			aCoverage.Body               = aCoverage.Body || visible_body(prior) != visible_body(next);
+			aCoverage.Path               = aCoverage.Path || prior.Path != next.Path;
+			aCoverage.Line               = aCoverage.Line || prior.Line != next.Line;
+			aCoverage.OriginalLine       = aCoverage.OriginalLine || prior.OriginalLine != next.OriginalLine;
+			aCoverage.DiffSide           = aCoverage.DiffSide || prior.DiffSide != next.DiffSide;
+			aCoverage.AnchorAvailability = aCoverage.AnchorAvailability
+				|| prior.AnchorAvailability != next.AnchorAvailability;
 			aCoverage.ReviewState = aCoverage.ReviewState || prior.ReviewState != next.ReviewState;
 			aCoverage.Resolved    = aCoverage.Resolved || prior.Resolved != next.Resolved;
 			aCoverage.Outdated    = aCoverage.Outdated || prior.Outdated != next.Outdated;
@@ -635,15 +717,18 @@ namespace {
 				+ std::to_string(aGenerator.bounded(9U)),
 			.Path = std::string{ "src/property-" }
 				+ std::to_string(aGenerator.bounded(11U)) + ".cpp",
-			.Line        = aGenerator.bounded(3U) == 0U
+			.Line               = aGenerator.bounded(3U) == 0U
 				? std::nullopt
 				: std::optional<std::uint32_t>{
 					  static_cast<std::uint32_t>(
 						  1U + aGenerator.bounded(500U)) },
-			.ReviewState = static_cast<application::github_review_state_projection>(aGenerator.bounded(6U)),
-			.Resolved    = aGenerator.bounded(2U) != 0U,
-			.Outdated    = aGenerator.bounded(2U) != 0U,
-			.Deleted     = aGenerator.bounded(5U) == 0U,
+			.OriginalLine       = aGenerator.bounded(3U) == 0U ? std::nullopt : std::optional<std::uint32_t>{ static_cast<std::uint32_t>(1U + aGenerator.bounded(500U)) },
+			.DiffSide           = aGenerator.bounded(3U) == 0U ? std::nullopt : std::optional<application::github_conversation_diff_side>{ static_cast<application::github_conversation_diff_side>(aGenerator.bounded(2U)) },
+			.AnchorAvailability = static_cast<application::github_conversation_anchor_availability>(aGenerator.bounded(7U)),
+			.ReviewState        = static_cast<application::github_review_state_projection>(aGenerator.bounded(6U)),
+			.Resolved           = aGenerator.bounded(2U) != 0U,
+			.Outdated           = aGenerator.bounded(2U) != 0U,
+			.Deleted            = aGenerator.bounded(5U) == 0U,
 		};
 	}
 
@@ -770,6 +855,8 @@ namespace {
 			variedRoles.Kind && variedRoles.ParentId
 				&& variedRoles.AuthorLogin && variedRoles.Body
 				&& variedRoles.Path && variedRoles.Line
+				&& variedRoles.OriginalLine && variedRoles.DiffSide
+				&& variedRoles.AnchorAvailability
 				&& variedRoles.ReviewState && variedRoles.Resolved
 				&& variedRoles.Outdated && variedRoles.Deleted,
 			"mixed",

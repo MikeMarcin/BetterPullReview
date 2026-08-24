@@ -61,12 +61,23 @@ namespace bpr::qt {
 	using workbench_change_dispatch = std::function<void(core::navigate_diff_change_intent)>;
 
 	/// \brief Carries one already-decided receipt command out of presentation.
-	using workbench_receipt_dispatch               = std::function<void(core::file_receipt_command)>;
-	using workbench_review_draft_dispatch          = std::function<void(core::review_draft_command)>;
-	using workbench_defect_dispatch                = std::function<void(core::defect_command)>;
-	using workbench_defect_classification_dispatch = std::function<void(std::string)>;
-	using workbench_queue_rule_dispatch            = std::function<void(application::queue_rule_intent)>;
-	using workbench_queue_preferences_dispatch     = std::function<void(application::queue_preferences_intent)>;
+	using workbench_receipt_dispatch      = std::function<void(core::file_receipt_command)>;
+	using workbench_review_draft_dispatch = std::function<void(core::review_draft_command)>;
+	using workbench_defect_dispatch       = std::function<void(core::defect_command)>;
+
+	/// \brief Carries the exact placeable conversation anchor chosen in Qt.
+	struct workbench_defect_classification
+	{
+		std::string           Conversation;
+		core::source_line_ref Anchor;
+
+		auto operator<=>(const workbench_defect_classification&) const = default;
+	};
+
+	using workbench_defect_classification_dispatch
+		= std::function<void(workbench_defect_classification)>;
+	using workbench_queue_rule_dispatch        = std::function<void(application::queue_rule_intent)>;
+	using workbench_queue_preferences_dispatch = std::function<void(application::queue_preferences_intent)>;
 
 	/// \brief Records directly observable workbench-window presentation activity.
 	struct workbench_window_statistics
@@ -332,6 +343,10 @@ namespace bpr::qt {
 		/// mapping, no presentation-side regrouping, no follower-scroll coupling,
 		/// and no synthetic alignment rows.
 		[[nodiscard]] auto comparison_surface() const noexcept -> diff_workbench*;
+		/// \brief Binds GitHub current-line placement to the selected endpoints.
+		void set_conversation_endpoint_placement(
+			bool aLeftHasCurrentDiffRevision,
+			bool aRightHasCurrentDiffRevision);
 		/// \brief Returns the composed full-width line-over-line detail pane.
 		///
 		/// \details This forwards to RFC-BPR-0004's comparison surface, which
@@ -408,13 +423,16 @@ namespace bpr::qt {
 		void announce_update();
 		void apply_file_rows(
 			const std::vector<application::workbench_file_projection>& aFiles);
-		void apply_file_selection();
-		void dispatch_file_selection(const QModelIndex& aIndex);
-		void dispatch_receipt(std::size_t aIndex);
-		void update_receipt_actions();
-		void classify_selected_conversation();
-		void navigate_defect(int aDirection);
-		void update_defect_surface();
+		void               apply_file_selection();
+		void               dispatch_file_selection(const QModelIndex& aIndex);
+		void               dispatch_receipt(std::size_t aIndex);
+		void               update_receipt_actions();
+		void               classify_selected_conversation();
+		void               navigate_defect(int aDirection);
+		void               update_defect_surface();
+		[[nodiscard]] auto selected_conversation_classification() const
+			-> std::optional<workbench_defect_classification>;
+		void synchronize_selected_conversation(const QModelIndex& aIndex);
 		void build_queue_landing(QWidget* aParent, QVBoxLayout& aLayout);
 		void dispatch_queue_rule(application::queue_rule_action aAction);
 		void update_queue_rule_actions();
@@ -453,17 +471,21 @@ namespace bpr::qt {
 
 		epoch_comparison_control* EpochSelectors = nullptr;
 
-		std::array<navigation_entry, 4>                            Navigation{ };
-		std::array<QAction*, 4>                                    ReceiptActions{ };
-		std::array<drawer_entry, 2>                                Drawers{ };
-		github_conversation_panel*                                 ConversationPanel = nullptr;
-		agent_launch_panel*                                        AgentPanel        = nullptr;
-		review_draft_editor*                                       ReviewEditor      = nullptr;
-		defect_card_view*                                          DefectCard        = nullptr;
-		QLabel*                                                    DefectCountLabel  = nullptr;
-		QAction*                                                   ClassifyDefect    = nullptr;
-		QAction*                                                   PreviousDefect    = nullptr;
-		QAction*                                                   NextDefect        = nullptr;
+		std::array<navigation_entry, 4> Navigation{ };
+		std::array<QAction*, 4>         ReceiptActions{ };
+		std::array<drawer_entry, 2>     Drawers{ };
+		github_conversation_panel*      ConversationPanel = nullptr;
+		/// Prevents the drawer refilter from clearing the anchor that triggered it.
+		bool                                                       ApplyingConversationAnchor       = false;
+		bool                                                       LeftConversationEndpointCurrent  = false;
+		bool                                                       RightConversationEndpointCurrent = false;
+		agent_launch_panel*                                        AgentPanel                       = nullptr;
+		review_draft_editor*                                       ReviewEditor                     = nullptr;
+		defect_card_view*                                          DefectCard                       = nullptr;
+		QLabel*                                                    DefectCountLabel                 = nullptr;
+		QAction*                                                   ClassifyDefect                   = nullptr;
+		QAction*                                                   PreviousDefect                   = nullptr;
+		QAction*                                                   NextDefect                       = nullptr;
 		std::vector<core::defect_history>                          Defects;
 		std::optional<std::size_t>                                 ShownDefectIndex;
 		review_landing_model*                                      QueueLanding          = nullptr;

@@ -116,3 +116,135 @@ signal test would not show that the marker lands on the right row.
 cmake --build --preset dev
 ctest --preset dev --output-on-failure -R 'workbench_window|github_conversation'
 ```
+
+## Implemented unattended slice — 2026-08-24
+
+The ambiguous coordinate is no longer ambiguous. GitHub's thread-level
+`diffSide` is requested as a non-null `DiffSide`, contract-checked as exactly
+`LEFT` or `RIGHT`, normalized independently from `line` and `originalLine`, and
+mapped into a provider-free application enum. A thread distinguishes its
+current line from its historical line and carries an explicit current,
+outdated-revision, or file-level placement state. Replies inherit that complete
+root anchor; no reply invents its own side or revision, and GitHub may omit
+both of a reply's own nullable line fields. Present reply coordinates remain
+validated, but root placement is authoritative. Missing or null `diffSide`,
+and a current `LINE` root without `line`, are malformed provider payloads
+rejected atomically before projection; only an outdated root may survive on
+`originalLine` alone. Qt retains defensive wording for synthetic incomplete
+projections and converts any unknown projected side to visibly unplaced
+`missing_side`; it never guesses the right pane. The composed provider path
+cannot produce those states.
+
+This matches GitHub's documented
+[`PullRequestReviewThread`](https://docs.github.com/en/enterprise-cloud@latest/graphql/reference/pulls#pullrequestreviewthread)
+contract: `diffSide` is non-null `DiffSide`, whose values are `LEFT` and
+`RIGHT`. The capability proof also requires non-null
+`PullRequest.headRefOid`. Every GraphQL page selects that head identity and the
+reader rejects a REST/GraphQL head race before accepting a snapshot. The
+fixture manifests bind the revised query and responses for GitHub.com, GHES
+3.18, and the recorded UIforETW contract.
+
+The two Qt directions now share one semantic route:
+
+- selecting a current root or reply resolves the root, converts its one-based
+  provider line to the diff's zero-based source line, calls the same
+  `diff_workbench::select_line` transition used by an in-pane gesture, and
+  reveals that exact line through the retained shared-scroll controller. A
+  repeated physical click on an already selected line still reaches the Qt
+  observer without duplicating the application selection sink, and a click on
+  the exact conversation-anchored line retains the selected root and marker;
+- selecting a source line publishes an interactive selection observation back
+  to the drawer, which reverse-filters the retained forest by exact file, side,
+  and line while keeping replies under their root;
+- group, connector, navigation, and file-level selections clear the line
+  filter, selected conversation, and marker together, and the initial line
+  selected automatically when a diff is published is not misreported as a
+  reviewer gesture;
+- a four-pixel pane-margin marker distinguishes a conversation anchor from the
+  ordinary selected-line wash. Clearing or replacing the comparison clears the
+  marker with the rest of its exact request context.
+
+The production path places a current `RIGHT` anchor only when the selected
+comparison's right commit is the exact accepted GitHub head. GitHub's current
+pull-request diff uses the documented
+[three-dot merge-base-to-head comparison](https://docs.github.com/en/pull-requests/reference/branches#three-dot-and-two-dot-git-diff-comparisons),
+while BetterPullReview currently compares the accepted base tip. We therefore
+infer that the numeric `LEFT` coordinate cannot safely address our left blob;
+the provider snapshot carries no merge-base identity to prove otherwise.
+`LEFT` fails closed in the composed product even though the Qt adapter has a
+direct exact-endpoint contract for a future caller. Outdated, file-level,
+selected-endpoint-mismatch, and selected-line-out-of-bounds roots remain visible
+at file scope and say why no marker can be placed. `OriginalLine` is historical
+information and is never
+reused as a current coordinate. This closes the current-head data gap without
+taking [[BPR-0212]]'s revision-axis scope.
+
+The public-path course found one test-only composition defect while this was
+being connected. `request_fixture_diff` fabricated a file identity unrelated
+to `core::file_identity_of("review.cpp")`; file synchronization therefore did
+the correct thing and filtered every conversation out. The shortcut now uses
+the same canonical file identity as the production selected-file path, and the
+course remains a faithful test of the product boundary.
+
+Hardening the defect action exposed a second historical mismatch. BPR-0230
+classified GitHub's one-based line directly even though the durable core anchor
+is zero-based, and its old course treated an outdated original line as a
+current coordinate. The ledger now upgrades those legacy conversation-backed
+anchors once and marks all of them outdated: SQLite alone cannot prove whether
+the old forced-right coordinate came from a current right thread, a left thread,
+an outdated original line, or an unrelated retained comparison. Availability
+is restored only when the accepted thread and rendered comparison re-prove the
+exact current-head file, side, line, comparison digest, and line bound. The
+composed course classifies two current `RIGHT` threads, reacquires each current
+Qt index by stable identity, and proves a reversed comparison can neither place
+nor classify a third defect. It also refuses the corresponding ledger writes
+and proves the live defect projection still adopts `outdated`; losing exact
+placement proof fails closed in memory rather than depending on persistence
+success.
+
+## Rendered evidence and the bounded owner question
+
+The composed fixture course now selects `PRRT_fixture_1`, asserts right-side
+zero-based line 41, asserts that exactly that one root remains in the drawer,
+asserts a non-empty margin-marker rectangle, and only then saves the rendered
+window. It emits `CONVERSATION_ANCHOR_EVIDENCE_OK`; the registered
+`application_diff_workbench_public_path` test requires that marker in its one
+contiguous status contract.
+
+The final capture and offline page will live at
+`docs/verification/reviews/conversation-code-boundary-v001/`. They ask exactly
+the question this card deferred: accept keeps comment prose in the drawer with
+the margin marker and selected-line band as the code indication; reject says
+that boundary is insufficient and requires explicit successor/RFC scope before
+prose enters the source view. The package must be regenerated from the final
+implementation commit, bind the registered network-isolated CTest course and
+capture provenance, and leave every downstream claim false until a returned
+export is validated.
+
+## Verification record
+
+| Surface | Result |
+|---|---|
+| full `dev` build after formatting | passed |
+| full `dev` CTest matrix | 197/197 passed in 1,560.45 seconds |
+| `core-only` CTest matrix | 93/93 passed |
+| GitHub capability, read-contract, and pagination suites | 3/3 passed |
+| application GitHub projection host | passed |
+| conversation panel | passed |
+| diff workbench at 1.0x, 1.25x, 2.0x | 3/3 passed |
+| composed workbench window at 1.0x, 1.25x, 2.0x | 3/3 passed |
+| real `application_diff_workbench_public_path` | passed, including `CONVERSATION_ANCHOR_EVIDENCE_OK` and `RENDER_OK` |
+| review-ledger and review-round-trip composition | 2/2 passed |
+| defect composition, including reversed-comparison refusal | passed |
+| legacy review-ledger anchor upgrade | passed |
+| GitHub fixture security and RFC-0016 capture/runner suites | passed |
+| current documentation and immutable RFC-base gates | passed |
+| repository formatting and touched-source `clang-tidy` | passed |
+| capability-critical independent review | clean; no implementation-level P0-P2 finding |
+
+The whole-tree `coding-tidy` target also exposed one pre-existing diagnostic in
+untouched `src/app/src/designated_live_macos_capsule_identity.cpp:168`
+(`performance-inefficient-string-concatenation`), unchanged since BPR-0354.
+That unrelated baseline finding is not folded into this card; every touched
+translation unit passes warnings-as-errors analysis. Capture regeneration and
+the board move remain before this card can be parked for the attended verdict.

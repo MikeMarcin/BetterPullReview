@@ -563,11 +563,14 @@ namespace {
 			.Number                         = 17,
 			.ExpectedTitle                  = "Keep review snapshots deterministic",
 			.ExpectedAccountText            = "Octo Reviewer (@octo-reviewer)",
-			.ExpectedConversationRows       = 5,
+			.ExpectedConversationRows       = 6,
 			.ExpectedConversationIdentities = {
 				"review:PRR_fixture_1",
 				"review-thread:PRRT_fixture_1",
 				"review-comment:PRRC_fixture_1",
+				"review-thread:PRRT_fixture_3",
+				"review-comment:PRRC_fixture_4",
+				"review-comment:PRRC_fixture_5",
 				"review-thread:PRRT_fixture_2",
 				"review-comment:PRRC_fixture_2",
 				"review-comment:PRRC_fixture_3",
@@ -575,14 +578,16 @@ namespace {
 				"review-comment:PRRC_fixture_file",
 				"issue-comment:IC_fixture_1",
 			},
-			// The workbench already has review.cpp selected when the refresh
-			// projection arrives. Its accepted focused-navigation behavior keeps
-			// all three threads anchored to that file and their four comments,
-			// while omitting the review-wide review and issue-comment roots.
-			.ExpectedFocusedConversationRows       = 3,
+			// A selected review.cpp comparison keeps all four threads anchored to
+			// that file and their six comments, while omitting the review-wide
+			// review and issue-comment roots.
+			.ExpectedFocusedConversationRows       = 4,
 			.ExpectedFocusedConversationIdentities = {
 				"review-thread:PRRT_fixture_1",
 				"review-comment:PRRC_fixture_1",
+				"review-thread:PRRT_fixture_3",
+				"review-comment:PRRC_fixture_4",
+				"review-comment:PRRC_fixture_5",
 				"review-thread:PRRT_fixture_2",
 				"review-comment:PRRC_fixture_2",
 				"review-comment:PRRC_fixture_3",
@@ -666,23 +671,28 @@ namespace {
 		std::size_t Attempts = 0U;
 		// When the run started, and how long it may take. See
 		// `default_automated_run_budget`.
-		automated_clock::time_point Started;
-		std::chrono::milliseconds   Budget                    = default_automated_run_budget;
-		bool                        BudgetExpired             = false;
-		bool                        PresentationPassed        = false;
-		bool                        RenderSaved               = true;
-		bool                        VerifyNativePlatformVault = false;
-		QString                     LastEpochStatus;
-		QString                     LastEpochComparison;
-		QString                     LastEpochLeft;
-		QString                     LastEpochRight;
-		int                         LastEpochCoreStatus     = -1;
-		int                         LastEpochLeftRow        = -1;
-		int                         LastEpochRightRow       = -1;
-		std::size_t                 LastEpochCount          = 0U;
-		bool                        LastEpochHistoryEnabled = false;
-		int                         FailedStage             = -1;
-		cli_unavailable_probe_state Cli;
+		automated_clock::time_point               Started;
+		std::chrono::milliseconds                 Budget                    = default_automated_run_budget;
+		bool                                      BudgetExpired             = false;
+		bool                                      PresentationPassed        = false;
+		bool                                      RenderSaved               = true;
+		bool                                      VerifyNativePlatformVault = false;
+		QString                                   LastEpochStatus;
+		QString                                   LastEpochComparison;
+		QString                                   LastEpochLeft;
+		QString                                   LastEpochRight;
+		int                                       LastEpochCoreStatus     = -1;
+		int                                       LastEpochLeftRow        = -1;
+		int                                       LastEpochRightRow       = -1;
+		std::size_t                               LastEpochCount          = 0U;
+		bool                                      LastEpochHistoryEnabled = false;
+		int                                       LastConversationRows    = -1;
+		std::vector<std::string>                  LastConversationIdentities;
+		std::optional<bpr::core::source_line_ref> LastConversationAnchor;
+		bool                                      LastConversationFileAnchored       = false;
+		bool                                      LastConversationFileMatchesFixture = false;
+		int                                       FailedStage                        = -1;
+		cli_unavailable_probe_state               Cli;
 #if defined(BPR_BUILD_TESTING)
 		struct native_appearance_probe_state
 		{
@@ -778,8 +788,9 @@ namespace {
 		bool ReviewLedgerCompositionPassed = false;
 		bpr::app::detail::review_ledger_composition_probe_evidence
 			 ReviewLedgerCompositionEvidence;
-		bool ReviewRoundTripCompositionProbe  = false;
-		bool ReviewRoundTripCompositionPassed = false;
+		bool ReviewRoundTripCompositionProbe   = false;
+		bool ReviewRoundTripCompositionStarted = false;
+		bool ReviewRoundTripCompositionPassed  = false;
 		bpr::app::detail::review_round_trip_composition_probe_evidence
 			ReviewRoundTripCompositionEvidence;
 		std::optional<bpr::app::detail::defect_composition_probe>
@@ -794,9 +805,10 @@ namespace {
 		// an automated run is one the fixture eventually satisfies, so without
 		// a deliberate stall there is no way to reach the run's own timeout and
 		// show that it fires before the harness kills the process.
-		bool StallProbe                    = false;
-		bool DiffInteractionEvidencePassed = false;
-		bool DiffRequested                 = false;
+		bool StallProbe                       = false;
+		bool DiffInteractionEvidencePassed    = false;
+		bool ConversationAnchorEvidencePassed = false;
+		bool DiffRequested                    = false;
 		// Whether a theme change on the composed application repainted without
 		// costing a complete-blob pass. The token-span cache is keyed by blob
 		// identity and definition version alone, so a submission count that
@@ -3015,6 +3027,23 @@ namespace {
 				   << QString::fromStdString(window.github_diagnostic_text()) << '\n'
 				   << "PUBLIC_PATH_ACCOUNT:"
 				   << QString::fromStdString(window.active_account_text()) << '\n'
+				   << "PUBLIC_PATH_CONVERSATIONS:roots="
+				   << aRun.LastConversationRows << ":identities=";
+			for (const auto& identity : aRun.LastConversationIdentities) {
+				stream << QString::fromStdString(identity) << ',';
+			}
+			stream << ":file=" << aRun.LastConversationFileAnchored << ':'
+				   << aRun.LastConversationFileMatchesFixture << ":anchor=";
+			if (aRun.LastConversationAnchor.has_value()) {
+				stream << (aRun.LastConversationAnchor->Side
+								   == bpr::core::diff_side::left
+							   ? "left"
+							   : "right")
+					   << ':' << aRun.LastConversationAnchor->Line;
+			} else {
+				stream << "none";
+			}
+			stream << '\n'
 				   << "PUBLIC_PATH_EPOCH_STATUS:"
 				   << (aRun.LastEpochStatus.isEmpty()
 						   ? window.epoch_selectors()->status_text()
@@ -3066,7 +3095,7 @@ namespace {
 				const auto identities = fixture_conversation_identities(
 					*window.conversation_model());
 				const auto& expectedIdentities
-					= aRun.Expectations.ExpectedFocusedConversationIdentities;
+					= aRun.Expectations.ExpectedConversationIdentities;
 				const auto expectedThreadValid
 					= !aRun.Expectations.ExpectedThreadId.has_value()
 					|| window.conversation_model()
@@ -3119,7 +3148,7 @@ namespace {
 						title != nullptr ? title->text() : QString{ }));
 				report(
 					"conversation-roots",
-					aRun.Expectations.ExpectedFocusedConversationRows,
+					aRun.Expectations.ExpectedConversationRows,
 					window.conversation_model()->rowCount());
 				report(
 					"expected-thread-valid",
@@ -3204,6 +3233,9 @@ namespace {
 			stream << (aRun.DiffInteractionEvidencePassed
 						   ? "DIFF_INTERACTION_EVIDENCE_OK\n"
 						   : "DIFF_INTERACTION_EVIDENCE_FAILED\n");
+			stream << (aRun.ConversationAnchorEvidencePassed
+						   ? "CONVERSATION_ANCHOR_EVIDENCE_OK\n"
+						   : "CONVERSATION_ANCHOR_EVIDENCE_FAILED\n");
 			stream << (aRun.SyntaxThemeRepaintPassed
 						   ? "SYNTAX_THEME_REPAINT_OK\n"
 						   : "SYNTAX_THEME_REPAINT_FAILED\n");
@@ -3367,7 +3399,8 @@ namespace {
 				   << evidence.ExplicitVerification << evidence.DurableHistory
 				   << evidence.MultiDefectNavigation << evidence.SharedActionSeparate
 				   << evidence.RestartRestored << evidence.ZeroReopenWrites
-				   << evidence.VisibleProjection << '\n';
+				   << evidence.VisibleProjection
+				   << evidence.PersistFailureFailsClosed << '\n';
 		}
 #endif
 		auto reportRender = aRun.RenderPath.has_value();
@@ -3765,6 +3798,15 @@ namespace {
 		aRun.LastEpochHistoryEnabled = window.epoch_selectors()->load_history_action()->isEnabled();
 		aRun.LastEpochCoreStatus     = static_cast<int>(aApplication.status().EpochStatus);
 #if defined(BPR_BUILD_TESTING)
+		aRun.LastConversationRows       = window.conversation_model()->rowCount();
+		aRun.LastConversationIdentities = fixture_conversation_identities(
+			*window.conversation_model());
+		aRun.LastConversationAnchor = window.conversation_panel()->anchor_line();
+		aRun.LastConversationFileAnchored
+			= window.conversation_panel()->anchor_file().has_value();
+		aRun.LastConversationFileMatchesFixture
+			= window.conversation_panel()->anchor_file()
+			== std::optional{ bpr::core::file_identity_of("review.cpp") };
 		if (aRun.Appearance.Enabled && !aRun.Appearance.StageEntered) {
 			aRun.Appearance.SelectedDiffEvidence = bpr::app::detail::
 				github_application_fixture_access::
@@ -3959,6 +4001,30 @@ namespace {
 					advance_uiforetw_selected_diff_probe(aApplication, *aRun);
 					break;
 				}
+				if (aRun->ReviewRoundTripCompositionProbe
+					&& aRun->ReviewRoundTripCompositionStarted
+					&& !aRun->ReviewRoundTripCompositionPassed) {
+					const auto result = bpr::app::detail::
+						github_application_fixture_access::
+							exercise_review_round_trip_composition(aApplication);
+					if (result
+						== bpr::app::detail::
+							review_round_trip_composition_probe_result::pending) {
+						break;
+					}
+					aRun->ReviewRoundTripCompositionEvidence
+						= bpr::app::detail::github_application_fixture_access::
+							review_round_trip_composition_evidence(aApplication);
+					aRun->ReviewRoundTripCompositionPassed
+						= result == bpr::app::detail::review_round_trip_composition_probe_result::passed;
+					if (!aRun->ReviewRoundTripCompositionPassed) {
+						fail_automated_run(aApplication, *aRun);
+						break;
+					}
+					aRun->PresentationPassed = true;
+					transition_to_shutdown(aApplication, *aRun);
+					break;
+				}
 				if (aRun->DefectCompositionProbe.has_value()
 					&& aRun->DefectCompositionStarted
 					&& !aRun->DefectCompositionPassed) {
@@ -3993,7 +4059,8 @@ namespace {
 				if (fixture_presentation_passed(
 						window,
 						aRun->ExpectedActiveHostText,
-						aRun->Expectations)) {
+						aRun->Expectations,
+						window.comparison_surface()->current_context().has_value())) {
 					const auto evidence = bpr::app::detail::
 						github_application_fixture_access::evidence(aApplication);
 					const auto persistentPhase = aRun->EpochPhase
@@ -4053,7 +4120,8 @@ namespace {
 					}
 					if (aRun->ReviewRoundTripCompositionProbe
 						&& !aRun->ReviewRoundTripCompositionPassed) {
-						const auto result = bpr::app::detail::
+						aRun->ReviewRoundTripCompositionStarted = true;
+						const auto result                       = bpr::app::detail::
 							github_application_fixture_access::
 								exercise_review_round_trip_composition(aApplication);
 						if (result == bpr::app::detail::review_round_trip_composition_probe_result::pending) {
@@ -4307,7 +4375,27 @@ namespace {
 						aRun->DiffInteractionEvidencePassed = ready
 							&& capture_diff_interaction_evidence(
 																  window, aRun->DiffEvidenceDirectory);
-						aRun->RenderSaved = aRun->DiffInteractionEvidencePassed
+						if (aRun->DiffInteractionEvidencePassed
+							&& aRun->Expectations.ExpectedThreadId.has_value()) {
+							const auto thread = window.conversation_model()->index_for_id(
+								*aRun->Expectations.ExpectedThreadId);
+							window.conversation_view()->setCurrentIndex(thread);
+							QApplication::processEvents();
+							const auto& anchor                     = workbench->conversation_anchor();
+							aRun->ConversationAnchorEvidencePassed = thread.isValid()
+								&& anchor.has_value()
+								&& anchor->Side == bpr::core::diff_side::right
+								&& anchor->Line == 41U
+								&& window.conversation_model()->rowCount() == 1
+								&& window.conversation_model()
+									   ->index_for_id(*aRun->Expectations.ExpectedThreadId)
+									   .isValid()
+								&& !workbench
+										->conversation_anchor_marker_rect(
+											bpr::core::diff_side::right)
+										.isEmpty();
+						}
+						aRun->RenderSaved = aRun->ConversationAnchorEvidencePassed
 							&& save_render_evidence(window, aRun->RenderPath);
 
 						// Measured here, while a classified comparison is on
@@ -4343,6 +4431,7 @@ namespace {
 						const auto retainedSelection = workbench->selection();
 						const auto retainedContext   = workbench->current_context();
 						const auto unchangedAccepted = aRun->DiffInteractionEvidencePassed
+							&& aRun->ConversationAnchorEvidencePassed
 							&& bpr::app::detail::github_application_fixture_access::
 								reaccept_fixture_revision(aApplication, false);
 						QApplication::processEvents();
@@ -4395,8 +4484,10 @@ namespace {
 				if (fixture_presentation_passed(
 						window,
 						aRun->ExpectedActiveHostText,
-						aRun->Expectations,
-						true)
+						aRun->Expectations)
+					&& !window.comparison_surface()->current_context().has_value()
+					&& !window.conversation_panel()->anchor_file().has_value()
+					&& !window.conversation_panel()->anchor_line().has_value()
 					&& fixture_epoch_pair_passed(
 						window,
 						evidence.BaseOid,

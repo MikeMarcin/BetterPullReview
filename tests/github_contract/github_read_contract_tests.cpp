@@ -338,6 +338,8 @@ namespace {
 					.Subject                   = application::github_review_thread_subject::line,
 					.Path                      = "review.cpp",
 					.Line                      = 42,
+					.OriginalLine              = 42,
+					.DiffSide                  = application::github_diff_side::right,
 					.Resolved                  = false,
 					.Outdated                  = false,
 					.ViewerResolvePermission   = application::github_permission_state::allowed,
@@ -350,12 +352,56 @@ namespace {
 								.Actor = application::github_actor_id{ "U_fixture_viewer" },
 								.Login = "octo-reviewer",
 							},
-							.Body     = "Please preserve snapshot identity "
-										"across refreshes.",
-							.Path     = "review.cpp",
-							.Line     = 42,
-							.Outdated = false,
-							.Deleted  = false,
+							.Body         = "Please preserve snapshot identity "
+											"across refreshes.",
+							.Path         = "review.cpp",
+							.Line         = 42,
+							.OriginalLine = 42,
+							.Outdated     = false,
+							.Deleted      = false,
+						},
+					},
+				},
+				{
+					.Thread                    = application::github_thread_id{ "PRRT_fixture_3" },
+					.Subject                   = application::github_review_thread_subject::line,
+					.Path                      = "review.cpp",
+					.Line                      = 60,
+					.OriginalLine              = 60,
+					.DiffSide                  = application::github_diff_side::right,
+					.Resolved                  = false,
+					.Outdated                  = false,
+					.ViewerResolvePermission   = application::github_permission_state::allowed,
+					.ViewerUnresolvePermission = application::github_permission_state::denied,
+					.Comments                  = {
+						{
+							.Comment = application::github_comment_id{ "PRRC_fixture_4" },
+							.ReplyTo = std::nullopt,
+							.Author  = application::github_actor_record{
+								.Actor = application::github_actor_id{ "U_fixture_viewer" },
+								.Login = "octo-reviewer",
+							},
+							.Body         = "Keep the second current-head anchor exact.",
+							.Path         = "review.cpp",
+							.Line         = 60,
+							.OriginalLine = 60,
+							.Outdated     = false,
+							.Deleted      = false,
+						},
+						{
+							.Comment = application::github_comment_id{ "PRRC_fixture_5" },
+							.ReplyTo = application::github_comment_id{ "PRRC_fixture_4" },
+							.Author  = application::github_actor_record{
+								.Actor = application::github_actor_id{ "U_fixture_author" },
+								.Login = "octo-author",
+							},
+							.Body         = "The exact current-head follow-up is ready to "
+											"verify.",
+							.Path         = "review.cpp",
+							.Line         = 60,
+							.OriginalLine = 60,
+							.Outdated     = false,
+							.Deleted      = false,
 						},
 					},
 				},
@@ -363,7 +409,9 @@ namespace {
 					.Thread                    = application::github_thread_id{ "PRRT_fixture_2" },
 					.Subject                   = application::github_review_thread_subject::line,
 					.Path                      = "review.cpp",
-					.Line                      = 84,
+					.Line                      = std::nullopt,
+					.OriginalLine              = 84,
+					.DiffSide                  = application::github_diff_side::left,
 					.Resolved                  = false,
 					.Outdated                  = true,
 					.ViewerResolvePermission   = application::github_permission_state::denied,
@@ -376,11 +424,12 @@ namespace {
 								.Actor = application::github_actor_id{ "U_fixture_viewer" },
 								.Login = "octo-reviewer",
 							},
-							.Body     = "Please keep the retained anchor visible.",
-							.Path     = "review.cpp",
-							.Line     = 84,
-							.Outdated = true,
-							.Deleted  = false,
+							.Body         = "Please keep the retained anchor visible.",
+							.Path         = "review.cpp",
+							.Line         = 84,
+							.OriginalLine = 84,
+							.Outdated     = true,
+							.Deleted      = false,
 						},
 						{
 							.Comment = application::github_comment_id{ "PRRC_fixture_3" },
@@ -389,11 +438,12 @@ namespace {
 								.Actor = application::github_actor_id{ "U_fixture_author" },
 								.Login = "octo-author",
 							},
-							.Body     = "Fixed in the current fixture head.",
-							.Path     = "review.cpp",
-							.Line     = 84,
-							.Outdated = true,
-							.Deleted  = false,
+							.Body         = "Fixed in the current fixture head.",
+							.Path         = "review.cpp",
+							.Line         = 84,
+							.OriginalLine = 84,
+							.Outdated     = true,
+							.Deleted      = false,
 						},
 					},
 				},
@@ -402,6 +452,8 @@ namespace {
 					.Subject                   = application::github_review_thread_subject::file,
 					.Path                      = "review.cpp",
 					.Line                      = std::nullopt,
+					.OriginalLine              = std::nullopt,
+					.DiffSide                  = application::github_diff_side::right,
 					.Resolved                  = false,
 					.Outdated                  = false,
 					.ViewerResolvePermission   = application::github_permission_state::allowed,
@@ -414,11 +466,12 @@ namespace {
 								.Actor = application::github_actor_id{ "U_fixture_viewer" },
 								.Login = "octo-reviewer",
 							},
-							.Body     = "Please review the file-level design.",
-							.Path     = "review.cpp",
-							.Line     = std::nullopt,
-							.Outdated = false,
-							.Deleted  = false,
+							.Body         = "Please review the file-level design.",
+							.Path         = "review.cpp",
+							.Line         = std::nullopt,
+							.OriginalLine = std::nullopt,
+							.Outdated     = false,
+							.Deleted      = false,
 						},
 					},
 				},
@@ -1120,6 +1173,16 @@ namespace {
 
 		responses = recording.Responses;
 		replace_once(
+			responses[6].Response.Body,
+			"\"headRefOid\": \"2222222222222222222222222222222222222222\"",
+			"\"headRefOid\": \"3333333333333333333333333333333333333333\"");
+		expect_atomic_failure(
+			context,
+			responses,
+			"force-pushed GraphQL coordinates cannot cross the REST head boundary");
+
+		responses = recording.Responses;
+		replace_once(
 			responses[9].Response.Body,
 			"\"number\": 17",
 			"\"number\": 18");
@@ -1203,6 +1266,34 @@ namespace {
 			context,
 			responses,
 			"non-boolean per-thread resolve availability is rejected");
+
+		for (const auto& [replacement, message] : {
+				 std::pair{ std::string_view{ "" },
+							std::string_view{ "missing thread diff side is rejected" } },
+				 std::pair{ std::string_view{ "\"diffSide\": null,\n              " },
+							std::string_view{ "null thread diff side is rejected" } },
+				 std::pair{ std::string_view{ "\"diffSide\": 7,\n              " },
+							std::string_view{ "wrong-shaped thread diff side is rejected" } },
+				 std::pair{ std::string_view{ "\"diffSide\": \"UNCHANGED\",\n              " },
+							std::string_view{ "unknown thread diff side is rejected" } },
+			 }) {
+			responses = recording.Responses;
+			replace_once(
+				responses[6].Response.Body,
+				"\"diffSide\": \"RIGHT\",\n              ",
+				replacement);
+			expect_atomic_failure(context, responses, message);
+		}
+
+		responses = recording.Responses;
+		replace_once(
+			responses[6].Response.Body,
+			"\"line\": 42,\n              \"originalLine\": 42,",
+			"\"line\": null,\n              \"originalLine\": 42,");
+		expect_atomic_failure(
+			context,
+			responses,
+			"a current line thread cannot substitute originalLine for its missing current coordinate");
 
 		responses = recording.Responses;
 		replace_once(
@@ -1352,7 +1443,7 @@ namespace {
 		wire_response emptyThreads{
 			.Status       = 200,
 			.Headers      = { { "Content-Type", "application/json" } },
-			.Body         = R"({"data":{"repository":{"id":"R_fixture_repository","pullRequest":{"id":"PR_fixture_17","files":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviewThreads":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}})",
+			.Body         = R"({"data":{"repository":{"id":"R_fixture_repository","pullRequest":{"id":"PR_fixture_17","headRefOid":"2222222222222222222222222222222222222222","files":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviewThreads":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}})",
 			.Completeness = page_completeness::complete,
 		};
 		expect(
@@ -1613,6 +1704,32 @@ namespace {
 						.Comments.front()
 						.Line.has_value(),
 			"file-level thread and comment normalize without line numbers");
+
+		auto noCoordinateReplyRecording = load_recording("github-com", server_contract::github_com);
+		replace_once(
+			noCoordinateReplyRecording.Responses[6].Response.Body,
+			"\"bodyText\": \"Please preserve snapshot identity across refreshes.\",\n"
+			"                    \"path\": \"review.cpp\",\n"
+			"                    \"line\": 42,\n"
+			"                    \"originalLine\": 42",
+			"\"bodyText\": \"Please preserve snapshot identity across refreshes.\",\n"
+			"                    \"path\": \"review.cpp\",\n"
+			"                    \"line\": null,\n"
+			"                    \"originalLine\": null");
+		const auto noCoordinateReply = normalize_github_read(
+			normalization_context(server_contract::github_com),
+			noCoordinateReplyRecording.Responses);
+		expect(
+			noCoordinateReply.has_value()
+				&& noCoordinateReply->PullRequest.ReviewThreads.front().Line
+					== 42U
+				&& !noCoordinateReply->PullRequest.ReviewThreads.front()
+						.Comments.front()
+						.Line.has_value()
+				&& !noCoordinateReply->PullRequest.ReviewThreads.front()
+						.Comments.front()
+						.OriginalLine.has_value(),
+			"a line-level reply without coordinates inherits the validated root anchor");
 
 		auto nullAuthorRecording = load_recording("github-com", server_contract::github_com);
 		replace_once(

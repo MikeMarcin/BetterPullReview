@@ -2171,7 +2171,7 @@ class CaptureContractTests(unittest.TestCase):
         self.assertNotIn("SubmitReview", CAPTURE.GRAPHQL_DOCUMENT)
         self.assertEqual(
             CAPTURE._sha256(CAPTURE.GRAPHQL_DOCUMENT.encode("utf-8")),
-            "sha256:ad859fce39cfcdbe81ef52aa9b1a3a4e2d64ee9fa2b3bc9f4b7d80622f98b6ed",
+            "sha256:e4991e65a368fbbd51c7ba19793eb182fdbecc2500594de5bcd9dbdba255793e",
         )
         artifact = CAPTURE.sanitize_route_probes(
             probes,
