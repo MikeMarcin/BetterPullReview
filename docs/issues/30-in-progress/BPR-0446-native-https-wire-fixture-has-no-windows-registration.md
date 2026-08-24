@@ -28,7 +28,7 @@ CMAKE_SYSTEM_NAME STREQUAL "Linux")`, apparently for the `find_program(…
 openssl REQUIRED)` it needs. The driver
 `tests/scripts/verify_native_https_transport.py` is dependency-free Python
 (socket/ssl/subprocess) with no POSIX-only calls, and this host has OpenSSL
-3.5.7 at `C:\Program Files\Git\mingw64in\openssl.exe`.
+3.5.7 at `C:/Program Files/Git/mingw64/bin/openssl.exe`.
 
 ## Required final state
 
