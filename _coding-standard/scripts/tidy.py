@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import List, Optional, Sequence, Set
 
@@ -76,6 +78,52 @@ def compile_command_files(compile_commands: Path) -> Set[Path]:
             path = directory / path
         files.add(path.resolve())
     return files
+
+
+# Flags GCC writes into the compilation database that clang-tidy's Clang driver
+# rejects outright as unknown arguments, which ends every translation unit in
+# clang-diagnostic-error before a single check runs. CMake emits these for its
+# C++20 module scanning; this tree declares no module, so dropping them for the
+# analyser changes nothing it would have seen.
+UNSUPPORTED_DRIVER_FLAGS = ("-fmodules-ts", "-fmodule-mapper=", "-fdeps-format=")
+
+
+def strip_unsupported_driver_flags(argument: str) -> bool:
+    return any(
+        argument == flag or argument.startswith(flag)
+        for flag in UNSUPPORTED_DRIVER_FLAGS
+    )
+
+
+def filtered_compilation_database(compile_commands: Path) -> Optional[Path]:
+    """Rewrite the database without flags the analyser cannot accept.
+
+    Returns a directory holding the rewritten database, or None when nothing
+    needed removing and the original directory can be used as-is.
+    """
+    entries = json.loads(compile_commands.read_text(encoding="utf-8"))
+    removed: Set[str] = set()
+    for entry in entries:
+        if "arguments" in entry:
+            kept = [a for a in entry["arguments"] if not strip_unsupported_driver_flags(a)]
+            removed.update(a for a in entry["arguments"] if strip_unsupported_driver_flags(a))
+            entry["arguments"] = kept
+        elif "command" in entry:
+            parts = shlex.split(entry["command"])
+            kept = [a for a in parts if not strip_unsupported_driver_flags(a)]
+            removed.update(a for a in parts if strip_unsupported_driver_flags(a))
+            entry["command"] = shlex.join(kept)
+    if not removed:
+        return None
+
+    print(f"Removed {len(removed)} compiler flag(s) the analyser cannot accept:")
+    for flag in sorted(removed):
+        print(f"  {flag}")
+    directory = Path(tempfile.mkdtemp(prefix="bpr-tidy-db-"))
+    (directory / "compile_commands.json").write_text(
+        json.dumps(entries, indent=2), encoding="utf-8"
+    )
+    return directory
 
 
 def host_extra_args() -> List[str]:
@@ -169,9 +217,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print("No selected C/C++ translation units are present in the compilation database.")
         return 0
 
-    build_root = compile_commands.parent
     print(f"Running clang-tidy on {len(files)} translation unit(s)")
     print(f"Compilation database: {compile_commands}")
+    rewritten = filtered_compilation_database(compile_commands)
+    build_root = rewritten if rewritten is not None else compile_commands.parent
 
     extra_args = host_extra_args()
     failures: List[Path] = []

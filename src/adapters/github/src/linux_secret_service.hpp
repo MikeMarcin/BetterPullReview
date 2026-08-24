@@ -12,6 +12,19 @@
 #include <string_view>
 #include <variant>
 
+// This file's identifier spellings are pinned, not merely conventional.
+// cmake/VerifyArchitectureBoundaries.cmake requires the Linux Secret Service
+// adapter to retain an exact, binary, noninteractive credential lifecycle, and
+// it enforces that by matching source text -- including parameter names such
+// as `prompt`, `actual_name` and `canonical_service_bus_name`. Renaming them to
+// the project's `aPrompt` convention leaves the behaviour identical and fails
+// `architecture_boundaries`, because the pinned patterns no longer match.
+//
+// The naming findings here are therefore accepted rather than resolved.
+// Anything that is not an identifier name is still checked; if a pattern in
+// that file is ever relaxed, drop the matching part of this suppression rather
+// than widening it.
+// NOLINTBEGIN(readability-identifier-naming)
 namespace bpr::adapters::github {
 	inline constexpr std::size_t linux_secret_service_authority_account_bytes = (4U * 16U) + 2U + 2U
 		+ (2U * application::maximum_github_hostname_bytes);
@@ -110,4 +123,5 @@ namespace bpr::adapters::github {
 		-> linux_secret_service_vault_factory_result;
 }
 
+// NOLINTEND(readability-identifier-naming)
 #endif // BPR_SRC_ADAPTERS_GITHUB_SRC_LINUX_SECRET_SERVICE_HPP

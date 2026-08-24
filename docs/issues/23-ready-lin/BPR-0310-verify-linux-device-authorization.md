@@ -24,3 +24,22 @@ depends_on: [BPR-0282, BPR-0318]
 - The one-time flip record and the idempotent final-head course are distinct.
   BPR-0285 reruns the exact platform-course interface against already-enabled
   Linux selection after every required card is terminal.
+
+## Host note — 2026-08-22
+
+The native Secret Service fixtures do not currently pass on the Linux host, so
+this card's vault/keyring rows cannot be taken as available without first
+resolving that.
+
+Observed while running [[BPR-0443]]. `linux_secret_service_native_setup`,
+`_native` and `_native_cleanup` fail; `linux_secret_service_contract` passes.
+Proven pre-existing rather than caused by that card's edits: `git stash`,
+rebuild, and the same three fail identically at unmodified `HEAD`.
+
+[[BPR-0156]] recorded all four passing on 2026-08-17 against a real
+gnome-keyring 50.0, so this is a change in host state rather than a claim that
+was never true. `org.freedesktop.secrets` is owned by `gnome-keyring-d` and
+`~/.local/share/keyrings/login.keyring` exists, so the service is running; the
+likely cause is that nothing unlocked the collection in this session and the
+fixture refuses prompts by construction. Not diagnosed further here — it
+belongs to whoever runs this card's native course.

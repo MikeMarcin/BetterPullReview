@@ -664,3 +664,38 @@ needs a publicly observable designated target and a complete successor packet,
 fresh capability-critical review, and new exact operator decision. BPR-0334 may
 now proceed; its source edit will make the already-aborted v004 producer stale
 as expected.
+
+## v004's approved source has drifted — 2026-08-23
+
+The frozen v004 approval no longer describes the tree. Checked entry by entry
+against `source-manifest.txt`: **28 of 31 still match, 3 have moved.**
+
+| File | v004 | Now | Moved by |
+|---|---|---|---|
+| `src/app/CMakeLists.txt` | `b758c2db…` | `edf82fc3…` | [[BPR-0364]] |
+| `src/app/main.cpp` | `e49260fd…` | `7347389b…` | [[BPR-0435]], [[BPR-0440]] |
+| `src/app/src/github_application.cpp` | `990d179d…` | `4666edeb…` | [[BPR-0436]], [[BPR-0437]]/[[BPR-0441]], [[BPR-0442]] |
+
+Nothing is wrong with the packet, and its manifest is deliberately left alone:
+it records what the owner actually reviewed, and `verify_documentation.py`
+checks only *pending* packets for exactly that reason. The v004 verdict remains
+valid for the bytes it names.
+
+What has changed is that those bytes are no longer the ones a live run would
+execute. This is the same situation [[BPR-0410]]'s change created for v003,
+which is marked `INVALIDATED … a regenerated v004 is required`. By that
+precedent this card now needs a **v005 regeneration** from current committed
+source before the parked live attempt can proceed; running v004's approval
+against today's tree would authorize a digest the owner never saw.
+
+Recorded rather than acted on. Regenerating an attended capsule and asking for
+a fresh verdict is this card's own work and needs the owner, which is why it is
+parked.
+
+Worth noting how long this went unseen. Every one of the six commits above was
+a legitimate, necessary repair — the Windows lane could not build without most
+of them — and none of them is wrong. The drift is a consequence nobody owed a
+check for, because the gate that would catch it deliberately skips answered
+packets. That is the right gate; this is the missing habit beside it. A repair
+that touches a file an answered packet binds should say so on the parked card
+at the time, not leave it to be discovered.
