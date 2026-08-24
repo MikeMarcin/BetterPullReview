@@ -1,6 +1,6 @@
 # Designated one-shot live review publication operator packet
 
-Status: **pending fresh capability-critical review; do not run or approve**
+Status: **INVALIDATED by capability-critical review; do not run or approve**
 
 This v005 packet is the current-source successor to immutable answered
 [v004](../designated-live-review-publication-v004/operator-packet.md). The
@@ -10,13 +10,20 @@ retry. Subsequent committed source changes moved three of v004's 31 bound
 files. Its response remains valid only for the historical bytes it names and
 cannot authorize today's build.
 
-v005 binds a fresh tests-disabled Release capsule built from committed tree
+v005 bound a fresh tests-disabled Release capsule built from committed tree
 `bb8212a` and source digest
 `0608914ff88f395a07b5de937e18a9191c6cd0a6f6fef3ea9be38db9d3941114`.
 The designated target was recorded publicly observable on 2026-08-23, with PR
 1 open and its head unchanged from v004. No new live observation, approval,
 credential access, supervisor launch, or mutation occurred while preparing
 v005.
+
+Fresh capability-critical review found that these exact binaries and command
+topology do not maintain one capsule-root identity, one inventory identity, or
+the read-only image through the runtime. This packet is immutable rejected
+history. Every imperative section below is retained only to document the
+candidate that was reviewed; none is authority to materialize an approval,
+configure a live manifest, launch the supervisor, or publish.
 
 The mechanism is unchanged. BPR-0261 answers replay authority, BPR-0351
 supervisor launch provenance, BPR-0352 supervisor/inventory identity binding,
@@ -32,8 +39,8 @@ unspent. Any prior consume would make the application refuse as replayed.
 Minting a fresh ID would require resetting the namespace, which this packet
 forbids.
 
-This packet will ask one bounded decision only after its capability-critical
-review is clean: whether to authorize this exact tests-disabled
+The rejected candidate would have asked one bounded decision after a clean
+review: whether to authorize this exact tests-disabled
 BetterPullReview build to publish one ordinary source-line review comment to
 the already designated disposable pull request `MikeMarcin/BPR-Test#1` at head
 `17990ba0c2fb50338141f35c0717f0f99639c7ba`.
@@ -154,11 +161,31 @@ observe GitHub or enable the live lane.
 
 ## Independent capability-critical review
 
-Pending. This packet must not be approved or executed until a fresh independent
-review recomputes the complete v005 identity surface, attacks the replay,
-launch-provenance, target, grant, recovery, and remote-mutation boundaries,
-replays the direct gates, and returns no blocking finding. The v004 review and
-approval do not transfer to these bytes.
+The fresh independent review returned **three blocking findings**:
+
+1. The supervisor runs the static verifier before opening and capturing the
+   capsule root. A whole-root substitution in that interval is therefore
+   captured as the new baseline and remains invisible to the final
+   `unchanged()` check.
+2. The Python verifier and the later application-bound inventory digest reopen
+   the inventory pathname separately. Inventory A can be verified and then
+   replaced by operator-approved inventory B before the digest is computed.
+3. `stage-zero` mounts, verifies, and detaches the read-only image without
+   launching stage one. The registered live command still reaches the writable
+   plain-directory capsule, so the read-only mount does not protect the
+   supervisor/application lifetime or post-resume resource loads.
+
+The exact prescribed gates still passed: authority/composition 11/11,
+provider/native-HTTPS/SQLite 6/6, hermetic public observer 1/1, a 198-test
+default manifest with zero live entries and labels, capsule and stage-zero
+verification, documentation, 107 documentation self-tests, and diff hygiene.
+Those tests are false-green for the three injected interleavings above.
+
+The reviewer independently recomputed all five bound identities, the 31-file
+manifest, Release/tests-disabled cache selection, compiled source digest,
+owner-private replay identity, and zero spent records. No response, approval,
+attempt receipt, credential access, live launch, or mutation exists. Passing
+artifact checks do not make the defective execution topology safe.
 
 ## Read-only image evidence
 
@@ -169,18 +196,18 @@ at 29,983,469 bytes. `stage-zero` checked that exact image digest, mounted it
 read-only under a fresh owner-private temporary parent, verified the inventory
 and source binding from inside the mount, detached without force, and returned
 `designated-live-macos-capsule:pass`. The registered CTest lane still launches
-the plain-directory capsule; this packet makes no claim that the live lane runs
-from the mounted image.
+the plain-directory capsule. Capability-critical review determined that this
+is a blocking runtime-topology defect, not a limit that packet prose can waive.
 
 ## Decision and approval materialization
 
-This section remains inactive until the capability-critical review is recorded
-clean. Then verify the five artifact hashes and sizes above. If the operator's
-decision is not an unqualified approval of the exact statement and evidence,
-stop without creating an approval file.
+This section is permanently inactive for v005. Do not create an approval file
+from this subject. A successor requires repaired production code and command
+topology, a complete rebuild and identity regeneration, fresh independent
+review, and a new exact operator decision.
 
-If approved, create a fresh private directory and materialize exactly the
-subject bytes plus this one final line:
+The rejected procedure would then have created a fresh private directory and
+materialized exactly the subject bytes plus this one final line:
 
 ```text
 subject_sha256=6f158a0801c22219b77a3dfe44dac390de6d77fc520ab419565678ab72847bd3
@@ -195,8 +222,8 @@ unlinks that exact inode before any grant exists; it cannot be reused.
 
 ## Static manifest inspection
 
-Only after the approval has been materialized, configure the opt-in manifest
-with its absolute path:
+Historical candidate procedure only; **do not run it**. The rejected packet
+would have configured the opt-in manifest with an approval's absolute path:
 
 ```sh
 cd /Users/jaeger/Documents/GitHub/BetterPullReview
@@ -226,9 +253,8 @@ inside the supervisor and application and are not visible to `--show-only`.
 
 ## Attended procedure
 
-This procedure is inactive until the packet is operator-ready, the operator
-returns the exact approval below, and the approval artifact is materialized
-exactly as specified.
+This rejected procedure is permanently inactive. It is retained only to show
+what the reviewer assessed; v005 can never become operator-ready.
 
 1. Close other BetterPullReview processes. Confirm the designated PR remains
    disposable and intended for this check.
@@ -283,29 +309,7 @@ the bound macOS build only and makes no cross-platform claim.
 
 ## Operator response
 
-No response is valid while this packet's status is pending capability-critical
-review. If that review is recorded clean and these exact bytes become
-operator-ready, return exactly one of these decisions.
-
-Approval:
-
-> I approve the exact one-use approval subject
-> sha256:6f158a0801c22219b77a3dfe44dac390de6d77fc520ab419565678ab72847bd3
-> for BetterPullReview binary
-> sha256:b071b432f4682803ec0c63ed8977cfa6d469f2cb8a5d0ccf40dabcc0bb1fa18e
-> and signed-capsule supervisor
-> sha256:1b6778a292377ead1d12a11a71cd316f7e63a1bf19d5583800cb796619a21e1d
-> and capsule inventory
-> sha256:09afbd31d5893e699a1c861e2db8544bc9a21539bda72b3186b197379b25129e
-> and source manifest
-> sha256:0608914ff88f395a07b5de937e18a9191c6cd0a6f6fef3ea9be38db9d3941114
-> to publish one source-line review comment to MikeMarcin/BPR-Test#1 at head
-> 17990ba0c2fb50338141f35c0717f0f99639c7ba.
-
-Rejection:
-
-> I reject this exact one-use live review publication.
-
-After an approved run, return the command result and the full non-secret UI
-observations requested in step 7. If blocked, return the exact obstruction.
-Packet preparation or a partial response is not an approval or verdict.
+No operator response is valid for v005. Do not approve, reject, execute, or
+reuse any text from this invalidated packet. Its exact subject remains only as
+evidence of the bytes the reviewer rejected. A regenerated successor will ask
+its own digest-bound decision after its own clean capability-critical review.

@@ -102,3 +102,13 @@ the component the supervisor calls, which is where the logic lives.
 
 The interval after `SIGCONT` is not covered here and is not meant to be: that
 is the read-only mount from [[BPR-0353]]. The two hold together.
+
+## Correction from the v005 critical replay — 2026-08-24
+
+The component test begins at capture, but the production supervisor opens and
+captures the root only after static verification. Whole-root substitution in
+that earlier interval therefore becomes the new baseline. [[BPR-0448]] owns
+retention before verification and a production-shaped barrier test.
+
+The after-`SIGCONT` assumption is also not connected in the registered lane:
+[[BPR-0449]] owns running the complete child lifetime from the read-only mount.

@@ -113,3 +113,11 @@ it; wiring the release graph belongs with whoever can build that graph.
 
 Zero disk images were left attached: checked before starting, after every
 course, and at the end.
+
+## Correction from the v005 critical replay — 2026-08-24
+
+The stage-zero component proves mount, verification, and ordinary detach, but
+the opt-in live command does not use it and stage zero detaches without running
+stage one. [[BPR-0449]] owns the missing runtime connection: supervisor and app
+must execute from the exact read-only mount, which must remain attached through
+child exit.

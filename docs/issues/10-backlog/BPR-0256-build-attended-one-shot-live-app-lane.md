@@ -1,9 +1,9 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263]
+depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0448, BPR-0449]
 ---
 
 # Build the attended one-shot live application lane
@@ -761,7 +761,7 @@ directory. The bound artifacts are:
 | signed-capsule supervisor | `1b6778a292377ead1d12a11a71cd316f7e63a1bf19d5583800cb796619a21e1d` | 197,200 |
 | capsule inventory | `09afbd31d5893e699a1c861e2db8544bc9a21539bda72b3186b197379b25129e` | 11,112 |
 | schema-3 approval subject | `6f158a0801c22219b77a3dfe44dac390de6d77fc520ab419565678ab72847bd3` | 1,496 |
-| pending-review operator packet | `c9cbdfb2daa702c181e8882f128642980886bc48b1e3ab4bb6292d8b8979b39d` | 16,899 |
+| invalidated operator packet | `066ead4a1dfbbb668a8e3ca9adf639b2d24d2f3a9d8b83e6f6b7364320f498ae` | 17,809 |
 
 The approval subject reuses the unchanged approval ID
 `aa6dd849a0bc31e36e8585d1b5b8fc0d065f653ee92218c9f770729766c610d9`.
@@ -785,3 +785,35 @@ approve**. No response or approval file exists, no credential was accessed, no
 attended supervisor or GitHub request ran, and no mutation was submitted. A
 clean independent review is the only unattended work left before these exact
 bytes may become an operator decision.
+
+## v005 invalidated by capability-critical review — 2026-08-24
+
+The fresh independent review returned three blocking findings. v005 cannot be
+made operator-ready by changing prose; its exact binaries and command topology
+are rejected history.
+
+1. The static verifier exits before the capsule root is opened and captured.
+   Whole-root A-to-B substitution in that interval makes B the new baseline, so
+   the final revalidation cannot detect it.
+2. The verifier and the later application-bound inventory digest open the
+   inventory pathname separately. They can therefore consume different inodes.
+3. `stage-zero` verifies and detaches the read-only image without running stage
+   one, while the registered live lane still launches the writable
+   plain-directory capsule.
+
+All prescribed gates nevertheless passed: 11/11 authority/composition, 6/6
+provider/native-HTTPS/SQLite, 1/1 hermetic public observer, 198 default tests
+with zero live entries/labels, capsule and stored-image stage-zero, 107
+documentation self-tests, documentation, and diff hygiene. The reviewer also
+recomputed every v005 artifact identity, the 31-file manifest, compiled source
+digest, Release/tests-disabled selection, and zero-spent replay state. Those
+results demonstrate that the existing tests are false-green for the injected
+interleavings; they do not soften the findings.
+
+[[BPR-0448]] owns one retained capsule root and inventory across verification,
+hashing, capture, and launch. [[BPR-0449]] owns execution of the actual live
+lane from the digest-bound read-only image for the full child lifetime. After
+both land, this card requires a complete v006 rebuild, fresh identities, fresh
+capability-critical review, and a new exact operator decision. No v005 response
+or approval exists, and no credential, live launch, GitHub request, or mutation
+occurred.

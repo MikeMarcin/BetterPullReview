@@ -104,3 +104,11 @@ silently stops rewriting anything, and the case then proves nothing.
 
 Both application digests were re-pinned, per the procedure [[BPR-0383]] left
 next to them.
+
+## Correction from the v005 critical replay — 2026-08-24
+
+[[BPR-0448]] records a false-green check/use boundary this slice did not test.
+The verifier and the subject-bound digest reopen the inventory pathname at
+different times, so they can consume different inodes. Binding the digest as a
+field remains correct; binding verification and hashing to one retained object
+is additional required work.
