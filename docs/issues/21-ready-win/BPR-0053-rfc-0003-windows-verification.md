@@ -112,3 +112,12 @@ this card owns:
   exists for;
 - no test opens two stores on one root to prove the re-held root
   (BPR-0425) does not sharing-violate a sibling store.
+
+## Its behavior-contract row is owner-deferred — 2026-08-23
+
+`sqlite_epoch_catalog_behavior_contract` could not start in the 2026-08-23
+matrix runs: Smart App Control still refuses its image about 24 hours after
+linking (Code Integrity events at 21:11). The owner deferred the
+sign-or-policy decision — recorded verbatim on [[BPR-0036]] — so this row is
+waiting on that deferral, not on a defect. It converts whenever the deferral
+lifts, or on the next relink whose reputation verdict arrives.

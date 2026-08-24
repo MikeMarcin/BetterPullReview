@@ -107,3 +107,50 @@ without it, the adapters' filesystem walks over the staged refs fail with
 nothing named — BPR-0441's original symptom. A named refusal at
 composition time when the policy is off would keep the claim honest; until
 one exists, the policy value is part of this procedure's preconditions.
+
+## The matrix on the reputation-settled tree — 2026-08-23, evening
+
+The complete matrix reran on the unmodified tree built 2026-08-22 21:25, so
+no image was fresh and yesterday's reputation verdicts stood. **175 of 188
+passed in 1199.56 s** (`windows-dev-matrix-9.log`), converting 28 of the 35
+policy-refused rows — among them every RFC-BPR-0002 selector: both GitHub
+public paths, `application_public_path`, CLI-unavailable,
+`application_render`, `runtime_process_surface`, and both epoch-persistence
+contracts.
+
+The 13 remaining rows are fully attributed:
+
+- **6** are the agent-launch family [[BPR-0240]] owns, unchanged.
+- **4** are still-active Smart-App-Control refusals —
+  `application_agent_workspace`, `sqlite_queue_enrollment_storage`,
+  `sqlite_epoch_catalog_behavior_contract` ([[BPR-0053]]'s row), and
+  `application_public_path_wait` — confirmed live in the Code Integrity log
+  at 21:11–21:16, roughly 24 hours after their images were linked and far
+  past every window [[BPR-0424]] measured. Disposition below.
+- **2** were this harness's environment, not the tree: the nested
+  KSyntaxHighlighting configures inside `dependency_modernization_contract`
+  and `application_composition_contract` die on `Could NOT find Perl` when
+  `PATH` lacks Git's `usr/bin`; both pass in a focused rerun with it
+  appended. Recorded in the procedure below.
+- **1** is real and new: [[BPR-0447]], the epoch-maintenance pruned-restart
+  failure, reproduced three times.
+
+### Owner disposition of the persistent refusals — recorded verbatim
+
+> What is this even tyring to test? Do I need it right now? Can we delay this
+> signing until much later? I don't want to permanently have something
+> unsigned or drop system wide ssecurity, but I also don't care to do it
+> right now when the app isn't even useful yet.
+
+Applied as the reversible middle option [[BPR-0424]] wrote down: no signing
+setup now, no Smart App Control change. The four rows stay policy-refused
+with the Code Integrity evidence, none of them is an RFC-BPR-0002 closeout
+selector, and the deferral lifts whenever the owner signs the executables or
+revisits the policy.
+
+### Procedure addendum: PATH for nested configures
+
+Every matrix or focused `ctest` invocation must append Git's `usr/bin`
+(for `perl`) to `PATH` after importing the MSVC environment. The nested
+verified-KSyntaxHighlighting configures require it; a run from Git Bash
+carries it implicitly, which is why earlier matrix runs never exposed it.
