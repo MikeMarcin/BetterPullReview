@@ -69,12 +69,44 @@ DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE = (
     / "src"
     / "designated_live_macos_supervisor.cpp"
 ).read_text(encoding="utf-8")
+DESIGNATED_LIVE_MACOS_SUPERVISOR_IDENTITY_SOURCE = (
+    REPOSITORY_ROOT
+    / "src"
+    / "app"
+    / "src"
+    / "designated_live_macos_supervisor_identity.cpp"
+).read_text(encoding="utf-8")
+DESIGNATED_LIVE_MACOS_SUPERVISOR_LAUNCH_SOURCE = (
+    REPOSITORY_ROOT
+    / "src"
+    / "app"
+    / "src"
+    / "designated_live_macos_supervisor_launch.cpp"
+).read_text(encoding="utf-8")
+DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT = (
+    REPOSITORY_ROOT / "scripts" / "designated_live_macos_capsule.py"
+).read_text(encoding="utf-8")
 
 DESIGNATED_LIVE_MACOS_SUPERVISOR_TARGET = """\
 target_sources(
     tool_better_pull_review_designated_live_supervisor
     PRIVATE
         src/designated_live_macos_supervisor.cpp
+        src/designated_live_macos_supervisor_launch.cpp
+)
+file(
+    SHA256
+    "${PROJECT_SOURCE_DIR}/scripts/designated_live_macos_capsule.py"
+    BPR_DESIGNATED_LIVE_VERIFIER_SHA256
+)
+target_compile_definitions(
+    tool_better_pull_review_designated_live_supervisor
+    PRIVATE
+        "BPR_DESIGNATED_LIVE_VERIFIER_SHA256=\"${BPR_DESIGNATED_LIVE_VERIFIER_SHA256}\""
+)
+add_custom_command(
+    OUTPUT capsule.stamp
+    COMMAND helper --probe-launch --inventory capsule.inventory
 )
 """
 
@@ -3784,6 +3816,12 @@ auto finish_background_reap(
                 DESIGNATED_LIVE_MACOS_SUPERVISOR_TARGET,
             "src/app/src/designated_live_macos_supervisor.cpp":
                 DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE,
+            "src/app/src/designated_live_macos_supervisor_identity.cpp":
+                DESIGNATED_LIVE_MACOS_SUPERVISOR_IDENTITY_SOURCE,
+            "src/app/src/designated_live_macos_supervisor_launch.cpp":
+                DESIGNATED_LIVE_MACOS_SUPERVISOR_LAUNCH_SOURCE,
+            "scripts/designated_live_macos_capsule.py":
+                DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT,
         }
         target = GITHUB_TARGET + DESIGNATED_LIVE_PUBLIC_OBSERVER_TARGET
         allowed = self.run_check(sources, github_target=target)
@@ -3813,13 +3851,117 @@ auto finish_background_reap(
                 **sources,
                 "src/app/src/designated_live_macos_supervisor.cpp":
                     DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE.replace(
-                        "run_static_verifier(*root, *inventory)",
-                        "run_static_verifier_disabled(*root, *inventory)",
+                        "run_static_verifier(*retainedSession)",
+                        "run_static_verifier_disabled(*retainedSession)",
                         1,
                     ),
             },
             github_target=target,
         )
+
+        for required_continuity_fragment in (
+            "session::open(",
+            "designated_live_supervisor_launch::verify_static(",
+            "designated_live_supervisor_launch::launch(",
+            "restored = channel->restore()",
+            "if (!restored || !channel.has_value()",
+        ):
+            with self.subTest(
+                required_continuity_fragment=required_continuity_fragment
+            ):
+                self.assert_failure(
+                    "Designated live supervisor prelaunch policy is incomplete",
+                    {
+                        **sources,
+                        "src/app/src/designated_live_macos_supervisor.cpp":
+                            DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE.replace(
+                                required_continuity_fragment,
+                                "disabled_continuity_fragment",
+                                1,
+                            ),
+                    },
+                    github_target=target,
+                )
+
+        self.assert_failure(
+            "Designated live supervisor must delegate application resume",
+            {
+                **sources,
+                "src/app/src/designated_live_macos_supervisor.cpp":
+                    DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE
+                    + "\n// hostile resume: SIGCONT\n",
+            },
+            github_target=target,
+        )
+
+        self.assert_failure(
+            "posix_spawn ownership violation",
+            {
+                **sources,
+                "src/app/src/designated_live_macos_supervisor.cpp":
+                    DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE
+                    + "\nvoid hostile_spawn() { posix_spawn(nullptr, nullptr, "
+                    "nullptr, nullptr, nullptr, nullptr); }\n",
+            },
+            github_target=target,
+        )
+
+        for required_controller_fragment in (
+            "aApplication != fixedApplication",
+            "aApplication.is_absolute()",
+            "fixedApplication.c_str()",
+            "aOperations.Barrier(phase::BeforeSpawn)",
+            "aOperations.Spawn(",
+            "aOperations.PostSpawnCheck(",
+            "aOperations.Barrier(phase::BeforeResume)",
+            "aOperations.Resume(",
+            "aOperations.Refuse(",
+            "aSession.configure_verifier_spawn(actions)",
+            "python.c_str()",
+            'std::string{ "." }',
+            'std::string{ "--inventory-fd" }',
+            "aSession.transmit_verifier_and_inventory(*transport)",
+            "result.Revalidated = aSession.revalidate()",
+        ):
+            with self.subTest(
+                required_controller_fragment=required_controller_fragment
+            ):
+                self.assert_failure(
+                    "Designated live supervisor launch controller is incomplete",
+                    {
+                        **sources,
+                        "src/app/src/designated_live_macos_supervisor_launch.cpp":
+                            DESIGNATED_LIVE_MACOS_SUPERVISOR_LAUNCH_SOURCE.replace(
+                                required_controller_fragment,
+                                "disabled_controller_fragment",
+                                1,
+                            ),
+                    },
+                    github_target=target,
+                )
+
+        for forbidden_verifier_path_fragment in (
+            "aSession.root_path()",
+            "std::filesystem::absolute(",
+            "std::filesystem::canonical(",
+            "std::filesystem::weakly_canonical(",
+            '"--inventory"',
+        ):
+            with self.subTest(
+                forbidden_verifier_path_fragment=forbidden_verifier_path_fragment
+            ):
+                self.assert_failure(
+                    "Designated live supervisor verifier can regain mutable pathname",
+                    {
+                        **sources,
+                        "src/app/src/designated_live_macos_supervisor_launch.cpp":
+                            DESIGNATED_LIVE_MACOS_SUPERVISOR_LAUNCH_SOURCE
+                            + "\n// hostile verifier authority: "
+                            + forbidden_verifier_path_fragment
+                            + "\n",
+                    },
+                    github_target=target,
+                )
 
         observation = (
             "const auto observed\n"
@@ -3832,14 +3974,12 @@ auto finish_background_reap(
         # rewriting anything and the case then proves nothing.
         launch = (
             "const auto launched = launch_attended_application(\n"
-            "\t\t*root, attended->Approval, *inventoryDigest, *retainedRoot,\n"
-            "\t\t*capturedCapsule);"
+            "\t\tattended->Approval, *retainedSession);"
         )
         reordered = DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE.replace(
             observation,
             "const auto launchResult = launch_attended_application("
-            "*root, attended->Approval, *inventoryDigest, *retainedRoot,"
-            " *capturedCapsule);",
+            "attended->Approval, *retainedSession);",
             1,
         ).replace(
             launch,
@@ -3854,13 +3994,59 @@ auto finish_background_reap(
             DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE,
         )
         self.assert_failure(
-            "Designated live supervisor must verify the capsule",
+            "Designated live supervisor must retain identity before verification",
             {
                 **sources,
                 "src/app/src/designated_live_macos_supervisor.cpp": reordered,
             },
             github_target=target,
         )
+
+        for required_identity_fragment in (
+            "posix_spawn_file_actions_addfchdir_np(&aActions, RootDescriptor)",
+            "open_verifier(result.RootDescriptor)",
+            "result.VerifierSha256 != aTrustedVerifierSha256",
+            "sha256_hex(result.InventoryBytes)",
+            "::socketpair(",
+            "SO_NOSIGPIPE",
+            "transmit_stream(",
+        ):
+            with self.subTest(required_identity_fragment=required_identity_fragment):
+                self.assert_failure(
+                    "Designated live supervisor retained identity is incomplete",
+                    {
+                        **sources,
+                        "src/app/src/designated_live_macos_supervisor_identity.cpp":
+                            DESIGNATED_LIVE_MACOS_SUPERVISOR_IDENTITY_SOURCE.replace(
+                                required_identity_fragment,
+                                "disabled_identity_fragment",
+                            ),
+                    },
+                    github_target=target,
+                )
+
+        for required_retained_verifier_fragment in (
+            "retained_root = arguments.inventory_fd is not None",
+            'arguments.capsule != pathlib.Path(".")',
+            "retained_relative_path(path.parent / target)",
+            "inventory_entries(root, retained_root=retained_root)",
+            "verify_dependencies(root, arguments.otool, retained_root=retained_root)",
+        ):
+            with self.subTest(
+                required_retained_verifier_fragment=required_retained_verifier_fragment
+            ):
+                self.assert_failure(
+                    "Designated live verifier can regain mutable pathname authority",
+                    {
+                        **sources,
+                        "scripts/designated_live_macos_capsule.py":
+                            DESIGNATED_LIVE_MACOS_CAPSULE_SCRIPT.replace(
+                                required_retained_verifier_fragment,
+                                "disabled_retained_verifier_fragment",
+                            ),
+                    },
+                    github_target=target,
+                )
 
     def test_cli_transport_requires_allowlisted_invocation_and_environment(
         self,

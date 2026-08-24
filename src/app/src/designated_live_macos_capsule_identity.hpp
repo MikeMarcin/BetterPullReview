@@ -11,9 +11,10 @@
 /// application executable. Nothing re-examined a nested dylib, framework,
 /// plugin, or `qt.conf` between the verifier's exit and `dyld` loading it.
 ///
-/// This closes the interval the supervisor controls: capture immediately after
-/// the verifier succeeds, revalidate immediately before the resume. A
-/// substitution in between is refused.
+/// This closes the interval the supervisor controls: capture through the root
+/// descriptor retained before the verifier starts, then revalidate through that
+/// same descriptor before spawn and immediately before resume. A substitution
+/// anywhere in that pre-resume interval is refused.
 ///
 /// Two things it deliberately does not claim. It cannot cover the interval
 /// after the resume — that is what the read-only mount in [[BPR-0353]] is for,

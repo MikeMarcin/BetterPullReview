@@ -9,6 +9,7 @@ import hashlib
 import os
 import pathlib
 import shutil
+import socket
 import stat
 import subprocess
 import tempfile
@@ -53,6 +54,7 @@ ALLOWED_PLUGIN_FILES = {
     pathlib.PurePosixPath("tls/libqsecuretransportbackend.dylib"),
     pathlib.PurePosixPath("networkinformation/libqapplenetworkinformation.dylib"),
 }
+MAXIMUM_INVENTORY_BYTES = 16 * 1024 * 1024
 
 
 class CapsuleFailure(RuntimeError):
@@ -85,7 +87,21 @@ def relative_text(root: pathlib.Path, path: pathlib.Path) -> str:
     return relative
 
 
-def inventory_entries(root: pathlib.Path) -> list[Entry]:
+def retained_relative_path(path: pathlib.Path) -> pathlib.Path:
+    """Keeps one descriptor-mode lookup relative to the retained cwd."""
+    if path.is_absolute():
+        raise CapsuleFailure("retained capsule lookup is not relative")
+    normalized = pathlib.PurePosixPath(os.path.normpath(path.as_posix()))
+    if normalized.is_absolute() or ".." in normalized.parts:
+        raise CapsuleFailure("retained capsule lookup escapes the root")
+    return pathlib.Path(normalized)
+
+
+def inventory_entries(
+    root: pathlib.Path,
+    *,
+    retained_root: bool = False,
+) -> list[Entry]:
     if not root.is_dir() or root.is_symlink():
         raise CapsuleFailure("capsule root is not a real directory")
     entries: list[Entry] = []
@@ -101,8 +117,13 @@ def inventory_entries(root: pathlib.Path) -> list[Entry]:
             if pure.is_absolute():
                 raise CapsuleFailure("capsule contains an absolute symlink")
             try:
-                resolved = (path.parent / target).resolve(strict=True)
-                resolved.relative_to(root.resolve(strict=True))
+                if retained_root:
+                    resolved = retained_relative_path(path.parent / target)
+                    if not resolved.exists():
+                        raise OSError("retained symlink target does not exist")
+                else:
+                    resolved = (path.parent / target).resolve(strict=True)
+                    resolved.relative_to(root.resolve(strict=True))
             except (OSError, ValueError) as error:
                 raise CapsuleFailure("capsule symlink escapes or does not resolve") from error
             entries.append(Entry("symlink", mode, target, relative))
@@ -169,6 +190,45 @@ def parse_inventory(text: str) -> tuple[str, list[Entry]]:
         entries.append(Entry(kind, int(mode_text, 8), value, relative))
         previous = relative
     return source_sha256, entries
+
+
+def read_inventory_descriptor(descriptor: int) -> str:
+    """Reads exactly one anonymous inherited inventory stream through EOF."""
+    if descriptor < 0:
+        raise CapsuleFailure("inventory descriptor is invalid")
+    status = os.fstat(descriptor)
+    if not stat.S_ISSOCK(status.st_mode):
+        raise CapsuleFailure("inventory descriptor is not a socket")
+    endpoint = socket.socket(fileno=descriptor)
+    try:
+        anonymous = endpoint.getsockname() in {"", b""} and endpoint.getpeername() in {
+            "",
+            b"",
+        }
+        stream = endpoint.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE) == socket.SOCK_STREAM
+    except OSError as error:
+        raise CapsuleFailure("inventory descriptor socket cannot be inspected") from error
+    finally:
+        endpoint.detach()
+    if not anonymous:
+        raise CapsuleFailure("inventory descriptor socket is named")
+    if not stream:
+        raise CapsuleFailure("inventory descriptor socket is not a stream")
+    content = bytearray()
+    while len(content) <= MAXIMUM_INVENTORY_BYTES:
+        block = os.read(
+            descriptor,
+            min(1024 * 1024, MAXIMUM_INVENTORY_BYTES + 1 - len(content)),
+        )
+        if not block:
+            break
+        content.extend(block)
+    if not content or len(content) > MAXIMUM_INVENTORY_BYTES:
+        raise CapsuleFailure("inventory descriptor framing is invalid")
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise CapsuleFailure("inventory descriptor is not UTF-8") from error
 
 
 def is_mach_o(path: pathlib.Path) -> bool:
@@ -303,7 +363,12 @@ def resolve_token_path(
     return pathlib.Path(token)
 
 
-def verify_dependencies(root: pathlib.Path, otool: pathlib.Path) -> None:
+def verify_dependencies(
+    root: pathlib.Path,
+    otool: pathlib.Path,
+    *,
+    retained_root: bool = False,
+) -> None:
     app_executable = root / APP_RELATIVE
     for binary in (path for path in root.rglob("*") if is_mach_o(path)):
         rpaths = mach_rpaths(binary, otool)
@@ -321,14 +386,19 @@ def verify_dependencies(root: pathlib.Path, otool: pathlib.Path) -> None:
                 candidates = [resolve_token_path(dependency, binary, app_executable)]
             else:
                 raise CapsuleFailure(f"external runtime dependency is forbidden: {dependency}")
-            resolved = [candidate.resolve(strict=True) for candidate in candidates if candidate.exists()]
+            if retained_root:
+                bounded = [retained_relative_path(candidate) for candidate in candidates]
+                resolved = [candidate for candidate in bounded if candidate.exists()]
+            else:
+                resolved = [candidate.resolve(strict=True) for candidate in candidates if candidate.exists()]
             if not resolved:
                 raise CapsuleFailure(f"capsule dependency cannot be resolved: {dependency}")
-            for candidate in resolved:
-                try:
-                    candidate.relative_to(root.resolve(strict=True))
-                except ValueError as error:
-                    raise CapsuleFailure("runtime dependency escapes capsule") from error
+            if not retained_root:
+                for candidate in resolved:
+                    try:
+                        candidate.relative_to(root.resolve(strict=True))
+                    except ValueError as error:
+                        raise CapsuleFailure("runtime dependency escapes capsule") from error
 
 
 def prune_plugins(root: pathlib.Path) -> None:
@@ -538,15 +608,24 @@ def verify_signature(bundle: pathlib.Path, codesign: pathlib.Path) -> None:
 
 def verify_inventory(
     root: pathlib.Path,
-    inventory: pathlib.Path,
+    inventory: pathlib.Path | None,
     *,
+    inventory_text: str | None = None,
     expected_source_sha256: str | None = None,
     require_owner_private: bool = False,
+    retained_root: bool = False,
 ) -> str:
-    source_sha256, expected = parse_inventory(inventory.read_text(encoding="utf-8"))
+    if (inventory is None) == (inventory_text is None):
+        raise CapsuleFailure("exactly one inventory source is required")
+    if inventory is not None:
+        text = inventory.read_text(encoding="utf-8")
+    else:
+        assert inventory_text is not None
+        text = inventory_text
+    source_sha256, expected = parse_inventory(text)
     if expected_source_sha256 is not None and source_sha256 != expected_source_sha256:
         raise CapsuleFailure("capsule source identity differs from expected")
-    actual = inventory_entries(root)
+    actual = inventory_entries(root, retained_root=retained_root)
     if actual != expected:
         raise CapsuleFailure("capsule inventory differs from filesystem")
     if (root / QT_CONF_RELATIVE).read_bytes() != QT_CONF:
@@ -789,15 +868,34 @@ def stage_zero(arguments: argparse.Namespace) -> None:
 
 
 def verify(arguments: argparse.Namespace) -> None:
-    root = arguments.capsule.resolve(strict=True)
+    retained_root = arguments.inventory_fd is not None
+    if retained_root and arguments.capsule != pathlib.Path("."):
+        raise CapsuleFailure("descriptor verification requires the retained capsule cwd")
+    root = (
+        arguments.capsule
+        if retained_root
+        else arguments.capsule.resolve(strict=True)
+    )
+    inventory = (
+        arguments.inventory.resolve(strict=True)
+        if arguments.inventory is not None
+        else None
+    )
+    inventory_text = (
+        read_inventory_descriptor(arguments.inventory_fd)
+        if arguments.inventory_fd is not None
+        else None
+    )
     verify_inventory(
         root,
-        arguments.inventory.resolve(strict=True),
+        inventory,
+        inventory_text=inventory_text,
         expected_source_sha256=arguments.source_sha256,
         require_owner_private=arguments.require_owner_private,
+        retained_root=retained_root,
     )
     verify_signature(root / "BetterPullReview.app", arguments.codesign)
-    verify_dependencies(root, arguments.otool)
+    verify_dependencies(root, arguments.otool, retained_root=retained_root)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -820,7 +918,9 @@ def parser() -> argparse.ArgumentParser:
     )
     verify_parser = subcommands.add_parser("verify")
     verify_parser.add_argument("--capsule", type=pathlib.Path, required=True)
-    verify_parser.add_argument("--inventory", type=pathlib.Path, required=True)
+    verify_inventory_source = verify_parser.add_mutually_exclusive_group(required=True)
+    verify_inventory_source.add_argument("--inventory", type=pathlib.Path)
+    verify_inventory_source.add_argument("--inventory-fd", type=int)
     verify_parser.add_argument("--source-sha256")
     verify_parser.add_argument("--require-owner-private", action="store_true")
     verify_parser.add_argument("--codesign", type=pathlib.Path, default=pathlib.Path("/usr/bin/codesign"))

@@ -8,6 +8,7 @@ from pathlib import Path
 import importlib.util
 import os
 import pathlib
+import socket
 import stat
 import subprocess
 import sys
@@ -144,6 +145,84 @@ class CapsuleInventoryTests(unittest.TestCase):
             inventory.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
             with self.assertRaisesRegex(capsule.CapsuleFailure, "canonical and sorted"):
                 capsule.verify_inventory(root, inventory)
+
+    def test_anonymous_inventory_stream_preserves_exact_bytes(self) -> None:
+        with contained_temporary_directory() as directory:
+            root, inventory = make_capsule(pathlib.Path(directory))
+            expected = inventory.read_text(encoding="utf-8")
+            sender, receiver = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+            try:
+                sender.sendall(expected.encode("utf-8"))
+                sender.shutdown(socket.SHUT_WR)
+                observed = capsule.read_inventory_descriptor(receiver.fileno())
+                self.assertEqual(observed, expected)
+                self.assertEqual(
+                    capsule.verify_inventory(
+                        root,
+                        None,
+                        inventory_text=observed,
+                        expected_source_sha256=SOURCE_DIGEST,
+                    ),
+                    SOURCE_DIGEST,
+                )
+            finally:
+                sender.close()
+                receiver.close()
+
+    def test_inventory_descriptor_accepts_only_anonymous_stream(self) -> None:
+        with contained_temporary_directory() as directory:
+            _, inventory = make_capsule(pathlib.Path(directory))
+            descriptor = os.open(inventory, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+            try:
+                with self.assertRaisesRegex(capsule.CapsuleFailure, "not a socket"):
+                    capsule.read_inventory_descriptor(descriptor)
+            finally:
+                os.close(descriptor)
+
+    def test_inventory_descriptor_rejects_named_and_invalid_streams(self) -> None:
+        with contained_temporary_directory() as directory:
+            socket_path = pathlib.Path(directory) / "named.sock"
+            listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            listener.bind(str(socket_path))
+            listener.listen(1)
+            client.connect(str(socket_path))
+            accepted, _ = listener.accept()
+            try:
+                with self.assertRaisesRegex(capsule.CapsuleFailure, "is named"):
+                    capsule.read_inventory_descriptor(accepted.fileno())
+            finally:
+                accepted.close()
+                client.close()
+                listener.close()
+
+        for contents, expected in ((b"", "framing"), (b"123456789", "framing")):
+            with self.subTest(contents=contents):
+                sender, receiver = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+                try:
+                    sender.sendall(contents)
+                    sender.shutdown(socket.SHUT_WR)
+                    with mock.patch.object(capsule, "MAXIMUM_INVENTORY_BYTES", 8):
+                        with self.assertRaisesRegex(capsule.CapsuleFailure, expected):
+                            capsule.read_inventory_descriptor(receiver.fileno())
+                finally:
+                    sender.close()
+                    receiver.close()
+
+    def test_descriptor_verification_requires_the_retained_cwd(self) -> None:
+        arguments = argparse.Namespace(
+            capsule=pathlib.Path("capsule"),
+            inventory=None,
+            inventory_fd=64,
+        )
+        with self.assertRaisesRegex(capsule.CapsuleFailure, "retained capsule cwd"):
+            capsule.verify(arguments)
+
+    def test_retained_lookup_rejects_absolute_and_escaping_paths(self) -> None:
+        for path in (pathlib.Path("/tmp/outside"), pathlib.Path("../outside")):
+            with self.subTest(path=path):
+                with self.assertRaisesRegex(capsule.CapsuleFailure, "retained capsule"):
+                    capsule.retained_relative_path(path)
 
 
 class CapsuleRuntimeTests(unittest.TestCase):

@@ -40,6 +40,18 @@ set(
     "src/app/src/designated_live_macos_supervisor.cpp"
 )
 set(
+    app_designated_live_supervisor_identity_relative
+    "src/app/src/designated_live_macos_supervisor_identity.cpp"
+)
+set(
+    app_designated_live_supervisor_launch_relative
+    "src/app/src/designated_live_macos_supervisor_launch.cpp"
+)
+set(
+    designated_live_macos_capsule_script_relative
+    "scripts/designated_live_macos_capsule.py"
+)
+set(
     app_entry_point_relative
     "src/app/main.cpp"
 )
@@ -1596,6 +1608,8 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
         elseif(
             current_allowed_relative
                 STREQUAL app_designated_live_supervisor_relative
+            OR current_allowed_relative
+                STREQUAL app_designated_live_supervisor_launch_relative
         )
             set(effect_owner_cmake "${app_cmake_contents}")
             set(
@@ -1697,7 +1711,7 @@ verify_effect_owner(
     "(^|[^A-Za-z0-9_])posix_spawn[ \\t\\r\\n]*\\("
     "posix_spawn"
     "${github_designated_live_observer_relative}"
-    "${app_designated_live_supervisor_relative}"
+    "${app_designated_live_supervisor_launch_relative}"
 )
 verify_effect_owner(
     "(wincred\\.h|Cred(Read|Write|Delete|Free|Enumerate|Rename|Protect|Unprotect|Pack|UnPack|IsProtected|FindBest|GetSessionTypes|Marshal|Unmarshal)[A-Za-z0-9_]*|P?CREDENTIAL(A|W)?([^A-Z0-9_]|$)|CRED_[A-Z0-9_]+)"
@@ -1848,6 +1862,21 @@ get_filename_component(
     "${BPR_ROOT}/${app_designated_live_supervisor_relative}"
     ABSOLUTE
 )
+get_filename_component(
+    app_designated_live_supervisor_identity_file
+    "${BPR_ROOT}/${app_designated_live_supervisor_identity_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    app_designated_live_supervisor_launch_file
+    "${BPR_ROOT}/${app_designated_live_supervisor_launch_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    designated_live_macos_capsule_script_file
+    "${BPR_ROOT}/${designated_live_macos_capsule_script_relative}"
+    ABSOLUTE
+)
 if(EXISTS "${app_designated_live_supervisor_file}")
     file(
         READ
@@ -1857,11 +1886,17 @@ if(EXISTS "${app_designated_live_supervisor_file}")
     foreach(
         required_supervisor_fragment
         IN ITEMS
-            [=[run_static_verifier(*root, *inventory)]=]
+            [=[session::open(]=]
+            [=[run_static_verifier(*retainedSession)]=]
             [=[observe_designated_live_public_target()]=]
-            [=[*root, attended->Approval, *inventoryDigest, *retainedRoot]=]
+            [=[attended->Approval, *retainedSession]=]
+            [=[designated_live_supervisor_launch::verify_static(]=]
+            [=[verifier_operations::production()]=]
+            [=[designated_live_supervisor_launch::launch(]=]
+            [=[restored = channel->restore()]=]
+            [=[if (!restored || !channel.has_value()]=]
             [=[POSIX_SPAWN_START_SUSPENDED]=]
-            [=[guest_signing_digest(process)]=]
+            [=[guest_signing_digest(aProcess)]=]
             [=["--attended-designated-live-approval"]=]
     )
         string(
@@ -1875,6 +1910,43 @@ if(EXISTS "${app_designated_live_supervisor_file}")
                 FATAL_ERROR
                 "Designated live supervisor prelaunch policy is incomplete: "
                 "${required_supervisor_fragment}"
+            )
+        endif()
+    endforeach()
+    if(app_designated_live_supervisor_contents MATCHES "SIGCONT")
+        message(
+            FATAL_ERROR
+            "Designated live supervisor must delegate application resume to "
+            "the shared launch controller"
+        )
+    endif()
+    foreach(
+        required_supervisor_build_fragment
+        IN ITEMS
+            [=[file( SHA256 "${PROJECT_SOURCE_DIR}/scripts/designated_live_macos_capsule.py" BPR_DESIGNATED_LIVE_VERIFIER_SHA256 )]=]
+            [=[target_compile_definitions( tool_better_pull_review_designated_live_supervisor PRIVATE]=]
+            [=["BPR_DESIGNATED_LIVE_VERIFIER_SHA256]=]
+            [=[src/designated_live_macos_supervisor_launch.cpp]=]
+            [=[--probe-launch]=]
+    )
+        string(
+            REGEX REPLACE
+            "[ \t\r\n]+"
+            " "
+            app_cmake_compact
+            "${app_cmake_contents}"
+        )
+        string(
+            FIND
+            "${app_cmake_compact}"
+            "${required_supervisor_build_fragment}"
+            required_supervisor_build_fragment_index
+        )
+        if(required_supervisor_build_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live supervisor trusted verifier or real probe "
+                "build binding is incomplete: ${required_supervisor_build_fragment}"
             )
         endif()
     endforeach()
@@ -1896,9 +1968,33 @@ if(EXISTS "${app_designated_live_supervisor_file}")
         )
     endif()
     string(
+        REGEX MATCHALL
+        "designated_live_supervisor_launch::launch[ \t\r\n]*[(]"
+        designated_live_supervisor_launch_calls
+        "${app_designated_live_supervisor_contents}"
+    )
+    list(
+        LENGTH
+        designated_live_supervisor_launch_calls
+        designated_live_supervisor_launch_call_count
+    )
+    if(NOT designated_live_supervisor_launch_call_count EQUAL 2)
+        message(
+            FATAL_ERROR
+            "Designated live supervisor prelaunch policy is incomplete: "
+            "probe and attended launches must use the shared controller"
+        )
+    endif()
+    string(
         FIND
         "${app_designated_live_supervisor_contents}"
-        "run_static_verifier(*root, *inventory)"
+        "session::open("
+        designated_live_supervisor_retention_index
+    )
+    string(
+        FIND
+        "${app_designated_live_supervisor_contents}"
+        "run_static_verifier(*retainedSession)"
         designated_live_supervisor_verifier_index
     )
     string(
@@ -1910,21 +2006,229 @@ if(EXISTS "${app_designated_live_supervisor_file}")
     string(
         FIND
         "${app_designated_live_supervisor_contents}"
-        "*root, attended->Approval, *inventoryDigest, *retainedRoot"
+        "attended->Approval, *retainedSession"
         designated_live_supervisor_launch_index
     )
     if(
-        designated_live_supervisor_verifier_index GREATER_EQUAL
+        designated_live_supervisor_retention_index GREATER_EQUAL
+            designated_live_supervisor_verifier_index
+        OR designated_live_supervisor_verifier_index GREATER_EQUAL
             designated_live_supervisor_observation_index
         OR designated_live_supervisor_observation_index GREATER_EQUAL
             designated_live_supervisor_launch_index
     )
         message(
             FATAL_ERROR
-            "Designated live supervisor must verify the capsule and observe the "
-            "fixed public target before application launch"
+            "Designated live supervisor must retain identity before verification, "
+            "then observe the fixed public target before application launch"
         )
     endif()
+endif()
+
+if(EXISTS "${app_designated_live_supervisor_launch_file}")
+    file(
+        READ
+        "${app_designated_live_supervisor_launch_file}"
+        app_designated_live_supervisor_launch_contents
+    )
+    foreach(
+        required_supervisor_launch_fragment
+        IN ITEMS
+            [=[aApplication != fixedApplication]=]
+            [=[aApplication.is_absolute()]=]
+            [=[fixedApplication.c_str()]=]
+            [=[aOperations.Barrier(phase::BeforeSpawn)]=]
+            [=[aOperations.Spawn(]=]
+            [=[aOperations.PostSpawnCheck(]=]
+            [=[aOperations.Barrier(phase::BeforeResume)]=]
+            [=[aOperations.Resume(]=]
+            [=[aOperations.Refuse(]=]
+            [=[aSession.configure_verifier_spawn(actions)]=]
+            [=[python.c_str()]=]
+            [=[std::string{ "." }]=]
+            [=[std::string{ "--inventory-fd" }]=]
+            [=[aSession.transmit_verifier_and_inventory(*transport)]=]
+            [=[result.Revalidated = aSession.revalidate()]=]
+            [=[terminate_and_wait]=]
+    )
+        string(
+            FIND
+            "${app_designated_live_supervisor_launch_contents}"
+            "${required_supervisor_launch_fragment}"
+            required_supervisor_launch_fragment_index
+        )
+        if(required_supervisor_launch_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live supervisor launch controller is incomplete: "
+                "${required_supervisor_launch_fragment}"
+            )
+        endif()
+    endforeach()
+    foreach(
+        forbidden_supervisor_verifier_path_fragment
+        IN ITEMS
+            [=[aSession.root_path()]=]
+            [=[std::filesystem::absolute(]=]
+            [=[std::filesystem::canonical(]=]
+            [=[std::filesystem::weakly_canonical(]=]
+            [=["--inventory"]=]
+    )
+        string(
+            FIND
+            "${app_designated_live_supervisor_launch_contents}"
+            "${forbidden_supervisor_verifier_path_fragment}"
+            forbidden_supervisor_verifier_path_fragment_index
+        )
+        if(NOT forbidden_supervisor_verifier_path_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live supervisor verifier can regain mutable pathname "
+                "authority: ${forbidden_supervisor_verifier_path_fragment}"
+            )
+        endif()
+    endforeach()
+    string(
+        REGEX MATCHALL
+        "aSession[.]revalidate[(][)]"
+        designated_live_supervisor_controller_revalidations
+        "${app_designated_live_supervisor_launch_contents}"
+    )
+    list(
+        LENGTH
+        designated_live_supervisor_controller_revalidations
+        designated_live_supervisor_controller_revalidation_count
+    )
+    if(NOT designated_live_supervisor_controller_revalidation_count EQUAL 4)
+        message(
+            FATAL_ERROR
+            "Designated live supervisor launch controller is incomplete: "
+            "verifier and application must each revalidate twice"
+        )
+    endif()
+    string(
+        REGEX MATCHALL
+        "aOperations[.]Spawn[(]"
+        designated_live_supervisor_controller_spawns
+        "${app_designated_live_supervisor_launch_contents}"
+    )
+    list(
+        LENGTH
+        designated_live_supervisor_controller_spawns
+        designated_live_supervisor_controller_spawn_count
+    )
+    string(
+        REGEX MATCHALL
+        "aOperations[.]Refuse[(]"
+        designated_live_supervisor_controller_refusals
+        "${app_designated_live_supervisor_launch_contents}"
+    )
+    list(
+        LENGTH
+        designated_live_supervisor_controller_refusals
+        designated_live_supervisor_controller_refusal_count
+    )
+    if(
+        NOT designated_live_supervisor_controller_spawn_count EQUAL 2
+        OR NOT designated_live_supervisor_controller_refusal_count EQUAL 2
+    )
+        message(
+            FATAL_ERROR
+            "Designated live supervisor launch controller is incomplete: "
+            "verifier/application spawn and application refusal topology changed"
+        )
+    endif()
+endif()
+
+if(EXISTS "${app_designated_live_supervisor_identity_file}")
+    file(
+        READ
+        "${app_designated_live_supervisor_identity_file}"
+        app_designated_live_supervisor_identity_contents
+    )
+    foreach(
+        required_supervisor_identity_fragment
+        IN ITEMS
+            [=[designated_live_capsule_identity::capture(]=]
+            [=[open_verifier(result.RootDescriptor)]=]
+            [=[sha256_hex(*verifierBytes)]=]
+            [=[result.VerifierSha256 != aTrustedVerifierSha256]=]
+            [=[sha256_hex(result.InventoryBytes)]=]
+            [=[RootParentDescriptor, RootName, RootIdentity]=]
+            [=[InventoryParentDescriptor,]=]
+            [=[InventoryName,]=]
+            [=[InventoryIdentity]=]
+            [=[posix_spawn_file_actions_addfchdir_np(&aActions, RootDescriptor)]=]
+            [=[::socketpair(]=]
+            [=[SO_NOSIGPIPE]=]
+            [=[posix_spawn_file_actions_adddup2(]=]
+            [=[verifier_child_descriptor()]=]
+            [=[inventory_child_descriptor()]=]
+            [=[transmit_stream(]=]
+    )
+        string(
+            FIND
+            "${app_designated_live_supervisor_identity_contents}"
+            "${required_supervisor_identity_fragment}"
+            required_supervisor_identity_fragment_index
+        )
+        if(required_supervisor_identity_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live supervisor retained identity is incomplete: "
+                "${required_supervisor_identity_fragment}"
+            )
+        endif()
+    endforeach()
+    string(
+        REGEX MATCHALL
+        "posix_spawn_file_actions_addfchdir_np[(]&aActions, RootDescriptor[)]"
+        designated_live_supervisor_retained_root_actions
+        "${app_designated_live_supervisor_identity_contents}"
+    )
+    list(
+        LENGTH
+        designated_live_supervisor_retained_root_actions
+        designated_live_supervisor_retained_root_action_count
+    )
+    if(NOT designated_live_supervisor_retained_root_action_count EQUAL 2)
+        message(
+            FATAL_ERROR
+            "Designated live supervisor retained identity is incomplete: "
+            "the verifier and application must both inherit the retained root"
+        )
+    endif()
+endif()
+
+if(EXISTS "${designated_live_macos_capsule_script_file}")
+    file(
+        READ
+        "${designated_live_macos_capsule_script_file}"
+        designated_live_macos_capsule_script_contents
+    )
+    foreach(
+        required_retained_verifier_fragment
+        IN ITEMS
+            [=[retained_root = arguments.inventory_fd is not None]=]
+            [=[arguments.capsule != pathlib.Path(".")]=]
+            [=[retained_relative_path(path.parent / target)]=]
+            [=[inventory_entries(root, retained_root=retained_root)]=]
+            [=[verify_dependencies(root, arguments.otool, retained_root=retained_root)]=]
+    )
+        string(
+            FIND
+            "${designated_live_macos_capsule_script_contents}"
+            "${required_retained_verifier_fragment}"
+            required_retained_verifier_fragment_index
+        )
+        if(required_retained_verifier_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live verifier can regain mutable pathname authority: "
+                "${required_retained_verifier_fragment}"
+            )
+        endif()
+    endforeach()
 endif()
 
 # BPR-0262 fact_4, BPR-0351. Attended authority is refused unless the exact

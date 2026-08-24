@@ -523,6 +523,56 @@ if(APPLE)
             PROPERTIES
                 PASS_REGULAR_EXPRESSION "macos-capsule-identity-tests:pass"
         )
+
+        # BPR-0448. The real static verifier and the production retained-session
+        # component are exercised together. Whole-root and inventory pathname
+        # substitutions are deterministic phase changes, not timing races.
+        bpr_add_executable(
+            test_better_pull_review_macos_supervisor_identity_continuity_tests
+            platform/macos_supervisor_identity_continuity_tests.cpp
+            "${PROJECT_SOURCE_DIR}/src/app/src/designated_live_macos_capsule_identity.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/src/designated_live_macos_supervisor_identity.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/src/designated_live_macos_supervisor_launch.cpp"
+        )
+        target_include_directories(
+            test_better_pull_review_macos_supervisor_identity_continuity_tests
+            PRIVATE
+                "${PROJECT_SOURCE_DIR}/src/app/src"
+        )
+        target_compile_features(
+            test_better_pull_review_macos_supervisor_identity_continuity_tests
+            PRIVATE
+                cxx_std_23
+        )
+        bpr_enable_hardening(
+            test_better_pull_review_macos_supervisor_identity_continuity_tests
+        )
+        bpr_enable_warnings(
+            test_better_pull_review_macos_supervisor_identity_continuity_tests
+        )
+        add_custom_command(
+            TARGET
+                test_better_pull_review_macos_supervisor_identity_continuity_tests
+            POST_BUILD
+            COMMAND
+                codesign --force --sign - --timestamp=none
+                "$<TARGET_FILE:test_better_pull_review_macos_supervisor_identity_continuity_tests>"
+            VERBATIM
+            COMMENT "Signing the retained supervisor identity contract"
+        )
+        bpr_add_network_isolated_test(
+            NAME macos_supervisor_identity_continuity
+            COMMAND
+                test_better_pull_review_macos_supervisor_identity_continuity_tests
+                "${PROJECT_SOURCE_DIR}/scripts/designated_live_macos_capsule.py"
+        )
+        set_tests_properties(
+            macos_supervisor_identity_continuity
+            PROPERTIES
+                PASS_REGULAR_EXPRESSION
+                    "macos-supervisor-identity-continuity-tests:pass"
+                TIMEOUT 60
+        )
     endif()
 endif()
 

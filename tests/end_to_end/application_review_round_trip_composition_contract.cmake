@@ -69,6 +69,10 @@ function(bpr_verify_app_source_tree app_source_root)
 		"src/designated_live_macos_provenance.cpp"
 		"src/designated_live_macos_provenance.hpp"
 		"src/designated_live_macos_supervisor.cpp"
+		"src/designated_live_macos_supervisor_identity.cpp"
+		"src/designated_live_macos_supervisor_identity.hpp"
+		"src/designated_live_macos_supervisor_launch.cpp"
+		"src/designated_live_macos_supervisor_launch.hpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
         "src/github_application_fixture_access.hpp"
@@ -98,8 +102,12 @@ function(bpr_verify_app_source_tree app_source_root)
         "include/bpr/app/foundation_application.hpp"
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/worker_executor.hpp"
-        "main.cpp"
+		"main.cpp"
 		"src/designated_live_macos_supervisor.cpp"
+		"src/designated_live_macos_supervisor_identity.cpp"
+		"src/designated_live_macos_supervisor_identity.hpp"
+		"src/designated_live_macos_supervisor_launch.cpp"
+		"src/designated_live_macos_supervisor_launch.hpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
 		"src/worker_executor.cpp"
@@ -136,7 +144,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
-		"0ad6f2210d285a53cdb1bc9efb31823935cb12085eb538bedb03771126728bf0"
+		"178d10f62effba0697fbd1e2d3ac89977371f81665db0ed67c01d06c103b5c41"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

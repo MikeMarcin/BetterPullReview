@@ -125,6 +125,10 @@ if(BPR_BUILD_QT)
 		src/app/src/designated_live_macos_provenance.cpp
 		src/app/src/designated_live_macos_capsule_identity.hpp
 		src/app/src/designated_live_macos_capsule_identity.cpp
+		src/app/src/designated_live_macos_supervisor_identity.hpp
+		src/app/src/designated_live_macos_supervisor_identity.cpp
+		src/app/src/designated_live_macos_supervisor_launch.hpp
+		src/app/src/designated_live_macos_supervisor_launch.cpp
 		scripts/designated_live_macos_capsule.py
 	)
 	set(bpr_attended_review_source_manifest "")
@@ -325,11 +329,18 @@ if(BPR_BUILD_QT)
             NO_DEFAULT_PATH
             REQUIRED
         )
+        file(
+            SHA256
+            "${PROJECT_SOURCE_DIR}/scripts/designated_live_macos_capsule.py"
+            BPR_DESIGNATED_LIVE_VERIFIER_SHA256
+        )
         bpr_add_executable(
             tool_better_pull_review_designated_live_supervisor
             src/designated_live_macos_supervisor.cpp
             src/designated_live_macos_provenance.cpp
             src/designated_live_macos_capsule_identity.cpp
+            src/designated_live_macos_supervisor_identity.cpp
+            src/designated_live_macos_supervisor_launch.cpp
         )
         target_link_libraries(
             tool_better_pull_review_designated_live_supervisor
@@ -343,6 +354,7 @@ if(BPR_BUILD_QT)
             tool_better_pull_review_designated_live_supervisor
             PRIVATE
                 "BPR_ATTENDED_REVIEW_SOURCE_SHA256=\"${BPR_ATTENDED_REVIEW_SOURCE_SHA256}\""
+                "BPR_DESIGNATED_LIVE_VERIFIER_SHA256=\"${BPR_DESIGNATED_LIVE_VERIFIER_SHA256}\""
         )
         target_compile_features(
             tool_better_pull_review_designated_live_supervisor
@@ -388,6 +400,10 @@ if(BPR_BUILD_QT)
                 --inventory "${bpr_designated_live_capsule_inventory}"
                 --source-sha256 "${BPR_ATTENDED_REVIEW_SOURCE_SHA256}"
                 --macdeployqt "${BPR_DESIGNATED_LIVE_MACDEPLOYQT}"
+            COMMAND
+                "${bpr_designated_live_capsule_root}/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor"
+                --probe-launch
+                --inventory "${bpr_designated_live_capsule_inventory}"
             COMMAND
                 "${CMAKE_COMMAND}" -E touch
                 "${bpr_designated_live_capsule_stamp}"

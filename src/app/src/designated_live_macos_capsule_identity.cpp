@@ -164,8 +164,14 @@ namespace bpr::app::designated_live_capsule_identity {
 					!= 0) {
 					return false;
 				}
+				auto relative = name;
+				if (!aPrefix.empty()) {
+					relative = aPrefix;
+					relative.push_back('/');
+					relative.append(name);
+				}
 				auto record = entry{
-					.Relative            = aPrefix.empty() ? name : aPrefix + "/" + name,
+					.Relative            = std::move(relative),
 					.Device              = static_cast<std::uint64_t>(status.st_dev),
 					.Inode               = static_cast<std::uint64_t>(status.st_ino),
 					.Size                = static_cast<std::uint64_t>(status.st_size),
