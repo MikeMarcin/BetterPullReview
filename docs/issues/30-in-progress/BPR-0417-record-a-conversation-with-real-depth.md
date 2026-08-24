@@ -1,7 +1,7 @@
 ---
 id: BPR-0417
 title: Record a conversation fixture with real reply depth
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0005
 depends_on: [BPR-0416]
 ---
@@ -91,3 +91,30 @@ and the choice belongs with whoever has that surface in hand: a fixture with no
 consumer gets reshaped by its first one. What is settled is that the first route
 is a slice of its own, not a data edit, and that the second is available
 immediately if the map only needs content to render.
+
+## Constructed fixture route claimed — 2026-08-24
+
+The current macOS session claims the contained route after re-reading the
+consumer and the repository's capture path. Existing recorded-pull-request
+tooling stores only pull-request, file, and commit observations and generates
+an empty review-thread response. A genuinely recorded deep conversation would
+require authenticated GraphQL capture plus a new recording schema, generator,
+contract tree, fixture security registration, public-fixture descriptor, and
+public-path course. That is a cross-layer feature and credentialed acquisition,
+not this fixture card.
+
+The shared `github-com`/`ghes-3.18` contract fixtures remain unchanged. This
+slice will add a versioned test-only projection fixture outside `contracts/v1`,
+label it constructed in both machine-readable data and its README, and forbid
+later claims that it is recorded product evidence. Its valid topology will
+contain a null-parent root, a chain at least five replies deep, and siblings at
+multiple depths. Missing-parent and cycle shapes will be separate hostile Qt
+projection cases explicitly marked as impossible through the validated GitHub
+read path; they prove row preservation, not provider acceptance.
+
+The fixture will have an independent contract test for schema, provenance,
+depth, siblings, root semantics, and hostile-case labeling. BPR-0418 may load
+the exact projection identities in a rendered test without adding a production
+loader or perturbing fixed public-path sequencing. This claim performs no
+credential access, network request, public observation, GitHub interaction, or
+remote mutation.
