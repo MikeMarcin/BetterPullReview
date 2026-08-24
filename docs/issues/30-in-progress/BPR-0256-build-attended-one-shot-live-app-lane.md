@@ -844,3 +844,56 @@ invoke `--attended-launch`, access a credential, perform public observation,
 issue a network request, or submit a mutation. v005 remains invalidated
 history. Any v006 packet remains non-authoritative until its own fresh critical
 review is clean and the owner returns the exact decision it requests.
+
+## v006 candidate regenerated from repaired topology — 2026-08-24
+
+The complete pending candidate is recorded at
+`docs/verification/reviews/designated-live-review-publication-v006/`. A fresh
+offline, tests-disabled Release graph at `build/bpr0256-v006-release` produced
+the capsule and ran the production-shaped probe from its mounted read-only
+image. No development configure or build command ran during production; the
+protected development executable remained byte-identical before and after at
+52,067,088 bytes and SHA-256
+`cac2d05d5c951e58d0d5144ca8bb9eebd60428db46a8c4bbf2c20fb084d406ff`.
+
+The exact candidate identities are:
+
+| artifact | SHA-256 | bytes |
+|---|---|---:|
+| 37-entry source manifest | `4f5a9d57e0383113f5f368eb3f1923936f06148987062563e276a5b25faf36fc` | 4,301 |
+| capsule application | `a0ff772d65a3ae55a65aee664dd6883f415d7783396c7c5f266dda28aeac37bb` | 7,718,720 |
+| signed-capsule supervisor | `c46f8e69c5265c2b57afe3e7a6243fd89c9f86e9076d8604c47e7525e6f3df5c` | 240,496 |
+| capsule inventory | `deae04e7bf4f24cfc4ea34bcdc578bf37a83bb763a7e37fdbc5206b6c41ca986` | 11,112 |
+| exact stored DMG | `2601e22323168ca82ea173789fb92eafb3dc3698d159acb5107643eabdbf72fb` | 30,013,110 |
+| stage-zero launcher | `b969b90a26b87d862e04c5c2064636ffd875ef3361ff392cfa5f4f8df998da05` | 60,716 |
+| schema-3 approval subject | `984a1ab0ce7971a369052be1be60ef3d9c23b7161cb2e29ab368e5e9cc4dc1bd` | 1,496 |
+
+The checked-in manifest is byte-identical to the producer manifest and binds
+all 37 current source entries. The stored image digest file contains the exact
+DMG SHA above. The image mounted for the probe, the application and supervisor
+matched their compiled source identity and inventory, the probe exited
+successfully, and ordinary detach left no v006 attachment.
+
+The complete safe evidence replay passed: 12/12 authority, composition,
+capsule, provenance, identity, isolation, and architecture selectors; 6/6
+provider, native-HTTPS, SQLite recovery, restart, and hermetic-observer
+selectors; 44/44 capsule/stage-zero hostile tests; 37/37 isolation hostile
+tests; 126/126 architecture hostile tests; the direct architecture gate; and
+the 399-file formatting gate. The default graph has 199 tests and zero live
+entries or labels. A static-only opt-in graph has 200 tests, exactly one live
+entry and label, the fixed captured-byte launcher, literal image digest,
+owner-private mount parent, 1,800-second timeout, and no credential or verdict
+environment. Its deliberately invalid private placeholder was deleted after
+`ctest --show-only=json-v1`; the live test was not executed.
+
+The repository-wide warnings-as-errors tidy replay reproduced the six unique
+pre-existing diagnostics in untouched files recorded in the packet; it found
+no v006 change-set diagnostic. The documentation validator reports
+`DOCUMENTATION_OK`, all 107 documentation self-tests pass, and
+`git diff --check` passes. The candidate packet remains **pending
+capability-critical review; do not run or approve**. That review must accept
+the exact checked-in candidate and the disclosed owner-writable backing-DMG,
+pathname-based attach, and trusted generated-CTest-plan limits before the card
+can return to an operator-decision lane. No approval was materialized, no
+credential, public observation, or network was accessed, and no attended or
+remote mutation command ran.

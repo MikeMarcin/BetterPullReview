@@ -576,10 +576,15 @@ the live command bypasses the read-only runtime image. Done [[BPR-0448]] closes
 the retained-root/inventory and production-controller repair. Done
 [[BPR-0449]] now closes the remaining image-to-runtime connection with one
 captured producer-bound launcher, a literal image digest, bounded process-group
-cleanup, post-child revalidation, and ordinary detach. [[BPR-0256]] is claimed
-for a complete v006 regeneration and fresh review. The operator approved the narrowed replay and
-authenticated-containment designs for implementation and hermetic verification
-only; no live or package authority was granted. BPR-0261 is now in `60-done/`: one
+cleanup, post-child revalidation, and ordinary detach. [[BPR-0256]] now has a
+complete pending v006 candidate: source manifest `4f5a9d57…faf36fc`, exact
+stored image `2601e223…f72fb`, launcher `b969b90a…98da05`, and approval subject
+`984a1ab0…c1bd`. Its fresh Release probe and safe local matrices pass, and its
+static opt-in graph was inspected without execution. The packet remains
+non-authoritative until exact-byte capability-critical review is clean. The
+operator approved the narrowed replay and authenticated-containment designs
+for implementation and hermetic verification only; no live or package
+authority was granted. BPR-0261 is now in `60-done/`: one
 explicit owner-private replay namespace carries approval identity, reset is an
 operator command rather than a startup fallback, and the spend barrier is
 `F_FULLFSYNC` after capability-critical review showed bare `fsync` could not
@@ -747,7 +752,7 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0036 | `30-in-progress/` | This session: rerun the complete `windows-dev` matrix on the already-built tree now the reputation verdicts have had time to land, then the remaining target-native inspections, toward RFC-BPR-0002 closeout |
 | BPR-0446 | `30-in-progress/` | This session: extend the wire-fixture registration to Windows and run it target-native, ahead of BPR-0036's native-HTTPS row |
 | BPR-0447 | `21-ready-win/` | A Windows session to diagnose the epoch-maintenance pruned-restart failure the settled matrix exposed |
-| BPR-0256 | `30-in-progress/` | This macOS session: regenerate the complete v006 tests-disabled Release capsule/image, source manifest, approval subject, and operator packet from the BPR-0448/BPR-0449 repaired topology; run fresh capability-critical review without creating approval or running the attended/live lane |
+| BPR-0256 | `30-in-progress/` | This macOS session: finish exact-byte capability-critical review of the complete pending v006 tests-disabled Release capsule/image and packet; do not create approval or run the attended/live lane |
 | BPR-0310, BPR-0314 | `23-ready-lin/` | **Not a Linux session.** A Linux session ran this lane on 2026-08-22 and removed every Linux reason it had. The tests-disabled Release build links here ([[BPR-0421]], [[BPR-0440]]) and `coding-tidy` runs here ([[BPR-0443]]). What is left is upstream and is not about this platform: [[BPR-0310]] needs RFC-BPR-0016 implemented at all — no `src/` file mentions the device flow — behind [[BPR-0276]]'s owner-attended capture and [[BPR-0318]]'s nonexistent distributable identity; [[BPR-0314]] must observe a typed public-preview-unavailability selection no code produces, and producing it is implementation RFC-BPR-0017 gates on RFC-BPR-0002, which waits on [[BPR-0036]]. BPR-0314 does carry three target-native rows now. A Linux session opening this lane should expect to close only [[BPR-0444]] |
 | BPR-0444 | `23-ready-lin/` | A Linux session. The nine non-naming vault findings [[BPR-0443]]'s working gate exposed need judgment, and the tidy-clean proof only exists where the file compiles |
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
