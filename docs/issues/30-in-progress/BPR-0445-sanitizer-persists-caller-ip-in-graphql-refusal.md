@@ -47,7 +47,87 @@ is still on the committed record: the `rate-limit` capture's body carries
 
 ## Non-goals
 
-- No change to header minimization, the authority schema, or the outer
-  bounds the script enforces.
+- No change to header minimization, the authority schema, or the allowed
+  request and capture-output bounds. The one deliberate filesystem-boundary
+  addition is the fixed repository-wide attempt-receipt registry needed to
+  enforce single issuance across copied packet and output directories; it
+  stores only bound digests, course identity, and schema metadata.
 - Not the conditional-304 or synthetic-exhaustion authority; [[BPR-0298]]
   keeps those.
+
+## Unattended sanitizer repair — 2026-08-24
+
+The hermetic phase is complete. The recorder now admits only the observed
+GraphQL refusal contract: status 403 with the exact zero-quota `graphql`
+headers, a rate-limit message, and exactly one syntactically valid caller
+address. It replaces that address with `[normalized-caller-address]`, adds the
+GraphQL-only `caller_address_normalized: true` marker, and hashes the persisted
+normalized body rather than the raw response. Other operations retain their
+original byte-faithful body-digest rule.
+
+Synthetic IPv4 and IPv6 courses prove the positive rule. Negative courses
+refuse missing, malformed, multiple, or residual addresses; CIDR and zone
+suffixes; unsupported status or quota headers; non-message bodies; marker,
+placeholder, digest-consistency, and retained-header defects in the normalized
+GraphQL record; duplicate GraphQL JSON members, repeated manifest courses, and
+any marker on another operation. The 75 recorder tests and `py_compile` pass,
+and the four committed v001 captures still report
+`RFC0017_ANONYMOUS_CONTRACTS_VALID:4`. No network request ran, and no packet,
+response, course manifest, or capture changed in this phase.
+
+The repeated-course guard closes a bypass of the existing one-request bound;
+it does not add or alter any allowed host, operation, target, method, or
+authority field. A response must now bind the exact packet SHA-256 and contain
+exactly one quoted approval. Capture additionally requires the exact response
+byte grammar and a bound digest of the current recorder, then atomically writes
+a repository-wide attempt receipt keyed by packet SHA-256 before traffic. It
+flushes and syncs the receipt and its registry directory before the request;
+first creation also syncs the registry's parent. A host or filesystem without
+that durability refuses before traffic. The recorder also reserves each
+destination before its request, so neither the consumed v001 packet, copied
+packet directory, nor alternate safe output directory can spend authority
+again. The existing safe-descendant output bound remains unchanged.
+
+The request opener now installs an explicit empty proxy handler and refuses
+every redirect. Ambient proxy credentials therefore cannot be injected after
+the recorder's header check, and a 30x cannot escape the named GitHub host or
+change the authorized method.
+
+The final code-simplifier checkpoint found no safe reduction. Address
+detection, normalization, persisted-body validation, authority/response
+binding, durable one-shot reservation, and the bounded request opener are
+separate fail-closed boundaries rather than duplicate policy. The direct
+security counterexamples in the test module intentionally mirror those
+boundaries; abstracting them further would obscure which failure is proven to
+occur before traffic.
+
+## Independent critical review — 2026-08-24
+
+A read-only capability-critical review tried to falsify the unattended repair,
+including malformed address boundaries, duplicate JSON members, response and
+single-issuance bypasses, crash-order durability, copied packet/output paths,
+ambient proxy credentials, and redirect escape. The findings were repaired and
+replayed. The final verdict reports no blocking findings and no verification
+failures: all 75 focused tests, `py_compile`, the four-capture no-write
+validation, the documentation gates, and `git diff --check` pass without a
+change to any v001 packet, response, manifest, or capture.
+
+The review's one high-risk residual is the BPR-0298 immutable-evidence
+authentication obligation described below. It blocks eventual immutable
+`VALID:5` closeout, not committing this operation-scoped privacy repair. The
+live 403 shape also remains deliberately unverified until fresh attended
+authority exists.
+
+Critical review also reproduced a pre-existing BPR-0298 limitation outside
+this repair: non-GraphQL records retain the digest of the raw response while
+persisting a canonicalized body, so `--validate-existing` cannot correlate a
+later edit of that minimized body with the raw digest. The new GraphQL record
+does correlate its persisted body and digest and rejects an inconsistent edit,
+but a self-consistent body-and-digest substitution still needs external
+authentication. BPR-0298's still-pending immutable closeout owns authentication
+of every minimized record against its owning commit; BPR-0445 does not change
+the older records' schema or artifacts.
+
+The remaining phase is attended. It requires a new digest-bound packet and
+the operator's fresh exact response before the recorder may issue the one
+`graphql-refusal` request. The consumed v001 response is not reused.

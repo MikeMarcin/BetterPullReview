@@ -153,3 +153,27 @@ its next live action and needs both the repaired rule and a fresh exact
 authorization — the v001 approval was single-issuance and is consumed. The
 conditional-304 and synthetic-exhaustion work stays here and now has the real
 values it was waiting for.
+
+## The GraphQL sanitizer is ready — 2026-08-24
+
+[[BPR-0445]] completed the no-traffic repair and its hostile synthetic tests.
+Any future `graphql-refusal` course now expects the observed 403 zero-quota
+contract; the 401 above is retained only as the historical v001 expectation.
+The repaired recorder normalizes exactly one caller IPv4 or IPv6 address,
+records that normalization explicitly, and persists no raw-body digest. The
+four existing captures remain unchanged and validate as `VALID:4`.
+
+The fifth course has not been recaptured. It still requires BPR-0445's fresh
+exact operator authorization and exactly one live GraphQL request before this
+card can inherit a five-course manifest or claim `VALID:5`.
+
+Independent review of the sanitizer repair also made an older unfinished
+requirement concrete: the four non-GraphQL records persist canonicalized bodies
+but retain digests of the original response bytes, so `--validate-existing`
+cannot by itself detect later minimized-body tampering. Their committed Git
+blobs remain unchanged, but this card's required immutable-closeout
+authentication of every minimization record and owning commit is not yet
+implemented. The same external binding must protect the eventual normalized
+GraphQL record from a self-consistent body-and-digest substitution. That
+obligation remains here; it is not part of BPR-0445's operation-scoped privacy
+rule.

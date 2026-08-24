@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -113,6 +114,43 @@ CAPTURE_SCHEMA = "bpr.rfc0017.anonymous_capture"
 CAPTURE_SCHEMA_VERSION = 1
 MANIFEST_SCHEMA = "bpr.rfc0017.anonymous_course_manifest"
 MANIFEST_SCHEMA_VERSION = 1
+RECORDER_REPOSITORY_PATH = "scripts/record_rfc0017_anonymous_contracts.py"
+CAPTURE_ATTEMPT_SCHEMA = "bpr.rfc0017.anonymous_capture_attempt"
+CAPTURE_ATTEMPT_SCHEMA_VERSION = 1
+CAPTURE_ATTEMPT_REGISTRY = (
+    Path(__file__).resolve().parents[1]
+    / "docs/verification/reviews/rfc0017-anonymous-capture-attempts"
+)
+
+GRAPHQL_REFUSAL_OPERATION = "graphql_unauthenticated_refusal"
+CALLER_ADDRESS_NORMALIZED_FIELD = "caller_address_normalized"
+CALLER_ADDRESS_PLACEHOLDER = "[normalized-caller-address]"
+CAPTURE_RECORD_KEYS = frozenset({
+    "schema_name",
+    "schema_version",
+    "name",
+    "operation",
+    "url",
+    "http_status",
+    "retained_headers",
+    "body",
+    "body_sha256",
+    "source_kind",
+    "authority_sha256",
+})
+
+# This only locates address-shaped lexical tokens. ``ipaddress.ip_address``
+# below remains the authority for whether a token is syntactically an address;
+# the lexer is never used for blind substitution.
+ADDRESS_SHAPED_TOKEN = re.compile(r"[0-9A-Fa-f:.]+")
+ADDRESS_BOUNDARY_PUNCTUATION = frozenset("()[]{}<>,.;!?\"'")
+RATE_LIMIT_MESSAGE = re.compile(r"\brate[ -]+limit\b", re.IGNORECASE)
+GRAPHQL_ZERO_QUOTA_HEADERS = {
+    "x-ratelimit-resource": "graphql",
+    "x-ratelimit-limit": "0",
+    "x-ratelimit-remaining": "0",
+    "x-ratelimit-used": "0",
+}
 
 
 # --------------------------------------------------------------------------
@@ -128,6 +166,22 @@ def canonical_json(value: Any) -> bytes:
     return json.dumps(
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
     ).encode("utf-8") + b"\n"
+
+
+def parse_json_unique(payload: bytes | str, label: str) -> Any:
+    """Parse JSON without allowing an earlier object member to disappear."""
+    def build_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        parsed: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in parsed:
+                raise ContractError(f"{label} contains duplicate JSON key")
+            parsed[key] = value
+        return parsed
+
+    try:
+        return json.loads(payload, object_pairs_hook=build_object)
+    except json.JSONDecodeError as error:
+        raise ContractError(f"{label} is not JSON") from error
 
 
 def require_exact_keys(value: Any, expected: set[str], label: str) -> dict:
@@ -175,6 +229,12 @@ def assert_no_forbidden_bytes(payload: bytes, label: str) -> None:
             raise ContractError(f"{label} contains a {name}")
 
 
+def require_sha256(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise ContractError(f"{label} is not a SHA-256 digest")
+    return value
+
+
 # --------------------------------------------------------------------------
 # Authority
 # --------------------------------------------------------------------------
@@ -182,6 +242,15 @@ def assert_no_forbidden_bytes(payload: bytes, label: str) -> None:
 AUTHORITY_BLOCK = re.compile(
     r"```json\s+(\{\s*\"schema_name\"\s*:\s*\"" + re.escape(AUTHORITY_SCHEMA)
     + r"\".*?\})\s*```", re.S)
+RESPONSE_PACKET_SHA = re.compile(
+    r"^Packet SHA-256: `([0-9a-f]{64})`(?: \([^\r\n]*\))?$", re.MULTILINE)
+QUOTED_OPERATOR_DECISION = re.compile(r"^> ([^\r\n]+)$", re.MULTILINE)
+REJECTION_DECISION = re.compile(r"\bI reject\b", re.IGNORECASE)
+RECORDER_BINDING_ROW = re.compile(
+    r"^\|\s*`" + re.escape(RECORDER_REPOSITORY_PATH)
+    + r"`\s*\|\s*`sha256:([0-9a-f]{64})`\s*\|\s*([0-9][0-9,]*)\s*\|\s*$",
+    re.MULTILINE,
+)
 
 
 def parse_authority(packet_bytes: bytes) -> dict:
@@ -194,10 +263,7 @@ def parse_authority(packet_bytes: bytes) -> dict:
     if len(matches) != 1:
         raise ContractError(
             f"packet must carry exactly one authority block, found {len(matches)}")
-    try:
-        authority = json.loads(matches[0])
-    except json.JSONDecodeError as error:
-        raise ContractError("authority block is not valid JSON") from error
+    authority = parse_json_unique(matches[0], "authority block")
 
     require_exact_keys(
         authority,
@@ -205,7 +271,12 @@ def parse_authority(packet_bytes: bytes) -> dict:
         "authority")
     if authority["schema_name"] != AUTHORITY_SCHEMA:
         raise ContractError("authority schema name mismatch")
-    if authority["schema_version"] != AUTHORITY_SCHEMA_VERSION:
+    authority_version = require_positive_int(
+        authority["schema_version"],
+        "authority schema version",
+        AUTHORITY_SCHEMA_VERSION,
+    )
+    if authority_version != AUTHORITY_SCHEMA_VERSION:
         raise ContractError("authority schema version mismatch")
     require_text(authority["statement"], "authority statement", 512)
 
@@ -257,18 +328,92 @@ def validate_url(url: str, operation: str, label: str) -> None:
 
 
 def validate_response_statement(packet_bytes: bytes, response_bytes: bytes) -> str:
-    """The response must carry the packet's statement byte-for-byte."""
+    """The response must bind this packet and its one exact approval."""
     authority = parse_authority(packet_bytes)
     statement = authority["statement"]
     try:
         text = response_bytes.decode("utf-8")
     except UnicodeDecodeError as error:
         raise ContractError("response is not UTF-8") from error
-    if statement not in text:
+    packet_digests = RESPONSE_PACKET_SHA.findall(text)
+    if packet_digests != [sha256_bytes(packet_bytes)]:
+        raise ContractError("response does not bind this packet exactly once")
+    decisions = QUOTED_OPERATOR_DECISION.findall(text)
+    if decisions != [statement] or REJECTION_DECISION.search(text):
         raise ContractError(
-            "response does not carry the packet statement byte-for-byte")
+            "response does not carry exactly one packet approval")
     assert_no_forbidden_bytes(response_bytes, "operator response")
     return statement
+
+
+def exact_capture_response(packet_bytes: bytes, statement: str) -> bytes:
+    return (
+        "# RFC-BPR-0017 anonymous probe operator response\n\n"
+        f"Packet SHA-256: `{sha256_bytes(packet_bytes)}`\n\n"
+        "## Exact operator decision\n\n"
+        f"> {statement}\n"
+    ).encode("utf-8")
+
+
+def validate_exact_capture_response(
+    packet_bytes: bytes, response_bytes: bytes, statement: str
+) -> None:
+    if response_bytes != exact_capture_response(packet_bytes, statement):
+        raise ContractError("capture response does not match the exact byte grammar")
+
+
+def validate_current_recorder_binding(packet_bytes: bytes) -> None:
+    """Capture may run only with a packet bound to these recorder bytes."""
+    try:
+        packet_text = packet_bytes.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ContractError("packet is not UTF-8") from error
+    matches = RECORDER_BINDING_ROW.findall(packet_text)
+    recorder_bytes = Path(__file__).resolve().read_bytes()
+    expected = [(sha256_bytes(recorder_bytes), str(len(recorder_bytes)))]
+    normalized = [(digest, size.replace(",", "")) for digest, size in matches]
+    if normalized != expected:
+        raise ContractError("packet does not bind the current recorder exactly once")
+
+
+def fsync_directory(path: Path, label: str) -> None:
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise ContractError(f"{label} cannot be opened for durable sync") from error
+    try:
+        os.fsync(descriptor)
+    except OSError as error:
+        raise ContractError(f"{label} cannot be durably synced") from error
+    finally:
+        os.close(descriptor)
+
+
+def reserve_capture_attempt(path: Path, record: dict[str, Any]) -> None:
+    registry = path.parent
+    try:
+        registry.mkdir()
+    except FileExistsError:
+        if not registry.is_dir() or registry.is_symlink():
+            raise ContractError("capture-attempt registry is not a real directory")
+    else:
+        fsync_directory(registry.parent, "capture-attempt registry parent")
+
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError as error:
+        raise ContractError(
+            "packet already has a capture attempt; authorization is single-use"
+        ) from error
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(canonical_json(record))
+            handle.flush()
+            os.fsync(handle.fileno())
+    except OSError as error:
+        raise ContractError("capture-attempt receipt cannot be durably synced") from error
+    fsync_directory(registry, "capture-attempt registry")
 
 
 # --------------------------------------------------------------------------
@@ -309,6 +454,163 @@ def minimize_headers(headers: Any) -> dict[str, str]:
     return retained
 
 
+def require_graphql_zero_quota(
+    http_status: int, retained_headers: dict[str, str]
+) -> None:
+    if http_status != 403:
+        raise ContractError("GraphQL refusal status is not 403")
+    for name, expected in GRAPHQL_ZERO_QUOTA_HEADERS.items():
+        if retained_headers.get(name) != expected:
+            raise ContractError(
+                f"GraphQL refusal header {name} is not {expected!r}")
+
+
+def address_spans(text: str, label: str) -> list[tuple[int, int]]:
+    """Return exact spans for syntactically valid IP address tokens.
+
+    Tokens with the basic shape of an IPv4 or IPv6 address are rejected when
+    ``ipaddress`` cannot parse them. This keeps an almost-address from slipping
+    through a successful normalization as unrelated message text.
+    """
+    spans: list[tuple[int, int]] = []
+    for match in ADDRESS_SHAPED_TOKEN.finditer(text):
+        raw = match.group(0)
+        token = raw.strip(".")
+        if token.count(".") < 3 and token.count(":") < 2:
+            continue
+        start = match.start() + len(raw) - len(raw.lstrip("."))
+        end = match.end() - len(raw) + len(raw.rstrip("."))
+        before = text[match.start() - 1] if match.start() else ""
+        after = text[match.end()] if match.end() < len(text) else ""
+        if ((before and not before.isspace()
+             and before not in ADDRESS_BOUNDARY_PUNCTUATION)
+                or (after and not after.isspace()
+                    and after not in ADDRESS_BOUNDARY_PUNCTUATION)):
+            raise ContractError(
+                f"{label} contains an unsupported address boundary")
+        try:
+            ipaddress.ip_address(token)
+        except ValueError as error:
+            raise ContractError(
+                f"{label} contains a malformed address token") from error
+        spans.append((start, end))
+    return spans
+
+
+def iter_json_text(value: Any):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, list):
+        for item in value:
+            yield from iter_json_text(item)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            if isinstance(key, str):
+                yield key
+            yield from iter_json_text(item)
+
+
+def assert_no_address_text(value: Any, label: str) -> None:
+    for text in iter_json_text(value):
+        if address_spans(text, label):
+            raise ContractError(f"{label} retains an IP address")
+
+
+def normalize_graphql_refusal_body(parsed: Any) -> dict:
+    if not isinstance(parsed, dict):
+        raise ContractError("GraphQL refusal body is not an object")
+    message = parsed.get("message")
+    if not isinstance(message, str) or not message:
+        raise ContractError("GraphQL refusal message is not text")
+    if not RATE_LIMIT_MESSAGE.search(message):
+        raise ContractError("GraphQL refusal message is not a rate-limit refusal")
+
+    message_spans = address_spans(message, "GraphQL refusal message")
+    all_spans = sum(
+        len(address_spans(text, "GraphQL refusal body"))
+        for text in iter_json_text(parsed)
+    )
+    if len(message_spans) != 1 or all_spans != 1:
+        raise ContractError(
+            "GraphQL refusal body must contain exactly one caller address")
+
+    start, end = message_spans[0]
+    normalized = dict(parsed)
+    normalized["message"] = (
+        message[:start] + CALLER_ADDRESS_PLACEHOLDER + message[end:])
+    return normalized
+
+
+def validate_normalized_graphql_body(body_text: Any) -> bytes:
+    if not isinstance(body_text, str) or not body_text:
+        raise ContractError("normalized GraphQL refusal body is not text")
+    parsed = parse_json_unique(body_text, "normalized GraphQL refusal body")
+    if not isinstance(parsed, dict):
+        raise ContractError("normalized GraphQL refusal body is not an object")
+    message = parsed.get("message")
+    if not isinstance(message, str) or not RATE_LIMIT_MESSAGE.search(message):
+        raise ContractError("normalized GraphQL refusal message is unsupported")
+    placeholder_count = sum(
+        text.count(CALLER_ADDRESS_PLACEHOLDER)
+        for text in iter_json_text(parsed)
+    )
+    if placeholder_count != 1 or CALLER_ADDRESS_PLACEHOLDER not in message:
+        raise ContractError(
+            "normalized GraphQL refusal body has no exact caller-address placeholder")
+    assert_no_address_text(parsed, "normalized GraphQL refusal body")
+    canonical = canonical_json(parsed)
+    if canonical.decode("utf-8") != body_text:
+        raise ContractError("normalized GraphQL refusal body is not canonical JSON")
+    return canonical
+
+
+def validate_capture_record(record: Any, target: dict, course: dict) -> None:
+    operation = target["operation"]
+    expected_keys = set(CAPTURE_RECORD_KEYS)
+    if operation == GRAPHQL_REFUSAL_OPERATION:
+        expected_keys.add(CALLER_ADDRESS_NORMALIZED_FIELD)
+    require_exact_keys(record, expected_keys, f"capture {course['name']}")
+
+    if record["schema_name"] != CAPTURE_SCHEMA:
+        raise ContractError(f"capture {course['name']} schema name mismatch")
+    schema_version = require_positive_int(
+        record["schema_version"],
+        f"capture {course['name']} schema version",
+        CAPTURE_SCHEMA_VERSION,
+    )
+    if schema_version != CAPTURE_SCHEMA_VERSION:
+        raise ContractError(f"capture {course['name']} schema version mismatch")
+    if record["name"] != target["name"]:
+        raise ContractError(f"capture {course['name']} name mismatch")
+    if record["operation"] != operation:
+        raise ContractError(f"capture {course['name']} operation mismatch")
+    if record["url"] != target["url"]:
+        raise ContractError(f"capture {course['name']} URL mismatch")
+    http_status = require_positive_int(
+        record["http_status"], f"capture {course['name']} status", 599)
+    if http_status != course["expected_status"]:
+        raise ContractError(
+            f"capture {course['name']} status does not match its course")
+    if record["source_kind"] not in {"live", "synthetic"}:
+        raise ContractError(f"capture {course['name']} source kind mismatch")
+    require_sha256(record["authority_sha256"], "capture authority_sha256")
+    require_sha256(record["body_sha256"], "capture body_sha256")
+
+    retained_headers = record["retained_headers"]
+    if minimize_headers(retained_headers) != retained_headers:
+        raise ContractError(f"capture {course['name']} retained headers mismatch")
+
+    if operation == GRAPHQL_REFUSAL_OPERATION:
+        if record[CALLER_ADDRESS_NORMALIZED_FIELD] is not True:
+            raise ContractError(
+                "GraphQL refusal caller-address normalization marker mismatch")
+        require_graphql_zero_quota(http_status, retained_headers)
+        normalized_body = validate_normalized_graphql_body(record["body"])
+        if record["body_sha256"] != sha256_bytes(normalized_body):
+            raise ContractError("normalized GraphQL refusal body digest mismatch")
+        assert_no_address_text(record, "normalized GraphQL refusal record")
+
+
 def sanitize_capture(
     *,
     name: str,
@@ -329,16 +631,30 @@ def sanitize_capture(
     if len(body) > MAX_RESPONSE_BYTES:
         raise ContractError("response body exceeds the byte limit")
 
+    retained_headers = minimize_headers(headers)
     body_text: str | None = None
+    body_sha256 = sha256_bytes(body)
     if body:
-        try:
-            parsed = json.loads(body)
-        except json.JSONDecodeError as error:
-            raise ContractError("response body is not JSON") from error
+        if operation == GRAPHQL_REFUSAL_OPERATION:
+            parsed = parse_json_unique(body, "response body")
+            require_graphql_zero_quota(http_status, retained_headers)
+            parsed = normalize_graphql_refusal_body(parsed)
+        else:
+            try:
+                parsed = json.loads(body)
+            except json.JSONDecodeError as error:
+                raise ContractError("response body is not JSON") from error
         # The parsed value is re-serialized canonically rather than stored raw,
         # so an unstable field ordering cannot make two identical contracts
         # compare unequal.
-        body_text = canonical_json(parsed).decode("utf-8")
+        canonical_body = canonical_json(parsed)
+        if operation == GRAPHQL_REFUSAL_OPERATION:
+            canonical_body = validate_normalized_graphql_body(
+                canonical_body.decode("utf-8"))
+            body_sha256 = sha256_bytes(canonical_body)
+        body_text = canonical_body.decode("utf-8")
+    elif operation == GRAPHQL_REFUSAL_OPERATION:
+        raise ContractError("GraphQL refusal body is empty")
 
     record = {
         "schema_name": CAPTURE_SCHEMA,
@@ -347,12 +663,15 @@ def sanitize_capture(
         "operation": operation,
         "url": url,
         "http_status": http_status,
-        "retained_headers": minimize_headers(headers),
+        "retained_headers": retained_headers,
         "body": body_text,
-        "body_sha256": sha256_bytes(body),
+        "body_sha256": body_sha256,
         "source_kind": source_kind,
         "authority_sha256": authority_sha256,
     }
+    if operation == GRAPHQL_REFUSAL_OPERATION:
+        record[CALLER_ADDRESS_NORMALIZED_FIELD] = True
+        assert_no_address_text(record, "normalized GraphQL refusal record")
     payload = canonical_json(record)
     assert_no_forbidden_bytes(payload, f"capture {name}")
     return record
@@ -361,6 +680,21 @@ def sanitize_capture(
 # --------------------------------------------------------------------------
 # The only function that reaches a network
 # --------------------------------------------------------------------------
+
+def build_bounded_opener():
+    """Build an HTTPS opener with no ambient proxy or redirect authority."""
+    import urllib.request
+
+    class RefuseRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            raise ContractError("redirected request is outside probe authority")
+
+    return urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        RefuseRedirect(),
+        urllib.request.HTTPSHandler(),
+    )
+
 
 def perform_request(url: str, operation: str, body: bytes | None):
     """Issue one credential-free request. Imported lazily on purpose."""
@@ -379,7 +713,7 @@ def perform_request(url: str, operation: str, body: bytes | None):
     for header, _ in request.header_items():
         if header.lower() in {"authorization", "cookie"}:
             raise ContractError("a credential header was constructed")
-    opener = urllib.request.build_opener(urllib.request.HTTPSHandler())
+    opener = build_bounded_opener()
     try:
         with opener.open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             return response.status, dict(response.headers), response.read(
@@ -406,28 +740,34 @@ def load_inputs(args: argparse.Namespace) -> tuple[bytes, bytes, dict, dict, str
 
 
 def validate_course_manifest(manifest_bytes: bytes, authority: dict) -> dict:
-    try:
-        manifest = json.loads(manifest_bytes)
-    except json.JSONDecodeError as error:
-        raise ContractError("course manifest is not valid JSON") from error
+    manifest = parse_json_unique(manifest_bytes, "course manifest")
     require_exact_keys(
         manifest,
         {"schema_name", "schema_version", "packet_sha256", "courses"},
         "course manifest")
     if manifest["schema_name"] != MANIFEST_SCHEMA:
         raise ContractError("course manifest schema name mismatch")
-    if manifest["schema_version"] != MANIFEST_SCHEMA_VERSION:
+    manifest_version = require_positive_int(
+        manifest["schema_version"],
+        "course manifest schema version",
+        MANIFEST_SCHEMA_VERSION,
+    )
+    if manifest_version != MANIFEST_SCHEMA_VERSION:
         raise ContractError("course manifest schema version mismatch")
     require_text(manifest["packet_sha256"], "packet_sha256", 64)
     courses = manifest["courses"]
     if not isinstance(courses, list) or not courses:
         raise ContractError("course manifest names no courses")
     authorized = {target["name"] for target in authority["targets"]}
+    seen: set[str] = set()
     for index, course in enumerate(courses):
         require_exact_keys(course, {"name", "expected_status"}, f"course[{index}]")
         name = require_text(course["name"], f"course[{index}].name", 64)
         if name not in authorized:
             raise ContractError(f"course {name} is not an authorized target")
+        if name in seen:
+            raise ContractError(f"course manifest repeats course {name}")
+        seen.add(name)
         require_positive_int(
             course["expected_status"], f"course[{index}].expected_status", 599)
     return manifest
@@ -441,6 +781,7 @@ def run_validate_existing(args: argparse.Namespace) -> int:
     if not root.is_dir():
         raise ContractError("output root does not exist; nothing to revalidate")
 
+    targets = {target["name"]: target for target in authority["targets"]}
     checked = 0
     for course in manifest["courses"]:
         capture_path = root / f"{course['name']}.json"
@@ -451,12 +792,10 @@ def run_validate_existing(args: argparse.Namespace) -> int:
         except json.JSONDecodeError as error:
             raise ContractError(
                 f"capture {course['name']} is not valid JSON") from error
+        validate_capture_record(record, targets[course["name"]], course)
         if record.get("authority_sha256") != authority_sha:
             raise ContractError(
                 f"capture {course['name']} was recorded under another authority")
-        if record.get("http_status") != course["expected_status"]:
-            raise ContractError(
-                f"capture {course['name']} status does not match its course")
         if canonical_json(record) != payload:
             raise ContractError(
                 f"capture {course['name']} is not canonically serialized")
@@ -466,30 +805,61 @@ def run_validate_existing(args: argparse.Namespace) -> int:
 
 
 def run_capture(args: argparse.Namespace) -> int:
-    packet_bytes, _response, authority, manifest, authority_sha = load_inputs(args)
+    packet_bytes, response_bytes, authority, manifest, authority_sha = load_inputs(
+        args)
     if manifest["packet_sha256"] != sha256_bytes(packet_bytes):
         raise ContractError("course manifest does not bind this packet")
+    validate_exact_capture_response(
+        packet_bytes, response_bytes, authority["statement"])
+    validate_current_recorder_binding(packet_bytes)
     root = resolve_output_root(Path(args.output_root), Path(args.packet))
     targets = {target["name"]: target for target in authority["targets"]}
 
     root.mkdir(parents=True, exist_ok=True)
+    destinations = {
+        course["name"]: root / f"{course['name']}.json"
+        for course in manifest["courses"]
+    }
+    for name, destination in destinations.items():
+        if destination.exists() or destination.is_symlink():
+            raise ContractError(
+                f"capture {name} already exists; authorization is single-use")
+
+    attempt_path = CAPTURE_ATTEMPT_REGISTRY / (
+        f"{sha256_bytes(packet_bytes)}.json")
+    attempt_record = {
+        "schema_name": CAPTURE_ATTEMPT_SCHEMA,
+        "schema_version": CAPTURE_ATTEMPT_SCHEMA_VERSION,
+        "packet_sha256": sha256_bytes(packet_bytes),
+        "response_sha256": sha256_bytes(response_bytes),
+        "authority_sha256": authority_sha,
+        "recorder_sha256": sha256_bytes(Path(__file__).resolve().read_bytes()),
+        "courses": manifest["courses"],
+    }
+    reserve_capture_attempt(attempt_path, attempt_record)
+
     written = 0
     for course in manifest["courses"]:
         target = targets[course["name"]]
-        status, headers, body = perform_request(
-            target["url"], target["operation"], None)
-        if len(body) > MAX_RESPONSE_BYTES:
+        destination = destinations[target["name"]]
+        try:
+            descriptor = os.open(
+                destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError as error:
             raise ContractError(
-                f"{course['name']} response exceeds the byte limit")
-        record = sanitize_capture(
-            name=target["name"], operation=target["operation"],
-            url=target["url"], http_status=status, headers=headers, body=body,
-            authority_sha256=authority_sha, source_kind="live")
-        payload = canonical_json(record)
-        destination = root / f"{target['name']}.json"
-        with os.fdopen(os.open(
-                destination, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600),
-                "wb") as handle:
+                f"capture {target['name']} already exists; "
+                "authorization is single-use") from error
+        with os.fdopen(descriptor, "wb") as handle:
+            status, headers, body = perform_request(
+                target["url"], target["operation"], None)
+            if len(body) > MAX_RESPONSE_BYTES:
+                raise ContractError(
+                    f"{course['name']} response exceeds the byte limit")
+            record = sanitize_capture(
+                name=target["name"], operation=target["operation"],
+                url=target["url"], http_status=status, headers=headers, body=body,
+                authority_sha256=authority_sha, source_kind="live")
+            payload = canonical_json(record)
             handle.write(payload)
         written += 1
     print(f"RFC0017_ANONYMOUS_CONTRACTS_CAPTURED:{written}")
