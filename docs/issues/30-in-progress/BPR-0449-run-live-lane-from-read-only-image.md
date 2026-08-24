@@ -1,7 +1,7 @@
 ---
 id: BPR-0449
 title: Run the designated live lane from the read-only image
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0448]
 ---
@@ -42,3 +42,12 @@ the mount after resume.
   exact stored image it reviews.
 - No v006 operator packet until this card and BPR-0448 are complete and the
   entire tests-disabled Release capsule is regenerated.
+
+## Claim — 2026-08-24
+
+This macOS session owns the image-to-runtime topology after BPR-0448 closed at
+`20e65ac`. It may change the stage-zero launcher, designated-live manifest
+registration, production-shaped image/runtime tests, and their exact
+architecture/source locks. It does not own a live GitHub request, credential,
+approval materialization, attended launch, remote mutation, or v006 packet
+generation until this card is independently verified and closed.
