@@ -1,9 +1,9 @@
 ---
 id: BPR-0298
 title: Record anonymous GitHub service contracts
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0017
-depends_on: [BPR-0297, BPR-0405]
+depends_on: [BPR-0297, BPR-0405, BPR-0445]
 ---
 
 # Record anonymous GitHub service contracts
@@ -120,3 +120,36 @@ A Windows session with the operator present picked this card up from
 
 The operator's exact statement remains the only authority that can start
 traffic; nothing above changes that.
+
+## The five authorized requests ran — 2026-08-23
+
+The operator returned the packet's exact statement in the live session; it is
+recorded verbatim in `operator-response.md`, and the capture ran exactly once
+(`RFC0017_ANONYMOUS_CONTRACTS_CAPTURED:5`, evidence commit `4d250ab6`).
+
+Four contracts match their courses and are committed:
+
+- `rate-limit` 200 — the anonymous core budget is 60, and the same body
+  records `graphql {limit: 0, remaining: 0}`;
+- `absent-not-disclosed` 404 — Not Found with no existence disclosure;
+- `pull-request` 200 — `octocat/Hello-World#1` is live (closed, base
+  `master`, head `patch-1`), and a real `ETag` and `Last-Modified` are now on
+  record for the future conditional-304 authority;
+- `pull-request-comments` 200 — one review comment, bounded by `per_page=1`.
+
+The fifth recorded the real contract and could not be committed.
+`graphql-refusal` returned **403, not the expected 401**: GitHub's
+unauthenticated GraphQL contract is a zero-quota refusal
+(`x-ratelimit-resource` `graphql`, limit 0), corroborated by the committed
+rate-limit body. But GitHub's refusal template embeds the caller's public IP,
+which this card's own required final state forbids persisting and the
+sanitizer has no rule for — its dropped-not-redacted stance covers headers
+only. The capture file was deleted uncommitted, the course manifest was
+trimmed to the four validated courses (`RFC0017_ANONYMOUS_CONTRACTS_VALID:4`),
+and [[BPR-0445]] now owns the scoped sanitizer rule.
+
+The card moves to `10-backlog/` behind [[BPR-0445]]: the GraphQL recapture is
+its next live action and needs both the repaired rule and a fresh exact
+authorization — the v001 approval was single-issuance and is consumed. The
+conditional-304 and synthetic-exhaustion work stays here and now has the real
+values it was waiting for.

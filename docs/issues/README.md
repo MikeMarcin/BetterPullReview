@@ -734,12 +734,12 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0414 | `20-ready/` | Nothing. The owner named this gap on the 2026-08-21 verdict: the drawer does not anchor a comment to its line. Its wiring half is portable; the question of whether the body belongs in the code view goes back to the owner |
 | BPR-0417 | `20-ready/` | Nothing. [[BPR-0416]] landed the depth, so what is missing is content — and the card now carries the measured cost of both routes to it |
 | BPR-0420 | `20-ready/` | Nothing. The portable half of [[BPR-0232]], split out because that umbrella waits on Windows and this assertion does not |
+| BPR-0445 | `20-ready/` | Nothing. The first authorized capture proved the anonymous GraphQL refusal embeds the caller's IP; the sanitizer rule is portable work, and the recapture behind it needs a fresh exact authorization once the rule is proven |
 | BPR-0036, BPR-0053, BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]], [[BPR-0362]], [[BPR-0360]], and [[BPR-0350]] closed on 2026-08-22 with the contained matrix at 87 of 89; [[BPR-0036]] and [[BPR-0053]] wait only on that matrix's two carded failures and on the Qt graph. [[BPR-0424]] through [[BPR-0427]] are the four causes that run isolated from the container's own |
 | BPR-0310, BPR-0314 | `23-ready-lin/` | **Not a Linux session.** A Linux session ran this lane on 2026-08-22 and removed every Linux reason it had. The tests-disabled Release build links here ([[BPR-0421]], [[BPR-0440]]) and `coding-tidy` runs here ([[BPR-0443]]). What is left is upstream and is not about this platform: [[BPR-0310]] needs RFC-BPR-0016 implemented at all — no `src/` file mentions the device flow — behind [[BPR-0276]]'s owner-attended capture and [[BPR-0318]]'s nonexistent distributable identity; [[BPR-0314]] must observe a typed public-preview-unavailability selection no code produces, and producing it is implementation RFC-BPR-0017 gates on RFC-BPR-0002, which waits on [[BPR-0036]]. BPR-0314 does carry three target-native rows now. A Linux session opening this lane should expect to close nothing |
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
 | BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; v004 must not be retried |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
-| BPR-0298 | `30-in-progress/` | The operator's exact statement, being requested in the live session that claimed this card; then five credential-free requests |
 
 This table had drifted and is corrected above rather than quietly patched. It
 listed BPR-0262 as a `20-ready/` root; that card is in `60-done/`. BPR-0220 was
@@ -796,7 +796,7 @@ drawer does not anchor a comment to its line, which is [[BPR-0414]].
 The table is the complete frontier rather than a selection from it. Every open
 card on this board is either one of these thirteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
-of the 56 cards in `10-backlog/`, **none** has all its dependencies in
+of the 57 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
 
 The post-BPR-0334 audit on 2026-08-21 found no backlog dependency on that
