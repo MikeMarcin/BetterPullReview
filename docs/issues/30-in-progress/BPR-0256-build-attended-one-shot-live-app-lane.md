@@ -742,3 +742,46 @@ The live lane remains out of scope. This phase does not materialize an
 approval, access a credential, invoke the attended supervisor, issue a GitHub
 request, or submit a mutation. The answered and aborted v004 artifacts remain
 immutable history and must not be retried.
+
+## v005 regenerated from current committed source — 2026-08-24
+
+The complete unattended v005 regeneration is now recorded at
+`docs/verification/reviews/designated-live-review-publication-v005/`. It was
+built from committed tree `bb8212a` in a fresh tests-disabled Release graph at
+`build/bpr0256-release`, not from the protected development graph.
+
+The exact 31-entry source manifest is 3,615 bytes with SHA-256
+`0608914ff88f395a07b5de937e18a9191c6cd0a6f6fef3ea9be38db9d3941114`.
+That digest is compiled into both capsule binaries and selects the artifact
+directory. The bound artifacts are:
+
+| artifact | SHA-256 | bytes |
+|---|---|---:|
+| capsule application | `b071b432f4682803ec0c63ed8977cfa6d469f2cb8a5d0ccf40dabcc0bb1fa18e` | 7,718,720 |
+| signed-capsule supervisor | `1b6778a292377ead1d12a11a71cd316f7e63a1bf19d5583800cb796619a21e1d` | 197,200 |
+| capsule inventory | `09afbd31d5893e699a1c861e2db8544bc9a21539bda72b3186b197379b25129e` | 11,112 |
+| schema-3 approval subject | `6f158a0801c22219b77a3dfe44dac390de6d77fc520ab419565678ab72847bd3` | 1,496 |
+| pending-review operator packet | `c9cbdfb2daa702c181e8882f128642980886bc48b1e3ab4bb6292d8b8979b39d` | 16,899 |
+
+The approval subject reuses the unchanged approval ID
+`aa6dd849a0bc31e36e8585d1b5b8fc0d065f653ee92218c9f770729766c610d9`.
+Preparation inspected the owner-private replay namespace read-only: its
+identity still matches, it contains zero spent records, and no reset or
+initialization command ran.
+
+The capsule build returned `designated-live-macos-capsule:pass`. Its separate
+read-only image is 29,983,469 bytes with SHA-256
+`a6f55ee4cd1a1d39a0c238af931fc14c5df453a2b423a073298c8f85e71d3be9`;
+`stage-zero` mounted that exact image read-only, verified the inventory and
+source binding from inside the mount, detached, and passed. The exact
+authority/composition matrix passed 11/11 in 244.79 seconds. The protected
+development executable remained byte-identical before and after at 52,067,088
+bytes with SHA-256
+`cac2d05d5c951e58d0d5144ca8bb9eebd60428db46a8c4bbf2c20fb084d406ff`;
+no development configure or build command ran.
+
+The packet remains **pending fresh capability-critical review; do not run or
+approve**. No response or approval file exists, no credential was accessed, no
+attended supervisor or GitHub request ran, and no mutation was submitted. A
+clean independent review is the only unattended work left before these exact
+bytes may become an operator decision.

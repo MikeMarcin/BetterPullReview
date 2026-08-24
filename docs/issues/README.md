@@ -566,10 +566,13 @@ restores canonical formatting for the merged compact-navigation composition
 source and refreshes its exact integrity digests. BPR-0256's first packet was
 invalidated by capability-critical review and split the remaining portable
 authority/recovery work into BPR-0261, dependent done BPR-0262, and done
-BPR-0263. Its v004 successor now binds committed BPR-0410 source, passes the
-capsule/image gates and corrected hermetic matrix, and has a no-blocker fresh
-capability-critical review. It is operator-ready for one exact decision. The
-operator approved the narrowed replay and
+BPR-0263. Its v004 successor was approved exactly, then failed closed before
+GUI creation; the unconsumed approval was deleted, no credential or mutation
+occurred, later source drift made those bytes stale, and v004 must not be
+retried. The current v005 successor binds committed source, passes its
+capsule/image and 11/11 authority/composition gates, and remains explicitly
+non-actionable pending a fresh capability-critical review. The operator
+approved the narrowed replay and
 authenticated-containment designs for implementation and hermetic verification
 only; no live or package authority was granted. BPR-0261 is now in `60-done/`: one
 explicit owner-private replay namespace carries approval identity, reset is an
