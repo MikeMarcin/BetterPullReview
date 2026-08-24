@@ -223,19 +223,23 @@ outside the Visual Studio developer environment it is.
 
 The default graph registers no live-test exception. The earlier trusted runner,
 gate, fork protocol, and harmless canary remain regression-only surfaces and
-are never the live application. The sole opt-in exception launches the
-owner-private signed-capsule supervisor. That supervisor verifies the complete
-capsule and performs the fixed unauthenticated public target observation before
-creating the fresh tests-disabled shipped application that will later present
-Qt and own the asynchronous host.
+are never the live application. The sole opt-in exception starts the fixed
+`/usr/bin/python3 -I -S` interpreter with a bounded preloader captured in the
+generated CTest execution plan. The preloader captures the source launcher
+once, matches those bytes to the producer-bound literal SHA-256, and executes
+the captured bytes rather than reopening the launcher path. Stage zero then
+mounts the exact digest-bound image read-only below a fresh owner-private mount
+root and launches the signed-capsule supervisor and shipped application only
+from that mount.
 
-Follow the digest-bound operator packet under
-`docs/verification/reviews/designated-live-review-publication-v001/`. It names
-the exact subject bytes and instructs the operator to materialize the approval
-only after approving that exact build. The file and its immediate parent must
-be owned by the invoking user, non-symlink, and have no group or other
-permissions. The approval carries no credential; any write-scoped credential
-is entered only through the application's existing Qt sensitive prompt.
+Do not prepare an approval from the invalidated v005 packet. After BPR-0256
+regenerates a successor and capability-critical review accepts its exact bytes,
+follow only that packet. It names the exact subject and stored image and tells
+the operator to materialize an approval only after approving that exact build.
+The file and its immediate parent must be owned by the invoking user,
+non-symlink, and have no group or other permissions. The approval carries no
+credential; any write-scoped credential is entered only through the
+application's existing Qt sensitive prompt.
 
 Before preparing a new approval packet, initialize the per-user replay
 namespace once, or deliberately reset it, with the tests-disabled shipped app:
@@ -254,18 +258,27 @@ unsafe, substituted, full, or mismatched. It never initializes or repairs that
 state implicitly.
 
 Configure a separate opt-in test graph only after the approval file exists.
-Supply the resolved supervisor and capsule-inventory paths plus the producer
-directory from a separate fresh `BUILD_TESTING=OFF`, `BPR_BUILD_QT=ON`,
-`Release` capsule build. Configuration rejects a missing/symlink approval, an
-alternate supervisor, a missing inventory, the regression runner, artifacts
-outside the producer tree, a tests-enabled or non-Release producer, a different
-source root, and artifacts older than product source or build configuration.
-The registration is fixed to one test,
+Supply the resolved image path, its literal SHA-256, an owner-private mount
+parent, and the producer directory from a separate fresh `BUILD_TESTING=OFF`,
+`BPR_BUILD_QT=ON`, `Release` capsule build. Configuration captures the bounded
+producer `source-manifest.txt` once and uses that same byte sequence for both
+its digest and its entries. It rejects a missing or symlinked approval/image,
+plain supervisor or inventory selection, a digest or source mismatch, an
+unsafe mount parent, an artifact outside the producer tree, a tests-enabled or
+non-Release producer, a different source root, and an image older than product
+source or build configuration. The registration is fixed to one test,
 `live_review_mutation_designated_target`, with only `bpr_live_mutation`, a
 30-minute timeout, no credential environment, and no pass/skip/disable or
 exit-verdict overrides.
 
-Before startup the supervisor verifies the signed capsule, performs one
+Stage zero retains the image descriptor, attaches the image read-only, verifies
+the mounted inventory and runtime identity, and keeps the mount and capsule
+descriptors open through child exit. It owns stage one as a separate process
+group with a 1,500-second bound inside CTest's 1,800-second timeout. Timeout,
+nonzero exit, `SIGTERM`, `SIGINT`, or `SIGHUP` triggers bounded process-group
+`TERM`, then `KILL` if needed, complete reap, post-child image/runtime
+revalidation, and ordinary non-force detach. Before startup the mounted
+supervisor verifies the signed capsule, performs one
 unauthenticated redirect-free public observation through the GitHub adapter,
 creates the app suspended, compares its dynamic code identity with the
 prevalidated static identity, and revalidates the retained executable identity
@@ -284,6 +297,15 @@ cancellation, invalidation, expiry, and shutdown revoke it. Windows approval
 bootstrap and target-native Linux/Windows evidence remain deferred and fail
 closed.
 
+The mounted filesystem is read-only, but the backing DMG remains owner-writable
+during the child lifetime. Post-child identity and digest checks detect
+persistent drift; they cannot prevent transient backing-byte influence while
+the child runs. `hdiutil attach` also consumes an image pathname rather than a
+retained descriptor. The generated CTest manifest and cache are therefore the
+trusted same-UID execution plan, and the pathname attach window remains an
+explicit platform boundary. DMG creation is not byte-reproducible; every
+operator packet must bind the exact stored image it reviews.
+
 Inspect the two manifest modes without running the live lane:
 
 ```sh
@@ -294,8 +316,9 @@ cmake -S . -B build/designated-live-structure -G Ninja \
   -DBPR_BUILD_QT=ON \
   -DBPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST=ON \
   -DBPR_DESIGNATED_LIVE_MUTATION_APPROVAL=/absolute/resolved/path/to/approval \
-  -DBPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR=/absolute/resolved/release/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor \
-  -DBPR_DESIGNATED_LIVE_MUTATION_INVENTORY=/absolute/resolved/release/capsule.inventory \
+  -DBPR_DESIGNATED_LIVE_MUTATION_IMAGE=/absolute/resolved/release/capsule.dmg \
+  -DBPR_DESIGNATED_LIVE_MUTATION_IMAGE_SHA256=<literal-image-sha256> \
+  -DBPR_DESIGNATED_LIVE_MUTATION_MOUNT_PARENT=/absolute/resolved/private/mount-parent \
   -DBPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR=/absolute/resolved/release/build
 ctest --test-dir build/designated-live-structure --show-only=json-v1
 ```

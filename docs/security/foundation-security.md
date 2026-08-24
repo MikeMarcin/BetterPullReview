@@ -86,6 +86,27 @@ This is a narrowed local-authority guarantee. Detected filesystem races remain
 fail-closed, but intentional same-user or administrator deletion, rollback,
 restoration, or mutation of replay state is outside the approved threat model,
 as is loss the filesystem never reports, such as media corruption that removes
-a spent record while leaving the namespace intact. The namespace and approval contain no credential, and
-their path, identity, and bytes are not accepted through environment variables
-or emitted in diagnostics or Qt state.
+a spent record while leaving the namespace intact. The namespace and approval
+contain no credential, and their path, identity, and bytes are not accepted
+through environment variables or emitted in diagnostics or Qt state.
+
+### Runtime image containment
+
+The opt-in macOS lane starts through a fixed `/usr/bin/python3 -I -S`
+preloader stored in the generated CTest execution plan. The preloader captures
+one bounded launcher byte sequence, matches it to the producer source manifest,
+and executes those captured bytes. Stage zero attaches the exact
+literal-digest DMG read-only below a fresh owner-private root. It retains the
+image and mounted runtime identities through the complete supervisor and
+application process-group lifetime, revalidates them on every child exit, and
+uses ordinary non-force detach after bounded TERM/KILL and reap recovery.
+
+This boundary protects the mounted filesystem, not every representation of its
+backing storage. The invoking owner can still open the DMG for writing while
+it is attached. Post-child identity and digest checks detect persistent drift,
+but they cannot prevent transient modified backing bytes from influencing a
+running child. DiskImages also accepts a pathname for `hdiutil attach`; it does
+not consume the already retained descriptor atomically. The generated CTest
+manifest and cache are trusted against same-user rewriting. These limits are
+why each attended decision binds one exact stored DMG and why no cross-build
+DMG reproducibility claim is made.

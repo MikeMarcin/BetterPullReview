@@ -629,14 +629,29 @@ and head tuple. The acting database ID, node ID, and login are not compiled
 constants: they come from the exact authenticated session, are cross-bound to
 its opaque accepted-snapshot transport lease, and are re-observed before a
 write. An ordinary production launch supplies no grant. The sole production
-path is two-stage: an owner-private signed-capsule supervisor verifies the
-complete dependency/resource inventory and performs one unauthenticated,
-redirect-free public target observation before it creates the GUI process;
-then a private in-application bootstrap validates and atomically consumes one
-owner-private approval bound to the actual shipped executable, source digest,
-Release/tests-disabled build identity, exact designated tuple, and random
-one-use approval ID. Credentials remain in the later Qt sensitive prompt and
-never enter that approval or the supervisor.
+path has an outer stage-zero image owner around two authority stages. Stage
+zero captures the producer-bound launcher bytes under the fixed system Python,
+attaches the exact literal-digest image read-only below an owner-private mount
+root, and retains the image, mount, inventory, verifier, supervisor,
+application, and nested runtime identities through child exit. The mounted
+signed-capsule supervisor verifies the complete dependency/resource inventory
+and performs one unauthenticated, redirect-free public target observation
+before it creates the GUI process. A private in-application bootstrap then
+validates and atomically consumes one owner-private approval bound to the
+actual shipped executable, source digest, Release/tests-disabled build
+identity, exact designated tuple, and random one-use approval ID. Credentials
+remain in the later Qt sensitive prompt and never enter that approval, stage
+zero, or the supervisor.
+
+Stage zero owns stage one as a bounded process group. It revalidates the image
+and mounted runtime after every normal, failed, timed-out, or handled-signal
+exit, reaps the complete group, and detaches without force. This is a read-only
+mounted-filesystem guarantee, not an immutable-backing-file guarantee: the
+owner can still write the DMG while it is attached, and post-child digest
+checks detect persistent drift only after execution. `hdiutil attach` remains
+pathname-based, and the generated CTest manifest/cache remains the trusted
+same-UID execution plan. Each reviewed packet therefore binds its exact stored
+DMG; separate image builds are not expected to be byte-identical.
 
 The production carrier is private and one-use. It first binds the application
 session, workbench generation, exact target, and authenticated actor. The host

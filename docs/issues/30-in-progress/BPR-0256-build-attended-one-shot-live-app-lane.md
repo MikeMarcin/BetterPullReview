@@ -1,7 +1,7 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0448, BPR-0449]
 ---
@@ -18,10 +18,13 @@ one exact request in a tests-disabled shipped application.
 ## Required final state
 
 - The existing canary runner/gate remains a hermetic regression surface. The
-  sole opt-in `live_review_mutation_designated_target` command instead names an
-  absolute signed-capsule supervisor and inventory around a freshly built
-  `BUILD_TESTING=OFF` shipped application and its attended bootstrap. It never
-  launches the tests-enabled fixture app or the GUI directly.
+  sole opt-in `live_review_mutation_designated_target` command instead starts
+  the fixed captured-byte stage-zero loader with one exact literal-digest image
+  from a freshly built `BUILD_TESTING=OFF` shipped application. Stage zero
+  mounts that image read-only and owns the signed supervisor/application
+  process group through child exit and ordinary detach. The command never
+  launches a plain build-tree supervisor, the tests-enabled fixture app, or the
+  GUI directly.
 - The shipped app accepts one production-only attended bootstrap authority. It
   validates an absolute approval artifact using retained native file/directory
   identity, exact owner-private permissions, bounded bytes, exact schema and
@@ -817,3 +820,27 @@ both land, this card requires a complete v006 rebuild, fresh identities, fresh
 capability-critical review, and a new exact operator decision. No v005 response
 or approval exists, and no credential, live launch, GitHub request, or mutation
 occurred.
+
+## v006 regeneration claimed — 2026-08-24
+
+[[BPR-0448]] and [[BPR-0449]] are now `60-done/`, and both repaired ranges have
+clean capability-critical review. This macOS session claims the complete
+unattended v006 regeneration from committed source after the BPR-0449 closeout
+commit. It will rebuild the tests-disabled Release capsule and exact stored
+DMG, regenerate the source manifest, approval subject, and operator packet,
+configure and inspect the sole opt-in manifest, replay the complete safe
+matrix, and obtain fresh capability-critical review of those exact bytes.
+
+The v006 packet must bind the BPR-0449 topology and its limits: one
+producer-bound captured launcher, one literal image digest, one owner-private
+mount parent, bounded process-group cleanup, post-child revalidation, and
+ordinary detach. It must not claim that separate DMG builds are byte-identical,
+that the owner-writable backing image is immutable while mounted, that
+`hdiutil` attach is descriptor-atomic, or that repository-local code protects a
+generated CTest plan from same-user rewriting.
+
+This claim does not materialize an approval, request an operator verdict,
+invoke `--attended-launch`, access a credential, perform public observation,
+issue a network request, or submit a mutation. v005 remains invalidated
+history. Any v006 packet remains non-authoritative until its own fresh critical
+review is clean and the owner returns the exact decision it requests.
