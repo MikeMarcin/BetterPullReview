@@ -1,0 +1,27 @@
+{
+  "schema_name": "bpr.rfc0017.anonymous_course_manifest",
+  "schema_version": 1,
+  "packet_sha256": "5b2437ac68aaa75715053e2f8991698ec492d3c2ca93c70b6dd45dc6b04a71b7",
+  "courses": [
+    {
+      "name": "rate-limit",
+      "expected_status": 200
+    },
+    {
+      "name": "graphql-refusal",
+      "expected_status": 401
+    },
+    {
+      "name": "absent-not-disclosed",
+      "expected_status": 404
+    },
+    {
+      "name": "pull-request",
+      "expected_status": 200
+    },
+    {
+      "name": "pull-request-comments",
+      "expected_status": 200
+    }
+  ]
+}

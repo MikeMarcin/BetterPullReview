@@ -97,7 +97,12 @@ and [[BPR-0298]] owns them.
 | Artifact | SHA-256 | Bytes |
 |---|---|---:|
 | `scripts/record_rfc0017_anonymous_contracts.py` | `sha256:2a383ddbde8f155ed4c5808e635cbe1bad3091a199fde3e4f3a8a18f82dc38a7` | 22021 |
-| `tests/scripts/record_rfc0017_anonymous_contracts_tests.py` | `sha256:76ae18118d53a5cb5e2bdee467feb66858c8aee3d3f1287ac6b667a08f547e4f` | 13788 |
+| `tests/scripts/record_rfc0017_anonymous_contracts_tests.py` | `sha256:840db7fa0938b6ab5deb59f3cabf829e3ca6f17927fdacb97f182e77ea2975e9` | 13862 |
+
+The test-file row was re-bound on 2026-08-23, before any operator decision,
+after done [[BPR-0422]] replaced the tests' `tempfile` temporaries with the
+contained support module. The recorder script's bytes are unchanged, and the
+36-test suite passes on the capture host.
 
 The script holds no network client at import time; `urllib` is imported inside
 the single function that issues a request. Its `--validate-existing` mode is
