@@ -1,7 +1,7 @@
 ---
 id: BPR-0235
 title: Enforce default-deny network isolation for live mutation tests
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0008
 depends_on: [BPR-0221, BPR-0347, BPR-0350]
 ---
@@ -229,3 +229,18 @@ keyword changes nothing and the whole suite stays contained.
 What is *not* discharged: the descendant/application counterexample matrix
 has not been replayed target-native on Windows, and the designated live lane
 remains deliberately unimplemented there. Those stay on this card.
+
+## Dependencies done, so the Windows half is ready — 2026-08-23
+
+The 2026-08-18 note recorded the Windows boundary criterion as "a dependency
+rather than a platform blocker" on [[BPR-0347]] and [[BPR-0350]]; both closed
+on 2026-08-22, and [[BPR-0221]] was already done. Nothing in `depends_on`
+remains open, so this card leaves `10-backlog/` for `21-ready-win/`: the next
+unstarted work is the target-native replay of the descendant/application
+counterexample matrix on the Windows host, under the measured
+`WINDOWS_UNCONTAINED` property recorded above.
+
+The terminal designated-live criterion is unchanged: it still additionally
+waits on the later live provider/write card's separately authorized session
+authority and attended procedure, and stays recorded here rather than in
+`depends_on` because it gates one criterion, not the card's next action.

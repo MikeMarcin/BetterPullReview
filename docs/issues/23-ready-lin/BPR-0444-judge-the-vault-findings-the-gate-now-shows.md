@@ -1,7 +1,7 @@
 ---
 id: BPR-0444
 title: Judge the nine vault findings the working tidy gate now shows
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0002
 depends_on: [BPR-0443]
 ---
@@ -50,3 +50,13 @@ here may be an accepted suppression with that reason recorded.
 
 The identifier naming, which [[BPR-0443]] finished, and the native Secret
 Service fixture failures recorded on [[BPR-0310]].
+
+## Ready, and ready on Linux — 2026-08-23
+
+[[BPR-0443]] is done, so nothing is queued ahead of this card. The lane is
+Linux because the proof is: `linux_secret_service.cpp` appears only in a
+Linux `dev` tree's compilation database — a macOS or Windows pass never
+compiles it — so "coding-tidy is clean on the Linux-only sources afterwards"
+can only be shown there. Judging the findings is portable reading, but the
+split rule takes no card whose portable half is unverifiable here, so the
+whole card moves to `23-ready-lin/`.
