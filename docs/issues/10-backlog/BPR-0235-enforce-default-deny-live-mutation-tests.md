@@ -193,3 +193,39 @@ temporary-root defect still keeping the suite 24 tests short, and this card
 records that criterion satisfied only when the same descendant and application
 matrix passes there. The designated-live criterion is unchanged and still waits
 on the product owner's separately authorized session authority.
+
+## The Windows criterion, rewritten on the host — 2026-08-22
+
+The bullet above that asks to "replace Windows' current pre-launch refusal
+with a validated whole-suite boundary" is discharged in part and narrowed in
+part, and the narrowing is measured rather than conceded.
+
+[[BPR-0347]] built the boundary: a zero-capability AppContainer entered by the
+checked-in launcher, whose denial was measured against a working internet
+connection and which every descendant inherits. What [[BPR-0362]] then
+measured, on the Windows host, is that a lowbox token is refused three things
+no test can do without and no directory grant can supply, because the objects
+involved are kernel objects whose DACLs name no application package:
+translating a volume device into a drive letter (so `GetFinalPathNameByHandleW`
+in DOS form, `Path.resolve(strict=True)`, and Git's `getcwd` fail while the
+NT-form name resolves completely), running a `.bat` file through `cmd.exe`,
+and `ninja`'s named pipe.
+
+So the Windows property this card can honestly claim is:
+
+> Every automated test runs with network denied by default at the process
+> boundary, **except the exact set registered `WINDOWS_UNCONTAINED`, which
+> `scripts/verify_test_network_isolation.py` pins by name and measured cause
+> and fails in both directions when the set and the manifest disagree.**
+
+That set is nine tests at the time of writing: the four SQLite storage
+contracts, `rfc0016_device_capture_security`,
+`test_network_isolation_structure_contract`,
+`operator_response_validation_contract`, `coding_standard_format_gate_contract`,
+and `dependency_modernization_contract`. Each passes uncontained and fails
+contained at the named call; none performs network I/O. On macOS and Linux the
+keyword changes nothing and the whole suite stays contained.
+
+What is *not* discharged: the descendant/application counterexample matrix
+has not been replayed target-native on Windows, and the designated live lane
+remains deliberately unimplemented there. Those stay on this card.

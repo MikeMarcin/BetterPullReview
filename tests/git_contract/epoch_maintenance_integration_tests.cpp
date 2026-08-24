@@ -1,6 +1,8 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/epoch_application_host.hpp"
+#include "windows_system_root.hpp"
 
 #include <QCoreApplication>
 
@@ -545,6 +547,10 @@ namespace {
 			std::filesystem::permissions(Path / "catalog",
 										 std::filesystem::perms::owner_all,
 										 std::filesystem::perm_options::replace);
+			// Mode 0700 is what POSIX understands; the catalog's own
+			// definition of a private root is what Windows needs (BPR-0436).
+			require(sqlite_adapter::make_storage_root_owner_private(Path / "catalog"),
+					"narrow the catalog root to owner-private");
 			Path = std::filesystem::canonical(Path);
 		}
 
@@ -617,8 +623,9 @@ namespace {
 			: Root{ aLabel }
 		{
 			auto madeCache   = git_adapter::make_installed_git_cache({
-				.GitExecutable = std::filesystem::canonical(BPR_TEST_GIT_EXECUTABLE),
-				.StorageRoot   = Root.Path / "git",
+				.GitExecutable     = std::filesystem::canonical(BPR_TEST_GIT_EXECUTABLE),
+				.StorageRoot       = Root.Path / "git",
+				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
 			});
 			auto madeCatalog = sqlite_adapter::make_epoch_catalog({
 				.StorageRoot = Root.Path / "catalog",

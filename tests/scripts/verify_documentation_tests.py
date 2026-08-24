@@ -1329,6 +1329,24 @@ class FrontierRootsTests(unittest.TestCase):
 
         verify_frontier_roots(self.root)
 
+    def test_accepts_a_hyphenated_count_word(self) -> None:
+        # The count table has carried "twenty-one" onward since it was
+        # written, but the sentence regex matched only [a-z]+, so the first
+        # board with more than twenty roots was told it stated no count at
+        # all. Found on 2026-08-22 when the Windows run opened the
+        # twenty-first root.
+        rows = ""
+        for index in range(1, 22):
+            issue_id = f"BPR-{index:04d}"
+            self.write_card(issue_id, "40-parked")
+            rows += f"| {issue_id} | `40-parked/` | A person |\n"
+        self.write_readme(rows, "twenty-one")
+
+        verify_frontier_roots(self.root)
+
+        self.write_readme(rows, "twenty")
+        self.reject()
+
     def test_rejects_an_omitted_platform_root(self) -> None:
         self.write_card("BPR-0001", "21-ready-win")
         self.write_readme("", "zero")

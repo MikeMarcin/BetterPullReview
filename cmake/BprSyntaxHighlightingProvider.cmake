@@ -133,16 +133,27 @@ function(bpr_syntax_forward arguments_variable name)
         bpr_syntax_forward_value
         "${bpr_syntax_forward_value}"
     )
-    set(
-        ${arguments_variable}
-        ${${arguments_variable}} "-D${name}=${bpr_syntax_forward_value}"
-        PARENT_SCOPE
-    )
+    # Append without re-expanding what is already there. Expanding the
+    # accumulator unquoted turns every `\;` a previous call escaped back into
+    # a bare `;`, so a list value such as CMAKE_CONFIGURATION_TYPES survived
+    # its own round and was split on the next one: the nested configure then
+    # received `-DCMAKE_CONFIGURATION_TYPES=Debug` followed by `Release`,
+    # `MinSizeRel`, and `RelWithDebInfo` as stray arguments, and the
+    # multi-configuration build that followed asked for a Release it had never
+    # generated. `list(APPEND)` and the quoted PARENT_SCOPE copy keep each
+    # escaped element intact until the command line is formed.
+    list(APPEND ${arguments_variable} "-D${name}=${bpr_syntax_forward_value}")
+    set(${arguments_variable} "${${arguments_variable}}" PARENT_SCOPE)
 endfunction()
 
 function(bpr_syntax_execute label log)
+    # The command arrives with forwarded `-D<name>=<list>` arguments whose
+    # semicolons are escaped. `ARGN` would re-join every argument with a bare
+    # `;` and hand execute_process four arguments where the caller passed one;
+    # PARSE_ARGV keeps each argument exactly as it was given.
+    cmake_parse_arguments(PARSE_ARGV 2 bpr_syntax_execute "" "" "")
     execute_process(
-        COMMAND ${ARGN}
+        COMMAND ${bpr_syntax_execute_UNPARSED_ARGUMENTS}
         RESULT_VARIABLE result
         OUTPUT_VARIABLE output
         ERROR_VARIABLE output
@@ -351,6 +362,32 @@ function(bpr_acquire_syntax_highlighting)
     )
         bpr_syntax_forward(forwarded "${name}")
     endforeach()
+
+    # A multi-configuration generator builds and installs the framework once
+    # per configuration into this one prefix, and the framework names its
+    # library identically in every one of them, so without a postfix the last
+    # install overwrote the rest and every configuration linked whichever
+    # runtime that happened to be: a Debug application against a
+    # release-runtime library, which the linker refuses (LNK2038). Release
+    # keeps the bare name; every other configuration gets its own, and the
+    # exported IMPORTED_LOCATION_<CONFIG> then names the library that
+    # configuration actually built. These join the forwarded list so the
+    # stamp signature below changes with them.
+    get_property(bpr_syntax_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(bpr_syntax_multi_config)
+        foreach(configuration IN LISTS CMAKE_CONFIGURATION_TYPES)
+            if(configuration STREQUAL "Release")
+                continue()
+            endif()
+            string(TOUPPER "${configuration}" configuration_upper)
+            string(TOLOWER "${configuration}" configuration_lower)
+            list(
+                APPEND
+                forwarded
+                "-DCMAKE_${configuration_upper}_POSTFIX=_${configuration_lower}"
+            )
+        endforeach()
+    endif()
 
     set(signature "")
     foreach(

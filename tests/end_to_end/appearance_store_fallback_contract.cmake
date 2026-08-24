@@ -66,13 +66,12 @@ file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY
     "${BPR_ROOT}/state/v1/appearance-settings.sqlite3"
 )
-file(
-    CHMOD
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
+bpr_narrow_owner_private(
     "${BPR_ROOT}"
     "${BPR_ROOT}/state"
     "${BPR_ROOT}/state/v1"
     "${BPR_ROOT}/state/v1/appearance-settings.sqlite3"
-    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
 )
 
 # Process one drives the session-only settings surface and a selected diff.

@@ -1,7 +1,7 @@
 ---
 id: BPR-0347
 title: Contain the Windows test suite in an AppContainer
-status: Ready
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0339]
 ---
@@ -323,3 +323,47 @@ platform-specific, and one belongs to [[BPR-0362]]'s bucket. The next Windows
 session's most valuable first act is a fresh suite run, not a diagnosis: the last
 measurement is a day old and five of its thirteen entries did not survive contact
 with the log.
+
+## The fresh run this card asked for — 2026-08-22
+
+Taken from a new `windows-lane` worktree on this host, with a clean
+`core-only` configure, exactly as the section above said the next Windows
+session should start. The graph did not compile at first — one MSVC error,
+[[BPR-0421]] — and with that repaired the contained matrix read **76 of 88**.
+Every one of the twelve failures was then run again outside the launcher,
+and the two groups this card could not separate from macOS separated
+cleanly:
+
+| | tests | where it went |
+|---|---|---|
+| the container's own | nine | [[BPR-0362]] measured the three lowbox denials underneath them — the DOS volume name, `cmd.exe` refusing a batch stub, `ninja`'s named pipe — took option 3, and registered the nine `WINDOWS_UNCONTAINED` with the set pinned by cause |
+| portable, nothing to do with Windows | two | [[BPR-0422]], [[BPR-0423]], fixed |
+| Windows, not the container | two | [[BPR-0425]], [[BPR-0426]] |
+| neither | one and one | `documentation_structure` was this session's own README mid-edit; `application_github_capability_cache` was Smart App Control refusing a freshly linked image for a quarter of an hour, [[BPR-0424]] |
+
+After [[BPR-0362]]'s change the contained matrix reads **86 of 88** in 435 s,
+and the two that remain are [[BPR-0425]] and [[BPR-0426]], both failing
+uncontained for causes that are theirs.
+
+Three rows of this card's own text close with that:
+
+- The `Failed to find real location of <image>` line on every test is not the
+  launcher and not a defect in it. `python314.dll` carries the string and
+  `windows_network_sandbox.cpp` does not: it is CPython's startup `realpath`
+  on its own executable meeting the same DOS-volume-name denial, and it is
+  harmless.
+- `test_network_isolation_structure_contract`, marked *unmeasured* above, is
+  measured: it fails contained at `resolve(strict=True)` in
+  `live_supervisor_failures`, passes uncontained, and is in the pinned set.
+- `dif_assets_contract`, which the section above said should *confirm rather
+  than diagnose*, confirmed: it passes contained, first try.
+
+`rfc0016_device_live_runner_security` passes contained and is not in the set.
+
+## Closed
+
+The boundary this card set out to build exists, is measured against a working
+internet connection, and carries 79 of the 88 registered tests; the nine it
+cannot carry are named with their causes and run uncontained by an explicit,
+gate-pinned registration. The Qt graph under the boundary is [[BPR-0412]]'s,
+by that card's own account. Nothing this card owns remains undiagnosed.

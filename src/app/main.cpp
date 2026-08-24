@@ -5412,6 +5412,16 @@ auto main(int argc, char** argv) -> int
 			config.AttendedSourceSha256           = BPR_ATTENDED_REVIEW_SOURCE_SHA256;
 			config.BuildConfiguration             = BPR_BUILD_CONFIGURATION;
 			config.BuildTesting                   = false;
+	#if !defined(__APPLE__)
+			// The capsule, its supervisor, and the provenance handshake are the
+			// macOS designated-live path (BPR-0352); no other platform ships
+			// one, so an attended approval here has nothing to verify against
+			// and refuses. A tests-off build on Windows or Linux did not
+			// compile this branch at all until the refusal was written
+			// (BPR-0440).
+			QTextStream{ stdout } << "STARTUP_FAILED\n";
+			return EXIT_FAILURE;
+	#else
 			// fact_5. The supervisor digest is computed here rather than
 			// accepted, from the fixed position stage one occupies inside this
 			// capsule -- the same derivation the handshake above already used
@@ -5447,6 +5457,7 @@ auto main(int argc, char** argv) -> int
 				return EXIT_FAILURE;
 			}
 			config.AttendedInventorySha256 = std::string{ *inventoryDigest };
+	#endif
 		}
 #endif
 		if (const auto host = argument_value(argc, argv, "--ghes-host");
@@ -6069,6 +6080,18 @@ auto main(int argc, char** argv) -> int
 		}
 
 		return QApplication::exec();
+	} catch (const std::exception& error) {
+#if defined(BPR_BUILD_TESTING)
+		// The verdict on stdout stays one word. A developer build says on
+		// stderr what threw, because the first Windows Qt-graph run spent
+		// thirty-five tests on a startup failure nothing could name
+		// (BPR-0435). A tests-disabled build says nothing more, as before.
+		QTextStream{ stderr } << "STARTUP_FAILED_CAUSE: " << error.what() << '\n';
+#else
+		static_cast<void>(error);
+#endif
+		QTextStream{ stdout } << "STARTUP_FAILED\n";
+		return EXIT_FAILURE;
 	} catch (...) {
 		QTextStream{ stdout } << "STARTUP_FAILED\n";
 		return EXIT_FAILURE;

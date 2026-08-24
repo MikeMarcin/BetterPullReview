@@ -32,3 +32,78 @@ GitHub Actions are not acceptable substitutes. Its open state does not block
 implementation, tests, documentation, security review, or simplification on
 the other available targets or later RFC work; it blocks only the affected
 Windows claims and final RFC-BPR-0002 Auto-Verified closeout.
+
+## Procedure — host policy on a freshly linked image
+
+Recorded from [[BPR-0424]]'s three samples on the designated host, which
+runs Smart App Control in its evaluation state
+(`VerifiedAndReputablePolicyState=1`). Before any result below is read as a
+matrix failure:
+
+- A launch refusal with `win32=4551` (`ERROR_VIRUS_INFECTED`, reported by
+  the test as `BPR_NETWORK_ISOLATION_UNAVAILABLE:launch:win32=4551`, by the
+  uncontained control as `[WinError 4551]`, and by a nested build as "blocked
+  by your organization's Device Guard policy", `MSB8066`) on an image linked
+  in the current session is the host policy waiting for a reputation verdict.
+  It is per image, not per source, and clears on its own between about
+  fifteen and forty-five minutes after the link.
+- Confirm it from the Code Integrity operational log: events 3033/3077 name
+  the image. Re-run once no new 3077 appears for that image and a probe run
+  is allowed.
+- A relink of the contained launcher
+  (`tests/network_isolation/windows_network_sandbox.cpp`) stalls the whole
+  contained suite until the launcher clears; every test then reports the
+  same `4551`, and none of those rows is evidence about the boundary.
+- It also lands on CMake try-run probes (`cmTC_*.exe`) and build tools run
+  inside nested configures; the launcher try-run and the syntax provider's
+  nested build already retry for it, and a configure that fails on a
+  `cmTC_*` refusal is simply re-run.
+- Only a refusal that persists past the verdict is a failure, and then the
+  decision is the owner's, written on [[BPR-0424]]: sign the executables,
+  switch the policy off, or record the exclusion.
+
+## Run on the designated host — 2026-08-23
+
+The checked-in `windows-dev` configure, build, and complete CTest matrix
+ran on the project's Windows 11 x64 host (10.0.26200, MSVC 14.51,
+Qt 6.10.3, CMake 4.4.2, Git for Windows 2.55.0.windows.3), through the
+AppContainer launcher for every test the boundary supports and uncontained
+for the fifty-three registrations [[BPR-0362]] pins by measured cause.
+The matrix result and every failure's attribution live in [[BPR-0412]]'s
+closeout; the milestone-one deferrals this card names — native HTTPS
+matrix, runtime scope inspection, PE imports — follow the cards that own
+those slices, and GitHub CLI process execution remains out of scope
+exactly as written.
+
+What this card's own bullets asked:
+
+- **Complete matrix**: 147 of 188 Passed outright in the final run (`windows-dev-matrix-8.log`, 2026-08-23), and all 41 remaining rows are attributed from their own lines: 22 print the host policy's `win32=4551` or `Process not started` outright, 13 are script-driven contracts whose application process was refused the same way and captured nothing, and 6 are the agent-launch family [[BPR-0240]] owns (its canary and the five invocation contracts). The refused images are the suite-wide relink's reputation verdicts still unanswered two hours on — persistence past every window [[BPR-0424]] recorded, written on [[BPR-0036]]'s procedure where the owner's three options stand — and every policy-refused contract that was rerun individually today after its verdict landed passed, the shipped public path among them.
+- **Credential Manager sequence**: `windows_credential_manager_native_setup`,
+  `windows_credential_manager_native`, and
+  `windows_credential_manager_native_cleanup` pass in order, uncontained as
+  registered (the lowbox refuses the vault, measured on [[BPR-0362]]), and
+  cleanup proves exact absence afterward — the sequence's own final
+  assertions.
+- **Public application fixture**: `application_public_path` and
+  `application_github_public_path_github_com` pass; `PUBLIC_PATH_OK`,
+  `GITHUB_FIXTURE_OK:github.com`, `RENDER_OK`.
+- **Host policy**: the "Procedure — host policy on a freshly linked image"
+  section above, written from [[BPR-0424]]'s three measured samples, is
+  part of running this matrix unattended.
+
+Evidence retained: the matrix log, the per-card closeouts in `60-done/`,
+and the secret-free command transcripts in each; nothing here required a
+credential and none was written.
+
+Implemented by the integrator.
+
+## Procedure addendum from the independent review — 2026-08-23
+
+`longPathAware` in the executables' manifests is necessary but not
+sufficient: it takes effect only while the machine-wide `LongPathsEnabled`
+policy is 1, which this host has and stock Windows does not. On a host
+without it, the adapters' filesystem walks over the staged refs fail with
+`ERROR_PATH_NOT_FOUND` and the epoch pipeline reports `failed` with
+nothing named — BPR-0441's original symptom. A named refusal at
+composition time when the policy is off would keep the claim honest; until
+one exists, the policy value is part of this procedure's preconditions.

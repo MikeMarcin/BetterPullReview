@@ -251,6 +251,35 @@ class ObjectInspectionTests(unittest.TestCase):
 
     @mock.patch("scripts.verify_live_mutation_isolation.object_symbols")
     @mock.patch("scripts.verify_live_mutation_isolation.inspects_objects")
+    def test_dumpbin_header_naming_the_provider_is_not_a_symbol(
+        self, inspects: mock.Mock, read: mock.Mock
+    ) -> None:
+        # dumpbin prefaces each object's table with `Dump of file <path>`, and
+        # the provider's own test object is named for it. The first Windows Qt
+        # graph run flagged that path as a symbol (BPR-0431).
+        inspects.return_value = True
+        read.return_value = (
+            f"Dump of file C:\\b\\{FORBIDDEN_SYMBOL}_tests.obj\n\n"
+            "File Type: COFF OBJECT\n\n"
+            "COFF SYMBOL TABLE\n"
+            "A26 00000000 SECT1 notype () External | "
+            f"??0{POSITIVE_CONTROL_SYMBOL}@application@bpr@@QEAA@XZ\n"
+        )
+        with contained_temporary_directory() as directory:
+            root = Path(directory)
+            binaries = root / "binaries.txt"
+            binaries.write_text("C:/b/review_mutation_tests.exe\n", encoding="utf-8")
+            objects = root / "objects.txt"
+            objects.write_text(
+                f"C:/b/review_mutation_tests.exe|C:/b/{FORBIDDEN_SYMBOL}_tests.obj\n",
+                encoding="utf-8",
+            )
+            failures, inspected, _ = _check_binaries(binaries, objects)
+        self.assertEqual(inspected, 1)
+        self.assertEqual(failures, [])
+
+    @mock.patch("scripts.verify_live_mutation_isolation.object_symbols")
+    @mock.patch("scripts.verify_live_mutation_isolation.inspects_objects")
     def test_a_forbidden_symbol_in_an_object_is_caught(
         self, inspects: mock.Mock, read: mock.Mock
     ) -> None:

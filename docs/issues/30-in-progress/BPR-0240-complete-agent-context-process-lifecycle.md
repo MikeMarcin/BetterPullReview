@@ -160,3 +160,30 @@ Object pre-resume assignment and descendant containment need real Windows. It is
 also the only `Q_OS_WIN`-gated source file, so the file-level claim in the
 earlier checkpoints was accurate. What was not accurate was treating everything
 that remained as Windows work.
+
+## `windows_agent_process.cpp` has now been compiled — 2026-08-22
+
+The Windows session's first successful `windows-dev` build ([[BPR-0412]],
+after [[BPR-0428]] and [[BPR-0429]] cleared the syntax provider) compiled
+`src/adapters/agent/src/windows_agent_process.cpp` under MSVC 14.51 with zero
+diagnostics, as part of the full Qt graph. "Never been compiled by any
+toolchain this project has had" is no longer true; what remains Windows-bound
+on this card — Job Object pre-resume assignment, descendant containment, and
+the target-native lifecycle proof — is unchanged and still owed here. This
+note records the fact; it takes nothing else.
+
+## The first target-native run of the canary — 2026-08-23
+
+With the backend compiled, the Qt graph ran it. `qt_agent_launch_canary`
+fails on the Windows host, contained and uncontained alike, at
+
+```
+FAILED: each selected protocol reaches a typed successful terminal
+```
+
+in 20 s. That is this card's Windows half speaking for the first time: the
+protocol loop [[BPR-0334]] made portable does not reach a successful
+terminal through `windows_agent_process.cpp`. It is recorded here rather
+than on [[BPR-0412]], whose matrix it appears in, because the cause is the
+backend's and the card that owns the backend is this one. Not yet
+diagnosed.

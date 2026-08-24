@@ -1,7 +1,7 @@
 ---
 id: BPR-0360
 title: Owner-private catalog objects are unusable inside an AppContainer
-status: Ready
+status: Done
 rfc: RFC-BPR-0003
 depends_on: [BPR-0362]
 ---
@@ -117,3 +117,88 @@ ahead of it. What has **not** changed is that the descriptor is genuinely
 unusable from inside an AppContainer — that measurement stands on its own, with
 its negative control — which is why this card is still open and still matters
 for MSIX packaging.
+
+## Implemented and proven contained — 2026-08-22
+
+[[BPR-0362]] changed how this card becomes observable, and the change is
+recorded there: under option 3 the four SQLite storage tests run
+*uncontained* on Windows, and this defect exists only inside a container. So
+the evidence is a contained probe of the product's own code rather than those
+four tests.
+
+### The product
+
+`private_security::load` now also asks the token `TokenIsAppContainer`, and
+when the answer is yes copies the package SID out of `TokenAppContainerSid`
+beside the user SID. `private_security_attributes::initialize` writes one more
+`ACCESS_ALLOWED_ACE` for that SID, `FILE_ALL_ACCESS`, with the same
+inheritance flags the user entry gets, and only when contained; the descriptor
+stays `SE_DACL_PROTECTED`. `validate_private_security` now expects exactly one
+entry outside a container and exactly two inside, walks every entry with the
+same per-entry checks it always made, classifies each trustee as the user, the
+container, or a refusal, and requires the user once and the container exactly
+`contained ? 1 : 0` times — a set, not an order. Nothing else about the
+descriptor moved: outside a container the bytes are what they were, which the
+uncontained control below reads back as one entry.
+
+### The evidence, through the product's own validator
+
+A `BPR_SQLITE_TESTING` seam, `detail::testing::probe_private_descriptor`,
+creates a directory and a file below a given parent with the product's
+`private_security_attributes`, writes to the file through a plain
+`CreateFileW` with the product's share mode and flags, runs
+`validate_private_security` on both handles, and reads each object's DACL
+size back with `GetSecurityInfo` — the measurement is independent of the
+validator it is checking. `sqlite_appcontainer_private_descriptor`
+(`tests/sqlite_contract/appcontainer_private_descriptor_tests.cpp`,
+Windows-only) calls it from a scratch directory under the build tree and
+asks the token for its own containment separately, so the expected shape and
+the observed shape come from different sources.
+
+It is registered through `bpr_add_network_isolated_test` **without**
+`WINDOWS_UNCONTAINED` — the only `sqlite_contract` test that must run inside
+the container, because the container is the subject.
+
+Before the product change, with the seam in place, contained:
+
+```
+appcontainer-private-descriptor: token_contained=1 product_contained=1 created=1 usable=0
+  directory_valid=0 file_valid=0 directory_ace_count=0 file_ace_count=0 last_error=5
+FAILED: an owner-private catalog file is writable by the process that made it
+```
+
+The same unfixed binary uncontained: `usable=1`, `ace_count=1`, passes. So the
+failure is the boundary's, exactly as this card measured on 2026-08-18.
+
+After the change, contained: `Passed`, with
+`usable=1 directory_valid=1 file_valid=1 directory_ace_count=2 file_ace_count=2 last_error=0`;
+uncontained: passes with `ace_count=1`.
+
+### Verification
+
+| claim | command | result |
+|---|---|---|
+| the contained probe passes only with the fix | `ctest --preset core-only -R '^sqlite_appcontainer_private_descriptor$'`, before and after | fails `usable=0 last_error=5` before; passes `ace_count=2` after |
+| the descriptor is unchanged outside a container | the same executable run directly | passes, `ace_count=1` |
+| the helper-asserted one-ACE shape still holds where the four tests run | `ctest -R '^(sqlite_epoch_catalog_behavior_contract\|sqlite_review_mutation_recovery_storage\|sqlite_review_ledger_storage)$'` (uncontained, as registered) | 3/3 pass; `sqlite_epoch_catalog_storage_contract` fails at [[BPR-0425]]'s assertion as before |
+| the new registration and seam satisfy the standing gates | `ctest -R '^(test_network_isolation_manifest\|live_mutation_isolation_contract\|architecture_boundaries)$'` | 3/3 pass |
+| the seam cannot reach a tests-disabled Release build | `probe_private_descriptor` added to `RELEASE_BINARY_FORBIDDEN_BYTES` in `tests/end_to_end/composition_contract_tests.py` | source-pinned; that contract runs in the Qt graph, which [[BPR-0412]] owns, and is recorded there to be replayed |
+| format and whitespace | `clang-format --dry-run --Werror`, `git diff --check` | clean |
+
+Two observations left where they belong rather than folded in:
+
+- The two older SQLite seam symbols, `interrupt_next_bootstrap_before_publication`
+  and `classify_sqlite_result_code`, are **not** in
+  `RELEASE_BINARY_FORBIDDEN_BYTES`; only [[BPR-0086]]'s admission seam was
+  ever listed. That is a pre-existing gap in the Release absence contract, not
+  this card's, and is noted on [[BPR-0358]] for the Qt-graph replay to take.
+- `protect_inherited_private_file`'s two-inherited-entries path inside a
+  container has source-level evidence only; the probe exercises the protected
+  directory and file shapes.
+
+This slice was implemented by a bounded worker lane under an exclusive file
+scope. The integrator reviewed the complete diff and reproduced the after-fix
+contained run, the uncontained control, the three uncontained SQLite tests,
+the standing gates, the format check, and `git diff --check` directly; the
+before-fix contained output is the worker lane's record and agrees with this
+card's own 2026-08-18 measurement of the same denial.

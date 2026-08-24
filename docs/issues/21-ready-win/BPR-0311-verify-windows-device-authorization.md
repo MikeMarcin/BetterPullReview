@@ -24,3 +24,9 @@ depends_on: [BPR-0036, BPR-0282, BPR-0318]
 - BPR-0311 adds and records a native `windows-app-release` tests-disabled
   Release preset before the flip. The one-time flip record is distinct from
   BPR-0285's idempotent final-head platform course against enabled Windows.
+
+## Deferring — 2026-08-23
+
+The Windows session that cleared the rest of this lane checked this card's
+dependencies: they sit in `10-backlog/`, so nothing here can start. The
+card stays Ready, deferring, and is not part of the lane's completed set.

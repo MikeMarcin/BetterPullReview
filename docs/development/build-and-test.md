@@ -197,11 +197,29 @@ positive probe separately proves exact IPv4, IPv6, and private Unix fixtures.
 On Linux, the checked-in launcher creates user and network namespaces, maps
 only the invoking identity, brings up only `lo`, and fails the test before
 `exec` when any step is unavailable. This implementation still requires
-target-native Linux replay. Windows test commands fail before launching their
-original command because no validated whole-suite network boundary exists yet;
-an ordinary unsandboxed Windows CTest run is not permitted. The structural
-symbol guard now selects `dumpbin`, `llvm-readobj`, or `objdump` on Windows and
-fails when none can inspect the binaries.
+target-native Linux replay.
+
+On Windows, the checked-in launcher enters each test into one fixed
+AppContainer with zero capabilities, so the Windows Filtering Platform refuses
+every external connection and every descendant inherits the container token;
+configure grants that container read access to the sources and the resolved
+Qt prefix and write access to the build tree, and refuses when it cannot.
+Three things a lowbox token cannot do are needed by a few tests, and no
+directory grant can supply them because every object involved is a kernel
+object with no application-package ACE: translating a volume device into a
+drive letter (`GetFinalPathNameByHandleW` in its DOS form,
+`Path.resolve(strict=True)`, and Git's own `getcwd` all fail while the NT-form
+name resolves completely), running a `.bat` file through `cmd.exe`, and giving
+`ninja` its named pipe. The tests that need one of those are registered with
+`WINDOWS_UNCONTAINED` and run uncontained on Windows only, labelled
+`bpr_windows_uncontained`; `scripts/verify_test_network_isolation.py` pins
+that set exactly in both directions, with each member's measured cause, so it
+can neither grow quietly nor outlive its reason. On Windows the structural
+symbol guard reads each automated executable's objects with `dumpbin`, since
+an MSVC-linked image carries no symbol table, and the composed-host gate reads
+the linker's map of the application (`link /MAP`, beside the executable) and
+demangles it with `undname`; both fail closed when the tool is absent, which
+outside the Visual Studio developer environment it is.
 
 The default graph registers no live-test exception. The earlier trusted runner,
 gate, fork protocol, and harmless canary remain regression-only surfaces and

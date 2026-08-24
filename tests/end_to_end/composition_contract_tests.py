@@ -59,6 +59,7 @@ RELEASE_BINARY_FORBIDDEN_BYTES = (
     b"github_application_fixture_access",
     b"fail_next_epoch_job_admission",
     b"clear_epoch_job_admission_failure",
+    b"probe_private_descriptor",
     b"github_public_path_fixture",
     b"tests/fixtures/github/",
     b"tests\\fixtures\\github\\",
@@ -96,14 +97,21 @@ ARGUMENTS, UNITTEST_ARGUMENTS = parse_arguments()
 # GCC and Clang reject its construction for incompleteness before access
 # control is ever consulted; the entity is unusable either way.
 ACCESS_CONTROLLED = r"private"
-UNCONSTRUCTIBLE = r"(private|incomplete type)"
-UNDECLARED = r"(no member named|not a member)"
-REDEFINED = r"(private|incomplete type|redefinition)"
+# Each reason carries the Clang/GCC spelling and MSVC's: an incomplete type
+# is "use of undefined type" there, and an unknown name is an "undeclared
+# identifier" (BPR-0440).
+UNCONSTRUCTIBLE = r"(private|incomplete type|undefined type)"
+UNDECLARED = r"(no member named|not a member|undeclared identifier)"
+REDEFINED = r"(private|incomplete type|undefined type|redefinition)"
 
 SNIPPET_INCLUDE_ARGUMENTS = (
     f"-I{REPOSITORY_ROOT / 'src/application/include'}",
     f"-I{REPOSITORY_ROOT / 'src/core/include'}",
 )
+
+
+def msvc_compiler() -> bool:
+    return Path(ARGUMENTS.cxx).name.lower() in {"cl", "cl.exe"}
 
 
 def compile_snippet(
@@ -113,12 +121,28 @@ def compile_snippet(
 ) -> subprocess.CompletedProcess[str]:
     path = temporary_root / f"{name}.cpp"
     path.write_text(source, encoding="utf-8")
-    return subprocess.run(
-        [
+    if msvc_compiler():
+        # cl has no -std or -fsyntax-only; /Zs is the syntax-only check, and
+        # the language level is the one the build itself selects (BPR-0440).
+        arguments = [
+            ARGUMENTS.cxx,
+            "/nologo",
+            "/std:c++latest",
+            "/permissive-",
+            "/EHsc",
+            "/utf-8",
+            "/Zs",
+        ]
+    else:
+        arguments = [
             ARGUMENTS.cxx,
             "-std=c++23",
             "-fsyntax-only",
             "-D_LIBCPP_ENABLE_EXPERIMENTAL",
+        ]
+    return subprocess.run(
+        [
+            *arguments,
             *SNIPPET_INCLUDE_ARGUMENTS,
             str(path),
         ],
@@ -143,10 +167,12 @@ def diagnostic_messages(
     reproduces that directly.
     """
     combined = completed.stdout + completed.stderr
+    # Clang and GCC write `path:line:col: error: message`; cl writes
+    # `path(line): error C2039: message`. Both end at the same message.
     return [
-        line.split("error:", 1)[1].strip().lower()
+        match.group(1).strip().lower()
         for line in combined.splitlines()
-        if "error:" in line
+        if (match := re.search(r"error(?: C\d+)?:(.*)$", line))
     ]
 
 

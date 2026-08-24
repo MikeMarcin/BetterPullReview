@@ -92,6 +92,17 @@ function(bpr_add_executable target)
     add_executable("${target}" ${ARGN})
     string(REGEX REPLACE "^[^_]+_" "" output_name "${target}")
     set_target_properties("${target}" PROPERTIES OUTPUT_NAME "${output_name}")
+    if(MSVC)
+        # The Git cache's ref layout crosses MAX_PATH by design; Git writes
+        # through the extended-length form on its own, and every first-party
+        # process that walks those paths with std::filesystem needs the
+        # manifest opt-in for the Win32 APIs to do the same (BPR-0437).
+        target_sources(
+            "${target}"
+            PRIVATE
+                "${PROJECT_SOURCE_DIR}/cmake/bpr_long_paths.manifest"
+        )
+    endif()
 
     # Every first-party executable passes through here, which is the only
     # place that can enumerate them without a directory walk guessing at the
@@ -105,6 +116,18 @@ function(bpr_add_executable target)
             APPEND
             PROPERTY BPR_AUTOMATED_EXECUTABLES "${target}"
         )
+        # The Debug CRT reports abort() and failed assertions with a modal box
+        # that waits for a person. Every automated executable gets the unit
+        # that routes those to stderr instead, so a failure is an exit code
+        # CTest can act on rather than a dialog an unattended run stalls on
+        # (BPR-0434). It is empty on every other toolchain.
+        if(MSVC)
+            target_sources(
+                "${target}"
+                PRIVATE
+                    "${PROJECT_SOURCE_DIR}/tests/msvc_quiet_crt_reports.cpp"
+            )
+        endif()
     endif()
 endfunction()
 

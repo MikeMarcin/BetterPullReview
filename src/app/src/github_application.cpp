@@ -36,6 +36,7 @@
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/agent_invocation_host.hpp"
@@ -770,11 +771,11 @@ namespace bpr::app {
 			if (error) {
 				return { };
 			}
-			std::filesystem::permissions(aRoot,
-										 std::filesystem::perms::owner_all,
-										 std::filesystem::perm_options::replace,
-										 error);
-			if (error) {
+			// The stores refuse a root another local principal can reach, and
+			// what private means is the adapter's definition: mode 0700 on
+			// POSIX, and on Windows an owner-only protected DACL that
+			// std::filesystem::permissions cannot express (BPR-0436).
+			if (!adapters::sqlite::make_storage_root_owner_private(aRoot)) {
 				return { };
 			}
 			const auto canonical = std::filesystem::canonical(aRoot, error);
@@ -792,7 +793,18 @@ namespace bpr::app {
 			if (length == 0U || length >= value.size()) {
 				return std::nullopt;
 			}
-			return std::filesystem::path{ value.data() };
+			// The API spells it `C:\WINDOWS` while the directory is
+			// `C:\Windows`, and the adapter accepts a system root only in its
+			// canonical spelling; the uncanonical one made every Git process
+			// refuse its configuration, which the epoch pipeline reported as
+			// `failed` with nothing to name (BPR-0441).
+			std::error_code error;
+			auto            canonical = std::filesystem::canonical(
+				std::filesystem::path{ value.data() }, error);
+			if (error) {
+				return std::nullopt;
+			}
+			return canonical;
 #else
 			return std::nullopt;
 #endif
@@ -1817,9 +1829,9 @@ namespace bpr::app {
 						.ApprovalPath       = *aConfig.AttendedDesignatedLiveApproval,
 						.ExecutablePath     = aConfig.RunningExecutable,
 						.SourceSha256       = aConfig.AttendedSourceSha256,
+						.BuildConfiguration = aConfig.BuildConfiguration,
 						.SupervisorSha256   = aConfig.AttendedSupervisorSha256,
 						.InventorySha256    = aConfig.AttendedInventorySha256,
-						.BuildConfiguration = aConfig.BuildConfiguration,
 						.Replay             = std::move(*replay),
 						.BuildTesting       = aConfig.BuildTesting,
 					},
@@ -2008,6 +2020,17 @@ namespace bpr::app {
 			auto catalog = adapters::sqlite::make_epoch_catalog({
 				.StorageRoot = applicationDataRoot,
 			});
+			// Two stores, two refusals; a developer build reading
+			// STARTUP_FAILED_CAUSE needs to know which one (BPR-0436).
+			if (!cache) {
+				throw std::runtime_error{ "Git cache composition failed" };
+			}
+			if (!catalog) {
+				throw std::runtime_error{
+					"epoch catalog composition failed ("
+					+ std::to_string(static_cast<unsigned int>(catalog.error())) + ")"
+				};
+			}
 			if (!cache || !catalog) {
 				throw std::runtime_error{
 					"Git cache or epoch catalog composition failed"
@@ -2343,7 +2366,15 @@ namespace bpr::app {
 			if (NotificationSink == nullptr) {
 				auto sink = std::unique_ptr<qt::system_tray_notification_sink>{ };
 #if defined(BPR_BUILD_TESTING)
-				if (CaptureSystemNotificationDisplay) {
+				// A fixture run also takes the captured boundary when the
+				// platform truthfully reports no tray — the offscreen
+				// platform on Windows — because the courses that leave
+				// capture off assert what reaches the sink, not the native
+				// display mechanics; where a tray exists, nothing changes
+				// (BPR-0442). Production composition is untouched.
+				if (CaptureSystemNotificationDisplay
+					|| (Fixture != nullptr
+						&& !QSystemTrayIcon::isSystemTrayAvailable())) {
 					sink = std::make_unique<qt::system_tray_notification_sink>(
 						[this](QSystemTrayIcon&, const QString&, const QString&) {
 							++CapturedNotificationDisplays;

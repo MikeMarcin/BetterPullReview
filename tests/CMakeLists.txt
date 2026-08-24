@@ -248,6 +248,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME operator_response_validation_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/.agents/skills/bpr-attended-review/scripts/test_validate_operator_packet.py"
@@ -295,6 +296,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME coding_standard_format_gate_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/coding_standard_format_gate_tests.py"
@@ -325,6 +327,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME dependency_modernization_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/dependency_modernization_tests.py"
@@ -347,6 +350,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME rfc0016_device_capture_security
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_device_capture_tests.py"
@@ -361,6 +365,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME test_network_isolation_structure_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/verify_test_network_isolation_tests.py"
@@ -559,6 +564,17 @@ elseif(WIN32)
         bpr_network_isolation_verifier_command
         --windows-launcher
         "$<TARGET_FILE:tool_better_pull_review_network_sandbox>"
+    )
+endif()
+get_property(bpr_network_isolation_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(bpr_network_isolation_multi_config)
+    # `ctest --show-only` lists nothing for a multi-configuration tree until
+    # told which configuration, so the gate names the one it runs in.
+    list(
+        APPEND
+        bpr_network_isolation_verifier_command
+        --build-config
+        "$<CONFIG>"
     )
 endif()
 if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)

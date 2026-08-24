@@ -1,7 +1,7 @@
 ---
 id: BPR-0362
 title: The container cannot read the ancestors every path check walks
-status: Ready
+status: Done
 rfc: RFC-BPR-0008
 depends_on: []
 ---
@@ -664,3 +664,236 @@ board's own splitting rule carries.
   never surfaced, and the same fallback applies.
 - Any claim or test appears that binds AppContainer *filesystem* narrowness as a
   required property. None exists today.
+
+## Measured on the Windows host — 2026-08-22
+
+Run from the `windows-lane` worktree at `5ce0bc1`, with the launcher built
+from the checked-in source and the host online. Two probe scripts were kept
+under `build/core-only/probe/`, because the first attempt to run one from
+outside the repository and build tree failed inside the container with
+`[Errno 13]` on the script itself — the grant set is exactly the two scopes
+`cmake/WindowsTestIsolationSetup.cmake` names, and nothing else.
+
+### The ancestor opens are the file system's; the name failure is not
+
+Opening each ancestor with `CreateFileW` (`FILE_FLAG_BACKUP_SEMANTICS`), then
+asking the handle that opened for its final name under each `VOLUME_NAME_*`
+flag:
+
+| path | outside | inside the container |
+|---|---|---|
+| `C:\`, `C:\code`, `C:\code\git` | opened | **denied, win32=5** |
+| `C:\code\git\bpr-windows` (granted) | opened; every name form ok | opened; **`DOS` err 5, `GUID` err 5, `NT` ok, `NONE` ok** |
+| `…\Packages\bprautomatedtest` and every ancestor above it | opened | **denied, win32=5** |
+| `…\bprautomatedtest\AC`, `AC\Temp`, a directory created under it | opened; every name form ok | opened; **`DOS` err 5, `GUID` err 5, `NT` ok, `NONE` ok** |
+
+`NT` ok is the finding. The kernel returned the complete normalized name —
+`\Device\HarddiskVolume4\code\git\bpr-windows`, every denied ancestor included
+— for a handle inside the container. So the option-2 section above was wrong
+about the mechanism: resolving a handle's name does **not** walk the parent
+chain and fail there. What fails is the translation of `\Device\HarddiskVolume4`
+into `C:`, which is what the `DOS` and `GUID` forms add and the `NT` form does
+not.
+
+Every primitive that translation depends on is denied inside, and succeeds
+outside:
+
+| call | outside | inside |
+|---|---|---|
+| `QueryDosDeviceW("C:")` | `\Device\HarddiskVolume4` | err 5 |
+| `GetVolumeNameForVolumeMountPointW("C:\")` | `\\?\Volume{…}\` | err 5 |
+| open `\\.\MountPointManager` | opened | err 5 |
+| open `\\.\C:` (the volume device) | opened | err 5 |
+| `GetDriveTypeW("C:\")` | 3, `DRIVE_FIXED` | 1, `DRIVE_NO_ROOT_DIR` |
+| `GetVolumeInformationByHandleW` on the repository handle | NTFS, serial read | NTFS, same serial |
+| `resolve(strict=True)` on the repository and on the created directory | ok | `PermissionError`, winerror 5 |
+| `git init -q` in the created directory | 0 | 128, `unable to get current working directory: Permission denied` |
+
+### Why no directory grant can reach it
+
+Those are not directories. Read outside the container with `READ_CONTROL`,
+the objects' own DACLs, in SDDL:
+
+```
+\GLOBAL??\C:                O:BAD:(A;;CCRC;;;WD)(A;;CCSDRCWDWO;;;SY)(A;;CCSDRCWDWO;;;BA)(A;;CCRC;;;RC)
+\GLOBAL??\MountPointManager same
+\Device                     O:BAD:(A;;CCDCRC;;;WD)(A;;CCDCLCSWSDRCWDWO;;;SY)(A;;CCDCLCSWSDRCWDWO;;;BA)(A;;CCDCRC;;;RC)
+\\.\MountPointManager       O:BAD:(A;;FX;;;WD)(A;;FA;;;SY)(A;;FA;;;BA)(A;;FX;;;RC)
+\\.\C:                      same
+```
+
+Everyone, SYSTEM, Administrators, and `RESTRICTED`. No `ALL APPLICATION
+PACKAGES`, no package SID. A lowbox token passes its second access check only
+through one of those two, so every one of these objects refuses it by
+construction. They are created by the object manager and the mount manager at
+boot; `icacls` has no path to them, and neither does the elevated step the
+decision record priced.
+
+The product asks for exactly the form that fails. `final_path_of`
+(`src/adapters/sqlite/src/catalog_database.cpp:1564-1584`) calls
+`GetFinalPathNameByHandleW` with `FILE_NAME_NORMALIZED | VOLUME_NAME_DOS`, and
+`path_matches_handle` runs it for every retained ancestor and the leaf. CPython's
+`realpath` and Git's `getcwd` ask for the `DOS` form too. So with every
+directory in every chain granted — `C:\` and `C:\Users` included — mechanism
+1's name check, mechanism 2, and mechanism 3 still fail at the same call.
+
+### Option 1 is measured-dead
+
+The reversal criterion written into the decision record is met in substance
+and stated exactly where it is not met to the letter. `C:\` and `C:\Users` were
+**not** granted, because that needs elevation and the result cannot depend on
+it: the handles whose `DOS` name fails are handles whose open *succeeded*, the
+`NT` name of those same handles resolves completely, and the primitives that
+fail are symbolic links and device objects rather than directories. The
+directory half of option 1 would have fixed only the ancestor *opens* — the
+`C:\code`, `C:\code\git`, and profile-chain denials above are ordinary file
+ACLs — and that half buys nothing while the name check behind it cannot pass.
+
+One more attribution closes with this. The line `Failed to find real location
+of <image>` that [[BPR-0347]] records on every test, and guessed was the
+launcher seeing the ancestor denial, is CPython: `python314.dll` carries the
+string and `windows_network_sandbox.cpp` does not. It is `getpath` running
+`realpath` on its own executable inside the container and meeting this exact
+failure. It is harmless and it is the same defect.
+
+### What follows
+
+The decision record's fallback applies as written: **option 3 is taken
+explicitly**, with its exempt list pinned by its own contract and
+[[BPR-0235]]'s Windows criterion rewritten honestly. The exempt set is pinned to
+what a fresh contained run of this worktree measures, not to the stake table
+above; the implementation and its evidence follow below.
+
+Two consequences for neighbouring cards are recorded rather than left to be
+rediscovered:
+
+- [[BPR-0360]] no longer becomes observable through the four SQLite tests,
+  because under option 3 they run uncontained and the descriptor defect only
+  exists inside a container. That card needs its own contained probe of the
+  product's descriptor builder and validator.
+- [[BPR-0053]]'s ancestor-substitution criterion is unaffected: the retained
+  chain is exercised uncontained on this host exactly as it is on macOS and
+  Linux. What the Windows suite cannot do is exercise it *inside* an
+  AppContainer, and that is now a statement about the AppContainer rather than
+  about the product.
+
+## Option 3, taken — 2026-08-22
+
+### The fresh run first
+
+The card's stake table was not trusted; a fresh contained run of the whole
+`core-only` graph in this worktree was taken before anything was pinned. At
+`5ce0bc1`, with [[BPR-0421]] making the graph compile, it reads **76 of 88**,
+twelve failing. Every one of the twelve was then run again *outside* the
+launcher, exactly as registered, as the negative control. That sorted them
+into four groups, and only the first is this card's:
+
+| group | tests | evidence |
+|---|---|---|
+| **container-intrinsic** — passes uncontained, fails contained at a named lowbox denial | the four SQLite storage contracts, `rfc0016_device_capture_security`, `test_network_isolation_structure_contract`, `operator_response_validation_contract`, `coding_standard_format_gate_contract`, `dependency_modernization_contract` | the measurements in the previous section, plus two more mechanisms below |
+| **portable defects the run exposed** — fails uncontained for a reason that has nothing to do with Windows | `contained_temporary_usage_contract` ([[BPR-0422]]), the banner half of `coding_standard_format_gate_contract` ([[BPR-0423]]) | fixed on this branch, verified uncontained |
+| **Windows defects the run exposed** — fails uncontained on this host only | the retention assertion in `sqlite_epoch_catalog_storage_contract` ([[BPR-0425]]), five POSIX-shaped assertions in `dependency_modernization_contract` ([[BPR-0426]]) | carded, not folded in here |
+| **not the boundary at all** | `documentation_structure` (this session's own README mid-edit; passes on rerun), `application_github_capability_cache` (Smart App Control refuses the image, contained or not: [[BPR-0424]]) | measured directly |
+
+Two of the nine container-intrinsic tests fail for mechanisms the v2 packet
+did not know about, and they are lowbox-intrinsic in exactly the way the first
+three are:
+
+- **`cmd.exe` will not run a batch file inside the container.** A one-line
+  `.bat` that works outside returns `Access is denied.` inside. The format
+  gate's stand-in `clang-format` is a `.bat` on Windows, so the gate sees no
+  tool at all; CPython's own `Failed to find real location` warning also
+  lands on the stderr the gate compares.
+- **`ninja` cannot create its named pipe inside the container** —
+  `ninja: fatal: CreateNamedPipe: Access is denied` — so every CMake fixture
+  configure in `dependency_modernization_contract` dies inside the compiler
+  check, before the rejection the test asserts can be reached. A lowbox may
+  create named objects only in its own `AppContainerNamedObjects` namespace.
+
+Neither is a directory, and neither is reachable by a grant, which is the
+same reason option 1 died.
+
+The two epoch-catalog tests do not *fail* contained; they hang until CTest
+kills them, while their two siblings on the same `open_state_directory` path
+fail fast. That is a separate fact about the product inside a container and
+is [[BPR-0427]]'s, not this card's.
+
+`rfc0016_device_live_runner_security` — the unlisted eighth the decision
+record asked this session to measure — **passes contained**. It is not in the
+set.
+
+### What was built
+
+`bpr_add_network_isolated_test` gained one option, `WINDOWS_UNCONTAINED`.
+Under the `windows-appcontainer` backend, and only there, a test carrying it
+is registered without the launcher prefix and labelled
+`bpr_windows_uncontained` instead of `bpr_network_isolated`; its environment
+scrubs are unchanged. On macOS and Linux the keyword is inert, so the whole
+suite stays contained where containment does not cost name resolution. The
+raw `add_test` stays inside `cmake/BprTestIsolation.cmake`, so the
+single-owner source contract is untouched.
+
+`scripts/verify_test_network_isolation.py` pins the set, by name and by
+measured cause:
+
+```
+WINDOWS_UNCONTAINED_TESTS = {
+    sqlite_epoch_catalog_storage_contract      dos-volume-name
+    sqlite_epoch_catalog_behavior_contract     dos-volume-name
+    sqlite_review_mutation_recovery_storage    dos-volume-name
+    sqlite_review_ledger_storage               dos-volume-name
+    rfc0016_device_capture_security            dos-volume-name
+    test_network_isolation_structure_contract  dos-volume-name
+    operator_response_validation_contract      dos-volume-name
+    coding_standard_format_gate_contract       batch-stub
+    dependency_modernization_contract          ninja-named-pipe
+}
+```
+
+and fails the manifest gate in every direction it could drift: a member found
+contained ("retire it from the pinned set"), a member without its label or
+still carrying `bpr_network_isolated`, any non-member carrying the label, any
+missing prefix on a non-member exactly as before, the label on any other
+backend at all, and a source count of `WINDOWS_UNCONTAINED` keywords inside
+`bpr_add_network_isolated_test(...)` calls that differs from the set's size.
+Six unit cases in `tests/scripts/verify_test_network_isolation_tests.py`
+cover each direction; the count case was itself corrected once, when the
+first live gate run counted the wrapper's own option string and comment and
+reported eleven.
+
+### What it gives up, and what it does not
+
+Nine tests on Windows run with no network boundary. They are the four SQLite
+storage contracts, three Python contracts, one gate contract and one
+dependency contract; none performs network I/O, and the manifest gate
+continues to prove that *every other* configured test crosses the boundary.
+[[BPR-0235]]'s Windows criterion is rewritten on that card in those words.
+
+It does not give up the sandbox for anything else, does not touch macOS or
+Linux, and does not change a product line: `validate_ancestor_chain`,
+`resolve(strict=True)`, and Git are exactly as they were. The documentation
+in `docs/development/build-and-test.md` and
+`docs/architecture/review-round-trip.md` no longer says Windows refuses every
+test, which had been stale since [[BPR-0347]].
+
+### Verification
+
+| claim | command | proves it | result |
+|---|---|---|---|
+| the nine run uncontained and nothing else does | `ctest --show-only=json-v1`, labels read back | nine tests carry `bpr_windows_uncontained` and their first argv is the test program, not the launcher; 88 registered | pass |
+| each of the nine passes as registered, or fails for a carded non-container cause | `ctest -R` over the nine | seven pass; `sqlite_epoch_catalog_storage_contract` fails at [[BPR-0425]]'s assertion and `dependency_modernization_contract` at [[BPR-0426]]'s five, both reproduced uncontained before this change | as stated |
+| the manifest gate accepts exactly this set | `ctest -R '^test_network_isolation_manifest$'` (contained) | `TEST_NETWORK_ISOLATION_OK` | pass, `configured=88:registrations=…:backend=windows-appcontainer` |
+| the verifier refuses every drift direction | `py -3 tests/scripts/verify_test_network_isolation_tests.py` | 31 cases including the six new ones | OK |
+| the two portable fixes hold | `py -3 tests/scripts/contained_temporary_usage_tests.py`, `py -3 tests/scripts/coding_standard_format_gate_tests.py`, `py -3 tests/scripts/record_rfc0017_anonymous_contracts_tests.py` | 6/6, 9/9 (1 skip), 36/36 | OK |
+| nothing else regressed | `ctest --preset core-only` after the change | **86 of 88**, up from 76; the two failures are [[BPR-0425]] and [[BPR-0426]], both uncontained-registered and both reproduced uncontained before this change; `documentation_structure` and `application_github_capability_cache` pass | pass |
+
+The full contained matrix after the change, at this worktree, is 86 of 88 in
+435 s. Before it, 76 of 88. Ten tests moved, and each of the ten is either
+one of the nine now registered uncontained or a test whose earlier failure
+this session caused and corrected in its own tree.
+
+### Phase
+
+Decision made and implemented; card closes. Nothing here is reversible by
+undoing a grant, because no grant was made: the machine's ACLs are exactly
+as they were when the session opened.

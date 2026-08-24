@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  Declares every first-party executable long-path aware. The Git cache's ref
+  layout carries two SHA-256 components, which under %LOCALAPPDATA% or %TEMP%
+  crosses MAX_PATH by design: Git handles that itself (core.longpaths writes
+  through the extended-length form), but the adapters' own std::filesystem
+  walks rely on the Win32 APIs honouring long paths, which Windows grants
+  only to a process whose manifest opts in while the host policy
+  (LongPathsEnabled) allows it (BPR-0437).
+-->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings xmlns:ws2="http://schemas.microsoft.com/SMI/2016/WindowsSettings">
+      <ws2:longPathAware>true</ws2:longPathAware>
+    </windowsSettings>
+  </application>
+</assembly>

@@ -23,9 +23,103 @@ LIVE_REGISTRATION = re.compile(
 EXACT_LIVE_REGISTRATION = re.compile(
     r"\bbpr_add_designated_live_mutation_test\s*\(\s*\)", re.IGNORECASE
 )
+ISOLATED_REGISTRATION_ARGUMENTS = re.compile(
+    r"\bbpr_add_network_isolated_test\s*\(([^()]*)\)", re.IGNORECASE
+)
+UNCONTAINED_KEYWORD = re.compile(r"\bWINDOWS_UNCONTAINED\b")
 RAW_REGISTRATION_OWNER = "cmake/BprTestIsolation.cmake"
 LIVE_TEST_NAME = "live_review_mutation_designated_target"
 LIVE_TEST_LABEL = "bpr_live_mutation"
+WINDOWS_BACKEND = "windows-appcontainer"
+WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
+# The Windows boundary is an AppContainer, and three things a lowbox token
+# cannot do are needed by the tests below; each was measured on the Windows
+# host on 2026-08-22 (BPR-0362), passing uncontained and failing contained at
+# exactly the named call. None is a property of the test, and none can be
+# granted with a directory ACL, because every object involved is a kernel
+# object whose DACL names Everyone, SYSTEM, Administrators and RESTRICTED and
+# never ALL APPLICATION PACKAGES.
+#
+# - `dos-volume-name`: `GetFinalPathNameByHandleW` with VOLUME_NAME_DOS fails
+#   while the NT form resolves completely, because translating the volume
+#   device into a drive letter needs `\GLOBAL??\C:` and the mount-point
+#   manager. The product's retained ancestor chain asks for the DOS form, as do
+#   CPython's `realpath` (`Path.resolve(strict=True)`) and Git's `getcwd`.
+# - `batch-stub`: `cmd.exe` refuses to run a `.bat` file, so a test whose
+#   stand-in tool is a batch script gets no tool at all. CPython's own startup
+#   `realpath` warning also lands on stderr, which the format gate compares.
+# - `ninja-named-pipe`: `ninja` fails with `CreateNamedPipe: Access is denied`,
+#   so a test that configures a CMake fixture stops inside the compiler check.
+# - `qprocess-named-pipe`: the same denial reaching `QProcess`, which carries
+#   a child's standard streams over a named pipe.
+# - `credential-manager`: the Windows Credential Manager refuses a lowbox
+#   token; the native vault tests pass uncontained and fail inside.
+#
+# The application tests are `dos-volume-name` through one step: the
+# application canonicalises its data root and the catalog walks that root's
+# ancestor chain, both of which need the drive letter (BPR-0412, BPR-0436).
+#
+# The set is exact in both directions: an uncontained test outside it fails
+# the manifest gate, and a member found contained fails it too, so the pin has
+# to move when the truth does. The value names the cause so the next reader
+# does not have to re-measure it.
+WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
+    "sqlite_epoch_catalog_storage_contract": "dos-volume-name",
+    "sqlite_epoch_catalog_behavior_contract": "dos-volume-name",
+    "sqlite_review_mutation_recovery_storage": "dos-volume-name",
+    "sqlite_review_ledger_storage": "dos-volume-name",
+    "rfc0016_device_capture_security": "dos-volume-name",
+    "test_network_isolation_structure_contract": "dos-volume-name",
+    "operator_response_validation_contract": "dos-volume-name",
+    "coding_standard_format_gate_contract": "batch-stub",
+    "dependency_modernization_contract": "ninja-named-pipe",
+    "sqlite_storage_root_contract": "dos-volume-name",
+    "application_public_path": "dos-volume-name",
+    "application_public_path_ghes_cli_unavailable": "dos-volume-name",
+    "application_queue_composition_contract": "dos-volume-name",
+    "application_native_notification_attended_contract": "dos-volume-name",
+    "application_poller_liveness": "dos-volume-name",
+    "application_native_appearance_probe_contract": "dos-volume-name",
+    "application_github_public_path_github_com": "dos-volume-name",
+    "application_github_public_path_uiforetw_74": "dos-volume-name",
+    "application_uiforetw_selected_diff_contract": "dos-volume-name",
+    "application_diff_workbench_public_path": "dos-volume-name",
+    "application_workbench_composition_contract": "dos-volume-name",
+    "application_review_ledger_composition_contract": "dos-volume-name",
+    "application_review_round_trip_composition_contract": "dos-volume-name",
+    "application_defect_composition_contract": "dos-volume-name",
+    "application_appearance_theme_customization_contract": "dos-volume-name",
+    "application_fixture_verdict_contract": "dos-volume-name",
+    "application_attended_launch_contract": "dos-volume-name",
+    "application_diff_workbench_shutdown_public_path": "dos-volume-name",
+    "application_automated_run_budget": "dos-volume-name",
+    "application_github_public_path_ghes_3_18": "dos-volume-name",
+    "application_epoch_maintenance_public_path": "dos-volume-name",
+    "application_appearance_gesture_contract": "dos-volume-name",
+    "application_appearance_store_fallback_contract": "dos-volume-name",
+    "runtime_process_surface": "dos-volume-name",
+    "application_render": "dos-volume-name",
+    "gh_cli_transport": "dos-volume-name",
+    "epoch_history_fixture_contract": "dos-volume-name",
+    "epoch_maintenance_integration": "dos-volume-name",
+    "git_process_contract": "qprocess-named-pipe",
+    "git_cache_contract": "qprocess-named-pipe",
+    "live_review_mutation_restart_recovery": "dos-volume-name",
+    "application_agent_invocation_composition_contract": "dos-volume-name",
+    "application_agent_invocation_construction_cut_contract": "dos-volume-name",
+    "application_agent_invocation_gesture_cut_contract": "dos-volume-name",
+    "application_agent_invocation_cancellation_contract": "dos-volume-name",
+    "application_agent_invocation_staleness_contract": "dos-volume-name",
+    "application_agent_invocation_cleanup_retry_contract": "dos-volume-name",
+    "application_agent_invocation_workspace_diagnostic_contract": "dos-volume-name",
+    "application_epoch_persistence_github-com": "dos-volume-name",
+    "application_epoch_persistence_ghes-3_18": "dos-volume-name",
+    "application_composition_contract": "ninja-named-pipe",
+    "windows_credential_manager_native_setup": "credential-manager",
+    "windows_credential_manager_native": "credential-manager",
+    "windows_credential_manager_native_cleanup": "credential-manager",
+    "github_cli_process_runner": "qprocess-named-pipe",
+}
 EXIT_VERDICT_TESTS = {
     LIVE_TEST_NAME,
     "architecture_boundaries",
@@ -116,6 +210,21 @@ def registration_inventory(root: pathlib.Path) -> tuple[list[str], int, int, int
         live += len(LIVE_REGISTRATION.findall(text))
         exact_live += len(EXACT_LIVE_REGISTRATION.findall(text))
     return raw, isolated, live, exact_live
+
+
+def uncontained_registration_count(root: pathlib.Path) -> int:
+    """Count the registrations that opt a test out of Windows containment.
+
+    Only the argument list of a `bpr_add_network_isolated_test(...)` call
+    counts; the wrapper's own option declaration and comments do not.
+    """
+    count = 0
+    for path in cmake_sources(root):
+        text = path.read_text(encoding="utf-8", errors="strict")
+        for arguments in ISOLATED_REGISTRATION_ARGUMENTS.findall(text):
+            if UNCONTAINED_KEYWORD.search(arguments):
+                count += 1
+    return count
 
 
 def property_value(test: dict[str, Any], name: str) -> Any | None:
@@ -216,6 +325,21 @@ def expected_prefix(
     raise ValueError(f"unknown backend: {backend}")
 
 
+def manifest_command(
+    ctest: pathlib.Path, build_dir: pathlib.Path, build_config: str | None
+) -> list[str]:
+    """The `ctest --show-only` invocation that yields the configured manifest.
+
+    A multi-configuration generator lists nothing until told which
+    configuration, so the registration names the one it runs in.
+    """
+    command = [str(ctest), "--test-dir", str(build_dir)]
+    if build_config:
+        command.extend(["--build-config", build_config])
+    command.append("--show-only=json-v1")
+    return command
+
+
 def comparable_command(value: Any) -> Any:
     """Compare a configured command the way the host compares paths.
 
@@ -239,7 +363,13 @@ def configured_failures(
     macos_runner: bool = False,
     live_command: list[str] | None = None,
     required_commands: dict[str, list[str]] | None = None,
+    windows_uncontained: frozenset[str] = frozenset(),
 ) -> list[str]:
+    """Check every configured test against the boundary.
+
+    `windows_uncontained` is the exact set of test names permitted to run
+    without the launcher prefix; it is non-empty only for the Windows backend.
+    """
     failures: list[str] = []
     tests = manifest.get("tests")
     if not isinstance(tests, list) or not tests:
@@ -314,6 +444,25 @@ def configured_failures(
         if isinstance(labels, list) and LIVE_TEST_LABEL in labels:
             failures.append(
                 f"{name} uses {LIVE_TEST_LABEL}; only {LIVE_TEST_NAME} may be live"
+            )
+        uncontained_labelled = isinstance(labels, list) and WINDOWS_UNCONTAINED_LABEL in labels
+        if name in windows_uncontained:
+            if isinstance(command, list) and command[: len(prefix)] == prefix:
+                failures.append(
+                    f"{name} is pinned as {WINDOWS_UNCONTAINED_LABEL} but is registered "
+                    "contained; retire it from the pinned set"
+                )
+            if not uncontained_labelled:
+                failures.append(f"{name} lacks the {WINDOWS_UNCONTAINED_LABEL} label")
+            if isinstance(labels, list) and "bpr_network_isolated" in labels:
+                failures.append(
+                    f"{name} carries bpr_network_isolated while running uncontained"
+                )
+            continue
+        if uncontained_labelled:
+            failures.append(
+                f"{name} uses {WINDOWS_UNCONTAINED_LABEL} but is not in the pinned "
+                "Windows set"
             )
         if not isinstance(command, list) or command[: len(prefix)] != prefix:
             failures.append(f"{name} does not start with {prefix!r}: {command!r}")
@@ -440,6 +589,10 @@ def main() -> int:
     parser.add_argument("--ctest", required=True, type=pathlib.Path)
     parser.add_argument("--cmake", required=True, type=pathlib.Path)
     parser.add_argument("--backend", required=True)
+    # A multi-configuration generator registers its tests per configuration,
+    # and `ctest --show-only` lists nothing for such a tree until told which
+    # one; without this the gate saw an empty manifest on Windows (BPR-0432).
+    parser.add_argument("--build-config")
     parser.add_argument("--profile", type=pathlib.Path)
     parser.add_argument("--python", type=pathlib.Path)
     parser.add_argument("--macos-runner", type=pathlib.Path)
@@ -464,14 +617,19 @@ def main() -> int:
             "designated live source registration must be exactly one empty fixed call: "
             f"calls={live}, exact={exact_live}"
         )
+    # A registration inside a foreach covers several pinned names, so the
+    # source count bounds the set from above rather than matching it; the
+    # manifest check below pins every name exactly, in both directions.
+    uncontained = uncontained_registration_count(arguments.root)
+    if uncontained == 0 or uncontained > len(WINDOWS_UNCONTAINED_TESTS):
+        failures.append(
+            f"WINDOWS_UNCONTAINED appears {uncontained} times in the sources, "
+            f"expected between one and {len(WINDOWS_UNCONTAINED_TESTS)}, the "
+            "size of the pinned set"
+        )
 
     shown = subprocess.run(
-        [
-            str(arguments.ctest),
-            "--test-dir",
-            str(arguments.build_dir),
-            "--show-only=json-v1",
-        ],
+        manifest_command(arguments.ctest, arguments.build_dir, arguments.build_config),
         capture_output=True,
         text=True,
         check=False,
@@ -574,6 +732,11 @@ def main() -> int:
                 macos_runner=arguments.backend == "macos-sandbox-exec",
                 live_command=live_command,
                 required_commands=required_commands,
+                windows_uncontained=(
+                    frozenset(WINDOWS_UNCONTAINED_TESTS)
+                    if arguments.backend == WINDOWS_BACKEND
+                    else frozenset()
+                ),
             )
         )
 

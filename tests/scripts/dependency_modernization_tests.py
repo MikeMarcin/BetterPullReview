@@ -234,7 +234,10 @@ class DependencyModernizationTests(unittest.TestCase):
                 "file(MAKE_DIRECTORY \"${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}\")\n"
                 "file(WRITE \"${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/"
                 "python3-config.cmake\" \"file(WRITE [==["
-                f"{marker}"
+                # Inside a quoted CMake string a Windows separator is an
+                # escape (`\U`), so the marker is spelled with forward
+                # slashes, which CMake accepts on every platform (BPR-0426).
+                f"{marker.as_posix()}"
                 "]==] executed)\\n\")\n"
                 "set(BPR_BUILD_QT OFF)\n"
                 "set(BUILD_TESTING ON)\n"
@@ -309,7 +312,11 @@ class DependencyModernizationTests(unittest.TestCase):
                 temporary_directory,
                 "-DBPR_BUILD_QT=OFF",
                 "-DBUILD_TESTING=OFF",
-                f"-DCMAKE_MODULE_PATH={fake_modules}",
+                # CMake re-emits the module path into every try-compile
+                # as a quoted `set()`, where a Windows separator is an
+                # escape; forward slashes survive that on every platform
+                # (BPR-0426).
+                f"-DCMAKE_MODULE_PATH={fake_modules.as_posix()}",
             )
         self.assertEqual(
             configured.returncode,
@@ -317,6 +324,121 @@ class DependencyModernizationTests(unittest.TestCase):
             configured.stdout + configured.stderr,
         )
         self.assertFalse(marker.exists())
+
+    def test_syntax_provider_forwards_list_values_whole(self) -> None:
+        # The provider escapes a value's `;` and appends `-D<name>=<value>` to
+        # an accumulator. Appending by expanding the accumulator unquoted
+        # unescaped every earlier element, so a list such as
+        # CMAKE_CONFIGURATION_TYPES survived its own round and was split on
+        # the next; the nested configure then built one configuration and the
+        # provider asked for four. Only a multi-configuration generator could
+        # reach it, which is why it was first seen on Windows (BPR-0428).
+        with contained_temporary_directory() as temporary_directory:
+            script = Path(temporary_directory) / "forward.cmake"
+            provider = ROOT / "cmake" / "BprSyntaxHighlightingProvider.cmake"
+            script.write_text(
+                "cmake_minimum_required(VERSION 3.25)\n"
+                f"include([==[{provider}]==])\n"
+                'set(CMAKE_CXX_FLAGS "/W4 /EHsc")\n'
+                'set(CMAKE_CONFIGURATION_TYPES "Debug;Release;MinSizeRel;RelWithDebInfo")\n'
+                'set(CMAKE_PREFIX_PATH "first;second")\n'
+                "set(forwarded)\n"
+                "foreach(name IN ITEMS CMAKE_CXX_FLAGS CMAKE_CONFIGURATION_TYPES CMAKE_PREFIX_PATH)\n"
+                '    bpr_syntax_forward(forwarded "${name}")\n'
+                "endforeach()\n"
+                "list(LENGTH forwarded count)\n"
+                'message(STATUS "FORWARDED_COUNT=${count}")\n'
+                "foreach(element IN LISTS forwarded)\n"
+                '    message(STATUS "FORWARDED_ELEMENT=${element}")\n'
+                "endforeach()\n",
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [str(CMAKE_COMMAND), "-P", str(script)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        output = completed.stdout + completed.stderr
+        self.assertEqual(completed.returncode, 0, output)
+        elements = re.findall(r"FORWARDED_ELEMENT=(.*)", output)
+        self.assertIn("FORWARDED_COUNT=3", output, output)
+        self.assertEqual(
+            elements,
+            [
+                "-DCMAKE_CXX_FLAGS=/W4 /EHsc",
+                "-DCMAKE_CONFIGURATION_TYPES=Debug;Release;MinSizeRel;RelWithDebInfo",
+                "-DCMAKE_PREFIX_PATH=first;second",
+            ],
+            output,
+        )
+
+    def test_syntax_provider_executes_forwarded_lists_whole(self) -> None:
+        # The accumulator being whole is not enough: the helper that runs the
+        # nested configure receives the command as function arguments, and
+        # ARGN re-joins those with bare semicolons. This drives the real
+        # helper with a forwarded list and reads the log it writes (BPR-0428).
+        with contained_temporary_directory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            script = temporary / "execute.cmake"
+            log = temporary / "echo.log"
+            provider = ROOT / "cmake" / "BprSyntaxHighlightingProvider.cmake"
+            script.write_text(
+                "cmake_minimum_required(VERSION 3.25)\n"
+                f"include([==[{provider}]==])\n"
+                'set(CMAKE_CONFIGURATION_TYPES "Debug;Release;MinSizeRel;RelWithDebInfo")\n'
+                "set(forwarded)\n"
+                'bpr_syntax_forward(forwarded "CMAKE_CONFIGURATION_TYPES")\n'
+                f'bpr_syntax_execute("echo" [==[{log}]==] "${{CMAKE_COMMAND}}" -E echo ${{forwarded}})\n',
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [str(CMAKE_COMMAND), "-P", str(script)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            output = completed.stdout + completed.stderr
+            self.assertEqual(completed.returncode, 0, output)
+            echoed = log.read_text(encoding="utf-8").strip()
+        self.assertEqual(
+            echoed,
+            "-DCMAKE_CONFIGURATION_TYPES=Debug;Release;MinSizeRel;RelWithDebInfo",
+        )
+
+    def test_syntax_prefix_installs_one_library_per_configuration(self) -> None:
+        # A multi-configuration generator builds and installs KSyntaxHighlighting
+        # once per configuration into one prefix. Without a per-configuration
+        # postfix every install wrote the same library name, so the last one
+        # won and a Debug application linked a release-runtime library
+        # (BPR-0429). This reads the installed exports of the configured build
+        # and requires each configuration to name its own library. On a
+        # single-configuration tree there is one export and nothing to compare.
+        exports = sorted(
+            BUILD_DIR.glob(
+                "_bpr/ksyntaxhighlighting/*/prefix/lib/cmake/KF6SyntaxHighlighting/"
+                "KF6SyntaxHighlightingTargets-*.cmake"
+            )
+        )
+        if len(exports) < 2:
+            self.skipTest(
+                "fewer than two installed KSyntaxHighlighting configurations: "
+                "not a multi-configuration tree"
+            )
+        locations: dict[str, str] = {}
+        for export in exports:
+            text = export.read_text(encoding="utf-8")
+            match = re.search(
+                r'IMPORTED_LOCATION_(?P<config>[A-Z]+) "(?P<location>[^"]+)"', text
+            )
+            self.assertIsNotNone(match, export)
+            assert match is not None
+            locations[match.group("config")] = match.group("location")
+        self.assertEqual(
+            len(set(locations.values())),
+            len(locations),
+            f"configurations share an installed library: {locations!r}",
+        )
 
     def test_configured_dependency_audit_uses_supported_providers(self) -> None:
         audit = BUILD_DIR / "_bpr/product-dependency-audit.cmake"
@@ -665,9 +787,13 @@ class DependencyModernizationTests(unittest.TestCase):
                 entry for entry in commands if entry["file"].endswith("sqlite3.c")
             ]
             self.assertEqual(len(sqlite_commands), 1)
-            command = sqlite_commands[0]["command"]
+            # MSVC's line spells the staged include with backslashes and
+            # `-external:I`; the property is the directory on the include
+            # path, not the separator, so both are compared with one spelling
+            # (BPR-0426).
+            command = sqlite_commands[0]["command"].replace("\\", "/")
             self.assertIn("_bpr/sqlite/3.53.4", command)
-            self.assertNotIn(str(cache / "bprsqlite"), command)
+            self.assertNotIn((cache / "bprsqlite").as_posix(), command)
 
     def test_sqlite_staging_rejects_unexpected_generated_entries(self) -> None:
         with contained_temporary_directory() as temporary_directory:
@@ -769,10 +895,14 @@ class DependencyModernizationTests(unittest.TestCase):
             provider = (ROOT / "cmake/BprSQLiteProvider.cmake").read_text(
                 encoding="utf-8"
             )
+            # A local path, not a `file://` URI: ExternalProject strips the
+            # scheme and keeps the leading slash, which on Windows leaves
+            # `/C:/...` and "File not found" instead of the hash check this
+            # test exists for (BPR-0426).
             provider = provider.replace(
                 "https://sqlite.org/2026/sqlite-amalgamation-"
                 "${BPR_SQLITE_SOURCE_NUMBER}.zip",
-                corrupt_archive.as_uri(),
+                corrupt_archive.as_posix(),
             )
             (provider_directory / "BprSQLiteProvider.cmake").write_text(
                 provider,

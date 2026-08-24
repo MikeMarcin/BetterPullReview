@@ -1,7 +1,7 @@
 ---
 id: BPR-0350
 title: Owner-private temporary roots are unusable inside an AppContainer
-status: Ready
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0347, BPR-0360]
 ---
@@ -178,3 +178,37 @@ original defect meanwhile, which is where it started.
 
 `scripts/build_recorded_pull_request_pack.py` has no such boundary and keeps the
 conversion.
+
+## The third criterion, closed by the matrix — 2026-08-22
+
+This card stayed open on one sentence: that the seventeen tests [[BPR-0347]]
+grouped as "an owner-private temporary directory cannot be used inside an
+AppContainer" all pass on Windows. [[BPR-0347]]'s own correction says the
+seventeen were a symptom group rather than a cause, and the four causes
+underneath have since each closed on their own card: the ancestor denial
+([[BPR-0362]], answered by registering the nine tests a lowbox cannot serve
+uncontained, pinned by cause), the product's descriptor ([[BPR-0360]],
+proven contained through the product's own validator), the MSVC symbol
+reader ([[BPR-0361]]), and the preset contract ([[BPR-0363]]).
+
+What is left to say is whether any test still fails for *this* card's cause,
+and the fresh run answers it. The contained `core-only` matrix on the host
+reads **87 of 89** at `c254f4b`, and neither remaining failure is a temporary-root failure:
+`sqlite_epoch_catalog_storage_contract` stops at a retention assertion
+([[BPR-0425]]) and `dependency_modernization_contract` at five POSIX-shaped
+assertions ([[BPR-0426]]), both reproduced uncontained. No test in the suite
+reports `PermissionError` on a directory it just created, which is the
+symptom this card was opened on.
+
+Both halves this card implemented are unchanged and still load-bearing:
+`scripts/contained_temporary_support.py` is what every contained Python test
+creates its scratch through, and `contained_temporary_usage_contract` — which
+[[BPR-0422]] had to satisfy this very day — keeps it that way; the helper's
+container-aware DACL in `platform_test_support.hpp` is the precedent
+[[BPR-0360]] mirrored in the product.
+
+The `dif_assets_contract` conversion this card reverted stays reverted, and
+that test passes contained, as [[BPR-0347]] recorded.
+
+Done, with the criterion met by the measured suite rather than by the
+seventeen names, which no longer describe a cause.

@@ -110,8 +110,18 @@ def port_implementations(root: pathlib.Path) -> set[str]:
 
 
 def forbidden_symbols_in(table: str) -> list[str]:
-    """Lines of a demangled symbol table naming the live provider."""
-    return [line.strip() for line in table.splitlines() if FORBIDDEN_SYMBOL in line]
+    """Lines of a symbol table naming the live provider.
+
+    `dumpbin` prefaces every object's table with `Dump of file <path>`, and a
+    test object named for the provider it tests carries the forbidden name in
+    that path without defining a single symbol. Only record lines are
+    searched; the header that names the file is not a symbol (BPR-0431).
+    """
+    return [
+        line.strip()
+        for line in table.splitlines()
+        if FORBIDDEN_SYMBOL in line and not line.lstrip().startswith("Dump of file")
+    ]
 
 
 def construction_sites(root: pathlib.Path) -> set[str]:

@@ -24,3 +24,9 @@ depends_on: [BPR-0036, BPR-0311, BPR-0306]
 - This card's first target-native course is provenance for the unavailable
   selection; BPR-0309 reruns the same idempotent course at immutable final head
   after cross-platform simplification and documentation reconciliation.
+
+## Deferring — 2026-08-23
+
+The Windows session that cleared the rest of this lane checked this card's
+dependencies: they sit in `10-backlog/`, so nothing here can start. The
+card stays Ready, deferring, and is not part of the lane's completed set.

@@ -317,11 +317,23 @@ else()
     )
 endif()
 
+# WINDOWS_UNCONTAINED opts a test out of the Windows AppContainer, and only
+# there. A lowbox token cannot translate a volume device into a drive letter,
+# cannot run a batch file through cmd.exe, and cannot give ninja its named
+# pipe, because the objects involved - the `\GLOBAL??\C:` link, the
+# mount-point manager, the volume device, the pipe namespace - carry no
+# application-package grant and no directory ACL can reach them (BPR-0362).
+# A test that needs one of those runs without the launcher on Windows,
+# labelled `bpr_windows_uncontained` instead of `bpr_network_isolated`, and
+# `scripts/verify_test_network_isolation.py` pins the exact set with each
+# member's measured cause, so the exemption can neither grow quietly nor
+# outlive its reason. On macOS and Linux the keyword changes nothing: those
+# boundaries leave all three intact and the test stays contained.
 function(bpr_add_network_isolated_test)
     cmake_parse_arguments(
         PARSE_ARGV 0
         bpr_test
-        "COMMAND_EXPAND_LISTS;UNRELATED_ENDPOINT_PROBE"
+        "COMMAND_EXPAND_LISTS;UNRELATED_ENDPOINT_PROBE;WINDOWS_UNCONTAINED"
         "NAME;WORKING_DIRECTORY;LOOPBACK_PORT_COUNT"
         "COMMAND;CONFIGURATIONS"
     )
@@ -400,6 +412,14 @@ function(bpr_add_network_isolated_test)
     else()
         set(bpr_isolation_prefix ${BPR_AUTOMATED_TEST_ISOLATION_PREFIX})
     endif()
+    set(bpr_isolation_label "bpr_network_isolated")
+    if(
+        bpr_test_WINDOWS_UNCONTAINED
+        AND BPR_AUTOMATED_TEST_ISOLATION_BACKEND STREQUAL "windows-appcontainer"
+    )
+        set(bpr_isolation_prefix "")
+        set(bpr_isolation_label "bpr_windows_uncontained")
+    endif()
 
     add_test(
         NAME "${bpr_test_NAME}"
@@ -412,7 +432,7 @@ function(bpr_add_network_isolated_test)
     set_property(
         TEST "${bpr_test_NAME}"
         APPEND
-        PROPERTY LABELS "bpr_network_isolated"
+        PROPERTY LABELS "${bpr_isolation_label}"
     )
     set_property(
         TEST "${bpr_test_NAME}"
@@ -439,6 +459,30 @@ function(bpr_add_network_isolated_test)
             "LD_DEBUG=unset:"
             "LD_PROFILE=unset:"
     )
+    # A Windows loader finds a shared Qt only on PATH: nothing deploys the
+    # DLLs beside the executables, and unlike a Mach-O or ELF link the import
+    # libraries carry no runtime path. The provider resolves Qt outside the
+    # build tree, so the directory of Qt6::Core's DLL is prepended for every
+    # test, contained or not; the launcher hands its environment to the child
+    # unchanged, and the isolation setup already grants that prefix to the
+    # container. Without this every Qt-linked test exits before main with
+    # STATUS_DLL_NOT_FOUND (BPR-0430).
+    if(WIN32 AND TARGET Qt6::Core)
+        # Qt ships no fonts, and the offscreen platform every contract runs
+        # under has no fontconfig here: without a font directory QFontDatabase
+        # writes "Cannot find font directory …/lib/fonts" to stderr of every
+        # Qt GUI process, which the contracts that read stderr take for a
+        # failure of their own. The Windows font directory is readable from
+        # inside the container as well (BPR-0412).
+        file(TO_CMAKE_PATH "$ENV{WINDIR}" bpr_windows_directory)
+        set_property(
+            TEST "${bpr_test_NAME}"
+            APPEND
+            PROPERTY ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
+                "QT_QPA_FONTDIR=set:${bpr_windows_directory}/Fonts"
+        )
+    endif()
     if(bpr_test_LOOPBACK_PORT_COUNT GREATER 0)
         set_property(
             TEST "${bpr_test_NAME}"

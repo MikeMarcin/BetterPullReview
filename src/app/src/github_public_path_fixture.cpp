@@ -2,6 +2,8 @@
 
 #include "github_capability_probe.hpp"
 #include "github_read_contract.hpp"
+
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "github_wire_transport.hpp"
 
 #include "bpr/application/git_smart_transport_port.hpp"
@@ -1275,12 +1277,9 @@ namespace bpr::app::detail {
 				std::error_code error;
 				static_cast<void>(std::filesystem::create_directories(
 					ApplicationDataRoot, error));
-				std::filesystem::permissions(
-					ApplicationDataRoot,
-					std::filesystem::perms::owner_all,
-					std::filesystem::perm_options::replace,
-					error);
-				if (error) {
+				if (error
+					|| !adapters::sqlite::make_storage_root_owner_private(
+						ApplicationDataRoot)) {
 					throw std::runtime_error{
 						"GitHub public-path application data is unavailable"
 					};
@@ -1310,6 +1309,23 @@ namespace bpr::app::detail {
 			if (ApplicationDataRoot.empty()) {
 				throw std::runtime_error{
 					"GitHub public-path installed Git is unavailable"
+				};
+			}
+			// A QTemporaryDir carries the entries its parent grants; the stores
+			// refuse that, so it is narrowed the way every other root is
+			// (BPR-0436).
+			if (!adapters::sqlite::make_storage_root_owner_private(ApplicationDataRoot)) {
+				throw std::runtime_error{
+					"GitHub public-path application data is unavailable"
+				};
+			}
+			// The Git cache accepts a root only in its canonical native
+			// spelling; Qt's forward slashes are not that on Windows.
+			std::error_code canonicalError;
+			ApplicationDataRoot = std::filesystem::canonical(ApplicationDataRoot, canonicalError);
+			if (canonicalError) {
+				throw std::runtime_error{
+					"GitHub public-path application data is unavailable"
 				};
 			}
 		}

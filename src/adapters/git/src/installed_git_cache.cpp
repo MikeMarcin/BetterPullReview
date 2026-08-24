@@ -262,10 +262,33 @@ namespace bpr::adapters::git {
 				&& information.st_nlink == 1
 				&& (information.st_mode & (S_IRWXG | S_IRWXO)) == 0;
 #elif defined(Q_OS_WIN)
-			const auto attributes = GetFileAttributesW(aPath.c_str());
-			return attributes != INVALID_FILE_ATTRIBUTES
-				&& (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0U
-				&& (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0U;
+			// Attributes alone cannot see a hard link: the POSIX rule above
+			// requires exactly one name (st_nlink == 1), and NTFS answers the
+			// same question through the open handle. Attribute-only access is
+			// exempt from sharing checks, so a spool the sink still holds is
+			// still inspectable (BPR-0437).
+			const auto handle = CreateFileW(
+				aPath.c_str(),
+				FILE_READ_ATTRIBUTES,
+				FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+				nullptr,
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT,
+				nullptr);
+			if (handle == INVALID_HANDLE_VALUE) {
+				return false;
+			}
+			BY_HANDLE_FILE_INFORMATION information{ };
+			const auto                 valid
+				= GetFileInformationByHandle(handle, &information) != 0;
+			static_cast<void>(CloseHandle(handle));
+			return valid
+				&& (information.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+				== 0U
+				&& (information.dwFileAttributes
+					& FILE_ATTRIBUTE_REPARSE_POINT)
+				== 0U
+				&& information.nNumberOfLinks == 1U;
 #else
 			return false;
 #endif
@@ -403,8 +426,7 @@ namespace bpr::adapters::git {
 					   && status.type()
 						   == std::filesystem::file_type::not_found)
 				|| error
-				== std::make_error_code(
-					   std::errc::no_such_file_or_directory);
+				== std::errc::no_such_file_or_directory;
 		}
 
 		[[nodiscard]] auto make_private_directory(
@@ -1828,10 +1850,16 @@ namespace bpr::adapters::git {
 					S_IRUSR | S_IWUSR);
 				return Descriptor >= 0;
 #elif defined(Q_OS_WIN)
+				// FILE_SHARE_DELETE and nothing else: the receiving spool
+				// lives in an owner-private directory, so only this user can
+				// reach it, and an abort while the sink is still open renames
+				// and unlinks the file — legal on Windows only when the open
+				// handle shares deletion, which is what POSIX gives an open
+				// descriptor for free (BPR-0437).
 				Handle = CreateFileW(
 					aPath.c_str(),
 					GENERIC_WRITE,
-					0U,
+					FILE_SHARE_DELETE,
 					nullptr,
 					CREATE_NEW,
 					FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT

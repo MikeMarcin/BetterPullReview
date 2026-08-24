@@ -2,6 +2,7 @@
 #include "review_mutation_provider_admission.hpp"
 
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
 
 #include <algorithm>
@@ -1133,6 +1134,11 @@ namespace {
 auto main(const int aCount, char** aValues) -> int
 {
 	if (aCount == 3 && std::string_view{ aValues[1] } == "--write-unresolved") {
+		// The recovery store refuses a root another local principal can
+		// reach; the temporary root the driver hands over is private by mode
+		// on POSIX and only by this call on Windows (BPR-0436).
+		expect(bpr::adapters::sqlite::make_storage_root_owner_private(aValues[2]),
+			   "narrow the restart fixture root to owner-private");
 		write_unresolved_restart_fixture(aValues[2]);
 		return EXIT_SUCCESS;
 	}
@@ -1141,6 +1147,8 @@ auto main(const int aCount, char** aValues) -> int
 		return EXIT_SUCCESS;
 	}
 	if (aCount == 3 && std::string_view{ aValues[1] } == "--write-prepared-crash") {
+		expect(bpr::adapters::sqlite::make_storage_root_owner_private(aValues[2]),
+			   "narrow the prepared-crash fixture root to owner-private");
 		write_prepared_crash_fixture(aValues[2]);
 	}
 	if (aCount == 3 && std::string_view{ aValues[1] } == "--recover-prepared") {

@@ -180,9 +180,30 @@ namespace {
 			if (aArguments.size() != exactArgumentCount) {
 				return 92;
 			}
-			if (
-				!exact_environment_matches(aArguments.at(5), aArguments)
-				|| QDir::current().canonicalPath() != aArguments.at(6)) {
+			// The parent sees only "ok" or not, so the member that differed is
+			// written beside the working directory the parent chose, where the
+			// parent prints it on failure (BPR-0438).
+			const auto record = [&aArguments](const QString& aReason) {
+				QFile file{ QDir{ aArguments.at(6) }.filePath(
+					QStringLiteral("exact-boundary.txt")) };
+				if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+					return;
+				}
+				auto text = aReason + QStringLiteral("\ncwd=")
+					+ QDir::current().canonicalPath() + QStringLiteral("\n");
+				const auto environment = QProcessEnvironment::systemEnvironment();
+				for (const auto& name : environment.keys()) {
+					text += name + QStringLiteral("=") + environment.value(name)
+						+ QStringLiteral("\n");
+				}
+				file.write(text.toUtf8());
+			};
+			if (!exact_environment_matches(aArguments.at(5), aArguments)) {
+				record(QStringLiteral("environment differs"));
+				return 93;
+			}
+			if (QDir::current().canonicalPath() != aArguments.at(6)) {
+				record(QStringLiteral("working directory differs"));
 				return 93;
 			}
 
@@ -195,6 +216,11 @@ namespace {
 				aArguments.at(3) != QStringLiteral("alpha")
 				|| aArguments.at(4) != QStringLiteral("beta")
 				|| input != expected) {
+				record(
+					QStringLiteral("argv or stdin differs: argv=")
+					+ aArguments.join(QStringLiteral("|"))
+					+ QStringLiteral(" stdin_bytes=")
+					+ QString::number(input.size()));
 				return 94;
 			}
 			std::cout << "ok";
@@ -269,8 +295,12 @@ namespace {
 			static_cast<void>(::kill(::getpid(), SIGKILL));
 			return 97;
 #elif defined(_WIN32)
+			// Qt reports a Windows child as crashed only when its exit code
+			// is an NTSTATUS failure; 137 is an ordinary exit here, and the
+			// runner rightly reported it as one. STATUS_ACCESS_VIOLATION is
+			// what an actual fault would leave (BPR-0438).
 			static_cast<void>(
-				TerminateProcess(GetCurrentProcess(), 137U));
+				TerminateProcess(GetCurrentProcess(), 0xC0000005U));
 			return 97;
 #else
 			return 97;
@@ -491,6 +521,18 @@ namespace {
 		const auto runner = make_github_cli_process_runner();
 		const auto result = runner->run(request, { });
 		static_cast<void>(qunsetenv(unknownName.constData()));
+		if (!result.has_value() || result->StandardOutput != "ok") {
+			// The child records which member differed and what it saw; name
+			// it before failing rather than reporting the four as a set.
+			QFile recorded{ directory.filePath(QStringLiteral("exact-boundary.txt")) };
+			if (recorded.open(QIODevice::ReadOnly)) {
+				std::cerr << "exact process boundary differed:\n"
+						  << recorded.readAll().toStdString() << '\n';
+			} else if (!result.has_value()) {
+				std::cerr << "exact process boundary run failed with code "
+						  << static_cast<unsigned int>(result.error()) << '\n';
+			}
+		}
 
 		expect(
 			result.has_value() && result->StandardOutput == "ok",
