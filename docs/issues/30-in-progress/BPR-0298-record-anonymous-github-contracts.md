@@ -1,10 +1,9 @@
 ---
 id: BPR-0298
 title: Record anonymous GitHub service contracts
-status: Parked
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: [BPR-0297, BPR-0405]
-parked_on: awaiting-live-github
 ---
 
 # Record anonymous GitHub service contracts
@@ -100,3 +99,24 @@ absent the capture records a 404 and the target should be replaced with a public
 pull request of the operator's choosing — which changes the authority digest,
 and therefore invalidates any capture already taken under the old one. That is
 the mechanism working.
+
+## The checkpoint is presented — 2026-08-23
+
+A Windows session with the operator present picked this card up from
+`40-parked/` to run its attended checkpoint. Preparation, all unattended:
+
+- The packet's bound-evidence row for the test file was stale: done
+  [[BPR-0422]] moved the tests from `tempfile` to the contained temporary
+  support after the packet was authored. The row was re-bound to the live
+  `sha256:840db7fa…` (13,862 bytes) before any decision was requested; the
+  recorder script itself is byte-identical to the packet's original binding.
+- The recorder's 36 hermetic tests pass on this host (Python 3.14.6).
+- `course-manifest.json` now binds the refreshed packet and names the five
+  authorized courses with their expected statuses: `rate-limit` 200,
+  `graphql-refusal` 401, `absent-not-disclosed` 404, `pull-request` 200,
+  `pull-request-comments` 200. A different live status on the two
+  pull-request targets records honestly, fails `--validate-existing`, and
+  reopens the target choice per the packet's own text.
+
+The operator's exact statement remains the only authority that can start
+traffic; nothing above changes that.

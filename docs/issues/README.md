@@ -739,7 +739,7 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
 | BPR-0256 | `40-parked/` | A publicly observable designated GitHub target. The owner approved v004 exactly, but its lane failed closed before GUI creation; v004 must not be retried |
 | BPR-0276 | `40-parked/` | Owner direction authorizing one recovery poll, then a real GitHub call |
-| BPR-0298 | `40-parked/` | The operator's exact statement on the RFC-0017 probe packet, then five credential-free requests |
+| BPR-0298 | `30-in-progress/` | The operator's exact statement, being requested in the live session that claimed this card; then five credential-free requests |
 
 This table had drifted and is corrected above rather than quietly patched. It
 listed BPR-0262 as a `20-ready/` root; that card is in `60-done/`. BPR-0220 was
