@@ -1,10 +1,9 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Parked
+status: Ready
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263]
-parked_on: awaiting-live-github
 ---
 
 # Build the attended one-shot live application lane
@@ -699,3 +698,32 @@ check for, because the gate that would catch it deliberately skips answered
 packets. That is the right gate; this is the missing habit beside it. A repair
 that touches a file an answered packet binds should say so on the parked card
 at the time, not leave it to be discovered.
+
+## The designated target is public — 2026-08-23
+
+Recorded verbatim:
+
+> I have made BPR-Test public
+
+The direction was verified immediately with the same bounded diagnostic the
+v004 abort recorded, one credential-free redirect-free GET of
+`https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1`:
+
+- HTTP 200 with `base.repo.private: false` — the observation gate's 404
+  cause is gone;
+- PR 1 is open, base `main` at
+  `e2a44aa8fef704de7373463222b1872e796918c6`;
+- head `codex/disposable-live-review-20260810` at
+  `17990ba0c2fb50338141f35c0717f0f99639c7ba` — byte-identical to the head
+  the v004 approval bound, so the target has not drifted since the owner's
+  decision. The v005 subject re-binds the current head regardless.
+
+So the live-service half of `awaiting-live-github` is answered, and what is
+in front of this card now is a platform, which is a lane. The next actions
+are unattended macOS work — the v005 regeneration from committed source
+(three bound sources moved since v004; see the drift note above) and a
+fresh capability-critical review — followed by the terminal new exact
+operator decision. The card moves to `22-ready-mac/`. v004 remains aborted
+and must not be retried; no approval file exists, no credential was
+accessed, and no mutation was submitted today — the diagnostic was
+read-only.
