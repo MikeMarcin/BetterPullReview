@@ -334,6 +334,7 @@ foreach(
     IN ITEMS
         positive
         construction-cut
+        launcher-construction-cut
         gesture-cut
         cancellation
         staleness

@@ -102,6 +102,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cerrno>
 #include <cmath>
 #include <cstddef>
@@ -155,6 +156,43 @@ namespace bpr::app {
 		inline constexpr auto designated_review_name     = std::string_view{ "BPR-Test" };
 
 #if defined(BPR_BUILD_TESTING)
+		/// \brief Observes the real composed launcher without replacing its effect.
+		class composition_agent_process_launcher_probe final
+			: public application::agent_process_port
+		{
+		public:
+			explicit composition_agent_process_launcher_probe(
+				adapters::agent::agent_process_launcher& aLauncher) noexcept
+				: Launcher{ aLauncher }
+			{
+			}
+
+			[[nodiscard]] auto run(
+				const application::agent_launch_request& aRequest,
+				const int                                aTimeoutMilliseconds,
+				const application::agent_output_sink&    aSink = { },
+				const std::stop_token                    aStop = { })
+				-> application::agent_run_result override
+			{
+				Invocations.fetch_add(1U, std::memory_order_relaxed);
+				return Launcher.run(aRequest, aTimeoutMilliseconds, aSink, aStop);
+			}
+
+			void cancel() noexcept override
+			{
+				Launcher.cancel();
+			}
+
+			[[nodiscard]] auto invocations() const noexcept -> std::size_t
+			{
+				return Invocations.load(std::memory_order_relaxed);
+			}
+
+		private:
+			adapters::agent::agent_process_launcher& Launcher;
+			std::atomic_size_t                       Invocations = 0U;
+		};
+
 		/// Holds only review-mutation terminals for deterministic fixture races.
 		class gated_review_mutation_decision_executor final
 			: public application::decision_executor
@@ -1870,6 +1908,8 @@ namespace bpr::app {
 					= aFixtureOptions.DisableNotificationRequestWire;
 				DisableNotificationSelectionWire
 					= aFixtureOptions.DisableNotificationSelectionWire;
+				DisableAgentProcessLauncherComposition
+					= aFixtureOptions.DisableAgentProcessLauncherComposition;
 				DisableAgentHostComposition
 					= aFixtureOptions.DisableAgentHostComposition;
 				DisableAgentGestureWire
@@ -2231,9 +2271,19 @@ namespace bpr::app {
 				}
 			}
 #endif
-			AgentProcess = std::make_unique<adapters::agent::agent_process_launcher>();
 #if defined(BPR_BUILD_TESTING)
-			if (!DisableAgentHostComposition)
+			if (!DisableAgentProcessLauncherComposition) {
+#endif
+				AgentProcess
+					= std::make_unique<adapters::agent::agent_process_launcher>();
+#if defined(BPR_BUILD_TESTING)
+			}
+			if (AgentProcess != nullptr) {
+				AgentProcessProbe
+					= std::make_unique<composition_agent_process_launcher_probe>(
+						*AgentProcess);
+			}
+			if (!DisableAgentHostComposition && AgentProcessProbe != nullptr)
 #endif
 			{
 				AgentHost = std::make_unique<application::agent_invocation_host>(
@@ -2249,7 +2299,11 @@ namespace bpr::app {
 					agentWorkspacePath,
 					*this,
 					*EpochHost,
+#if defined(BPR_BUILD_TESTING)
+					*AgentProcessProbe,
+#else
 					*AgentProcess,
+#endif
 					[](const std::string& aName) -> std::optional<std::string> {
 						if (!qEnvironmentVariableIsSet(aName.c_str())) {
 							return std::nullopt;
@@ -4862,11 +4916,12 @@ namespace bpr::app {
 		std::size_t                                   SelectedDiffFailures      = 0U;
 		std::optional<application::workbench_selected_diff_publication>
 											 LastSelectedDiff;
-		std::size_t                          FixtureDiffHelperInvocations   = 0U;
-		bool                                 DisableWorkbenchSelectionWire  = false;
-		bool                                 DisableReviewLedgerGestureWire = false;
-		bool                                 DisableAgentHostComposition    = false;
-		bool                                 DisableAgentGestureWire        = false;
+		std::size_t                          FixtureDiffHelperInvocations           = 0U;
+		bool                                 DisableWorkbenchSelectionWire          = false;
+		bool                                 DisableReviewLedgerGestureWire         = false;
+		bool                                 DisableAgentProcessLauncherComposition = false;
+		bool                                 DisableAgentHostComposition            = false;
+		bool                                 DisableAgentGestureWire                = false;
 		std::optional<std::filesystem::path> ExternalAgentExecutable;
 		bool                                 ReviewLedgerWasPresentOnEntry     = false;
 		bool                                 ReviewLedgerRoundTripPassed       = false;
@@ -4933,8 +4988,11 @@ namespace bpr::app {
 		std::unique_ptr<application::epoch_application_host>           EpochHost;
 		std::unique_ptr<QTemporaryDir>                                 AgentWorkspaceRoot;
 		std::optional<adapters::git::installed_agent_workspace_parent>
-																		AgentWorkspaceParent;
-		std::unique_ptr<adapters::agent::agent_process_launcher>        AgentProcess;
+																 AgentWorkspaceParent;
+		std::unique_ptr<adapters::agent::agent_process_launcher> AgentProcess;
+#if defined(BPR_BUILD_TESTING)
+		std::unique_ptr<composition_agent_process_launcher_probe> AgentProcessProbe;
+#endif
 		std::unique_ptr<application::agent_invocation_host>             AgentHost;
 		std::unique_ptr<composition_diff_projection>                    DiffProjections;
 		std::unique_ptr<application::diff_application_host>             DiffHost;
@@ -10391,6 +10449,11 @@ namespace bpr::app {
 			return { };
 		}
 		return {
+			.AgentProcessLauncherComposed = implementation->AgentProcess != nullptr,
+			.AgentProcessLauncherInvocations
+			= implementation->AgentProcessProbe != nullptr
+				? implementation->AgentProcessProbe->invocations()
+				: 0U,
 			.HostComposed = implementation->AgentHost != nullptr,
 			.Quiescent    = implementation->AgentHost == nullptr
 				|| implementation->AgentHost->is_quiescent(),

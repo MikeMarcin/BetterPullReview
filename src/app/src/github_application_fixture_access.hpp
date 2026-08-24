@@ -46,16 +46,17 @@ namespace bpr::app::detail {
 	struct github_public_path_fixture_options
 	{
 		std::optional<std::filesystem::path> ApplicationDataRoot;
-		github_epoch_fixture_phase           EpochPhase                       = github_epoch_fixture_phase::single;
-		bool                                 DisableWorkbenchSelectionWire    = false;
-		bool                                 DisableReviewLedgerGestureWire   = false;
-		bool                                 LoseFirstReviewMutationResult    = false;
-		bool                                 UseGrantedNotificationSink       = false;
-		bool                                 CaptureSystemNotificationDisplay = false;
-		bool                                 DisableNotificationRequestWire   = false;
-		bool                                 DisableNotificationSelectionWire = false;
-		bool                                 DisableAgentHostComposition      = false;
-		bool                                 DisableAgentGestureWire          = false;
+		github_epoch_fixture_phase           EpochPhase                             = github_epoch_fixture_phase::single;
+		bool                                 DisableWorkbenchSelectionWire          = false;
+		bool                                 DisableReviewLedgerGestureWire         = false;
+		bool                                 LoseFirstReviewMutationResult          = false;
+		bool                                 UseGrantedNotificationSink             = false;
+		bool                                 CaptureSystemNotificationDisplay       = false;
+		bool                                 DisableNotificationRequestWire         = false;
+		bool                                 DisableNotificationSelectionWire       = false;
+		bool                                 DisableAgentProcessLauncherComposition = false;
+		bool                                 DisableAgentHostComposition            = false;
+		bool                                 DisableAgentGestureWire                = false;
 		std::optional<std::filesystem::path> ExternalAgentExecutable;
 		std::optional<std::filesystem::path> GitExecutable;
 	};
@@ -253,8 +254,10 @@ namespace bpr::app::detail {
 
 	struct agent_invocation_composition_evidence
 	{
-		bool                                          HostComposed = false;
-		bool                                          Quiescent    = false;
+		bool                                          AgentProcessLauncherComposed    = false;
+		std::size_t                                   AgentProcessLauncherInvocations = 0U;
+		bool                                          HostComposed                    = false;
+		bool                                          Quiescent                       = false;
 		application::agent_invocation_host_statistics Statistics;
 		std::filesystem::path                         WorkspaceRoot;
 

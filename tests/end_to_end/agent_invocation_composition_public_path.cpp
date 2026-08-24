@@ -463,6 +463,16 @@ namespace {
 			});
 		});
 	}
+
+	[[nodiscard]] auto exact_agent_process_launcher_path(
+		const app::detail::agent_invocation_composition_evidence& aEvidence,
+		const bool                                                aStartGestureObserved) noexcept -> bool
+	{
+		return aEvidence.AgentProcessLauncherComposed
+			&& aEvidence.HostComposed && aStartGestureObserved
+			&& aEvidence.AgentProcessLauncherInvocations == 1U
+			&& aEvidence.Statistics.ProcessStarts == 1U;
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -481,6 +491,7 @@ auto main(int argc, char** argv) -> int
 	}
 	if (course != "positive" && course != "positive-seed"
 		&& course != "positive-reopen" && course != "construction-cut"
+		&& course != "launcher-construction-cut"
 		&& course != "gesture-cut" && course != "cancellation"
 		&& course != "staleness" && course != "cleanup-retry"
 		&& !workspaceDiagnostic) {
@@ -570,8 +581,10 @@ auto main(int argc, char** argv) -> int
 	auto application = app::detail::github_application_fixture_access::make(
 		app::detail::github_public_path_fixture::github_com,
 		{
-			.ApplicationDataRoot         = dataRoot,
-			.EpochPhase                  = app::detail::github_epoch_fixture_phase::single,
+			.ApplicationDataRoot = dataRoot,
+			.EpochPhase          = app::detail::github_epoch_fixture_phase::single,
+			.DisableAgentProcessLauncherComposition
+			= course == "launcher-construction-cut",
 			.DisableAgentHostComposition = course == "construction-cut",
 			.DisableAgentGestureWire     = course == "gesture-cut",
 			.ExternalAgentExecutable     = externalExecutable,
@@ -598,7 +611,7 @@ auto main(int argc, char** argv) -> int
 	window.github_open_action()->trigger();
 
 	auto* const panel = window.agent_panel();
-	if (course == "construction-cut") {
+	if (course == "construction-cut" || course == "launcher-construction-cut") {
 		auto opened = wait_terms{ };
 		if (!wait_until_reporting(opened, [&window](wait_terms& aTerms) {
 				return aTerms.require(
@@ -614,15 +627,23 @@ auto main(int argc, char** argv) -> int
 		QApplication::processEvents();
 		const auto evidence = app::detail::github_application_fixture_access::
 			agent_invocation_evidence(*application);
-		const auto passed = !evidence.HostComposed
-			&& panel->statistics().StartIntents == 1U
-			&& evidence.Statistics.CoreDecisions == 0U
-			&& evidence.Statistics.WorkspaceStarts == 0U
-			&& evidence.Statistics.ProcessStarts == 0U;
+		const auto startGestureObserved
+			= panel->statistics().StartIntents == 1U;
+		const auto launcherPathExact = exact_agent_process_launcher_path(
+			evidence, startGestureObserved);
+		const auto sharedCutEvidence = !launcherPathExact
+			&& startGestureObserved
+			&& evidence.AgentProcessLauncherInvocations == 0U
+			&& !evidence.HostComposed
+			&& evidence.Statistics
+				== application::agent_invocation_host_statistics{ };
+		const auto passed = course == "launcher-construction-cut"
+			? sharedCutEvidence && !evidence.AgentProcessLauncherComposed
+			: sharedCutEvidence && evidence.AgentProcessLauncherComposed;
 		if (!shutdown(*application) || !passed) {
 			return EXIT_FAILURE;
 		}
-		std::cout << "agent-invocation-construction-cut:pass\n";
+		std::cout << "agent-invocation-" << course << ":pass\n";
 		return EXIT_SUCCESS;
 	}
 
@@ -1243,7 +1264,8 @@ auto main(int argc, char** argv) -> int
 			== "https://github.com/octo-org/review-repository/pull/17";
 	const auto containsForbiddenContext = actualFields.has_value()
 		&& contains_forbidden_context(*actualFields);
-	const auto exact = evidence.HostComposed
+	const auto exact = exact_agent_process_launcher_path(
+						   evidence, panel->statistics().StartIntents == 1U)
 		&& evidence.Quiescent
 		&& evidence.Statistics.CoreDecisions == 1U
 		&& evidence.Statistics.WorkspaceStarts == 1U
@@ -1281,6 +1303,9 @@ auto main(int argc, char** argv) -> int
 	if (!exact) {
 		std::cerr << "agent-exact-context-output:\n"
 				  << output << "\nagent-exact-context-evidence:"
+				  << evidence.AgentProcessLauncherComposed << ':'
+				  << evidence.AgentProcessLauncherInvocations << ':'
+				  << panel->statistics().StartIntents << ':'
 				  << evidence.Quiescent << ':'
 				  << evidence.Statistics.CoreDecisions << ':'
 				  << evidence.Statistics.WorkspaceStarts << ':'

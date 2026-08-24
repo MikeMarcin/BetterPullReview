@@ -63,7 +63,10 @@ configured agent remains a typed failed-to-start result.
   invocation evidence already exists in
   `tests/end_to_end/agent_invocation_composition_public_path.cpp`, which reaches
   `window.agent_panel()`, clicks `start_button()`, asserts
-  `StartIntents == 1U`, and carries a construction-cut negative. What remains on
-  this card is the launcher's own construction-and-invocation assertion, named
-  separately from its linked symbol — now split out as [[BPR-0420]] under the
-  owner's 2026-08-22 direction, because it is portable and this umbrella is not.
+  `StartIntents == 1U`, and carries a construction-cut negative. [[BPR-0420]]
+  now discharges the portable launcher half too: the same gesture reaches a
+  test-only probe that delegates one `run` to the real composed launcher, and a
+  distinct launcher-construction cut keeps the gesture observable while the
+  exact positive predicate stays false and all downstream effects stay zero.
+  This remains portable evidence only. The umbrella still waits on
+  [[BPR-0240]] for target-native Windows creation and descendant containment.
