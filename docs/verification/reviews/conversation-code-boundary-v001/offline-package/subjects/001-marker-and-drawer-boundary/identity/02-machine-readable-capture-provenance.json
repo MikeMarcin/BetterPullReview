@@ -1,0 +1,37 @@
+{
+  "schema_name": "bpr.capture_provenance",
+  "schema_version": 1,
+  "capture": {
+    "path": "captures/conversation-anchor.png",
+    "sha256": "17484447ab74712c00946ca5b28606dc94ed55af96c1b5c2d4faa639f624d5f6",
+    "pixel_width": 1280,
+    "pixel_height": 1000,
+    "device_pixel_ratio": 1.0
+  },
+  "producer": {
+    "implementation_commit": "8c7504dd80b28308d29e4d37254004ba3708821b",
+    "command": "ctest --preset dev --output-on-failure -R '^application_diff_workbench_public_path$'",
+    "test_name": "application_diff_workbench_public_path",
+    "network_policy": "registered-network-isolated-ctest-course",
+    "source_artifact": "build/dev/tests/end_to_end/diff-workbench-public-path.png",
+    "cmake_preset": "dev",
+    "build_configuration": "Debug",
+    "capture_date": "2026-08-24"
+  },
+  "environment": {
+    "operating_system": "macOS",
+    "operating_system_version": "15.7.7",
+    "architecture": "arm64",
+    "qt_version": "6.10.3",
+    "qt_platform": "offscreen",
+    "qt_style": "QFusionStyle"
+  },
+  "required_markers": [
+    "PUBLIC_PATH_OK",
+    "GITHUB_FIXTURE_OK:github.com",
+    "DIFF_WORKBENCH_OK",
+    "DIFF_INTERACTION_EVIDENCE_OK",
+    "CONVERSATION_ANCHOR_EVIDENCE_OK",
+    "RENDER_OK"
+  ]
+}

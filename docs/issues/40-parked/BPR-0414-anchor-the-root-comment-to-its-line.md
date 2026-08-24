@@ -1,9 +1,10 @@
 ---
 id: BPR-0414
 title: Anchor the root comment to the line of code it comments on
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191]
+parked_on: awaiting-owner-verdict
 ---
 
 # Anchor the root comment to the line of code it comments on
@@ -211,7 +212,7 @@ window. It emits `CONVERSATION_ANCHOR_EVIDENCE_OK`; the registered
 `application_diff_workbench_public_path` test requires that marker in its one
 contiguous status contract.
 
-The final capture and offline page will live at
+The final capture and offline page live at
 `docs/verification/reviews/conversation-code-boundary-v001/`. They ask exactly
 the question this card deferred: accept keeps comment prose in the drawer with
 the margin marker and selected-line band as the code indication; reject says
@@ -246,5 +247,30 @@ The whole-tree `coding-tidy` target also exposed one pre-existing diagnostic in
 untouched `src/app/src/designated_live_macos_capsule_identity.cpp:168`
 (`performance-inefficient-string-concatenation`), unchanged since BPR-0354.
 That unrelated baseline finding is not folded into this card; every touched
-translation unit passes warnings-as-errors analysis. Capture regeneration and
-the board move remain before this card can be parked for the attended verdict.
+translation unit passes warnings-as-errors analysis.
+
+## Parked for the owner verdict — 2026-08-24
+
+The registered network-isolated capture course passed again after the
+implementation commit, and the attended page was regenerated against exact
+commit `8c7504dd80b28308d29e4d37254004ba3708821b`. Capture provenance, the source
+review input, every copied subject artifact, and the exported-decision contract
+are digest-bound in batch
+`bpr:/attended-review/betterpullreview/ab6145717475dfdfddd6206d`.
+
+Open
+`docs/verification/reviews/conversation-code-boundary-v001/offline-package/index.html`,
+inspect the composed screenshot at native size, choose `Accept` or `Reject`, and
+export the complete JSON verdict. Return that file without editing it. Validate
+the returned export before recording any decision:
+
+```sh
+python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py \
+  validate-verdict \
+  --manifest docs/verification/reviews/conversation-code-boundary-v001/offline-package/attended-review-manifest.json \
+  --verdict /path/to/exported-verdict.json
+```
+
+Until that exact batch validates, this card is parked, no owner verdict is
+recorded, no inline-comment-body direction is authorized, and RFC-BPR-0005 is
+not closed.
