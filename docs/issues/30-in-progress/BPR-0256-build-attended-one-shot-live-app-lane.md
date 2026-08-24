@@ -1,7 +1,7 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263]
 ---
@@ -727,3 +727,18 @@ operator decision. The card moves to `22-ready-mac/`. v004 remains aborted
 and must not be retried; no approval file exists, no credential was
 accessed, and no mutation was submitted today — the diagnostic was
 read-only.
+
+## v005 regeneration claimed — 2026-08-24
+
+This macOS session claims only the unattended regeneration and review phase at
+committed base `1396457`. It will rebuild the tests-disabled Release capsule
+from the current 31-file source surface, create a new v005 source manifest,
+approval subject, and operator packet, replay the capsule/image, focused,
+documentation, and hygiene gates, and obtain a fresh capability-critical
+review. The card returns to `40-parked/` only if those exact v005 bytes are
+clean and the operator decision is the sole remainder.
+
+The live lane remains out of scope. This phase does not materialize an
+approval, access a credential, invoke the attended supervisor, issue a GitHub
+request, or submit a mutation. The answered and aborted v004 artifacts remain
+immutable history and must not be retried.
