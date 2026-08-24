@@ -897,3 +897,31 @@ pathname-based attach, and trusted generated-CTest-plan limits before the card
 can return to an operator-decision lane. No approval was materialized, no
 credential, public observation, or network was accessed, and no attended or
 remote mutation command ran.
+
+## v006 pending-candidate critical review clean — 2026-08-24
+
+Fresh capability-critical review accepted exact pending candidate `ae63649`
+and range `77ade3e..ae63649` as clean. The reviewer independently validated all
+37 source-manifest and 95 capsule-inventory entries, every checked-in and
+stored-image identity, the schema-3 approval subject, the unspent replay
+namespace, and the protected development executable. A separate 138-step
+offline tests-disabled Release build and mounted probe passed, as did 44/44
+capsule tests, 37/37 isolation tests, the focused 15/15 CTest matrix, both
+default and static-only opt-in manifest inspections, documentation, and diff
+hygiene.
+
+The fresh build retained the source, launcher, and supervisor identities but
+produced different application, derived inventory, and DMG bytes. The review
+localized that drift to Mach-O UUID/signature bytes and reordered semantically
+identical resources and accepted the packet's exact-stored-artifact boundary;
+v006 makes no reproducible-build claim. The review also retained one additional
+high-risk non-blocker: synchronous `hdiutil` attach/detach calls have no
+independent subprocess timeout, so a genuinely stalled DiskImages process is
+outside the tested 1,500-second post-attach stage-one cleanup bound.
+
+The operator-decision revision now discloses that fourth limit and records the
+first review. Those prose changes create new packet bytes. This card therefore
+remains `30-in-progress/`, accepts no operator response yet, and requires one
+fresh capability-critical review of the exact final packet before it can park
+on an owner decision. No approval, credential, attended launch, public
+observation, network request, GitHub interaction, or mutation occurred.

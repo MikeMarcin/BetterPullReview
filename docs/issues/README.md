@@ -580,11 +580,13 @@ cleanup, post-child revalidation, and ordinary detach. [[BPR-0256]] now has a
 complete pending v006 candidate: source manifest `4f5a9d57…faf36fc`, exact
 stored image `2601e223…f72fb`, launcher `b969b90a…98da05`, and approval subject
 `984a1ab0…c1bd`. Its fresh Release probe and safe local matrices pass, and its
-static opt-in graph was inspected without execution. The packet remains
-non-authoritative until exact-byte capability-critical review is clean. The
-operator approved the narrowed replay and authenticated-containment designs
-for implementation and hermetic verification only; no live or package
-authority was granted. BPR-0261 is now in `60-done/`: one
+static opt-in graph was inspected without execution. Exact pending-candidate
+review of `ae63649` is clean. That review added an explicit fourth operational
+limit—the lack of an independent `hdiutil` subprocess timeout—so the resulting
+operator-decision packet bytes are undergoing one final fresh review and remain
+non-authoritative. The operator approved the narrowed replay and
+authenticated-containment designs for implementation and hermetic verification
+only; no live or package authority was granted. BPR-0261 is now in `60-done/`: one
 explicit owner-private replay namespace carries approval identity, reset is an
 operator command rather than a startup fallback, and the spend barrier is
 `F_FULLFSYNC` after capability-critical review showed bare `fsync` could not

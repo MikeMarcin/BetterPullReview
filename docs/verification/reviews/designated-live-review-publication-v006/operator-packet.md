@@ -1,6 +1,7 @@
 # Designated one-shot live review publication operator packet
 
-Status: **PENDING CAPABILITY-CRITICAL REVIEW; do not run or approve**
+Status: **PENDING EXACT OPERATOR DECISION**; not approval of another build,
+image, retry, credential, or mutation.
 
 This v006 packet is the complete current-source successor to immutable
 invalidated [v005](../designated-live-review-publication-v005/operator-packet.md).
@@ -58,8 +59,8 @@ Posting a reply is outside this one-comment authority.
 
 ## Bound evidence
 
-Do not use these artifacts until a fresh capability-critical review accepts
-this packet and the owner approves its exact decision:
+Do not use these artifacts until the BPR-0256 card records clean final review
+of these exact packet bytes and the owner approves the exact decision below:
 
 | Artifact | SHA-256 | Bytes |
 |---|---|---:|
@@ -83,9 +84,12 @@ dependency selection, and this repository as its source root.
 
 Changing any bound source entry, application, supervisor, inventory, image,
 digest file, launcher, approval subject, generated CTest plan, or packet byte
-invalidates the corresponding claim. DMG creation is not byte-reproducible.
-Another fresh build may have a different image SHA even when every source entry
-matches; only the exact stored `2601e223…f72fb` image belongs to v006.
+invalidates the corresponding claim. The package is not claimed to be a
+bit-for-bit reproducible build. Independent replay with the same source
+manifest produced semantically matching code and resource sets but different
+Mach-O UUID/signature bytes, resource order, derived application/inventory
+digests, and DMG bytes. Only the exact stored application, inventory, and
+`2601e223…f72fb` image above belong to v006.
 
 ## Runtime topology and limits
 
@@ -102,11 +106,11 @@ digest, and mounts that image read-only below the owner-private mount parent
 It verifies and retains the mounted inventory and runtime identity before
 starting the supervisor/application from the mount. Stage one runs in its own
 process group with a 1,500-second bound inside CTest's 1,800-second timeout.
-Normal exit, failure, timeout, `SIGTERM`, `SIGINT`, and `SIGHUP` all pass through
-post-child image/runtime revalidation, bounded group TERM/KILL, complete reap,
-and ordinary non-force detach.
+After attach completes, normal stage-one exit, failure, timeout, `SIGTERM`,
+`SIGINT`, and `SIGHUP` pass through post-child image/runtime revalidation,
+bounded group TERM/KILL, complete reap, and ordinary non-force detach.
 
-These mechanisms have three deliberate limits:
+These mechanisms have four deliberate limits:
 
 - the mounted filesystem is read-only, but the invoking owner can still open
   the backing DMG for writing; post-child identity/digest checks detect
@@ -116,10 +120,14 @@ These mechanisms have three deliberate limits:
   descriptor, so the DiskImages attach boundary is not descriptor-atomic; and
 - the generated CTest manifest and cache are the trusted same-UID execution
   plan; repository-local code cannot protect that plan from an actor allowed
-  to rewrite it.
+  to rewrite it; and
+- `hdiutil` attach and detach are synchronous subprocess calls without their
+  own timeout. The tested 1,500-second bound covers stage one after a completed
+  attach; a genuinely stalled DiskImages subprocess can hold stage zero until
+  an outer termination, and that termination cannot itself prove detach.
 
-Approval of v006 accepts these limits for this one disposable attended course.
-It does not convert them into stronger guarantees.
+Approval of v006 accepts these four limits for this one disposable attended
+course. It does not convert them into stronger guarantees.
 
 ## Approval subject
 
@@ -264,17 +272,28 @@ literal image digest, verdict override, or credential environment.
 
 ## Independent capability-critical review
 
-Pending. A fresh critical reviewer must recompute every checked-in and runtime
-identity, replay the safe Release and manifest evidence, try to substitute the
-manifest/launcher/image/runtime during their capture and child lifetime, and
-adjudicate the explicit backing-DMG, pathname-attach, and trusted-plan limits.
-No operator response is valid before that review accepts the exact packet.
+Fresh critical review accepted exact pending candidate `ae63649` and range
+`77ade3e..ae63649` as clean. The reviewer independently recomputed all
+checked-in, producer, stored-image, approval, replay, and protected-development
+identities; validated all 37 source entries and all 95 inventory entries; ran a
+fresh 138-step offline tests-disabled Release capsule and mounted probe; passed
+44 capsule tests, 37 isolation tests, and the focused 15/15 runtime matrix; and
+confirmed the 199-test default and sole-entry 200-test opt-in manifests.
+
+That review found no blocking or candidate-specific failing gate. It retained
+the three declared same-UID limits, observed non-reproducible application,
+inventory, and image bytes from the fresh build, and identified the lack of an
+independent `hdiutil` subprocess timeout as high-risk but non-blocking. The
+operator-decision transition adds those observations and changes packet prose,
+so the BPR-0256 card must record a second clean review of these exact final
+bytes before any operator response is valid.
 
 ## Decision and approval materialization
 
-Inactive while this packet is pending review. After a clean review, first
-verify every artifact hash and size above. If the owner does not return the
-exact unqualified approval alternative below, stop without creating a file.
+Inactive until the BPR-0256 card records a clean final review of these exact
+packet bytes. After that record exists, first verify every artifact hash and
+size above. If the owner does not return the exact unqualified approval
+alternative below, stop without creating a file.
 
 If approved, create a fresh private directory and materialize exactly the
 `approval-subject.txt` bytes followed by this one final line:
@@ -292,9 +311,10 @@ unlinks that exact inode before any grant exists; it cannot be reused.
 
 ## Attended procedure
 
-Inactive until this packet is capability-critical clean, the owner returns the
-exact approval below, the approval artifact is materialized byte-exactly, and
-the final static manifest inspection passes.
+Inactive until the BPR-0256 card records this exact packet as
+capability-critical clean, the owner returns the exact approval below, the
+approval artifact is materialized byte-exactly, and the final static manifest
+inspection passes.
 
 1. Close other BetterPullReview processes. Confirm the designated PR remains
    disposable and intended for this check.
@@ -339,18 +359,18 @@ modify the stored DMG, rewrite the generated CTest plan, or reset the replay
 namespace under this packet.
 
 The minted authority expires 15 minutes after the approval is consumed. The
-1,800-second CTest timeout bounds the lane; it does not extend authority. A
-session that consumes the approval and pauses can lose authority mid-run with
-no retry admitted. Do not begin without 15 uninterrupted minutes.
+1,800-second CTest timeout bounds the test process; it neither extends authority
+nor proves completion or detach for a stalled `hdiutil` subprocess. A session
+that consumes the approval and pauses can lose authority mid-run with no retry
+admitted. Do not begin without 15 uninterrupted minutes.
 
 Target-native Linux and Windows evidence remains deferred. This packet is for
 the exact bound macOS build and image only.
 
 ## Operator response
 
-No response is valid while the status is pending capability-critical review.
-After the packet becomes operator-ready without any bound byte changing,
-return exactly one of these decisions:
+The BPR-0256 card must first record a clean final review of these exact packet
+bytes. Then return exactly one of these decisions:
 
 > I approve the exact one-use approval subject
 > sha256:984a1ab0ce7971a369052be1be60ef3d9c23b7161cb2e29ab368e5e9cc4dc1bd
@@ -368,8 +388,9 @@ return exactly one of these decisions:
 > sha256:2601e22323168ca82ea173789fb92eafb3dc3698d159acb5107643eabdbf72fb
 > mounted below
 > /Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0256-v006-live-mount-parent
-> under the backing-DMG, pathname-attach, and trusted-CTest-plan limits stated
-> in this packet, to publish one source-line review comment to
+> under the backing-DMG, pathname-attach, no-independent-hdiutil-timeout, and
+> trusted-CTest-plan limits stated in this packet, to publish one source-line
+> review comment to
 > MikeMarcin/BPR-Test#1 at head
 > 17990ba0c2fb50338141f35c0717f0f99639c7ba.
 
