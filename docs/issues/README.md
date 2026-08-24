@@ -576,15 +576,17 @@ the live command bypasses the read-only runtime image. Done [[BPR-0448]] closes
 the retained-root/inventory and production-controller repair. Done
 [[BPR-0449]] now closes the remaining image-to-runtime connection with one
 captured producer-bound launcher, a literal image digest, bounded process-group
-cleanup, post-child revalidation, and ordinary detach. [[BPR-0256]] now has a
-complete pending v006 candidate: source manifest `4f5a9d57…faf36fc`, exact
-stored image `2601e223…f72fb`, launcher `b969b90a…98da05`, and approval subject
-`984a1ab0…c1bd`. Its fresh Release probe and safe local matrices pass, and its
-static opt-in graph was inspected without execution. Exact pending-candidate
-review of `ae63649` is clean. That review added an explicit fourth operational
-limit—the lack of an independent `hdiutil` subprocess timeout—and final review
-accepted exact packet `9ecf4427…ef7a` at `9bca2b3`. Those packet bytes are now
-parked for the sole exact owner decision. The operator approved the narrowed replay and
+cleanup, post-child revalidation, and ordinary detach. [[BPR-0256]] produced
+v006 with source manifest `4f5a9d57…faf36fc`, exact stored image
+`2601e223…f72fb`, launcher `b969b90a…98da05`, and approval subject
+`984a1ab0…c1bd`. Its fresh Release probe and safe local matrices passed, and
+final review accepted packet `9ecf4427…ef7a` at `9bca2b3`. The owner approved
+that packet exactly. The one-use lane consumed its approval and reached the
+shipped manual-token dialog, where the owner rejected token pasting because the
+requested device-login flow was supposed to exist. Cancellation entered no
+credential, sent no POST, detached ordinarily, and made v006 non-retryable.
+BPR-0256 is now Backlog behind [[BPR-0318]], which transitively requires the
+RFC-BPR-0016 capture and implementation program. The operator approved the narrowed replay and
 authenticated-containment designs for implementation and hermetic verification
 only; no live or package authority was granted. BPR-0261 is now in `60-done/`: one
 explicit owner-private replay namespace carries approval identity, reset is an
@@ -747,14 +749,13 @@ ready lanes — and the lane says which answer it needs:
 | Root | Lane | Needs |
 |---|---|---|
 | BPR-0414 | `40-parked/` | Unattended implementation and verification are complete at `8c7504d`; digest-bound attended batch `ab6145717475dfdfddd6206d` waits only on the owner's marker-versus-inline-body verdict |
-| BPR-0417 | `30-in-progress/` | Constructed deep-conversation data and its 10-test direct contract are complete; ordinary CTest registration and closeout wait until the exact BPR-0256 live-plan decision is resolved, so this slice does not invalidate that reviewed packet |
+| BPR-0417 | `30-in-progress/` | Constructed deep-conversation data and its 10-test direct contract are complete; the BPR-0256 reviewed live graph has now run and is frozen, so ordinary network-isolated registration and closeout are the current work |
 | BPR-0445 | `40-parked/` | Unattended sanitizer and one-shot authority hardening are committed at `a27e4a5` and `c03abcf`; v002 packet `8ff060e82c04f30010ad11e5410200d8797d8f1c5b08557768ded86ed0eafdd0` waits only on the owner's fresh exact one-request authorization |
 | BPR-0053, BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]], [[BPR-0362]], [[BPR-0360]], and [[BPR-0350]] closed on 2026-08-22 with the contained matrix at 87 of 89; [[BPR-0053]] waits only on that matrix's two carded failures and on the Qt graph. [[BPR-0424]] through [[BPR-0427]] are the four causes that run isolated from the container's own |
 | BPR-0235 | `21-ready-win/` | A Windows session for the descendant/application counterexample matrix replay — the 2026-08-18 note called that criterion a dependency on [[BPR-0347]]/[[BPR-0350]], and both are now done. Its terminal designated-live criterion additionally waits on the live provider card's separately authorized attended authority |
 | BPR-0036 | `30-in-progress/` | This session: rerun the complete `windows-dev` matrix on the already-built tree now the reputation verdicts have had time to land, then the remaining target-native inspections, toward RFC-BPR-0002 closeout |
 | BPR-0446 | `30-in-progress/` | This session: extend the wire-fixture registration to Windows and run it target-native, ahead of BPR-0036's native-HTTPS row |
 | BPR-0447 | `21-ready-win/` | A Windows session to diagnose the epoch-maintenance pruned-restart failure the settled matrix exposed |
-| BPR-0256 | `40-parked/` | Exact v006 packet `9ecf4427…ef7a` waits only for the owner's verbatim approval or rejection; no approval exists and the attended/live lane remains unexecuted |
 | BPR-0310, BPR-0314 | `23-ready-lin/` | **Not a Linux session.** A Linux session ran this lane on 2026-08-22 and removed every Linux reason it had. The tests-disabled Release build links here ([[BPR-0421]], [[BPR-0440]]) and `coding-tidy` runs here ([[BPR-0443]]). What is left is upstream and is not about this platform: [[BPR-0310]] needs RFC-BPR-0016 implemented at all — no `src/` file mentions the device flow — behind [[BPR-0276]]'s owner-attended capture and [[BPR-0318]]'s nonexistent distributable identity; [[BPR-0314]] must observe a typed public-preview-unavailability selection no code produces, and producing it is implementation RFC-BPR-0017 gates on RFC-BPR-0002, which waits on [[BPR-0036]]. BPR-0314 does carry three target-native rows now. A Linux session opening this lane should expect to close only [[BPR-0444]] |
 | BPR-0444 | `23-ready-lin/` | A Linux session. The nine non-naming vault findings [[BPR-0443]]'s working gate exposed need judgment, and the tidy-clean proof only exists where the file compiles |
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
@@ -813,7 +814,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these sixteen roots or reaches one
+card on this board is either one of these fifteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 48 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`.
@@ -865,7 +866,7 @@ Everything else in `10-backlog/` reaches one of those roots transitively.
 | Real Windows x64 hardware | Answered. In-progress BPR-0347 and BPR-0358; backlog BPR-0036, BPR-0053, BPR-0235, BPR-0311, BPR-0315, BPR-0332, BPR-0350, BPR-0360, BPR-0364, BPR-0412, and transitively BPR-0035, BPR-0054, BPR-0083 | A Windows 11 x64 host answered the blocker, and BPR-0347 has already run target-native on it. Target-native execution is still required and no available-platform substitute counts; what is gone is the wait for the machine. The last target-native matrix predates several repairs, so BPR-0347 owns a fresh core-only replay and any remaining failures, BPR-0412 owns the first Qt-graph run under containment, and BPR-0364 follows that run for the composed-host verifier. BPR-0362/BPR-0360 and BPR-0350 retain the owner-private catalog/temp-root chain |
 | A Linux host | Done BPR-0156 and BPR-0235's Linux half; blocked BPR-0310 and BPR-0314 | An Ubuntu 26.04 x86_64 host answered the blocker. BPR-0156 re-established the matrix and BPR-0235's Linux criterion is discharged. BPR-0310 and BPR-0314 stay blocked on their own unmet backlog dependencies rather than on the platform. The run opened BPR-0341 through BPR-0345 |
 | A designated live GitHub pull request | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Disposable `MikeMarcin/BPR-Test#1` is identity-bound; the live provider, exact-target lane, owner-authenticated mutations, and attended/mixed-client checks remain |
-| Designated live-lane proof blockers | Done BPR-0261/BPR-0262/BPR-0263/BPR-0264/BPR-0448/BPR-0449; parked BPR-0256 | The approved narrowed replay authority is implemented. The owner approved v004 exactly, but the lane failed closed before GUI creation; its approval was deleted and no mutation occurred. The target is now public. Fresh review invalidated v005. BPR-0448 retains exact verifier/inventory/root identities through production-controlled spawn/resume, and BPR-0449 runs that controller from the exact read-only mounted image through bounded child exit. Both repairs passed clean capability-critical review. BPR-0256's complete v006 successor and exact packet `9ecf4427…ef7a` passed two fresh critical reviews and now wait only on the new exact owner decision; no approval or attended run exists. |
+| Designated live-lane proof blockers | Done BPR-0261/BPR-0262/BPR-0263/BPR-0264/BPR-0448/BPR-0449; backlog BPR-0256 behind BPR-0318 | The approved narrowed replay authority is implemented. v004 failed closed before GUI creation and v005 was invalidated. BPR-0448 and BPR-0449 close retained identity and read-only-image execution. The owner approved reviewed v006 exactly; its one-use lane consumed the approval and reached the current manual-token prompt, then cancelled safely when the owner reaffirmed that device login was the required product interaction. No credential or POST occurred. A successor live packet now waits on the RFC-BPR-0016 device-flow implementation and distributable identity rather than another owner approval. |
 | Owner-attended or native-display judgment | Backlog BPR-0100, BPR-0114, and BPR-0168; done BPR-0210, BPR-0220, BPR-0251, BPR-0391, BPR-0392, and BPR-0410 | Visual v004, notification v006, and appearance v008 establish the native behavior. BPR-0220 corrected the one stale appearance expectation to the measured zero, and the owner accepted the narrow repair without redundant digest-only reruns. BPR-0114 remains open only as the terminal procedure behind BPR-0101 |
 | Product composition | Backlog BPR-0232; done BPR-0223, BPR-0226 through BPR-0231, BPR-0247, and BPR-0250 | Notification request/activation, the workbench host, selected diff, ledger, actionability, fixture-safe review round trip, durable defect workflow, observer-rule queue, portable agent invocation, durable sessions, and explicit private-context selection are composed. BPR-0232 waits for deferred native Windows lifecycle proof and its final replay through that same surface. |
 | Missing component and resilience scope | Backlog BPR-0235; in-progress BPR-0240; done BPR-0237 through BPR-0239 and BPR-0334 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, BPR-0236's appearance-storage fallback, and the single portable agent protocol loop are done. Native Windows transport proof remains with BPR-0240 |

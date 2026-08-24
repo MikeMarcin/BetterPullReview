@@ -1,10 +1,9 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Parked
+status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0448, BPR-0449]
-parked_on: awaiting-owner-verdict
+depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449]
 ---
 
 # Build the attended one-shot live application lane
@@ -953,3 +952,45 @@ spent record exists, and no image remains attached. If approved exactly, the
 private approval, final static manifest inspection, attended run, and GitHub UI
 observation remain future attended work. A rejection is evidence and reopens
 repair work; it is not softened into an approval.
+
+## v006 approved, consumed, and cancelled at manual token entry — 2026-08-24
+
+The owner returned the packet's exact singular approval. Direct preflight
+matched the 22,490-byte packet, 1,496-byte subject, every stored artifact hash
+and size, all 37 source entries, the owner-private unspent replay namespace,
+the empty mode-`0700` mount parent, the detached image, and the clean worktree.
+The materialized approval was 1,576 bytes with SHA-256
+`1bd771dbbacdbbf7482fcdac7e061f370ae17cb46323eada97b0b7596f11c862`,
+mode `0600`, one hard link, and an owner-private mode-`0700` parent.
+
+The fresh static manifest retained the reviewed shape: 200 tests, one live
+entry and label, a 1,800-second timeout, the fixed captured launcher and exact
+image/source/mount/approval arguments, 24 environment removals, and no verdict
+override. The exact lane then ran once. It consumed the approval, durably spent
+approval ID `aa6dd849a0bc31e36e8585d1b5b8fc0d065f653ee92218c9f770729766c610d9`,
+mounted the exact image read-only, and reached the shipped Qt application.
+
+The first usable interaction was the existing generic password-echo dialog:
+`Authenticate GitHub host` / `Enter a GitHub credential for this connection.`
+The owner expected a login, OAuth/device-authorization, or explicit
+authentication-method flow and did not understand this as a request to mint
+and paste a personal access token. Once that current product behavior was made
+explicit, the owner rejected it and cancelled without entering a credential.
+The application closed normally, the image detached ordinarily, and CTest
+reported a safe attended cancellation after 483.51 seconds. No line or body was
+selected, Publish was never pressed, no POST was submitted, and no GitHub UI
+comment exists. The durable spend makes v006 non-retryable. The complete result
+is recorded in
+`docs/verification/reviews/designated-live-review-publication-v006/operator-response.md`.
+
+This is not a BPR-0256 mechanism defect: the packet and current RFC-BPR-0002
+product path deliberately selected manual token enrollment through the Qt
+sensitive prompt. It is a product-sequencing finding. The owner reaffirmed that
+the requested login flow was supposed to be built before this attended course.
+That flow is already allocated to deferred RFC-BPR-0016. BPR-0276 must finish
+its owner-attended real-service capture; BPR-0277 through BPR-0282 then
+implement and verify device authorization; and BPR-0318 records the
+distributable identity required for production selection. BPR-0256 therefore
+returns to `10-backlog/` with BPR-0318 as its transitive login-flow prerequisite.
+It must not request another live-publication approval until that dependency is
+Done and a successor packet binds the resulting authentication path.

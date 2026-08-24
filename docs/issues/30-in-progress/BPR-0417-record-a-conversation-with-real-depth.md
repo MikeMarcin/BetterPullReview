@@ -148,3 +148,14 @@ course either completes or is declined, restore the ordinary network-isolated
 CTest registration, rerun the focused matrix, obtain independent review, and
 close this card. No BPR-0256 packet byte or generated live-plan byte changed in
 this checkpoint.
+
+## Registration hold released by the v006 attended result — 2026-08-24
+
+BPR-0256 v006 has now run once and is frozen as safely cancelled,
+non-retryable evidence. Its inspected 200-test plan no longer needs protection
+from configured-test drift. BPR-0417 is therefore unblocked for its ordinary
+network-isolated CTest registration. The next session should restore the
+previously verified registration in `tests/CMakeLists.txt`, rerun the direct,
+registered, conversation/fixture, isolation, formatting, documentation, and
+hygiene gates, obtain independent review, and move this card to `60-done/`.
+No BPR-0256 artifact or generated live plan should be regenerated.

@@ -3,7 +3,7 @@ id: BPR-0142
 title: Verify a published comment in the GitHub web UI
 status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0139, BPR-0221, BPR-0229, BPR-0235]
+depends_on: [BPR-0139, BPR-0221, BPR-0229, BPR-0235, BPR-0256, BPR-0318]
 ---
 
 # Verify a published comment in the GitHub web UI
@@ -29,8 +29,10 @@ it carries no marker and behaves like an ordinary comment.
    bootstrap, and exact tests-disabled application registration for designated
    `MikeMarcin/BPR-Test#1`. It does not execute the lane or provide
    Linux/Windows evidence.
-2. **A write-scoped token for that repository, supplied by the product owner.**
-   It is never committed, never logged, and never placed in a fixture.
+2. **The required device-login path and distributable identity.** BPR-0318
+   transitively requires RFC-BPR-0016's capture, implementation, production
+   composition, and public-behavior evidence. The owner rejected manual token
+   minting and pasting during BPR-0256 v006.
 3. **A human at the keyboard** to open the pull request, read the comment,
    reply to it, and confirm it is indistinguishable from one written in the web
    UI.
@@ -82,18 +84,20 @@ and open state. Creating the fixture PR is not the RFC's comment mutation and
 does not itself satisfy any live-provider, web-UI, identity, or mixed-client
 criterion.
 
-BPR-0256 prepares a pending digest-bound operator packet for the exact shipped
-Release build. The operator must approve and materialize its exact one-use
-artifact, enter any credential only through the Qt sensitive prompt, run the
-single live test, and inspect the resulting first comment in GitHub's web UI.
-Its one-comment authority does not include posting a reply; reply-return
-evidence requires a separately authorized attended checkpoint. No approval
-verdict, credential access, live execution, or web evidence is claimed by that
-card.
+BPR-0256 v006 was approved and started once. Its approval was consumed and
+durably spent, but the owner cancelled at the current generic manual-token
+dialog without entering a credential, selecting a line, or publishing. The
+owner reaffirmed that a login/device-authorization flow was supposed to be
+built. v006 is non-retryable and produces no evidence for this card.
 
-The token is minted at session time with `gh auth token` and pasted into the
-application's Qt-owned credential input. It is never committed, logged, echoed,
-or fixtured, and never typed into a shell that records history.
+A future BPR-0256 packet must bind the RFC-BPR-0016 production device-login
+path after BPR-0318 establishes its distributable identity. The operator then
+approves and materializes a new one-use artifact, authenticates through that
+flow, runs the single live test, and inspects the resulting first comment in
+GitHub's web UI. Its one-comment authority still does not include posting a
+reply; reply-return evidence requires a separately authorized attended
+checkpoint. Tokens, refresh material, device codes, and credentials remain
+outside repository artifacts, logs, argv, environment, and fixtures.
 
 ## The structural guard was rebuilt first; the executable boundary is separate
 
