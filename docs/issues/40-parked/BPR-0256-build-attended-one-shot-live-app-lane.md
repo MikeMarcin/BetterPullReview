@@ -1,9 +1,10 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0448, BPR-0449]
+parked_on: awaiting-owner-verdict
 ---
 
 # Build the attended one-shot live application lane
@@ -925,3 +926,30 @@ remains `30-in-progress/`, accepts no operator response yet, and requires one
 fresh capability-critical review of the exact final packet before it can park
 on an owner decision. No approval, credential, attended launch, public
 observation, network request, GitHub interaction, or mutation occurred.
+
+## Exact operator-decision packet accepted — 2026-08-24
+
+A second fresh capability-critical review accepted exact HEAD `9bca2b3`, range
+`77ade3e..9bca2b3`, and the final 22,490-byte operator packet with SHA-256
+`9ecf44272a19ad6993589690254b0f3b778da27b51090bf9a1fabfd238d7ef7a`.
+The reviewer recomputed the 37-entry source manifest, 95-entry stored capsule
+inventory, subject and packet identities, every producer artifact, the unspent
+replay namespace, and the zero-attachment state. It confirmed that
+`ae63649..9bca2b3` changes documentation only and that the singular operator
+approval binds the subject, application, supervisor, inventory, source,
+launcher, image, mount parent, target/head, and all four disclosed limits.
+
+No packet byte changes after that review. These exact bytes are now the current
+operator decision at
+`docs/verification/reviews/designated-live-review-publication-v006/operator-packet.md`.
+The card moves to `40-parked/` under `awaiting-owner-verdict`; the exact
+unqualified approval or rejection alternative in that packet is its sole
+remaining current action. Approval is not inferred from discussion, a partial
+response, or any earlier version.
+
+The lane remains unexecuted. No approval file, credential, attended launch,
+public observation, network request, GitHub interaction, remote mutation, or
+spent record exists, and no image remains attached. If approved exactly, the
+private approval, final static manifest inspection, attended run, and GitHub UI
+observation remain future attended work. A rejection is evidence and reopens
+repair work; it is not softened into an approval.
