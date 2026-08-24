@@ -65,14 +65,23 @@ def authority(targets=None, *, statement=STATEMENT, version=1, schema=None):
     }
 
 
-def packet_text(auth=None) -> str:
+def packet_text(auth=None, courses=None) -> str:
     block = json.dumps(auth if auth is not None else authority(), indent=2)
+    selection = json.dumps({
+        "schema_name": REC.COURSE_SELECTION_SCHEMA,
+        "schema_version": REC.COURSE_SELECTION_SCHEMA_VERSION,
+        "courses": courses if courses is not None else [
+            {"name": "rate-limit", "expected_status": 200},
+        ],
+    }, indent=2)
     recorder_bytes = Path(REC.__file__).read_bytes()
     return (
         "# RFC-BPR-0017 anonymous probe operator packet\n\n"
         "Status: **pending operator decision**\n\n"
         "## Authority\n\n"
         f"```json\n{block}\n```\n\n"
+        "## Approved course selection\n\n"
+        f"```json\n{selection}\n```\n\n"
         "## Bound evidence\n\n"
         "| Artifact | SHA-256 | Bytes |\n"
         "|---|---|---:|\n"
@@ -99,6 +108,18 @@ class AuthorityTests(unittest.TestCase):
         doubled = packet_text() + packet_text()
         with self.assertRaisesRegex(REC.ContractError, "exactly one authority"):
             REC.parse_authority(doubled.encode())
+
+    def test_rejects_a_reordered_second_authority_block(self) -> None:
+        reordered = authority()
+        reordered = {
+            "targets": reordered["targets"],
+            "statement": reordered["statement"],
+            "schema_version": reordered["schema_version"],
+            "schema_name": reordered["schema_name"],
+        }
+        packet = packet_text() + f"```json\n{json.dumps(reordered)}\n```\n"
+        with self.assertRaisesRegex(REC.ContractError, "exactly one authority"):
+            REC.parse_authority(packet.encode())
 
     def test_rejects_a_schema_version_it_does_not_know(self) -> None:
         with self.assertRaisesRegex(REC.ContractError, "schema version"):
@@ -140,6 +161,59 @@ class AuthorityTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(REC.ContractError, "too many targets"):
             REC.parse_authority(packet_text(authority(many)).encode())
+
+
+class CourseSelectionTests(unittest.TestCase):
+    def test_accepts_the_exact_packet_course_selection(self) -> None:
+        courses = REC.parse_packet_course_selection(packet_text().encode())
+        self.assertEqual(
+            courses, [{"name": "rate-limit", "expected_status": 200}])
+
+    def test_rejects_a_missing_course_selection(self) -> None:
+        packet = packet_text()
+        selection_start = packet.index("## Approved course selection")
+        selection_end = packet.index("## Bound evidence")
+        packet = packet[:selection_start] + packet[selection_end:]
+        with self.assertRaisesRegex(REC.ContractError, "exactly one"):
+            REC.parse_packet_course_selection(packet.encode())
+
+    def test_rejects_a_reordered_conflicting_course_selection(self) -> None:
+        conflicting = {
+            "courses": [{"name": "rate-limit", "expected_status": 404}],
+            "schema_version": REC.COURSE_SELECTION_SCHEMA_VERSION,
+            "schema_name": REC.COURSE_SELECTION_SCHEMA,
+        }
+        packet = packet_text() + f"```json\n{json.dumps(conflicting)}\n```\n"
+        with self.assertRaisesRegex(
+            REC.ContractError, "exactly one course-selection"
+        ):
+            REC.parse_packet_course_selection(packet.encode())
+
+    def test_rejects_duplicate_course_selection_members(self) -> None:
+        packet = packet_text().replace(
+            '"schema_version": 1,\n  "courses"',
+            '"schema_version": 1,\n  "schema_version": 1,\n  "courses"',
+            1,
+        )
+        with self.assertRaisesRegex(REC.ContractError, "duplicate JSON key"):
+            REC.parse_packet_course_selection(packet.encode())
+
+    def test_rejects_non_integer_selection_values(self) -> None:
+        defects = (
+            packet_text().replace(
+                f'"schema_name": "{REC.COURSE_SELECTION_SCHEMA}",\n'
+                '  "schema_version": 1,',
+                f'"schema_name": "{REC.COURSE_SELECTION_SCHEMA}",\n'
+                '  "schema_version": true,',
+                1,
+            ),
+            packet_text().replace('"expected_status": 200',
+                                  '"expected_status": true', 1),
+        )
+        for packet in defects:
+            with self.subTest(packet=packet):
+                with self.assertRaisesRegex(REC.ContractError, "not an integer"):
+                    REC.parse_packet_course_selection(packet.encode())
 
 
 class AllowlistTests(unittest.TestCase):
@@ -710,6 +784,26 @@ class NoTrafficTests(unittest.TestCase):
         def count_request(*args, **kwargs):
             self.requests += 1
             return 200, {}, b"{}"
+
+        REC.perform_request = count_request
+        self.addCleanup(lambda: setattr(REC, "perform_request", original))
+        argv = self.argv()
+        argv.remove("--validate-existing")
+        self.assertEqual(REC.main(argv), 3)
+        self.assertEqual(self.requests, 0)
+
+    def test_refuses_a_manifest_not_selected_by_the_packet_before_request(
+        self,
+    ) -> None:
+        manifest = json.loads(self.manifest.read_bytes())
+        manifest["courses"][0]["expected_status"] = 404
+        self.manifest.write_bytes(REC.canonical_json(manifest))
+        self.requests = 0
+        original = REC.perform_request
+
+        def count_request(*args, **kwargs):
+            self.requests += 1
+            return 404, {}, b"{}"
 
         REC.perform_request = count_request
         self.addCleanup(lambda: setattr(REC, "perform_request", original))

@@ -114,6 +114,8 @@ CAPTURE_SCHEMA = "bpr.rfc0017.anonymous_capture"
 CAPTURE_SCHEMA_VERSION = 1
 MANIFEST_SCHEMA = "bpr.rfc0017.anonymous_course_manifest"
 MANIFEST_SCHEMA_VERSION = 1
+COURSE_SELECTION_SCHEMA = "bpr.rfc0017.anonymous_course_selection"
+COURSE_SELECTION_SCHEMA_VERSION = 1
 RECORDER_REPOSITORY_PATH = "scripts/record_rfc0017_anonymous_contracts.py"
 CAPTURE_ATTEMPT_SCHEMA = "bpr.rfc0017.anonymous_capture_attempt"
 CAPTURE_ATTEMPT_SCHEMA_VERSION = 1
@@ -239,9 +241,7 @@ def require_sha256(value: Any, label: str) -> str:
 # Authority
 # --------------------------------------------------------------------------
 
-AUTHORITY_BLOCK = re.compile(
-    r"```json\s+(\{\s*\"schema_name\"\s*:\s*\"" + re.escape(AUTHORITY_SCHEMA)
-    + r"\".*?\})\s*```", re.S)
+FENCED_JSON_BLOCK = re.compile(r"```json\s+(\{.*?\})\s*```", re.S)
 RESPONSE_PACKET_SHA = re.compile(
     r"^Packet SHA-256: `([0-9a-f]{64})`(?: \([^\r\n]*\))?$", re.MULTILINE)
 QUOTED_OPERATOR_DECISION = re.compile(r"^> ([^\r\n]+)$", re.MULTILINE)
@@ -253,17 +253,32 @@ RECORDER_BINDING_ROW = re.compile(
 )
 
 
-def parse_authority(packet_bytes: bytes) -> dict:
-    """Extract and bound the authority block the operator approved."""
+def parse_packet_schema_block(
+    packet_bytes: bytes, schema_name: str, label: str
+) -> dict:
+    """Find one packet JSON object by schema, independent of member order."""
     try:
         text = packet_bytes.decode("utf-8")
     except UnicodeDecodeError as error:
         raise ContractError("packet is not UTF-8") from error
-    matches = AUTHORITY_BLOCK.findall(text)
+    blocks = [
+        parse_json_unique(block, f"packet JSON block[{index}]")
+        for index, block in enumerate(FENCED_JSON_BLOCK.findall(text))
+    ]
+    matches = [
+        block for block in blocks
+        if block.get("schema_name") == schema_name
+    ]
     if len(matches) != 1:
         raise ContractError(
-            f"packet must carry exactly one authority block, found {len(matches)}")
-    authority = parse_json_unique(matches[0], "authority block")
+            f"packet must carry exactly one {label} block, found {len(matches)}")
+    return matches[0]
+
+
+def parse_authority(packet_bytes: bytes) -> dict:
+    """Extract and bound the authority block the operator approved."""
+    authority = parse_packet_schema_block(
+        packet_bytes, AUTHORITY_SCHEMA, "authority")
 
     require_exact_keys(
         authority,
@@ -374,6 +389,52 @@ def validate_current_recorder_binding(packet_bytes: bytes) -> None:
     normalized = [(digest, size.replace(",", "")) for digest, size in matches]
     if normalized != expected:
         raise ContractError("packet does not bind the current recorder exactly once")
+
+
+def parse_packet_course_selection(packet_bytes: bytes) -> list[dict]:
+    """Extract the exact request courses approved with this packet."""
+    selection = parse_packet_schema_block(
+        packet_bytes, COURSE_SELECTION_SCHEMA, "course-selection")
+    require_exact_keys(
+        selection,
+        {"schema_name", "schema_version", "courses"},
+        "course selection",
+    )
+    if selection["schema_name"] != COURSE_SELECTION_SCHEMA:
+        raise ContractError("course-selection schema name mismatch")
+    selection_version = require_positive_int(
+        selection["schema_version"],
+        "course-selection schema version",
+        COURSE_SELECTION_SCHEMA_VERSION,
+    )
+    if selection_version != COURSE_SELECTION_SCHEMA_VERSION:
+        raise ContractError("course-selection schema version mismatch")
+    courses = selection["courses"]
+    if not isinstance(courses, list) or not courses:
+        raise ContractError("packet course selection names no courses")
+    seen: set[str] = set()
+    for index, course in enumerate(courses):
+        require_exact_keys(
+            course, {"name", "expected_status"},
+            f"packet course[{index}]")
+        name = require_text(
+            course["name"], f"packet course[{index}].name", 64)
+        if name in seen:
+            raise ContractError(f"packet course selection repeats course {name}")
+        seen.add(name)
+        require_positive_int(
+            course["expected_status"],
+            f"packet course[{index}].expected_status",
+            599,
+        )
+    return courses
+
+
+def validate_packet_course_selection(
+    packet_bytes: bytes, manifest: dict
+) -> None:
+    if parse_packet_course_selection(packet_bytes) != manifest["courses"]:
+        raise ContractError("course manifest differs from the approved packet")
 
 
 def fsync_directory(path: Path, label: str) -> None:
@@ -812,6 +873,7 @@ def run_capture(args: argparse.Namespace) -> int:
     validate_exact_capture_response(
         packet_bytes, response_bytes, authority["statement"])
     validate_current_recorder_binding(packet_bytes)
+    validate_packet_course_selection(packet_bytes, manifest)
     root = resolve_output_root(Path(args.output_root), Path(args.packet))
     targets = {target["name"]: target for target in authority["targets"]}
 
