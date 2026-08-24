@@ -118,3 +118,33 @@ the exact projection identities in a rendered test without adding a production
 loader or perturbing fixed public-path sequencing. This claim performs no
 credential access, network request, public observation, GitHub interaction, or
 remote mutation.
+
+## Data and direct-contract checkpoint — 2026-08-24
+
+The versioned constructed fixture now exists at
+`tests/fixtures/github/conversations/deep-thread-v1/`. Its nine-node valid tree
+has one root, a five-reply-edge primary chain, and sibling branches at reply
+depths one and three. Separate non-provider-reachable projections contain the
+one absent-parent and one two-comment-cycle shape used by Qt's defensive row
+preservation. The README and machine-readable provenance both forbid a
+recorded-GitHub or shipped-public-path claim.
+
+The independent Python contract is 10/10 green. It locks canonical JSON, exact
+schema/provenance, stable identity order, null-root semantics, depth, sibling
+breadth, parent ordering, hostile reachability labels, the absent-parent and
+cycle shapes, and valid/hostile separation. The code-simplification pass kept
+those explicit checks and only normalized new Python class names to repository
+conventions. Focused conversation, read-contract, fixture-security, network-
+isolation, formatting, documentation, and hygiene gates also pass while the
+test is registered in the working graph.
+
+That registration is deliberately not part of this checkpoint commit. Adding
+one configured default test changes the generated CTest plan that exact BPR-0256
+packet `9ecf4427…ef7a` requires the owner to decide and then reinspect without
+drift. Excluding the new test only when the live option is enabled would hide a
+safety test to preserve a count and is not an acceptable repair. BPR-0417 stays
+`30-in-progress/`: after the BPR-0256 decision is recorded and its attended
+course either completes or is declined, restore the ordinary network-isolated
+CTest registration, rerun the focused matrix, obtain independent review, and
+close this card. No BPR-0256 packet byte or generated live-plan byte changed in
+this checkpoint.

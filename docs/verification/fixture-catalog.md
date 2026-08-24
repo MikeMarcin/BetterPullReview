@@ -96,6 +96,39 @@ duplicate JSON members and encoded secret/path/email/foreign-authority
 bypasses, and checks both hosts against one independent normalized
 expectation. No live or private repository response was recorded.
 
+## Constructed deep conversation projection v1
+
+`tests/fixtures/github/conversations/deep-thread-v1/` is deterministic,
+constructed test data for BPR-0417 and the BPR-0418 thread-map renderer. It is
+not a GitHub recording, carries no `recorded_from` or `recorded_on` claim, and
+is not evidence that a public or private pull request contained this
+conversation. It bypasses no provider validation and has no production loader.
+
+The valid case models the exact `github_conversation_projection` field set in
+stable parent-before-child order. One review-thread root contains a first
+comment whose provider `replyTo` is null, a five-reply-edge primary chain, and
+sibling branches at reply depths one and three. Those facts make the fixture
+deep and wide enough to exercise the selected Treeverse map without changing
+the byte-identical `github-com`/`ghes-3.18` contract pair or the fixed-length
+public-path courses.
+
+Two separate hostile projection cases contain one absent parent and one
+two-comment cycle. Each is machine-labelled non-provider-reachable and scoped
+only to Qt defensive row preservation. The validated GitHub read model rejects
+unknown and forward parents before projection, so the hostile shapes cannot be
+cited as provider acceptance evidence or mixed into the valid tree.
+
+`bpr0417_deep_conversation_fixture_contract_tests.py` independently enforces
+the exact schema and constructed provenance, canonical JSON, stable identities
+and order, root/null semantics, minimum depth, sibling depths, hostile-case
+classification, missing-parent/cycle shapes, and disjoint valid/hostile
+identities. Its ten direct tests pass. Default-safe CTest registration remains
+the BPR-0417 closeout step and is intentionally withheld until the already
+reviewed BPR-0256 live-plan decision is resolved; adding a configured test first
+would change that packet's exact inspected graph. BPR-0418 still owns rendered
+consumption and must not upgrade this constructed content into real-world need
+or shipped-public-path evidence.
+
 ## Pending RFC-BPR-0016 device-authorization contract v1
 
 `tests/fixtures/github/device-authorization/v1/` currently contains only the
