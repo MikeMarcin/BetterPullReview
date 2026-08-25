@@ -1,7 +1,7 @@
 ---
 id: BPR-0277
 title: Implement deterministic device-authorization policy
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0276]
 ---
