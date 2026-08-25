@@ -11,9 +11,12 @@
 
 namespace bpr::adapters::github {
 	namespace {
-		constexpr std::string_view production_service       = "org.betterpullreview.github-native-credential.file-keychain.v2";
-		constexpr std::string_view integration_test_service = "org.betterpullreview.github-native-credential.file-keychain."
-															  "integration-test.v2";
+		constexpr std::string_view production_service               = "org.betterpullreview.github-native-credential.file-keychain.v2";
+		constexpr std::string_view integration_test_service         = "org.betterpullreview.github-native-credential.file-keychain."
+																	  "integration-test.v2";
+		constexpr std::string_view production_refresh_service       = "org.betterpullreview.github-native-refresh.file-keychain.v1";
+		constexpr std::string_view integration_test_refresh_service = "org.betterpullreview.github-native-refresh.file-keychain."
+																	  "integration-test.v1";
 
 		template <typename... Callables>
 		struct overloaded : Callables...
@@ -613,22 +616,34 @@ namespace bpr::adapters::github {
 			}
 		}
 
+		// Which Keychain service an operation belongs to. It travels with the
+		// pending operation rather than being decided when the effect lane runs
+		// it, so a queued refresh can never be executed against the credential
+		// service by a later reader.
+		enum class keychain_slot : std::uint8_t {
+			credential,
+			refresh,
+		};
+
 		struct pending_store
 		{
 			application::github_credential_enrollment               Enrollment;
 			application::github_credential_store_completion_handler Completion;
+			keychain_slot                                           Slot = keychain_slot::credential;
 		};
 
 		struct pending_retrieve
 		{
 			application::github_credential_operation_context           Context;
 			application::github_credential_retrieve_completion_handler Completion;
+			keychain_slot                                              Slot = keychain_slot::credential;
 		};
 
 		struct pending_delete
 		{
 			application::github_credential_operation_context         Context;
 			application::github_credential_delete_completion_handler Completion;
+			keychain_slot                                            Slot = keychain_slot::credential;
 		};
 
 		using pending_operation  = std::variant<pending_store, pending_retrieve, pending_delete>;
@@ -646,6 +661,16 @@ namespace bpr::adapters::github {
 				return std::nullopt;
 			}
 			return std::move(node.mapped());
+		}
+
+		[[nodiscard]] auto slot_of(const pending_operation& aOperation) noexcept
+			-> keychain_slot
+		{
+			return std::visit(
+				[](const auto& aPending) noexcept {
+					return aPending.Slot;
+				},
+				aOperation);
 		}
 
 		void publish_store(
@@ -749,24 +774,33 @@ namespace bpr::adapters::github {
 		private:
 			struct shared_state
 			{
-				explicit shared_state(
-					std::shared_ptr<macos_keychain_backend> aBackend) noexcept
+				shared_state(
+					std::shared_ptr<macos_keychain_backend> aBackend,
+					std::shared_ptr<macos_keychain_backend> aRefreshBackend) noexcept
 					: Backend{ std::move(aBackend) }
+					, RefreshBackend{ std::move(aRefreshBackend) }
 				{
 				}
 
 				std::mutex                              Mutex;
 				pending_operations                      Pending;
 				std::shared_ptr<macos_keychain_backend> Backend;
+				// Absent when this vault was built without a refresh service. The
+				// slot then reports itself unavailable, which is the same answer
+				// the platforms without one give.
+				std::shared_ptr<macos_keychain_backend> RefreshBackend;
 				bool                                    Closing = false;
 			};
 
 		public:
 			macos_keychain_vault(
 				application::effect_executor&           aEffectLane,
-				std::shared_ptr<macos_keychain_backend> aBackend)
+				std::shared_ptr<macos_keychain_backend> aBackend,
+				std::shared_ptr<macos_keychain_backend> aRefreshBackend)
 				: EffectLane{ aEffectLane }
-				, State{ std::make_shared<shared_state>(std::move(aBackend)) }
+				, State{ std::make_shared<shared_state>(
+					  std::move(aBackend),
+					  std::move(aRefreshBackend)) }
 			{
 			}
 
@@ -793,6 +827,87 @@ namespace bpr::adapters::github {
 				application::github_credential_store_completion_handler aCompletion)
 				override
 			{
+				submit_store(
+					keychain_slot::credential,
+					std::move(aEnrollment),
+					std::move(aCompletion));
+			}
+
+			void retrieve(
+				application::github_credential_operation_context           aContext,
+				application::github_credential_retrieve_completion_handler aCompletion)
+				override
+			{
+				submit_retrieve(
+					keychain_slot::credential,
+					aContext,
+					std::move(aCompletion));
+			}
+
+			void delete_credential(
+				application::github_credential_operation_context         aContext,
+				application::github_credential_delete_completion_handler aCompletion)
+				override
+			{
+				submit_delete(
+					keychain_slot::credential,
+					aContext,
+					std::move(aCompletion));
+			}
+
+			void store_refresh(
+				application::github_credential_enrollment               aEnrollment,
+				application::github_credential_store_completion_handler aCompletion)
+				override
+			{
+				submit_store(
+					keychain_slot::refresh,
+					std::move(aEnrollment),
+					std::move(aCompletion));
+			}
+
+			void retrieve_refresh(
+				application::github_credential_operation_context           aContext,
+				application::github_credential_retrieve_completion_handler aCompletion)
+				override
+			{
+				submit_retrieve(
+					keychain_slot::refresh,
+					aContext,
+					std::move(aCompletion));
+			}
+
+			void delete_refresh(
+				application::github_credential_operation_context         aContext,
+				application::github_credential_delete_completion_handler aCompletion)
+				override
+			{
+				submit_delete(
+					keychain_slot::refresh,
+					aContext,
+					std::move(aCompletion));
+			}
+
+			void cancel(
+				application::github_credential_operation_context aContext) override
+			{
+				std::optional<pending_operation> pending;
+				{
+					const auto lock = std::scoped_lock{ State->Mutex };
+					pending         = extract_pending(State->Pending, aContext);
+				}
+				if (!pending.has_value()) {
+					return;
+				}
+				publish_cancelled(*pending);
+			}
+
+		private:
+			void submit_store(
+				const keychain_slot                                     aSlot,
+				application::github_credential_enrollment               aEnrollment,
+				application::github_credential_store_completion_handler aCompletion)
+			{
 				const auto context = aEnrollment.Context;
 				if (!application::valid(aEnrollment) || !aCompletion) {
 					aEnrollment.Credential.reset();
@@ -811,13 +926,14 @@ namespace bpr::adapters::github {
 					pending_store{
 						.Enrollment = std::move(aEnrollment),
 						.Completion = std::move(aCompletion),
+						.Slot       = aSlot,
 					});
 			}
 
-			void retrieve(
+			void submit_retrieve(
+				const keychain_slot                                        aSlot,
 				application::github_credential_operation_context           aContext,
 				application::github_credential_retrieve_completion_handler aCompletion)
-				override
 			{
 				if (!application::valid(aContext) || !aCompletion) {
 					if (aCompletion) {
@@ -835,13 +951,14 @@ namespace bpr::adapters::github {
 					pending_retrieve{
 						.Context    = aContext,
 						.Completion = std::move(aCompletion),
+						.Slot       = aSlot,
 					});
 			}
 
-			void delete_credential(
+			void submit_delete(
+				const keychain_slot                                      aSlot,
 				application::github_credential_operation_context         aContext,
 				application::github_credential_delete_completion_handler aCompletion)
-				override
 			{
 				if (!application::valid(aContext) || !aCompletion) {
 					if (aCompletion) {
@@ -859,24 +976,10 @@ namespace bpr::adapters::github {
 					pending_delete{
 						.Context    = aContext,
 						.Completion = std::move(aCompletion),
+						.Slot       = aSlot,
 					});
 			}
 
-			void cancel(
-				application::github_credential_operation_context aContext) override
-			{
-				std::optional<pending_operation> pending;
-				{
-					const auto lock = std::scoped_lock{ State->Mutex };
-					pending         = extract_pending(State->Pending, aContext);
-				}
-				if (!pending.has_value()) {
-					return;
-				}
-				publish_cancelled(*pending);
-			}
-
-		private:
 			void queue(
 				const application::github_credential_operation_context& aContext,
 				pending_operation                                       aOperation)
@@ -966,10 +1069,18 @@ namespace bpr::adapters::github {
 					const auto lock = std::scoped_lock{ aState->Mutex };
 					pending         = extract_pending(aState->Pending, aContext);
 					if (pending.has_value()) {
-						backend = aState->Backend;
+						backend = slot_of(*pending) == keychain_slot::refresh
+							? aState->RefreshBackend
+							: aState->Backend;
 					}
 				}
 				if (!pending.has_value()) {
+					return;
+				}
+				if (backend == nullptr) {
+					publish_failure(
+						*pending,
+						application::github_credential_vault_failure::unavailable);
 					return;
 				}
 
@@ -1151,9 +1262,25 @@ namespace bpr::adapters::github {
 			std::shared_ptr<shared_state> State;
 		};
 
+		// A refresh service that will not open leaves the credential vault
+		// working with its refresh slot reporting unavailable. Refusing the whole
+		// vault instead would take account credentials away from a reviewer over
+		// a slot they may never use.
+		[[nodiscard]] auto optional_refresh_backend(
+			const macos_keychain_service_scope aScope) noexcept
+			-> std::shared_ptr<macos_keychain_backend>
+		{
+			auto backend = make_native_backend(aScope);
+			if (!backend.has_value()) {
+				return nullptr;
+			}
+			return std::move(*backend);
+		}
+
 		[[nodiscard]] auto make_vault(
 			application::effect_executor&           aEffectLane,
-			std::shared_ptr<macos_keychain_backend> aBackend) noexcept
+			std::shared_ptr<macos_keychain_backend> aBackend,
+			std::shared_ptr<macos_keychain_backend> aRefreshBackend) noexcept
 			-> macos_keychain_vault_factory_result
 		{
 			if (aBackend == nullptr) {
@@ -1166,7 +1293,8 @@ namespace bpr::adapters::github {
 				return std::unique_ptr<application::github_credential_vault_port>{
 					std::make_unique<macos_keychain_vault>(
 						aEffectLane,
-						std::move(aBackend))
+						std::move(aBackend),
+						std::move(aRefreshBackend))
 				};
 			} catch (const std::bad_alloc&) {
 				return std::unexpected{
@@ -1190,6 +1318,10 @@ namespace bpr::adapters::github {
 			return production_service;
 		case macos_keychain_service_scope::integration_test:
 			return integration_test_service;
+		case macos_keychain_service_scope::production_refresh:
+			return production_refresh_service;
+		case macos_keychain_service_scope::integration_test_refresh:
+			return integration_test_refresh_service;
 		}
 		return { };
 	}
@@ -1302,7 +1434,11 @@ namespace bpr::adapters::github {
 		if (!backend.has_value()) {
 			return std::unexpected{ backend.error() };
 		}
-		return make_vault(aEffectLane, std::move(*backend));
+		return make_vault(
+			aEffectLane,
+			std::move(*backend),
+			optional_refresh_backend(
+				macos_keychain_service_scope::production_refresh));
 	}
 
 	auto make_macos_keychain_integration_test_vault(
@@ -1313,14 +1449,22 @@ namespace bpr::adapters::github {
 		if (!backend.has_value()) {
 			return std::unexpected{ backend.error() };
 		}
-		return make_vault(aEffectLane, std::move(*backend));
+		return make_vault(
+			aEffectLane,
+			std::move(*backend),
+			optional_refresh_backend(
+				macos_keychain_service_scope::integration_test_refresh));
 	}
 
 	auto make_macos_keychain_vault_with_backend(
 		application::effect_executor&           aEffectLane,
-		std::shared_ptr<macos_keychain_backend> aBackend) noexcept
+		std::shared_ptr<macos_keychain_backend> aBackend,
+		std::shared_ptr<macos_keychain_backend> aRefreshBackend) noexcept
 		-> macos_keychain_vault_factory_result
 	{
-		return make_vault(aEffectLane, std::move(aBackend));
+		return make_vault(
+			aEffectLane,
+			std::move(aBackend),
+			std::move(aRefreshBackend));
 	}
 }

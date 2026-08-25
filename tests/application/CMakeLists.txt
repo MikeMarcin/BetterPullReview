@@ -533,6 +533,58 @@ set_tests_properties(
 )
 
 bpr_add_executable(
+    test_better_pull_review_device_authorization_host_tests
+    device_authorization_application_host_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_device_authorization_host_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+target_compile_definitions(
+    test_better_pull_review_device_authorization_host_tests
+    PRIVATE BPR_APPLICATION_TESTING=1
+)
+bpr_enable_hardening(test_better_pull_review_device_authorization_host_tests)
+bpr_enable_warnings(test_better_pull_review_device_authorization_host_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_host
+    COMMAND test_better_pull_review_device_authorization_host_tests
+)
+set_tests_properties(
+    application_device_authorization_host
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "device-authorization-host-tests:pass"
+)
+
+bpr_add_executable(
+    test_better_pull_review_device_authorization_refresh_tests
+    device_authorization_refresh_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_device_authorization_refresh_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+target_compile_definitions(
+    test_better_pull_review_device_authorization_refresh_tests
+    PRIVATE BPR_APPLICATION_TESTING=1
+)
+bpr_enable_hardening(test_better_pull_review_device_authorization_refresh_tests)
+bpr_enable_warnings(test_better_pull_review_device_authorization_refresh_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_refresh
+    COMMAND test_better_pull_review_device_authorization_refresh_tests
+)
+set_tests_properties(
+    application_device_authorization_refresh
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "device-authorization-refresh-tests:pass"
+)
+
+bpr_add_executable(
     test_better_pull_review_workbench_snapshot_observation_tests
     workbench_snapshot_observation_tests.cpp
 )

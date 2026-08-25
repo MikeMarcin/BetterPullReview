@@ -348,6 +348,25 @@ namespace bpr::application {
 		virtual void delete_credential(
 			github_credential_operation_context         aContext,
 			github_credential_delete_completion_handler aCompletion) = 0;
+		// The refresh slot holds the material that renews an account credential
+		// without the reviewer authorizing again. It is keyed by the same
+		// authority as the credential itself and kept beside it rather than in
+		// place of it, so neither can be retrieved under the other's name and
+		// deleting one never silently removes the other. The completion and
+		// cancellation contract is the one above, unchanged; `cancel` covers
+		// both slots because an operation is identified by its context.
+		// An implementation whose platform store has no second slot reports the
+		// typed `unavailable` failure. Enabling the remaining platforms is
+		// BPR-0310 and BPR-0311.
+		virtual void store_refresh(
+			github_credential_enrollment               aEnrollment,
+			github_credential_store_completion_handler aCompletion) = 0;
+		virtual void retrieve_refresh(
+			github_credential_operation_context           aContext,
+			github_credential_retrieve_completion_handler aCompletion) = 0;
+		virtual void delete_refresh(
+			github_credential_operation_context         aContext,
+			github_credential_delete_completion_handler aCompletion) = 0;
 		virtual void cancel(
 			github_credential_operation_context aContext) = 0;
 	};

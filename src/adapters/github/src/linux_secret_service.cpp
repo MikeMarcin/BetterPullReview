@@ -1150,6 +1150,66 @@ namespace bpr::adapters::github {
 					  });
 			}
 
+			// The refresh slot has no Secret Service schema of its own yet, so it
+			// reports itself unavailable rather than sharing the credential
+			// attributes and letting one slot answer for the other. Enabling it
+			// belongs to BPR-0311.
+			void store_refresh(
+				application::github_credential_enrollment               aEnrollment,
+				application::github_credential_store_completion_handler aCompletion)
+				override
+			{
+				const auto context = aEnrollment.Context;
+				auto       pending
+					= std::make_shared<application::github_credential_enrollment>(
+						std::move(aEnrollment));
+				EffectLane.post(
+					[pending = std::move(pending), context, completion = std::move(aCompletion)]() mutable {
+						pending->Credential.reset();
+						if (completion) {
+							completion(application::github_credential_store_error{
+								.Context = context,
+								.Failure = application::github_credential_vault_failure::
+									unavailable,
+							});
+						}
+					});
+			}
+
+			void retrieve_refresh(
+				application::github_credential_operation_context           aContext,
+				application::github_credential_retrieve_completion_handler aCompletion)
+				override
+			{
+				EffectLane.post(
+					[aContext, completion = std::move(aCompletion)]() mutable {
+						if (completion) {
+							completion(application::github_credential_retrieve_error{
+								.Context = aContext,
+								.Failure = application::github_credential_vault_failure::
+									unavailable,
+							});
+						}
+					});
+			}
+
+			void delete_refresh(
+				application::github_credential_operation_context         aContext,
+				application::github_credential_delete_completion_handler aCompletion)
+				override
+			{
+				EffectLane.post(
+					[aContext, completion = std::move(aCompletion)]() mutable {
+						if (completion) {
+							completion(application::github_credential_delete_error{
+								.Context = aContext,
+								.Failure = application::github_credential_vault_failure::
+									unavailable,
+							});
+						}
+					});
+			}
+
 			void cancel(
 				application::github_credential_operation_context context) override
 			{

@@ -218,6 +218,28 @@ namespace bpr::adapters::github::detail {
 		application::github_credential_retrieve_success aCredential) noexcept
 		-> native_https_transport_factory_result;
 
+	/// \brief Builds a shipped transport whose credential-free state is deliberate.
+	///
+	/// \details The device flow runs before any credential exists, so
+	/// [[BPR-0279]] needs a production transport that can issue a request with
+	/// no authorization header while every other RFC-BPR-0002 rule stays intact.
+	/// This builds exactly that and nothing else. It takes no credential
+	/// parameter, so the caller cannot supply one and a missing, malformed, or
+	/// revoked credential cannot decay into this state; reaching it requires
+	/// naming it. It is the production twin of the `_for_test` factory below and
+	/// differs from it only in using the production policy — the same system
+	/// trust, proxy discovery, redirect refusal, and response bounds as every
+	/// other shipped transport.
+	///
+	/// The transport this returns admits only the two device-authorization
+	/// endpoints, because `perform_device_authorization` is the only entry whose
+	/// binding it satisfies. It creates no anonymous profile and no partial
+	/// public mode.
+	[[nodiscard]] auto make_native_https_credential_free_transport(
+		const validated_github_host_profile& aProfile,
+		core::github_session_request_context aContext) noexcept
+		-> native_https_transport_factory_result;
+
 // These factories exist only in test-enabled builds. They preserve the exact
 // production request path while replacing system proxy discovery with one
 // bounded loopback proxy and, when supplied, augmenting trust with one

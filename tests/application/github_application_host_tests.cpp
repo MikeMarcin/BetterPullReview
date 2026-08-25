@@ -356,6 +356,44 @@ namespace {
 			});
 		}
 
+		// The GitHub host owns the credential slot only. Nothing it does reaches
+		// the refresh slot, so this fake answers it the way a platform without
+		// one does and the tests below stay about the credential path.
+		void store_refresh(
+			application::github_credential_enrollment               aEnrollment,
+			application::github_credential_store_completion_handler aCompletion)
+			override
+		{
+			const auto context = aEnrollment.Context;
+			aEnrollment.Credential.reset();
+			aCompletion(application::github_credential_store_error{
+				.Context = context,
+				.Failure = application::github_credential_vault_failure::unavailable,
+			});
+		}
+
+		void retrieve_refresh(
+			application::github_credential_operation_context aContext,
+			application::github_credential_retrieve_completion_handler
+				aCompletion) override
+		{
+			aCompletion(application::github_credential_retrieve_error{
+				.Context = aContext,
+				.Failure = application::github_credential_vault_failure::unavailable,
+			});
+		}
+
+		void delete_refresh(
+			application::github_credential_operation_context         aContext,
+			application::github_credential_delete_completion_handler aCompletion)
+			override
+		{
+			aCompletion(application::github_credential_delete_error{
+				.Context = aContext,
+				.Failure = application::github_credential_vault_failure::unavailable,
+			});
+		}
+
 		void
 		cancel(application::github_credential_operation_context aContext) override
 		{

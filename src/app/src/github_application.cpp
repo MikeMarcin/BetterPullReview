@@ -910,6 +910,30 @@ namespace bpr::app {
 					});
 			}
 
+			void store_refresh(
+				application::github_credential_enrollment               aEnrollment,
+				application::github_credential_store_completion_handler aCompletion)
+				override
+			{
+				store(std::move(aEnrollment), std::move(aCompletion));
+			}
+
+			void retrieve_refresh(
+				const application::github_credential_operation_context     aContext,
+				application::github_credential_retrieve_completion_handler aCompletion)
+				override
+			{
+				retrieve(aContext, std::move(aCompletion));
+			}
+
+			void delete_refresh(
+				const application::github_credential_operation_context   aContext,
+				application::github_credential_delete_completion_handler aCompletion)
+				override
+			{
+				delete_credential(aContext, std::move(aCompletion));
+			}
+
 			void cancel(
 				const application::github_credential_operation_context) override
 			{

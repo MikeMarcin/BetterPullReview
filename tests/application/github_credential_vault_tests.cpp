@@ -189,6 +189,47 @@ namespace {
 			});
 		}
 
+		// This fake exists to drive the credential slot's queueing, correlation,
+		// and cancellation. It has no refresh slot, so it gives the same typed
+		// answer a platform without one gives. The refresh slot's own behaviour
+		// is driven by `slotted_fake_vault` below.
+		void store_refresh(
+			application::github_credential_enrollment               aEnrollment,
+			application::github_credential_store_completion_handler aCompletion)
+			override
+		{
+			publish_store_without_credential(
+				aEnrollment.Credential,
+				aCompletion,
+				application::github_credential_store_error{
+					.Context = aEnrollment.Context,
+					.Failure = application::github_credential_vault_failure::
+						unavailable,
+				});
+		}
+
+		void retrieve_refresh(
+			operation_context aOperation,
+			application::github_credential_retrieve_completion_handler
+				aCompletion) override
+		{
+			aCompletion(application::github_credential_retrieve_error{
+				.Context = aOperation,
+				.Failure = application::github_credential_vault_failure::unavailable,
+			});
+		}
+
+		void delete_refresh(
+			operation_context                                        aOperation,
+			application::github_credential_delete_completion_handler aCompletion)
+			override
+		{
+			aCompletion(application::github_credential_delete_error{
+				.Context = aOperation,
+				.Failure = application::github_credential_vault_failure::unavailable,
+			});
+		}
+
 		void cancel(const operation_context aOperation) override
 		{
 			const auto store = find_store(aOperation);
@@ -527,6 +568,310 @@ namespace {
 	{
 		return terminal_as<application::github_credential_delete_success>(
 			aObservation);
+	}
+
+	// Two slots keyed by the same authority. Every operation answers only for
+	// the slot it was asked about, which is the whole property the refresh path
+	// depends on: a credential query must never be satisfied by refresh
+	// material, and deleting one must never quietly remove the other.
+	class slotted_fake_vault final
+		: public application::github_credential_vault_port
+	{
+	public:
+		void store(
+			application::github_credential_enrollment               aEnrollment,
+			application::github_credential_store_completion_handler aCompletion)
+			override
+		{
+			store_into(Credentials, std::move(aEnrollment), aCompletion);
+		}
+
+		void retrieve(
+			operation_context aOperation,
+			application::github_credential_retrieve_completion_handler
+				aCompletion) override
+		{
+			retrieve_from(Credentials, aOperation, aCompletion);
+		}
+
+		void delete_credential(
+			operation_context                                        aOperation,
+			application::github_credential_delete_completion_handler aCompletion)
+			override
+		{
+			delete_from(Credentials, aOperation, aCompletion);
+		}
+
+		void store_refresh(
+			application::github_credential_enrollment               aEnrollment,
+			application::github_credential_store_completion_handler aCompletion)
+			override
+		{
+			store_into(Refreshes, std::move(aEnrollment), aCompletion);
+		}
+
+		void retrieve_refresh(
+			operation_context aOperation,
+			application::github_credential_retrieve_completion_handler
+				aCompletion) override
+		{
+			retrieve_from(Refreshes, aOperation, aCompletion);
+		}
+
+		void delete_refresh(
+			operation_context                                        aOperation,
+			application::github_credential_delete_completion_handler aCompletion)
+			override
+		{
+			delete_from(Refreshes, aOperation, aCompletion);
+		}
+
+		void cancel(const operation_context) override
+		{
+		}
+
+		[[nodiscard]] auto credentials() const noexcept -> std::size_t
+		{
+			return Credentials.size();
+		}
+
+		[[nodiscard]] auto refreshes() const noexcept -> std::size_t
+		{
+			return Refreshes.size();
+		}
+
+	private:
+		using slot = std::map<authority_key, credential_material>;
+
+		static void store_into(
+			slot&                                                    aSlot,
+			application::github_credential_enrollment                aEnrollment,
+			application::github_credential_store_completion_handler& aCompletion)
+		{
+			const auto context = aEnrollment.Context;
+			if (!valid(aEnrollment)) {
+				aEnrollment.Credential.reset();
+				aCompletion(application::github_credential_store_error{
+					.Context = context,
+					.Failure = application::github_credential_vault_failure::
+						invalid_request,
+				});
+				return;
+			}
+
+			const auto existing = aSlot.find(context.Authority);
+			if (existing == aSlot.end()) {
+				aSlot.emplace(context.Authority, std::move(aEnrollment.Credential));
+			} else {
+				existing->second = std::move(aEnrollment.Credential);
+			}
+			aCompletion(application::github_credential_store_success{
+				.Context     = context,
+				.Disposition = application::github_credential_store_disposition::
+					stored,
+			});
+		}
+
+		static void retrieve_from(
+			const slot&                                                 aSlot,
+			const operation_context&                                    aOperation,
+			application::github_credential_retrieve_completion_handler& aCompletion)
+		{
+			const auto found = aSlot.find(aOperation.Authority);
+			if (found == aSlot.end()) {
+				aCompletion(application::github_credential_retrieve_absent{
+					.Context = aOperation,
+				});
+				return;
+			}
+
+			auto copy = credential_material::create(found->second.bytes());
+			expect(copy.has_value(), "the fake slot copies its material");
+			aCompletion(application::github_credential_retrieve_success{
+				.Context    = aOperation,
+				.Credential = std::move(*copy),
+			});
+		}
+
+		static void delete_from(
+			slot&                                                     aSlot,
+			const operation_context&                                  aOperation,
+			application::github_credential_delete_completion_handler& aCompletion)
+		{
+			const auto erased = aSlot.erase(aOperation.Authority) != 0U;
+			aCompletion(application::github_credential_delete_success{
+				.Context     = aOperation,
+				.Disposition = erased
+					? application::github_credential_delete_disposition::deleted
+					: application::github_credential_delete_disposition::absent,
+			});
+		}
+
+		slot Credentials;
+		slot Refreshes;
+	};
+
+	void test_refresh_slot_is_stored_beside_the_credential()
+	{
+		auto       vault     = slotted_fake_vault{ };
+		const auto operation = context();
+		const auto access    = runtime_bytes(24U, 91U);
+		const auto refresh   = runtime_bytes(32U, 17U);
+
+		auto refreshStore = store_observation{ };
+		vault.store_refresh(
+			application::github_credential_enrollment{
+				.Context    = operation,
+				.Credential = material_from(refresh),
+			},
+			observe_completion(refreshStore));
+		expect(refreshStore.Calls == 1U, "the refresh store terminates once");
+		expect(
+			store_success(refreshStore) != nullptr,
+			"refresh material is stored");
+		expect(vault.refreshes() == 1U, "the refresh slot holds one entry");
+		expect(
+			vault.credentials() == 0U,
+			"and storing refresh material creates no credential");
+
+		// The two slots share an authority key. If the slot were not part of the
+		// lookup, this retrieve would answer with the refresh material.
+		auto credentialAbsent = retrieve_observation{ };
+		vault.retrieve(operation, observe_completion(credentialAbsent));
+		expect(
+			terminal_as<application::github_credential_retrieve_absent>(
+				credentialAbsent)
+				!= nullptr,
+			"a credential query is never answered with refresh material");
+
+		auto credentialStore = store_observation{ };
+		vault.store(
+			application::github_credential_enrollment{
+				.Context    = operation,
+				.Credential = material_from(access),
+			},
+			observe_completion(credentialStore));
+		expect(
+			store_success(credentialStore) != nullptr,
+			"the credential is stored under the same authority");
+		expect(
+			vault.credentials() == 1U && vault.refreshes() == 1U,
+			"both slots now hold exactly one entry");
+
+		auto readCredential = retrieve_observation{ };
+		vault.retrieve(operation, observe_completion(readCredential));
+		const auto* credential = retrieve_success(readCredential);
+		expect(credential != nullptr, "the credential slot answers");
+		expect(
+			same_bytes(credential->Credential.bytes(), access),
+			"with the exact credential bytes");
+
+		auto readRefresh = retrieve_observation{ };
+		vault.retrieve_refresh(operation, observe_completion(readRefresh));
+		const auto* stored = retrieve_success(readRefresh);
+		expect(stored != nullptr, "the refresh slot answers");
+		expect(
+			same_bytes(stored->Credential.bytes(), refresh),
+			"with the exact refresh bytes");
+	}
+
+	void test_deleting_one_slot_leaves_the_other_alone()
+	{
+		auto       vault     = slotted_fake_vault{ };
+		const auto operation = context();
+
+		auto seeded = store_observation{ };
+		vault.store(
+			application::github_credential_enrollment{
+				.Context    = operation,
+				.Credential = material_from(runtime_bytes(16U, 3U)),
+			},
+			observe_completion(seeded));
+		vault.store_refresh(
+			application::github_credential_enrollment{
+				.Context    = operation,
+				.Credential = material_from(runtime_bytes(16U, 5U)),
+			},
+			observe_completion(seeded));
+
+		auto removed = delete_observation{ };
+		vault.delete_refresh(operation, observe_completion(removed));
+		const auto* deleted = delete_success(removed);
+		expect(deleted != nullptr, "the refresh delete succeeds");
+		expect(
+			deleted->Disposition
+				== application::github_credential_delete_disposition::deleted,
+			"and reports that something was removed");
+		expect(
+			vault.credentials() == 1U,
+			"deleting refresh material leaves the credential in place");
+
+		auto repeated = delete_observation{ };
+		vault.delete_refresh(operation, observe_completion(repeated));
+		const auto* again = delete_success(repeated);
+		expect(again != nullptr, "deleting an absent refresh entry still succeeds");
+		expect(
+			again->Disposition
+				== application::github_credential_delete_disposition::absent,
+			"and reports it as absent rather than deleted");
+
+		auto missing = retrieve_observation{ };
+		vault.retrieve_refresh(operation, observe_completion(missing));
+		expect(
+			terminal_as<application::github_credential_retrieve_absent>(missing)
+				!= nullptr,
+			"the deleted refresh entry is gone");
+
+		auto survivor = retrieve_observation{ };
+		vault.retrieve(operation, observe_completion(survivor));
+		expect(
+			retrieve_success(survivor) != nullptr,
+			"and the credential survived the refresh delete");
+	}
+
+	// Every platform except macOS answers the refresh slot the same way for now.
+	// The failure is typed and the material it was handed is released, so a
+	// caller on such a platform learns it cannot rotate rather than believing it
+	// stored something.
+	void test_a_vault_without_a_refresh_slot_reports_unavailable()
+	{
+		auto       vault     = queued_fake_vault{ };
+		const auto operation = context();
+
+		auto stored = store_observation{ };
+		vault.store_refresh(
+			application::github_credential_enrollment{
+				.Context    = operation,
+				.Credential = material_from(runtime_bytes(12U, 61U)),
+			},
+			observe_completion(stored));
+		const auto* storeError = terminal_as<
+			application::github_credential_store_error>(stored);
+		expect(storeError != nullptr, "the refresh store fails");
+		expect(
+			storeError->Failure
+				== application::github_credential_vault_failure::unavailable,
+			"with the typed unavailable failure");
+
+		auto read = retrieve_observation{ };
+		vault.retrieve_refresh(operation, observe_completion(read));
+		const auto* retrieveError = terminal_as<
+			application::github_credential_retrieve_error>(read);
+		expect(retrieveError != nullptr, "the refresh retrieve fails");
+		expect(
+			retrieveError->Failure
+				== application::github_credential_vault_failure::unavailable,
+			"with the same typed failure");
+
+		auto removed = delete_observation{ };
+		vault.delete_refresh(operation, observe_completion(removed));
+		const auto* deleteError = terminal_as<
+			application::github_credential_delete_error>(removed);
+		expect(deleteError != nullptr, "the refresh delete fails");
+		expect(
+			deleteError->Failure
+				== application::github_credential_vault_failure::unavailable,
+			"with the same typed failure");
 	}
 
 	void test_material_contract()
@@ -1386,5 +1731,8 @@ auto main() -> int
 	test_cancellation_and_late_completion();
 	test_duplicate_pending_context();
 	test_terminal_validation();
+	test_refresh_slot_is_stored_beside_the_credential();
+	test_deleting_one_slot_leaves_the_other_alone();
+	test_a_vault_without_a_refresh_slot_reports_unavailable();
 	return EXIT_SUCCESS;
 }

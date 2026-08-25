@@ -1100,6 +1100,60 @@ namespace bpr::app::detail {
 					});
 			}
 
+			// The fixture models the public read path, which has no refresh
+			// material to hold. The slot reports itself unavailable rather than
+			// pretending to store anything.
+			void store_refresh(
+				application::github_credential_enrollment               aEnrollment,
+				application::github_credential_store_completion_handler aCompletion)
+				override
+			{
+				auto pending = std::make_shared<
+					application::github_credential_enrollment>(
+					std::move(aEnrollment));
+				Effects.post(
+					[pending    = std::move(pending),
+					 completion = std::move(aCompletion)]() mutable {
+						const auto context = pending->Context;
+						pending->Credential.reset();
+						completion(application::github_credential_store_error{
+							.Context = context,
+							.Failure = application::
+								github_credential_vault_failure::unavailable,
+						});
+					});
+			}
+
+			void retrieve_refresh(
+				const application::github_credential_operation_context     aContext,
+				application::github_credential_retrieve_completion_handler aCompletion)
+				override
+			{
+				Effects.post(
+					[aContext, completion = std::move(aCompletion)]() mutable {
+						completion(application::github_credential_retrieve_error{
+							.Context = aContext,
+							.Failure = application::
+								github_credential_vault_failure::unavailable,
+						});
+					});
+			}
+
+			void delete_refresh(
+				const application::github_credential_operation_context   aContext,
+				application::github_credential_delete_completion_handler aCompletion)
+				override
+			{
+				Effects.post(
+					[aContext, completion = std::move(aCompletion)]() mutable {
+						completion(application::github_credential_delete_error{
+							.Context = aContext,
+							.Failure = application::
+								github_credential_vault_failure::unavailable,
+						});
+					});
+			}
+
 			void cancel(
 				const application::github_credential_operation_context) override
 			{

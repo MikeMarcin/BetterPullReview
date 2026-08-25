@@ -49,6 +49,7 @@ namespace {
 		-> macos_keychain_vault_factory_result;
 	using injected_factory_signature = auto (*)(
 		application::effect_executor&,
+		std::shared_ptr<macos_keychain_backend>,
 		std::shared_ptr<macos_keychain_backend>) noexcept
 		-> macos_keychain_vault_factory_result;
 	static_assert(std::is_same_v<
@@ -388,6 +389,20 @@ namespace {
 		return std::move(*result);
 	}
 
+	[[nodiscard]] auto make_test_vault_with_refresh(
+		application::manual_executor&               aLane,
+		const std::shared_ptr<wiping_fake_backend>& aBackend,
+		const std::shared_ptr<wiping_fake_backend>& aRefreshBackend)
+		-> std::unique_ptr<application::github_credential_vault_port>
+	{
+		auto result = make_macos_keychain_vault_with_backend(
+			aLane,
+			aBackend,
+			aRefreshBackend);
+		expect(result.has_value(), "injected two-slot Keychain vault is created");
+		return std::move(*result);
+	}
+
 	void submit_store(
 		application::github_credential_vault_port& aVault,
 		const operation_context&                   aOperation,
@@ -602,11 +617,50 @@ namespace {
 				== "org.betterpullreview.github-native-credential."
 				   "file-keychain.integration-test.v2",
 			"integration service is isolated from production");
+		// The refresh slot is a distinct service. Sharing the credential service
+		// and separating the two by account encoding would let a query for one
+		// return the other, because the account encoding is the authority key
+		// and both slots deliberately name the same authority.
+		expect(
+			macos_keychain_service_identifier(
+				macos_keychain_service_scope::production_refresh)
+				== "org.betterpullreview.github-native-refresh."
+				   "file-keychain.v1",
+			"production refresh service is exact and stable");
+		expect(
+			macos_keychain_service_identifier(
+				macos_keychain_service_scope::integration_test_refresh)
+				== "org.betterpullreview.github-native-refresh.file-keychain."
+				   "integration-test.v1",
+			"integration refresh service is isolated from production");
+
+		const auto scopes = {
+			macos_keychain_service_scope::production,
+			macos_keychain_service_scope::integration_test,
+			macos_keychain_service_scope::production_refresh,
+			macos_keychain_service_scope::integration_test_refresh,
+		};
+		auto seen = std::vector<std::string_view>{ };
+		for (const auto scope : scopes) {
+			const auto identifier = macos_keychain_service_identifier(scope);
+			expect(valid(scope), "every named scope is valid");
+			expect(!identifier.empty(), "every named scope has an identifier");
+			for (const auto& other : seen) {
+				expect(
+					other != identifier,
+					"no two scopes share a Keychain service");
+			}
+			seen.push_back(identifier);
+		}
+
 		expect(
 			macos_keychain_service_identifier(
 				static_cast<macos_keychain_service_scope>(255U))
 				.empty(),
 			"malformed service scope has no identifier");
+		expect(
+			!valid(static_cast<macos_keychain_service_scope>(255U)),
+			"and is not a valid scope");
 
 		const auto base    = authority();
 		const auto encoded = encode_macos_keychain_authority_account(base);
@@ -1607,6 +1661,123 @@ namespace {
 					== first.size() + second.size() + first.size(),
 			"backend teardown overwrites every remaining fake byte");
 	}
+
+	// The slot an operation belongs to travels with it. These two prove the
+	// consequence: refresh work reaches only the refresh service, credential
+	// work reaches only the credential service, and a vault built without a
+	// refresh service says so in the type system rather than falling back.
+	void test_the_refresh_slot_reaches_only_its_own_service()
+	{
+		application::manual_executor lane;
+		auto                         observation    = std::make_shared<wipe_observation>();
+		auto                         backend        = std::make_shared<wiping_fake_backend>(observation);
+		auto                         refreshBackend = std::make_shared<wiping_fake_backend>(observation);
+		auto                         vault          = make_test_vault_with_refresh(lane, backend, refreshBackend);
+
+		const auto operation = context(authority(), 700U);
+		const auto refresh   = generated_bytes(23U);
+
+		store_recorder stored;
+		vault->store_refresh(
+			application::github_credential_enrollment{
+				.Context    = operation,
+				.Credential = material_from(refresh),
+			},
+			[&stored](application::github_credential_store_completion aTerminal) {
+				stored.record(std::move(aTerminal));
+			});
+		lane.run_next();
+		expect(stored.Calls == 1U, "the refresh store terminates once");
+		expect(
+			terminal_as<application::github_credential_store_success>(
+				stored.Terminal)
+				!= nullptr,
+			"the refresh store succeeds against its own backend");
+		expect(
+			refreshBackend->Calls.size() == 1U,
+			"the refresh backend performed the work");
+		expect(
+			backend->Calls.empty(),
+			"and the credential backend never saw the refresh material");
+		expect(
+			refreshBackend->matches(operation.Authority, refresh),
+			"the refresh service holds the exact bytes");
+
+		retrieve_recorder credential;
+		submit_retrieve(*vault, context(authority(), 701U), credential);
+		lane.run_next();
+		expect(
+			terminal_as<application::github_credential_retrieve_absent>(
+				credential.Terminal)
+				!= nullptr,
+			"a credential query is not answered by the refresh service");
+
+		retrieve_recorder read;
+		vault->retrieve_refresh(
+			context(authority(), 702U),
+			[&read](
+				application::github_credential_retrieve_completion aTerminal) {
+				read.record(std::move(aTerminal));
+			});
+		lane.run_next();
+		const auto* readBack = terminal_as<
+			application::github_credential_retrieve_success>(read.Terminal);
+		expect(readBack != nullptr, "the refresh slot answers its own query");
+		expect(
+			same_bytes(readBack->Credential.bytes(), refresh),
+			"with the exact refresh bytes");
+
+		delete_recorder removed;
+		vault->delete_refresh(
+			context(authority(), 703U),
+			[&removed](
+				application::github_credential_delete_completion aTerminal) {
+				removed.record(std::move(aTerminal));
+			});
+		lane.run_next();
+		const auto* deleted = terminal_as<
+			application::github_credential_delete_success>(removed.Terminal);
+		expect(deleted != nullptr, "the refresh delete succeeds");
+		expect(
+			deleted->Disposition
+				== application::github_credential_delete_disposition::deleted,
+			"and reports the entry as removed");
+		expect(
+			refreshBackend->Calls.size() == 3U,
+			"the refresh service performed all three refresh operations");
+		expect(
+			backend->Calls.size() == 1U
+				&& backend->Calls.front().Operation == backend_operation::retrieve,
+			"the credential service performed only the one credential query");
+	}
+
+	void test_a_vault_without_a_refresh_service_reports_unavailable()
+	{
+		application::manual_executor lane;
+		auto                         observation = std::make_shared<wipe_observation>();
+		auto                         backend     = std::make_shared<wiping_fake_backend>(observation);
+		auto                         vault       = make_test_vault(lane, backend);
+
+		store_recorder stored;
+		vault->store_refresh(
+			application::github_credential_enrollment{
+				.Context    = context(authority(), 710U),
+				.Credential = material_from(generated_bytes(29U)),
+			},
+			[&stored](application::github_credential_store_completion aTerminal) {
+				stored.record(std::move(aTerminal));
+			});
+		lane.run_next();
+		const auto* failure = terminal_as<
+			application::github_credential_store_error>(stored.Terminal);
+		expect(failure != nullptr, "the refresh store fails");
+		expect(
+			failure->Failure == vault_failure::unavailable,
+			"with the typed unavailable failure");
+		expect(
+			backend->Calls.empty(),
+			"and the credential backend was never asked to hold it");
+	}
 }
 
 auto main() -> int
@@ -1621,5 +1792,7 @@ auto main() -> int
 	test_teardown_and_callback_reentrancy();
 	test_teardown_atomically_claims_all_queued_work();
 	test_fake_backend_wipes_on_replacement_delete_and_teardown();
+	test_the_refresh_slot_reaches_only_its_own_service();
+	test_a_vault_without_a_refresh_service_reports_unavailable();
 	return EXIT_SUCCESS;
 }

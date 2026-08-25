@@ -18,16 +18,25 @@ namespace bpr::adapters::github {
 
 	using macos_keychain_authority_account = std::array<char, macos_keychain_authority_account_bytes>;
 
+	// The refresh scopes are separate services rather than a second account
+	// encoding under the existing ones. The account encoding is the authority
+	// key and is shared deliberately, so a refresh item and the credential it
+	// renews name the same authority; making the service distinct is what keeps
+	// a query for one from ever returning the other.
 	enum class macos_keychain_service_scope : std::uint8_t {
 		production,
 		integration_test,
+		production_refresh,
+		integration_test_refresh,
 	};
 
 	[[nodiscard]] constexpr auto valid(
 		const macos_keychain_service_scope aScope) noexcept -> bool
 	{
 		return aScope == macos_keychain_service_scope::production
-			|| aScope == macos_keychain_service_scope::integration_test;
+			|| aScope == macos_keychain_service_scope::integration_test
+			|| aScope == macos_keychain_service_scope::production_refresh
+			|| aScope == macos_keychain_service_scope::integration_test_refresh;
 	}
 
 	[[nodiscard]] auto macos_keychain_service_identifier(
@@ -107,9 +116,13 @@ namespace bpr::adapters::github {
 		application::effect_executor& aEffectLane)
 		-> macos_keychain_vault_factory_result;
 
+	// A vault built without a refresh backend answers every refresh-slot
+	// operation with the typed unavailable failure. That is the useful default
+	// for the existing contract tests, which have no refresh material.
 	[[nodiscard]] auto make_macos_keychain_vault_with_backend(
 		application::effect_executor&           aEffectLane,
-		std::shared_ptr<macos_keychain_backend> aBackend) noexcept
+		std::shared_ptr<macos_keychain_backend> aBackend,
+		std::shared_ptr<macos_keychain_backend> aRefreshBackend = nullptr) noexcept
 		-> macos_keychain_vault_factory_result;
 }
 

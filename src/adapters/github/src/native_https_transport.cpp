@@ -124,11 +124,14 @@ namespace bpr::adapters::github::detail {
 			application::github_credential_material          Material;
 		};
 
-#if defined(BPR_NATIVE_HTTPS_TESTING)
 		/// \brief A deliberate credential-free binding, not an absent credential.
 		///
 		/// \details It carries no material field at all, so there is no empty or
-		/// wiped credential for a later change to mistake for a usable one.
+		/// wiped credential for a later change to mistake for a usable one. The
+		/// state ships, because the device-authorization flow runs before any
+		/// credential exists; the read-path match for it stays testing-only, so
+		/// in a shipped build this binding satisfies exactly the two
+		/// device-authorization endpoints and nothing else.
 		struct credential_free_request
 		{
 			core::github_session_request_context Context;
@@ -136,9 +139,6 @@ namespace bpr::adapters::github::detail {
 
 		using credential_binding = std::
 			variant<bootstrap_credential, account_credential, credential_free_request>;
-#else
-		using credential_binding = std::variant<bootstrap_credential, account_credential>;
-#endif
 
 		enum class native_request_surface : std::uint8_t {
 			rest_read,
@@ -2223,7 +2223,6 @@ namespace bpr::adapters::github::detail {
 		{
 		}
 
-#if defined(BPR_NATIVE_HTTPS_TESTING)
 		implementation(
 			const validated_github_host_profile& aProfile,
 			credential_free_request              aCredential,
@@ -2233,7 +2232,6 @@ namespace bpr::adapters::github::detail {
 			, Policy{ std::move(aPolicy) }
 		{
 		}
-#endif
 
 		implementation(const implementation&)                    = delete;
 		auto operator=(const implementation&) -> implementation& = delete;
@@ -2906,10 +2904,9 @@ namespace bpr::adapters::github::detail {
 							&& *parent == aCredential.Context
 							&& aRequest.Correlation.Operation
 							== read_operation::get_viewer_identity;
-					}
-#if defined(BPR_NATIVE_HTTPS_TESTING)
-					else if constexpr (
+					} else if constexpr (
 						std::same_as<credential_type, credential_free_request>) {
+#if defined(BPR_NATIVE_HTTPS_TESTING)
 						// Exactly the session this binding was handed, nothing
 						// wider. With no credential there is no account authority
 						// to correlate a pull-request-scoped parent against, so
@@ -2918,9 +2915,14 @@ namespace bpr::adapters::github::detail {
 							core::github_session_request_context>(
 							&aRequest.Correlation.Parent);
 						return parent != nullptr && *parent == aCredential.Context;
-					}
+#else
+						// A shipped credential-free binding answers reads with
+						// nothing: RFC-BPR-0017's anonymous read path is its own
+						// gated program, and the device-authorization endpoints
+						// are the only shipped surface this binding satisfies.
+						return false;
 #endif
-					else {
+					} else {
 						return std::visit(
 							[&aCredential, this](const auto& aParent) noexcept {
 								if (
@@ -3049,19 +3051,16 @@ namespace bpr::adapters::github::detail {
 			return std::visit(
 				[](const auto& aCredential) noexcept
 					-> std::span<const std::byte> {
-			// Discriminate on the deliberate state, not on whether a
-			// field happens to exist. Testing for the field would let a
-			// future alternative that renames or omits `Material` compile
-			// and silently send an empty credential; naming the type
-			// keeps that a build failure.
-#if defined(BPR_NATIVE_HTTPS_TESTING)
+					// Discriminate on the deliberate state, not on whether a
+					// field happens to exist. Testing for the field would let a
+					// future alternative that renames or omits `Material` compile
+					// and silently send an empty credential; naming the type
+					// keeps that a build failure.
 					if constexpr (std::same_as<
 									  std::remove_cvref_t<decltype(aCredential)>,
 									  credential_free_request>) {
 						return { };
-					} else
-#endif
-					{
+					} else {
 						return aCredential.Material.bytes();
 					}
 				},
@@ -4161,6 +4160,25 @@ namespace bpr::adapters::github::detail {
 				.Context  = aCredential.Context,
 				.Material = std::move(aCredential.Credential),
 			},
+			make_production_policy());
+	}
+
+	auto make_native_https_credential_free_transport(
+		const validated_github_host_profile& aProfile,
+		core::github_session_request_context aContext) noexcept
+		-> native_https_transport_factory_result
+	{
+		if (
+			!application::detail::valid_context(aContext)
+			|| aContext.Profile != aProfile.profile()) {
+			return std::unexpected{
+				native_https_configuration_failure::
+					invalid_bootstrap_context
+			};
+		}
+		return make_transport(
+			aProfile,
+			credential_free_request{ .Context = aContext },
 			make_production_policy());
 	}
 

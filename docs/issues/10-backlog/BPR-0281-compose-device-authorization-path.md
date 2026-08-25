@@ -27,3 +27,14 @@ depends_on: [BPR-0279, BPR-0280]
 - Manual token enrollment remains functional before and after device success.
 - Fixture factories and testing helpers are absent from Release; the public-path
   contract proves exact composition rather than linked symbols or helper calls.
+
+## Inherited from done BPR-0279 — 2026-08-24
+
+The host slice deliberately shipped ports without two production adapters
+this card now owns supplying: the interruptible production timer adapter
+behind `device_authorization_timer_port` (the host owns the schedule and its
+bounds; the real timer needs runtime machinery only composition can verify),
+and the bridge that hands the host its transport through the production
+`make_native_https_credential_free_transport` factory — the adapter depends
+on the application layer, so the bridge lives here, not in `src/application`.
+The refresh wire adapter is separately [[BPR-0450]].
