@@ -1,7 +1,7 @@
 ---
 id: BPR-0281
 title: Compose the production device-authorization path
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0279, BPR-0280]
 ---
