@@ -1,0 +1,21 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/42fd8114a6c2bbeb0cbf6f54",
+  "review_gate": "rfc0016_attended_live_capture",
+  "review_scope": "human_sanitized_capture_bytes_acceptance_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "evidence:/betterpullreview/bpr-0276/attended-live-capture",
+      "subject_digest": "sha256:a72c61372e2a3da00c4746f400da6bf983121b55e6be2651a9a5abb0ae67afac"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {},
+  "downstream_claims": {
+    "bpr_0276_closed": false,
+    "cryptographic_github_authenticity_claimed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}

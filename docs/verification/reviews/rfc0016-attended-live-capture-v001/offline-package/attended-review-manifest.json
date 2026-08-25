@@ -1,0 +1,276 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/42fd8114a6c2bbeb0cbf6f54",
+  "downstream_claims": {
+    "bpr_0276_closed": false,
+    "cryptographic_github_authenticity_claimed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "Acceptance records human review of these exact sanitized bytes as attended run evidence. It does not establish cryptographic GitHub or transport authenticity.",
+  "review_gate": "rfc0016_attended_live_capture",
+  "review_scope": "human_sanitized_capture_bytes_acceptance_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Every sanitized course, fixture, and live-run-attestation byte is bound by this subject.",
+        "Acceptance means only that these exact bytes are accepted as attended BPR-0276 run evidence."
+      ],
+      "audit_verdict": {
+        "note": "The offline RFC-0016 structural validator accepted the bound unattested fixture.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Decide whether these exact sanitized fixture and live-run-attestation bytes are accepted as attended BPR-0276 run evidence.",
+      "detail_sections": [],
+      "display_name": "Accept exact sanitized RFC-BPR-0016 capture bytes",
+      "identity_files": [
+        {
+          "label": "fixture:manifest.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/01-fixture-manifest-json.json",
+          "sha256": "sha256:e98d897637fc067c789e704142e71cdcfef9b0a0bfcf33111463e36987fbc898"
+        },
+        {
+          "label": "fixture:outcomes/access_denied.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/02-fixture-outcomes-access-denied-json.json",
+          "sha256": "sha256:9c00813873c7092578bafdff84e2c767bbda779674defdc5e18e6c02068a9ee7"
+        },
+        {
+          "label": "fixture:outcomes/authorization_pending.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/03-fixture-outcomes-authorization-pending-json.json",
+          "sha256": "sha256:8d4ce42d89f078c0ee159ee965c768295b2e94e2646aacf7aa294888eee5b908"
+        },
+        {
+          "label": "fixture:outcomes/device_code_success.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/04-fixture-outcomes-device-code-success-json.json",
+          "sha256": "sha256:30546cb8cdeefe5669ab7d0c5102d057a7befc7365483cecb67930b3352d004c"
+        },
+        {
+          "label": "fixture:outcomes/device_flow_disabled.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/05-fixture-outcomes-device-flow-disabled-json.json",
+          "sha256": "sha256:9b840ac7da2cb6450b6e6f8e71dcfaaffe35f3cfb32a8f57fb0fef4fadb96ea3"
+        },
+        {
+          "label": "fixture:outcomes/expired_token.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/06-fixture-outcomes-expired-token-json.json",
+          "sha256": "sha256:ae0dfb9a4f6d5c8e5500a9063c96be49e5ccb9d9c0bab28f33d29f348fe63e01"
+        },
+        {
+          "label": "fixture:outcomes/slow_down.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/07-fixture-outcomes-slow-down-json.json",
+          "sha256": "sha256:153e75e59fba0654cdcf846869621c5d12ca94b1936a09c7f320e30dbe5a4fa3"
+        },
+        {
+          "label": "fixture:outcomes/token_success.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/08-fixture-outcomes-token-success-json.json",
+          "sha256": "sha256:ac158256e9065f4ffc6e889b940e2904266fd248299321f3604ce081ab32167e"
+        },
+        {
+          "label": "fixture:registration.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/09-fixture-registration-json.json",
+          "sha256": "sha256:3027ab217022dbbdf5312abc7413d325ba7e07a54e56c90c32b2e0bb2229404b"
+        },
+        {
+          "label": "fixture:route-probes.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/10-fixture-route-probes-json.json",
+          "sha256": "sha256:bfbd901ef4702bc0a8da7c6db841937c30b558edba8b870209202dcf352528a2"
+        },
+        {
+          "label": "course:access-denied/course-execution.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/11-course-access-denied-course-execution-json.json",
+          "sha256": "sha256:c925cb8d8475b72e305eefaadd8bbfa4a3adbf1837cf1ab15382b68871628029"
+        },
+        {
+          "label": "course:access-denied/outcomes/access_denied.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/12-course-access-denied-outcomes-access-denied-json.json",
+          "sha256": "sha256:9c00813873c7092578bafdff84e2c767bbda779674defdc5e18e6c02068a9ee7"
+        },
+        {
+          "label": "course:access-denied/outcomes/authorization_pending.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/13-course-access-denied-outcomes-authorization-pending-json.json",
+          "sha256": "sha256:b05c665da6cb1d84419b9a8d13f5614615c748c7d146e95f674002f65ae75dde"
+        },
+        {
+          "label": "course:access-denied/outcomes/device_code_success.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/14-course-access-denied-outcomes-device-code-success-json.json",
+          "sha256": "sha256:eb2d45ea63ffe08b540de6b428b7ec46d0d982cc16e9e86b9c02b9a5616cebd8"
+        },
+        {
+          "label": "course:access-denied/registration.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/15-course-access-denied-registration-json.json",
+          "sha256": "sha256:3027ab217022dbbdf5312abc7413d325ba7e07a54e56c90c32b2e0bb2229404b"
+        },
+        {
+          "label": "course:device-flow-disabled/course-execution.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/16-course-device-flow-disabled-course-execution-json.json",
+          "sha256": "sha256:c4953a03f9fbdb130ef17fbdb89589ada04da028409b51f0cdb700b76917f693"
+        },
+        {
+          "label": "course:device-flow-disabled/device-flow-transition.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/17-course-device-flow-disabled-device-flow-transition-json.json",
+          "sha256": "sha256:abf9382bad4f19ffbc6fbf17053e14dbcb58e6cdef015b348253a69ff78247b1"
+        },
+        {
+          "label": "course:device-flow-disabled/outcomes/device_flow_disabled.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/18-course-device-flow-disabled-outcomes-device-flow-disabled-json.json",
+          "sha256": "sha256:9b840ac7da2cb6450b6e6f8e71dcfaaffe35f3cfb32a8f57fb0fef4fadb96ea3"
+        },
+        {
+          "label": "course:device-flow-disabled/registration.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/19-course-device-flow-disabled-registration-json.json",
+          "sha256": "sha256:3027ab217022dbbdf5312abc7413d325ba7e07a54e56c90c32b2e0bb2229404b"
+        },
+        {
+          "label": "course:expired-token/course-execution.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/20-course-expired-token-course-execution-json.json",
+          "sha256": "sha256:5f55bdf85bb5c4363e1a19b9fddd22d4949f01db5be47ca830372eb092b7f2f0"
+        },
+        {
+          "label": "course:expired-token/outcomes/device_code_success.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/21-course-expired-token-outcomes-device-code-success-json.json",
+          "sha256": "sha256:baa6abdab7faf0288b71d4ff44ff94a049b3ba249585cf52473847e0964f88b1"
+        },
+        {
+          "label": "course:expired-token/outcomes/expired_token.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/22-course-expired-token-outcomes-expired-token-json.json",
+          "sha256": "sha256:ae0dfb9a4f6d5c8e5500a9063c96be49e5ccb9d9c0bab28f33d29f348fe63e01"
+        },
+        {
+          "label": "course:expired-token/registration.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/23-course-expired-token-registration-json.json",
+          "sha256": "sha256:3027ab217022dbbdf5312abc7413d325ba7e07a54e56c90c32b2e0bb2229404b"
+        },
+        {
+          "label": "course:slow-down/course-execution.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/24-course-slow-down-course-execution-json.json",
+          "sha256": "sha256:ecb07c3ca271bfd2bd4379e6c7d89de7971d95bd1db4f3d0b15476d1420d4676"
+        },
+        {
+          "label": "course:slow-down/outcomes/authorization_pending.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/25-course-slow-down-outcomes-authorization-pending-json.json",
+          "sha256": "sha256:8d4ce42d89f078c0ee159ee965c768295b2e94e2646aacf7aa294888eee5b908"
+        },
+        {
+          "label": "course:slow-down/outcomes/device_code_success.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/26-course-slow-down-outcomes-device-code-success-json.json",
+          "sha256": "sha256:ea76d22347346c18084fc609b4cf4ba2eb3fb084cfce2dcff9bfaae3aa0edbdf"
+        },
+        {
+          "label": "course:slow-down/outcomes/slow_down.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/27-course-slow-down-outcomes-slow-down-json.json",
+          "sha256": "sha256:153e75e59fba0654cdcf846869621c5d12ca94b1936a09c7f320e30dbe5a4fa3"
+        },
+        {
+          "label": "course:slow-down/registration.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/28-course-slow-down-registration-json.json",
+          "sha256": "sha256:3027ab217022dbbdf5312abc7413d325ba7e07a54e56c90c32b2e0bb2229404b"
+        },
+        {
+          "label": "course:token-success/course-execution.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/29-course-token-success-course-execution-json.json",
+          "sha256": "sha256:9072a7f4d289cb8ab637e37c7f856ad72352916a61ec41028ed81658e2938420"
+        },
+        {
+          "label": "course:token-success/outcomes/authorization_pending.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/30-course-token-success-outcomes-authorization-pending-json.json",
+          "sha256": "sha256:a042ece51331140db6730790c59972c344e0db29466d2595f7d8910f26c85d18"
+        },
+        {
+          "label": "course:token-success/outcomes/device_code_success.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/31-course-token-success-outcomes-device-code-success-json.json",
+          "sha256": "sha256:30546cb8cdeefe5669ab7d0c5102d057a7befc7365483cecb67930b3352d004c"
+        },
+        {
+          "label": "course:token-success/outcomes/token_success.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/32-course-token-success-outcomes-token-success-json.json",
+          "sha256": "sha256:ac158256e9065f4ffc6e889b940e2904266fd248299321f3604ce081ab32167e"
+        },
+        {
+          "label": "course:token-success/registration.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/33-course-token-success-registration-json.json",
+          "sha256": "sha256:3027ab217022dbbdf5312abc7413d325ba7e07a54e56c90c32b2e0bb2229404b"
+        },
+        {
+          "label": "course:token-success/route-probes.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/34-course-token-success-route-probes-json.json",
+          "sha256": "sha256:bfbd901ef4702bc0a8da7c6db841937c30b558edba8b870209202dcf352528a2"
+        },
+        {
+          "label": "authority:slow-down-replacement-authority.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/35-authority-slow-down-replacement-authority-json.json",
+          "sha256": "sha256:01bc23d164fece5ebc47dbf6fb06dc03c320ceb007d20df01ed7b12806f74f98"
+        },
+        {
+          "label": "authority:slow-down-reservation-spent.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/36-authority-slow-down-reservation-spent-json.json",
+          "sha256": "sha256:0b189d071722d485b1d35fc5ca63385bc1ad5353efbc577575c87370ee476866"
+        },
+        {
+          "label": "authority:slow-down-parser-repair-recovery-authority.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/37-authority-slow-down-parser-repair-recovery-authority-json.json",
+          "sha256": "sha256:ea86465538b12445c19ab11aa199db76378a6d0e18d9c0d000aa5dc42dc39756"
+        },
+        {
+          "label": "authority:slow-down-parser-repair-recovery-spent.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/38-authority-slow-down-parser-repair-recovery-spent-json.json",
+          "sha256": "sha256:add4ed2f16eec668a47dba2ec0e1a43c07fb0fb701d5cf5b2630ffb0568d8558"
+        },
+        {
+          "label": "attestation:live-run-attestation.json",
+          "media_kind": "file",
+          "path": "subjects/001-bpr0276-attended-live-capture-v1/identity/39-attestation-live-run-attestation-json.json",
+          "sha256": "sha256:2a4d483185d8edf878cf144bdc0f4e0610930d58a0fea47720b75c32b8de20a5"
+        }
+      ],
+      "known_concerns": [
+        "Human acceptance does not establish cryptographic GitHub or transport authenticity."
+      ],
+      "media_groups": [],
+      "subject_digest": "sha256:a72c61372e2a3da00c4746f400da6bf983121b55e6be2651a9a5abb0ae67afac",
+      "subject_id": "evidence:/betterpullreview/bpr-0276/attended-live-capture",
+      "subject_key": "bpr0276-attended-live-capture-v1"
+    }
+  ],
+  "title": "RFC-BPR-0016 attended live capture evidence"
+}

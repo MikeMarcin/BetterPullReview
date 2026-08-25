@@ -1,0 +1,15 @@
+{
+  "authority_amendment_id": "rfc0016-private-owner-only-2026-08-13",
+  "authority_id": "rfc0016-bpr0276-slow-down-parser-repair-recovery-once-2026-08-13",
+  "authority_subject_sha256": "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178",
+  "authorized_at_utc": "2026-08-20T13:50:56Z",
+  "course": "slow-down",
+  "failed_attempt_authority_sha256": "sha256:01bc23d164fece5ebc47dbf6fb06dc03c320ceb007d20df01ed7b12806f74f98",
+  "failed_attempt_capture_runner_sha256": "sha256:ada98808a0e4325b260102cd4bdf29a55596b318dbdc0fdb6cb222c3cce6bf30",
+  "failed_attempt_spent_marker_sha256": "sha256:0b189d071722d485b1d35fc5ca63385bc1ad5353efbc577575c87370ee476866",
+  "parser_repair_capture_runner_sha256": "sha256:d00583abcb052c72e11c9f14e97e1dd69575455e26e81b5db32455c98c1b5c3c",
+  "recovery_early_poll_limit": 1,
+  "schema_name": "bpr.rfc0016.slow_down_parser_repair_recovery_authority",
+  "schema_version": 1,
+  "state": "parser_repair_recovery_authorized"
+}

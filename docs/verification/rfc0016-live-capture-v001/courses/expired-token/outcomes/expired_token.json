@@ -1,0 +1,36 @@
+{
+  "content_type": "application/json",
+  "endpoint": "token",
+  "endpoint_url": "https://github.com/login/oauth/access_token",
+  "http_status": 200,
+  "outcome": "expired_token",
+  "projection": {
+    "observed_fields": [
+      "error",
+      "error_description",
+      "error_uri"
+    ],
+    "omitted_transient_fields": [
+      "error_description",
+      "error_uri"
+    ],
+    "values": {
+      "error": "expired_token",
+      "official_error_uri": true
+    }
+  },
+  "provenance": {
+    "authority_amendment_id": "rfc0016-private-owner-only-2026-08-13",
+    "authority_subject_sha256": "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178",
+    "capture_tool": "scripts/capture_rfc0016_device_contracts.py",
+    "captured_at_utc": "2026-08-25T02:00:10Z",
+    "observation": "expired_token_response",
+    "registration_record_sha256": "sha256:3027ab217022dbbdf5312abc7413d325ba7e07a54e56c90c32b2e0bb2229404b",
+    "service": "github.com",
+    "source_kind": "unattested_capture"
+  },
+  "request_content_type": "application/x-www-form-urlencoded",
+  "request_method": "POST",
+  "schema_name": "bpr.rfc0016.device_contract",
+  "schema_version": 1
+}

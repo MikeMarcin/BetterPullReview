@@ -1,0 +1,49 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/42fd8114a6c2bbeb0cbf6f54",
+  "capture_runner": {
+    "byte_length": 77534,
+    "path": "scripts/run_rfc0016_device_capture_attended.py",
+    "sha256": "sha256:d00583abcb052c72e11c9f14e97e1dd69575455e26e81b5db32455c98c1b5c3c"
+  },
+  "claims": {
+    "bpr_0276_closed": false,
+    "cryptographic_github_authenticity_claimed": false,
+    "release_gate_satisfied": false,
+    "rfc0016_sanitized_capture_subject_accepted": true,
+    "rfc_closeout_claimed": false,
+    "verdict_validated_against_its_batch_manifest": true
+  },
+  "invocation": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/rfc0016-attended-live-capture-v001/offline-package/attended-review-manifest.json --verdict docs/verification/reviews/rfc0016-attended-live-capture-v001/human-verdict.json",
+  "manifest": {
+    "byte_length": 15221,
+    "path": "docs/verification/reviews/rfc0016-attended-live-capture-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:5a8957ffe749bcf61db053974d79b8b73f32931c87e18d792ae91c6e5a1baf89"
+  },
+  "official_validator": {
+    "byte_length": 45951,
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:a7c6887dcde15b54e0d29d6a7a43847355e8c9dac38093fcd29b6abb603013ce"
+  },
+  "outcome": "all_subjects_accepted",
+  "recorded_at": "2026-08-24T19:32:12-07:00",
+  "result": "valid complete verdict",
+  "review_gate": "rfc0016_attended_live_capture",
+  "review_input": {
+    "byte_length": 9074,
+    "path": "docs/verification/reviews/rfc0016-attended-live-capture-v001/offline-review-input.json",
+    "sha256": "sha256:1db6f16f2ab265bf7b7c501b78f42e930a71364a32de23457ee6508a542b0fa9"
+  },
+  "review_page": {
+    "byte_length": 56503,
+    "path": "docs/verification/reviews/rfc0016-attended-live-capture-v001/offline-package/index.html",
+    "sha256": "sha256:07f567304eb7c3c5d97f11c7838f0f39340d0b0d84afe23dc0e976f121e5a286"
+  },
+  "review_scope": "human_sanitized_capture_bytes_acceptance_only",
+  "schema_name": "bpr.attended_review_validation_record",
+  "schema_version": 1,
+  "verdict": {
+    "byte_length": 741,
+    "path": "docs/verification/reviews/rfc0016-attended-live-capture-v001/human-verdict.json",
+    "sha256": "sha256:e5c95d0b4c1bf9abb2a65f28b0f8eff2456f4604b66c116c5a980b5df7cc5ba4"
+  }
+}

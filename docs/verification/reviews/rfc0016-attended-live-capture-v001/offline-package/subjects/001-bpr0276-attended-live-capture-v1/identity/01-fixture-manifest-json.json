@@ -1,0 +1,54 @@
+{
+  "artifacts": [
+    {
+      "path": "registration.json",
+      "sha256": "sha256:3027ab217022dbbdf5312abc7413d325ba7e07a54e56c90c32b2e0bb2229404b",
+      "source_kind": "unattested_capture"
+    },
+    {
+      "path": "route-probes.json",
+      "sha256": "sha256:bfbd901ef4702bc0a8da7c6db841937c30b558edba8b870209202dcf352528a2",
+      "source_kind": "unattested_capture"
+    },
+    {
+      "path": "outcomes/access_denied.json",
+      "sha256": "sha256:9c00813873c7092578bafdff84e2c767bbda779674defdc5e18e6c02068a9ee7",
+      "source_kind": "unattested_capture"
+    },
+    {
+      "path": "outcomes/authorization_pending.json",
+      "sha256": "sha256:8d4ce42d89f078c0ee159ee965c768295b2e94e2646aacf7aa294888eee5b908",
+      "source_kind": "unattested_capture"
+    },
+    {
+      "path": "outcomes/device_code_success.json",
+      "sha256": "sha256:30546cb8cdeefe5669ab7d0c5102d057a7befc7365483cecb67930b3352d004c",
+      "source_kind": "unattested_capture"
+    },
+    {
+      "path": "outcomes/device_flow_disabled.json",
+      "sha256": "sha256:9b840ac7da2cb6450b6e6f8e71dcfaaffe35f3cfb32a8f57fb0fef4fadb96ea3",
+      "source_kind": "unattested_capture"
+    },
+    {
+      "path": "outcomes/expired_token.json",
+      "sha256": "sha256:ae0dfb9a4f6d5c8e5500a9063c96be49e5ccb9d9c0bab28f33d29f348fe63e01",
+      "source_kind": "unattested_capture"
+    },
+    {
+      "path": "outcomes/slow_down.json",
+      "sha256": "sha256:153e75e59fba0654cdcf846869621c5d12ca94b1936a09c7f320e30dbe5a4fa3",
+      "source_kind": "unattested_capture"
+    },
+    {
+      "path": "outcomes/token_success.json",
+      "sha256": "sha256:ac158256e9065f4ffc6e889b940e2904266fd248299321f3604ce081ab32167e",
+      "source_kind": "unattested_capture"
+    }
+  ],
+  "authority_amendment_id": "rfc0016-private-owner-only-2026-08-13",
+  "authority_subject_sha256": "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178",
+  "schema_name": "bpr.rfc0016.device_capture_manifest",
+  "schema_version": 1,
+  "state": "unattested_capture"
+}

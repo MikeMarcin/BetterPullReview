@@ -1,0 +1,39 @@
+{
+  "content_type": "application/json",
+  "endpoint": "device_code",
+  "endpoint_url": "https://github.com/login/device/code",
+  "http_status": 200,
+  "outcome": "device_code_success",
+  "projection": {
+    "observed_fields": [
+      "device_code",
+      "expires_in",
+      "interval",
+      "user_code",
+      "verification_uri"
+    ],
+    "omitted_transient_fields": [
+      "device_code",
+      "user_code"
+    ],
+    "values": {
+      "expires_in": 899,
+      "interval": 5,
+      "verification_uri": "https://github.com/login/device"
+    }
+  },
+  "provenance": {
+    "authority_amendment_id": "rfc0016-private-owner-only-2026-08-13",
+    "authority_subject_sha256": "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178",
+    "capture_tool": "scripts/capture_rfc0016_device_contracts.py",
+    "captured_at_utc": "2026-08-25T02:00:10Z",
+    "observation": "device_code_success_response",
+    "registration_record_sha256": "sha256:3027ab217022dbbdf5312abc7413d325ba7e07a54e56c90c32b2e0bb2229404b",
+    "service": "github.com",
+    "source_kind": "unattested_capture"
+  },
+  "request_content_type": "application/x-www-form-urlencoded",
+  "request_method": "POST",
+  "schema_name": "bpr.rfc0016.device_contract",
+  "schema_version": 1
+}

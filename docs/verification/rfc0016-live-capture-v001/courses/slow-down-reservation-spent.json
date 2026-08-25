@@ -1,0 +1,12 @@
+{
+  "authority_amendment_id": "rfc0016-private-owner-only-2026-08-13",
+  "authority_id": "rfc0016-bpr0276-slow-down-replacement-once-2026-08-13",
+  "authority_record_sha256": "sha256:01bc23d164fece5ebc47dbf6fb06dc03c320ceb007d20df01ed7b12806f74f98",
+  "authority_subject_sha256": "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178",
+  "capture_runner_sha256": "sha256:ada98808a0e4325b260102cd4bdf29a55596b318dbdc0fdb6cb222c3cce6bf30",
+  "course": "slow-down",
+  "schema_name": "bpr.rfc0016.slow_down_reservation",
+  "schema_version": 1,
+  "spent_before_traffic_at_utc": "2026-08-14T03:55:39Z",
+  "state": "spent"
+}

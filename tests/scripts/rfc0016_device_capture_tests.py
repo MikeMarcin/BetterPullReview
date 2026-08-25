@@ -27,6 +27,20 @@ FIXTURE_ROOT = (
     / "device-authorization"
     / "v1"
 )
+RECORDED_REVIEW_ROOT = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "verification"
+    / "reviews"
+    / "rfc0016-attended-live-capture-v001"
+)
+RECORDED_COURSE_ROOT = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "verification"
+    / "rfc0016-live-capture-v001"
+    / "courses"
+)
 SPEC = importlib.util.spec_from_file_location("rfc0016_capture", TOOL_PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("could not load capture module")
@@ -769,7 +783,7 @@ class CaptureContractTests(unittest.TestCase):
         self.assertNotIn("runtime-", diagnostic)
         self.assertNotIn(SYNTHETIC_USER_CODE, diagnostic)
 
-    def test_tracked_fixture_is_exact_pending_real_state(self) -> None:
+    def test_tracked_fixture_is_exact_recorded_attended_capture(self) -> None:
         self.assertEqual(
             CAPTURE.AUTHORITY_SUBJECT_SHA256,
             EXPECTED_AUTHORITY_SUBJECT_SHA256,
@@ -782,13 +796,37 @@ class CaptureContractTests(unittest.TestCase):
         self.assertEqual(CAPTURE.REGISTRATION_PERMISSIONS, EXPECTED_PERMISSIONS)
         self.assertEqual(
             CAPTURE.validate_fixture_root(FIXTURE_ROOT),
-            "pending_real_capture",
+            "unattested_capture",
         )
         self.assert_rejected(
             lambda: CAPTURE.validate_fixture_root(
                 FIXTURE_ROOT,
                 require_complete=True,
             )
+        )
+        self.assertEqual(
+            CAPTURE.validate_fixture_root(
+                FIXTURE_ROOT,
+                require_complete=True,
+                attestation_review=RECORDED_REVIEW_ROOT,
+                course_evidence_root=RECORDED_COURSE_ROOT,
+            ),
+            "attended_human_accepted_capture",
+        )
+        manifest = json.loads(
+            (
+                RECORDED_REVIEW_ROOT
+                / "offline-package"
+                / "attended-review-manifest.json"
+            ).read_bytes()
+        )
+        self.assertEqual(
+            manifest["batch_id"],
+            "bpr:/attended-review/betterpullreview/42fd8114a6c2bbeb0cbf6f54",
+        )
+        self.assertEqual(
+            manifest["subjects"][0]["subject_digest"],
+            "sha256:a72c61372e2a3da00c4746f400da6bf983121b55e6be2651a9a5abb0ae67afac",
         )
 
     def test_synthetic_complete_tree_cannot_claim_real_and_is_not_modified(self) -> None:
@@ -2338,7 +2376,7 @@ class CaptureContractTests(unittest.TestCase):
         ):
             self.assertEqual(
                 CAPTURE.validate_fixture_root(FIXTURE_ROOT),
-                "pending_real_capture",
+                "unattested_capture",
             )
 
     def test_cli_is_deterministic_and_diagnostics_do_not_echo_rejected_bytes(self) -> None:
@@ -2356,7 +2394,7 @@ class CaptureContractTests(unittest.TestCase):
         self.assertEqual(first.stderr, second.stderr)
         self.assertEqual(
             first.stdout,
-            "RFC0016_DEVICE_CAPTURE_VALID:pending_real_capture\n",
+            "RFC0016_DEVICE_CAPTURE_VALID:unattested_capture\n",
         )
 
         with contained_temporary_directory() as temporary:

@@ -130,17 +130,23 @@ safely cancelled, non-retryable evidence, so the added test drifts no reviewed
 live plan. BPR-0418 still owns rendered consumption and must not upgrade this
 constructed content into real-world need or shipped-public-path evidence.
 
-## Pending RFC-BPR-0016 device-authorization contract v1
+## Recorded RFC-BPR-0016 device-authorization contract v1
 
-`tests/fixtures/github/device-authorization/v1/` currently contains only the
-canonical `pending_real_capture` state. It contains no fabricated endpoint
-outcome and is not evidence that the GitHub App has been registered or that a
-GitHub endpoint or repository has been contacted. The real registration,
-device-code and token outcomes, and bounded read-only permission probes remain
-the attended BPR-0276 course.
+`tests/fixtures/github/device-authorization/v1/` now holds the real sanitized
+attended capture recorded by BPR-0276 on 2026-08-24, replacing the earlier
+`pending_real_capture` placeholder: one registration record, the seven closed
+endpoint outcomes, the ten read-only route probes, and the binding manifest,
+all captured in one owner-attended sitting under the single repaired runner
+digest `d00583ab…` and admitted as
+`RFC0016_DEVICE_CAPTURE_VALID:attended_human_accepted_capture` against the
+owner's accepted review at
+`docs/verification/reviews/rfc0016-attended-live-capture-v001/`. The five
+attended course trees, both slow-down authority/spend chains, and the strict
+`live-run-attestation.json` live at
+`docs/verification/rfc0016-live-capture-v001/`.
 
 `scripts/capture_rfc0016_device_contracts.py` is an offline-only sanitizer and
-validator for that later course. It has no live-network or write mode. The
+validator for that recorded course. It has no live-network or write mode. The
 library surface accepts response bytes in memory, projects only closed
 structural fields, omits access/refresh tokens and device/user codes, and
 requires canonical JSON before an unattested durable fixture tree can validate.

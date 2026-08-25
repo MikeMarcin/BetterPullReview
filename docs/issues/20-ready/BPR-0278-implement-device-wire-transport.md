@@ -1,7 +1,7 @@
 ---
 id: BPR-0278
 title: Implement device authorization wire and native HTTPS contracts
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0016
 depends_on: [BPR-0276]
 ---

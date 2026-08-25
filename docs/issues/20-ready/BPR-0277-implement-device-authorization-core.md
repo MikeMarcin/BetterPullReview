@@ -1,7 +1,7 @@
 ---
 id: BPR-0277
 title: Implement deterministic device-authorization policy
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0016
 depends_on: [BPR-0276]
 ---
@@ -46,3 +46,16 @@ So the edge is a proxy for a program-level deferral. It is left in place because
 it produces the right behaviour, and this section exists so the next audit does
 not mistake a missing justification for a missing dependency. Lifting the edge
 would not make this card startable; only un-deferring the RFC would.
+
+## The deferral reasoning above is superseded — 2026-08-24
+
+The owner made device login the required product interaction before live
+publication when cancelling BPR-0256 v006, and the reconciliation recorded in
+`docs/verification/RFC-BPR-0016.md` establishes that the RFC's `Deferred`
+front matter describes closeout eligibility, not implementation permission:
+the validated available-target implementation exception authorizes
+implementation once the first three eligibility gates close, and done
+[[BPR-0276]] closed the last of them with its admitted attended capture. This
+card is therefore genuinely startable in `20-ready/`. The paragraph above is
+retained as the reasoning that was correct while the program-level deferral
+stood; RFC closeout still waits on [[BPR-0318]] and RFC-BPR-0002.

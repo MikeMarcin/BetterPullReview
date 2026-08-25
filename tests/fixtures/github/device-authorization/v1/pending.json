@@ -1,6 +1,0 @@
-{
-  "authority_subject_sha256": "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178",
-  "schema_name": "bpr.rfc0016.device_capture_state",
-  "schema_version": 1,
-  "state": "pending_real_capture"
-}

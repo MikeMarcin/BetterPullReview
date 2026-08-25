@@ -1,0 +1,12 @@
+{
+  "authority_amendment_id": "rfc0016-private-owner-only-2026-08-13",
+  "authority_id": "rfc0016-bpr0276-slow-down-replacement-once-2026-08-13",
+  "authority_subject_sha256": "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178",
+  "authorized_at_utc": "2026-08-14T03:55:12Z",
+  "course": "slow-down",
+  "previous_early_poll_consumed": true,
+  "replacement_early_poll_limit": 1,
+  "schema_name": "bpr.rfc0016.slow_down_replacement_authority",
+  "schema_version": 1,
+  "state": "replacement_authorized"
+}

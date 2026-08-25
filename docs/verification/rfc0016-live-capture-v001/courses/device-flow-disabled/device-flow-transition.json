@@ -1,0 +1,27 @@
+{
+  "application_id": 4581304,
+  "authority_amendment_id": "rfc0016-private-owner-only-2026-08-13",
+  "authority_subject_sha256": "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178",
+  "observation_method": "attended_github_settings_page",
+  "owner_login": "MikeMarcin",
+  "public_client_id": "Iv23lil08fH3933w9MkW",
+  "schema_name": "bpr.rfc0016.device_flow_transition_observation",
+  "schema_version": 1,
+  "states": [
+    {
+      "device_flow_enabled": true,
+      "observed_at_utc": "2026-08-25T02:20:50Z",
+      "phase": "before_enabled"
+    },
+    {
+      "device_flow_enabled": false,
+      "observed_at_utc": "2026-08-25T02:21:14Z",
+      "phase": "disabled_for_capture"
+    },
+    {
+      "device_flow_enabled": true,
+      "observed_at_utc": "2026-08-25T02:23:34Z",
+      "phase": "restored_enabled"
+    }
+  ]
+}

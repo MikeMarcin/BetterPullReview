@@ -1,10 +1,9 @@
 ---
 id: BPR-0276
 title: Register the device client and capture real wire contracts
-status: Parked
+status: Done
 rfc: RFC-BPR-0016
 depends_on: [BPR-0275]
-parked_on: awaiting-owner-verdict
 ---
 
 # Register the device client and capture real wire contracts
@@ -162,3 +161,37 @@ So the card stays in `40-parked/` under `awaiting-owner-verdict`. What changed i
 that the last unattended obstacle is gone: the authorization is granted, the
 parser is proven against the shape that defeated it, and the next action is one
 attended session that recaptures all five courses under one runner digest.
+
+## Recaptured, admitted, and closed — 2026-08-24
+
+The owner sat the attended session. All five courses were recaptured in one
+sitting under the single repaired runner digest
+`sha256:d00583abcb052c72e11c9f14e97e1dd69575455e26e81b5db32455c98c1b5c3c`:
+real expiry, real denial, a fresh token success whose ten designated read-only
+probes ran and restored the `BPR-Test` user authorization, the
+disabled-setting response inside an attended enabled→disabled→restored
+settings transition (02:20:50Z → 02:21:14Z → 02:23:34Z), and the authorized
+recovery early poll. The recovery consumed its distinct `O_EXCL` pre-traffic
+spent marker, GitHub returned the documented `slow_down` body, and the
+repaired parser admitted it with its bounded interval — the evidence the two
+prior spent authorities never obtained. The registration observation was
+re-confirmed by the owner against the live settings page before any course
+ran, and `RFC0016_ATTENDED_CAPTURE_BUNDLE_OK` assembled the five course roots
+deterministically.
+
+The evidence is repository-recorded: the sanitized fixture tree at
+`tests/fixtures/github/device-authorization/v1/` (replacing the
+`pending_real_capture` placeholder), the five course trees and all four
+original/recovery authority/spent records at
+`docs/verification/rfc0016-live-capture-v001/courses/`, and the live-run
+attestation beside them. The owner reviewed the digest-bound offline page at
+`docs/verification/reviews/rfc0016-attended-live-capture-v001/` and accepted
+batch `bpr:/attended-review/betterpullreview/42fd8114a6c2bbeb0cbf6f54`,
+subject digest
+`sha256:a72c61372e2a3da00c4746f400da6bf983121b55e6be2651a9a5abb0ae67afac`,
+with every downstream claim declared false. Complete admission passes:
+`RFC0016_DEVICE_CAPTURE_VALID:attended_human_accepted_capture`. The claim
+remains deliberately bounded to human acceptance of these exact sanitized
+bytes as attended run evidence; production identity and platform enablement
+remain BPR-0318's, and this card's done move promotes exactly BPR-0277 and
+BPR-0278.

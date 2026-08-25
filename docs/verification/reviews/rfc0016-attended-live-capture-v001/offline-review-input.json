@@ -1,0 +1,196 @@
+{
+  "downstream_claims": {
+    "bpr_0276_closed": false,
+    "cryptographic_github_authenticity_claimed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "Acceptance records human review of these exact sanitized bytes as attended run evidence. It does not establish cryptographic GitHub or transport authenticity.",
+  "review_gate": "rfc0016_attended_live_capture",
+  "review_scope": "human_sanitized_capture_bytes_acceptance_only",
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "subjects": [
+    {
+      "ab_group": null,
+      "acceptance_criteria": [
+        "Every sanitized course, fixture, and live-run-attestation byte is bound by this subject.",
+        "Acceptance means only that these exact bytes are accepted as attended BPR-0276 run evidence."
+      ],
+      "audit_verdict": {
+        "note": "The offline RFC-0016 structural validator accepted the bound unattested fixture.",
+        "status": "pass"
+      },
+      "choice_group": null,
+      "description": "Decide whether these exact sanitized fixture and live-run-attestation bytes are accepted as attended BPR-0276 run evidence.",
+      "detail_sections": [],
+      "display_name": "Accept exact sanitized RFC-BPR-0016 capture bytes",
+      "identity_files": [
+        {
+          "label": "fixture:manifest.json",
+          "path": "../../../../tests/fixtures/github/device-authorization/v1/manifest.json"
+        },
+        {
+          "label": "fixture:outcomes/access_denied.json",
+          "path": "../../../../tests/fixtures/github/device-authorization/v1/outcomes/access_denied.json"
+        },
+        {
+          "label": "fixture:outcomes/authorization_pending.json",
+          "path": "../../../../tests/fixtures/github/device-authorization/v1/outcomes/authorization_pending.json"
+        },
+        {
+          "label": "fixture:outcomes/device_code_success.json",
+          "path": "../../../../tests/fixtures/github/device-authorization/v1/outcomes/device_code_success.json"
+        },
+        {
+          "label": "fixture:outcomes/device_flow_disabled.json",
+          "path": "../../../../tests/fixtures/github/device-authorization/v1/outcomes/device_flow_disabled.json"
+        },
+        {
+          "label": "fixture:outcomes/expired_token.json",
+          "path": "../../../../tests/fixtures/github/device-authorization/v1/outcomes/expired_token.json"
+        },
+        {
+          "label": "fixture:outcomes/slow_down.json",
+          "path": "../../../../tests/fixtures/github/device-authorization/v1/outcomes/slow_down.json"
+        },
+        {
+          "label": "fixture:outcomes/token_success.json",
+          "path": "../../../../tests/fixtures/github/device-authorization/v1/outcomes/token_success.json"
+        },
+        {
+          "label": "fixture:registration.json",
+          "path": "../../../../tests/fixtures/github/device-authorization/v1/registration.json"
+        },
+        {
+          "label": "fixture:route-probes.json",
+          "path": "../../../../tests/fixtures/github/device-authorization/v1/route-probes.json"
+        },
+        {
+          "label": "course:access-denied/course-execution.json",
+          "path": "../../rfc0016-live-capture-v001/courses/access-denied/course-execution.json"
+        },
+        {
+          "label": "course:access-denied/outcomes/access_denied.json",
+          "path": "../../rfc0016-live-capture-v001/courses/access-denied/outcomes/access_denied.json"
+        },
+        {
+          "label": "course:access-denied/outcomes/authorization_pending.json",
+          "path": "../../rfc0016-live-capture-v001/courses/access-denied/outcomes/authorization_pending.json"
+        },
+        {
+          "label": "course:access-denied/outcomes/device_code_success.json",
+          "path": "../../rfc0016-live-capture-v001/courses/access-denied/outcomes/device_code_success.json"
+        },
+        {
+          "label": "course:access-denied/registration.json",
+          "path": "../../rfc0016-live-capture-v001/courses/access-denied/registration.json"
+        },
+        {
+          "label": "course:device-flow-disabled/course-execution.json",
+          "path": "../../rfc0016-live-capture-v001/courses/device-flow-disabled/course-execution.json"
+        },
+        {
+          "label": "course:device-flow-disabled/device-flow-transition.json",
+          "path": "../../rfc0016-live-capture-v001/courses/device-flow-disabled/device-flow-transition.json"
+        },
+        {
+          "label": "course:device-flow-disabled/outcomes/device_flow_disabled.json",
+          "path": "../../rfc0016-live-capture-v001/courses/device-flow-disabled/outcomes/device_flow_disabled.json"
+        },
+        {
+          "label": "course:device-flow-disabled/registration.json",
+          "path": "../../rfc0016-live-capture-v001/courses/device-flow-disabled/registration.json"
+        },
+        {
+          "label": "course:expired-token/course-execution.json",
+          "path": "../../rfc0016-live-capture-v001/courses/expired-token/course-execution.json"
+        },
+        {
+          "label": "course:expired-token/outcomes/device_code_success.json",
+          "path": "../../rfc0016-live-capture-v001/courses/expired-token/outcomes/device_code_success.json"
+        },
+        {
+          "label": "course:expired-token/outcomes/expired_token.json",
+          "path": "../../rfc0016-live-capture-v001/courses/expired-token/outcomes/expired_token.json"
+        },
+        {
+          "label": "course:expired-token/registration.json",
+          "path": "../../rfc0016-live-capture-v001/courses/expired-token/registration.json"
+        },
+        {
+          "label": "course:slow-down/course-execution.json",
+          "path": "../../rfc0016-live-capture-v001/courses/slow-down/course-execution.json"
+        },
+        {
+          "label": "course:slow-down/outcomes/authorization_pending.json",
+          "path": "../../rfc0016-live-capture-v001/courses/slow-down/outcomes/authorization_pending.json"
+        },
+        {
+          "label": "course:slow-down/outcomes/device_code_success.json",
+          "path": "../../rfc0016-live-capture-v001/courses/slow-down/outcomes/device_code_success.json"
+        },
+        {
+          "label": "course:slow-down/outcomes/slow_down.json",
+          "path": "../../rfc0016-live-capture-v001/courses/slow-down/outcomes/slow_down.json"
+        },
+        {
+          "label": "course:slow-down/registration.json",
+          "path": "../../rfc0016-live-capture-v001/courses/slow-down/registration.json"
+        },
+        {
+          "label": "course:token-success/course-execution.json",
+          "path": "../../rfc0016-live-capture-v001/courses/token-success/course-execution.json"
+        },
+        {
+          "label": "course:token-success/outcomes/authorization_pending.json",
+          "path": "../../rfc0016-live-capture-v001/courses/token-success/outcomes/authorization_pending.json"
+        },
+        {
+          "label": "course:token-success/outcomes/device_code_success.json",
+          "path": "../../rfc0016-live-capture-v001/courses/token-success/outcomes/device_code_success.json"
+        },
+        {
+          "label": "course:token-success/outcomes/token_success.json",
+          "path": "../../rfc0016-live-capture-v001/courses/token-success/outcomes/token_success.json"
+        },
+        {
+          "label": "course:token-success/registration.json",
+          "path": "../../rfc0016-live-capture-v001/courses/token-success/registration.json"
+        },
+        {
+          "label": "course:token-success/route-probes.json",
+          "path": "../../rfc0016-live-capture-v001/courses/token-success/route-probes.json"
+        },
+        {
+          "label": "authority:slow-down-replacement-authority.json",
+          "path": "../../rfc0016-live-capture-v001/courses/slow-down-replacement-authority.json"
+        },
+        {
+          "label": "authority:slow-down-reservation-spent.json",
+          "path": "../../rfc0016-live-capture-v001/courses/slow-down-reservation-spent.json"
+        },
+        {
+          "label": "authority:slow-down-parser-repair-recovery-authority.json",
+          "path": "../../rfc0016-live-capture-v001/courses/slow-down-parser-repair-recovery-authority.json"
+        },
+        {
+          "label": "authority:slow-down-parser-repair-recovery-spent.json",
+          "path": "../../rfc0016-live-capture-v001/courses/slow-down-parser-repair-recovery-spent.json"
+        },
+        {
+          "label": "attestation:live-run-attestation.json",
+          "path": "../../rfc0016-live-capture-v001/live-run-attestation.json"
+        }
+      ],
+      "known_concerns": [
+        "Human acceptance does not establish cryptographic GitHub or transport authenticity."
+      ],
+      "media_groups": [],
+      "subject_id": "evidence:/betterpullreview/bpr-0276/attended-live-capture",
+      "subject_key": "bpr0276-attended-live-capture-v1"
+    }
+  ],
+  "title": "RFC-BPR-0016 attended live capture evidence"
+}

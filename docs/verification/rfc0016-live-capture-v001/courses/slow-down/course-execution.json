@@ -1,0 +1,15 @@
+{
+  "authority_amendment_id": "rfc0016-private-owner-only-2026-08-13",
+  "authority_subject_sha256": "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178",
+  "bindings": {
+    "device_flow_transition_sha256": null,
+    "slow_down_original_reservation_sha256": "sha256:0b189d071722d485b1d35fc5ca63385bc1ad5353efbc577575c87370ee476866",
+    "slow_down_recovery_reservation_sha256": "sha256:add4ed2f16eec668a47dba2ec0e1a43c07fb0fb701d5cf5b2630ffb0568d8558"
+  },
+  "capture_runner_sha256": "sha256:d00583abcb052c72e11c9f14e97e1dd69575455e26e81b5db32455c98c1b5c3c",
+  "course": "slow-down",
+  "executed_at_utc": "2026-08-25T02:26:06Z",
+  "registration_record_sha256": "sha256:3027ab217022dbbdf5312abc7413d325ba7e07a54e56c90c32b2e0bb2229404b",
+  "schema_name": "bpr.rfc0016.course_execution",
+  "schema_version": 1
+}

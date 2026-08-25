@@ -1,0 +1,119 @@
+{
+  "graphql_document": "query GetReviewData($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){id pullRequest(number:$number){id headRefOid files(first:100){totalCount nodes{path viewerViewedState} pageInfo{hasNextPage endCursor}} reviewThreads(first:100){totalCount nodes{id isResolved isOutdated viewerCanResolve viewerCanUnresolve subjectType path diffSide line originalLine comments(first:100){totalCount nodes{id bodyText path line originalLine outdated author{login ... on Node{id}} replyTo{id}} pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}",
+  "graphql_document_sha256": "sha256:e4991e65a368fbbd51c7ba19793eb182fdbecc2500594de5bcd9dbdba255793e",
+  "graphql_variables": {
+    "name": "BPR-Test",
+    "number": 1,
+    "owner": "MikeMarcin"
+  },
+  "probes": [
+    {
+      "http_status": 200,
+      "method": "GET",
+      "operation": "metadata",
+      "request_contract_sha256": "sha256:2a3d54901c49f7de18cdfbf0030203ff935e68aaa59ad84c874e1e172781ce8c",
+      "result": "success",
+      "transport": "rest",
+      "url": "https://api.github.com/repos/MikeMarcin/BPR-Test"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "operation": "contents_info_refs",
+      "request_contract_sha256": "sha256:c351f388b2fbc34a4a24caca6cfef2315b78453a0b05e4c7f02f7d46be1007b7",
+      "result": "success",
+      "transport": "smart_http",
+      "url": "https://github.com/MikeMarcin/BPR-Test.git/info/refs?service=git-upload-pack"
+    },
+    {
+      "http_status": 200,
+      "method": "POST",
+      "operation": "contents_upload_pack",
+      "request_contract_sha256": "sha256:b40901816666eeec3c7b096a04a7e4aaad2e3ba83c5f81ab3239f20a8ef7339a",
+      "result": "success",
+      "transport": "smart_http",
+      "url": "https://github.com/MikeMarcin/BPR-Test.git/git-upload-pack"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "operation": "checks",
+      "request_contract_sha256": "sha256:5c9f5ee479883039a26c9e34db11fac2114e593edc099f59a88cd4f51cb3612c",
+      "result": "success",
+      "transport": "rest",
+      "url": "https://api.github.com/repos/MikeMarcin/BPR-Test/commits/HEAD/check-runs"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "operation": "pull_request",
+      "request_contract_sha256": "sha256:5436a951df0662fc2233091a899b90c4bb6ba763045ac7945a5113d2e26b7b94",
+      "result": "success",
+      "transport": "rest",
+      "url": "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "operation": "pull_request_files",
+      "request_contract_sha256": "sha256:2819a7f30a913baefd9eb451769c9feb53f9a84a9ffaa0a5d8f31fe9969dab74",
+      "result": "success",
+      "transport": "rest",
+      "url": "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1/files?per_page=100&page=1"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "operation": "pull_request_commits",
+      "request_contract_sha256": "sha256:69766d0cbbfe735f342a983ec5cc617d95db06bf776d34bfabc000dc495c2564",
+      "result": "success",
+      "transport": "rest",
+      "url": "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1/commits?per_page=100&page=1"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "operation": "pull_request_reviews",
+      "request_contract_sha256": "sha256:6cf7e57c8491534820451e99149b07657f48217fdfb500e467d07aba3a0eaa4f",
+      "result": "success",
+      "transport": "rest",
+      "url": "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100&page=1"
+    },
+    {
+      "http_status": 200,
+      "method": "GET",
+      "operation": "pull_request_issue_comments",
+      "request_contract_sha256": "sha256:669e637b53b765979b90d759db3a8e1d56391605688afb38f36c07f9de93027a",
+      "result": "success",
+      "transport": "rest",
+      "url": "https://api.github.com/repos/MikeMarcin/BPR-Test/issues/1/comments?per_page=100&page=1"
+    },
+    {
+      "http_status": 200,
+      "method": "POST",
+      "operation": "review_threads",
+      "request_contract_sha256": "sha256:99911dfb2a87872f45d601986e65e72408cf34f117203c6b806d6b98cf539367",
+      "result": "success",
+      "transport": "graphql",
+      "url": "https://api.github.com/graphql"
+    }
+  ],
+  "provenance": {
+    "authority_amendment_id": "rfc0016-private-owner-only-2026-08-13",
+    "authority_subject_sha256": "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178",
+    "capture_tool": "scripts/capture_rfc0016_device_contracts.py",
+    "captured_at_utc": "2026-08-25T02:17:40Z",
+    "observation": "read_only_route_probes",
+    "registration_record_sha256": "sha256:3027ab217022dbbdf5312abc7413d325ba7e07a54e56c90c32b2e0bb2229404b",
+    "service": "github.com",
+    "source_kind": "unattested_capture"
+  },
+  "repository": {
+    "database_id": 1328277631,
+    "name": "BPR-Test",
+    "owner": "MikeMarcin",
+    "pull_request_number": 1
+  },
+  "schema_name": "bpr.rfc0016.read_only_route_probes",
+  "schema_version": 1
+}
