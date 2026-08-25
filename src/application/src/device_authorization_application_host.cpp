@@ -30,6 +30,17 @@ namespace bpr::application {
 			return core::device_authorization_failure::network;
 		}
 
+		// Only ASCII case is folded. A host is compared byte for byte
+		// otherwise, so no locale and no Unicode equivalence can make two
+		// different authorities compare equal.
+		[[nodiscard]] constexpr auto ascii_lowered(const char aValue) noexcept
+			-> char
+		{
+			return (aValue >= 'A' && aValue <= 'Z')
+				? static_cast<char>(aValue - 'A' + 'a')
+				: aValue;
+		}
+
 		// A blip in the network is worth another poll inside the window the
 		// reviewer is already waiting through. A refused certificate, a refused
 		// redirect, or a response that did not parse is not: those are answers
@@ -141,6 +152,32 @@ namespace bpr::application {
 		return std::make_unique<system_device_authorization_clock>();
 	}
 
+	auto address_matches_verification_authority(
+		const std::string_view aAddress,
+		const std::string_view aAuthority) noexcept -> bool
+	{
+		constexpr std::string_view https = "https://";
+		if (aAuthority.empty() || !aAddress.starts_with(https)) {
+			return false;
+		}
+
+		const auto remainder = aAddress.substr(https.size());
+		const auto hostEnd   = remainder.find_first_of("/?#");
+		const auto host      = remainder.substr(0, hostEnd);
+		// A host that carries userinfo or a port is not the compiled authority
+		// even when the compiled authority is spelled somewhere inside it.
+		if (host.size() != aAuthority.size()) {
+			return false;
+		}
+
+		return std::ranges::equal(
+			host,
+			aAuthority,
+			[](const char aLeft, const char aRight) noexcept {
+				return ascii_lowered(aLeft) == ascii_lowered(aRight);
+			});
+	}
+
 	struct device_authorization_application_host::implementation final
 		: std::enable_shared_from_this<implementation>
 	{
@@ -153,7 +190,8 @@ namespace bpr::application {
 			device_authorization_timer_port&       aTimer,
 			decision_executor&                     aDecisionLane,
 			device_authorization_projection_port&  aProjections,
-			const device_authorization_host_limits aLimits) noexcept
+			const device_authorization_host_limits aLimits,
+			device_authorization_browser_handoff   aHandoff)
 			: State{ std::move(aInitialState) }
 			, Transport{ &aTransport }
 			, Vault{ &aVault }
@@ -163,6 +201,7 @@ namespace bpr::application {
 			, DecisionLane{ &aDecisionLane }
 			, Projections{ &aProjections }
 			, Limits{ aLimits }
+			, Handoff{ std::move(aHandoff) }
 		{
 		}
 
@@ -219,11 +258,23 @@ namespace bpr::application {
 				return;
 			}
 
+			// A stage change is a new thing to look at, so whatever the last
+			// browser attempt did stops being reported with it.
+			LastHandoff = device_authorization_handoff::not_attempted;
+			deliver();
+		}
+
+		// Republishes the current stage without a core transition. Only the
+		// browser handoff uses this, because it is the only thing presentation
+		// learns that the core never decided.
+		void deliver()
+		{
 			auto presentation = device_authorization_presentation{
 				.Stage                    = State.Stage,
 				.UserCode                 = { },
 				.VerificationUri          = { },
 				.RemainingValiditySeconds = 0U,
+				.Handoff                  = LastHandoff,
 			};
 			if (
 				State.Stage
@@ -240,6 +291,49 @@ namespace bpr::application {
 				Projections->publish(Presentation);
 			} catch (...) {
 				ProjectionDeliveryFailed = true;
+			}
+		}
+
+		// -- browser handoff -----------------------------------------------
+
+		void open_verification_address()
+		{
+			// Nothing is on screen to open. Saying so is more honest than
+			// reporting a failure the reviewer cannot act on.
+			if (
+				State.Stage
+					!= core::device_authorization_stage::awaiting_authorization
+				|| VerificationUri.empty()) {
+				return;
+			}
+
+			LastHandoff = resolve_handoff();
+			deliver();
+		}
+
+		[[nodiscard]] auto resolve_handoff() -> device_authorization_handoff
+		{
+			// The address is checked before the capability is consulted, so a
+			// build with no browser still refuses an off-authority address and
+			// the refusal is never mistaken for a missing capability.
+			if (
+				!address_matches_verification_authority(
+					VerificationUri,
+					Handoff.Authority)) {
+				return device_authorization_handoff::refused;
+			}
+			if (Handoff.Browser == nullptr) {
+				return device_authorization_handoff::unavailable;
+			}
+
+			// A browser is somebody else's program. It may throw, it may
+			// refuse, and neither is allowed to disturb a live grant.
+			try {
+				return Handoff.Browser->open(VerificationUri)
+					? device_authorization_handoff::opened
+					: device_authorization_handoff::failed;
+			} catch (...) {
+				return device_authorization_handoff::failed;
 			}
 		}
 
@@ -1007,6 +1101,7 @@ namespace bpr::application {
 		decision_executor*                    DecisionLane = nullptr;
 		device_authorization_projection_port* Projections  = nullptr;
 		device_authorization_host_limits      Limits;
+		device_authorization_browser_handoff  Handoff;
 
 		std::optional<core::device_authorization_request_context> Flow;
 		std::optional<device_authorization_schedule>              Schedule;
@@ -1029,13 +1124,15 @@ namespace bpr::application {
 		device_authorization_refresh_observation                  Refresh;
 
 		device_authorization_presentation Presentation;
-		std::uint64_t                     NextHostRequest          = 1U;
-		std::uint64_t                     NextRefreshGeneration    = 1U;
-		std::uint32_t                     Outstanding              = 0U;
-		timer_purpose                     Purpose                  = timer_purpose::none;
-		bool                              TimerArmed               = false;
-		bool                              Closing                  = false;
-		bool                              ProjectionDeliveryFailed = false;
+		device_authorization_handoff      LastHandoff
+			= device_authorization_handoff::not_attempted;
+		std::uint64_t NextHostRequest          = 1U;
+		std::uint64_t NextRefreshGeneration    = 1U;
+		std::uint32_t Outstanding              = 0U;
+		timer_purpose Purpose                  = timer_purpose::none;
+		bool          TimerArmed               = false;
+		bool          Closing                  = false;
+		bool          ProjectionDeliveryFailed = false;
 	};
 
 	device_authorization_application_host::device_authorization_application_host(
@@ -1047,7 +1144,8 @@ namespace bpr::application {
 		device_authorization_timer_port&       aTimer,
 		decision_executor&                     aDecisionLane,
 		device_authorization_projection_port&  aProjections,
-		const device_authorization_host_limits aLimits)
+		const device_authorization_host_limits aLimits,
+		device_authorization_browser_handoff   aHandoff)
 		: Implementation{ std::make_shared<implementation>(
 			  std::move(aInitialState),
 			  aTransport,
@@ -1057,7 +1155,8 @@ namespace bpr::application {
 			  aTimer,
 			  aDecisionLane,
 			  aProjections,
-			  valid(aLimits) ? aLimits : device_authorization_host_limits{ }) }
+			  valid(aLimits) ? aLimits : device_authorization_host_limits{ },
+			  std::move(aHandoff)) }
 	{
 	}
 
@@ -1099,6 +1198,14 @@ namespace bpr::application {
 		Implementation->RefreshAuthority = std::move(aAuthority);
 		Implementation->RefreshDurable   = true;
 		Implementation->begin_refresh();
+	}
+
+	void device_authorization_application_host::open_verification_address()
+	{
+		if (Implementation->Closing) {
+			return;
+		}
+		Implementation->open_verification_address();
 	}
 
 	void device_authorization_application_host::shutdown()

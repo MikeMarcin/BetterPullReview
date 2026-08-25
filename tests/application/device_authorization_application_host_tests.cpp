@@ -630,6 +630,27 @@ namespace {
 		bool                                                        Throw = false;
 	};
 
+	// Counts every call so a test can prove the browser was never reached, not
+	// merely that it reported nothing useful.
+	class recording_browser final
+		: public application::device_authorization_browser_port
+	{
+	public:
+		[[nodiscard]] auto open(const std::string_view aAddress)
+			-> bool override
+		{
+			Addresses.emplace_back(aAddress);
+			if (Throw) {
+				throw std::runtime_error{ "browser" };
+			}
+			return Accept;
+		}
+
+		std::vector<std::string> Addresses;
+		bool                     Accept = true;
+		bool                     Throw  = false;
+	};
+
 	// The device course itself needs no refresh slot. This vault gives the
 	// answer every platform without one gives, so nothing in these tests can
 	// depend on refresh material existing.
@@ -705,10 +726,17 @@ namespace {
 	struct harness
 	{
 		explicit harness(
-			const application::device_authorization_host_limits aLimits = { })
+			const application::device_authorization_host_limits aLimits      = { },
+			const bool                                          aBindBrowser = true,
+			const std::string_view                              aAuthority
+			= application::default_device_verification_authority)
 			: Host{ initial_state(), Transport, Vault, Enrollment,
 					Clock, Timer, Lane, Projections,
-					aLimits }
+					aLimits,
+					application::device_authorization_browser_handoff{
+						.Browser   = aBindBrowser ? &Browser : nullptr,
+						.Authority = std::string{ aAuthority },
+					} }
 		{
 		}
 
@@ -791,6 +819,7 @@ namespace {
 		unavailable_vault            Vault;
 		recording_enrollment         Enrollment;
 		recording_projections        Projections;
+		recording_browser            Browser;
 
 		device_authorization_application_host Host;
 	};
@@ -1349,6 +1378,256 @@ namespace {
 				== core::device_authorization_stage::awaiting_authorization,
 			"and reaches the reviewer again");
 	}
+
+	// -- browser handoff ---------------------------------------------------
+
+	void test_the_authority_check_admits_only_the_compiled_host()
+	{
+		using application::address_matches_verification_authority;
+		constexpr std::string_view authority = "github.com";
+
+		expect(
+			address_matches_verification_authority(
+				"https://github.com/login/device",
+				authority),
+			"the exact compiled authority over HTTPS is admitted");
+		expect(
+			address_matches_verification_authority(
+				"https://GitHub.com/login/device",
+				authority),
+			"host case carries no meaning and is folded");
+		expect(
+			address_matches_verification_authority("https://github.com", authority),
+			"an address with no path is still the authority");
+		expect(
+			address_matches_verification_authority(
+				"https://github.com?next=1",
+				authority),
+			"a query terminates the host just as a slash does");
+
+		expect(
+			!address_matches_verification_authority(
+				"http://github.com/login/device",
+				authority),
+			"plain HTTP is refused even for the right host");
+		expect(
+			!address_matches_verification_authority(
+				"https://github.com.evil.invalid/login/device",
+				authority),
+			"a longer host that merely starts with the authority is refused");
+		expect(
+			!address_matches_verification_authority(
+				"https://evil.invalid/github.com",
+				authority),
+			"the authority appearing in the path proves nothing");
+		expect(
+			!address_matches_verification_authority(
+				"https://github.com@evil.invalid/login",
+				authority),
+			"userinfo that reads as the authority is refused");
+		expect(
+			!address_matches_verification_authority(
+				"https://github.com:8443/login/device",
+				authority),
+			"a port the compiled authority does not name is refused");
+		expect(
+			!address_matches_verification_authority(
+				"https://api.github.com/login/device",
+				authority),
+			"a subdomain is not the authority");
+		expect(
+			!address_matches_verification_authority(
+				"https://github.com/login/device",
+				{ }),
+			"an empty authority admits nothing rather than everything");
+		expect(
+			!address_matches_verification_authority({ }, authority),
+			"an empty address is not the authority either");
+	}
+
+	void test_a_browser_handoff_opens_the_exact_presented_address()
+	{
+		harness world;
+		world.reach_awaiting();
+		expect(
+			world.Projections.last().Handoff
+				== application::device_authorization_handoff::not_attempted,
+			"a fresh flow has attempted no handoff");
+
+		world.Host.open_verification_address();
+		expect(
+			world.Browser.Addresses.size() == 1U,
+			"the browser was invoked exactly once");
+		expect(
+			world.Browser.Addresses.front() == "https://github.com/login/device",
+			"with the address the reviewer is looking at and nothing else");
+		expect(
+			world.Projections.last().Handoff
+				== application::device_authorization_handoff::opened,
+			"and presentation is told the open was accepted");
+		expect(
+			world.stage()
+				== core::device_authorization_stage::awaiting_authorization,
+			"opening a browser moves no authorization state");
+	}
+
+	void test_an_off_authority_address_is_refused_with_no_browser_call()
+	{
+		harness world;
+		world.begin();
+		world.Transport.answer_code(
+			application::device_code_acquired{
+				.Context = world.Transport.last_code_context(),
+				.Grant   = application::device_code_acquisition{
+					.DeviceCode       = material("device-code-1"),
+					.UserCode         = "WDJB-MJHT",
+					.VerificationUri  = "https://github.com.evil.invalid/login/device",
+					.ExpiresInSeconds = 900U,
+					.IntervalSeconds  = 5U,
+				},
+			});
+		world.Lane.drain();
+
+		world.Host.open_verification_address();
+		expect(
+			world.Browser.Addresses.empty(),
+			"no browser was opened for an address off the compiled authority");
+		expect(
+			world.Projections.last().Handoff
+				== application::device_authorization_handoff::refused,
+			"and the refusal is typed rather than silent");
+		expect(
+			world.stage()
+				== core::device_authorization_stage::awaiting_authorization,
+			"a refused address does not fail the authorization");
+		expect(
+			world.Projections.last().UserCode == "WDJB-MJHT",
+			"the code stays on screen so the reviewer can still act");
+	}
+
+	void test_a_build_with_no_browser_says_so_instead_of_failing()
+	{
+		harness world{ { }, false };
+		world.reach_awaiting();
+
+		world.Host.open_verification_address();
+		expect(
+			world.Projections.last().Handoff
+				== application::device_authorization_handoff::unavailable,
+			"a build with no browser capability reports unavailable");
+		expect(
+			world.stage()
+				== core::device_authorization_stage::awaiting_authorization,
+			"and the flow is untouched");
+	}
+
+	void test_a_failing_opener_leaves_the_flow_completable_elsewhere()
+	{
+		harness world;
+		world.Browser.Accept = false;
+		world.reach_awaiting();
+
+		world.Host.open_verification_address();
+		expect(
+			world.Browser.Addresses.size() == 1U,
+			"the capability was asked");
+		expect(
+			world.Projections.last().Handoff
+				== application::device_authorization_handoff::failed,
+			"and its refusal is reported as a handoff failure");
+		expect(
+			world.stage()
+				== core::device_authorization_stage::awaiting_authorization,
+			"which is not an authorization failure");
+		expect(
+			world.Projections.last().UserCode == "WDJB-MJHT"
+				&& world.Projections.last().VerificationUri
+					== "https://github.com/login/device",
+			"the code and address are still presented");
+
+		// The whole point: the reviewer authorized on their phone instead.
+		world.elapse_to_next_poll();
+		world.Transport.answer_token(world.issued());
+		world.Lane.drain();
+		expect(
+			world.stage() == core::device_authorization_stage::authorized,
+			"and the flow still completes when authorization happens elsewhere");
+		expect(
+			world.Enrollment.Profiles.size() == 1U,
+			"enrolling exactly once");
+	}
+
+	void test_a_throwing_browser_cannot_disturb_the_flow()
+	{
+		harness world;
+		world.Browser.Throw = true;
+		world.reach_awaiting();
+
+		world.Host.open_verification_address();
+		expect(
+			world.Projections.last().Handoff
+				== application::device_authorization_handoff::failed,
+			"a browser that throws is a handoff failure and nothing more");
+		expect(
+			world.stage()
+				== core::device_authorization_stage::awaiting_authorization,
+			"the flow is still live");
+	}
+
+	void test_a_handoff_result_does_not_outlive_its_stage()
+	{
+		harness world;
+		world.Browser.Accept = false;
+		world.reach_awaiting();
+		world.Host.open_verification_address();
+		expect(
+			world.Projections.last().Handoff
+				== application::device_authorization_handoff::failed,
+			"the failure is reported");
+
+		world.Host.dispatch(core::cancel_device_authorization_intent{ });
+		world.Lane.drain();
+		expect(
+			world.Projections.last().Handoff
+				== application::device_authorization_handoff::not_attempted,
+			"and is cleared the moment the stage changes");
+	}
+
+	void test_nothing_opens_when_there_is_nothing_to_open()
+	{
+		harness world;
+		world.Host.open_verification_address();
+		expect(
+			world.Browser.Addresses.empty(),
+			"an idle host opens no browser");
+		expect(
+			world.Projections.Published.empty(),
+			"and publishes nothing it was not asked for");
+
+		world.reach_awaiting();
+		world.Host.dispatch(core::cancel_device_authorization_intent{ });
+		world.Lane.drain();
+		const auto published = world.Projections.Published.size();
+		world.Host.open_verification_address();
+		expect(
+			world.Browser.Addresses.empty(),
+			"a cancelled flow opens no browser either");
+		expect(
+			world.Projections.Published.size() == published,
+			"and republishes nothing");
+	}
+
+	void test_shutdown_closes_the_handoff_with_everything_else()
+	{
+		harness world;
+		world.reach_awaiting();
+		world.Host.shutdown();
+
+		world.Host.open_verification_address();
+		expect(
+			world.Browser.Addresses.empty(),
+			"a closing host opens no browser");
+	}
 } // namespace
 
 auto main() -> int
@@ -1385,6 +1664,16 @@ auto main() -> int
 	test_a_timer_that_cannot_be_armed_fails_the_flow();
 	test_a_throwing_projection_cannot_veto_the_transition();
 	test_a_terminal_flow_can_start_a_fresh_one();
+
+	test_the_authority_check_admits_only_the_compiled_host();
+	test_a_browser_handoff_opens_the_exact_presented_address();
+	test_an_off_authority_address_is_refused_with_no_browser_call();
+	test_a_build_with_no_browser_says_so_instead_of_failing();
+	test_a_failing_opener_leaves_the_flow_completable_elsewhere();
+	test_a_throwing_browser_cannot_disturb_the_flow();
+	test_a_handoff_result_does_not_outlive_its_stage();
+	test_nothing_opens_when_there_is_nothing_to_open();
+	test_shutdown_closes_the_handoff_with_everything_else();
 
 	std::cout << "device-authorization-host-tests:pass\n";
 	return EXIT_SUCCESS;

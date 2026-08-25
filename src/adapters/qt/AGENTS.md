@@ -8,6 +8,14 @@ themes, rendering mechanics, and event translation.
 - GitHub presentation code may receive only
   `bpr/application/github_projection.hpp`; provider, host, vault, transport,
   request, accepted-completion, and credential types do not cross into Qt.
+- Device-authorization presentation receives only
+  `bpr/application/device_authorization_projection.hpp`, which is a second
+  narrow contract rather than an exception to the one above: it carries a
+  stage, a user code, an already twice-validated verification address, a
+  remaining validity, and the fate of the last browser handoff. Qt never
+  constructs, parses, or opens an address — `QUrl` and a literal scheme are
+  both refused here by `VerifyArchitectureBoundaries.cmake`, so the
+  system-browser capability is host-owned and lives outside this adapter.
 - Do not place canonical GitHub, ledger, or semantic policy in Qt objects.
 - Keep presentation wording and Qt-local state at this boundary.
 - Test QAction translation, focus, accessibility, sizing, high DPI, rendered

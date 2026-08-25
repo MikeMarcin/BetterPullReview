@@ -101,6 +101,41 @@ set_tests_properties(
 )
 
 bpr_add_executable(
+    test_better_pull_review_qt_device_authorization_panel_tests
+    device_authorization_panel_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_device_authorization_panel_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_device_authorization_panel_tests)
+bpr_enable_warnings(test_better_pull_review_qt_device_authorization_panel_tests)
+
+foreach(bpr_device_authorization_scale IN ITEMS 100 125 200)
+    if(bpr_device_authorization_scale STREQUAL "100")
+        set(bpr_device_authorization_scale_factor "1.0")
+    elseif(bpr_device_authorization_scale STREQUAL "125")
+        set(bpr_device_authorization_scale_factor "1.25")
+    else()
+        set(bpr_device_authorization_scale_factor "2.0")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME qt_device_authorization_scale_${bpr_device_authorization_scale}
+        COMMAND test_better_pull_review_qt_device_authorization_panel_tests
+    )
+    set_tests_properties(
+        qt_device_authorization_scale_${bpr_device_authorization_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_device_authorization_scale_factor};BPR_EXPECTED_QT_SCALE=${bpr_device_authorization_scale_factor}"
+            PASS_REGULAR_EXPRESSION "device-authorization-panel-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()
+
+bpr_add_executable(
     test_better_pull_review_qt_github_conversation_panel_tests
     github_conversation_panel_tests.cpp
 )

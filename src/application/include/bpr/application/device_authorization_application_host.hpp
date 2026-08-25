@@ -15,6 +15,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 
 namespace bpr::application {
@@ -224,6 +225,61 @@ namespace bpr::application {
 	// than a direct call so the host can be driven in a test without a whole
 	// GitHub host behind it; `github_host_device_authorization_enrollment` below
 	// is the production implementation and calls exactly `enroll_profile`.
+	// The compiled authority a GitHub.com profile's verification address must
+	// sit under. It is a constant rather than a setting because an operator who
+	// can edit it can be talked into editing it, and the whole point of the
+	// check is that the address the server sent is not the one that decides.
+	inline constexpr std::string_view default_device_verification_authority
+		= "github.com";
+
+	/// \brief Provides the device authorization browser port contract.
+	///
+	/// \details The narrowest capability the flow needs: hand one already
+	/// validated address to whatever the operating system considers the
+	/// browser, and say whether the launch was accepted. It receives no
+	/// credential, no device code, no client identifier, and no endpoint, and
+	/// it is never asked to open an address the host has not just checked
+	/// against the compiled profile authority.
+	///
+	/// Returning `false` is an ordinary answer, not an error: the flow stays
+	/// live and the reviewer finishes it wherever they like. An implementation
+	/// must not start a listener, a broker, or an in-process browser, and must
+	/// not block the decision lane waiting for the launched program.
+	class device_authorization_browser_port
+	{
+	public:
+		virtual ~device_authorization_browser_port() = default;
+
+		[[nodiscard]] virtual auto open(std::string_view aAddress) -> bool = 0;
+	};
+
+	/// \brief Describes the device authorization browser handoff record.
+	///
+	/// \details A null `Browser` is the honest representation of a build with
+	/// no browser capability at all, and the host reports `unavailable` for it
+	/// rather than pretending an open failed. `Authority` is supplied by
+	/// composition from the compiled host profile, so a profile that is not
+	/// GitHub.com cannot silently inherit GitHub.com's authority.
+	struct device_authorization_browser_handoff
+	{
+		device_authorization_browser_port* Browser = nullptr;
+		std::string                        Authority
+			= std::string{ default_device_verification_authority };
+	};
+
+	/// \brief Reports whether the address sits under the expected authority.
+	///
+	/// \details Exact host match over HTTPS and nothing else. No subdomain is
+	/// accepted, because `github.com.example.invalid` is a subdomain of nothing
+	/// the reviewer meant; no userinfo is accepted, because `github.com@evil`
+	/// reads as the authority to a human and resolves elsewhere; no port is
+	/// accepted, because the compiled authority names no port. The comparison
+	/// is ASCII case-insensitive on the host only, which is the one component
+	/// where case genuinely carries no meaning.
+	[[nodiscard]] auto address_matches_verification_authority(
+		std::string_view aAddress,
+		std::string_view aAuthority) noexcept -> bool;
+
 	/// \brief Provides the device authorization enrollment port contract.
 	class device_authorization_enrollment_port
 	{
@@ -356,7 +412,8 @@ namespace bpr::application {
 			device_authorization_timer_port&      aTimer,
 			decision_executor&                    aDecisionLane,
 			device_authorization_projection_port& aProjections,
-			device_authorization_host_limits      aLimits = { });
+			device_authorization_host_limits      aLimits  = { },
+			device_authorization_browser_handoff  aHandoff = { });
 		~device_authorization_application_host();
 
 		device_authorization_application_host(
@@ -380,6 +437,14 @@ namespace bpr::application {
 		// holds, without the reviewer authorizing again. Requests
 		// re-enrollment if there is nothing to renew from.
 		void resume_refresh(github_credential_authority_key aAuthority);
+		// The browser handoff, and the only thing in this host that changes no
+		// core state at all. It validates the retained address against the
+		// compiled authority, invokes the browser capability only if that
+		// passes, and republishes the presentation with what happened. Every
+		// outcome, including refusal, leaves the flow exactly where it was:
+		// a browser that will not open is not a reviewer who will not
+		// authorize.
+		void open_verification_address();
 		void shutdown();
 
 		[[nodiscard]] auto state() const noexcept
