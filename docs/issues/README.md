@@ -749,7 +749,7 @@ ready lanes — and the lane says which answer it needs:
 | Root | Lane | Needs |
 |---|---|---|
 | BPR-0414 | `40-parked/` | Unattended implementation and verification are complete at `8c7504d`; digest-bound attended batch `ab6145717475dfdfddd6206d` waits only on the owner's marker-versus-inline-body verdict |
-| BPR-0417 | `30-in-progress/` | Constructed deep-conversation data and its 10-test direct contract are complete; the BPR-0256 reviewed live graph has now run and is frozen, so ordinary network-isolated registration and closeout are the current work |
+| BPR-0418 | `20-ready/` | Any session. Done [[BPR-0416]] carries the reply edge and done [[BPR-0417]] provides the constructed deep-thread projection with its registered contract, so the Treeverse map surface has both its inputs |
 | BPR-0445 | `40-parked/` | Unattended sanitizer and one-shot authority hardening are committed at `a27e4a5` and `c03abcf`; v002 packet `8ff060e82c04f30010ad11e5410200d8797d8f1c5b08557768ded86ed0eafdd0` waits only on the owner's fresh exact one-request authorization |
 | BPR-0053, BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]], [[BPR-0362]], [[BPR-0360]], and [[BPR-0350]] closed on 2026-08-22 with the contained matrix at 87 of 89; [[BPR-0053]] waits only on that matrix's two carded failures and on the Qt graph. [[BPR-0424]] through [[BPR-0427]] are the four causes that run isolated from the container's own |
 | BPR-0235 | `21-ready-win/` | A Windows session for the descendant/application counterexample matrix replay — the 2026-08-18 note called that criterion a dependency on [[BPR-0347]]/[[BPR-0350]], and both are now done. Its terminal designated-live criterion additionally waits on the live provider card's separately authorized attended authority |
@@ -817,7 +817,9 @@ The table is the complete frontier rather than a selection from it. Every open
 card on this board is either one of these fifteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 48 cards in `10-backlog/`, **none** has all its dependencies in
-`60-done/`.
+`60-done/`. BPR-0417's move to `60-done/` on 2026-08-24 promoted exactly one
+card: [[BPR-0418]], whose other dependency [[BPR-0416]] was already done, moved
+from `10-backlog/` to `20-ready/` in the same audit.
 
 The post-BPR-0334 audit on 2026-08-21 found no backlog dependency on that
 card, so its move to `60-done/` promoted nothing. All 56 backlog cards still

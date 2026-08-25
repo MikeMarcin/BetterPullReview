@@ -122,12 +122,13 @@ cited as provider acceptance evidence or mixed into the valid tree.
 the exact schema and constructed provenance, canonical JSON, stable identities
 and order, root/null semantics, minimum depth, sibling depths, hostile-case
 classification, missing-parent/cycle shapes, and disjoint valid/hostile
-identities. Its ten direct tests pass. Default-safe CTest registration remains
-the BPR-0417 closeout step. The reviewed BPR-0256 v006 plan has now run once
-and is frozen as safely cancelled, non-retryable evidence, so adding the
-ordinary network-isolated registration is unblocked for the next session.
-BPR-0418 still owns rendered consumption and must not upgrade this constructed
-content into real-world need or shipped-public-path evidence.
+identities. Its ten direct tests pass, and the ordinary network-isolated
+`github_conversation_fixture_contract` registration in `tests/CMakeLists.txt`
+runs them in the default plan with no isolation exemption. The reviewed
+BPR-0256 v006 plan ran once before this registration landed and is frozen as
+safely cancelled, non-retryable evidence, so the added test drifts no reviewed
+live plan. BPR-0418 still owns rendered consumption and must not upgrade this
+constructed content into real-world need or shipped-public-path evidence.
 
 ## Pending RFC-BPR-0016 device-authorization contract v1
 

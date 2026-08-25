@@ -29,5 +29,5 @@ After an edit, run:
 
 ```sh
 python3 tests/scripts/bpr0417_deep_conversation_fixture_contract_tests.py
-ctest --preset dev --output-on-failure -R '^bpr0417_github_conversation_fixture_contract$'
+ctest --preset dev --output-on-failure -R '^github_conversation_fixture_contract$'
 ```

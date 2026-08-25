@@ -1,7 +1,7 @@
 ---
 id: BPR-0418
 title: Build the thread map surface
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0005
 depends_on: [BPR-0416, BPR-0417]
 ---

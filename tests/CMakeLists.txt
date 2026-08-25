@@ -240,6 +240,13 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_network_isolated_test(
+    NAME github_conversation_fixture_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/bpr0417_deep_conversation_fixture_contract_tests.py"
+)
+
+bpr_add_network_isolated_test(
     NAME attended_review_verdict_contract
     COMMAND
         Python3::Interpreter

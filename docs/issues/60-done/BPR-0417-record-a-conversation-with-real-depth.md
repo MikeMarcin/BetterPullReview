@@ -1,7 +1,7 @@
 ---
 id: BPR-0417
 title: Record a conversation fixture with real reply depth
-status: In Progress
+status: Done
 rfc: RFC-BPR-0005
 depends_on: [BPR-0416]
 ---
@@ -159,3 +159,54 @@ previously verified registration in `tests/CMakeLists.txt`, rerun the direct,
 registered, conversation/fixture, isolation, formatting, documentation, and
 hygiene gates, obtain independent review, and move this card to `60-done/`.
 No BPR-0256 artifact or generated live plan should be regenerated.
+
+## Registration restored and gates green — 2026-08-24
+
+Resumed at clean `49c89ca`. `tests/CMakeLists.txt` now registers
+`github_conversation_fixture_contract` through the ordinary
+`bpr_add_network_isolated_test` form with no exemption keyword, running
+`tests/scripts/bpr0417_deep_conversation_fixture_contract_tests.py` in the
+default plan. Gates rerun after a fresh `dev` configure and successful build:
+
+- direct: the contract script alone, 10/10 OK;
+- registered and conversation/fixture: `ctest --preset dev -R
+  'github_conversation|github_fixture'` passes 3/3, the new test carrying the
+  `bpr_network_isolated` label beside the Qt conversation panel and model
+  suites;
+- isolation: the structure contract plus all six measured network-isolation
+  gates pass;
+- formatting: `coding_standard_format_gate_contract` passes;
+- documentation: `documentation_structure`,
+  `documentation_issue_graph_contract`, and `verify_documentation.py`
+  (`DOCUMENTATION_OK`) pass;
+- hygiene: `contained_temporary_usage_contract` passes and `git diff --check`
+  is clean.
+
+No BPR-0256 artifact byte or generated live-plan byte was touched; the v006
+packet digest `9ecf4427…ef7a` and its operator-response evidence at `49c89ca`
+are preserved unchanged.
+
+## Independent review — 2026-08-24
+
+An independent `rfc-reviewer` session reviewed the uncommitted closing slice
+against the card, RFC-BPR-0005, and the recorded gate results, without the
+implementation rationale. It reproduced every recorded gate, proved the
+registered test non-vacuous (verbose run shows all ten cases executing) and
+falsifiable (a mirrored fixture with an injected `recorded_from` provenance
+key fails 7/10 with one error, and a deleted `projection.json` fails on load),
+confirmed the ordinary registration form with only the `bpr_network_isolated`
+label and `--loopback-port-count 0`, confirmed the v006 packet hash matches
+`9ecf4427…ef7a` with `docs/verification/reviews/` untouched, and independently
+re-derived the board audit (zero lane/status mismatches; BPR-0418 the exactly
+one promotion; fifteen frontier roots matching the lane census).
+
+It returned two blocking findings, both reproduced and repaired before commit:
+this fixture README's documented verification selector still named the
+checkpoint's working-graph test `bpr0417_github_conversation_fixture_contract`
+(exit 8, no tests matched) and was corrected to the registered
+`github_conversation_fixture_contract`; and this card promised a review record
+that had not yet been appended, which this section discharges. Noted
+non-blocking: today's 200-test default plan is numerically equal to, but not
+the same plan as, the frozen v006 static inspection's 200 (v006 = 199 + one
+live entry; today = 200 with no live entry) — a successor BPR-0256 packet must
+compare entries, not counts.
