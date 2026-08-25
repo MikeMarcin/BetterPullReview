@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_GITHUB_SRC_NATIVE_HTTPS_TRANSPORT_HPP
 #define BPR_SRC_ADAPTERS_GITHUB_SRC_NATIVE_HTTPS_TRANSPORT_HPP
 
+#include "github_device_authorization_contract.hpp"
 #include "github_host_profile.hpp"
 #include "github_mutation_contract.hpp"
 #include "github_wire_transport.hpp"
@@ -14,7 +15,9 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <string>
+#include <variant>
 
 namespace bpr::adapters::github::detail {
 	class native_git_smart_lease_state;
@@ -79,6 +82,38 @@ namespace bpr::adapters::github::detail {
 	};
 #endif
 
+	struct native_https_device_authorization_success
+	{
+		wire_response Response;
+
+		auto operator==(const native_https_device_authorization_success&) const
+			-> bool = default;
+	};
+
+	struct native_https_device_authorization_error
+	{
+		application::github_provider_error Error{
+			.Failure           = application::github_provider_failure::unavailable,
+			.RetryAfterSeconds = std::nullopt,
+			.RateLimits        = { },
+			.RateLimitCause    = std::nullopt,
+		};
+
+		auto operator==(const native_https_device_authorization_error&) const
+			-> bool = default;
+	};
+
+	struct native_https_device_authorization_cancelled
+	{
+		auto operator==(const native_https_device_authorization_cancelled&) const
+			-> bool = default;
+	};
+
+	using native_https_device_authorization_completion
+		= std::variant<native_https_device_authorization_success,
+					   native_https_device_authorization_error,
+					   native_https_device_authorization_cancelled>;
+
 	class native_git_smart_transport;
 
 	class native_https_transport final
@@ -113,6 +148,21 @@ namespace bpr::adapters::github::detail {
 			std::stop_token                      aStop,
 			github_mutation_transmission_witness aWitness)
 			-> github_mutation_wire_completion override;
+
+		/// \brief Computes the device authorization exchange result.
+		///
+		/// \details The device flow runs before any credential exists, so this
+		/// admits only a deliberately credential-free binding and refuses every
+		/// credentialed one. That refusal is what makes the missing
+		/// authorization header structural rather than conditional: the exact
+		/// state this entry requires is the exact state under which the request
+		/// builder omits the header. Everything else — manual redirects with
+		/// none allowed, certificate refusal, proxy candidates, cancellation,
+		/// and the response bound — is the shared machinery unchanged.
+		[[nodiscard]] auto perform_device_authorization(
+			const device_authorization_wire_request& aRequest,
+			std::stop_token                          aStop)
+			-> native_https_device_authorization_completion;
 
 	private:
 		friend class native_git_smart_transport;

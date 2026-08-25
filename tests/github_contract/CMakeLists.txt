@@ -130,6 +130,48 @@ set_tests_properties(
         TIMEOUT 30
 )
 
+bpr_add_executable(
+    test_better_pull_review_native_https_device_authorization_tests
+    native_https_device_authorization_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_native_https_device_authorization_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        BetterPullReview::Application
+        Qt6::Core
+        Qt6::Network
+        Threads::Threads
+)
+target_include_directories(
+    test_better_pull_review_native_https_device_authorization_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    test_better_pull_review_native_https_device_authorization_tests
+    PRIVATE
+        BPR_NATIVE_HTTPS_TESTING=1
+)
+bpr_enable_hardening(
+    test_better_pull_review_native_https_device_authorization_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_native_https_device_authorization_tests
+)
+
+bpr_add_network_isolated_test(
+    NAME native_https_device_authorization_contract
+    COMMAND
+        test_better_pull_review_native_https_device_authorization_tests
+        --contract
+)
+set_tests_properties(
+    native_https_device_authorization_contract
+    PROPERTIES
+        TIMEOUT 30
+)
+
 if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_program(
         BPR_TEST_NATIVE_HTTPS_OPENSSL
@@ -194,6 +236,26 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
         PROPERTIES
             RESOURCE_LOCK native_https_loopback
             TIMEOUT 90
+    )
+
+    bpr_add_network_isolated_test(
+        NAME native_https_device_authorization_fixture
+        LOOPBACK_PORT_COUNT 1
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/github_contract/verify_native_https_device_authorization.py"
+            --executable
+            "$<TARGET_FILE:test_better_pull_review_native_https_device_authorization_tests>"
+            --openssl
+            "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
+    )
+    set_tests_properties(
+        native_https_device_authorization_fixture
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 90
+            PASS_REGULAR_EXPRESSION
+                "native-https-device-authorization:pass"
     )
 endif()
 

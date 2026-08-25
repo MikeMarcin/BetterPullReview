@@ -82,6 +82,9 @@ namespace bpr::adapters::github::detail {
 		constexpr std::string_view smart_git_advertisement_content_type = "application/x-git-upload-pack-advertisement";
 		constexpr std::string_view smart_git_result_content_type        = "application/x-git-upload-pack-result";
 		constexpr std::string_view smart_git_basic_username             = "x-access-token:";
+		constexpr std::string_view device_code_route                    = "/login/device/code";
+		constexpr std::string_view device_token_route                   = "/login/oauth/access_token";
+		constexpr int              device_code_refusal_status           = 400;
 #if defined(BPR_NATIVE_HTTPS_TESTING)
 		constexpr auto minimum_test_timeout = std::chrono::milliseconds{ 25 };
 #endif
@@ -142,6 +145,7 @@ namespace bpr::adapters::github::detail {
 			graphql_read,
 			capability_probe,
 			review_mutation,
+			device_authorization,
 		};
 
 		struct native_request
@@ -154,6 +158,11 @@ namespace bpr::adapters::github::detail {
 			std::string                             Query;
 			std::vector<http_header>                Headers;
 			std::string                             Body;
+			std::size_t                             ResponseLimit = native_https_maximum_response_body_bytes;
+			// The one non-success status whose body is a contract outcome
+			// rather than a failure. Zero admits none, and a hop that reached
+			// no status at all is already refused before this is consulted.
+			int AdmittedContractStatus = 0;
 		};
 
 		struct hop_cancelled
@@ -819,6 +828,81 @@ namespace bpr::adapters::github::detail {
 				return std::nullopt;
 			}
 			return url;
+		}
+
+		[[nodiscard]] constexpr auto device_authorization_route(
+			const device_authorization_endpoint aEndpoint) noexcept
+			-> std::string_view
+		{
+			return aEndpoint == device_authorization_endpoint::device_code
+				? device_code_route
+				: device_token_route;
+		}
+
+		[[nodiscard]] auto build_device_authorization_url(
+			const validated_github_host_profile& aProfile,
+			const native_request&                aRequest) -> std::optional<QUrl>
+		{
+			if (aProfile.server_contract()
+					!= application::github_server_contract::github_com_2022_11_28
+				|| !aRequest.Query.empty()
+				|| (aRequest.Path != device_code_route
+					&& aRequest.Path != device_token_route)) {
+				return std::nullopt;
+			}
+
+			std::string encoded = "https://";
+			encoded += aProfile.hostname();
+			encoded += aRequest.Path;
+			if (encoded.size() > maximum_url_bytes) {
+				return std::nullopt;
+			}
+
+			const auto bytes = QByteArray{ encoded.data(), static_cast<qsizetype>(encoded.size()) };
+			auto       url   = QUrl::fromEncoded(bytes, QUrl::StrictMode);
+			if (!url.isValid() || url.isRelative()
+				|| url.scheme() != QStringLiteral("https")
+				|| url.host().toUtf8() != aProfile.hostname() || url.port(-1) != -1
+				|| !url.userInfo().isEmpty() || !url.query().isEmpty()
+				|| !url.fragment().isEmpty()
+				|| url.toEncoded(QUrl::FullyEncoded) != bytes) {
+				return std::nullopt;
+			}
+			return url;
+		}
+
+		[[nodiscard]] auto device_authorization_native_request(
+			const validated_github_host_profile&     aProfile,
+			const device_authorization_wire_request& aRequest)
+			-> std::optional<native_request>
+		{
+			if (aRequest.Method != http_method::post || aRequest.Body.empty()) {
+				return std::nullopt;
+			}
+			const auto route  = device_authorization_route(aRequest.Endpoint);
+			auto       native = native_request{
+				.Surface                 = native_request_surface::device_authorization,
+				.RateLimitResource       = application::github_rate_limit_resource::core,
+				.RequireRateLimitHeaders = false,
+				.Method                  = http_method::post,
+				.Path                    = std::string{ route },
+				.Query                   = { },
+				.Headers                 = aRequest.Headers,
+				.Body                    = aRequest.Body,
+				.ResponseLimit           = maximum_device_authorization_response_bytes,
+				.AdmittedContractStatus  = aRequest.Endpoint
+						== device_authorization_endpoint::device_code
+					? device_code_refusal_status
+					: 0,
+			};
+			const auto url = build_device_authorization_url(aProfile, native);
+			if (!url.has_value()
+				|| url->toEncoded(QUrl::FullyEncoded)
+					!= QByteArray{ aRequest.Url.data(),
+								   static_cast<qsizetype>(aRequest.Url.size()) }) {
+				return std::nullopt;
+			}
+			return native;
 		}
 
 		[[nodiscard]] constexpr auto smart_expected_content_type(
@@ -1960,6 +2044,40 @@ namespace bpr::adapters::github::detail {
 				.Transmission = aTransmission,
 			};
 		}
+
+		[[nodiscard]] auto device_authorization_error(
+			const application::github_provider_failure aFailure)
+			-> native_https_device_authorization_completion
+		{
+			return native_https_device_authorization_error{
+				.Error = provider_error(aFailure),
+			};
+		}
+
+		[[nodiscard]] auto device_authorization_completion(hop_result aResult)
+			-> native_https_device_authorization_completion
+		{
+			if (auto* success = std::get_if<hop_success>(&aResult);
+				success != nullptr) {
+				return native_https_device_authorization_success{
+					.Response = wire_response{
+						.Status       = success->Status,
+						.Headers      = std::move(success->Headers),
+						.Body         = std::move(success->Body),
+						.Completeness = success->Completeness,
+					},
+				};
+			}
+			if (auto* error = std::get_if<application::github_provider_error>(&aResult);
+				error != nullptr) {
+				return native_https_device_authorization_error{ .Error = *error };
+			}
+			if (std::holds_alternative<hop_cancelled>(aResult)) {
+				return native_https_device_authorization_cancelled{ };
+			}
+			return device_authorization_error(
+				application::github_provider_failure::redirect);
+		}
 	} // namespace
 
 	class native_git_smart_transport final
@@ -2312,6 +2430,35 @@ namespace bpr::adapters::github::detail {
 				postCreated->load(std::memory_order_acquire)
 					? github_mutation_transmission::indeterminate
 					: github_mutation_transmission::definitely_not_sent);
+		}
+
+		[[nodiscard]] auto perform_device_authorization(
+			const device_authorization_wire_request& aRequest,
+			const std::stop_token                    aStop)
+			-> native_https_device_authorization_completion
+		{
+			if (aStop.stop_requested()) {
+				return native_https_device_authorization_cancelled{ };
+			}
+			native_request native;
+			try {
+				auto compiled = device_authorization_native_request(
+					Profile, aRequest);
+				if (!compiled.has_value()) {
+					return device_authorization_error(
+						application::github_provider_failure::unavailable);
+				}
+				native = std::move(*compiled);
+				if (!valid_request_shape(native)) {
+					return device_authorization_error(
+						application::github_provider_failure::unavailable);
+				}
+			} catch (...) {
+				return device_authorization_error(
+					application::github_provider_failure::response_limit);
+			}
+			return device_authorization_completion(
+				perform_validated(aRequest, std::move(native), aStop));
 		}
 
 		[[nodiscard]] auto can_acquire_smart(
@@ -2854,6 +3001,17 @@ namespace bpr::adapters::github::detail {
 					   credential->Context.Authority, Profile);
 		}
 
+		[[nodiscard]] auto credential_matches(
+			const device_authorization_wire_request&) const noexcept -> bool
+		{
+			// The device flow runs to obtain the first credential, so the only
+			// binding it may run under is the one that deliberately holds none.
+			// `make_request` omits the authorization header under exactly that
+			// state, so refusing every other binding here is what keeps the
+			// header's absence a property of this code rather than of a caller.
+			return credential_free();
+		}
+
 		template <typename Request>
 		[[nodiscard]] auto claim_credential(const Request& aRequest) noexcept -> bool
 		{
@@ -3150,9 +3308,12 @@ namespace bpr::adapters::github::detail {
 					application::github_provider_failure::unavailable);
 			}
 
-			hop_state state{ aOperation, Policy.ResponseBodyLimit };
+			const auto responseBodyLimit = std::min(
+				Policy.ResponseBodyLimit,
+				aOperation->Request.ResponseLimit);
+			hop_state state{ aOperation, responseBodyLimit };
 			try {
-				state.Body.reserve(Policy.ResponseBodyLimit + 1U);
+				state.Body.reserve(responseBodyLimit + 1U);
 			} catch (...) {
 				return provider_error(
 					application::github_provider_failure::response_limit);
@@ -3201,7 +3362,7 @@ namespace bpr::adapters::github::detail {
 			}
 			active_hop_guard active{ state, ActiveHop };
 			state.Reply->setReadBufferSize(static_cast<qint64>(std::min(
-				Policy.ResponseBodyLimit + 1U, response_read_buffer_bytes)));
+				responseBodyLimit + 1U, response_read_buffer_bytes)));
 
 			QEventLoop loop;
 			QTimer     deadline;
@@ -3331,10 +3492,14 @@ namespace bpr::adapters::github::detail {
 					&& aOperation->Request.Method == http_method::post
 				? 201
 				: 200;
-			if (state.Status != successfulStatus) {
+			const auto admittedStatus   = state.Status
+				== aOperation->Request.AdmittedContractStatus;
+			if (state.Status != successfulStatus && !admittedStatus) {
 				return classify_http_status(state);
 			}
-			if (error != QNetworkReply::NoError) {
+			if (error != QNetworkReply::NoError
+				&& !(admittedStatus
+					 && error == QNetworkReply::ProtocolInvalidOperationError)) {
 				return provider_error(network_failure(error));
 			}
 			if (
@@ -3383,9 +3548,48 @@ namespace bpr::adapters::github::detail {
 			return provider_error(application::github_provider_failure::network);
 		}
 
+		[[nodiscard]] auto execute_device_authorization(
+			const std::shared_ptr<operation_state>& aOperation) -> hop_result
+		{
+			const auto url = build_device_authorization_url(
+				Profile, aOperation->Request);
+			if (!url.has_value()) {
+				return provider_error(
+					application::github_provider_failure::unavailable);
+			}
+			if (cancellation_result(aOperation)) {
+				return hop_cancelled{ };
+			}
+			if (!remaining_before_deadline(aOperation->Deadline).has_value()) {
+				return provider_error(
+					application::github_provider_failure::timeout);
+			}
+			const auto candidates = proxy_candidates(*url);
+			if (cancellation_result(aOperation)) {
+				return hop_cancelled{ };
+			}
+			if (!candidates.has_value() || candidates->empty()) {
+				return provider_error(
+					application::github_provider_failure::network);
+			}
+
+			auto result = execute_with_proxy_candidates(
+				aOperation, *url, *candidates);
+			if (std::holds_alternative<hop_redirect>(result)) {
+				return provider_error(
+					application::github_provider_failure::redirect);
+			}
+			return result;
+		}
+
 		[[nodiscard]] auto
 		execute(const std::shared_ptr<operation_state>& aOperation) -> hop_result
 		{
+			if (aOperation->Request.Surface
+				== native_request_surface::device_authorization) {
+				return execute_device_authorization(aOperation);
+			}
+
 			const auto initial = build_url(Profile, aOperation->Request);
 			if (!initial.has_value()) {
 				return provider_error(
@@ -3885,6 +4089,18 @@ namespace bpr::adapters::github::detail {
 		}
 		return Implementation->perform_review_mutation(
 			aRequest, aStop, std::move(aWitness));
+	}
+
+	auto native_https_transport::perform_device_authorization(
+		const device_authorization_wire_request& aRequest,
+		const std::stop_token                    aStop)
+		-> native_https_device_authorization_completion
+	{
+		if (Implementation == nullptr) {
+			return device_authorization_error(
+				application::github_provider_failure::unavailable);
+		}
+		return Implementation->perform_device_authorization(aRequest, aStop);
 	}
 
 	auto make_native_https_bootstrap_transport(

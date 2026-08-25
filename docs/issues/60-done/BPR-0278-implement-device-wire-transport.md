@@ -1,7 +1,7 @@
 ---
 id: BPR-0278
 title: Implement device authorization wire and native HTTPS contracts
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: [BPR-0276]
 ---
@@ -57,3 +57,42 @@ family. Remaining in this card: the dedicated native HTTPS device suite —
 `native_https_device_authorization_contract` and
 `native_https_device_authorization_fixture` on the git-smart precedent —
 proving both endpoints under the hostile loopback matrix.
+
+## Native suite delivered and the card closed — 2026-08-24
+
+A bounded `rfc-worker` lane implemented the native half inside an explicit
+five-file scope; the integrator reviewed the complete diff and reproduced
+every command. `native_https_transport` gains a
+`perform_device_authorization` entry whose additions are confined to the new
+device surface: URL construction admits exactly the two `/login` routes on
+the `github_com` contract with no query and byte-equality against the
+compiled contract URL; the entry admits only the deliberately credential-free
+binding, so the absent `Authorization` header is structural rather than
+conditional and a shipped build refuses everything until [[BPR-0279]] adds
+the production credential-free factory; and the single request loop is the
+existing shared machinery, with any redirect converted to a typed refusal.
+Exactly five existing lines changed, each provably inert for every prior
+surface: the response bound now takes the minimum of the policy and
+per-request limits (defaults preserve every existing surface), and a
+per-request admitted contract status — zero everywhere but the device-code
+endpoint's recorded 400 — lets `device_flow_disabled` reach the parser, with
+the error relaxation narrowed to Qt's exact HTTP-400 mapping. That last
+addition exceeded the assignment's literal scenario list and was accepted on
+review: without it the recorded 400 branch is unreachable in production.
+
+Proof: `native_https_device_authorization_contract` covers GHES and off-path
+refusals, endpoint/URL pairing swaps, the structural credential-free
+invariant, and pre-cancellation; `native_https_device_authorization_fixture`
+drives fourteen loopback scenarios — success, disabled, slow-down,
+untrusted-certificate, cross-authority redirect, query-bearing redirect,
+response-limit at the exact 64 KiB bound, and mid-response cancellation
+across both endpoints — through a CONNECT-proxy/disposable-CA driver that
+validates the exact request line, headers, and form body and refuses any
+credential-shaped byte on either leg. The worker falsified its own greens
+three ways on scratch copies (off-authority URI, exact-bound response,
+inverted credential probe). Integrator reproduction: dev configure and build
+clean, 2/2 new selectors, 6/6 existing native and adapter suites, format
+check, `DOCUMENTATION_OK`, and `git diff --check` all pass. Windows
+registration stays with the [[BPR-0446]]/[[BPR-0311]] family, and
+`scripts/verify_rfc0016_test_inventory.py` remains [[BPR-0282]]'s to create.
+The done move promotes exactly [[BPR-0279]].

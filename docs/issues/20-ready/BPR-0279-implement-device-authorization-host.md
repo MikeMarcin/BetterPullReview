@@ -1,7 +1,7 @@
 ---
 id: BPR-0279
 title: Implement bounded device-authorization host orchestration
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0016
 depends_on: [BPR-0277, BPR-0278]
 ---
