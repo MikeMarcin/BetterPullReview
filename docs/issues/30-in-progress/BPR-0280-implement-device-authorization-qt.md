@@ -1,7 +1,7 @@
 ---
 id: BPR-0280
 title: Implement device-authorization Qt presentation and browser handoff
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0277, BPR-0279]
 ---
