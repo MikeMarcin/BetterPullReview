@@ -59,6 +59,39 @@ runner digest; mixed-runner assembly remains forbidden. The gate stays Pending
 until deterministic five-course assembly, the exact attended-review export,
 repository recording, and complete validation all succeed.
 
+### Owner device-login requirement reconciled with Deferred status — 2026-08-24
+
+When the v006 designated-live lane reached its manual-token prompt, the owner
+rejected manual PAT/token entry and reaffirmed that device login is the
+required product interaction before live publication; the cancellation is
+recorded at `49c89ca` and the consumed v006 authority is non-retryable. That
+requirement re-prioritizes this RFC as the active program, and it composes
+with the existing authority without changing any of it:
+
+- The RFC front matter stays `Deferred`; that status describes closeout
+  eligibility, not implementation permission. The validated available-target
+  implementation exception (`rfc0016-prerequisite-exception-v001`) already
+  authorizes implementation and hermetic verification once the first three
+  eligibility gates complete, and the fourth gate (RFC-BPR-0002
+  Auto-Verified via BPR-0035/BPR-0036) remains mandatory for closeout only.
+- The requirement grants no new authority: no registration, no traffic, no
+  attended-course substitute, and no change to the private/owner-only scope of
+  `rfc0016-private-owner-only-2026-08-13`. In particular it does not convert
+  BPR-0276's attended five-course recapture into unattended work — the device
+  grant needs a person to enter the user code — and it does not touch the
+  single authorized recovery early poll's spent-marker discipline.
+- The resulting order is the existing dependency graph: BPR-0276's one
+  attended session closes gates one and three; BPR-0277/BPR-0278, then
+  BPR-0279, BPR-0280, BPR-0281, BPR-0282, and BPR-0318 follow it; BPR-0256
+  may prepare a new reviewed packet exercising the device-login path only
+  after BPR-0318 is Done, and v006 is never reused or regenerated as
+  authority.
+
+Reorientation evidence, 2026-08-24: both foundational authority records
+replay `OPERATOR_RESPONSE_VALID` at their committed record identity
+`7f74b9f4`, executed from a detached worktree at that commit because the
+validator binds its own committed bytes.
+
 ## Permission inventory
 
 The current shipped operation catalog supports this proposed minimum GitHub
