@@ -1,6 +1,10 @@
 #include "github_device_authorization_contract.hpp"
+#include "github_device_authorization_transport.hpp"
 #include "github_host_profile.hpp"
 #include "native_https_transport.hpp"
+
+#include "bpr/application/device_authorization_application_host.hpp"
+#include "bpr/application/manual_executor.hpp"
 
 #include <QCoreApplication>
 
@@ -12,7 +16,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <expected>
+#include <functional>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stop_token>
@@ -79,6 +85,11 @@ namespace {
 		query_redirect,
 		response_limit,
 		cancel,
+		// BPR-0450. The documented renewal refusal, and the one course that
+		// drives the real application host through the real production adapter
+		// rather than the transport alone.
+		bad_refresh_token,
+		lifecycle,
 	};
 
 	struct fixture_selection
@@ -86,6 +97,9 @@ namespace {
 		device_authorization_endpoint Endpoint
 			= device_authorization_endpoint::device_code;
 		device_course Course = device_course::success;
+		// A renewal posts to the token route, so the endpoint alone cannot say
+		// which exchange this is.
+		bool Refresh = false;
 	};
 
 	struct fixture_material
@@ -132,6 +146,12 @@ namespace {
 		if (aValue == "cancel") {
 			return device_course::cancel;
 		}
+		if (aValue == "bad-refresh-token") {
+			return device_course::bad_refresh_token;
+		}
+		if (aValue == "lifecycle") {
+			return device_course::lifecycle;
+		}
 		return std::nullopt;
 	}
 
@@ -147,6 +167,18 @@ namespace {
 			return fixture_selection{
 				.Endpoint = device_authorization_endpoint::device_code,
 				.Course   = *course,
+			};
+		}
+		if (aValue.starts_with("refresh-")) {
+			const auto course = parse_course(
+				aValue.substr(std::string_view{ "refresh-" }.size()));
+			if (!course.has_value()) {
+				return std::nullopt;
+			}
+			return fixture_selection{
+				.Endpoint = device_authorization_endpoint::token,
+				.Course   = *course,
+				.Refresh  = true,
 			};
 		}
 		if (aValue.starts_with("token-")) {
@@ -282,14 +314,19 @@ namespace {
 		const fixture_material&  aMaterial)
 		-> device_authorization_wire_request
 	{
-		auto compiled = aSelection.Endpoint
-				== device_authorization_endpoint::device_code
-			? compile_device_code_request(
-				  server_contract::github_com, fixture_client_id)
-			: compile_device_token_request(
+		auto compiled = aSelection.Refresh
+			? compile_device_refresh_request(
 				  server_contract::github_com,
 				  fixture_client_id,
-				  aMaterial.DeviceCode);
+				  aMaterial.RefreshToken)
+			: (aSelection.Endpoint
+					   == device_authorization_endpoint::device_code
+				   ? compile_device_code_request(
+						 server_contract::github_com, fixture_client_id)
+				   : compile_device_token_request(
+						 server_contract::github_com,
+						 fixture_client_id,
+						 aMaterial.DeviceCode));
 		expect(compiled.has_value(), "compiled-request");
 		return std::move(*compiled);
 	}
@@ -517,6 +554,22 @@ namespace {
 			   "token-grant");
 	}
 
+	// The renewal answer is the token answer, and this proves it on the wire
+	// rather than trusting the shared parser to have stayed shared.
+	void expect_refresh_grant(
+		const wire_response&    aResponse,
+		const fixture_material& aMaterial)
+	{
+		const auto outcome = parse_device_refresh_response(aResponse);
+		expect(outcome.has_value(), "refresh-parse");
+		const auto* grant = std::get_if<device_token_grant>(&*outcome);
+		expect(grant != nullptr && grant->AccessToken == aMaterial.AccessToken
+				   && grant->RefreshToken == aMaterial.RefreshToken
+				   && grant->ExpiresInSeconds == token_expires_in
+				   && grant->RefreshTokenExpiresInSeconds == refresh_expires_in,
+			   "refresh-grant");
+	}
+
 	void expect_course(
 		const native_https_device_authorization_completion& aCompletion,
 		const fixture_selection&                            aSelection,
@@ -548,7 +601,11 @@ namespace {
 		case device_course::success:
 		case device_course::disabled:
 		case device_course::slow_down:
+		case device_course::bad_refresh_token:
 			break;
+		case device_course::lifecycle:
+			expect(false, "lifecycle-course-is-not-a-wire-course");
+			return;
 		}
 
 		const auto* success = std::get_if<native_https_device_authorization_success>(
@@ -579,11 +636,314 @@ namespace {
 				   "slow-down-outcome");
 			return;
 		}
+		if (aSelection.Course == device_course::bad_refresh_token) {
+			const auto outcome = parse_device_refresh_response(success->Response);
+			expect(outcome.has_value(), "bad-refresh-token-parse");
+			const auto* refusal = std::get_if<device_refresh_refusal>(&*outcome);
+			expect(refusal != nullptr
+					   && refusal->Kind
+						   == device_refresh_refusal_kind::bad_refresh_token,
+				   "bad-refresh-token-outcome");
+			return;
+		}
+		if (aSelection.Refresh) {
+			expect_refresh_grant(success->Response, aMaterial);
+			return;
+		}
 		if (aSelection.Endpoint == device_authorization_endpoint::device_code) {
 			expect_device_code_grant(success->Response, aMaterial);
 			return;
 		}
 		expect_token_grant(success->Response, aMaterial);
+	}
+
+	// -- BPR-0450 renewal lifecycle ---------------------------------------
+
+	// One slot, held in memory. The point of this vault is that the host reads
+	// renewal material out of it and writes rotated material back into it over
+	// a real socket, not that any platform store behaves a particular way.
+	class lifecycle_vault final : public application::github_credential_vault_port
+	{
+	public:
+		explicit lifecycle_vault(std::string aRefresh)
+			: Refresh{ std::move(aRefresh) }
+		{
+		}
+
+		void store(
+			application::github_credential_enrollment               aEnrollment,
+			application::github_credential_store_completion_handler aCompletion)
+			override
+		{
+			Access = text_of(aEnrollment.Credential);
+			aCompletion(application::github_credential_store_success{
+				.Context = aEnrollment.Context,
+			});
+		}
+
+		void retrieve(
+			const application::github_credential_operation_context     aContext,
+			application::github_credential_retrieve_completion_handler aCompletion)
+			override
+		{
+			answer(aContext, Access, std::move(aCompletion));
+		}
+
+		void delete_credential(
+			const application::github_credential_operation_context   aContext,
+			application::github_credential_delete_completion_handler aCompletion)
+			override
+		{
+			Access.clear();
+			aCompletion(application::github_credential_delete_success{
+				.Context = aContext,
+			});
+		}
+
+		void store_refresh(
+			application::github_credential_enrollment               aEnrollment,
+			application::github_credential_store_completion_handler aCompletion)
+			override
+		{
+			Refresh = text_of(aEnrollment.Credential);
+			++Rotations;
+			aCompletion(application::github_credential_store_success{
+				.Context = aEnrollment.Context,
+			});
+		}
+
+		void retrieve_refresh(
+			const application::github_credential_operation_context     aContext,
+			application::github_credential_retrieve_completion_handler aCompletion)
+			override
+		{
+			answer(aContext, Refresh, std::move(aCompletion));
+		}
+
+		void delete_refresh(
+			const application::github_credential_operation_context   aContext,
+			application::github_credential_delete_completion_handler aCompletion)
+			override
+		{
+			Refresh.clear();
+			aCompletion(application::github_credential_delete_success{
+				.Context = aContext,
+			});
+		}
+
+		void cancel(application::github_credential_operation_context) override
+		{
+		}
+
+		std::string Access;
+		std::string Refresh;
+		std::size_t Rotations = 0U;
+
+	private:
+		[[nodiscard]] static auto text_of(
+			const application::github_credential_material& aMaterial)
+			-> std::string
+		{
+			const auto bytes = aMaterial.bytes();
+			auto       text  = std::string{ };
+			text.resize(bytes.size());
+			std::ranges::transform(
+				bytes,
+				text.begin(),
+				[](const std::byte aByte) {
+					return static_cast<char>(aByte);
+				});
+			return text;
+		}
+
+		static void answer(
+			const application::github_credential_operation_context     aContext,
+			const std::string&                                         aValue,
+			application::github_credential_retrieve_completion_handler aCompletion)
+		{
+			if (aValue.empty()) {
+				aCompletion(application::github_credential_retrieve_absent{
+					.Context = aContext,
+				});
+				return;
+			}
+			auto bytes = std::vector<std::byte>{ };
+			bytes.resize(aValue.size());
+			std::ranges::transform(
+				aValue,
+				bytes.begin(),
+				[](const char aCharacter) {
+					return static_cast<std::byte>(aCharacter);
+				});
+			auto material
+				= application::github_credential_material::create(bytes);
+			expect(material.has_value(), "lifecycle-vault-material");
+			aCompletion(application::github_credential_retrieve_success{
+				.Context    = aContext,
+				.Credential = std::move(*material),
+			});
+		}
+	};
+
+	class lifecycle_clock final
+		: public application::device_authorization_clock_port
+	{
+	public:
+		[[nodiscard]] auto observe_monotonic() noexcept
+			-> std::chrono::milliseconds override
+		{
+			return Now;
+		}
+
+		std::chrono::milliseconds Now{ 0 };
+	};
+
+	class lifecycle_timer final
+		: public application::device_authorization_timer_port
+	{
+	public:
+		[[nodiscard]] auto schedule_after(std::uint32_t, std::function<void()>)
+			-> bool override
+		{
+			return true;
+		}
+
+		void cancel() noexcept override
+		{
+		}
+	};
+
+	class lifecycle_enrollment final
+		: public application::device_authorization_enrollment_port
+	{
+	public:
+		void enroll(
+			core::host_profile_id,
+			application::github_credential_material aCredential) override
+		{
+			++Enrollments;
+			const auto bytes = aCredential.bytes();
+			Credential.resize(bytes.size());
+			std::ranges::transform(
+				bytes,
+				Credential.begin(),
+				[](const std::byte aByte) {
+					return static_cast<char>(aByte);
+				});
+		}
+
+		std::size_t Enrollments = 0U;
+		std::string Credential;
+	};
+
+	class lifecycle_projections final
+		: public application::device_authorization_projection_port
+	{
+	public:
+		void publish(
+			const application::device_authorization_presentation&) override
+		{
+		}
+	};
+
+	[[nodiscard]] auto lifecycle_authority()
+		-> application::github_credential_authority_key
+	{
+		return {
+			.Profile         = core::host_profile_id{ 11U },
+			.ProfileRevision = application::github_profile_revision{ 31U },
+			.Host            = core::git_host_id{ 21U },
+			.Hostname
+			= application::github_canonical_hostname{ std::string{ "github.com" } },
+			.Account        = core::github_account_id{ 41U },
+			.ServerContract = application::github_server_contract::
+				github_com_2022_11_28,
+		};
+	}
+
+	// The card's own requirement: the host's refresh lifecycle running against
+	// the production adapter, over the real transport, on a real socket.
+	// Exactly one exchange leaves the process, which is what lets the loopback
+	// fixture assert a single connection.
+	void run_refresh_lifecycle(
+		const std::string&      aAuthority,
+		const fixture_material& aMaterial,
+		const std::uint16_t     aProxyPort)
+	{
+		const auto profile = validate_github_host_profile(profile_candidate(true));
+		expect(profile.has_value(), "lifecycle-profile");
+
+		const auto configuration = native_https_test_configuration{
+			.ProxyHost               = "127.0.0.1",
+			.ProxyPort               = aProxyPort,
+			.TrustedCaCertificatePem = aAuthority,
+			.TotalTimeout            = 5s,
+			.ResponseBodyLimit       = native_https_maximum_response_body_bytes,
+		};
+		auto wire = make_native_https_credential_free_transport_for_test(
+			*profile, session_context(*profile), configuration);
+		expect(wire.has_value(), "lifecycle-transport");
+
+		application::manual_executor lane;
+		application::manual_executor effects;
+		auto                         adapter
+			= make_github_device_authorization_transport(
+				std::shared_ptr<native_https_transport>{ std::move(*wire) },
+				std::string{ fixture_client_id },
+				effects);
+		expect(adapter.has_value(), "lifecycle-adapter");
+
+		lifecycle_vault       vault{ aMaterial.RefreshToken };
+		lifecycle_clock       clock;
+		lifecycle_timer       timer;
+		lifecycle_enrollment  enrollment;
+		lifecycle_projections projections;
+		auto                  host
+			= application::device_authorization_application_host{
+				  core::device_authorization_state{
+					  .ApplicationSession = core::application_session_id{ 102U },
+				  },
+				  **adapter,
+				  vault,
+				  enrollment,
+				  clock,
+				  timer,
+				  lane,
+				  projections,
+			  };
+
+		host.resume_refresh(lifecycle_authority());
+		// The vault answers inline, the adapter's exchange runs when the effect
+		// lane is drained, and the terminal comes back through the decision
+		// lane. Draining both until neither has work is the host reaching
+		// quiescence.
+		for (auto turn = 0; turn < 32 && (lane.pending() > 0U || effects.pending() > 0U); ++turn) {
+			lane.drain();
+			effects.drain();
+		}
+
+		expect(
+			vault.Rotations == 1U,
+			"the renewal rotated the refresh slot exactly once");
+		expect(
+			vault.Refresh == aMaterial.RefreshToken + "-rotated",
+			"storing the rotated material the server returned, not the one it "
+			"was sent");
+		expect(
+			enrollment.Enrollments == 1U
+				&& enrollment.Credential == aMaterial.AccessToken,
+			"and the renewed access token crossed the enrollment boundary once");
+		expect(
+			host.refresh_observation().Rotations == 1U
+				&& host.refresh_observation().Failure
+					== application::device_authorization_refresh_failure::none,
+			"the host observed one clean rotation");
+		expect(
+			!host.holds_pending_refresh_material(),
+			"and retained nothing once the vault had it");
+
+		host.shutdown();
+		lane.drain();
 	}
 
 	void run_fixture(
@@ -602,6 +962,15 @@ namespace {
 				   && !material.AccessToken.empty()
 				   && !material.RefreshToken.empty(),
 			   "fixture-material");
+
+		if (aSelection.Course == device_course::lifecycle) {
+			run_refresh_lifecycle(authority, material, aProxyPort);
+			wipe(material.DeviceCode);
+			wipe(material.UserCode);
+			wipe(material.AccessToken);
+			wipe(material.RefreshToken);
+			return;
+		}
 
 		const auto profile = validate_github_host_profile(profile_candidate(true));
 		expect(profile.has_value(), "fixture-profile");

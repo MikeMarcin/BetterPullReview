@@ -66,6 +66,30 @@ SCENARIOS = (
     "token-cancel",
 )
 
+# BPR-0450. The renewal exchange reaches the same token route, so it inherits
+# the whole hostile course set rather than proving trust, redirects, limits,
+# and cancellation a second, weaker way. `refresh-lifecycle` is the one that
+# is not a wire course: it drives the real application host through the real
+# production adapter over this same loopback fixture.
+REFRESH_SCENARIOS = (
+    "refresh-success",
+    "refresh-bad-refresh-token",
+    "refresh-untrusted-certificate",
+    "refresh-cross-redirect",
+    "refresh-query-redirect",
+    "refresh-response-limit",
+    "refresh-cancel",
+    "refresh-lifecycle",
+)
+
+SUITES = {
+    "all": SCENARIOS + REFRESH_SCENARIOS,
+    "refresh": REFRESH_SCENARIOS,
+}
+
+REFRESH_MARKER = "github-device-authorization-refresh"
+ROTATED_SUFFIX = "-rotated"
+
 TOLERATED_CLOSE_COURSES = frozenset(
     {"cancel", "untrusted-certificate", "response-limit"}
 )
@@ -116,12 +140,15 @@ class Observation:
 
 
 def endpoint_of(scenario: str) -> str:
+    # A renewal posts to the token route, so the fixture serves it from there.
     return "device_code" if scenario.startswith("device-code-") else "token"
 
 
 def course_of(scenario: str) -> str:
-    prefix = "device-code-" if scenario.startswith("device-code-") else "token-"
-    return scenario[len(prefix):]
+    for prefix in ("device-code-", "refresh-", "token-"):
+        if scenario.startswith(prefix):
+            return scenario[len(prefix):]
+    raise ProbeFailure("unknown-scenario")
 
 
 def target_of(scenario: str) -> str:
@@ -343,11 +370,19 @@ def success_payload(scenario: str, material: Material) -> bytes:
                 "verification_uri": VERIFICATION_URI,
             }
         )
+    # The lifecycle course answers with a rotated refresh token so the vault
+    # ending up holding the server's value is distinguishable from the vault
+    # never having been written at all.
+    rotated = (
+        f"{material.refresh_token}{ROTATED_SUFFIX}"
+        if scenario == "refresh-lifecycle"
+        else material.refresh_token
+    )
     return json_body(
         {
             "access_token": material.access_token,
             "expires_in": TOKEN_EXPIRES_IN,
-            "refresh_token": material.refresh_token,
+            "refresh_token": rotated,
             "refresh_token_expires_in": REFRESH_TOKEN_EXPIRES_IN,
             "scope": "",
             "token_type": "bearer",
@@ -537,7 +572,15 @@ class DeviceAuthorizationProxy:
             raise ProbeFailure("origin-credential-bytes")
 
         expected = f"client_id={CLIENT_ID}"
-        if endpoint_of(self.scenario) == "token":
+        if self.scenario.startswith("refresh-"):
+            # BPR-0450's documented renewal body: the grant type is the literal
+            # `refresh_token` and the device code is absent, which is the whole
+            # difference between this exchange and the poll above it.
+            expected += (
+                "&grant_type=refresh_token"
+                f"&refresh_token={self.transients.refresh_token}"
+            )
+        elif endpoint_of(self.scenario) == "token":
             expected += (
                 f"&device_code={self.transients.device_code}"
                 f"&grant_type={ENCODED_GRANT_TYPE}"
@@ -600,6 +643,23 @@ class DeviceAuthorizationProxy:
                             "error": "device_flow_disabled",
                             "error_description": (
                                 "Device flow is not enabled for this client."
+                            ),
+                            "error_uri": ERROR_URI,
+                        }
+                    ),
+                )
+            )
+            return
+        if self.course == "bad-refresh-token":
+            tls.sendall(
+                response_bytes(
+                    200,
+                    "OK",
+                    json_body(
+                        {
+                            "error": "bad_refresh_token",
+                            "error_description": (
+                                "The refresh token is expired or invalid."
                             ),
                             "error_uri": ERROR_URI,
                         }
@@ -756,7 +816,9 @@ def main() -> int:
     )
     parser.add_argument("--executable", required=True)
     parser.add_argument("--openssl", required=True)
+    parser.add_argument("--suite", choices=sorted(SUITES), default="all")
     arguments = parser.parse_args()
+    marker = MARKER if arguments.suite == "all" else REFRESH_MARKER
     try:
         target = executable_path(arguments.executable)
         openssl = executable_path(arguments.openssl)
@@ -765,19 +827,19 @@ def main() -> int:
             directory.chmod(0o700)
             certificate = certificates(openssl, directory)
             port = configured_loopback_port()
-            for scenario in SCENARIOS:
+            for scenario in SUITES[arguments.suite]:
                 run_scenario(target, certificate, scenario, port)
     except ProbeFailure as error:
-        print(f"{MARKER}:fail:{error.code}", file=sys.stderr)
+        print(f"{marker}:fail:{error.code}", file=sys.stderr)
         return 1
     except Exception as error:
         print(
-            f"{MARKER}:fail:internal:{type(error).__name__}",
+            f"{marker}:fail:internal:{type(error).__name__}",
             file=sys.stderr,
         )
         return 1
 
-    print(f"{MARKER}:pass")
+    print(f"{marker}:pass")
     return 0
 
 

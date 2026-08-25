@@ -17,9 +17,20 @@
 /// to the recorded BPR-0276 contracts: the token endpoint reports its
 /// resolution errors with HTTP status 200, only the device-code endpoint
 /// refuses with 400, and `slow_down` alone carries an interval. Secret
-/// material — the device code and the returned tokens — exists only inside
-/// the typed grant records handed to the host; every failure is a bare enum
-/// so no diagnostic can carry a response byte.
+/// material — the device code, the refresh token, and the returned tokens —
+/// exists only inside the typed grant records handed to the host; every
+/// failure is a bare enum so no diagnostic can carry a response byte.
+///
+/// The refresh exchange is the exception to "recorded", and it says so
+/// rather than blending in. BPR-0276's attended sitting captured five
+/// courses and none of them was a renewal, so [[BPR-0450]] binds the refresh
+/// request and its answers to GitHub's *documented* contract instead: same
+/// token endpoint, `grant_type=refresh_token`, and the identical success
+/// body the recorded token success already proves. That provenance is
+/// `documented_not_recorded` in the fixture manifest and is not upgraded by
+/// the parser passing. The one shape genuinely unproven by any recording is
+/// the refusal code, so exactly one is admitted and everything else fails
+/// closed as an unknown code.
 namespace bpr::adapters::github::detail {
 	inline constexpr std::size_t maximum_device_authorization_response_bytes
 		= 64U * 1024U;
@@ -45,6 +56,7 @@ namespace bpr::adapters::github::detail {
 		unofficial_error_uri,
 		unknown_error_code,
 		off_authority_verification_uri,
+		invalid_refresh_token,
 	};
 
 	/// \brief Describes the device authorization wire request record.
@@ -131,6 +143,29 @@ namespace bpr::adapters::github::detail {
 	using device_code_outcome
 		= std::variant<device_code_grant, device_code_refusal>;
 
+	enum class device_refresh_refusal_kind : std::uint8_t {
+		// GitHub's documented refusal when stored refresh material is expired,
+		// already rotated, or otherwise no longer good. It is the only code
+		// this parser admits, because it is the only one the documented
+		// contract names and no recording exists to widen the set.
+		bad_refresh_token,
+	};
+
+	/// \brief Describes the device refresh refusal record.
+	struct device_refresh_refusal
+	{
+		device_refresh_refusal_kind Kind
+			= device_refresh_refusal_kind::bad_refresh_token;
+
+		auto operator==(const device_refresh_refusal&) const -> bool = default;
+	};
+
+	// A renewal either issues the same grant a fresh authorization would, or
+	// it is refused. There is no delay case: nothing is pending, because
+	// nobody is being asked to authorize.
+	using device_refresh_outcome
+		= std::variant<device_token_grant, device_refresh_refusal>;
+
 	/// \brief Checks whether the supplied value satisfies its contract.
 	[[nodiscard]] auto valid_device_client_id(std::string_view aClientId) noexcept
 		-> bool;
@@ -162,6 +197,39 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto parse_device_token_response(const wire_response& aResponse)
 		-> std::expected<
 			device_token_outcome,
+			device_authorization_contract_failure>;
+
+	/// \brief Computes the compile device refresh request result.
+	///
+	/// \details Three fields against the same token endpoint, in the order
+	/// GitHub documents. The refresh token is validated exactly as the device
+	/// code is — bounded length, unreserved characters only — so material that
+	/// could not have come from this contract never reaches the wire, and it is
+	/// form-encoded rather than interpolated.
+	///
+	/// This shape is `documented_not_recorded`. No attended capture of a
+	/// renewal exists; see the note at the top of this header.
+	[[nodiscard]] auto compile_device_refresh_request(
+		server_contract  aServer,
+		std::string_view aClientId,
+		std::string_view aRefreshToken)
+		-> std::expected<
+			device_authorization_wire_request,
+			device_authorization_contract_failure>;
+
+	/// \brief Computes the parse device refresh response result.
+	///
+	/// \details The success body is the token success body, parsed by the same
+	/// code path so the two cannot drift apart. The refusal envelope is the one
+	/// the recorded token courses already prove, carrying exactly one admitted
+	/// code.
+	///
+	/// This shape is `documented_not_recorded`. No attended capture of a
+	/// renewal exists; see the note at the top of this header.
+	[[nodiscard]] auto parse_device_refresh_response(
+		const wire_response& aResponse)
+		-> std::expected<
+			device_refresh_outcome,
 			device_authorization_contract_failure>;
 }
 

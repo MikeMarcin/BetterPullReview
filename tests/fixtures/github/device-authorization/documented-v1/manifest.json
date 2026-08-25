@@ -1,0 +1,20 @@
+{
+  "artifacts": [
+    {
+      "path": "outcomes/bad_refresh_token.json",
+      "sha256": "sha256:442fa00b6fd1e7332d3b83b10b1639a9cc395b4e656e4f2c729bfc5257294f10",
+      "source_kind": "documented_not_recorded"
+    },
+    {
+      "path": "outcomes/refresh_success.json",
+      "sha256": "sha256:d170aeb3d812eba5b378fe915b41a6b32d3dcc383548f76c2dd70973ae61d460",
+      "source_kind": "documented_not_recorded"
+    }
+  ],
+  "documented_by": "BPR-0450",
+  "recorded": false,
+  "recorded_sibling": "../v1",
+  "schema_name": "bpr.rfc0016.device_documented_contract_manifest",
+  "schema_version": 1,
+  "state": "documented_not_recorded"
+}

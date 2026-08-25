@@ -257,6 +257,34 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
             PASS_REGULAR_EXPRESSION
                 "native-https-device-authorization:pass"
     )
+
+    # BPR-0450 registers the renewal courses under their own selector because
+    # the RFC-BPR-0016 final command ledger allocates that exact name and
+    # verify_rfc0016_test_inventory.py must be able to count one selector for
+    # it. The suite runs the same fixture with the refresh scenarios only,
+    # including the lifecycle course that drives the real application host
+    # through the real production adapter.
+    bpr_add_network_isolated_test(
+        NAME github_device_authorization_refresh_contract
+        LOOPBACK_PORT_COUNT 1
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/github_contract/verify_native_https_device_authorization.py"
+            --executable
+            "$<TARGET_FILE:test_better_pull_review_native_https_device_authorization_tests>"
+            --openssl
+            "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
+            --suite
+            refresh
+    )
+    set_tests_properties(
+        github_device_authorization_refresh_contract
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 90
+            PASS_REGULAR_EXPRESSION
+                "github-device-authorization-refresh:pass"
+    )
 endif()
 
 bpr_add_executable(
@@ -394,6 +422,10 @@ target_compile_definitions(
     test_better_pull_review_github_device_authorization_contract_tests
     PRIVATE
         BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/github/device-authorization/v1"
+        # A separate root, deliberately. The recorded tree above is digest-bound
+        # to an owner-accepted attended sitting that captured no renewal, so the
+        # documented-not-recorded refresh shapes cannot be filed inside it.
+        BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/github/device-authorization/documented-v1"
 )
 bpr_enable_hardening(test_better_pull_review_github_device_authorization_contract_tests)
 bpr_enable_warnings(test_better_pull_review_github_device_authorization_contract_tests)

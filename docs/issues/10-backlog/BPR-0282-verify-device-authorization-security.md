@@ -35,3 +35,20 @@ depends_on: [BPR-0281, BPR-0450]
   selection flip, and clean enabled rerun. BPR-0285 separately reruns the exact
   idempotent final-head platform course after simplification, documentation,
   and every required card are terminal.
+
+## Inherited from done BPR-0450 — 2026-08-25
+
+The refresh wire contract and its production adapter are in place, and the
+selector this card's ledger row names — `github_device_authorization_refresh_contract`
+— is registered and green with eight loopback scenarios. Two facts this card
+must not restate more strongly than they are:
+
+- The renewal wire shapes are `documented_not_recorded`, filed in
+  `tests/fixtures/github/device-authorization/documented-v1/` deliberately
+  outside BPR-0276's digest-bound recorded tree. No recorded-GitHub claim is
+  admissible for refresh, and `capture_rfc0016_device_contracts.py` remains
+  structurally unable to emit one.
+- The production `device_authorization_transport_port` implementation
+  (`github_device_authorization_transport`) ships here rather than in
+  [[BPR-0281]], because a partial port could not exist. BPR-0281 keeps the
+  composition wiring, the timer adapter, and per-platform selection.

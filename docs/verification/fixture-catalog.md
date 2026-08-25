@@ -221,6 +221,39 @@ adversarial synthetic-to-real provenance reproduction. Dedicated regressions
 also prove lowercase user-code-shaped text, `session_id` cookie material, and a
 JWT-shaped credential are omitted from canonical error artifacts.
 
+### The documented-not-recorded renewal shapes
+
+`tests/fixtures/github/device-authorization/documented-v1/` is a **separate**
+tree, and the separation is the point. BPR-0276's attended sitting captured
+five courses and none of them was a token renewal, so [[BPR-0450]] could not
+file its refresh shapes in `v1/` without either breaking the manifest that
+digest-pins exactly nine artifacts or claiming membership in a sitting that
+never happened. The recorded tree is byte-identical to what BPR-0276 admitted
+and stays that way.
+
+The documented tree carries its own schema names —
+`bpr.rfc0016.device_documented_contract` and
+`bpr.rfc0016.device_documented_contract_manifest` — a `state` of
+`documented_not_recorded`, an explicit `"recorded": false` on the manifest and
+on every artifact's provenance, and `source_kind: documented_not_recorded`.
+That value is deliberately **not** added to
+`capture_rfc0016_device_contracts.py`'s `ARTIFACT_SOURCE_KINDS`: the capture
+sanitizer must remain unable to emit or accept a documented shape, so the
+frozen set stays `{synthetic, unattested_capture}` and the documented tree is
+validated by `github_device_authorization_contract` instead. Its two artifacts
+are digest-pinned exactly as the recorded ones are, and the contract test
+recomputes both digests.
+
+Two shapes live there: `refresh_success` and `bad_refresh_token`. The success
+body is asserted field-for-field identical to the recorded `token_success`
+projection, so the genuinely unrecorded surface narrows to the request's
+`grant_type=refresh_token` pair and the one admitted refusal code. Everything
+else about the renewal — trust, redirects, response bounds, cancellation, and
+the wire body itself — is proved on a real socket by the `refresh-*` scenarios
+under `github_device_authorization_refresh_contract`, whose `refresh-lifecycle`
+course drives the real application host through the real production adapter and
+rotates a vault refresh slot over that socket.
+
 ## Implemented GitHub capability contract v1
 
 `tests/fixtures/github/capabilities/v1/` contains independent complete

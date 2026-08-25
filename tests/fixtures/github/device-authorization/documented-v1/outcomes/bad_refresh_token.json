@@ -1,0 +1,33 @@
+{
+  "content_type": "application/json",
+  "endpoint": "token",
+  "endpoint_url": "https://github.com/login/oauth/access_token",
+  "http_status": 200,
+  "outcome": "bad_refresh_token",
+  "projection": {
+    "observed_fields": [
+      "error",
+      "error_description",
+      "error_uri"
+    ],
+    "omitted_transient_fields": [
+      "error_description",
+      "error_uri"
+    ],
+    "values": {
+      "error": "bad_refresh_token"
+    }
+  },
+  "provenance": {
+    "documented_by": "BPR-0450",
+    "documentation": "GitHub Docs, Refreshing user access tokens: the documented refusal for refresh material that is expired or already rotated",
+    "recorded": false,
+    "service": "github.com",
+    "source_kind": "documented_not_recorded",
+    "structural_twin": "v1/outcomes/access_denied.json"
+  },
+  "request_content_type": "application/x-www-form-urlencoded",
+  "request_method": "POST",
+  "schema_name": "bpr.rfc0016.device_documented_contract",
+  "schema_version": 1
+}

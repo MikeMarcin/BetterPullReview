@@ -1,0 +1,39 @@
+{
+  "content_type": "application/json",
+  "endpoint": "token",
+  "endpoint_url": "https://github.com/login/oauth/access_token",
+  "http_status": 200,
+  "outcome": "refresh_success",
+  "projection": {
+    "observed_fields": [
+      "access_token",
+      "expires_in",
+      "refresh_token",
+      "refresh_token_expires_in",
+      "scope",
+      "token_type"
+    ],
+    "omitted_transient_fields": [
+      "access_token",
+      "refresh_token"
+    ],
+    "values": {
+      "expires_in": 28800,
+      "refresh_token_expires_in": 15897600,
+      "scope": "",
+      "token_type": "bearer"
+    }
+  },
+  "provenance": {
+    "documented_by": "BPR-0450",
+    "documentation": "GitHub Docs, Refreshing user access tokens: the renewal answer is the user-access-token answer",
+    "recorded": false,
+    "service": "github.com",
+    "source_kind": "documented_not_recorded",
+    "structural_twin": "v1/outcomes/token_success.json"
+  },
+  "request_content_type": "application/x-www-form-urlencoded",
+  "request_method": "POST",
+  "schema_name": "bpr.rfc0016.device_documented_contract",
+  "schema_version": 1
+}

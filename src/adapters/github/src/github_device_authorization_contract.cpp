@@ -22,6 +22,7 @@ namespace bpr::adapters::github::detail {
 			= "https://github.com/login/oauth/access_token";
 		constexpr std::string_view device_grant_type
 			= "urn:ietf:params:oauth:grant-type:device_code";
+		constexpr std::string_view refresh_grant_type              = "refresh_token";
 		constexpr std::string_view expected_verification_authority = "github.com";
 		constexpr std::string_view official_error_uri_authority    = "docs.github.com";
 
@@ -210,6 +211,68 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected(device_failure::missing_field);
 			}
 			return text;
+		}
+
+		// The authorization success body and the renewal success body are the
+		// same six fields, so they are the same code. Splitting them would
+		// let one drift into accepting a shape the other refuses, which is
+		// the difference this exchange can least afford.
+		[[nodiscard]] auto token_grant_body(const QJsonObject& aObject)
+			-> std::expected<device_token_grant, device_failure>
+		{
+			if (!exact_keys(
+					aObject,
+					{ QLatin1StringView{ "access_token" },
+					  QLatin1StringView{ "expires_in" },
+					  QLatin1StringView{ "refresh_token" },
+					  QLatin1StringView{ "refresh_token_expires_in" },
+					  QLatin1StringView{ "scope" },
+					  QLatin1StringView{ "token_type" } })) {
+				return std::unexpected(device_failure::unexpected_field);
+			}
+
+			const auto tokenType = aObject.value(
+				QLatin1StringView{ "token_type" });
+			if (!tokenType.isString()
+				|| tokenType.toString() != QStringLiteral("bearer")) {
+				return std::unexpected(device_failure::invalid_field_value);
+			}
+			const auto scope = aObject.value(QLatin1StringView{ "scope" });
+			if (!scope.isString() || !scope.toString().isEmpty()) {
+				return std::unexpected(device_failure::invalid_field_value);
+			}
+
+			auto grant = device_token_grant{ };
+
+			const auto accessToken = non_empty_text(
+				aObject.value(QLatin1StringView{ "access_token" }));
+			if (!accessToken.has_value()) {
+				return std::unexpected(accessToken.error());
+			}
+			grant.AccessToken = *accessToken;
+
+			const auto refreshToken = non_empty_text(
+				aObject.value(QLatin1StringView{ "refresh_token" }));
+			if (!refreshToken.has_value()) {
+				return std::unexpected(refreshToken.error());
+			}
+			grant.RefreshToken = *refreshToken;
+
+			const auto expires = bounded_seconds(
+				aObject.value(QLatin1StringView{ "expires_in" }));
+			if (!expires.has_value()) {
+				return std::unexpected(expires.error());
+			}
+			grant.ExpiresInSeconds = *expires;
+
+			const auto refreshExpires = bounded_seconds(
+				aObject.value(QLatin1StringView{ "refresh_token_expires_in" }));
+			if (!refreshExpires.has_value()) {
+				return std::unexpected(refreshExpires.error());
+			}
+			grant.RefreshTokenExpiresInSeconds = *refreshExpires;
+
+			return grant;
 		}
 	}
 
@@ -405,57 +468,71 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected(device_failure::unknown_error_code);
 		}
 
-		if (!exact_keys(
-				*object,
-				{ QLatin1StringView{ "access_token" },
-				  QLatin1StringView{ "expires_in" },
-				  QLatin1StringView{ "refresh_token" },
-				  QLatin1StringView{ "refresh_token_expires_in" },
-				  QLatin1StringView{ "scope" },
-				  QLatin1StringView{ "token_type" } })) {
-			return std::unexpected(device_failure::unexpected_field);
+		const auto grant = token_grant_body(*object);
+		if (!grant.has_value()) {
+			return std::unexpected(grant.error());
+		}
+		return device_token_outcome{ *grant };
+	}
+
+	auto compile_device_refresh_request(
+		const server_contract  aServer,
+		const std::string_view aClientId,
+		const std::string_view aRefreshToken)
+		-> std::expected<
+			device_authorization_wire_request,
+			device_authorization_contract_failure>
+	{
+		if (aServer != server_contract::github_com) {
+			return std::unexpected(
+				device_failure::unsupported_server_contract);
+		}
+		if (!valid_device_client_id(aClientId)) {
+			return std::unexpected(device_failure::invalid_client_id);
+		}
+		if (!valid_device_transient_code(aRefreshToken)) {
+			return std::unexpected(device_failure::invalid_refresh_token);
+		}
+		return device_authorization_wire_request{
+			.Endpoint = device_authorization_endpoint::token,
+			.Method   = http_method::post,
+			.Url      = std::string{ token_url },
+			.Headers  = device_headers(),
+			.Body     = "client_id=" + form_encode(aClientId) + "&grant_type="
+				+ form_encode(refresh_grant_type) + "&refresh_token="
+				+ form_encode(aRefreshToken),
+		};
+	}
+
+	auto parse_device_refresh_response(const wire_response& aResponse)
+		-> std::expected<
+			device_refresh_outcome,
+			device_authorization_contract_failure>
+	{
+		const auto object = response_object(aResponse, 200);
+		if (!object.has_value()) {
+			return std::unexpected(object.error());
 		}
 
-		const auto tokenType = object->value(QLatin1StringView{ "token_type" });
-		if (!tokenType.isString()
-			|| tokenType.toString() != QStringLiteral("bearer")) {
-			return std::unexpected(device_failure::invalid_field_value);
-		}
-		const auto scope = object->value(QLatin1StringView{ "scope" });
-		if (!scope.isString() || !scope.toString().isEmpty()) {
-			return std::unexpected(device_failure::invalid_field_value);
+		if (object->contains(QLatin1StringView{ "error" })) {
+			const auto code = error_object_code(*object);
+			if (!code.has_value()) {
+				return std::unexpected(code.error());
+			}
+			// One admitted code. A renewal has nothing to wait for, so a
+			// pending or slow-down answer here would be a contract this
+			// exchange does not have, and it fails closed with everything else.
+			if (*code == "bad_refresh_token") {
+				return device_refresh_outcome{ device_refresh_refusal{
+					.Kind = device_refresh_refusal_kind::bad_refresh_token } };
+			}
+			return std::unexpected(device_failure::unknown_error_code);
 		}
 
-		auto grant = device_token_grant{ };
-
-		const auto accessToken
-			= non_empty_text(object->value(QLatin1StringView{ "access_token" }));
-		if (!accessToken.has_value()) {
-			return std::unexpected(accessToken.error());
+		const auto grant = token_grant_body(*object);
+		if (!grant.has_value()) {
+			return std::unexpected(grant.error());
 		}
-		grant.AccessToken = *accessToken;
-
-		const auto refreshToken = non_empty_text(
-			object->value(QLatin1StringView{ "refresh_token" }));
-		if (!refreshToken.has_value()) {
-			return std::unexpected(refreshToken.error());
-		}
-		grant.RefreshToken = *refreshToken;
-
-		const auto expires
-			= bounded_seconds(object->value(QLatin1StringView{ "expires_in" }));
-		if (!expires.has_value()) {
-			return std::unexpected(expires.error());
-		}
-		grant.ExpiresInSeconds = *expires;
-
-		const auto refreshExpires = bounded_seconds(
-			object->value(QLatin1StringView{ "refresh_token_expires_in" }));
-		if (!refreshExpires.has_value()) {
-			return std::unexpected(refreshExpires.error());
-		}
-		grant.RefreshTokenExpiresInSeconds = *refreshExpires;
-
-		return device_token_outcome{ std::move(grant) };
+		return device_refresh_outcome{ *grant };
 	}
 }

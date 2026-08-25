@@ -760,7 +760,6 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0444 | `23-ready-lin/` | A Linux session. The nine non-naming vault findings [[BPR-0443]]'s working gate exposed need judgment, and the tidy-clean proof only exists where the file compiles |
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
 | BPR-0281 | `20-ready/` | Any session. Done [[BPR-0280]]'s host-owned browser port and Qt panel joined done [[BPR-0279]]'s host, so composition has both halves; it still owes the production timer adapter and the transport bridge [[BPR-0279]] deliberately left, and every platform stays `device_flow_unavailable` until [[BPR-0318]] |
-| BPR-0450 | `30-in-progress/` | This session: the refresh wire contract and production refresh adapter done [[BPR-0279]] deliberately left tracked rather than absorbed; blocks [[BPR-0282]] |
 
 This table had drifted and is corrected above rather than quietly patched. It
 listed BPR-0262 as a `20-ready/` root; that card is in `60-done/`. BPR-0220 was
@@ -815,7 +814,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these sixteen roots or reaches one
+card on this board is either one of these fifteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 43 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`. That count read 46 while the lane held 44, so it is
@@ -833,8 +832,10 @@ promoted exactly [[BPR-0279]], whose two dependencies were then both done.
 [[BPR-0450]] refresh-wire follow-up, which also joined [[BPR-0282]]'s
 dependencies so closeout cannot outrun it. On 2026-08-25 [[BPR-0280]] closed
 with the host-owned browser port and the Qt panel, promoting exactly
-[[BPR-0281]]; the root count is unchanged because one root replaced the
-other.
+[[BPR-0281]]; the root count held at sixteen because one root replaced the
+other. [[BPR-0450]] then closed with the refresh wire contract and its
+production adapter, promoting nothing — [[BPR-0282]], its only dependent,
+still waits on [[BPR-0281]] — so the count is fifteen.
 
 The post-BPR-0334 audit on 2026-08-21 found no backlog dependency on that
 card, so its move to `60-done/` promoted nothing. All 56 backlog cards still

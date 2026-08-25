@@ -1,5 +1,6 @@
 #include "github_device_authorization_contract.hpp"
 
+#include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -77,6 +78,38 @@ namespace {
 						.toInt()
 					== 1,
 			"recorded outcome carries the device contract schema");
+		return fixture;
+	}
+
+	/// Load one documented-not-recorded shape. It lives in a sibling tree
+	/// rather than in the recorded capture, because the recorded manifest is
+	/// digest-bound to an owner-accepted attended sitting that contained no
+	/// renewal course: adding a tenth artifact to it would either break that
+	/// binding or forge membership in a sitting that never happened.
+	[[nodiscard]] auto documented_fixture(const std::string_view aName)
+		-> QJsonObject
+	{
+		const auto root = std::filesystem::path{
+			BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT
+		};
+		const auto fixture
+			= parse_object(root / "outcomes" / (std::string{ aName } + ".json"));
+		expect(
+			fixture.value(QLatin1StringView{ "schema_name" }).toString()
+					== QStringLiteral("bpr.rfc0016.device_documented_contract")
+				&& fixture.value(QLatin1StringView{ "schema_version" }).toInt()
+					== 1,
+			"documented outcome carries the documented contract schema");
+		const auto provenance
+			= fixture.value(QLatin1StringView{ "provenance" }).toObject();
+		expect(
+			provenance.value(QLatin1StringView{ "source_kind" }).toString()
+				== QStringLiteral("documented_not_recorded"),
+			"and says so in its provenance");
+		expect(
+			provenance.value(QLatin1StringView{ "recorded" }).isBool()
+				&& !provenance.value(QLatin1StringView{ "recorded" }).toBool(),
+			"and claims no recording");
 		return fixture;
 	}
 
@@ -602,6 +635,322 @@ namespace {
 			device_authorization_contract_failure::unknown_error_code,
 			"an error outside the recorded closed set is refused");
 	}
+
+	// -- refresh: documented, not recorded ---------------------------------
+
+	void test_the_documented_tree_is_disjoint_from_the_recorded_capture()
+	{
+		const auto documented = std::filesystem::path{
+			BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT
+		};
+		const auto recorded = std::filesystem::path{
+			BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT
+		};
+		expect(
+			documented != recorded,
+			"the documented shapes do not live in the recorded capture tree");
+
+		const auto manifest = parse_object(documented / "manifest.json");
+		expect(
+			manifest.value(QLatin1StringView{ "schema_name" }).toString()
+				== QStringLiteral(
+					"bpr.rfc0016.device_documented_contract_manifest"),
+			"the documented manifest is its own schema");
+		expect(
+			manifest.value(QLatin1StringView{ "state" }).toString()
+				== QStringLiteral("documented_not_recorded"),
+			"and its state never claims a capture");
+		expect(
+			manifest.value(QLatin1StringView{ "recorded" }).isBool()
+				&& !manifest.value(QLatin1StringView{ "recorded" }).toBool(),
+			"nor does its recorded flag");
+
+		// Every documented artifact is digest-pinned exactly as the recorded
+		// ones are, so an edit that changes a shape cannot pass unnoticed.
+		const auto artifacts
+			= manifest.value(QLatin1StringView{ "artifacts" }).toArray();
+		expect(artifacts.size() == 2, "two documented artifacts are pinned");
+		for (const auto& entry : artifacts) {
+			const auto artifact = entry.toObject();
+			const auto relative
+				= artifact.value(QLatin1StringView{ "path" }).toString();
+			expect(
+				artifact.value(QLatin1StringView{ "source_kind" }).toString()
+					== QStringLiteral("documented_not_recorded"),
+				"every documented artifact is labeled");
+			const auto bytes = read_all(
+				documented / std::filesystem::path{ relative.toStdString() });
+			const auto digest = QCryptographicHash::hash(
+				QByteArray::fromStdString(bytes),
+				QCryptographicHash::Sha256);
+			expect(
+				artifact.value(QLatin1StringView{ "sha256" }).toString()
+					== QStringLiteral("sha256:")
+						+ QString::fromLatin1(digest.toHex()),
+				"and its pinned digest matches its bytes");
+		}
+	}
+
+	void test_the_documented_refresh_success_matches_the_recorded_token_body()
+	{
+		// The only genuinely unrecorded parts of the renewal are the request's
+		// grant type and the refusal code. Its success body is the body the
+		// attended sitting already recorded, and this proves that rather than
+		// asserting it in a comment.
+		const auto recorded   = outcome_fixture("token_success")
+									.value(QLatin1StringView{ "projection" })
+									.toObject();
+		const auto documented = documented_fixture("refresh_success")
+									.value(QLatin1StringView{ "projection" })
+									.toObject();
+		expect(
+			documented.value(QLatin1StringView{ "observed_fields" })
+				== recorded.value(QLatin1StringView{ "observed_fields" }),
+			"the documented renewal body has exactly the recorded fields");
+		expect(
+			documented.value(QLatin1StringView{ "omitted_transient_fields" })
+				== recorded.value(QLatin1StringView{ "omitted_transient_fields" }),
+			"omitting exactly the same transient material");
+		expect(
+			documented.value(QLatin1StringView{ "values" })
+				== recorded.value(QLatin1StringView{ "values" }),
+			"with the same retained non-secret values");
+	}
+
+	void test_the_compiled_refresh_body_is_exact()
+	{
+		const auto request = compile_device_refresh_request(
+			server_contract::github_com,
+			synthetic_client_id,
+			synthetic_refresh_token);
+		expect(request.has_value(), "the refresh request compiles");
+		expect(
+			request->Body
+				== "client_id=Iv23synthetic0000000&grant_type=refresh_token"
+				   "&refresh_token=synthetic_refresh_token_708d",
+			"three fields, in the documented order, form-encoded");
+		expect(
+			request->Endpoint == device_authorization_endpoint::token
+				&& request->Method == http_method::post,
+			"posted to the token endpoint");
+		expect(
+			request->Url
+				== documented_fixture("refresh_success")
+					   .value(QLatin1StringView{ "endpoint_url" })
+					   .toString()
+					   .toStdString(),
+			"at the documented endpoint URL");
+		expect(
+			request->Body.find("device_code") == std::string::npos
+				&& request->Body.find("urn:ietf") == std::string::npos,
+			"and carries nothing from the device-code grant");
+	}
+
+	void test_refresh_inputs_are_refused_before_the_wire()
+	{
+		expect(
+			!compile_device_refresh_request(
+				 server_contract::ghes_3_18,
+				 synthetic_client_id,
+				 synthetic_refresh_token)
+				 .has_value(),
+			"GHES has no device refresh contract");
+		const auto badClient = compile_device_refresh_request(
+			server_contract::github_com,
+			"bad client id",
+			synthetic_refresh_token);
+		expect(
+			!badClient.has_value()
+				&& badClient.error()
+					== device_authorization_contract_failure::invalid_client_id,
+			"a malformed client id is refused");
+		for (const auto refresh : { "", "with space", "semi;colon",
+									"newline\ninjected", "amp&ersand" }) {
+			const auto outcome = compile_device_refresh_request(
+				server_contract::github_com,
+				synthetic_client_id,
+				refresh);
+			expect(
+				!outcome.has_value()
+					&& outcome.error()
+						== device_authorization_contract_failure::
+							invalid_refresh_token,
+				"refresh material that could not have come from this contract "
+				"never reaches the wire");
+		}
+		const auto oversized = std::string(600U, 'a');
+		const auto outcome   = compile_device_refresh_request(
+			server_contract::github_com,
+			synthetic_client_id,
+			oversized);
+		expect(
+			!outcome.has_value()
+				&& outcome.error()
+					== device_authorization_contract_failure::
+						invalid_refresh_token,
+			"and neither does an unbounded one");
+	}
+
+	void test_each_refresh_outcome_parses_to_its_type()
+	{
+		const auto success = documented_fixture("refresh_success");
+		const auto issued  = parse_device_refresh_response(
+			response_from(success, synthetic_body(success)));
+		expect(
+			issued.has_value()
+				&& std::holds_alternative<device_token_grant>(*issued),
+			"the documented renewal success parses to a grant");
+		const auto& grant = std::get<device_token_grant>(*issued);
+		expect(
+			grant.AccessToken == synthetic_access_token
+				&& grant.RefreshToken == synthetic_refresh_token,
+			"carrying both rotated secrets");
+		expect(
+			grant.ExpiresInSeconds == 28800U
+				&& grant.RefreshTokenExpiresInSeconds == 15897600U,
+			"and both documented lifetimes");
+
+		const auto refused = documented_fixture("bad_refresh_token");
+		const auto outcome = parse_device_refresh_response(
+			response_from(refused, synthetic_body(refused)));
+		expect(
+			outcome.has_value()
+				&& std::holds_alternative<device_refresh_refusal>(*outcome),
+			"the documented refusal parses to the typed refusal");
+		expect(
+			std::get<device_refresh_refusal>(*outcome).Kind
+				== device_refresh_refusal_kind::bad_refresh_token,
+			"with the one admitted code");
+	}
+
+	void test_hostile_refresh_shapes_fail_closed()
+	{
+		const auto success     = documented_fixture("refresh_success");
+		const auto successBody = synthetic_body(success);
+		const auto refused     = documented_fixture("bad_refresh_token");
+		const auto refusedBody = synthetic_body(refused);
+		const auto failure
+			= [&success](
+				  const QJsonObject&                          aBody,
+				  const device_authorization_contract_failure aExpected,
+				  const std::string_view                      aMessage) {
+				  const auto outcome = parse_device_refresh_response(
+					  response_from(success, aBody));
+				  expect(
+					  !outcome.has_value() && outcome.error() == aExpected,
+					  aMessage);
+			  };
+
+		failure(
+			mutated(
+				successBody,
+				[](QJsonObject& aObject) {
+					aObject.remove(QStringLiteral("refresh_token"));
+				}),
+			device_authorization_contract_failure::unexpected_field,
+			"a renewal that rotates no refresh material is refused");
+		failure(
+			mutated(
+				successBody,
+				[](QJsonObject& aObject) {
+					aObject.insert(
+						QStringLiteral("scope"),
+						QStringLiteral("repo"));
+				}),
+			device_authorization_contract_failure::invalid_field_value,
+			"a renewal that silently widens scope is refused");
+		failure(
+			mutated(
+				successBody,
+				[](QJsonObject& aObject) {
+					aObject.insert(
+						QStringLiteral("verification_uri"),
+						QStringLiteral("https://github.com/login/device"));
+				}),
+			device_authorization_contract_failure::unexpected_field,
+			"an unrecorded extra field is refused");
+		failure(
+			mutated(
+				successBody,
+				[](QJsonObject& aObject) {
+					aObject.insert(QStringLiteral("expires_in"), -1);
+				}),
+			device_authorization_contract_failure::invalid_field_value,
+			"a negative lifetime is refused");
+
+		// The renewal has no pending case, so the codes the poll exchange
+		// admits must not leak into it. `slow_down` is refused one step
+		// earlier, by the envelope rule that a slow-down without its interval
+		// is malformed, which is a refusal all the same.
+		for (const auto code :
+			 { "authorization_pending", "access_denied", "expired_token" }) {
+			const auto body = mutated(
+				refusedBody,
+				[code](QJsonObject& aObject) {
+					aObject.insert(
+						QStringLiteral("error"),
+						QString::fromUtf8(code));
+				});
+			const auto outcome = parse_device_refresh_response(
+				response_from(refused, body));
+			expect(
+				!outcome.has_value()
+					&& outcome.error()
+						== device_authorization_contract_failure::
+							unknown_error_code,
+				"a poll-exchange error code is not a renewal answer");
+		}
+		failure(
+			mutated(
+				refusedBody,
+				[](QJsonObject& aObject) {
+					aObject.insert(
+						QStringLiteral("error"),
+						QStringLiteral("slow_down"));
+				}),
+			device_authorization_contract_failure::missing_field,
+			"and neither is a slow-down, which the renewal has no use for");
+
+		const auto unofficial = parse_device_refresh_response(response_from(
+			refused,
+			mutated(refusedBody, [](QJsonObject& aObject) {
+				aObject.insert(
+					QStringLiteral("error_uri"),
+					QStringLiteral("https://evil.invalid/docs"));
+			})));
+		expect(
+			!unofficial.has_value()
+				&& unofficial.error()
+					== device_authorization_contract_failure::
+						unofficial_error_uri,
+			"an unofficial error documentation authority is refused");
+
+		const auto oversized = parse_device_refresh_response(wire_response{
+			.Status = 200,
+			.Headers
+			= { { .Name = "Content-Type", .Value = "application/json" } },
+			.Body = std::string(
+				maximum_device_authorization_response_bytes + 1U,
+				'a'),
+		});
+		expect(
+			!oversized.has_value()
+				&& oversized.error()
+					== device_authorization_contract_failure::response_limit,
+			"an oversized renewal body is refused before it is parsed");
+
+		const auto wrongStatus = parse_device_refresh_response(wire_response{
+			.Status = 400,
+			.Headers
+			= { { .Name = "Content-Type", .Value = "application/json" } },
+			.Body = "{}",
+		});
+		expect(
+			!wrongStatus.has_value()
+				&& wrongStatus.error()
+					== device_authorization_contract_failure::unexpected_status,
+			"the renewal reports through status 200 like every token answer");
+	}
 }
 
 auto main() -> int
@@ -616,6 +965,14 @@ auto main() -> int
 	test_each_token_outcome_parses_to_its_type();
 	test_hostile_device_code_shapes_fail_closed();
 	test_hostile_token_shapes_fail_closed();
+
+	test_the_documented_tree_is_disjoint_from_the_recorded_capture();
+	test_the_documented_refresh_success_matches_the_recorded_token_body();
+	test_the_compiled_refresh_body_is_exact();
+	test_refresh_inputs_are_refused_before_the_wire();
+	test_each_refresh_outcome_parses_to_its_type();
+	test_hostile_refresh_shapes_fail_closed();
+
 	std::cout << "github device authorization contract tests passed\n";
 	return EXIT_SUCCESS;
 }

@@ -38,3 +38,20 @@ and the bridge that hands the host its transport through the production
 `make_native_https_credential_free_transport` factory — the adapter depends
 on the application layer, so the bridge lives here, not in `src/application`.
 The refresh wire adapter is separately [[BPR-0450]].
+
+## Narrowed by done BPR-0450 — 2026-08-25
+
+The production `device_authorization_transport_port` implementation is no
+longer this card's. [[BPR-0450]] needed the host's refresh lifecycle to run
+against a real adapter, and the host calls acquire and exchange on the way
+there, so a refresh-only implementation of that port could not exist:
+`github_device_authorization_transport` ships complete in
+`src/adapters/github/`, constructed by
+`make_github_device_authorization_transport` from a
+`make_native_https_credential_free_transport` transport, a client identifier,
+and an `effect_executor`.
+
+What remains here is unchanged in substance: constructing that transport in
+composition and handing it to the host, the production interruptible timer
+adapter behind `device_authorization_timer_port`, the visible device choice,
+and `device_flow_unavailable` on every platform until [[BPR-0318]].
