@@ -759,7 +759,7 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0310, BPR-0314 | `23-ready-lin/` | **Not a Linux session.** A Linux session ran this lane on 2026-08-22 and removed every Linux reason it had. The tests-disabled Release build links here ([[BPR-0421]], [[BPR-0440]]) and `coding-tidy` runs here ([[BPR-0443]]). What is left is upstream and is not about this platform: [[BPR-0310]] needs RFC-BPR-0016 implemented at all — no `src/` file mentions the device flow — behind the now-done [[BPR-0276]] capture's consumers ([[BPR-0277]] onward) and [[BPR-0318]]'s nonexistent distributable identity; [[BPR-0314]] must observe a typed public-preview-unavailability selection no code produces, and producing it is implementation RFC-BPR-0017 gates on RFC-BPR-0002, which waits on [[BPR-0036]]. BPR-0314 does carry three target-native rows now. A Linux session opening this lane should expect to close only [[BPR-0444]] |
 | BPR-0444 | `23-ready-lin/` | A Linux session. The nine non-naming vault findings [[BPR-0443]]'s working gate exposed need judgment, and the tidy-clean proof only exists where the file compiles |
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
-| BPR-0277, BPR-0278 | `20-ready/` | Any session. Done [[BPR-0276]]'s admitted attended capture supplies the real sanitized wire contracts, so the RFC-BPR-0016 core policy and wire-transport slices have their inputs |
+| BPR-0278 | `20-ready/` | Any session. Done [[BPR-0276]]'s admitted attended capture supplies the real sanitized wire contracts the wire-transport slice consumes; done [[BPR-0277]] already provides the core policy it pairs with |
 
 This table had drifted and is corrected above rather than quietly patched. It
 listed BPR-0262 as a `20-ready/` root; that card is in `60-done/`. BPR-0220 was
@@ -814,14 +814,17 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these sixteen roots or reaches one
+card on this board is either one of these fifteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 46 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`. BPR-0417's move to `60-done/` on 2026-08-24 promoted exactly one
 card: [[BPR-0418]], whose other dependency [[BPR-0416]] was already done, moved
 from `10-backlog/` to `20-ready/` in the same audit. Later the same day
 BPR-0276's owner-attended capture was admitted and its move to `60-done/`
-promoted exactly [[BPR-0277]] and [[BPR-0278]], both depending on it alone.
+promoted exactly [[BPR-0277]] and [[BPR-0278]], both depending on it alone;
+[[BPR-0277]] then closed with the core policy implemented, promoting nothing —
+[[BPR-0279]] and [[BPR-0280]] still wait on [[BPR-0278]] and [[BPR-0279]]
+respectively.
 
 The post-BPR-0334 audit on 2026-08-21 found no backlog dependency on that
 card, so its move to `60-done/` promoted nothing. All 56 backlog cards still

@@ -4,6 +4,8 @@ add_library(
         src/appearance_contrast.cpp
         src/appearance_model.cpp
         src/defect_workflow.cpp
+        src/device_authorization_model.cpp
+        src/device_authorization_transition.cpp
         src/diff_compute.cpp
 		src/diff_interaction.cpp
         src/diff_model.cpp
