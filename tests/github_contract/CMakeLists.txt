@@ -314,6 +314,34 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_github_device_authorization_contract_tests
+    github_device_authorization_contract_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_github_device_authorization_contract_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        Qt6::Core
+)
+target_include_directories(
+    test_better_pull_review_github_device_authorization_contract_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    test_better_pull_review_github_device_authorization_contract_tests
+    PRIVATE
+        BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/github/device-authorization/v1"
+)
+bpr_enable_hardening(test_better_pull_review_github_device_authorization_contract_tests)
+bpr_enable_warnings(test_better_pull_review_github_device_authorization_contract_tests)
+
+bpr_add_network_isolated_test(
+    NAME github_device_authorization_contract
+    COMMAND test_better_pull_review_github_device_authorization_contract_tests
+)
+
+bpr_add_executable(
     test_better_pull_review_github_mutation_contract_tests
     github_mutation_contract_tests.cpp
 )

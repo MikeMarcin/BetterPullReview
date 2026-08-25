@@ -63,6 +63,7 @@ if(BPR_BUILD_QT)
             src/github_host_profile.cpp
 			src/github_mutation_contract.cpp
             src/github_paged_read.cpp
+            src/github_device_authorization_contract.cpp
             src/github_provider.cpp
             src/github_read_contract.cpp
             src/github_read_normalizer.cpp
