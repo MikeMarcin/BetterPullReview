@@ -191,7 +191,8 @@ namespace bpr::application {
 			decision_executor&                     aDecisionLane,
 			device_authorization_projection_port&  aProjections,
 			const device_authorization_host_limits aLimits,
-			device_authorization_browser_handoff   aHandoff)
+			device_authorization_browser_handoff   aHandoff,
+			const device_authorization_capability  aCapability)
 			: State{ std::move(aInitialState) }
 			, Transport{ &aTransport }
 			, Vault{ &aVault }
@@ -202,6 +203,7 @@ namespace bpr::application {
 			, Projections{ &aProjections }
 			, Limits{ aLimits }
 			, Handoff{ std::move(aHandoff) }
+			, Capability{ aCapability }
 		{
 		}
 
@@ -350,6 +352,22 @@ namespace bpr::application {
 			ConsecutiveFailures = 0U;
 
 			Flow = aRequest.Context;
+			if (!Capability.Registered) {
+				// No registered identity, so no request is built and the
+				// transport is never reached. The refusal is posted rather
+				// than applied inline because this runs inside the transition
+				// that produced the request.
+				post([self = shared_from_this(), context = aRequest.Context] {
+					if (self->Closing || self->Flow != context) {
+						return;
+					}
+					self->apply(core::device_authorization_unavailable_event{
+						.Context = context,
+					});
+				});
+				return;
+			}
+
 			++Outstanding;
 			Transport->acquire_device_code(
 				aRequest.Context,
@@ -1102,6 +1120,7 @@ namespace bpr::application {
 		device_authorization_projection_port* Projections  = nullptr;
 		device_authorization_host_limits      Limits;
 		device_authorization_browser_handoff  Handoff;
+		device_authorization_capability       Capability;
 
 		std::optional<core::device_authorization_request_context> Flow;
 		std::optional<device_authorization_schedule>              Schedule;
@@ -1145,7 +1164,8 @@ namespace bpr::application {
 		decision_executor&                     aDecisionLane,
 		device_authorization_projection_port&  aProjections,
 		const device_authorization_host_limits aLimits,
-		device_authorization_browser_handoff   aHandoff)
+		device_authorization_browser_handoff   aHandoff,
+		const device_authorization_capability  aCapability)
 		: Implementation{ std::make_shared<implementation>(
 			  std::move(aInitialState),
 			  aTransport,
@@ -1156,7 +1176,8 @@ namespace bpr::application {
 			  aDecisionLane,
 			  aProjections,
 			  valid(aLimits) ? aLimits : device_authorization_host_limits{ },
-			  std::move(aHandoff)) }
+			  std::move(aHandoff),
+			  aCapability) }
 	{
 	}
 

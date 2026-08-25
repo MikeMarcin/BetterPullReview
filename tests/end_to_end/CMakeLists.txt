@@ -147,6 +147,97 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# RFC-BPR-0016. Three selectors, because "the choice exists", "GitHub.com
+# refuses it", and "GHES refuses it too" fail for different reasons and one
+# combined row would hide which. Each drives the shipped binary, so the
+# evidence is the composed application rather than a helper that links the same
+# symbols. The tests-disabled Release absence scan is a separate closeout
+# command in docs/development/build-and-test.md, exactly as the CLI one is: a
+# tests-enabled graph cannot prove what a tests-disabled binary omits.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --device-authorization-probe
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_public_path
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+DEVICE_FLOW_HOST_COMPOSED:true[\r\n]+DEVICE_FLOW_PRESENTED:true"
+)
+bpr_bound_automated_run(
+    application_device_authorization_public_path
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_unavailable
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --ghes-host
+        ghe.example.invalid
+        --device-authorization-probe
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_unavailable
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_STAGE:unavailable[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_UNAVAILABLE_OK"
+)
+bpr_bound_automated_run(
+    application_device_authorization_unavailable
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_release_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --device-authorization-probe
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_release_contract
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        # The whole shipped chain in one expression, in order: the real
+        # platform vault rather than a fixture, the existing CLI refusal
+        # unchanged beside it, and then the device path composed, presented,
+        # refused, and silent. This is the contract the tests-disabled Release
+        # build inherits; what it cannot check here is symbol absence, which is
+        # the separate closeout scan.
+        PASS_REGULAR_EXPRESSION
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+DEVICE_FLOW_HOST_COMPOSED:true[\r\n]+DEVICE_FLOW_PRESENTED:true[\r\n]+DEVICE_FLOW_STAGE:unavailable[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_UNAVAILABLE_OK"
+)
+bpr_bound_automated_run(
+    application_device_authorization_release_contract
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+
 bpr_add_executable(
     test_better_pull_review_worker_executor_tests
     worker_executor_tests.cpp

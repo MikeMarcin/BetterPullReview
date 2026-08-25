@@ -460,7 +460,12 @@ namespace {
 			, Enrollment{ Order }
 			, Host{ initial_state(), Transport, Vault, Enrollment,
 					Clock, Timer, Lane, Projections,
-					application::device_authorization_host_limits{ } }
+					application::device_authorization_host_limits{ },
+					application::device_authorization_browser_handoff{ },
+					// These courses are about renewal, which only a registered
+					// build ever reaches.
+					application::device_authorization_capability{
+						.Registered = true } }
 		{
 		}
 

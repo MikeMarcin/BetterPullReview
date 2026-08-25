@@ -729,14 +729,17 @@ namespace {
 			const application::device_authorization_host_limits aLimits      = { },
 			const bool                                          aBindBrowser = true,
 			const std::string_view                              aAuthority
-			= application::default_device_verification_authority)
+			= application::default_device_verification_authority,
+			const bool aRegistered = true)
 			: Host{ initial_state(), Transport, Vault, Enrollment,
 					Clock, Timer, Lane, Projections,
 					aLimits,
 					application::device_authorization_browser_handoff{
 						.Browser   = aBindBrowser ? &Browser : nullptr,
 						.Authority = std::string{ aAuthority },
-					} }
+					},
+					application::device_authorization_capability{
+						.Registered = aRegistered } }
 		{
 		}
 
@@ -1379,6 +1382,62 @@ namespace {
 			"and reaches the reviewer again");
 	}
 
+	// -- capability --------------------------------------------------------
+
+	void test_an_unregistered_build_refuses_before_it_builds_a_request()
+	{
+		harness world{ { }, true, application::default_device_verification_authority, false };
+		world.begin();
+		world.Lane.drain();
+
+		expect(
+			world.stage() == core::device_authorization_stage::unavailable,
+			"an unregistered build reaches the unavailable terminal");
+		expect(
+			world.Transport.CodeRequests.empty(),
+			"having constructed no device-code request");
+		expect(
+			world.Transport.TokenRequests.empty(),
+			"and no token request either");
+		expect(
+			!world.Timer.armed(),
+			"nothing is scheduled, so nothing will try again");
+		expect(
+			!world.Host.holds_transient_material(),
+			"and no transient material was ever held");
+		expect(
+			world.Projections.last().Stage
+				== core::device_authorization_stage::unavailable,
+			"presentation is told, so the choice stays visible and typed");
+	}
+
+	void test_an_unregistered_build_opens_no_browser_either()
+	{
+		harness world{ { }, true, application::default_device_verification_authority, false };
+		world.begin();
+		world.Lane.drain();
+
+		world.Host.open_verification_address();
+		expect(
+			world.Browser.Addresses.empty(),
+			"there is no address to open, and none was invented");
+	}
+
+	void test_an_unregistered_build_can_be_asked_again_and_still_refuses()
+	{
+		harness world{ { }, true, application::default_device_verification_authority, false };
+		for (auto attempt = 0; attempt < 3; ++attempt) {
+			world.begin();
+			world.Lane.drain();
+			expect(
+				world.stage() == core::device_authorization_stage::unavailable,
+				"every attempt reaches the same typed terminal");
+		}
+		expect(
+			world.Transport.CodeRequests.empty(),
+			"and no attempt ever built a request");
+	}
+
 	// -- browser handoff ---------------------------------------------------
 
 	void test_the_authority_check_admits_only_the_compiled_host()
@@ -1664,6 +1723,10 @@ auto main() -> int
 	test_a_timer_that_cannot_be_armed_fails_the_flow();
 	test_a_throwing_projection_cannot_veto_the_transition();
 	test_a_terminal_flow_can_start_a_fresh_one();
+
+	test_an_unregistered_build_refuses_before_it_builds_a_request();
+	test_an_unregistered_build_opens_no_browser_either();
+	test_an_unregistered_build_can_be_asked_again_and_still_refuses();
 
 	test_the_authority_check_admits_only_the_compiled_host();
 	test_a_browser_handoff_opens_the_exact_presented_address();

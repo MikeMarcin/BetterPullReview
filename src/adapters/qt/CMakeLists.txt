@@ -15,6 +15,7 @@ add_library(
         src/diff_link_map.cpp
 		src/diff_workbench.cpp
         src/event_loop_executor.cpp
+        src/event_loop_device_timer.cpp
         src/epoch_comparison_control.cpp
     src/menu_tool_button.cpp
         src/epoch_history_model.cpp

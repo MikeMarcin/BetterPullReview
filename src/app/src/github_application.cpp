@@ -42,6 +42,7 @@
 #include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/defect_correlation.hpp"
+#include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
@@ -56,6 +57,7 @@
 #include "bpr/application/workbench_snapshot_observation.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/event_loop_device_timer.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
 #include "bpr/qt/system_tray_notification_sink.hpp"
@@ -995,6 +997,118 @@ namespace bpr::app {
 			};
 		}
 
+		// Records what presentation was told. The device panel is a Qt surface
+		// [[BPR-0280]] owns and tests at the adapter boundary; what composition
+		// needs is the same published record, so the public self-test can state
+		// the typed refusal a reviewer would see rather than infer it.
+		class device_authorization_projection_sink final
+			: public application::device_authorization_projection_port
+		{
+		public:
+			void publish(
+				const application::device_authorization_presentation& aPresentation)
+				override
+			{
+				Last = aPresentation;
+				++Published;
+			}
+
+			[[nodiscard]] auto last() const noexcept
+				-> const application::device_authorization_presentation&
+			{
+				return Last;
+			}
+
+			[[nodiscard]] auto published() const noexcept -> std::size_t
+			{
+				return Published;
+			}
+
+		private:
+			application::device_authorization_presentation Last;
+			std::size_t                                    Published = 0U;
+		};
+
+		// No registered application identity means there is nothing to talk to.
+		// This is not a fixture and not a stub standing in for a real transport: it
+		// is the honest shape of a build that has no client to authenticate as. The
+		// host's capability gate refuses before any submission reaches it, so every
+		// method here is unreachable, and each one answers a typed transport error
+		// rather than succeeding quietly if the gate were ever bypassed.
+		//
+		// [[BPR-0318]] records a distributable identity; until it does, every
+		// shipped platform composes this.
+		class unregistered_device_authorization_transport final
+			: public application::device_authorization_transport_port
+		{
+		public:
+			void acquire_device_code(
+				core::device_authorization_request_context  aContext,
+				application::device_code_completion_handler aCompletion) override
+			{
+				++Reached;
+				aCompletion(application::device_authorization_transport_error{
+					.Context = aContext,
+					.Failure = application::device_authorization_transport_failure::
+						network,
+				});
+			}
+
+			void exchange_device_token(
+				application::device_token_exchange           aExchange,
+				application::device_token_completion_handler aCompletion) override
+			{
+				refuse(aExchange, std::move(aCompletion));
+			}
+
+			void refresh_access_token(
+				application::device_token_exchange           aExchange,
+				application::device_token_completion_handler aCompletion) override
+			{
+				refuse(aExchange, std::move(aCompletion));
+			}
+
+			void cancel(core::device_authorization_request_context) override
+			{
+			}
+
+			// Zero on every shipped build, and the public self-test says so. A
+			// non-zero value would mean the capability gate let a submission
+			// through, which is the exact failure this composition exists to make
+			// impossible.
+			[[nodiscard]] auto reached() const noexcept -> std::size_t
+			{
+				return Reached;
+			}
+
+		private:
+			void refuse(
+				const application::device_token_exchange&    aExchange,
+				application::device_token_completion_handler aCompletion)
+			{
+				++Reached;
+				aCompletion(application::device_authorization_transport_error{
+					.Context = aExchange.Context,
+					.Failure = application::device_authorization_transport_failure::
+						network,
+				});
+			}
+
+			std::size_t Reached = 0U;
+		};
+
+		// Every shipped platform, today. macOS, Linux, and Windows are all
+		// unregistered until [[BPR-0318]] records a distributable identity;
+		// [[BPR-0310]] and [[BPR-0311]] then flip their own platform in their own
+		// slice. Moving a card between folders does not enable a capability, and
+		// neither does building on a different operating system: this constant is
+		// the only thing that does.
+		[[nodiscard]] constexpr auto shipped_device_authorization_capability() noexcept
+			-> application::device_authorization_capability
+		{
+			return { .Registered = false };
+		}
+
 		void append_profile(
 			std::deque<validated_github_host_profile>&       aProfiles,
 			std::vector<application::github_profile_option>& aOptions,
@@ -1026,6 +1140,15 @@ namespace bpr::app {
 #if defined(__APPLE__) || defined(_WIN32) || defined(__linux__)
 			return vault.has_value() ? std::move(*vault) : nullptr;
 #endif
+		}
+
+		[[nodiscard]] auto initial_device_authorization_state()
+			-> core::device_authorization_state
+		{
+			return {
+				.ApplicationSession = core::application_session_id{ 1U },
+				.NextRequest        = core::request_id{ 1U },
+			};
 		}
 
 		[[nodiscard]] auto initial_github_state() -> core::github_state
@@ -2418,6 +2541,37 @@ namespace bpr::app {
 					delete_retained_on_shutdown,
 				this);
 
+			// The device-authorization path. It is composed even though every
+			// shipped platform is unregistered, because the visible choice and
+			// its typed refusal are the product behaviour the RFC asks for:
+			// selecting device sign-in must say `device_flow_unavailable`, not
+			// do nothing. The capability gate refuses before a request is
+			// built, so the transport below is never reached.
+			DeviceEnrollment = std::make_unique<
+				application::github_host_device_authorization_enrollment>(*Host);
+			DeviceClock = application::make_system_device_authorization_clock();
+			DeviceHost  = std::make_unique<
+				application::device_authorization_application_host>(
+				initial_device_authorization_state(),
+				UnregisteredDeviceTransport,
+				credential_vault(),
+				*DeviceEnrollment,
+				*DeviceClock,
+				DeviceTimer,
+				DecisionLane,
+				DeviceProjections,
+				application::device_authorization_host_limits{ },
+				application::device_authorization_browser_handoff{
+					// No browser capability is composed in this slice. A build
+					// that cannot start a flow has nothing to open, and the
+					// host reports `unavailable` for the handoff rather than
+					// inventing an address.
+					.Browser   = nullptr,
+					.Authority = std::string{
+						application::default_device_verification_authority },
+				},
+				shipped_device_authorization_capability());
+
 			// Composed last, because its observation supplier receives accepted
 			// snapshots from `Host`. The settings port is always present: either
 			// the durable adapter opened or composition supplied session defaults.
@@ -2617,6 +2771,19 @@ namespace bpr::app {
 			}
 #endif
 			return *OwnedVault;
+		}
+
+		// The same typed intent the device panel dispatches. Composition owns
+		// the profile it names, because the panel is given one rather than
+		// choosing one.
+		void select_device_authorization()
+		{
+			if (Closing || DeviceHost == nullptr || Profiles.empty()) {
+				return;
+			}
+			DeviceHost->dispatch(core::begin_device_authorization_intent{
+				.Profile = Profiles.front().profile(),
+			});
 		}
 
 		void dispatch_workbench_intent(
@@ -4671,6 +4838,9 @@ namespace bpr::app {
 			}
 			DiffHost->shutdown();
 			EpochHost->shutdown();
+			if (DeviceHost) {
+				DeviceHost->shutdown();
+			}
 			Host->shutdown();
 		}
 
@@ -4709,6 +4879,7 @@ namespace bpr::app {
 			if (
 				!DiffHost->is_quiescent() || !EpochHost->is_quiescent()
 				|| !Host->is_quiescent()
+				|| (DeviceHost && !DeviceHost->is_quiescent())
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
 				|| (QueueHost && !QueueHost->is_quiescent())
 				|| (AppearanceHost && !AppearanceHost->is_quiescent())
@@ -4737,6 +4908,15 @@ namespace bpr::app {
 			ShutdownComplete = true;
 		}
 
+		unregistered_device_authorization_transport UnregisteredDeviceTransport;
+		qt::event_loop_device_timer                 DeviceTimer;
+		device_authorization_projection_sink        DeviceProjections;
+		std::unique_ptr<application::device_authorization_clock_port>
+			DeviceClock;
+		std::unique_ptr<application::github_host_device_authorization_enrollment>
+			DeviceEnrollment;
+		std::unique_ptr<application::device_authorization_application_host>
+														DeviceHost;
 		std::deque<validated_github_host_profile>       Profiles;
 		std::vector<application::github_profile_option> ProfileOptions;
 		worker_executor                                 ProviderEffects;
@@ -5252,7 +5432,20 @@ namespace bpr::app {
 			.NotificationSelections        = Implementation->NotificationSelections,
 			.NotificationSelectionFailures = Implementation->NotificationSelectionFailures,
 			.EpochStatus                   = Implementation->EpochHost->state().Status,
+			.DeviceAuthorizationHostComposed
+			= Implementation->DeviceHost != nullptr,
+			.DeviceAuthorizationStage
+			= Implementation->DeviceProjections.last().Stage,
+			.DeviceAuthorizationTransportReached
+			= Implementation->UnregisteredDeviceTransport.reached(),
+			.DeviceAuthorizationPublications
+			= Implementation->DeviceProjections.published(),
 		};
+	}
+
+	void github_application::select_device_authorization()
+	{
+		Implementation->select_device_authorization();
 	}
 
 #if defined(BPR_BUILD_TESTING)

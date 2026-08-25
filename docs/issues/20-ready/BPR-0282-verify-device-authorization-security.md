@@ -1,7 +1,7 @@
 ---
 id: BPR-0282
 title: Verify device-authorization security and public behavior
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0016
 depends_on: [BPR-0281, BPR-0450]
 ---

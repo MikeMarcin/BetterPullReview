@@ -2,6 +2,7 @@
 #define BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 
 #include "bpr/application/notification_delivery.hpp"
+#include "bpr/core/device_authorization_model.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <filesystem>
@@ -172,6 +173,23 @@ namespace bpr::app {
 		/// Activated targets that were hidden or absent from the queue proxy.
 		std::size_t        NotificationSelectionFailures = 0U;
 		core::epoch_status EpochStatus                   = core::epoch_status::inactive;
+		// Whether composition actually constructed the device-authorization
+		// host, as opposed to merely linking it. The same distinction the
+		// workbench flag above draws, for the same reason.
+		bool DeviceAuthorizationHostComposed = false;
+		// The stage presentation was last told about. Every shipped platform is
+		// unregistered until BPR-0318, so selecting device sign-in must reach
+		// `unavailable` rather than doing nothing.
+		core::device_authorization_stage DeviceAuthorizationStage
+			= core::device_authorization_stage::idle;
+		// How many device-authorization submissions reached the transport. Zero
+		// on every shipped build: the capability gate refuses before a request
+		// is constructed, so this counts the gate being bypassed rather than
+		// requests being sent.
+		std::size_t DeviceAuthorizationTransportReached = 0U;
+		// How many presentations the device host published. Zero would mean the
+		// choice is invisible rather than typed.
+		std::size_t DeviceAuthorizationPublications = 0U;
 	};
 
 	/// \brief Provides the github application contract.
@@ -208,6 +226,16 @@ namespace bpr::app {
 
 		void show();
 		void begin_shutdown();
+
+		/// \brief Selects the device-authorization path once, as a reviewer
+		/// would.
+		///
+		/// \details The public entry the RFC-BPR-0016 zero-request evidence
+		/// runs through. It dispatches the same typed intent the Qt panel
+		/// dispatches and returns without waiting; the outcome is read from
+		/// `status()`. On every shipped build the capability gate refuses
+		/// before a request is constructed.
+		void select_device_authorization();
 
 		[[nodiscard]] auto window() noexcept -> qt::workbench_window&;
 		[[nodiscard]] auto status() const noexcept -> github_application_status;

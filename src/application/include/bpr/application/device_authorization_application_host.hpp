@@ -221,10 +221,6 @@ namespace bpr::application {
 		virtual void cancel() noexcept             = 0;
 	};
 
-	// The one place authorized material leaves this host. It is a port rather
-	// than a direct call so the host can be driven in a test without a whole
-	// GitHub host behind it; `github_host_device_authorization_enrollment` below
-	// is the production implementation and calls exactly `enroll_profile`.
 	// The compiled authority a GitHub.com profile's verification address must
 	// sit under. It is a constant rather than a setting because an operator who
 	// can edit it can be talked into editing it, and the whole point of the
@@ -280,6 +276,10 @@ namespace bpr::application {
 		std::string_view aAddress,
 		std::string_view aAuthority) noexcept -> bool;
 
+	// The one place authorized material leaves this host. It is a port rather
+	// than a direct call so the host can be driven in a test without a whole
+	// GitHub host behind it; `github_host_device_authorization_enrollment` below
+	// is the production implementation and calls exactly `enroll_profile`.
 	/// \brief Provides the device authorization enrollment port contract.
 	class device_authorization_enrollment_port
 	{
@@ -348,6 +348,29 @@ namespace bpr::application {
 			= default;
 	};
 
+	/// \brief Describes the device authorization capability record.
+	///
+	/// \details Whether this build has a registered application identity to
+	/// run the flow under, and nothing else. It carries no client identifier,
+	/// because the host does not need the value to know whether one exists and
+	/// a value that never enters the host cannot leak from it.
+	///
+	/// It defaults to unregistered on purpose. Every shipped build is
+	/// unregistered until [[BPR-0318]] records a distributable identity, and a
+	/// capability that defaults to available would make forgetting to compose
+	/// one look like enabling the flow. Composition states the exception; the
+	/// default states the rule.
+	///
+	/// When it is false the host constructs no request at all — the transport
+	/// port is never reached — so "zero requests sent" is a structural property
+	/// rather than a count that happens to be zero.
+	struct device_authorization_capability
+	{
+		bool Registered = false;
+
+		auto operator<=>(const device_authorization_capability&) const = default;
+	};
+
 	/// \brief Describes the device authorization host limits record.
 	struct device_authorization_host_limits
 	{
@@ -412,8 +435,9 @@ namespace bpr::application {
 			device_authorization_timer_port&      aTimer,
 			decision_executor&                    aDecisionLane,
 			device_authorization_projection_port& aProjections,
-			device_authorization_host_limits      aLimits  = { },
-			device_authorization_browser_handoff  aHandoff = { });
+			device_authorization_host_limits      aLimits     = { },
+			device_authorization_browser_handoff  aHandoff    = { },
+			device_authorization_capability       aCapability = { });
 		~device_authorization_application_host();
 
 		device_authorization_application_host(

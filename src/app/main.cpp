@@ -662,6 +662,16 @@ namespace {
 			std::string                ExpectedActiveHostText;
 		};
 
+		// RFC-BPR-0016. Selecting the device path once, from the shipped
+		// composition, and reporting what came back. Every shipped platform is
+		// unregistered until BPR-0318, so the expected answer is a typed
+		// refusal with nothing sent.
+		struct device_authorization_probe_state
+		{
+			bool Enabled  = false;
+			bool Selected = false;
+		};
+
 		stage Stage = stage::start;
 		// Ticks spent in the current stage. Not the bound — the bound is
 		// `Budget` below — but reported alongside it, because a run that
@@ -693,6 +703,7 @@ namespace {
 		bool                                      LastConversationFileMatchesFixture = false;
 		int                                       FailedStage                        = -1;
 		cli_unavailable_probe_state               Cli;
+		device_authorization_probe_state          Device;
 #if defined(BPR_BUILD_TESTING)
 		struct native_appearance_probe_state
 		{
@@ -2771,6 +2782,36 @@ namespace {
 		return QStringLiteral("light");
 	}
 
+	[[nodiscard]] auto device_authorization_stage_text(
+		const bpr::core::device_authorization_stage aStage) -> const char*
+	{
+		switch (aStage) {
+		case bpr::core::device_authorization_stage::idle:
+			return "idle";
+		case bpr::core::device_authorization_stage::requested:
+			return "requested";
+		case bpr::core::device_authorization_stage::awaiting_authorization:
+			return "awaiting_authorization";
+		case bpr::core::device_authorization_stage::cancelling:
+			return "cancelling";
+		case bpr::core::device_authorization_stage::authorized:
+			return "authorized";
+		case bpr::core::device_authorization_stage::denied:
+			return "denied";
+		case bpr::core::device_authorization_stage::expired:
+			return "expired";
+		case bpr::core::device_authorization_stage::disabled:
+			return "disabled";
+		case bpr::core::device_authorization_stage::unavailable:
+			return "unavailable";
+		case bpr::core::device_authorization_stage::cancelled:
+			return "cancelled";
+		case bpr::core::device_authorization_stage::failed:
+			return "failed";
+		}
+		return "idle";
+	}
+
 	void finish_automated_run(
 		bpr::app::github_application& aApplication,
 		const automated_run&          aRun)
@@ -2955,6 +2996,32 @@ namespace {
 				   << static_cast<unsigned long long>(
 						  aRun.Cli.Observed)
 				   << '\n';
+		}
+		if (aRun.Device.Enabled) {
+			// Reported as four separate facts rather than one verdict, because
+			// "the host was composed", "the choice was presented", "the answer
+			// was the typed refusal", and "nothing was sent" fail for different
+			// reasons and a single OK would hide which.
+			const auto deviceRefused
+				= status.DeviceAuthorizationHostComposed
+				&& status.DeviceAuthorizationPublications > 0U
+				&& status.DeviceAuthorizationStage
+					== bpr::core::device_authorization_stage::unavailable
+				&& status.DeviceAuthorizationTransportReached == 0U;
+			stream << "DEVICE_FLOW_HOST_COMPOSED:"
+				   << (status.DeviceAuthorizationHostComposed ? "true" : "false")
+				   << "\nDEVICE_FLOW_PRESENTED:"
+				   << (status.DeviceAuthorizationPublications > 0U ? "true"
+																   : "false")
+				   << "\nDEVICE_FLOW_STAGE:"
+				   << device_authorization_stage_text(
+						  status.DeviceAuthorizationStage)
+				   << "\nDEVICE_FLOW_REQUESTS:"
+				   << static_cast<unsigned long long>(
+						  status.DeviceAuthorizationTransportReached)
+				   << '\n'
+				   << (deviceRefused ? "DEVICE_FLOW_UNAVAILABLE_OK\n"
+									 : "DEVICE_FLOW_UNAVAILABLE_FAILED\n");
 		}
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Fixture && !aRun.ReviewLedgerCompositionProbe.has_value()
@@ -3945,6 +4012,24 @@ namespace {
 				break;
 
 			case automated_run::stage::connect:
+				// Once the device path has been selected, this stage is
+				// waiting for its typed terminal and nothing else. Checked
+				// before the CLI presentation below, because that check counts
+				// the profiles it passes and would count them again on every
+				// tick spent waiting here.
+				if (aRun->Device.Enabled && aRun->Device.Selected) {
+					if (!bpr::core::terminal(
+							aApplication.status()
+								.DeviceAuthorizationStage)) {
+						break;
+					}
+					aRun->PresentationPassed
+						= aRun->Cli.Observed == aRun->Cli.Expected;
+					aRun->RenderSaved
+						= save_render_evidence(window, aRun->RenderPath);
+					transition_to_shutdown(aApplication, *aRun);
+					break;
+				}
 #if defined(BPR_BUILD_TESTING)
 				if (aRun->Fixture) {
 					if (window.github_status_text() != "GitHub account connected."
@@ -3975,6 +4060,13 @@ namespace {
 								window, *aRun, nextCliProfile)) {
 							fail_automated_run(aApplication, *aRun);
 						}
+					} else if (aRun->Device.Enabled) {
+						// Select once. The refusal is posted to the decision
+						// lane and has to be allowed to land before the run may
+						// transition to shutdown, which closes that lane; the
+						// wait is at the top of this stage.
+						aRun->Device.Selected = true;
+						aApplication.select_device_authorization();
 					} else {
 						aRun->PresentationPassed = aRun->Cli.Observed == aRun->Cli.Expected;
 						aRun->RenderSaved        = save_render_evidence(window, aRun->RenderPath);
@@ -5684,7 +5776,9 @@ auto main(int argc, char** argv) -> int
 		}
 #endif
 
-		const auto selfTest   = has_argument(argc, argv, "--self-test");
+		const auto selfTest = has_argument(argc, argv, "--self-test");
+		const auto deviceProbe
+			= has_argument(argc, argv, "--device-authorization-probe");
 		const auto renderPath = argument_value(argc, argv, "--render-evidence");
 
 #if defined(BPR_BUILD_TESTING)
@@ -6085,8 +6179,9 @@ auto main(int argc, char** argv) -> int
 			&application->window(),
 			[&application] { schedule_interactive_shutdown(*application); });
 
-		auto verifyNativePlatformVault = selfTest;
-		auto verifyCliUnavailable      = selfTest;
+		auto       verifyNativePlatformVault = selfTest;
+		auto       verifyCliUnavailable      = selfTest;
+		const auto verifyDeviceAuthorization = selfTest && deviceProbe;
 #if defined(BPR_BUILD_TESTING)
 		verifyNativePlatformVault = verifyNativePlatformVault && fixtureName.empty();
 		verifyCliUnavailable      = verifyCliUnavailable && fixtureName.empty();
@@ -6140,6 +6235,9 @@ auto main(int argc, char** argv) -> int
 						.Cli                       = automated_run::cli_unavailable_probe_state{
 							.Enabled            = verifyCliUnavailable,
 							.EnterpriseHostname = std::move(enterpriseHostname),
+						},
+						.Device = automated_run::device_authorization_probe_state{
+							.Enabled = verifyDeviceAuthorization,
 						},
 #if defined(BPR_BUILD_TESTING)
 						.Fixture                         = !fixtureName.empty(),

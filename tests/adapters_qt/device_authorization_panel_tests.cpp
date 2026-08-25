@@ -1,18 +1,24 @@
 #include "bpr/qt/device_authorization_panel.hpp"
+#include "bpr/qt/event_loop_device_timer.hpp"
 
 #include <QAccessible>
 #include <QAccessibleEvent>
 #include <QApplication>
 #include <QClipboard>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPixmap>
 #include <QPushButton>
 #include <QString>
+#include <QTimer>
 
 #include <cmath>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -496,6 +502,101 @@ namespace {
 		QApplication::processEvents();
 	}
 
+	// -- the production poll timer ----------------------------------------
+
+	// Runs the event loop until the predicate holds or the budget expires, so
+	// a timer that never fires fails the assertion rather than hanging.
+	void pump_until(
+		const std::function<bool()>& aReady,
+		const int                    aBudgetMilliseconds)
+	{
+		QElapsedTimer elapsed;
+		elapsed.start();
+		while (!aReady() && elapsed.elapsed() < aBudgetMilliseconds) {
+			QCoreApplication::processEvents(
+				QEventLoop::AllEvents,
+				20);
+		}
+	}
+
+	void test_the_production_timer_arms_fires_once_and_clears(
+		const double aScale)
+	{
+		static_cast<void>(aScale);
+		qt::event_loop_device_timer timer;
+		expect(!timer.armed(), "a fresh timer is idle");
+
+		auto fires = 0;
+		expect(
+			timer.schedule_after(1U, [&fires] { ++fires; }),
+			"a one-second delay arms");
+		expect(timer.armed(), "and reports itself armed");
+		expect(fires == 0, "without firing inline");
+
+		pump_until([&fires] { return fires > 0; }, 5000);
+		expect(fires == 1, "the delay fires exactly once");
+		expect(!timer.armed(), "and the timer is idle again");
+
+		// A single-shot timer that re-armed itself would poll forever.
+		pump_until([] { return false; }, 1200);
+		expect(fires == 1, "and does not fire again on its own");
+	}
+
+	void test_the_production_timer_cancels_without_firing(const double aScale)
+	{
+		static_cast<void>(aScale);
+		qt::event_loop_device_timer timer;
+		auto                        fires = 0;
+		expect(
+			timer.schedule_after(1U, [&fires] { ++fires; }),
+			"the delay arms");
+		timer.cancel();
+		expect(!timer.armed(), "cancellation disarms immediately");
+
+		pump_until([] { return false; }, 1500);
+		expect(
+			fires == 0,
+			"a cancelled delay never fires, so a cancelled flow stops polling "
+			"at once rather than at the next interval");
+	}
+
+	void test_arming_replaces_rather_than_accumulates(const double aScale)
+	{
+		static_cast<void>(aScale);
+		qt::event_loop_device_timer timer;
+		auto                        first  = 0;
+		auto                        second = 0;
+		expect(timer.schedule_after(1U, [&first] { ++first; }), "first arms");
+		expect(
+			timer.schedule_after(1U, [&second] { ++second; }),
+			"and the second replaces it");
+
+		pump_until([&second] { return second > 0; }, 5000);
+		expect(second == 1, "the replacement fires");
+		expect(
+			first == 0,
+			"and the delay it replaced never does, so two callbacks cannot "
+			"race for the same poll");
+	}
+
+	void test_the_production_timer_refuses_what_it_cannot_honour(
+		const double aScale)
+	{
+		static_cast<void>(aScale);
+		qt::event_loop_device_timer timer;
+		expect(
+			!timer.schedule_after(1U, { }),
+			"an absent expiry is refused rather than armed and dropped");
+		expect(!timer.armed(), "and arms nothing");
+		expect(
+			!timer.schedule_after(
+				std::numeric_limits<std::uint32_t>::max(),
+				[] { }),
+			"a delay Qt cannot represent is refused, which the host reads as a "
+			"timer that could not be armed");
+		expect(!timer.armed(), "and arms nothing either");
+	}
+
 	void test_the_panel_renders_at_the_requested_scale(const double aScale)
 	{
 		recorded_gestures record;
@@ -546,6 +647,10 @@ auto main(int argc, char** argv) -> int
 	test_a_terminal_flow_offers_a_fresh_code(scale);
 	test_the_device_path_does_not_displace_manual_token_entry(scale);
 	test_the_panel_renders_at_the_requested_scale(scale);
+	test_the_production_timer_arms_fires_once_and_clears(scale);
+	test_the_production_timer_cancels_without_firing(scale);
+	test_arming_replaces_rather_than_accumulates(scale);
+	test_the_production_timer_refuses_what_it_cannot_honour(scale);
 
 	static_cast<void>(QAccessible::installUpdateHandler(Previous));
 	std::cout << "device-authorization-panel-tests:pass\n";
