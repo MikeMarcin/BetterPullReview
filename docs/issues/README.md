@@ -760,7 +760,7 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0444 | `23-ready-lin/` | A Linux session. The nine non-naming vault findings [[BPR-0443]]'s working gate exposed need judgment, and the tidy-clean proof only exists where the file compiles |
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
 | BPR-0281 | `20-ready/` | Any session. Done [[BPR-0280]]'s host-owned browser port and Qt panel joined done [[BPR-0279]]'s host, so composition has both halves; it still owes the production timer adapter and the transport bridge [[BPR-0279]] deliberately left, and every platform stays `device_flow_unavailable` until [[BPR-0318]] |
-| BPR-0450 | `20-ready/` | Any session. The refresh wire contract and production refresh adapter done [[BPR-0279]] deliberately left tracked rather than absorbed; blocks [[BPR-0282]] |
+| BPR-0450 | `30-in-progress/` | This session: the refresh wire contract and production refresh adapter done [[BPR-0279]] deliberately left tracked rather than absorbed; blocks [[BPR-0282]] |
 
 This table had drifted and is corrected above rather than quietly patched. It
 listed BPR-0262 as a `20-ready/` root; that card is in `60-done/`. BPR-0220 was
