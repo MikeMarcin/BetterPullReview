@@ -59,6 +59,11 @@ namespace bpr::app::detail {
 		bool                                 DisableAgentGestureWire                = false;
 		std::optional<std::filesystem::path> ExternalAgentExecutable;
 		std::optional<std::filesystem::path> GitExecutable;
+		// RFC-BPR-0016. Composes a registered device capability against the
+		// recorded BPR-0276 grant so the enrollment reaches the real vault.
+		// Only meaningful with a fixture; a shipped build has no identity to
+		// register and this option does not exist there.
+		bool RegisteredDeviceCourse = false;
 	};
 
 	struct queue_notification_fixture_evidence
@@ -110,6 +115,12 @@ namespace bpr::app::detail {
 		std::string BaseBlobOid;
 		std::string HeadOneBlobOid;
 		std::string HeadTwoBlobOid;
+		// RFC-BPR-0016. How many times a credential crossed the vault
+		// boundary, and how many submissions the recorded device transport
+		// received. Counted rather than flagged, because "exactly once" is
+		// the claim.
+		std::size_t VaultStores                = 0U;
+		std::size_t DeviceTransportSubmissions = 0U;
 	};
 
 	struct github_epoch_maintenance_fixture_evidence

@@ -190,6 +190,21 @@ namespace bpr::app {
 		// How many presentations the device host published. Zero would mean the
 		// choice is invisible rather than typed.
 		std::size_t DeviceAuthorizationPublications = 0U;
+		// The registered course's evidence, and zero everywhere else because
+		// only a tests-enabled build with the recorded grant can enroll.
+		// `VaultStores` counts credentials crossing the vault boundary;
+		// `DurableCopies` counts files under the application data root that
+		// contain the enrolled token, which must be none — the vault is the
+		// only place a credential belongs, and settings and SQLite are the two
+		// places a second copy would plausibly appear.
+		std::size_t DeviceAuthorizationVaultStores          = 0U;
+		std::size_t DeviceAuthorizationDurableCopies        = 0U;
+		std::size_t DeviceAuthorizationTransportSubmissions = 0U;
+		// Credentials that crossed the enrollment boundary. Counted there
+		// rather than at the vault, because the GitHub host collapses a
+		// repeated enrollment for the same profile before the vault sees it —
+		// so a vault store count alone cannot tell one enrollment from two.
+		std::size_t DeviceAuthorizationEnrollments = 0U;
 	};
 
 	/// \brief Provides the github application contract.

@@ -46,6 +46,18 @@ commit fields live in
 `docs/verification/RFC-BPR-0016.md#final-command-ledger`; BPR-0282 replaces
 planned selectors only by updating that ledger and this anchor atomically.
 
+BPR-0282 exercised that clause once, on 2026-08-25. The planned selector set
+had no row on which the first acceptance criterion below — one existing-vault
+enrollment with no settings or SQLite copy — could be observed: all three
+planned application selectors run against a build with no registered identity,
+where nothing enrolls and the claim is vacuously true.
+`application_device_authorization_registered_course` was added to the focused
+matrix and to the ledger in the same commit. It composes the recorded BPR-0276
+grant against the real host, the real enrollment boundary, and the real vault,
+then reads every file under the application data root looking for the enrolled
+token. The tests-disabled equivalent still requires a distributable identity
+and remains BPR-0318's to enable and this card's to replay.
+
 ## Phase checklist
 
 - [ ] The immutable planning snapshot, complete live issue graph, verification

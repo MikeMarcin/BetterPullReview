@@ -216,6 +216,28 @@ set_tests_properties(
         TIMEOUT 60
 )
 
+# Same split as above, for the same reason. The inventory half runs in every
+# configured graph and anchors itself on whether Qt and the loopback fixture
+# were built; the shipped-artifact scan needs a tests-disabled Release build
+# this graph does not contain, so it stays a closeout command documented in
+# docs/development/build-and-test.md and named in the RFC-BPR-0016 ledger.
+bpr_add_network_isolated_test(
+    NAME rfc0016_test_inventory
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/scripts/verify_rfc0016_test_inventory.py"
+        --build-dir
+        "${PROJECT_BINARY_DIR}"
+        --repository-root
+        "${PROJECT_SOURCE_DIR}"
+)
+set_tests_properties(
+    rfc0016_test_inventory
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "RFC0016_TEST_INVENTORY_OK"
+        TIMEOUT 60
+)
+
 bpr_add_network_isolated_test(
     NAME documentation_structure
     COMMAND

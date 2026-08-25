@@ -1,9 +1,10 @@
 ---
 id: BPR-0318
 title: Record a distributable device-authorization identity
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0016
 depends_on: [BPR-0276, BPR-0282]
+parked_on: awaiting-product-decision
 ---
 
 # Record a distributable device-authorization identity
@@ -61,3 +62,36 @@ depends_on: [BPR-0276, BPR-0282]
   course from `docs/verification/RFC-BPR-0016.md`. The selection change and
   both outputs are committed as distinct provenance before this card becomes
   terminal.
+
+## Parked on the proceed/defer decision — 2026-08-25
+
+Both dependencies are done: [[BPR-0276]]'s attended capture was admitted on
+2026-08-24 and [[BPR-0282]]'s macOS native and security course passed on
+2026-08-25 with production selection still `device_flow_unavailable` and zero
+requests on every platform. Nothing is queued in front of this card and no
+unattended work remains in it.
+
+What it waits on is one plain sentence from the product owner:
+
+> Proceed with registering a separate distributable GitHub.com application
+> identity for BetterPullReview, or defer.
+
+That is deliberately **not** a digest-bound packet. The choice is reversible
+and changes nothing on its own — deferring leaves every platform visibly
+`device_flow_unavailable` with zero requests, which is exactly where the tree
+already is, and RFC-BPR-0016 simply stays open. A packet binds exact identity
+to an authority, and there is no identity to bind until the answer is
+"proceed".
+
+If the answer is proceed, this card then creates the bounded
+`rfc0016-production-app-registration-v001` operator packet, because the next
+action after that registers an external production identity and authorizes
+exact real-service traffic — which is precisely the kind of decision that does
+need exact identity behind it. `docs/verification/reviews/rfc0016-production-app-registration-v001/`
+currently holds only `registration-observation.json`; the packet, response,
+claims contract, and validation record are this card's to write.
+
+Nothing downstream can move first. [[BPR-0310]] and [[BPR-0311]] consume the
+same recorded identity before their own target-native enablement, and
+[[BPR-0285]] cannot replay an enabled final-head course on a build that has no
+identity to be enabled with.

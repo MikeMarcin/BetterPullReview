@@ -1,6 +1,7 @@
 #include "github_public_path_fixture.hpp"
 
 #include "github_capability_probe.hpp"
+#include "github_device_authorization_contract.hpp"
 #include "github_read_contract.hpp"
 
 #include "bpr/adapters/sqlite/storage_root.hpp"
@@ -9,6 +10,7 @@
 #include "bpr/application/git_smart_transport_port.hpp"
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -968,6 +970,233 @@ namespace bpr::app::detail {
 			std::shared_ptr<fixture_recorded_wire_transport> AccountTransport;
 		};
 
+		// Replays BPR-0276's recorded device grant through the real wire
+		// contract. The response bytes are rebuilt from the recorded
+		// projection exactly as the contract tests rebuild them, and then
+		// handed to `parse_device_code_response` and
+		// `parse_device_token_response` — so this fakes the socket and
+		// nothing else. The socket itself is proved separately by
+		// `native_https_device_authorization_fixture`.
+		//
+		// It exists so the registered course can reach the composed
+		// application's real enrollment and real vault, which is the only
+		// place "one enrollment, no settings or SQLite copy" can be observed.
+		class recorded_device_authorization_transport final
+			: public application::device_authorization_transport_port
+		{
+		public:
+			explicit recorded_device_authorization_transport(
+				std::filesystem::path aFixtureRoot)
+				: FixtureRoot{ std::move(aFixtureRoot) }
+			{
+			}
+
+			void acquire_device_code(
+				core::device_authorization_request_context  aContext,
+				application::device_code_completion_handler aCompletion) override
+			{
+				++Submissions;
+				const auto parsed = adapters::github::detail::
+					parse_device_code_response(recorded("device_code_success"));
+				if (!parsed.has_value()
+					|| !std::holds_alternative<
+						adapters::github::detail::device_code_grant>(*parsed)) {
+					aCompletion(
+						application::device_authorization_transport_error{
+							.Context = aContext,
+							.Failure = application::
+								device_authorization_transport_failure::
+									malformed_response,
+						});
+					return;
+				}
+				const auto& grant = std::get<
+					adapters::github::detail::device_code_grant>(*parsed);
+				auto code = material_of(grant.DeviceCode);
+				if (!code.has_value()) {
+					aCompletion(
+						application::device_authorization_transport_error{
+							.Context = aContext,
+							.Failure = application::
+								device_authorization_transport_failure::
+									malformed_response,
+						});
+					return;
+				}
+				aCompletion(application::device_code_acquired{
+					.Context = aContext,
+					.Grant   = application::device_code_acquisition{
+						.DeviceCode       = std::move(*code),
+						.UserCode         = grant.UserCode,
+						.VerificationUri  = grant.VerificationUri,
+						.ExpiresInSeconds = grant.ExpiresInSeconds,
+						.IntervalSeconds  = grant.IntervalSeconds,
+					},
+				});
+			}
+
+			void exchange_device_token(
+				application::device_token_exchange           aExchange,
+				application::device_token_completion_handler aCompletion) override
+			{
+				++Submissions;
+				const auto parsed = adapters::github::detail::
+					parse_device_token_response(recorded("token_success"));
+				if (!parsed.has_value()
+					|| !std::holds_alternative<
+						adapters::github::detail::device_token_grant>(*parsed)) {
+					aCompletion(
+						application::device_authorization_transport_error{
+							.Context = aExchange.Context,
+							.Failure = application::
+								device_authorization_transport_failure::
+									malformed_response,
+						});
+					return;
+				}
+				const auto& grant = std::get<
+					adapters::github::detail::device_token_grant>(*parsed);
+				auto access  = material_of(grant.AccessToken);
+				auto refresh = material_of(grant.RefreshToken);
+				if (!access.has_value() || !refresh.has_value()) {
+					aCompletion(
+						application::device_authorization_transport_error{
+							.Context = aExchange.Context,
+							.Failure = application::
+								device_authorization_transport_failure::
+									malformed_response,
+						});
+					return;
+				}
+				AccessToken = grant.AccessToken;
+				aCompletion(application::device_token_issued{
+					.Context = aExchange.Context,
+					.Grant   = application::device_token_material{
+						.AccessToken      = std::move(*access),
+						.RefreshToken     = std::move(refresh),
+						.ExpiresInSeconds = grant.ExpiresInSeconds,
+						.RefreshTokenExpiresInSeconds
+						= grant.RefreshTokenExpiresInSeconds,
+					},
+				});
+			}
+
+			void refresh_access_token(
+				application::device_token_exchange           aExchange,
+				application::device_token_completion_handler aCompletion) override
+			{
+				// The registered course enrolls; renewal has its own courses.
+				++Submissions;
+				aCompletion(application::device_authorization_transport_error{
+					.Context = aExchange.Context,
+					.Failure = application::
+						device_authorization_transport_failure::network,
+				});
+			}
+
+			void cancel(core::device_authorization_request_context) override
+			{
+			}
+
+			[[nodiscard]] auto submissions() const noexcept -> std::size_t
+			{
+				return Submissions;
+			}
+
+			[[nodiscard]] auto access_token() const -> std::string
+			{
+				return AccessToken;
+			}
+
+		private:
+			[[nodiscard]] static auto material_of(const std::string& aText)
+				-> std::optional<application::github_credential_material>
+			{
+				auto bytes = std::vector<std::byte>{ };
+				bytes.resize(aText.size());
+				std::ranges::transform(
+					aText,
+					bytes.begin(),
+					[](const char aCharacter) {
+						return static_cast<std::byte>(aCharacter);
+					});
+				auto material
+					= application::github_credential_material::create(bytes);
+				std::ranges::fill(bytes, std::byte{ 0 });
+				if (!material.has_value()) {
+					return std::nullopt;
+				}
+				return std::optional{ std::move(*material) };
+			}
+
+			// The recorded projection lists the fields the capture observed and
+			// the non-secret values it retained. The transient fields it
+			// deliberately omitted get a stand-in here, exactly as the contract
+			// tests do, so the shape on the wire is the recorded shape.
+			[[nodiscard]] auto recorded(const std::string& aOutcome) const
+				-> adapters::github::detail::wire_response
+			{
+				const auto path
+					= FixtureRoot / "outcomes" / (aOutcome + ".json");
+				auto file = QFile{ QString::fromStdString(path.string()) };
+				if (!file.open(QIODevice::ReadOnly)) {
+					return { };
+				}
+				const auto document = QJsonDocument::fromJson(file.readAll());
+				if (!document.isObject()) {
+					return { };
+				}
+				const auto fixture    = document.object();
+				const auto projection = fixture
+											.value(QLatin1StringView{
+												"projection" })
+											.toObject();
+				const auto values
+					= projection.value(QLatin1StringView{ "values" }).toObject();
+				auto body = QJsonObject{ };
+				for (const auto& field :
+					 projection.value(QLatin1StringView{ "observed_fields" })
+						 .toArray()) {
+					const auto name = field.toString();
+					if (values.contains(name)) {
+						body.insert(name, values.value(name));
+						continue;
+					}
+					body.insert(name, stand_in(name));
+				}
+				return {
+					.Status  = fixture.value(QLatin1StringView{ "http_status" })
+								   .toInt(),
+					.Headers = { { .Name  = "Content-Type",
+								   .Value = "application/json" } },
+					.Body    = QJsonDocument{ body }
+								   .toJson(QJsonDocument::Compact)
+								   .toStdString(),
+				};
+			}
+
+			[[nodiscard]] static auto stand_in(const QString& aField) -> QString
+			{
+				if (aField == QStringLiteral("device_code")) {
+					return QStringLiteral("fixture-device-code-0276");
+				}
+				if (aField == QStringLiteral("user_code")) {
+					return QStringLiteral("FIXT-URE1");
+				}
+				if (aField == QStringLiteral("access_token")) {
+					return QStringLiteral("fixture-access-token-0276");
+				}
+				if (aField == QStringLiteral("refresh_token")) {
+					return QStringLiteral("fixture-refresh-token-0276");
+				}
+				return QStringLiteral("fixture");
+			}
+
+			std::filesystem::path FixtureRoot;
+			std::size_t           Submissions = 0U;
+			std::string           AccessToken;
+		};
+
 		struct fixture_vault_state
 		{
 			std::optional<application::github_credential_operation_context> Context;
@@ -975,7 +1204,11 @@ namespace bpr::app::detail {
 			bool                                                            Stored    = false;
 			bool                                                            Retrieved = false;
 			bool                                                            Deleted   = false;
-			mutable std::mutex                                              Mutex;
+			// Counted, not just flagged. "The credential reached the vault"
+			// and "the credential reached the vault exactly once" are
+			// different claims, and RFC-BPR-0016 makes the second one.
+			std::size_t        Stores = 0U;
+			mutable std::mutex Mutex;
 		};
 
 		class fixture_credential_vault final
@@ -1016,6 +1249,7 @@ namespace bpr::app::detail {
 							state->Context    = context;
 							state->Credential = std::move(pending->Credential);
 							state->Stored     = true;
+							++state->Stores;
 						}
 						completion(application::github_credential_store_success{
 							.Context     = context,
@@ -1323,6 +1557,10 @@ namespace bpr::app::detail {
 			VaultState = std::make_shared<fixture_vault_state>();
 			Vault      = std::make_unique<fixture_credential_vault>(
 				aVaultEffects, VaultState);
+			DeviceTransport
+				= std::make_unique<recorded_device_authorization_transport>(
+					std::filesystem::path{
+						BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT });
 			Mutation = std::make_unique<fixture_review_mutation_provider>(
 				aOptions.LoseFirstReviewMutationResult);
 
@@ -1384,15 +1622,16 @@ namespace bpr::app::detail {
 			}
 		}
 
-		std::shared_ptr<fixture_recording_state>          Recording;
-		std::shared_ptr<deterministic_git_fixture>        Git;
-		std::shared_ptr<fixture_transport_factory>        Factory;
-		std::shared_ptr<fixture_vault_state>              VaultState;
-		std::unique_ptr<fixture_credential_vault>         Vault;
-		std::unique_ptr<fixture_review_mutation_provider> Mutation;
-		std::unique_ptr<QTemporaryDir>                    ApplicationData;
-		std::filesystem::path                             ApplicationDataRoot;
-		std::filesystem::path                             GitExecutable;
+		std::shared_ptr<fixture_recording_state>                 Recording;
+		std::shared_ptr<deterministic_git_fixture>               Git;
+		std::shared_ptr<fixture_transport_factory>               Factory;
+		std::shared_ptr<fixture_vault_state>                     VaultState;
+		std::unique_ptr<fixture_credential_vault>                Vault;
+		std::unique_ptr<recorded_device_authorization_transport> DeviceTransport;
+		std::unique_ptr<fixture_review_mutation_provider>        Mutation;
+		std::unique_ptr<QTemporaryDir>                           ApplicationData;
+		std::filesystem::path                                    ApplicationDataRoot;
+		std::filesystem::path                                    GitExecutable;
 	};
 
 	github_public_path_fixture_components::
@@ -1427,6 +1666,18 @@ namespace bpr::app::detail {
 		return make_fixture_credential();
 	}
 
+	auto github_public_path_fixture_components::device_authorization_transport() noexcept
+		-> application::device_authorization_transport_port&
+	{
+		return *Implementation->DeviceTransport;
+	}
+
+	auto github_public_path_fixture_components::device_authorization_access_token()
+		const -> std::string
+	{
+		return Implementation->DeviceTransport->access_token();
+	}
+
 	auto github_public_path_fixture_components::evidence() const noexcept
 		-> github_public_path_fixture_evidence
 	{
@@ -1450,6 +1701,12 @@ namespace bpr::app::detail {
 				Implementation->Recording->SmartLsRefsCalls);
 			result.SmartFetchCount = static_cast<int>(
 				Implementation->Recording->SmartFetchCalls);
+			{
+				const std::scoped_lock lock{ Implementation->VaultState->Mutex };
+				result.VaultStores = Implementation->VaultState->Stores;
+			}
+			result.DeviceTransportSubmissions
+				= Implementation->DeviceTransport->submissions();
 			const auto& fixture   = Implementation->Recording->Descriptor;
 			result.BaseOid        = fixture.BaseOid;
 			result.HeadOneOid     = fixture.HeadOneOid;

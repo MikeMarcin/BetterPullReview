@@ -206,6 +206,42 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# The registered course, and the only place RFC-BPR-0016's headline claim can
+# be observed rather than argued: the recorded BPR-0276 grant runs through the
+# real host, the real enrollment boundary, and the real vault, and the token is
+# then looked for in every file the application wrote. A registered capability
+# exists nowhere else - BPR-0276's identity is private and owner-only and a
+# distributable one is BPR-0318's - so this course needs the fixture, and it
+# ends at the grant's terminal rather than continuing into the fixture's own
+# pull-request stages.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_registered_course
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-registered-course
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_registered_course
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK"
+)
+bpr_bound_automated_run(
+    application_device_authorization_registered_course
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
 bpr_add_network_isolated_test(
     NAME application_device_authorization_release_contract
     WINDOWS_UNCONTAINED

@@ -456,6 +456,76 @@ transport's TLS and redirect policy rather than exercising it, and skips
 system-proxy discovery. It is neither a regression the absence scan should flag
 nor evidence for this RFC's gate.
 
+## The RFC-BPR-0016 device-flow guards
+
+The device grant puts a client identifier, two service endpoints, a short-lived
+device code, an access token, and a refresh token into the tree. Every one of
+those can be shipped by accident, and every claim the RFC makes about them is
+proved by a named CTest — so the guard has two halves, exactly as
+RFC-BPR-0017's does.
+
+The inventory half runs in every configured graph, including `core-only`:
+
+```sh
+ctest --preset dev -R '^rfc0016_test_inventory$' --output-on-failure
+```
+
+It requires each evidence selector exactly once, requires the commands behind
+them to still carry the arguments that make them the right suite, and
+cross-checks `docs/verification/RFC-BPR-0016.md` by compiling that document's
+own `-R` patterns rather than grepping for literal names. It anchors on whether
+the graph built Qt and the loopback fixture, so a preset that builds neither
+must register none of those selectors rather than passing vacuously.
+
+The shipped-artifact half needs a build the test graph does not contain, so run
+it at closeout against a tests-disabled Release application:
+
+```sh
+python3 scripts/verify_rfc0016_test_inventory.py \
+    --release-binary build/app-release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview
+```
+
+Both print `RFC0016_TEST_INVENTORY_OK`. The artifact scan looks for testing
+seams, the recorded fixture roots, the captured user code, and
+token-and-client-identifier-shaped material; it never prints a matched value,
+because reporting a secret to prove a secret leaked puts it in the log. It also
+carries a positive control: an artifact containing no device-flow route fails,
+since an absence scan run against the wrong file passes trivially.
+
+The service endpoints are deliberately not forbidden. The host owns them —
+RFC-BPR-0016 says so — and a shipped binary that can run the flow must contain
+them, so forbidding them would be a check that fails on correct code.
+
+### The target-native platform course
+
+`scripts/verify_rfc0016_platform_course.py` runs one platform's whole course
+against isolated fresh Debug and Release trees:
+
+```sh
+python3 scripts/verify_rfc0016_platform_course.py \
+    --platform macos \
+    --dev-preset dev \
+    --release-preset app-release \
+    --build-root build/rfc0016-macos-unavailable \
+    --expected-device-selection unavailable \
+    --fresh
+```
+
+It refuses to run for a platform it is not on, runs the inventory *before* any
+test so a missing registration fails loudly rather than being skipped by a
+looser pattern, runs the focused matrix, then checks the Release artifact: this
+platform's credential store present and the other two absent, no embedded
+browser engine, no client secret, no private BPR-0276 verification identity,
+and the runtime and dependency scans clean.
+
+`--expected-device-selection` is stated rather than discovered. A course that
+asked the binary what it selects and then asserted that it selected that would
+pass on every build; the caller states what the platform is supposed to answer
+and the run fails if the artifact disagrees, which is what lets the same script
+run before and after a one-time enablement flip. It prints
+`RFC0016_PLATFORM_COURSE_OK` with the selector count, the observed stage, the
+request count, and the artifact path.
+
 ## Targets
 
 | Target | Responsibility |

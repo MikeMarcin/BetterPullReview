@@ -750,6 +750,7 @@ ready lanes — and the lane says which answer it needs:
 |---|---|---|
 | BPR-0414 | `40-parked/` | Unattended implementation and verification are complete at `8c7504d`; digest-bound attended batch `ab6145717475dfdfddd6206d` waits only on the owner's marker-versus-inline-body verdict |
 | BPR-0418 | `20-ready/` | Any session. Done [[BPR-0416]] carries the reply edge and done [[BPR-0417]] provides the constructed deep-thread projection with its registered contract, so the Treeverse map surface has both its inputs |
+| BPR-0318 | `40-parked/` | The product owner's plain proceed-or-defer sentence on registering a separate distributable GitHub.com identity. Both dependencies closed on 2026-08-24 and 2026-08-25 and no unattended work remains; deferring simply leaves every platform visibly `device_flow_unavailable`, which is where the tree already is. The digest-bound registration packet is written only if the answer is proceed |
 | BPR-0445 | `40-parked/` | Unattended sanitizer and one-shot authority hardening are committed at `a27e4a5` and `c03abcf`; v002 packet `8ff060e82c04f30010ad11e5410200d8797d8f1c5b08557768ded86ed0eafdd0` waits only on the owner's fresh exact one-request authorization |
 | BPR-0053, BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]], [[BPR-0362]], [[BPR-0360]], and [[BPR-0350]] closed on 2026-08-22 with the contained matrix at 87 of 89; [[BPR-0053]] waits only on that matrix's two carded failures and on the Qt graph. [[BPR-0424]] through [[BPR-0427]] are the four causes that run isolated from the container's own |
 | BPR-0235 | `21-ready-win/` | A Windows session for the descendant/application counterexample matrix replay — the 2026-08-18 note called that criterion a dependency on [[BPR-0347]]/[[BPR-0350]], and both are now done. Its terminal designated-live criterion additionally waits on the live provider card's separately authorized attended authority |
@@ -759,7 +760,6 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0310, BPR-0314 | `23-ready-lin/` | **Not a Linux session.** A Linux session ran this lane on 2026-08-22 and removed every Linux reason it had. The tests-disabled Release build links here ([[BPR-0421]], [[BPR-0440]]) and `coding-tidy` runs here ([[BPR-0443]]). What is left is upstream and is not about this platform: [[BPR-0310]] needs RFC-BPR-0016 implemented at all — no `src/` file mentions the device flow — behind the now-done [[BPR-0276]] capture's consumers ([[BPR-0277]] onward) and [[BPR-0318]]'s nonexistent distributable identity; [[BPR-0314]] must observe a typed public-preview-unavailability selection no code produces, and producing it is implementation RFC-BPR-0017 gates on RFC-BPR-0002, which waits on [[BPR-0036]]. BPR-0314 does carry three target-native rows now. A Linux session opening this lane should expect to close only [[BPR-0444]] |
 | BPR-0444 | `23-ready-lin/` | A Linux session. The nine non-naming vault findings [[BPR-0443]]'s working gate exposed need judgment, and the tidy-clean proof only exists where the file compiles |
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
-| BPR-0282 | `30-in-progress/` | This session: Done [[BPR-0281]]'s composition and done [[BPR-0450]]'s refresh contract were its two dependencies; it owns `scripts/verify_rfc0016_test_inventory.py`, the registered ledger selectors, and the macOS target-native course while every platform is still `device_flow_unavailable` |
 
 This table had drifted and is corrected above rather than quietly patched. It
 listed BPR-0262 as a `20-ready/` root; that card is in `60-done/`. BPR-0220 was
@@ -836,7 +836,10 @@ with the host-owned browser port and the Qt panel, promoting exactly
 other. [[BPR-0450]] then closed with the refresh wire contract and its
 production adapter, promoting nothing — [[BPR-0282]], its only dependent,
 still waited on [[BPR-0281]] — so the count fell to fifteen. [[BPR-0281]]'s
-own close promoted exactly [[BPR-0282]], holding it there.
+own close promoted exactly [[BPR-0282]], holding it there; [[BPR-0282]]'s close
+then promoted exactly [[BPR-0318]], which parked immediately on the product
+owner's proceed-or-defer sentence rather than entering a ready lane, so the
+count is unchanged again.
 
 The post-BPR-0334 audit on 2026-08-21 found no backlog dependency on that
 card, so its move to `60-done/` promoted nothing. All 56 backlog cards still

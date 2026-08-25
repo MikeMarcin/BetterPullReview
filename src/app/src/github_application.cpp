@@ -110,6 +110,7 @@
 #include <cstddef>
 #include <deque>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iterator>
 #include <limits>
@@ -996,6 +997,44 @@ namespace bpr::app {
 					: application::github_profile_transport::native_https,
 			};
 		}
+
+#if defined(BPR_BUILD_TESTING)
+		// Counts what crosses the enrollment boundary, and forwards it unchanged.
+		//
+		// The vault's own store count cannot answer "exactly one enrollment": the
+		// GitHub host collapses a repeated enrollment for the same profile before
+		// the vault ever sees a second operation, so a double call still reports
+		// one store. That collapse is correct, and it is also exactly why the
+		// count has to be taken here — at the boundary the RFC's criterion is
+		// about — rather than downstream of something that hides duplicates.
+		class counting_device_authorization_enrollment final
+			: public application::device_authorization_enrollment_port
+		{
+		public:
+			explicit counting_device_authorization_enrollment(
+				application::device_authorization_enrollment_port& aInner) noexcept
+				: Inner{ &aInner }
+			{
+			}
+
+			void enroll(
+				const core::host_profile_id             aProfile,
+				application::github_credential_material aCredential) override
+			{
+				++Enrollments;
+				Inner->enroll(aProfile, std::move(aCredential));
+			}
+
+			[[nodiscard]] auto enrollments() const noexcept -> std::size_t
+			{
+				return Enrollments;
+			}
+
+		private:
+			application::device_authorization_enrollment_port* Inner       = nullptr;
+			std::size_t                                        Enrollments = 0U;
+		};
+#endif
 
 		// Records what presentation was told. The device panel is a Qt surface
 		// [[BPR-0280]] owns and tests at the adapter boundary; what composition
@@ -2063,7 +2102,8 @@ namespace bpr::app {
 					= aFixtureOptions.DisableAgentGestureWire;
 				ExternalAgentExecutable
 					= aFixtureOptions.ExternalAgentExecutable;
-				const auto host = fixture_host(*aFixture);
+				RegisteredDeviceCourse = aFixtureOptions.RegisteredDeviceCourse;
+				const auto host        = fixture_host(*aFixture);
 				append_profile(
 					Profiles,
 					ProfileOptions,
@@ -2549,13 +2589,47 @@ namespace bpr::app {
 			// built, so the transport below is never reached.
 			DeviceEnrollment = std::make_unique<
 				application::github_host_device_authorization_enrollment>(*Host);
+#if defined(BPR_BUILD_TESTING)
+			CountedDeviceEnrollment = std::make_unique<
+				counting_device_authorization_enrollment>(*DeviceEnrollment);
+			auto& deviceEnrollment
+				= static_cast<application::device_authorization_enrollment_port&>(
+					*CountedDeviceEnrollment);
+#else
+			auto& deviceEnrollment
+				= static_cast<application::device_authorization_enrollment_port&>(
+					*DeviceEnrollment);
+#endif
 			DeviceClock = application::make_system_device_authorization_clock();
-			DeviceHost  = std::make_unique<
+#if defined(BPR_BUILD_TESTING)
+			// The registered course. Only a tests-enabled build with the
+			// recorded fixture can compose a registered capability, because
+			// only there does a client identity exist at all: BPR-0276's is
+			// private and owner-only, and a distributable one is BPR-0318's.
+			// It runs the recorded grant through the real host, the real
+			// enrollment boundary, and the real vault, which is the only place
+			// "exactly one enrollment, and no settings or SQLite copy" can be
+			// observed rather than argued.
+			auto* const deviceTransport
+				= (RegisteredDeviceCourse && Fixture != nullptr)
+				? &Fixture->device_authorization_transport()
+				: static_cast<application::device_authorization_transport_port*>(
+					  &UnregisteredDeviceTransport);
+			const auto deviceCapability
+				= (RegisteredDeviceCourse && Fixture != nullptr)
+				? application::device_authorization_capability{ .Registered = true }
+				: shipped_device_authorization_capability();
+#else
+			auto* const deviceTransport = &UnregisteredDeviceTransport;
+			const auto  deviceCapability
+				= shipped_device_authorization_capability();
+#endif
+			DeviceHost = std::make_unique<
 				application::device_authorization_application_host>(
 				initial_device_authorization_state(),
-				UnregisteredDeviceTransport,
+				*deviceTransport,
 				credential_vault(),
-				*DeviceEnrollment,
+				deviceEnrollment,
 				*DeviceClock,
 				DeviceTimer,
 				DecisionLane,
@@ -2570,7 +2644,7 @@ namespace bpr::app {
 					.Authority = std::string{
 						application::default_device_verification_authority },
 				},
-				shipped_device_authorization_capability());
+				deviceCapability);
 
 			// Composed last, because its observation supplier receives accepted
 			// snapshots from `Host`. The settings port is always present: either
@@ -2771,6 +2845,86 @@ namespace bpr::app {
 			}
 #endif
 			return *OwnedVault;
+		}
+
+		// Registered-course evidence. Zero outside a tests-enabled build with
+		// the recorded grant, because nothing else can enroll.
+		[[nodiscard]] auto device_vault_stores() const noexcept -> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr && RegisteredDeviceCourse) {
+				return Fixture->evidence().VaultStores;
+			}
+#endif
+			return 0U;
+		}
+
+		[[nodiscard]] auto device_enrollments() const noexcept -> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (CountedDeviceEnrollment != nullptr) {
+				return CountedDeviceEnrollment->enrollments();
+			}
+#endif
+			return 0U;
+		}
+
+		[[nodiscard]] auto device_transport_submissions() const noexcept
+			-> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr && RegisteredDeviceCourse) {
+				return Fixture->evidence().DeviceTransportSubmissions;
+			}
+#endif
+			return 0U;
+		}
+
+		// Every regular file under the application data root that contains the
+		// enrolled token. The vault is the only place a credential belongs, so
+		// the expected answer is none; settings and SQLite are the two places a
+		// second copy would plausibly appear, and reading every file is
+		// cheaper than guessing which.
+		[[nodiscard]] auto device_durable_copies() const -> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture == nullptr || !RegisteredDeviceCourse) {
+				return 0U;
+			}
+			const auto token = Fixture->device_authorization_access_token();
+			if (token.empty()) {
+				return 0U;
+			}
+			const auto&     root = Fixture->application_data_root();
+			std::error_code error;
+			if (root.empty() || !std::filesystem::is_directory(root, error)) {
+				return 0U;
+			}
+			auto copies = std::size_t{ 0U };
+			for (const auto& entry :
+				 std::filesystem::recursive_directory_iterator{
+					 root, std::filesystem::directory_options::skip_permission_denied,
+					 error }) {
+				if (error || !entry.is_regular_file(error) || error) {
+					error.clear();
+					continue;
+				}
+				auto file = std::ifstream{ entry.path(), std::ios::binary };
+				if (!file) {
+					continue;
+				}
+				const auto contents = std::string{
+					std::istreambuf_iterator<char>{ file },
+					std::istreambuf_iterator<char> { }
+				};
+				if (contents.find(token) != std::string::npos) {
+					++copies;
+				}
+			}
+			return copies;
+#else
+			return 0U;
+#endif
 		}
 
 		// The same typed intent the device panel dispatches. Composition owns
@@ -4909,12 +5063,19 @@ namespace bpr::app {
 		}
 
 		unregistered_device_authorization_transport UnregisteredDeviceTransport;
-		qt::event_loop_device_timer                 DeviceTimer;
-		device_authorization_projection_sink        DeviceProjections;
+#if defined(BPR_BUILD_TESTING)
+		bool RegisteredDeviceCourse = false;
+#endif
+		qt::event_loop_device_timer          DeviceTimer;
+		device_authorization_projection_sink DeviceProjections;
 		std::unique_ptr<application::device_authorization_clock_port>
 			DeviceClock;
 		std::unique_ptr<application::github_host_device_authorization_enrollment>
 			DeviceEnrollment;
+#if defined(BPR_BUILD_TESTING)
+		std::unique_ptr<counting_device_authorization_enrollment>
+			CountedDeviceEnrollment;
+#endif
 		std::unique_ptr<application::device_authorization_application_host>
 														DeviceHost;
 		std::deque<validated_github_host_profile>       Profiles;
@@ -5440,6 +5601,14 @@ namespace bpr::app {
 			= Implementation->UnregisteredDeviceTransport.reached(),
 			.DeviceAuthorizationPublications
 			= Implementation->DeviceProjections.published(),
+			.DeviceAuthorizationVaultStores
+			= Implementation->device_vault_stores(),
+			.DeviceAuthorizationDurableCopies
+			= Implementation->device_durable_copies(),
+			.DeviceAuthorizationTransportSubmissions
+			= Implementation->device_transport_submissions(),
+			.DeviceAuthorizationEnrollments
+			= Implementation->device_enrollments(),
 		};
 	}
 

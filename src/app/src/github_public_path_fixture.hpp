@@ -10,6 +10,7 @@
 #include "github_host_profile.hpp"
 #include "github_provider.hpp"
 
+#include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_mutation_port.hpp"
@@ -17,6 +18,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace bpr::app::detail {
@@ -46,6 +48,15 @@ namespace bpr::app::detail {
 			-> application::github_credential_vault_port&;
 		[[nodiscard]] auto take_enrollment_credential()
 			-> application::github_credential_material;
+		/// \brief The recorded device-grant transport, for the registered course.
+		[[nodiscard]] auto device_authorization_transport() noexcept
+			-> application::device_authorization_transport_port&;
+		/// \brief The access token the recorded grant issued, to scan for.
+		///
+		/// \returns Empty until the grant has been exchanged. It is the exact
+		/// value the vault should hold and the exact value nothing else should.
+		[[nodiscard]] auto device_authorization_access_token() const
+			-> std::string;
 		[[nodiscard]] auto evidence() const noexcept
 			-> github_public_path_fixture_evidence;
 		[[nodiscard]] auto last_smart_authority() const noexcept

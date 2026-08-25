@@ -670,6 +670,9 @@ namespace {
 		{
 			bool Enabled  = false;
 			bool Selected = false;
+			// The registered course enrolls, so its terminal is `authorized`
+			// rather than `unavailable` and it has vault evidence to report.
+			bool Registered = false;
 		};
 
 		stage Stage = stage::start;
@@ -2857,7 +2860,13 @@ namespace {
 			? bpr::app::detail::github_application_fixture_access::evidence(
 				  aApplication)
 			: bpr::app::detail::github_public_path_fixture_evidence{ };
-		if (aRun.Fixture) {
+		// The registered device course composes the fixture for its recorded
+		// grant and ends the run at the grant's terminal, so the fixture's
+		// pull-request course deliberately never runs. Judging it on evidence
+		// it was never asked to produce would report a failure that is a
+		// description of the run rather than a defect in it.
+		const auto fixtureCourseRan = aRun.Fixture && !aRun.Device.Registered;
+		if (fixtureCourseRan) {
 			const auto expectedSmartCalls = aRun.MaintenanceProbe
 					== automated_run::epoch_maintenance_probe::verify_deleted
 				? 1
@@ -2998,16 +3007,10 @@ namespace {
 				   << '\n';
 		}
 		if (aRun.Device.Enabled) {
-			// Reported as four separate facts rather than one verdict, because
-			// "the host was composed", "the choice was presented", "the answer
-			// was the typed refusal", and "nothing was sent" fail for different
+			// Reported as separate facts rather than one verdict, because "the
+			// host was composed", "the choice was presented", "the answer was
+			// the typed refusal", and "nothing was sent" fail for different
 			// reasons and a single OK would hide which.
-			const auto deviceRefused
-				= status.DeviceAuthorizationHostComposed
-				&& status.DeviceAuthorizationPublications > 0U
-				&& status.DeviceAuthorizationStage
-					== bpr::core::device_authorization_stage::unavailable
-				&& status.DeviceAuthorizationTransportReached == 0U;
 			stream << "DEVICE_FLOW_HOST_COMPOSED:"
 				   << (status.DeviceAuthorizationHostComposed ? "true" : "false")
 				   << "\nDEVICE_FLOW_PRESENTED:"
@@ -3019,9 +3022,42 @@ namespace {
 				   << "\nDEVICE_FLOW_REQUESTS:"
 				   << static_cast<unsigned long long>(
 						  status.DeviceAuthorizationTransportReached)
-				   << '\n'
-				   << (deviceRefused ? "DEVICE_FLOW_UNAVAILABLE_OK\n"
-									 : "DEVICE_FLOW_UNAVAILABLE_FAILED\n");
+				   << '\n';
+			if (aRun.Device.Registered) {
+				// The registered course makes the opposite claim: the grant
+				// must reach the existing vault exactly once, and the token
+				// must exist nowhere else the application wrote.
+				const auto enrolled = status.DeviceAuthorizationHostComposed
+					&& status.DeviceAuthorizationStage
+						== bpr::core::device_authorization_stage::authorized
+					&& status.DeviceAuthorizationEnrollments == 1U
+					&& status.DeviceAuthorizationVaultStores == 1U
+					&& status.DeviceAuthorizationDurableCopies == 0U;
+				stream << "DEVICE_FLOW_ENROLLMENTS:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationEnrollments)
+					   << "\nDEVICE_FLOW_VAULT_STORES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationVaultStores)
+					   << "\nDEVICE_FLOW_DURABLE_COPIES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationDurableCopies)
+					   << "\nDEVICE_FLOW_TRANSPORT_SUBMISSIONS:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationTransportSubmissions)
+					   << '\n'
+					   << (enrolled ? "DEVICE_FLOW_ENROLLED_OK\n"
+									: "DEVICE_FLOW_ENROLLED_FAILED\n");
+			} else {
+				const auto deviceRefused
+					= status.DeviceAuthorizationHostComposed
+					&& status.DeviceAuthorizationPublications > 0U
+					&& status.DeviceAuthorizationStage
+						== bpr::core::device_authorization_stage::unavailable
+					&& status.DeviceAuthorizationTransportReached == 0U;
+				stream << (deviceRefused ? "DEVICE_FLOW_UNAVAILABLE_OK\n"
+										 : "DEVICE_FLOW_UNAVAILABLE_FAILED\n");
+			}
 		}
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Fixture && !aRun.ReviewLedgerCompositionProbe.has_value()
@@ -3266,7 +3302,7 @@ namespace {
 #endif
 		}
 #if defined(BPR_BUILD_TESTING)
-		if (aRun.Fixture) {
+		if (fixtureCourseRan) {
 			stream << (aRun.ReviewLedgerCompositionProbe.has_value()
 						   ? fixtureFactsPassed
 							   ? "GITHUB_FIXTURE_REVIEW_LEDGER_OK:"
@@ -3485,7 +3521,7 @@ namespace {
 		// composition has not compiled since; `application_composition_contract`
 		// reported Passed throughout because its `PASS_REGULAR_EXPRESSION "OK"`
 		// matched the `REVIEW_LEDGER_OK` literal a few lines below.
-		if (aRun.Fixture && !aRun.WorkbenchCompositionProbe
+		if (fixtureCourseRan && !aRun.WorkbenchCompositionProbe
 			&& !aRun.UIforEtwSelectedDiffProbe
 			&& !aRun.Appearance.Enabled
 			&& !aRun.ReviewRoundTripCompositionProbe
@@ -4023,6 +4059,15 @@ namespace {
 								.DeviceAuthorizationStage)) {
 						break;
 					}
+					// The registered course enrolls through the real vault,
+					// which is an off-lane worker. Its store lands after the
+					// stage is terminal, so the run waits for the count rather
+					// than reading it too early and calling zero a failure.
+					if (aRun->Device.Registered
+						&& aApplication.status().DeviceAuthorizationVaultStores
+							== 0U) {
+						break;
+					}
 					aRun->PresentationPassed
 						= aRun->Cli.Observed == aRun->Cli.Expected;
 					aRun->RenderSaved
@@ -4030,6 +4075,16 @@ namespace {
 					transition_to_shutdown(aApplication, *aRun);
 					break;
 				}
+				// The registered course is about the grant reaching the vault,
+				// not about the pull-request course beside it, so it selects
+				// the device path here and ends the run at its terminal rather
+				// than continuing into the fixture's own stages.
+				if (aRun->Device.Enabled && aRun->Device.Registered) {
+					aRun->Device.Selected = true;
+					aApplication.select_device_authorization();
+					break;
+				}
+
 #if defined(BPR_BUILD_TESTING)
 				if (aRun->Fixture) {
 					if (window.github_status_text() != "GitHub account connected."
@@ -5671,6 +5726,12 @@ auto main(int argc, char** argv) -> int
 		auto selectedFixture        = std::optional<
 			bpr::app::detail::github_public_path_fixture>{ };
 		auto fixtureOptions = bpr::app::detail::github_public_path_fixture_options{ };
+		// Read here rather than beside the other device flag further down,
+		// because the fixture options are assembled before that point.
+		fixtureOptions.RegisteredDeviceCourse = has_argument(
+			argc,
+			argv,
+			"--device-authorization-registered-course");
 		if (const auto fixture = argument_value(argc, argv, "--github-fixture");
 			fixture.has_value()) {
 			if (*fixture == "github-com") {
@@ -5779,6 +5840,8 @@ auto main(int argc, char** argv) -> int
 		const auto selfTest = has_argument(argc, argv, "--self-test");
 		const auto deviceProbe
 			= has_argument(argc, argv, "--device-authorization-probe");
+		const auto registeredDeviceCourse
+			= has_argument(argc, argv, "--device-authorization-registered-course");
 		const auto renderPath = argument_value(argc, argv, "--render-evidence");
 
 #if defined(BPR_BUILD_TESTING)
@@ -6237,7 +6300,8 @@ auto main(int argc, char** argv) -> int
 							.EnterpriseHostname = std::move(enterpriseHostname),
 						},
 						.Device = automated_run::device_authorization_probe_state{
-							.Enabled = verifyDeviceAuthorization,
+							.Enabled    = verifyDeviceAuthorization,
+							.Registered = registeredDeviceCourse,
 						},
 #if defined(BPR_BUILD_TESTING)
 						.Fixture                         = !fixtureName.empty(),
