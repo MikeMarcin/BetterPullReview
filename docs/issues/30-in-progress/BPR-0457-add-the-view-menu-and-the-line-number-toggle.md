@@ -1,7 +1,7 @@
 ---
 id: BPR-0457
 title: Add the View menu and make line numbers a toggled, persisted setting
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0005
 depends_on: [BPR-0455]
 ---
