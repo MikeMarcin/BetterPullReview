@@ -1,7 +1,7 @@
 ---
 id: BPR-0460
 title: Five new Windows-uncontained registrations were never pinned
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -51,3 +51,13 @@ drive letter. No new mechanism is involved.
   the matrix and the cards that own those surfaces.
 - Not [[BPR-0446]]'s fixture registration, which the same manifest run
   already validates.
+
+## Closed — 2026-08-26
+
+The five names are pinned at `f8799ca9` with the inherited
+`dos-volume-name` cause, and `test_network_isolation_manifest` passed on
+the Windows host at that commit in 1.89 seconds — the same run that
+validated BPR-0446's fixture registration. Closing promoted nothing: no
+card names this one in `depends_on`.
+
+Implemented and closed by the integrator.
