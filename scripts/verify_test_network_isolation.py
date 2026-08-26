@@ -102,6 +102,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "runtime_process_surface": "dos-volume-name",
     "application_render": "dos-volume-name",
     "gh_cli_transport": "dos-volume-name",
+    "native_https_transport_fixture": "dos-volume-name",
     "epoch_history_fixture_contract": "dos-volume-name",
     "epoch_maintenance_integration": "dos-volume-name",
     "git_process_contract": "qprocess-named-pipe",

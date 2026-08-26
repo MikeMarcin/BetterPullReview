@@ -287,6 +287,45 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
 endif()
 
+if(WIN32)
+    # The wire fixture's only extra dependency is an openssl binary for
+    # certificate generation; Windows does not put one on PATH, but Git for
+    # Windows -- already a hard dependency of the product on this platform --
+    # ships OpenSSL. The APPLE/Linux registration above is deliberately
+    # untouched, and RFC-BPR-0017's credential-free selector deliberately
+    # stays unregistered here (BPR-0446).
+    find_program(
+        BPR_TEST_NATIVE_HTTPS_OPENSSL
+        NAMES openssl
+        HINTS
+            "$ENV{ProgramFiles}/Git/mingw64/bin"
+            "$ENV{ProgramFiles}/Git/usr/bin"
+        REQUIRED
+    )
+    # Uncontained for the measured dos-volume-name cause: the driver's
+    # strict executable resolution and CPython's own path initialization both
+    # need the drive-letter translation a lowbox token is refused (BPR-0362,
+    # BPR-0446). The driver only ever talks to its own loopback origin.
+    bpr_add_network_isolated_test(
+        NAME native_https_transport_fixture
+        WINDOWS_UNCONTAINED
+        LOOPBACK_PORT_COUNT 2
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/verify_native_https_transport.py"
+            --executable
+            "$<TARGET_FILE:test_better_pull_review_native_https_transport_tests>"
+            --openssl
+            "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
+    )
+    set_tests_properties(
+        native_https_transport_fixture
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 90
+    )
+endif()
+
 bpr_add_executable(
     test_better_pull_review_gh_cli_transport_tests
     gh_cli_transport_tests.cpp
