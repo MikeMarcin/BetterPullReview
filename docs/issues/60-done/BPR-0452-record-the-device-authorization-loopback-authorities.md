@@ -1,7 +1,7 @@
 ---
 id: BPR-0452
 title: The loopback authority table never learned about the device-flow fixtures
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -75,3 +75,47 @@ whenever `LOOPBACK_PORT_COUNT` appears in a diff.
 ctest --preset dev --output-on-failure -R 'network_isolation'
 python3 scripts/verify_test_network_isolation.py --help
 ```
+
+## Done — 2026-08-25
+
+Both entries are recorded with count 1, which is what each fixture actually
+takes rather than what the CMake declaration asserts.
+
+### What was verified about the authority, before recording it
+
+Both tests drive the same script,
+`tests/github_contract/verify_native_https_device_authorization.py`:
+
+- **Exactly one port.** `configured_loopback_port` reads
+  `BPR_TEST_LOOPBACK_PORTS` and raises `invalid-loopback-port` unless the list
+  contains exactly one value in `1..65535` (line 162). There is exactly one
+  `bind(...)` call in the file, at `127.0.0.1` (line 407).
+- **Loopback only.** A peer whose address is not `127.0.0.1` is recorded as the
+  violation `non-loopback-peer` (line 447) rather than served.
+- **No outbound request.** The file imports no HTTP client — no `requests`, no
+  `urllib`, no `http.client`. Its one `github.com` string is `VERIFICATION_URI`,
+  which appears only as a `verification_uri` value inside a JSON body the
+  fixture itself serves (line 370). It is never contacted.
+
+So one port each is the true count, not a rounded-up permission.
+
+### The table stays hand-maintained, deliberately
+
+The card asked whether the entry could be required automatically. It should not
+be *derived*: the CMake `LOOPBACK_PORT_COUNT` is the claim and this table is the
+independent record of what was authorized. A table generated from the thing it
+checks checks nothing. That reasoning is now a comment above the table so the
+next person does not have to rediscover it.
+
+What was worth fixing is the reminder. The board's verification-scope rule now
+names `test_network_isolation_manifest` as required whenever a diff touches
+`LOOPBACK_PORT_COUNT`, alongside the composition-selector trap [[BPR-0453]]
+found the same day.
+
+### Verification
+
+| claim | command | proves it | result |
+|---|---|---|---|
+| the manifest is green | `ctest --preset dev -R 'network_isolation'` | manifest, structure contract, external, child, loopback, unrelated, application | 7/7 pass |
+| the repair is load-bearing | same, with both entries removed | the manifest fails again naming both tests | **fails without the fix** |
+| documentation | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | pass |

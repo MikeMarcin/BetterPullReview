@@ -150,6 +150,12 @@ REQUIRED_COMMAND_BOUND_TESTS = {
     "architecture_boundaries",
     "architecture_boundary_contract",
 }
+# The recorded authorization for binding loopback, and how many ports each test
+# may take. A test absent from this table is expected to take zero, so the gate
+# fails closed on any loopback authority nobody wrote down. Do not derive this
+# from the CMake declaration: the declaration is the claim and this is the
+# independent record, and a table generated from the thing it checks checks
+# nothing.
 MACOS_LOOPBACK_AUTHORITIES = {
     "test_network_isolation_loopback": 1,
     "test_network_isolation_unrelated": 1,
@@ -157,6 +163,12 @@ MACOS_LOOPBACK_AUTHORITIES = {
     "native_https_transport_fixture": 2,
     "native_git_smart_transport_fixture": 1,
     "rfc0017_credential_free_native_https": 2,
+    # BPR-0452. Both drive verify_native_https_device_authorization.py, which
+    # binds one listener at 127.0.0.1, refuses a non-loopback peer, and issues
+    # no outbound request; its only github.com string is a verification_uri
+    # value inside a response body the fixture itself serves.
+    "native_https_device_authorization_fixture": 1,
+    "github_device_authorization_refresh_contract": 1,
 }
 MACOS_UNRELATED_ENDPOINT_PROBE = "test_network_isolation_unrelated"
 PRE_BOUNDARY_INJECTION_VARIABLES = (
