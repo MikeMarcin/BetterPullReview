@@ -13,6 +13,8 @@
 #include <thread>
 
 #if defined(_WIN32)
+	#include <fcntl.h>
+	#include <io.h>
 	#include <process.h>
 // The UCRT already supplies `_environ`, as a macro over `__p__environ()`. A
 // hand-written `extern "C"` declaration redeclares that accessor without its
@@ -325,6 +327,17 @@ namespace {
 
 auto main(int argc, char** argv) -> int
 {
+#if defined(_WIN32)
+	// Every raw-protocol fixture in this tree selects binary standard streams
+	// first: the CRT's default text mode rewrites each protocol '\n' as
+	// "\r\n" on the wire, so the bytes the parent drains would not be the
+	// bytes this fixture wrote (BPR-0240).
+	if (_setmode(_fileno(stdin), _O_BINARY) == -1
+		|| _setmode(_fileno(stdout), _O_BINARY) == -1
+		|| _setmode(_fileno(stderr), _O_BINARY) == -1) {
+		return EXIT_FAILURE;
+	}
+#endif
 	if (const auto marker = argument_after(argc, argv, "--descendant-heartbeat");
 		!marker.empty()) {
 		heartbeat(marker);
