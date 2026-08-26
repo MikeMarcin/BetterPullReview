@@ -3224,6 +3224,103 @@ namespace {
 #endif
 	}
 
+	// The isolation's policy files are the part of the topology the adapter
+	// adopts instead of creating, and `config-global` is the one BPR-0437 made
+	// load-bearing on Windows: it carries `core.longpaths`, without which Git
+	// cannot create the lock directory for a staging ref beneath a cache. Both
+	// the exact bytes and the exact link count of a preexisting policy file are
+	// therefore contract. A hard link is the substitution attributes cannot
+	// see — a regular file, owned by this user, carrying the adapter's own
+	// bytes, whose only tell is that a second name reaches the same data — and
+	// the adapter's one-link rule is what refuses it, the rule the cache
+	// already proves for its manifest (BPR-0053).
+	auto run_isolation_policy_file_contract() -> void
+	{
+#if defined(Q_OS_WIN)
+		constexpr std::string_view expectedGlobalConfig = "[core]\n\tlongpaths = true\n";
+#else
+		constexpr std::string_view expectedGlobalConfig = "";
+#endif
+		constexpr std::string_view foreignGlobalConfig
+			= "[core]\n\tlongpaths = false\n\thooksPath = /must-not-be-adopted\n";
+
+		temporary_root root{ "git-isolation-policy-file" };
+		const auto     executable = std::filesystem::canonical(
+			std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE });
+		const auto makeIsolation = [&root](const std::string_view aName) {
+			auto path = root.Path / aName;
+			std::filesystem::create_directory(path);
+			std::filesystem::permissions(
+				path,
+				std::filesystem::perms::owner_all,
+				std::filesystem::perm_options::replace);
+			return std::filesystem::canonical(path);
+		};
+		const auto construct =
+			[&executable](const std::filesystem::path& aIsolation) {
+				return git_adapter::make_installed_git_process({
+					.GitExecutable     = executable,
+					.IsolationRoot     = aIsolation,
+					.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
+				});
+			};
+
+		// The control the two rejections below are measured against: policy
+		// files already holding the adapter's exact bytes are adopted, which
+		// is what makes this platform's expected `config-global` text the
+		// contract rather than an unobserved implementation detail.
+		{
+			const auto adopted = makeIsolation("adopted-policy");
+			write_text(adopted / "config-system", "");
+			write_text(adopted / "config-global", expectedGlobalConfig);
+			write_text(adopted / "attributes-system", "");
+			const auto accepted = construct(adopted);
+			require(
+				accepted.has_value(),
+				"preexisting policy files holding the adapter's exact bytes are adopted");
+			require(
+				read_text(adopted / "config-global") == expectedGlobalConfig,
+				"the adopted global configuration is this platform's exact expected text");
+		}
+
+		// The link carries the exact bytes the adapter would have written, so
+		// the link count is the only difference left to refuse it by. Where
+		// that refusal lands differs: Windows sees the second link while
+		// reading the file, POSIX only when it opens the file to write, after
+		// the isolation directories exist. What both must preserve is the
+		// planted link and its target.
+		const auto outsideEmpty = root.Path / "outside-empty-policy";
+		write_text(outsideEmpty, "");
+		const auto hardlinked = makeIsolation("hardlinked-policy");
+		std::filesystem::create_hard_link(
+			outsideEmpty,
+			hardlinked / "config-system");
+		const auto rejectedLink = construct(hardlinked);
+		require(
+			!rejectedLink.has_value()
+				&& rejectedLink.error()
+					== application::git_process_failure::
+						invalid_configuration,
+			"a hardlinked isolation policy file fails closed");
+		require(
+			std::filesystem::hard_link_count(outsideEmpty) == 2U
+				&& read_text(outsideEmpty).empty(),
+			"the second link and its target survive the refusal untouched");
+
+		const auto foreign       = makeIsolation("foreign-global-policy");
+		const auto foreignGlobal = foreign / "config-global";
+		write_text(foreignGlobal, foreignGlobalConfig);
+		const auto rejectedGlobal = construct(foreign);
+		require(
+			!rejectedGlobal.has_value()
+				&& rejectedGlobal.error()
+					== application::git_process_failure::
+						invalid_configuration
+				&& read_text(foreignGlobal) == foreignGlobalConfig
+				&& !std::filesystem::exists(foreign / "home"),
+			"foreign global-configuration content is rejected before any mutation");
+	}
+
 	auto run_agent_workspace_parent_cleanup_contract() -> void
 	{
 		temporary_root root{ "git-agent-parent-cleanup" };
@@ -3452,6 +3549,7 @@ auto main(int argc, char** argv) -> int
 	run_factory_cancellation_contract();
 	run_input_validation_contract();
 	run_isolation_symlink_contract();
+	run_isolation_policy_file_contract();
 	run_agent_workspace_parent_cleanup_contract();
 	run_process_error_detail_contract();
 	std::cout << "Git process contract passed\n";

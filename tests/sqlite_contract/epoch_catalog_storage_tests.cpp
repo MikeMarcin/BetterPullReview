@@ -1107,6 +1107,74 @@ namespace {
 			read_binary(victim) == "sidecar victim must remain untouched",
 			"rejected sidecar links never open or modify their targets");
 	}
+
+	// BPR-0425 re-holds the storage root with data access so its share mode is
+	// enforced, which is what denies the delete-access open above. That re-hold
+	// has to stay invisible to a second store on the same root: a sibling asks
+	// for exactly the access the first store holds and for no deletion, so it
+	// must open, read the same durable catalog, and outlive the first store's
+	// release. There is no POSIX counterpart — a store there holds
+	// `flock(LOCK_EX)` on `state/v1` for its whole lifetime, so a sibling on
+	// one root is serialized by design rather than refused by sharing
+	// (BPR-0053).
+	void windows_sibling_store_root_rehold_contract()
+	{
+		temporary_root root{ "sibling-store-root" };
+		auto           firstMade = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(firstMade.has_value(), "the first store bootstraps the shared root");
+		auto       firstPort   = std::move(*firstMade);
+		const auto authority   = authority_key();
+		auto       firstOpened = firstPort->open(open_request(authority), { });
+		expect(
+			firstOpened.has_value(),
+			"the first store opens the shared authority");
+		auto       first   = std::move(*firstOpened);
+		const auto binding = first->binding();
+
+		// The exact directory open a sibling store performs on the root, made
+		// directly so a sharing violation is distinguishable from any typed
+		// catalog failure.
+		{
+			test_platform::unique_handle siblingRoot{ ::CreateFileW(
+				root.path().c_str(),
+				FILE_READ_ATTRIBUTES | READ_CONTROL | FILE_LIST_DIRECTORY
+					| FILE_TRAVERSE,
+				FILE_SHARE_READ | FILE_SHARE_WRITE,
+				nullptr,
+				OPEN_EXISTING,
+				FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
+				nullptr) };
+			expect(
+				static_cast<bool>(siblingRoot),
+				"the re-held root admits a sibling's non-deleting directory open");
+		}
+
+		auto secondMade = sqlite::make_epoch_catalog(
+			{ .StorageRoot = root.path() });
+		expect(
+			secondMade.has_value(),
+			"a sibling store opens the same re-held root");
+		auto secondPort   = std::move(*secondMade);
+		auto secondOpened = secondPort->open(
+			open_request(authority, HighSession + 30U), { });
+		expect(
+			secondOpened.has_value(),
+			"the sibling store opens the same authority");
+		auto second = std::move(*secondOpened);
+		expect(
+			second->binding() == binding,
+			"the sibling store resolves the same durable catalog identities");
+
+		second.reset();
+		first.reset();
+		firstPort.reset();
+		auto afterRelease = secondPort->open(
+			open_request(authority, HighSession + 31U), { });
+		expect(
+			afterRelease.has_value()
+				&& (*afterRelease)->binding() == binding,
+			"the sibling store keeps its own retained root after the first store releases");
+	}
 #endif
 
 	void schema_fail_closed_contract()
@@ -1347,6 +1415,7 @@ int main()
 #endif
 #if defined(_WIN32)
 	windows_live_namespace_and_sidecar_contract();
+	windows_sibling_store_root_rehold_contract();
 #endif
 	schema_fail_closed_contract();
 	bootstrap_orphan_recovery_contract();

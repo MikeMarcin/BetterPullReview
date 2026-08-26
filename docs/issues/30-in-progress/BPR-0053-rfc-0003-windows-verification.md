@@ -113,6 +113,37 @@ this card owns:
 - no test opens two stores on one root to prove the re-held root
   (BPR-0425) does not sharing-violate a sibling store.
 
+## The four review adversaries are implemented — 2026-08-26
+
+All four ledger-addendum gaps now exist as suite cases, unrun pending the
+rebuilt tree:
+
+- `run_isolation_policy_file_contract` in the git-process contract covers
+  the first two: a hard-linked policy file carrying the adapter's exact
+  bytes (link count the only tell) fails closed on both platforms' one-link
+  rules, and foreign `config-global` content — `longpaths = false` plus a
+  hooks path — is rejected pre-mutation, with an adoption control pinning
+  the exact platform text so `core.longpaths` is contract rather than
+  incident.
+- The spool gap was narrowed rather than duplicated: the cache suite's
+  existing abort-first case already aborts with the sink's handle open, so
+  the new case adds what that one cannot say — a mid-stream partial append,
+  a byte-for-name identical spool-directory listing after the abort
+  (quarantine residue included), `invalid_state` from the still-open sink,
+  and an unchanged directory after the sink closes.
+- `windows_sibling_store_root_rehold_contract` opens two stores on one
+  re-held root: the direct `CreateFileW` with a sibling's exact access
+  proves no sharing violation, and the public second store resolves the
+  same binding and keeps its own retained chain after the first releases.
+  It is Windows-only by design, not privilege: a POSIX store holds
+  `flock(LOCK_EX)` on `state/v1` for its lifetime, so a sibling there is
+  serialized, not refused by sharing.
+
+Implemented by rfc-worker; reviewed and committed by the integrator. The
+target-native runs land with the rebuilt-tree matrix. If the sibling-store
+public path shows a typed refusal instead, that is a product decision to
+report, not to repair in the test.
+
 ## Its behavior-contract row is owner-deferred — 2026-08-23
 
 `sqlite_epoch_catalog_behavior_contract` could not start in the 2026-08-23

@@ -398,6 +398,21 @@ namespace {
 				aText.size() });
 	}
 
+	// Exact residue evidence: an operation that fails or aborts has to leave a
+	// directory it touched byte-for-name identical, quarantine temporaries
+	// included, which a single existence check cannot say.
+	[[nodiscard]] auto sorted_directory_names(
+		const std::filesystem::path& aDirectory) -> std::vector<std::string>
+	{
+		auto names = std::vector<std::string>{ };
+		for (const auto& entry :
+			 std::filesystem::directory_iterator{ aDirectory }) {
+			names.push_back(entry.path().filename().string());
+		}
+		std::ranges::sort(names);
+		return names;
+	}
+
 	auto make_tree_private(
 		const std::filesystem::path& aRoot) -> void
 	{
@@ -3397,6 +3412,55 @@ namespace {
 					   + ".pack.receiving")),
 			"finish cannot publish after a linearized abort");
 		abortFirstSink->reset();
+
+		// The one path the receiving spool's `FILE_SHARE_DELETE` exists for:
+		// the abort renames and unlinks the spool while its sink still holds
+		// the write handle open. This narrows that to the smallest
+		// deterministic shape — a partial stream, so nothing but the open
+		// handle can be holding the name — and requires the spool directory,
+		// quarantine residue included, to come back exactly as it was
+		// (BPR-0053).
+		const auto openSpoolOperation = identity<core::epoch_operation_id>(0x4bU);
+		const auto spoolDirectory     = root.Path / "incoming" / "v1";
+		const auto spoolBefore        = sorted_directory_names(spoolDirectory);
+		auto       openSpoolSink      = (*primary)->create_pack_sink(
+			openSpoolOperation,
+			sha1_pack.size(),
+			{ });
+		require(
+			openSpoolSink.has_value(),
+			"create a sink that keeps its receiving spool open");
+		const auto openSpoolPartial = std::as_bytes(std::span{ sha1_pack }).first(17U);
+		require(
+			(*openSpoolSink)->append(openSpoolPartial, { }).has_value(),
+			"the open sink receives a partial pack");
+		const auto openSpoolText = lower_hex(openSpoolOperation.bytes());
+		const auto openSpoolPath = spoolDirectory
+			/ ("." + openSpoolText + ".pack.receiving");
+		require(
+			std::filesystem::is_regular_file(openSpoolPath),
+			"the receiving spool is present while its sink holds it open");
+		require(
+			(*primary)
+				->abort_operation(openSpoolOperation, { })
+				.has_value(),
+			"abort removes a receiving spool its sink still holds open");
+		require(
+			!std::filesystem::exists(openSpoolPath)
+				&& sorted_directory_names(spoolDirectory) == spoolBefore,
+			"the aborted spool leaves neither its own name nor cleanup residue");
+		const auto appendAfterOpenAbort = (*openSpoolSink)
+											  ->append(openSpoolPartial, { });
+		require(
+			!appendAfterOpenAbort.has_value()
+				&& appendAfterOpenAbort.error()
+					== application::git_pack_stream_failure::invalid_state
+				&& !std::filesystem::exists(openSpoolPath),
+			"the still-open sink cannot write or resurrect the deleted spool");
+		openSpoolSink->reset();
+		require(
+			sorted_directory_names(spoolDirectory) == spoolBefore,
+			"closing the sink after the abort changes nothing on disk");
 
 		const auto racingOperation = identity<core::epoch_operation_id>(0x47U);
 		auto       racingSink      = (*primary)->create_pack_sink(
