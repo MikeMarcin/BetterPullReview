@@ -419,13 +419,38 @@ class CapsuleImageTests(unittest.TestCase):
             time.sleep(0.05)
         self.fail(f"process {process_id} remained alive")
 
+    def assert_process_group_gone(self, process_group: int) -> None:
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if not capsule.process_group_exists(process_group):
+                return
+            time.sleep(0.05)
+        self.fail(f"process group {process_group} remained alive")
+
+    def reap_process_group(self, process: subprocess.Popen[bytes]) -> None:
+        if capsule.process_group_exists(process.pid):
+            capsule.signal_process_group(process.pid, signal.SIGKILL)
+        try:
+            process.wait(timeout=5.0)
+        except subprocess.TimeoutExpired:
+            pass
+
     def blocking_helper(
         self,
         root: pathlib.Path,
         *,
         ignore_term: bool,
     ) -> tuple[pathlib.Path, pathlib.Path]:
-        process_id = root / "process-id"
+        """Writes a helper that blocks forever and says when it is ready.
+
+        The readiness marker is created last, after the optional SIGTERM
+        handler is installed, so its existence proves the child finished the
+        setup a caller is about to depend on. Nothing here may infer that from
+        elapsed time. Interpreter startup under a loaded parallel matrix is
+        unbounded, and BPR-0454 records both cases this file lost to assuming
+        otherwise.
+        """
+        ready = root / "helper-ready"
         helper = root / "helper.py"
         handler = (
             "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
@@ -436,13 +461,33 @@ class CapsuleImageTests(unittest.TestCase):
             "#!/usr/bin/python3\n"
             "import os, pathlib, signal, time\n"
             + handler
-            + f"pathlib.Path({str(process_id)!r}).write_text(str(os.getpid()))\n"
-            + "while True:\n"
+            + f"pathlib.Path({str(ready)!r}).write_text(str(os.getpid()))\n"
+            # Bounded rather than endless. Every case here kills this child
+            # within seconds, so the ceiling is invisible to them -- but a
+            # case that fails to, or a mutation run that removes the cleanup
+            # under test, would otherwise leave a blocked interpreter running
+            # until the machine is rebooted. One was observed during BPR-0454.
+            + "for _ in range(300):\n"
             + "    time.sleep(1)\n",
             encoding="utf-8",
         )
         helper.chmod(0o700)
-        return helper, process_id
+        return helper, ready
+
+    def await_helper_ready(
+        self,
+        ready: pathlib.Path,
+        process: subprocess.Popen[bytes],
+    ) -> None:
+        deadline = time.monotonic() + 60.0
+        while time.monotonic() < deadline:
+            if ready.exists():
+                return
+            self.assertIsNone(
+                process.poll(), "the helper exited before it became ready"
+            )
+            time.sleep(0.01)
+        self.fail(f"the helper never became ready: {ready}")
 
     def test_attach_asks_for_a_read_only_unbrowsable_mount(self) -> None:
         recorded: list[list[str]] = []
@@ -480,14 +525,25 @@ class CapsuleImageTests(unittest.TestCase):
         self.assertNotIn("-force", recorded[0])
 
     def test_stage_one_timeout_terminates_cooperative_process_group(self) -> None:
+        """The deadline reaches cleanup, and one SIGTERM is enough.
+
+        This case owns the wiring: an overrun stage one raises, and its
+        process group is signalled and gone. It deliberately depends on
+        nothing the child does after it is forked. The group identity comes
+        from the recorded call rather than from a file the child has to live
+        long enough to write, so a slow interpreter start cannot decide
+        whether the cleanup claim is checked at all.
+        """
         with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
-            helper, process_id = self.blocking_helper(root, ignore_term=False)
+            helper, _ = self.blocking_helper(root, ignore_term=False)
             delivered: list[signal.Signals] = []
+            groups: list[int] = []
             original = capsule.signal_process_group
 
             def record(process_group: int, requested: signal.Signals) -> None:
                 delivered.append(requested)
+                groups.append(process_group)
                 original(process_group, requested)
 
             with (
@@ -499,29 +555,57 @@ class CapsuleImageTests(unittest.TestCase):
                 with self.assertRaisesRegex(capsule.CapsuleFailure, "deadline"):
                     capsule.run_stage_one(helper, root / "inventory", None)
             self.assertEqual(delivered, [signal.SIGTERM])
-            self.assert_process_gone(int(process_id.read_text(encoding="utf-8")))
+            self.assertEqual(len(set(groups)), 1)
+            self.assert_process_group_gone(groups[0])
 
-    def test_stage_one_timeout_kills_term_ignoring_process_group(self) -> None:
+    def test_stage_one_cleanup_kills_a_term_ignoring_process_group(self) -> None:
+        """A group that ignores SIGTERM is escalated to SIGKILL, and waited for.
+
+        The escalation is the claim, so the child's SIGTERM handler has to be
+        installed before the graded window opens. That is why this case owns
+        the spawn and waits for readiness instead of driving
+        ``run_stage_one``: the stage-one deadline starts at the fork, so
+        nothing reached through it can wait for the child first, and a child
+        signalled mid-startup dies on the default disposition and never
+        escalates. The wiring that case is named for stays covered above.
+
+        The term grace stays at 0.2 seconds. Widening it until the case stops
+        failing would also stop it proving that the escalation is prompt, so
+        the interval is asserted instead: half the grace is far more than the
+        zero a lost wait would produce, and load can only lengthen it.
+        """
+        grace = 0.2
         with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)
-            helper, process_id = self.blocking_helper(root, ignore_term=True)
-            delivered: list[signal.Signals] = []
+            helper, ready = self.blocking_helper(root, ignore_term=True)
+            process = subprocess.Popen([str(helper)], start_new_session=True)
+            self.addCleanup(self.reap_process_group, process)
+            self.await_helper_ready(ready, process)
+
+            delivered: list[tuple[signal.Signals, float]] = []
             original = capsule.signal_process_group
 
             def record(process_group: int, requested: signal.Signals) -> None:
-                delivered.append(requested)
+                delivered.append((requested, time.monotonic()))
                 original(process_group, requested)
 
             with (
-                mock.patch.object(capsule, "STAGE_ONE_TIMEOUT_SECONDS", 1.0),
-                mock.patch.object(capsule, "STAGE_ONE_TERM_GRACE_SECONDS", 0.2),
+                mock.patch.object(capsule, "STAGE_ONE_TERM_GRACE_SECONDS", grace),
                 mock.patch.object(capsule, "STAGE_ONE_KILL_GRACE_SECONDS", 1.0),
                 mock.patch.object(capsule, "signal_process_group", side_effect=record),
             ):
-                with self.assertRaisesRegex(capsule.CapsuleFailure, "deadline"):
-                    capsule.run_stage_one(helper, root / "inventory", None)
-            self.assertEqual(delivered, [signal.SIGTERM, signal.SIGKILL])
-            self.assert_process_gone(int(process_id.read_text(encoding="utf-8")))
+                capsule.terminate_process_group(process)
+
+            self.assertEqual(
+                [requested for requested, _ in delivered],
+                [signal.SIGTERM, signal.SIGKILL],
+            )
+            self.assertGreaterEqual(
+                delivered[1][1] - delivered[0][1],
+                grace / 2.0,
+                "SIGKILL followed SIGTERM without waiting out the term grace",
+            )
+            self.assert_process_group_gone(process.pid)
 
     def test_a_writable_mount_is_refused_and_leaves_nothing_behind(self) -> None:
         with contained_temporary_directory() as directory:
