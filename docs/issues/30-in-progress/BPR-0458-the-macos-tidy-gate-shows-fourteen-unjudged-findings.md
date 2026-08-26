@@ -1,7 +1,7 @@
 ---
 id: BPR-0458
 title: The macOS coding-tidy gate shows fourteen findings nothing has judged
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0013
 depends_on: []
 ---
