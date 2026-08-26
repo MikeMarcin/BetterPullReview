@@ -749,6 +749,7 @@ ready lanes — and the lane says which answer it needs:
 | Root | Lane | Needs |
 |---|---|---|
 | BPR-0414 | `40-parked/` | Unattended implementation and verification are complete at `8c7504d`; digest-bound attended batch `ab6145717475dfdfddd6206d` waits only on the owner's marker-versus-inline-body verdict |
+| BPR-0452 | `20-ready/` | Any session. `test_network_isolation_manifest` has been red since [[BPR-0450]] closed: two device-flow fixtures take a loopback port that the authority table in `verify_test_network_isolation.py` never recorded |
 | BPR-0318 | `40-parked/` | The product owner's plain proceed-or-defer sentence on registering a separate distributable GitHub.com identity. Both dependencies closed on 2026-08-24 and 2026-08-25 and no unattended work remains; deferring simply leaves every platform visibly `device_flow_unavailable`, which is where the tree already is. The digest-bound registration packet is written only if the answer is proceed |
 | BPR-0445 | `40-parked/` | Unattended sanitizer and one-shot authority hardening are committed at `a27e4a5` and `c03abcf`; v002 packet `8ff060e82c04f30010ad11e5410200d8797d8f1c5b08557768ded86ed0eafdd0` waits only on the owner's fresh exact one-request authorization |
 | BPR-0053, BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]], [[BPR-0362]], [[BPR-0360]], and [[BPR-0350]] closed on 2026-08-22 with the contained matrix at 87 of 89; [[BPR-0053]] waits only on that matrix's two carded failures and on the Qt graph. [[BPR-0424]] through [[BPR-0427]] are the four causes that run isolated from the container's own |
@@ -813,7 +814,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these fourteen roots or reaches one
+card on this board is either one of these fifteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 41 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`. This number has drifted before — it read 46 while the lane held 44,
@@ -846,9 +847,15 @@ but not in `depends_on` — so the count is fourteen. That is the whole Treevers
 program landing in order: the edge, the fixture, the surface, and the umbrella
 that carried them.
 
-It leaves `20-ready/` empty. Every remaining root needs a Windows session, a
-Linux session, or a person, which is the state the "Open right now" section
-below describes rather than a new one.
+It left `20-ready/` empty for about an hour. The full `dev` matrix BPR-0418 ran
+before committing then found `test_network_isolation_manifest` red — and red
+since [[BPR-0450]] closed earlier the same day, because no card's focused
+selectors run it. [[BPR-0452]] owns that, so the root count is fifteen again
+and the ready lane is not empty after all.
+
+That is worth naming rather than burying: the failure was not found by the card
+that caused it, by the card after it, or by any focused run. It was found by a
+matrix that a Qt slice had no obligation to run and ran anyway.
 
 The post-BPR-0334 audit on 2026-08-21 found no backlog dependency on that
 card, so its move to `60-done/` promoted nothing. All 56 backlog cards still
