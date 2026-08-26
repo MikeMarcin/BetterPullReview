@@ -1,7 +1,7 @@
----
+﻿---
 id: BPR-0459
 title: A cancelled cache open is reported to the core as a failure
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: []
 ---
@@ -37,15 +37,15 @@ while `git_cache_port::open` was in flight reaches the core as
 
 Found while diagnosing [[BPR-0447]]. That card's failing runs emit
 `EPOCH_CACHE_FAILURE:14:` followed by `EPOCH_EFFECT_FAILED:comparison-resolve:0`
-— a cancelled cache open arriving at the core as `unavailable`.
+â€” a cancelled cache open arriving at the core as `unavailable`.
 
 **It is not BPR-0447's cause and repairing it would not have fixed that card.**
-In those runs the epoch selectors still read `Resolving the exact comparison…`
+In those runs the epoch selectors still read `Resolving the exact comparisonâ€¦`
 at the moment the run gave up, so the failed event was rejected by
 `comparison_context_match` as stale and changed no state; BPR-0447's repair is
 in its fixture course and is verified without touching this. What is unproven
-here is the reverse case — a cancelled cache open whose context *does* still
-match — which is the case that would show a user `unavailable` for work that
+here is the reverse case â€” a cancelled cache open whose context *does* still
+match â€” which is the case that would show a user `unavailable` for work that
 was cancelled.
 
 ## Required final state
@@ -53,7 +53,7 @@ was cancelled.
 - A cancelled cache open in `start_comparison_resolution` reaches the core as
   `comparison_resolve_cancelled_event`, or the reason it must not is recorded.
 - The same question is answered for every other `cache_failure` call site in
-  `epoch_application_host.cpp`, since they all share the one `cancelled` →
+  `epoch_application_host.cpp`, since they all share the one `cancelled` â†’
   `unavailable` mapping. Sites that deliberately want `unavailable` say so.
 - A core or host test fails if a cancelled cache result produces
   `epoch_status::failed`. Without one this is a mapping nothing checks.
