@@ -292,6 +292,19 @@ namespace {
 			MaintenanceCatalogFailures;
 		std::deque<std::pair<std::string, application::git_cache_failure>>
 			MaintenanceCacheFailures;
+		/// Failures for the cache open itself. The fake refuses an open only
+		/// when its stop token is already requested, and requesting a stop
+		/// through the host also moves the comparison context a completion is
+		/// matched against, so BPR-0459's question, what a cancelled open
+		/// reports when its context does still match, had no way to be asked.
+		std::deque<application::git_cache_failure> CacheOpenFailures;
+		/// Stops the retained session answering for the exact request it was
+		/// opened with, which is how `open_actor_cache` decides to reopen. One
+		/// repository actor holds one cache session at a time, so a catalog
+		/// commit can find a session that is not the one it needs; while the
+		/// fixture's session always matched, the commit's own cache open was
+		/// unreachable (BPR-0459).
+		bool RetainedCacheSessionIsForeign = false;
 		/// Failures for the *resolve* path rather than maintenance. A catalog
 		/// retained across a change of history names commits the cache can no
 		/// longer produce, and the question BPR-0200 asks is what a reviewer is
@@ -1229,7 +1242,12 @@ namespace {
 			application::git_cache_open_request aRequest)
 			: State{ aState }
 			, Request{ std::move(aRequest) }
+			, Foreign{ Request }
 		{
+			Foreign.ObjectFormat
+				= Request.ObjectFormat == core::git_hash_algorithm::sha1
+				? core::git_hash_algorithm::sha256
+				: core::git_hash_algorithm::sha1;
 			++State.ActiveCacheSessions;
 			State.MaximumActiveCacheSessions = std::max(
 				State.MaximumActiveCacheSessions,
@@ -1253,7 +1271,7 @@ namespace {
 		[[nodiscard]] auto request() const noexcept
 			-> const application::git_cache_open_request& override
 		{
-			return Request;
+			return State.RetainedCacheSessionIsForeign ? Foreign : Request;
 		}
 
 		[[nodiscard]] auto create_pack_sink(
@@ -1528,6 +1546,7 @@ namespace {
 	private:
 		shared_state&                       State;
 		application::git_cache_open_request Request;
+		application::git_cache_open_request Foreign;
 	};
 
 	class fake_cache_port final : public application::git_cache_port
@@ -1546,6 +1565,11 @@ namespace {
 			State.CacheOpenRequests.push_back(aRequest);
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::git_cache_failure::cancelled };
+			}
+			if (!State.CacheOpenFailures.empty()) {
+				const auto failure = State.CacheOpenFailures.front();
+				State.CacheOpenFailures.pop_front();
+				return std::unexpected{ failure };
 			}
 			return std::make_unique<fake_cache_session>(State, aRequest);
 		}
@@ -5823,6 +5847,95 @@ namespace {
 		}
 	}
 
+	/// BPR-0459. `start_comparison_resolution` separates a cancellation from a
+	/// failure on every catalog result and then mapped its cache open through
+	/// `cache_failure`, where `git_cache_failure::cancelled` becomes
+	/// `epoch_failure::unavailable`. A reviewer who cancelled was told the
+	/// comparison was unavailable, which names a repository problem they do not
+	/// have.
+	///
+	/// The offered revision here is already the catalog's latest live epoch, so
+	/// nothing is prepared or committed and the resolve performs the run's only
+	/// cache open. The cancellation is injected rather than requested through
+	/// the host, because a requested stop also moves the comparison context and
+	/// the completion would be rejected as stale before it could be mapped.
+	void a_cancelled_comparison_cache_open_is_reported_as_cancelled()
+	{
+		fixture    value;
+		auto       accepted = make_handoff(value.State);
+		const auto revision = core::accepted_pull_request_revision{
+			.Source = {
+				.Observation           = opaque<core::epoch_source_observation_id>(0x64U),
+				.Snapshot              = accepted.Snapshot,
+				.IdentityGeneration    = accepted.IdentityGeneration,
+				.PullRequestGeneration = accepted.PullRequestGeneration,
+			},
+			.Origin     = accepted.Origin,
+			.BaseBranch = accepted.BaseBranch,
+			.Base       = accepted.Base,
+			.Head       = accepted.Head,
+		};
+		value.State.Snapshot.LatestLive  = summary_for(revision, value.State.Binding.Catalog);
+		value.State.Snapshot.NextOrdinal = core::epoch_ordinal{ 2 };
+		value.State.CacheOpenFailures.push_back(
+			application::git_cache_failure::cancelled);
+
+		value.Host->accept(std::move(accepted));
+		drain(value);
+
+		expect(
+			value.State.CacheOpenFailures.empty()
+				&& std::ranges::count(value.State.Calls, "cache.open") == 1,
+			"the resolve performs the run's only cache open, so the cancelled "
+			"open is the one under test");
+		expect(
+			value.Host->state().Status == core::epoch_status::cancelled
+				&& !value.Host->state().AcceptedComparison.has_value(),
+			"a cancelled cache open leaves the comparison cancelled rather than "
+			"failed");
+		expect(
+			has_diagnostic(value.State, core::epoch_reason_code::cancelled)
+				&& !has_diagnostic(
+					value.State, core::epoch_reason_code::unavailable),
+			"and reaches presentation as a cancellation rather than as the "
+			"unavailability the shared failure mapping used to produce");
+	}
+
+	/// BPR-0459, the same distinction on the append commit's own cache open.
+	/// `start_catalog_commit` reopens the repository actor's cache session when
+	/// the retained one is not the session it needs, and answered a cancelled
+	/// reopen with `abortAndFail`, three lines above the `abortAndCancel` its
+	/// adjacent stop check already used.
+	void a_cancelled_commit_cache_open_is_reported_as_cancelled()
+	{
+		fixture value;
+		value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+		drive_through_preparation(value);
+		value.State.RetainedCacheSessionIsForeign = true;
+		value.State.CacheOpenFailures.push_back(
+			application::git_cache_failure::cancelled);
+
+		run_effect_completion(value);
+
+		expect(
+			value.State.CacheOpenFailures.empty()
+				&& std::ranges::count(value.State.Calls, "cache.open") == 2,
+			"the commit reopens the session it needs, and that open is the "
+			"cancelled one");
+		expect(
+			value.Host->state().Status == core::epoch_status::cancelled
+				&& value.Host->state().Catalog == catalog_identity()
+				&& std::ranges::find(value.State.Calls, "catalog.transition:ponr")
+					== value.State.Calls.end(),
+			"a cancelled cache open aborts the append as a cancellation before "
+			"the point of no return rather than as a failure");
+		expect(
+			has_diagnostic(value.State, core::epoch_reason_code::cancelled)
+				&& !has_diagnostic(
+					value.State, core::epoch_reason_code::unavailable),
+			"and says so in the diagnostic the commit terminal publishes");
+	}
+
 	void shutdown_waits_for_worker_and_decision_quiescence()
 	{
 		fixture value;
@@ -5909,6 +6022,8 @@ int main()
 	maintenance_faults_fail_closed_and_restart_from_durable_phase();
 	retained_catalog_naming_absent_commits_asks_for_repair();
 	a_failed_git_subprocess_names_itself_rather_than_unavailable();
+	a_cancelled_comparison_cache_open_is_reported_as_cancelled();
+	a_cancelled_commit_cache_open_is_reported_as_cancelled();
 	shutdown_waits_for_worker_and_decision_quiescence();
 	return EXIT_SUCCESS;
 }

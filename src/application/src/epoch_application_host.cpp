@@ -5342,7 +5342,9 @@ namespace bpr::application {
 					const auto cache = open_actor_cache(
 						*context->Actor, *caches, expectedCache, aStop);
 					if (!cache) {
-						return abortAndFail(cache_failure(cache.error()));
+						return cache.error() == git_cache_failure::cancelled
+							? abortAndCancel()
+							: abortAndFail(cache_failure(cache.error()));
 					}
 					if (aStop.stop_requested()) {
 						return abortAndCancel();
@@ -6214,6 +6216,14 @@ namespace bpr::application {
 					const auto openedCache = open_actor_cache(
 						*context->Actor, *caches, expectedCache, aStop);
 					if (!openedCache) {
+						if (openedCache.error() == git_cache_failure::cancelled) {
+							return [aRequest](implementation& aHost) {
+								aHost.dispatch_core(
+									core::comparison_resolve_cancelled_event{
+										.Context = aRequest.Context,
+									});
+							};
+						}
 						const auto failure = cache_failure(openedCache.error());
 						return [aRequest, failure](implementation& aHost) {
 							aHost.dispatch_core(
