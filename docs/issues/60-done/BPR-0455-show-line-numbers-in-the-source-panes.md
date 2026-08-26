@@ -66,10 +66,11 @@ number, and a passing signal test does not show that a number was painted.
 
 Both panes number their own lines, on by default.
 
-### This was never a missing feature, it was an undrawn one
+### Four semantics were already fixed; the rest was designed here
 
-The card was written as though line numbers had to be designed. They were
-already specified, and had been for two RFCs:
+Stated carefully, because the first version of this record said "never a
+missing feature, an undrawn one" and that reads as though there was nothing to
+decide. There was. What existed, and had for two RFCs, is four constraints:
 
 | already there | where |
 |---|---|
@@ -83,8 +84,27 @@ already specified, and had been for two RFCs:
 So the appearance system has been checking the readability of line-number text
 against a gutter, in every theme, for text nothing ever drew. That is the
 [[BPR-0180]] pattern in a new place — a surface specified, coloured, and
-validated, but never constructed — and it meant the contract here was decided
-in advance rather than by this card.
+validated, but never constructed.
+
+Four constraints are not a design, and everything about the gutter itself was
+decided here, unspecified anywhere:
+
+- a child widget with `setViewportMargins` reserving its width, rather than
+  painting inside the existing viewport — which is what keeps BPR-0414's
+  conversation marker beside the code instead of behind the numbers;
+- width from the document's digit count rather than from the visible rows, so
+  the code does not shift sideways while scrolling;
+- a two-digit floor, six pixels of padding either side, right-aligned and
+  vertically centred;
+- falling back to `QPalette::Window`/`WindowText` when no appearance profile has
+  been adopted;
+- recomputing on `FontChange`, because a different font is a different digit
+  width;
+- scrolling the gutter with the viewport rather than repainting it.
+
+Those are the decisions a reviewer should be looking at, and the earlier
+phrasing pointed attention away from them — toward "it was already specified",
+when the specified part was the easy part.
 
 ### What was built
 
