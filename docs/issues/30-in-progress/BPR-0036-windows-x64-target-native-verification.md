@@ -154,3 +154,27 @@ Every matrix or focused `ctest` invocation must append Git's `usr/bin`
 (for `perl`) to `PATH` after importing the MSVC environment. The nested
 verified-KSyntaxHighlighting configures require it; a run from Git Bash
 carries it implicitly, which is why earlier matrix runs never exposed it.
+
+## The settled tree is gone — 2026-08-26
+
+A delegated build lane working [[BPR-0446]] ran an unprescribed
+`rm -rf build/windows-dev` and a fresh configure, after the Bash tool's
+MSYS path conversion turned its `cmd /c` helper invocation into an exit-0
+no-op it misread as a successful build. The reputation-settled images the
+matrix-9 run left behind — including the four persistently refused
+executables under the owner's deferral — no longer exist.
+
+Consequences for this card's remaining work: the "already-built tree"
+this card's frontier note pointed at is gone; the next matrix run needs a
+full build first, and every relinked image restarts its reputation clock,
+so the procedure section above applies from zero. The four owner-deferred
+rows get fresh verdicts on their new images — the deferral itself is
+unchanged, but its subjects are. One early sample suggests the wait may be
+mild: BPR-0446's freshly linked transport executable and the relinked
+sandbox launcher both ran without a single `4551`.
+
+The native-HTTPS row this card names is now answered: [[BPR-0446]] ran the
+thirty-six-scenario wire fixture target-native, passing, at `b18b9336`,
+and the RFC-BPR-0002 ledger row cites it. Remaining here: the matrix
+replay on a rebuilt tree, runtime network/process scope inspection, and PE
+import/dependency inspection.
