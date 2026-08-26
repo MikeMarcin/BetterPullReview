@@ -164,6 +164,53 @@ set_tests_properties(
 )
 
 bpr_add_executable(
+    test_better_pull_review_qt_github_thread_map_tests
+    github_thread_map_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_github_thread_map_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+target_compile_definitions(
+    test_better_pull_review_qt_github_thread_map_tests
+    PRIVATE
+        "BPR_DEEP_THREAD_FIXTURE=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/conversations/deep-thread-v1/projection.json\""
+)
+bpr_enable_hardening(
+    test_better_pull_review_qt_github_thread_map_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_qt_github_thread_map_tests
+)
+
+# Three scales, because the map sizes every node to its own label and a
+# fractional device pixel ratio is where a layout that assumed integer metrics
+# stops agreeing with what it painted.
+foreach(bpr_thread_map_scale 100 125 200)
+    if(bpr_thread_map_scale STREQUAL "100")
+        set(bpr_thread_map_factor 1.0)
+    elseif(bpr_thread_map_scale STREQUAL "125")
+        set(bpr_thread_map_factor 1.25)
+    else()
+        set(bpr_thread_map_factor 2.0)
+    endif()
+    bpr_add_network_isolated_test(
+        NAME "qt_github_thread_map_scale_${bpr_thread_map_scale}"
+        COMMAND test_better_pull_review_qt_github_thread_map_tests
+    )
+    set_tests_properties(
+        "qt_github_thread_map_scale_${bpr_thread_map_scale}"
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_thread_map_factor};BPR_EXPECTED_QT_SCALE=${bpr_thread_map_factor};BPR_QT_THREAD_MAP_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-thread-map-${bpr_thread_map_scale}.png"
+            PASS_REGULAR_EXPRESSION "thread-map-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()
+
+bpr_add_executable(
     test_better_pull_review_qt_github_conversation_model_property_tests
     github_conversation_model_property_tests.cpp
 )

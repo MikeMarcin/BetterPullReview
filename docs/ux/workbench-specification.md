@@ -331,6 +331,61 @@ marker is drawn. Retained historical navigation requires a revision identity
 and remains separate work; an outdated thread is never placed against the
 current panes by reusing its original line.
 
+### The thread map
+
+Above the tree, the drawer draws the same forest as a map of its reply
+structure. It is the Treeverse-style view the product owner chose on
+2026-08-21, and it exists because a reply chain deep enough to matter stops
+being followable as an indented list — which is the case the linear
+presentation loses, not the ordinary one.
+
+Nodes are boxes labelled with the author of a comment, or with the anchored
+file and line for a thread's root, laid out one row per depth. Edges run
+parent to child. Slots within a depth are assigned in pre-order, so within one
+row every node of an earlier subtree precedes every node of a later one and no
+two edges can cross. A box is sized to its own label, so no author name is
+elided into an ambiguous prefix.
+
+Selecting a node highlights **the whole branch it belongs to**, in two weights.
+The root-to-selection path is drawn heaviest: that is the floor the owner set
+— "it still needs to show the full branch that you clicked on, or at least up
+to the node you selected". Everything downstream of the selection is drawn
+lighter, so the chain's continuation is visible without competing with the
+path; that lighter set is the whole subtree, sibling sub-branches included,
+because all of it is downstream of the comment that was clicked. Anything
+neither above nor below the selection is left plain. A caption below the map
+states the path and how many replies follow.
+
+Highlighting is not the same claim as showing. The drawer's band is short, so
+selecting a node scrolls the map to it and keeps as much of the path above it
+as fits; when the whole branch fits, all of it is shown. A band that changes
+height re-reveals rather than leaving the selection scrolled away. Without
+that, a reviewer gets a highlighted branch whose selected end is off-screen —
+which is what the surface shipped as until an independent review measured it.
+
+Selection has one owner. Pressing a node moves the drawer tree's current index,
+and the code reveal, the anchor marker, and the defect surface keep reading
+that selection from where they always did. The map holds no selection authority
+of its own, performs no effect, and adds no projection: it is a second view of
+the drawer's forest, never a second source of it.
+
+There is deliberately **no read or unread state on the map**. The accepted
+mockup legends one, and nothing in this product carries it — the review
+ledger's unread notion is a per-conversation cursor rather than a per-comment
+flag. Showing it would mean inventing the state or approximating it, so the
+distinction is absent rather than faked.
+
+An unexpected shape costs nesting and never a row. A parent naming a comment
+that is not present, and a parent chain that never terminates, both promote the
+node to a root — every node on the chain, decided in a pass that writes nothing
+so the outcome cannot depend on visit order. That is the same answer the
+drawer's tree gives, and the drawer shows both views at once, so a shape they
+answered differently would be a disagreement the reviewer could see.
+
+The map maps whichever threads the drawer is currently showing, so its summary
+counts across them. A projection equal to the one already mapped is skipped
+rather than relaid, because the drawer re-adopts on every anchor change.
+
 ## Command placement
 
 Review submission actions remain visible in a persistent action region but do not displace file/change navigation. Private receipt progress stays available through the compact keyboard-operable popup beside Review details. Destructive or shared mutations require clear target and state presentation.

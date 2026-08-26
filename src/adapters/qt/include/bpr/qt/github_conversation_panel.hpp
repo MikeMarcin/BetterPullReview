@@ -18,6 +18,7 @@ class QTreeView;
 
 namespace bpr::qt {
 	class github_conversation_model;
+	class github_thread_map;
 
 	/// \brief Presents the threaded review conversation, on its own.
 	///
@@ -33,6 +34,11 @@ namespace bpr::qt {
 	/// node has two parents and no two edges can cross. Anything built on top of
 	/// this — lanes, filtering, a graph-style rendering — should take that as
 	/// given rather than handling merges that cannot occur.
+	///
+	/// Since [[BPR-0418]] it presents that forest twice: as the anchored tree a
+	/// reviewer reads, and above it as a drawn map of the same reply structure
+	/// with the branch through the current node highlighted. The map is a
+	/// presentation of the tree it sits above and never a second projection.
 	///
 	/// It owns no wording about GitHub capability. The availability line is
 	/// composed by whoever knows whether review threads were retrievable, which
@@ -113,16 +119,30 @@ namespace bpr::qt {
 		void relayout();
 
 		[[nodiscard]] auto view() const noexcept -> QTreeView*;
+		[[nodiscard]] auto thread_map() const noexcept -> github_thread_map*;
+		[[nodiscard]] auto thread_map_summary() const noexcept -> QLabel*;
+		[[nodiscard]] auto thread_map_branch() const noexcept -> QLabel*;
 		[[nodiscard]] auto model() const noexcept -> github_conversation_model*;
 		[[nodiscard]] auto availability_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto reveal_button() const noexcept -> QToolButton*;
 
 	private:
+		/// \brief Puts the map and the drawer's tree on the same node.
+		void synchronize_map_focus();
+
 		QLabel*                    AvailabilityLabel = nullptr;
 		QToolButton*               RevealButton      = nullptr;
 		QStackedWidget*            Stack             = nullptr;
 		QTreeView*                 View              = nullptr;
 		github_conversation_model* Model             = nullptr;
+		/// The Treeverse-style reply-structure map [[BPR-0418]] adds beside the
+		/// thread itself. It is a second *view* of the drawer's own forest, not
+		/// a second source of it, so it holds no selection authority: a click
+		/// on the map moves the tree's current index and the tree's selection
+		/// is what everything downstream still reads.
+		github_thread_map* ThreadMap        = nullptr;
+		QLabel*            ThreadMapSummary = nullptr;
+		QLabel*            ThreadMapBranch  = nullptr;
 		/// Expanded once, on the first projection that has anything to expand.
 		/// A reviewer who then collapses a thread keeps it collapsed across the
 		/// next refresh, which re-expanding on every projection would undo.

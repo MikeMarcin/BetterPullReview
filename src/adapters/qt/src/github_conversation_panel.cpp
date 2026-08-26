@@ -2,14 +2,17 @@
 
 #include "bpr/qt/github_conversation_delegate.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/github_thread_map.hpp"
 
 #include "github_presentation_text.hpp"
 
 #include <QAction>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QItemSelectionModel>
 #include <QLabel>
 #include <QSignalBlocker>
+#include <QSplitter>
 #include <QStackedWidget>
 #include <QToolButton>
 #include <QTreeView>
@@ -181,7 +184,37 @@ namespace bpr::qt {
 		Stack->addWidget(empty);
 
 		Model = new github_conversation_model{ this };
-		View  = new QTreeView{ Stack };
+
+		// The loaded state shows the same forest twice. The map answers "where
+		// am I in this thread" - the question BPR-0211 recorded a reviewer
+		// losing the answer to at depth - and the tree below it answers "what
+		// does this comment say". A splitter, because which of those a reviewer
+		// wants more is not a decision this panel gets to make for them.
+		auto* const loaded = new QSplitter{ Qt::Vertical, Stack };
+		loaded->setObjectName(QStringLiteral("githubConversationLoaded"));
+		loaded->setChildrenCollapsible(true);
+
+		auto* const mapPane   = new QWidget{ loaded };
+		auto* const mapLayout = new QVBoxLayout{ mapPane };
+		mapLayout->setContentsMargins(0, 0, 0, 0);
+		ThreadMapSummary = new QLabel{ mapPane };
+		ThreadMapSummary->setObjectName(QStringLiteral("threadMapSummary"));
+		ThreadMapSummary->setAccessibleName(
+			QStringLiteral("Thread map summary"));
+		detail::set_plain_text_label(ThreadMapSummary);
+		mapLayout->addWidget(ThreadMapSummary);
+		ThreadMap = new github_thread_map{ mapPane };
+		mapLayout->addWidget(ThreadMap, 1);
+		ThreadMapBranch = new QLabel{ mapPane };
+		ThreadMapBranch->setObjectName(QStringLiteral("threadMapBranch"));
+		ThreadMapBranch->setAccessibleName(
+			QStringLiteral("Path to the selected reply"));
+		ThreadMapBranch->setWordWrap(true);
+		detail::set_plain_text_label(ThreadMapBranch);
+		mapLayout->addWidget(ThreadMapBranch);
+		loaded->addWidget(mapPane);
+
+		View = new QTreeView{ loaded };
 		View->setObjectName(QStringLiteral("githubConversationView"));
 		View->setAccessibleName(QStringLiteral("Read-only GitHub conversations"));
 		View->setAccessibleDescription(
@@ -199,10 +232,44 @@ namespace bpr::qt {
 		View->setTextElideMode(Qt::ElideNone);
 		View->header()->hide();
 		View->setItemDelegate(new github_conversation_delegate{ View });
-		Stack->addWidget(View);
+		loaded->addWidget(View);
+		// The map asks for the band its own sizeHint names and the tree takes
+		// the rest. Left to stretch factors alone the map collapsed to its
+		// minimum in an ordinary window, which showed a highlighted branch
+		// whose end was off-screen - the exact failure the owner's
+		// "show the full branch" direction is about.
+		loaded->setStretchFactor(0, 0);
+		loaded->setStretchFactor(1, 1);
+		Stack->addWidget(loaded);
 		layout->addWidget(Stack, 1);
 
-		setTabOrder(RevealButton, View);
+		// Selection has one owner. A map node press moves the tree's current
+		// index, and everything that already listened to the tree - the code
+		// reveal, the defect surface, the anchor marker - keeps hearing about
+		// it from exactly where it did before.
+		ThreadMap->set_selection_sink([this](const std::string& aIdentity) {
+			const auto target = Model->index_for_id(aIdentity);
+			if (target.isValid()) {
+				View->setCurrentIndex(target);
+			}
+		});
+		connect(
+			View->selectionModel(),
+			&QItemSelectionModel::currentChanged,
+			this,
+			[this](const QModelIndex&) { synchronize_map_focus(); });
+
+		setTabOrder(RevealButton, ThreadMap);
+		setTabOrder(ThreadMap, View);
+	}
+
+	void github_conversation_panel::synchronize_map_focus()
+	{
+		// Not announced: the tree the reviewer moved in has already said what
+		// is now selected, and the map echoing it makes one gesture speak twice.
+		ThreadMap->set_focus_identity(
+			Model->id_for_index(View->currentIndex()), false);
+		ThreadMapBranch->setText(ThreadMap->branch_text());
 	}
 
 	void github_conversation_panel::adopt(
@@ -231,6 +298,8 @@ namespace bpr::qt {
 			LeftHasCurrentDiffRevision,
 			RightHasCurrentDiffRevision);
 		Model->apply(shown);
+		ThreadMap->adopt(shown);
+		ThreadMapSummary->setText(ThreadMap->summary_text());
 		Stack->setCurrentIndex(shown.empty() ? 0 : 1);
 		View->doItemsLayout();
 		if (ExpandOnNextProjection && !shown.empty()) {
@@ -246,6 +315,10 @@ namespace bpr::qt {
 				View->setCurrentIndex(restored);
 			}
 		}
+		// Set explicitly rather than through the signal, which the restore
+		// above deliberately blocks: the map has to end an adopt showing the
+		// branch the reviewer was reading, not the one before the refresh.
+		synchronize_map_focus();
 	}
 
 	void github_conversation_panel::clear(QString aAvailabilityText)
@@ -255,6 +328,9 @@ namespace bpr::qt {
 		RetainedAvailability.clear();
 		AvailabilityLabel->setText(std::move(aAvailabilityText));
 		Model->clear();
+		ThreadMap->clear();
+		ThreadMapSummary->setText(ThreadMap->summary_text());
+		ThreadMapBranch->setText(ThreadMap->branch_text());
 		Stack->setCurrentIndex(0);
 	}
 
@@ -339,6 +415,23 @@ namespace bpr::qt {
 	auto github_conversation_panel::view() const noexcept -> QTreeView*
 	{
 		return View;
+	}
+
+	auto github_conversation_panel::thread_map() const noexcept
+		-> github_thread_map*
+	{
+		return ThreadMap;
+	}
+
+	auto github_conversation_panel::thread_map_summary() const noexcept
+		-> QLabel*
+	{
+		return ThreadMapSummary;
+	}
+
+	auto github_conversation_panel::thread_map_branch() const noexcept -> QLabel*
+	{
+		return ThreadMapBranch;
 	}
 
 	auto github_conversation_panel::model() const noexcept

@@ -127,8 +127,13 @@ identities. Its ten direct tests pass, and the ordinary network-isolated
 runs them in the default plan with no isolation exemption. The reviewed
 BPR-0256 v006 plan ran once before this registration landed and is frozen as
 safely cancelled, non-retryable evidence, so the added test drifts no reviewed
-live plan. BPR-0418 still owns rendered consumption and must not upgrade this
-constructed content into real-world need or shipped-public-path evidence.
+live plan. BPR-0418 has now taken that rendered consumption: the
+`qt_github_thread_map_scale_{100,125,200}` suite reads this file directly
+rather than restating its nodes, so a change to its topology reaches the
+renderer's own assertions instead of passing them silently. That consumption
+adds no production loader and does not upgrade this constructed content into
+real-world need or shipped-public-path evidence — the map is proven to render
+the shape, not that any pull request ever carried it.
 
 ## Recorded RFC-BPR-0016 device-authorization contract v1
 

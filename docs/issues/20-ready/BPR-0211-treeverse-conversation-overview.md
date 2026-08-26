@@ -1,7 +1,7 @@
 ---
 id: BPR-0211
 title: Build the Treeverse-style overview of a deep thread
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191, BPR-0413, BPR-0416, BPR-0417, BPR-0418]
 ---
@@ -195,3 +195,11 @@ failing.
   precondition, now carded rather than restated.
 - [[BPR-0418]] — build the map surface, including the owner's requirement that
   the full clicked branch be visible.
+
+## Every slice has landed — 2026-08-25
+
+[[BPR-0416]] carried the reply edge, [[BPR-0417]] recorded a conversation with
+real depth, and [[BPR-0418]] built the map surface with the owner's full-branch
+requirement met. This umbrella now owns only its own closing record: what
+shipped, what was recorded *not chosen*, and what the first version deliberately
+left for iteration after use.

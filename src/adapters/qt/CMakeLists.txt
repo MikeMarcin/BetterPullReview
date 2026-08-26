@@ -22,6 +22,7 @@ add_library(
         src/foundation_window.cpp
         src/github_conversation_delegate.cpp
         src/github_conversation_model.cpp
+        src/github_thread_map.cpp
     src/github_conversation_panel.cpp
     src/github_pull_request_panel.cpp
         src/measured_alignment_axis.cpp
