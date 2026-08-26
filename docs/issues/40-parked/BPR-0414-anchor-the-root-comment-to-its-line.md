@@ -1,9 +1,10 @@
 ---
 id: BPR-0414
 title: Anchor the root comment to the line of code it comments on
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191]
+parked_on: awaiting-owner-verdict
 ---
 
 # Anchor the root comment to the line of code it comments on
@@ -273,3 +274,55 @@ python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py \
 Until that exact batch validates, this card is parked, no owner verdict is
 recorded, no inline-comment-body direction is authorized, and RFC-BPR-0005 is
 not closed.
+
+## That batch was withdrawn before anyone saw it — 2026-08-25
+
+Batch `ab6145717475dfdfddd6206d` is **withdrawn, unanswered**. It is not
+rejected and carries no verdict; its subject simply stopped being the product.
+
+[[BPR-0418]] put the thread map inside the conversations drawer, which is the
+drawer this question's only screenshot shows. The same registered course now
+produces a different image:
+
+| | sha256 |
+|---|---|
+| bound into the withdrawn batch | `17484447…f624d5f6` |
+| what the course produces at head | `6f048c13…5b9f5da7e9` |
+
+The change is material to this question rather than incidental to it. One of
+the packet's own acceptance criteria is that *"the root and reply remain
+readable without inserting prose into the source document"*, and the thread map
+now takes a measured slice of the drawer above them. Asking the owner to accept
+the old image would have asked them to judge a drawer that does not ship.
+
+This is the same failure the board caught once before, when an independent
+review falsified [[BPR-0413]]'s cost claim before the owner saw the page. It is
+worth noting that nothing *detected* the staleness: the packet does not bind
+the capture course's current output, so a source change under it is silent. The
+only reason it surfaced is that the owner asked whether an attended review
+could be run today, and the capture was re-derived before being offered.
+
+### Regenerated at `20e94d0`
+
+Same question, same acceptance criteria, same downstream claims — only the
+capture, its provenance, and the batch identity move. New batch:
+`bpr:/attended-review/betterpullreview/0a6b4763976a05a7f14af6df`, subject digest
+`sha256:f69fb934…73b8b044`.
+
+The course was rerun and produced its complete contiguous marker block —
+`PUBLIC_PATH_OK`, `GITHUB_FIXTURE_OK:github.com`, `DIFF_WORKBENCH_OK`,
+`DIFF_INTERACTION_EVIDENCE_OK`, `CONVERSATION_ANCHOR_EVIDENCE_OK`, `RENDER_OK`.
+The 17 attended-review script tests pass, the documentation gates pass, and
+`git diff --check` is clean.
+
+The map is shown rather than cropped, and both the disclaimer and the subject's
+known concerns say plainly that it is not what is being asked about — cropping
+it would put a drawer in front of the owner that does not exist, and saying
+nothing would invite them to answer the wrong question. Its size and
+always-visible placement are [[BPR-0211]]'s recorded iteration question.
+
+Open
+`docs/verification/reviews/conversation-code-boundary-v001/offline-package/index.html`,
+inspect the composed screenshot at native size, choose `Accept` or `Reject`,
+and return the exported JSON unedited. Validate it against the **new** manifest
+before recording anything; the withdrawn batch's manifest must not be used.

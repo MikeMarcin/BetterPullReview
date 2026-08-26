@@ -3,20 +3,20 @@
   "schema_version": 1,
   "capture": {
     "path": "captures/conversation-anchor.png",
-    "sha256": "17484447ab74712c00946ca5b28606dc94ed55af96c1b5c2d4faa639f624d5f6",
+    "sha256": "6f048c13881933e648a709085615f3489b96a0965d3b6f9e95a3ab5b9f5da7e9",
     "pixel_width": 1280,
     "pixel_height": 1000,
     "device_pixel_ratio": 1.0
   },
   "producer": {
-    "implementation_commit": "8c7504dd80b28308d29e4d37254004ba3708821b",
+    "implementation_commit": "20e94d063bbe559c8d1bc818f7ded8c23aacab26",
     "command": "ctest --preset dev --output-on-failure -R '^application_diff_workbench_public_path$'",
     "test_name": "application_diff_workbench_public_path",
     "network_policy": "registered-network-isolated-ctest-course",
     "source_artifact": "build/dev/tests/end_to_end/diff-workbench-public-path.png",
     "cmake_preset": "dev",
     "build_configuration": "Debug",
-    "capture_date": "2026-08-24"
+    "capture_date": "2026-08-25"
   },
   "environment": {
     "operating_system": "macOS",

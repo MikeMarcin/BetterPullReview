@@ -2,7 +2,7 @@
 
 This batch asks the bounded product-direction question left by [[BPR-0414]]
 after exact conversation anchoring was implemented in commit
-`8c7504dd80b28308d29e4d37254004ba3708821b`. The capture is a render from the
+`20e94d063bbe559c8d1bc818f7ded8c23aacab26`. The capture is a render from the
 real composed application using the repository's recorded GitHub.com contract
 fixture. It is not a drawn mockup and contains no live or private GitHub data.
 
@@ -12,6 +12,14 @@ the ordinary source-line selection remains visible, and the narrow blue mark at
 the pane's left margin is the conversation anchor. The comment body remains in
 the drawer, so neither natural-layout source document gains a synthetic or
 inline row.
+
+The drawer also carries BPR-0418's thread map above the thread. That surface
+landed after the withdrawn batch `ab6145717475dfdfddd6206d` was built, which is
+why this capture was regenerated: the earlier one showed a drawer that no
+longer ships. The map is not what this question asks about, and it is shown
+rather than cropped because cropping it would put a drawer in front of the
+owner that does not exist. Its size and always-visible placement are
+[[BPR-0211]]'s recorded iteration question.
 
 ## Boundary and limits
 
