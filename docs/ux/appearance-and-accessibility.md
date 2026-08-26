@@ -206,7 +206,7 @@ retiring it is tracked as its own decision.
 Theme customization exposes semantic roles, not arbitrary QSS or executable styles:
 
 - Application surfaces and text
-- Code background, gutter, line numbers, selection, current line
+- Code background, gutter, line numbers, selection, current line — the gutter and line-number pair is rendered by the source panes since BPR-0455; before that the contrast rules validated a pair nothing drew
 - Added, removed, intraline added/removed, moved, hunk header
 - Unread, accepted, defect, fixed, verified, stale
 - Syntax token categories

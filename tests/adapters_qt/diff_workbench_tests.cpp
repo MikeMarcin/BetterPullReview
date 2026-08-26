@@ -412,6 +412,155 @@ namespace {
 		QCoreApplication::sendEvent(&aSurface, &release);
 	}
 
+	/// \brief Returns the gutter widget a pane numbers its own lines in.
+	[[nodiscard]] auto gutter_of(QPlainTextEdit* const aPane) -> QWidget*
+	{
+		expect(aPane != nullptr, "the pane whose gutter is wanted exists");
+		auto* const found = aPane->findChild<QWidget*>(
+			QStringLiteral("diffSourceLineNumbers"));
+		expect(found != nullptr, "the pane composes a line-number gutter");
+		return found;
+	}
+
+	/// \brief Counts the distinct colours in one region of a raster.
+	///
+	/// \details A gutter that reserved its width and painted nothing is a
+	/// single flat colour. Anything drawn in it is a second one.
+	[[nodiscard]] auto distinct_colors(const QImage& aImage, const QRect& aRect)
+		-> std::size_t
+	{
+		auto       seen    = std::set<QRgb>{ };
+		const auto bounded = aRect.intersected(aImage.rect());
+		for (auto y = bounded.top(); y <= bounded.bottom(); ++y) {
+			for (auto x = bounded.left(); x <= bounded.right(); ++x) {
+				seen.insert(aImage.pixel(x, y));
+			}
+		}
+		return seen.size();
+	}
+
+	/// \brief Proves the panes number their own lines, visibly.
+	///
+	/// \details BPR-0414 was rejected because the owner could not tell which
+	/// rendered row was line 42. Every automated check of that line passed at
+	/// the time, because they all read the model and none asked whether a
+	/// number had been painted. This asks.
+	void test_the_panes_number_their_own_lines()
+	{
+		const auto [leftText, rightText] = representative_text();
+		auto       options               = core::diff_options{ };
+		const auto diff                  = computed(leftText, rightText, options, 0U);
+		auto       workbench             = qt::diff_workbench{ };
+		workbench.resize(1'260, 820);
+		workbench.show();
+		process_events();
+		// The workbench admits a result only for its exact current loading
+		// context, so a publish without one leaves the panes empty and every
+		// check below would pass against a one-line document.
+		const auto selected = context(diff, 1U, 1U);
+		workbench.set_loading(selected);
+		workbench.publish({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+		expect(workbench.left_pane()->blockCount() > 1
+				   && workbench.right_pane()->blockCount() > 1,
+			   "the panes really hold the fixture's source");
+
+		for (auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+			auto* const gutter = gutter_of(source);
+			expect(gutter->isVisible() && gutter->width() > 0,
+				   "each pane shows a gutter with real width");
+			// The code has to actually move aside. A gutter painted over the
+			// unshrunk viewport would sit on top of the source, which is the
+			// failure this geometry check exists to refuse.
+			expect(gutter->geometry().right() <= source->viewport()->x(),
+				   "the gutter sits entirely left of the text viewport rather "
+				   "than over it");
+			expect(source->viewport()->x() >= gutter->width(),
+				   "the pane reserved the gutter's width from its text");
+
+			// The gutter's own raster, not the pane's. Sampling a strip of the
+			// pane catches its frame border, and one border line is enough to
+			// make an empty gutter look painted.
+			const auto column = gutter->grab().toImage();
+			expect(distinct_colors(column, column.rect()) > 1U,
+				   "the gutter has numbers painted in it rather than a "
+				   "reserved but empty strip");
+		}
+
+		// Both documents start at line one, so at the top of the comparison
+		// the two gutters agree. That is not a renumbering; it is what
+		// independent numbering looks like before anything one-sided has
+		// gone past.
+		const auto leftAtTop  = gutter_of(workbench.left_pane())->grab().toImage();
+		const auto rightAtTop = gutter_of(workbench.right_pane())->grab().toImage();
+		expect(leftAtTop.size() == rightAtTop.size(),
+			   "both gutters are the same size for this comparison");
+		expect(leftAtTop == rightAtTop,
+			   "both panes begin at line one");
+
+		// RFC-BPR-0004: each pane numbers its own document and is never
+		// renumbered to match the other side. Scroll past the fixture's
+		// one-sided blocks and the same screen row carries different numbers,
+		// which is the whole reason a reviewer needs them.
+		auto* const shared = workbench.shared_scrollbar();
+		shared->setValue(shared->maximum());
+		process_events();
+		const auto leftScrolled
+			= gutter_of(workbench.left_pane())->grab().toImage();
+		const auto rightScrolled
+			= gutter_of(workbench.right_pane())->grab().toImage();
+		expect(leftScrolled != leftAtTop,
+			   "scrolling changes the numbers on screen, so they follow the "
+			   "document rather than decorating the viewport");
+		expect(leftScrolled != rightScrolled,
+			   "past a one-sided block the two panes show different numbers on "
+			   "the same row, because neither is renumbered to match the other");
+	}
+
+	/// \brief Proves the gutter is sized to the document it numbers.
+	void test_the_gutter_follows_the_documents_digit_count()
+	{
+		const auto widthFor = [](const std::uint32_t aLines) {
+			auto left  = std::string{ };
+			auto right = std::string{ };
+			for (auto line = std::uint32_t{ 0U }; line < aLines; ++line) {
+				left += "same-" + std::to_string(line) + '\n';
+				right += "same-" + std::to_string(line) + '\n';
+			}
+			right += "only-on-the-right\n";
+			auto       options   = core::diff_options{ };
+			const auto diff      = computed(left, right, options, 7U);
+			auto       workbench = qt::diff_workbench{ };
+			workbench.resize(1'260, 820);
+			workbench.show();
+			process_events();
+			const auto selected = context(diff, 1U, 1U);
+			workbench.set_loading(selected);
+			workbench.publish({
+				.Context = selected,
+				.Result  = std::make_shared<const core::computed_file_diff>(diff),
+			});
+			process_events();
+			expect(workbench.right_pane()->blockCount() > 1,
+				   "the sized fixture really reached the pane");
+			return gutter_of(workbench.right_pane())->width();
+		};
+
+		const auto twoDigits   = widthFor(8U);
+		const auto threeDigits = widthFor(120U);
+		const auto fourDigits  = widthFor(1'200U);
+		expect(twoDigits < threeDigits && threeDigits < fourDigits,
+			   "a longer document reserves a wider gutter, so the numbers are "
+			   "sized to the file rather than to a fixed guess");
+		// Sized from the block count, not from what is on screen: a gutter that
+		// grew while scrolling would shift the code sideways under the reader.
+		expect(threeDigits - twoDigits == fourDigits - threeDigits,
+			   "each additional digit costs exactly one digit of width");
+	}
+
 	void test_selected_composition()
 	{
 		auto announcements               = std::vector<accessible_announcement>{ };
@@ -2343,6 +2492,8 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
+	test_the_panes_number_their_own_lines();
+	test_the_gutter_follows_the_documents_digit_count();
 	test_selected_composition();
 	test_semantic_selection_callback_tracks_both_panes_and_clear();
 	test_conversation_anchor_reveals_and_paints_exact_line();

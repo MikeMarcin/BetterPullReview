@@ -224,6 +224,17 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
 
 - Upper panes show both source documents in natural layout with no synthetic
   alignment blanks or invented source rows.
+- Each pane numbers its own lines in a gutter at its left edge, on by default.
+  The numbers are one-based on screen while every internal coordinate stays
+  zero-based, and a pane is never renumbered to agree with the other side — so
+  past a one-sided block the same screen row legitimately carries different
+  numbers in each pane. The gutter is sized to the document's digit count
+  rather than to what is on screen, because a column that grew while scrolling
+  would shift the code sideways under the reader. Its colours are the
+  `code_gutter_background` and `code_line_number_text` roles, which the
+  appearance contrast rules already validate in every profile. The conversation
+  anchor marker stays at the text viewport's inner edge, so it sits beside the
+  code rather than behind the numbers.
 - One retained comparison-space position drives both pane origins and one
   shared vertical scrollbar. Wheel/trackpad input over either pane or the
   center divider, Page/Home/End, scrollbar drag, and programmatic reveal all

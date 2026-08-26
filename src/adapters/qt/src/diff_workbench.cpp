@@ -38,11 +38,37 @@ namespace bpr::qt {
 	namespace {
 		/// Width of the change-group boundary rule, in device-independent pixels.
 		constexpr auto BoundaryRuleWidth = 2.0;
+		/// Breathing room either side of the widest number the gutter shows.
+		constexpr auto GutterPadding = 6;
+		/// A one-glyph column reads as a margin, not as a column of numbers.
+		constexpr auto GutterMinimumDigits = 2;
 
+		/// \brief Reserves the gutter each pane numbers its own lines in.
+		///
+		/// \details `code_gutter_background` and `code_line_number_text` have been
+		/// declared roles in every built-in palette since RFC-BPR-0006, and
+		/// `appearance_contrast` has been validating that pair's readability in
+		/// every profile, against text nothing drew. BPR-0455 draws it, after the
+		/// BPR-0414 owner review could not tell which pane row was line 42.
 		class source_pane final : public QPlainTextEdit
 		{
 		public:
-			using QPlainTextEdit::QPlainTextEdit;
+			explicit source_pane(QWidget* aParent = nullptr);
+
+			/// \brief Widths the gutter to the widest number it will ever show.
+			///
+			/// \details Sized from the block count rather than from the visible
+			/// rows, so scrolling never moves the code sideways. Two digits is the
+			/// floor: a nine-line file whose gutter is one glyph wide reads as a
+			/// margin rather than as a column.
+			[[nodiscard]] auto gutter_width() const -> int;
+			[[nodiscard]] auto gutter() const noexcept -> QWidget*;
+			void               set_gutter_colors(const QColor& aBackground, const QColor& aText);
+			void               paint_line_numbers(QPaintEvent* aEvent);
+			[[nodiscard]] auto painted_line_numbers() const noexcept -> std::uint64_t
+			{
+				return PaintedLineNumbers;
+			}
 
 			/// \brief Adopts the lines each change group starts on.
 			///
@@ -188,12 +214,173 @@ namespace bpr::qt {
 				}
 			}
 
+			void resizeEvent(QResizeEvent* aEvent) override;
+			void changeEvent(QEvent* aEvent) override;
+
 		private:
+			void refresh_gutter_width();
+
+			class gutter_area;
+
+			gutter_area*                 Gutter = nullptr;
+			QColor                       GutterBackground;
+			QColor                       GutterText;
 			std::vector<std::uint32_t>   Boundaries;
 			QColor                       RuleColor;
 			std::optional<std::uint32_t> ConversationAnchor;
-			std::uint64_t                PaintedRules = 0U;
+			std::uint64_t                PaintedRules       = 0U;
+			std::uint64_t                PaintedLineNumbers = 0U;
 		};
+
+		/// \brief Paints one pane's own line numbers beside its own text.
+		///
+		/// \details A child of the pane rather than content inside its viewport,
+		/// because `setViewportMargins` is what actually moves the text aside;
+		/// painting numbers into the unshrunk viewport would put them on top of
+		/// the code. It also keeps BPR-0414's four-pixel conversation marker
+		/// correct for free: that rect is viewport-relative, so it follows the
+		/// new left edge instead of ending up behind the numbers.
+		class source_pane::gutter_area final : public QWidget
+		{
+		public:
+			explicit gutter_area(source_pane* const aPane)
+				: QWidget{ aPane }
+				, Pane{ aPane }
+			{
+				setObjectName(QStringLiteral("diffSourceLineNumbers"));
+				// The numbers are the pane's own content read another way, and a
+				// screen reader announcing every visible integer beside the code
+				// would bury it. The pane keeps the accessible name.
+				setAccessibleName(QStringLiteral("Line numbers"));
+				setFocusPolicy(Qt::NoFocus);
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				return QSize{ Pane->gutter_width(), 0 };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				Pane->paint_line_numbers(aEvent);
+			}
+
+		private:
+			source_pane* Pane = nullptr;
+		};
+
+		auto source_pane::gutter() const noexcept -> QWidget*
+		{
+			return Gutter;
+		}
+
+		source_pane::source_pane(QWidget* const aParent)
+			: QPlainTextEdit{ aParent }
+		{
+			Gutter = new gutter_area{ this };
+			// The width follows the digit count, so it changes when a document is
+			// replaced and not while scrolling one.
+			connect(this, &QPlainTextEdit::blockCountChanged, this, [this](int) {
+				refresh_gutter_width();
+			});
+			connect(this,
+					&QPlainTextEdit::updateRequest,
+					this,
+					[this](const QRect& aRect, const int aDy) {
+						if (aDy != 0) {
+							Gutter->scroll(0, aDy);
+						} else {
+							Gutter->update(
+								0, aRect.y(), Gutter->width(), aRect.height());
+						}
+					});
+			refresh_gutter_width();
+		}
+
+		auto source_pane::gutter_width() const -> int
+		{
+			auto digits = 1;
+			for (auto count = std::max(1, blockCount()); count >= 10; count /= 10) {
+				++digits;
+			}
+			return 2 * GutterPadding
+				+ fontMetrics().horizontalAdvance(QLatin1Char('9'))
+				* std::max(digits, GutterMinimumDigits);
+		}
+
+		void source_pane::refresh_gutter_width()
+		{
+			setViewportMargins(gutter_width(), 0, 0, 0);
+		}
+
+		void source_pane::set_gutter_colors(
+			const QColor& aBackground,
+			const QColor& aText)
+		{
+			GutterBackground = aBackground;
+			GutterText       = aText;
+			Gutter->update();
+		}
+
+		void source_pane::resizeEvent(QResizeEvent* const aEvent)
+		{
+			QPlainTextEdit::resizeEvent(aEvent);
+			const auto area = contentsRect();
+			Gutter->setGeometry(
+				QRect{ area.left(), area.top(), gutter_width(), area.height() });
+		}
+
+		void source_pane::changeEvent(QEvent* const aEvent)
+		{
+			QPlainTextEdit::changeEvent(aEvent);
+			// A different font is a different digit width, and the code beside it
+			// has to move by exactly the same amount.
+			if (aEvent != nullptr && aEvent->type() == QEvent::FontChange) {
+				refresh_gutter_width();
+			}
+		}
+
+		void source_pane::paint_line_numbers(QPaintEvent* const aEvent)
+		{
+			auto painter = QPainter{ Gutter };
+			painter.fillRect(aEvent->rect(),
+							 GutterBackground.isValid()
+								 ? GutterBackground
+								 : palette().color(QPalette::Window));
+			auto block = firstVisibleBlock();
+			if (!block.isValid()) {
+				return;
+			}
+			painter.setPen(GutterText.isValid()
+							   ? GutterText
+							   : palette().color(QPalette::WindowText));
+			auto       top   = blockBoundingGeometry(block)
+								   .translated(contentOffset())
+								   .top();
+			const auto limit = static_cast<qreal>(aEvent->rect().bottom());
+			const auto right = Gutter->width() - GutterPadding;
+			// Only the blocks the exposed rect can show, so the work follows the
+			// visible rows rather than the file's length.
+			while (block.isValid() && top <= limit) {
+				const auto height = blockBoundingRect(block).height();
+				if (block.isVisible()
+					&& top + height >= static_cast<qreal>(aEvent->rect().top())) {
+					// One-based on screen, zero-based inside: RFC-BPR-0004 fixes
+					// that split, and each pane numbers its own document rather
+					// than being renumbered to match the other side.
+					painter.drawText(0,
+									 qRound(top),
+									 right,
+									 qRound(height),
+									 Qt::AlignRight | Qt::AlignVCenter,
+									 QString::number(block.blockNumber() + 1));
+					++PaintedLineNumbers;
+				}
+				top += height;
+				block = block.next();
+			}
+		}
 
 		[[nodiscard]] auto pane(QPlainTextEdit* const aPane) noexcept
 			-> source_pane*
@@ -1588,6 +1775,15 @@ namespace bpr::qt {
 			core::appearance_role::diff_group_boundary_rule)];
 		pane(Left)->set_boundary_rule_color(rule);
 		pane(Right)->set_boundary_rule_color(rule);
+
+		// Roles RFC-BPR-0006 declared and `appearance_contrast` has been
+		// validating all along; BPR-0455 is the first thing to read them.
+		const auto gutterBackground = Colors.Syntax[static_cast<std::size_t>(
+			core::appearance_role::code_gutter_background)];
+		const auto gutterText       = Colors.Syntax[static_cast<std::size_t>(
+			core::appearance_role::code_line_number_text)];
+		pane(Left)->set_gutter_colors(gutterBackground, gutterText);
+		pane(Right)->set_gutter_colors(gutterBackground, gutterText);
 	}
 
 	/// \brief Colours the classified tokens of the lines a pane can show.

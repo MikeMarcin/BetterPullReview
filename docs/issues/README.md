@@ -757,7 +757,7 @@ ready lanes — and the lane says which answer it needs:
 
 | Root | Lane | Needs |
 |---|---|---|
-| BPR-0455 | `30-in-progress/` | Any session. The [[BPR-0414]] verdict found the source panes carry no line numbers at all, so a criterion about telling which line is line 42 could not be judged |
+| BPR-0457 | `20-ready/` | Any session, behind [[BPR-0455]]. The owner's toggle needs a core intent, a durable field, and a SQLite migration, and this application has no menu bar at all — so where a "view menu option" lives is a decision the card must make, not assume |
 | BPR-0456 | `20-ready/` | Any session. The same verdict asked for a linear reply feed grouped by root instead of a per-depth indent, because the indent spends drawer width the comment text needs |
 | BPR-0454 | `20-ready/` | Any session. Two of [[BPR-0449]]'s stage-one timeout cases race their own helper under parallel matrix load; the fix is not a longer grace period, because the short one is what makes the escalation observable |
 | BPR-0318 | `40-parked/` | The product owner's plain proceed-or-defer sentence on registering a separate distributable GitHub.com identity. Both dependencies closed on 2026-08-24 and 2026-08-25 and no unattended work remains; deferring simply leaves every platform visibly `device_flow_unavailable`, which is where the tree already is. The digest-bound registration packet is written only if the answer is proceed |
