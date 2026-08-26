@@ -1,7 +1,7 @@
 ---
 id: BPR-0447
 title: The epoch-maintenance pruned-restart run fails under parallel load
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: []
 ---
