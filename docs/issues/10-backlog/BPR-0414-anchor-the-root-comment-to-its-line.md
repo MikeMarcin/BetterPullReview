@@ -1,10 +1,9 @@
 ---
 id: BPR-0414
 title: Anchor the root comment to the line of code it comments on
-status: Parked
+status: Backlog
 rfc: RFC-BPR-0005
-depends_on: [BPR-0191]
-parked_on: awaiting-owner-verdict
+depends_on: [BPR-0191, BPR-0455, BPR-0456]
 ---
 
 # Anchor the root comment to the line of code it comments on
@@ -326,3 +325,75 @@ Open
 inspect the composed screenshot at native size, choose `Accept` or `Reject`,
 and return the exported JSON unedited. Validate it against the **new** manifest
 before recording anything; the withdrawn batch's manifest must not be used.
+
+## Rejected — 2026-08-25
+
+The owner answered batch `0a6b4763976a05a7f14af6df` and **rejected** it. The
+export validated against its exact manifest and is recorded at
+`docs/verification/reviews/conversation-code-boundary-v001/human-verdict.json`
+with its validation record beside it.
+
+### What the rejection does and does not authorize
+
+It does **not** authorize inline comment bodies. The returned claims say so
+explicitly — `inline_comment_body_authorized: false` — and the page's own
+disclaimer said that rejecting requires an RFC amendment or successor scope
+rather than granting the change. Nobody has asked for prose in the code view.
+
+What it rejects is the presented state, on two specific grounds plus one
+request about the next capture. None of them is the marker-versus-inline-body
+question this batch was built to ask, which means that question is still
+**unanswered**, not answered no.
+
+### The first ground is the one that matters
+
+> There are no line numbers in the source panes so I cannot tell which is line
+> 42
+
+The batch asked the owner to confirm that a drawer thread is *"unmistakably
+associated with right-side line 42"*, against a capture in which no line number
+appears anywhere. The criterion was unjudgeable as evidenced, and the honest
+response to an unjudgeable criterion is to refuse it.
+
+That is a gap in the product, not only in the picture — the source panes have
+no line-number rendering at all. [[BPR-0455]] owns it.
+
+It is also a gap in how this card built its evidence. The criterion named an
+exact line, every automated check asserted that exact line, and all of them
+passed, because they read the model. Nothing asked whether a person could see
+the number. A criterion phrased around what a reviewer can *tell* needs
+evidence about what is legible, and the batch had none.
+
+### The second ground
+
+> The replies need not be indented, that takes too much space, just a straight
+> linear reply feed ala twitter is better ... we still have a grouping by root
+> ala collaborator.
+
+[[BPR-0456]] owns it. It carries one finding worth reading on [[BPR-0211]]: the
+owner's stated reason for accepting a flat feed is *"we have the treverse view
+if things get complicated"*, which is the first evidence from use that
+[[BPR-0418]]'s map earns its place.
+
+### The request for the next round
+
+> Should collopase that file drawer for the next screenshot so we have more real
+> estate for the soure code.
+
+The next capture must collapse the files drawer before rendering. That is a
+composition change to the capture course's state, not a card of its own, and it
+is recorded here so the next batch does not repeat the same framing.
+
+### This card is not parked any more
+
+Its next action is unattended: two cards must land before a re-capture is worth
+the owner's time, or they will be shown the same two problems again. So it
+depends on [[BPR-0455]] and [[BPR-0456]] and moves to `10-backlog/`, which is
+the same reading that moved [[BPR-0211]] and [[BPR-0256]] out of the parked
+lane.
+
+The gate stays pending. RFC-BPR-0005 is not closed, no owner verdict of
+acceptance exists, and batch `0a6b4763976a05a7f14af6df` is now history rather
+than a live question — a successor batch is required, and it must be built from
+a fresh capture with line numbers, a flat reply feed, and the files drawer
+collapsed.

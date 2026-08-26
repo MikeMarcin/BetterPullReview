@@ -276,3 +276,23 @@ them:
 
 Nothing here is a defect in the shipped slice. They are the questions use will
 answer, which is what the owner asked to wait for.
+
+## Use answered one of them the same day — 2026-08-25
+
+The [[BPR-0414]] verdict came back rejecting that batch's presented state, and
+one of its reasons is the first evidence from use that this program was worth
+building. The owner asked for a flat reply feed in the drawer, and gave this
+reason:
+
+> The replies need not be indented, that takes too much space, just a straight
+> linear reply feed ala twitter is better, **we have the treverse view if things
+> get complicated.**
+
+So the map is already carrying weight: it is what makes flattening the drawer
+safe, and the owner reached for it as the answer to depth without being
+prompted. [[BPR-0456]] owns the flattening.
+
+That does not settle the other two iteration questions above — the map's band is
+still short and it is still always visible, including on the depth-0 thread in
+the BPR-0414 capture. It settles whether the second view earns its place, which
+was the open question this umbrella was originally deferred on.

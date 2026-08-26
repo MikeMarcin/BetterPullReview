@@ -1,0 +1,44 @@
+{
+  "schema_name": "bpr.attended_review_validation",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/0a6b4763976a05a7f14af6df",
+  "review_gate": "conversation_code_boundary",
+  "review_scope": "implemented_composed_ui_product_direction",
+  "recorded_at": "2026-08-26T04:11:23Z",
+  "validate_invocation": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/conversation-code-boundary-v001/offline-package/attended-review-manifest.json --verdict docs/verification/reviews/conversation-code-boundary-v001/human-verdict.json",
+  "validator_result": "valid complete verdict for bpr:/attended-review/betterpullreview/0a6b4763976a05a7f14af6df",
+  "manifest": {
+    "path": "docs/verification/reviews/conversation-code-boundary-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:97d6edae635aa5ac059b9d1a7c8c9fc816940d30bb9835c8aec1d0075fbded1a",
+    "byte_length": 9607
+  },
+  "verdict": {
+    "path": "docs/verification/reviews/conversation-code-boundary-v001/human-verdict.json",
+    "sha256": "sha256:47c95be4a96a99fa2968bdb70b1a2722d52afb0e00e687029f0dd2e0c908df75",
+    "byte_length": 1527
+  },
+  "official_validator": {
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:a7c6887dcde15b54e0d29d6a7a43847355e8c9dac38093fcd29b6abb603013ce",
+    "byte_length": 45951
+  },
+  "decision": {
+    "subject_id": "direction:/betterpullreview/bpr-0414/comment-body-boundary",
+    "subject_digest": "sha256:f69fb934a7eb60b241b219e4fe108a9395044f8c1d3b9946eef8552573b8b044",
+    "resolution": "rejected"
+  },
+  "paste_fidelity": {
+    "byte_preserved": false,
+    "note": "The pasted text carried one stray leading character, 'C', before the opening brace. It was removed so the export is parseable; every other byte is as pasted, and the recorded file validates against the manifest including the exact subject digest. Recorded rather than silently corrected."
+  },
+  "claims": {
+    "owner_verdict_recorded": true,
+    "bpr_0414_closed": false,
+    "inline_comment_body_authorized": false,
+    "marker_and_drawer_boundary_accepted": false,
+    "rfc_closeout_claimed": false,
+    "target_native_style_verified": false,
+    "live_github_content_verified": false,
+    "production_left_anchor_placement_verified": false
+  }
+}

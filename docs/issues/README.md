@@ -757,7 +757,8 @@ ready lanes — and the lane says which answer it needs:
 
 | Root | Lane | Needs |
 |---|---|---|
-| BPR-0414 | `40-parked/` | Regenerated at `20e94d0` after [[BPR-0418]] changed the drawer its screenshot shows; batch `ab6145717475dfdfddd6206d` is withdrawn unanswered and `0a6b4763976a05a7f14af6df` waits on the owner's marker-versus-inline-body verdict |
+| BPR-0455 | `20-ready/` | Any session. The [[BPR-0414]] verdict found the source panes carry no line numbers at all, so a criterion about telling which line is line 42 could not be judged |
+| BPR-0456 | `20-ready/` | Any session. The same verdict asked for a linear reply feed grouped by root instead of a per-depth indent, because the indent spends drawer width the comment text needs |
 | BPR-0454 | `20-ready/` | Any session. Two of [[BPR-0449]]'s stage-one timeout cases race their own helper under parallel matrix load; the fix is not a longer grace period, because the short one is what makes the escalation observable |
 | BPR-0318 | `40-parked/` | The product owner's plain proceed-or-defer sentence on registering a separate distributable GitHub.com identity. Both dependencies closed on 2026-08-24 and 2026-08-25 and no unattended work remains; deferring simply leaves every platform visibly `device_flow_unavailable`, which is where the tree already is. The digest-bound registration packet is written only if the answer is proceed |
 | BPR-0445 | `40-parked/` | Unattended sanitizer and one-shot authority hardening are committed at `a27e4a5` and `c03abcf`; v002 packet `8ff060e82c04f30010ad11e5410200d8797d8f1c5b08557768ded86ed0eafdd0` waits only on the owner's fresh exact one-request authorization |
@@ -823,7 +824,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these fifteen roots or reaches one
+card on this board is either one of these sixteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 41 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`. This number has drifted before — it read 46 while the lane held 44,

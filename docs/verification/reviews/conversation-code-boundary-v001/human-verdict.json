@@ -1,0 +1,26 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/0a6b4763976a05a7f14af6df",
+  "review_gate": "conversation_code_boundary",
+  "review_scope": "implemented_composed_ui_product_direction",
+  "accepted_subjects": [],
+  "rejected_subjects": [
+    {
+      "subject_id": "direction:/betterpullreview/bpr-0414/comment-body-boundary",
+      "subject_digest": "sha256:f69fb934a7eb60b241b219e4fe108a9395044f8c1d3b9946eef8552573b8b044"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "direction:/betterpullreview/bpr-0414/comment-body-boundary@sha256:f69fb934a7eb60b241b219e4fe108a9395044f8c1d3b9946eef8552573b8b044": "There are no line numbers in the source panes so I cannot tell which is line 42, there should be line numbers on by default (toggle off with view menu option).\nThe replies need not be indented, that takes too much space, just a straight linear reply feed ala twitter is better, we have the treverse view if things get complicated. Not literally twitter feed, we still have a grouping by root ala collaborator.\nShould collopase that file drawer for the next screenshot so we have more real estate for the soure code."
+  },
+  "downstream_claims": {
+    "bpr_0414_closed": false,
+    "inline_comment_body_authorized": false,
+    "live_github_content_verified": false,
+    "owner_verdict_recorded": false,
+    "production_left_anchor_placement_verified": false,
+    "rfc_closeout_claimed": false,
+    "target_native_style_verified": false
+  }
+}
