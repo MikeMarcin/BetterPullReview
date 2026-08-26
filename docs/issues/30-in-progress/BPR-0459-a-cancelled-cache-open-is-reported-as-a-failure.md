@@ -1,4 +1,4 @@
-﻿---
+---
 id: BPR-0459
 title: A cancelled cache open is reported to the core as a failure
 status: In Progress
