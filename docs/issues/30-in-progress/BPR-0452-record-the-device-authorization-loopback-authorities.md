@@ -1,7 +1,7 @@
 ---
 id: BPR-0452
 title: The loopback authority table never learned about the device-flow fixtures
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
