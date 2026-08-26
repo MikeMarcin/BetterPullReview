@@ -16,3 +16,8 @@ Qt, and entry-point pieces.
   Qt objects, widgets, models, or presentation state.
 - A successful smoke test must traverse intent, transition, request,
   completion, and projection rather than calling helpers directly.
+- An automated-run stage waits on a condition it does not control; it does not
+  fail on the first refusal. Readiness here is established by effects landing
+  on the completion lane, so one tick cannot tell "not yet" from "wrong". The
+  run budget is the bound, and a stage that waits must record what it is
+  waiting for so an expiry names the condition rather than the stage.

@@ -757,6 +757,7 @@ ready lanes — and the lane says which answer it needs:
 
 | Root | Lane | Needs |
 |---|---|---|
+| BPR-0459 | `20-ready/` | Any session. `start_comparison_resolution` reports a cancelled cache open to the core as `unavailable` while both catalog results in the same effect dispatch a cancelled event. Found by [[BPR-0447]], which proved it was not that failure's cause and left it here rather than widening its slice |
 | BPR-0458 | `20-ready/` | Any session on macOS. The strict `coding-tidy` gate exits 1 with fourteen findings across ten files that nothing has judged; [[BPR-0444]] covers only the Linux vault source, and these are on sources every macOS session compiles |
 | BPR-0318 | `40-parked/` | The product owner's plain proceed-or-defer sentence on registering a separate distributable GitHub.com identity. Both dependencies closed on 2026-08-24 and 2026-08-25 and no unattended work remains; deferring simply leaves every platform visibly `device_flow_unavailable`, which is where the tree already is. The digest-bound registration packet is written only if the answer is proceed |
 | BPR-0445 | `40-parked/` | Unattended sanitizer and one-shot authority hardening are committed at `a27e4a5` and `c03abcf`; v002 packet `8ff060e82c04f30010ad11e5410200d8797d8f1c5b08557768ded86ed0eafdd0` waits only on the owner's fresh exact one-request authorization |
@@ -764,7 +765,6 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0235 | `21-ready-win/` | A Windows session for the descendant/application counterexample matrix replay — the 2026-08-18 note called that criterion a dependency on [[BPR-0347]]/[[BPR-0350]], and both are now done. Its terminal designated-live criterion additionally waits on the live provider card's separately authorized attended authority |
 | BPR-0036 | `30-in-progress/` | This session: rerun the complete `windows-dev` matrix on the already-built tree now the reputation verdicts have had time to land, then the remaining target-native inspections, toward RFC-BPR-0002 closeout |
 | BPR-0446 | `30-in-progress/` | This session: extend the wire-fixture registration to Windows and run it target-native, ahead of BPR-0036's native-HTTPS row |
-| BPR-0447 | `30-in-progress/` | This session: diagnose the load-triggered epoch-maintenance pruned-restart failure to a cause. [[BPR-0454]]'s closing matrix reproduced it on macOS — every marker identical to the Windows sighting, two of three runs under load, green in isolation. The trigger is parallel load, not a platform |
 | BPR-0310, BPR-0314 | `23-ready-lin/` | **Not a Linux session.** A Linux session ran this lane on 2026-08-22 and removed every Linux reason it had. The tests-disabled Release build links here ([[BPR-0421]], [[BPR-0440]]) and `coding-tidy` runs here ([[BPR-0443]]). What is left is upstream and is not about this platform: [[BPR-0310]] needs RFC-BPR-0016 implemented at all — no `src/` file mentions the device flow — behind the now-done [[BPR-0276]] capture's consumers ([[BPR-0277]] onward) and [[BPR-0318]]'s nonexistent distributable identity; [[BPR-0314]] must observe a typed public-preview-unavailability selection no code produces, and producing it is implementation RFC-BPR-0017 gates on RFC-BPR-0002, which waits on [[BPR-0036]]. BPR-0314 does carry three target-native rows now. A Linux session opening this lane should expect to close only [[BPR-0444]] |
 | BPR-0444 | `23-ready-lin/` | A Linux session. The nine non-naming vault findings [[BPR-0443]]'s working gate exposed need judgment, and the tidy-clean proof only exists where the file compiles |
 | BPR-0240 | `30-in-progress/` | A Windows session for its remaining half. Its portable work has already been split out into done [[BPR-0334]] and backlog [[BPR-0332]]/[[BPR-0333]]; `windows_agent_process.cpp` has still never been compiled |
@@ -863,6 +863,18 @@ than the backlog — a backlog card with every dependency done would contradict
 the derivation this section runs. The table
 is recomputed from the lanes rather than decremented from the sentence above
 it.
+
+[[BPR-0447]]'s close later that day promoted nothing — no card names it in
+`depends_on` — and left the root count where it found it, because the same work
+opened one. Diagnosing it
+falsified its own headline: the run fails 163 ms into a 60-second budget it
+never touches, so no timeout is involved, and two of the markers the card
+listed as evidence print identically on a passing run. The cause was a stage
+that read "not yet" as "wrong" while the stage before it polled the same
+predicate. Along the way it found a product-code asymmetry it deliberately did
+not repair — a cancelled cache open reported to the core as a failure — and
+carded it as [[BPR-0459]] rather than widening a fixture-course slice into the
+epoch host.
 
 It left `20-ready/` empty, and then the full `dev` matrix BPR-0418 ran before
 committing found two more things and filled it twice over. Both are now done.

@@ -876,6 +876,16 @@ namespace {
 		/// this one field, or they are not talking about the same epoch and
 		/// nothing says they would agree. BPR-0345.
 		bpr::core::review_epoch_id MaintenanceTarget;
+		/// \brief The maintenance condition the probe is still waiting on.
+		///
+		/// \details Every condition `begin_epoch_maintenance_probe` checks is
+		/// established asynchronously, so "not yet" and "wrong" look identical
+		/// from one tick. The stage used to read them as "wrong" and fail the
+		/// run on the first refusal, which reported `PUBLIC_PATH_STAGE:14` and
+		/// nothing else — the one number that could not say which of ten
+		/// conditions was unmet. The stage now waits, and this records what it
+		/// is waiting for so a budget that expires names it. BPR-0447.
+		const char* MaintenanceGate = nullptr;
 		/// \brief The per-target deleted flags, as the probe observed them.
 		///
 		/// \details `maintenance_evidence` is a live observation: for a
@@ -2557,6 +2567,7 @@ namespace {
 				aRun.MaintenanceTargetBaseCacheDeleted = maintenance.TargetBaseCacheDeleted;
 				aRun.MaintenanceTargetHeadCacheDeleted = maintenance.TargetHeadCacheDeleted;
 			}
+			aRun.MaintenanceGate = settled ? nullptr : "deleted-state-unsettled";
 			return settled;
 		}
 		if (model->epoch_count() < 2U) {
@@ -2565,8 +2576,10 @@ namespace {
 			} else if (control->load_history_action()->isEnabled()) {
 				control->load_history_action()->trigger();
 			} else {
+				aRun.MaintenanceGate = "history-unavailable";
 				return false;
 			}
+			aRun.MaintenanceGate = nullptr;
 			advance_fixture_stage(
 				aRun, automated_run::stage::epoch_maintenance_history);
 			return true;
@@ -2574,6 +2587,7 @@ namespace {
 
 		const auto target = fixture_epoch_id(*model, 1U);
 		if (!target) {
+			aRun.MaintenanceGate = "target-epoch-absent";
 			return false;
 		}
 		aRun.MaintenanceTarget = *target;
@@ -2596,11 +2610,13 @@ namespace {
 				|| !maintenance.NonTargetHeadRefPresent
 				|| !maintenance.RepositoryPresent
 				|| maintenance.CacheDeletionMarkerPresent) {
+				aRun.MaintenanceGate = "seeded-state";
 				return false;
 			}
 			aRun.MaintenanceAccountReads  = provider.AccountReadCount;
 			aRun.MaintenanceSmartAcquires = provider.SmartAcquireCount;
 			aRun.MaintenanceModelResets   = model->statistics().ModelResets;
+			aRun.MaintenanceGate          = nullptr;
 			control->left_selector()->setCurrentIndex(aRun.MaintenanceLeftRow);
 			advance_fixture_stage(
 				aRun, automated_run::stage::epoch_maintenance_select_right);
@@ -2619,21 +2635,32 @@ namespace {
 				|| maintenance.PruneIntentDispatchCount != 0U
 				|| maintenance.DeleteIntentDispatchCount != 0U
 				|| !control->delete_cache_action()->isEnabled()) {
+				aRun.MaintenanceGate = "pruned-state";
 				return false;
 			}
 			if (!aRun.DiffRequested) {
+				// Refused while the restarted process has not accepted an
+				// exact comparison yet: `request_fixture_diff` reads
+				// `AcceptedComparison` and returns false while the resolution
+				// is still in flight. That is the state this run is waiting
+				// for, not a wrong one. BPR-0447.
 				aRun.DiffRequested = bpr::app::detail::
 					github_application_fixture_access::request_fixture_diff(
 						aApplication, true);
+				aRun.MaintenanceGate = aRun.DiffRequested
+					? nullptr
+					: "comparison-not-resolved";
 				return aRun.DiffRequested;
 			}
 			if (aApplication.window().comparison_surface()->current_result()
 				== nullptr) {
+				aRun.MaintenanceGate = "diff-result-pending";
 				return true;
 			}
 			aRun.MaintenanceAccountReads  = provider.AccountReadCount;
 			aRun.MaintenanceSmartAcquires = provider.SmartAcquireCount;
 			aRun.MaintenanceModelResets   = model->statistics().ModelResets;
+			aRun.MaintenanceGate          = nullptr;
 			accept_maintenance_confirmation(
 				QStringLiteral("deleteRepositoryCacheConfirmationDialog"));
 			control->delete_cache_action()->trigger();
@@ -3298,6 +3325,14 @@ namespace {
 				const auto maintenance = bpr::app::detail::
 					github_application_fixture_access::maintenance_evidence(
 						aApplication, aRun.MaintenanceTarget);
+				// What the probe was still waiting for. Without it a stalled
+				// maintenance run reported only `PUBLIC_PATH_STAGE:14`, which
+				// names the stage every probe waits in and none of the ten
+				// conditions it waits on. BPR-0447.
+				stream << "PUBLIC_PATH_MAINTENANCE_GATE:"
+					   << (aRun.MaintenanceGate != nullptr ? aRun.MaintenanceGate
+														   : "none")
+					   << '\n';
 				stream << "PUBLIC_PATH_MAINTENANCE_EVIDENCE:"
 					   << maintenance.PruneIntentDispatchCount << ':'
 					   << maintenance.DeleteIntentDispatchCount << ':'
@@ -4851,14 +4886,24 @@ namespace {
 			}
 
 			case automated_run::stage::epoch_maintenance_history:
+				// Poll, do not race. `stage::open` calls this same predicate
+				// and discards a false return, and it is the same predicate:
+				// every condition inside it is established asynchronously, so
+				// a refusal on one tick means "not yet", not "wrong". Reading
+				// it as "wrong" failed the restarted pruned-delete run 163 ms
+				// into a 60-second budget it never touched, while the epoch
+				// selectors still read "Resolving the exact comparison…" —
+				// about one run in three under a loaded matrix, and never in
+				// isolation. The budget is what bounds a condition that never
+				// becomes true, and `MaintenanceGate` is what names it.
+				// BPR-0447.
 				if (window.epoch_selectors()->history_model()->epoch_count() >= 2U) {
-					if (!begin_epoch_maintenance_probe(aApplication, *aRun)) {
-						fail_automated_run(aApplication, *aRun);
-					} else if (aRun->MaintenanceProbe
-								   == automated_run::epoch_maintenance_probe::
-									   verify_deleted
-							   && aRun->Stage
-								   == automated_run::stage::epoch_maintenance_history) {
+					if (begin_epoch_maintenance_probe(aApplication, *aRun)
+						&& aRun->MaintenanceProbe
+							== automated_run::epoch_maintenance_probe::
+								verify_deleted
+						&& aRun->Stage
+							== automated_run::stage::epoch_maintenance_history) {
 						aRun->PresentationPassed = true;
 						transition_to_shutdown(aApplication, *aRun);
 					}

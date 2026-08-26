@@ -737,6 +737,24 @@ expectations: all four processes still share one persistent fixture root, while
 exact review-ledger seed/reopen load evidence remains owned by the dedicated
 review-ledger composition contract.
 
+BPR-0447 corrected what the maintenance course does with a condition that has
+not become true yet. `stage::epoch_maintenance_history` called
+`fail_automated_run` on the first refusal from `begin_epoch_maintenance_probe`,
+while `stage::open` calls the same predicate and discards a false return. Every
+condition inside that predicate is established asynchronously, so a refusal on
+one tick means "not yet". Under a loaded matrix the restarted pruned-delete
+process could have its comparison-resolve cache open cancelled, leaving no
+exact comparison accepted; `request_fixture_diff` then refuses, and the run
+ended 163 ms into a 60-second budget it never touched — about one run in three
+under 40 spinning processes on a 14-core host, and never in isolation. The
+stage now polls, so the budget is what bounds a condition that never becomes
+true, and the run reports `PUBLIC_PATH_MAINTENANCE_GATE:<name>` beside its
+maintenance evidence so an expiry names which of the ten conditions it was
+waiting on rather than reporting only `PUBLIC_PATH_STAGE:14`. Measured: three
+of six loaded phase-three runs entered that wait for 462, 463 and 466 ticks and
+all six passed, and the contract passed ten of ten under the load that had
+failed three of seven before.
+
 `application_automated_run_budget` exercises the bound. `--automated-stall-probe`
 holds the `open` stage forever, which is the shape of a hang: nothing crashes,
 nothing errors, a readiness condition simply never becomes true. The run
