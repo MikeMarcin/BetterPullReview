@@ -749,7 +749,6 @@ ready lanes — and the lane says which answer it needs:
 | Root | Lane | Needs |
 |---|---|---|
 | BPR-0414 | `40-parked/` | Unattended implementation and verification are complete at `8c7504d`; digest-bound attended batch `ab6145717475dfdfddd6206d` waits only on the owner's marker-versus-inline-body verdict |
-| BPR-0211 | `30-in-progress/` | This session: write the umbrella's closing record. Every slice landed on 2026-08-25 — [[BPR-0416]]'s reply edge, [[BPR-0417]]'s deep fixture, and [[BPR-0418]]'s map surface |
 | BPR-0318 | `40-parked/` | The product owner's plain proceed-or-defer sentence on registering a separate distributable GitHub.com identity. Both dependencies closed on 2026-08-24 and 2026-08-25 and no unattended work remains; deferring simply leaves every platform visibly `device_flow_unavailable`, which is where the tree already is. The digest-bound registration packet is written only if the answer is proceed |
 | BPR-0445 | `40-parked/` | Unattended sanitizer and one-shot authority hardening are committed at `a27e4a5` and `c03abcf`; v002 packet `8ff060e82c04f30010ad11e5410200d8797d8f1c5b08557768ded86ed0eafdd0` waits only on the owner's fresh exact one-request authorization |
 | BPR-0053, BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]], [[BPR-0362]], [[BPR-0360]], and [[BPR-0350]] closed on 2026-08-22 with the contained matrix at 87 of 89; [[BPR-0053]] waits only on that matrix's two carded failures and on the Qt graph. [[BPR-0424]] through [[BPR-0427]] are the four causes that run isolated from the container's own |
@@ -814,13 +813,13 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these fifteen roots or reaches one
+card on this board is either one of these fourteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
-of the 43 cards in `10-backlog/`, **none** has all its dependencies in
-`60-done/`. That count read 46 while the lane held 44, so it is
-recomputed here rather than decremented from a number that was already
-wrong; the derivation the validator runs covers the table's rows, not
-this sentence's arithmetic. BPR-0417's move to `60-done/` on 2026-08-24 promoted exactly one
+of the 41 cards in `10-backlog/`, **none** has all its dependencies in
+`60-done/`. This number has drifted before — it read 46 while the lane held 44,
+and 43 while it held 42 — so it is recomputed from the lanes each time rather
+than decremented; the derivation the validator runs covers the table's rows,
+not this sentence's arithmetic. BPR-0417's move to `60-done/` on 2026-08-24 promoted exactly one
 card: [[BPR-0418]], whose other dependency [[BPR-0416]] was already done, moved
 from `10-backlog/` to `20-ready/` in the same audit. Later the same day
 BPR-0276's owner-attended capture was admitted and its move to `60-done/`
@@ -841,9 +840,15 @@ then promoted exactly [[BPR-0318]], which parked immediately on the product
 owner's proceed-or-defer sentence rather than entering a ready lane, so the
 count is unchanged again. [[BPR-0418]]'s close on 2026-08-25 promoted exactly
 [[BPR-0211]], the umbrella whose other four dependencies were already done, and
-the count held at fifteen because one ready root replaced the other. That is
-the whole Treeverse program landing in order: the edge, the fixture, the
-surface, and now only the umbrella's own closing record.
+the count held at fifteen because one ready root replaced the other. Closing
+that umbrella the same day promoted nothing — [[BPR-0414]] names it in prose
+but not in `depends_on` — so the count is fourteen. That is the whole Treeverse
+program landing in order: the edge, the fixture, the surface, and the umbrella
+that carried them.
+
+It leaves `20-ready/` empty. Every remaining root needs a Windows session, a
+Linux session, or a person, which is the state the "Open right now" section
+below describes rather than a new one.
 
 The post-BPR-0334 audit on 2026-08-21 found no backlog dependency on that
 card, so its move to `60-done/` promoted nothing. All 56 backlog cards still

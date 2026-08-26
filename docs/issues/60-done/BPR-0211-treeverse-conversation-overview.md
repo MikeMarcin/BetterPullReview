@@ -1,7 +1,7 @@
 ---
 id: BPR-0211
 title: Build the Treeverse-style overview of a deep thread
-status: In Progress
+status: Done
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191, BPR-0413, BPR-0416, BPR-0417, BPR-0418]
 ---
@@ -196,10 +196,83 @@ failing.
 - [[BPR-0418]] — build the map surface, including the owner's requirement that
   the full clicked branch be visible.
 
-## Every slice has landed — 2026-08-25
+## Done — 2026-08-25
 
-[[BPR-0416]] carried the reply edge, [[BPR-0417]] recorded a conversation with
-real depth, and [[BPR-0418]] built the map surface with the owner's full-branch
-requirement met. This umbrella now owns only its own closing record: what
-shipped, what was recorded *not chosen*, and what the first version deliberately
-left for iteration after use.
+All three slices landed the same day and this umbrella closes with them.
+
+- [[BPR-0416]] carried the reply edge. The mapping now resolves a comment's
+  real parent instead of writing the thread root, and the Qt model stopped
+  rejecting a `review_comment` parent. Either half alone would have made the
+  drawer worse.
+- [[BPR-0417]] recorded a conversation with real depth — constructed, labelled
+  constructed, and forbidden by its own contract from being cited as recorded
+  GitHub evidence.
+- [[BPR-0418]] built the map, with the owner's full-branch requirement met and
+  the branch scrolled into view rather than merely highlighted.
+
+### What the owner asked for is what shipped
+
+> I prefer this view, it still needs to show the full branch that you clicked
+> on, or at least up to the noce you selected. I think this could use some more
+> iteration but that can come after experience.
+
+Both halves are honoured. The root-to-selection path is the heaviest mark on
+the map, the subtree below it is drawn lighter, and a first version shipped
+rather than a final shape guessed at.
+
+### What this card got wrong, and what that cost
+
+The card's own history is the useful record here, more than the outcome.
+
+**The cost estimate was wrong twice.** A first draft called the data change one
+line. An independent review during [[BPR-0413]] falsified that before the page
+reached the owner and found the second half — the Qt model's parent-kind
+refusal — without which the one-line change would have *flattened* the drawer.
+The corrected estimate is what the owner decided against.
+
+**The precondition this card set was never met, and the owner proceeded
+anyway.** "A conversation deep or wide enough to be a problem is recorded" was
+measured during BPR-0413 and found false: maximum depth anywhere in this
+repository was one reply. BPR-0417 answered it with constructed content and
+said so in machine-readable provenance, its README, the fixture catalogue, and
+every claim built on it. The map is proven to render real reply structure. It
+is not proven that any pull request this product has seen carried one, and no
+card in this program says otherwise.
+
+**The lane churn was the rule working.** This card moved between `40-parked/`
+and `10-backlog/` four times, and [[BPR-0413]] records why each move was
+correct. The one that mattered: a page whose central cost claim an independent
+review had falsified was stopped before the owner saw it.
+
+### The whole-review view is *not chosen*, which is not rejected
+
+Alternative A lost one question. It was not found defective, and it needs no
+model change if it is ever wanted. Recording it that way is deliberate — a
+later card asking for it does not have to re-litigate whether it was broken.
+
+The git-graph drawer the same verdict declined — "Don't see the need at this
+time" — closed a request open since 2026-08-08 that no card had ever put back
+in front of the person who made it. [[BPR-0212]] is done, superseded by
+[[RFC-BPR-0021]], which registers the revision axis `Deferred` behind evidence
+that a real service returns a per-comment commit rather than assuming it.
+
+### Iteration is expected, and here is what to look at first
+
+The owner authorised iteration after use. Three things this program already
+knows are worth revisiting, recorded so the next session does not rediscover
+them:
+
+- **The drawer's band is short.** BPR-0418's review measured the composed map
+  viewport at 61 px before repair and 74–89 px after. The map scrolls to follow
+  the selection rather than claiming a size it cannot have, but a reviewer on a
+  deep thread sees a few rows at a time. Giving the map more room, or a way to
+  open it larger, is the most likely first ask.
+- **The map is always visible.** That was chosen so the view would be found at
+  all. On a shallow thread it costs space and shows nothing a two-level list did
+  not.
+- **Per-comment read state still does not exist.** The accepted mockup legends
+  it. Building it is a review-ledger change under RFC-BPR-0007, not a
+  presentation slice, and until then the map correctly says nothing about it.
+
+Nothing here is a defect in the shipped slice. They are the questions use will
+answer, which is what the owner asked to wait for.
