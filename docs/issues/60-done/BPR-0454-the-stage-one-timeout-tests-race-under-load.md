@@ -184,6 +184,12 @@ running until the machine is rebooted.
 The full `dev` matrix at `-j 14` returned **217 of 218**, exit 8. The single
 failure is `application_epoch_maintenance_public_path`, with
 `EPOCH_MAINTENANCE_PRUNED_RESTART_DELETE_OK process failed (1)` — the same
-symptom [[BPR-0447]] records, which is filed as Windows-only and sits in
-`21-ready-win/`. This card's change is a Python test file and cannot reach a
-C++ end-to-end contract. It is tracked separately rather than absorbed here.
+symptom [[BPR-0447]] records. This card's change is a Python test file and
+cannot reach a C++ end-to-end contract, so it was not absorbed here.
+
+Following it up moved that card rather than adding one. BPR-0447 was filed as
+Windows-only and sat in `21-ready-win/`, unstartable from this host. It
+reproduces here: green in isolation, two of three failures under 40 spinning
+processes, and every marker the card recorded from Windows identical. The
+trigger is parallel load, not a platform, so BPR-0447 is now portable and in
+`20-ready/`.
