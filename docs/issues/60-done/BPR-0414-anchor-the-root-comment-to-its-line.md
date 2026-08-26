@@ -1,10 +1,9 @@
 ---
 id: BPR-0414
 title: Anchor the root comment to the line of code it comments on
-status: Parked
+status: Done
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191, BPR-0455, BPR-0456]
-parked_on: awaiting-owner-verdict
 ---
 
 # Anchor the root comment to the line of code it comments on
@@ -331,7 +330,7 @@ before recording anything; the withdrawn batch's manifest must not be used.
 
 The owner answered batch `0a6b4763976a05a7f14af6df` and **rejected** it. The
 export validated against its exact manifest and is recorded at
-`docs/verification/reviews/conversation-code-boundary-v001/human-verdict.json`
+`docs/verification/reviews/conversation-code-boundary-v001/human-verdict-0a6b4763976a05a7f14af6df.json`
 with its validation record beside it.
 
 ### What the rejection does and does not authorize
@@ -464,3 +463,62 @@ python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py \
 Validate against **this** manifest. Neither predecessor's manifest may be used:
 `ab6145717475dfdfddd6206d` was withdrawn unanswered and
 `0a6b4763976a05a7f14af6df` is answered and closed.
+
+## Accepted — 2026-08-26
+
+The owner accepted batch `7b46cacd14d6dca40c2f153d`. The export validates
+against its exact manifest and is recorded at
+`human-verdict-7b46cacd14d6dca40c2f153d.json` with its validation record beside
+it.
+
+**Comment bodies stay in the drawer.** The marker-and-drawer boundary is the
+product direction: a narrow margin marker in the code view, the body in the
+conversation drawer, and no prose inserted into either natural-layout source
+document.
+
+### What this acceptance does not carry
+
+- It does not authorise inline comment bodies. That was always the *other*
+  answer, and the returned claims still say `inline_comment_body_authorized:
+  false`.
+- It does not endorse [[BPR-0455]]'s line numbers or [[BPR-0456]]'s reply feed.
+  Those were the conditions that made this question judgeable, not the question;
+  each carries its own evidence on its own card.
+- It does not settle [[BPR-0211]]'s open questions about the thread map's band
+  and its always-visible placement.
+- It is not target-native styling evidence, live GitHub evidence, or production
+  LEFT-anchor placement. The capture is the offscreen `QFusionStyle` fixture
+  path, and every one of those claims remains false in the record.
+
+### Why this took three batches
+
+Worth keeping, because none of the three failed for the same reason:
+
+1. `ab6145717475dfdfddd6206d` — **withdrawn unanswered.** [[BPR-0418]] put the
+   thread map inside the drawer its only screenshot showed. Nothing detected
+   that; a packet binds its capture's bytes but not the capture course's current
+   output, so a source change underneath it is silent. It surfaced only because
+   the capture was re-derived before being offered.
+2. `0a6b4763976a05a7f14af6df` — **rejected.** No line number was visible
+   anywhere, so the criterion about line 42 could not be judged. Every automated
+   check of that exact line passed, because they all read the model and none
+   asked whether a person could see the number.
+3. `7b46cacd14d6dca40c2f153d` — **accepted**, after the two rejected grounds were
+   fixed by their own cards and the files drawer was collapsed as asked.
+
+The first two are the same lesson from opposite directions: an attended packet
+is only as current as the last time someone regenerated its evidence, and a
+criterion phrased around what a reviewer can *tell* needs evidence about what is
+legible rather than about what is true.
+
+### Verification at closure
+
+| claim | command | result |
+|---|---|---|
+| the exported verdict binds this exact batch and subject digest | `build_attended_review.py validate-verdict --manifest .../attended-review-manifest.json --verdict .../human-verdict-7b46cacd14d6dca40c2f153d.json` | valid complete verdict |
+| the anchoring implementation still holds at head | `ctest --preset dev -R 'workbench_window\|github_conversation\|diff_workbench\|thread_map'` | 14/14 pass |
+| both prior records are preserved rather than rewritten | the review directory carries a batch-qualified verdict and validation pair for each answered batch | present |
+
+This card's own work is complete and it moves to `60-done/`. RFC-BPR-0005
+closure remains [[BPR-0101]]'s, behind the ordered prior-RFC chain, and that
+card's final replay obligations are unchanged by this verdict.

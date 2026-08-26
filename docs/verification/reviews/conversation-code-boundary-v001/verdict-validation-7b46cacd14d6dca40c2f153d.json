@@ -1,0 +1,57 @@
+{
+  "schema_name": "bpr.attended_review_validation",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/7b46cacd14d6dca40c2f153d",
+  "review_gate": "conversation_code_boundary",
+  "review_scope": "implemented_composed_ui_product_direction",
+  "recorded_at": "2026-08-26T06:33:29Z",
+  "validate_invocation": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/conversation-code-boundary-v001/offline-package/attended-review-manifest.json --verdict docs/verification/reviews/conversation-code-boundary-v001/human-verdict-7b46cacd14d6dca40c2f153d.json",
+  "validator_result": "valid complete verdict for bpr:/attended-review/betterpullreview/7b46cacd14d6dca40c2f153d",
+  "manifest": {
+    "path": "docs/verification/reviews/conversation-code-boundary-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:10dc2bbc6130453bc9c18a092fae80999266be26fc947c67dff7f6a6e1bc31fa",
+    "byte_length": 10022
+  },
+  "verdict": {
+    "path": "docs/verification/reviews/conversation-code-boundary-v001/human-verdict-7b46cacd14d6dca40c2f153d.json",
+    "sha256": "sha256:ea6dfb07cec7feca9b17645e3d68a0287bc73bb35896405ac5b0b56185223b8e",
+    "byte_length": 866
+  },
+  "official_validator": {
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:a7c6887dcde15b54e0d29d6a7a43847355e8c9dac38093fcd29b6abb603013ce",
+    "byte_length": 45951
+  },
+  "capture": {
+    "path": "docs/verification/reviews/conversation-code-boundary-v001/captures/conversation-anchor.png",
+    "sha256": "sha256:73a4985ac9edd52c4d7d5e7e3b5d1aa11e7c73fe2124ed2a040b6430423d20bf",
+    "byte_length": 350247
+  },
+  "decision": {
+    "subject_id": "direction:/betterpullreview/bpr-0414/comment-body-boundary",
+    "subject_digest": "sha256:8d601ba2c78c8cbdc6cec5fbe82f5e2f6c927b23bc6257c387e04d907988fc1e",
+    "resolution": "accepted"
+  },
+  "predecessors": [
+    {
+      "batch_id": "bpr:/attended-review/betterpullreview/ab6145717475dfdfddd6206d",
+      "resolution": "withdrawn_unanswered",
+      "note": "BPR-0418 put the thread map in the drawer the capture depicted; no verdict exists."
+    },
+    {
+      "batch_id": "bpr:/attended-review/betterpullreview/0a6b4763976a05a7f14af6df",
+      "resolution": "rejected",
+      "record": "docs/verification/reviews/conversation-code-boundary-v001/verdict-validation-0a6b4763976a05a7f14af6df.json"
+    }
+  ],
+  "claims": {
+    "owner_verdict_recorded": true,
+    "marker_and_drawer_boundary_accepted": true,
+    "bpr_0414_closed": false,
+    "inline_comment_body_authorized": false,
+    "rfc_closeout_claimed": false,
+    "target_native_style_verified": false,
+    "live_github_content_verified": false,
+    "production_left_anchor_placement_verified": false
+  }
+}

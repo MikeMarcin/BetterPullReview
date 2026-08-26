@@ -1,0 +1,24 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/7b46cacd14d6dca40c2f153d",
+  "review_gate": "conversation_code_boundary",
+  "review_scope": "implemented_composed_ui_product_direction",
+  "accepted_subjects": [
+    {
+      "subject_id": "direction:/betterpullreview/bpr-0414/comment-body-boundary",
+      "subject_digest": "sha256:8d601ba2c78c8cbdc6cec5fbe82f5e2f6c927b23bc6257c387e04d907988fc1e"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {},
+  "downstream_claims": {
+    "bpr_0414_closed": false,
+    "inline_comment_body_authorized": false,
+    "live_github_content_verified": false,
+    "owner_verdict_recorded": false,
+    "production_left_anchor_placement_verified": false,
+    "rfc_closeout_claimed": false,
+    "target_native_style_verified": false
+  }
+}
