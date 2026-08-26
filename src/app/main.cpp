@@ -4563,9 +4563,9 @@ namespace {
 						}
 						aRun->RenderSaved = aRun->ConversationAnchorEvidencePassed
 							&& save_render_evidence(
-								window,
-								aRun->RenderPath,
-								aRun->RenderCollapsesFilesDrawer);
+												window,
+												aRun->RenderPath,
+												aRun->RenderCollapsesFilesDrawer);
 
 						// Measured here, while a classified comparison is on
 						// screen and before the reaccept sequence clears it.
@@ -4844,7 +4844,7 @@ namespace {
 						== aRun->EpochRightRow) {
 					aRun->PresentationPassed = true;
 					aRun->RenderSaved        = save_render_evidence(
-							window, aRun->RenderPath, aRun->RenderCollapsesFilesDrawer);
+						window, aRun->RenderPath, aRun->RenderCollapsesFilesDrawer);
 					transition_to_shutdown(aApplication, *aRun);
 				}
 				break;
@@ -5866,7 +5866,7 @@ auto main(int argc, char** argv) -> int
 			= has_argument(argc, argv, "--device-authorization-probe");
 		const auto registeredDeviceCourse
 			= has_argument(argc, argv, "--device-authorization-registered-course");
-		const auto renderPath = argument_value(argc, argv, "--render-evidence");
+		const auto renderPath                 = argument_value(argc, argv, "--render-evidence");
 		const auto renderCollapsesFilesDrawer = has_argument(
 			argc, argv, "--render-evidence-collapse-files");
 
