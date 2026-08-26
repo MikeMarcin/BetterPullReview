@@ -213,6 +213,20 @@ splitters. The drawer's band stays short in an ordinary window; the map scrolls
 to follow the selection rather than claiming a size it cannot have, and giving
 it more room is exactly the iteration the owner authorised.
 
+### The focused selector was not wide enough
+
+Recorded here rather than only on the card that repaired it. The 19/19 above is
+what `-R 'github_conversation|workbench|thread_map'` runs, and it is green. The
+full `dev` matrix, run afterwards out of caution rather than obligation, found
+`qt_composed_github_scale_{100,125,200}` red: this slice moved the drawer's
+loaded stack page from the tree view to the splitter holding the map and the
+tree, and that suite asserted the old identity. [[BPR-0453]] repaired it.
+
+The selector was chosen by subsystem name, and `qt_composed_github` builds the
+same window through the same drawer while matching none of those words. A
+change inside a widget the shipped window composes has a blast radius the
+widget's own name does not describe.
+
 ### Not done here
 
 No per-comment read state. No whole-review conversation view — recorded *not
