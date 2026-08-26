@@ -1,7 +1,7 @@
 ---
 id: BPR-0455
 title: Show line numbers in the source panes, on by default
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0005
 depends_on: []
 ---
