@@ -390,12 +390,14 @@ namespace bpr::application {
 	/// \brief Describes the workbench layout settings record.
 	///
 	/// \details This is the whole durable workbench layout: the semantic drawer
-	/// states the core owns while a workbench is active, and the drawer widths the
-	/// host owns outright because they carry no semantic meaning.
+	/// states and source-pane numbering the core owns while a workbench is
+	/// active, and the drawer widths the host owns outright because they carry
+	/// no semantic meaning.
 	struct workbench_layout_settings
 	{
 		core::workbench_drawer_state Files              = core::workbench_drawer_state::expanded;
 		core::workbench_drawer_state Conversations      = core::workbench_drawer_state::expanded;
+		core::workbench_line_numbers LineNumbers        = core::workbench_line_numbers::shown;
 		std::uint32_t                FilesWidth         = 320U;
 		std::uint32_t                ConversationsWidth = 320U;
 
@@ -468,6 +470,7 @@ namespace bpr::application {
 		workbench_request_context                             Context;
 		std::optional<core::workbench_selection_delta>        Selection;
 		std::optional<core::workbench_drawer_delta>           Drawers;
+		std::optional<core::workbench_line_numbers_delta>     LineNumbers;
 		std::optional<core::workbench_command_delta>          Commands;
 		std::optional<workbench_layout_delta>                 Layout;
 		std::optional<std::vector<workbench_file_projection>> Files;
@@ -481,6 +484,7 @@ namespace bpr::application {
 	{
 		return !aProjection.Selection.has_value()
 			&& !aProjection.Drawers.has_value()
+			&& !aProjection.LineNumbers.has_value()
 			&& !aProjection.Commands.has_value()
 			&& !aProjection.Layout.has_value()
 			&& !aProjection.Files.has_value();

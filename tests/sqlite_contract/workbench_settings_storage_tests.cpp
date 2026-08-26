@@ -66,6 +66,7 @@ namespace {
 		return application::workbench_layout_settings{
 			.Files              = core::workbench_drawer_state::collapsed,
 			.Conversations      = core::workbench_drawer_state::collapsed,
+			.LineNumbers        = core::workbench_line_numbers::hidden,
 			.FilesWidth         = 512U,
 			.ConversationsWidth = 288U,
 		};
@@ -275,6 +276,134 @@ namespace {
 			"because it tripped over its own CREATE");
 	}
 
+	/// \brief The application identity a version-one database carried.
+	///
+	/// \details Duplicated from the adapter's own file-local constant on
+	/// purpose. This test constructs a database as an older build left it, so
+	/// it has to write that build's bytes rather than borrow today's value; if
+	/// the adapter ever changes the identity, a version-one file will still
+	/// have carried this one and the migration still has to cope.
+	constexpr std::int32_t HistoricalApplicationId = 0x42505257;
+
+	/// \brief Builds the exact version-one database this store used to write.
+	///
+	/// \details Written out rather than generated. The point of the test is
+	/// that a database created by an older build still opens, so it has to
+	/// embed that older build's schema; calling the current generator would
+	/// prove only that the current schema migrates to itself.
+	auto establish_version_one(const std::filesystem::path& aPath) -> void
+	{
+		::sqlite3* raw = nullptr;
+		expect(::sqlite3_open_v2(
+				   aPath.string().c_str(),
+				   &raw,
+				   SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+				   nullptr)
+				   == SQLITE_OK,
+			   "a version-one database is created directly");
+		const auto minimum
+			= std::to_string(application::minimum_workbench_drawer_width);
+		const auto maximum
+			= std::to_string(application::maximum_workbench_drawer_width);
+		const auto sql = std::string{
+			"CREATE TABLE workbench_meta("
+			"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+			"schema_format INTEGER NOT NULL) STRICT;"
+			"CREATE TABLE workbench_layout("
+			"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+			"files_state INTEGER NOT NULL CHECK(files_state BETWEEN 0 AND 1),"
+			"conversations_state INTEGER NOT NULL "
+			"CHECK(conversations_state BETWEEN 0 AND 1),"
+			"files_width INTEGER NOT NULL CHECK(files_width BETWEEN "
+		} + minimum
+			+ " AND " + maximum + ")," + "conversations_width INTEGER NOT NULL "
+										 "CHECK(conversations_width BETWEEN "
+			+ minimum + " AND " + maximum + ")) STRICT;" + "INSERT INTO workbench_meta(singleton, schema_format) VALUES(1, 1);" + "INSERT INTO workbench_layout(singleton, files_state,"
+																																  "conversations_state, files_width, conversations_width) "
+																																  "VALUES(1, 0, 1, 512, 288);"
+			+ "PRAGMA application_id = " + std::to_string(HistoricalApplicationId) + ";" + "PRAGMA user_version = 1;";
+		expect(::sqlite3_exec(raw, sql.c_str(), nullptr, nullptr, nullptr)
+				   == SQLITE_OK,
+			   "the version-one schema and its row are written");
+		(void)::sqlite3_close_v2(raw);
+	}
+
+	[[nodiscard]] auto integer_pragma(
+		const std::filesystem::path& aPath, const std::string& aPragma)
+		-> std::int64_t
+	{
+		::sqlite3* raw = nullptr;
+		expect(::sqlite3_open_v2(
+				   aPath.string().c_str(), &raw, SQLITE_OPEN_READONLY, nullptr)
+				   == SQLITE_OK,
+			   "the database reopens for inspection");
+		::sqlite3_stmt* statement = nullptr;
+		expect(::sqlite3_prepare_v2(
+				   raw, aPragma.c_str(), -1, &statement, nullptr)
+				   == SQLITE_OK,
+			   "the inspection statement prepares");
+		expect(::sqlite3_step(statement) == SQLITE_ROW,
+			   "the inspection statement answers a row");
+		const auto value = ::sqlite3_column_int64(statement, 0);
+		(void)::sqlite3_finalize(statement);
+		(void)::sqlite3_close_v2(raw);
+		return value;
+	}
+
+	auto test_a_version_one_store_migrates_and_keeps_its_row() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("workbench.sqlite3");
+		establish_version_one(path);
+
+		{
+			auto opened = workbench_settings_database::open(path, { });
+			expect(opened.has_value(),
+				   "a version-one database opens rather than being refused");
+
+			const auto loaded = opened->load({ });
+			expect(loaded.has_value(), "the migrated layout loads");
+			// The row is the assertion. A migration that recreated the table
+			// would also open cleanly and would also answer a valid layout --
+			// the defaults -- so opening proves nothing on its own.
+			expect(loaded->Files == core::workbench_drawer_state::collapsed
+					   && loaded->Conversations
+						   == core::workbench_drawer_state::expanded
+					   && loaded->FilesWidth == 512U
+					   && loaded->ConversationsWidth == 288U,
+				   "every value the version-one row held survived the "
+				   "migration");
+			expect(loaded->LineNumbers == core::workbench_line_numbers::shown,
+				   "the added column defaults to shown, so a reviewer who "
+				   "upgrades sees the numbering they already had");
+		}
+
+		expect(integer_pragma(path, "PRAGMA user_version")
+				   == workbench_settings_schema_version,
+			   "the migrated database is stamped with the current version");
+		expect(integer_pragma(
+				   path,
+				   "SELECT schema_format FROM workbench_meta WHERE singleton = 1")
+				   == workbench_settings_schema_version,
+			   "the meta row agrees with the stamp rather than still saying one");
+		expect(integer_pragma(path, "PRAGMA application_id")
+				   == HistoricalApplicationId,
+			   "the migration left the application identity alone");
+
+		// And the migrated store is a working store, not merely a readable one.
+		{
+			auto reopened = workbench_settings_database::open(path, { });
+			expect(reopened.has_value(), "the migrated store reopens");
+			auto chosen        = distinct_layout();
+			chosen.LineNumbers = core::workbench_line_numbers::hidden;
+			expect(reopened->store(chosen, { }).has_value(),
+				   "the migrated store accepts a write to the new column");
+			const auto loaded = reopened->load({ });
+			expect(loaded.has_value() && *loaded == chosen,
+				   "the new column round-trips through a migrated table");
+		}
+	}
+
 	auto test_cancellation_is_reported_distinctly() -> void
 	{
 		const auto scratch = scratch_directory{ };
@@ -365,6 +494,7 @@ auto main() -> int
 	test_widths_are_bounded_by_the_published_range();
 	test_a_stored_state_outside_the_vocabulary_is_refused();
 	test_a_newer_schema_is_refused_for_the_right_reason();
+	test_a_version_one_store_migrates_and_keeps_its_row();
 	test_cancellation_is_reported_distinctly();
 	test_the_schema_stores_no_review_content();
 	std::cout << "workbench-settings-storage-tests:pass\n";

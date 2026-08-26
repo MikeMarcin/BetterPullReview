@@ -270,6 +270,7 @@ namespace {
 				aNextChange,
 				offered(core::workbench_command_id::toggle_files_drawer),
 				offered(core::workbench_command_id::toggle_conversations_drawer),
+				offered(core::workbench_command_id::toggle_line_numbers),
 			},
 			.Policy = aPolicy,
 		};
@@ -862,6 +863,74 @@ namespace {
 			   "a collapsed drawer offers the gesture that reopens it");
 		expect(window.statistics().DrawerUpdates == 2U,
 			   "each published drawer delta is observed exactly once");
+	}
+
+	/// \brief Proves the View menu exists and the toggle is core-decided.
+	void test_the_view_menu_offers_a_core_decided_line_number_toggle()
+	{
+		intent_log           log;
+		qt::workbench_window window{ [&log](core::workbench_interaction_intent aIntent) {
+			log.Workbench.push_back(std::move(aIntent));
+		} };
+		window.show();
+		QApplication::processEvents();
+
+		expect(window.menu_bar() != nullptr && window.view_menu() != nullptr,
+			   "the window has a menu bar with a View menu");
+		expect(window.view_menu()->menuAction()->text()
+				   == QStringLiteral("&View"),
+			   "the menu the owner asked for is named View");
+		auto* const action = window.line_numbers_action();
+		expect(action != nullptr && action->isCheckable(),
+			   "the View menu carries a checkable line-numbers entry");
+		expect(window.view_menu()->actions().contains(action),
+			   "the entry is in the View menu rather than only on the window");
+
+		// Unprojected, the command is refused for the same reason every other
+		// workbench command is.
+		expect(!action->isEnabled(),
+			   "an unprojected toggle is disabled, like every workbench "
+			   "command with no workbench open");
+
+		auto projection        = both_files_enabled();
+		projection.LineNumbers = core::workbench_line_numbers_delta{
+			.State = core::workbench_line_numbers::shown,
+		};
+		window.publish(projection);
+		expect(action->isEnabled() && action->isChecked(),
+			   "a projected toggle is enabled and shows the projected state");
+
+		action->trigger();
+		expect(log.Workbench.size() == 1U,
+			   "the entry emits exactly one semantic intent");
+		expect(std::get_if<core::toggle_workbench_line_numbers_intent>(
+				   &log.Workbench[0])
+				   != nullptr,
+			   "the emitted intent is the line-numbers toggle");
+		// The assertion the card asks for. Qt flips a checkable action's mark
+		// on click before any handler runs, so an implementation that let the
+		// widget decide would leave it unchecked here and look correct until
+		// the core refused the gesture.
+		expect(action->isChecked(),
+			   "triggering changes no state locally; the mark still follows the "
+			   "projection and the core decides");
+
+		projection.LineNumbers = core::workbench_line_numbers_delta{
+			.State = core::workbench_line_numbers::hidden,
+		};
+		window.publish(projection);
+		expect(!action->isChecked(),
+			   "the decided state reaches the entry");
+
+		auto  refusedProjection = both_files_enabled();
+		auto& commands          = *refusedProjection.Commands;
+		commands.Commands[static_cast<std::size_t>(
+			core::workbench_command_id::toggle_line_numbers)]
+			= refused(core::workbench_command_id::toggle_line_numbers,
+					  core::workbench_reason_code::no_active_workbench);
+		window.publish(refusedProjection);
+		expect(!action->isEnabled(),
+			   "the entry's enabled state follows the core command projection");
 	}
 
 	void test_collapsing_a_drawer_returns_space_to_the_centre()
@@ -1611,6 +1680,110 @@ namespace {
 		expect(surface->current_result() != nullptr,
 			   "the composed surface accepts its exact publication");
 		return surface;
+	}
+
+	/// \brief Proves the View menu's decision actually reaches the source panes.
+	///
+	/// \details This is the seam the rest of the line-number evidence does not
+	/// cross. The core test proves the state changes, the window test proves the
+	/// action follows the projection, and the diff-workbench test proves a bare
+	/// surface honours the flag — and all three pass with the one line that
+	/// connects the window to its surface deleted. Only this test fails then.
+	void test_the_view_menu_reaches_the_composed_source_panes()
+	{
+		const auto [leftText, rightText] = comparison_fixture_text();
+		const auto diff                  = computed_comparison(leftText, rightText);
+
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		auto* const surface = publish_fixture(window, diff);
+		expect(surface->left_pane()->blockCount() > 1
+				   && surface->right_pane()->blockCount() > 1,
+			   "the composed panes hold the fixture's source");
+
+		const auto gutterOf = [](QPlainTextEdit* const aPane) -> QWidget* {
+			auto* const found = aPane->findChild<QWidget*>(
+				QStringLiteral("diffSourceLineNumbers"));
+			expect(found != nullptr, "each composed pane has its gutter");
+			return found;
+		};
+
+		auto shownWidth  = std::vector<int>{ };
+		auto shownOrigin = std::vector<int>{ };
+		for (auto* const source : { surface->left_pane(), surface->right_pane() }) {
+			shownWidth.push_back(gutterOf(source)->width());
+			shownOrigin.push_back(source->viewport()->x());
+			expect(shownWidth.back() > 0,
+				   "the composed panes start with numbers drawn");
+		}
+		const auto ribbonEndpoints = [surface] {
+			auto endpoints = std::vector<std::array<qreal, 4>>{ };
+			for (const auto& link : surface->link_map()->visible_links()) {
+				endpoints.push_back({ link.LeftTop,
+									  link.LeftBottom,
+									  link.RightTop,
+									  link.RightBottom });
+			}
+			return endpoints;
+		};
+		const auto shownRibbons = ribbonEndpoints();
+		const auto shownDetail  = surface->detail_pane()->width();
+		expect(!shownRibbons.empty(),
+			   "the composed link map paints ribbons to begin with");
+
+		auto hidden        = both_files_enabled();
+		hidden.LineNumbers = core::workbench_line_numbers_delta{
+			.State = core::workbench_line_numbers::hidden,
+		};
+		window.publish(hidden);
+		process_events();
+
+		for (auto        index = std::size_t{ 0U };
+			 auto* const source : { surface->left_pane(), surface->right_pane() }) {
+			auto* const gutter = gutterOf(source);
+			// The published decision has to travel window -> surface -> pane.
+			// Cutting that wire leaves every other line-number test green.
+			expect(!gutter->isVisible() && gutter->width() == 0,
+				   "a published hidden state reaches the composed panes");
+			expect(shownOrigin[index] - source->viewport()->x()
+					   == shownWidth[index],
+				   "the composed pane gave the gutter's exact width back to the "
+				   "code");
+			++index;
+		}
+
+		// BPR-0208's class of defect, in the state no other suite reaches: the
+		// text viewport just moved, and the band is measured from a live
+		// viewport rather than inferred, so a stale band would put the ribbons
+		// somewhere the code no longer is.
+		expect(ribbonEndpoints() == shownRibbons,
+			   "every ribbon endpoint is exactly where it was, because hiding "
+			   "the gutter moved the text horizontally and a ribbon's vertical "
+			   "attachment is measured from the live viewport rather than "
+			   "inferred");
+		expect(surface->detail_pane()->width() == shownDetail,
+			   "the lower detail pane keeps the centre's width in both states");
+
+		auto shown        = both_files_enabled();
+		shown.LineNumbers = core::workbench_line_numbers_delta{
+			.State = core::workbench_line_numbers::shown,
+		};
+		window.publish(shown);
+		process_events();
+		for (auto        index = std::size_t{ 0U };
+			 auto* const source : { surface->left_pane(), surface->right_pane() }) {
+			expect(gutterOf(source)->width() == shownWidth[index]
+					   && source->viewport()->x() == shownOrigin[index],
+				   "publishing shown restores the exact composed geometry");
+			++index;
+		}
+		expect(ribbonEndpoints() == shownRibbons
+				   && surface->detail_pane()->width() == shownDetail,
+			   "the ribbons and the detail pane are unmoved across the round "
+			   "trip");
+		window.hide();
 	}
 
 	void test_same_automatically_selected_line_click_filters_conversations()
@@ -3858,6 +4031,8 @@ auto main(int argc, char** argv) -> int
 	test_shell_accessibility_status_and_scale();
 	test_toolbar_status_tips_do_not_resize_the_workbench();
 	test_drawer_toggles_follow_core_command_projections();
+	test_the_view_menu_offers_a_core_decided_line_number_toggle();
+	test_the_view_menu_reaches_the_composed_source_panes();
 	test_collapsing_a_drawer_returns_space_to_the_centre();
 	test_review_details_return_height_to_the_comparison();
 	test_drawer_resize_emits_the_host_layout_path();

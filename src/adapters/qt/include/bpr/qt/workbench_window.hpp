@@ -38,6 +38,7 @@ class QLabel;
 class QLineEdit;
 class QListView;
 class QMenu;
+class QMenuBar;
 class QPlainTextEdit;
 class QScrollArea;
 class QSplitter;
@@ -227,6 +228,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto review_controls_button() const noexcept
 			-> QToolButton*;
 		[[nodiscard]] auto review_controls_menu() const noexcept -> QMenu*;
+		[[nodiscard]] auto menu_bar() const noexcept -> QMenuBar*;
+		[[nodiscard]] auto view_menu() const noexcept -> QMenu*;
+		[[nodiscard]] auto line_numbers_action() const noexcept -> QAction*;
 		[[nodiscard]] auto files_drawer() const noexcept
 			-> workbench_drawer_panel*;
 		[[nodiscard]] auto conversations_drawer() const noexcept
@@ -415,6 +419,9 @@ namespace bpr::qt {
 		void refresh_toolbar_icons();
 		void apply_focus_order();
 		void update_action_state();
+		void build_menu_bar();
+		void dispatch_line_numbers_toggle();
+		void apply_line_numbers();
 		void update_drawer_action(
 			std::size_t                  aIndex,
 			core::workbench_command_id   aId,
@@ -460,6 +467,9 @@ namespace bpr::qt {
 		workbench_queue_preferences_dispatch     QueuePreferencesDispatch;
 
 		QToolBar*       PrimaryToolbar       = nullptr;
+		QMenuBar*       PrimaryMenuBar       = nullptr;
+		QMenu*          ViewMenu             = nullptr;
+		QAction*        LineNumbersAction    = nullptr;
 		QAction*        ReviewDetailsAction  = nullptr;
 		QToolButton*    ReviewControlsButton = nullptr;
 		QMenu*          ReviewControlsMenu   = nullptr;
@@ -526,6 +536,7 @@ namespace bpr::qt {
 		bool                                                       ApplyingQueuePreferences = false;
 		core::workbench_command_delta                              Commands;
 		core::workbench_drawer_delta                               DrawerStates;
+		core::workbench_line_numbers_delta                         LineNumberState;
 		std::optional<application::workbench_layout_delta>         LayoutWidths;
 		std::optional<core::workbench_navigation_cursor>           Cursor;
 		std::optional<application::workbench_host_failure>         Failure;

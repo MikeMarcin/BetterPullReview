@@ -30,6 +30,18 @@ namespace bpr::core {
 		collapsed,
 		expanded,
 	};
+	/// \brief Names whether the source panes number their own lines.
+	///
+	/// \details This is semantic state rather than a widget flag, for the same
+	/// reason a collapsed drawer is: it is a decision the reader made, it
+	/// survives a restart, and the action that carries it has to read its
+	/// checked state from one projection. It belongs to the workbench surface
+	/// exactly as a drawer does, so an inactive workbench refuses the gesture
+	/// and disables the command rather than making this the one exception.
+	enum class workbench_line_numbers : std::uint8_t {
+		hidden,
+		shown,
+	};
 
 	// `diff_reason_code` reports why one file comparison is unavailable. None of
 	// its members can express workbench navigation legality, so this narrow enum
@@ -145,11 +157,31 @@ namespace bpr::core {
 		auto operator<=>(const toggle_workbench_drawer_intent&) const = default;
 	};
 
+	/// \brief Describes the set workbench line numbers intent record.
+	///
+	/// \details The exact form exists for the same reason the drawer's does:
+	/// restoring a persisted setting must not depend on what the state happens
+	/// to be when the restore arrives.
+	struct set_workbench_line_numbers_intent
+	{
+		workbench_line_numbers State = workbench_line_numbers::shown;
+
+		auto operator<=>(const set_workbench_line_numbers_intent&) const = default;
+	};
+
+	/// \brief Describes the toggle workbench line numbers intent record.
+	struct toggle_workbench_line_numbers_intent
+	{
+		auto operator<=>(const toggle_workbench_line_numbers_intent&) const = default;
+	};
+
 	using workbench_interaction_intent = std::variant<
 		select_workbench_file_intent,
 		navigate_workbench_file_intent,
 		set_workbench_drawer_intent,
-		toggle_workbench_drawer_intent>;
+		toggle_workbench_drawer_intent,
+		set_workbench_line_numbers_intent,
+		toggle_workbench_line_numbers_intent>;
 
 	enum class workbench_navigation_target : std::uint8_t {
 		exact_file,
@@ -183,9 +215,10 @@ namespace bpr::core {
 		next_change,
 		toggle_files_drawer,
 		toggle_conversations_drawer,
+		toggle_line_numbers,
 	};
 
-	inline constexpr std::size_t workbench_command_count = 6U;
+	inline constexpr std::size_t workbench_command_count = 7U;
 
 	/// \brief Describes the workbench command projection record.
 	struct workbench_command_projection
@@ -231,6 +264,14 @@ namespace bpr::core {
 		auto operator<=>(const workbench_drawer_delta&) const = default;
 	};
 
+	/// \brief Describes the workbench line numbers delta record.
+	struct workbench_line_numbers_delta
+	{
+		workbench_line_numbers State = workbench_line_numbers::shown;
+
+		auto operator<=>(const workbench_line_numbers_delta&) const = default;
+	};
+
 	/// \brief Describes the workbench interaction output record.
 	///
 	/// \details Every delta is present only when the corresponding published
@@ -241,6 +282,7 @@ namespace bpr::core {
 		std::optional<workbench_navigation_decision> Decision;
 		std::optional<workbench_selection_delta>     Selection;
 		std::optional<workbench_drawer_delta>        Drawers;
+		std::optional<workbench_line_numbers_delta>  LineNumbers;
 		std::optional<workbench_command_delta>       Commands;
 		workbench_reason_code                        Reason = workbench_reason_code::none;
 
@@ -263,6 +305,7 @@ namespace bpr::core {
 		std::optional<workbench_change_cursor>     Change;
 		workbench_drawer_state                     FilesDrawer         = workbench_drawer_state::expanded;
 		workbench_drawer_state                     ConversationsDrawer = workbench_drawer_state::expanded;
+		workbench_line_numbers                     LineNumbers         = workbench_line_numbers::shown;
 		change_navigation_policy                   NavigationPolicy    = change_navigation_policy::stop;
 
 		auto operator<=>(const workbench_interaction_state&) const = default;

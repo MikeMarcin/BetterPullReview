@@ -128,6 +128,7 @@ never invents enabled state.
 | Toggle conversations drawer | `Alt+Shift+2` |
 | Toggle review details | `Alt+Shift+3` |
 | Open private review progress | `Alt+Shift+4` |
+| Toggle source line numbers | `Alt+Shift+5` |
 
 The drawer toggles use `Alt+Shift` rather than plain `Alt+1`/`Alt+2` because
 the composed epoch control already holds `Alt+1` through `Alt+3` with
@@ -235,6 +236,12 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   appearance contrast rules already validate in every profile. The conversation
   anchor marker stays at the text viewport's inner edge, so it sits beside the
   code rather than behind the numbers.
+- The numbering is a durable reader preference, reached from **View > Line
+  numbers**. Turning it off returns the gutter's whole width to the code rather
+  than leaving an empty margin, and turning it back on restores the exact
+  geometry it had. The setting survives a restart. Its state belongs to the
+  core and its action's checked mark comes from the published projection, so
+  the menu entry cannot disagree with what the panes are drawing.
 - One retained comparison-space position drives both pane origins and one
   shared vertical scrollbar. Wheel/trackpad input over either pane or the
   center divider, Page/Home/End, scrollbar drag, and programmatic reveal all
@@ -328,8 +335,26 @@ refuses to be dragged below the width floor the host is willing to persist.
 Ownership is split by meaning. Collapsed and expanded state is semantic, so the
 core owns it and a toggle emits a core intent. Pixel widths carry no semantics,
 so the host owns them and a drag emits the host's persistence path. Neither
-meaning has a second carrier. Drawer contents update through incremental model
-signals; a bounded row or state change never resets the model.
+meaning has a second carrier. Source-pane line-number visibility is split the
+same way and for the same reason: the core owns it, the View menu emits an
+intent, and the panes draw what the projection says. Drawer contents update
+through incremental model signals; a bounded row or state change never resets
+the model.
+
+## Menu bar
+
+The window carries a menu bar with one menu, **View**, holding the line-number
+toggle. It was added by BPR-0457 because the owner asked for a "view menu
+option" and, offered the choice between a real menu bar and a checkable entry
+in the existing toolbar popup, chose the menu bar. On macOS it merges into the
+system menu bar and costs the window no height; on Windows and Linux it takes a
+row, which is the price of the same answer being true on every platform. The
+existing toolbar popup keeps the private progress actions it already had.
+
+The entry is disabled until a pull request is open, because line-number
+visibility is workbench-surface state and an inactive workbench disables every
+workbench command. A reader who opens **View** on a freshly launched window
+sees the entry greyed.
 
 ## Conversation drawer
 

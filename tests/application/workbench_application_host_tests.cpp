@@ -1243,12 +1243,15 @@ namespace {
 			first.Host.apply(core::toggle_workbench_drawer_intent{
 				.Drawer = core::workbench_drawer::conversations });
 			first.Host.resize(core::workbench_drawer::conversations, 500U);
+			first.Host.apply(core::toggle_workbench_line_numbers_intent{ });
 			first.settle();
 		}
 		expect(durable.Stored.Conversations == core::workbench_drawer_state::collapsed,
 			   "the durable record kept the collapsed drawer");
 		expect(durable.Stored.ConversationsWidth == 500U,
 			   "the durable record kept the width");
+		expect(durable.Stored.LineNumbers == core::workbench_line_numbers::hidden,
+			   "the durable record kept the source-pane numbering");
 
 		const auto writes         = durable.Stores;
 		auto       second         = harness{ { }, &durable };
@@ -1261,6 +1264,9 @@ namespace {
 			   "a restarted host restores the drawer state");
 		expect(second.Host.layout().ConversationsWidth == 500U,
 			   "a restarted host restores the drawer width");
+		expect(second.Host.state().LineNumbers == core::workbench_line_numbers::hidden,
+			   "a restarted host restores the source-pane numbering into the "
+			   "core rather than leaving it at the default");
 		expect(durable.Stores == writes, "a restart performs no write-back");
 	}
 

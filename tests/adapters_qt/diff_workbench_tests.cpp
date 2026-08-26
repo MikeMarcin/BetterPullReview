@@ -521,6 +521,76 @@ namespace {
 	}
 
 	/// \brief Proves the gutter is sized to the document it numbers.
+	/// \brief Proves hiding the numbers gives their width back to the code.
+	void test_hiding_the_numbers_returns_the_gutter_width_to_the_code()
+	{
+		const auto [leftText, rightText] = representative_text();
+		auto       options               = core::diff_options{ };
+		const auto diff                  = computed(leftText, rightText, options, 0U);
+		auto       workbench             = qt::diff_workbench{ };
+		workbench.resize(1'260, 820);
+		workbench.show();
+		process_events();
+		const auto selected = context(diff, 1U, 1U);
+		workbench.set_loading(selected);
+		workbench.publish({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+		expect(workbench.left_pane()->blockCount() > 1
+				   && workbench.right_pane()->blockCount() > 1,
+			   "the panes really hold the fixture's source");
+
+		// Measured with the numbers on, so the comparison below is against a
+		// real reserved width rather than against zero twice.
+		auto shownWidth  = std::vector<int>{ };
+		auto shownOrigin = std::vector<int>{ };
+		for (auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+			shownWidth.push_back(gutter_of(source)->width());
+			shownOrigin.push_back(source->viewport()->x());
+			expect(shownWidth.back() > 0 && shownOrigin.back() > 0,
+				   "the gutter starts with real width and pushes the text over");
+		}
+
+		workbench.set_line_numbers_visible(false);
+		process_events();
+		for (auto        index = std::size_t{ 0U };
+			 auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+			auto* const gutter = gutter_of(source);
+			expect(!gutter->isVisible(),
+				   "the gutter is hidden rather than merely blank");
+			expect(gutter->width() == 0, "the gutter reserves nothing");
+			// The assertion that makes this more than a visibility check. A
+			// hidden widget that still reserved its width would leave an empty
+			// margin and the code would have gained nothing, so the claim is
+			// the exact distance the text moved. It is measured as a delta
+			// because the pane's frame also contributes to the viewport's
+			// origin, and the frame is not the gutter's to give back.
+			expect(shownOrigin[index] - source->viewport()->x()
+					   == shownWidth[index],
+				   "the text moved left by exactly the gutter's width, so the "
+				   "reserved space went back to the code");
+			++index;
+		}
+
+		workbench.set_line_numbers_visible(true);
+		process_events();
+		for (auto        index = std::size_t{ 0U };
+			 auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+			auto* const gutter = gutter_of(source);
+			expect(gutter->isVisible(), "the gutter comes back");
+			expect(gutter->width() == shownWidth[index]
+					   && source->viewport()->x() == shownOrigin[index],
+				   "turning them back on restores the exact geometry they had, "
+				   "so the toggle is reversible rather than approximately so");
+			const auto column = gutter->grab().toImage();
+			expect(distinct_colors(column, column.rect()) > 1U,
+				   "the numbers are painted again, not just the space for them");
+			++index;
+		}
+	}
+
 	void test_the_gutter_follows_the_documents_digit_count()
 	{
 		const auto widthFor = [](const std::uint32_t aLines) {
@@ -2494,6 +2564,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
 	test_the_panes_number_their_own_lines();
 	test_the_gutter_follows_the_documents_digit_count();
+	test_hiding_the_numbers_returns_the_gutter_width_to_the_code();
 	test_selected_composition();
 	test_semantic_selection_callback_tracks_both_panes_and_clear();
 	test_conversation_anchor_reveals_and_paints_exact_line();

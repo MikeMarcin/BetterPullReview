@@ -147,9 +147,11 @@ namespace bpr::core {
 				: workbench_reason_code::at_first_change;
 		}
 
-		// A drawer belongs to the workbench surface, so it can only be collapsed
-		// or expanded while the host is publishing one.
-		[[nodiscard]] constexpr auto drawer_rejection(
+		// A drawer and the source panes' numbering both belong to the workbench
+		// surface, so neither can be changed unless the host is publishing one.
+		// An inactive workbench disables every workbench command, and nothing
+		// here is exempt from that.
+		[[nodiscard]] constexpr auto surface_rejection(
 			const workbench_interaction_state& aState) noexcept
 			-> workbench_reason_code
 		{
@@ -191,7 +193,7 @@ namespace bpr::core {
 			const workbench_command_id         aId) noexcept
 			-> workbench_command_projection
 		{
-			const auto rejection = drawer_rejection(aState);
+			const auto rejection = surface_rejection(aState);
 			return {
 				.Id             = aId,
 				.Enabled        = rejection == workbench_reason_code::none,
@@ -218,6 +220,28 @@ namespace bpr::core {
 				: workbench_drawer_state::expanded;
 		}
 
+		[[nodiscard]] constexpr auto toggled(
+			const workbench_line_numbers aLineNumbers) noexcept
+			-> workbench_line_numbers
+		{
+			return aLineNumbers == workbench_line_numbers::shown
+				? workbench_line_numbers::hidden
+				: workbench_line_numbers::shown;
+		}
+
+		[[nodiscard]] constexpr auto line_numbers_command(
+			const workbench_interaction_state& aState,
+			const workbench_command_id         aId) noexcept
+			-> workbench_command_projection
+		{
+			const auto rejection = surface_rejection(aState);
+			return {
+				.Id             = aId,
+				.Enabled        = rejection == workbench_reason_code::none,
+				.DisabledReason = rejection,
+			};
+		}
+
 		/// \brief Adds the command projection to an output when it changed.
 		[[nodiscard]] auto with_changed_commands(
 			const workbench_interaction_state& aState,
@@ -238,7 +262,7 @@ namespace bpr::core {
 			const workbench_drawer_state aRequested)
 			-> workbench_interaction_output
 		{
-			const auto rejection = drawer_rejection(aState);
+			const auto rejection = surface_rejection(aState);
 			if (rejection != workbench_reason_code::none) {
 				return { .Reason = rejection };
 			}
@@ -257,6 +281,31 @@ namespace bpr::core {
 				before,
 				workbench_interaction_output{
 					.Drawers = published_drawers(aState),
+				});
+		}
+
+		[[nodiscard]] auto apply_line_numbers(
+			workbench_interaction_state& aState,
+			const workbench_line_numbers aRequested)
+			-> workbench_interaction_output
+		{
+			const auto rejection = surface_rejection(aState);
+			if (rejection != workbench_reason_code::none) {
+				return { .Reason = rejection };
+			}
+			if (aState.LineNumbers == aRequested) {
+				return { };
+			}
+
+			const auto before  = project_workbench_commands(aState);
+			aState.LineNumbers = aRequested;
+			return with_changed_commands(
+				aState,
+				before,
+				workbench_interaction_output{
+					.LineNumbers = workbench_line_numbers_delta{
+						.State = aState.LineNumbers,
+					},
 				});
 		}
 
@@ -311,6 +360,22 @@ namespace bpr::core {
 				? aState.FilesDrawer
 				: aState.ConversationsDrawer;
 			return apply_drawer(aState, aIntent.Drawer, toggled(retained));
+		}
+
+		[[nodiscard]] auto apply(
+			workbench_interaction_state&             aState,
+			const set_workbench_line_numbers_intent& aIntent)
+			-> workbench_interaction_output
+		{
+			return apply_line_numbers(aState, aIntent.State);
+		}
+
+		[[nodiscard]] auto apply(
+			workbench_interaction_state& aState,
+			const toggle_workbench_line_numbers_intent&)
+			-> workbench_interaction_output
+		{
+			return apply_line_numbers(aState, toggled(aState.LineNumbers));
 		}
 	} // namespace
 
@@ -396,6 +461,8 @@ namespace bpr::core {
 				drawer_command(aState, workbench_command_id::toggle_files_drawer),
 				drawer_command(
 					aState, workbench_command_id::toggle_conversations_drawer),
+				line_numbers_command(
+					aState, workbench_command_id::toggle_line_numbers),
 			},
 			.Policy = aState.NavigationPolicy,
 		};

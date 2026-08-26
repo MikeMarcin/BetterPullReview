@@ -62,6 +62,7 @@ namespace bpr::qt {
 			/// floor: a nine-line file whose gutter is one glyph wide reads as a
 			/// margin rather than as a column.
 			[[nodiscard]] auto gutter_width() const -> int;
+			void               set_line_numbers_visible(bool aVisible);
 			[[nodiscard]] auto gutter() const noexcept -> QWidget*;
 			void               set_gutter_colors(const QColor& aBackground, const QColor& aText);
 			void               paint_line_numbers(QPaintEvent* aEvent);
@@ -219,6 +220,7 @@ namespace bpr::qt {
 
 		private:
 			void refresh_gutter_width();
+			bool LineNumbersVisible = true;
 
 			class gutter_area;
 
@@ -300,6 +302,13 @@ namespace bpr::qt {
 
 		auto source_pane::gutter_width() const -> int
 		{
+			// Hidden is zero width rather than a hidden widget of the old
+			// width. Everything that positions the gutter or reserves room for
+			// it reads this one function, so returning zero here is what gives
+			// the space back to the code instead of leaving an empty margin.
+			if (!LineNumbersVisible) {
+				return 0;
+			}
 			auto digits = 1;
 			for (auto count = std::max(1, blockCount()); count >= 10; count /= 10) {
 				++digits;
@@ -312,6 +321,23 @@ namespace bpr::qt {
 		void source_pane::refresh_gutter_width()
 		{
 			setViewportMargins(gutter_width(), 0, 0, 0);
+		}
+
+		void source_pane::set_line_numbers_visible(const bool aVisible)
+		{
+			if (LineNumbersVisible == aVisible) {
+				return;
+			}
+			LineNumbersVisible = aVisible;
+			Gutter->setVisible(aVisible);
+			// The margin change resizes the viewport, which is what the
+			// workbench's event filter watches to re-measure its geometry, so
+			// the ribbons and the link-map band follow without being told here.
+			refresh_gutter_width();
+			const auto area = contentsRect();
+			Gutter->setGeometry(
+				QRect{ area.left(), area.top(), gutter_width(), area.height() });
+			viewport()->update();
 		}
 
 		void source_pane::set_gutter_colors(
@@ -1513,6 +1539,16 @@ namespace bpr::qt {
 	void diff_workbench::update_selection_paint()
 	{
 		update_diff_paint();
+	}
+
+	void diff_workbench::set_line_numbers_visible(const bool aVisible)
+	{
+		pane(Left)->set_line_numbers_visible(aVisible);
+		pane(Right)->set_line_numbers_visible(aVisible);
+		// The panes' viewports just moved, and the band is measured from a live
+		// viewport rather than inferred, so it has to be re-declared for the
+		// same reason a resize does it.
+		declare_link_map_band();
 	}
 
 	void diff_workbench::adopt_appearance(const appearance_profile& aProfile)

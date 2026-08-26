@@ -14,9 +14,15 @@ namespace bpr::adapters::sqlite::detail {
 		// rather than at the first query for a table that is not there.
 		constexpr std::int32_t WorkbenchApplicationId = 0x42505257;
 
-		/// \brief Builds the statements that create schema version 1.
+		/// \brief Writes the layout table's definition under one name.
 		///
-		/// \details The width bounds are interpolated from
+		/// \details Taking the name is what lets the fresh create and the
+		/// version-one rebuild share one definition. Two copies of this DDL
+		/// would be two things to keep in agreement, and a migrated database
+		/// that merely resembled a fresh one is the failure this store would
+		/// find hardest to notice.
+		///
+		/// The width bounds are interpolated from
 		/// `application::minimum_workbench_drawer_width` and its maximum rather
 		/// than written out, so the constraint the database enforces and the
 		/// bound the application publishes cannot drift apart. That is also why
@@ -28,31 +34,76 @@ namespace bpr::adapters::sqlite::detail {
 		/// unwritten.
 		///
 		/// There is no column for a path, a repository, a pull request, or any
-		/// review content. Drawer geometry is a reviewer preference, and this
-		/// file holds nothing that names what they were reading.
-		[[nodiscard]] auto schema_version_1() -> std::vector<std::string>
+		/// review content. Drawer geometry and whether the panes are numbered
+		/// are reviewer preferences, and this file holds nothing that names
+		/// what they were reading.
+		[[nodiscard]] auto layout_table(const std::string_view aName)
+			-> std::string
 		{
 			const auto minimum
 				= std::to_string(application::minimum_workbench_drawer_width);
 			const auto maximum
 				= std::to_string(application::maximum_workbench_drawer_width);
+			return "CREATE TABLE " + std::string{ aName }
+			+ "(singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+			  "files_state INTEGER NOT NULL "
+			  "CHECK(files_state BETWEEN 0 AND 1),"
+			  "conversations_state INTEGER NOT NULL "
+			  "CHECK(conversations_state BETWEEN 0 AND 1),"
+			  "files_width INTEGER NOT NULL CHECK(files_width BETWEEN "
+				+ minimum + " AND " + maximum
+				+ "),conversations_width INTEGER NOT NULL "
+				  "CHECK(conversations_width BETWEEN "
+				+ minimum + " AND " + maximum
+				+ "),line_numbers INTEGER NOT NULL DEFAULT 1 "
+				  "CHECK(line_numbers BETWEEN 0 AND 1)) STRICT";
+		}
+
+		/// \brief Builds the statements that create the schema from nothing.
+		[[nodiscard]] auto schema_version_1() -> std::vector<std::string>
+		{
 			return {
 				std::string{
 					"CREATE TABLE workbench_meta("
 					"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
 					"schema_format INTEGER NOT NULL"
 					") STRICT" },
-				"CREATE TABLE workbench_layout("
-				"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
-				"files_state INTEGER NOT NULL CHECK(files_state BETWEEN 0 AND 1),"
-				"conversations_state INTEGER NOT NULL "
-				"CHECK(conversations_state BETWEEN 0 AND 1),"
-				"files_width INTEGER NOT NULL CHECK(files_width BETWEEN "
-					+ minimum + " AND " + maximum + "),"
-													"conversations_width INTEGER NOT NULL "
-													"CHECK(conversations_width BETWEEN "
-					+ minimum + " AND " + maximum + ")"
-													") STRICT",
+				layout_table("workbench_layout"),
+			};
+		}
+
+		/// \brief Carries a version-one store forward to the current schema.
+		///
+		/// \details Forward only, and against rows that already exist. The new
+		/// column's value is `shown`, which is both the record's own default
+		/// and the behaviour every existing database was built under, so a
+		/// reviewer who upgrades sees no numbering change they did not ask for.
+		///
+		/// This is SQLite's table-rebuild rather than the one-line
+		/// `ALTER TABLE ... ADD COLUMN` it looks like it should be, because
+		/// this connection prepares with `SQLITE_PREPARE_NO_VTAB` and adding a
+		/// constrained column makes SQLite verify the result through
+		/// `pragma_quick_check` — a pragma virtual table, which that flag
+		/// refuses. The rebuild uses only statements this connection already
+		/// runs, and it has the better property anyway: the migrated table is
+		/// created from the same definition a fresh one is, so the two cannot
+		/// drift into merely resembling each other.
+		[[nodiscard]] auto migrate_version_1_to_2() -> std::vector<std::string>
+		{
+			return {
+				layout_table("workbench_layout_migrating"),
+				std::string{
+					"INSERT INTO workbench_layout_migrating("
+					"singleton, files_state, conversations_state, files_width,"
+					"conversations_width, line_numbers) SELECT "
+					"singleton, files_state, conversations_state, files_width,"
+					"conversations_width, 1 FROM workbench_layout" },
+				std::string{ "DROP TABLE workbench_layout" },
+				std::string{ "ALTER TABLE workbench_layout_migrating "
+							 "RENAME TO workbench_layout" },
+				"UPDATE workbench_meta SET schema_format = "
+					+ std::to_string(workbench_settings_schema_version)
+					+ " WHERE singleton = 1",
 			};
 		}
 
@@ -105,31 +156,53 @@ namespace bpr::adapters::sqlite::detail {
 					aDatabase, "ROLLBACK", nullptr, nullptr, nullptr);
 			};
 
-			const auto statements = schema_version_1();
+			// Zero is an empty file; anything between that and the current
+			// version is a store with rows in it that has to be carried
+			// forward rather than recreated underneath the reviewer.
+			//
+			// Two things this branch is worth knowing about. It runs before
+			// `validate` has checked the application identity, and unlike the
+			// old create-only path it now issues a `DROP TABLE`; that is safe
+			// only because the whole rebuild is inside one transaction and a
+			// foreign file rolls back at the `INSERT ... FROM` step. And the
+			// migration named here carries version one specifically, so a
+			// version this build has no step for is refused rather than handed
+			// to the wrong one — today that is unreachable, and the day a
+			// version three exists it stops being so.
+			if (*current != 0 && *current != 1) {
+				rollback();
+				return std::unexpected(failure::schema_mismatch);
+			}
+			const auto fresh      = *current == 0;
+			const auto statements = fresh ? schema_version_1()
+										  : migrate_version_1_to_2();
 			if (auto created = run_all(aDatabase, statements, aStop); !created) {
 				rollback();
 				return created;
 			}
 			// Derived from the constant rather than written out, so the stamp
 			// and the validation cannot disagree.
-			if (auto app = execute(
-					aDatabase,
-					"PRAGMA application_id = "
-						+ std::to_string(WorkbenchApplicationId),
-					aStop);
-				!app) {
-				rollback();
-				return app;
-			}
-			if (auto meta = execute(
-					aDatabase,
-					"INSERT INTO workbench_meta(singleton, schema_format) "
-					"VALUES(1, "
-						+ std::to_string(workbench_settings_schema_version) + ")",
-					aStop);
-				!meta) {
-				rollback();
-				return meta;
+			if (fresh) {
+				if (auto app = execute(
+						aDatabase,
+						"PRAGMA application_id = "
+							+ std::to_string(WorkbenchApplicationId),
+						aStop);
+					!app) {
+					rollback();
+					return app;
+				}
+				if (auto meta = execute(
+						aDatabase,
+						"INSERT INTO workbench_meta(singleton, schema_format) "
+						"VALUES(1, "
+							+ std::to_string(workbench_settings_schema_version)
+							+ ")",
+						aStop);
+					!meta) {
+					rollback();
+					return meta;
+				}
 			}
 			if (auto stamped = set_version(
 					aDatabase, workbench_settings_schema_version, aStop);
@@ -176,13 +249,28 @@ namespace bpr::adapters::sqlite::detail {
 			return std::string{ reinterpret_cast<const char*>(bytes) };
 		}
 
-		/// \brief Reads one stored drawer state, refusing an unknown value.
+		/// \brief Reads one stored line-number state, refusing an unknown value.
 		///
 		/// \details `STRICT` and the column's `CHECK` already refuse a value
 		/// this build never wrote, but a durable file can be replaced wholesale
 		/// by another build or by hand. The vocabulary is closed, so a value
 		/// outside it is refused here rather than cast into a state the core
-		/// would then be asked to reason about.
+		/// would then be asked to reason about. `drawer_state_of` below refuses
+		/// its own column for the same reason.
+		[[nodiscard]] auto line_numbers_of(const std::int64_t aValue)
+			-> std::expected<core::workbench_line_numbers, failure>
+		{
+			switch (aValue) {
+			case 0:
+				return core::workbench_line_numbers::hidden;
+			case 1:
+				return core::workbench_line_numbers::shown;
+			default:
+				return std::unexpected(failure::integrity_failure);
+			}
+		}
+
+		/// \brief Reads one stored drawer state, refusing an unknown value.
 		[[nodiscard]] auto drawer_state_of(const std::int64_t aValue)
 			-> std::expected<core::workbench_drawer_state, failure>
 		{
@@ -290,12 +378,13 @@ namespace bpr::adapters::sqlite::detail {
 			Handle,
 			"INSERT INTO workbench_layout("
 			"singleton, files_state, conversations_state, files_width,"
-			"conversations_width) VALUES(1, ?1, ?2, ?3, ?4) "
+			"conversations_width, line_numbers) VALUES(1, ?1, ?2, ?3, ?4, ?5) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
 			"files_width = excluded.files_width,"
-			"conversations_width = excluded.conversations_width");
+			"conversations_width = excluded.conversations_width,"
+			"line_numbers = excluded.line_numbers");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -317,6 +406,11 @@ namespace bpr::adapters::sqlite::detail {
 				   statement->Value,
 				   4,
 				   static_cast<std::int64_t>(aSettings.ConversationsWidth))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value,
+				   5,
+				   static_cast<std::int64_t>(aSettings.LineNumbers))
 				!= SQLITE_OK) {
 			return std::unexpected(catalog_sql_failure(Handle));
 		}
@@ -342,7 +436,8 @@ namespace bpr::adapters::sqlite::detail {
 		auto statement = prepare(
 			Handle,
 			"SELECT files_state, conversations_state, files_width,"
-			"conversations_width FROM workbench_layout WHERE singleton = 1");
+			"conversations_width, line_numbers FROM workbench_layout "
+			"WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -372,9 +467,16 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(conversations.error());
 		}
 
+		const auto lineNumbers = line_numbers_of(
+			::sqlite3_column_int64(statement->Value, 4));
+		if (!lineNumbers) {
+			return std::unexpected(lineNumbers.error());
+		}
+
 		return application::workbench_layout_settings{
 			.Files         = *files,
 			.Conversations = *conversations,
+			.LineNumbers   = *lineNumbers,
 			.FilesWidth    = static_cast<std::uint32_t>(
 				::sqlite3_column_int64(statement->Value, 2)),
 			.ConversationsWidth = static_cast<std::uint32_t>(

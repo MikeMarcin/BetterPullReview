@@ -17,11 +17,14 @@ struct sqlite3;
 namespace bpr::adapters::sqlite::detail {
 	/// \brief The schema version this build writes and validates.
 	///
-	/// \details One, and honestly so, for the same reason the queue enrollment
-	/// store's is one: inventing a second version to exercise a migration
-	/// mechanism would exercise nothing. The refusal *is* tested — a database
-	/// stamped newer fails closed rather than being partially understood.
-	inline constexpr std::int64_t workbench_settings_schema_version = 1;
+	/// \details Two since BPR-0457, and this is the store's first real
+	/// migration. It was one until a durable field had to be added to a table
+	/// that already had rows in it, which is exactly the case the earlier note
+	/// said inventing a version could not exercise. Both directions are tested:
+	/// a version-one database gains the column and keeps its row, and a
+	/// database stamped newer still fails closed rather than being partially
+	/// understood.
+	inline constexpr std::int64_t workbench_settings_schema_version = 2;
 
 	/// \brief Owns the durable workbench layout database.
 	///

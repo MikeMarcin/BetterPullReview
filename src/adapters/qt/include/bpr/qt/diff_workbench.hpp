@@ -199,6 +199,16 @@ namespace bpr::qt {
 		/// unpainted diff instead of a plausible but unowned one.
 		void adopt_appearance(const appearance_profile& aProfile);
 
+		/// \brief Shows or hides both panes' line-number gutters.
+		///
+		/// \details Presentation only. The workbench holds no opinion about
+		/// whether numbering should be on: the state is `core`'s, the setting
+		/// is durable, and this applies whatever the projection last published.
+		/// Hiding returns the gutter's width to the code rather than leaving an
+		/// empty margin, and the measured geometry follows the viewport it
+		/// changes.
+		void set_line_numbers_visible(bool aVisible);
+
 		/// \brief Adopts the classification of one side's blob.
 		///
 		/// \details The pane runs no lexer. Spans arrive from the appearance

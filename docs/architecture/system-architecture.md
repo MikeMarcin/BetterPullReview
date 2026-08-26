@@ -730,7 +730,13 @@ path directly falsifiable in the composed Qt fixture.
 
 Focused review is a Qt-local presentation choice, not durable review state.
 The shipped Files and Conversations actions retain their host-decided drawer
-semantics. A separate always-visible, keyboard-addressable Review details
+semantics. Source-pane line-number visibility is deliberately *not* in that
+Qt-local class: it is a durable reader preference, so it is a field of
+`core::workbench_interaction_state`, an intent on the workbench variant, a
+column of the SQLite `workbench_layout` table, and a published delta the View
+menu's action reads its checked state from. A Qt-local boolean on the pane
+would have satisfied the same user-visible request while violating both the
+adapter boundary and the one-command-projection rule. A separate always-visible, keyboard-addressable Review details
 action hides or restores the secondary session/queue/pull-request header,
 epoch/history controls, and selected-change detail together. Hiding them does
 not clear their values or semantic selection; it returns their vertical extent

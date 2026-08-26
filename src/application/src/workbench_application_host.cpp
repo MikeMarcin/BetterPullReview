@@ -709,14 +709,16 @@ namespace bpr::application {
 
 		/// \brief Persists the durable layout, coalescing with any pending write.
 		///
-		/// \details The core owns the drawer states while a workbench is active, so
-		/// the record adopts them then. Before activation the loaded record is
-		/// still the authority and must not be overwritten with defaults.
+		/// \details The core owns the drawer states and the source-pane numbering
+		/// while a workbench is active, so the record adopts them then. Before
+		/// activation the loaded record is still the authority and must not be
+		/// overwritten with defaults.
 		void submit_settings_store()
 		{
 			if (State.Navigation.has_value()) {
 				Layout.Files         = State.FilesDrawer;
 				Layout.Conversations = State.ConversationsDrawer;
+				Layout.LineNumbers   = State.LineNumbers;
 			}
 			retire(workbench_request_domain::settings_store,
 				   workbench_terminal_rejection::superseded);
@@ -884,7 +886,7 @@ namespace bpr::application {
 			if (output.Decision.has_value()) {
 				execute_decision(*output.Decision);
 			}
-			if (output.Drawers.has_value()) {
+			if (output.Drawers.has_value() || output.LineNumbers.has_value()) {
 				submit_settings_store();
 			}
 			publish_changes(local_context());
@@ -1153,11 +1155,12 @@ namespace bpr::application {
 			++PersistedLayouts;
 		}
 
-		/// \brief Applies restored drawer states once the workbench is active.
+		/// \brief Applies the restored surface state once the workbench is active.
 		///
-		/// \details A drawer gesture is only legal while a workbench is published,
-		/// so a layout restored before the first observation waits here rather than
-		/// being decided outside the core. Restoring never writes the layout back.
+		/// \details A drawer or numbering gesture is only legal while a workbench
+		/// is published, so a layout restored before the first observation waits
+		/// here rather than being decided outside the core. Restoring never writes
+		/// the layout back.
 		void apply_restored_drawers()
 		{
 			if (!RestorePending || !State.Navigation.has_value()) {
@@ -1166,6 +1169,15 @@ namespace bpr::application {
 			RestorePending = false;
 			set_drawer(core::workbench_drawer::files, Layout.Files);
 			set_drawer(core::workbench_drawer::conversations, Layout.Conversations);
+			set_line_numbers(Layout.LineNumbers);
+		}
+
+		void set_line_numbers(const core::workbench_line_numbers aState)
+		{
+			const auto output = core::transition(
+				State,
+				core::set_workbench_line_numbers_intent{ .State = aState });
+			LastReason = output.Reason;
 		}
 
 		void set_drawer(const core::workbench_drawer       aDrawer,
@@ -1207,6 +1219,12 @@ namespace bpr::application {
 			if (PublishedDrawers != drawers) {
 				projection.Drawers = drawers;
 			}
+			const auto lineNumbers = core::workbench_line_numbers_delta{
+				.State = State.LineNumbers,
+			};
+			if (PublishedLineNumbers != lineNumbers) {
+				projection.LineNumbers = lineNumbers;
+			}
 			const auto commands = core::project_workbench_commands(State);
 			if (PublishedCommands != commands) {
 				projection.Commands = commands;
@@ -1235,11 +1253,12 @@ namespace bpr::application {
 			if (empty(projection)) {
 				return;
 			}
-			PublishedSelection = selection;
-			PublishedDrawers   = drawers;
-			PublishedCommands  = commands;
-			PublishedLayout    = layout;
-			PublishedFiles     = std::move(files);
+			PublishedSelection   = selection;
+			PublishedDrawers     = drawers;
+			PublishedLineNumbers = lineNumbers;
+			PublishedCommands    = commands;
+			PublishedLayout      = layout;
+			PublishedFiles       = std::move(files);
 			deliver_projection(
 				[this, &projection] { Projections.publish(projection); });
 		}
@@ -1295,6 +1314,7 @@ namespace bpr::application {
 
 		std::optional<core::workbench_selection_delta>        PublishedSelection;
 		std::optional<core::workbench_drawer_delta>           PublishedDrawers;
+		std::optional<core::workbench_line_numbers_delta>     PublishedLineNumbers;
 		std::optional<core::workbench_command_delta>          PublishedCommands;
 		std::optional<workbench_layout_delta>                 PublishedLayout;
 		std::optional<std::vector<workbench_file_projection>> PublishedFiles;

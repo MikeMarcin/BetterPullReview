@@ -22,6 +22,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QMenu>
+#include <QMenuBar>
 #include <QPainter>
 #include <QPalette>
 #include <QPlainTextEdit>
@@ -287,6 +288,7 @@ namespace bpr::qt {
 		setMinimumSize(480, 360);
 		resize(1'280, 820);
 
+		build_menu_bar();
 		build_primary_toolbar();
 		build_central_surface();
 		build_github_header();
@@ -1427,6 +1429,9 @@ namespace bpr::qt {
 			DrawerStates = *aProjection.Drawers;
 			++Statistics.DrawerUpdates;
 		}
+		if (aProjection.LineNumbers) {
+			LineNumberState = *aProjection.LineNumbers;
+		}
 		if (aProjection.Layout) {
 			LayoutWidths = *aProjection.Layout;
 			++Statistics.LayoutUpdates;
@@ -1866,6 +1871,21 @@ namespace bpr::qt {
 	auto workbench_window::review_controls_menu() const noexcept -> QMenu*
 	{
 		return ReviewControlsMenu;
+	}
+
+	auto workbench_window::menu_bar() const noexcept -> QMenuBar*
+	{
+		return PrimaryMenuBar;
+	}
+
+	auto workbench_window::view_menu() const noexcept -> QMenu*
+	{
+		return ViewMenu;
+	}
+
+	auto workbench_window::line_numbers_action() const noexcept -> QAction*
+	{
+		return LineNumbersAction;
 	}
 
 	auto workbench_window::files_drawer() const noexcept -> workbench_drawer_panel*
@@ -2564,6 +2584,84 @@ namespace bpr::qt {
 		});
 	}
 
+	/// \brief Builds the window's menu bar and its View menu.
+	///
+	/// \details This window had no menu bar until BPR-0457. The owner asked
+	/// for a "view menu option" and was given the choice between a real menu
+	/// bar and a checkable entry in the existing toolbar popup; they chose the
+	/// menu bar, which is the option that matches the words and, on macOS,
+	/// merges into the system bar and costs the window no height. On Windows
+	/// and Linux it takes a row, which is the price of the same answer being
+	/// true everywhere.
+	void workbench_window::build_menu_bar()
+	{
+		PrimaryMenuBar = new QMenuBar{ this };
+		PrimaryMenuBar->setObjectName(QStringLiteral("workbenchMenuBar"));
+		PrimaryMenuBar->setAccessibleName(QStringLiteral("Workbench menu bar"));
+		PrimaryMenuBar->setAccessibleDescription(
+			QStringLiteral("Presentation menus for the review workbench"));
+		setMenuBar(PrimaryMenuBar);
+
+		ViewMenu = PrimaryMenuBar->addMenu(QStringLiteral("&View"));
+		ViewMenu->setObjectName(QStringLiteral("workbenchViewMenu"));
+		ViewMenu->setAccessibleName(QStringLiteral("View"));
+		ViewMenu->setAccessibleDescription(
+			QStringLiteral("Presentation options for the comparison surface"));
+
+		LineNumbersAction
+			= new QAction{ QStringLiteral("&Line numbers"), this };
+		LineNumbersAction->setObjectName(
+			QStringLiteral("toggleWorkbenchLineNumbersAction"));
+		LineNumbersAction->setCheckable(true);
+		LineNumbersAction->setChecked(true);
+		LineNumbersAction->setShortcut(
+			QKeySequence{ QStringLiteral("Alt+Shift+5") });
+		LineNumbersAction->setShortcutContext(Qt::WindowShortcut);
+		addAction(LineNumbersAction);
+		ViewMenu->addAction(LineNumbersAction);
+		// `triggered` rather than `toggled`: the checked state is the
+		// projection's to decide, and a toggled handler would also fire when
+		// the projection sets it, turning one gesture into two.
+		connect(LineNumbersAction, &QAction::triggered, this, [this] {
+			dispatch_line_numbers_toggle();
+		});
+	}
+
+	void workbench_window::dispatch_line_numbers_toggle()
+	{
+		// The widget never decides. Whatever Qt just did to the check mark is
+		// undone by re-applying the projection, and the intent is what
+		// eventually changes it.
+		apply_line_numbers();
+		if (!Dispatch) {
+			return;
+		}
+		Dispatch(core::toggle_workbench_line_numbers_intent{ });
+	}
+
+	void workbench_window::apply_line_numbers()
+	{
+		const auto shown
+			= LineNumberState.State == core::workbench_line_numbers::shown;
+		LineNumbersAction->setChecked(shown);
+		const auto projection
+			= command(core::workbench_command_id::toggle_line_numbers);
+		describe_action(
+			LineNumbersAction,
+			projection && projection->Enabled,
+			shown
+				? QStringLiteral(
+					  "Hide the source line numbers and give the gutter's width "
+					  "back to the code.")
+				: QStringLiteral("Number each pane's own source lines."),
+			drawer_reason_text(projection
+								   ? projection->DisabledReason
+								   : core::workbench_reason_code::no_active_workbench));
+		if (ComparisonSurface != nullptr) {
+			ComparisonSurface->set_line_numbers_visible(shown);
+		}
+	}
+
 	void workbench_window::dispatch_drawer_toggle(const std::size_t aIndex)
 	{
 		// A checkable action flips itself the moment it is triggered. The core owns
@@ -2761,6 +2859,7 @@ namespace bpr::qt {
 			1U,
 			core::workbench_command_id::toggle_conversations_drawer,
 			DrawerStates.Conversations);
+		apply_line_numbers();
 		update_receipt_actions();
 	}
 

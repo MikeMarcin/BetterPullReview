@@ -589,6 +589,8 @@ namespace {
 					? workbench_drawer::files
 					: workbench_drawer::conversations,
 			};
+		case workbench_command_id::toggle_line_numbers:
+			return toggle_workbench_line_numbers_intent{ };
 		case workbench_command_id::previous_change:
 		case workbench_command_id::next_change:
 			// A change gesture leaves as an RFC-BPR-0004 diff intent rather than
@@ -674,7 +676,21 @@ namespace {
 				   }),
 			   "an inactive workbench explains every disabled command the same way");
 
+		expect(inactive
+					   .Commands[static_cast<std::size_t>(
+						   workbench_command_id::toggle_line_numbers)]
+					   .Id
+				   == workbench_command_id::toggle_line_numbers,
+			   "the seventh entry projects its own command rather than a "
+			   "default-constructed one");
+
 		const auto emptyOrder = project_workbench_commands(active(unselected(0U)));
+		expect(emptyOrder
+				   .Commands[static_cast<std::size_t>(
+					   workbench_command_id::toggle_line_numbers)]
+				   .Enabled,
+			   "an active workbench offers the line-number command even with no "
+			   "actionable file, because numbering does not depend on one");
 		expect(!emptyOrder.Commands[0].Enabled && !emptyOrder.Commands[1].Enabled
 				   && emptyOrder.Commands[0].DisabledReason
 					   == workbench_reason_code::no_actionable_files
@@ -853,6 +869,63 @@ namespace {
 			   "an absent change observation closes the comparison");
 	}
 
+	auto test_line_number_state() -> void
+	{
+		auto inactive = workbench_interaction_state{ };
+		expect(inactive.LineNumbers == workbench_line_numbers::shown,
+			   "line numbers start shown");
+
+		// It belongs to the workbench surface exactly as a drawer does. There
+		// are no source panes to number until the host publishes one, so this
+		// is not the one command an inactive workbench leaves enabled.
+		const auto refused
+			= transition(inactive, toggle_workbench_line_numbers_intent{ });
+		expect(rejected(refused, workbench_reason_code::no_active_workbench)
+				   && inactive == workbench_interaction_state{ },
+			   "an inactive workbench refuses a line-number gesture");
+
+		auto       state = active(resident(2U, 3U));
+		const auto hidden
+			= transition(state, toggle_workbench_line_numbers_intent{ });
+		expect(hidden.Reason == workbench_reason_code::none
+				   && hidden.LineNumbers.has_value()
+				   && hidden.LineNumbers->State == workbench_line_numbers::hidden
+				   && state.LineNumbers == workbench_line_numbers::hidden,
+			   "toggling hides them");
+		expect(!hidden.Drawers.has_value() && !hidden.Decision.has_value()
+				   && !hidden.Selection.has_value(),
+			   "a line-number gesture publishes no drawer or selection change");
+		expect(state.FilesDrawer == workbench_drawer_state::expanded
+				   && state.ConversationsDrawer == workbench_drawer_state::expanded
+				   && state.Navigation.has_value(),
+			   "a line-number gesture disturbs no other retained fact");
+
+		const auto shown
+			= transition(state, toggle_workbench_line_numbers_intent{ });
+		expect(shown.LineNumbers.has_value()
+				   && shown.LineNumbers->State == workbench_line_numbers::shown
+				   && state.LineNumbers == workbench_line_numbers::shown,
+			   "toggling again shows them");
+
+		const auto unchanged = transition(
+			state,
+			set_workbench_line_numbers_intent{
+				.State = workbench_line_numbers::shown,
+			});
+		expect(unchanged == workbench_interaction_output{ },
+			   "setting the state it already has publishes nothing");
+
+		const auto set = transition(
+			state,
+			set_workbench_line_numbers_intent{
+				.State = workbench_line_numbers::hidden,
+			});
+		expect(set.LineNumbers.has_value()
+				   && set.LineNumbers->State == workbench_line_numbers::hidden
+				   && state.LineNumbers == workbench_line_numbers::hidden,
+			   "an exact set carries a persisted setting back into the core");
+	}
+
 	auto test_drawer_state() -> void
 	{
 		auto inactive = workbench_interaction_state{ };
@@ -927,5 +1000,6 @@ int main()
 	test_navigation_observations();
 	test_change_observations();
 	test_drawer_state();
+	test_line_number_state();
 	return EXIT_SUCCESS;
 }
