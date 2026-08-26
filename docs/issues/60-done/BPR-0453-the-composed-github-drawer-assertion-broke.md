@@ -1,7 +1,7 @@
 ---
 id: BPR-0453
 title: The composed GitHub drawer assertion broke when the map landed
-status: In Progress
+status: Done
 rfc: RFC-BPR-0005
 depends_on: [BPR-0418]
 ---
@@ -49,3 +49,27 @@ says so in its name.
 ```sh
 ctest --preset dev --output-on-failure -R 'qt_composed_github|github_conversation|workbench|thread_map'
 ```
+
+## Done — 2026-08-25
+
+The assertion now requires the loaded page to be a page other than the empty
+state **and** to be an ancestor of `window.conversation_view()`. That survives
+the structural change without conceding what the check is for: it still fails
+if the drawer shows the empty state, and it still fails if the page on screen
+is not the one holding the conversation.
+
+The rejected alternative was comparing against the new splitter by name or
+object. That would pass for a drawer showing an empty splitter, which is
+exactly the state the assertion exists to catch.
+
+### Verification
+
+| claim | command | proves it | result |
+|---|---|---|---|
+| the three composed suites pass | `ctest --preset dev -R 'qt_composed_github'` | the real GitHub window at three scales | 3/3 pass |
+| the repair is load-bearing | same, with the assertion reverted | the three suites fail again at `FAILED: accepted pull-request content replaces the empty state`; build exit 0 in both directions, so it is not a stale binary | **fails without the fix** |
+| the drawer suites still pass | `ctest --preset dev -R 'qt_composed_github\|github_conversation\|workbench\|thread_map'` | composition, panel, model property, window and diff scales, public-path courses | 22/22 pass |
+| formatting | `cmake --build --preset dev --target coding-format-check` | 425 files | pass |
+
+The full 218-test `dev` matrix that found this was otherwise green apart from
+[[BPR-0452]], which is unrelated and predates this run.

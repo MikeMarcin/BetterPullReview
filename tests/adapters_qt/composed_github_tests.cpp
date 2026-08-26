@@ -703,8 +703,9 @@ namespace {
 		expect(
 			presentation_state(window) == QStringLiteral("loaded")
 				&& viewState->currentWidget() != emptyState
-				&& conversationState->currentWidget()
-					== window.conversation_view(),
+				&& conversationState->currentWidget() != conversationEmpty
+				&& conversationState->currentWidget()->isAncestorOf(
+					window.conversation_view()),
 			"accepted pull-request content replaces the empty state");
 
 		expect(
