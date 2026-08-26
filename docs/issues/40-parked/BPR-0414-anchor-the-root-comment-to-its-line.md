@@ -1,9 +1,10 @@
 ---
 id: BPR-0414
 title: Anchor the root comment to the line of code it comments on
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191, BPR-0455, BPR-0456]
+parked_on: awaiting-owner-verdict
 ---
 
 # Anchor the root comment to the line of code it comments on
@@ -397,3 +398,69 @@ acceptance exists, and batch `0a6b4763976a05a7f14af6df` is now history rather
 than a live question — a successor batch is required, and it must be built from
 a fresh capture with line numbers, a flat reply feed, and the files drawer
 collapsed.
+
+## Successor batch — 2026-08-26
+
+Batch `0a6b4763976a05a7f14af6df` is answered and closed as a rejection. Its
+successor is `bpr:/attended-review/betterpullreview/7b46cacd14d6dca40c2f153d`,
+subject digest `sha256:8d601ba2…7988fc1e`, captured at
+`6e07773b084b80a2079ea6f123b252d5c221126b`.
+
+All three of the verdict's grounds are answered, and each by its own card
+rather than by adjusting the picture:
+
+- **line numbers** — [[BPR-0455]]. Both panes number their own lines. In this
+  capture the left reads 24–59 and the right 27–62, and the selected right row
+  is 42, which is the association the verdict could not check.
+- **a linear reply feed** — [[BPR-0456]]. The thread sits flush and its reply
+  one step in, at any depth.
+- **the files drawer collapsed** — done here, through
+  `--render-evidence-collapse-files`.
+
+### The capture option touched production source, and the board caught it
+
+Collapsing the drawer needed a change to `src/app/main.cpp`, which is shipped
+application source. That is worth stating plainly rather than filing as a test
+fixture change: **a review artifact caused an edit to the product.**
+
+The change is narrow — evidence-only, defaulted off, and it collapses by
+triggering the shipped `files_drawer_toggle_action` after the course's
+assertions have run, so the image shows a state the product can actually reach
+rather than one the harness arranged behind the core.
+
+It was not trusted on that description. `bpr_verify_app_source_tree` pins a
+digest over the production application source precisely so any change to it is
+looked at, and it failed twice: once for the edit, and once more because
+`coding-format` rewrote the file after the first repin. Both repins are
+recorded in the commit that settled the source, and the capture was taken only
+after that commit existed — so the provenance names a tree that was really
+committed, rather than an intermediate state that never was.
+
+The rendered bytes are identical before and after formatting, which is the
+check that the second drift was cosmetic.
+
+### What is still unanswered
+
+The question itself. The rejection was about numbers and indentation; it was
+not an answer to whether comment bodies should cross into the code view, and
+the returned claims said so (`inline_comment_body_authorized: false`). This
+batch asks the same question, unchanged, against a capture that no longer
+obstructs it.
+
+Accepting it endorses the marker-and-drawer boundary. It does not endorse the
+line-number or reply-feed work, which carry their own evidence on their own
+cards, and it does not settle [[BPR-0211]]'s open questions about the thread
+map's size and always-visible placement.
+
+### Parked again
+
+```sh
+python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py \
+  validate-verdict \
+  --manifest docs/verification/reviews/conversation-code-boundary-v001/offline-package/attended-review-manifest.json \
+  --verdict /path/to/exported-verdict.json
+```
+
+Validate against **this** manifest. Neither predecessor's manifest may be used:
+`ab6145717475dfdfddd6206d` was withdrawn unanswered and
+`0a6b4763976a05a7f14af6df` is answered and closed.

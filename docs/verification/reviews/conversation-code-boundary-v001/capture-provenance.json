@@ -3,13 +3,13 @@
   "schema_version": 1,
   "capture": {
     "path": "captures/conversation-anchor.png",
-    "sha256": "6f048c13881933e648a709085615f3489b96a0965d3b6f9e95a3ab5b9f5da7e9",
+    "sha256": "73a4985ac9edd52c4d7d5e7e3b5d1aa11e7c73fe2124ed2a040b6430423d20bf",
     "pixel_width": 1280,
     "pixel_height": 1000,
     "device_pixel_ratio": 1.0
   },
   "producer": {
-    "implementation_commit": "20e94d063bbe559c8d1bc818f7ded8c23aacab26",
+    "implementation_commit": "6e07773b084b80a2079ea6f123b252d5c221126b",
     "command": "ctest --preset dev --output-on-failure -R '^application_diff_workbench_public_path$'",
     "test_name": "application_diff_workbench_public_path",
     "network_policy": "registered-network-isolated-ctest-course",
