@@ -3,9 +3,11 @@
 #include "bpr/qt/github_conversation_model.hpp"
 
 #include <QApplication>
+#include <QImage>
 #include <QLabel>
 #include <QTreeView>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -84,6 +86,110 @@ namespace {
 	}
 
 	/// \brief Anchoring keeps one file's threads and drops the other's.
+	auto process_events() -> void
+	{
+		for (auto pass = 0; pass < 4; ++pass) {
+			QApplication::processEvents();
+		}
+	}
+
+	/// \brief Returns how far in from a row's left edge its content starts.
+	///
+	/// \details Measured from pixels rather than from the view's indentation
+	/// setting, because the claim is about what a reviewer sees. The first
+	/// column differing from the row's own left-edge background is where the
+	/// delegate began drawing.
+	[[nodiscard]] auto painted_inset(const QImage& aRaster, const QRect& aRow)
+		-> int
+	{
+		const auto ratio = aRaster.devicePixelRatio();
+		const auto left  = static_cast<int>(aRow.left() * ratio);
+		const auto right = std::min(static_cast<int>(aRow.right() * ratio),
+									aRaster.width() - 1);
+		const auto first = std::max(0, static_cast<int>(aRow.top() * ratio));
+		const auto last  = std::min(static_cast<int>(aRow.bottom() * ratio),
+									aRaster.height() - 1);
+		// The nearest painted pixel anywhere in the row, not on one chosen
+		// scanline: a row's text does not occupy its full height, and sampling
+		// a single line finds blank space as often as content.
+		auto nearest = -1;
+		for (auto y = first; y <= last; ++y) {
+			const auto background = aRaster.pixel(left, y);
+			for (auto x = left; x <= right; ++x) {
+				if (aRaster.pixel(x, y) != background) {
+					const auto inset = static_cast<int>(
+						static_cast<qreal>(x - left) / ratio);
+					nearest = nearest < 0 ? inset : std::min(nearest, inset);
+					break;
+				}
+			}
+		}
+		return nearest;
+	}
+
+	/// \brief Proves depth no longer costs horizontal room.
+	///
+	/// \details The owner's direction on the BPR-0414 verdict: a linear reply
+	/// feed grouped by root, because the staircase spends the width the
+	/// comment text needs. Depth is still in the model, and BPR-0418's thread
+	/// map is where it is read.
+	auto test_replies_are_a_flat_feed_under_their_root() -> void
+	{
+		auto panel = qt::github_conversation_panel{ };
+		panel.resize(360, 1'400);
+		panel.show();
+		process_events();
+
+		// A chain five replies deep, which under a per-depth indent would push
+		// the deepest comment five steps off the left edge.
+		auto conversations = std::vector<conversation>{
+			root("thread", "src/file.cpp"),
+		};
+		auto parent = std::string{ "thread" };
+		for (auto depth = 1; depth <= 5; ++depth) {
+			auto id = "c" + std::to_string(depth);
+			conversations.push_back(reply(id, parent));
+			parent = std::move(id);
+		}
+		panel.adopt(conversations, QStringLiteral("1 review thread available."));
+		process_events();
+
+		auto* const view = panel.view();
+		expect(view->indentation() == 0 && !view->rootIsDecorated(),
+			   "the view no longer indents rows by their depth");
+
+		const auto rowOf = [&](const std::string_view aIdentity) {
+			const auto index = panel.model()->index_for_id(aIdentity);
+			expect(index.isValid(), "the row being measured is in the model");
+			const auto rect = view->visualRect(index);
+			// A row scrolled out of view has nothing to measure, and a check
+			// that silently measured blank pixels would pass for any layout.
+			expect(!rect.isEmpty()
+					   && view->viewport()->rect().contains(rect.center()),
+				   "the row being measured is actually on screen");
+			return rect;
+		};
+		const auto shallow = rowOf("c1");
+		const auto deep    = rowOf("c5");
+		expect(shallow.left() == deep.left() && shallow.width() == deep.width(),
+			   "a reply five deep occupies the same horizontal extent as a reply "
+			   "one deep");
+
+		// Pixels, not settings. A view that stopped indenting while the
+		// delegate kept a depth-scaled inset would pass the check above.
+		const auto raster       = view->viewport()->grab().toImage();
+		const auto rootInset    = painted_inset(raster, rowOf("thread"));
+		const auto shallowInset = painted_inset(raster, shallow);
+		const auto deepInset    = painted_inset(raster, deep);
+		expect(rootInset >= 0 && shallowInset >= 0 && deepInset >= 0,
+			   "every measured row actually painted something");
+		expect(shallowInset == deepInset,
+			   "replies start at the same place whatever their depth");
+		expect(rootInset < shallowInset,
+			   "a reply is still visibly grouped under its root rather than flush "
+			   "with it");
+	}
+
 	auto test_anchoring_keeps_one_file() -> void
 	{
 		qt::github_conversation_panel panel;
@@ -303,6 +409,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewConversationPanelTests"));
+	test_replies_are_a_flat_feed_under_their_root();
 	test_anchoring_keeps_one_file();
 	test_replies_have_no_anchor_of_their_own();
 	test_changing_the_anchor_follows_immediately();

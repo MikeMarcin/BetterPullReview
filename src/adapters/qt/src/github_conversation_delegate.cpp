@@ -246,13 +246,27 @@ namespace bpr::qt {
 			aPainter->setPen(QPen{ aOption.palette.brush(palette_group(aOption), aRole), 0.0 });
 		}
 
+		/// One step, for any reply, at any depth.
+		///
+		/// \details The view no longer indents by depth - BPR-0456, on the
+		/// owner's direction that a staircase spends width the comment text
+		/// needs. What remains is the grouping: a reply sits one step in from
+		/// the root it belongs to, and a reply to a reply sits in the same
+		/// place. Depth is still in the model, and [[BPR-0418]]'s thread map is
+		/// where it is now read.
+		constexpr auto ReplyIndent = 16;
+
 		[[nodiscard]] auto text_rect(
 			const QStyleOptionViewItem& aOption,
-			const QStyle* const         aStyle) -> QRect
+			const QStyle* const         aStyle,
+			const QModelIndex&          aIndex) -> QRect
 		{
 			auto result = aStyle->subElementRect(QStyle::SE_ItemViewItemText, &aOption, aOption.widget);
 			if (!result.isValid()) {
 				result = aOption.rect;
+			}
+			if (aIndex.parent().isValid()) {
+				result.setLeft(result.left() + ReplyIndent);
 			}
 			return result;
 		}
@@ -276,7 +290,7 @@ namespace bpr::qt {
 		initStyleOption(&nativeOption, aIndex);
 		const auto* const style          = nativeOption.widget != nullptr ? nativeOption.widget->style()
 																		  : QApplication::style();
-		const auto        nativeTextRect = text_rect(nativeOption, style);
+		const auto        nativeTextRect = text_rect(nativeOption, style, aIndex);
 		const auto        metrics        = metrics_for(nativeOption, style);
 		const auto        presentation   = presentation_for(aIndex);
 
@@ -357,7 +371,7 @@ namespace bpr::qt {
 		measuringOption.rect      = QRect{ 0, 0, width, std::max(1, fontMetrics.height()) };
 		const auto availableWidth = std::max(
 			1,
-			text_rect(measuringOption, style).width()
+			text_rect(measuringOption, style, aIndex).width()
 				- (metrics.HorizontalPadding * 2));
 		const auto height = content_height(
 			presentation_for(aIndex),

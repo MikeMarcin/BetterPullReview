@@ -223,7 +223,13 @@ namespace bpr::qt {
 		View->setSelectionBehavior(QAbstractItemView::SelectRows);
 		View->setSelectionMode(QAbstractItemView::SingleSelection);
 		View->setEditTriggers(QAbstractItemView::NoEditTriggers);
-		View->setRootIsDecorated(true);
+		// A reply feed, not a staircase. BPR-0456: the owner asked for a
+		// linear feed grouped by root, because a per-depth indent spends the
+		// width the comment text needs, and gave the reason plainly - the
+		// thread map is where depth is read now. So the view stops indenting
+		// by depth and the delegate gives every reply the same single step.
+		View->setRootIsDecorated(false);
+		View->setIndentation(0);
 		View->setItemsExpandable(true);
 		View->setWordWrap(true);
 		// Rows are as tall as their comment, so no two are alike and none of

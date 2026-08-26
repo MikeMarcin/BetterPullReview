@@ -333,6 +333,13 @@ signals; a bounded row or state change never resets the model.
 
 ## Conversation drawer
 
+Replies read as a linear feed, not a staircase. A reply sits one step in from
+the root it belongs to, and a reply to a reply sits in the same place — the
+grouping by root stays visible, SmartBear Collaborator style, while depth stops
+spending the width the comment text needs. Depth is still carried by the model
+and is read on the thread map above, which is the product owner's own stated
+reason for accepting a flat feed here.
+
 Filters include New, Unresolved, Defects, Needs Verification, Pending Drafts,
 Outdated, and All. The current comparison filters roots to the exact file. A
 reviewer-selected source line narrows that forest to the exact diff side and
