@@ -425,15 +425,15 @@ auto main(int argc, char** argv) -> int
 	expect(
 		compiled == errSecSuccess && impossible != nullptr,
 		"a pinned code requirement compiles for the mismatch course");
-	SecCodeRef self_code = nullptr;
+	SecCodeRef selfCode = nullptr;
 	expect(
-		SecCodeCopySelf(kSecCSDefaultFlags, &self_code) == errSecSuccess,
+		SecCodeCopySelf(kSecCSDefaultFlags, &selfCode) == errSecSuccess,
 		"the running image can name itself for the mismatch course");
 	expect(
-		SecCodeCheckValidity(self_code, kSecCSDefaultFlags, impossible)
+		SecCodeCheckValidity(selfCode, kSecCSDefaultFlags, impossible)
 			!= errSecSuccess,
 		"an identity that does not match the pinned requirement is refused");
-	CFRelease(self_code);
+	CFRelease(selfCode);
 	CFRelease(impossible);
 
 	// Fail-closed half two: an occupied slot is refusal, not a slot to reuse.

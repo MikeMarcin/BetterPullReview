@@ -123,7 +123,7 @@ namespace bpr::core {
 			aState.TerminalReason = device_authorization_reason_code::none;
 
 			device_authorization_transition_output output;
-			output.Requests.push_back(
+			output.Requests.emplace_back(
 				begin_device_authorization_request{ .Context = context });
 			publish_status(aState, output);
 			publish_commands(aState, output);
@@ -149,7 +149,7 @@ namespace bpr::core {
 			aState.Stage = device_authorization_stage::cancelling;
 
 			device_authorization_transition_output output;
-			output.Requests.push_back(
+			output.Requests.emplace_back(
 				cancel_device_authorization_request{ .Context = *aState.Pending });
 			publish_status(aState, output);
 			publish_commands(aState, output);

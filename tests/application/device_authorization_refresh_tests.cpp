@@ -183,7 +183,7 @@ namespace {
 			application::device_token_exchange           aExchange,
 			application::device_token_completion_handler aCompletion) override
 		{
-			Order->push_back("refresh-exchange");
+			Order->emplace_back("refresh-exchange");
 			RefreshMaterial.push_back(text_of(aExchange.Code.bytes()));
 			RefreshContexts.push_back(aExchange.Context);
 			RefreshCompletion = std::move(aCompletion);
@@ -270,7 +270,7 @@ namespace {
 			const core::host_profile_id aProfile,
 			github_credential_material  aCredential) override
 		{
-			Order->push_back("enroll");
+			Order->emplace_back("enroll");
 			Profiles.push_back(aProfile);
 			Credentials.push_back(text_of(aCredential.bytes()));
 		}
@@ -345,7 +345,7 @@ namespace {
 			application::github_credential_store_completion_handler aCompletion)
 			override
 		{
-			Order->push_back("store-refresh");
+			Order->emplace_back("store-refresh");
 			const auto context = aEnrollment.Context;
 			StoreContexts.push_back(context);
 			if (RefuseStore) {
@@ -372,7 +372,7 @@ namespace {
 			application::github_credential_retrieve_completion_handler aCompletion)
 			override
 		{
-			Order->push_back("retrieve-refresh");
+			Order->emplace_back("retrieve-refresh");
 			RetrieveContexts.push_back(aContext);
 			if (RefuseRetrieve) {
 				aCompletion(application::github_credential_retrieve_error{

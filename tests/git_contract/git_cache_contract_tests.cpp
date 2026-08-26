@@ -685,7 +685,13 @@ namespace {
 		environment.insert("LC_ALL", "C");
 		environment.insert("TZ", "UTC");
 
-		auto process          = QProcess{ };
+		auto process = QProcess{ };
+		// Not an avoidable copy: the Windows branch below prepends to it. On
+		// every other platform that branch is preprocessed away, so the check
+		// sees a local that is only read and asks for a reference - which
+		// would then not compile on the one platform that writes to it. The
+		// suppression is per-platform truth, not a preference. BPR-0458.
+		// NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
 		auto fixtureArguments = aArguments;
 #if defined(Q_OS_WIN)
 		// The refs this fixture writes cross MAX_PATH the same way the

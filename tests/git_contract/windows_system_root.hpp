@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BPR_TESTS_GIT_CONTRACT_WINDOWS_SYSTEM_ROOT_HPP
+#define BPR_TESTS_GIT_CONTRACT_WINDOWS_SYSTEM_ROOT_HPP
 
 #include <filesystem>
 #include <optional>
@@ -49,3 +50,5 @@ namespace bpr::tests::git_contract {
 #endif
 	}
 } // namespace bpr::tests::git_contract
+
+#endif // BPR_TESTS_GIT_CONTRACT_WINDOWS_SYSTEM_ROOT_HPP

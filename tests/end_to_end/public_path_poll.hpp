@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BPR_TESTS_END_TO_END_PUBLIC_PATH_POLL_HPP
+#define BPR_TESTS_END_TO_END_PUBLIC_PATH_POLL_HPP
 
 /// \file
 /// \brief The Qt half of the shared public-path wait.
@@ -73,3 +74,5 @@ namespace bpr::e2e {
 			aBudget);
 	}
 } // namespace bpr::e2e
+
+#endif // BPR_TESTS_END_TO_END_PUBLIC_PATH_POLL_HPP

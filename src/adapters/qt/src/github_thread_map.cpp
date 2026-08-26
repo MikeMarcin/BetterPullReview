@@ -75,7 +75,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto accessible_label(
 			const application::github_conversation_projection& aNode) -> QString
 		{
-			const auto who = aNode.AuthorLogin.empty()
+			auto who = aNode.AuthorLogin.empty()
 				? QStringLiteral("Review thread")
 				: QStringLiteral("Reply by @")
 					+ QString::fromStdString(aNode.AuthorLogin);

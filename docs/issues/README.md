@@ -758,7 +758,6 @@ ready lanes — and the lane says which answer it needs:
 | Root | Lane | Needs |
 |---|---|---|
 | BPR-0459 | `20-ready/` | Any session. `start_comparison_resolution` reports a cancelled cache open to the core as `unavailable` while both catalog results in the same effect dispatch a cancelled event. Found by [[BPR-0447]], which proved it was not that failure's cause and left it here rather than widening its slice |
-| BPR-0458 | `30-in-progress/` | This session: judge the fourteen `coding-tidy` findings across ten files that nothing has judged; [[BPR-0444]] covers only the Linux vault source, and these are on sources every macOS session compiles |
 | BPR-0318 | `40-parked/` | The product owner's plain proceed-or-defer sentence on registering a separate distributable GitHub.com identity. Both dependencies closed on 2026-08-24 and 2026-08-25 and no unattended work remains; deferring simply leaves every platform visibly `device_flow_unavailable`, which is where the tree already is. The digest-bound registration packet is written only if the answer is proceed |
 | BPR-0445 | `40-parked/` | Unattended sanitizer and one-shot authority hardening are committed at `a27e4a5` and `c03abcf`; v002 packet `8ff060e82c04f30010ad11e5410200d8797d8f1c5b08557768ded86ed0eafdd0` waits only on the owner's fresh exact one-request authorization |
 | BPR-0053, BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]], [[BPR-0362]], [[BPR-0360]], and [[BPR-0350]] closed on 2026-08-22 with the contained matrix at 87 of 89; [[BPR-0053]] waits only on that matrix's two carded failures and on the Qt graph. [[BPR-0424]] through [[BPR-0427]] are the four causes that run isolated from the container's own |
@@ -822,7 +821,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these fourteen roots or reaches one
+card on this board is either one of these thirteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 41 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`. This number has drifted before — it read 46 while the lane held 44,
@@ -864,7 +863,16 @@ the derivation this section runs. The table
 is recomputed from the lanes rather than decremented from the sentence above
 it.
 
-[[BPR-0447]]'s close later that day promoted nothing — no card names it in
+[[BPR-0458]]'s close the same day promoted nothing and took the root count to
+thirteen. Its fourteen findings needed one genuine judgement and it was not the
+one the card expected: the `#pragma once` question has a plain answer — 162
+first-party headers use path-derived include guards against four that do not —
+while the finding that could not be repaired is the
+`performance-unnecessary-copy-initialization`, where the copy *is* modified
+inside `#if defined(Q_OS_WIN)` and taking the check's advice would break the
+only platform that writes to it.
+
+[[BPR-0447]]'s close earlier that day promoted nothing — no card names it in
 `depends_on` — and left the root count where it found it, because the same work
 opened one. Diagnosing it
 falsified its own headline: the run fails 163 ms into a 60-second budget it

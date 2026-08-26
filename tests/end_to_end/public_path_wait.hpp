@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BPR_TESTS_END_TO_END_PUBLIC_PATH_WAIT_HPP
+#define BPR_TESTS_END_TO_END_PUBLIC_PATH_WAIT_HPP
 
 /// \file
 /// \brief One polling wait for the end-to-end public paths, that says what it saw.
@@ -190,3 +191,5 @@ namespace bpr::e2e {
 		std::size_t Elided   = 0U;
 	};
 } // namespace bpr::e2e
+
+#endif // BPR_TESTS_END_TO_END_PUBLIC_PATH_WAIT_HPP

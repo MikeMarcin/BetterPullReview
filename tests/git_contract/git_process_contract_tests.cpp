@@ -3278,7 +3278,7 @@ namespace {
 
 	auto run_process_error_detail_contract() -> void
 	{
-		const auto repeated_identity_hex = [](const std::string_view aByte) {
+		const auto repeatedIdentityHex = [](const std::string_view aByte) {
 			auto result = std::string{ };
 			result.reserve(64U);
 			for (auto index = 0U; index < 32U; ++index) {
@@ -3345,7 +3345,7 @@ namespace {
 			require(
 				removed.error().Detail.find(
 					"refs/betterpullreview/v1/stage/"
-					+ repeated_identity_hex("77") + "/base")
+					+ repeatedIdentityHex("77") + "/base")
 					!= std::string::npos,
 				"the retained diagnosis preserves the exact ref");
 			const auto absent = adapter->inspect_ref(

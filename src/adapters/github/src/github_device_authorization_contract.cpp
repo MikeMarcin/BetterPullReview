@@ -203,7 +203,7 @@ namespace bpr::adapters::github::detail {
 					aObject.value(QLatin1StringView{ "error_uri" }))) {
 				return std::unexpected(device_failure::unofficial_error_uri);
 			}
-			const auto text = code.toString().toStdString();
+			auto text = code.toString().toStdString();
 			if (withInterval && text != "slow_down") {
 				return std::unexpected(device_failure::unexpected_field);
 			}
