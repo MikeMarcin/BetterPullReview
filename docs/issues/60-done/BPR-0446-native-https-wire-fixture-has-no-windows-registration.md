@@ -1,7 +1,7 @@
 ---
 id: BPR-0446
 title: The native HTTPS wire fixture has no Windows registration
-status: In Progress
+status: Done
 rfc: RFC-BPR-0002
 depends_on: []
 ---
@@ -44,3 +44,38 @@ openssl REQUIRED)` it needs. The driver
 
 - No transport or scenario changes; the same executable and driver run.
 - Not RFC-BPR-0017's separately registered credential-free selector.
+
+## Run on the designated host — 2026-08-26
+
+The registration landed at `b18b9336`: a `WIN32` block with the Git for
+Windows openssl hint (`find_program` resolved
+`C:/Program Files/Git/mingw64/bin/openssl.exe` into the cache), uncontained
+for the measured dos-volume-name cause, pinned in
+`WINDOWS_UNCONTAINED_TESTS`, with the APPLE/Linux registration untouched.
+
+**`native_https_transport_fixture` passed target-native in 9.35 seconds** on
+the freshly built tree at that commit — all thirty-six scenarios of the
+default suite through Qt's Schannel TLS backend, the run the ledger's
+Windows closeout paragraph said no macOS or Linux success could substitute
+for. The `BPR_NATIVE_HTTPS_TESTING` trusted-CA injection
+(`addCaCertificate` on the fixture authority) holds under Schannel's
+verification exactly as under OpenSSL and SecureTransport.
+
+`test_network_isolation_manifest` then passed at `f8799ca9`, after
+[[BPR-0460]] pinned the five upstream `WINDOWS_UNCONTAINED` registrations
+the same fresh-configure run exposed — drift this card's diff did not
+create and whose repair it therefore did not absorb.
+
+Two measurement artifacts are recorded so nobody re-reads them as
+evidence. The day's first fixture run printed
+`native-https-transport-fixture:fail:success-child-exit` in 0.25 seconds:
+today's driver against the stale 2026-08-23 executable, after a delegated
+build lane's `cmd /c` invocation was silently reduced to a no-op by the
+Bash tool's MSYS path conversion and its exit 0 was misread as a build.
+That run is void, not a failing scenario. The same lane then deleted
+`build/windows-dev` outright and reconfigured it fresh — recorded on
+[[BPR-0036]], whose reputation-settled tree that was. One incidental
+positive: the fixture's own freshly linked image drew no Smart App Control
+refusal at all.
+
+Implemented and closed by the integrator.
