@@ -749,6 +749,10 @@ bpr_add_network_isolated_test(
         "${CMAKE_CURRENT_BINARY_DIR}/bpr-0083-diff-interaction"
         --render-evidence
         "${CMAKE_CURRENT_BINARY_DIR}/diff-workbench-public-path.png"
+        # BPR-0414's owner asked for the files drawer out of the way so more
+        # source is visible in the attended capture. Collapsed through the
+        # shipped toggle action after the course's assertions have run.
+        --render-evidence-collapse-files
         --automated-run-budget-ms
         ${bpr_fixture_run_budget_ms}
 )

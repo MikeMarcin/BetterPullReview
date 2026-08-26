@@ -288,12 +288,27 @@ namespace {
 		return std::nullopt;
 	}
 
+	/// \brief Saves the evidence render, optionally with the files drawer shut.
+	///
+	/// \details Collapsing happens through the shipped toggle action, so the
+	/// capture shows a state the product can actually be in rather than one
+	/// the harness arranged behind the core's back. Requested for BPR-0414's
+	/// second attended round, where the owner asked for the drawer out of the
+	/// way so more source is visible.
 	auto save_render_evidence(
 		bpr::qt::workbench_window&             aWindow,
-		const std::optional<std::string_view>& aRenderPath) -> bool
+		const std::optional<std::string_view>& aRenderPath,
+		const bool                             aCollapseFilesDrawer) -> bool
 	{
 		if (!aRenderPath.has_value()) {
 			return true;
+		}
+		if (aCollapseFilesDrawer) {
+			if (auto* const toggle = aWindow.files_drawer_toggle_action();
+				toggle != nullptr && toggle->isChecked()) {
+				toggle->trigger();
+				QApplication::processEvents();
+			}
 		}
 		const auto path = QString::fromUtf8(
 			aRenderPath->data(),
@@ -889,6 +904,7 @@ namespace {
 		std::optional<bpr::core::appearance_mode> DiffEvidenceAppearance;
 #endif
 		std::optional<std::string_view> RenderPath;
+		bool                            RenderCollapsesFilesDrawer = false;
 	};
 
 #if defined(BPR_BUILD_TESTING)
@@ -3930,7 +3946,8 @@ namespace {
 		if (!aRun.Appearance.Enabled)
 #endif
 		{
-			aRun.RenderSaved = save_render_evidence(window, aRun.RenderPath);
+			aRun.RenderSaved = save_render_evidence(
+				window, aRun.RenderPath, aRun.RenderCollapsesFilesDrawer);
 		}
 		transition_to_shutdown(aApplication, aRun);
 	}
@@ -4071,7 +4088,8 @@ namespace {
 					aRun->PresentationPassed
 						= aRun->Cli.Observed == aRun->Cli.Expected;
 					aRun->RenderSaved
-						= save_render_evidence(window, aRun->RenderPath);
+						= save_render_evidence(
+							window, aRun->RenderPath, aRun->RenderCollapsesFilesDrawer);
 					transition_to_shutdown(aApplication, *aRun);
 					break;
 				}
@@ -4124,7 +4142,8 @@ namespace {
 						aApplication.select_device_authorization();
 					} else {
 						aRun->PresentationPassed = aRun->Cli.Observed == aRun->Cli.Expected;
-						aRun->RenderSaved        = save_render_evidence(window, aRun->RenderPath);
+						aRun->RenderSaved        = save_render_evidence(
+							window, aRun->RenderPath, aRun->RenderCollapsesFilesDrawer);
 						transition_to_shutdown(aApplication, *aRun);
 					}
 				}
@@ -4543,7 +4562,10 @@ namespace {
 										.isEmpty();
 						}
 						aRun->RenderSaved = aRun->ConversationAnchorEvidencePassed
-							&& save_render_evidence(window, aRun->RenderPath);
+							&& save_render_evidence(
+								window,
+								aRun->RenderPath,
+								aRun->RenderCollapsesFilesDrawer);
 
 						// Measured here, while a classified comparison is on
 						// screen and before the reaccept sequence clears it.
@@ -4599,7 +4621,8 @@ namespace {
 						transition_to_shutdown(aApplication, *aRun);
 					} else {
 						aRun->PresentationPassed = true;
-						aRun->RenderSaved        = save_render_evidence(window, aRun->RenderPath);
+						aRun->RenderSaved        = save_render_evidence(
+							window, aRun->RenderPath, aRun->RenderCollapsesFilesDrawer);
 						transition_to_shutdown(aApplication, *aRun);
 					}
 				}
@@ -4820,7 +4843,8 @@ namespace {
 					&& control->right_selector()->currentIndex()
 						== aRun->EpochRightRow) {
 					aRun->PresentationPassed = true;
-					aRun->RenderSaved        = save_render_evidence(window, aRun->RenderPath);
+					aRun->RenderSaved        = save_render_evidence(
+							window, aRun->RenderPath, aRun->RenderCollapsesFilesDrawer);
 					transition_to_shutdown(aApplication, *aRun);
 				}
 				break;
@@ -5843,6 +5867,8 @@ auto main(int argc, char** argv) -> int
 		const auto registeredDeviceCourse
 			= has_argument(argc, argv, "--device-authorization-registered-course");
 		const auto renderPath = argument_value(argc, argv, "--render-evidence");
+		const auto renderCollapsesFilesDrawer = has_argument(
+			argc, argv, "--render-evidence-collapse-files");
 
 #if defined(BPR_BUILD_TESTING)
 		// A persistent root without a fixture exists only for restart contracts.
@@ -6328,7 +6354,8 @@ auto main(int argc, char** argv) -> int
 						.DiffEvidenceDirectory  = diffEvidenceDirectory,
 						.DiffEvidenceAppearance = *diffEvidenceAppearance,
 #endif
-						.RenderPath = renderPath,
+						.RenderPath                 = renderPath,
+						.RenderCollapsesFilesDrawer = renderCollapsesFilesDrawer,
 					}));
 		}
 
