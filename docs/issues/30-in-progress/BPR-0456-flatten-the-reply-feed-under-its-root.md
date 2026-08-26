@@ -1,7 +1,7 @@
 ---
 id: BPR-0456
 title: Flatten the reply feed under its root instead of indenting it
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0005
 depends_on: []
 ---
