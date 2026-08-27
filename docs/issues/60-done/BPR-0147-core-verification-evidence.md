@@ -1,6 +1,6 @@
 ---
 id: BPR-0147
-title: Core verification evidence: what it may and may not conclude
+title: "Core verification evidence: what it may and may not conclude"
 status: Done
 rfc: RFC-BPR-0009
 depends_on: [BPR-0146]

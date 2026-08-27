@@ -1,6 +1,6 @@
 ---
 id: BPR-0160
-title: Core: attention buckets, reasons, and queue navigation
+title: "Core: attention buckets, reasons, and queue navigation"
 status: Done
 rfc: RFC-BPR-0010
 depends_on: [BPR-0158]

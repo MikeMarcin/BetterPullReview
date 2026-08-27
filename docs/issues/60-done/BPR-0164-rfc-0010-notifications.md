@@ -1,6 +1,6 @@
 ---
 id: BPR-0164
-title: Notifications: metadata-only content and correct deep links
+title: "Notifications: metadata-only content and correct deep links"
 status: Done
 rfc: RFC-BPR-0010
 depends_on: [BPR-0158]

@@ -1,6 +1,6 @@
 ---
 id: BPR-0159
-title: Core: role classification, observer rules, and exclusions
+title: "Core: role classification, observer rules, and exclusions"
 status: Done
 rfc: RFC-BPR-0010
 depends_on: [BPR-0158]

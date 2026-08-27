@@ -39,6 +39,8 @@ from scripts.verify_documentation import (  # noqa: E402
     CLOSEOUT_COLUMNS,
     CLOSEOUT_NO_LIVE_BLOCKER,
     CLOSEOUT_REPLAY_STATEMENT,
+    front_matter,
+    verify_board_lane_claims,
     verify_frontier_roots,
     verify_issue_board,
     verify_operator_packet_records,
@@ -1435,6 +1437,226 @@ class FrontierRootsTests(unittest.TestCase):
         (self.issue_root / "README.md").write_text("# Board\n", encoding="utf-8")
 
         self.reject()
+
+
+class BoardLaneClaimTests(unittest.TestCase):
+    """A table cell naming a card's lane has to name the lane it is in.
+
+    The frontier gate derives which cards the table lists. Nothing read what
+    the cells said about them, and [[BPR-0466]] found twenty-three cells
+    naming a lane the card had left -- four of them a lane [[BPR-0419]] had
+    removed outright.
+    """
+
+    def setUp(self) -> None:
+        self.temporary = ContainedTemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.issue_root = self.root / "docs/issues"
+        for lane in (
+            "10-backlog",
+            "20-ready",
+            "21-ready-win",
+            "22-ready-mac",
+            "23-ready-lin",
+            "30-in-progress",
+            "40-parked",
+            "50-blocked",
+            "60-done",
+        ):
+            (self.issue_root / lane).mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def write_card(self, issue_id: str, lane: str) -> None:
+        (self.issue_root / lane / f"{issue_id}-fixture.md").write_text(
+            "---\n"
+            f"id: {issue_id}\n"
+            "title: Fixture\n"
+            "status: Done\n"
+            "rfc: RFC-BPR-TEST\n"
+            "depends_on: []\n"
+            "---\n",
+            encoding="utf-8",
+        )
+
+    def write_readme(self, body: str) -> None:
+        (self.issue_root / "README.md").write_text(
+            "# Board\n\n" + body, encoding="utf-8"
+        )
+
+    def reject(self) -> None:
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            verify_board_lane_claims(self.root)
+
+    def test_accepts_a_cell_that_names_the_right_lane(self) -> None:
+        self.write_card("BPR-0001", "60-done")
+        self.write_card("BPR-0002", "21-ready-win")
+        self.write_readme(
+            "| Group | Cards |\n"
+            "|---|---|\n"
+            "| A | Done BPR-0001; ready BPR-0002 |\n"
+        )
+
+        verify_board_lane_claims(self.root)
+
+    def test_rejects_a_cell_naming_a_lane_the_card_left(self) -> None:
+        self.write_card("BPR-0001", "60-done")
+        self.write_readme(
+            "| Group | Cards |\n"
+            "|---|---|\n"
+            "| A | Backlog BPR-0001 |\n"
+        )
+
+        self.reject()
+
+    def test_rejects_a_lane_the_board_no_longer_uses(self) -> None:
+        # BPR-0419 replaced 50-blocked/ with the per-platform ready lanes and
+        # moved nine cards. The group table kept the old word for four of
+        # them, which is unsatisfiable rather than merely stale.
+        self.write_card("BPR-0001", "23-ready-lin")
+        self.write_readme(
+            "| Group | Cards |\n"
+            "|---|---|\n"
+            "| A | Blocked BPR-0001 |\n"
+        )
+
+        self.reject()
+
+    def test_rejects_a_cell_naming_a_card_that_does_not_exist(self) -> None:
+        self.write_readme(
+            "| Group | Cards |\n"
+            "|---|---|\n"
+            "| A | Done BPR-0404 |\n"
+        )
+
+        self.reject()
+
+    def test_reads_every_id_in_a_run_not_only_the_first(self) -> None:
+        # The drift hid inside list glue: "backlog BPR-0277 through BPR-0285"
+        # named nine cards and six of them had closed.
+        self.write_card("BPR-0001", "10-backlog")
+        self.write_card("BPR-0002", "60-done")
+        self.write_readme(
+            "| Group | Cards |\n"
+            "|---|---|\n"
+            "| A | Backlog BPR-0001 through BPR-0002 |\n"
+        )
+
+        self.reject()
+
+    def test_leaves_narrative_prose_alone(self) -> None:
+        # "BPR-0391 and BPR-0392, which parked on operator packets on
+        # 2026-08-19" is a true sentence about cards now in 60-done/. A check
+        # that read prose would reject the board's own history.
+        self.write_card("BPR-0001", "60-done")
+        self.write_readme(
+            "The card parked BPR-0001 on an operator packet in\n"
+            "August, and it is done now.\n"
+        )
+
+        verify_board_lane_claims(self.root)
+
+    def test_leaves_a_possessive_alone(self) -> None:
+        # "Done BPR-0235's Linux half" claims one half of a card closed, not
+        # that the card is in 60-done/.
+        self.write_card("BPR-0235", "21-ready-win")
+        self.write_readme(
+            "| Group | Cards |\n"
+            "|---|---|\n"
+            "| A | Done BPR-0235's Linux half |\n"
+        )
+
+        verify_board_lane_claims(self.root)
+
+    def test_does_not_read_an_rfc_number_as_a_card(self) -> None:
+        self.write_readme(
+            "| Group | Cards |\n"
+            "|---|---|\n"
+            "| A | Blocked by RFC-BPR-0006 closeout |\n"
+        )
+
+        verify_board_lane_claims(self.root)
+
+    def test_stops_a_run_at_the_next_clause(self) -> None:
+        # A lane word governs the list that follows it, not the rest of the
+        # cell: the second clause carries its own word.
+        self.write_card("BPR-0001", "60-done")
+        self.write_card("BPR-0002", "10-backlog")
+        self.write_readme(
+            "| Group | Cards |\n"
+            "|---|---|\n"
+            "| A | Done BPR-0001; backlog BPR-0002 |\n"
+        )
+
+        verify_board_lane_claims(self.root)
+
+
+class FrontMatterQuotingTests(unittest.TestCase):
+    """The `---` fence says the block is YAML, so both readers must agree.
+
+    This parser keeps everything after the first colon and reads
+    `title: Core: buckets and reasons` correctly. A YAML reader rejects the
+    whole block and returns no front matter at all, which is why a board
+    inventory in the [[BPR-0467]] session reported a card as missing the `id`
+    it plainly has. Refuse the inputs the two read differently.
+    """
+
+    def setUp(self) -> None:
+        self.temporary = ContainedTemporaryDirectory()
+        self.root = Path(self.temporary.name)
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def write(self, body: str) -> Path:
+        path = self.root / "card.md"
+        path.write_text(f"---\n{body}---\n\n# Card\n", encoding="utf-8")
+        return path
+
+    def test_rejects_an_unquoted_colon(self) -> None:
+        path = self.write(
+            "id: BPR-0001\ntitle: Core: buckets and reasons\nstatus: Done\n"
+        )
+
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            front_matter(path)
+
+    def test_accepts_a_quoted_colon(self) -> None:
+        path = self.write(
+            'id: BPR-0001\ntitle: "Core: buckets and reasons"\nstatus: Done\n'
+        )
+
+        self.assertEqual(
+            front_matter(path)["title"], '"Core: buckets and reasons"'
+        )
+
+    def test_accepts_an_ordinary_value(self) -> None:
+        path = self.write("id: BPR-0001\ntitle: Buckets and reasons\n")
+
+        self.assertEqual(front_matter(path)["title"], "Buckets and reasons")
+
+    def test_accepts_a_flow_sequence(self) -> None:
+        path = self.write("id: BPR-0001\ndepends_on: [BPR-0002, BPR-0003]\n")
+
+        self.assertEqual(
+            front_matter(path)["depends_on"], "[BPR-0002, BPR-0003]"
+        )
+
+    def test_accepts_a_colon_without_following_space(self) -> None:
+        # YAML accepts this too: only a colon followed by whitespace starts a
+        # nested mapping. Refusing it would demand quoting that buys nothing.
+        path = self.write("id: BPR-0001\nsource: https://example.invalid/x\n")
+
+        self.assertEqual(
+            front_matter(path)["source"], "https://example.invalid/x"
+        )
+
+    def test_rejects_a_trailing_colon(self) -> None:
+        path = self.write("id: BPR-0001\ntitle: See the section below:\n")
+
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            front_matter(path)
 
 
 if __name__ == "__main__":

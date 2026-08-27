@@ -1,6 +1,6 @@
 ---
 id: BPR-0161
-title: Host: refresh scheduler, limits, offline state, and identity isolation
+title: "Host: refresh scheduler, limits, offline state, and identity isolation"
 status: Done
 rfc: RFC-BPR-0010
 depends_on: [BPR-0158]

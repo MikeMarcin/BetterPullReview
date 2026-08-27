@@ -1,6 +1,6 @@
 ---
 id: BPR-0466
-status: In Progress
+status: Done
 title: The summary tables name lanes that twenty-three cards have left
 rfc: RFC-BPR-0013
 depends_on: []
@@ -59,9 +59,9 @@ state wrongly, because that half is not.
   a card, not about its lane, and are excluded for the same reason.
 - The check is proven in both directions: it fails on the pre-repair text of
   this commit's parent, and passes after the repair.
-- `tests/scripts/verify_documentation_tests.py` covers a contradicting cell, an
-  agreeing cell, a prose line that must stay free, and a possessive that must
-  stay free.
+- `tests/scripts/verify_documentation_tests.py` covers a contradicting cell,
+  an agreeing cell, a prose line that must stay free, and a possessive that
+  must stay free.
 - The two stale frontier-roots `Needs` cells are corrected against the cards
   they summarize: `BPR-0053` no longer asks for four adversaries its card
   records as implemented and green at `697b8f71`, and `BPR-0240` no longer says
@@ -81,10 +81,64 @@ state wrongly, because that half is not.
   stays a reading obligation, and this card states that limit rather than
   implying the gate now covers it.
 
-## Verification
+## Verification plan
 
 - `python3 scripts/verify_documentation.py --root .` fails on the parent commit
   with the twenty-three named contradictions, and reports `DOCUMENTATION_OK`
   after the repair.
 - `python3 tests/scripts/verify_documentation_tests.py` passes, including the
-  four new shapes.
+  new shapes.
+- The new cases are mutated to prove they fail when the check stops working.
+
+## The gate was written before the repair — 2026-08-27
+
+Deliberately in that order, so the twenty-three contradictions are the gate's
+output rather than a list assembled by hand and then asserted to be complete.
+`verify_board_lane_claims` was added to `scripts/verify_documentation.py` and
+run against the unrepaired text at `f3b7b422`:
+
+```
+ERROR: docs/issues/README.md table cells claim a lane a card has left:
+  line 769: 'backlog' BPR-0333, which is in 60-done/
+  line 950: 'parked' BPR-0276, which is in 60-done/
+  ... 21 more
+```
+
+Twenty-three, matching an independent scan run before the check existed. The
+repair then took the gate to `DOCUMENTATION_OK`. Both directions are recorded
+because either alone proves nothing: a check that only passes may read nothing,
+and a repair that only passes may have been checked by nothing.
+
+The ranges hid more than the endpoints showed. `backlog BPR-0277 through
+BPR-0285` named nine cards of which six had closed, and `In-progress BPR-0347
+and BPR-0358` named two cards that closed on 2026-08-22 and 2026-08-23. The
+prose beside those cells had gone stale with them: the Windows row still
+reserved future runs for BPR-0347, BPR-0412, and BPR-0364, all three done, so
+that sentence was rewritten to name what is actually left — BPR-0036's and
+BPR-0053's matrix replays on a rebuilt tree, and the BPR-0235, BPR-0311, and
+BPR-0315 courses.
+
+Three mutations prove the tests are load-bearing rather than merely green:
+neutering the check fails four of them; removing the possessive guard fails
+the `BPR-0235's Linux half` case; and removing the table-row restriction fails
+the narrative-prose case. Each was reverted and the suite returned to 116 OK.
+
+## What this card does not close
+
+The mechanical half is the lane vocabulary. The `Needs` cells' free prose is
+still a reading obligation, and this card repaired two of them by hand rather
+than by gate: BPR-0053's asked for four adversaries its card records as
+implemented and green at `697b8f71`, and BPR-0240's told every session that
+`windows_agent_process.cpp` had never been compiled, five days after that card
+recorded the opposite under its own heading. Nothing here would catch the third
+one. A session reading a `Needs` cell still has to open the card.
+
+## Verification
+
+| Claim | Command | Result |
+|---|---|---|
+| The gate fails on the unrepaired text | `python3 scripts/verify_documentation.py --root .` at `f3b7b422` plus this commit's check | exit 1, 23 named contradictions |
+| The gate passes after the repair | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+| The new cases hold | `python3 tests/scripts/verify_documentation_tests.py` | 116 OK, 9 new |
+| The new cases are load-bearing | three reverted mutations of the check | 4, 1, and 1 failures respectively |
+| No whitespace damage | `git diff --check` | clean |

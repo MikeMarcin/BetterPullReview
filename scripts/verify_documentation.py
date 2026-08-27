@@ -33,6 +33,9 @@ if sys.version_info < MINIMUM_PYTHON:
     raise SystemExit(2)
 
 
+# A front-matter value is unquoted and carries a colon that YAML would read
+# as a nested mapping key. Quoting it makes both readers agree.
+UNQUOTED_YAML_COLON_RE = re.compile(r"""(?!["'])[^\n]*:(?:\s|$)""")
 FRONT_MATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.S)
 LINK_RE = re.compile(r"!?\[[^\]]+\]\(([^)]+)\)")
 NAMED_LINK_RE = re.compile(r"!?\[([^\]]+)\]\(([^)]+)\)")
@@ -117,6 +120,28 @@ FRONTIER_LANES = (
     "40-parked",
     "50-blocked",
 )
+LANE_CLAIM_LANES = {
+    "done": (DONE_ISSUE_LANE,),
+    "backlog": ("10-backlog",),
+    "parked": ("40-parked",),
+    "blocked": ("50-blocked",),
+    "in-progress": ("30-in-progress",),
+    "ready": ("20-ready", *PLATFORM_READY_LANES),
+}
+# A lane word, then the run of card IDs it governs. The IDs may be joined only
+# by list glue, so the run stops at the next clause rather than reaching across
+# it. `RFC-BPR-0006` is excluded by the leading boundary and `BPR-0235's Linux
+# half` by the trailing one: a possessive is a claim about part of a card, not
+# about the lane the card sits in.
+LANE_CLAIM_RE = re.compile(
+    r"\b(?P<word>done|backlog|parked|blocked|in-progress|ready)\b"
+    r"(?P<ids>(?:(?:\s*(?:,|/|and|or|plus|through)\s*|\s+)"
+    r"\[{0,2}(?<![-\w])BPR-\d{4}(?![\w'])\]{0,2})+)",
+    re.IGNORECASE,
+)
+LANE_CLAIM_ID_RE = re.compile(r"(?<![-\w])(BPR-\d{4})(?![\w'])")
+
+
 COUNT_WORDS = (
     "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
     "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
@@ -202,7 +227,19 @@ def front_matter(path: Path) -> dict[str, str]:
         if ":" not in line:
             fail(f"invalid front matter in {path}: {line}")
         key, value = line.split(":", 1)
-        result[key.strip()] = value.strip()
+        value = value.strip()
+        # This parser keeps everything after the first colon, so it reads an
+        # unquoted `title: Core: buckets and reasons` correctly. A YAML parser
+        # does not -- it rejects the whole block with "mapping values are not
+        # allowed here" and returns no front matter at all. The `---` fence
+        # tells every reader the block is YAML, so refuse the inputs on which
+        # the two disagree rather than depending on which reader arrives.
+        if UNQUOTED_YAML_COLON_RE.match(value):
+            fail(
+                f"unquoted colon in front matter of {path}: {line}\n"
+                "  a YAML reader rejects the whole block; quote the value"
+            )
+        result[key.strip()] = value
     return result
 
 
@@ -1012,6 +1049,54 @@ def verify_frontier_roots(root: Path) -> None:
         )
 
 
+
+def verify_board_lane_claims(root: Path) -> None:
+    """A table cell that names a card's lane has to name the lane it is in.
+
+    `verify_frontier_roots` derives which cards the frontier table lists, so
+    that half cannot drift while this gate passes. What nothing read is the
+    prose in the cells beside them, or any cell of the group table that
+    answers what is actually missing. Both are written by hand, and
+    [[BPR-0466]] found twenty-three cells naming a lane the card had left,
+    including four still called blocked after [[BPR-0419]] removed that lane.
+
+    Only table rows are checked. The same words in narrative prose describe
+    past states truthfully, so a check that read them would reject the board's
+    own history.
+    """
+    path = root / "docs/issues/README.md"
+    lane_of: dict[str, str] = {}
+    for lane in (*OPEN_ISSUE_LANES, DONE_ISSUE_LANE):
+        for card in sorted((root / "docs/issues" / lane).glob("BPR-*.md")):
+            lane_of[front_matter(card)["id"]] = lane
+
+    contradictions: list[str] = []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for number, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped.startswith("|") or not stripped.endswith("|"):
+            continue
+        for match in LANE_CLAIM_RE.finditer(stripped):
+            word = match.group("word").lower()
+            for issue_id in LANE_CLAIM_ID_RE.findall(match.group("ids")):
+                actual = lane_of.get(issue_id)
+                if actual is None:
+                    contradictions.append(
+                        f"  line {number}: {word!r} {issue_id}, "
+                        "which has no card"
+                    )
+                elif actual not in LANE_CLAIM_LANES[word]:
+                    contradictions.append(
+                        f"  line {number}: {word!r} {issue_id}, "
+                        f"which is in {actual}/"
+                    )
+    if contradictions:
+        fail(
+            f"{path} table cells claim a lane a card has left:\n"
+            + "\n".join(contradictions)
+        )
+
+
 def operator_packets(root: Path) -> dict[tuple[str, int], Path]:
     """Every review directory holding an operator packet, keyed by family and version."""
     packets: dict[tuple[str, int], Path] = {}
@@ -1243,6 +1328,7 @@ def main() -> int:
     verify_operator_packet_records(root)
     verify_pending_packet_manifests(root)
     verify_frontier_roots(root)
+    verify_board_lane_claims(root)
     verify_links(root)
     verify_github_actions_not_selected(root)
 

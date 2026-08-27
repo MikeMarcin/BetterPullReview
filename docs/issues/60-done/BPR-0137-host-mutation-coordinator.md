@@ -1,6 +1,6 @@
 ---
 id: BPR-0137
-title: Host mutation coordinator: safe target, idempotency, retries
+title: "Host mutation coordinator: safe target, idempotency, retries"
 status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0136]
