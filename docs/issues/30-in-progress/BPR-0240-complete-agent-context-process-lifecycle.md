@@ -220,3 +220,30 @@ recorded findings. The composed-app course also printed
 `agent-authority-and-offerings … profiles=0` where four are expected —
 possibly downstream of the same refused launches, to be re-read after
 the verdict lands rather than diagnosed under it.
+
+## The canary passes target-native — 2026-08-26, late evening
+
+The verdict landed on the second cycle and the pacing repair held:
+**`qt_agent_launch_canary` passed in 107.21 s** — every selected
+protocol reaching a typed successful terminal through
+`windows_agent_process.cpp` for the first time on any Windows run — and
+`application_agent_invocation_composition_contract` (20.57 s) and
+`application_agent_invocation_staleness_contract` (16.72 s) passed
+through the composed application with it, the composition contract's
+first target-native pass.
+
+Three courses remain red with distinct, now-measurable shapes on a
+healthy canary:
+
+- cancellation: `running-course failed=status-is-running
+  status=Finished: nonzero_exit output-bytes=0` — the child is gone,
+  silently and nonzero, where the course needs it still running;
+- cleanup-retry: fails at its `cleanup-retry-substitute` step;
+- workspace-diagnostic: `EPOCH_CACHE_FAILURE:10`,
+  `EPOCH_EFFECT_FAILED:revision-prepare:6`, and
+  `agent-authority-and-offerings … profiles=0` where four profiles are
+  expected — no longer attributable to refused launches, since sibling
+  courses now launch the same images successfully.
+
+These are this card's remaining Windows diagnosis, alongside the Job
+Object and descendant-containment evidence it has always owed.
