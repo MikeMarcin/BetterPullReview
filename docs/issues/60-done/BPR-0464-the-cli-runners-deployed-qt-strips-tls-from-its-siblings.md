@@ -1,7 +1,7 @@
 ---
 id: BPR-0464
 title: The CLI runner's deployed Qt strips TLS from every sibling
-status: In Progress
+status: Done
 rfc: RFC-BPR-0002
 depends_on: []
 ---
@@ -59,3 +59,11 @@ no-signing deferral on [[BPR-0036]]. Every same-day precedent — the
 so the retry cycle continues unattended; if this image joins the
 persistently-refused set instead, its row takes the same deferral
 disposition those took.
+
+## Closed — 2026-08-26
+
+The verdict landed on the third cycle, about two hours after the link:
+`github_cli_process_runner` passed in 1.62 s from its private
+`cli_process_runner/` directory, Qt beside it as [[BPR-0438]] requires
+and nowhere a sibling looks. Both required-state bullets are now
+directly proven on this host. Closing promoted nothing.
