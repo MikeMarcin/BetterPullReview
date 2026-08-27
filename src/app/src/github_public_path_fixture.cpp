@@ -1702,7 +1702,9 @@ namespace bpr::app::detail {
 			result.SmartFetchCount = static_cast<int>(
 				Implementation->Recording->SmartFetchCalls);
 			{
-				const std::scoped_lock lock{ Implementation->VaultState->Mutex };
+				const std::scoped_lock vaultLock{
+					Implementation->VaultState->Mutex
+				};
 				result.VaultStores = Implementation->VaultState->Stores;
 			}
 			result.DeviceTransportSubmissions
