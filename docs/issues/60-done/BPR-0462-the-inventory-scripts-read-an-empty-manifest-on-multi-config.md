@@ -1,7 +1,7 @@
 ---
 id: BPR-0462
 title: The inventory scripts read an empty manifest on a multi-config generator
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -41,3 +41,13 @@ credential-free selector.
   absent on Windows, matching BPR-0446's recorded non-goal.
 - `rfc0016_test_inventory` and `rfc0017_test_inventory` pass on the
   Windows host non-vacuously.
+
+## Closed — 2026-08-26
+
+Fixed at `6eb05993`. Direct script runs against the live Windows tree
+print both OK lines with `--build-config Debug` and fail typed
+`ctest-inventory-empty` without it, and the focused rerun at `31b0c7d0`
+passed both registered tests — fifteen RFC-BPR-0016 selectors counted,
+the two wire-block selectors and RFC-BPR-0017's selector expected absent
+on this platform per [[BPR-0446]]'s recorded non-goal. Closing promoted
+nothing.

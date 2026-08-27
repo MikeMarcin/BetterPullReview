@@ -1,7 +1,7 @@
 ---
 id: BPR-0463
 title: The live-image identity tests call os.geteuid on Windows
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: []
 ---
@@ -26,3 +26,11 @@ run where `os.geteuid` exists.
   `AttributeError` — on a platform that cannot express the POSIX owner
   check, keeping the live-image path fail-closed everywhere.
 - The structure-contract suite passes on the Windows host.
+
+## Closed — 2026-08-26
+
+Fixed at `b980a1f3`. The suite runs 37 tests with 9 skips locally, and
+the registered `test_network_isolation_structure_contract` passed the
+focused rerun at `31b0c7d0`. The verifier's live-image path now refuses
+typed on a platform without POSIX owner semantics instead of raising
+`AttributeError`. Closing promoted nothing.
