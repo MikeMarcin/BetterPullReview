@@ -44,3 +44,18 @@ next git_contract sibling that needs a Qt plugin will spring it.
   `github_cli_process_runner` still passes there.
 - The shared `github_contract` output directory carries no deployed Qt,
   and `native_https_transport_fixture` passes target-native again.
+
+## Verification state — 2026-08-26 evening
+
+The second bullet is proven: with the stale pair deleted and the runner
+relocated, `native_https_transport_fixture` passed target-native in
+8.30 s and `test_network_isolation_manifest` in 2.07 s at `acda41c8`.
+The first waits on the host policy, not on the change: the relocated
+runner's freshly linked image is refused ("An Application Control
+policy has blocked this file") at sixty-five minutes after its link,
+past every window [[BPR-0424]] measured, under the owner's recorded
+no-signing deferral on [[BPR-0036]]. Every same-day precedent — the
+4551 trio, the behavior contract — eventually converted on its verdict,
+so the retry cycle continues unattended; if this image joins the
+persistently-refused set instead, its row takes the same deferral
+disposition those took.
