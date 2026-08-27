@@ -178,3 +178,70 @@ thirty-six-scenario wire fixture target-native, passing, at `b18b9336`,
 and the RFC-BPR-0002 ledger row cites it. Remaining here: the matrix
 replay on a rebuilt tree, runtime network/process scope inspection, and PE
 import/dependency inspection.
+
+## The rebuilt-tree matrix, and both inspections — 2026-08-27
+
+The complete matrix ran on the rebuilt tree at `8e952928` after an
+incremental build that relinked nothing, so the 2026-08-26 images kept
+their aging reputation verdicts. The suite has grown from 188 to 208
+registered tests since matrix-9. **205 of 208 passed in 1537.74 s**
+(`windows-dev-matrix-10.log`, 2026-08-27), and all three remaining rows
+are attributed:
+
+- `dependency_modernization_contract` failed on a live `4551` refusal of
+  the nested KSyntaxHighlighting indexer, confirmed in the Code Integrity
+  log at 09:21:49, and **passed its individual rerun in 70.76 s** once the
+  verdict landed — the procedure above, working as written.
+- `application_agent_invocation_cleanup_retry_contract` is [[BPR-0465]]'s
+  designed gap, in progress.
+- `application_agent_invocation_workspace_diagnostic_contract` is
+  [[BPR-0240]]'s remaining diagnosis; its root cause was found this
+  session and is fixture-side, not this card's scope.
+
+What the run converts for this card:
+
+- **All four owner-deferred policy-refused rows** from the 2026-08-23
+  evening run passed on their rebuilt images' clean verdicts:
+  `application_agent_workspace` (0.03 s), `sqlite_queue_enrollment_storage`
+  (0.52 s), `sqlite_epoch_catalog_behavior_contract` (85.28 s), and
+  `application_public_path_wait` (0.03 s). The owner's no-signing deferral
+  was never needed for this tree.
+- **Credential Manager sequence**: `windows_credential_manager_native_setup`,
+  `windows_credential_manager_native`, and
+  `windows_credential_manager_native_cleanup` pass in order again, with
+  `windows_credential_manager_contract` beside them.
+- **Runtime network/process scope inspection**: `runtime_process_surface`
+  passed in 1.80 s — `scripts/verify_runtime_surface.py` against the real
+  built application, target-native, with its recorded single-sample bounds.
+- **PE import/dependency inspection**: `binary_dependency_surface` passed
+  in 0.25 s — `scripts/verify_binary_dependencies.py` selecting `dumpbin`
+  against the real built application.
+- **CLI rows**: `application_public_path_ghes_cli_unavailable`,
+  `gh_cli_transport`, and `github_cli_process_runner` all pass; the public
+  CLI selection remains zero-launch on this host. The dormant-CLI-symbol
+  inspection of a tests-disabled Windows Release executable is not
+  producible yet — no `windows-app-release` preset exists until
+  [[BPR-0311]] — and the ledger row records that narrower remainder.
+
+The nested-configure PATH addendum above held: with Git's `usr/bin`
+appended, both KSyntaxHighlighting nested configures found `perl`, and
+the only nested-build failure was the reputation refusal now converted.
+
+With that, every bullet this card owns has direct target-native
+evidence: the complete matrix on the rebuilt tree, the Credential
+Manager sequence with exact absence, the native HTTPS fixture, both
+public application fixtures, runtime network/process scope, and PE
+import/dependency inspection. The one Windows remainder in the
+RFC-BPR-0002 ledger — the dormant-CLI-symbol inspection of a
+tests-disabled Release executable — was never this card's bullet and is
+recorded on the ledger row against [[BPR-0311]]'s `windows-app-release`
+preset, where [[BPR-0035]]'s closeout will find it.
+
+The card nevertheless stays open, and deliberately: [[BPR-0035]]'s
+closeout claim matrix cites this card's canary procedure as an anchored
+owning procedure, and `scripts/verify_documentation.py` requires an open
+closeout card's cited procedures to be open — the closeout session
+replays the procedure and closes both cards in the same slice. An
+attempted early close on 2026-08-27 failed exactly that gate and was
+reverted rather than argued with. Nothing on this card is left to run;
+what remains is BPR-0035's own final replay consuming it.

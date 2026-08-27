@@ -1,9 +1,10 @@
 ---
 id: BPR-0235
 title: Enforce default-deny network isolation for live mutation tests
-status: Ready
+status: Parked
 rfc: RFC-BPR-0008
 depends_on: [BPR-0221, BPR-0347, BPR-0350]
+parked_on: awaiting-live-github
 ---
 
 # Enforce default-deny network isolation for live mutation tests
@@ -244,3 +245,29 @@ The terminal designated-live criterion is unchanged: it still additionally
 waits on the later live provider/write card's separately authorized session
 authority and attended procedure, and stays recorded here rather than in
 `depends_on` because it gates one criterion, not the card's next action.
+
+## The Windows counterexample matrix is replayed — 2026-08-27
+
+Matrix-10 on the rebuilt tree at `8e952928` (`windows-dev-matrix-10.log`,
+recorded on [[BPR-0036]]) ran the whole registered counterexample and
+boundary set target-native under the measured `WINDOWS_UNCONTAINED`
+property, and every row passed: `test_network_isolation_structure_contract`
+0.16 s, `test_network_isolation_manifest` 2.03 s,
+`test_network_isolation_external` 0.10 s, `test_network_isolation_child`
+0.16 s, `test_network_isolation_loopback` 0.14 s,
+`test_network_isolation_application` 1.83 s — the production binary
+launched by CTest inheriting the boundary — plus `live_mutation_isolation`
+10.75 s, `live_mutation_isolation_contract` 0.33 s,
+`designated_live_mutation_gate` 0.04 s, and
+`designated_live_mutation_runner_digest_mismatch` 0.03 s.
+`test_network_isolation_unrelated` is `if(APPLE)`-gated by design — its
+negative control is a Unix-socket listener — so the Windows registered set
+is complete without it.
+
+That discharges this card's Windows replay criterion. What remains is
+exactly one criterion: running the default-off designated live lane
+target-native, which waits on the separately authorized session authority
+and attended procedure for a real call against the designated
+`MikeMarcin/BPR-Test#1` target. Every dependency is done and no
+unattended work remains, so the card parks as `awaiting-live-github`
+rather than holding a ready lane it cannot use.

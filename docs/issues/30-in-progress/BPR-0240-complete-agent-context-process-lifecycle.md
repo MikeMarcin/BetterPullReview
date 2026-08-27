@@ -274,7 +274,7 @@ for two are proven at `c868536d` after the relink verdict wave:
   under trace.
 
 The trace answered it the same night, and it is the canary's defect a
-third time. The wrapper's `--exec-path` reply ends `0d 0a` under the
+third time — though not, it turned out, the last one. The wrapper's `--exec-path` reply ends `0d 0a` under the
 CRT's default text mode — measured by direct hexdump — and the
 adapter's handshake strips exactly one trailing byte, so the dangling
 carriage return fails the earliest wire check
@@ -290,3 +290,54 @@ before today's rebuild converted it. The trace also recorded one latent
 non-Windows-specific gap left unrepaired: the wrapper's reply is
 ANSI-encoded (`path::string()`) while the adapter compares UTF-8
 (`u8string()`), inert for ASCII paths like this host's.
+
+## The fourth fixture defect, and the course's first green — 2026-08-27
+
+The wrapper's verdict landed overnight, its direct probe printed a clean
+`\n`-terminated reply — the CRLF repair holds on the wire — and the
+Code Integrity log showed no refusal during the fresh rerun. The course
+still failed identically, so the CRLF diagnosis was, like the two before
+it, necessary and insufficient.
+
+An instrumented clone of the wrapper, substituted through the course's
+own argv and logging every invocation, captured the real cause without
+touching a registered image. Every cache-open command succeeds through
+the wrapper — `init --bare`, `index-pack --stdin`, `cat-file`,
+`rev-parse`, `merge-base`, all status 0 — until `fsck
+--connectivity-only`, where **real git spawns its own subcommands** —
+`git refs verify`, `git commit-graph verify`, `git multi-pack-index
+verify` — **with a bare `git` argv[0]** resolved through
+`GIT_EXEC_PATH`, which points at the staged wrapper. Those grandchildren
+re-enter the wrapper, whose first act was
+`std::filesystem::canonical(argv[0])`; a bare relative name cannot
+canonicalize, so each child exited 126 before forwarding, fsck returned
+56, and the cache open surfaced exactly the bare-detail
+`process_failure` this card has chased since the first target-native
+run. POSIX never sees it because its children arrive with a resolvable
+argv[0].
+
+`ac38d3c6` names the wrapper by `GetModuleFileNameW` instead of argv[0],
+and **`application_agent_invocation_workspace_diagnostic_contract`
+passed in 6.14 s — its first green on any Windows run.** The
+`agent-authority-and-offerings profiles=0` line disappeared with it: the
+epoch failure it trailed was upstream of the panel's offerings, not a
+separate defect.
+
+The Job Object pre-resume and descendant-containment evidence this card
+has always owed is also now answered on the current tree. Matrix-10
+(2026-08-27, `8e952928`, recorded on [[BPR-0036]]) ran
+`qt_agent_launch_canary` green in 106.66 s — which on Windows includes
+`test_windows_assignment_failure_has_no_pre_assignment_side_effect`,
+proving a child whose job assignment fails never runs its first
+statement, and `test_timeout_terminates_the_descendant_process_tree`,
+proving a spawned grandchild's heartbeat stops on teardown — and
+`application_agent_invocation_cancellation_contract` green in 16.41 s,
+the same descendant proof under explicit cancellation. The success-path
+ordering the tests could not see — assignment before resume — is pinned
+by a source-order assertion in the architecture suite at `88a8c063`,
+verified failing-if-reordered by construction and passing 2/2 focused.
+
+Remaining on this card: the five agent courses' rerun once the relinked
+canary image's reputation verdict lands (the workspace-diagnostic row
+above already converted; a retry loop is armed), and [[BPR-0332]]'s
+recorded documentation finding, which has its own card.

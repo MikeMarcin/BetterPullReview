@@ -154,6 +154,33 @@ passed in 85.43 s on its freshly linked image's clean verdict, exactly
 the "next relink whose reputation verdict arrives" that section
 anticipated.
 
+## The rebuilt tree's full-matrix count — 2026-08-27
+
+The complete matrix the frontier note asked for ran at `8e952928` on the
+rebuilt tree, with no relink, so every image kept its settled verdict:
+**205 of 208 passed in 1537.74 s** (`windows-dev-matrix-10.log`,
+2026-08-27; the suite grew from 188 to 208 registrations since matrix-9).
+The three failures are attributed on [[BPR-0036]] and none is this
+card's: one live reputation refusal of the nested KSyntaxHighlighting
+indexer that converted on its individual rerun (70.76 s), [[BPR-0465]]'s
+designed cleanup-retry gap, and [[BPR-0240]]'s workspace-diagnostic
+course, whose root cause is fixture-side.
+
+This card's own rows all passed in the same run: `git_process_contract`
+29.06 s, `git_cache_contract` 34.42 s,
+`sqlite_epoch_catalog_storage_contract` 1.20 s, and
+`sqlite_epoch_catalog_behavior_contract` 85.28 s — the four
+review-named adversaries and the converted owner-deferred row, green
+again on the current tree.
+
+The count was the frontier note's open question, but restating it
+surfaced two bullets from this card's own list whose direct Windows
+evidence the 2026-08-23 mapping never named: **native system Light/Dark
+rendering** and the **secret/private-content absence** sweep. Neither has
+a row this card can point at that would fail if the claim were false on
+this host, so the card stays open for exactly those two rather than
+closing on the count alone.
+
 ## Its behavior-contract row is owner-deferred — 2026-08-23
 
 `sqlite_epoch_catalog_behavior_contract` could not start in the 2026-08-23
