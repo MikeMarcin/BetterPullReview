@@ -77,13 +77,20 @@ class InventoryFailure(RuntimeError):
     """A checked property did not hold."""
 
 
-def registered_tests(build_root: pathlib.Path) -> list[tuple[str, tuple[str, ...]]]:
+def registered_tests(
+    build_root: pathlib.Path, build_config: str | None
+) -> list[tuple[str, tuple[str, ...]]]:
     """Every configured CTest name and command, from CTest's own inventory."""
     ctest = shutil.which("ctest")
     if ctest is None:
         raise InventoryFailure("ctest-unavailable")
+    # A multi-config generator lists nothing without a configuration, which
+    # would turn the anchored expectation below into a vacuous pass.
+    command = [ctest, "--show-only=json-v1"]
+    if build_config:
+        command.extend(("-C", build_config))
     listed = subprocess.run(
-        [ctest, "--show-only=json-v1"],
+        command,
         cwd=build_root,
         capture_output=True,
         text=True,
@@ -115,14 +122,23 @@ def registered_tests(build_root: pathlib.Path) -> list[tuple[str, tuple[str, ...
         else:
             raise InventoryFailure("ctest-inventory-command")
         registered.append((name, arguments))
+    if not registered:
+        # Every configured graph in this repository registers tests, so an
+        # empty inventory is a broken invocation, never a graph fact.
+        raise InventoryFailure("ctest-inventory-empty")
     return registered
 
 
-def check_inventory(build_root: pathlib.Path) -> list[str]:
+def check_inventory(
+    build_root: pathlib.Path, build_config: str | None
+) -> list[str]:
     """Require every selector exactly its expected number of times."""
-    registered = registered_tests(build_root)
+    registered = registered_tests(build_root, build_config)
     names = [name for name, _ in registered]
-    anchored = GRAPH_ANCHOR in names
+    # BPR-0446 registered the anchor fixture on Windows while deliberately
+    # leaving this RFC's credential-free selector to the APPLE/Linux wire
+    # block, so on Windows the anchor no longer implies the selector.
+    anchored = GRAPH_ANCHOR in names and sys.platform in {"darwin", "linux"}
     failures: list[str] = []
     for selector, declared in sorted(SELECTORS.items()):
         expected = declared if anchored else 0
@@ -133,7 +149,7 @@ def check_inventory(build_root: pathlib.Path) -> list[str]:
             reason = (
                 "graph builds the native HTTPS fixture"
                 if anchored
-                else "graph does not build the native HTTPS fixture"
+                else "graph does not build the APPLE/Linux wire block"
             )
             failures.append(
                 f"{selector}: expected {expected} registration(s), "
@@ -233,6 +249,13 @@ def parse_arguments() -> argparse.Namespace:
         help="Configured tests-enabled build directory to inventory.",
     )
     parser.add_argument(
+        "--build-config",
+        help=(
+            "CTest configuration to inventory; required for a multi-config "
+            "generator, whose inventory is empty without one."
+        ),
+    )
+    parser.add_argument(
         "--release-binary",
         type=pathlib.Path,
         help="Tests-disabled Release executable to scan for absence.",
@@ -252,7 +275,9 @@ def main() -> int:
     failures: list[str] = []
     try:
         if arguments.build_root is not None:
-            failures.extend(check_inventory(arguments.build_root))
+            failures.extend(
+                check_inventory(arguments.build_root, arguments.build_config)
+            )
         if arguments.release_binary is not None:
             failures.extend(check_release_absence(arguments.release_binary))
     except InventoryFailure as error:

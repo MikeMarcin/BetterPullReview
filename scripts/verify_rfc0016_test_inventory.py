@@ -101,6 +101,16 @@ GRAPH_INDEPENDENT_SELECTORS = frozenset(
     }
 )
 
+# BPR-0446 registered the anchor fixture on Windows without the APPLE/Linux
+# wire block that carries these two, so the anchor no longer implies them.
+# Their condition is the platform holding that block, not the fixture.
+WIRE_BLOCK_SELECTORS = frozenset(
+    {
+        "github_device_authorization_refresh_contract",
+        "native_https_device_authorization_fixture",
+    }
+)
+
 # Symbols that must not exist in a tests-disabled Release build. These are the
 # testing seams; if one appears, a fixture has escaped into the product.
 FORBIDDEN_SYMBOLS: tuple[str, ...] = (
@@ -162,13 +172,20 @@ class InventoryFailure(RuntimeError):
     """A checked property did not hold."""
 
 
-def registered_tests(build_dir: pathlib.Path) -> list[tuple[str, tuple[str, ...]]]:
+def registered_tests(
+    build_dir: pathlib.Path, build_config: str | None
+) -> list[tuple[str, tuple[str, ...]]]:
     """Every configured CTest name and command, from CTest's own inventory."""
     ctest = shutil.which("ctest")
     if ctest is None:
         raise InventoryFailure("ctest-unavailable")
+    # A multi-config generator lists nothing without a configuration, which
+    # would turn every anchored expectation below into a vacuous pass.
+    command = [ctest, "--show-only=json-v1"]
+    if build_config:
+        command.extend(("-C", build_config))
     listed = subprocess.run(
-        [ctest, "--show-only=json-v1"],
+        command,
         cwd=build_dir,
         capture_output=True,
         text=True,
@@ -200,17 +217,26 @@ def registered_tests(build_dir: pathlib.Path) -> list[tuple[str, tuple[str, ...]
         else:
             raise InventoryFailure("ctest-inventory-command")
         registered.append((name, arguments))
+    if not registered:
+        # Every configured graph in this repository registers tests, so an
+        # empty inventory is a broken invocation, never a graph fact.
+        raise InventoryFailure("ctest-inventory-empty")
     return registered
 
 
-def check_inventory(build_dir: pathlib.Path) -> list[str]:
+def check_inventory(
+    build_dir: pathlib.Path, build_config: str | None
+) -> list[str]:
     """Require every selector exactly its expected number of times."""
-    registered = registered_tests(build_dir)
+    registered = registered_tests(build_dir, build_config)
     names = [name for name, _ in registered]
     anchored = GRAPH_ANCHOR in names
+    wire_block = sys.platform in {"darwin", "linux"}
     failures: list[str] = []
     for selector, declared in sorted(SELECTORS.items()):
-        if anchored or selector in GRAPH_INDEPENDENT_SELECTORS:
+        if selector in WIRE_BLOCK_SELECTORS:
+            expected = declared if anchored and wire_block else 0
+        elif anchored or selector in GRAPH_INDEPENDENT_SELECTORS:
             expected = declared
         else:
             expected = 0
@@ -218,11 +244,16 @@ def check_inventory(build_dir: pathlib.Path) -> list[str]:
             arguments for name, arguments in registered if name == selector
         ]
         if len(matching) != expected:
-            reason = (
-                "graph builds the Qt and loopback halves"
-                if anchored
-                else "graph builds neither Qt nor the loopback fixture"
-            )
+            if selector in WIRE_BLOCK_SELECTORS:
+                reason = (
+                    "the APPLE/Linux wire block is configured"
+                    if expected
+                    else "this platform has no APPLE/Linux wire block"
+                )
+            elif anchored:
+                reason = "graph builds the Qt and loopback halves"
+            else:
+                reason = "graph builds neither Qt nor the loopback fixture"
             failures.append(
                 f"{selector}: expected {expected} registration(s), "
                 f"found {len(matching)} ({reason})"
@@ -389,6 +420,13 @@ def parse_arguments() -> argparse.Namespace:
         help="Configured tests-enabled build directory to inventory.",
     )
     parser.add_argument(
+        "--build-config",
+        help=(
+            "CTest configuration to inventory; required for a multi-config "
+            "generator, whose inventory is empty without one."
+        ),
+    )
+    parser.add_argument(
         "--release-binary",
         type=pathlib.Path,
         help="Tests-disabled Release executable to scan.",
@@ -411,7 +449,9 @@ def main() -> int:
     failures: list[str] = []
     try:
         if arguments.build_dir is not None:
-            failures.extend(check_inventory(arguments.build_dir))
+            failures.extend(
+                check_inventory(arguments.build_dir, arguments.build_config)
+            )
             failures.extend(check_ledger(arguments.repository_root))
         if arguments.release_binary is not None:
             failures.extend(check_release_artifact(arguments.release_binary))

@@ -208,6 +208,8 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/scripts/verify_rfc0017_test_inventory.py"
         --build-root
         "${PROJECT_BINARY_DIR}"
+        --build-config
+        "$<CONFIG>"
 )
 set_tests_properties(
     rfc0017_test_inventory
@@ -230,6 +232,8 @@ bpr_add_network_isolated_test(
         "${PROJECT_BINARY_DIR}"
         --repository-root
         "${PROJECT_SOURCE_DIR}"
+        --build-config
+        "$<CONFIG>"
 )
 set_tests_properties(
     rfc0016_test_inventory
