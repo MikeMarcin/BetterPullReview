@@ -6,6 +6,8 @@
 #include <vector>
 
 #if defined(_WIN32)
+	#include <fcntl.h>
+	#include <io.h>
 	#include <process.h>
 #else
 	#include <unistd.h>
@@ -20,6 +22,19 @@ namespace {
 
 auto main(int argc, char** argv) -> int
 {
+#if defined(_WIN32)
+	// The adapter's exec-path handshake compares reply bytes exactly, and
+	// the CRT's default text mode rewrites the reply's '\n' as "\r\n": the
+	// adapter strips one trailing byte, the dangling '\r' fails its
+	// earliest wire check, and every git call in the course reads as a
+	// process failure (BPR-0240). Same repair as the agent canary.
+	for (FILE* stream : { stdin, stdout, stderr }) {
+		const auto descriptor = _fileno(stream);
+		if (descriptor >= 0) {
+			static_cast<void>(_setmode(descriptor, _O_BINARY));
+		}
+	}
+#endif
 	std::error_code pathError;
 	const auto      executable = std::filesystem::canonical(argv[0], pathError);
 	if (pathError) {
