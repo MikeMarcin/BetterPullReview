@@ -16,6 +16,10 @@
 	#include <fcntl.h>
 	#include <io.h>
 	#include <process.h>
+
+	// windows.h supplies the base types timeapi.h assumes are declared.
+	#include <windows.h>
+
 	#include <timeapi.h>
 // The UCRT already supplies `_environ`, as a macro over `__p__environ()`. A
 // hand-written `extern "C"` declaration redeclares that accessor without its
