@@ -759,14 +759,13 @@ ready lanes — and the lane says which answer it needs:
 |---|---|---|
 | BPR-0318 | `40-parked/` | The product owner's plain proceed-or-defer sentence on registering a separate distributable GitHub.com identity. Both dependencies closed on 2026-08-24 and 2026-08-25 and no unattended work remains; deferring simply leaves every platform visibly `device_flow_unavailable`, which is where the tree already is. The digest-bound registration packet is written only if the answer is proceed |
 | BPR-0445 | `40-parked/` | Unattended sanitizer and one-shot authority hardening are committed at `a27e4a5` and `c03abcf`; v002 packet `8ff060e82c04f30010ad11e5410200d8797d8f1c5b08557768ded86ed0eafdd0` waits only on the owner's fresh exact one-request authorization |
-| BPR-0465 | `30-in-progress/` | The staging is designed and implemented — the canary vacates its cwd on entering the release poll, Windows-only, and the course's swap-aside rename retries until that handle is released — and its focused green waits on the relinked canary image's reputation verdict |
 | BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session, deferring: [[BPR-0311]] still waits on parked [[BPR-0318]]'s distributable identity and on [[BPR-0036]], and [[BPR-0315]] on BPR-0311 and [[BPR-0306]] |
 | BPR-0036 | `30-in-progress/` | Nothing left to run: matrix-10 at `8e952928` passed 205 of 208 with every failure attributed and the refused row individually converted, and both remaining inspections passed target-native. The card stays open only because [[BPR-0035]]'s closeout matrix cites its canary procedure, and the documentation gate requires an open closeout card's cited procedures to be open — BPR-0035's final replay consumes and closes it |
 | BPR-0053 | `30-in-progress/` | Nothing left to run: matrix-10 restated the full count and its own rows green, the Light/Dark bullet is answered at the ledger's Windows standard — the live transition was only ever planned for macOS, and the probe's `platform_not_cocoa` refusal is itself proven here — and the secret/private-content sweep is discharged by `runtime_process_surface` plus a clean host-scoped repository and evidence-log scan. The card stays open only because [[BPR-0054]]'s closeout matrix cites its procedure, the same rule that holds [[BPR-0036]] |
 | BPR-0235 | `40-parked/` | The Windows counterexample replay is discharged by matrix-10, so one criterion remains: the default-off designated live lane target-native, which waits on the separately authorized session authority and attended procedure for a real call against `MikeMarcin/BPR-Test#1` |
 | BPR-0310, BPR-0314 | `23-ready-lin/` | **Not a Linux session.** A Linux session ran this lane on 2026-08-22 and removed every Linux reason it had. The tests-disabled Release build links here ([[BPR-0421]], [[BPR-0440]]) and `coding-tidy` runs here ([[BPR-0443]]). What is left is upstream and is not about this platform: [[BPR-0310]] needs RFC-BPR-0016 implemented at all — no `src/` file mentions the device flow — behind the now-done [[BPR-0276]] capture's consumers ([[BPR-0277]] onward) and [[BPR-0318]]'s nonexistent distributable identity; [[BPR-0314]] must observe a typed public-preview-unavailability selection no code produces, and producing it is implementation RFC-BPR-0017 gates on RFC-BPR-0002, which waits on [[BPR-0036]]. BPR-0314 does carry three target-native rows now. A Linux session opening this lane should expect to close only [[BPR-0444]] |
 | BPR-0444 | `23-ready-lin/` | A Linux session. The nine non-naming vault findings [[BPR-0443]]'s working gate exposed need judgment, and the tidy-clean proof only exists where the file compiles |
-| BPR-0240 | `30-in-progress/` | A Windows session. The workspace-diagnostic course passed for the first time on 2026-08-27 — the third fixture diagnosis was incomplete, and the real cause was fsck's own subcommands re-entering the staged wrapper with a bare argv[0] — and the Job Object pre-resume and descendant-containment evidence is answered by matrix-10's green canary and cancellation rows plus the new source-order assertion. What remains: the five agent courses' rerun on the relinked canary's verdict, and the recorded [[BPR-0332]] finding |
+| BPR-0240 | `30-in-progress/` | Nothing left to run: every agent course and the canary went green target-native on 2026-08-27 — the workspace-diagnostic's real cause was fsck's own subcommands re-entering the staged wrapper with a bare argv[0], and the canary verdict's arrival converted the other five. The card stays open only because [[BPR-0245]]'s closeout matrix cites its procedure in six rows, the same rule that holds [[BPR-0036]] and [[BPR-0053]]; [[BPR-0332]]'s reconciliation is its own card |
 
 This table had drifted and is corrected above rather than quietly patched. It
 listed BPR-0262 as a `20-ready/` root; that card is in `60-done/`. BPR-0220 was
@@ -839,7 +838,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these twelve roots or reaches one
+card on this board is either one of these eleven roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 41 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`. This number has drifted before — it read 46 while the lane held 44,
@@ -932,7 +931,16 @@ consumes it, so the card holds its lane with nothing left to run.
 implemented. [[BPR-0235]]'s Windows counterexample replay was discharged by
 the same matrix, leaving only its attended designated-live criterion, so it
 parked as `awaiting-live-github`. Three answers, zero promotions — the
-count holds at twelve.
+count held at twelve.
+
+Later the same day the relinked canary's verdict landed — about two and a
+half hours after the relink, past every ordinary window — and its first
+hourly retry ran all five agent courses green, [[BPR-0465]]'s
+cleanup-retry contract among them for its first Windows pass. BPR-0465
+closed and promoted nothing — no card names it in `depends_on` — so the
+count is eleven. [[BPR-0240]] holds its lane with nothing left to run,
+cited by [[BPR-0245]]'s closeout matrix the way BPR-0036 and BPR-0053 are
+cited by theirs.
 
 [[BPR-0447]]'s close earlier that day promoted nothing — no card names it in
 `depends_on` — and left the root count where it found it, because the same work

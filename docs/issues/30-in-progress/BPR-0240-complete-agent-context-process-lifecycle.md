@@ -341,3 +341,22 @@ Remaining on this card: the five agent courses' rerun once the relinked
 canary image's reputation verdict lands (the workspace-diagnostic row
 above already converted; a retry loop is armed), and [[BPR-0332]]'s
 recorded documentation finding, which has its own card.
+
+## Every course is green — 2026-08-27, afternoon
+
+The canary verdict landed and the rerun converted all five:
+`qt_agent_launch_canary` 107.54 s,
+`application_agent_invocation_composition_contract` 20.52 s,
+`application_agent_invocation_cancellation_contract` 16.53 s,
+`application_agent_invocation_staleness_contract` 16.64 s, and
+[[BPR-0465]]'s `application_agent_invocation_cleanup_retry_contract`
+16.57 s (`build/logs/retry-long-1.log`). With the workspace-diagnostic
+green earlier today, **every agent course and the canary are green
+target-native on this host for the first time**.
+
+Nothing on this card is left to run. [[BPR-0332]]'s documentation
+reconciliation is its own card's scope. Like [[BPR-0036]] and
+[[BPR-0053]], this card stays open deliberately: [[BPR-0245]]'s closeout
+matrix cites it in six rows as the anchored owning procedure, and the
+documentation gate requires an open closeout card's cited procedures to
+stay open until the final replay consumes them.

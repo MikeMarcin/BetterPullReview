@@ -1,7 +1,7 @@
 ---
 id: BPR-0465
 title: The cleanup-retry course cannot stage its substitute on Windows
-status: In Progress
+status: Done
 rfc: RFC-BPR-0011
 depends_on: []
 ---
@@ -96,3 +96,21 @@ which shares it but not the canary, passed in the same build), the
 edits are format-clean, and the wait sits under the owner's recorded
 no-signing deferral: the rows convert on this image's verdict or on the
 next relink whose verdict lands. A long-cycle retry continues.
+
+## The verdict landed and the staging holds — 2026-08-27, afternoon
+
+The canary image's verdict arrived roughly two and a half hours after
+the relink, and the first hourly attempt ran all five courses green:
+**`application_agent_invocation_cleanup_retry_contract` passed in
+16.57 s — its first pass on any Windows run** — beside
+`qt_agent_launch_canary` 107.54 s,
+`application_agent_invocation_composition_contract` 20.52 s,
+`application_agent_invocation_cancellation_contract` 16.53 s, and
+`application_agent_invocation_staleness_contract` 16.64 s
+(`build/logs/retry-long-1.log`). The course reaches every assertion the
+required final state names: the foreign directory at the workspace path
+when cleanup runs, exactly one refusal with `WorkspaceCleanups == 0`, an
+unaffected successful agent terminal, the preserved substitute, and the
+restored original cleaned at shutdown. With [[BPR-0240]]'s
+workspace-diagnostic green in the same build, every agent course is now
+green target-native on this host. Done.
