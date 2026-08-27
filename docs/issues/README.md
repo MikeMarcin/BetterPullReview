@@ -761,7 +761,6 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0445 | `40-parked/` | Unattended sanitizer and one-shot authority hardening are committed at `a27e4a5` and `c03abcf`; v002 packet `8ff060e82c04f30010ad11e5410200d8797d8f1c5b08557768ded86ed0eafdd0` waits only on the owner's fresh exact one-request authorization |
 | BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session. The project's Windows 11 x64 host runs these; nothing else is in the way. [[BPR-0347]], [[BPR-0362]], [[BPR-0360]], and [[BPR-0350]] closed on 2026-08-22 with the contained matrix at 87 of 89. [[BPR-0424]] through [[BPR-0427]] are the four causes that run isolated from the container's own |
 | BPR-0053 | `30-in-progress/` | This session: implement the four review-named target-native adversaries its ledger addendum records — the one-link hard-link case, the config-global content mirror, the pack_sink abort with the spool held, and two stores on one re-held root — then rerun its rows on the rebuilt tree |
-| BPR-0461 | `30-in-progress/` | This session: the first target-native MSVC compile of the merged device-authorization program stops at a scoped_lock shadow in the public-path fixture; the rename is committed and the rebuilt-tree matrix proves the composition target |
 | BPR-0462 | `30-in-progress/` | This session: both inventory scripts list an empty manifest on the multi-config generator — six false failures, one vacuous pass — and BPR-0446 changed what their anchor implies; `-C` plumbing, an empty-inventory refusal, and the wire-block condition are in hand |
 | BPR-0463 | `30-in-progress/` | This session: the live-image identity tests call `os.geteuid` on Windows; the POSIX-terms skip and the verifier's typed refusal are in hand |
 | BPR-0464 | `30-in-progress/` | This session: BPR-0438's deployed-Qt post-build step lands in the shared github_contract output directory, so loader app-dir precedence stripped Schannel from the wire fixture; the runner gets its own output directory |
@@ -824,7 +823,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these fifteen roots or reaches one
+card on this board is either one of these fourteen roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 41 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`. This number has drifted before — it read 46 while the lane held 44,

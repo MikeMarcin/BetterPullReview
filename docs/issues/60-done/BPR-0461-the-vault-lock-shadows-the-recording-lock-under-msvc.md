@@ -1,7 +1,7 @@
 ---
 id: BPR-0461
 title: The fixture's vault lock shadows its recording lock under MSVC
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -25,3 +25,11 @@ earlier the same day.
   `windows-dev` warning policy.
 - The composition target builds target-native, proven by the rebuilt-tree
   matrix this session is running for [[BPR-0036]].
+
+## Closed — 2026-08-26
+
+The rename landed at `697b8f71`; the next build compiled the file with
+zero diagnostics and the complete matrix ran 208 registrations, which
+only a built composition target permits. `application_workbench_host`,
+which links that target, passed its focused rerun once its own
+reputation verdict landed. Closing promoted nothing.
