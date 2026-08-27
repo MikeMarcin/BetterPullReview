@@ -272,3 +272,21 @@ for two are proven at `c868536d` after the relink verdict wave:
   on Windows — the only configuration this course alone exercises — and
   the `EPOCH_CACHE_FAILURE:10:` line's empty detail is the fingerprint
   under trace.
+
+The trace answered it the same night, and it is the canary's defect a
+third time. The wrapper's `--exec-path` reply ends `0d 0a` under the
+CRT's default text mode — measured by direct hexdump — and the
+adapter's handshake strips exactly one trailing byte, so the dangling
+carriage return fails the earliest wire check
+(`installed_git_process.cpp`'s bootstrap probe) with precisely the
+bare-detail `process_failure` the course prints. Binary standard
+streams landed at `3a34cdc4`. What the fix does not yet have is its
+passing run: the restaged wrapper image is refused by the host policy
+past three and a half hours — beyond every conversion this host showed
+today — so the row waits under the owner's recorded no-signing
+deferral, and converts on this image's verdict or on the next relink
+whose verdict lands, the same disposition the behavior contract took
+before today's rebuild converted it. The trace also recorded one latent
+non-Windows-specific gap left unrepaired: the wrapper's reply is
+ANSI-encoded (`path::string()`) while the adapter compares UTF-8
+(`u8string()`), inert for ASCII paths like this host's.
