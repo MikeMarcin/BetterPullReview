@@ -907,6 +907,20 @@ quietly patched. The difference from the first time is that the correction
 came with a check: twenty-three cells naming a lane their card had left were
 found by writing the gate first and running it against the unrepaired text.
 
+[[BPR-0467]] and [[BPR-0468]] closed the same day and promoted nothing either,
+so the count stays at twelve. Both came out of BPR-0466's own work rather than
+from the board. BPR-0467 is the smaller and the more embarrassing: six card
+titles carry an unquoted colon, so their `---` block is not the YAML it
+announces, and the board inventory that found BPR-0466's drift also reported
+[[BPR-0164]] as missing an `id` it plainly has. Nothing in the repository
+breaks, because `front_matter()` splits on the first colon and reads them
+correctly — the defect is invisible from inside and wrong from outside, which
+is the worst place for one to sit. BPR-0468 is the opposite shape: eight live
+sentences call a 32-scenario native HTTPS verifier *current* and the suite has
+held 35 since 2026-08-12, but every one of those sentences was true the day it
+was written. The repair was the word, not the number. Changing 32 to 35 would
+have replaced eight true records with eight false ones.
+
 [[BPR-0447]]'s close earlier that day promoted nothing — no card names it in
 `depends_on` — and left the root count where it found it, because the same work
 opened one. Diagnosing it
