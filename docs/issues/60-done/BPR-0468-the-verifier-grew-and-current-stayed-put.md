@@ -1,6 +1,6 @@
 ---
 id: BPR-0468
-status: In Progress
+status: Done
 title: "The native HTTPS verifier grew three scenarios and \"current\" stayed put"
 rfc: RFC-BPR-0002
 depends_on: []
@@ -56,16 +56,23 @@ This is an accuracy defect in the record, not a hole in the verification.
 
 ## Required final state
 
-- No live document calls a past scenario count *current*. Each figure names
-  the run that produced it, or the date it was true.
+- No document that describes present state calls a past scenario count
+  *current*. That is the board README, `docs/verification/fixture-catalog.md`,
+  and `docs/verification/RFC-BPR-0002.md`: a reader consults them to learn
+  what is true now, so a stale "current" in them is a wrong answer.
 - The live count appears once, in `docs/verification/fixture-catalog.md`,
   beside the growth that produced it, naming the three scenarios [[BPR-0263]]
-  added and the date.
-- `docs/verification/RFC-BPR-0002.md`'s three cells state what BPR-0030's run
-  executed without asserting it is the present configuration.
-- [[BPR-0030]]'s card is not edited. It is a done card recording a run that
-  happened, its figure was correct, and this card does not rewrite history to
-  make a later sentence read better.
+  added and the date, and pointing at `SCENARIOS` as the authority rather
+  than at another sentence.
+- [[BPR-0030]]'s card keeps its own wording, including the word *current* at
+  its line 57. This is the one place the rule is deliberately not applied, and
+  it is worth stating why rather than quietly exempting it. A done card is a
+  dated record of what one session did; its "current" is scoped to the day it
+  was written, the way a lab notebook's is. Editing it would make the record
+  of the run disagree with the run. The cost is real — a reader who opens
+  BPR-0030 alone still meets the stale word — and it is paid deliberately,
+  because the alternative is a board whose closed cards get rewritten whenever
+  a later change makes their prose read oddly.
 
 ## Non-goals
 
@@ -78,3 +85,34 @@ This is an accuracy defect in the record, not a hole in the verification.
   falsification this card exists to refuse.
 - No re-run of the verifier. Nothing here changes what it does, and a green
   35-scenario run would not make a 2026-07-30 record more or less true.
+
+## What changed — 2026-08-27
+
+Eight sentences, no numbers falsified. Each 32 kept its value and gained the
+run or the date that produced it: `extends the current verifier to 32` became
+`extended the verifier to 32 scenarios on 2026-07-30`; `the complete current
+32-scenario verifier passed` became `passed ... that day`; the ledger's
+`BPR-0030's current macOS verifier passed all 32 scenarios` became `passed all
+32 scenarios it carried on 2026-07-30 ... BPR-0263 has since taken the suite to
+35, so that run is a subset of the current one`.
+
+The live count is stated once, in the fixture catalog beside the growth, and
+it points at `SCENARIOS` rather than at itself. That is deliberate: a second
+sentence carrying the number is a second thing to keep in sync, which is the
+defect this card is repairing.
+
+## Verification
+
+| Claim | Command | Result |
+|---|---|---|
+| The live default suite has 35 scenarios | `ast.literal_eval` of `SCENARIOS` in `tests/scripts/verify_native_https_transport.py`, and an independent count of quoted entries | 35 by both |
+| The figure was 32 when written | `SCENARIOS` counted at every revision that touched the file | 15 → 31 → 32 on 2026-07-30, 32 until `0f6bc421`, 35 from `bbc50e49` on 2026-08-12 |
+| The docs were written while it was 32 | `git log -S'32 scenarios'` and `-S'32-scenario'` over the four affected files | all originate at `3c0dab4c`, 2026-07-30 |
+| Nothing mechanical asserts 32 | grep for a scenario count in the verifier, tests, and CMake | no assertion; the figure is prose only |
+| No stale framing remains | `grep -rn "current 32\|current.*32 scenario" docs/` excluding BPR-0030's card | none |
+| The gate passes | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+| No whitespace damage | `git diff --check` | clean |
+
+The verifier was not re-run. Nothing in this card changes what it does, and a
+green 35-scenario run today would say nothing about whether a sentence written
+on 2026-07-30 was true.

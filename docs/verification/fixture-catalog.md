@@ -998,13 +998,23 @@ Windows execution remains BPR-0036 work and is nonblocking for all other
 slices and later-RFC work; it blocks only affected Windows claims and final
 RFC-BPR-0002 Auto-Verified closeout.
 
-BPR-0030 extends the current verifier to 32 scenarios without changing the
-frozen 15-case BPR-0026 evidence above. The added `same-query-redirect`
+BPR-0030 extended the verifier to 32 scenarios on 2026-07-30 without
+changing the frozen 15-case BPR-0026 evidence above. The added `same-query-redirect`
 scenario returns a same-authority REST `Location` with a nonempty query and
 requires a typed redirect failure after exactly one CONNECT, TLS handshake,
 origin request, and exact Authorization observation. Any attempted second hop
-violates the fixture counts and request-target contract. The complete current
-32-scenario verifier passed on the directly exercised macOS arm64 host.
+violates the fixture counts and request-target contract. The complete
+32-scenario verifier passed on the directly exercised macOS arm64 host that
+day.
+
+The `default` suite has held **35** scenarios since 2026-08-12, when
+[[BPR-0263]] added `mutation-witness`, `mutation-witness-failure`, and
+`mutation-proxy-no-fallback` for indeterminate comment recovery. Every
+32-scenario figure in this catalog and in the RFC-BPR-0002 ledger records the
+BPR-0030 run and is not the present list; the count grew, so each of those
+runs is a subset of what the verifier does today. The live number is whatever
+`SCENARIOS` in `tests/scripts/verify_native_https_transport.py` holds — read
+it there rather than from a sentence with a date attached to it.
 
 The transport's 30-second deadline and prompt cancellation cannot preempt
 synchronous Qt system/PAC proxy discovery or system-root enumeration.
