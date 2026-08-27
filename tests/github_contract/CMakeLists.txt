@@ -379,7 +379,17 @@ if(WIN32)
     # The test is its own helper child, and the runner's Windows contract
     # hands a child an empty PATH: the only place the loader can then find
     # the shared Qt this executable links is beside the executable, so its
-    # runtime DLLs are copied there after each link (BPR-0438).
+    # runtime DLLs are copied there after each link (BPR-0438). The copy
+    # must land in a directory this test owns: in the shared output
+    # directory, loader app-directory precedence would hand every sibling
+    # a plugin-less Qt, which is how the wire fixture lost its Schannel
+    # backend the first time the whole graph built (BPR-0464).
+    set_target_properties(
+        test_better_pull_review_github_cli_process_runner_tests
+        PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY
+                "${CMAKE_CURRENT_BINARY_DIR}/cli_process_runner"
+    )
     add_custom_command(
         TARGET test_better_pull_review_github_cli_process_runner_tests
         POST_BUILD
