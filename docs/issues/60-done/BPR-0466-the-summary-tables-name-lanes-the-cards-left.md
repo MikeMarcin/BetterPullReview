@@ -142,3 +142,30 @@ one. A session reading a `Needs` cell still has to open the card.
 | The new cases hold | `python3 tests/scripts/verify_documentation_tests.py` | 116 OK, 9 new |
 | The new cases are load-bearing | three reverted mutations of the check | 4, 1, and 1 failures respectively |
 | No whitespace damage | `git diff --check` | clean |
+
+## Its own commit is a rename and nothing else — 2026-08-27
+
+Recorded because the log is otherwise misleading. Commit `5c947ae9` carries
+this card's subject and contains one file rename with zero content change.
+Everything the subject describes — `verify_board_lane_claims`, its nine tests,
+the twenty-three repaired cells, and this card's own record — landed in
+`555bb397`, which is titled for [[BPR-0467]].
+
+The cause is exact. The staging command listed the card under both its old and
+new paths and redirected stderr away. `git mv` had already removed the old
+path, so `git add` matched nothing there, refused the whole invocation, and
+said so into `/dev/null`; the commit then took only what `git mv` had staged.
+Nothing was lost and the tree is correct at every commit, but two commits
+describe work the other one contains.
+
+The history is left as it is rather than rewritten. These commits are unpushed
+and both are this session's, so a rebase was available and cheap — but the
+checkout is shared with other sessions, `docs/issues/README.md` and
+`docs/issues/NEXT_ID` carry both slices' edits interleaved, and splitting them
+by pathspec would be a hand-reconstruction of a diff that is currently
+correct. A false commit subject is a smaller defect than a botched rewrite of
+a shared branch, and it is repairable by reading; the tree is not.
+
+The procedure that would have caught it is `git status --short` between
+staging and committing, which was skipped, and never sending `git add`'s
+stderr to `/dev/null`.
