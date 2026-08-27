@@ -428,6 +428,11 @@ bpr_add_executable(
     "${PROJECT_SOURCE_DIR}/tests/fixtures/agent/agent_canary_main.cpp"
 )
 target_compile_features(test_better_pull_review_agent_canary PRIVATE cxx_std_23)
+if(WIN32)
+    # timeBeginPeriod, so the fixture's millisecond pacing is millisecond
+    # pacing rather than a 15.6 ms timer tick per chunk (BPR-0240).
+    target_link_libraries(test_better_pull_review_agent_canary PRIVATE winmm)
+endif()
 bpr_enable_hardening(test_better_pull_review_agent_canary)
 bpr_enable_warnings(test_better_pull_review_agent_canary)
 

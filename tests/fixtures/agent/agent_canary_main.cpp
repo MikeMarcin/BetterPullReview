@@ -16,6 +16,7 @@
 	#include <fcntl.h>
 	#include <io.h>
 	#include <process.h>
+	#include <timeapi.h>
 // The UCRT already supplies `_environ`, as a macro over `__p__environ()`. A
 // hand-written `extern "C"` declaration redeclares that accessor without its
 // import linkage, so the fixture takes the header's spelling instead.
@@ -342,6 +343,14 @@ auto main(int argc, char** argv) -> int
 			static_cast<void>(_setmode(descriptor, _O_BINARY));
 		}
 	}
+	// The partial-frame writer sleeps one millisecond per three-byte chunk,
+	// which the default ~15.6 ms timer tick stretches sixteenfold — about
+	// 180 bytes a second, and the app-server exchange alone is ~15 KB, so
+	// every deadline was arithmetic before it was behavior. Millisecond
+	// resolution makes the pacing mean on Windows what it already means on
+	// the platforms this fixture passes on; best-effort, as above
+	// (BPR-0240).
+	static_cast<void>(timeBeginPeriod(1U));
 #endif
 	if (const auto marker = argument_after(argc, argv, "--descendant-heartbeat");
 		!marker.empty()) {
