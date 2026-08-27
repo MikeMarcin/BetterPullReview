@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -9,6 +10,7 @@
 	#include <fcntl.h>
 	#include <io.h>
 	#include <process.h>
+	#include <windows.h>
 #else
 	#include <unistd.h>
 #endif
@@ -36,7 +38,28 @@ auto main(int argc, char** argv) -> int
 	}
 #endif
 	std::error_code pathError;
-	const auto      executable = std::filesystem::canonical(argv[0], pathError);
+#if defined(_WIN32)
+	// Real git's fsck spawns its own subcommands - "git refs verify",
+	// "git commit-graph verify", "git multi-pack-index verify" - with a bare
+	// "git" argv[0] resolved through GIT_EXEC_PATH, so those children re-enter
+	// this wrapper under a name canonical() cannot resolve and the wrapper
+	// exited 126 before forwarding (BPR-0240). The module path names this
+	// image regardless of how it was invoked.
+	auto       moduleName   = std::wstring(1U << 15U, L'\0');
+	const auto moduleLength = GetModuleFileNameW(
+		nullptr,
+		moduleName.data(),
+		static_cast<DWORD>(moduleName.size()));
+	if (moduleLength == 0U || moduleLength >= moduleName.size()) {
+		return 126;
+	}
+	moduleName.resize(moduleLength);
+	const auto executable = std::filesystem::canonical(
+		std::filesystem::path{ moduleName },
+		pathError);
+#else
+	const auto executable = std::filesystem::canonical(argv[0], pathError);
+#endif
 	if (pathError) {
 		return 126;
 	}
