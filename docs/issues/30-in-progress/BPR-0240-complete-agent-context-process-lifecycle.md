@@ -187,3 +187,36 @@ terminal through `windows_agent_process.cpp`. It is recorded here rather
 than on [[BPR-0412]], whose matrix it appears in, because the cause is the
 backend's and the card that owns the backend is this one. Not yet
 diagnosed.
+
+## Diagnosed — 2026-08-26
+
+An instrumented single-protocol run over a scout's candidate map settled
+it, and the backend is innocent. Every Windows transport primitive
+behaved exactly on every call: three round-trip `write_all`s completed
+inside a millisecond, 256 KiB of stderr pressure drained in 65 ms, and
+`wait` returned `running` on schedule until the deadline. What the trace
+showed instead is the fixture: `write_partial` in
+`agent_canary_main.cpp` sleeps one millisecond per three-byte chunk, the
+default Windows timer tick stretches that to ~15.6 ms, and the measured
+throughput was 723 bytes in four seconds — about 180 bytes a second
+against an app-server exchange of roughly 15 KB. The child was alive and
+advancing at every deadline; the timeout was arithmetic, not behavior.
+Two prior suspects died on the same trace: no framing desync (the
+reconstructed stream is byte-exact, and the `_O_BINARY` repair holds),
+and no CRLF cause.
+
+Two fixture repairs landed on the way: binary standard streams,
+descriptor-guarded and best-effort because some invocation courses
+attach no stream (`0a27c282`), and `timeBeginPeriod(1)` so millisecond
+pacing means milliseconds on Windows as it already does on the platforms
+the fixture passes on (`b33f8a2c`, `ddcde8da`).
+
+Verification is behind the host policy: the relinked fixture's first
+rerun failed `failed_to_start` across the family — the reputation wave,
+per [[BPR-0036]]'s procedure — and the retry waits for the verdict.
+What this card still owes if that rerun converts: Job Object pre-resume
+and descendant-containment evidence, and [[BPR-0332]]/[[BPR-0333]]'s
+recorded findings. The composed-app course also printed
+`agent-authority-and-offerings … profiles=0` where four are expected —
+possibly downstream of the same refused launches, to be re-read after
+the verdict lands rather than diagnosed under it.
