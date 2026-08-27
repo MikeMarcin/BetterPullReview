@@ -1612,6 +1612,18 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     },
                 )
 
+    def test_native_windows_agent_assigns_job_before_resume(self) -> None:
+        # The pre-resume claim's success path: after the suspended creation,
+        # the job assignment must precede the resume in source order, so a
+        # reorder cannot open an unassigned execution window (BPR-0240).
+        launch_body = AGENT_WINDOWS_PROCESS_SOURCE[
+            AGENT_WINDOWS_PROCESS_SOURCE.index("CREATE_SUSPENDED"):
+        ]
+        self.assertLess(
+            launch_body.index("assign_process_to_job"),
+            launch_body.index("ResumeThread"),
+        )
+
     def test_native_windows_agent_rejects_escape_and_fallback_surfaces(
         self,
     ) -> None:
