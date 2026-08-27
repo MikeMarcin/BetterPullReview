@@ -85,3 +85,14 @@ Implemented in `agent_canary_main.cpp` (the Windows-gated vacate) and
 on POSIX where the first attempt succeeds). The focused green waits on
 the relinked canary image's reputation verdict; a retry loop is armed,
 and the sibling canary courses rerun with it.
+
+The first retry wave exhausted without a verdict: four focused attempts
+across roughly eighty minutes all failed `failed_to_start`, with fresh
+Code Integrity 3033/3077 events naming the canary image at 11:02 —
+past every ordinary window, the same persistence the git wrapper's
+image showed on 2026-08-26 before its verdict landed overnight. The
+course binary itself is proven healthy (the workspace-diagnostic course,
+which shares it but not the canary, passed in the same build), the
+edits are format-clean, and the wait sits under the owner's recorded
+no-signing deferral: the rows convert on this image's verdict or on the
+next relink whose verdict lands. A long-cycle retry continues.

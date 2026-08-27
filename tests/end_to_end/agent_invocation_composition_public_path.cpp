@@ -982,7 +982,18 @@ auto main(int argc, char** argv) -> int
 		};
 
 		auto filesystemError = std::error_code{ };
-		std::filesystem::rename(workspacePath, originalPath, filesystemError);
+		// On Windows the live canary holds its current directory's handle
+		// without delete sharing, so this swap-aside rename is refused until
+		// the canary vacates its cwd on entering the release poll; the retry
+		// waits for exactly that release while the canary stays alive and
+		// paused. POSIX permits the first attempt (BPR-0465).
+		for (auto attempt = 0;; ++attempt) {
+			std::filesystem::rename(workspacePath, originalPath, filesystemError);
+			if (!filesystemError || attempt >= 3000) {
+				break;
+			}
+			QThread::msleep(10);
+		}
 		if (filesystemError
 			|| !std::filesystem::create_directory(workspacePath, filesystemError)) {
 			return restoreThenFail("cleanup-retry-substitute");

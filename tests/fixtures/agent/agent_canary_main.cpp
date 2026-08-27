@@ -518,6 +518,17 @@ auto main(int argc, char** argv) -> int
 		: std::string_view{ "completed" };
 	finish_output(protocol, terminalStatus);
 	if (executable_mode(argv, "cleanup-retry-wait")) {
+#if defined(_WIN32)
+		// Windows holds a process's current directory handle without delete
+		// sharing, so the course cannot rename the live workspace from under
+		// this process the way POSIX permits. Vacating the cwd to the
+		// workspace's parent releases that handle while this process stays
+		// alive and paused; the release poll below reads the captured
+		// absolute path, not the OS cwd, so it still observes the substitute
+		// the course creates at the same literal path (BPR-0465).
+		std::error_code vacateError;
+		std::filesystem::current_path(cwd.parent_path(), vacateError);
+#endif
 		const auto release = cwd / ".bpr-cleanup-retry-release";
 		while (!std::filesystem::exists(release)) {
 			std::this_thread::sleep_for(std::chrono::milliseconds{ 5 });
