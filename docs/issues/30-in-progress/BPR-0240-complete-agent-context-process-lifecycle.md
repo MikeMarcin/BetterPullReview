@@ -247,3 +247,28 @@ healthy canary:
 
 These are this card's remaining Windows diagnosis, alongside the Job
 Object and descendant-containment evidence it has always owed.
+
+## Two of the three courses are answered — 2026-08-26, night
+
+The scout traced all three to test-side Windows defects, and the fixes
+for two are proven at `c868536d` after the relink verdict wave:
+
+- **cancellation passes (16.44 s)**: the driver's mode-suffixed canary
+  copies dropped the source's `.exe`, and the canary's CRT re-spawn of
+  itself appends `.exe` to an extensionless name, so the descendant
+  spawn failed silently (`return 31`) — the copies keep the extension
+  now. The canary (106.78 s), composition (22.26 s), and staleness
+  (16.64 s) contracts stay green beside it.
+- **cleanup-retry** is [[BPR-0465]]: its live-workspace rename is
+  inexpressible over a Windows cwd handle; the staging needs designing,
+  not patching.
+- **workspace-diagnostic** survived its first candidate. The wrapper's
+  `_execv` was real and is repaired (spawn-and-wait with quoting), but
+  the failure shape is identical before and after, and the wrapper is
+  directly proven healthy on this host — `--exec-path`, `version`, and
+  `rev-parse` all forward correctly even under a scrubbed environment
+  whose `PATH` is only its own directory. The fault therefore sits in
+  the adapter's validation or launch of a *substituted* `GitExecutable`
+  on Windows — the only configuration this course alone exercises — and
+  the `EPOCH_CACHE_FAILURE:10:` line's empty detail is the fingerprint
+  under trace.
