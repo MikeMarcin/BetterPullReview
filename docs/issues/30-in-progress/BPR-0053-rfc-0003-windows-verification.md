@@ -176,10 +176,47 @@ again on the current tree.
 The count was the frontier note's open question, but restating it
 surfaced two bullets from this card's own list whose direct Windows
 evidence the 2026-08-23 mapping never named: **native system Light/Dark
-rendering** and the **secret/private-content absence** sweep. Neither has
-a row this card can point at that would fail if the claim were false on
-this host, so the card stays open for exactly those two rather than
+rendering** and the **secret/private-content absence** sweep. Neither had
+a row this card could point at, so the card recorded them rather than
 closing on the count alone.
+
+## Both surfaced bullets are answered — 2026-08-27, later
+
+A scout over the ledger settled what each bullet actually demands.
+
+**Light/Dark**: the RFC-BPR-0003 ledger's own platform plan assigns the
+live System Light-to-Dark transition to macOS alone — Linux carried
+rendered-only evidence, and the Windows plan row names "public/Qt" with
+no scheme-toggle language at all. The live probe is Cocoa-only by
+contract, not by omission: `src/app/main.cpp` refuses any other platform
+with `platform_not_cocoa`, and matrix-10 ran
+`application_native_appearance_probe_contract` green (7.70 s) on this
+host — the refusal itself is target-native proven here. The evidence the
+ledger's Windows standard does ask for passed in the same matrix:
+`qt_appearance_profile` (1.20 s), asserting the inherited palette and
+style survive synthetic System/dark scheme injection, and
+`application_render` (0.89 s). No live Windows scheme transition is
+claimed, and the ledger never planned one; a future decision to demand
+Cocoa-parity live capture on Windows would be new product work, not a
+gap in this card.
+
+**Secret/private-content absence**: the canary half is a registered,
+falsifiable, target-native row — `runtime_process_surface` (1.80 s in
+matrix-10) injects `BPR_CANARY_SECRET_7B1E6D9A` and fails if it appears
+in application output, alongside native socket and child-process checks.
+The repository half was swept directly on this host today: zero tracked
+private-key, token, or secret-artifact filenames; zero private-key or
+GitHub-token bodies — the single pattern hit is the synthetic detector
+table inside `tests/scripts/record_rfc0017_anonymous_contracts_tests.py`
+(lines 477-482), test inputs for the scrubber, not credentials — zero
+canary text in checked-in `docs/`, and zero hits across this run's
+`build/logs/*.log` evidence.
+
+Nothing on this card is left to run. Like [[BPR-0036]], it stays open
+deliberately: [[BPR-0054]]'s closeout matrix cites this card's procedure
+as an anchored owning procedure, and the documentation gate requires an
+open closeout card's cited procedures to stay open until the final
+replay consumes them.
 
 ## Its behavior-contract row is owner-deferred — 2026-08-23
 
