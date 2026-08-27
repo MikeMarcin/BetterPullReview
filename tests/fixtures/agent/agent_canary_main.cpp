@@ -331,11 +331,16 @@ auto main(int argc, char** argv) -> int
 	// Every raw-protocol fixture in this tree selects binary standard streams
 	// first: the CRT's default text mode rewrites each protocol '\n' as
 	// "\r\n" on the wire, so the bytes the parent drains would not be the
-	// bytes this fixture wrote (BPR-0240).
-	if (_setmode(_fileno(stdin), _O_BINARY) == -1
-		|| _setmode(_fileno(stdout), _O_BINARY) == -1
-		|| _setmode(_fileno(stderr), _O_BINARY) == -1) {
-		return EXIT_FAILURE;
+	// bytes this fixture wrote (BPR-0240). Best-effort by design: some
+	// invocation courses launch this fixture without every standard stream
+	// attached, a stream that does not exist cannot rewrite anything, and
+	// handing its -2 descriptor to `_setmode` would trip the debug CRT's
+	// invalid-parameter handler.
+	for (FILE* stream : { stdin, stdout, stderr }) {
+		const auto descriptor = _fileno(stream);
+		if (descriptor >= 0) {
+			static_cast<void>(_setmode(descriptor, _O_BINARY));
+		}
 	}
 #endif
 	if (const auto marker = argument_after(argc, argv, "--descendant-heartbeat");
