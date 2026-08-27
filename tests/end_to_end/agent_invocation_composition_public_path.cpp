@@ -554,12 +554,17 @@ auto main(int argc, char** argv) -> int
 	if (
 		course == "cancellation" || course == "staleness"
 		|| course == "cleanup-retry") {
-		const auto mode    = course == "cancellation"
+		const auto mode = course == "cancellation"
 			? "descendant-wait"
 			: course == "staleness" ? "stale-wait"
 									: "cleanup-retry-wait";
+		// The copy keeps the source's extension: the canary re-spawns itself
+		// through the CRT on Windows, which appends ".exe" to an
+		// extensionless name and then cannot find the file this copy
+		// actually created (BPR-0240).
 		externalExecutable = dataRoot
-			/ ("better_pull_review_agent_canary-" + std::string{ mode });
+			/ ("better_pull_review_agent_canary-" + std::string{ mode }
+			   + std::filesystem::path{ argv[2] }.extension().string());
 		std::error_code copyError;
 		std::filesystem::copy_file(
 			argv[2],

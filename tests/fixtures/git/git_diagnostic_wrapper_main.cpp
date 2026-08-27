@@ -43,6 +43,29 @@ auto main(int argc, char** argv) -> int
 		return 128;
 	}
 
+#if defined(_WIN32)
+	// _execv cannot replace a Windows process image: the CRT spawns the new
+	// process and destroys this one at once, so the wrapper's caller
+	// observes the wrapper exit while git still runs, and git's exit code
+	// is lost. Spawning and waiting keeps both. The CRT also joins the
+	// argument vector with spaces and no quoting, so every argument is
+	// quoted whole; the harness passes no argument with an embedded quote.
+	auto quoted = std::vector<std::string>{ };
+	quoted.reserve(static_cast<std::size_t>(argc));
+	quoted.push_back("\"" + std::string{ BPR_REAL_GIT_EXECUTABLE } + "\"");
+	for (auto index = 1; index < argc; ++index) {
+		quoted.push_back("\"" + std::string{ argv[index] } + "\"");
+	}
+	auto forwarded = std::vector<char*>{ };
+	forwarded.reserve(quoted.size() + 1U);
+	for (auto& argument : quoted) {
+		forwarded.push_back(argument.data());
+	}
+	forwarded.push_back(nullptr);
+	const auto status
+		= ::_spawnv(_P_WAIT, BPR_REAL_GIT_EXECUTABLE, forwarded.data());
+	return status < 0 ? 126 : static_cast<int>(status);
+#else
 	auto forwarded = std::vector<char*>{ };
 	forwarded.reserve(static_cast<std::size_t>(argc) + 1U);
 	forwarded.push_back(const_cast<char*>(BPR_REAL_GIT_EXECUTABLE));
@@ -50,10 +73,7 @@ auto main(int argc, char** argv) -> int
 		forwarded.push_back(argv[index]);
 	}
 	forwarded.push_back(nullptr);
-#if defined(_WIN32)
-	::_execv(BPR_REAL_GIT_EXECUTABLE, forwarded.data());
-#else
 	::execv(BPR_REAL_GIT_EXECUTABLE, forwarded.data());
-#endif
 	return 126;
+#endif
 }
