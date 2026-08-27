@@ -144,6 +144,16 @@ target-native runs land with the rebuilt-tree matrix. If the sibling-store
 public path shows a typed refusal instead, that is a product decision to
 report, not to repair in the test.
 
+The rebuilt-tree matrix at `697b8f71` ran all four green target-native:
+`git_process_contract` 29.44 s, `git_cache_contract` 35.03 s, and
+`sqlite_epoch_catalog_storage_contract` 1.81 s all passed with the new
+cases registered, and the sibling-store public path opened rather than
+refusing, so no product decision arises. The same matrix converted the
+owner-deferred row below: `sqlite_epoch_catalog_behavior_contract`
+passed in 85.43 s on its freshly linked image's clean verdict, exactly
+the "next relink whose reputation verdict arrives" that section
+anticipated.
+
 ## Its behavior-contract row is owner-deferred — 2026-08-23
 
 `sqlite_epoch_catalog_behavior_contract` could not start in the 2026-08-23
