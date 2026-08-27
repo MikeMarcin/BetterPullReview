@@ -585,6 +585,11 @@ class ConfiguredManifestTests(unittest.TestCase):
         self.assertEqual(len(failures), 2)
 
 
+@unittest.skipUnless(
+    hasattr(os, "geteuid"),
+    "live-image identity is defined in POSIX owner terms and the designated "
+    "live lane runs only where os.geteuid exists",
+)
 class LiveImageIdentityTests(unittest.TestCase):
     def make_fixture(
         self, root: pathlib.Path

@@ -600,6 +600,14 @@ def inspect_live_image(
 ) -> tuple[LiveImageIdentity | None, list[str]]:
     """Validate the tests-disabled producer and exact read-only image inputs."""
     failures: list[str] = []
+    if not hasattr(os, "geteuid"):
+        # The identity contract below is written in POSIX owner terms, and the
+        # designated live lane exists only on macOS. Refuse rather than crash
+        # on a platform that cannot express the check.
+        return None, [
+            "live image identity requires POSIX owner semantics this "
+            "platform does not provide"
+        ]
     if not all(
         path.is_absolute()
         for path in (image, mount_parent, build_dir, approval)
