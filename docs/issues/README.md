@@ -766,7 +766,6 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session, deferring: [[BPR-0311]] still waits on [[BPR-0318]]'s distributable identity — now in progress — and on [[BPR-0036]], and [[BPR-0315]] on BPR-0311 and [[BPR-0306]] |
 | BPR-0053 | `30-in-progress/` | Nothing left to run: matrix-10 restated the full count and its own rows green, the Light/Dark bullet is answered at the ledger's Windows standard — the live transition was only ever planned for macOS, and the probe's `platform_not_cocoa` refusal is itself proven here — and the secret/private-content sweep is discharged by `runtime_process_surface` plus a clean host-scoped repository and evidence-log scan. The card stays open only because [[BPR-0054]]'s closeout matrix cites its procedure, the same rule that holds [[BPR-0036]] |
 | BPR-0235 | `40-parked/` | The Windows counterexample replay is discharged by matrix-10, so one criterion remains: the default-off designated live lane target-native, which waits on the separately authorized session authority and attended procedure for a real call against `MikeMarcin/BPR-Test#1` |
-| BPR-0471 | `23-ready-lin/` | A Linux session. The RFC-BPR-0002 closeout review found the three hash-table key sites [[BPR-0444]]'s guard does not cover — literal-backed views through `data()` into `g_hash_table_insert`/`_lookup` — and this card routes them through the same `consteval` guard, restoring the architecture document's total claim; correct today, so hygiene rather than defect |
 | BPR-0310, BPR-0314 | `23-ready-lin/` | **Not a Linux session.** A Linux session ran this lane on 2026-08-22 and removed every Linux reason it had. The tests-disabled Release build links here ([[BPR-0421]], [[BPR-0440]]) and `coding-tidy` runs here ([[BPR-0443]]). What is left is upstream and is not about this platform: [[BPR-0310]] needs RFC-BPR-0016 implemented at all — no `src/` file mentions the device flow — behind the now-done [[BPR-0276]] capture's consumers ([[BPR-0277]] onward) and [[BPR-0318]]'s nonexistent distributable identity; [[BPR-0314]] must observe a typed public-preview-unavailability selection no code produces, and producing it is implementation RFC-BPR-0017 gates on RFC-BPR-0002, which waits on [[BPR-0036]]. BPR-0314 does carry three target-native rows now. A Linux session opening this lane closed [[BPR-0444]], [[BPR-0469]], and [[BPR-0470]] on 2026-08-27 and neither of these |
 | BPR-0240 | `30-in-progress/` | Nothing left to run: every agent course and the canary went green target-native on 2026-08-27 — the workspace-diagnostic's real cause was fsck's own subcommands re-entering the staged wrapper with a bare argv[0], and the canary verdict's arrival converted the other five. The card stays open only because [[BPR-0245]]'s closeout matrix cites its procedure in six rows, the same rule that holds [[BPR-0036]] and [[BPR-0053]]; [[BPR-0332]]'s reconciliation is its own card |
 
@@ -841,7 +840,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these ten roots or reaches one
+card on this board is either one of these nine roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 41 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`. This number has drifted before — it read 46 while the lane held 44,
@@ -1051,13 +1050,19 @@ Neither was reachable by reading. The first needed a build nobody had run to
 completion here; the second needed the gate that [[BPR-0443]] had only just
 made runnable to be pointed one directory over.
 
-The RFC-BPR-0002 closeout's capability-critical review then opened one:
-[[BPR-0471]] routes the vault's three hash-table key sites through the
-`consteval` guard [[BPR-0444]] built for the direct libsecret arguments —
-correct today because the views are literal-backed, so hygiene under
-RFC-BPR-0013 rather than a defect against the flip. A new card with no
-dependencies cannot sit in backlog, so it entered `23-ready-lin/` and took
-the count from ten to eleven.
+The RFC-BPR-0002 closeout's capability-critical review then opened one, and
+it is the sharpest thing this run produced. Done [[BPR-0471]] routes the
+vault's three hash-table key sites through the `consteval` guard
+[[BPR-0444]] built for the direct libsecret arguments — correct today because
+the views are literal-backed, so hygiene under RFC-BPR-0013 rather than a
+defect against the flip. What the review actually caught was a claim, not a
+line of code: BPR-0444 had written into `github-host-implementation.md` that
+no fixed string reached a libsecret call through `data()`, and three did. The
+reviewer narrowed the sentence to what was true and carded the rest instead
+of leaving the document asserting a guard that was not total. The Linux
+session that wrote the overclaim closed the card the same day and restored
+the sentence, which is now true. The count went ten to eleven and back to
+nine — BPR-0444 and BPR-0470 had already left it.
 
 RFC-BPR-0002 closed on 2026-08-28 and took two cards with it. [[BPR-0035]]
 replayed every checklist criterion at the final head — matrix-11 plus the

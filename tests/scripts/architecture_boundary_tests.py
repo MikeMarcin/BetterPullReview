@@ -1218,7 +1218,12 @@ void selected_secret_service_lifecycle() {
     schema.flags = SECRET_SCHEMA_NONE;
     schema.attributes[0].name = authority_attribute;
     schema.attributes[0].type = SECRET_SCHEMA_ATTRIBUTE_STRING;
-    g_hash_table_lookup(attributes, schema_attribute);
+    g_hash_table_insert(
+        attributes,
+        const_cast<char*>(c_str(authority_attribute)),
+        const_cast<char*>(authority_account.data()));
+    g_hash_table_lookup(attributes, c_str(authority_attribute));
+    g_hash_table_lookup(attributes, c_str(schema_attribute));
     if(g_hash_table_size(attributes) != 2U) {}
 
     for(std::size_t nibble = 0U; nibble < 16U; ++nibble) {}
@@ -4817,6 +4822,9 @@ auto finish_background_reap(
             "text.data()[text.size()] !=",
             'throw "a string_view handed to a libsecret entry point '
             'must be "',
+            "const_cast<char*>(c_str(authority_attribute))",
+            "g_hash_table_lookup(attributes, c_str(authority_attribute))",
+            "g_hash_table_lookup(attributes, c_str(schema_attribute))",
         )
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):

@@ -473,7 +473,7 @@ namespace bpr::adapters::github {
 				return nullptr;
 			}
 			g_hash_table_insert(attributes,
-								const_cast<char*>(authority_attribute.data()),
+								const_cast<char*>(c_str(authority_attribute)),
 								const_cast<char*>(authority.data()));
 			return attributes;
 		}
@@ -516,9 +516,9 @@ namespace bpr::adapters::github {
 			}
 
 			const auto* actual_authority = static_cast<const char*>(
-				g_hash_table_lookup(attributes.get(), authority_attribute.data()));
+				g_hash_table_lookup(attributes.get(), c_str(authority_attribute)));
 			const auto* actual_schema = static_cast<const char*>(
-				g_hash_table_lookup(attributes.get(), schema_attribute.data()));
+				g_hash_table_lookup(attributes.get(), c_str(schema_attribute)));
 			return actual_authority != nullptr && actual_schema != nullptr
 				&& std::strcmp(actual_authority, authority.data()) == 0
 				&& std::strcmp(actual_schema, schema.name) == 0;

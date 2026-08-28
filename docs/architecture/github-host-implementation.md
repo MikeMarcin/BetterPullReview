@@ -1070,17 +1070,13 @@ Every fixed string in that path — both schema identifiers, the `authority`
 attribute name, the two item labels, both accepted content types, and the
 `org.freedesktop.secrets` bus name — is a `std::string_view` handed to a
 libsecret entry point that reads to a terminator it is not given a length
-for. None reaches a direct libsecret argument through `data()`. Those go
+for. None of them reaches such a call through `data()`, including the GLib
+hash-table key and lookups whose tables libsecret then consumes. They go
 through `c_str`, a
 `consteval` function that inspects the byte at `size()`, so a view that is not
 null-terminated — a `substr`, a `{pointer, length}` pair, a value known only
 at run time — fails to compile at the call site instead of reading past its
-end inside a call that carries a credential. Three sites still pass
-literal-backed views through `data()` into GLib hash-table keys and lookups
-(`g_hash_table_insert` and `g_hash_table_lookup` over the attribute names)
-whose tables libsecret then consumes; they are correct today because the
-views are `constexpr` over string literals, and routing them through the
-same guard is recorded follow-up hygiene rather than a present defect. The item label is selected by a
+end inside a call that carries a credential. The item label is selected by a
 function that is total over the two schema scopes, so there is no empty view
 whose `data()` is a null pointer to hand to `secret_item_create_sync`.
 `cmake/VerifyArchitectureBoundaries.cmake` pins the guard itself as well as
