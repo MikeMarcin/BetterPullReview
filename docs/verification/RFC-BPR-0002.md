@@ -1047,7 +1047,7 @@ and `git diff --check` gates passed.
 | Active host and account are always visible | GitHub Qt presentation | Render initial, loaded, error, and in-flight identity-switch states | Accessible visible identity always matches the accepted provider session and never exposes a credential | Verified | BPR-0028 atomic safe-projection and three-scale Qt cases plus both BPR-0029 public fixtures cover selected profile/host/transport, authenticated account output, connecting state, and immediate account/PR/rate invalidation |
 | Native appearance is inherited and updates live | Real Qt application under the operating-system appearance | Launch under native Light, then change the System Appearance to Dark while the same loaded process remains alive and restore the original setting | QMacStyle and the operating-system palette remain authoritative without a forced palette/style/QSS; focus, selection, collapsed expansion, model identity, and geometry survive the live change; exact persisted rasters visibly differ | Verified | BPR-0031's owner-authorized native probe reported both independent `Light->Dark` transitions, Cocoa/QMacStyle and all signal/state/pixel/render markers; direct inspection confirmed readable Light/Dark output with preserved loaded state, and the trap restored original Dark |
 | macOS/Linux dormant CLI broker mechanically preserves the process boundary | Injectable process port plus real child-process integration on each selected Unix target | Launch the same-executable child with exact input/retention/time limits and an unknown parent-environment canary; exercise initial-process-group cleanup and escape on clean success, failure, timeout, and cancellation; compile every selected operation/profile request | Canonical executable, closed argv, stdin body, canonical currently non-repository cwd, requested environment plus only the documented Darwin addition, directly observed Unix hardening/session/group facts, bounded public reads/retention, initial-process-group cleanup, watchdog quarantine, fixed failures, and canary absence are directly inspected | Verified | BPR-0025 macOS and Linux transport/compiler and retained `QProcess` runner suites plus hostile source mutations; the runner is not public-composed, a descendant that changes group can escape, numeric PID/PGID reuse means group signaling is not claimed race-free, actual live-process failed-reap retention remains source-gated, Qt private in-flight pipe allocation is not claimed, and the separate trust row governs whether this boundary may send a provider request |
-| Windows CLI selection remains fixed unavailable | Real Windows 10/11 x64 application and Release binary | Run `--self-test`, inspect the process tree, and inspect the executable for dormant CLI transport/runner symbols | The public CLI selection reports `CLI_UNAVAILABLE_OK`, creates no CLI process or descendant, and the Release executable contains no CLI execution path | Partially verified | BPR-0036's matrix-10 run (2026-08-27, `8e952928`) passed the direct application/runtime half target-native: `application_public_path_ghes_cli_unavailable`, `gh_cli_transport`, and `github_cli_process_runner` all pass, and `runtime_process_surface` observes no CLI child at its sample point. The dormant-CLI-symbol inspection of a tests-disabled Windows Release executable remains open until BPR-0311's `windows-app-release` preset exists; positive Windows CLI execution and all Job Object/process-boundary work stay deferred to RFC-BPR-0015 |
+| Windows CLI selection remains fixed unavailable | Real Windows 10/11 x64 application and Release binary | Run `--self-test`, inspect the process tree, and inspect the executable for dormant CLI transport/runner symbols | The public CLI selection reports `CLI_UNAVAILABLE_OK`, creates no CLI process or descendant, and the Release executable contains no CLI execution path | Verified | BPR-0036's matrix-10 run (2026-08-27, `8e952928`) passed the direct application/runtime half target-native: `application_public_path_ghes_cli_unavailable`, `gh_cli_transport`, and `github_cli_process_runner` all pass, and `runtime_process_surface` observes no CLI child at its sample point. The Release-symbol half was already covered on this host and the earlier record was too conservative: `application_composition_contract`'s `test_tests_off_release_graph_omits_public_path_fixture` performs a fresh nested tests-disabled Release configure and Ninja build from the live tree and byte-scans the resulting executable for `gh_cli_transport`, `github_cli_process_runner`, `validate_gh_cli_configuration`, and `compile_gh_cli_process_request`; it passed target-native in matrix-10 (283.88 s) and again in the matrix-11 closeout replay (293.46 s, `0d347481`). Positive Windows CLI execution and all Job Object/process-boundary work stay deferred to RFC-BPR-0015; BPR-0311's `windows-app-release` preset remains that enablement program's own work, not this claim's |
 | Every visible CLI mode is unavailable and launches zero processes | Public self-test, Release composition contract, host lifecycle, provider counters, and dormant process-port counters | Enumerate the default and explicit-GHES CLI rows from clean start, switch from authenticated native HTTPS, inspect the tests-disabled executable, exercise the provider with exact call counters, and inject a fake successful process port into the dormant transport | `CLI_UNAVAILABLE_OK` and exact counts `1`/`2` are visible; clean-start rows each perform one bounded profile-resolution effect; a native-to-CLI switch exact-deletes only the predecessor binding; the executable omits CLI transport/runner symbols; CLI credential-enrollment/retrieval, transport-factory, wire, capability, CLI-specific-effect, and process-port counts remain zero | Verified | BPR-0037 plus the BPR-0032 direct GHES row case pass `CLI_UNAVAILABLE_COUNT:1` and `CLI_UNAVAILABLE_COUNT:2`, the Release binary contract, native-to-CLI predecessor cleanup coverage, exact provider zero-call assertions, and all-operation transport zero-call assertions with eight typed reasons. Exact 2.95.0/2.96.0 probes independently prove effective `http_unix_socket` rerouting, followed cross-authority `302`, missing per-invocation account binding, and `broker-availability: unavailable`; positive enablement is deferred to RFC-BPR-0015 |
 | macOS/Linux native HTTPS fails closed | Native network adapter on both directly exercised targets | Exercise ordered proxy fallback, system-proxy observation, trusted TLS, unknown-host and GraphQL redirects, certificate failure, cancellation, timeout, response-body/per-field-header bounds, and typed HTTP failures | Only validated origin authorities receive origin requests or credentials; connections may traverse bounded Qt-selected system proxy endpoints that never receive GitHub Authorization; trust, redirect, credential, remaining-deadline, cancellation, and adapter-visible retention policies fail closed inside the internal wire transport | Verified | BPR-0026 15-scenario macOS arm64 and frozen Ubuntu 26.04 x86_64 full-system matrices, runtime facts, tests-disabled symbol/dependency audits, sanitizer run, and hostile architecture gates. The loopback runtime covers response-body and one overlong-field case, not separate 65-field/aggregate-only cases or Qt-private buffers/synchronous discovery. BPR-0029 structurally selects native HTTPS publicly but its QAction fixtures substitute recorded transport; BPR-0030's macOS verifier passed all 32 scenarios it carried on 2026-07-30, including fail-closed same-authority query-bearing redirect; BPR-0263 has since taken the suite to 35, so that run is a subset of the current one |
 | Windows native HTTPS fails closed | Native network adapter on real Windows 10/11 x64 | Exercise system proxy, trusted TLS, unknown-host and GraphQL redirects, certificate failure, cancellation, response/header bounds, runtime scope, and PE dependencies | The selected Windows Qt TLS/proxy runtime enforces the same fail-closed wire contract | Verified | BPR-0446 registered and ran `native_https_transport_fixture` target-native on the Windows 11 x64 host at `b18b9336`: all thirty-six wire scenarios — system proxy and fallback, trusted TLS, same/cross/query/GraphQL redirects, untrusted certificate, cancellation, timeout, response/header bounds, mutation witnesses, and the HTTP failure and rate-limit families — passed in 9.35 s under Qt's Schannel backend with the fixture CA injected through the `BPR_NATIVE_HTTPS_TESTING` seam. BPR-0036's matrix-10 run (2026-08-27, `8e952928`) closed the remainder target-native: `runtime_process_surface` (`verify_runtime_surface.py` against the built application, 1.80 s) and `binary_dependency_surface` (`verify_binary_dependencies.py` selecting `dumpbin`, 0.25 s) both passed |
@@ -1157,12 +1157,12 @@ policy, Windows/Linux vaults, cache invalidation, or UI behavior.
 | Core state and typed flow | Domain/state model and implementation architecture | Updated: opaque identities, capabilities, requests/events/deltas, generation, invalidation, and exact accepted-snapshot ownership are recorded | Core tests and type/dependency scan |
 | Host/provider boundary | System architecture, provider contract, implementation architecture | Updated: normalized ports, pagination, authenticated sessions, retry/rate state, private capability cache, hostname-bound credential lifecycle, serialized completion, multi-profile routing, structural public native-HTTPS selection with recorded fixture substitution disclosed, exact recorded-method admission, bounded GraphQL operation classification, canonical-body equality, and exhaustive bounded failure mapping are recorded | BPR-0019/BPR-0020 contracts; BPR-0025/BPR-0026 direct transport evidence; BPR-0027 host/provider evidence; BPR-0029 macOS and Linux recorded public fixtures plus Release factory selection; BPR-0030 macOS/Linux protocol, failure-mapping, and redirect matrices |
 | Portable credential contract | Domain/state model, provider contract, implementation architecture, threat model | Updated: bounded move-only material, canonical-hostname authority, exact correlation, typed results, Qt-owned input boundary, and no core/Qt vault capability | BPR-0021 lifetime/result contract plus BPR-0029 fake-vault, hostname, prompt, host-shutdown, and boundary suites |
-| Native credentials and network trust | Security baseline, threat model, operator/troubleshooting guidance | Updated: historical v1 evidence remains labeled historical; current v2 namespaces/encoding/no-fallback, separate native item/schema cleanup, and fixture-vault proof of the shared exact-shutdown-delete policy are recorded; macOS and Linux v2 are verified; Windows remains BPR-0036; native HTTPS is the sole M1 production auth transport; CLI stays fixed zero-launch and positive enablement is deferred to RFC-BPR-0015 | Historical BPR-0022/BPR-0023/BPR-0024 evidence; BPR-0025/BPR-0026 direct transport evidence; BPR-0029 macOS Keychain and Linux Secret Service v2 native lifecycle, recorded public-fixture, Release selection/dependency, idle-runtime, and exact-cleanup evidence; BPR-0037/BPR-0032 current official CLI trust audit and every-visible-row zero-call contracts |
+| Native credentials and network trust | Security baseline, threat model, operator/troubleshooting guidance | Updated: historical v1 evidence remains labeled historical; current v2 namespaces/encoding/no-fallback, separate native item/schema cleanup, and fixture-vault proof of the shared exact-shutdown-delete policy are recorded; macOS and Linux v2 are verified; Windows completed 2026-08-27 with matrix-10/11 (credential sequence with exact absence, runtime and dependency surfaces); native HTTPS is the sole M1 production auth transport; CLI stays fixed zero-launch and positive enablement is deferred to RFC-BPR-0015 | Historical BPR-0022/BPR-0023/BPR-0024 evidence; BPR-0025/BPR-0026 direct transport evidence; BPR-0029 macOS Keychain and Linux Secret Service v2 native lifecycle, recorded public-fixture, Release selection/dependency, idle-runtime, and exact-cleanup evidence; BPR-0037/BPR-0032 current official CLI trust audit and every-visible-row zero-call contracts |
 | Qt presentation | UI architecture and UX baseline | Updated: provider-free projection, Qt-owned sensitive input, compact responsive hierarchy, explicit retained/empty states, wrapped native delegate, expansion/selection preservation, polite announcements, native inheritance, and the directly observed same-process system Light-to-Dark transition are recorded | BPR-0028/BPR-0029 projection and public-fixture evidence plus BPR-0031 three-scale state/focus/accessibility coverage and inspected owner-authorized Cocoa/QMacStyle Light/Dark rasters; deterministic forced offscreen style remains explicitly layout-only |
 | Composition and operation | README, build/test guide, developer overview | Updated: explicit profiles/provenance, multi-profile provider, structural native HTTPS/platform-vault factory selection, separate recorded public fixtures and direct native implementations, separate workers, every-visible-row CLI unavailability with exact counts, fixture-vault exact-delete shutdown, crash limitation, public commands, and Release exclusion of dormant CLI execution symbols | BPR-0029 macOS recorded public fixtures and fresh Debug/core-only/sanitizer matrices; Linux recorded public fixtures, fresh Release 81/81 tests-on and 36/36 tests-off targets, native-vault factory selection, and seam/dependency/idle-runtime/ELF audits; BPR-0026 direct native wire fixtures; BPR-0037/BPR-0032 public and Release CLI composition contracts |
 | Tests and fixtures | Test guide and fixture catalog | Updated: historical/current vault versions, Qt sensitive input, worker, composition contract, substituted public fixture transport/vault, exact-host and fixture-delete evidence, direct native wire/vault evidence, BPR-0030's 32-scenario HTTPS verification with header-scenario limits disclosed, exact 2.95.0/2.96.0 Unix-socket/certificate/redirect trust probes, single-sample idle-runtime limits, standalone deterministic conversation property corpus, and UX-evidence limits are recorded | Pinned BPR-0029 macOS/Linux matrices and direct fixture markers; BPR-0030 macOS 44/44, core-only 17/17, sanitizer deltas, Linux 83/83-target build and 41/41 matrix; BPR-0037/BPR-0032 exact CLI trust probes and every-visible-row zero-call tests; offscreen PNGs remain layout-only evidence |
-| No-impact and deferred regions | Architecture, verification ledger, and issue board | Updated: no Git cache/epochs, diff/syntax, SQLite private-ledger, GitHub mutation execution, queue/observer/AI/notification, QML/WebEngine/browser/product-owned-listener/plugin/telemetry/updater, or package-format/signing/installer implementation changed. Positive CLI enablement remains RFC-BPR-0015; Windows direct runtime evidence remains Planned in BPR-0036; package certification remains RFC-BPR-0014 | Immutable-base path/target audit, architecture boundary scans, and the implementation architecture's explicit no-impact section |
-| Packaging and release | Packaging policy and dependency inventory | Updated: public macOS and Linux platform-vault selection and tests-off seam absence are recorded; Windows direct runtime evidence remains Planned in BPR-0036; RFC-BPR-0014 still owns distribution certification | macOS Release reports Security/CoreFoundation and exact `SecItem` imports; Linux Release reports native-vault selection, seam absence, and passing dependency/runtime/ELF audits; historical Windows evidence remains recorded |
+| No-impact and deferred regions | Architecture, verification ledger, and issue board | Updated: no Git cache/epochs, diff/syntax, SQLite private-ledger, GitHub mutation execution, queue/observer/AI/notification, QML/WebEngine/browser/product-owned-listener/plugin/telemetry/updater, or package-format/signing/installer implementation changed. Positive CLI enablement remains RFC-BPR-0015; Windows direct runtime evidence completed 2026-08-27 with matrix-10/11; package certification remains RFC-BPR-0014 | Immutable-base path/target audit, architecture boundary scans, and the implementation architecture's explicit no-impact section |
+| Packaging and release | Packaging policy and dependency inventory | Updated: public macOS and Linux platform-vault selection and tests-off seam absence are recorded; Windows direct runtime evidence completed 2026-08-27 with matrix-10/11; RFC-BPR-0014 still owns distribution certification | macOS Release reports Security/CoreFoundation and exact `SecItem` imports; Linux Release reports native-vault selection, seam absence, and passing dependency/runtime/ELF audits; historical Windows evidence remains recorded |
 | GitHub Actions | Build/test/package/release documentation | Updated: absolute prohibition; no workflow files | Documentation validator plus tracked and on-disk workflow-absence scans |
 
 ## Performance and projection plan
@@ -1217,6 +1217,100 @@ prove certificate and redirect rejection, the CLI path ceases to be
 categorically zero-launch, or the narrow read-only ports and outbound
 admission checks do not reject non-GET REST operations, non-query GraphQL
 operations, or noncanonical bodies.
+
+## Final closeout replay — 2026-08-27/28
+
+The BPR-0035 closeout ran the complete `windows-dev` matrix (matrix-11, 208
+registrations) at `0d347481` on the Windows 11 x64 host, followed by a fresh
+`core-only` configure/build/matrix (96 registrations), with the architecture
+suites re-run on both presets at the merged head `76d18e60` after the
+BPR-0444/BPR-0470 Linux slices changed the boundary guard and its tests.
+Matrix-11 passed 202 of 208 in 1613.95 s; all six failures printed the host
+policy's `win32=4551` on freshly relinked images per BPR-0036's recorded
+procedure, and three converted on individual rerun
+(`designated_live_mutation_runner_digest_mismatch`, `core_appearance_policy`,
+`core_appearance_contrast`) while the three `qt_device_authorization_scale_*`
+rows — RFC-BPR-0016 surfaces, cited by no RFC-BPR-0002 claim — entered the
+standard verdict-retry loop. The `core-only` matrix passed 94 of 96 in
+526.73 s with the same two-signature attribution
+(`designated_live_mutation_gate`, `application_device_authorization_host`)
+and the same retry disposition; neither is an RFC-BPR-0002 claim row.
+
+Final replay record keyed by each closeout criterion, every row from
+matrix-11 at `0d347481` unless stated:
+
+- "A configured GitHub.com profile opens a sanitized fixture PR through the
+  normalized provider surface." — `application_github_public_path_github_com`
+  Passed 3.64 s.
+- "A configured GHES 3.18 profile opens the equivalent fixture using only
+  supported contracts." — `application_github_public_path_ghes_3_18` Passed
+  3.63 s.
+- "Capability probing reports review threads, viewed-file mutations,
+  resolve/unresolve, and unsupported features accurately." —
+  `github_capability_probe` 10.57 s, `application_github_capability_cache`
+  0.48 s, `core_github_policy` 0.68 s, all Passed.
+- "The UI presents clear authentication, permission, network, API-version,
+  and capability failures." — `application_github_host` 1.28 s,
+  `qt_composed_github_scale_100/125/200` 5.91/5.83/7.70 s, all Passed.
+- "Canary credentials do not appear in logs, process arguments, diagnostics,
+  SQLite, or UI error text." — BPR-0036's procedure target-native:
+  `windows_credential_manager_native_setup`/`_native`/`_native_cleanup`
+  0.50/0.05/0.01 s in order with exact absence proven,
+  `application_public_path` 0.69 s and
+  `application_public_path_ghes_cli_unavailable` 0.73 s self-tests, and
+  `runtime_process_surface` 1.99 s injecting `BPR_CANARY_SECRET_7B1E6D9A`
+  and failing on any leak while sampling sockets and children, all Passed.
+- "Every visible GitHub CLI choice produces `cli_unavailable` without CLI
+  executable or configuration discovery, process creation, or descendants."
+  — `application_public_path_ghes_cli_unavailable` 0.73 s,
+  `application_composition_contract` 293.46 s including the nested
+  tests-disabled Release build and forbidden-byte scan, `gh_cli_transport`
+  0.15 s, all Passed.
+- "The native provider rejects certificate failures, unknown-authority
+  redirects before forwarding credentials or bodies, and all query-bearing
+  redirects." — `native_https_transport_contract` 0.17 s,
+  `native_https_transport_fixture` 8.33 s (thirty-six scenarios), both
+  Passed.
+- "Switching host or account invalidates all identity-sensitive caches and
+  projections." — `core_github_policy`, `application_github_host`, and the
+  three `qt_composed_github_scale_*` rows above, all Passed.
+- "Core tests run with no Qt/network/credential implementation, host tests
+  use fake transports and reordered completions, and Qt tests prove event
+  translation and capability-driven action state without credential access."
+  — `core_dependency_boundary` 0.30 s, `architecture_boundaries` 8.52 s,
+  `architecture_boundary_contract` 191.81 s, `qt_github_conversation_panel`
+  0.39 s in matrix-11; the boundary suites replayed 3/3 on `windows-dev` and
+  3/3 on `core-only` at `76d18e60` after the guard and its tests changed.
+
+Cross-platform closeout facts recorded with the replay:
+
+- The Linux vault surface changed at `ade350dc` (BPR-0444's
+  `.data()`-to-`c_str` repair with the boundary pins moved in lockstep) and
+  `76d18e60` (BPR-0470's identifier renames across the Linux-only test
+  sources). The landing session re-ran `linux_secret_service_contract`,
+  `architecture_boundaries`, and `architecture_boundary_contract` (127
+  cases) green at the merge head on Ubuntu 26.04 x86_64 GCC 15.2, with
+  `tidy.py --warnings-as-errors` clean on the changed files, format 425 of
+  425, and both documentation gates green. Its rename proof preserves every
+  string/char literal in order and the identifier token counts, byte-exact
+  after identifier erasure.
+- The three registered native Secret Service rows
+  (`linux_secret_service_native_setup`/`_native`/`_native_cleanup`) fail on
+  that session's host with a locked keyring collection; the failure was
+  re-proven pre-existing by restoring the pre-BPR-0444 adapter and observing
+  the identical failure, and is owned by BPR-0310's dedicated native-session
+  work. This RFC's Linux vault row rests on the recorded Ubuntu 26.04 QEMU
+  matrix where the native trio passed, unchanged by the rename, plus the
+  three direct native checks (`--expect-unavailable`, `--expect-locked`,
+  `--expect-bus-redirect-rejected`) run 3/3 before and after the rename.
+- The "original source-pack validator" named below is repository-external
+  by BPR-0001's deliberate exclusion: the imported pack's own validator was
+  never committed, and its checkable substance — exactly fourteen canonical
+  RFCs with index/status agreement and structural validity — is enforced at
+  every gate run by `scripts/verify_documentation.py`, which reports
+  `DOCUMENTATION_OK` at the closeout head. The historical
+  `OK: 14 RFCs, 17 normative documents, architecture v2 enforced` line
+  remains a macOS-era record of the excluded tool.
 
 ## Clean closeout blockers
 

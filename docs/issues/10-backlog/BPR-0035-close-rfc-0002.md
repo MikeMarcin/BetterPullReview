@@ -48,6 +48,34 @@ This checkpoint is not an RFC closeout and changes no `Planned` Windows row.
 BPR-0036 remains open for the product owner's real Windows run. This card
 remains in `backlog`, and RFC-BPR-0002 remains `Proposed`.
 
+## The closeout run — 2026-08-27/28
+
+The final replay ran on the Windows 11 x64 host: complete matrix-11 (208
+registrations, 202 in-run plus three individual reputation conversions, the
+three `qt_device_authorization_scale_*` stragglers being RFC-BPR-0016
+surfaces in the standard verdict-retry loop), a fresh `core-only`
+configure/build/matrix (94 of 96 with the same two-signature retry
+disposition), and the boundary suites replayed on both presets at the merged
+head `76d18e60`. Every selector this checklist names passed; the per-criterion
+record is the ledger's "Final closeout replay" section.
+
+Coordination this run depended on: the concurrent Linux session landed
+[[BPR-0444]] (the vault `.data()` repair with boundary pins moved in
+lockstep) and [[BPR-0470]] (the Linux-only test-source renames with a
+literal-preserving proof), both merged before the flip; it re-proved the
+three native Secret Service rows pre-existing failures owned by
+[[BPR-0310]] by restoring the pre-repair adapter. [[BPR-0469]] (a GCC-only
+unused-function break of the Linux `dev` build, RFC-BPR-0005 scope) landed
+in the same merges. The Windows Release CLI-symbol claim converted on the
+nested tests-disabled Release build and forbidden-byte scan inside
+`application_composition_contract`, correcting an over-conservative
+same-day ledger record. The "original source-pack validator" is
+repository-external by [[BPR-0001]]'s deliberate exclusion; its checkable
+substance is enforced by `scripts/verify_documentation.py`, green at this
+head. The capability-critical independent review runs before the status
+flip, primed with the Linux session's own caveat that its
+boundary-pin changes had no independent read before this review.
+
 ## Closeout checklist
 
 Historical evidence is provenance only; every row requires final replay at the final closeout head.
