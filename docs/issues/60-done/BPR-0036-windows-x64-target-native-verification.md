@@ -1,7 +1,7 @@
 ---
 id: BPR-0036
 title: Run RFC-BPR-0002 Windows x64 target-native verification
-status: In Progress
+status: Done
 rfc: RFC-BPR-0002
 depends_on: [BPR-0034, BPR-0347, BPR-0350]
 ---

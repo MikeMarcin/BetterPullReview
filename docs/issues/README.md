@@ -189,7 +189,11 @@ v007 cannot be reused for the new bytes.
 ## Current frontiers
 
 RFC-BPR-0001 is `Auto-Verified`, and every linked card is in `60-done/`.
-RFC-BPR-0002 is the closure frontier in canonical order. Its planning slice is
+RFC-BPR-0002 is `Auto-Verified` as of 2026-08-28: [[BPR-0035]]'s closeout
+card and the verification ledger's final-replay section carry the record,
+[[BPR-0036]] closed with it after its procedure was consumed by the final
+replay, and the paragraphs below stand as the history of how it got there.
+It was the closure frontier in canonical order. Its planning slice is
 complete; its architecture, deterministic-core, normalized-contract,
 host-profile/capability, portable/native credential, and hardened GitHub CLI
 broker slices are verified. `BPR-0023` is in `60-done/` with its Windows
@@ -760,7 +764,6 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0318 | `30-in-progress/` | **The distributable identity exists**: the owner registered it in the 2026-08-27 attended session — public client `Iv23liitiYN1WSSbag50`, any-account installability, the exact approved settings — and the sanitized observation replaced the seeded template under the accepted, replay-valid registration authority (record `c82e51c2`). Next: author `verify_rfc0016_production_identity.py` (unattended), one attended sitting for the designated read-only course, then the macOS-host enablement chain |
 | BPR-0298 | `20-ready/` | Promoted 2026-08-27 when [[BPR-0445]] closed with the fifth capture and `VALID:5`; its other dependencies were already done. What it keeps: the conditional-304 and synthetic-exhaustion authorities, the GHES disposition, and the immutable-evidence closeout that authenticates every minimized record against its owning commit |
 | BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session, deferring: [[BPR-0311]] still waits on [[BPR-0318]]'s distributable identity — now in progress — and on [[BPR-0036]], and [[BPR-0315]] on BPR-0311 and [[BPR-0306]] |
-| BPR-0036 | `30-in-progress/` | Nothing left to run: matrix-10 at `8e952928` passed 205 of 208 with every failure attributed and the refused row individually converted, and both remaining inspections passed target-native. The card stays open only because [[BPR-0035]]'s closeout matrix cites its canary procedure, and the documentation gate requires an open closeout card's cited procedures to be open — BPR-0035's final replay consumes and closes it |
 | BPR-0053 | `30-in-progress/` | Nothing left to run: matrix-10 restated the full count and its own rows green, the Light/Dark bullet is answered at the ledger's Windows standard — the live transition was only ever planned for macOS, and the probe's `platform_not_cocoa` refusal is itself proven here — and the secret/private-content sweep is discharged by `runtime_process_surface` plus a clean host-scoped repository and evidence-log scan. The card stays open only because [[BPR-0054]]'s closeout matrix cites its procedure, the same rule that holds [[BPR-0036]] |
 | BPR-0235 | `40-parked/` | The Windows counterexample replay is discharged by matrix-10, so one criterion remains: the default-off designated live lane target-native, which waits on the separately authorized session authority and attended procedure for a real call against `MikeMarcin/BPR-Test#1` |
 | BPR-0471 | `23-ready-lin/` | A Linux session. The RFC-BPR-0002 closeout review found the three hash-table key sites [[BPR-0444]]'s guard does not cover — literal-backed views through `data()` into `g_hash_table_insert`/`_lookup` — and this card routes them through the same `consteval` guard, restoring the architecture document's total claim; correct today, so hygiene rather than defect |
@@ -838,7 +841,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these eleven roots or reaches one
+card on this board is either one of these ten roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 41 cards in `10-backlog/`, **none** has all its dependencies in
 `60-done/`. This number has drifted before — it read 46 while the lane held 44,
@@ -1056,6 +1059,16 @@ RFC-BPR-0013 rather than a defect against the flip. A new card with no
 dependencies cannot sit in backlog, so it entered `23-ready-lin/` and took
 the count from ten to eleven.
 
+RFC-BPR-0002 closed on 2026-08-28 and took two cards with it. [[BPR-0035]]
+replayed every checklist criterion at the final head — matrix-11 plus the
+head-binary conversions after the merge's one compiled delta forced a
+rebuild-and-rerun — and the capability-critical review's three blocking
+findings were cured before the flip rather than argued past. [[BPR-0036]]
+closed in the same commit, its canary procedure consumed by the replay
+exactly as the closeout-procedure rule requires. Closing them promoted
+nothing — [[BPR-0311]] still waits on in-progress [[BPR-0318]], and
+[[BPR-0054]] on its own open set — so the count is ten.
+
 Everything else in `10-backlog/` reaches one of those roots transitively.
 
 | Group | Cards | What is actually missing |
@@ -1063,7 +1076,7 @@ Everything else in `10-backlog/` reaches one of those roots transitively.
 | Requested Dif mascot program | Done BPR-0286 through BPR-0294, backlog BPR-0295 | RFC-BPR-0019 tooling, assets, exact rights and visual verdicts, clean dev/core/tests-disabled boundary verification, immutable-base documentation reconciliation, and behavior-preserving simplification are complete. The accepted verdict preserves the owner's requirement that the plus/minus card not become inseparable from Dif's core base sprite. RFC-BPR-0019 closeout remains blocked by non-waived RFC-BPR-0006/RFC-BPR-0013 closeout; RFC-BPR-0020 cannot begin before RFC-BPR-0019 is Auto-Verified |
 | Requested post-pack device authorization | Done BPR-0274 through BPR-0282; backlog BPR-0283 through BPR-0285; in-progress BPR-0318; ready BPR-0310 and BPR-0311 | RFC-BPR-0016 remains Deferred. The private owner-only BPR-Test identity is limited to attended verification; BPR-0318 records a separate distributable identity before any production platform can become available. Bounded real-service capture, RFC-BPR-0002 closeout, implementation, target-native enablement, and capability-critical final replay remain explicit; no partial device-flow mode exists |
 | Requested post-pack unauthenticated public read | Done planning BPR-0296, scoping BPR-0297, and demonstration BPR-0313; ready BPR-0298 and backlog BPR-0299 through BPR-0309 plus BPR-0312, BPR-0316 and BPR-0317; ready BPR-0314 and BPR-0315 | RFC-BPR-0017 remains Deferred. Live-tree scoping is corrected: the read catalog has no REST review-comment operation, so refusing GraphQL anonymously loses every inline review comment rather than only resolution state, and the mutation authority's own REST review-comment read is recorded as the exception no read path can select. The credential-free transport demonstration exists as a `BUILD_TESTING`-only loopback course with a standing inventory and Release-absence guard; it creates no anonymous profile. Still required are real anonymous-service probes, an explicit positive build gate, RFC-BPR-0002 closeout, full public diff authority, macOS enablement, Linux/Windows unavailability proof, implementation, and capability-critical final replay. `native_designated_review_public_observer` is product-compiled and does perform a credential-free GET, but it duplicates rather than exercises the transport's rules and is not product evidence |
-| Real Windows x64 hardware | Answered. Done BPR-0347, BPR-0350, BPR-0358, BPR-0360, BPR-0364, and BPR-0412; in-progress BPR-0036 and BPR-0053; parked BPR-0235; ready BPR-0311 and BPR-0315; backlog BPR-0332, and transitively BPR-0035, BPR-0054, BPR-0083 | A Windows 11 x64 host answered the blocker and has now delivered the replays this row waited for. Matrix-10 at `8e952928` (2026-08-27) passed 205 of 208 with every failure attributed, completing BPR-0036's runnable evidence — the card stays open only as BPR-0035's cited closeout procedure — and discharging BPR-0235's counterexample replay. What is left target-native is BPR-0053's two un-restated bullets, the BPR-0311 and BPR-0315 courses behind their upstream dependencies, and BPR-0235's attended designated-live criterion |
+| Real Windows x64 hardware | Answered. Done BPR-0347, BPR-0350, BPR-0358, BPR-0360, BPR-0364, BPR-0412, BPR-0036, and BPR-0035; in-progress BPR-0053; parked BPR-0235; ready BPR-0311 and BPR-0315; backlog BPR-0332, and transitively BPR-0054, BPR-0083 | A Windows 11 x64 host answered the blocker and has now delivered the replays this row waited for. Matrix-10 at `8e952928` (2026-08-27) passed 205 of 208 with every failure attributed, completing BPR-0036's runnable evidence — the card stays open only as BPR-0035's cited closeout procedure — and discharging BPR-0235's counterexample replay. What is left target-native is BPR-0053's two un-restated bullets, the BPR-0311 and BPR-0315 courses behind their upstream dependencies, and BPR-0235's attended designated-live criterion |
 | A Linux host | Done BPR-0156, BPR-0444, BPR-0469, BPR-0470, and BPR-0235's Linux half; ready BPR-0310 and BPR-0314 | An Ubuntu 26.04 x86_64 host answered the blocker. BPR-0156 re-established the matrix and BPR-0235's Linux criterion is discharged. BPR-0310 and BPR-0314 wait on their own unmet backlog dependencies rather than on the platform, which is why they sit in `23-ready-lin/` rather than in a blocked lane. The run opened BPR-0341 through BPR-0345; the 2026-08-27 run closed BPR-0444 and opened and closed BPR-0469 and BPR-0470, leaving BPR-0310 and BPR-0314 as the lane's only remaining cards |
 | A designated live GitHub pull request | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Disposable `MikeMarcin/BPR-Test#1` is identity-bound; the live provider, exact-target lane, owner-authenticated mutations, and attended/mixed-client checks remain |
 | Designated live-lane proof blockers | Done BPR-0261/BPR-0262/BPR-0263/BPR-0264/BPR-0448/BPR-0449; backlog BPR-0256 behind BPR-0318 | The approved narrowed replay authority is implemented. v004 failed closed before GUI creation and v005 was invalidated. BPR-0448 and BPR-0449 close retained identity and read-only-image execution. The owner approved reviewed v006 exactly; its one-use lane consumed the approval and reached the current manual-token prompt, then cancelled safely when the owner reaffirmed that device login was the required product interaction. No credential or POST occurred. A successor live packet now waits on the RFC-BPR-0016 device-flow implementation and distributable identity rather than another owner approval. |
