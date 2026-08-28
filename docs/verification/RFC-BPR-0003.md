@@ -1000,9 +1000,15 @@ The verified source cache was preserved, so the configure resolved SQLite
 
 The BPR-0054 closeout replayed every closeout matrix from clean state on two
 live hosts and consumed the retained Windows record with a commit-exact delta
-analysis. Code head for every fresh run: `27e50ded` (equal to `17c8950d`;
-every later commit in the run is docs/tracker-only, verified by
-`git diff --stat`, and cannot affect a compiled row).
+analysis. Code head for the fresh matrices: `27e50ded` (equal to `17c8950d`;
+the run's own commits up to the matrices were docs/tracker-only, verified by
+`git diff --stat`). One compiled change landed after the matrices:
+`196a9926` (BPR-0473) edits the non-Windows branch of one test translation
+unit, and its single owning selector, `git_process_contract`, re-ran green in
+77.28 s against the rebuilt binary rather than being carried forward. The
+independent critical review re-ran the documentation, diff-hygiene,
+workflow-absence, conditional-branch, binary-dependency, and runtime-surface
+gates at the review head `812487ec`, all green.
 
 ### macOS final replay
 
@@ -1012,7 +1018,24 @@ CPM source cache — this replay's fresh trees select the BPR-0084-era pinned
 providers, superseding the system Qt 6.11.1 the pre-provider records name.
 `build/dev`, `build/core-only`, and the sanitizer tree were removed and
 reconfigured; `build/.cpm-cache` was preserved, so SQLite 3.53.4, Qt 6.10.3,
-and KSyntaxHighlighting resolved without downloads.
+and KSyntaxHighlighting resolved without downloads. Clean here means the
+complete first-party graph rebuilt from an empty tree; Qt itself is the
+prebuilt pinned provider package from the verified cache, not a
+from-source rebuild.
+
+Two failed first attempts preceded passing phases and are disclosed rather
+than implied away: the sanitizer configure failed twice — a manual
+invocation missing `CPM_SOURCE_CACHE` sent the Qt provider to an absolute
+`/bprqt` path, and a retry over the resulting half-configured tree failed at
+`CPMAddPackage` — before the tree was removed and a preset-equivalent fresh
+configure succeeded in 23.3 s; and the first direct sanitizer-tree catalog
+invocation failed to locate its binary (the runner searched for the
+registration name where the executable is
+`better_pull_review_sqlite_behavior_contract_tests`) before the direct run
+passed deterministically. The per-phase runner reuses fixed log filenames,
+so failing-attempt output was overwritten by the passing reruns; the phase
+status file retains the attempt sequence, and future replays should retain
+per-attempt logs.
 
 - `ctest --preset dev`: **100% of 218 passed in 1756.78 s**. A prior same-day
   run passed 217 of 218: `documentation_structure` correctly rejected the
@@ -1080,6 +1103,45 @@ and KSyntaxHighlighting resolved without downloads.
   workflow counts are 0/0 and `git diff --check` is clean, verified at the
   evidence head and re-verified at the closeout head.
 
+Final replay record keyed by each closeout criterion, every selector from the
+fresh green macOS dev matrix unless stated, with the Linux and Windows
+platform records above carrying the same selectors:
+
+- "Opening a fixture PR creates/reuses the correct app-owned bare
+  repository." — `git_cache_contract` 246.44 s and `application_epoch_host`
+  0.20 s, both Passed.
+- "Observed heads receive durable private refs and remain available after the
+  simulated remote force-push removes them." — `git_cache_contract` 246.44 s,
+  `application_epoch_persistence_github-com` 57.07 s,
+  `application_epoch_persistence_ghes-3_18` 56.21 s, all Passed.
+- "Base update, author upload, force-push, and base-branch-change cases
+  receive distinct cause labels." — `core_epoch_policy` 0.06 s,
+  `application_epoch_contract` 0.06 s, `application_epoch_catalog_contract`
+  0.06 s, all Passed.
+- "Left and right selectors reach all retained epochs through core-authorized
+  bounded pages and show exact OIDs even when the selected anchors leave the
+  resident page." — `core_epoch_policy` 0.06 s and
+  `qt_epoch_comparison_scale_100/125/200` 0.29/0.28/0.32 s, all Passed.
+- "`Previous upload -> latest` and `My last reviewed -> latest` resolve to
+  expected OIDs." — `core_epoch_policy` 0.06 s, Passed.
+- "Git process tests prove hooks, textconv, external diff, submodules,
+  filters, and worktree execution are disabled." — target-native:
+  `git_process_contract` green on the Windows host in matrix-10 (29.06 s) and
+  matrix-11 per BPR-0053's record, consumed with the delta analysis below;
+  fresh: 77.07 s in this matrix and 77.28 s re-run against the rebuilt binary
+  after BPR-0473, plus the Linux replay's green run, all Passed.
+- "Repository cache deletion and ref pruning are explicit user/admin
+  operations with documented consequences." — `epoch_maintenance_integration`
+  28.69 s and `application_epoch_maintenance_public_path` 57.50 s, both
+  Passed.
+- "Core epoch-selection tests run without Git or Qt; host tests prove
+  Git/ref/time effects and stale completion rejection; Qt tests prove
+  selector event translation and projection only." — `core_epoch_policy`
+  0.06 s, `application_epoch_host` 0.20 s,
+  `qt_epoch_comparison_scale_100/125/200` 0.29/0.28/0.32 s,
+  `core_dependency_boundary` 0.21 s, and `architecture_boundaries` 7.04 s,
+  all Passed, with the Qt-free `core-only` matrix 98/98.
+
 ### Windows delta analysis — the retained record stands
 
 Windows evidence is BPR-0053's and BPR-0036's target-native record on the
@@ -1094,17 +1156,22 @@ RFC-BPR-0016 surfaces — no RFC-BPR-0003 suite among them).
 
 All five epoch-surface commits that postdate the last full Linux matrix —
 `e355895f`, `4af48e02`, `8666fb54`, `5cb734d4`, `6df4a2aa` — are ancestors of
-`0d347481`, so matrix-11 executed them on Windows. Exactly one Windows-compiled
-production change postdates matrix-11: `8e175d8a` (BPR-0469) removes a dead
-file-local accessor from the Qt diff workbench, and the RFC-BPR-0002 closeout
-rebuilt both Windows presets at the merged head `76d18e60` — proving the tree
-compiles under MSVC — and reran its twenty-seven compiled selectors, which
-link the same Qt adapter library, green against the head binaries. The later
-`27e50ded` changes `linux_secret_service.cpp`, which Windows does not compile,
-plus the platform-independent boundary-guard script whose changed behavior
-this replay's fresh matrices execute; every other commit after `0d347481` is
-docs/tracker-only. Residual recorded exactly: no RFC-BPR-0003 selector has
-executed on Windows after `0d347481`.
+`0d347481`, so matrix-11 executed them on Windows. The complete non-docs commit set after
+`0d347481` is seven commits, classified exactly: `8e175d8a` (BPR-0469) is the
+one Windows-compiled production change — it removes a dead file-local
+accessor from the Qt diff workbench, and the RFC-BPR-0002 closeout rebuilt
+both Windows presets at the merged head `76d18e60`, proving the tree compiles
+under MSVC, and reran its twenty-seven compiled selectors, which link the
+same Qt adapter library, green against the head binaries. `3cdaba81` and
+`27e50ded` change `linux_secret_service.cpp`, which the CMake platform gate
+compiles only on Linux, plus the boundary-guard cmake/script; `76d18e60`
+renames identifiers in three Linux-only test sources; `ade350dc` and
+`3eb2ec35` change the platform-independent boundary-guard and
+composed-hosts verification scripts, whose changed behavior this replay's
+fresh macOS and Linux matrices execute; and `196a9926` (BPR-0473) edits the
+`#else`-of-`Q_OS_WIN` branch of one test translation unit, which the Windows
+preprocessor removes. Residual recorded exactly: no RFC-BPR-0003 selector
+has executed on Windows after `0d347481`.
 
 ### Linux final replay
 
@@ -1148,6 +1215,18 @@ at all since BPR-0469 showed the Linux `dev` build did not compile at
   tray, and filesystem-semantics claims, and the run logs were transient
   session scratch — the durable evidence is this record and BPR-0472's
   tables.
+- Accepted risk, recorded explicitly rather than only by card reference:
+  BPR-0472's failing course raises `epoch_handoff_failed` around the
+  `deliver_epoch_handoff`/`Epochs->accept` path in
+  `github_application_host.cpp`, and the epoch handoff is an RFC-BPR-0003
+  surface. Its non-causality table exonerates only the four
+  post-`82c7d1c1` epoch commits, not epoch-host code generally: the failure
+  is pre-existing on every measured Linux run back to BPR-0156's own
+  baseline, occurs only on the forced-obstruction course of an RFC-BPR-0007
+  composition no claim row cites, and has never reproduced on macOS or
+  Windows. If BPR-0472's root cause lands in RFC-BPR-0003-owned code, the
+  affected Linux claim reopens through that card; the integrator closes over
+  that named question knowingly.
 
 ## Clean closeout blockers
 

@@ -50,7 +50,15 @@ core=0 fixture=0 maintenance=0 render=1`, and
 expected `11111101111111` — all-zero, so the course never gets going rather
 than stalling midway. `WORKBENCH_HOST_COMPOSED_OK` and
 `APPEARANCE_HOST_COMPOSED_OK` still print, so composition succeeds and the
-hang is downstream. Start at the obstruction handling.
+hang is downstream. Start at the obstruction handling. The RFC-BPR-0003
+closeout review located the flag's raise sites around
+`deliver_epoch_handoff`/`Epochs->accept` in
+`src/application/src/github_application_host.cpp` (~lines 912-944 at
+`812487ec`), so the question this card must answer first is whether the
+obstructed-ledger course blocks inside RFC-BPR-0003-owned epoch-host code or
+in the RFC-BPR-0007 composition around it; the RFC-BPR-0003 ledger's Linux
+record closes over that named question and reopens through this card if the
+answer is epoch-host code.
 
 Reproduce with `-DBPR_RUN_BUDGET_MS=150000` against
 `tests/end_to_end/application_review_ledger_composition_contract.cmake` on the
