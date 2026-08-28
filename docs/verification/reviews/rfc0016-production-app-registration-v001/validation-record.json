@@ -1,0 +1,55 @@
+{
+  "checks": {
+    "approval_statement_exact": true,
+    "committed_artifacts_exact": true,
+    "decision_subject_digest_bound": true,
+    "overall": "pass"
+  },
+  "claims": {
+    "distribution_authorized": false,
+    "ghes_registration_authorized": false,
+    "platform_capability_flip_authorized": false,
+    "release_authorized": false,
+    "repository_mutation_authorized": false,
+    "rfc0016_closeout_authorized": false,
+    "rfc0016_production_app_registration_v001_approved": true,
+    "secret_bearing_evidence_authorized": false,
+    "unbounded_repository_access_authorized": false,
+    "undesignated_target_access_authorized": false,
+    "verification_identity_widening_authorized": false
+  },
+  "claims_contract": {
+    "byte_length": 625,
+    "path": "docs/verification/reviews/rfc0016-production-app-registration-v001/claims-contract.json",
+    "sha256": "sha256:32e4c195720ae44ea04548f9dda59491138b62f99413d1b5921f64ae9278a9bd"
+  },
+  "decision_subject": {
+    "byte_length": 4291,
+    "path": "docs/verification/reviews/rfc0016-production-app-registration-v001/decision-subject.txt",
+    "sha256": "sha256:18b867d3a05321cedcd4570227c732459779bebff23728d354de9411c4e5370b"
+  },
+  "extraction_rule": "first contiguous blockquote after the unique LF approval marker; remove exactly '> ' when present; preserve UTF-8/LF and one terminal LF",
+  "gate": "rfc0016-production-app-registration-v001",
+  "official_validator": {
+    "byte_length": 21401,
+    "path": ".agents/skills/bpr-attended-review/scripts/validate_operator_packet.py",
+    "sha256": "sha256:ff7240c49fe1ba5f1ad27256a19be77a35d32a24206d2a864e673de510eefcb6"
+  },
+  "operator_response": {
+    "byte_length": 484,
+    "path": "docs/verification/reviews/rfc0016-production-app-registration-v001/operator-response.md",
+    "sha256": "sha256:1462da21933365ada6d936a87be5cc0f59601d8ec467c4ce5bcc4669a3fbef96"
+  },
+  "outcome": "approved",
+  "recorded_at": "2026-08-28T02:17:39Z",
+  "result": "pass",
+  "reviewed_packet": {
+    "byte_length": 4637,
+    "path": "docs/verification/reviews/rfc0016-production-app-registration-v001/operator-packet.md",
+    "sha256": "sha256:593b43d7f39e99f76692a3037a85a86dd5ef7a96d2b63c6abf8e0aeed1fea213"
+  },
+  "schema_name": "bpr.operator_response_validation",
+  "schema_version": 1,
+  "validated_commit": "6a9672cb0784628120935c3a9fa27af0b78cc570",
+  "validation_command": "python3 .agents/skills/bpr-attended-review/scripts/validate_operator_packet.py --repository-root . --commit 6a9672cb0784628120935c3a9fa27af0b78cc570 --packet docs/verification/reviews/rfc0016-production-app-registration-v001/operator-packet.md --subject docs/verification/reviews/rfc0016-production-app-registration-v001/decision-subject.txt --response docs/verification/reviews/rfc0016-production-app-registration-v001/operator-response.md --claims-contract docs/verification/reviews/rfc0016-production-app-registration-v001/claims-contract.json --recorded-at 2026-08-28T02:17:39Z --output docs/verification/reviews/rfc0016-production-app-registration-v001/validation-record.json"
+}
