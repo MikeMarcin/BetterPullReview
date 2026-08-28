@@ -165,13 +165,34 @@ RFC-BPR-0005 does not begin before this card closes.
   interact between the Light capture and the transition; the probe therefore
   asserts semantic and geometry invariants rather than an outer scroll position
   an attended run cannot hold fixed. Every gate requirement is met.
+- The final available-platform replay ran on 2026-08-28 at head `7160c283`
+  through three read-only `rfc-utility` lanes plus direct integrator
+  inspection, and every automated checklist row passed fresh: C1 5/5
+  (core-only), the dev boundary/core group 12/12 plus
+  `documentation_issue_graph_contract` 1/1, C2 12/12 and C3 2/2 serial
+  offscreen with an empty post-run process scan, the tests-disabled Release
+  composition contract in 120.06 s, the ASan/UBSan selected matrix 18/18
+  with the sanitizer proven active, `coding-format-check` over 425 files,
+  `DOCUMENTATION_OK`, `BINARY_DEPENDENCIES_OK`, `RUNTIME_SURFACE_OK`, clean
+  diff hygiene, 0/0 workflow counts, the 22-file pack validator and 22/22
+  pack checksums, and the strict-tidy delta re-check. The same-day clean
+  `dev` 218/218 and `core-only` 98/98 matrices are consumed with a
+  commit-exact delta analysis: the only code change since their head
+  `27e50ded` is BPR-0473's one test line owning no RFC-BPR-0004 selector.
+  The regenerated 19-record trace and 19 PNGs were inspected directly and
+  the keyed per-criterion records are in the ledger's final
+  available-platform closeout replay section.
 - This card still cannot leave backlog. Its remaining blocker is
   [[BPR-0474]], the Windows x64 high-DPI course split from closed BPR-0053
-  when RFC-BPR-0003 closed on 2026-08-28.
+  when RFC-BPR-0003 closed on 2026-08-28. After the 2026-08-28 final
+  available-platform replay it is the only remaining blocker: when it
+  reaches `60-done/`, the closing slice ticks this checklist and flips
+  RFC-BPR-0004 to Auto-Verified with no further available-platform replay
+  required unless a code-bearing commit lands first.
 
 ## Closeout checklist
 
-Historical evidence is provenance only; every row requires final replay at the final closeout head.
+Historical evidence is provenance only; every row requires final replay at the final closeout head. The 2026-08-28 final available-platform replay at `7160c283` satisfies every automated row — its keyed records are in the ledger's final available-platform closeout replay section — and every commit after that head in this closeout is documentation/tracker-only. Rows stay unchecked until the card closes.
 
 | State | Criterion | Direct verification surface | Command or attended interaction | Expected result | Durable evidence location | Gate class | Live blocker |
 |---|---|---|---|---|---|---|---|
@@ -213,4 +234,4 @@ Historical evidence is provenance only; every row requires final replay at the f
 | [ ] | High-DPI and supported platform rendering checks pass. | Real Windows x64 high-DPI diff workbench and retained BPR-0053 platform procedure | Run [BPR-0474](../21-ready-win/BPR-0474-rfc-0004-windows-high-dpi-verification.md#run-rfc-bpr-0004-windows-x64-target-native-high-dpi-verification)'s target-native high-DPI application/rendering procedure for the retained diff surface; its card records the closed BPR-0053 host procedure it inherits. | Supported Windows scaling renders attached readable ribbons and panes with no platform-specific geometry or dependency failure. | Target-native portion of BPR-0083 available-platform closeout evidence in [RFC-BPR-0004 verification ledger](../../verification/RFC-BPR-0004.md#direct-claim-matrix); final replay record keyed by “High-DPI and supported platform rendering checks pass.” | target-native | [BPR-0474](../21-ready-win/BPR-0474-rfc-0004-windows-high-dpi-verification.md) remains open and owns the unreplayed surface. |
 | [ ] | Product, architecture, UX, agent, and verification documentation is current. | Product/architecture/UX/agent/verification Markdown plus documentation_structure | `python3 scripts/verify_documentation.py --root .` | The documentation validator resolves every link/status/schema and the reviewed documents describe the final public diff path without stale claims. | BPR-0081 documentation and conformance evidence in [RFC-BPR-0004 verification ledger](../../verification/RFC-BPR-0004.md#direct-claim-matrix); final replay record keyed by “Product, architecture, UX, agent, and verification documentation is current.” | automated | No live blocker; final-head focused replay remains required. |
 | [ ] | A conservative simplification pass is complete. | RFC-BPR-0004 changed-path simplification, format, tidy, and diff gates | `cmake --build --preset dev --target coding-format-check coding-tidy && git diff --check` | The conservative pass leaves no removable duplication or stale adapter path; format/tidy and whitespace checks report no issue. | BPR-0082 simplification evidence in [RFC-BPR-0004 verification ledger](../../verification/RFC-BPR-0004.md#direct-claim-matrix); final replay record keyed by “A conservative simplification pass is complete.” | automated | No live blocker; final-head focused replay remains required. |
-| [ ] | All live RFC-BPR-0004 issue cards are in the terminal done lane before Auto-Verified closeout. | Canonical issue graph and predecessor RFC-BPR-0003 closeout card | Verify BPR-0054 is in `60-done/` with status `Done`, then run `python3 scripts/verify_documentation.py --root .`. | Every RFC-BPR-0004 issue card is in `60-done/` and the dependency graph permits the Auto-Verified transition only after RFC-BPR-0003. | BPR-0083 available-platform closeout evidence and canonical RFC ordering in [RFC-BPR-0004 verification ledger](../../verification/RFC-BPR-0004.md#direct-claim-matrix); final replay record keyed by “All live RFC-BPR-0004 issue cards are in the terminal done lane before Auto-Verified closeout.” | automated | No live blocker; final-head focused replay remains required. |
+| [ ] | All live RFC-BPR-0004 issue cards are in the terminal done lane before Auto-Verified closeout. | Canonical issue graph and predecessor RFC-BPR-0003 closeout card | Verify BPR-0054 is in `60-done/` with status `Done`, then run `python3 scripts/verify_documentation.py --root .`. | Every RFC-BPR-0004 issue card is in `60-done/` and the dependency graph permits the Auto-Verified transition only after RFC-BPR-0003. | BPR-0083 available-platform closeout evidence and canonical RFC ordering in [RFC-BPR-0004 verification ledger](../../verification/RFC-BPR-0004.md#direct-claim-matrix); final replay record keyed by “All live RFC-BPR-0004 issue cards are in the terminal done lane before Auto-Verified closeout.” | automated | BPR-0054 is `Done` and RFC-BPR-0003 is Auto-Verified at `7160c283`; [BPR-0474](../21-ready-win/BPR-0474-rfc-0004-windows-high-dpi-verification.md) remains outside `60-done/`, so this row completes at close. |

@@ -459,7 +459,10 @@ closed by the replay at `ca424f7`, which passed 88/88 on `dev` and 33/33 on
 conclusion: the selected diff was requested only by a tests-only fixture helper
 at its reviewed head. Done BPR-0227 now closes that required public path. The
 card is also in `10-backlog/` because its Windows high-DPI row waits on
-[[BPR-0474]], split from closed BPR-0053. Its
+[[BPR-0474]], split from closed BPR-0053. The 2026-08-28 final
+available-platform replay at `7160c283` is recorded on the card and in the
+ledger's final closeout replay section, leaving [[BPR-0474]] as the card's
+only remaining live blocker. Its
 owner-authorized native System-theme gate is satisfied: an owner-activated
 Cocoa/QMacStyle run at commit `1e581a6` passed active focus, both local and
 global Light-to-Dark transitions, and every workbench palette, font,

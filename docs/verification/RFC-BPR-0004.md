@@ -859,3 +859,144 @@ The final interaction evidence must contain:
 6. one unequal replacement;
 7. selection of a ribbon and matching lower-detail update;
 8. a resize or DPI/font metric change showing connectors remain attached.
+
+The regenerated 2026-08-28 trace satisfies the sequence directly: items one
+through eight are steps 02/03, 05/06, 07, 08, 09/10, 13/14, 15/16 with the
+lower detail pane in agreement, and 17.
+
+## Final available-platform closeout replay — 2026-08-28
+
+The BPR-0083 available-platform replay ran at head `7160c283` on macOS 15.7.7
+build 24G720 arm64 from the existing same-day clean trees. Every commit this
+closeout adds after that head is documentation/tracker-only and cannot affect
+a row. Code identity with the same-day RFC-BPR-0003 closeout matrices was
+verified directly: `git diff --stat 27e50ded..HEAD` over `src`, `tests`,
+`cmake`, `CMakeLists.txt`, `CMakePresets.json`, `third_party`, `packaging`,
+`_coding-standard`, and `scripts` shows exactly one changed line — BPR-0473's
+test-only edit in `tests/git_contract/git_process_contract_tests.cpp`, which
+owns no RFC-BPR-0004 selector and whose own selector re-ran green after the
+fix. The fresh clean-tree matrices recorded in the RFC-BPR-0003 final
+closeout replay — `dev` 218/218 in 1756.78 s, `core-only` 98/98 in 282.04 s,
+the WSL2 Linux replay at `17c8950d`, and the complete 246-TU partitioned
+strict-tidy audit — are therefore current for every RFC-BPR-0004 claim
+surface at this head and are consumed with that delta analysis. Every
+RFC-BPR-0004 closeout row additionally received the fresh focused final-head
+replay below, executed through three read-only `rfc-utility` lanes plus
+direct integrator inspection.
+
+Fresh focused runs at `7160c283`, all passing:
+
+- C1 (`core-only` preset): `core_diff_model` 0.41 s, `core_diff_compute`
+  0.11 s, `core_diff_semantics` 0.27 s, `core_diff_transition` 0.06 s,
+  `application_diff_host` 0.08 s — 5/5.
+- Dev-preset boundary/core group — `core_dependency_boundary` 0.20 s,
+  `core_boundary_contract` 0.47 s, `architecture_boundaries` 7.18 s,
+  `architecture_boundary_contract` 64.74 s, `documentation_structure`
+  0.40 s, `core_diff_model` 0.35 s, `core_diff_compute` 0.10 s,
+  `core_diff_semantics` 0.27 s, `core_diff_transition` 0.06 s,
+  `core_workbench_interaction` 0.07 s, `application_diff_host` 0.08 s,
+  `application_worker_executor` 0.08 s — 12/12, plus
+  `documentation_issue_graph_contract` 0.36 s — 1/1.
+- C2, serial and offscreen: all twelve `qt_diff_axis`, `qt_diff_link_map`,
+  `qt_diff_workbench`, and `qt_comparison_scroll_controller` scale cases —
+  12/12.
+- C3, serial and offscreen: `application_diff_workbench_public_path`
+  14.42 s and `application_diff_workbench_shutdown_public_path` 13.37 s —
+  2/2. The post-run process scan found no surviving application process.
+- Tests-disabled Release seam: `application_composition_contract` 120.06 s,
+  rebuilding the `BUILD_TESTING=OFF` Release composition fresh and scanning
+  it for forbidden bytes.
+- ASan/UBSan selected matrix in the same-day fresh
+  `build/rfc3-closeout-sanitize` tree (`ninja: no work to do` — all ten
+  test binaries already current at this head): the six Qt-free selectors
+  6/6 in 3.39 s and the twelve serial offscreen Qt scale selectors 12/12 in
+  19.80 s. The sanitizer is active, not silently dropped: the diff-host
+  test binary links `libclang_rt.asan_osx_dynamic.dylib` and exposes 341
+  `__asan` symbols.
+- Gates: `coding-format-check` passes over 425 files; `DOCUMENTATION_OK`;
+  `BINARY_DEPENDENCIES_OK` and `RUNTIME_SURFACE_OK` against the dev
+  executable; `git diff --check` clean over a clean worktree; tracked and
+  on-disk GitHub Actions workflow counts 0/0; the original replacement-pack
+  validator reports 22 validated files with the canonical
+  `RFC-BPR-0004 -> rfcs/RFC-BPR-0004-diff-computation-line-mapping-grouping.md`
+  replacement; `shasum -a 256 -c PACK_CONTENTS.sha256` verifies 22/22 pack
+  files; the live RFC file's last commit remains import commit `190b301b`;
+  and strict tidy re-verified the one TU changed since the full audit.
+
+The regenerated composed evidence was inspected directly by the integrator.
+The 19-record `interaction-trace.jsonl` and 19 full-window PNGs, all written
+by this run, show: forward and reverse motion with clamped endpoints (`q`
+0.0 leading-clamped to 1785.0 trailing-clamped, no dead travel); left-pane,
+right-pane, and divider input all reaching `q` 835.2 with identical pane
+origins; insertion pinning (left applied origin held at 754.0 while the
+right advanced 754.0 to 799.0) and deletion pinning (the mirror, right held
+at 559.0); the unequal replacement advancing the panes at different
+measured rates; exact reversal (step 08 restores step 05's origins at both
+panes); the ribbon click sequence advancing the link-map selection callback
+from one to two while replacing a different selected group with the 4:7
+group; exactly one geometry rebuild (generation 2 to 3) at the divider
+resize with `semantic_index_builds` and `semantic_diff_generation` constant
+across all nineteen records; and nonzero late applied origins on both
+panes. Frames 06 and 16 were viewed directly: the insertion renders as an
+attached wedge from the left pane's empty span into the right pane's
+inserted block with the left pane pinned, and the selected 4:7 replacement
+renders as a filled attached ribbon from left lines 30-33 to right lines
+30-36 above the deletion wedge, with the lower detail pane and semantic
+selection in agreement.
+
+### Final replay record keyed by closeout criterion
+
+Each BPR-0083 criterion below is keyed to the runs above; every selector its
+row command names ran green at `7160c283` under the row's preset and
+serial/offscreen conditions.
+
+| Criterion | Final replay record |
+|---|---|
+| Identical inputs and options produce identical canonical segments, groups, mappings, and stable IDs. | Passed — `core_diff_model`/`core_diff_compute`/`core_diff_semantics` in the fresh core-only, dev, and sanitizer runs. |
+| Segment coverage and monotonicity validators pass for representative and generated cases. | Passed — `core_diff_compute` in the fresh core-only, dev, and sanitizer runs. |
+| Equal, replacement, left-only, and right-only regions are explicit. | Passed — `core_diff_model`/`core_diff_compute` fresh at head. |
+| Empty spans represent insertions/deletions without fake source lines. | Passed — `core_diff_model`/`core_diff_semantics` fresh at head. |
+| Secondary pairing is deterministic and monotonic. | Passed — `core_diff_semantics` fresh at head. |
+| Weak/unpaired lines remain explicit rather than being falsely paired. | Passed — `core_diff_semantics` fresh at head. |
+| Intra-line ranges attach only to accepted pairs and remain in valid text bounds. | Passed — `core_diff_semantics` fresh at head. |
+| Move relations preserve a monotonic primary path. | Passed — `core_diff_semantics` fresh at head. |
+| Previous/next change uses the same deterministic groups displayed in the link map. | Passed — `core_diff_transition` plus the three `qt_diff_link_map` scale cases fresh at head. |
+| The detail pane reports exact, similar, span, boundary, and unavailable mapping honestly. | Passed — `core_diff_transition` plus the three `qt_diff_workbench` scale cases fresh at head. |
+| Diff work uses exact blob/epoch/file/options/algorithm identity. | Passed — `core_diff_transition`/`application_diff_host` fresh at head. |
+| A completion for an old repository, PR, epoch, file, options set, or generation is rejected. | Passed — `core_diff_transition`/`application_diff_host` fresh at head. |
+| Cancellation and shutdown cannot update destroyed Qt state. | Passed — `application_diff_host`/`application_worker_executor`/`architecture_boundaries` plus the C3 shutdown case fresh at head. |
+| Cache selection is directly proven rather than inferred from target names. | Passed — `application_diff_host` fresh at head. |
+| Workers do not include or touch Qt. | Passed — `architecture_boundaries`/`application_worker_executor` fresh at head. |
+| One retained comparison-space position drives both panes. | Passed — `core_workbench_interaction` plus the three `qt_comparison_scroll_controller` scale cases fresh at head; the trace's single `q` authority across every input receiver. |
+| Wheel/trackpad input over either pane advances the same position with no handoff jump. | Passed — same selectors; trace steps 04/09/10 agree at `q` 835.2 with identical origins. |
+| A pure right insertion pins the left pane at its boundary while the right content advances. | Passed — same selectors; trace steps 05 to 06 hold the left applied origin at 754.0. |
+| A pure left deletion pins the right pane while the left content advances. | Passed — same selectors; trace steps 11 to 12 hold the right applied origin at 559.0. |
+| Unequal replacements advance at proportional measured rates and meet at the same segment boundary. | Passed — same selectors; trace steps 13 to 14 advance the panes at different measured rates through the 4:7 region. |
+| Reversing the same input path retraces the same pane origins within defined numeric tolerance and without cumulative drift. | Passed — same selectors; trace step 08 restores step 05's origins exactly. |
+| Beginning and end content on both sides are reachable with no dead scrollbar region. | Passed — same selectors; trace steps 18/19 reach `q` 0.0 and 1785.0 with leading/trailing clamps on both panes. |
+| Page, Home, End, change navigation, and shared-scrollbar drag use the same controller. | Passed — `core_workbench_interaction` plus the three `qt_comparison_scroll_controller` scale cases fresh at head. |
+| Horizontal scroll remains independently usable in each pane. | Passed — the three `qt_diff_workbench` scale cases fresh at head. |
+| Changed intervals render as filled cubic ribbons attached to actual pane line boundaries. | Passed — `core_diff_semantics` plus the three `qt_diff_link_map` scale cases fresh at head; frame 16 inspected. |
+| Insertions and deletions render as wedges through empty spans. | Passed — `core_diff_semantics` plus the three `qt_diff_link_map` scale cases fresh at head; frames 06 and 16 inspected. |
+| The top documents contain no synthetic alignment blanks. | Passed — the three `qt_diff_workbench` scale cases fresh at head. |
+| Ribbons remain attached while scrolling, resizing, changing DPI, and changing font metrics. | Passed — all six `qt_diff_link_map`/`qt_diff_workbench` scale cases fresh at head; trace step 17's post-resize attachment. |
+| Hover and click select stable semantic identities. | Passed — the three `qt_diff_link_map` scale cases fresh at head; trace steps 15/16's stable group identities. |
+| Move relationships do not create a permanent crossing tangle. | Passed — `core_diff_semantics` plus the three `qt_diff_link_map` scale cases fresh at head. |
+| Painting is bounded to visible/near-visible runs and does not instantiate one widget per ribbon. | Passed — the three `qt_diff_link_map` scale cases fresh at head; trace `visible_ribbon_count` stays viewport-bounded (0-3). |
+| Splitter resizing and ribbon selection are both usable. | Passed — the three `qt_diff_workbench` scale cases fresh at head; trace steps 15-17. |
+| The real BetterPullReview composition or closest deterministic rendered integration harness demonstrates the behavior in both scroll directions. | Passed — `application_diff_workbench_public_path` 14.42 s fresh at head through BPR-0227's accepted-review file-selection gesture; both-direction trace regenerated. |
+| The lower detail pane, change navigation, selected line, and link map agree on identity. | Passed — `core_diff_transition`, the three `qt_diff_workbench` scale cases, and `application_diff_workbench_public_path` fresh at head; frame 16's four-surface agreement. |
+| Large-file evidence proves no full-file semantic recomputation per wheel event. | Passed — `core_diff_compute`/`application_diff_host` plus the three `qt_diff_link_map` scale cases fresh at head; `semantic_index_builds` and `semantic_diff_generation` constant across all nineteen trace records. |
+| High-DPI and supported platform rendering checks pass. | Open — target-native; owned by [[BPR-0474]] on the designated Windows x64 host. Not replayed here. |
+| Product, architecture, UX, agent, and verification documentation is current. | Passed — `DOCUMENTATION_OK`, `documentation_structure`, and `documentation_issue_graph_contract` fresh at head. |
+| A conservative simplification pass is complete. | Passed — `coding-format-check` over 425 files fresh at head; the complete same-day 246-TU partitioned strict-tidy audit consumed with the one-TU delta re-check; `git diff --check` clean. |
+| All live RFC-BPR-0004 issue cards are in the terminal done lane before Auto-Verified closeout. | Blocked on [[BPR-0474]] — BPR-0054 is `Done` in `60-done/` and RFC-BPR-0003 is Auto-Verified; BPR-0474 remains in `21-ready-win/`, so this row completes at close. |
+
+The owner-activated 2026-08-03 native System-theme evidence at `1e581a6`
+remains anchored at its own commit per the BPR-0083 section above, with the
+deterministic `application_native_appearance_probe_contract` green in the
+same-day dev matrix. RFC-BPR-0004 therefore remains open solely on
+[[BPR-0474]]'s Windows x64 high-DPI course; when that card reaches
+`60-done/`, the closing slice ticks the checklist and flips the RFC status
+with no further available-platform replay required unless a code-bearing
+commit lands first.
