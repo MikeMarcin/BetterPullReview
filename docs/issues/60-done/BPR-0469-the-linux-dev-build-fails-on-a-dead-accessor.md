@@ -1,9 +1,10 @@
 ---
 id: BPR-0469
 title: The Linux dev build fails on a dead line-number accessor
-status: In Progress
+status: Done
 rfc: RFC-BPR-0005
 depends_on: []
+completed: 2026-08-27
 ---
 
 # The Linux dev build fails on a dead line-number accessor
@@ -54,3 +55,24 @@ identifier-naming findings in the Linux-only test sources, which are
 Reproduced at unmodified `HEAD` while verifying [[BPR-0444]]: `git stash` of
 that card's two files, then `cmake --build --preset dev --target
 better_pull_review_adapter_qt`, fails identically.
+
+## Result — 2026-08-27
+
+Removed, not suppressed. The accessor had one declaration and one definition
+and no caller; every real use reaches `Gutter` through the member directly.
+
+| Claim | Command | Result |
+|---|---|---|
+| the Linux `dev` build completes | `cmake --build --preset dev` | exit 0, links `src/app/better_pull_review`, was stopped at `diff_workbench.cpp.o` |
+| the Qt selectors this file owns still pass | `ctest --preset dev -R '^qt_' --output-on-failure` | 41 of 41 passed, `qt_diff_workbench_scale_100/125/200` and `qt_workbench_window_scale_100/125/200` among them |
+| nothing else in the file regressed | `tidy.py --build-dir build/dev --warnings-as-errors --paths src/adapters/qt/src/diff_workbench.cpp` | clean |
+| format | `format_check.py --clang-format /usr/bin/clang-format` | passed, 425 of 425 |
+
+### What this cost, and what it says
+
+Sixteen tests failed on this host before the fix, and every one of them was
+this. A broad selector group run against a tree whose build had stopped will
+happily execute the binaries that were already there and report failures that
+belong to the missing ones. The failing build line scrolls past above the
+summary; the summary does not mention it. Read the build result before
+reading the test result.

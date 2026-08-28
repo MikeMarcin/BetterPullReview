@@ -63,7 +63,6 @@ namespace bpr::qt {
 			/// margin rather than as a column.
 			[[nodiscard]] auto gutter_width() const -> int;
 			void               set_line_numbers_visible(bool aVisible);
-			[[nodiscard]] auto gutter() const noexcept -> QWidget*;
 			void               set_gutter_colors(const QColor& aBackground, const QColor& aText);
 			void               paint_line_numbers(QPaintEvent* aEvent);
 			[[nodiscard]] auto painted_line_numbers() const noexcept -> std::uint64_t
@@ -271,11 +270,6 @@ namespace bpr::qt {
 		private:
 			source_pane* Pane = nullptr;
 		};
-
-		auto source_pane::gutter() const noexcept -> QWidget*
-		{
-			return Gutter;
-		}
 
 		source_pane::source_pane(QWidget* const aParent)
 			: QPlainTextEdit{ aParent }
