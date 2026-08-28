@@ -1158,6 +1158,15 @@ constexpr std::string_view binary_content_type = "application/octet-stream";
 constexpr std::string_view gnome_keyring_content_type = "text/plain";
 constexpr gint prompt_dismiss_timeout_milliseconds = 1'000;
 
+[[nodiscard]] consteval auto c_str(const std::string_view text)
+    -> const char* {
+    if(text.data()[text.size()] != '\\0') {
+        throw "a string_view handed to a libsecret entry point must be "
+              "null-terminated";
+    }
+    return text.data();
+}
+
 struct NonPromptingSecretService { SecretService ParentInstance; };
 struct NonPromptingSecretServiceClass { SecretServiceClass ParentClass; };
 
@@ -1238,7 +1247,7 @@ void selected_secret_service_lifecycle() {
     error_owner error;
     Service = secret_service_open_sync(
         non_prompting_secret_service_get_type(),
-        canonical_service_bus_name.data(),
+        c_str(canonical_service_bus_name),
         SECRET_SERVICE_NONE,
         nullptr,
         error.out());
@@ -1256,7 +1265,7 @@ void selected_secret_service_lifecycle() {
     if(actual_name == nullptr
         || std::strcmp(
                actual_name,
-               canonical_service_bus_name.data())
+               c_str(canonical_service_bus_name))
             != 0) {
         g_object_unref(Service);
         Service = nullptr;
@@ -1291,7 +1300,7 @@ void selected_secret_service_lifecycle() {
     auto* stored_value = secret_value_new(
         reinterpret_cast<const char*>(bytes.data()),
         static_cast<gssize>(bytes.size()),
-        binary_content_type.data());
+        c_str(binary_content_type));
     secret_item_create_sync(
         collection,
         &schema,
@@ -1315,10 +1324,10 @@ void selected_secret_service_lifecycle() {
     const auto recognized_content_type =
         content_type != nullptr
         && (
-            std::strcmp(content_type, binary_content_type.data()) == 0
+            std::strcmp(content_type, c_str(binary_content_type)) == 0
             || std::strcmp(
                    content_type,
-                   gnome_keyring_content_type.data())
+                   c_str(gnome_keyring_content_type))
                 == 0);
     if(value == nullptr || content_type == nullptr
         || !recognized_content_type) {}
@@ -4590,7 +4599,7 @@ auto finish_background_reap(
             '"org.freedesktop.secrets"',
             "secret_service_open_sync",
             "non_prompting_secret_service_get_type()",
-            "canonical_service_bus_name.data(),\n"
+            "c_str(canonical_service_bus_name),\n"
             "        SECRET_SERVICE_NONE",
             "SECRET_SERVICE_NONE",
             "const auto failure = mapped_error(error.get())",
@@ -4600,7 +4609,7 @@ auto finish_background_reap(
             "                : failure",
             "g_dbus_proxy_get_name",
             "actual_name == nullptr",
-            "               canonical_service_bus_name.data())\n"
+            "               c_str(canonical_service_bus_name))\n"
             "            != 0",
             "g_object_unref(Service)",
             "Service = nullptr",
@@ -4784,12 +4793,12 @@ auto finish_background_reap(
             "secret_value_new(\n"
             "        reinterpret_cast<const char*>(bytes.data()),\n"
             "        static_cast<gssize>(bytes.size()),\n"
-            "        binary_content_type.data())",
+            "        c_str(binary_content_type))",
             "secret_value_new",
             "secret_value_get_content_type",
             "recognized_content_type",
-            "std::strcmp(content_type, binary_content_type.data()) == 0",
-            "                   gnome_keyring_content_type.data())\n"
+            "std::strcmp(content_type, c_str(binary_content_type)) == 0",
+            "                   c_str(gnome_keyring_content_type))\n"
             "                == 0",
             "!recognized_content_type",
             "secret_value_get",
@@ -4804,6 +4813,10 @@ auto finish_background_reap(
             "secret_item_delete_sync",
             "secret_collection_get_locked",
             "secret_item_get_locked",
+            "consteval auto c_str(const std::string_view text)",
+            "text.data()[text.size()] !=",
+            'throw "a string_view handed to a libsecret entry point '
+            'must be "',
         )
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
@@ -4833,8 +4846,8 @@ auto finish_background_reap(
         )
 
         gnome_keyring_storage = LINUX_SECRET_SERVICE_SOURCE.replace(
-            "        binary_content_type.data());",
-            "        gnome_keyring_content_type.data());",
+            "        c_str(binary_content_type));",
+            "        c_str(gnome_keyring_content_type));",
             1,
         )
         self.assert_failure(

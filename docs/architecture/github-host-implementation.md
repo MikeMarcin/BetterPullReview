@@ -1066,6 +1066,21 @@ The latter is narrowly admitted because gnome-keyring 50 through libsecret
 `text/plain` while retaining arbitrary opaque bytes, including a complete
 2,560-byte replacement. Delete acts on the same one exact item.
 
+Every fixed string in that path — both schema identifiers, the `authority`
+attribute name, the two item labels, both accepted content types, and the
+`org.freedesktop.secrets` bus name — is a `std::string_view` handed to a
+libsecret entry point that reads to a terminator it is not given a length
+for. None reaches such a call through `data()`. They go through `c_str`, a
+`consteval` function that inspects the byte at `size()`, so a view that is not
+null-terminated — a `substr`, a `{pointer, length}` pair, a value known only
+at run time — fails to compile at the call site instead of reading past its
+end inside a call that carries a credential. The item label is selected by a
+function that is total over the two schema scopes, so there is no empty view
+whose `data()` is a null pointer to hand to `secret_item_create_sync`.
+`cmake/VerifyArchitectureBoundaries.cmake` pins the guard itself as well as
+the call sites, so replacing it with an unchecked `data()` fails
+`architecture_boundaries`.
+
 Secret Service, D-Bus, and I/O statuses map conservatively to the portable
 locked, unavailable, access-denied, corrupt, invalid-request, allocation, or
 operation-failed categories. No raw status text crosses inward. Synchronous
