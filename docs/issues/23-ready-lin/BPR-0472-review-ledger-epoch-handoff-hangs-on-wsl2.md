@@ -64,11 +64,18 @@ Reproduce with `-DBPR_RUN_BUDGET_MS=150000` against
 `tests/end_to_end/application_review_ledger_composition_contract.cmake` on the
 WSL2 host. The 2026-08-28 run logs were transient session scratch and are not
 checked in; the durable evidence is this card's tables and the
-[[BPR-0054]]/RFC-BPR-0003 final-replay record. A distribution caveat for
-whoever takes this: the reproducing WSL2 host has no origin credential and
-cannot fetch, so this card will not appear in that host's checkout on its
-own — the user pulling on that machine, or a session there applying the card
-text locally, is the route in.
+[[BPR-0054]]/RFC-BPR-0003 final-replay record. A distribution note for
+whoever takes this, corrected 2026-08-28 by direct observation on the host:
+the WSL2 side holds no origin credential of its own (its fetch fails
+`Permission denied (publickey)`), but the shared JaegAW checkout is fetched
+from origin by the Windows side or the owner — fetches landed at 14:19 and
+14:59 that day and `origin/main` reached `7160c283` with this card present,
+while the WSL2-side local `main` lagged behind it. A session there reads
+this card from `origin/main` (catching local `main` up is a no-network
+fast-forward, coordinated so no concurrent Windows-side operation is mid
+flight on the shared checkout); what the WSL2 side still cannot do is fetch
+or push under its own credentials, so its evidence returns through the
+tracker on another host or through the owner.
 
 This card is deliberately independent of the RFC-BPR-0003 closeout: no
 RFC-BPR-0003 claim row cites this contract, the four epoch commits above are
