@@ -1,10 +1,9 @@
 ---
 id: BPR-0318
 title: Record a distributable device-authorization identity
-status: Parked
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0276, BPR-0282]
-parked_on: awaiting-product-decision
 ---
 
 # Record a distributable device-authorization identity
