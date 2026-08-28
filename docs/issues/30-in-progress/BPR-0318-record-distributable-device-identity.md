@@ -94,3 +94,29 @@ Nothing downstream can move first. [[BPR-0310]] and [[BPR-0311]] consume the
 same recorded identity before their own target-native enablement, and
 [[BPR-0285]] cannot replay an enabled final-head course on a build that has no
 identity to be enabled with.
+
+## Proceed, and the accepted registration authority — 2026-08-27
+
+The owner answered the plain sentence in the attended session: **proceed**.
+The card then wrote the bounded packet this decision called for.
+`rfc0016-production-app-registration-v001/operator-packet.md` binds decision
+subject `18b867d3a05321cedcd4570227c732459779bebff23728d354de9411c4e5370b`
+(nine facts: a second any-account GitHub App owned by `MikeMarcin`, device
+flow and expiring tokens on, exactly Metadata/Contents/Checks read plus Pull
+requests read-write, no shipped secret, one designated read-only course
+against `MikeMarcin/BPR-Test`, the stop rule), and the owner returned the
+exact approval statement in the same session. The validation record was
+generated at the family's commit and replays:
+`OPERATOR_RESPONSE_VALID:rfc0016-production-app-registration-v001`, record
+commit `c82e51c2c933887632fb0bb35db876375a151de9`. The ledger's
+distributable-identity-authority row is Passed on that evidence.
+
+What runs next under this recorded authority, in order: the owner performs
+the registration itself on GitHub exactly per the facts (attended); the
+sanitized production observation replaces this directory's seeded
+verification-shape template and must show a client identifier distinct from
+`Iv23lil08fH3933w9MkW` with any-account installability; this card then
+authors `scripts/verify_rfc0016_production_identity.py` and its isolated
+tests, runs the designated read-only course, and only after every BPR-0282
+row and the identity evidence pass does it reach the macOS
+capability-selection flip and the complete clean rerun.
