@@ -1,7 +1,7 @@
 ---
 id: BPR-0470
 title: The Linux-only test sources have never been read by the tidy gate
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0002
 depends_on: [BPR-0444]
 ---
