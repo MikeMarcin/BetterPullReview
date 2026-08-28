@@ -6,7 +6,9 @@ Immutable replacement gate: `0ec1136a7ce418b11480d7ae90faee2ec59f96d1`
 
 Replacement source: `betterpullreview-rfc-bpr-0004-diff-alignment-scroll-replacement-v1`
 
-Status: implementation active. BPR-0072 through BPR-0075 supply the canonical
+Status: RFC-BPR-0004 closed `Auto-Verified` on 2026-08-28 through BPR-0083,
+in canonical order behind RFC-BPR-0003 (closed the same day via BPR-0054).
+BPR-0072 through BPR-0075 supply the canonical
 record, deterministic computation, one semantic projection, and bounded host
 seam. BPR-0076 through BPR-0079 supply live-pane measurement, one retained
 comparison position, custom link-map painting, selected application
@@ -15,12 +17,12 @@ evidence, and shutdown safety. BPR-0080 supplies bounded moved-sub-block
 discovery, retained semantic indexes, and instrumented large-fixture/high-
 frequency Qt evidence. BPR-0081 reconciles documentation and conformance;
 BPR-0082 supplies the conservative simplification pass. BPR-0083's final
-available-platform selected-composition replay now supplies 19 rendered
-frames and a machine-readable two-direction interaction trace; its
-owner-activated native System-theme transition and predecessor closeout remain
-open. RFC-BPR-0003
-retains explicit nonblocking closeout cards, so this RFC cannot become Auto-
-Verified until that dependency can close.
+available-platform selected-composition replay supplies 19 rendered frames
+and a machine-readable two-direction interaction trace, its owner-activated
+native System-theme transition was satisfied on 2026-08-03 at `1e581a6`, and
+the final available-platform closeout replay and target-native Windows
+high-DPI sections below carry the keyed per-criterion record and the
+2026-08-28 designated-host evidence that closed the RFC.
 
 ## Final-state correction from BPR-0225
 
@@ -987,19 +989,18 @@ serial/offscreen conditions.
 | The real BetterPullReview composition or closest deterministic rendered integration harness demonstrates the behavior in both scroll directions. | Passed — `application_diff_workbench_public_path` 14.42 s fresh at head through BPR-0227's accepted-review file-selection gesture; both-direction trace regenerated. |
 | The lower detail pane, change navigation, selected line, and link map agree on identity. | Passed — `core_diff_transition`, the three `qt_diff_workbench` scale cases, and `application_diff_workbench_public_path` fresh at head; frame 16's four-surface agreement. |
 | Large-file evidence proves no full-file semantic recomputation per wheel event. | Passed — `core_diff_compute`/`application_diff_host` plus the three `qt_diff_link_map` scale cases fresh at head; `semantic_index_builds` and `semantic_diff_generation` constant across all nineteen trace records. |
-| High-DPI and supported platform rendering checks pass. | Open — target-native; owned by [[BPR-0474]] on the designated Windows x64 host. Not replayed here. |
+| High-DPI and supported platform rendering checks pass. | Passed — [[BPR-0474]]'s 2026-08-28 designated-host course at real 1.25x/2.0x per-monitor scaling; the target-native Windows high-DPI evidence section below carries the record. |
 | Product, architecture, UX, agent, and verification documentation is current. | Passed — `DOCUMENTATION_OK`, `documentation_structure`, and `documentation_issue_graph_contract` fresh at head. |
 | A conservative simplification pass is complete. | Passed — `coding-format-check` over 425 files fresh at head; the complete same-day 246-TU partitioned strict-tidy audit consumed with the one-TU delta re-check; `git diff --check` clean. |
-| All live RFC-BPR-0004 issue cards are in the terminal done lane before Auto-Verified closeout. | Blocked on [[BPR-0474]] — BPR-0054 is `Done` in `60-done/` and RFC-BPR-0003 is Auto-Verified; BPR-0474 remains in `21-ready-win/`, so this row completes at close. |
+| All live RFC-BPR-0004 issue cards are in the terminal done lane before Auto-Verified closeout. | Completed at the 2026-08-28 close — every RFC-BPR-0004 card including [[BPR-0474]] is in `60-done/`, BPR-0054 is `Done`, and RFC-BPR-0003 closed Auto-Verified in canonical order. |
 
 The owner-activated 2026-08-03 native System-theme evidence at `1e581a6`
 remains anchored at its own commit per the BPR-0083 section above, with the
 deterministic `application_native_appearance_probe_contract` green in the
-same-day dev matrix. RFC-BPR-0004 therefore remains open solely on
-[[BPR-0474]]'s Windows x64 high-DPI course; when that card reaches
-`60-done/`, the closing slice ticks the checklist and flips the RFC status
-with no further available-platform replay required unless a code-bearing
-commit lands first.
+same-day dev matrix. RFC-BPR-0004 remained open solely on [[BPR-0474]]'s
+Windows x64 high-DPI course until the same-day record below; the 2026-08-28
+closing slice consumed it, ticked the checklist, and flipped the RFC status,
+with every intervening commit documentation/tracker-only.
 
 ### Target-native Windows high-DPI evidence — 2026-08-28
 

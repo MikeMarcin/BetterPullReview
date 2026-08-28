@@ -255,3 +255,14 @@ digest-only replay after BPR-0220 changed the native appearance probe's expected
 geometry count. The presentation implementation did not change. This card
 remains Backlog on BPR-0083 for terminal closeout, not on another interim visual
 review.
+
+## The BPR-0083 wait ended — 2026-08-28
+
+RFC-BPR-0004 closed Auto-Verified through BPR-0083, so every dependency of
+this card is now in `60-done/`. The card stays in Backlog by its own terms:
+the terminal identity replay binds the RFC-BPR-0005 closeout head, and
+active-lane cards ([[BPR-0475]] among them) can still relink the executable,
+so regenerating a packet now would only be invalidated again. If the
+terminal executable is byte-identical to accepted v004, that replay reuses
+v004 without another human response; otherwise a successor packet is
+required.

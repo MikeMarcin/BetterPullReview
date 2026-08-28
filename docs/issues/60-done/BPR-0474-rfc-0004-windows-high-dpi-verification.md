@@ -1,7 +1,7 @@
 ---
 id: BPR-0474
 title: Run RFC-BPR-0004 Windows x64 target-native high-DPI verification
-status: Ready
+status: Done
 rfc: RFC-BPR-0004
 depends_on: [BPR-0053]
 ---
@@ -93,5 +93,7 @@ per-scale `default-style`, `fusion`, and `components` directories, the
 display was restored to the recommended 150% and verified
 (fresh-process bounds 2560x1440, per-monitor DPI override cleared).
 
-Like closed [[BPR-0053]] before it, this card's work is complete and it
-stays open only until [[BPR-0083]]'s closing slice consumes this record.
+Like closed [[BPR-0053]] before it, this card's work completed and the card
+stayed open only until [[BPR-0083]]'s closing slice consumed this record —
+the 2026-08-28 close that moved both cards to `60-done/` and flipped
+RFC-BPR-0004 to Auto-Verified.

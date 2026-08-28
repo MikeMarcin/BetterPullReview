@@ -1,7 +1,7 @@
 ---
 id: RFC-BPR-0004
 title: Diff Computation, Correspondence Mapping, Grouping, and Alignment-Space Scrolling
-status: Proposed
+status: Auto-Verified
 area: BPR
 milestone: M1 Native Read-Only Workbench
 pack_version: 2
@@ -730,57 +730,57 @@ RFC-BPR-0004 is complete only when all applicable criteria are directly proven t
 
 ### Semantic diff and mapping
 
-- [ ] Identical inputs and options produce identical canonical segments, groups, mappings, and stable IDs.
-- [ ] Segment coverage and monotonicity validators pass for representative and generated cases.
-- [ ] Equal, replacement, left-only, and right-only regions are explicit.
-- [ ] Empty spans represent insertions/deletions without fake source lines.
-- [ ] Secondary pairing is deterministic and monotonic.
-- [ ] Weak/unpaired lines remain explicit rather than being falsely paired.
-- [ ] Intra-line ranges attach only to accepted pairs and remain in valid text bounds.
-- [ ] Move relations preserve a monotonic primary path.
-- [ ] Previous/next change uses the same deterministic groups displayed in the link map.
-- [ ] The detail pane reports exact, similar, span, boundary, and unavailable mapping honestly.
+- [x] Identical inputs and options produce identical canonical segments, groups, mappings, and stable IDs.
+- [x] Segment coverage and monotonicity validators pass for representative and generated cases.
+- [x] Equal, replacement, left-only, and right-only regions are explicit.
+- [x] Empty spans represent insertions/deletions without fake source lines.
+- [x] Secondary pairing is deterministic and monotonic.
+- [x] Weak/unpaired lines remain explicit rather than being falsely paired.
+- [x] Intra-line ranges attach only to accepted pairs and remain in valid text bounds.
+- [x] Move relations preserve a monotonic primary path.
+- [x] Previous/next change uses the same deterministic groups displayed in the link map.
+- [x] The detail pane reports exact, similar, span, boundary, and unavailable mapping honestly.
 
 ### Host execution
 
-- [ ] Diff work uses exact blob/epoch/file/options/algorithm identity.
-- [ ] A completion for an old repository, PR, epoch, file, options set, or generation is rejected.
-- [ ] Cancellation and shutdown cannot update destroyed Qt state.
-- [ ] Cache selection is directly proven rather than inferred from target names.
-- [ ] Workers do not include or touch Qt.
+- [x] Diff work uses exact blob/epoch/file/options/algorithm identity.
+- [x] A completion for an old repository, PR, epoch, file, options set, or generation is rejected.
+- [x] Cancellation and shutdown cannot update destroyed Qt state.
+- [x] Cache selection is directly proven rather than inferred from target names.
+- [x] Workers do not include or touch Qt.
 
 ### Alignment-space scrolling
 
-- [ ] One retained comparison-space position drives both panes.
-- [ ] Wheel/trackpad input over either pane advances the same position with no handoff jump.
-- [ ] A pure right insertion pins the left pane at its boundary while the right content advances.
-- [ ] A pure left deletion pins the right pane while the left content advances.
-- [ ] Unequal replacements advance at proportional measured rates and meet at the same segment boundary.
-- [ ] Reversing the same input path retraces the same pane origins within defined numeric tolerance and without cumulative drift.
-- [ ] Beginning and end content on both sides are reachable with no dead scrollbar region.
-- [ ] Page, Home, End, change navigation, and shared-scrollbar drag use the same controller.
-- [ ] Horizontal scroll remains independently usable in each pane.
+- [x] One retained comparison-space position drives both panes.
+- [x] Wheel/trackpad input over either pane advances the same position with no handoff jump.
+- [x] A pure right insertion pins the left pane at its boundary while the right content advances.
+- [x] A pure left deletion pins the right pane while the left content advances.
+- [x] Unequal replacements advance at proportional measured rates and meet at the same segment boundary.
+- [x] Reversing the same input path retraces the same pane origins within defined numeric tolerance and without cumulative drift.
+- [x] Beginning and end content on both sides are reachable with no dead scrollbar region.
+- [x] Page, Home, End, change navigation, and shared-scrollbar drag use the same controller.
+- [x] Horizontal scroll remains independently usable in each pane.
 
 ### Link-map presentation
 
-- [ ] Changed intervals render as filled cubic ribbons attached to actual pane line boundaries.
-- [ ] Insertions and deletions render as wedges through empty spans.
-- [ ] The top documents contain no synthetic alignment blanks.
-- [ ] Ribbons remain attached while scrolling, resizing, changing DPI, and changing font metrics.
-- [ ] Hover and click select stable semantic identities.
-- [ ] Move relationships do not create a permanent crossing tangle.
-- [ ] Painting is bounded to visible/near-visible runs and does not instantiate one widget per ribbon.
-- [ ] Splitter resizing and ribbon selection are both usable.
+- [x] Changed intervals render as filled cubic ribbons attached to actual pane line boundaries.
+- [x] Insertions and deletions render as wedges through empty spans.
+- [x] The top documents contain no synthetic alignment blanks.
+- [x] Ribbons remain attached while scrolling, resizing, changing DPI, and changing font metrics.
+- [x] Hover and click select stable semantic identities.
+- [x] Move relationships do not create a permanent crossing tangle.
+- [x] Painting is bounded to visible/near-visible runs and does not instantiate one widget per ribbon.
+- [x] Splitter resizing and ribbon selection are both usable.
 
 ### Integration and evidence
 
-- [ ] The real BetterPullReview composition or closest deterministic rendered integration harness demonstrates the behavior in both scroll directions.
-- [ ] The lower detail pane, change navigation, selected line, and link map agree on identity.
-- [ ] Large-file evidence proves no full-file semantic recomputation per wheel event.
-- [ ] High-DPI and supported platform rendering checks pass.
-- [ ] Product, architecture, UX, agent, and verification documentation is current.
-- [ ] A conservative simplification pass is complete.
-- [ ] All live RFC-BPR-0004 issue cards are in the terminal done lane before Auto-Verified closeout.
+- [x] The real BetterPullReview composition or closest deterministic rendered integration harness demonstrates the behavior in both scroll directions.
+- [x] The lower detail pane, change navigation, selected line, and link map agree on identity.
+- [x] Large-file evidence proves no full-file semantic recomputation per wheel event.
+- [x] High-DPI and supported platform rendering checks pass.
+- [x] Product, architecture, UX, agent, and verification documentation is current.
+- [x] A conservative simplification pass is complete.
+- [x] All live RFC-BPR-0004 issue cards are in the terminal done lane before Auto-Verified closeout.
 
 ## 25. Required verification families
 
