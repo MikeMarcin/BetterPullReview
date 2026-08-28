@@ -1,0 +1,18 @@
+{
+  "adjacent_false_claims": [
+    "distribution_authorized",
+    "ghes_registration_authorized",
+    "platform_capability_flip_authorized",
+    "release_authorized",
+    "repository_mutation_authorized",
+    "rfc0016_closeout_authorized",
+    "secret_bearing_evidence_authorized",
+    "unbounded_repository_access_authorized",
+    "undesignated_target_access_authorized",
+    "verification_identity_widening_authorized"
+  ],
+  "approved_claim": "rfc0016_production_app_registration_v001_approved",
+  "gate": "rfc0016-production-app-registration-v001",
+  "schema_name": "bpr.operator_claim_contract",
+  "schema_version": 1
+}
