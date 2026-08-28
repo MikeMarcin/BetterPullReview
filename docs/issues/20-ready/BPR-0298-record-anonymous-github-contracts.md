@@ -1,7 +1,7 @@
 ---
 id: BPR-0298
 title: Record anonymous GitHub service contracts
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0017
 depends_on: [BPR-0297, BPR-0405, BPR-0445]
 ---
@@ -168,6 +168,15 @@ is `docs/verification/reviews/rfc0017-anonymous-probe-v002/operator-packet.md`.
 It still requires the fresh exact operator authorization and exactly one live
 GraphQL request before this card can inherit a five-course manifest or claim
 `VALID:5`.
+
+That paragraph is now history: on 2026-08-27 the v002 issuance was consumed
+without traffic by the Windows durability barrier, its byte-frozen successor
+`docs/verification/reviews/rfc0017-anonymous-probe-v003/operator-packet.md`
+was approved and captured from WSL, the fifth record joined
+`rfc0017-anonymous-probe-v001/captures/`, and the restored five-course
+manifest validates `RFC0017_ANONYMOUS_CONTRACTS_VALID:5`. Done [[BPR-0445]]
+carries the full account; this card inherits the five-course record it was
+waiting for.
 
 Independent review of the sanitizer repair also made an older unfinished
 requirement concrete: the four non-GraphQL records persist canonicalized bodies

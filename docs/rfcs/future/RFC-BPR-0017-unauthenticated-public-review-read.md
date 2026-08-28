@@ -313,7 +313,7 @@ Implementation may begin only after all of the following exist:
 
 - Recorded probe evidence resolving every claim in the second findings section
   against the real service, captured as sanitized fixtures. This is
-  [BPR-0298](../../issues/10-backlog/BPR-0298-record-anonymous-github-contracts.md).
+  [BPR-0298](../../issues/20-ready/BPR-0298-record-anonymous-github-contracts.md).
 - A demonstration that the native HTTPS transport issues a credential-free
   request with all RFC-BPR-0002 redirect, certificate, and proxy rules intact,
   and that omitting the authorization header is a deliberate typed state rather

@@ -1,7 +1,7 @@
 ---
 id: BPR-0445
 title: The sanitizer persists the caller's IP in the anonymous GraphQL refusal
-status: In Progress
+status: Done
 rfc: RFC-BPR-0017
 depends_on: []
 ---
@@ -147,3 +147,70 @@ No operator response, capture, or attempt receipt exists, and no network
 request ran. The card is parked for the operator's fresh exact response. The
 consumed v001 response is not reused. Approval permits one attempt; rejection
 or any non-exact response leaves the live phase unexecuted.
+
+## The v002 approval, and the issuance the Windows host consumed — 2026-08-27
+
+The owner returned the exact approval in the live attended session, and the
+digest-bound response was recorded in the recorder's canonical byte grammar
+(259 bytes,
+`d91bbef9b84b136a36e950d29ccb4eb67fd36752f1d038acd8a334446f7d1245`).
+
+The capture attempt then ran on the Windows host, and the recorder's own
+durability barrier stopped it: `reserve_capture_attempt` durably wrote and
+fsynced the attempt receipt, then refused at the registry **directory**
+sync — `os.open(dir, O_RDONLY|O_DIRECTORY)` has no Windows expression — with
+the label `capture-attempt registry cannot be opened for durable sync`.
+The refusal is strictly before `perform_request`: **zero requests ran**, the
+`captures/` directory was never created, and the receipt at
+`docs/verification/reviews/rfc0017-anonymous-capture-attempts/8ff060e8….json`
+now stands. By the mechanism's own fail-closed rule — receipts are never
+deleted, and a receipt is the spend barrier regardless of outcome — the v002
+issuance is consumed without traffic. That is the mechanism working as
+reviewed, spending an issuance rather than risking a double spend, and the
+correct remedy is the packet's own: a new packet and a fresh decision.
+
+Two facts for the successor. A same-checkout probe proved the barrier holds
+on a POSIX surface: under WSL against `/mnt/c`, the registry directory opens
+and fsyncs, so v003's capture must run from WSL from the start. And the v002
+packet, response, and receipt stay byte-frozen as the record of the question
+asked, the answer given, and the issuance spent; the successor packet carries
+the superseding history rather than editing them.
+
+## The v003 capture, and `VALID:5` — 2026-08-27, later
+
+The owner approved successor packet
+`rfc0017-anonymous-probe-v003/operator-packet.md`
+(`5f7af5d86635dc844cc84a98a758a13f3e45427ee68a73a5d7b525805413b7f9`,
+7,966 bytes — identical authority, course, bounds, and recorder bindings;
+only the title and the v002 history differ) in the same attended session,
+and the digest-bound response was recorded in the exact byte grammar. The
+capture then ran from WSL: **`RFC0017_ANONYMOUS_CONTRACTS_CAPTURED:1`**,
+one credential-free POST, the observed 403 zero-quota refusal, the caller
+address replaced by `[normalized-caller-address]` with
+`caller_address_normalized: true`, zero residual address literals, and the
+normalized body carrying its own digest. `--validate-existing` reported
+`VALID:1` for the fresh record before integration.
+
+The fifth capture then joined the four immutable records, exactly as the
+packet family promised: it moved beside them in
+`rfc0017-anonymous-probe-v001/captures/`, the v001 course manifest was
+restored to five courses with `graphql-refusal` at its original position
+and the corrected expected status 403, and the no-traffic validation over
+the complete authority-mates set reports
+**`RFC0017_ANONYMOUS_CONTRACTS_VALID:5`**. The remaining `401` mentions in
+the recorder and its tests are a general status-class comment and a
+negative case proving a 401 shape is refused; the cards' 401 sentences are
+dated history.
+
+The recorder's 82 hermetic tests pass `82/82 OK` on the POSIX surface
+(WSL, this host). Run Windows-natively, 7 of the 82 fail in the
+durability/no-traffic group — the same `O_DIRECTORY` surface limitation
+that consumed v002, not a regression; the suite has never been a
+registered Windows CTest row (`rfc0017_test_inventory` is), and its green
+has always been portable-host evidence.
+
+Every required-final-state bullet now has direct evidence: the tested
+minimization rule, the synthetic hostile fixtures, the corrected 403
+wherever the course is named, the hermetic proof before authority was
+spent, the recapture under fresh exact authorization, the five-course
+manifest, and `VALID:5`. Done.

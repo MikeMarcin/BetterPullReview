@@ -8,6 +8,10 @@
       "expected_status": 200
     },
     {
+      "name": "graphql-refusal",
+      "expected_status": 403
+    },
+    {
       "name": "absent-not-disclosed",
       "expected_status": 404
     },
