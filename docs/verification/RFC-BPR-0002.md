@@ -353,7 +353,9 @@ native Credential Manager lifecycle, exact cleanup, and target-native
 PE/runtime inspection have therefore not run. BPR-0023 closes only the
 completed implementation slice. The claim below remains `Planned`, and
 BPR-0036 retains every target-native Windows check required before RFC
-closeout.
+closeout. (So it stood when written; the 2026-08-27 matrix-10/11 runs on the
+project's Windows 11 x64 host converted the row above, and the final-replay
+section below records the closeout evidence.)
 
 BPR-0029 changes the current Windows production and integration target
 prefixes to disjoint v2 namespaces followed by the 574-character
@@ -1072,7 +1074,7 @@ and `git diff --check` gates passed.
 | Surface | Plan |
 |---|---|
 | macOS arm64 | Historical BPR-0022 v1 Keychain evidence is preserved; BPR-0029 directly passed the current v2 native setup/lifecycle/cleanup and separately exercised the exact public shutdown policy through fixture-vault state. BPR-0025 verifies the dormant CLI compiler/runner boundary while public CLI stays visibly unavailable with zero launches; BPR-0026 verifies native HTTPS; BPR-0028 verifies the provider-free Qt projection; BPR-0029 verifies both recorded public composition fixtures, clean Debug 43/43, core-only 17/17, sanitizer 12/12 plus 11/11, tests-off Release selection/seam absence, dependencies, and idle runtime. BPR-0030 adds focused protocol, host-mapping, property-target, and 32-scenario native-verifier evidence as of 2026-07-30; it is not recorded as a new complete platform matrix |
-| Windows x64 | BPR-0023 adapter, fake contracts, fixture, and x64 cross-PE inspection are prepared. BPR-0036's target-native runs are complete: the rebuilt-tree matrix-10 passed 205 of 208 in 1537.74 s at `8e952928` (2026-08-27) with every failure attributed and the reputation-refused row individually converted, the Credential Manager sequence passes with exact absence, BPR-0446's thirty-six-scenario native HTTPS fixture passes, both public GitHub fixtures and the CLI-unavailable rows pass, and `runtime_process_surface` plus `binary_dependency_surface` pass against the built application. The dormant-CLI-symbol Release inspection waits for BPR-0311's `windows-app-release` preset; positive CLI runner work is deferred to RFC-BPR-0015 |
+| Windows x64 | BPR-0023 adapter, fake contracts, fixture, and x64 cross-PE inspection are prepared. BPR-0036's target-native runs are complete: the rebuilt-tree matrix-10 passed 205 of 208 in 1537.74 s at `8e952928` (2026-08-27) with every failure attributed and the reputation-refused row individually converted, the Credential Manager sequence passes with exact absence, BPR-0446's thirty-six-scenario native HTTPS fixture passes, both public GitHub fixtures and the CLI-unavailable rows pass, and `runtime_process_surface` plus `binary_dependency_surface` pass against the built application. The dormant-CLI-symbol Release inspection is covered target-native by `application_composition_contract`'s nested tests-disabled Release build and forbidden-byte scan (matrix-10 283.88 s, matrix-11 293.46 s); BPR-0311's `windows-app-release` preset remains that enablement program's own work, and positive CLI runner work is deferred to RFC-BPR-0015 |
 | Linux x64 desktop | Historical BPR-0024 v1 Secret Service lifecycle/fail-closed/cleanup/dependency evidence is preserved; BPR-0025 verifies the CLI compiler/runner boundary while CLI stays unavailable; BPR-0026 verifies frozen native HTTPS; BPR-0028 verifies the provider-free host/three-scale Qt surface. Separately, BPR-0029 passed the current v2 matrix in an Ubuntu 26.04 x86_64 full-system QEMU guest: fresh Release targets 81/81 tests-on and 36/36 tests-off; all 40 non-native registered identities passing; Secret Service 3/3 plus independent exact cleanup and hostile/unavailable/locked cases; both exact-host rendered public fixtures; seam absence; native-vault selection; and dependency/runtime/ELF audits. BPR-0030 then passed a fresh 83/83-target build, complete non-native 41/41 matrix, focused 17/17 matrix, and final 4/4 documentation/architecture/security gate on the byte-identical current focused-verification tree |
 | GitHub.com | Sanitized recorded public fixture passed through the real application; optional authenticated live read remains supplementary only |
 | GHES 3.18 | Sanitized recorded public fixture passed through the real application; no corporate credentials or repository content retained |
@@ -1311,6 +1313,28 @@ Cross-platform closeout facts recorded with the replay:
   `DOCUMENTATION_OK` at the closeout head. The historical
   `OK: 14 RFCs, 17 normative documents, architecture v2 enforced` line
   remains a macOS-era record of the excluded tool.
+- The independent capability-critical review found that the merge at
+  `72113a1f`/`76d18e60` carried one Windows-compiled production change the
+  first replay narrative did not disclose: BPR-0469 removed the dead
+  file-local `source_pane::gutter()` accessor from
+  `src/adapters/qt/src/diff_workbench.cpp`, a member of the Qt adapter
+  library every compiled selector links. The cure was rebuild-and-rerun,
+  not annotation alone: the incremental `windows-dev` and `core-only`
+  builds were repeated at the merged head — proving the merged tree
+  compiles under MSVC — and every compiled RFC-BPR-0002 selector reran
+  against the head binaries, with results recorded below.
+- Accepted residual, recorded rather than implied: no native Linux
+  store/retrieve/delete lifecycle has executed since `3cdaba81` changed the
+  vault adapter — the QEMU evidence predates it, and the landing host's
+  registered native trio fails on a locked keyring re-proven pre-existing
+  against the restored pre-repair adapter. The review's inspection bounds
+  the residual: `c_str` is a `consteval` accessor returning the identical
+  pointer `.data()` returned and `label_for` returns the same two values,
+  so the change cannot alter reachable runtime behavior; post-change native
+  execution covers open, name validation, unavailable, locked, and
+  bus-redirect rejection 3/3 before and after the rename. The full native
+  lifecycle replay on real hardware belongs to BPR-0310's dedicated
+  session.
 
 ## Clean closeout blockers
 
@@ -1325,7 +1349,7 @@ all applicable clean checks:
   platform claim recorded by this RFC;
 - target-native vault and HTTPS/TLS/proxy/redirect matrices;
 - documentation validator;
-- original source-pack validator;
+- original source-pack validator — repository-external by BPR-0001's recorded exclusion of the imported pack's own tool; its checkable substance, the fourteen canonical RFCs with index/status agreement and structural validity, is enforced by `scripts/verify_documentation.py`, green at the closeout head;
 - documentation impact review over the immutable RFC base;
 - `git diff --check`;
 - issue-board, RFC/index, and verification-ledger agreement.

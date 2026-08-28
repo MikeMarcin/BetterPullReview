@@ -185,6 +185,22 @@ PRODUCTION_FORBIDDEN = (
         "fixture one-shot review mutation execution grant factory",
         "bpr::application::make_review_mutation_one_shot_testing_grant",
     ),
+    type_anchor(
+        "dormant GitHub CLI transport",
+        "bpr::adapters::github::detail::gh_cli_transport",
+    ),
+    function_anchor(
+        "dormant GitHub CLI configuration validator",
+        "bpr::adapters::github::detail::validate_gh_cli_configuration",
+    ),
+    function_anchor(
+        "dormant GitHub CLI request compiler",
+        "bpr::adapters::github::detail::compile_gh_cli_process_request",
+    ),
+    function_anchor(
+        "dormant GitHub CLI process runner factory",
+        "bpr::adapters::github::detail::make_github_cli_process_runner",
+    ),
 )
 
 FIXTURE_FORBIDDEN = (
