@@ -1336,6 +1336,21 @@ Cross-platform closeout facts recorded with the replay:
   lifecycle replay on real hardware belongs to BPR-0310's dedicated
   session.
 
+### Postscript — 2026-08-28
+
+The review's one follow-up landed the same day: done BPR-0471 routes the
+three hash-table key sites through the `consteval` guard, restores the
+architecture document's total no-`data()` sentence — now true rather than
+aspirational — and pins all three alongside the four direct arguments with
+removal cases, taking `architecture_boundary_contract` to 130 and proving
+the binding by reverting one site and watching `architecture_boundaries`
+fail. Worth recording exactly: what the review caught was not the code,
+which was correct throughout, but a guard-totality claim the guard's own
+author had written into the architecture document. Narrowing the sentence
+at closeout and carding the remainder, rather than accepting the wording,
+is the review model working — a self-designed falsification proves a pin
+binds, not that it binds the right thing.
+
 ## Clean closeout blockers
 
 RFC-BPR-0002 cannot become Auto-Verified until the final committed state passes
