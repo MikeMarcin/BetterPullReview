@@ -64,13 +64,38 @@ documentation review; original-pack validation; workflow absence; and
   terminal priority. Done BPR-0069 completed the evidence, provenance,
   changed-path, and ledger reconciliation and corrected the one claim that had
   overstated which host capacities are actually flood-tested.
-- BPR-0035/BPR-0036 and BPR-0053 remain open for real Windows execution and
-  canonical RFC-BPR-0002/RFC-BPR-0003 status transitions. Every other blocking
-  dependency of this card is now in `60-done/`: BPR-0070 closed the prune
-  command-projection refinement, and BPR-0069 closed the evidence and
-  documentation reconciliation. Nonblocking BPR-0086 is not a dependency. This
-  card remains in backlog and makes no `Auto-Verified` claim while real Windows
-  x64 evidence is outstanding.
+- BPR-0035/BPR-0036 closed on 2026-08-28 with RFC-BPR-0002 Auto-Verified, so
+  the canonical order gate is satisfied. BPR-0053's own work completed with
+  matrix-10; it stays open only until this card's final replay consumes its
+  procedure, which is the run recorded below. Every other blocking dependency
+  is in `60-done/`. Nonblocking BPR-0086 is not a dependency.
+
+## The closeout run — 2026-08-28
+
+The final replay ran fresh on two hosts at code head `27e50ded` (every later
+commit is docs/tracker-only, diff-verified): on macOS arm64, clean
+reconfigured trees pass the complete dev matrix 218/218 in 1756.78 s, the
+core-only matrix 98/98 in 282.04 s, and a fresh ASan/UBSan tree passes the
+focused sanitizer matrix 8/8 with the instrumented 100,000-epoch catalog
+contract green in 57.46 s; on the Ubuntu 26.04 WSL2 host, clean reconfigured
+trees pass dev 208 of 212 in 996 s — every failure attributed to BPR-0310
+(keyring trio, untested-here) or new BPR-0472 (the pre-existing
+obstruction-course handoff hang, proven at BPR-0156's own baseline), none to
+the post-`82c7d1c1` epoch commits — and core-only 96/96 in 439 s, with both
+verify scripts green. The Windows surface is consumed from BPR-0053's
+matrix-10/11 record with a commit-exact delta analysis showing no later
+Windows-compiled change can affect an RFC-BPR-0003 claim. The dev matrix's
+one same-day predecessor failure was `documentation_structure` correctly
+rejecting this card's transient move to `30-in-progress/`; the closeout card
+works from backlog, and the complete matrix re-ran green after the cure.
+The Linux run corrected one recorded attribution by measurement — BPR-0156's
+"slower host" story for the review-ledger contract — and that truth now lives
+in BPR-0472 and the BPR-0156 postscript rather than being repeated here.
+Per-criterion selector results, the sanitizer-active proof, gate results, and
+both platform records are in the ledger's final-closeout-replay section.
+Implemented by the integrator with the concurrent Linux session running its
+host's matrices; the independent capability-critical review runs before the
+status flip.
 
 ## Closeout checklist
 
