@@ -1000,3 +1000,42 @@ same-day dev matrix. RFC-BPR-0004 therefore remains open solely on
 `60-done/`, the closing slice ticks the checklist and flips the RFC status
 with no further available-platform replay required unless a code-bearing
 commit lands first.
+
+### Target-native Windows high-DPI evidence — 2026-08-28
+
+[[BPR-0474]]'s course ran the same day on the designated host — Windows 11
+Home 10.0.26200 x64, 4K 3840x2160 panel, `windows-dev` preset (Visual
+Studio 18 2026, x64 Debug), Qt 6.10.3 msvc2022_64 from the project CPM
+cache — in the repaired `bpr-windows` worktree fast-forwarded to
+`7160c283` (incremental build green, no application relink, no Smart App
+Control stall). Display scaling was the real per-monitor DPI override
+verified by fresh-process virtualized bounds (125% -> 3072x1728, 200% ->
+1920x1080); no synthetic scale factor was set.
+
+At real 125% and 200% on the native `windows` QPA, the shipped application
+with the github-com fixture and `--diff-workbench-probe` passed the full
+course under `QT_STYLE_OVERRIDE=fusion` (`PUBLIC_PATH_OK`,
+`DIFF_WORKBENCH_OK`, `DIFF_INTERACTION_EVIDENCE_OK`,
+`CONVERSATION_ANCHOR_EVIDENCE_OK`, `RENDER_OK`; 19 frames plus a 19-record
+trace at each scale), and the default-style native run without the
+interaction probe reported `RENDER_OK` at both scales with the pane body
+painting profile base `#0d1117` (83.3%/83.8% of the unchanged-code crop)
+under readable `#e6edf3` text. Component executables ran natively with
+`BPR_EXPECTED_QT_SCALE` asserting the live `devicePixelRatioF()`:
+`qt_diff_workbench` and `qt_diff_link_map` passed at both scales with
+dimensions identical to the macOS BPR-0080 record, and app rasters scaled
+exactly (1600x1250 at 125%, 1920x1500 at 150%, 2560x2000 at 200% for the
+1280x1000-logical window). Direct raster inspection confirmed continuous
+filled ribbons meeting the changed-line backgrounds at both pane edges,
+attached deletion/insertion, selected-line highlights, a populated detail
+pane, and no clipping, seam, geometry, or dependency failure. The display
+was restored to 150% and verified; artifacts remain host-local under
+`C:\code\git\bpr-windows\build\logs\bpr-0474\` and are not checked in.
+
+The single divergence — default `QWindows11Style` failing the course's
+exact viewport palette-identity check, reproducible at 1.0x offscreen with
+a style override and therefore independent of QPA, scale, and DPI — is
+carded as [[BPR-0475]] under RFC-BPR-0005's presentation-polish scope. It
+is not a high-DPI, geometry, readability, or diff-semantics failure, and
+the "High-DPI and supported platform rendering checks pass." criterion is
+satisfied by this record.

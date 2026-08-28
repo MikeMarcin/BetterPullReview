@@ -182,6 +182,20 @@ RFC-BPR-0005 does not begin before this card closes.
   The regenerated 19-record trace and 19 PNGs were inspected directly and
   the keyed per-criterion records are in the ledger's final
   available-platform closeout replay section.
+- The target-native Windows x64 high-DPI course ran on the designated host
+  on 2026-08-28 and PASSED at real 1.25x and 2.0x per-monitor scaling
+  through the real application at `7160c283`: fusion full course green at
+  both scales with 19 frames plus 19-record traces each, default-style
+  `RENDER_OK` with the pane body painting the applied profile base
+  `#0d1117` and readable `#e6edf3` text, real-DPR component assertions
+  matching the macOS BPR-0080 dimensions, rasters directly inspected,
+  display restored, and both host checkouts clean. The one divergence —
+  the default QWindows11Style failing the course's exact viewport
+  palette-identity check, reproducible at 1.0x offscreen and so neither a
+  high-DPI nor a geometry failure — is deliberately carded as [[BPR-0475]]
+  under RFC-BPR-0005's presentation-polish scope, independent follow-up
+  that does not belong to this RFC's queue. The complete record is on
+  [[BPR-0474]].
 - This card still cannot leave backlog. Its remaining blocker is
   [[BPR-0474]], the Windows x64 high-DPI course split from closed BPR-0053
   when RFC-BPR-0003 closed on 2026-08-28. After the 2026-08-28 final
