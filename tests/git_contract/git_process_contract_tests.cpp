@@ -3239,7 +3239,7 @@ namespace {
 #if defined(Q_OS_WIN)
 		constexpr std::string_view expectedGlobalConfig = "[core]\n\tlongpaths = true\n";
 #else
-		constexpr std::string_view expectedGlobalConfig = "";
+		constexpr std::string_view expectedGlobalConfig{ };
 #endif
 		constexpr std::string_view foreignGlobalConfig
 			= "[core]\n\tlongpaths = false\n\thooksPath = /must-not-be-adopted\n";
