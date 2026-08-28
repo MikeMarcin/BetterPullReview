@@ -40,6 +40,26 @@ namespace bpr::adapters::github {
 
 		static_assert(linux_secret_service_authority_account_bytes == 574U);
 
+		/// @brief Hands a compile-time null-terminated view to a libsecret C entry
+		///        point.
+		///
+		/// Every libsecret entry point this adapter calls takes a bare `const
+		/// char*` and reads to a terminator it is not given the length of. The
+		/// views above are null-terminated only because they are views over string
+		/// literals, which nothing else in this file required them to stay. This
+		/// function is that requirement: it is `consteval`, so the argument is
+		/// evaluated as a constant expression, and a view that is not terminated
+		/// at `size()` -- a `substr`, a `{pointer, length}` pair, a value known
+		/// only at run time -- fails to compile here instead of reading past its
+		/// end inside a call that carries a credential.
+		[[nodiscard]] consteval auto c_str(const std::string_view text) -> const char*
+		{
+			if (text.data()[text.size()] != '\0') {
+				throw "a string_view handed to a libsecret entry point must be null-terminated";
+			}
+			return text.data();
+		}
+
 		template <typename... Callables>
 		struct overloaded : Callables...
 		{
@@ -390,7 +410,7 @@ namespace bpr::adapters::github {
 			SecretSchema schema{ };
 			schema.name               = identifier;
 			schema.flags              = SECRET_SCHEMA_NONE;
-			schema.attributes[0].name = authority_attribute.data();
+			schema.attributes[0].name = c_str(authority_attribute);
 			schema.attributes[0].type = SECRET_SCHEMA_ATTRIBUTE_STRING;
 			return schema;
 		}
@@ -399,8 +419,8 @@ namespace bpr::adapters::github {
 			const linux_secret_service_schema_scope scope) noexcept
 			-> const SecretSchema*
 		{
-			static const SecretSchema production       = make_schema(production_schema_identifier.data());
-			static const SecretSchema integration_test = make_schema(integration_test_schema_identifier.data());
+			static const SecretSchema production       = make_schema(c_str(production_schema_identifier));
+			static const SecretSchema integration_test = make_schema(c_str(integration_test_schema_identifier));
 
 			switch (scope) {
 			case linux_secret_service_schema_scope::production:
@@ -411,16 +431,19 @@ namespace bpr::adapters::github {
 			return nullptr;
 		}
 
+		/// @brief Selects the stored item's label for @p scope.
+		///
+		/// Total by construction. The previous form was a `switch` with a
+		/// `return { }` fall-through, whose `data()` is a null pointer; that
+		/// pointer reached `secret_item_create_sync` as its label and was kept
+		/// off only by the caller's `valid(Scope)` guard. There is now no such
+		/// value to return.
 		[[nodiscard]] auto label_for(
-			const linux_secret_service_schema_scope scope) noexcept -> std::string_view
+			const linux_secret_service_schema_scope scope) noexcept -> const char*
 		{
-			switch (scope) {
-			case linux_secret_service_schema_scope::production:
-				return production_label;
-			case linux_secret_service_schema_scope::integration_test:
-				return integration_test_label;
-			}
-			return { };
+			return scope == linux_secret_service_schema_scope::integration_test
+				? c_str(integration_test_label)
+				: c_str(production_label);
 		}
 
 		using null_terminated_authority_account = std::array<char, linux_secret_service_authority_account_bytes + 1U>;
@@ -623,7 +646,7 @@ namespace bpr::adapters::github {
 				secret_value_owner secret{
 					secret_value_new(reinterpret_cast<const char*>(bytes.data()),
 									 static_cast<gssize>(bytes.size()),
-									 binary_content_type.data())
+									 c_str(binary_content_type))
 				};
 				if (secret.get() == nullptr) {
 					return std::unexpected{ application::
@@ -635,7 +658,7 @@ namespace bpr::adapters::github {
 					secret_item_create_sync(collection_owner.get(),
 											schema,
 											attributes.get(),
-											label_for(Scope).data(),
+											label_for(Scope),
 											secret.get(),
 											SECRET_ITEM_CREATE_REPLACE,
 											nullptr,
@@ -718,9 +741,9 @@ namespace bpr::adapters::github {
 				auto*       value                   = secret_item_get_secret(item.get());
 				const auto* content_type            = value == nullptr ? nullptr : secret_value_get_content_type(value);
 				const auto  recognized_content_type = content_type != nullptr
-					&& (std::strcmp(content_type, binary_content_type.data()) == 0
+					&& (std::strcmp(content_type, c_str(binary_content_type)) == 0
 						|| std::strcmp(
-							   content_type, gnome_keyring_content_type.data())
+							   content_type, c_str(gnome_keyring_content_type))
 							== 0);
 				if (value == nullptr || content_type == nullptr
 					|| !recognized_content_type) {
@@ -825,7 +848,7 @@ namespace bpr::adapters::github {
 
 				error_owner error;
 				Service = secret_service_open_sync(non_prompting_secret_service_get_type(),
-												   canonical_service_bus_name.data(),
+												   c_str(canonical_service_bus_name),
 												   SECRET_SERVICE_NONE,
 												   nullptr,
 												   error.out());
@@ -842,7 +865,7 @@ namespace bpr::adapters::github {
 				}
 				const auto* actual_name = g_dbus_proxy_get_name(G_DBUS_PROXY(Service));
 				if (actual_name == nullptr
-					|| std::strcmp(actual_name, canonical_service_bus_name.data()) != 0) {
+					|| std::strcmp(actual_name, c_str(canonical_service_bus_name)) != 0) {
 					g_object_unref(Service);
 					Service = nullptr;
 					return std::unexpected{
@@ -1558,6 +1581,17 @@ namespace bpr::adapters::github {
 				return failure::corrupt;
 			case SECRET_ERROR_NO_SUCH_OBJECT:
 				return failure::unavailable;
+			// This case agrees with the `default` below on purpose, and is kept
+			// rather than folded into it. A `SECRET_ITEM_CREATE_REPLACE` store
+			// that still reports an existing item is a failed operation, not a
+			// corrupt or locked vault, and
+			// `linux_secret_service_contract_tests` asserts exactly that
+			// mapping. Deleting the case would leave no record that the code
+			// was classified rather than defaulted; a future reader would have
+			// to rediscover it. Unsafe only if `operation_failed` stops being
+			// the right answer for one of the two, which is a mapping change
+			// the contract test would then have to state.
+			// NOLINTNEXTLINE(bugprone-branch-clone)
 			case SECRET_ERROR_ALREADY_EXISTS:
 				return failure::operation_failed;
 			default:

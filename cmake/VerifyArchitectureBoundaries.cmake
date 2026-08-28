@@ -4362,11 +4362,11 @@ set(
     "#[ \t]*include[ \t]*[<\"]libsecret/secret\\.h[>\"]"
     "canonical_service_bus_name[ \t\r\n]*=[ \t\r\n]*\"org\\.freedesktop\\.secrets\""
     "G_DEFINE_TYPE[ \t\r\n]*\\([^\\)]*non_prompting_secret_service[^\\)]*SECRET_TYPE_SERVICE[ \t\r\n]*\\)"
-    "secret_service_open_sync[ \t\r\n]*\\([ \t\r\n]*non_prompting_secret_service_get_type[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*,[ \t\r\n]*canonical_service_bus_name\\.data[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*,[ \t\r\n]*SECRET_SERVICE_NONE"
+    "secret_service_open_sync[ \t\r\n]*\\([ \t\r\n]*non_prompting_secret_service_get_type[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*,[ \t\r\n]*c_str[ \t\r\n]*\\([ \t\r\n]*canonical_service_bus_name[ \t\r\n]*\\)[ \t\r\n]*,[ \t\r\n]*SECRET_SERVICE_NONE"
     "if[ \t\r\n]*\\([ \t\r\n]*Service[ \t\r\n]*==[ \t\r\n]*nullptr[ \t\r\n]*\\)[ \t\r\n]*\\{[ \t\r\n]*const[ \t\r\n]+auto[ \t\r\n]+failure[ \t\r\n]*=[ \t\r\n]*mapped_error[ \t\r\n]*\\([ \t\r\n]*error\\.get[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*\\)[ \t\r\n]*;"
     "failure[ \t\r\n]*==[ \t\r\n]*application::github_credential_vault_failure::[ \t\r\n]*operation_failed[ \t\r\n]*\\?[ \t\r\n]*application::github_credential_vault_failure::[ \t\r\n]*unavailable[ \t\r\n]*:[ \t\r\n]*failure"
     "g_dbus_proxy_get_name[ \t\r\n]*\\([ \t\r\n]*G_DBUS_PROXY[ \t\r\n]*\\([ \t\r\n]*Service[ \t\r\n]*\\)"
-    "if[ \t\r\n]*\\([ \t\r\n]*actual_name[ \t\r\n]*==[ \t\r\n]*nullptr[ \t\r\n]*[|][|][ \t\r\n]*std::strcmp[ \t\r\n]*\\([ \t\r\n]*actual_name[ \t\r\n]*,[ \t\r\n]*canonical_service_bus_name\\.data[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*\\)[ \t\r\n]*!=[ \t\r\n]*0[ \t\r\n]*\\)"
+    "if[ \t\r\n]*\\([ \t\r\n]*actual_name[ \t\r\n]*==[ \t\r\n]*nullptr[ \t\r\n]*[|][|][ \t\r\n]*std::strcmp[ \t\r\n]*\\([ \t\r\n]*actual_name[ \t\r\n]*,[ \t\r\n]*c_str[ \t\r\n]*\\([ \t\r\n]*canonical_service_bus_name[ \t\r\n]*\\)[ \t\r\n]*\\)[ \t\r\n]*!=[ \t\r\n]*0[ \t\r\n]*\\)"
     "g_object_unref[ \t\r\n]*\\([ \t\r\n]*Service[ \t\r\n]*\\)[ \t\r\n]*;[ \t\r\n]*Service[ \t\r\n]*=[ \t\r\n]*nullptr[ \t\r\n]*;[ \t\r\n]*return[ \t\r\n]+std::unexpected[ \t\r\n]*\\{[ \t\r\n]*application::github_credential_vault_failure::unavailable"
     "secret_service_ensure_session_sync[ \t\r\n]*\\([ \t\r\n]*Service[ \t\r\n]*,[ \t\r\n]*nullptr[ \t\r\n]*,[ \t\r\n]*session_error\\.out[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*\\)"
     "mapped_error[ \t\r\n]*\\([ \t\r\n]*session_error\\.get[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*\\)"
@@ -4394,7 +4394,7 @@ set(
     "gnome_keyring_content_type[ \t\r\n]*=[ \t\r\n]*\"text/plain\""
     "secret_value_new[ \t\r\n]*\\("
     "secret_value_get_content_type[ \t\r\n]*\\("
-    "recognized_content_type[ \t\r\n]*=[ \t\r\n]*content_type[ \t\r\n]*!=[ \t\r\n]*nullptr[ \t\r\n]*&&[ \t\r\n]*\\([ \t\r\n]*std::strcmp[ \t\r\n]*\\([ \t\r\n]*content_type[ \t\r\n]*,[ \t\r\n]*binary_content_type\\.data[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*\\)[ \t\r\n]*==[ \t\r\n]*0[ \t\r\n]*[|][|][ \t\r\n]*std::strcmp[ \t\r\n]*\\([ \t\r\n]*content_type[ \t\r\n]*,[ \t\r\n]*gnome_keyring_content_type\\.data[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*\\)[ \t\r\n]*==[ \t\r\n]*0[ \t\r\n]*\\)[ \t\r\n]*;"
+    "recognized_content_type[ \t\r\n]*=[ \t\r\n]*content_type[ \t\r\n]*!=[ \t\r\n]*nullptr[ \t\r\n]*&&[ \t\r\n]*\\([ \t\r\n]*std::strcmp[ \t\r\n]*\\([ \t\r\n]*content_type[ \t\r\n]*,[ \t\r\n]*c_str[ \t\r\n]*\\([ \t\r\n]*binary_content_type[ \t\r\n]*\\)[ \t\r\n]*\\)[ \t\r\n]*==[ \t\r\n]*0[ \t\r\n]*[|][|][ \t\r\n]*std::strcmp[ \t\r\n]*\\([ \t\r\n]*content_type[ \t\r\n]*,[ \t\r\n]*c_str[ \t\r\n]*\\([ \t\r\n]*gnome_keyring_content_type[ \t\r\n]*\\)[ \t\r\n]*\\)[ \t\r\n]*==[ \t\r\n]*0[ \t\r\n]*\\)[ \t\r\n]*;"
     "if[ \t\r\n]*\\([ \t\r\n]*value[ \t\r\n]*==[ \t\r\n]*nullptr[ \t\r\n]*[|][|][ \t\r\n]*content_type[ \t\r\n]*==[ \t\r\n]*nullptr[ \t\r\n]*[|][|][ \t\r\n]*![ \t\r\n]*recognized_content_type[ \t\r\n]*\\)"
     "secret_value_get[ \t\r\n]*\\("
     "secret_value_unref[ \t\r\n]*\\("
@@ -4416,6 +4416,9 @@ set(
     "prompt_dismiss_timeout_milliseconds[ \t\r\n]*=[ \t\r\n]*[1-9][0-9']*"
     "g_dbus_proxy_call_sync[ \t\r\n]*\\([ \t\r\n]*G_DBUS_PROXY[ \t\r\n]*\\([ \t\r\n]*prompt[ \t\r\n]*\\)[ \t\r\n]*,[ \t\r\n]*\"Dismiss\"[ \t\r\n]*,[ \t\r\n]*g_variant_new[ \t\r\n]*\\([ \t\r\n]*\"\\(\\)\"[ \t\r\n]*\\)[ \t\r\n]*,[ \t\r\n]*G_DBUS_CALL_FLAGS_NO_AUTO_START[ \t\r\n]*,[ \t\r\n]*prompt_dismiss_timeout_milliseconds"
     "SECRET_ERROR_IS_LOCKED"
+    "consteval[ \t\r\n]+auto[ \t\r\n]+c_str[ \t\r\n]*\\([ \t\r\n]*const[ \t\r\n]+std::string_view[ \t\r\n]+text[ \t\r\n]*\\)[ \t\r\n]*->[ \t\r\n]*const[ \t\r\n]+char\\*"
+    "text\\.data[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*\\[[ \t\r\n]*text\\.size[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*\\][ \t\r\n]*!="
+    "throw[ \t\r\n]+\"a string_view handed to a libsecret entry point must be null-terminated\""
 )
 foreach(required_pattern IN LISTS required_linux_secret_service_patterns)
     if(
@@ -4447,7 +4450,7 @@ string(
 string(
     FIND
     "${linux_secret_service_compact_contents}"
-    "canonical_service_bus_name.data()) != 0"
+    "c_str(canonical_service_bus_name)) != 0"
     linux_secret_service_name_validation_offset
 )
 string(
@@ -4560,7 +4563,7 @@ endif()
 if(
     NOT linux_secret_service_compact_contents
         MATCHES
-            "secret_value_new[ ]*\\([ ]*reinterpret_cast<const char\\*>[ ]*\\([ ]*bytes\\.data[ ]*\\([ ]*\\)[ ]*\\)[ ]*,[ ]*static_cast<gssize>[ ]*\\([ ]*bytes\\.size[ ]*\\([ ]*\\)[ ]*\\)[ ]*,[ ]*binary_content_type\\.data[ ]*\\([ ]*\\)[ ]*\\)"
+            "secret_value_new[ ]*\\([ ]*reinterpret_cast<const char\\*>[ ]*\\([ ]*bytes\\.data[ ]*\\([ ]*\\)[ ]*\\)[ ]*,[ ]*static_cast<gssize>[ ]*\\([ ]*bytes\\.size[ ]*\\([ ]*\\)[ ]*\\)[ ]*,[ ]*c_str[ ]*\\([ ]*binary_content_type[ ]*\\)[ ]*\\)"
 )
     message(
         FATAL_ERROR
