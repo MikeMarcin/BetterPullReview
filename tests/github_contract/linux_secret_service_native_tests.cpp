@@ -54,8 +54,8 @@ namespace {
 	class secure_bytes final
 	{
 	public:
-		explicit secure_bytes(const std::size_t size)
-			: Bytes(size)
+		explicit secure_bytes(const std::size_t aSize)
+			: Bytes(aSize)
 		{
 		}
 
@@ -67,11 +67,11 @@ namespace {
 		secure_bytes(const secure_bytes&)                    = delete;
 		auto operator=(const secure_bytes&) -> secure_bytes& = delete;
 		secure_bytes(secure_bytes&&) noexcept                = default;
-		auto operator=(secure_bytes&& other) noexcept -> secure_bytes&
+		auto operator=(secure_bytes&& aOther) noexcept -> secure_bytes&
 		{
-			if (this != &other) {
+			if (this != &aOther) {
 				reset();
-				Bytes = std::move(other.Bytes);
+				Bytes = std::move(aOther.Bytes);
 			}
 			return *this;
 		}
@@ -101,8 +101,8 @@ namespace {
 	{
 	public:
 		file_descriptor() = default;
-		explicit file_descriptor(const int descriptor) noexcept
-			: Descriptor{ descriptor }
+		explicit file_descriptor(const int aDescriptor) noexcept
+			: Descriptor{ aDescriptor }
 		{
 		}
 
@@ -114,16 +114,16 @@ namespace {
 		file_descriptor(const file_descriptor&)                    = delete;
 		auto operator=(const file_descriptor&) -> file_descriptor& = delete;
 
-		file_descriptor(file_descriptor&& other) noexcept
-			: Descriptor{ std::exchange(other.Descriptor, -1) }
+		file_descriptor(file_descriptor&& aOther) noexcept
+			: Descriptor{ std::exchange(aOther.Descriptor, -1) }
 		{
 		}
 
-		auto operator=(file_descriptor&& other) noexcept -> file_descriptor&
+		auto operator=(file_descriptor&& aOther) noexcept -> file_descriptor&
 		{
-			if (this != &other) {
+			if (this != &aOther) {
 				reset();
-				Descriptor = std::exchange(other.Descriptor, -1);
+				Descriptor = std::exchange(aOther.Descriptor, -1);
 			}
 			return *this;
 		}
@@ -138,12 +138,12 @@ namespace {
 			return Descriptor >= 0;
 		}
 
-		void reset(const int descriptor = -1) noexcept
+		void reset(const int aDescriptor = -1) noexcept
 		{
 			if (valid()) {
 				static_cast<void>(::close(Descriptor));
 			}
-			Descriptor = descriptor;
+			Descriptor = aDescriptor;
 		}
 
 	private:
@@ -162,19 +162,19 @@ namespace {
 		audit_directory(const audit_directory&)                    = delete;
 		auto operator=(const audit_directory&) -> audit_directory& = delete;
 
-		audit_directory(audit_directory&& other) noexcept
-			: Path{ std::move(other.Path) }
+		audit_directory(audit_directory&& aOther) noexcept
+			: Path{ std::move(aOther.Path) }
 		{
-			other.Path.clear();
+			aOther.Path.clear();
 		}
 
-		auto operator=(audit_directory&& other) noexcept
+		auto operator=(audit_directory&& aOther) noexcept
 			-> audit_directory&
 		{
-			if (this != &other) {
+			if (this != &aOther) {
 				reset();
-				Path = std::move(other.Path);
-				other.Path.clear();
+				Path = std::move(aOther.Path);
+				aOther.Path.clear();
 			}
 			return *this;
 		}
@@ -182,18 +182,18 @@ namespace {
 		[[nodiscard]] static auto create()
 			-> std::optional<audit_directory>
 		{
-			std::error_code temporary_error;
-			const auto      temporary_root = std::filesystem::temp_directory_path(temporary_error);
-			if (temporary_error) {
+			std::error_code temporaryError;
+			const auto      temporaryRoot = std::filesystem::temp_directory_path(temporaryError);
+			if (temporaryError) {
 				return std::nullopt;
 			}
 
-			auto pattern         = (temporary_root
-									/ "betterpullreview-secret-service-audit-XXXXXX")
-									   .string();
-			auto mutable_pattern = std::vector<char>{ pattern.begin(), pattern.end() };
-			mutable_pattern.push_back('\0');
-			const auto* created = ::mkdtemp(mutable_pattern.data());
+			auto pattern        = (temporaryRoot
+								   / "betterpullreview-secret-service-audit-XXXXXX")
+									  .string();
+			auto mutablePattern = std::vector<char>{ pattern.begin(), pattern.end() };
+			mutablePattern.push_back('\0');
+			const auto* created = ::mkdtemp(mutablePattern.data());
 			if (created == nullptr) {
 				return std::nullopt;
 			}
@@ -271,10 +271,10 @@ namespace {
 		std::size_t               Calls = 0U;
 		std::optional<Completion> Terminal;
 
-		void record(Completion completion)
+		void record(Completion aCompletion)
 		{
 			++Calls;
-			Terminal.emplace(std::move(completion));
+			Terminal.emplace(std::move(aCompletion));
 		}
 	};
 
@@ -283,11 +283,11 @@ namespace {
 	using delete_recorder   = terminal_recorder<application::github_credential_delete_completion>;
 
 	template <typename Terminal, typename Completion>
-	[[nodiscard]] auto terminal_as(const std::optional<Completion>& completion)
+	[[nodiscard]] auto terminal_as(const std::optional<Completion>& aCompletion)
 		-> const Terminal*
 	{
-		return completion.has_value()
-			? std::get_if<Terminal>(&*completion)
+		return aCompletion.has_value()
+			? std::get_if<Terminal>(&*aCompletion)
 			: nullptr;
 	}
 
@@ -301,20 +301,20 @@ namespace {
 			0x4250522400000014ULL);
 	}
 
-	[[nodiscard]] auto native_context(const std::uint64_t request)
+	[[nodiscard]] auto native_context(const std::uint64_t aRequest)
 		-> application::github_credential_operation_context
 	{
 		return context(
 			native_authority(),
-			request,
+			aRequest,
 			native_session,
 			native_generation);
 	}
 
 	void write_fixed_diagnostic(
-		const std::string_view category) noexcept
+		const std::string_view aCategory) noexcept
 	{
-		auto remaining = category;
+		auto remaining = aCategory;
 		while (!remaining.empty()) {
 			const auto written = ::write(STDERR_FILENO, remaining.data(), remaining.size());
 			if (written < 0 && errno == EINTR) {
@@ -328,33 +328,33 @@ namespace {
 	}
 
 	[[nodiscard]] auto run_store(
-		application::github_credential_vault_port& vault,
-		application::manual_executor&              lane,
-		const std::uint64_t                        request,
-		const std::span<const std::byte>           bytes) -> bool
+		application::github_credential_vault_port& aVault,
+		application::manual_executor&              aLane,
+		const std::uint64_t                        aRequest,
+		const std::span<const std::byte>           aBytes) -> bool
 	{
-		auto material = application::github_credential_material::create(bytes);
+		auto material = application::github_credential_material::create(aBytes);
 		if (!material.has_value()) {
 			return false;
 		}
 
-		const auto     operation = native_context(request);
+		const auto     operation = native_context(aRequest);
 		store_recorder recorder;
-		vault.store(
+		aVault.store(
 			application::github_credential_enrollment{
 				.Context    = operation,
 				.Credential = std::move(*material),
 			},
 			[&recorder](
-				application::github_credential_store_completion terminal) {
-				recorder.record(std::move(terminal));
+				application::github_credential_store_completion aTerminal) {
+				recorder.record(std::move(aTerminal));
 			});
-		if (lane.pending() != 1U) {
-			vault.cancel(operation);
-			lane.drain();
+		if (aLane.pending() != 1U) {
+			aVault.cancel(operation);
+			aLane.drain();
 			return false;
 		}
-		lane.run_next();
+		aLane.run_next();
 
 		const auto* success = terminal_as<
 			application::github_credential_store_success>(recorder.Terminal);
@@ -365,25 +365,25 @@ namespace {
 	}
 
 	[[nodiscard]] auto run_retrieve(
-		application::github_credential_vault_port& vault,
-		application::manual_executor&              lane,
-		const std::uint64_t                        request,
-		const std::span<const std::byte>           expected) -> bool
+		application::github_credential_vault_port& aVault,
+		application::manual_executor&              aLane,
+		const std::uint64_t                        aRequest,
+		const std::span<const std::byte>           aExpected) -> bool
 	{
-		const auto        operation = native_context(request);
+		const auto        operation = native_context(aRequest);
 		retrieve_recorder recorder;
-		vault.retrieve(
+		aVault.retrieve(
 			operation,
 			[&recorder](
-				application::github_credential_retrieve_completion terminal) {
-				recorder.record(std::move(terminal));
+				application::github_credential_retrieve_completion aTerminal) {
+				recorder.record(std::move(aTerminal));
 			});
-		if (lane.pending() != 1U) {
-			vault.cancel(operation);
-			lane.drain();
+		if (aLane.pending() != 1U) {
+			aVault.cancel(operation);
+			aLane.drain();
 			return false;
 		}
-		lane.run_next();
+		aLane.run_next();
 
 		const auto* success = terminal_as<
 			application::github_credential_retrieve_success>(
@@ -444,7 +444,7 @@ namespace {
 				"linux-secret-service-retrieve:context\n");
 			return false;
 		}
-		if (!same_bytes(success->Credential.bytes(), expected)) {
+		if (!same_bytes(success->Credential.bytes(), aExpected)) {
 			write_fixed_diagnostic(
 				"linux-secret-service-retrieve:bytes\n");
 			return false;
@@ -453,24 +453,24 @@ namespace {
 	}
 
 	[[nodiscard]] auto run_retrieve_absent(
-		application::github_credential_vault_port& vault,
-		application::manual_executor&              lane,
-		const std::uint64_t                        request) -> bool
+		application::github_credential_vault_port& aVault,
+		application::manual_executor&              aLane,
+		const std::uint64_t                        aRequest) -> bool
 	{
-		const auto        operation = native_context(request);
+		const auto        operation = native_context(aRequest);
 		retrieve_recorder recorder;
-		vault.retrieve(
+		aVault.retrieve(
 			operation,
 			[&recorder](
-				application::github_credential_retrieve_completion terminal) {
-				recorder.record(std::move(terminal));
+				application::github_credential_retrieve_completion aTerminal) {
+				recorder.record(std::move(aTerminal));
 			});
-		if (lane.pending() != 1U) {
-			vault.cancel(operation);
-			lane.drain();
+		if (aLane.pending() != 1U) {
+			aVault.cancel(operation);
+			aLane.drain();
 			return false;
 		}
-		lane.run_next();
+		aLane.run_next();
 
 		const auto* absent = terminal_as<
 			application::github_credential_retrieve_absent>(
@@ -480,47 +480,47 @@ namespace {
 	}
 
 	[[nodiscard]] auto run_delete(
-		application::github_credential_vault_port& vault,
-		application::manual_executor&              lane,
-		const std::uint64_t                        request,
+		application::github_credential_vault_port& aVault,
+		application::manual_executor&              aLane,
+		const std::uint64_t                        aRequest,
 		const std::optional<
 			application::github_credential_delete_disposition>
-			expected) -> bool
+			aExpected) -> bool
 	{
-		const auto      operation = native_context(request);
+		const auto      operation = native_context(aRequest);
 		delete_recorder recorder;
-		vault.delete_credential(
+		aVault.delete_credential(
 			operation,
 			[&recorder](
-				application::github_credential_delete_completion terminal) {
-				recorder.record(std::move(terminal));
+				application::github_credential_delete_completion aTerminal) {
+				recorder.record(std::move(aTerminal));
 			});
-		if (lane.pending() != 1U) {
-			vault.cancel(operation);
-			lane.drain();
+		if (aLane.pending() != 1U) {
+			aVault.cancel(operation);
+			aLane.drain();
 			return false;
 		}
-		lane.run_next();
+		aLane.run_next();
 
 		const auto* success = terminal_as<
 			application::github_credential_delete_success>(
 			recorder.Terminal);
 		return recorder.Calls == 1U && success != nullptr
 			&& success->Context == operation
-			&& (!expected.has_value()
-				|| success->Disposition == *expected);
+			&& (!aExpected.has_value()
+				|| success->Disposition == *aExpected);
 	}
 
 	[[nodiscard]] auto make_native_vault(
-		application::manual_executor& lane)
+		application::manual_executor& aLane)
 		-> std::unique_ptr<application::github_credential_vault_port>
 	{
-		auto vault = make_linux_secret_service_integration_test_vault(lane);
+		auto vault = make_linux_secret_service_integration_test_vault(aLane);
 		return vault.has_value() ? std::move(*vault) : nullptr;
 	}
 
 	[[nodiscard]] auto ensure_native_item_absent(
-		const std::uint64_t request_base) -> bool
+		const std::uint64_t aRequestBase) -> bool
 	{
 		application::manual_executor lane;
 		auto                         vault = make_native_vault(lane);
@@ -528,25 +528,25 @@ namespace {
 			return false;
 		}
 
-		const auto deletion = run_delete(*vault, lane, request_base, std::nullopt);
-		const auto absence  = run_retrieve_absent(*vault, lane, request_base + 1U);
+		const auto deletion = run_delete(*vault, lane, aRequestBase, std::nullopt);
+		const auto absence  = run_retrieve_absent(*vault, lane, aRequestBase + 1U);
 		return deletion && absence;
 	}
 
 	void record_lifecycle_result(
-		const bool             result,
-		const std::string_view category,
-		bool&                  aggregate) noexcept
+		const bool             aResult,
+		const std::string_view aCategory,
+		bool&                  aAggregate) noexcept
 	{
-		if (!result) {
-			write_fixed_diagnostic(category);
+		if (!aResult) {
+			write_fixed_diagnostic(aCategory);
 		}
-		aggregate = result && aggregate;
+		aAggregate = aResult && aAggregate;
 	}
 
 	[[nodiscard]] auto run_native_lifecycle(
-		const std::span<const std::byte> canary_a,
-		const std::span<const std::byte> canary_b) -> bool
+		const std::span<const std::byte> aCanaryA,
+		const std::span<const std::byte> aCanaryB) -> bool
 	{
 		application::manual_executor lane;
 		auto                         vault = make_native_vault(lane);
@@ -564,19 +564,19 @@ namespace {
 			"linux-secret-service-lifecycle:initial-absence\n",
 			ok);
 		record_lifecycle_result(
-			run_store(*vault, lane, 102U, canary_a),
+			run_store(*vault, lane, 102U, aCanaryA),
 			"linux-secret-service-lifecycle:first-store\n",
 			ok);
 		record_lifecycle_result(
-			run_retrieve(*vault, lane, 103U, canary_a),
+			run_retrieve(*vault, lane, 103U, aCanaryA),
 			"linux-secret-service-lifecycle:first-retrieve\n",
 			ok);
 		record_lifecycle_result(
-			run_store(*vault, lane, 104U, canary_b),
+			run_store(*vault, lane, 104U, aCanaryB),
 			"linux-secret-service-lifecycle:replacement-store\n",
 			ok);
 		record_lifecycle_result(
-			run_retrieve(*vault, lane, 105U, canary_b),
+			run_retrieve(*vault, lane, 105U, aCanaryB),
 			"linux-secret-service-lifecycle:replacement-retrieve\n",
 			ok);
 		record_lifecycle_result(
@@ -600,29 +600,29 @@ namespace {
 			"linux-secret-service-lifecycle:repeat-delete\n",
 			ok);
 
-		const auto cleanup              = run_delete(*vault, lane, 109U, std::nullopt);
-		const auto post_cleanup_absence = run_retrieve_absent(*vault, lane, 110U);
+		const auto cleanup            = run_delete(*vault, lane, 109U, std::nullopt);
+		const auto postCleanupAbsence = run_retrieve_absent(*vault, lane, 110U);
 		record_lifecycle_result(
 			cleanup,
 			"linux-secret-service-lifecycle:cleanup\n",
 			ok);
 		record_lifecycle_result(
-			post_cleanup_absence,
+			postCleanupAbsence,
 			"linux-secret-service-lifecycle:cleanup-absence\n",
 			ok);
-		return ok && cleanup && post_cleanup_absence;
+		return ok && cleanup && postCleanupAbsence;
 	}
 
 	[[nodiscard]] auto read_exact(
-		const int                  descriptor,
-		const std::span<std::byte> output) -> bool
+		const int                  aDescriptor,
+		const std::span<std::byte> aOutput) -> bool
 	{
 		auto offset = std::size_t{ 0U };
-		while (offset < output.size()) {
+		while (offset < aOutput.size()) {
 			const auto count = ::read(
-				descriptor,
-				output.data() + offset,
-				output.size() - offset);
+				aDescriptor,
+				aOutput.data() + offset,
+				aOutput.size() - offset);
 			if (count > 0) {
 				offset += static_cast<std::size_t>(count);
 				continue;
@@ -636,15 +636,15 @@ namespace {
 	}
 
 	[[nodiscard]] auto write_exact(
-		const int                        descriptor,
-		const std::span<const std::byte> input) -> bool
+		const int                        aDescriptor,
+		const std::span<const std::byte> aInput) -> bool
 	{
 		auto offset = std::size_t{ 0U };
-		while (offset < input.size()) {
+		while (offset < aInput.size()) {
 			const auto count = ::write(
-				descriptor,
-				input.data() + offset,
-				input.size() - offset);
+				aDescriptor,
+				aInput.data() + offset,
+				aInput.size() - offset);
 			if (count > 0) {
 				offset += static_cast<std::size_t>(count);
 				continue;
@@ -657,11 +657,11 @@ namespace {
 		return true;
 	}
 
-	[[nodiscard]] auto read_frame(const int descriptor)
+	[[nodiscard]] auto read_frame(const int aDescriptor)
 		-> std::optional<secure_bytes>
 	{
 		std::array<std::byte, 4U> header{ };
-		if (!read_exact(descriptor, header)) {
+		if (!read_exact(aDescriptor, header)) {
 			return std::nullopt;
 		}
 		const auto length = (static_cast<std::uint32_t>(
@@ -682,49 +682,49 @@ namespace {
 		}
 
 		secure_bytes bytes{ length };
-		if (!read_exact(descriptor, bytes.mutable_bytes())) {
+		if (!read_exact(aDescriptor, bytes.mutable_bytes())) {
 			return std::nullopt;
 		}
 		return bytes;
 	}
 
 	[[nodiscard]] auto write_frame(
-		const int                        descriptor,
-		const std::span<const std::byte> bytes) -> bool
+		const int                        aDescriptor,
+		const std::span<const std::byte> aBytes) -> bool
 	{
 		if (
-			bytes.empty()
-			|| bytes.size() > application::maximum_github_credential_bytes) {
+			aBytes.empty()
+			|| aBytes.size() > application::maximum_github_credential_bytes) {
 			return false;
 		}
-		const auto       length = static_cast<std::uint32_t>(bytes.size());
+		const auto       length = static_cast<std::uint32_t>(aBytes.size());
 		const std::array header{
 			static_cast<std::byte>((length >> 24U) & 0xFFU),
 			static_cast<std::byte>((length >> 16U) & 0xFFU),
 			static_cast<std::byte>((length >> 8U) & 0xFFU),
 			static_cast<std::byte>(length & 0xFFU),
 		};
-		return write_exact(descriptor, header)
-			&& write_exact(descriptor, bytes);
+		return write_exact(aDescriptor, header)
+			&& write_exact(aDescriptor, aBytes);
 	}
 
 	[[nodiscard]] auto printable(
-		const std::span<const std::byte> bytes) -> bool
+		const std::span<const std::byte> aBytes) -> bool
 	{
-		return std::ranges::all_of(bytes, [](const std::byte byte) {
-			const auto value = std::to_integer<unsigned int>(byte);
+		return std::ranges::all_of(aBytes, [](const std::byte aByte) {
+			const auto value = std::to_integer<unsigned int>(aByte);
 			return value >= 0x21U && value <= 0x7EU;
 		});
 	}
 
 	[[nodiscard]] auto fill_random(
-		const std::span<std::byte> bytes) -> bool
+		const std::span<std::byte> aBytes) -> bool
 	{
 		auto offset = std::size_t{ 0U };
-		while (offset < bytes.size()) {
+		while (offset < aBytes.size()) {
 			const auto count = ::getrandom(
-				bytes.data() + offset,
-				bytes.size() - offset,
+				aBytes.data() + offset,
+				aBytes.size() - offset,
 				0U);
 			if (count > 0) {
 				offset += static_cast<std::size_t>(count);
@@ -738,10 +738,10 @@ namespace {
 		return true;
 	}
 
-	[[nodiscard]] auto random_printable_bytes(const std::size_t size)
+	[[nodiscard]] auto random_printable_bytes(const std::size_t aSize)
 		-> std::optional<secure_bytes>
 	{
-		secure_bytes bytes{ size };
+		secure_bytes bytes{ aSize };
 		if (!fill_random(bytes.mutable_bytes())) {
 			return std::nullopt;
 		}
@@ -753,18 +753,18 @@ namespace {
 	}
 
 	[[nodiscard]] auto opaque_bytes(
-		const std::size_t size,
-		const std::size_t salt) -> secure_bytes
+		const std::size_t aSize,
+		const std::size_t aSalt) -> secure_bytes
 	{
-		secure_bytes bytes{ size };
+		secure_bytes bytes{ aSize };
 		auto         output = bytes.mutable_bytes();
 		for (std::size_t index = 0U; index < output.size(); ++index) {
 			output[index] = static_cast<std::byte>(
 				static_cast<std::uint8_t>(
-					((index * 197U) + salt) & 0xFFU));
+					((index * 197U) + aSalt) & 0xFFU));
 		}
 
-		constexpr std::array required_prefix{
+		constexpr std::array requiredPrefix{
 			std::byte{ 0x00U },
 			std::byte{ 0xFFU },
 			std::byte{ 0xC0U },
@@ -772,13 +772,13 @@ namespace {
 			std::byte{ 0x80U },
 			std::byte{ 0xFEU },
 		};
-		std::ranges::copy(required_prefix, output.begin());
+		std::ranges::copy(requiredPrefix, output.begin());
 		return bytes;
 	}
 
 	[[nodiscard]] auto run_expected_store_failure(
-		const application::github_credential_vault_failure expected,
-		const std::uint64_t                                request) -> bool
+		const application::github_credential_vault_failure aExpected,
+		const std::uint64_t                                aRequest) -> bool
 	{
 		auto canary = random_printable_bytes(native_canary_a_bytes);
 		if (!canary.has_value()) {
@@ -788,10 +788,10 @@ namespace {
 		application::manual_executor lane;
 		auto                         factory = make_linux_secret_service_integration_test_vault(lane);
 		if (!factory.has_value()) {
-			return factory.error() == expected;
+			return factory.error() == aExpected;
 		}
 		auto       vault     = std::move(*factory);
-		const auto operation = native_context(request);
+		const auto operation = native_context(aRequest);
 		auto       material  = application::github_credential_material::create(
 			canary->bytes());
 		if (!material.has_value()) {
@@ -805,8 +805,8 @@ namespace {
 				.Credential = std::move(*material),
 			},
 			[&recorder](
-				application::github_credential_store_completion terminal) {
-				recorder.record(std::move(terminal));
+				application::github_credential_store_completion aTerminal) {
+				recorder.record(std::move(aTerminal));
 			});
 		if (lane.pending() != 1U) {
 			vault->cancel(operation);
@@ -819,23 +819,23 @@ namespace {
 			application::github_credential_store_error>(recorder.Terminal);
 		if (
 			recorder.Calls == 1U && error != nullptr
-			&& error->Context == operation && error->Failure == expected) {
+			&& error->Context == operation && error->Failure == aExpected) {
 			return true;
 		}
 
 		// An unexpected success must not leave the exact integration item.
 		static_cast<void>(
-			run_delete(*vault, lane, request + 1U, std::nullopt));
+			run_delete(*vault, lane, aRequest + 1U, std::nullopt));
 		return false;
 	}
 
 	[[nodiscard]] auto run_bus_redirect_rejection() -> bool
 	{
-		constexpr std::string_view hostile_bus_name = "org.betterpullreview.Hostile.Secret";
-		const auto*                configured       = std::getenv("SECRET_SERVICE_BUS_NAME");
+		constexpr std::string_view hostileBusName = "org.betterpullreview.Hostile.Secret";
+		const auto*                configured     = std::getenv("SECRET_SERVICE_BUS_NAME");
 		if (
 			configured == nullptr
-			|| std::string_view{ configured } != hostile_bus_name) {
+			|| std::string_view{ configured } != hostileBusName) {
 			return false;
 		}
 
@@ -845,59 +845,59 @@ namespace {
 	}
 
 	[[nodiscard]] auto write_category(
-		const std::string_view category) -> bool
+		const std::string_view aCategory) -> bool
 	{
 		return write_exact(
 			STDOUT_FILENO,
-			std::as_bytes(std::span{ category }));
+			std::as_bytes(std::span{ aCategory }));
 	}
 
 	void report_audit_failure(
-		const bool             condition,
-		const std::string_view category) noexcept
+		const bool             aCondition,
+		const std::string_view aCategory) noexcept
 	{
-		if (!condition) {
+		if (!aCondition) {
 			static_cast<void>(write_exact(
 				STDERR_FILENO,
-				std::as_bytes(std::span{ category })));
+				std::as_bytes(std::span{ aCategory })));
 		}
 	}
 
 	[[nodiscard]] auto native_child() -> int
 	{
-		auto       canary_a = read_frame(STDIN_FILENO);
-		auto       canary_b = read_frame(STDIN_FILENO);
+		auto       canaryA = read_frame(STDIN_FILENO);
+		auto       canaryB = read_frame(STDIN_FILENO);
 		std::byte  extra{ };
-		const auto trailing    = ::read(STDIN_FILENO, &extra, 1U);
-		const auto input_valid = canary_a.has_value() && canary_b.has_value()
-			&& canary_a->bytes().size() == native_canary_a_bytes
-			&& canary_b->bytes().size() == native_canary_b_bytes
-			&& !same_bytes(canary_a->bytes(), canary_b->bytes())
-			&& printable(canary_a->bytes())
-			&& printable(canary_b->bytes()) && trailing == 0;
+		const auto trailing   = ::read(STDIN_FILENO, &extra, 1U);
+		const auto inputValid = canaryA.has_value() && canaryB.has_value()
+			&& canaryA->bytes().size() == native_canary_a_bytes
+			&& canaryB->bytes().size() == native_canary_b_bytes
+			&& !same_bytes(canaryA->bytes(), canaryB->bytes())
+			&& printable(canaryA->bytes())
+			&& printable(canaryB->bytes()) && trailing == 0;
 
 		constexpr std::array      ready{ std::byte{ 0x52U } };
 		std::array<std::byte, 1U> control{ };
-		const auto                synchronized = input_valid
+		const auto                synchronized = inputValid
 			&& write_exact(child_ready_descriptor, ready)
 			&& read_exact(child_control_descriptor, control)
 			&& control[0] == std::byte{ 0x47U };
-		auto       opaque_a     = opaque_bytes(native_canary_a_bytes, 17U);
-		auto       opaque_b     = opaque_bytes(native_canary_b_bytes, 41U);
-		const auto opaque_shape = !printable(opaque_a.bytes()) && !printable(opaque_b.bytes())
-			&& opaque_a.bytes().front() == std::byte{ 0x00U }
-			&& opaque_a.bytes()[1U] == std::byte{ 0xFFU }
-			&& opaque_a.bytes()[2U] == std::byte{ 0xC0U }
-			&& opaque_a.bytes()[3U] == std::byte{ 0xAFU }
-			&& opaque_a.bytes()[4U] == std::byte{ 0x80U }
-			&& opaque_b.bytes().front() == std::byte{ 0x00U }
-			&& opaque_b.bytes()[1U] == std::byte{ 0xFFU };
+		auto       opaqueA     = opaque_bytes(native_canary_a_bytes, 17U);
+		auto       opaqueB     = opaque_bytes(native_canary_b_bytes, 41U);
+		const auto opaqueShape = !printable(opaqueA.bytes()) && !printable(opaqueB.bytes())
+			&& opaqueA.bytes().front() == std::byte{ 0x00U }
+			&& opaqueA.bytes()[1U] == std::byte{ 0xFFU }
+			&& opaqueA.bytes()[2U] == std::byte{ 0xC0U }
+			&& opaqueA.bytes()[3U] == std::byte{ 0xAFU }
+			&& opaqueA.bytes()[4U] == std::byte{ 0x80U }
+			&& opaqueB.bytes().front() == std::byte{ 0x00U }
+			&& opaqueB.bytes()[1U] == std::byte{ 0xFFU };
 		const auto passed = synchronized
 			&& run_native_lifecycle(
-								canary_a->bytes(),
-								canary_b->bytes())
-			&& opaque_shape
-			&& run_native_lifecycle(opaque_a.bytes(), opaque_b.bytes());
+								canaryA->bytes(),
+								canaryB->bytes())
+			&& opaqueShape
+			&& run_native_lifecycle(opaqueA.bytes(), opaqueB.bytes());
 		static_cast<void>(write_category(
 			passed ? "linux-secret-service-native:pass\n"
 				   : "linux-secret-service-native:fail\n"));
@@ -905,32 +905,32 @@ namespace {
 	}
 
 	[[nodiscard]] auto string_contains(
-		const std::string_view text,
-		const leak_probes      probes) -> bool
+		const std::string_view aText,
+		const leak_probes      aProbes) -> bool
 	{
-		return std::ranges::any_of(probes, [text](const leak_probe probe) {
-			if (probe.empty() || text.size() < probe.size()) {
+		return std::ranges::any_of(aProbes, [aText](const leak_probe aProbe) {
+			if (aProbe.empty() || aText.size() < aProbe.size()) {
 				return false;
 			}
 			return std::search(
-					   text.begin(),
-					   text.end(),
-					   probe.begin(),
-					   probe.end(),
-					   [](const char character, const std::byte byte) {
-						   return static_cast<unsigned char>(character)
-							   == std::to_integer<unsigned char>(byte);
+					   aText.begin(),
+					   aText.end(),
+					   aProbe.begin(),
+					   aProbe.end(),
+					   [](const char aCharacter, const std::byte aByte) {
+						   return static_cast<unsigned char>(aCharacter)
+							   == std::to_integer<unsigned char>(aByte);
 					   })
-				!= text.end();
+				!= aText.end();
 		});
 	}
 
 	[[nodiscard]] auto read_regular_file(
-		const std::filesystem::path& path)
+		const std::filesystem::path& aPath)
 		-> std::optional<secure_bytes>
 	{
 		file_descriptor input{
-			::open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW)
+			::open(aPath.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW)
 		};
 		if (!input.valid()) {
 			return std::nullopt;
@@ -955,12 +955,12 @@ namespace {
 	}
 
 	[[nodiscard]] auto read_bounded_stream(
-		const std::filesystem::path& path,
-		const std::size_t            maximum_bytes)
+		const std::filesystem::path& aPath,
+		const std::size_t            aMaximumBytes)
 		-> std::optional<secure_bytes>
 	{
 		file_descriptor input{
-			::open(path.c_str(), O_RDONLY | O_CLOEXEC)
+			::open(aPath.c_str(), O_RDONLY | O_CLOEXEC)
 		};
 		if (!input.valid()) {
 			return std::nullopt;
@@ -968,13 +968,13 @@ namespace {
 
 		std::vector<std::byte> accumulated;
 		try {
-			accumulated.reserve(std::min(maximum_bytes, std::size_t{ 4'096U }));
+			accumulated.reserve(std::min(aMaximumBytes, std::size_t{ 4'096U }));
 			std::array<std::byte, 4'096U> block{ };
 			while (true) {
 				const auto count = ::read(input.get(), block.data(), block.size());
 				if (count > 0) {
 					const auto received = static_cast<std::size_t>(count);
-					if (received > maximum_bytes - accumulated.size()) {
+					if (received > aMaximumBytes - accumulated.size()) {
 						erase(block);
 						erase(accumulated);
 						return std::nullopt;
@@ -1009,66 +1009,66 @@ namespace {
 	}
 
 	[[nodiscard]] auto probes_absent(
-		const std::span<const std::byte> bytes,
-		const leak_probes                probes) -> bool
+		const std::span<const std::byte> aBytes,
+		const leak_probes                aProbes) -> bool
 	{
-		return std::ranges::none_of(probes, [bytes](const leak_probe probe) {
-			return std::ranges::search(bytes, probe).begin() != bytes.end();
+		return std::ranges::none_of(aProbes, [aBytes](const leak_probe aProbe) {
+			return std::ranges::search(aBytes, aProbe).begin() != aBytes.end();
 		});
 	}
 
 	[[nodiscard]] auto probes_absent_from_file(
-		const std::filesystem::path& path,
-		const leak_probes            probes) -> bool
+		const std::filesystem::path& aPath,
+		const leak_probes            aProbes) -> bool
 	{
-		auto bytes = read_regular_file(path);
+		auto bytes = read_regular_file(aPath);
 		return bytes.has_value()
-			&& probes_absent(bytes->bytes(), probes);
+			&& probes_absent(bytes->bytes(), aProbes);
 	}
 
 	[[nodiscard]] auto probes_absent_from_stream(
-		const std::filesystem::path& path,
-		const leak_probes            probes) -> bool
+		const std::filesystem::path& aPath,
+		const leak_probes            aProbes) -> bool
 	{
-		auto bytes = read_bounded_stream(path, 1024U * 1024U);
+		auto bytes = read_bounded_stream(aPath, 1024U * 1024U);
 		return bytes.has_value()
-			&& probes_absent(bytes->bytes(), probes);
+			&& probes_absent(bytes->bytes(), aProbes);
 	}
 
 	[[nodiscard]] auto exact_file_text(
-		const std::filesystem::path& path,
-		const std::string_view       expected) -> bool
+		const std::filesystem::path& aPath,
+		const std::string_view       aExpected) -> bool
 	{
-		auto bytes = read_regular_file(path);
+		auto bytes = read_regular_file(aPath);
 		return bytes.has_value()
-			&& bytes->bytes().size() == expected.size()
+			&& bytes->bytes().size() == aExpected.size()
 			&& std::ranges::equal(
 				   bytes->bytes(),
-				   std::as_bytes(std::span{ expected }));
+				   std::as_bytes(std::span{ aExpected }));
 	}
 
 	[[nodiscard]] auto file_contains_text(
-		const std::filesystem::path& path,
-		const std::string_view       expected) -> bool
+		const std::filesystem::path& aPath,
+		const std::string_view       aExpected) -> bool
 	{
-		auto bytes = read_regular_file(path);
+		auto bytes = read_regular_file(aPath);
 		if (!bytes.has_value()) {
 			return false;
 		}
-		const auto expected_bytes = std::as_bytes(std::span{ expected });
+		const auto expectedBytes = std::as_bytes(std::span{ aExpected });
 		return std::ranges::search(
-				   bytes->bytes(), expected_bytes)
+				   bytes->bytes(), expectedBytes)
 				   .begin()
 			!= bytes->bytes().end();
 	}
 
 	[[nodiscard]] auto probes_absent_from_tree(
-		const std::filesystem::path& root,
-		const leak_probes            probes) -> bool
+		const std::filesystem::path& aRoot,
+		const leak_probes            aProbes) -> bool
 	{
 		std::error_code error;
 		auto            iterator = std::filesystem::recursive_directory_iterator{
-			root,
+			aRoot,
 			std::filesystem::directory_options::none,
 			error
 		};
@@ -1085,7 +1085,7 @@ namespace {
 			if (entry.is_regular_file(error)) {
 				if (
 					error
-					|| !probes_absent_from_file(entry.path(), probes)) {
+					|| !probes_absent_from_file(entry.path(), aProbes)) {
 					return false;
 				}
 			} else if (error) {
@@ -1096,9 +1096,9 @@ namespace {
 	}
 
 	[[nodiscard]] auto environment_value(
-		const std::string_view name) -> std::optional<std::string>
+		const std::string_view aName) -> std::optional<std::string>
 	{
-		const auto* value = std::getenv(std::string{ name }.c_str());
+		const auto* value = std::getenv(std::string{ aName }.c_str());
 		if (value == nullptr || *value == '\0') {
 			return std::nullopt;
 		}
@@ -1106,23 +1106,23 @@ namespace {
 	}
 
 	[[nodiscard]] auto make_child_environment(
-		const std::filesystem::path& root)
+		const std::filesystem::path& aRoot)
 		-> std::optional<std::vector<std::string>>
 	{
-		const auto session_bus = environment_value("DBUS_SESSION_BUS_ADDRESS");
-		if (!session_bus.has_value()) {
+		const auto sessionBus = environment_value("DBUS_SESSION_BUS_ADDRESS");
+		if (!sessionBus.has_value()) {
 			return std::nullopt;
 		}
 
 		std::vector<std::string> environment{
-			"DBUS_SESSION_BUS_ADDRESS=" + *session_bus,
-			"HOME=" + (root / "home").string(),
+			"DBUS_SESSION_BUS_ADDRESS=" + *sessionBus,
+			"HOME=" + (aRoot / "home").string(),
 			"LANG=C",
 			"PATH=/usr/bin:/bin",
-			"TMPDIR=" + (root / "tmp").string(),
-			"XDG_CACHE_HOME=" + (root / "cache").string(),
-			"XDG_CONFIG_HOME=" + (root / "config").string(),
-			"XDG_DATA_HOME=" + (root / "data").string(),
+			"TMPDIR=" + (aRoot / "tmp").string(),
+			"XDG_CACHE_HOME=" + (aRoot / "cache").string(),
+			"XDG_CONFIG_HOME=" + (aRoot / "config").string(),
+			"XDG_DATA_HOME=" + (aRoot / "data").string(),
 		};
 		if (const auto runtime = environment_value("XDG_RUNTIME_DIR");
 			runtime.has_value()) {
@@ -1146,35 +1146,35 @@ namespace {
 	}
 
 	[[nodiscard]] auto add_dup(
-		posix_spawn_file_actions_t& actions,
-		const int                   source,
-		const int                   destination) -> bool
+		posix_spawn_file_actions_t& aActions,
+		const int                   aSource,
+		const int                   aDestination) -> bool
 	{
 		return posix_spawn_file_actions_adddup2(
-				   &actions,
-				   source,
-				   destination)
+				   &aActions,
+				   aSource,
+				   aDestination)
 			== 0;
 	}
 
 	[[nodiscard]] auto add_close(
-		posix_spawn_file_actions_t& actions,
-		const int                   descriptor) -> bool
+		posix_spawn_file_actions_t& aActions,
+		const int                   aDescriptor) -> bool
 	{
-		return posix_spawn_file_actions_addclose(&actions, descriptor) == 0;
+		return posix_spawn_file_actions_addclose(&aActions, aDescriptor) == 0;
 	}
 
 	[[nodiscard]] auto wait_until_readable(
-		const int                       descriptor,
-		const std::chrono::milliseconds timeout) -> bool
+		const int                       aDescriptor,
+		const std::chrono::milliseconds aTimeout) -> bool
 	{
 		pollfd requested{
-			.fd      = descriptor,
+			.fd      = aDescriptor,
 			.events  = POLLIN,
 			.revents = 0,
 		};
 		while (true) {
-			const auto result = ::poll(&requested, 1U, static_cast<int>(timeout.count()));
+			const auto result = ::poll(&requested, 1U, static_cast<int>(aTimeout.count()));
 			if (result > 0) {
 				return (requested.revents & POLLIN) != 0;
 			}
@@ -1186,13 +1186,13 @@ namespace {
 	}
 
 	[[nodiscard]] auto wait_for_child(
-		const pid_t                                 child,
-		const std::chrono::steady_clock::time_point deadline,
-		int&                                        status) -> bool
+		const pid_t                                 aChild,
+		const std::chrono::steady_clock::time_point aDeadline,
+		int&                                        aStatus) -> bool
 	{
-		while (std::chrono::steady_clock::now() < deadline) {
-			const auto result = ::waitpid(child, &status, WNOHANG);
-			if (result == child) {
+		while (std::chrono::steady_clock::now() < aDeadline) {
+			const auto result = ::waitpid(aChild, &aStatus, WNOHANG);
+			if (result == aChild) {
 				return true;
 			}
 			if (result < 0 && errno == EINTR) {
@@ -1212,15 +1212,15 @@ namespace {
 	}
 
 	[[nodiscard]] auto stop_and_reap_child(
-		const pid_t child,
-		int&        status) -> bool
+		const pid_t aChild,
+		int&        aStatus) -> bool
 	{
-		if (::kill(child, SIGKILL) != 0 && errno != ESRCH) {
+		if (::kill(aChild, SIGKILL) != 0 && errno != ESRCH) {
 			return false;
 		}
 		while (true) {
-			const auto result = ::waitpid(child, &status, 0);
-			if (result == child) {
+			const auto result = ::waitpid(aChild, &aStatus, 0);
+			if (result == aChild) {
 				return true;
 			}
 			if (result < 0 && errno == EINTR) {
@@ -1231,42 +1231,42 @@ namespace {
 	}
 
 	[[nodiscard]] auto audit_native_child(
-		const int   parent_argument_count,
-		char* const parent_arguments[]) -> bool
+		const int   aParentArgumentCount,
+		char* const aParentArguments[]) -> bool
 	{
-		auto canary_a = random_printable_bytes(native_canary_a_bytes);
-		auto canary_b = random_printable_bytes(native_canary_b_bytes);
-		if (!canary_a.has_value() || !canary_b.has_value()) {
+		auto canaryA = random_printable_bytes(native_canary_a_bytes);
+		auto canaryB = random_printable_bytes(native_canary_b_bytes);
+		if (!canaryA.has_value() || !canaryB.has_value()) {
 			return false;
 		}
-		while (same_bytes(canary_a->bytes(), canary_b->bytes())) {
-			canary_b = random_printable_bytes(native_canary_b_bytes);
-			if (!canary_b.has_value()) {
+		while (same_bytes(canaryA->bytes(), canaryB->bytes())) {
+			canaryB = random_printable_bytes(native_canary_b_bytes);
+			if (!canaryB.has_value()) {
 				return false;
 			}
 		}
 		const std::array probes{
-			canary_a->bytes().first(native_leak_probe_bytes),
-			canary_a->bytes().last(native_leak_probe_bytes),
-			canary_b->bytes().first(native_leak_probe_bytes),
-			canary_b->bytes().last(native_leak_probe_bytes),
+			canaryA->bytes().first(native_leak_probe_bytes),
+			canaryA->bytes().last(native_leak_probe_bytes),
+			canaryB->bytes().first(native_leak_probe_bytes),
+			canaryB->bytes().last(native_leak_probe_bytes),
 		};
 
 		auto            directory = audit_directory::create();
-		std::error_code executable_error;
-		const auto      executable = std::filesystem::canonical("/proc/self/exe", executable_error);
-		if (!directory.has_value() || executable_error) {
+		std::error_code executableError;
+		const auto      executable = std::filesystem::canonical("/proc/self/exe", executableError);
+		if (!directory.has_value() || executableError) {
 			return false;
 		}
 
-		const auto      stdout_path = directory->path() / "stdout.audit";
-		const auto      stderr_path = directory->path() / "stderr.audit";
-		file_descriptor stdout_file{ ::open(
-			stdout_path.c_str(),
+		const auto      stdoutPath = directory->path() / "stdout.audit";
+		const auto      stderrPath = directory->path() / "stderr.audit";
+		file_descriptor stdoutFile{ ::open(
+			stdoutPath.c_str(),
 			O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC,
 			S_IRUSR | S_IWUSR) };
-		file_descriptor stderr_file{ ::open(
-			stderr_path.c_str(),
+		file_descriptor stderrFile{ ::open(
+			stderrPath.c_str(),
 			O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC,
 			S_IRUSR | S_IWUSR) };
 		auto            input       = make_pipe();
@@ -1274,15 +1274,15 @@ namespace {
 		auto            control     = make_pipe();
 		auto            environment = make_child_environment(directory->path());
 		if (
-			!stdout_file.valid() || !stderr_file.valid()
+			!stdoutFile.valid() || !stderrFile.valid()
 			|| !input.has_value() || !ready.has_value()
 			|| !control.has_value() || !environment.has_value()) {
 			return false;
 		}
 
-		const std::array owned_descriptors{
-			stdout_file.get(),
-			stderr_file.get(),
+		const std::array ownedDescriptors{
+			stdoutFile.get(),
+			stderrFile.get(),
 			(*input)[0].get(),
 			(*input)[1].get(),
 			(*ready)[0].get(),
@@ -1290,10 +1290,10 @@ namespace {
 			(*control)[0].get(),
 			(*control)[1].get(),
 		};
-		if (std::ranges::any_of(owned_descriptors, [](const int descriptor) {
-				return descriptor <= STDERR_FILENO
-					|| descriptor == child_ready_descriptor
-					|| descriptor == child_control_descriptor;
+		if (std::ranges::any_of(ownedDescriptors, [](const int aDescriptor) {
+				return aDescriptor <= STDERR_FILENO
+					|| aDescriptor == child_ready_descriptor
+					|| aDescriptor == child_control_descriptor;
 			})) {
 			return false;
 		}
@@ -1302,130 +1302,130 @@ namespace {
 		if (posix_spawn_file_actions_init(&actions) != 0) {
 			return false;
 		}
-		auto actions_valid = add_dup(actions, stdout_file.get(), STDOUT_FILENO)
-			&& add_dup(actions, stderr_file.get(), STDERR_FILENO)
+		auto actionsValid = add_dup(actions, stdoutFile.get(), STDOUT_FILENO)
+			&& add_dup(actions, stderrFile.get(), STDERR_FILENO)
 			&& add_dup(actions, (*input)[0].get(), STDIN_FILENO)
 			&& add_dup(
-								 actions,
-								 (*ready)[1].get(),
-								 child_ready_descriptor)
+								actions,
+								(*ready)[1].get(),
+								child_ready_descriptor)
 			&& add_dup(
-								 actions,
-								 (*control)[0].get(),
-								 child_control_descriptor);
-		for (const auto descriptor : owned_descriptors) {
-			actions_valid = add_close(actions, descriptor) && actions_valid;
+								actions,
+								(*control)[0].get(),
+								child_control_descriptor);
+		for (const auto descriptor : ownedDescriptors) {
+			actionsValid = add_close(actions, descriptor) && actionsValid;
 		}
-		actions_valid = posix_spawn_file_actions_addchdir_np(
-							&actions,
-							directory->path().c_str())
+		actionsValid = posix_spawn_file_actions_addchdir_np(
+						   &actions,
+						   directory->path().c_str())
 				== 0
-			&& actions_valid;
+			&& actionsValid;
 
-		std::vector<char*> environment_pointers;
-		environment_pointers.reserve(environment->size() + 1U);
+		std::vector<char*> environmentPointers;
+		environmentPointers.reserve(environment->size() + 1U);
 		for (auto& value : *environment) {
-			environment_pointers.push_back(value.data());
+			environmentPointers.push_back(value.data());
 		}
-		environment_pointers.push_back(nullptr);
+		environmentPointers.push_back(nullptr);
 
-		auto                  executable_text = executable.string();
-		auto                  child_mode      = std::string{ "--native-child" };
-		std::array<char*, 3U> child_arguments{
-			executable_text.data(),
-			child_mode.data(),
+		auto                  executableText = executable.string();
+		auto                  childMode      = std::string{ "--native-child" };
+		std::array<char*, 3U> childArguments{
+			executableText.data(),
+			childMode.data(),
 			nullptr,
 		};
 
-		auto audit_ok = actions_valid;
-		for (auto index = 0; index < parent_argument_count; ++index) {
-			audit_ok = !string_contains(parent_arguments[index], probes) && audit_ok;
+		auto auditOk = actionsValid;
+		for (auto index = 0; index < aParentArgumentCount; ++index) {
+			auditOk = !string_contains(aParentArguments[index], probes) && auditOk;
 		}
-		for (const auto* argument : child_arguments) {
+		for (const auto* argument : childArguments) {
 			if (argument != nullptr) {
-				audit_ok = !string_contains(argument, probes) && audit_ok;
+				auditOk = !string_contains(argument, probes) && auditOk;
 			}
 		}
 		for (const auto& value : *environment) {
-			audit_ok = !string_contains(value, probes) && audit_ok;
+			auditOk = !string_contains(value, probes) && auditOk;
 		}
 
-		pid_t      child        = -1;
-		const auto spawn_status = actions_valid
+		pid_t      child       = -1;
+		const auto spawnStatus = actionsValid
 			? posix_spawn(
 				  &child,
-				  executable_text.c_str(),
+				  executableText.c_str(),
 				  &actions,
 				  nullptr,
-				  child_arguments.data(),
-				  environment_pointers.data())
+				  childArguments.data(),
+				  environmentPointers.data())
 			: EINVAL;
 		static_cast<void>(posix_spawn_file_actions_destroy(&actions));
 
 		(*input)[0].reset();
 		(*ready)[1].reset();
 		(*control)[0].reset();
-		stdout_file.reset();
-		stderr_file.reset();
-		if (spawn_status != 0) {
+		stdoutFile.reset();
+		stderrFile.reset();
+		if (spawnStatus != 0) {
 			return false;
 		}
 
-		const auto wrote = write_frame((*input)[1].get(), canary_a->bytes())
-			&& write_frame((*input)[1].get(), canary_b->bytes());
+		const auto wrote = write_frame((*input)[1].get(), canaryA->bytes())
+			&& write_frame((*input)[1].get(), canaryB->bytes());
 		(*input)[1].reset();
 
-		std::array<std::byte, 1U> ready_signal{ };
-		const auto                child_ready = wait_until_readable(
-													(*ready)[0].get(),
-													std::chrono::seconds{ 5 })
-			&& read_exact((*ready)[0].get(), ready_signal)
-			&& ready_signal[0] == std::byte{ 0x52U };
+		std::array<std::byte, 1U> readySignal{ };
+		const auto                childReady = wait_until_readable(
+												   (*ready)[0].get(),
+												   std::chrono::seconds{ 5 })
+			&& read_exact((*ready)[0].get(), readySignal)
+			&& readySignal[0] == std::byte{ 0x52U };
 		(*ready)[0].reset();
 
-		const auto child_process_root = std::filesystem::path{ "/proc" }
+		const auto childProcessRoot = std::filesystem::path{ "/proc" }
 			/ std::to_string(static_cast<long long>(child));
-		const auto actual_inputs_clean = child_ready
+		const auto actualInputsClean = childReady
 			&& probes_absent_from_stream(
-											 child_process_root / "cmdline",
-											 probes)
+										   childProcessRoot / "cmdline",
+										   probes)
 			&& probes_absent_from_stream(
-											 child_process_root / "environ",
-											 probes);
+										   childProcessRoot / "environ",
+										   probes);
 		constexpr std::array proceed{ std::byte{ 0x47U } };
 		const auto           released = write_exact((*control)[1].get(), proceed);
 		(*control)[1].reset();
 
-		int        child_status = 0;
-		const auto waited       = wait_for_child(
+		int        childStatus = 0;
+		const auto waited      = wait_for_child(
 			child,
 			std::chrono::steady_clock::now()
 				+ std::chrono::seconds{ 15 },
-			child_status);
-		const auto process_stopped = waited || stop_and_reap_child(child, child_status);
-		if (!process_stopped) {
+			childStatus);
+		const auto processStopped = waited || stop_and_reap_child(child, childStatus);
+		if (!processStopped) {
 			directory->abandon();
 			return false;
 		}
 
-		const auto parent_cleanup  = ensure_native_item_absent(3'000U);
-		const auto child_exited    = waited && WIFEXITED(child_status);
-		const auto child_succeeded = child_exited && WEXITSTATUS(child_status) == EXIT_SUCCESS;
-		const auto stdout_is_exact = exact_file_text(
-			stdout_path,
+		const auto parentCleanup  = ensure_native_item_absent(3'000U);
+		const auto childExited    = waited && WIFEXITED(childStatus);
+		const auto childSucceeded = childExited && WEXITSTATUS(childStatus) == EXIT_SUCCESS;
+		const auto stdoutIsExact  = exact_file_text(
+			stdoutPath,
 			"linux-secret-service-native:pass\n");
-		const auto stderr_is_empty = exact_file_text(stderr_path, "");
+		const auto stderrIsEmpty = exact_file_text(stderrPath, "");
 		report_audit_failure(
-			actions_valid,
+			actionsValid,
 			"linux-secret-service-audit:spawn-actions\n");
 		report_audit_failure(
 			wrote,
 			"linux-secret-service-audit:frame-write\n");
 		report_audit_failure(
-			child_ready,
+			childReady,
 			"linux-secret-service-audit:child-ready\n");
 		report_audit_failure(
-			actual_inputs_clean,
+			actualInputsClean,
 			"linux-secret-service-audit:process-input-scan\n");
 		report_audit_failure(
 			released,
@@ -1434,16 +1434,16 @@ namespace {
 			waited,
 			"linux-secret-service-audit:child-timeout\n");
 		report_audit_failure(
-			child_exited,
+			childExited,
 			"linux-secret-service-audit:child-exit\n");
 		report_audit_failure(
-			child_succeeded,
+			childSucceeded,
 			"linux-secret-service-audit:child-lifecycle\n");
 		report_audit_failure(
-			stdout_is_exact,
+			stdoutIsExact,
 			"linux-secret-service-audit:stdout\n");
 		report_audit_failure(
-			stderr_is_empty,
+			stderrIsEmpty,
 			"linux-secret-service-audit:stderr\n");
 		for (const auto category : {
 				 std::string_view{
@@ -1494,64 +1494,64 @@ namespace {
 					 "linux-secret-service-retrieve:bytes\n" },
 			 }) {
 			report_audit_failure(
-				!file_contains_text(stderr_path, category),
+				!file_contains_text(stderrPath, category),
 				category);
 		}
 		report_audit_failure(
-			parent_cleanup,
+			parentCleanup,
 			"linux-secret-service-audit:parent-cleanup\n");
-		audit_ok = wrote && child_ready && actual_inputs_clean && released
-			&& child_succeeded && stdout_is_exact && stderr_is_empty
-			&& parent_cleanup && audit_ok;
+		auditOk = wrote && childReady && actualInputsClean && released
+			&& childSucceeded && stdoutIsExact && stderrIsEmpty
+			&& parentCleanup && auditOk;
 
-		std::error_code source_error;
-		const auto      source              = std::filesystem::canonical(__FILE__, source_error);
-		const auto      source_resolved     = !source_error;
-		const auto      executable_is_clean = probes_absent_from_file(executable, probes);
-		const auto      source_is_clean     = source_resolved && probes_absent_from_file(source, probes);
-		const auto      scratch_is_clean    = probes_absent_from_tree(directory->path(), probes);
+		std::error_code sourceError;
+		const auto      source            = std::filesystem::canonical(__FILE__, sourceError);
+		const auto      sourceResolved    = !sourceError;
+		const auto      executableIsClean = probes_absent_from_file(executable, probes);
+		const auto      sourceIsClean     = sourceResolved && probes_absent_from_file(source, probes);
+		const auto      scratchIsClean    = probes_absent_from_tree(directory->path(), probes);
 		report_audit_failure(
-			source_resolved,
+			sourceResolved,
 			"linux-secret-service-audit:source-resolution\n");
 		report_audit_failure(
-			executable_is_clean,
+			executableIsClean,
 			"linux-secret-service-audit:executable-scan\n");
 		report_audit_failure(
-			source_is_clean,
+			sourceIsClean,
 			"linux-secret-service-audit:source-scan\n");
 		report_audit_failure(
-			scratch_is_clean,
+			scratchIsClean,
 			"linux-secret-service-audit:scratch-scan\n");
-		audit_ok = source_resolved && executable_is_clean && source_is_clean
-			&& scratch_is_clean && audit_ok;
-		const auto directory_removed = directory->remove();
+		auditOk = sourceResolved && executableIsClean && sourceIsClean
+			&& scratchIsClean && auditOk;
+		const auto directoryRemoved = directory->remove();
 		report_audit_failure(
-			directory_removed,
+			directoryRemoved,
 			"linux-secret-service-audit:scratch-cleanup\n");
-		return directory_removed && audit_ok;
+		return directoryRemoved && auditOk;
 	}
 
-	[[nodiscard]] auto fixture_mode(const bool setup) -> int
+	[[nodiscard]] auto fixture_mode(const bool aSetup) -> int
 	{
-		const auto request_base     = setup ? 1'000U : 2'000U;
-		const auto passed           = ensure_native_item_absent(request_base);
-		const auto success_category = setup ? "linux-secret-service-setup:pass\n"
+		const auto requestBase     = aSetup ? 1'000U : 2'000U;
+		const auto passed          = ensure_native_item_absent(requestBase);
+		const auto successCategory = aSetup ? "linux-secret-service-setup:pass\n"
 											: "linux-secret-service-cleanup:pass\n";
-		const auto failure_category = setup ? "linux-secret-service-setup:fail\n"
+		const auto failureCategory = aSetup ? "linux-secret-service-setup:fail\n"
 											: "linux-secret-service-cleanup:fail\n";
 		static_cast<void>(
-			write_category(passed ? success_category : failure_category));
+			write_category(passed ? successCategory : failureCategory));
 		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
 	}
 
 	[[nodiscard]] auto expected_failure_mode(
-		const application::github_credential_vault_failure expected,
-		const std::string_view                             pass_category,
-		const std::string_view                             fail_category) -> int
+		const application::github_credential_vault_failure aExpected,
+		const std::string_view                             aPassCategory,
+		const std::string_view                             aFailCategory) -> int
 	{
-		const auto passed = run_expected_store_failure(expected, 4'000U);
+		const auto passed = run_expected_store_failure(aExpected, 4'000U);
 		static_cast<void>(
-			write_category(passed ? pass_category : fail_category));
+			write_category(passed ? aPassCategory : aFailCategory));
 		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
 	}
 }
@@ -1577,8 +1577,8 @@ auto main(const int argument_count, char* arguments[]) -> int
 	if (
 		argument_count == 2
 		&& std::string_view{ arguments[1] } == "--expect-unavailable") {
-		const auto no_explicit_session_bus = std::getenv("DBUS_SESSION_BUS_ADDRESS") == nullptr;
-		if (!no_explicit_session_bus) {
+		const auto noExplicitSessionBus = std::getenv("DBUS_SESSION_BUS_ADDRESS") == nullptr;
+		if (!noExplicitSessionBus) {
 			static_cast<void>(write_category(
 				"linux-secret-service-unavailable:fail\n"));
 			return EXIT_FAILURE;

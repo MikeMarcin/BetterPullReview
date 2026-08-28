@@ -66,12 +66,12 @@ namespace {
 				  decltype(&make_linux_secret_service_vault_with_backend),
 				  injected_factory_signature>);
 
-	[[nodiscard]] auto hex_encoded(const std::string_view input) -> std::string
+	[[nodiscard]] auto hex_encoded(const std::string_view aInput) -> std::string
 	{
 		constexpr std::string_view digits = "0123456789abcdef";
 		std::string                result;
-		result.reserve(input.size() * 2U);
-		for (const auto character : input) {
+		result.reserve(aInput.size() * 2U);
+		for (const auto character : aInput) {
 			const auto value = static_cast<unsigned char>(character);
 			result.push_back(digits[value >> 4U]);
 			result.push_back(digits[value & 0x0fU]);
@@ -89,13 +89,13 @@ namespace {
 	{
 	public:
 		wiping_buffer(
-			const std::span<const std::byte>  bytes,
-			std::shared_ptr<wipe_observation> observation)
-			: Bytes{ std::make_unique<std::byte[]>(bytes.size()) }
-			, Size{ bytes.size() }
-			, Observation{ std::move(observation) }
+			const std::span<const std::byte>  aBytes,
+			std::shared_ptr<wipe_observation> aObservation)
+			: Bytes{ std::make_unique<std::byte[]>(aBytes.size()) }
+			, Size{ aBytes.size() }
+			, Observation{ std::move(aObservation) }
 		{
-			std::ranges::copy(bytes, Bytes.get());
+			std::ranges::copy(aBytes, Bytes.get());
 		}
 
 		~wiping_buffer() noexcept
@@ -106,20 +106,20 @@ namespace {
 		wiping_buffer(const wiping_buffer&)                    = delete;
 		auto operator=(const wiping_buffer&) -> wiping_buffer& = delete;
 
-		wiping_buffer(wiping_buffer&& other) noexcept
-			: Bytes{ std::move(other.Bytes) }
-			, Size{ std::exchange(other.Size, 0U) }
-			, Observation{ std::move(other.Observation) }
+		wiping_buffer(wiping_buffer&& aOther) noexcept
+			: Bytes{ std::move(aOther.Bytes) }
+			, Size{ std::exchange(aOther.Size, 0U) }
+			, Observation{ std::move(aOther.Observation) }
 		{
 		}
 
-		auto operator=(wiping_buffer&& other) noexcept -> wiping_buffer&
+		auto operator=(wiping_buffer&& aOther) noexcept -> wiping_buffer&
 		{
-			if (this != &other) {
+			if (this != &aOther) {
 				reset();
-				Bytes       = std::move(other.Bytes);
-				Size        = std::exchange(other.Size, 0U);
-				Observation = std::move(other.Observation);
+				Bytes       = std::move(aOther.Bytes);
+				Size        = std::exchange(aOther.Size, 0U);
+				Observation = std::move(aOther.Observation);
 			}
 			return *this;
 		}
@@ -179,19 +179,19 @@ namespace {
 	{
 	public:
 		explicit wiping_fake_backend(
-			std::shared_ptr<wipe_observation> observation)
-			: Observation{ std::move(observation) }
+			std::shared_ptr<wipe_observation> aObservation)
+			: Observation{ std::move(aObservation) }
 		{
 		}
 
 		[[nodiscard]] auto store(
-			const authority_key&       authority_value,
-			const credential_material& credential)
+			const authority_key&       aAuthorityValue,
+			const credential_material& aCredential)
 			-> linux_secret_service_backend_store_result override
 		{
 			Calls.push_back({
 				.Operation = backend_operation::store,
-				.Authority = authority_value,
+				.Authority = aAuthorityValue,
 			});
 			run_hook(StoreHook);
 			throw_if_requested(NextStoreException);
@@ -207,18 +207,18 @@ namespace {
 			}
 
 			Stored.insert_or_assign(
-				authority_value,
-				wiping_buffer{ credential.bytes(), Observation });
+				aAuthorityValue,
+				wiping_buffer{ aCredential.bytes(), Observation });
 			return application::github_credential_store_disposition::stored;
 		}
 
 		[[nodiscard]] auto retrieve(
-			const authority_key& authority_value)
+			const authority_key& aAuthorityValue)
 			-> linux_secret_service_backend_retrieve_result override
 		{
 			Calls.push_back({
 				.Operation = backend_operation::retrieve,
-				.Authority = authority_value,
+				.Authority = aAuthorityValue,
 			});
 			run_hook(RetrieveHook);
 			throw_if_requested(NextRetrieveException);
@@ -232,7 +232,7 @@ namespace {
 				return vault_failure::none;
 			}
 
-			const auto found = Stored.find(authority_value);
+			const auto found = Stored.find(aAuthorityValue);
 			if (found == Stored.end()) {
 				return linux_secret_service_credential_absent{ };
 			}
@@ -244,12 +244,12 @@ namespace {
 		}
 
 		[[nodiscard]] auto delete_credential(
-			const authority_key& authority_value)
+			const authority_key& aAuthorityValue)
 			-> linux_secret_service_backend_delete_result override
 		{
 			Calls.push_back({
 				.Operation = backend_operation::delete_credential,
-				.Authority = authority_value,
+				.Authority = aAuthorityValue,
 			});
 			run_hook(DeleteHook);
 			throw_if_requested(NextDeleteException);
@@ -264,25 +264,25 @@ namespace {
 					uninitialized;
 			}
 
-			const auto removed = Stored.erase(authority_value);
+			const auto removed = Stored.erase(aAuthorityValue);
 			return removed == 0U
 				? application::github_credential_delete_disposition::absent
 				: application::github_credential_delete_disposition::deleted;
 		}
 
 		[[nodiscard]] auto contains(
-			const authority_key& authority_value) const -> bool
+			const authority_key& aAuthorityValue) const -> bool
 		{
-			return Stored.contains(authority_value);
+			return Stored.contains(aAuthorityValue);
 		}
 
 		[[nodiscard]] auto matches(
-			const authority_key&             authority_value,
-			const std::span<const std::byte> expected) const -> bool
+			const authority_key&             aAuthorityValue,
+			const std::span<const std::byte> aExpected) const -> bool
 		{
-			const auto found = Stored.find(authority_value);
+			const auto found = Stored.find(aAuthorityValue);
 			return found != Stored.end()
-				&& same_bytes(found->second.bytes(), expected);
+				&& same_bytes(found->second.bytes(), aExpected);
 		}
 
 		std::vector<backend_call>    Calls;
@@ -300,17 +300,17 @@ namespace {
 		std::function<void()>        DeleteHook;
 
 	private:
-		static void run_hook(std::function<void()>& hook)
+		static void run_hook(std::function<void()>& aHook)
 		{
-			auto one_shot = std::exchange(hook, { });
-			if (one_shot) {
-				one_shot();
+			auto oneShot = std::exchange(aHook, { });
+			if (oneShot) {
+				oneShot();
 			}
 		}
 
-		static void throw_if_requested(injected_exception& requested)
+		static void throw_if_requested(injected_exception& aRequested)
 		{
-			const auto exception = std::exchange(requested, injected_exception::none);
+			const auto exception = std::exchange(aRequested, injected_exception::none);
 			switch (exception) {
 			case injected_exception::none:
 				return;
@@ -329,12 +329,12 @@ namespace {
 	{
 	public:
 		explicit throwing_effect_executor(
-			const injected_exception exception) noexcept
-			: Exception{ exception }
+			const injected_exception aException) noexcept
+			: Exception{ aException }
 		{
 		}
 
-		void post(std::function<void()> task) override
+		void post(std::function<void()> aTask) override
 		{
 			switch (Exception) {
 			case injected_exception::allocation:
@@ -342,7 +342,7 @@ namespace {
 			case injected_exception::other:
 				throw std::runtime_error{ "categorical executor failure" };
 			case injected_exception::none:
-				task();
+				aTask();
 				return;
 			}
 		}
@@ -357,10 +357,10 @@ namespace {
 		std::size_t               Calls = 0U;
 		std::optional<Completion> Terminal;
 
-		void record(Completion completion)
+		void record(Completion aCompletion)
 		{
 			++Calls;
-			Terminal.emplace(std::move(completion));
+			Terminal.emplace(std::move(aCompletion));
 		}
 	};
 
@@ -369,11 +369,11 @@ namespace {
 	using delete_recorder   = terminal_recorder<application::github_credential_delete_completion>;
 
 	[[nodiscard]] auto generated_bytes(
-		const std::uint8_t seed,
-		const std::size_t  size = 41U) -> std::vector<std::byte>
+		const std::uint8_t aSeed,
+		const std::size_t  aSize = 41U) -> std::vector<std::byte>
 	{
-		auto bytes = std::vector<std::byte>(size);
-		auto value = seed;
+		auto bytes = std::vector<std::byte>(aSize);
+		auto value = aSeed;
 		for (auto& byte : bytes) {
 			value = static_cast<std::uint8_t>(
 				static_cast<std::uint16_t>(value) * 37U + 19U);
@@ -383,233 +383,233 @@ namespace {
 	}
 
 	[[nodiscard]] auto make_test_vault(
-		application::manual_executor&               lane,
-		const std::shared_ptr<wiping_fake_backend>& backend)
+		application::manual_executor&               aLane,
+		const std::shared_ptr<wiping_fake_backend>& aBackend)
 		-> std::unique_ptr<application::github_credential_vault_port>
 	{
-		auto result = make_linux_secret_service_vault_with_backend(lane, backend);
+		auto result = make_linux_secret_service_vault_with_backend(aLane, aBackend);
 		expect(result.has_value(), "injected Secret Service vault is created");
 		return std::move(*result);
 	}
 
 	void submit_store(
-		application::github_credential_vault_port& vault,
-		const operation_context&                   operation,
-		const std::span<const std::byte>           bytes,
-		store_recorder&                            recorder)
+		application::github_credential_vault_port& aVault,
+		const operation_context&                   aOperation,
+		const std::span<const std::byte>           aBytes,
+		store_recorder&                            aRecorder)
 	{
-		vault.store(
+		aVault.store(
 			application::github_credential_enrollment{
-				.Context    = operation,
-				.Credential = material_from(bytes),
+				.Context    = aOperation,
+				.Credential = material_from(aBytes),
 			},
-			[&recorder](
-				application::github_credential_store_completion terminal) {
-				recorder.record(std::move(terminal));
+			[&aRecorder](
+				application::github_credential_store_completion aTerminal) {
+				aRecorder.record(std::move(aTerminal));
 			});
 	}
 
 	void submit_retrieve(
-		application::github_credential_vault_port& vault,
-		const operation_context&                   operation,
-		retrieve_recorder&                         recorder)
+		application::github_credential_vault_port& aVault,
+		const operation_context&                   aOperation,
+		retrieve_recorder&                         aRecorder)
 	{
-		vault.retrieve(
-			operation,
-			[&recorder](
-				application::github_credential_retrieve_completion terminal) {
-				recorder.record(std::move(terminal));
+		aVault.retrieve(
+			aOperation,
+			[&aRecorder](
+				application::github_credential_retrieve_completion aTerminal) {
+				aRecorder.record(std::move(aTerminal));
 			});
 	}
 
 	void submit_delete(
-		application::github_credential_vault_port& vault,
-		const operation_context&                   operation,
-		delete_recorder&                           recorder)
+		application::github_credential_vault_port& aVault,
+		const operation_context&                   aOperation,
+		delete_recorder&                           aRecorder)
 	{
-		vault.delete_credential(
-			operation,
-			[&recorder](
-				application::github_credential_delete_completion terminal) {
-				recorder.record(std::move(terminal));
+		aVault.delete_credential(
+			aOperation,
+			[&aRecorder](
+				application::github_credential_delete_completion aTerminal) {
+				aRecorder.record(std::move(aTerminal));
 			});
 	}
 
 	template <typename Terminal, typename Completion>
-	[[nodiscard]] auto terminal_as(const std::optional<Completion>& completion)
+	[[nodiscard]] auto terminal_as(const std::optional<Completion>& aCompletion)
 		-> const Terminal*
 	{
-		return completion.has_value()
-			? std::get_if<Terminal>(&*completion)
+		return aCompletion.has_value()
+			? std::get_if<Terminal>(&*aCompletion)
 			: nullptr;
 	}
 
 	void expect_store_success(
-		const store_recorder&    recorder,
-		const operation_context& operation)
+		const store_recorder&    aRecorder,
+		const operation_context& aOperation)
 	{
 		const auto* success = terminal_as<
-			application::github_credential_store_success>(recorder.Terminal);
+			application::github_credential_store_success>(aRecorder.Terminal);
 		expect(
-			recorder.Calls == 1U && success != nullptr
-				&& success->Context == operation
+			aRecorder.Calls == 1U && success != nullptr
+				&& success->Context == aOperation
 				&& success->Disposition
 					== application::github_credential_store_disposition::stored,
 			"store completes once with exact successful context");
 	}
 
 	void expect_store_error(
-		const store_recorder&    recorder,
-		const operation_context& operation,
-		const vault_failure      failure)
+		const store_recorder&    aRecorder,
+		const operation_context& aOperation,
+		const vault_failure      aFailure)
 	{
 		const auto* error = terminal_as<
-			application::github_credential_store_error>(recorder.Terminal);
+			application::github_credential_store_error>(aRecorder.Terminal);
 		expect(
-			recorder.Calls == 1U && error != nullptr
-				&& error->Context == operation && error->Failure == failure,
+			aRecorder.Calls == 1U && error != nullptr
+				&& error->Context == aOperation && error->Failure == aFailure,
 			"store completes once with exact typed failure");
 	}
 
 	void expect_store_cancelled(
-		const store_recorder&    recorder,
-		const operation_context& operation)
+		const store_recorder&    aRecorder,
+		const operation_context& aOperation)
 	{
 		const auto* cancelled = terminal_as<
 			application::github_credential_store_cancelled>(
-			recorder.Terminal);
+			aRecorder.Terminal);
 		expect(
-			recorder.Calls == 1U && cancelled != nullptr
-				&& cancelled->Context == operation,
+			aRecorder.Calls == 1U && cancelled != nullptr
+				&& cancelled->Context == aOperation,
 			"store completes once with exact cancellation");
 	}
 
 	void expect_retrieve_success(
-		const retrieve_recorder&         recorder,
-		const operation_context&         operation,
-		const std::span<const std::byte> bytes)
+		const retrieve_recorder&         aRecorder,
+		const operation_context&         aOperation,
+		const std::span<const std::byte> aBytes)
 	{
 		const auto* success = terminal_as<
 			application::github_credential_retrieve_success>(
-			recorder.Terminal);
+			aRecorder.Terminal);
 		expect(
-			recorder.Calls == 1U && success != nullptr
-				&& success->Context == operation
-				&& same_bytes(success->Credential.bytes(), bytes),
+			aRecorder.Calls == 1U && success != nullptr
+				&& success->Context == aOperation
+				&& same_bytes(success->Credential.bytes(), aBytes),
 			"retrieve completes once with exact credential and context");
 	}
 
 	void expect_retrieve_absent(
-		const retrieve_recorder& recorder,
-		const operation_context& operation)
+		const retrieve_recorder& aRecorder,
+		const operation_context& aOperation)
 	{
 		const auto* absent = terminal_as<
 			application::github_credential_retrieve_absent>(
-			recorder.Terminal);
+			aRecorder.Terminal);
 		expect(
-			recorder.Calls == 1U && absent != nullptr
-				&& absent->Context == operation,
+			aRecorder.Calls == 1U && absent != nullptr
+				&& absent->Context == aOperation,
 			"retrieve completes once with exact absence");
 	}
 
 	void expect_retrieve_error(
-		const retrieve_recorder& recorder,
-		const operation_context& operation,
-		const vault_failure      failure)
+		const retrieve_recorder& aRecorder,
+		const operation_context& aOperation,
+		const vault_failure      aFailure)
 	{
 		const auto* error = terminal_as<
 			application::github_credential_retrieve_error>(
-			recorder.Terminal);
+			aRecorder.Terminal);
 		expect(
-			recorder.Calls == 1U && error != nullptr
-				&& error->Context == operation && error->Failure == failure,
+			aRecorder.Calls == 1U && error != nullptr
+				&& error->Context == aOperation && error->Failure == aFailure,
 			"retrieve completes once with exact typed failure");
 	}
 
 	void expect_retrieve_cancelled(
-		const retrieve_recorder& recorder,
-		const operation_context& operation)
+		const retrieve_recorder& aRecorder,
+		const operation_context& aOperation)
 	{
 		const auto* cancelled = terminal_as<
 			application::github_credential_retrieve_cancelled>(
-			recorder.Terminal);
+			aRecorder.Terminal);
 		expect(
-			recorder.Calls == 1U && cancelled != nullptr
-				&& cancelled->Context == operation,
+			aRecorder.Calls == 1U && cancelled != nullptr
+				&& cancelled->Context == aOperation,
 			"retrieve completes once with exact cancellation");
 	}
 
 	void expect_delete_success(
-		const delete_recorder&                                  recorder,
-		const operation_context&                                operation,
-		const application::github_credential_delete_disposition disposition)
+		const delete_recorder&                                  aRecorder,
+		const operation_context&                                aOperation,
+		const application::github_credential_delete_disposition aDisposition)
 	{
 		const auto* success = terminal_as<
 			application::github_credential_delete_success>(
-			recorder.Terminal);
+			aRecorder.Terminal);
 		expect(
-			recorder.Calls == 1U && success != nullptr
-				&& success->Context == operation
-				&& success->Disposition == disposition,
+			aRecorder.Calls == 1U && success != nullptr
+				&& success->Context == aOperation
+				&& success->Disposition == aDisposition,
 			"delete completes once with exact disposition and context");
 	}
 
 	void expect_delete_error(
-		const delete_recorder&   recorder,
-		const operation_context& operation,
-		const vault_failure      failure)
+		const delete_recorder&   aRecorder,
+		const operation_context& aOperation,
+		const vault_failure      aFailure)
 	{
 		const auto* error = terminal_as<
 			application::github_credential_delete_error>(
-			recorder.Terminal);
+			aRecorder.Terminal);
 		expect(
-			recorder.Calls == 1U && error != nullptr
-				&& error->Context == operation && error->Failure == failure,
+			aRecorder.Calls == 1U && error != nullptr
+				&& error->Context == aOperation && error->Failure == aFailure,
 			"delete completes once with exact typed failure");
 	}
 
 	void expect_delete_cancelled(
-		const delete_recorder&   recorder,
-		const operation_context& operation)
+		const delete_recorder&   aRecorder,
+		const operation_context& aOperation)
 	{
 		const auto* cancelled = terminal_as<
 			application::github_credential_delete_cancelled>(
-			recorder.Terminal);
+			aRecorder.Terminal);
 		expect(
-			recorder.Calls == 1U && cancelled != nullptr
-				&& cancelled->Context == operation,
+			aRecorder.Calls == 1U && cancelled != nullptr
+				&& cancelled->Context == aOperation,
 			"delete completes once with exact cancellation");
 	}
 
 	template <typename StatusCode>
 	void expect_status(
-		const linux_secret_service_status_domain domain,
-		const StatusCode                         code,
-		const vault_failure                      failure)
+		const linux_secret_service_status_domain aDomain,
+		const StatusCode                         aCode,
+		const vault_failure                      aFailure)
 	{
 		expect(
 			classify_linux_secret_service_status({
-				.Domain = domain,
-				.Code   = static_cast<std::int32_t>(code),
-			}) == failure,
+				.Domain = aDomain,
+				.Code   = static_cast<std::int32_t>(aCode),
+			}) == aFailure,
 			"Secret Service status has the exact bounded classification");
 	}
 
 	void test_schema_and_authority_encoding()
 	{
-		constexpr std::string_view production_schema  = "org.betterpullreview.github-native-credential."
-														"secret-service.v2";
-		constexpr std::string_view integration_schema = "org.betterpullreview.github-native-credential."
-														"secret-service.integration-test.v2";
+		constexpr std::string_view productionSchema  = "org.betterpullreview.github-native-credential."
+													   "secret-service.v2";
+		constexpr std::string_view integrationSchema = "org.betterpullreview.github-native-credential."
+													   "secret-service.integration-test.v2";
 		expect(
 			linux_secret_service_schema_identifier(
 				linux_secret_service_schema_scope::production)
-				== production_schema,
+				== productionSchema,
 			"production Secret Service schema is exact and stable");
 		expect(
 			linux_secret_service_schema_identifier(
 				linux_secret_service_schema_scope::integration_test)
-				== integration_schema,
+				== integrationSchema,
 			"integration schema is isolated from production");
 		expect(
 			linux_secret_service_schema_identifier(
@@ -621,46 +621,46 @@ namespace {
 		const auto encoded = encode_linux_secret_service_authority_account(base);
 		expect(encoded.has_value(), "valid authority encodes");
 		expect(
-			std::ranges::all_of(*encoded, [](const char character) {
-				return (character >= '0' && character <= '9')
-					|| (character >= 'a' && character <= 'f');
+			std::ranges::all_of(*encoded, [](const char aCharacter) {
+				return (aCharacter >= '0' && aCharacter <= '9')
+					|| (aCharacter >= 'a' && aCharacter <= 'f');
 			}),
 			"authority attribute is fixed-width lowercase hexadecimal");
-		const auto encoded_view = std::string_view{ encoded->data(), encoded->size() };
+		const auto encodedView = std::string_view{ encoded->data(), encoded->size() };
 		expect(
-			encoded_view.substr(0U, 66U)
+			encodedView.substr(0U, 66U)
 					== "000000000000000100000000000000020000000000000003"
 					   "000000000000000401"
-				&& encoded_view.substr(66U, 2U) == "0a"
-				&& encoded_view.substr(68U, 20U)
+				&& encodedView.substr(66U, 2U) == "0a"
+				&& encodedView.substr(68U, 20U)
 					== "6769746875622e636f6d"
 				&& std::ranges::all_of(
-					encoded_view.substr(88U),
-					[](const char character) { return character == '0'; }),
+					encodedView.substr(88U),
+					[](const char aCharacter) { return aCharacter == '0'; }),
 			"GitHub.com authority has the exact stable v2 encoding");
 
-		const auto enterprise      = encode_linux_secret_service_authority_account(authority(
+		const auto enterprise     = encode_linux_secret_service_authority_account(authority(
 			1U,
 			2U,
 			3U,
 			4U,
 			application::github_server_contract::
 				ghes_3_18_2022_11_28));
-		const auto enterprise_view = enterprise.has_value()
+		const auto enterpriseView = enterprise.has_value()
 			? std::string_view{ enterprise->data(), enterprise->size() }
 			: std::string_view{ };
 		expect(
-			enterprise_view.substr(0U, 66U)
+			enterpriseView.substr(0U, 66U)
 					== "000000000000000100000000000000020000000000000003"
 					   "000000000000000402"
-				&& enterprise_view.substr(66U, 2U) == "13"
-				&& enterprise_view.substr(68U, 38U)
+				&& enterpriseView.substr(66U, 2U) == "13"
+				&& enterpriseView.substr(68U, 38U)
 					== "6768652e6578616d706c652e696e76616c6964"
 				&& std::ranges::all_of(
-					enterprise_view.substr(106U),
-					[](const char character) { return character == '0'; }),
+					enterpriseView.substr(106U),
+					[](const char aCharacter) { return aCharacter == '0'; }),
 			"GHES authority has the exact stable v2 encoding");
-		const auto other_enterprise = encode_linux_secret_service_authority_account(authority(
+		const auto otherEnterprise = encode_linux_secret_service_authority_account(authority(
 			1U,
 			2U,
 			3U,
@@ -669,31 +669,31 @@ namespace {
 				ghes_3_18_2022_11_28,
 			"ghe.other.invalid"));
 		expect(
-			other_enterprise.has_value()
-				&& *other_enterprise != *enterprise,
+			otherEnterprise.has_value()
+				&& *otherEnterprise != *enterprise,
 			"canonical hostname is an injective attribute-key dimension");
-		const auto maximum_hostname = std::string(63U, 'a') + "." + std::string(63U, 'b') + "."
+		const auto maximumHostname = std::string(63U, 'a') + "." + std::string(63U, 'b') + "."
 			+ std::string(63U, 'c') + "." + std::string(61U, 'd');
-		const auto maximum_encoding = encode_linux_secret_service_authority_account(authority(
+		const auto maximumEncoding = encode_linux_secret_service_authority_account(authority(
 			1U,
 			2U,
 			3U,
 			4U,
 			application::github_server_contract::
 				ghes_3_18_2022_11_28,
-			maximum_hostname));
-		const auto maximum_view     = maximum_encoding.has_value()
+			maximumHostname));
+		const auto maximumView     = maximumEncoding.has_value()
 			? std::string_view{
-				  maximum_encoding->data(), maximum_encoding->size()
+				  maximumEncoding->data(), maximumEncoding->size()
 			  }
 			: std::string_view{ };
 		expect(
-			maximum_hostname.size()
+			maximumHostname.size()
 					== application::maximum_github_hostname_bytes
-				&& maximum_view.size()
+				&& maximumView.size()
 					== linux_secret_service_authority_account_bytes
-				&& maximum_view.substr(66U, 2U) == "fd"
-				&& maximum_view.substr(68U) == hex_encoded(maximum_hostname),
+				&& maximumView.substr(66U, 2U) == "fd"
+				&& maximumView.substr(68U) == hex_encoded(maximumHostname),
 			"maximum hostname is encoded losslessly without truncation");
 
 		const std::array variants{
@@ -867,68 +867,68 @@ namespace {
 
 		auto malformed    = context();
 		malformed.Request = { };
-		store_recorder invalid_store;
-		submit_store(*vault, malformed, bytes, invalid_store);
+		store_recorder invalidStore;
+		submit_store(*vault, malformed, bytes, invalidStore);
 		expect_store_error(
-			invalid_store,
+			invalidStore,
 			malformed,
 			vault_failure::invalid_request);
 
 		malformed                    = context();
 		malformed.ApplicationSession = { };
-		retrieve_recorder invalid_retrieve;
-		submit_retrieve(*vault, malformed, invalid_retrieve);
+		retrieve_recorder invalidRetrieve;
+		submit_retrieve(*vault, malformed, invalidRetrieve);
 		expect_retrieve_error(
-			invalid_retrieve,
+			invalidRetrieve,
 			malformed,
 			vault_failure::invalid_request);
 
 		malformed                    = context();
 		malformed.IdentityGeneration = { };
-		delete_recorder invalid_delete;
-		submit_delete(*vault, malformed, invalid_delete);
+		delete_recorder invalidDelete;
+		submit_delete(*vault, malformed, invalidDelete);
 		expect_delete_error(
-			invalid_delete,
+			invalidDelete,
 			malformed,
 			vault_failure::invalid_request);
 
 		malformed                   = context();
 		malformed.Authority.Account = { };
-		retrieve_recorder invalid_authority;
-		submit_retrieve(*vault, malformed, invalid_authority);
+		retrieve_recorder invalidAuthority;
+		submit_retrieve(*vault, malformed, invalidAuthority);
 		expect_retrieve_error(
-			invalid_authority,
+			invalidAuthority,
 			malformed,
 			vault_failure::invalid_request);
 		expect(
 			lane.pending() == 0U && backend->Calls.empty(),
 			"invalid work never reaches the effect lane or backend");
 
-		auto null_factory = make_linux_secret_service_vault_with_backend(lane, { });
+		auto nullFactory = make_linux_secret_service_vault_with_backend(lane, { });
 		expect(
-			!null_factory.has_value()
-				&& null_factory.error() == vault_failure::invalid_request,
+			!nullFactory.has_value()
+				&& nullFactory.error() == vault_failure::invalid_request,
 			"null backend fails closed");
 
-		const auto     duplicate_context = context(authority(), 100U);
+		const auto     duplicateContext = context(authority(), 100U);
 		store_recorder first;
 		store_recorder duplicate;
-		submit_store(*vault, duplicate_context, bytes, first);
-		submit_store(*vault, duplicate_context, bytes, duplicate);
+		submit_store(*vault, duplicateContext, bytes, first);
+		submit_store(*vault, duplicateContext, bytes, duplicate);
 		expect_store_error(
 			duplicate,
-			duplicate_context,
+			duplicateContext,
 			vault_failure::invalid_request);
 
-		retrieve_recorder cross_kind;
-		submit_retrieve(*vault, duplicate_context, cross_kind);
+		retrieve_recorder crossKind;
+		submit_retrieve(*vault, duplicateContext, crossKind);
 		expect_retrieve_error(
-			cross_kind,
-			duplicate_context,
+			crossKind,
+			duplicateContext,
 			vault_failure::invalid_request);
 		expect(lane.pending() == 1U, "duplicate correlation queues once");
 		lane.run_next();
-		expect_store_success(first, duplicate_context);
+		expect_store_success(first, duplicateContext);
 	}
 
 	void test_replacement_absence_delete_and_reordering()
@@ -943,34 +943,34 @@ namespace {
 			application::maximum_github_credential_bytes);
 		const auto key = authority();
 
-		store_recorder first_store;
-		store_recorder maximum_store;
-		submit_store(*vault, context(key, 200U), first, first_store);
+		store_recorder firstStore;
+		store_recorder maximumStore;
+		submit_store(*vault, context(key, 200U), first, firstStore);
 		submit_store(
 			*vault,
 			context(key, 201U),
 			maximum,
-			maximum_store);
+			maximumStore);
 		expect(lane.pending() == 2U, "independent contexts can queue");
 		lane.run(1U);
-		expect_store_success(maximum_store, context(key, 201U));
+		expect_store_success(maximumStore, context(key, 201U));
 		expect(
 			backend->matches(key, maximum),
 			"reordered maximum-size store reaches the backend first");
 
-		retrieve_recorder maximum_retrieve;
+		retrieve_recorder maximumRetrieve;
 		submit_retrieve(
 			*vault,
 			context(key, 202U),
-			maximum_retrieve);
+			maximumRetrieve);
 		lane.run(1U);
 		expect_retrieve_success(
-			maximum_retrieve,
+			maximumRetrieve,
 			context(key, 202U),
 			maximum);
 
 		lane.run(0U);
-		expect_store_success(first_store, context(key, 200U));
+		expect_store_success(firstStore, context(key, 200U));
 		expect(
 			backend->matches(key, first),
 			"executor order determines the atomic replacement result");
@@ -984,7 +984,7 @@ namespace {
 		lane.run_next();
 		expect_retrieve_success(retrieved, context(key, 203U), first);
 
-		const std::array isolated_authorities{
+		const std::array isolatedAuthorities{
 			authority(9U, 2U, 3U, 4U),
 			authority(1U, 9U, 3U, 4U),
 			authority(1U, 2U, 9U, 4U),
@@ -998,12 +998,12 @@ namespace {
 					ghes_3_18_2022_11_28),
 		};
 		auto request = std::uint64_t{ 210U };
-		for (const auto& isolated : isolated_authorities) {
-			const auto        isolated_context = context(isolated, request++);
+		for (const auto& isolated : isolatedAuthorities) {
+			const auto        isolatedContext = context(isolated, request++);
 			retrieve_recorder absent;
-			submit_retrieve(*vault, isolated_context, absent);
+			submit_retrieve(*vault, isolatedContext, absent);
 			lane.run_next();
-			expect_retrieve_absent(absent, isolated_context);
+			expect_retrieve_absent(absent, isolatedContext);
 		}
 
 		delete_recorder deleted;
@@ -1020,11 +1020,11 @@ namespace {
 		lane.run_next();
 		expect_retrieve_absent(absent, context(key, 205U));
 
-		delete_recorder delete_absent;
-		submit_delete(*vault, context(key, 206U), delete_absent);
+		delete_recorder deleteAbsent;
+		submit_delete(*vault, context(key, 206U), deleteAbsent);
 		lane.run_next();
 		expect_delete_success(
-			delete_absent,
+			deleteAbsent,
 			context(key, 206U),
 			application::github_credential_delete_disposition::absent);
 	}
@@ -1054,61 +1054,61 @@ namespace {
 		};
 		auto request = std::uint64_t{ 301U };
 		for (const auto failure : failures) {
-			const auto store_context  = context(key, request++);
+			const auto storeContext   = context(key, request++);
 			backend->NextStoreFailure = failure;
 			store_recorder store;
-			submit_store(*vault, store_context, replacement, store);
+			submit_store(*vault, storeContext, replacement, store);
 			lane.run_next();
-			expect_store_error(store, store_context, failure);
+			expect_store_error(store, storeContext, failure);
 			expect(
 				backend->matches(key, original),
 				"failed replacement preserves existing material");
 
-			const auto retrieve_context  = context(key, request++);
+			const auto retrieveContext   = context(key, request++);
 			backend->NextRetrieveFailure = failure;
 			retrieve_recorder retrieve;
-			submit_retrieve(*vault, retrieve_context, retrieve);
+			submit_retrieve(*vault, retrieveContext, retrieve);
 			lane.run_next();
-			expect_retrieve_error(retrieve, retrieve_context, failure);
+			expect_retrieve_error(retrieve, retrieveContext, failure);
 
-			const auto delete_context  = context(key, request++);
+			const auto deleteContext   = context(key, request++);
 			backend->NextDeleteFailure = failure;
 			delete_recorder deleted;
-			submit_delete(*vault, delete_context, deleted);
+			submit_delete(*vault, deleteContext, deleted);
 			lane.run_next();
-			expect_delete_error(deleted, delete_context, failure);
+			expect_delete_error(deleted, deleteContext, failure);
 			expect(
 				backend->matches(key, original),
 				"failed delete preserves existing material");
 		}
 
 		backend->MalformedStoreResult = true;
-		store_recorder bad_store;
-		submit_store(*vault, context(key, request++), replacement, bad_store);
+		store_recorder badStore;
+		submit_store(*vault, context(key, request++), replacement, badStore);
 		lane.run_next();
 		expect_store_error(
-			bad_store,
+			badStore,
 			context(key, request - 1U),
 			vault_failure::operation_failed);
 
 		backend->MalformedRetrieveResult = true;
-		retrieve_recorder bad_retrieve;
+		retrieve_recorder badRetrieve;
 		submit_retrieve(
 			*vault,
 			context(key, request++),
-			bad_retrieve);
+			badRetrieve);
 		lane.run_next();
 		expect_retrieve_error(
-			bad_retrieve,
+			badRetrieve,
 			context(key, request - 1U),
 			vault_failure::operation_failed);
 
 		backend->MalformedDeleteResult = true;
-		delete_recorder bad_delete;
-		submit_delete(*vault, context(key, request), bad_delete);
+		delete_recorder badDelete;
+		submit_delete(*vault, context(key, request), badDelete);
 		lane.run_next();
 		expect_delete_error(
-			bad_delete,
+			badDelete,
 			context(key, request),
 			vault_failure::operation_failed);
 		expect(
@@ -1147,31 +1147,31 @@ namespace {
 		};
 		auto request = std::uint64_t{ 351U };
 		for (const auto expected : cases) {
-			const auto store_context    = context(key, request++);
+			const auto storeContext     = context(key, request++);
 			backend->NextStoreException = expected.Exception;
 			store_recorder store;
-			submit_store(*vault, store_context, replacement, store);
+			submit_store(*vault, storeContext, replacement, store);
 			lane.run_next();
-			expect_store_error(store, store_context, expected.Failure);
+			expect_store_error(store, storeContext, expected.Failure);
 
-			const auto retrieve_context    = context(key, request++);
+			const auto retrieveContext     = context(key, request++);
 			backend->NextRetrieveException = expected.Exception;
 			retrieve_recorder retrieve;
-			submit_retrieve(*vault, retrieve_context, retrieve);
+			submit_retrieve(*vault, retrieveContext, retrieve);
 			lane.run_next();
 			expect_retrieve_error(
 				retrieve,
-				retrieve_context,
+				retrieveContext,
 				expected.Failure);
 
-			const auto delete_context    = context(key, request++);
+			const auto deleteContext     = context(key, request++);
 			backend->NextDeleteException = expected.Exception;
 			delete_recorder deleted;
-			submit_delete(*vault, delete_context, deleted);
+			submit_delete(*vault, deleteContext, deleted);
 			lane.run_next();
 			expect_delete_error(
 				deleted,
-				delete_context,
+				deleteContext,
 				expected.Failure);
 			expect(
 				backend->matches(key, original),
@@ -1181,36 +1181,36 @@ namespace {
 		request = 380U;
 		for (const auto expected : cases) {
 			throwing_effect_executor executor{ expected.Exception };
-			auto                     post_observation = std::make_shared<wipe_observation>();
-			auto                     post_backend     = std::make_shared<wiping_fake_backend>(post_observation);
-			auto                     result           = make_linux_secret_service_vault_with_backend(
+			auto                     postObservation = std::make_shared<wipe_observation>();
+			auto                     postBackend     = std::make_shared<wiping_fake_backend>(postObservation);
+			auto                     result          = make_linux_secret_service_vault_with_backend(
 				executor,
-				post_backend);
+				postBackend);
 			expect(result.has_value(), "throwing executor vault is created");
-			auto post_vault = std::move(*result);
+			auto postVault = std::move(*result);
 
-			const auto     store_context = context(key, request++);
+			const auto     storeContext = context(key, request++);
 			store_recorder store;
-			submit_store(*post_vault, store_context, replacement, store);
-			expect_store_error(store, store_context, expected.Failure);
+			submit_store(*postVault, storeContext, replacement, store);
+			expect_store_error(store, storeContext, expected.Failure);
 
-			const auto        retrieve_context = context(key, request++);
+			const auto        retrieveContext = context(key, request++);
 			retrieve_recorder retrieve;
-			submit_retrieve(*post_vault, retrieve_context, retrieve);
+			submit_retrieve(*postVault, retrieveContext, retrieve);
 			expect_retrieve_error(
 				retrieve,
-				retrieve_context,
+				retrieveContext,
 				expected.Failure);
 
-			const auto      delete_context = context(key, request++);
+			const auto      deleteContext = context(key, request++);
 			delete_recorder deleted;
-			submit_delete(*post_vault, delete_context, deleted);
+			submit_delete(*postVault, deleteContext, deleted);
 			expect_delete_error(
 				deleted,
-				delete_context,
+				deleteContext,
 				expected.Failure);
 			expect(
-				post_backend->Calls.empty(),
+				postBackend->Calls.empty(),
 				"executor post failure never reaches the backend");
 		}
 	}
@@ -1224,149 +1224,149 @@ namespace {
 		const auto                   bytes       = generated_bytes(17U);
 		const auto                   key         = authority();
 
-		const auto     queued_context = context(key, 400U);
+		const auto     queuedContext = context(key, 400U);
 		store_recorder queued;
-		submit_store(*vault, queued_context, bytes, queued);
-		vault->cancel(queued_context);
-		expect_store_cancelled(queued, queued_context);
+		submit_store(*vault, queuedContext, bytes, queued);
+		vault->cancel(queuedContext);
+		expect_store_cancelled(queued, queuedContext);
 		lane.run_next();
 		expect(
 			queued.Calls == 1U && backend->Calls.empty(),
 			"cancelled queued work has no effect or late completion");
 
-		const auto     running_context = context(key, 401U);
+		const auto     runningContext = context(key, 401U);
 		store_recorder running;
-		backend->StoreHook = [&vault, running_context] {
-			vault->cancel(running_context);
+		backend->StoreHook = [&vault, runningContext] {
+			vault->cancel(runningContext);
 		};
-		submit_store(*vault, running_context, bytes, running);
+		submit_store(*vault, runningContext, bytes, running);
 		lane.run_next();
-		expect_store_success(running, running_context);
+		expect_store_success(running, runningContext);
 		expect(
 			backend->contains(key),
 			"cancel after backend start loses to terminal result");
 
-		const auto        sibling_a = context(key, 402U);
-		const auto        sibling_b = context(key, 403U);
-		retrieve_recorder retrieve_a;
-		retrieve_recorder retrieve_b;
-		submit_retrieve(*vault, sibling_a, retrieve_a);
-		submit_retrieve(*vault, sibling_b, retrieve_b);
-		vault->cancel(sibling_a);
-		expect_retrieve_cancelled(retrieve_a, sibling_a);
+		const auto        siblingA = context(key, 402U);
+		const auto        siblingB = context(key, 403U);
+		retrieve_recorder retrieveA;
+		retrieve_recorder retrieveB;
+		submit_retrieve(*vault, siblingA, retrieveA);
+		submit_retrieve(*vault, siblingB, retrieveB);
+		vault->cancel(siblingA);
+		expect_retrieve_cancelled(retrieveA, siblingA);
 		lane.drain();
-		expect_retrieve_success(retrieve_b, sibling_b, bytes);
+		expect_retrieve_success(retrieveB, siblingB, bytes);
 
-		const auto        store_context     = context(key, 404U);
-		const auto        reentrant_context = context(key, 405U);
+		const auto        storeContext     = context(key, 404U);
+		const auto        reentrantContext = context(key, 405U);
 		store_recorder    store;
 		retrieve_recorder reentrant;
 		vault->store(
 			application::github_credential_enrollment{
-				.Context    = store_context,
+				.Context    = storeContext,
 				.Credential = material_from(bytes),
 			},
-			[&store, &reentrant, &vault, reentrant_context](
-				application::github_credential_store_completion terminal) {
-				store.record(std::move(terminal));
-				submit_retrieve(*vault, reentrant_context, reentrant);
+			[&store, &reentrant, &vault, reentrantContext](
+				application::github_credential_store_completion aTerminal) {
+				store.record(std::move(aTerminal));
+				submit_retrieve(*vault, reentrantContext, reentrant);
 			});
 		lane.run_next();
-		expect_store_success(store, store_context);
+		expect_store_success(store, storeContext);
 		expect(lane.pending() == 1U, "callback can enqueue new work");
 		lane.run_next();
-		expect_retrieve_success(reentrant, reentrant_context, bytes);
+		expect_retrieve_success(reentrant, reentrantContext, bytes);
 
-		const auto        teardown_store_context    = context(key, 406U);
-		const auto        teardown_retrieve_context = context(key, 407U);
-		const auto        teardown_delete_context   = context(key, 408U);
-		store_recorder    teardown_store;
-		retrieve_recorder teardown_retrieve;
-		delete_recorder   teardown_delete;
+		const auto        teardownStoreContext    = context(key, 406U);
+		const auto        teardownRetrieveContext = context(key, 407U);
+		const auto        teardownDeleteContext   = context(key, 408U);
+		store_recorder    teardownStore;
+		retrieve_recorder teardownRetrieve;
+		delete_recorder   teardownDelete;
 		submit_store(
 			*vault,
-			teardown_store_context,
+			teardownStoreContext,
 			bytes,
-			teardown_store);
+			teardownStore);
 		submit_retrieve(
 			*vault,
-			teardown_retrieve_context,
-			teardown_retrieve);
+			teardownRetrieveContext,
+			teardownRetrieve);
 		submit_delete(
 			*vault,
-			teardown_delete_context,
-			teardown_delete);
-		const auto calls_before = backend->Calls.size();
+			teardownDeleteContext,
+			teardownDelete);
+		const auto callsBefore = backend->Calls.size();
 		vault.reset();
-		expect_store_cancelled(teardown_store, teardown_store_context);
+		expect_store_cancelled(teardownStore, teardownStoreContext);
 		expect_retrieve_cancelled(
-			teardown_retrieve,
-			teardown_retrieve_context);
-		expect_delete_cancelled(teardown_delete, teardown_delete_context);
+			teardownRetrieve,
+			teardownRetrieveContext);
+		expect_delete_cancelled(teardownDelete, teardownDeleteContext);
 		lane.drain();
 		expect(
-			backend->Calls.size() == calls_before
-				&& teardown_store.Calls == 1U
-				&& teardown_retrieve.Calls == 1U
-				&& teardown_delete.Calls == 1U,
+			backend->Calls.size() == callsBefore
+				&& teardownStore.Calls == 1U
+				&& teardownRetrieve.Calls == 1U
+				&& teardownDelete.Calls == 1U,
 			"teardown terminals queued work once and tasks no-op");
 	}
 
 	void test_teardown_atomically_claims_queued_work()
 	{
 		application::manual_executor lane;
-		auto                         observation    = std::make_shared<wipe_observation>();
-		auto                         backend        = std::make_shared<wiping_fake_backend>(observation);
-		auto                         vault          = make_test_vault(lane, backend);
-		const auto                   bytes          = generated_bytes(21U);
-		const auto                   first_context  = context(authority(), 500U);
-		const auto                   second_context = context(authority(), 501U);
+		auto                         observation   = std::make_shared<wipe_observation>();
+		auto                         backend       = std::make_shared<wiping_fake_backend>(observation);
+		auto                         vault         = make_test_vault(lane, backend);
+		const auto                   bytes         = generated_bytes(21U);
+		const auto                   firstContext  = context(authority(), 500U);
+		const auto                   secondContext = context(authority(), 501U);
 		store_recorder               first;
 		store_recorder               second;
 
-		std::mutex              gate_mutex;
+		std::mutex              gateMutex;
 		std::condition_variable gate;
-		auto                    callback_entered = false;
-		auto                    release_callback = false;
+		auto                    callbackEntered = false;
+		auto                    releaseCallback = false;
 
 		vault->store(
 			application::github_credential_enrollment{
-				.Context    = first_context,
+				.Context    = firstContext,
 				.Credential = material_from(bytes),
 			},
 			[&first,
-			 &gate_mutex,
+			 &gateMutex,
 			 &gate,
-			 &callback_entered,
-			 &release_callback](
-				application::github_credential_store_completion terminal) {
-				first.record(std::move(terminal));
-				auto lock        = std::unique_lock{ gate_mutex };
-				callback_entered = true;
+			 &callbackEntered,
+			 &releaseCallback](
+				application::github_credential_store_completion aTerminal) {
+				first.record(std::move(aTerminal));
+				auto lock       = std::unique_lock{ gateMutex };
+				callbackEntered = true;
 				gate.notify_all();
-				gate.wait(lock, [&release_callback] {
-					return release_callback;
+				gate.wait(lock, [&releaseCallback] {
+					return releaseCallback;
 				});
 			});
-		submit_store(*vault, second_context, bytes, second);
+		submit_store(*vault, secondContext, bytes, second);
 
 		auto destroyer = std::thread{ [&vault] {
 			vault.reset();
 		} };
 		auto entered = false;
 		{
-			auto lock = std::unique_lock{ gate_mutex };
+			auto lock = std::unique_lock{ gateMutex };
 			entered   = gate.wait_for(
 				lock,
 				std::chrono::seconds{ 2 },
-				[&callback_entered] {
-					return callback_entered;
+				[&callbackEntered] {
+					return callbackEntered;
 				});
 		}
 		if (!entered) {
 			{
-				const auto lock  = std::scoped_lock{ gate_mutex };
-				release_callback = true;
+				const auto lock = std::scoped_lock{ gateMutex };
+				releaseCallback = true;
 			}
 			gate.notify_all();
 			destroyer.join();
@@ -1375,14 +1375,14 @@ namespace {
 
 		lane.run(1U);
 		{
-			const auto lock  = std::scoped_lock{ gate_mutex };
-			release_callback = true;
+			const auto lock = std::scoped_lock{ gateMutex };
+			releaseCallback = true;
 		}
 		gate.notify_all();
 		destroyer.join();
 
-		expect_store_cancelled(first, first_context);
-		expect_store_cancelled(second, second_context);
+		expect_store_cancelled(first, firstContext);
+		expect_store_cancelled(second, secondContext);
 		expect(
 			backend->Calls.empty(),
 			"teardown atomically claims all queued work");
@@ -1402,19 +1402,19 @@ namespace {
 		const auto                   first       = generated_bytes(23U, 37U);
 		const auto                   second      = generated_bytes(29U, 43U);
 
-		store_recorder first_store;
+		store_recorder firstStore;
 		submit_store(
 			*vault,
 			context(authority(), 600U),
 			first,
-			first_store);
+			firstStore);
 		lane.run_next();
-		store_recorder second_store;
+		store_recorder secondStore;
 		submit_store(
 			*vault,
 			context(authority(), 601U),
 			second,
-			second_store);
+			secondStore);
 		lane.run_next();
 		expect(
 			observation->Buffers == 1U
@@ -1429,12 +1429,12 @@ namespace {
 				&& observation->Bytes == first.size() + second.size(),
 			"delete overwrites current fake buffer");
 
-		store_recorder final_store;
+		store_recorder finalStore;
 		submit_store(
 			*vault,
 			context(authority(), 603U),
 			first,
-			final_store);
+			finalStore);
 		lane.run_next();
 		vault.reset();
 		backend.reset();
