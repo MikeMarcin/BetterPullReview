@@ -120,3 +120,31 @@ authors `scripts/verify_rfc0016_production_identity.py` and its isolated
 tests, runs the designated read-only course, and only after every BPR-0282
 row and the identity evidence pass does it reach the macOS
 capability-selection flip and the complete clean rerun.
+
+## The distributable identity exists — 2026-08-27
+
+The owner registered the app in the same attended session, exactly per the
+facts. One form obstacle arose and resolved inside the approved shape:
+GitHub's "at least one callback URL is required" message was the
+"Request user authorization (OAuth) during installation" checkbox, and
+unchecking it cleared the requirement — the callback ended blank, matching
+the verification precedent (`callback_url_present: false`).
+
+The sanitized production observation now replaces the seeded
+verification-shape template in this directory, recorded from the owner's
+attended read-back: public client **`Iv23liitiYN1WSSbag50`** — distinct
+from the verification identity, as fact 8 requires — any-account
+installability, device flow enabled, expiring user tokens, webhook
+inactive, the exact four-permission set with automatic Metadata read, no
+client secret and no private key generated, and the course installation
+selected-repositories on `MikeMarcin/BPR-Test` alone. The packet's
+decision-time table intentionally still binds the seeded template's digest;
+fact 8 is what authorized this replacement.
+
+Remaining on this card, in order: author
+`scripts/verify_rfc0016_production_identity.py` with its isolated tests
+(unattended); one more attended sitting for the designated read-only
+course — real device-flow token success for the new client plus the
+read-only catalog probes, evidence under `read-only-course/`; then, on the
+macOS host only, the BPR-0282 unavailable-course rerun, the one-time macOS
+capability-selection flip, and the complete clean enabled rerun.

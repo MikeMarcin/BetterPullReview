@@ -1,12 +1,12 @@
 {
-  "captured_at_utc": "2026-08-13T15:05:46Z",
+  "captured_at_utc": "2026-08-28T02:38:00Z",
   "observation": {
     "application_kind": "github_app",
-    "application_visibility": "private",
+    "application_visibility": "public",
     "callback_url_present": false,
     "device_flow_enabled": true,
     "installation_owner_login": "MikeMarcin",
-    "installation_policy": "owner_only",
+    "installation_policy": "any_account",
     "installation_repositories": [
       "MikeMarcin/BPR-Test"
     ],
@@ -31,7 +31,7 @@
         "workflows": "none"
       }
     },
-    "public_client_id": "Iv23lil08fH3933w9MkW",
+    "public_client_id": "Iv23liitiYN1WSSbag50",
     "refresh_policy": "expiring_user_token_with_refresh",
     "user_access_token_expiration_enabled": true,
     "webhook_active": false
