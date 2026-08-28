@@ -2,10 +2,11 @@
 
 RFC base: `a600ab2c29d2b4088a3f2598dbb817c35af2eafd`
 
-RFC-BPR-0002 closed `Auto-Verified` on 2026-08-28 (BPR-0035/BPR-0036), so the
-canonical order gate is satisfied and RFC-BPR-0003 is the closure frontier.
-The BPR-0054 final closeout replay below records the fresh macOS, Linux, and
-consumed Windows evidence at the closeout head.
+RFC-BPR-0003 closed `Auto-Verified` on 2026-08-28 through BPR-0054, in
+canonical order behind RFC-BPR-0002 (closed the same day via
+BPR-0035/BPR-0036). The final closeout replay section below records the
+fresh macOS, Linux, and consumed Windows evidence, the keyed per-criterion
+record, and the independent capability-critical review's cured findings.
 
 BPR-0056 completes the bounded history-page core/host/projection slice, and
 BPR-0046 consumes it through the reusable incremental Qt selector model
@@ -1229,6 +1230,10 @@ at all since BPR-0469 showed the Linux `dev` build did not compile at
   that named question knowingly.
 
 ## Clean closeout blockers
+
+Every blocker below was satisfied at the 2026-08-28 closeout; the
+final-closeout-replay section carries the per-item evidence. The list is
+retained as the requirements it was:
 
 RFC-BPR-0003 cannot become `Auto-Verified` until:
 
