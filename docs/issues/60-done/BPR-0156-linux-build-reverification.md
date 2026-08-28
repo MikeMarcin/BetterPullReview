@@ -177,3 +177,12 @@ platform plugins initialize. The fixture-driven public paths force
 than the `QFusionStyle` the Linux UX claims name, so those fixtures do not
 exercise the style those claims describe. Recorded for whoever owns the Linux
 UX claims; it is not this card's to change.
+
+## Postscript — 2026-08-28
+
+This card's attribution of `application_review_ledger_composition_contract` —
+"a sub-0.05% overrun; this host is slower on that path than BPR-0050's guest"
+— is disproven by measurement. The course also expires at a 150000 ms budget,
+at this card's own baseline `82c7d1c1` as well as at `17c8950d`, with
+`epoch_handoff_failed=1` every time: the handoff never completes and the
+budget is only what ends the wait. [[BPR-0472]] owns the measured truth.
