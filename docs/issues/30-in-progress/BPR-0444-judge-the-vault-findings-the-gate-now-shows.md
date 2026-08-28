@@ -1,7 +1,7 @@
 ---
 id: BPR-0444
 title: Judge the nine vault findings the working tidy gate now shows
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0002
 depends_on: [BPR-0443]
 ---
