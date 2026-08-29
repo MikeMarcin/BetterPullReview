@@ -1756,7 +1756,22 @@ namespace {
 				tally, { }, [](const auto& aEntry) { return aEntry.second; });
 			if (QColor{ commonest->first }
 				!= aWindow.palette().color(QPalette::Base)) {
-				return fail(QStringLiteral("appearance-raster-palette"));
+				// The divergent pixel's identity is the diagnosis on a style
+				// that paints its own chrome inside the viewport, so the
+				// failure names what it saw beside what it expected, with each
+				// colour's share of the grab (BPR-0475).
+				const auto base = aWindow.palette().color(QPalette::Base);
+				const auto baseCount
+					= tally.contains(base.rgb()) ? tally.at(base.rgb()) : 0;
+				const auto total = static_cast<double>(raster.width())
+					* static_cast<double>(raster.height());
+				return fail(
+					QStringLiteral("appearance-raster-palette observed=%1 "
+								   "share=%2% expected=%3 expected-share=%4%")
+						.arg(QColor{ commonest->first }.name())
+						.arg(commonest->second * 100.0 / total, 0, 'f', 1)
+						.arg(base.name())
+						.arg(baseCount * 100.0 / total, 0, 'f', 1));
 			}
 		}
 

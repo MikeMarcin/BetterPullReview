@@ -55,3 +55,15 @@ RFC-BPR-0004 — [[BPR-0474]]'s real 1.25x/2.0x course evidence stands
 real-DPR component assertions). Investigation needs a Windows build:
 `QWindows11Style` exists only there, and the 1.0x offscreen repro makes it
 debuggable under matrix conditions on that host.
+
+## Instrumented — 2026-08-28
+
+Item 1 is portable and landed from the macOS session: on divergence the
+check now fails as `appearance-raster-palette observed=<color> share=<p>%
+expected=<base> expected-share=<p>%`, tallied over the same viewport grab
+it always judged. `application_diff_workbench_public_path` stays green here
+(14.33 s) — the passing path is byte-for-byte the old behavior — and the
+format gate passes. The JaegAW Remote Control lane now runs the
+1.0x-offscreen `QT_STYLE_OVERRIDE=windows11` repro against this build to
+name the divergent pixel, its share, and where it concentrates in the grab;
+edit authority for item 3 stays with the integrating session.
