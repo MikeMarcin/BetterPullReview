@@ -1,0 +1,10 @@
+{
+  "authority_subject_sha256": "sha256:18b867d3a05321cedcd4570227c732459779bebff23728d354de9411c4e5370b",
+  "capture_runner_sha256": "sha256:7a27a176841ae7d7911833f3e8ec57fc3ada53084efdfb22373dd60380edb2d9",
+  "course": "token-success",
+  "executed_at_utc": "2026-08-29T22:17:25Z",
+  "gate": "rfc0016-production-app-registration-v001",
+  "registration_record_sha256": "sha256:f995a88050cd12d08cd0c9c0a8cb2dad82a9f68a63e3360fa0aeba5f4c2902be",
+  "schema_name": "bpr.rfc0016.course_execution",
+  "schema_version": 1
+}

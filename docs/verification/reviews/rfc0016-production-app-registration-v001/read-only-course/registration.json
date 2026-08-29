@@ -1,0 +1,39 @@
+{
+  "application_kind": "github_app",
+  "application_visibility": "public",
+  "callback_url_present": false,
+  "device_flow_enabled": true,
+  "installation_owner_login": "MikeMarcin",
+  "installation_policy": "any_account",
+  "installation_repositories": [
+    "MikeMarcin/BPR-Test"
+  ],
+  "installation_repository_selection": "selected_repositories",
+  "oauth_client_type": "public",
+  "oauth_scopes": [],
+  "owner_kind": "user",
+  "owner_login": "MikeMarcin",
+  "permissions": {
+    "account": {},
+    "enterprise": {},
+    "organization": {},
+    "repository": {
+      "actions": "none",
+      "administration": "none",
+      "checks": "read",
+      "commit_statuses": "none",
+      "contents": "read",
+      "issues": "none",
+      "metadata": "read",
+      "pull_requests": "write",
+      "workflows": "none"
+    }
+  },
+  "public_client_id": "Iv23liitiYN1WSSbag50",
+  "public_client_id_sha256": "sha256:95b5d69c91d4164bf7b3991fa40ea0f9464c856286469f5d3bde1e5c92d287ec",
+  "refresh_policy": "expiring_user_token_with_refresh",
+  "schema_name": "bpr.rfc0016.github_app_registration",
+  "schema_version": 1,
+  "user_access_token_expiration_enabled": true,
+  "webhook_active": false
+}

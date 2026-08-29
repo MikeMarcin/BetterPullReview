@@ -1,0 +1,41 @@
+{
+  "content_type": "application/json",
+  "endpoint": "token",
+  "endpoint_url": "https://github.com/login/oauth/access_token",
+  "http_status": 200,
+  "outcome": "token_success",
+  "projection": {
+    "observed_fields": [
+      "access_token",
+      "expires_in",
+      "refresh_token",
+      "refresh_token_expires_in",
+      "scope",
+      "token_type"
+    ],
+    "omitted_transient_fields": [
+      "access_token",
+      "refresh_token"
+    ],
+    "values": {
+      "expires_in": 28800,
+      "refresh_token_expires_in": 15811200,
+      "scope": "",
+      "token_type": "bearer"
+    }
+  },
+  "provenance": {
+    "authority_subject_sha256": "sha256:18b867d3a05321cedcd4570227c732459779bebff23728d354de9411c4e5370b",
+    "capture_tool": "scripts/run_rfc0016_production_course_attended.py",
+    "captured_at_utc": "2026-08-29T22:17:25Z",
+    "gate": "rfc0016-production-app-registration-v001",
+    "observation": "token_success_response",
+    "registration_record_sha256": "sha256:f995a88050cd12d08cd0c9c0a8cb2dad82a9f68a63e3360fa0aeba5f4c2902be",
+    "service": "github.com",
+    "source_kind": "unattested_capture"
+  },
+  "request_content_type": "application/x-www-form-urlencoded",
+  "request_method": "POST",
+  "schema_name": "bpr.rfc0016.device_contract",
+  "schema_version": 1
+}
