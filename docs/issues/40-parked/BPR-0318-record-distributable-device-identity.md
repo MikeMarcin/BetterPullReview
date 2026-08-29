@@ -167,9 +167,9 @@ on the absent `read-only-course/`, which is exactly the attended sitting that
 has not happened.
 
 A gate is only worth its negative cases, so the whole verifier was swept rather
-than spot-checked: each of its 96 checked conditions was replaced with `True`
-in turn and the suite rerun. 77 turn the 109-test gate red. The 19 survivors are
-every one a shape or existence guard — `isinstance` checks and `is_dir`/`is_file`
+than spot-checked: each of its 100 refusal conditions was neutralized in turn
+and the suite rerun. 79 turn the 111-test gate red. All 21 survivors are
+shape or existence guards — `isinstance` checks and `is_dir`/`is_file`
 probes — whose removal changes which diagnostic is printed and not whether the
 run refuses, because the code behind each still fails; they are left as they are
 rather than padded with tests that would assert the wording of an error.
