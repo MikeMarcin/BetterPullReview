@@ -109,3 +109,33 @@ format gate green, and the composition-aware focused set —
 `application_uiforetw_selected_diff_contract` — passed 8/8 in 103.7 s.
 What item 3 still needs is the target-native run: `windows11` course PASS,
 with no-override and `windowsvista` controls staying green.
+
+## The palette hypothesis is falsified; the fill attribute is the mechanism — 2026-08-28, late evening
+
+The target-native run at `d4a76956` failed **byte-identically** to the
+pre-fix run — `observed=#f6f7f9 share=70.2% expected=#ffffff
+expected-share=0.0%` — no reduced residual, no effect at all, while the
+no-override and `windowsvista` controls passed and the six-selector Qt
+sweep passed target-native. The lane then falsified the mechanism with a
+standalone probe (bare `QPlainTextEdit`, same Qt 6.10.3, offscreen,
+`windows11`): every `QPalette::Base` — application, window, pane, viewport
+— already `#ffffff`, `WA_SetPalette` 0 on pane and viewport alike, both
+palette realignments NO-OP, grab unmoved at the style fill. There is no
+palette substitution to undo. The real discriminator:
+**`autoFillBackground(viewport)` is 0 under QWindows11Style and 1 under
+QWindowsVistaStyle and QFusionStyle** — the style clears the fill so it can
+paint its own panel, and Base is not overwritten but simply never painted.
+The probe demonstrated the remedy: `viewport()->setAutoFillBackground(true)`
+makes the grab equal Base under `windows11` and is inert where the fill was
+already on.
+
+The correction is landed: the palette-realignment code is removed as
+falsified dead weight, and `source_pane` now restores the viewport fill —
+the Qt default the style's polish removes — in the constructor, in
+`showEvent` (deterministically after polish), and on `StyleChange`
+(re-polish), guarded so it is a no-op under styles that leave the default
+alone. Portable evidence at the corrected state: clean build, format gate
+green, the same composition-aware set 8/8. Open cosmetic question for the
+target-native rerun, flagged by the lane: whether restoring the fill costs
+the style's rounded-panel rendering at the viewport corners — the native
+visual-acceptance pass owns judging that, not this check.

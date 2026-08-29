@@ -14,6 +14,7 @@
 #include <QPlainTextEdit>
 #include <QResizeEvent>
 #include <QScrollBar>
+#include <QShowEvent>
 #include <QSplitter>
 #include <QTextBlock>
 #include <QTextCharFormat>
@@ -216,11 +217,11 @@ namespace bpr::qt {
 
 			void resizeEvent(QResizeEvent* aEvent) override;
 			void changeEvent(QEvent* aEvent) override;
-			auto viewportEvent(QEvent* aEvent) -> bool override;
+			void showEvent(QShowEvent* aEvent) override;
 
 		private:
 			void refresh_gutter_width();
-			void align_viewport_base();
+			void restore_viewport_fill();
 			bool LineNumbersVisible = true;
 
 			class gutter_area;
@@ -294,7 +295,7 @@ namespace bpr::qt {
 						}
 					});
 			refresh_gutter_width();
-			align_viewport_base();
+			restore_viewport_fill();
 		}
 
 		auto source_pane::gutter_width() const -> int
@@ -362,37 +363,33 @@ namespace bpr::qt {
 			if (aEvent != nullptr && aEvent->type() == QEvent::FontChange) {
 				refresh_gutter_width();
 			}
-			// The pane's palette is the applied appearance profile's; when it
-			// changes, the viewport must follow even where a style gave the
-			// viewport an explicit palette of its own (BPR-0475).
-			if (aEvent != nullptr && aEvent->type() == QEvent::PaletteChange) {
-				align_viewport_base();
+			// A style change re-polishes the widget, which is the one path
+			// that can clear the viewport fill again (BPR-0475).
+			if (aEvent != nullptr && aEvent->type() == QEvent::StyleChange) {
+				restore_viewport_fill();
 			}
 		}
 
-		auto source_pane::viewportEvent(QEvent* const aEvent) -> bool
+		void source_pane::showEvent(QShowEvent* const aEvent)
 		{
-			// QWindows11Style's polish substitutes the scroll-area viewport's
-			// background with the style's control fill, as an explicit
-			// viewport palette that also blocks later profile propagation, so
-			// the pane would paint style chrome where the applied appearance
-			// profile owns the code background (BPR-0475). Realigning on the
-			// viewport's own palette change undoes any such substitution, and
-			// the equality guard ends the recursion the realignment would
-			// otherwise start.
-			if (aEvent != nullptr && aEvent->type() == QEvent::PaletteChange) {
-				align_viewport_base();
-			}
-			return QPlainTextEdit::viewportEvent(aEvent);
+			// Runs after the style has polished this widget, so a polish that
+			// cleared the viewport fill has already happened by now.
+			restore_viewport_fill();
+			QPlainTextEdit::showEvent(aEvent);
 		}
 
-		void source_pane::align_viewport_base()
+		void source_pane::restore_viewport_fill()
 		{
-			const auto base = palette().brush(QPalette::Base);
-			if (viewport()->palette().brush(QPalette::Base) != base) {
-				auto aligned = viewport()->palette();
-				aligned.setBrush(QPalette::Base, base);
-				viewport()->setPalette(aligned);
+			// QWindows11Style clears the viewport's autoFillBackground during
+			// polish so the style can paint its own panel fill, and
+			// QPalette::Base is then never painted at all — measured as Base
+			// at 0.0% of the viewport grab while every palette, pane and
+			// viewport alike, still reported Base correctly (BPR-0475). The
+			// applied appearance profile owns the code background, so the Qt
+			// default is restored whenever a polish removed it; the guard
+			// keeps this a no-op under styles that leave the default alone.
+			if (!viewport()->autoFillBackground()) {
+				viewport()->setAutoFillBackground(true);
 			}
 		}
 
