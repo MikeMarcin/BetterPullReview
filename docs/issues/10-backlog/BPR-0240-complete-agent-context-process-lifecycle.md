@@ -1,7 +1,7 @@
 ---
 id: BPR-0240
 title: Complete agent context and process lifecycle semantics
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0011
 depends_on: [BPR-0238]
 ---
@@ -360,3 +360,30 @@ reconciliation is its own card's scope. Like [[BPR-0036]] and
 matrix cites it in six rows as the anchored owning procedure, and the
 documentation gate requires an open closeout card's cited procedures to
 stay open until the final replay consumes them.
+
+## The ledger absorbs the conversion — 2026-08-28
+
+The 2026-08-26/27 target-native record above had never left this card. The
+RFC-BPR-0011 verification ledger, the agent boundary document, and the
+fixture catalog still said the first Windows canary fails before a typed
+terminal and that Job Object lifecycle and descendant containment were
+unproved. This slice reconciles those lifecycle-proof statements — the
+ledger status, both claim-matrix Windows cells, the three marked banners,
+the catalog's Windows sentence, and the two stale closure-ordering
+sentences left behind by RFC-BPR-0002/0003's 2026-08-28 closes — against
+the recorded runs, citing this card's dated sections. [[BPR-0332]]'s scope
+is untouched: every pre-start-refusal statement stays marked known-false
+rather than resolved, and the guard-versus-document decision stays the
+product owner's.
+
+## Lane — 2026-08-28
+
+Moved from `30-in-progress/` to `10-backlog/`, and the 2026-08-26 trace
+note's latent gap is carded so it survives this card going dormant: the
+wrapper replying `path::string()` while the adapter compares `u8string()`,
+inert for ASCII paths, is now [[BPR-0476]] in `21-ready-win/`. Nothing here
+is runnable: the remaining event in this card's life is [[BPR-0245]]'s final
+closeout replay consuming its six cited procedure rows, which is the closeout
+card's work — the lane that says "waiting on another card". [[BPR-0036]] and
+[[BPR-0053]] waited out the same rule in the same lane before their RFCs'
+closeouts consumed them on 2026-08-28.
