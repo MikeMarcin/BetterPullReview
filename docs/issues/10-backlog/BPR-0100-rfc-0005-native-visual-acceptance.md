@@ -266,3 +266,20 @@ so regenerating a packet now would only be invalidated again. If the
 terminal executable is byte-identical to accepted v004, that replay reuses
 v004 without another human response; otherwise a successor packet is
 required.
+
+## The terminal successor is v005 — 2026-08-29
+
+The RFC-BPR-0005 closeout replay is complete on the automated side — full
+dev matrix, core-only, whole-tree strict tidy under LLVM 23, format,
+documentation, the linker composition check, and the repaired
+independent-review findings — and the closeout executable is settled:
+`sha256:462896aa2c48a2a97215bc8595a2fca9c5d1a7f635d1ab0759d8733592652347`
+at 55,045,344 bytes from committed HEAD `fc46b5d5`, with no active-lane
+card able to relink it. Thirty-five commits landed since accepted v004's
+head, six changing what a person sees, so the live final-head judgment is
+[`native-visual-acceptance-v005`](../../verification/reviews/native-visual-acceptance-v005/operator-packet.md).
+It names the six new-visible surfaces — gutters, View menu, flat feed,
+thread map, anchor marker, viewport fill — for deliberate attention. The
+v003 and v004 responses and validation records remain immutable for their
+own bytes. This card parks awaiting that judgment; the acceptance is the
+last gate before RFC-BPR-0005's status flip.
