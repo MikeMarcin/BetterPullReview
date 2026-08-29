@@ -32,6 +32,12 @@ def main() -> int:
         default=200_000,
         help="Sessions at least this large are substantive and expected to delegate.",
     )
+    parser.add_argument(
+        "--allow-missing",
+        action="store_true",
+        help="Succeed with a note when this checkout has no transcripts on this "
+        "machine; sessions on a remote station audit their own transcripts.",
+    )
     args = parser.parse_args()
 
     directory = args.transcripts_dir
@@ -41,6 +47,12 @@ def main() -> int:
             return 2
         directory = transcripts_for_repo(args.repo_root)
     if not directory.is_dir():
+        if args.allow_missing:
+            print(
+                f"no transcripts for this checkout on this machine ({directory}); "
+                "station sessions audit their own transcripts locally"
+            )
+            return 0
         print(f"error: no transcript directory at {directory}", file=sys.stderr)
         return 2
 

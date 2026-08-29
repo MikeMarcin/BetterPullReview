@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://betterpullreview.local/schemas/bpr-implement-rfc-remote-station.v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "station_id",
+    "station",
+    "project",
+    "role",
+    "environment",
+    "branch",
+    "authority"
+  ],
+  "properties": {
+    "schema": {"const": "betterpullreview.implement-rfc.remote-station.v1"},
+    "station_id": {"type": "string", "pattern": "^stn-[0-9a-f]{8}$"},
+    "station": {"$ref": "#/$defs/sessionName"},
+    "project": {"const": "betterpullreview"},
+    "role": {"enum": ["win", "linux", "mac", "main"]},
+    "environment": {"enum": ["macos", "windows-native", "wsl2", "linux-native"]},
+    "branch": {"$ref": "#/$defs/branchName"},
+    "authority": {"enum": ["lane-commit", "read-only-proof"]}
+  },
+  "$defs": {
+    "sessionName": {"type": "string", "pattern": "^bpr(?:-[a-z0-9]+)+$"},
+    "branchName": {"type": "string", "pattern": "^[A-Za-z0-9._/-]{1,255}$"}
+  }
+}

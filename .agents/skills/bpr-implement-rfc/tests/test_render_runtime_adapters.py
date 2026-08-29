@@ -190,8 +190,10 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
             SKILL_DIR / "config" / "roles.json",
             SKILL_DIR / "references" / "delegated-execution.md",
             SKILL_DIR / "references" / "model-routing.md",
+            SKILL_DIR / "references" / "remote-routing.md",
             SKILL_DIR / "references" / "runtime-compatibility.md",
             SKILL_DIR / "scripts" / "render_runtime_adapters.py",
+            SKILL_DIR / "scripts" / "station_lease.py",
         ]
         combined = "\n".join(path.read_text(encoding="utf-8") for path in sources)
         self.assertIn("BetterPullReview", combined)
