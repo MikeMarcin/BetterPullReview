@@ -5,16 +5,25 @@ BPR-0405 authors this; BPR-0298 executes it. The split matters: the live
 capture is the only thing here that touches a network, and it is the only thing
 this module refuses to do without a digest-bound authority the operator signed.
 
-Two modes:
+Four modes, exactly one of which touches a network:
 
 * default — validate the authority, then perform exactly the requests the
   authority names, sanitize each response, and write it under the output root.
 * ``--validate-existing`` — perform no traffic at all and revalidate every
-  packet, response, manifest, capture digest, and minimization record.
+  packet, response, manifest, capture digest, minimization record, external
+  commit binding, and derived artifact.
+* ``--write-bindings`` — perform no traffic; revalidate everything, then write
+  the external ``capture-bindings.json`` that ties each committed capture to
+  the commit that owns it.
+* ``--synthesize-exhaustion`` — perform no traffic; derive the synthetic
+  primary-rate-exhaustion fixture from committed captures alone.
 
 The module deliberately holds no network client at import time. ``urllib`` is
 imported inside the one function that issues a request, so that importing this
-module for validation cannot reach the network even by mistake.
+module for validation cannot reach the network even by mistake. ``subprocess``
+is imported at module scope because the only child process this module ever
+launches is a local read-only ``git`` query — ``ls-files``, ``status``,
+``log``, and ``cat-file`` — none of which contacts a remote.
 """
 from __future__ import annotations
 
@@ -24,6 +33,7 @@ import ipaddress
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -123,6 +133,59 @@ CAPTURE_ATTEMPT_REGISTRY = (
     Path(__file__).resolve().parents[1]
     / "docs/verification/reviews/rfc0017-anonymous-capture-attempts"
 )
+
+BINDING_SCHEMA = "bpr.rfc0017.anonymous_capture_binding"
+BINDING_SCHEMA_VERSION = 1
+BINDING_FILE_NAME = "capture-bindings.json"
+BINDING_KEYS = frozenset({
+    "schema_name",
+    "schema_version",
+    "packet_sha256",
+    "bindings",
+    "derived_artifacts",
+})
+BINDING_ENTRY_KEYS = frozenset({
+    "course",
+    "capture_file",
+    "file_sha256",
+    "minimized_body_sha256",
+    "owning_commit",
+})
+#: A derived artifact carries no ``owning_commit``. It cannot: it is written in
+#: the same change that first commits it, so no commit owns it at the moment its
+#: binding is computed, and re-deriving the binding after that commit would
+#: produce different bytes. Its authenticity comes from the stronger property
+#: instead — it re-derives byte-for-byte from captures that *are* commit-bound.
+DERIVED_ENTRY_KEYS = frozenset({
+    "artifact",
+    "artifact_file",
+    "file_sha256",
+    "minimized_body_sha256",
+})
+
+SYNTHETIC_DIRECTORY_NAME = "synthetic"
+SYNTHETIC_EXHAUSTION_NAME = "rate-exhaustion"
+SYNTHETIC_EXHAUSTION_FILE = f"{SYNTHETIC_EXHAUSTION_NAME}.json"
+#: The three committed courses the synthetic fixture is a pure function of.
+SYNTHETIC_BUDGET_COURSE = "rate-limit"
+SYNTHETIC_REFUSAL_COURSE = "graphql-refusal"
+SYNTHETIC_REQUEST_COURSE = "pull-request"
+SYNTHETIC_SOURCE_COURSES = (
+    SYNTHETIC_BUDGET_COURSE,
+    SYNTHETIC_REFUSAL_COURSE,
+    SYNTHETIC_REQUEST_COURSE,
+)
+SYNTHETIC_EXHAUSTED_RESOURCE = "core"
+EXHAUSTED_REMAINING = "0"
+
+GIT_EXECUTABLE = "git"
+#: Keep the child deterministic and silent. None of these enables a remote.
+GIT_ENVIRONMENT = {
+    "GIT_OPTIONAL_LOCKS": "0",
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_PAGER": "cat",
+    "LC_ALL": "C",
+}
 
 GRAPHQL_REFUSAL_OPERATION = "graphql_unauthenticated_refusal"
 CALLER_ADDRESS_NORMALIZED_FIELD = "caller_address_normalized"
@@ -235,6 +298,77 @@ def require_sha256(value: Any, label: str) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
         raise ContractError(f"{label} is not a SHA-256 digest")
     return value
+
+
+def require_commit_id(value: Any, label: str) -> str:
+    """A full object name only. An abbreviation can become ambiguous later."""
+    if not isinstance(value, str) or not re.fullmatch(
+        r"[0-9a-f]{40}(?:[0-9a-f]{24})?", value
+    ):
+        raise ContractError(f"{label} is not a full commit identifier")
+    return value
+
+
+# --------------------------------------------------------------------------
+# Local Git evidence
+#
+# The captures are byte-frozen files whose authority is that they were
+# committed. Nothing in a capture can prove that, because a self-consistent
+# rewrite of a record and its own digests is trivially cheap. So the proof is
+# taken from outside the record: the commit that owns the file, and the blob
+# that commit stores. Every call below is a local read; none contacts a remote.
+# --------------------------------------------------------------------------
+
+def run_git(arguments: list[str], *, cwd: Path, label: str) -> bytes:
+    environment = dict(os.environ)
+    environment.update(GIT_ENVIRONMENT)
+    try:
+        completed = subprocess.run(
+            [GIT_EXECUTABLE, "-C", str(cwd), *arguments],
+            capture_output=True, check=False, env=environment)
+    except OSError as error:
+        raise ContractError(
+            f"{label} needs git, which could not be run") from error
+    if completed.returncode != 0:
+        raise ContractError(f"{label} could not be read from git history")
+    return completed.stdout
+
+
+def git_tracked_path(path: Path, label: str) -> str:
+    """Return the repository-relative path of a tracked file."""
+    output = run_git(
+        ["ls-files", "--full-name", "-z", "--", path.name],
+        cwd=path.parent, label=f"{label} tracking state")
+    entries = [entry for entry in output.split(b"\0") if entry]
+    if len(entries) != 1:
+        raise ContractError(f"{label} is not tracked in git")
+    return entries[0].decode("utf-8")
+
+
+def require_committed_unmodified(path: Path, label: str) -> None:
+    output = run_git(
+        ["status", "--porcelain", "-z", "--", path.name],
+        cwd=path.parent, label=f"{label} worktree state")
+    if output.strip(b"\0"):
+        raise ContractError(f"{label} is untracked or differs from HEAD")
+
+
+def git_owning_commit(path: Path, label: str) -> str:
+    output = run_git(
+        ["log", "-n", "1", "--format=%H", "--", path.name],
+        cwd=path.parent, label=f"{label} owning commit")
+    commit = output.decode("utf-8", "replace").strip()
+    if not re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", commit):
+        raise ContractError(f"{label} has no owning commit in git history")
+    return commit
+
+
+def git_committed_blob(
+    path: Path, commit: str, repository_path: str, label: str
+) -> bytes:
+    return run_git(
+        ["cat-file", "blob", f"{commit}:{repository_path}"],
+        cwd=path.parent, label=f"{label} blob at commit {commit[:12]}")
 
 
 # --------------------------------------------------------------------------
@@ -498,6 +632,38 @@ def resolve_output_root(output_root: Path, packet: Path) -> Path:
     return resolved
 
 
+def write_artifact_once(path: Path, payload: bytes, label: str) -> None:
+    """Write, or accept an identical existing file. Never overwrite.
+
+    Both derived artifacts are pure functions of committed evidence, so a
+    differing file on disk is a disagreement to report rather than a stale
+    result to replace.
+    """
+    if path.is_symlink():
+        raise ContractError(f"{label} is a symlink")
+    if path.exists():
+        if read_bounded(path, label) == payload:
+            return
+        raise ContractError(f"{label} already exists with different content")
+    directory = path.parent
+    if directory.is_symlink():
+        raise ContractError(f"{label} directory is a symlink")
+    directory.mkdir(parents=True, exist_ok=True)
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    except FileExistsError as error:
+        raise ContractError(
+            f"{label} appeared while it was being written") from error
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except OSError as error:
+        raise ContractError(f"{label} cannot be durably written") from error
+    fsync_directory(directory, f"{label} directory")
+
+
 # --------------------------------------------------------------------------
 # Sanitization
 # --------------------------------------------------------------------------
@@ -739,6 +905,397 @@ def sanitize_capture(
 
 
 # --------------------------------------------------------------------------
+# External commit binding
+#
+# `sanitize_capture` records `body_sha256` over the bytes the service returned,
+# and for every operation except the GraphQL refusal those bytes no longer
+# exist: the persisted `body` is the canonical re-serialization of them. The
+# digest is therefore historically true and operationally inert — it cannot
+# detect a later edit to the minimized body, because it was never a digest of
+# the minimized body. The captures are byte-frozen evidence, so the fix cannot
+# be to recompute inside them. It is layered outside instead, in one artifact
+# that names, for every capture, its exact bytes, its exact minimized body, and
+# the commit that owns it.
+# --------------------------------------------------------------------------
+
+def review_directory(packet: Path) -> Path:
+    return packet.resolve(strict=True).parent
+
+
+def binding_path(review: Path) -> Path:
+    return review / BINDING_FILE_NAME
+
+
+def synthetic_exhaustion_path(review: Path) -> Path:
+    return review / SYNTHETIC_DIRECTORY_NAME / SYNTHETIC_EXHAUSTION_FILE
+
+
+def contained_relative_name(path: Path, review: Path, label: str) -> str:
+    try:
+        return path.relative_to(review).as_posix()
+    except ValueError as error:
+        raise ContractError(
+            f"{label} is not inside the packet's review directory") from error
+
+
+def minimized_body_digest(record: Any, label: str) -> str:
+    """Digest the persisted body exactly as it is stored.
+
+    A null body is a real recorded outcome, not a missing value, so it digests
+    the empty byte string rather than being skipped.
+    """
+    if not isinstance(record, dict):
+        raise ContractError(f"{label} is not an object")
+    body = record.get("body")
+    if body is None:
+        return sha256_bytes(b"")
+    if not isinstance(body, str):
+        raise ContractError(f"{label} body is neither text nor null")
+    return sha256_bytes(body.encode("utf-8"))
+
+
+def read_capture(root: Path, name: str) -> tuple[bytes, dict]:
+    label = f"capture {name}"
+    payload = read_bounded(root / f"{name}.json", label)
+    record = parse_json_unique(payload, label)
+    if not isinstance(record, dict):
+        raise ContractError(f"{label} is not an object")
+    return payload, record
+
+
+def compute_capture_bindings(
+    *, manifest: dict, root: Path, review: Path
+) -> list[dict]:
+    """Bind every manifest course to its committed bytes.
+
+    Ordered by course name rather than by manifest order, so that reordering
+    the manifest cannot change these bytes.
+    """
+    bindings = []
+    for name in sorted(course["name"] for course in manifest["courses"]):
+        label = f"capture {name}"
+        capture_path = root / f"{name}.json"
+        payload, record = read_capture(root, name)
+        git_tracked_path(capture_path, label)
+        require_committed_unmodified(capture_path, label)
+        bindings.append({
+            "course": name,
+            "capture_file": contained_relative_name(
+                capture_path, review, label),
+            "file_sha256": sha256_bytes(payload),
+            "minimized_body_sha256": minimized_body_digest(record, label),
+            "owning_commit": git_owning_commit(capture_path, label),
+        })
+    return bindings
+
+
+def compute_derived_bindings(review: Path) -> list[dict]:
+    path = synthetic_exhaustion_path(review)
+    label = "synthetic rate-exhaustion fixture"
+    if not path.exists():
+        return []
+    payload = read_bounded(path, label)
+    record = parse_json_unique(payload, label)
+    return [{
+        "artifact": SYNTHETIC_EXHAUSTION_NAME,
+        "artifact_file": contained_relative_name(path, review, label),
+        "file_sha256": sha256_bytes(payload),
+        "minimized_body_sha256": minimized_body_digest(record, label),
+    }]
+
+
+def build_binding_record(
+    *, packet_bytes: bytes, manifest: dict, root: Path, review: Path
+) -> dict:
+    return {
+        "schema_name": BINDING_SCHEMA,
+        "schema_version": BINDING_SCHEMA_VERSION,
+        "packet_sha256": sha256_bytes(packet_bytes),
+        "bindings": compute_capture_bindings(
+            manifest=manifest, root=root, review=review),
+        "derived_artifacts": compute_derived_bindings(review),
+    }
+
+
+def verify_one_binding(entry: dict, *, root: Path, review: Path) -> None:
+    """Prove one capture's working bytes are bytes some commit already stored.
+
+    ``owning_commit`` is written as the last commit that touched the file, but
+    what is *checked* is weaker and deliberately so: that this commit stores
+    exactly these bytes at exactly this path. Requiring it to still be the
+    latest touching commit would fail on a later commit that restored identical
+    content — a non-event — and would buy nothing against the threat, since an
+    attacker who can commit tampered bytes can name their own commit either
+    way. What the check forecloses is the cheap attack: rewriting a record and
+    its own digests in the working tree, where no commit backs the result.
+    """
+    name = entry["course"]
+    label = f"capture {name}"
+    capture_path = root / f"{name}.json"
+    if entry["capture_file"] != contained_relative_name(
+        capture_path, review, label
+    ):
+        raise ContractError(f"{label} binding names another file")
+    payload, record = read_capture(root, name)
+    if require_sha256(
+        entry["file_sha256"], f"{label} binding file_sha256"
+    ) != sha256_bytes(payload):
+        raise ContractError(f"{label} bytes differ from their bound digest")
+    if require_sha256(
+        entry["minimized_body_sha256"],
+        f"{label} binding minimized_body_sha256",
+    ) != minimized_body_digest(record, label):
+        raise ContractError(
+            f"{label} minimized body differs from its bound digest")
+    commit = require_commit_id(
+        entry["owning_commit"], f"{label} binding owning_commit")
+    repository_path = git_tracked_path(capture_path, label)
+    if git_committed_blob(capture_path, commit, repository_path, label) != payload:
+        raise ContractError(
+            f"{label} differs from the blob commit {commit[:12]} committed")
+
+
+def verify_derived_bindings(
+    entries: Any, *, review: Path
+) -> None:
+    if not isinstance(entries, list):
+        raise ContractError("capture bindings derived_artifacts is not a list")
+    path = synthetic_exhaustion_path(review)
+    label = "synthetic rate-exhaustion fixture"
+    present = [SYNTHETIC_EXHAUSTION_NAME] if path.exists() else []
+    names = []
+    for index, entry in enumerate(entries):
+        require_exact_keys(
+            entry, set(DERIVED_ENTRY_KEYS), f"derived artifact[{index}]")
+        names.append(require_text(
+            entry["artifact"], f"derived artifact[{index}].artifact", 64))
+    if sorted(names) != present:
+        raise ContractError(
+            "capture bindings do not cover exactly the derived artifacts present")
+    for entry in entries:
+        payload = read_bounded(path, label)
+        if entry["artifact_file"] != contained_relative_name(
+            path, review, label
+        ):
+            raise ContractError("derived artifact binding names another file")
+        if require_sha256(
+            entry["file_sha256"], "derived artifact file_sha256"
+        ) != sha256_bytes(payload):
+            raise ContractError(f"{label} bytes differ from their bound digest")
+        record = parse_json_unique(payload, label)
+        if require_sha256(
+            entry["minimized_body_sha256"],
+            "derived artifact minimized_body_sha256",
+        ) != minimized_body_digest(record, label):
+            raise ContractError(
+                f"{label} minimized body differs from its bound digest")
+
+
+def verify_capture_bindings(
+    *, packet_bytes: bytes, manifest: dict, root: Path, review: Path
+) -> int | None:
+    """Verify the external binding artifact, or report that there is none.
+
+    ``None`` means the review directory predates this artifact. That is a fact
+    the caller reports rather than swallows: an unbound review directory is
+    exactly what this obligation existed to make visible.
+    """
+    path = binding_path(review)
+    if path.is_symlink():
+        raise ContractError("capture bindings file is a symlink")
+    if not path.exists():
+        return None
+    payload = read_bounded(path, "capture bindings")
+    record = parse_json_unique(payload, "capture bindings")
+    require_exact_keys(record, set(BINDING_KEYS), "capture bindings")
+    if record["schema_name"] != BINDING_SCHEMA:
+        raise ContractError("capture bindings schema name mismatch")
+    version = require_positive_int(
+        record["schema_version"],
+        "capture bindings schema version",
+        BINDING_SCHEMA_VERSION,
+    )
+    if version != BINDING_SCHEMA_VERSION:
+        raise ContractError("capture bindings schema version mismatch")
+    if record["packet_sha256"] != sha256_bytes(packet_bytes):
+        raise ContractError("capture bindings do not bind this packet")
+
+    entries = record["bindings"]
+    if not isinstance(entries, list) or not entries:
+        raise ContractError("capture bindings name no captures")
+    bound: list[str] = []
+    for index, entry in enumerate(entries):
+        require_exact_keys(
+            entry, set(BINDING_ENTRY_KEYS), f"capture binding[{index}]")
+        bound.append(require_text(
+            entry["course"], f"capture binding[{index}].course", 64))
+    expected = sorted(course["name"] for course in manifest["courses"])
+    if sorted(bound) != expected:
+        raise ContractError(
+            "capture bindings course set differs from the course manifest")
+
+    for entry in entries:
+        verify_one_binding(entry, root=root, review=review)
+    verify_derived_bindings(record["derived_artifacts"], review=review)
+    return len(entries)
+
+
+# --------------------------------------------------------------------------
+# Derived synthetic primary-rate exhaustion
+#
+# RFC-BPR-0017 needs an exhausted-budget response to test refusal against, and
+# the live course is forbidden from producing one: exhausting the shared 60/hour
+# anonymous quota is the exact abuse the authority refuses. Nor can this be a
+# sixth authorized course, since every authorized course must appear in a
+# packet's authority block and no packet authorizes one.
+#
+# So it is neither captured nor authored. It is *derived*: a pure, deterministic
+# function of three captures that are already committed, issuing no traffic and
+# inventing no value. Each field below names the committed source it came from.
+#
+# One contract is deliberately absent. A secondary-limit `429` with a
+# `Retry-After` header would need a retry delay, and no committed capture
+# records one; fabricating a plausible number would put an unobserved value into
+# evidence. This fixture covers primary exhaustion only.
+# --------------------------------------------------------------------------
+
+def require_synthetic_sources_validated(manifest: dict) -> None:
+    """Derive only from captures this run has already validated in full."""
+    names = {course["name"] for course in manifest["courses"]}
+    missing = sorted(set(SYNTHETIC_SOURCE_COURSES) - names)
+    if missing:
+        raise ContractError(
+            f"synthetic exhaustion needs validated courses {missing}")
+
+
+def require_recorded_header(headers: Any, name: str, label: str) -> str:
+    if not isinstance(headers, dict) or not isinstance(headers.get(name), str):
+        raise ContractError(f"{label} records no {name} header")
+    return headers[name]
+
+
+def require_recorded_count(value: Any, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ContractError(f"{label} is not a recorded positive count")
+    return value
+
+
+def derive_rate_exhaustion_record(root: Path) -> dict:
+    """Build the synthetic exhausted-core record from committed captures only."""
+    _budget_bytes, budget = read_capture(root, SYNTHETIC_BUDGET_COURSE)
+    _refusal_bytes, refusal = read_capture(root, SYNTHETIC_REFUSAL_COURSE)
+    _request_bytes, request = read_capture(root, SYNTHETIC_REQUEST_COURSE)
+
+    # One authority, or the three captures are not one recorded session.
+    authority_sha256 = require_sha256(
+        budget.get("authority_sha256"), "rate-limit capture authority_sha256")
+    if (refusal.get("authority_sha256") != authority_sha256
+            or request.get("authority_sha256") != authority_sha256):
+        raise ContractError(
+            "synthetic exhaustion sources do not share one authority")
+
+    # Budget values: the real anonymous core allowance and its real reset.
+    budget_body = budget.get("body")
+    if not isinstance(budget_body, str):
+        raise ContractError("rate-limit capture records no body")
+    resources = parse_json_unique(
+        budget_body, "rate-limit capture body").get("resources")
+    if not isinstance(resources, dict):
+        raise ContractError("rate-limit capture body records no resources")
+    core = resources.get(SYNTHETIC_EXHAUSTED_RESOURCE)
+    if not isinstance(core, dict):
+        raise ContractError(
+            f"rate-limit capture body records no {SYNTHETIC_EXHAUSTED_RESOURCE} "
+            "resource")
+    core_limit = require_recorded_count(
+        core.get("limit"), "rate-limit capture core limit")
+    core_reset = require_recorded_count(
+        core.get("reset"), "rate-limit capture core reset")
+
+    # Refusal shape: the only exhausted refusal GitHub actually returned here.
+    refusal_status = refusal.get("http_status")
+    if refusal_status != 403:
+        raise ContractError(
+            "graphql-refusal capture is not the recorded 403 refusal")
+    refusal_headers = refusal.get("retained_headers")
+    if require_recorded_header(
+        refusal_headers, "x-ratelimit-remaining", "graphql-refusal capture"
+    ) != EXHAUSTED_REMAINING:
+        raise ContractError(
+            "graphql-refusal capture does not record a zero-remaining budget")
+    refusal_body = refusal.get("body")
+    if not isinstance(refusal_body, str) or not refusal_body:
+        raise ContractError("graphql-refusal capture records no body")
+
+    # Request identity: the recorded core-charged request this answers.
+    request_headers = request.get("retained_headers")
+    if require_recorded_header(
+        request_headers, "x-ratelimit-resource", "pull-request capture"
+    ) != SYNTHETIC_EXHAUSTED_RESOURCE:
+        raise ContractError(
+            "pull-request capture does not record the core resource")
+
+    headers = {
+        # From the recorded refusal template.
+        "content-type": require_recorded_header(
+            refusal_headers, "content-type", "graphql-refusal capture"),
+        "x-ratelimit-remaining": EXHAUSTED_REMAINING,
+        # From the recorded core budget. Exhaustion is `used == limit`; that is
+        # the definition of the state, not an extra number.
+        "x-ratelimit-limit": str(core_limit),
+        "x-ratelimit-used": str(core_limit),
+        "x-ratelimit-reset": str(core_reset),
+        # From the recorded core-charged request.
+        "x-ratelimit-resource": request_headers["x-ratelimit-resource"],
+    }
+    media_type = refusal_headers.get("x-github-media-type")
+    if isinstance(media_type, str):
+        headers["x-github-media-type"] = media_type
+
+    # The body is the recorded refusal template verbatim. It names no resource
+    # — GitHub carries resource identity in the headers, which is where the
+    # substitution above happens — so rewriting its prose to say "core" would
+    # put a sentence GitHub never sent into evidence. Its caller-address
+    # placeholder is inherited from the recorded normalization; this record
+    # issues no request, so it has no caller.
+    body = refusal_body.encode("utf-8")
+    record = sanitize_capture(
+        name=SYNTHETIC_EXHAUSTION_NAME,
+        operation=request["operation"],
+        url=request["url"],
+        http_status=refusal_status,
+        headers=headers,
+        body=body,
+        authority_sha256=authority_sha256,
+        source_kind="synthetic",
+    )
+    # The source body is already canonical, so the sanitizer's raw-byte digest
+    # and the canonical-body digest coincide here. Assert it rather than assume
+    # it: this record's digest must be a digest of what it stores.
+    if record["body_sha256"] != sha256_bytes(record["body"].encode("utf-8")):
+        raise ContractError(
+            "synthetic exhaustion body digest is not a digest of its own body")
+    return record
+
+
+def verify_synthetic_exhaustion(root: Path, review: Path, manifest: dict) -> int:
+    """Re-derive the fixture and require the stored bytes to match exactly."""
+    path = synthetic_exhaustion_path(review)
+    label = "synthetic rate-exhaustion fixture"
+    if path.is_symlink():
+        raise ContractError(f"{label} is a symlink")
+    if not path.exists():
+        return 0
+    payload = read_bounded(path, label)
+    assert_no_forbidden_bytes(payload, label)
+    require_synthetic_sources_validated(manifest)
+    if payload != canonical_json(derive_rate_exhaustion_record(root)):
+        raise ContractError(
+            f"{label} does not re-derive from the committed captures")
+    return 1
+
+
+# --------------------------------------------------------------------------
 # The only function that reaches a network
 # --------------------------------------------------------------------------
 
@@ -834,10 +1391,12 @@ def validate_course_manifest(manifest_bytes: bytes, authority: dict) -> dict:
     return manifest
 
 
-def run_validate_existing(args: argparse.Namespace) -> int:
+def validate_recorded_state(args: argparse.Namespace) -> dict:
+    """Everything `--validate-existing` proves. No traffic, no writes."""
     packet_bytes, _response, authority, manifest, authority_sha = load_inputs(args)
     if manifest["packet_sha256"] != sha256_bytes(packet_bytes):
         raise ContractError("course manifest does not bind this packet")
+    review = review_directory(Path(args.packet))
     root = resolve_output_root(Path(args.output_root), Path(args.packet))
     if not root.is_dir():
         raise ContractError("output root does not exist; nothing to revalidate")
@@ -861,7 +1420,53 @@ def run_validate_existing(args: argparse.Namespace) -> int:
             raise ContractError(
                 f"capture {course['name']} is not canonically serialized")
         checked += 1
-    print(f"RFC0017_ANONYMOUS_CONTRACTS_VALID:{checked}")
+
+    derived = verify_synthetic_exhaustion(root, review, manifest)
+    bound = verify_capture_bindings(
+        packet_bytes=packet_bytes, manifest=manifest, root=root, review=review)
+    return {
+        "packet_bytes": packet_bytes,
+        "manifest": manifest,
+        "review": review,
+        "root": root,
+        "checked": checked,
+        "derived": derived,
+        "bound": bound,
+    }
+
+
+def run_validate_existing(args: argparse.Namespace) -> int:
+    state = validate_recorded_state(args)
+    print(f"RFC0017_ANONYMOUS_CONTRACTS_VALID:{state['checked']}")
+    if state["bound"] is None:
+        # Older review directories carry no binding artifact. Say so out loud:
+        # closeout must be able to see which evidence is commit-bound.
+        print("RFC0017_ANONYMOUS_CONTRACTS_BINDINGS_ABSENT")
+    else:
+        print(f"RFC0017_ANONYMOUS_CONTRACTS_BOUND:{state['bound']}")
+    print(f"RFC0017_ANONYMOUS_CONTRACTS_DERIVED:{state['derived']}")
+    return 0
+
+
+def run_write_bindings(args: argparse.Namespace) -> int:
+    state = validate_recorded_state(args)
+    record = build_binding_record(
+        packet_bytes=state["packet_bytes"], manifest=state["manifest"],
+        root=state["root"], review=state["review"])
+    write_artifact_once(
+        binding_path(state["review"]), canonical_json(record), "capture bindings")
+    print(f"RFC0017_ANONYMOUS_CONTRACTS_BOUND:{len(record['bindings'])}")
+    return 0
+
+
+def run_synthesize_exhaustion(args: argparse.Namespace) -> int:
+    state = validate_recorded_state(args)
+    require_synthetic_sources_validated(state["manifest"])
+    payload = canonical_json(derive_rate_exhaustion_record(state["root"]))
+    write_artifact_once(
+        synthetic_exhaustion_path(state["review"]), payload,
+        "synthetic rate-exhaustion fixture")
+    print("RFC0017_ANONYMOUS_CONTRACTS_DERIVED:1")
     return 0
 
 
@@ -938,14 +1543,28 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--validate-existing", action="store_true",
         help="perform no traffic; revalidate everything already recorded")
+    parser.add_argument(
+        "--write-bindings", action="store_true",
+        help="perform no traffic; revalidate, then write capture-bindings.json")
+    parser.add_argument(
+        "--synthesize-exhaustion", action="store_true",
+        help="perform no traffic; derive the synthetic rate-exhaustion fixture")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    modes = (
+        (args.validate_existing, run_validate_existing),
+        (args.write_bindings, run_write_bindings),
+        (args.synthesize_exhaustion, run_synthesize_exhaustion),
+    )
     try:
-        if args.validate_existing:
-            return run_validate_existing(args)
+        selected = [runner for enabled, runner in modes if enabled]
+        if len(selected) > 1:
+            raise ContractError("choose at most one no-traffic mode")
+        if selected:
+            return selected[0](args)
         return run_capture(args)
     except ContractError as error:
         sys.stderr.write(f"RFC0017_ANONYMOUS_CONTRACTS_REFUSED:{error}\n")

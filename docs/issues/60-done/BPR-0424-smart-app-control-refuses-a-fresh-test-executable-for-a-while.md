@@ -163,3 +163,19 @@ was the first sample itself: refused four times from 19:18:56, allowed from
 ≈19:45, passing since.
 
 Implemented by the integrator; documentation only, no code.
+
+## A refusal has now outlived every measured window — 2026-08-28
+
+The "everything cleared without intervention" sentence above gained its
+first counterexample, measured by the Remote Control lane during BPR-0476's
+from-scratch build attempt. `katehighlightingindexer.exe` (Release, the
+nested KSyntaxHighlighting build tool) in
+`C:\code\git\BetterPullReview\build\windows-dev` was linked 17:59:25 and was
+still refused at 20:01:14 — 2h 01m 49s, 80 probes across two capped loops, a
+fresh 3033/3077 pair on each — while its Debug sibling, linked 93 seconds
+earlier in the same nested build, cleared inside the hour. Same host, same
+session: one image cleared, one exceeded two hours without a verdict,
+against this card's recorded ~15–45 minute range. The polling stopped at the
+cap; the refusal stands unresolved on that tree only (the `windows-lane`
+worktree needed no reconfigure and was unaffected). The sign / policy-off /
+record-the-exclusion decision remains the owner's, untaken.

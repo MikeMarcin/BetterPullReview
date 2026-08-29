@@ -188,3 +188,69 @@ implemented. The same external binding must protect the eventual normalized
 GraphQL record from a self-consistent body-and-digest substitution. That
 obligation remains here; it is not part of BPR-0445's operation-scoped privacy
 rule.
+
+## The external binding, the derived exhaustion fixture, and the GHES disposition — 2026-08-28
+
+First, a settled reading: the 2026-08-19 section's split — BPR-0405 owns the
+injection mechanism, this card owns values — invited correction, and the
+scout measured it. BPR-0405's own result deferred **both** wholesale; the
+`source_kind: synthetic` enum member and the `rest_conditional_not_modified`
+operation entry were type declarations with no working path behind them. Both
+halves therefore landed here, in one delegated worker slice reviewed and
+reproduced by the integrator:
+
+- **External immutable-evidence binding.** `capture-bindings.json` (schema
+  `bpr.rfc0017.anonymous_capture_binding` v1) binds each of the five captures'
+  exact file bytes, a freshly computed minimized-body digest — the digest the
+  in-record `body_sha256` never was — and an owning commit, verified by
+  `git cat-file` blob byte-equality: the checked property is "this commit
+  stores exactly these bytes at this path", deliberately weaker than
+  latest-touching, which is documented in `verify_one_binding` with the
+  threat reasoning. `--validate-existing` requires the binding when present
+  behind unchanged seeded flags, printing `BOUND:5` beside `VALID:5`;
+  `--write-bindings` generates it fail-closed (missing git, untracked or
+  dirty captures, unreproducible existing file all refuse). The captures,
+  packet, response, and manifest are byte-identical to HEAD.
+- **Derived synthetic exhaustion.** `synthetic/rate-exhaustion.json` is a
+  pure function of three committed captures: real budget values from
+  `rate-limit` (limit 60, real reset), the real recorded 403 zero-remaining
+  refusal template from `graphql-refusal` (no invented prose — the template
+  names no resource, so none was substituted; the resource semantics ride
+  the headers, where the real service carries them), and the core-charged
+  `url`/`operation` from `pull-request`. `--validate-existing` re-derives it
+  and demands byte-equality (`DERIVED:1`); no 429/retry-after exemplar was
+  fabricated because no recorded value supports one — if a secondary-limit
+  shape is ever required it needs its own live authority.
+- **Evidence.** 119 hermetic tests green (82 baseline + 37; the "36" in the
+  2026-08-23 section was true when written and superseded by BPR-0445's
+  additions). The integrator reran the suite, the seeded ledger command
+  (`VALID:5`/`BOUND:5`/`DERIVED:1`, exit 0), and an independent
+  tamper-restore probe against the real binding: a substituted
+  minimized-body digest refuses with the exact course named, exit 3, and the
+  restored file returns green. The worker's 11-mutation sweep over the new
+  logic caught 11/11.
+- **Known residue, deliberately left**: `sanitize_capture` still writes a
+  raw-byte `body_sha256` for future non-GraphQL live captures (inert for the
+  empty-body 304 course; the external binding carries the real guarantee).
+  Fold the decision — repair versus schema note — into the conditional-304
+  mechanism slice rather than changing digest semantics silently here.
+
+**GHES disposition — removed from record-eligibility.** No designated GHES
+instance exists anywhere in the repository's records, and the v001 packet
+states none is authorized. The verification ledger's capability-selection
+table already rules every GHES profile "Typed public-preview unavailable,
+zero requests — not enabled by RFC-BPR-0017", and the recorder itself
+structurally refuses any non-`api.github.com` host before its network
+function can even be imported (`test_refuses_another_host`). An anonymous
+service record from a GHES instance is therefore irrelevant to closeout:
+there is no enabled GHES behavior for it to witness. This dispositions the
+**record** layer only — the product's zero-request GHES refusal proof
+remains seeded, Pending, and owned by BPR-0300/BPR-0301/BPR-0305's
+claim-matrix row, and this card makes no product claim.
+
+**What remains on this card**: the conditional-304 request-side mechanism
+(outbound `If-None-Match`/`If-Modified-Since` sourced from the committed
+`pull-request` capture's real `ETag`/`Last-Modified`, empty-body 304
+sanitization, tests), and then the one bounded live request under a fresh
+digest-bound v004 operator packet — the attended element, prepared and
+parked at the run boundary, never a stop condition before it.
