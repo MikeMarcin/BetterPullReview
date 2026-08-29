@@ -525,9 +525,22 @@ auto main(int argc, char** argv) -> int
 	auto diagnosticGit = std::optional<std::filesystem::path>{ };
 	if (workspaceDiagnostic) {
 		const auto source = std::filesystem::path{ argv[3] };
-		auto       target = std::filesystem::path{
-			diagnosticGitRoot.path().toStdString()
-		} / source.filename();
+		// The staging directory carries a non-ASCII component so the ordinary
+		// run of this course exercises the exec-path reply encoding: the
+		// native-code-page and UTF-8 encodings of this name differ on Windows,
+		// so the course fails there if either handshake side regresses to the
+		// code page (BPR-0476). The root arrives from Qt as UTF-16; the narrow
+		// toStdString() round-trip would mis-decode the component on Windows
+		// before the wrapper ever ran.
+		const auto stagedRoot = std::filesystem::path{
+			diagnosticGitRoot.path().toStdU16String()
+		} / std::filesystem::path{ u8"wräpper" };
+		std::error_code stageError;
+		std::filesystem::create_directories(stagedRoot, stageError);
+		if (stageError) {
+			return EXIT_FAILURE;
+		}
+		auto            target = stagedRoot / source.filename();
 		std::error_code copyError;
 		std::filesystem::copy_file(
 			source,

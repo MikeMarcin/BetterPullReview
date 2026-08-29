@@ -65,7 +65,15 @@ auto main(int argc, char** argv) -> int
 	}
 
 	if (argc == 2 && std::string_view{ argv[1] } == "--exec-path") {
-		std::cout << executable.parent_path().string() << '\n';
+		// The adapter defines the reply's wire encoding as UTF-8: it re-encodes
+		// its expectation with u8string(), so a native-code-page reply can
+		// never byte-match a non-ASCII parent directory on Windows (BPR-0476).
+		// On POSIX u8string() yields the same bytes string() did.
+		const auto reply = executable.parent_path().u8string();
+		std::cout.write(
+			reinterpret_cast<const char*>(reply.data()),
+			static_cast<std::streamsize>(reply.size()));
+		std::cout << '\n';
 		return EXIT_SUCCESS;
 	}
 	const auto hasArgument = [argc, argv](const std::string_view aExpected) {

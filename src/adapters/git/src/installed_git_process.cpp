@@ -123,6 +123,22 @@ namespace bpr::adapters::git {
 #endif
 		}
 
+		// The exec-path reply's wire encoding is UTF-8, matching path_text's
+		// re-encoding of the handshake expectation. Decoding the reply with the
+		// narrow native constructor instead would make both probes disagree
+		// about any non-ASCII path under a non-UTF-8 Windows code page, so no
+		// consistent child reply could pass the handshake (BPR-0476). On POSIX
+		// the u8 constructor preserves the reply bytes exactly.
+		[[nodiscard]] auto path_from_text(
+			const std::string_view aText) -> std::filesystem::path
+		{
+			return std::filesystem::path{
+				std::u8string{
+					reinterpret_cast<const char8_t*>(aText.data()),
+					aText.size() }
+			};
+		}
+
 		[[nodiscard]] auto decode_text(
 			const std::string_view aValue,
 			QString&               aDecoded) -> bool
@@ -5181,7 +5197,7 @@ namespace bpr::adapters::git {
 				};
 			}
 			const auto execPath = canonical_existing(
-				std::filesystem::path{ execPathText });
+				path_from_text(execPathText));
 			if (!execPath.has_value()) {
 				return std::unexpected{
 					application::git_process_failure::invalid_configuration
