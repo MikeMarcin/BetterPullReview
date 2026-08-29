@@ -1,0 +1,13 @@
+{
+  "next_id": "BPR-0491",
+  "previous_next_id": "BPR-0483",
+  "purpose": "windows-lane block for BPR-0311 target-native device authorization",
+  "range": {
+    "end": "BPR-0490",
+    "start": "BPR-0483"
+  },
+  "reservation_id": "idr-bpr-20260829-babf",
+  "reserved_at": "2026-08-29T23:59:21Z",
+  "reserved_for": "bpr-win-jaegaw",
+  "schema": "betterpullreview.issue-id-reservation.v1"
+}
