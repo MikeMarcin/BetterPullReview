@@ -149,12 +149,24 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
 # got there. `ghu_`/`ghr_` are the user-to-server and refresh prefixes the
 # device grant issues; `ghp_`/`gho_`/`ghs_` cover the older shapes an operator
 # might have pasted into a fixture.
-FORBIDDEN_PATTERNS: tuple[tuple[str, str], ...] = (
-    (r"gh[uprso]_[A-Za-z0-9]{16,}", "github token"),
-    # A registered OAuth/App client identifier. Absent until BPR-0318 records a
-    # distributable identity; present after it, at which point this entry moves
-    # to the known-shipped list below with that card's authority behind it.
-    (r"\bIv[0-9]{2}[A-Za-z0-9]{16,}\b", "device client identifier"),
+# The recorded distributable production client, permitted by exact value and
+# nothing wider. BPR-0318 recorded it (record commit
+# c82e51c2c933887632fb0bb35db876375a151de9) and the enabled artifact is
+# required to carry it; any other identifier-shaped material in a shipped
+# binary is still someone's mistake. The private BPR-0276 verification client
+# is separately forbidden by the platform course's no-private-identity check.
+SHIPPED_PRODUCTION_CLIENT = "Iv23liitiYN1WSSbag50"
+
+FORBIDDEN_PATTERNS: tuple[tuple[str, str, frozenset[str]], ...] = (
+    (r"gh[uprso]_[A-Za-z0-9]{16,}", "github token", frozenset()),
+    # A registered OAuth/App client identifier. Until BPR-0318 recorded the
+    # distributable identity nothing of this shape belonged in a shipped
+    # binary; now exactly the recorded client does, and only it.
+    (
+        r"\bIv[0-9]{2}[A-Za-z0-9]{16,}\b",
+        "device client identifier",
+        frozenset({SHIPPED_PRODUCTION_CLIENT}),
+    ),
 )
 
 # Strings a shipped binary legitimately carries, recorded so a future reader
@@ -385,9 +397,10 @@ def check_release_artifact(binary: pathlib.Path) -> list[str]:
     # arbitrary bytes, and refusing to look at those bytes is how a scan
     # reports clean on an artifact it never read.
     decoded = payload.decode("latin-1")
-    for pattern, description in FORBIDDEN_PATTERNS:
-        found = re.search(pattern, decoded)
-        if found is not None:
+    for pattern, description, permitted in FORBIDDEN_PATTERNS:
+        for found in re.finditer(pattern, decoded):
+            if found.group(0) in permitted:
+                continue
             # The value itself is never printed. Reporting a secret to prove a
             # secret leaked would put it in the log, the CI output, and the
             # evidence file.
@@ -395,6 +408,7 @@ def check_release_artifact(binary: pathlib.Path) -> list[str]:
                 f"{description}-shaped material present in release binary "
                 f"at offset {found.start()}"
             )
+            break
 
     # A positive control. If the artifact contains none of what it is supposed
     # to contain, the scan above proved nothing: an empty or wrong file passes
