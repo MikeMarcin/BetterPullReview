@@ -268,3 +268,18 @@ make the macOS-only capability-selection change in
 `src/app/src/github_application.cpp`, which today returns `{ .Registered = false }`
 unconditionally and must become platform-conditional rather than simply true;
 rerun the enabled course and the verifier with `--release-binary`.
+
+### The enablement check is wired, and correctly says "not yet"
+
+Run against the current tests-disabled Release artifact
+(`build/app-release/.../BetterPullReview`, built 2026-08-25, before any flip):
+
+```
+rfc0016-production-identity:fail:release-binary:does-not-select-the-recorded-production-client
+```
+
+That is the right answer today and the evidence that the check is real rather
+than synthetic. The artifact selects no production client because
+`shipped_device_authorization_capability()` still returns `{ .Registered = false }`
+for every platform. After the macOS-only change, the same command against the
+rebuilt artifact must pass, which is what closes the ledger row's second half.
