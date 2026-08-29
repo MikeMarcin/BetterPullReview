@@ -1537,7 +1537,7 @@ namespace {
 				.has_value(),
 			"pending review is a valid provider state");
 
-		for (const auto& [wire_state, normalized_state] : {
+		for (const auto& [wireState, normalizedState] : {
 				 std::pair{
 					 std::string_view{ "DISMISSED" },
 					 application::github_file_viewed_state::dismissed,
@@ -1556,14 +1556,14 @@ namespace {
 				viewedRecording.Responses[6].Response.Body,
 				"\"viewerViewedState\": \"VIEWED\"",
 				std::string{ "\"viewerViewedState\": \"" }
-					+ std::string{ wire_state } + "\"");
+					+ std::string{ wireState } + "\"");
 			const auto normalized = normalize_github_read(
 				normalization_context(server_contract::github_com),
 				viewedRecording.Responses);
 			expect(
 				normalized.has_value()
 					&& normalized->PullRequest.Files.front().ViewedState
-						== normalized_state,
+						== normalizedState,
 				"every selected viewed-file state normalizes exactly");
 		}
 

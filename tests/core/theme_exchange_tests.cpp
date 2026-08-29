@@ -323,7 +323,7 @@ namespace {
 		const auto blockResult = imported(styleBlock);
 		expect(only_rejection(blockResult).Reason == theme_import_reason::style_payload,
 			   "block syntax the format does not have is refused as a style payload");
-		expect(only_rejection(blockResult).Subject.starts_with("{"),
+		expect(only_rejection(blockResult).Subject.starts_with('{'),
 			   "the refused style content is quoted from where it begins");
 
 		const auto styleWord = appended(valid_document(), "qss theme");

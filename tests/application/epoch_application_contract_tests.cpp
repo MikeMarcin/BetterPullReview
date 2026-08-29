@@ -8,6 +8,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -59,21 +61,13 @@ namespace {
 	static_assert(
 		!exposes_host_requests<application::epoch_transition_projection>);
 
-	class test_failure final
+	class test_failure final : public std::runtime_error
 	{
 	public:
-		explicit test_failure(const std::string_view aMessage) noexcept
-			: Message{ aMessage }
+		explicit test_failure(const std::string_view aMessage)
+			: std::runtime_error{ std::string{ aMessage } }
 		{
 		}
-
-		[[nodiscard]] auto message() const noexcept -> std::string_view
-		{
-			return Message;
-		}
-
-	private:
-		std::string_view Message;
 	};
 
 	void expect(const bool aCondition, const std::string_view aMessage)
@@ -292,7 +286,7 @@ int main()
 		runtime_ports_are_typed_and_bounded();
 		system_runtime_ports_observe_native_state();
 	} catch (const test_failure& failure) {
-		std::cerr << "FAIL: " << failure.message() << '\n';
+		std::cerr << "FAIL: " << failure.what() << '\n';
 		return EXIT_FAILURE;
 	} catch (...) {
 		std::cerr << "FAIL: unexpected exception\n";

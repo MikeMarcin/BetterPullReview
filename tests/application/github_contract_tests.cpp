@@ -1179,7 +1179,7 @@ namespace {
 		void cancel_capabilities(
 			application::github_capability_request aRequest) override
 		{
-			LastCapabilityCancellation = aRequest;
+			LastCapabilityCancellation = std::move(aRequest);
 		}
 
 		void fetch_pull_request(

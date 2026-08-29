@@ -2513,7 +2513,7 @@ namespace bpr::adapters::git {
 						}
 						return false;
 					}
-					aPath = quarantine;
+					aPath = std::move(quarantine);
 
 					std::error_code removeError;
 					if (aRecursive) {

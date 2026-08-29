@@ -989,15 +989,15 @@ namespace bpr::core {
 			auto       result     = std::vector<std::pair<byte_span, byte_span>>{ };
 			auto       priorLeft  = std::uint64_t{ 0U };
 			auto       priorRight = std::uint64_t{ 0U };
-			for (const auto& [left_index, right_index] : *matches) {
-				const auto leftBegin  = leftScalars[left_index].Begin;
-				const auto rightBegin = rightScalars[right_index].Begin;
+			for (const auto& [leftIndex, rightIndex] : *matches) {
+				const auto leftBegin  = leftScalars[leftIndex].Begin;
+				const auto rightBegin = rightScalars[rightIndex].Begin;
 				if (priorLeft != leftBegin || priorRight != rightBegin) {
 					result.emplace_back(byte_span{ priorLeft, leftBegin },
 										byte_span{ priorRight, rightBegin });
 				}
-				priorLeft  = leftScalars[left_index].End;
-				priorRight = rightScalars[right_index].End;
+				priorLeft  = leftScalars[leftIndex].End;
+				priorRight = rightScalars[rightIndex].End;
 			}
 			if (priorLeft != leftSize || priorRight != rightSize) {
 				result.emplace_back(byte_span{ priorLeft, leftSize },

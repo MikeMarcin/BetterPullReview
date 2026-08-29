@@ -469,7 +469,7 @@ namespace bpr::adapters::github::detail {
 				endpoint = aWire.Path.substr(prefix.size());
 			}
 			if (!aWire.Query.empty()) {
-				endpoint += "?";
+				endpoint += '?';
 				endpoint += aWire.Query;
 			}
 			if (!safe_relative_endpoint(endpoint)) {

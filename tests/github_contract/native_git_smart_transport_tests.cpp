@@ -15,6 +15,7 @@
 #include <expected>
 #include <iostream>
 #include <span>
+#include <stdexcept>
 #include <stop_token>
 #include <string>
 #include <string_view>
@@ -33,21 +34,13 @@ namespace {
 	constexpr std::string_view ls_refs_body     = "0008NAK\n0000";
 	constexpr std::size_t      fetch_body_bytes = 200'000U;
 
-	class test_failure final
+	class test_failure final : public std::runtime_error
 	{
 	public:
-		explicit test_failure(const std::string_view aMessage) noexcept
-			: Message{ aMessage }
+		explicit test_failure(const std::string_view aMessage)
+			: std::runtime_error{ std::string{ aMessage } }
 		{
 		}
-
-		[[nodiscard]] auto message() const noexcept -> std::string_view
-		{
-			return Message;
-		}
-
-	private:
-		std::string_view Message;
 	};
 
 	void expect(const bool aCondition, const std::string_view aMessage)
@@ -315,7 +308,7 @@ namespace {
 
 		(*lease)->revoke();
 		expect((*lease)->revoked(), "lease-revoked");
-		request.Context    = context;
+		request.Context    = std::move(context);
 		const auto revoked = (*lease)->discover(request, { });
 		expect(!revoked.has_value(), "revoked-request");
 		expect_failure(
@@ -523,7 +516,7 @@ int main(int argc, char** argv)
 		std::cout << "OK\n";
 		return EXIT_SUCCESS;
 	} catch (const test_failure& failure) {
-		std::cerr << "FAILED: " << failure.message() << '\n';
+		std::cerr << "FAILED: " << failure.what() << '\n';
 	} catch (const std::exception& failure) {
 		std::cerr << "FAILED: exception: " << failure.what() << '\n';
 	} catch (...) {

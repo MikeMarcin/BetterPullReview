@@ -697,7 +697,7 @@ namespace {
 		stale                    = current;
 		stale.IdentityGeneration = github_identity_generation{ 99 };
 		assert_fetch_context_is_stale(stale);
-		stale            = current;
+		stale            = std::move(current);
 		stale.Generation = request_generation{ 99 };
 		assert_fetch_context_is_stale(stale);
 	}

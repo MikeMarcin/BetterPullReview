@@ -5511,7 +5511,7 @@ namespace {
 				   "every pre-PONR cache-delete phase restarts by exact abort");
 		}
 
-		for (const auto [phase, expected_deletes] : std::array{
+		for (const auto [phase, expectedDeletes] : std::array{
 				 std::pair{ quarantined, std::size_t{ 1U } },
 				 std::pair{ catalog_tombstoned_cleanup_pending, std::size_t{ 1U } },
 			 }) {
@@ -5523,7 +5523,7 @@ namespace {
 			value.Host->accept(make_handoff(value.State));
 			run_effect_completion(value);
 			expect(value.State.Maintenance->Phase == complete
-					   && value.State.DeleteRequests.size() == expected_deletes
+					   && value.State.DeleteRequests.size() == expectedDeletes
 					   && value.Host->state().Authority.has_value(),
 				   "every post-quarantine cache-delete phase resumes exact cleanup");
 		}

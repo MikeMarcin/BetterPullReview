@@ -197,7 +197,7 @@ namespace {
 				changed.Headers.front().Value = "text/plain";
 				break;
 			case 3:
-				changed.Body += " ";
+				changed.Body += ' ';
 				break;
 			default:
 				std::abort();

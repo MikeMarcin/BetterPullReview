@@ -21,6 +21,7 @@
 #include <limits>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <stop_token>
 #include <string>
 #include <string_view>
@@ -52,21 +53,13 @@ namespace {
 	static_assert(native_https_maximum_response_header_bytes == 64U * 1024U);
 	static_assert(native_https_maximum_redirects == 3U);
 
-	class test_failure final
+	class test_failure final : public std::runtime_error
 	{
 	public:
-		explicit test_failure(const std::string_view aMessage) noexcept
-			: Message{ aMessage }
+		explicit test_failure(const std::string_view aMessage)
+			: std::runtime_error{ std::string{ aMessage } }
 		{
 		}
-
-		[[nodiscard]] auto message() const noexcept -> std::string_view
-		{
-			return Message;
-		}
-
-	private:
-		std::string_view Message;
 	};
 
 	void expect(const bool aCondition, const std::string_view aMessage)
@@ -1703,7 +1696,7 @@ auto main(int argument_count, char* arguments[]) -> int
 	} catch (const test_failure& failure) {
 		std::cerr
 			<< "native-https-transport:fail:"
-			<< failure.message()
+			<< failure.what()
 			<< '\n';
 		return EXIT_FAILURE;
 	} catch (...) {

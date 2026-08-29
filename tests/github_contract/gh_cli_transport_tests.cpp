@@ -409,7 +409,7 @@ namespace {
 			result                = path.substr(prefix.size());
 		}
 		if (!aRequest.Wire.Query.empty()) {
-			result += "?";
+			result += '?';
 			result += aRequest.Wire.Query;
 		}
 		return result;

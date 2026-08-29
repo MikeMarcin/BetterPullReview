@@ -487,11 +487,11 @@ namespace {
 		options.LineEndings = core::line_ending_policy::normalize;
 		changed.emplace_back(comparison_key(options), options);
 
-		for (const auto& [new_key, new_options] : changed) {
+		for (const auto& [newKey, newOptions] : changed) {
 			fixture test;
 			test.request(base);
 			test.Effects.run_next();
-			test.request(new_key, new_options);
+			test.request(newKey, newOptions);
 			test.Effects.run_next();
 			expect(test.Decisions.pending() == 2U,
 				   "two exact identity terminals can be staged");
@@ -501,7 +501,7 @@ namespace {
 			test.Decisions.run_next();
 			expect(test.Projections.Results.size() == 1U
 					   && test.Projections.Results.back().Result.Alignment.Key
-						   == new_key,
+						   == newKey,
 				   "only the complete current identity publishes");
 		}
 

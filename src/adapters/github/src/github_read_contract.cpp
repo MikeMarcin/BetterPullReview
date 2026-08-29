@@ -550,7 +550,7 @@ namespace bpr::adapters::github::detail {
 			}
 			result += "} ";
 			result += page_info_selection();
-			result += "}";
+			result += '}';
 			return result;
 		}
 
@@ -562,7 +562,7 @@ namespace bpr::adapters::github::detail {
 			result += "){totalCount nodes{id bodyText path line originalLine "
 					  "outdated author{login ... on Node{id}} replyTo{id}} ";
 			result += page_info_selection();
-			result += "}";
+			result += '}';
 			return result;
 		}
 
@@ -583,7 +583,7 @@ namespace bpr::adapters::github::detail {
 			result += comment_connection_selection("first:100");
 			result += "} ";
 			result += page_info_selection();
-			result += "}";
+			result += '}';
 			return result;
 		}
 
@@ -598,11 +598,11 @@ namespace bpr::adapters::github::detail {
 						"$number:Int!){repository(owner:$owner,name:$name){id "
 						"pullRequest(number:$number){id headRefOid";
 				if (aPage.Shape.ViewedFileState) {
-					query += " ";
+					query += ' ';
 					query += file_connection_selection("first:100", aPage.Shape);
 				}
 				if (aPage.Shape.ReviewThreads) {
-					query += " ";
+					query += ' ';
 					query += thread_connection_selection("first:100", aPage.Shape);
 				}
 				query += "}}}";

@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <stop_token>
 #include <string>
 #include <string_view>
@@ -52,21 +53,13 @@ namespace {
 	constexpr std::uint32_t    refresh_expires_in     = 15'897'600U;
 	constexpr std::uint32_t    slow_down_interval     = 10U;
 
-	class test_failure final
+	class test_failure final : public std::runtime_error
 	{
 	public:
-		explicit test_failure(const std::string_view aMessage) noexcept
-			: Message{ aMessage }
+		explicit test_failure(const std::string_view aMessage)
+			: std::runtime_error{ std::string{ aMessage } }
 		{
 		}
-
-		[[nodiscard]] auto message() const noexcept -> std::string_view
-		{
-			return Message;
-		}
-
-	private:
-		std::string_view Message;
 	};
 
 	void expect(const bool aCondition, const std::string_view aMessage)
@@ -853,10 +846,9 @@ namespace {
 			.Profile         = core::host_profile_id{ 11U },
 			.ProfileRevision = application::github_profile_revision{ 31U },
 			.Host            = core::git_host_id{ 21U },
-			.Hostname
-			= application::github_canonical_hostname{ std::string{ "github.com" } },
-			.Account        = core::github_account_id{ 41U },
-			.ServerContract = application::github_server_contract::
+			.Hostname        = application::github_canonical_hostname{ "github.com" },
+			.Account         = core::github_account_id{ 41U },
+			.ServerContract  = application::github_server_contract::
 				github_com_2022_11_28,
 		};
 	}
@@ -1033,7 +1025,7 @@ auto main(int argument_count, char* arguments[]) -> int
 		return EXIT_SUCCESS;
 	} catch (const test_failure& failure) {
 		std::cerr << "native-https-device-authorization:fail:"
-				  << failure.message() << '\n';
+				  << failure.what() << '\n';
 	} catch (...) {
 		std::cerr << "native-https-device-authorization:fail:internal\n";
 	}

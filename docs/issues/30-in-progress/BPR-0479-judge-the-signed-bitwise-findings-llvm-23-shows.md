@@ -48,7 +48,18 @@ exit 0 under `-Werror -Wconversion -Wsign-conversion`; format gate green;
 edited-source coverage sets. Two pre-existing findings in other families
 remain byte-identical at their recorded sites, counted in the 44.
 
-The 44 remaining findings are this card's slice two. One portability note
+The 44 remaining findings are this card's slice two, and it landed the
+same night: the four local `test_failure` classes derive from
+`std::runtime_error` with their redundant `message()` accessors removed
+and catch sites routed through `what()` (printed text byte-identical;
+`noexcept` necessarily dropped from the forwarding constructors), the nine
+string-find literals become chars, the seven structured-binding locals take
+their fix-it camelCase names, the four moves and one string_view
+conversion follow their diagnostics with each move's dead-afterward
+property read directly. All 16 touched TUs re-tidy to zero user-code
+diagnostics of any kind — stronger than family-clean — build and format
+gates green, and the owning selectors pass 25/25 serially. Slice one's two
+carried-over findings closed with it. One portability note
 kept: `designated_live_macos_supervisor.cpp:342,490` carry the same
 mode-mask shape but sit outside the dev compile database, so no gate has
 judged them; a platform lane may surface more of the family.
