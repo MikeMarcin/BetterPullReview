@@ -1,7 +1,7 @@
 ---
 id: BPR-0475
 title: QWindows11Style diverges from the diff course's viewport palette-identity check
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0005
 depends_on: []
 ---
