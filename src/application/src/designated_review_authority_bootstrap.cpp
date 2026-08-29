@@ -156,7 +156,7 @@ namespace bpr::application::detail {
 			auto           result = std::string{ };
 			result.reserve(64U);
 			for (const auto byte : digest) {
-				result.push_back(digits[(byte >> 4U) & 0x0fU]);
+				result.push_back(digits[(static_cast<unsigned>(byte) >> 4U) & 0x0fU]);
 				result.push_back(digits[byte & 0x0fU]);
 			}
 			return result;
@@ -373,7 +373,7 @@ namespace bpr::application::detail {
 		{
 			struct stat status{ };
 			if (::fstat(aDescriptor, &status) != 0 || !S_ISDIR(status.st_mode)
-				|| status.st_uid != ::geteuid() || (status.st_mode & 0777) != 0700
+				|| status.st_uid != ::geteuid() || (status.st_mode & static_cast<mode_t>(0777)) != 0700
 				|| !has_only_trivial_acl(aDescriptor)) {
 				return false;
 			}
@@ -389,7 +389,7 @@ namespace bpr::application::detail {
 		{
 			struct stat status{ };
 			if (::fstat(aDescriptor, &status) != 0 || !S_ISDIR(status.st_mode)
-				|| status.st_uid != ::geteuid() || (status.st_mode & 0077) != 0
+				|| status.st_uid != ::geteuid() || (status.st_mode & static_cast<mode_t>(0077)) != 0
 				|| !has_only_trivial_acl(aDescriptor)) {
 				return false;
 			}
@@ -406,7 +406,7 @@ namespace bpr::application::detail {
 			struct stat status{ };
 			if (::fstat(aDescriptor, &status) != 0 || !S_ISREG(status.st_mode)
 				|| status.st_uid != ::geteuid() || status.st_nlink != 1
-				|| (status.st_mode & 0777) != 0600
+				|| (status.st_mode & static_cast<mode_t>(0777)) != 0600
 				|| !has_only_trivial_acl(aDescriptor)) {
 				return false;
 			}
@@ -698,7 +698,7 @@ namespace bpr::application::detail {
 					   aDirectory, namedPath.data(), &namedStatus, AT_SYMLINK_NOFOLLOW)
 				== 0
 				&& S_ISREG(namedStatus.st_mode) && namedStatus.st_uid == ::geteuid()
-				&& namedStatus.st_nlink == 1 && (namedStatus.st_mode & 0777) == 0600
+				&& namedStatus.st_nlink == 1 && (namedStatus.st_mode & static_cast<mode_t>(0777)) == 0600
 				&& same_identity(descriptorStatus, aRetained.Identity)
 				&& same_identity(namedStatus, aRetained.Identity);
 		}

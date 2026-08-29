@@ -872,7 +872,7 @@ namespace bpr::adapters::sqlite {
 					if (insertCode == SQLITE_DONE) {
 						cacheScope          = candidate;
 						repositoryLifecycle = 1;
-					} else if ((insertCode & 0xFF) != SQLITE_CONSTRAINT) {
+					} else if ((static_cast<unsigned>(insertCode) & 0xFFU) != SQLITE_CONSTRAINT) {
 						return std::unexpected(sql_failure(database, aStop));
 					}
 				}
@@ -1067,7 +1067,7 @@ namespace bpr::adapters::sqlite {
 					const auto insertCode = ::sqlite3_step(insert->Value);
 					if (insertCode == SQLITE_DONE) {
 						prScope = candidate;
-					} else if ((insertCode & 0xFF) != SQLITE_CONSTRAINT) {
+					} else if ((static_cast<unsigned>(insertCode) & 0xFFU) != SQLITE_CONSTRAINT) {
 						return std::unexpected(sql_failure(database, aStop));
 					}
 				}

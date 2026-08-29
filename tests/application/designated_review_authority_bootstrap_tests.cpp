@@ -56,7 +56,7 @@ namespace {
 			reinterpret_cast<const std::uint8_t*>(aValue.data()), aValue.size() });
 		auto           result = std::string{ };
 		for (const auto byte : digest) {
-			result.push_back(digits[(byte >> 4U) & 0x0fU]);
+			result.push_back(digits[(static_cast<unsigned>(byte) >> 4U) & 0x0fU]);
 			result.push_back(digits[byte & 0x0fU]);
 		}
 		return result;

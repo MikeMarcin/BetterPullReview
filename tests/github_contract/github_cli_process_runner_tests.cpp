@@ -836,7 +836,7 @@ namespace {
 				&& ::fcntl(
 					   inheritedDescriptor,
 					   F_SETFD,
-					   descriptorFlags & ~FD_CLOEXEC)
+					   static_cast<int>(static_cast<unsigned>(descriptorFlags) & ~static_cast<unsigned>(FD_CLOEXEC)))
 					== 0,
 			"inherited descriptor close-on-exec is explicitly disabled");
 

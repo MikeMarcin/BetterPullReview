@@ -2322,7 +2322,7 @@ namespace {
 			S_ISDIR(*mode),
 			"and is a directory rather than a link to one");
 		expect(
-			(*mode & 0777) == 0700,
+			(*mode & static_cast<mode_t>(0777)) == 0700,
 			"reachable only by its owner");
 
 		struct stat status{ };

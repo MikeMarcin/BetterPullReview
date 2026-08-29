@@ -604,7 +604,7 @@ namespace bpr::tests::sqlite_contract {
 	{
 		struct stat status{ };
 		return ::lstat(aPath.c_str(), &status) == 0
-			&& (status.st_mode & 0777) == (aDirectory ? 0700 : 0600);
+			&& (status.st_mode & static_cast<mode_t>(0777)) == (aDirectory ? 0700 : 0600);
 	}
 
 	struct file_identity

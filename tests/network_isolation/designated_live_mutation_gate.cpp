@@ -184,12 +184,12 @@ namespace bpr::tests::network_isolation {
 
 		[[nodiscard]] bool safe_private_file_stat(const struct stat& aStatus)
 		{
-			return S_ISREG(aStatus.st_mode) && aStatus.st_uid == geteuid() && (aStatus.st_mode & (S_IRWXG | S_IRWXO)) == 0 && (aStatus.st_mode & S_IRUSR) != 0 && aStatus.st_nlink == 1;
+			return S_ISREG(aStatus.st_mode) && aStatus.st_uid == geteuid() && (aStatus.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0 && (aStatus.st_mode & S_IRUSR) != 0 && aStatus.st_nlink == 1;
 		}
 
 		[[nodiscard]] bool safe_private_directory_stat(const struct stat& aStatus)
 		{
-			return S_ISDIR(aStatus.st_mode) && aStatus.st_uid == geteuid() && (aStatus.st_mode & (S_IRWXG | S_IRWXO)) == 0 && (aStatus.st_mode & S_IRWXU) == S_IRWXU;
+			return S_ISDIR(aStatus.st_mode) && aStatus.st_uid == geteuid() && (aStatus.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0 && (aStatus.st_mode & S_IRWXU) == S_IRWXU;
 		}
 
 		[[nodiscard]] bool same_object(const struct stat& aLeft, const struct stat& aRight)

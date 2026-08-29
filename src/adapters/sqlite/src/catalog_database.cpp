@@ -928,13 +928,13 @@ namespace bpr::adapters::sqlite::detail {
 			-> bool
 		{
 			return S_ISDIR(aStatus.st_mode) && aStatus.st_uid == ::geteuid()
-				&& (aStatus.st_mode & 0777) == 0700;
+				&& (aStatus.st_mode & static_cast<mode_t>(0777)) == 0700;
 		}
 
 		[[nodiscard]] auto private_file(const struct stat& aStatus) noexcept -> bool
 		{
 			return S_ISREG(aStatus.st_mode) && aStatus.st_uid == ::geteuid()
-				&& (aStatus.st_mode & 0777) == 0600 && aStatus.st_nlink == 1;
+				&& (aStatus.st_mode & static_cast<mode_t>(0777)) == 0600 && aStatus.st_nlink == 1;
 		}
 
 		[[nodiscard]] auto open_private_directory(const std::filesystem::path& aPath)
@@ -4106,7 +4106,7 @@ namespace bpr::adapters::sqlite::detail {
 	auto classify_sqlite_result(const int aResultCode) noexcept
 		-> sqlite_result_classification
 	{
-		switch (aResultCode & 0xFF) {
+		switch (static_cast<unsigned>(aResultCode) & 0xFFU) {
 		case SQLITE_BUSY:
 		case SQLITE_LOCKED:
 			return sqlite_result_classification::busy;

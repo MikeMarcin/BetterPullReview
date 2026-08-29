@@ -370,7 +370,7 @@ namespace {
 		auto                       output = std::string{ };
 		output.reserve(16U);
 		for (int shift = 56; shift >= 0; shift -= 8) {
-			const auto byte = static_cast<std::uint8_t>(aValue >> shift);
+			const auto byte = static_cast<std::uint8_t>(aValue >> static_cast<unsigned>(shift));
 			output.push_back(digits[byte >> 4U]);
 			output.push_back(digits[byte & 0x0FU]);
 		}
@@ -1218,7 +1218,7 @@ namespace {
 				+ "', cache_scope, pr_scope, catalog_revision, 0 "
 				  "FROM pull_request_scope LIMIT 1");
 			expect(
-				(code & 0xFF) == SQLITE_CONSTRAINT
+				(static_cast<unsigned>(code) & 0xFFU) == SQLITE_CONSTRAINT
 					&& database.integer(
 						   "SELECT count(*) FROM cache_delete_scope")
 						== 0

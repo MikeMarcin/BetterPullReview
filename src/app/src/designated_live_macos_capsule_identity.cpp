@@ -80,7 +80,7 @@ namespace bpr::app::designated_live_capsule_identity {
 			auto                  result = std::string{ };
 			result.reserve(aBytes.size() * 2U);
 			for (const auto byte : aBytes) {
-				result.push_back(digits[(byte >> 4U) & 0x0fU]);
+				result.push_back(digits[(static_cast<unsigned>(byte) >> 4U) & 0x0fU]);
 				result.push_back(digits[byte & 0x0fU]);
 			}
 			return result;

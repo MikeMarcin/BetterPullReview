@@ -236,8 +236,8 @@ namespace bpr::adapters::sqlite::detail {
 		::sqlite3_extended_result_codes(aDatabase, 1);
 		(void)::sqlite3_busy_timeout(aDatabase, 2'000);
 
-		(void)::sqlite3_limit(aDatabase, SQLITE_LIMIT_LENGTH, 1 << 20);
-		(void)::sqlite3_limit(aDatabase, SQLITE_LIMIT_SQL_LENGTH, 1 << 18);
+		(void)::sqlite3_limit(aDatabase, SQLITE_LIMIT_LENGTH, static_cast<int>(1U << 20U));
+		(void)::sqlite3_limit(aDatabase, SQLITE_LIMIT_SQL_LENGTH, static_cast<int>(1U << 18U));
 		(void)::sqlite3_limit(aDatabase, SQLITE_LIMIT_COLUMN, 128);
 		(void)::sqlite3_limit(aDatabase, SQLITE_LIMIT_EXPR_DEPTH, 64);
 		(void)::sqlite3_limit(aDatabase, SQLITE_LIMIT_COMPOUND_SELECT, 8);

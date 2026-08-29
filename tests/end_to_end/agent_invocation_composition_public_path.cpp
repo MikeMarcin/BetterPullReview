@@ -143,7 +143,7 @@ namespace {
 			if (!high.has_value() || !low.has_value()) {
 				return std::nullopt;
 			}
-			decoded.push_back(static_cast<char>((*high << 4U) | *low));
+			decoded.push_back(static_cast<char>((static_cast<unsigned>(*high) << 4U) | *low));
 		}
 		return decoded;
 	}

@@ -325,7 +325,7 @@ namespace {
 		const auto  path = directory.Path / "state" / "v1"
 			/ "review-mutation-recovery.sqlite3";
 		expect(::stat(path.c_str(), &status) == 0
-				   && (status.st_mode & 0777) == 0600,
+				   && (status.st_mode & static_cast<mode_t>(0777)) == 0600,
 			   "recovery database is owner-private");
 #endif
 	}

@@ -414,7 +414,7 @@ namespace bpr::adapters::github::detail {
 				}
 
 				encoded.push_back('%');
-				encoded.push_back(hexadecimal[(character >> 4U) & 0x0FU]);
+				encoded.push_back(hexadecimal[(static_cast<unsigned>(character) >> 4U) & 0x0FU]);
 				encoded.push_back(hexadecimal[character & 0x0FU]);
 			}
 			return encoded;

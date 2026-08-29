@@ -160,8 +160,8 @@ namespace bpr::adapters::github::detail {
 			if (!parent || !executable || ::fstat(parent.get(), &parentStatus) != 0
 				|| ::fstat(executable.get(), &identity) != 0
 				|| !S_ISDIR(parentStatus.st_mode) || parentStatus.st_uid != 0U
-				|| (parentStatus.st_mode & 0022) != 0 || !S_ISREG(identity.st_mode)
-				|| identity.st_uid != 0U || (identity.st_mode & 0022) != 0
+				|| (parentStatus.st_mode & static_cast<mode_t>(0022)) != 0 || !S_ISREG(identity.st_mode)
+				|| identity.st_uid != 0U || (identity.st_mode & static_cast<mode_t>(0022)) != 0
 				|| identity.st_nlink != 1) {
 				return std::nullopt;
 			}

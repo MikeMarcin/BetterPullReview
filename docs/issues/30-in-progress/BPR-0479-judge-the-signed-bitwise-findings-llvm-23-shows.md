@@ -24,3 +24,31 @@ the strict gate is a closeout gate.
 Disposition: fix, not suppress — per-site unsigned casts in the house's
 existing targeted-`static_cast` idiom, no `NOLINT`, no `.clang-tidy`
 change, bit values and call types identical.
+
+## Slice one landed, and the headline above was wrong — 2026-08-28, night
+
+The worker's audit corrected this card's opening count: the gate's 96
+errors are **52 signed-bitwise across 23 files** plus **44 in four other
+families** the same LLVM tightening surfaced —
+`bugprone-std-exception-baseclass` 23, `performance-faster-string-find` 9,
+`readability-identifier-naming` 7, `performance-use-std-move` 4,
+`performance-string-view-conversions` 1. The conflation is corrected here
+rather than rewritten away.
+
+All 52 signed-bitwise sites are repaired in nine documented per-family
+patterns (one audited-script pass, each line's pre-image asserted), with
+one justified deviation: mode masks take a single `static_cast<mode_t>`
+around the macro pair, because on macOS `mode_t` is 16-bit and per-macro
+casts integer-promote straight back to `int` — probe-verified, as was the
+fact that the gate already drops macro-located inner-`|` diagnostics as
+non-user code. Verification: all 22 flagged TUs re-tidied clean of the
+family with zero new diagnostics against a full parsed-set diff; build
+exit 0 under `-Werror -Wconversion -Wsign-conversion`; format gate green;
+34 focused selectors green across the prescribed, edited-test, and
+edited-source coverage sets. Two pre-existing findings in other families
+remain byte-identical at their recorded sites, counted in the 44.
+
+The 44 remaining findings are this card's slice two. One portability note
+kept: `designated_live_macos_supervisor.cpp:342,490` carry the same
+mode-mask shape but sit outside the dev compile database, so no gate has
+judged them; a platform lane may surface more of the family.

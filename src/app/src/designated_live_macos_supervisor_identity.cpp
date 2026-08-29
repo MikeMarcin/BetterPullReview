@@ -36,14 +36,14 @@ namespace bpr::app::designated_live_supervisor_identity {
 		[[nodiscard]] auto private_directory(const struct stat& aStatus) -> bool
 		{
 			return S_ISDIR(aStatus.st_mode) && aStatus.st_uid == ::geteuid()
-				&& (aStatus.st_mode & 0077) == 0;
+				&& (aStatus.st_mode & static_cast<mode_t>(0077)) == 0;
 		}
 
 		[[nodiscard]] auto private_regular_file(
 			const struct stat& aStatus) -> bool
 		{
 			return S_ISREG(aStatus.st_mode) && aStatus.st_uid == ::geteuid()
-				&& (aStatus.st_mode & 0077) == 0 && aStatus.st_nlink == 1
+				&& (aStatus.st_mode & static_cast<mode_t>(0077)) == 0 && aStatus.st_nlink == 1
 				&& aStatus.st_size > 0
 				&& static_cast<std::uintmax_t>(aStatus.st_size)
 				<= maximum_inventory_bytes;
@@ -162,7 +162,7 @@ namespace bpr::app::designated_live_supervisor_identity {
 			auto                  result = std::string{ };
 			result.reserve(digest.size() * 2U);
 			for (const auto byte : digest) {
-				result.push_back(digits[(byte >> 4U) & 0x0fU]);
+				result.push_back(digits[(static_cast<unsigned>(byte) >> 4U) & 0x0fU]);
 				result.push_back(digits[byte & 0x0fU]);
 			}
 			return result;
@@ -337,7 +337,7 @@ namespace bpr::app::designated_live_supervisor_identity {
 		if (::fstat(result.VerifierDescriptor, &result.VerifierIdentity) != 0
 			|| !S_ISREG(result.VerifierIdentity.st_mode)
 			|| result.VerifierIdentity.st_uid != ::geteuid()
-			|| (result.VerifierIdentity.st_mode & 0022) != 0
+			|| (result.VerifierIdentity.st_mode & static_cast<mode_t>(0022)) != 0
 			|| result.VerifierIdentity.st_size <= 0
 			|| static_cast<std::uintmax_t>(result.VerifierIdentity.st_size)
 				> maximum_verifier_bytes) {

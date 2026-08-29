@@ -300,7 +300,7 @@ namespace {
 		std::string                       output;
 		output.reserve(aValue.size() * 2U);
 		for (const auto byte : aValue) {
-			output.push_back(digits[(byte >> 4U) & 0x0fU]);
+			output.push_back(digits[(static_cast<unsigned>(byte) >> 4U) & 0x0fU]);
 			output.push_back(digits[byte & 0x0fU]);
 		}
 		return output;

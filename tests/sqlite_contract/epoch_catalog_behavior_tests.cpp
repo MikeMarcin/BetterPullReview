@@ -823,7 +823,7 @@ namespace {
 				::sqlite3_open_v2(
 					native.c_str(),
 					&Handle,
-					access | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_NOFOLLOW,
+					static_cast<int>(static_cast<unsigned>(access) | static_cast<unsigned>(SQLITE_OPEN_FULLMUTEX) | static_cast<unsigned>(SQLITE_OPEN_NOFOLLOW)),
 					test_platform::sqlite_vfs())
 						== SQLITE_OK
 					&& Handle != nullptr,
@@ -2839,7 +2839,7 @@ namespace {
 				+ hex_identity(firstAppend) + "') WHERE operation=x'"
 				+ hex_identity(secondAppend) + "'");
 			expect(
-				(code & 0xFF) == SQLITE_CONSTRAINT
+				(static_cast<unsigned>(code) & 0xFFU) == SQLITE_CONSTRAINT
 					&& database.integer(
 						   "SELECT count(DISTINCT source_observation) "
 						   "FROM operation WHERE kind=1")
@@ -2856,7 +2856,7 @@ namespace {
 				+ secondPr + "' WHERE operation=x'"
 				+ hex_identity(firstAppend) + "'");
 			expect(
-				(code & 0xFF) == SQLITE_CONSTRAINT,
+				(static_cast<unsigned>(code) & 0xFFU) == SQLITE_CONSTRAINT,
 				"operation cannot bind a PR from another cache");
 			expect(
 				database.foreign_key_violation_count() == 0
@@ -2914,7 +2914,7 @@ namespace {
 				+ "' WHERE operation=x'" + hex_identity(firstPrune.Operation)
 				+ "'");
 			expect(
-				(code & 0xFF) == SQLITE_CONSTRAINT,
+				(static_cast<unsigned>(code) & 0xFFU) == SQLITE_CONSTRAINT,
 				"prune detail cannot bind an operation owned by another PR");
 			expect(
 				database.foreign_key_violation_count() == 0
@@ -2988,7 +2988,7 @@ namespace {
 				+ secondCache + "' WHERE operation=x'"
 				+ hex_identity(firstDelete->Operation) + "'");
 			expect(
-				(code & 0xFF) == SQLITE_CONSTRAINT,
+				(static_cast<unsigned>(code) & 0xFFU) == SQLITE_CONSTRAINT,
 				"cache-delete detail cannot substitute another cache");
 			expect(
 				database.foreign_key_violation_count() == 0

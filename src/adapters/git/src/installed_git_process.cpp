@@ -207,7 +207,7 @@ namespace bpr::adapters::git {
 			}
 			return S_ISDIR(information.st_mode)
 				&& information.st_uid == ::geteuid()
-				&& (information.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+				&& (information.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0;
 #else
 	#if defined(Q_OS_WIN)
 			const auto attributes = GetFileAttributesW(aPath.c_str());
@@ -248,7 +248,7 @@ namespace bpr::adapters::git {
 			}
 			return S_ISREG(information.st_mode)
 				&& information.st_uid == ::geteuid()
-				&& (information.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+				&& (information.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0;
 #else
 	#if defined(Q_OS_WIN)
 			// Attributes alone cannot see a hard link: the POSIX rule above
@@ -321,7 +321,7 @@ namespace bpr::adapters::git {
 					&& S_ISREG(information.st_mode)
 					&& information.st_uid == ::geteuid()
 					&& information.st_nlink == 1
-					&& (information.st_mode & (S_IRWXG | S_IRWXO)) == 0
+					&& (information.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0
 					&& information.st_size >= 0
 					&& static_cast<std::uint64_t>(information.st_size)
 					== aExpectedBytes;
@@ -743,7 +743,7 @@ namespace bpr::adapters::git {
 				&& (!S_ISREG(before.st_mode)
 					|| before.st_uid != ::geteuid()
 					|| before.st_nlink != 1
-					|| (before.st_mode & (S_IRWXG | S_IRWXO)) != 0)) {
+					|| (before.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) != 0)) {
 				return false;
 			}
 			if (!existed && errno != ENOENT) {
@@ -919,7 +919,7 @@ namespace bpr::adapters::git {
 				&& S_ISREG(opened.st_mode)
 				&& opened.st_uid == ::geteuid()
 				&& opened.st_nlink == 1
-				&& (opened.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+				&& (opened.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0;
 			std::size_t offset = 0U;
 			while (complete && offset < aBytes.size()) {
 				const auto written = ::write(

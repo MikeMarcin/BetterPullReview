@@ -229,7 +229,7 @@ namespace bpr::adapters::git {
 			}
 			return S_ISDIR(information.st_mode)
 				&& information.st_uid == ::geteuid()
-				&& (information.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+				&& (information.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0;
 #elif defined(Q_OS_WIN)
 			const auto attributes = GetFileAttributesW(aPath.c_str());
 			return attributes != INVALID_FILE_ATTRIBUTES
@@ -260,7 +260,7 @@ namespace bpr::adapters::git {
 			return S_ISREG(information.st_mode)
 				&& information.st_uid == ::geteuid()
 				&& information.st_nlink == 1
-				&& (information.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+				&& (information.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0;
 #elif defined(Q_OS_WIN)
 			// Attributes alone cannot see a hard link: the POSIX rule above
 			// requires exactly one name (st_nlink == 1), and NTFS answers the
@@ -321,7 +321,7 @@ namespace bpr::adapters::git {
 			if (
 				!expectedType || aInformation.st_uid != ::geteuid()
 				|| aInformation.st_nlink == 0
-				|| (aInformation.st_mode & (S_IRWXG | S_IRWXO)) != 0
+				|| (aInformation.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) != 0
 				|| (aKind == exact_artifact_kind::regular_file
 					&& aInformation.st_nlink != 1)) {
 				return std::nullopt;
@@ -492,7 +492,7 @@ namespace bpr::adapters::git {
 				&& information.st_nlink == 1
 				&& information.st_size >= 0
 				&& static_cast<std::uint64_t>(information.st_size) == size
-				&& (information.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+				&& (information.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0;
 			static_cast<void>(::close(descriptor));
 			return valid
 				? std::optional<std::vector<std::uint8_t>>{ std::move(result) }
@@ -923,7 +923,7 @@ namespace bpr::adapters::git {
 					|| !S_ISREG(information.st_mode)
 					|| information.st_uid != ::geteuid()
 					|| information.st_nlink != 1
-					|| (information.st_mode & (S_IRWXG | S_IRWXO)) != 0
+					|| (information.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) != 0
 					|| ::flock(Descriptor, LOCK_EX | LOCK_NB) != 0) {
 					static_cast<void>(::close(Descriptor));
 					Descriptor = -1;

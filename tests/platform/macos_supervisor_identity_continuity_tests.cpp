@@ -145,7 +145,7 @@ namespace {
 		auto                  result = std::string{ };
 		result.reserve(digest.size() * 2U);
 		for (const auto byte : digest) {
-			result.push_back(digits[(byte >> 4U) & 0x0fU]);
+			result.push_back(digits[(static_cast<unsigned>(byte) >> 4U) & 0x0fU]);
 			result.push_back(digits[byte & 0x0fU]);
 		}
 		return result;
