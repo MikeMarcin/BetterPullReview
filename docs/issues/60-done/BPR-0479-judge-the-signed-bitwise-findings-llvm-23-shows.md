@@ -1,7 +1,7 @@
 ---
 id: BPR-0479
 title: Judge the signed-bitwise findings the LLVM 23 tidy gate shows
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
 ---
@@ -47,6 +47,14 @@ exit 0 under `-Werror -Wconversion -Wsign-conversion`; format gate green;
 34 focused selectors green across the prescribed, edited-test, and
 edited-source coverage sets. Two pre-existing findings in other families
 remain byte-identical at their recorded sites, counted in the 44.
+
+Closure evidence: the whole-tree strict `coding-tidy` gate then ran end to
+end and **passed with zero errors** (1292 s) — its first clean whole-tree
+run under LLVM 23.1.0 — and the full dev matrix ran 218 tests with the
+only two failures being the [[BPR-0477]] app-source digest pins, drifted a
+second time by this card's own `src/app` casts; both were repinned to the
+committed tree's values and rerun green (101.7 s + 28.1 s). Every product
+test in the final run passed.
 
 The 44 remaining findings are this card's slice two, and it landed the
 same night: the four local `test_failure` classes derive from
