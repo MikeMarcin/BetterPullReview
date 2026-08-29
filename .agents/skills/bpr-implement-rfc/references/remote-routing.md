@@ -150,8 +150,9 @@ applies identically under Claude and Codex, and regardless of who asks.
 3. If the triggering request carries a `remote-task` envelope, refuse unless
    `project`, `station`, `role`, and `branch` all match the station file,
    `base_commit` is an ancestor of `HEAD`, and the envelope has not expired.
-   On mismatch do zero work and name the correct session from the station
-   registry when it identifies one.
+   On mismatch do zero work and send `reply_to` a `remote-refusal` envelope
+   naming the correct session from the station registry when it identifies
+   one.
 4. For any mutation, require `authority: lane-commit` in both the station
    file and the envelope, plus an acquired writer lease. Otherwise operate
    read-only and return evidence through the reply and the tracker.
@@ -235,6 +236,24 @@ Durable truth is the pushed branch plus board state (for `read-only-proof`
 stations, the reply plus the tracker entries the integrator commits from it).
 Under Codex orchestration there is no reply message — the pushed branch and
 board state are the reply.
+
+A refusal is not a reply: a station that rejects an envelope has no pushed
+tip, card dispositions, or verification to report, so it answers with the
+refusal form instead of forcing prose or fabricated fields into
+`remote-reply`:
+
+```yaml
+envelope: betterpullreview.implement-rfc.remote-refusal.v1
+task_id: task-20260829-b2c4
+station: bpr-main-mac
+reason: station-mismatch
+detail: envelope addressed to bpr-win-jaegaw arrived at bpr-main-mac
+correct_station: bpr-win-jaegaw
+```
+
+`reason` is one of `station-mismatch`, `role-mismatch`, `branch-mismatch`,
+`project-mismatch`, `expired`, `base-not-ancestor`, `authority-exceeded`, or
+`no-station`; omit `correct_station` when the registry does not identify one.
 
 ## Integrator merge discipline
 

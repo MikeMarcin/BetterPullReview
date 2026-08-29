@@ -32,15 +32,24 @@ explicitly dispatched to it.
 The authoritative list of names in use. Add a row before launching a new
 station; never reuse a name for a different checkout.
 
-| Station name | Machine | Environment | Branch |
-|---|---|---|---|
-| `bpr-main-mac` | MacBook Pro | macos | `main` |
-| `bpr-win-jaegaw` | JaegAW | windows-native | `windows-lane` |
-| `bpr-linux-jaegaw` | JaegAW (WSL2) | wsl2 | `linux-lane` |
+| Station name | Machine | Environment | Branch | Status |
+|---|---|---|---|---|
+| `bpr-main-mac` | MacBook Pro | macos | `main` | provisioned 2026-08-29 |
+| `bpr-win-jaegaw` | JaegAW | windows-native | `windows-lane` | **unprovisioned** — host still runs free-text sessions |
+| `bpr-linux-jaegaw` | JaegAW (WSL2) | wsl2 | `linux-lane` | **unprovisioned** — host still runs free-text sessions |
 
-Add machine suffixes as soon as one platform exists on two machines: remote
-messaging resolves duplicate names to silent auto-variants, which misroutes
-without an error.
+A row is aspirational until its host is relaunched through
+`scripts/launch_remote_station.sh` and the name shows up bound in a peer's
+agent list: dispatch to an unbound name resolves to a silent auto-variant and
+misroutes rather than failing loudly. Retire the current free-text sessions
+("BPR windows scope routing", "BPR linux work") as their stations come up.
+Add machine suffixes as soon as one platform exists on two machines.
+
+Same-machine wrinkle: a station's `--name` is its cross-machine and
+claude.ai/code identity, but peers on the *same* machine see the pre-created
+session under a local auto-generated name. Same-machine dispatch therefore
+addresses the local name from the agent list; the deterministic name is
+authoritative everywhere else, and the station file is authoritative always.
 
 ## Per-machine setup
 
