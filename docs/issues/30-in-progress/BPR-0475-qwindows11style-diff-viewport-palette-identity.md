@@ -67,3 +67,45 @@ format gate passes. The JaegAW Remote Control lane now runs the
 1.0x-offscreen `QT_STYLE_OVERRIDE=windows11` repro against this build to
 name the divergent pixel, its share, and where it concentrates in the grab;
 edit authority for item 3 stays with the integrating session.
+
+## Diagnosed — 2026-08-28, evening
+
+The instrumented line, verbatim from the Remote Control lane's run at
+`3309687d` in the `windows-lane` worktree (fast-forwarded clean, freshly
+linked app launch-probed allowed, no policy refusal):
+
+```
+DIFF_INTERACTION_FAILURE:appearance-raster-palette observed=#f6f7f9 share=70.2% expected=#ffffff expected-share=0.0%
+```
+
+**`expected-share=0.0%` is the whole diagnosis**: `QPalette::Base` is not
+outvoted by intruding chrome — it is absent from the grab. The lane also
+measured the passing `windowsvista` course's render inside the located
+viewport region: Base 53.07% there versus 0.0% under `windows11`, with
+`#f6f7f9` at 6.68% versus 70.2% — a clean inversion. `#f6f7f9` is the app's
+own gutter/header chrome family, differing from Base by (9, 8, 6) per
+channel, so a tolerance would silently accept a pane not painted with Base
+at all. Item 2 therefore resolves to **product paint handling**, and this
+supersedes [[BPR-0474]]'s `#1c2026`-control-fill hypothesis. Controls held
+at this head: no-override (fusion) passed 13.05 s and `windowsvista` passed
+13.19 s; the failing run writes no frames (it aborts before render), and
+the `OpenThemeData` stderr spam recorded at `7160c283` is absent at
+`3309687d` — a flagged, unexplained delta. Mechanism: QWindows11Style's
+polish gives the scroll-area viewport an explicit palette carrying the
+style's control fill, which both replaces Base and blocks later profile
+propagation.
+
+## Fixed pending target-native proof — 2026-08-28, evening
+
+`source_pane` now keeps its viewport's `QPalette::Base` aligned to its own
+palette — the applied appearance profile's — realigning on the viewport's
+`PaletteChange` (undoing a style polish's substitution; an equality guard
+ends the recursion) and on the pane's own `PaletteChange` (carrying profile
+changes past an explicit viewport palette). Where no style substitutes, the
+guard makes it a no-op, which the portable evidence confirms: clean build,
+format gate green, and the composition-aware focused set —
+`qt_composed_github_scale_100/125/200`, `qt_diff_workbench_scale_100/125/200`,
+`application_diff_workbench_public_path`,
+`application_uiforetw_selected_diff_contract` — passed 8/8 in 103.7 s.
+What item 3 still needs is the target-native run: `windows11` course PASS,
+with no-override and `windowsvista` controls staying green.

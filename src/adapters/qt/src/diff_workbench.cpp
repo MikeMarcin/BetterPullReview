@@ -216,9 +216,11 @@ namespace bpr::qt {
 
 			void resizeEvent(QResizeEvent* aEvent) override;
 			void changeEvent(QEvent* aEvent) override;
+			auto viewportEvent(QEvent* aEvent) -> bool override;
 
 		private:
 			void refresh_gutter_width();
+			void align_viewport_base();
 			bool LineNumbersVisible = true;
 
 			class gutter_area;
@@ -292,6 +294,7 @@ namespace bpr::qt {
 						}
 					});
 			refresh_gutter_width();
+			align_viewport_base();
 		}
 
 		auto source_pane::gutter_width() const -> int
@@ -358,6 +361,38 @@ namespace bpr::qt {
 			// has to move by exactly the same amount.
 			if (aEvent != nullptr && aEvent->type() == QEvent::FontChange) {
 				refresh_gutter_width();
+			}
+			// The pane's palette is the applied appearance profile's; when it
+			// changes, the viewport must follow even where a style gave the
+			// viewport an explicit palette of its own (BPR-0475).
+			if (aEvent != nullptr && aEvent->type() == QEvent::PaletteChange) {
+				align_viewport_base();
+			}
+		}
+
+		auto source_pane::viewportEvent(QEvent* const aEvent) -> bool
+		{
+			// QWindows11Style's polish substitutes the scroll-area viewport's
+			// background with the style's control fill, as an explicit
+			// viewport palette that also blocks later profile propagation, so
+			// the pane would paint style chrome where the applied appearance
+			// profile owns the code background (BPR-0475). Realigning on the
+			// viewport's own palette change undoes any such substitution, and
+			// the equality guard ends the recursion the realignment would
+			// otherwise start.
+			if (aEvent != nullptr && aEvent->type() == QEvent::PaletteChange) {
+				align_viewport_base();
+			}
+			return QPlainTextEdit::viewportEvent(aEvent);
+		}
+
+		void source_pane::align_viewport_base()
+		{
+			const auto base = palette().brush(QPalette::Base);
+			if (viewport()->palette().brush(QPalette::Base) != base) {
+				auto aligned = viewport()->palette();
+				aligned.setBrush(QPalette::Base, base);
+				viewport()->setPalette(aligned);
 			}
 		}
 
