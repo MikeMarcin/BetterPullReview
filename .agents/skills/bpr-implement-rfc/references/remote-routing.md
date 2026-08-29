@@ -93,9 +93,22 @@ mechanical: `run` wraps a command in an OS-level exclusive lock that lives
 exactly as long as the wrapped process, and `status` reports the holder.
 `station-writer` scope locks per checkout; `project-integrator` scope locks
 per repository across all worktrees. Launchers wrap the runtime process in
-`run`; a second writer exits with status 75 and the recorded holder. The
-lease guarantees there are never two writers in one checkout; ownership rules
-and branch-restricted push credentials decide what the one writer may do.
+`run` — the `main` role under `project-integrator`, every other role under
+`station-writer` (so on an integrator checkout the station-writer lock being
+free while the integrator lease is held is the expected state). A second
+writer exits with status 75 and the recorded holder. The lease guarantees
+there are never two *wrapped* writers in one checkout; ownership rules and
+branch-restricted push credentials decide what the one writer may do.
+
+The guarantee is only as complete as launch discipline: the lock cannot see a
+session that was never wrapped, and the guard only inspects envelopes, not
+another process's file writes. A checkout bound to a station accepts edits
+from that station's session only; an ordinary unwrapped session must not edit
+it, and a controller steering the station is still the station's one writer,
+not a second one. Interactive sessions predating this contract may still
+share the integrator checkout under Operating Rule 8's
+claim-by-committed-lane-move; retire that exception by launching interactive
+integrator work through the launcher too.
 
 ## Task envelope
 
