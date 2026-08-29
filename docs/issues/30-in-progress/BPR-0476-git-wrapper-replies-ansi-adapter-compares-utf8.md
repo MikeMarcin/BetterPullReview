@@ -1,7 +1,7 @@
 ---
 id: BPR-0476
 title: The git diagnostic wrapper replies in ANSI while the adapter compares UTF-8
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0011
 depends_on: []
 ---
