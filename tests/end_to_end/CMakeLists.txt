@@ -4,6 +4,21 @@ else()
     set(bpr_native_platform_vault_self_test_result "false")
 endif()
 
+# RFC-BPR-0016. What the shipped device-authorization selection answers under
+# network isolation, per platform. macOS is registered under the recorded
+# distributable identity since BPR-0318: its real flow starts, the isolated
+# transport fails immediately, and the refusing transport is never touched, so
+# the terminal is `failed` with zero gate bypasses. Every other platform stays
+# unregistered until BPR-0310/BPR-0311 flip it, and keeps the typed refusal
+# with nothing sent.
+if(APPLE)
+    set(bpr_device_selection_self_test_expression
+        "DEVICE_FLOW_STAGE:failed[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_REGISTERED_SELECTION_OK")
+else()
+    set(bpr_device_selection_self_test_expression
+        "DEVICE_FLOW_STAGE:unavailable[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_UNAVAILABLE_OK")
+endif()
+
 # An automated application run bounds itself in wall clock so that it always
 # reports its stage, verdict, and evidence before CTest kills the process. A
 # run killed by the harness reports nothing at all: that is what made a stalled
@@ -196,7 +211,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "DEVICE_FLOW_STAGE:unavailable[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_UNAVAILABLE_OK"
+            "${bpr_device_selection_self_test_expression}"
 )
 bpr_bound_automated_run(
     application_device_authorization_unavailable
@@ -259,11 +274,13 @@ set_tests_properties(
         # The whole shipped chain in one expression, in order: the real
         # platform vault rather than a fixture, the existing CLI refusal
         # unchanged beside it, and then the device path composed, presented,
-        # refused, and silent. This is the contract the tests-disabled Release
-        # build inherits; what it cannot check here is symbol absence, which is
-        # the separate closeout scan.
+        # and answering the platform's shipped selection — the typed refusal
+        # where unregistered, the started-then-terminated real flow where
+        # registered. This is the contract the tests-disabled Release build
+        # inherits; what it cannot check here is symbol absence, which is the
+        # separate closeout scan.
         PASS_REGULAR_EXPRESSION
-            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+DEVICE_FLOW_HOST_COMPOSED:true[\r\n]+DEVICE_FLOW_PRESENTED:true[\r\n]+DEVICE_FLOW_STAGE:unavailable[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_UNAVAILABLE_OK"
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+DEVICE_FLOW_HOST_COMPOSED:true[\r\n]+DEVICE_FLOW_PRESENTED:true[\r\n]+${bpr_device_selection_self_test_expression}"
 )
 bpr_bound_automated_run(
     application_device_authorization_release_contract

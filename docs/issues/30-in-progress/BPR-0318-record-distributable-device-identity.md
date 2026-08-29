@@ -306,6 +306,45 @@ capability-selection flip and the enabled-course rerun with
 `--validate-existing --release-binary` against the rebuilt artifact,
 committed as distinct provenance.
 
+## The macOS flip — 2026-08-29
+
+`shipped_device_authorization_capability()` is platform-conditional:
+`Registered = true` on `__APPLE__` only. The flip is not the constant alone,
+because three gates define what "enabled" must mean:
+
+- The composition now builds the real credential-free native HTTPS wire and
+  the GitHub device-authorization transport bound to the embedded
+  `Iv23liitiYN1WSSbag50` on registered platforms, failing closed to the
+  refusing transport when composition fails. The refusing transport still
+  backs every unregistered platform, and its `reached()` counter keeps
+  meaning "gate bypassed" everywhere.
+- The self-test probe cancels a real flow at `awaiting_authorization`
+  (fixture registered course exempt), because that stage is non-terminal and
+  the probe's budget cannot contain a human answer. The probe's verdict is
+  now capability-aware: `DEVICE_FLOW_REGISTERED_SELECTION_OK` mirrors
+  `DEVICE_FLOW_UNAVAILABLE_OK`, chosen by the new
+  `DeviceAuthorizationCapabilityRegistered` status fact.
+- The two dev-tree selectors asserting the unavailable contract are
+  platform-parametrized (`bpr_device_selection_self_test_expression`,
+  the `bpr_native_platform_vault_self_test_result` pattern): on macOS the
+  network-isolated expectation is `DEVICE_FLOW_STAGE:failed` with
+  `DEVICE_FLOW_REQUESTS:0`, deterministic because sandbox-exec denies the
+  connect immediately. Selector names stay — the platform-course inventory
+  binds them — which leaves `application_device_authorization_unavailable`
+  proving registered-selection isolation on macOS under its historical
+  name; recorded here for [[BPR-0285]] to adjudicate.
+
+`test_require_complete_fails_until_the_course_exists` encoded the
+pre-sitting tree (live course absent → refusal); the live course now exists
+and passes, so the fail-closed claim is proven against an absent course root
+instead, renamed `test_require_complete_fails_when_the_course_is_absent`.
+
+Focused evidence at the flip head: dev build clean; all 16 platform-course
+selectors pass (`flip-course-selectors` run, 100%); both
+`rfc0016_production_*_security` gates pass; `RFC0016_TEST_INVENTORY_OK`.
+The enabled-course rerun and `--validate-existing --release-binary`
+admission follow as their own recorded step.
+
 ### The sitting freezes the runner
 
 Worth knowing before the command is run rather than after: the verifier requires

@@ -678,9 +678,9 @@ namespace {
 		};
 
 		// RFC-BPR-0016. Selecting the device path once, from the shipped
-		// composition, and reporting what came back. Every shipped platform is
-		// unregistered until BPR-0318, so the expected answer is a typed
-		// refusal with nothing sent.
+		// composition, and reporting what came back. An unregistered platform
+		// answers with a typed refusal and nothing sent; a registered platform
+		// starts a real flow under the recorded distributable client.
 		struct device_authorization_probe_state
 		{
 			bool Enabled  = false;
@@ -688,6 +688,12 @@ namespace {
 			// The registered course enrolls, so its terminal is `authorized`
 			// rather than `unavailable` and it has vault evidence to report.
 			bool Registered = false;
+			// One cancel, dispatched when a registered platform's real flow
+			// reaches `awaiting_authorization`. The probe proves the refusal
+			// is gone, not that a human authorizes within the budget, so it
+			// ends the flow at the first stage only a registered composition
+			// can reach.
+			bool CancelDispatched = false;
 		};
 
 		stage Stage = stage::start;
@@ -3106,6 +3112,22 @@ namespace {
 					   << '\n'
 					   << (enrolled ? "DEVICE_FLOW_ENROLLED_OK\n"
 									: "DEVICE_FLOW_ENROLLED_FAILED\n");
+			} else if (status.DeviceAuthorizationCapabilityRegistered) {
+				// The registered claim is the refusal's mirror: the flow left
+				// `unavailable` behind and the refusing transport was never
+				// touched. Which terminal it reached depends on the
+				// environment — cancelled with a network, failed without —
+				// and the selector asserts the exact stage printed beside
+				// this.
+				const auto deviceStarted
+					= status.DeviceAuthorizationHostComposed
+					&& status.DeviceAuthorizationPublications > 0U
+					&& status.DeviceAuthorizationStage
+						!= bpr::core::device_authorization_stage::unavailable
+					&& status.DeviceAuthorizationTransportReached == 0U;
+				stream << (deviceStarted
+							   ? "DEVICE_FLOW_REGISTERED_SELECTION_OK\n"
+							   : "DEVICE_FLOW_REGISTERED_SELECTION_FAILED\n");
 			} else {
 				const auto deviceRefused
 					= status.DeviceAuthorizationHostComposed
@@ -4124,6 +4146,21 @@ namespace {
 					if (!bpr::core::terminal(
 							aApplication.status()
 								.DeviceAuthorizationStage)) {
+						// A registered platform's real flow parks in
+						// `awaiting_authorization` until a human answers,
+						// which the probe neither needs nor has budget for:
+						// one cancel carries it to a terminal the shutdown
+						// wait accepts. The fixture's registered course is
+						// exempt — its recorded grant authorizes on its own
+						// and that terminal is the course's whole claim.
+						if (aApplication.status().DeviceAuthorizationStage
+								== bpr::core::device_authorization_stage::
+									awaiting_authorization
+							&& !aRun->Device.Registered
+							&& !aRun->Device.CancelDispatched) {
+							aRun->Device.CancelDispatched = true;
+							aApplication.cancel_device_authorization();
+						}
 						break;
 					}
 					// The registered course enrolls through the real vault,

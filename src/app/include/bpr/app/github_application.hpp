@@ -177,15 +177,21 @@ namespace bpr::app {
 		// host, as opposed to merely linking it. The same distinction the
 		// workbench flag above draws, for the same reason.
 		bool DeviceAuthorizationHostComposed = false;
-		// The stage presentation was last told about. Every shipped platform is
-		// unregistered until BPR-0318, so selecting device sign-in must reach
-		// `unavailable` rather than doing nothing.
+		// The stage presentation was last told about. On an unregistered
+		// platform selecting device sign-in must reach `unavailable` rather
+		// than doing nothing; on a registered platform a real flow begins.
 		core::device_authorization_stage DeviceAuthorizationStage
 			= core::device_authorization_stage::idle;
-		// How many device-authorization submissions reached the transport. Zero
-		// on every shipped build: the capability gate refuses before a request
-		// is constructed, so this counts the gate being bypassed rather than
-		// requests being sent.
+		// Whether the composition selected a registered device capability.
+		// macOS selects the recorded distributable client since BPR-0318;
+		// Linux and Windows remain unregistered until BPR-0310 and BPR-0311
+		// flip their own platforms.
+		bool DeviceAuthorizationCapabilityRegistered = false;
+		// How many device-authorization submissions reached the refusing
+		// unregistered transport. Zero always: on an unregistered platform the
+		// capability gate refuses before a request is constructed, and on a
+		// registered platform that transport is not wired at all, so this
+		// counts the gate being bypassed rather than requests being sent.
 		std::size_t DeviceAuthorizationTransportReached = 0U;
 		// How many presentations the device host published. Zero would mean the
 		// choice is invisible rather than typed.
@@ -248,9 +254,18 @@ namespace bpr::app {
 		/// \details The public entry the RFC-BPR-0016 zero-request evidence
 		/// runs through. It dispatches the same typed intent the Qt panel
 		/// dispatches and returns without waiting; the outcome is read from
-		/// `status()`. On every shipped build the capability gate refuses
-		/// before a request is constructed.
+		/// `status()`. On an unregistered platform the capability gate refuses
+		/// before a request is constructed; on a registered platform a real
+		/// flow begins under the recorded distributable client.
 		void select_device_authorization();
+
+		/// \brief Cancels the in-flight device-authorization flow, if any.
+		///
+		/// \details The same typed intent the Qt panel dispatches for the
+		/// user's cancel. The device probe uses it to end a registered
+		/// platform's real flow inside its run budget; on an unregistered
+		/// platform there is never a live flow to cancel.
+		void cancel_device_authorization();
 
 		[[nodiscard]] auto window() noexcept -> qt::workbench_window&;
 		[[nodiscard]] auto status() const noexcept -> github_application_status;

@@ -9,6 +9,7 @@
 #include "bpr/app/worker_executor.hpp"
 
 #include "designated_review_public_observer.hpp"
+#include "github_device_authorization_transport.hpp"
 #include "github_host_profile.hpp"
 #include "github_provider.hpp"
 #include "live_review_mutation_provider.hpp"
@@ -1136,16 +1137,32 @@ namespace bpr::app {
 			std::size_t Reached = 0U;
 		};
 
-		// Every shipped platform, today. macOS, Linux, and Windows are all
-		// unregistered until [[BPR-0318]] records a distributable identity;
-		// [[BPR-0310]] and [[BPR-0311]] then flip their own platform in their own
-		// slice. Moving a card between folders does not enable a capability, and
-		// neither does building on a different operating system: this constant is
-		// the only thing that does.
+		// The recorded distributable production client, public by design: a
+		// GitHub App client identifier carries no secret, and the shipped
+		// artifact is required to contain exactly this one. Its registration,
+		// permissions, and read-only course evidence live under
+		// docs/verification/reviews/rfc0016-production-app-registration-v001/
+		// (record commit c82e51c2c933887632fb0bb35db876375a151de9), and
+		// scripts/verify_rfc0016_production_identity.py --release-binary
+		// requires the enabled artifact to select it and to omit the private
+		// BPR-0276 verification client.
+		constexpr auto production_device_client_id
+			= std::string_view{ "Iv23liitiYN1WSSbag50" };
+
+		// macOS is registered under the recorded distributable identity since
+		// [[BPR-0318]]; Linux and Windows stay unregistered until [[BPR-0310]]
+		// and [[BPR-0311]] flip their own platform in their own slice. Moving a
+		// card between folders does not enable a capability, and neither does
+		// building on a different operating system: this constant is the only
+		// thing that does.
 		[[nodiscard]] constexpr auto shipped_device_authorization_capability() noexcept
 			-> application::device_authorization_capability
 		{
+#if defined(__APPLE__)
+			return { .Registered = true };
+#else
 			return { .Registered = false };
+#endif
 		}
 
 		void append_profile(
@@ -2581,12 +2598,12 @@ namespace bpr::app {
 					delete_retained_on_shutdown,
 				this);
 
-			// The device-authorization path. It is composed even though every
-			// shipped platform is unregistered, because the visible choice and
-			// its typed refusal are the product behaviour the RFC asks for:
-			// selecting device sign-in must say `device_flow_unavailable`, not
-			// do nothing. The capability gate refuses before a request is
-			// built, so the transport below is never reached.
+			// The device-authorization path. It is composed on every platform,
+			// registered or not, because the visible choice and its typed
+			// answer are the product behaviour the RFC asks for: on an
+			// unregistered platform selecting device sign-in must say
+			// `device_flow_unavailable`, not do nothing, and the capability
+			// gate refuses before a request is built.
 			DeviceEnrollment = std::make_unique<
 				application::github_host_device_authorization_enrollment>(*Host);
 #if defined(BPR_BUILD_TESTING)
@@ -2601,29 +2618,61 @@ namespace bpr::app {
 					*DeviceEnrollment);
 #endif
 			DeviceClock = application::make_system_device_authorization_clock();
+			// The shipped selection. A registered platform composes the real
+			// credential-free wire bound to the recorded distributable client;
+			// an unregistered platform composes the refusing transport whose
+			// reached() count proves the gate held. A composition failure
+			// fails closed to the refusal: a half-wired flow must answer
+			// `device_flow_unavailable`, not invent one.
+			auto* deviceTransport
+				= static_cast<application::device_authorization_transport_port*>(
+					&UnregisteredDeviceTransport);
+			auto deviceCapability
+				= application::device_authorization_capability{ .Registered
+																= false };
+			if constexpr (shipped_device_authorization_capability().Registered) {
+				auto deviceWire = adapters::github::detail::
+					make_native_https_credential_free_transport(
+						Profiles.front(),
+						core::github_session_request_context{
+							.Request            = core::request_id{ 907U },
+							.ApplicationSession = core::application_session_id{
+								908U },
+							.Profile            = Profiles.front().profile(),
+							.IdentityGeneration = core::github_identity_generation{
+								909U },
+						});
+				if (deviceWire.has_value()) {
+					auto deviceAdapter = adapters::github::detail::
+						make_github_device_authorization_transport(
+							std::shared_ptr<
+								adapters::github::detail::native_https_transport>{
+								std::move(*deviceWire) },
+							std::string{ production_device_client_id },
+							DeviceTransportEffects);
+					if (deviceAdapter.has_value()) {
+						DeviceWireTransport = std::move(*deviceAdapter);
+						deviceTransport     = DeviceWireTransport.get();
+						deviceCapability
+							= shipped_device_authorization_capability();
+					}
+				}
+			}
 #if defined(BPR_BUILD_TESTING)
-			// The registered course. Only a tests-enabled build with the
-			// recorded fixture can compose a registered capability, because
-			// only there does a client identity exist at all: BPR-0276's is
-			// private and owner-only, and a distributable one is BPR-0318's.
-			// It runs the recorded grant through the real host, the real
+			// The registered course. A tests-enabled build with the recorded
+			// fixture overrides the shipped selection with BPR-0276's private
+			// recorded grant: it runs through the real host, the real
 			// enrollment boundary, and the real vault, which is the only place
 			// "exactly one enrollment, and no settings or SQLite copy" can be
 			// observed rather than argued.
-			auto* const deviceTransport
-				= (RegisteredDeviceCourse && Fixture != nullptr)
-				? &Fixture->device_authorization_transport()
-				: static_cast<application::device_authorization_transport_port*>(
-					  &UnregisteredDeviceTransport);
-			const auto deviceCapability
-				= (RegisteredDeviceCourse && Fixture != nullptr)
-				? application::device_authorization_capability{ .Registered = true }
-				: shipped_device_authorization_capability();
-#else
-			auto* const deviceTransport = &UnregisteredDeviceTransport;
-			const auto  deviceCapability
-				= shipped_device_authorization_capability();
+			if (RegisteredDeviceCourse && Fixture != nullptr) {
+				deviceTransport  = &Fixture->device_authorization_transport();
+				deviceCapability = application::device_authorization_capability{
+					.Registered = true
+				};
+			}
 #endif
+			DeviceCapabilityRegistered = deviceCapability.Registered;
 			DeviceHost = std::make_unique<
 				application::device_authorization_application_host>(
 				initial_device_authorization_state(),
@@ -2938,6 +2987,18 @@ namespace bpr::app {
 			DeviceHost->dispatch(core::begin_device_authorization_intent{
 				.Profile = Profiles.front().profile(),
 			});
+		}
+
+		// The same typed intent the device panel dispatches for the user's
+		// cancel. The probe uses it to end a registered platform's real flow
+		// at `awaiting_authorization`, which no unregistered composition can
+		// reach.
+		void cancel_device_authorization()
+		{
+			if (Closing || DeviceHost == nullptr) {
+				return;
+			}
+			DeviceHost->dispatch(core::cancel_device_authorization_intent{ });
 		}
 
 		void dispatch_workbench_intent(
@@ -5059,10 +5120,23 @@ namespace bpr::app {
 			Provider->shutdown();
 			ProviderEffects.close_and_drain();
 			VaultEffects.close_and_drain();
+			DeviceTransportEffects.close_and_drain();
 			ShutdownComplete = true;
 		}
 
 		unregistered_device_authorization_transport UnregisteredDeviceTransport;
+		// The registered platforms' real wire, and the executor its background
+		// work runs on. Declared executor-first so the transport can never
+		// outlive the lanes it posts to. Both stay empty on unregistered
+		// platforms.
+		worker_executor DeviceTransportEffects;
+		std::unique_ptr<adapters::github::detail::github_device_authorization_transport>
+			DeviceWireTransport;
+		// What the composition actually selected, for the status report: the
+		// shipped capability where the real wire composed, the refusal where
+		// it did not, and the fixture course's override in a tests-enabled
+		// build.
+		bool DeviceCapabilityRegistered = false;
 #if defined(BPR_BUILD_TESTING)
 		bool RegisteredDeviceCourse = false;
 #endif
@@ -5597,6 +5671,8 @@ namespace bpr::app {
 			= Implementation->DeviceHost != nullptr,
 			.DeviceAuthorizationStage
 			= Implementation->DeviceProjections.last().Stage,
+			.DeviceAuthorizationCapabilityRegistered
+			= Implementation->DeviceCapabilityRegistered,
 			.DeviceAuthorizationTransportReached
 			= Implementation->UnregisteredDeviceTransport.reached(),
 			.DeviceAuthorizationPublications
@@ -5615,6 +5691,11 @@ namespace bpr::app {
 	void github_application::select_device_authorization()
 	{
 		Implementation->select_device_authorization();
+	}
+
+	void github_application::cancel_device_authorization()
+	{
+		Implementation->cancel_device_authorization();
 	}
 
 #if defined(BPR_BUILD_TESTING)

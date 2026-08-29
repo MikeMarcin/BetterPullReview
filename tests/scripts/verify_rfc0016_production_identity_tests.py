@@ -1692,12 +1692,16 @@ class CommandContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("evidence-outside-repository", result.stderr)
 
-    def test_require_complete_fails_until_the_course_exists(self) -> None:
+    def test_require_complete_fails_when_the_course_is_absent(self) -> None:
+        # Until the attended sitting landed its evidence, this pointed at the
+        # live `read-only-course/` directory; the live course now exists and
+        # passes, so the fail-closed claim is proven against a course root
+        # that does not exist instead.
         result = self.run_tool(
             "--registration-observation",
             str(REVIEW_DIRECTORY / "registration-observation.json"),
             "--course-evidence-root",
-            str(REVIEW_DIRECTORY / "read-only-course"),
+            str(REVIEW_DIRECTORY / "read-only-course-that-never-ran"),
             "--require-complete",
         )
         self.assertEqual(result.returncode, 1)
