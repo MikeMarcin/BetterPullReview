@@ -1,7 +1,7 @@
 ---
 id: BPR-0482
 title: Port the remote-station launcher to Python
-status: In Progress
+status: Done
 rfc: none
 depends_on: []
 ---
@@ -45,4 +45,31 @@ something else on the POSIX hosts.
 - Refusals and provisioning are exercised in a scratch repository, not
   asserted: wrong branch, wrong role for the platform, foreign origin,
   station-file write, and station-id durability.
+
+## Verified — 2026-08-29
+
+Exercised in a scratch clone with a BetterPullReview origin URL, on this
+macOS host:
+
+- missing role and foreign origin refuse with exit 2 and the exact
+  messages; wrong branch refuses before the platform guard, in the bash
+  launcher's order;
+- `win` on branch `windows-lane` refuses with
+  `role 'win' cannot run on a macos host (WSL2 is a Linux station, native
+  Windows a Windows station)`, and no refusal path writes or rewrites
+  `.remote-station.json` (the file kept its prior `role: mac` through all
+  three);
+- `--no-server` writes the exact eight-field station file; a relaunch with
+  different flags keeps the durable `station_id` while `--read-only`
+  narrows authority to `read-only-proof` and `--machine studio` yields
+  `bpr-mac-studio`;
+- the Codex echo spells the interpreter per host (`python3` here, `py -3`
+  on Windows), and the server path waits on the lease-wrapped
+  `claude remote-control --spawn session` instead of exec-ing, one
+  behavior on every platform.
+
+The one check that still needs the real machine is unchanged in kind from
+the bash launcher's never-run acceptance row: first provisioning of
+`bpr-win-jaegaw` from PowerShell or cmd on JaegAW, which BPR-0311's
+dispatch performs anyway.
 

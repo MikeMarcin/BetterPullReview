@@ -39,7 +39,7 @@ station; never reuse a name for a different checkout.
 | `bpr-linux-jaegaw` | JaegAW (WSL2) | wsl2 | `linux-lane` | **unprovisioned** — host still runs free-text sessions |
 
 A row is aspirational until its host is relaunched through
-`scripts/launch_remote_station.sh` and the name shows up bound in a peer's
+`scripts/launch_remote_station.py` and the name shows up bound in a peer's
 agent list: dispatch to an unbound name resolves to a silent auto-variant and
 misroutes rather than failing loudly. Retire the current free-text sessions
 ("BPR windows scope routing", "BPR linux work") as their stations come up.
@@ -77,15 +77,16 @@ authoritative everywhere else, and the station file is authoritative always.
    in `~/.claude.json` (the launcher passes `--spawn session` explicitly, but
    the stale value should not survive to confuse a manual launch).
 
-4. **Launch.** From the station checkout (Git Bash on native Windows, the
-   WSL2 shell for the WSL2 station):
+4. **Launch.** From the station checkout, with the host's own Python —
+   `py -3` in a native-Windows shell (PowerShell or cmd), `python3`
+   everywhere else:
 
    ```sh
-   scripts/launch_remote_station.sh win --machine jaegaw --read-only
-   scripts/launch_remote_station.sh linux --machine jaegaw --read-only
-   scripts/launch_remote_station.sh main             # the integrator itself
-   scripts/launch_remote_station.sh win --continue   # reattach after restart
-   scripts/launch_remote_station.sh linux --no-server # Codex: provision only
+   py -3 scripts/launch_remote_station.py win --machine jaegaw --read-only
+   python3 scripts/launch_remote_station.py linux --machine jaegaw --read-only
+   python3 scripts/launch_remote_station.py main             # the integrator itself
+   py -3 scripts/launch_remote_station.py win --continue     # reattach after restart
+   python3 scripts/launch_remote_station.py linux --no-server # Codex: provision only
    ```
 
    The launcher refuses a wrong repository, wrong branch, or a role that
@@ -124,5 +125,6 @@ Deferred from local verification; run once per newly provisioned machine:
 - a well-formed envelope is accepted and a mismatched one refused by name;
 - the mobile app can drive the station;
 - `--continue` reattaches after a reboot with the same station identity;
-- on native Windows, the launcher runs under Git Bash and detects
-  `windows-native`; under WSL2 it detects `wsl2` and refuses role `win`.
+- on native Windows, `py -3 scripts/launch_remote_station.py` detects
+  `windows-native` from PowerShell or cmd with no POSIX shell involved;
+  under WSL2 it detects `wsl2` and refuses role `win`.

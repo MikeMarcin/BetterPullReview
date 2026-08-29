@@ -281,7 +281,7 @@ the station rather than merging.
 ## Transports
 
 - **Claude Code**: stations are `claude remote-control --spawn session`
-  servers launched by `scripts/launch_remote_station.sh`; dispatch is
+  servers launched by `scripts/launch_remote_station.py`; dispatch is
   `SendMessage` with the envelope. Server, spawn-mode, and messaging facts
   live in `references/runtime-compatibility.md`.
 - **Mobile / web**: every station server is reachable from claude.ai/code and
