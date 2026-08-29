@@ -350,3 +350,38 @@ same session that replays them — a paired course, one fresh GET recording
 the current `ETag` and one conditional GET replaying it seconds later —
 which is new unattended recorder mechanism, then a v005 packet authorizing
 exactly those two requests as one decision.
+
+## The v005 pair ran; conditional-304 accounting is recorded — 2026-08-28, late night
+
+The paired mechanism landed at `90754ca1` (166 hermetic tests, a 15/15
+mutation sweep whose one first-pass survivor drove its own new test, the
+seeded v001 validation byte-identical). The live packet is now
+`docs/verification/reviews/rfc0017-anonymous-probe-v005/operator-packet.md`
+(`f0c1e719…`): two credential-free GETs to the one endpoint as one
+decision, fresh 200 then same-run conditional 304.
+
+**Advance approval, recorded rather than implied.** The operator
+pre-approved this issuance verbatim in the live session, before the packet
+was authored — "okay well i approve the next one too, let's get a move on
+this is going too slow" — and directed no further round-trip. The
+canonical response binds the packet digest to its authority statement
+under that direction; this deviation from quote-after-authoring is
+deliberate and operator-directed, and the packet's own Advance approval
+section says the same.
+
+The run captured both courses (`CAPTURED:2`, then `VALID:2` on
+revalidation):
+
+- `pull-request-fresh` 200 — a current sanitized contract whose etag
+  (`"2012e41b…"`) differs from the committed five-day-old
+  `"b651e01d…"`, confirming the v004 staleness diagnosis directly —
+  core remaining 57, used 3;
+- `pull-request-conditional` 304 — empty body, the same etag returned,
+  core **remaining 56, used 4**.
+
+**The recorded accounting fact: an anonymous conditional GET answered
+`304 Not Modified` consumed one core budget unit** — `used` moved 3→4
+between the pair's requests. The service's own counters say a 304 is not
+free on the unauthenticated core budget, which contradicts the common
+assumption and is precisely the kind of fact this card existed to record
+rather than assume.

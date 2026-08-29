@@ -1,0 +1,1 @@
+{"schema_name":"bpr.rfc0017.anonymous_course_manifest","schema_version":1,"packet_sha256":"f0c1e719f65992f98c8ab24db836140557a8fb93b898fcd74e00bfb9f7923f3a","courses":[{"name":"pull-request-fresh","expected_status":200},{"name":"pull-request-conditional","expected_status":304}]}
