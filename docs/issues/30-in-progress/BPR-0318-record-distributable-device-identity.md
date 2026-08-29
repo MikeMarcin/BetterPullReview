@@ -373,6 +373,28 @@ sequence: real grant as `Iv23liitiYN1WSSbag50`, `awaiting_authorization`,
 probe cancel, `DEVICE_FLOW_STAGE:cancelled`,
 `DEVICE_FLOW_REGISTERED_SELECTION_OK`, exit 0.
 
+## The third unregistered-era gate — 2026-08-29
+
+The enabled course passed with `RFC0016_DEVICE_STAGE:failed`, and the course
+accepts that (refusal gone, flow started). Direct probing of the enabled
+Release artifact from a network-capable shell refused to accept it: the dev
+binary completed the live grant (`cancelled`) while the Release binary never
+opened a socket. The cause was `credential_free()` in the native wire,
+hardwired `false` outside the test graph on the stated theory that "no
+production factory can construct" a credential-free binding — false since
+`make_native_https_credential_free_transport` became a production factory,
+and fatal to a shipped device flow, whose `credential_matches` demands
+exactly that binding. The accessor is now truthful in every build, and the
+authorization-header omission rides the same predicate unconditionally, so
+a shipped device request carries no bogus empty bearer header. Every
+consuming refusal keeps its meaning; the smart surface's
+`!credential_free()` term becomes strictly tighter in Release. All 18
+isolated selectors and 3 loopback wire/smart suites pass; the app-release
+probe now completes the live sequence: real grant as
+`Iv23liitiYN1WSSbag50`, `awaiting_authorization`, probe cancel,
+`DEVICE_FLOW_STAGE:cancelled`, `DEVICE_FLOW_REGISTERED_SELECTION_OK`,
+`PUBLIC_PATH_OK`.
+
 ### The sitting freezes the runner
 
 Worth knowing before the command is run rather than after: the verifier requires

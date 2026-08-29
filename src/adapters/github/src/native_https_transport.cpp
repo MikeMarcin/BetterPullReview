@@ -3044,11 +3044,14 @@ namespace bpr::adapters::github::detail {
 
 		[[nodiscard]] auto credential_free() const noexcept -> bool
 		{
-#if defined(BPR_NATIVE_HTTPS_TESTING)
+			// Truthful in every build. Until BPR-0318 recorded a distributable
+			// identity this was hardwired false outside the test graph, which
+			// made a shipped device request refuse before dialing; a shipped
+			// build now composes the credential-free binding for the device
+			// flow, so the binding must report itself everywhere. Every
+			// refusal that consumes this — the device flow demanding it, the
+			// smart surface refusing it — keeps its meaning.
 			return std::holds_alternative<credential_free_request>(Credential);
-#else
-			return false;
-#endif
 		}
 
 		[[nodiscard]] auto credential_bytes() const noexcept
@@ -3196,13 +3199,11 @@ namespace bpr::adapters::github::detail {
 			request.setRawHeader("Accept-Encoding", "identity");
 			request.setRawHeader("Accept-Language", "*");
 
-#if defined(BPR_NATIVE_HTTPS_TESTING)
-			// The only way to reach this without an authorization header is the
-			// deliberate credential-free binding, which no production factory
-			// can construct. A shipped build has no such branch at all.
-			if (!credential_free())
-#endif
-			{
+			// The only way to reach this without an authorization header is
+			// the deliberate credential-free binding — the device flow's,
+			// whose whole point is that no credential exists yet. Every other
+			// binding sends exactly its held credential.
+			if (!credential_free()) {
 				QByteArray                  authorization{ "Bearer " };
 				const qbytearray_wipe_guard authorizationGuard{ authorization };
 				const auto                  credential = credential_bytes();
