@@ -1,7 +1,7 @@
 ---
 id: BPR-0318
 title: Record a distributable device-authorization identity
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: [BPR-0276, BPR-0282, BPR-0480]
 ---
@@ -394,6 +394,29 @@ probe now completes the live sequence: real grant as
 `Iv23liitiYN1WSSbag50`, `awaiting_authorization`, probe cancel,
 `DEVICE_FLOW_STAGE:cancelled`, `DEVICE_FLOW_REGISTERED_SELECTION_OK`,
 `PUBLIC_PATH_OK`.
+
+## Terminal — 2026-08-29
+
+Every required final state holds at the closing head:
+
+- The private `BPR-Test` verification identity is untouched and still refused
+  in shipped artifacts; the distributable identity is recorded, admitted, and
+  course-proven under the accepted registration authority.
+- The designated read-only course ran attended, mutated nothing, and its
+  committed evidence replays: `RFC0016_PRODUCTION_IDENTITY_OK` with
+  `RFC0016_PRODUCTION_COURSE:complete` under `--validate-existing`.
+- The BPR-0282 unavailable course passed clean pre-flip; the one-time macOS
+  capability-selection flip landed with the real credential-free wire; the
+  fresh enabled course passed at the final head with a genuine live grant
+  (`RFC0016_DEVICE_STAGE:cancelled`) and the release-binary admission proves
+  the artifact selects `Iv23liitiYN1WSSbag50` and not the verification
+  client. Linux and Windows remain visibly unavailable with zero requests;
+  their flips stay with [[BPR-0310]] and [[BPR-0311]], both of which this
+  card's recorded identity now unblocks.
+- The ledger's distributable-identity row and the macOS platform row in
+  `docs/verification/RFC-BPR-0016.md` record the evidence; the runner froze
+  as digest-bound evidence when the course committed, exactly as
+  [[BPR-0481]]'s self-arming test announces.
 
 ### The sitting freezes the runner
 
