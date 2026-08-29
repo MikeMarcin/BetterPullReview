@@ -129,3 +129,31 @@ malformed user code, an unknown token error, a wrong error schema, a refused
 status, and a clock that jumps past the grant's life mid-poll.
 
 Remaining: nothing unattended. The sitting is [[BPR-0318]]'s.
+
+## A residual the closeout reviewer should know — 2026-08-29
+
+`route-probes.json` is not an observation. `run_read_only_probes` performs all
+ten probes through `ReadOnlyProbeWire` and validates every reply, and only then
+returns `expected_route_probes()` — a constant table in
+`capture_rfc0016_device_contracts.py` whose `http_status: 200` and
+`result: "success"` are literals, not recorded values.
+
+Nothing about that is wrong: the table is returned only if every real probe
+succeeded, because `ReadOnlyProbeWire.perform` raises on any non-200, wrong
+final URL, or wrong media type, and `_validate_probe_reply` raises on unexpected
+content. The run proves the claim. But the *file* does not, and two consequences
+follow that are worth stating rather than discovering later:
+
+- A reader of `route-probes.json` alone cannot distinguish "these ten probes ran
+  and passed" from "this table was written unconditionally". The proof lives in
+  the execution path.
+- `verify_rfc0016_production_identity.py`'s `result == "success"` and
+  `http_status == 200` checks are therefore not falsifiable by a real run. They
+  catch hand-edited, foreign, or fabricated evidence, which is what they are for,
+  and they will never catch a failed probe — a failed probe stops the course
+  before any file is written.
+
+This is inherited from [[BPR-0276]]'s accepted design; its own admitted
+`route-probes.json` has the same property. It is recorded here so that
+[[BPR-0285]]'s capability-critical closeout review adjudicates it deliberately
+rather than reading the file as an observation.
