@@ -522,6 +522,33 @@ namespace {
 
 	/// \brief Proves the gutter is sized to the document it numbers.
 	/// \brief Proves hiding the numbers gives their width back to the code.
+	void test_the_viewport_fill_survives_a_style_clearing_it()
+	{
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'260, 820);
+		workbench.show();
+		process_events();
+		for (auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+			expect(source->viewport()->autoFillBackground(),
+				   "a shown pane viewport fills with its palette base");
+			// QWindows11Style clears this attribute during polish so the
+			// style can paint its own panel fill, and QPalette::Base is then
+			// never painted at all (BPR-0475). The restore is portable; the
+			// clearing style is not, so the clear is simulated here.
+			source->viewport()->setAutoFillBackground(false);
+			auto styleChange = QEvent{ QEvent::StyleChange };
+			QApplication::sendEvent(source, &styleChange);
+			expect(source->viewport()->autoFillBackground(),
+				   "a style re-polish cannot leave the viewport unfilled");
+			source->viewport()->setAutoFillBackground(false);
+			source->hide();
+			source->show();
+			process_events();
+			expect(source->viewport()->autoFillBackground(),
+				   "a fresh show restores the fill after any polish");
+		}
+	}
+
 	void test_hiding_the_numbers_returns_the_gutter_width_to_the_code()
 	{
 		const auto [leftText, rightText] = representative_text();
@@ -2563,6 +2590,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
 	test_the_panes_number_their_own_lines();
+	test_the_viewport_fill_survives_a_style_clearing_it();
 	test_the_gutter_follows_the_documents_digit_count();
 	test_hiding_the_numbers_returns_the_gutter_width_to_the_code();
 	test_selected_composition();
