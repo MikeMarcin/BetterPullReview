@@ -588,9 +588,15 @@ namespace bpr::adapters::github::detail {
 					maximum_response_header_field_bytes)) {
 				return false;
 			}
+			// A bare '\n' is not wire bytes: the protocol layer refuses
+			// literal control bytes in a field, and Qt joins repeated
+			// response headers into one rawHeaderPairs value with '\n' -
+			// github.com's paired Set-Cookie headers arrive exactly so. The
+			// join byte is Qt's API artifact and passes; NUL and '\r' never
+			// have a legitimate source and still refuse.
 			return std::ranges::none_of(aValue, [](const char aCharacter) {
 				const auto byte = static_cast<unsigned char>(aCharacter);
-				return byte == 0U || byte == '\r' || byte == '\n';
+				return byte == 0U || byte == '\r';
 			});
 		}
 

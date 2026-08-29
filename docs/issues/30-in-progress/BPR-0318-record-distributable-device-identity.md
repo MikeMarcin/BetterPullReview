@@ -345,6 +345,34 @@ selectors pass (`flip-course-selectors` run, 100%); both
 The enabled-course rerun and `--validate-existing --release-binary`
 admission follow as their own recorded step.
 
+## The wire had never met github.com — 2026-08-29
+
+The first enabled-course run failed twice, and both failures were gates
+meeting the first live traffic this surface has ever produced:
+
+1. The release-artifact scan refused "client identifier-shaped material"
+   in the shipped binary — its own comment prescribed moving the recorded
+   client to the known-shipped list once this card landed. The scan now
+   permits exactly `Iv23liitiYN1WSSbag50`; a foreign identifier beside the
+   permitted one still refuses, as do token shapes (proven by direct
+   positive/negative payload runs).
+2. With that fixed, the shipped probe's real grant terminated `failed`
+   with `response_too_large`. Instrumented diagnosis (temporary stderr
+   prints, removed before commit) traced it to the wire's header-value
+   bound refusing `\n`: Qt merges repeated response headers into one
+   rawHeaderPairs value joined with `\n`, and github.com's login endpoints
+   send paired `Set-Cookie` headers. The BPR-0276/0480 evidence came from
+   Python runners and the contract fixtures speak HTTP/1.1 through a
+   controlled proxy with single cookies, so no prior gate could have seen
+   this. The bound now permits the join byte and still refuses NUL and
+   `\r`, which never have a legitimate source; wire contract and fixture
+   suites plus all 16 course selectors pass unchanged.
+
+After the repair the shipped dev probe completes the honest live
+sequence: real grant as `Iv23liitiYN1WSSbag50`, `awaiting_authorization`,
+probe cancel, `DEVICE_FLOW_STAGE:cancelled`,
+`DEVICE_FLOW_REGISTERED_SELECTION_OK`, exit 0.
+
 ### The sitting freezes the runner
 
 Worth knowing before the command is run rather than after: the verifier requires
