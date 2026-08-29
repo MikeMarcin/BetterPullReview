@@ -566,6 +566,42 @@ applied before the tree is digested where a field is under test — otherwise th
 run would fail on a stale digest and the field check would never be reached,
 which is a green test for a red reason.
 
+### The production course, and why it is a second file
+
+`scripts/run_rfc0016_production_course_attended.py` is what an attended sitting
+runs to produce that evidence: one device grant for the distributable client,
+one authorization, and the ten designated read-only probes.
+
+```sh
+python3 scripts/run_rfc0016_production_course_attended.py \
+    --registration-observation docs/verification/reviews/rfc0016-production-app-registration-v001/registration-observation.json \
+    --output-root docs/verification/reviews/rfc0016-production-app-registration-v001/read-only-course
+```
+
+It is separate from `run_rfc0016_device_capture_attended.py` for a reason worth
+knowing before anyone tries to merge them: **that file is evidence, not just
+code.** BPR-0276's admitted `course-execution.json` records
+`capture_runner_sha256`, and that value is the hash of the runner. Editing it —
+to add a flag, to widen a client — invalidates an attended capture the owner has
+already accepted, and the accepted fixture stops validating. The same holds for
+`capture_rfc0016_device_contracts.py`, whose provenance hardcodes BPR-0276's
+authority digest. `rfc0016_production_course_security` pins the runner's digest
+to the recorded one so that this fails immediately and legibly rather than as a
+puzzling fixture error.
+
+What the two tools share is everything that can be shared: the strict HTTPS
+transport, the route-closed probe wire, the designated probe catalog, and the
+probe reply validation are imported and run unchanged, so route closure has
+exactly one definition. Only the thin protocol layer carrying the client pin is
+reimplemented, and each tool refuses the other's identity.
+
+The course writes nothing it has not first proved. Evidence is built in memory,
+staged, and then admitted by `verify_rfc0016_production_identity.py` itself
+before anything is renamed into place, so the producer and the gate are shown to
+agree on every run rather than assumed to. That check earned its keep during
+development by catching the verifier demanding HTTP 200 for
+`authorization_pending`, which GitHub is entitled to send as 400.
+
 ## Targets
 
 | Target | Responsibility |

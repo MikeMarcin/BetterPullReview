@@ -337,6 +337,56 @@ class ValidEvidenceTests(unittest.TestCase):
             )
             self.assertEqual(admit(course), len(designated_route_catalog()))
 
+    def test_a_pending_outcome_may_be_400(self) -> None:
+        """GitHub sends the pending error as 200 or 400; both are correct."""
+        for status in (200, 400):
+            with self.subTest(status=status):
+                with contained_temporary_directory() as directory:
+                    course = build_course(Path(directory))
+                    write_json(
+                        course / "outcomes" / "authorization_pending.json",
+                        {
+                            "content_type": "application/json",
+                            "endpoint": "token",
+                            "endpoint_url": TOKEN_URL,
+                            "http_status": status,
+                            "outcome": "authorization_pending",
+                            "projection": {
+                                "observed_fields": [
+                                    "error",
+                                    "error_description",
+                                    "error_uri",
+                                ],
+                                "omitted_transient_fields": [
+                                    "error_description",
+                                    "error_uri",
+                                ],
+                                "values": {"error": "authorization_pending"},
+                            },
+                            "provenance": read_json(course / "route-probes.json")[
+                                "provenance"
+                            ]
+                            | {"observation": "authorization_pending_response"},
+                            "request_content_type": "application/x-www-form-urlencoded",
+                            "request_method": "POST",
+                            "schema_name": "bpr.rfc0016.device_contract",
+                            "schema_version": 1,
+                        },
+                    )
+                    self.assertEqual(admit(course), len(designated_route_catalog()))
+
+    def test_a_token_success_may_not_be_400(self) -> None:
+        """The permission a pending error gets does not extend to a success."""
+        with contained_temporary_directory() as directory:
+            course = build_course(Path(directory))
+            path = course / "outcomes" / "token_success.json"
+            document = read_json(path)
+            document["http_status"] = 400
+            write_json(path, document)
+            with self.assertRaises(IdentityFailure) as caught:
+                admit(course)
+            self.assertIn("outcome:token_success:http-status", str(caught.exception))
+
     def test_a_valid_observation_yields_the_production_client(self) -> None:
         with contained_temporary_directory() as directory:
             review = write_observation(Path(directory))

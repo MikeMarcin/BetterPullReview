@@ -1,9 +1,10 @@
 ---
 id: BPR-0318
 title: Record a distributable device-authorization identity
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0016
 depends_on: [BPR-0276, BPR-0282, BPR-0480]
+parked_on: awaiting-live-github
 ---
 
 # Record a distributable device-authorization identity
@@ -238,3 +239,32 @@ course proves the shipped artifact does *not* carry the private verification
 identity; nothing proved it carries the right one. `--release-binary` on this
 verifier requires the enabled artifact to select `Iv23liitiYN1WSSbag50` and not
 the verification client, and the ledger row now runs it after the flip.
+## Every unattended thing is done; the sitting is the card — 2026-08-29
+
+[[BPR-0480]] is Done: `scripts/run_rfc0016_production_course_attended.py` runs
+the designated read-only course as `Iv23liitiYN1WSSbag50` and publishes evidence
+`verify_rfc0016_production_identity.py` admits, proving that on every run by
+self-checking its staged output before it publishes. Nothing unattended remains
+on this card either, so it parks on the one thing left.
+
+What the sitting is. On a macOS host, with the owner present:
+
+```sh
+python3 scripts/run_rfc0016_production_course_attended.py \
+    --registration-observation docs/verification/reviews/rfc0016-production-app-registration-v001/registration-observation.json \
+    --output-root docs/verification/reviews/rfc0016-production-app-registration-v001/read-only-course
+```
+
+It opens `https://github.com/login/device`, shows a user code to type, waits for
+the authorization, then runs the ten read-only probes against
+`MikeMarcin/BPR-Test` pull request 1. It mutates nothing. It needs no new
+approval: fact_4 of the accepted `rfc0016-production-app-registration-v001`
+decision authorizes exactly this course, and the runner refuses to start unless
+that record is committed and still replays.
+
+Then, unattended again and in this order: commit the course evidence; run the
+ledger's `--require-complete` admission; rerun the BPR-0282 unavailable course;
+make the macOS-only capability-selection change in
+`src/app/src/github_application.cpp`, which today returns `{ .Registered = false }`
+unconditionally and must become platform-conditional rather than simply true;
+rerun the enabled course and the verifier with `--release-binary`.

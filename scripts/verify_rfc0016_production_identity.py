@@ -443,7 +443,11 @@ def check_outcome(
     document = load_json(path, diagnostic)
     require_schema(document, "bpr.rfc0016.device_contract", diagnostic)
     require(document.get("outcome") == outcome, f"{diagnostic}:outcome-name")
-    require(document.get("http_status") == 200, f"{diagnostic}:http-status")
+    # A success must be 200. `authorization_pending` is an OAuth error body and
+    # GitHub is entitled to send it as either 200 or 400, so pinning it to the
+    # one this project happened to record would fail on correct evidence.
+    permitted = {200} if outcome in REQUIRED_OUTCOMES else {200, 400}
+    require(document.get("http_status") in permitted, f"{diagnostic}:http-status")
     expected_url = DEVICE_CODE_URL if outcome == "device_code_success" else TOKEN_URL
     require(document.get("endpoint_url") == expected_url, f"{diagnostic}:endpoint-url")
     check_provenance(

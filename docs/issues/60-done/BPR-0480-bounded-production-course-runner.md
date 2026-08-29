@@ -1,7 +1,7 @@
 ---
 id: BPR-0480
 title: Write the bounded production-course runner
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -86,3 +86,46 @@ no five-course bundle.
   mutating method, and a foreign authority subject each fail closed.
 - `ctest -R '^(rfc0016_device_capture_security|rfc0016_device_live_runner_security)$'`
   still passes unchanged, proving BPR-0276's tools were not disturbed.
+
+## The runner exists, and the reason it is separate got sharper — 2026-08-29
+
+`scripts/run_rfc0016_production_course_attended.py` and its isolated
+`rfc0016_production_course_security` gate are written, registered in
+`tests/CMakeLists.txt`, counted by `scripts/verify_rfc0016_test_inventory.py` in
+both `dev` and `core-only`, and named in the ledger row they serve.
+
+This card argued the separation from provenance shape. The real reason turned
+out to be stronger, and it was found the direct way: the parameterization was
+attempted first, and `rfc0016_device_capture_security` immediately failed with
+`course execution identity mismatch`. BPR-0276's admitted `course-execution.json`
+records `capture_runner_sha256`, and that value is the hash of
+`run_rfc0016_device_capture_attended.py` itself. **That file is evidence.**
+Editing it by any amount invalidates an attended capture the owner has already
+accepted. The change was reverted, both BPR-0276 suites are green again, and the
+digest is now pinned by a test whose failure message says so, so the next session
+to reach for that file learns it in one run instead of one debugging session.
+
+What is shared is what can be: `HttpsWire`, `ReadOnlyProbeWire`,
+`_probe_requests`, `_validate_probe_reply`, and the JSON/field validators are
+imported and run unchanged, so route closure keeps one definition. Only the
+device grant, the token poll, and the token-success loop are reimplemented,
+because their client pin cannot be widened in place. Each tool refuses the
+other's identity, and a test asserts both directions.
+
+The self-check is the part worth keeping. Evidence is built in memory, staged,
+and then admitted by `verify_rfc0016_production_identity.py` before anything is
+renamed into place; a rejected course leaves neither output nor staging behind.
+It paid immediately: the verifier was requiring HTTP 200 for
+`authorization_pending`, which GitHub is entitled to send as 400, so the gate
+would have failed on a correct sitting. That is fixed and pinned in both
+directions — a pending error may be 200 or 400, a token success may only be 200.
+
+Falsification: each of the runner's 21 refusals was neutralized in turn and 15
+turn the 38-test gate red. The survivors are an importlib loader guard and four
+redundant deadline checks where an adjacent guard fires first, which the two
+deadline tests demonstrate. Hostile-response cases cover what the real service
+could send — a non-200 grant, an extra field, a redirected verification URI, a
+malformed user code, an unknown token error, a wrong error schema, a refused
+status, and a clock that jumps past the grant's life mid-poll.
+
+Remaining: nothing unattended. The sitting is [[BPR-0318]]'s.
