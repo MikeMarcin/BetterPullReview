@@ -775,6 +775,7 @@ ready lanes — and the lane says which answer it needs:
 | BPR-0235 | `40-parked/` | The Windows counterexample replay is discharged by matrix-10, so one criterion remains: the default-off designated live lane target-native, which waits on the separately authorized session authority and attended procedure for a real call against `MikeMarcin/BPR-Test#1` |
 | BPR-0310, BPR-0314 | `23-ready-lin/` | **Not a Linux session.** A Linux session ran this lane on 2026-08-22 and removed every Linux reason it had; the tests-disabled Release build links here ([[BPR-0421]], [[BPR-0440]]) and `coding-tidy` runs here ([[BPR-0443]]). This row's older text said BPR-0310 needed RFC-BPR-0016 implemented at all; that was true on 2026-08-22 and is not now — the contract, transport, application host, schedule, and Qt panel exist and reach `main.cpp`, and [[BPR-0277]] through [[BPR-0282]] are Done. What actually remains upstream: [[BPR-0310]] waits on exactly in-progress [[BPR-0318]]'s distributable identity, its only unmet dependency; [[BPR-0314]] must observe a typed public-preview-unavailability selection no code produces yet, which is RFC-BPR-0017 implementation behind [[BPR-0306]] — RFC-BPR-0002, its former gate, closed Auto-Verified on 2026-08-28. BPR-0314 carries three target-native rows now. A Linux session opening this lane closed [[BPR-0444]], [[BPR-0469]], [[BPR-0470]], and [[BPR-0471]] and neither of these |
 | BPR-0472 | `23-ready-lin/` | A Linux session to root-cause the review-ledger composition's never-completing epoch handoff. Carded 2026-08-28 from the [[BPR-0054]] Linux closeout run, which disproved [[BPR-0156]]'s "slower host" attribution by measurement: the course expires at a 150000 ms budget exactly as at 40000 ms, with `epoch_handoff_failed=1`, at both `17c8950d` and the `82c7d1c1` baseline — pre-existing, budget-independent, and non-causal for the four 2026-08-18..26 epoch commits. First question: does it reproduce on a full-system kernel |
+| BPR-0479 | `30-in-progress/` | The BPR-0101 closeout's whole-tree strict tidy — the first under Homebrew LLVM 23.1.0 — fails on 96 `bugprone-signed-bitwise` errors across 37 files, all one shape: signed POSIX/SQLite flag macros under bitwise operators, none written today. Disposition fixed: per-site unsigned casts in the house idiom, no NOLINT, no `.clang-tidy` change; blocks only RFC-BPR-0005's flip, as the strict gate is a closeout gate |
 
 This table had drifted and is corrected above rather than quietly patched. It
 listed BPR-0262 as a `20-ready/` root; that card is in `60-done/`. BPR-0220 was
@@ -847,7 +848,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these seven roots or reaches one
+card on this board is either one of these eight roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 38 cards in `10-backlog/`, only [[BPR-0100]] and [[BPR-0240]] have all
 their dependencies in `60-done/`, and each stays there by its own terms —
