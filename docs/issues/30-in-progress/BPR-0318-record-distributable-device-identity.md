@@ -283,6 +283,29 @@ than synthetic. The artifact selects no production client because
 for every platform. After the macOS-only change, the same command against the
 rebuilt artifact must pass, which is what closes the ledger row's second half.
 
+## The sitting happened — 2026-08-29
+
+The owner ran the designated read-only course at the macOS integrator
+station. First launch was lost to a missed dialog (killed unauthorized,
+no evidence written, no output root created); the second grant completed:
+`RFC0016_PRODUCTION_COURSE_OK` as client `Iv23liitiYN1WSSbag50` with all
+ten probes, evidence committed under `read-only-course/` with field-shape
+records only — the secret scan over the evidence found no token values.
+
+The complete admission then passed at the evidence commit:
+`RFC0016_PRODUCTION_IDENTITY_OK` with `RFC0016_PRODUCTION_COURSE:complete`,
+`RFC0016_PRODUCTION_EVIDENCE_FILES:11`, record commit
+`c82e51c2c933887632fb0bb35db876375a151de9` replayed rather than believed.
+
+The BPR-0282 unavailable course rerun passed at the same head on a fresh
+`build/rfc0016-macos-unavailable` root: `RFC0016_PLATFORM_COURSE_OK`,
+`RFC0016_COURSE_SELECTORS:16` (the count grew from 15 when the two
+production-identity gates were registered), `RFC0016_DEVICE_STAGE:unavailable`,
+`RFC0016_DEVICE_REQUESTS:0`. Remaining, in order: the macOS-only
+capability-selection flip and the enabled-course rerun with
+`--validate-existing --release-binary` against the rebuilt artifact,
+committed as distinct provenance.
+
 ### The sitting freezes the runner
 
 Worth knowing before the command is run rather than after: the verifier requires
