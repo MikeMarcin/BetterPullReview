@@ -318,3 +318,35 @@ The answered v001–v003 packets are frozen history, not superseded — v004
 is a new gate for a new course. Every unattended obligation on this card
 is done, so it parks `awaiting-live-github`: the operator's exact packet
 statement and the one live request are all that remain.
+
+## The v004 issuance ran and was refused on a body — 2026-08-28, late night
+
+The operator returned the packet's exact statement in the live session;
+the canonical response (`operator-response.md`, byte-grammar validated
+against packet `fdef8d42…`) authorized the one execution. The recorder
+verified the pinned condition source, durably reserved the attempt receipt
+(`rfc0017-anonymous-capture-attempts/fdef8d42….json`) and the output
+destination, issued the single conditional GET with `If-None-Match` from
+the committed ETag and `If-Modified-Since` from the committed date — and
+refused: `conditional not-modified response carries a body`. No response
+byte was persisted; the reserved destination is a committed zero-byte
+file; the issuance is consumed under the never-delete rule. This is
+exactly the outcome the packet stated for a changed representation, and
+v004 stays byte-frozen as its own record beside v002.
+
+The refusal path does not expose the status line, so the record claims
+only what was observed: the answer carried a body. The overwhelmingly
+likely cause is the packet's stated 200 hazard, with a specific mechanism
+this attempt has now taught: the pull-request payload embeds volatile
+repository counters — stargazers, forks, watchers of `octocat/Hello-World`
+— so an ETag for this representation goes stale on its own, independent of
+the pull request changing. A replayed five-day-old validator was
+practically guaranteed to fail. The flaw is in the course design, not the
+mechanism: source pinning, header construction, single issuance, and
+post-receipt refusal all behaved exactly as their tests claimed.
+
+What follows: conditional-304 accounting needs validators captured in the
+same session that replays them — a paired course, one fresh GET recording
+the current `ETag` and one conditional GET replaying it seconds later —
+which is new unattended recorder mechanism, then a v005 packet authorizing
+exactly those two requests as one decision.
