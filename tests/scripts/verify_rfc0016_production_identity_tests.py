@@ -938,6 +938,12 @@ class CommandContractTests(unittest.TestCase):
         result = self.run_tool("--registration-observation", str(other))
         self.assertEqual(result.returncode, 1)
         self.assertNotIn("RFC0016_PRODUCTION_IDENTITY_OK", result.stdout)
+        # Pinned so this cannot decay into a pass on some unrelated absence: the
+        # record is read, and refused because it is the other gate's.
+        self.assertIn(
+            "rfc0016-production-identity:fail:validation-record:gate",
+            result.stderr,
+        )
 
     def test_the_tool_opens_no_socket(self) -> None:
         """A verifier that could reach the network could also be spoofed.
