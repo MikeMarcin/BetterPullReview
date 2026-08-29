@@ -291,11 +291,13 @@ def check_registration_fields(record: dict[str, object], diagnostic: str) -> str
     return client
 
 
-def check_operator_record(
-    root: pathlib.Path,
-    review_directory: pathlib.Path,
-) -> tuple[str, str]:
-    """Replay the accepted authority. Returns (record commit, subject digest)."""
+def check_recorded_decision(review_directory: pathlib.Path) -> str:
+    """Read the accepted authority off disk. Returns the subject digest.
+
+    Split from the Git replay below so that what the record *says* can be
+    checked without a repository: the two halves fail for different reasons and
+    a reviewer is better served knowing which.
+    """
     record_path = review_directory / "validation-record.json"
     record = load_json(record_path, "validation-record")
     require_schema(record, "bpr.operator_response_validation", "validation-record")
@@ -360,6 +362,16 @@ def check_operator_record(
         )
         if field == "decision_subject":
             subject_digest = str(binding.get("sha256"))
+    return subject_digest
+
+
+def check_operator_record(
+    root: pathlib.Path,
+    review_directory: pathlib.Path,
+) -> tuple[str, str]:
+    """Replay the accepted authority. Returns (record commit, subject digest)."""
+    subject_digest = check_recorded_decision(review_directory)
+    record_path = review_directory / "validation-record.json"
 
     relative = record_path.relative_to(root).as_posix()
     revision = run(["git", "log", "-1", "--format=%H", "--", relative], cwd=root)
@@ -651,7 +663,14 @@ def check_secret_free(paths: list[pathlib.Path]) -> int:
 
 def check_committed(root: pathlib.Path, paths: list[pathlib.Path]) -> None:
     """Closeout replays committed bytes, never a working-tree edit."""
-    relative = [path.relative_to(root).as_posix() for path in paths]
+    relative: list[str] = []
+    for path in paths:
+        try:
+            relative.append(path.relative_to(root).as_posix())
+        except ValueError:
+            # Evidence Git cannot name is evidence a replay cannot pin. Saying
+            # so beats reporting an internal error for a real reviewer mistake.
+            raise IdentityFailure(f"evidence-outside-repository:{path.name}") from None
     result = run(["git", "status", "--porcelain", "--", *relative], cwd=root)
     require(result.returncode == 0, "git-status-failed")
     dirty = result.stdout.strip()

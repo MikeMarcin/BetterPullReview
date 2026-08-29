@@ -1,9 +1,9 @@
 ---
 id: BPR-0318
 title: Record a distributable device-authorization identity
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0276, BPR-0282]
+depends_on: [BPR-0276, BPR-0282, BPR-0480]
 ---
 
 # Record a distributable device-authorization identity
@@ -165,15 +165,22 @@ with `--validate-existing` passing as well. `--require-complete` fails closed
 on the absent `read-only-course/`, which is exactly the attended sitting that
 has not happened.
 
-A gate is only worth its negative cases, so eleven of its checks were removed
-one at a time and each turned the 62-test suite red — the course-to-observation
-client join, both digest bindings, both authority-subject bindings, the
-designated-URL equality, catalog completeness, the empty-scope rule, the
-verification-client exclusion, the exact permission set, and the byte scan.
-Two of those were found *because* of that pass rather than confirmed by it: a
-mutation test that looked like it covered the execution record was really being
-caught by the probe provenance beside it, and one anchor never applied at all.
-Both now have isolating cases.
+A gate is only worth its negative cases, so the whole verifier was swept rather
+than spot-checked: each of its 96 checked conditions was replaced with `True`
+in turn and the suite rerun. 77 turn the 109-test gate red. The 19 survivors are
+every one a shape or existence guard — `isinstance` checks and `is_dir`/`is_file`
+probes — whose removal changes which diagnostic is printed and not whether the
+run refuses, because the code behind each still fails; they are left as they are
+rather than padded with tests that would assert the wording of an error.
+
+The sweep paid for itself three times. A mutation test that looked like it
+covered the execution record was really being caught by the probe provenance
+beside it; one hand-written anchor never applied at all, so its "pass" meant
+nothing; and `check_committed` had a real hole, where a failing `git status`
+leaves empty output that read as a clean tree. All three now have isolating
+cases, and the authority replay is covered against a throwaway repository so
+that the record is demonstrably replayed rather than believed for saying
+`pass`.
 
 The verifier also settles something this card had left open. `read-only-course/`
 does not exist, so nothing described its shape; the verifier is now that
@@ -187,14 +194,44 @@ read-only catalog. Every provenance block binds decision subject
 `18b867d3a05321cedcd4570227c732459779bebff23728d354de9411c4e5370b`, so course
 evidence produced under any other authority fails rather than reads plausibly.
 
-One unattended prerequisite surfaced and belongs to the sitting, not to a new
-card: `scripts/run_rfc0016_device_capture_attended.py` pins
-`APPROVED_PUBLIC_CLIENT_ID` to the verification client `Iv23lil08fH3933w9MkW`
-and refuses any other, which is correct for BPR-0276's authority and means the
-runner cannot execute the production course as written. Teaching it the
-production identity under this gate's recorded authority — and writing the
-`gate`/`authority_subject_sha256` provenance the verifier requires — is the
-first step of the attended slice.
+## The sitting needs a runner that does not exist yet — 2026-08-29
+
+The attended sitting cannot be scheduled against the tools in the tree. A read-
+only survey of `scripts/run_rfc0016_device_capture_attended.py` and its offline
+module `scripts/capture_rfc0016_device_contracts.py` found four independent
+refusals standing between them and a production course, not the one pinned
+constant this card had assumed:
+
+- `validate_client_id` (runner:687) admits only `Iv23lil08fH3933w9MkW`.
+- `load_registration_observation` (runner:1469) rejects any observation that is
+  not byte-identical to the hardcoded private shape, which fixes
+  `application_visibility: private` and `installation_policy: owner_only` — the
+  exact two fields the distributable identity must invert. This fires before the
+  client check.
+- `make_provenance`/`_validate_provenance` (offline:419) hardcode BPR-0276's
+  `authority_subject_sha256` and emit no `gate` key at all, and
+  `validate_registration_artifact` (offline:807) again pins private/owner_only.
+- `_course_execution_document` (runner:1496) likewise writes BPR-0276's
+  authority and no `gate`.
+
+The transport half is clean: `HttpsWire`, `ReadOnlyProbeWire`, `_probe_requests`,
+`run_read_only_probes`, `request_device_grant`, `poll_token`, and
+`run_authorization_course` all take `client_id`, `wire`, and `probe` as ordinary
+parameters, keep route closure in `ALLOWED_URLS`, and read no pinned identity
+except through `validate_client_id`. `_write_private` and
+`_read_private_canonical_json` are generic. The single `token-success` course is
+a closed branch that demands no slow-down reservation, no settings transition,
+and no five-course bundle.
+
+That asymmetry decides the shape. Widening the existing evidence writer means
+threading a second registration shape, a second authority, and a new key through
+two files whose own negative tests assert BPR-0276's shape is exact — which is
+the "never silently widened" non-goal at the top of this card, approached from
+the inside. The next slice is instead a separate bounded production-course runner
+that imports the wire, probe, and course helpers and writes this gate's
+provenance, leaving BPR-0276's admitted evidence and its authority untouched.
+That work is [[BPR-0480]]; the attended sitting follows it, and nothing else on
+this card can move first.
 
 The macOS enablement step also gains a check it did not have. The platform
 course proves the shipped artifact does *not* carry the private verification
