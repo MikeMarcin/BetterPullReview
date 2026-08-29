@@ -139,3 +139,34 @@ green, the same composition-aware set 8/8. Open cosmetic question for the
 target-native rerun, flagged by the lane: whether restoring the fill costs
 the style's rounded-panel rendering at the viewport corners — the native
 visual-acceptance pass owns judging that, not this check.
+
+## The corrected fix is proven target-native — 2026-08-28, night
+
+At `4fdab287` in the `windows-lane` worktree (clean fast-forward, fresh
+image launch-probed allowed):
+
+- Three-way course, all PASS: `windows11` **12.73 s** — the first
+  default-style pass this card has ever had — no-override 13.04 s,
+  `windowsvista` 13.13 s. The Qt sweep passed 6/6 in 46.82 s.
+- Raster confirmation that the diagnosis, not just the check, is answered:
+  in the same viewport region the diagnosis measured, `windows11` went
+  from Base 0.0% / `#f6f7f9` 70.2% to **Base 52.40% / `#f6f7f9` 6.41%**,
+  within ~0.7 points of the `windowsvista` reference (53.07% / 6.68%).
+  The inversion is fully undone, not nudged past the assertion.
+- The corner question is answered in two parts that disagree, and the
+  distinction is recorded: in an isolated bare-widget probe the restored
+  fill overpaints ~5 antialiased arc pixels per corner (outer border
+  pixels intact) — real but sub-pixel-scale; in the actual product frame
+  it does not manifest at all, because the panes sit flush inside
+  splitters behind the gutter and divider, and the pane boundary is a
+  hard square edge under `windowsvista` too. Caveat kept: this is the
+  1.0x offscreen frame; a real-DPI native run could expose panel edges
+  this layout hides, and cosmetics remain the native visual-acceptance
+  pass's call. The lane also recorded catching and correcting a
+  symbol-collision defect in its own zoom tooling before reading the
+  corner pixels, so the corner figures come from the corrected tool.
+
+What item 3 still owes, by this card's own opening measurement: the
+default-style course on the **native `windows` QPA at real display
+scaling** on the designated host — the offscreen runs were the debuggable
+repro, and the original failure was measured native at 125/150/200%.
