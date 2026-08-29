@@ -126,6 +126,11 @@ def translated(live: types.ModuleType):
         raise ProductionCourseError(str(error)) from None
 
 
+def timeout(live: types.ModuleType, seconds: float | None) -> float:
+    """The caller's bound, or the imported runner's ceiling when unstated."""
+    return live.REQUEST_TIMEOUT_SECONDS if seconds is None else seconds
+
+
 def validate_client_id(client_id: str, live: types.ModuleType) -> str:
     """Admit the distributable client, and refuse BPR-0276's by name.
 
@@ -158,38 +163,33 @@ def request_device_grant(
     """One device grant for the production client, validated as BPR-0276 does."""
     validate_client_id(client_id, live)
     with translated(live):
-        return _device_grant(wire, client_id, live, timeout_seconds)
-
-
-def _device_grant(
-    wire: object,
-    client_id: str,
-    live: types.ModuleType,
-    timeout_seconds: float | None,
-) -> object:
-    reply = wire.post_form(
-        live.DEVICE_URL,
-        {"client_id": client_id},
-        timeout_seconds=(
-            live.REQUEST_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
-        ),
-    )
-    if reply.status != 200:
-        raise ProductionCourseError("device_response_status_invalid")
-    value = live._closed_json(reply.body)
-    expected = {"device_code", "user_code", "verification_uri", "expires_in", "interval"}
-    if set(value) != expected or value.get("verification_uri") != live.VERIFY_URL:
-        raise ProductionCourseError("device_response_invalid")
-    user_code = live._required_text(value["user_code"], "user_code", 64)
-    if not live.USER_CODE.fullmatch(user_code):
-        raise ProductionCourseError("user_code_invalid")
-    return live.DeviceGrant(
-        device_code=live._required_text(value["device_code"], "device_code", 512),
-        user_code=user_code,
-        expires_in=live._required_int(value["expires_in"], "expires_in", 3600),
-        interval=live._required_int(value["interval"], "interval", 300),
-        reply=reply,
-    )
+        reply = wire.post_form(
+            live.DEVICE_URL,
+            {"client_id": client_id},
+            timeout_seconds=timeout(live, timeout_seconds),
+        )
+        if reply.status != 200:
+            raise ProductionCourseError("device_response_status_invalid")
+        value = live._closed_json(reply.body)
+        expected = {
+            "device_code",
+            "user_code",
+            "verification_uri",
+            "expires_in",
+            "interval",
+        }
+        if set(value) != expected or value.get("verification_uri") != live.VERIFY_URL:
+            raise ProductionCourseError("device_response_invalid")
+        user_code = live._required_text(value["user_code"], "user_code", 64)
+        if not live.USER_CODE.fullmatch(user_code):
+            raise ProductionCourseError("user_code_invalid")
+        return live.DeviceGrant(
+            device_code=live._required_text(value["device_code"], "device_code", 512),
+            user_code=user_code,
+            expires_in=live._required_int(value["expires_in"], "expires_in", 3600),
+            interval=live._required_int(value["interval"], "interval", 300),
+            reply=reply,
+        )
 
 
 def poll_token(
@@ -203,66 +203,61 @@ def poll_token(
     """One token poll. Only the empty-scope success the approved permissions imply."""
     validate_client_id(client_id, live)
     with translated(live):
-        return _token_poll(wire, client_id, device_code, live, timeout_seconds)
+        reply = wire.post_form(
+            live.TOKEN_URL,
+            {
+                "client_id": client_id,
+                "device_code": device_code,
+                "grant_type": live.DEVICE_GRANT,
+            },
+            timeout_seconds=timeout(live, timeout_seconds),
+        )
+        value = live._closed_json(reply.body)
+        if "error" in value:
+            return _token_error(value, reply, live)
+        expected = {
+            "access_token",
+            "expires_in",
+            "refresh_token",
+            "refresh_token_expires_in",
+            "scope",
+            "token_type",
+        }
+        if reply.status != 200:
+            raise ProductionCourseError("token_response_status_invalid")
+        if (
+            set(value) != expected
+            or value.get("scope") != ""
+            or value.get("token_type") != "bearer"
+        ):
+            raise ProductionCourseError("token_response_invalid")
+        live._required_text(value["access_token"], "access_token", 4096)
+        live._required_text(value["refresh_token"], "refresh_token", 4096)
+        return live.TokenPoll("token_success", reply)
 
 
-def _token_poll(
-    wire: object,
-    client_id: str,
-    device_code: str,
+def _token_error(
+    value: Mapping[str, object],
+    reply: object,
     live: types.ModuleType,
-    timeout_seconds: float | None,
 ) -> object:
-    reply = wire.post_form(
-        live.TOKEN_URL,
-        {
-            "client_id": client_id,
-            "device_code": device_code,
-            "grant_type": live.DEVICE_GRANT,
-        },
-        timeout_seconds=(
-            live.REQUEST_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
-        ),
+    """A documented device-flow error body, or nothing this course will record."""
+    if reply.status not in {200, 400}:
+        raise ProductionCourseError("token_error_status_invalid")
+    error = live._required_text(value["error"], "error", 64)
+    if error not in {"authorization_pending", "slow_down", *live.TERMINALS}:
+        raise ProductionCourseError("token_error_unknown")
+    expected_fields = live.SLOW_DOWN_FIELDS if error == "slow_down" else live.ERROR_FIELDS
+    if set(value) != expected_fields:
+        raise ProductionCourseError("token_error_schema_invalid")
+    live._required_text(value["error_description"], "error_description", 512)
+    live._required_text(value["error_uri"], "error_uri", 512)
+    interval = (
+        live._required_int(value["interval"], "slow_down_interval", 300)
+        if error == "slow_down"
+        else None
     )
-    value = live._closed_json(reply.body)
-    if "error" in value:
-        if reply.status not in {200, 400}:
-            raise ProductionCourseError("token_error_status_invalid")
-        error = live._required_text(value["error"], "error", 64)
-        if error not in {"authorization_pending", "slow_down", *live.TERMINALS}:
-            raise ProductionCourseError("token_error_unknown")
-        expected_fields = (
-            live.SLOW_DOWN_FIELDS if error == "slow_down" else live.ERROR_FIELDS
-        )
-        if set(value) != expected_fields:
-            raise ProductionCourseError("token_error_schema_invalid")
-        live._required_text(value["error_description"], "error_description", 512)
-        live._required_text(value["error_uri"], "error_uri", 512)
-        interval = (
-            live._required_int(value["interval"], "slow_down_interval", 300)
-            if error == "slow_down"
-            else None
-        )
-        return live.TokenPoll(error, reply, interval)
-    expected = {
-        "access_token",
-        "expires_in",
-        "refresh_token",
-        "refresh_token_expires_in",
-        "scope",
-        "token_type",
-    }
-    if reply.status != 200:
-        raise ProductionCourseError("token_response_status_invalid")
-    if (
-        set(value) != expected
-        or value.get("scope") != ""
-        or value.get("token_type") != "bearer"
-    ):
-        raise ProductionCourseError("token_response_invalid")
-    live._required_text(value["access_token"], "access_token", 4096)
-    live._required_text(value["refresh_token"], "refresh_token", 4096)
-    return live.TokenPoll("token_success", reply)
+    return live.TokenPoll(error, reply, interval)
 
 
 def run_token_success_course(
@@ -278,80 +273,67 @@ def run_token_success_course(
     """Grant, authorize, poll to success, then probe. Bounded throughout."""
     validate_client_id(client_id, live)
     with translated(live):
-        return _token_success_course(
-            wire, client_id, live, present=present, probe=probe,
-            sleep=sleep, monotonic=monotonic,
+        executed_at_utc = live._execution_timestamp()
+        live._timestamp(executed_at_utc, "course_timestamp_invalid")
+
+        total_deadline = monotonic() + float(live.TOTAL_COURSE_SECONDS)
+
+        def remaining(until: float) -> float:
+            """A request bound that shrinks with the deadline it runs against."""
+            left = until - monotonic()
+            if left <= 0.0:
+                raise ProductionCourseError("course_deadline_refused")
+            return min(live.REQUEST_TIMEOUT_SECONDS, left)
+
+        grant = request_device_grant(
+            wire, client_id, live, timeout_seconds=remaining(total_deadline)
         )
+        # A grant expires on its own clock, before the course does. Whichever
+        # comes first is the deadline every later step runs against.
+        deadline = min(monotonic() + float(grant.expires_in), total_deadline)
 
-
-def _token_success_course(
-    wire: object,
-    client_id: str,
-    live: types.ModuleType,
-    *,
-    present: Callable[[str], None],
-    probe: Callable[[str], list[dict[str, object]]],
-    sleep: Callable[[float], None],
-    monotonic: Callable[[], float],
-) -> dict[str, object]:
-    executed_at_utc = live._execution_timestamp()
-    live._timestamp(executed_at_utc, "course_timestamp_invalid")
-
-    started = monotonic()
-    total_deadline = started + float(live.TOTAL_COURSE_SECONDS)
-
-    def remaining() -> float:
-        left = total_deadline - monotonic()
-        if left <= 0.0:
-            raise ProductionCourseError("course_deadline_refused")
-        return min(live.REQUEST_TIMEOUT_SECONDS, left)
-
-    grant = request_device_grant(wire, client_id, live, timeout_seconds=remaining())
-    grant_started = monotonic()
-    deadline = min(grant_started + float(grant.expires_in), total_deadline)
-
-    present(grant.user_code)
-    if monotonic() > deadline:
-        raise ProductionCourseError("course_deadline_refused")
-
-    outcomes: dict[str, object] = {}
-    interval = grant.interval
-    while True:
-        live._bounded_sleep(
-            float(interval), deadline, sleep=sleep, monotonic=monotonic
-        )
-        left = deadline - monotonic()
-        if left <= 0.0:
-            raise ProductionCourseError("course_deadline_refused")
-        poll = poll_token(
-            wire,
-            client_id,
-            grant.device_code,
-            live,
-            timeout_seconds=min(live.REQUEST_TIMEOUT_SECONDS, left),
-        )
+        present(grant.user_code)
         if monotonic() > deadline:
             raise ProductionCourseError("course_deadline_refused")
-        if poll.outcome == "authorization_pending":
-            outcomes.setdefault(poll.outcome, poll.reply)
-            continue
-        if poll.outcome == "slow_down":
-            if poll.interval != interval + 5:
-                raise ProductionCourseError("slow_down_interval_progression_invalid")
-            interval = poll.interval
-            continue
-        if poll.outcome != "token_success":
-            # Denial and expiry are BPR-0276's recorded contracts. This course is
-            # authorized to observe success, so anything else stops it.
-            raise ProductionCourseError("unexpected_terminal")
-        outcomes[poll.outcome] = poll.reply
-        probes = probe(live._access_token(poll.reply))
-        return {
-            "device_reply": grant.reply,
-            "outcomes": outcomes,
-            "executed_at_utc": executed_at_utc,
-            "route_probes": probes,
-        }
+
+        outcomes: dict[str, object] = {}
+        interval = grant.interval
+        while True:
+            live._bounded_sleep(
+                float(interval), deadline, sleep=sleep, monotonic=monotonic
+            )
+            poll = poll_token(
+                wire,
+                client_id,
+                grant.device_code,
+                live,
+                timeout_seconds=remaining(deadline),
+            )
+            if monotonic() > deadline:
+                raise ProductionCourseError("course_deadline_refused")
+            if poll.outcome == "authorization_pending":
+                outcomes.setdefault(poll.outcome, poll.reply)
+                continue
+            if poll.outcome == "slow_down":
+                if poll.interval != interval + 5:
+                    raise ProductionCourseError(
+                        "slow_down_interval_progression_invalid"
+                    )
+                interval = poll.interval
+                continue
+            if poll.outcome != "token_success":
+                # Denial and expiry are BPR-0276's recorded contracts. This
+                # course is authorized to observe success, so anything else
+                # stops it.
+                raise ProductionCourseError("unexpected_terminal")
+            outcomes[poll.outcome] = poll.reply
+            probes = probe(live._access_token(poll.reply))
+            return {
+                "device_reply": grant.reply,
+                "outcomes": outcomes,
+                "executed_at_utc": executed_at_utc,
+                "route_probes": probes,
+            }
 
 
 def canonical_bytes(document: Mapping[str, object]) -> bytes:
@@ -509,6 +491,8 @@ def publish_course(
     if staging.exists():
         raise ProductionCourseError("staging_root_exists")
 
+    # Owner-only while it is unadmitted evidence, relaxed to ordinary file modes
+    # only once the verifier has accepted it and it is about to be committed.
     staging.mkdir(parents=True)
     os.chmod(staging, 0o700)
     for name, payload in documents.items():
