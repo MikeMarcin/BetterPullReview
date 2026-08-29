@@ -1,7 +1,7 @@
 ---
 id: BPR-0476
 title: The git diagnostic wrapper replies in ANSI while the adapter compares UTF-8
-status: Ready
+status: Done
 rfc: RFC-BPR-0011
 depends_on: []
 ---
@@ -79,3 +79,51 @@ true.
 
 What remains is exactly the target-native run this lane names, so the card
 returns to `21-ready-win/`.
+
+## The target-native proof — 2026-08-28, evening
+
+A Remote Control lane on the JaegAW host (WSL2 shell driving the native
+Windows toolchain — MSVC 18.9.1, VS 18 Community, CMake 4.4.2, Visual Studio
+generator, `hostSystemName == Windows`; the executables, filesystem, and
+ctest are genuinely Windows, and only the launching shell is not — recorded
+here so no reviewer discovers it later) ran the course three ways in the
+`windows-lane` worktree at `C:\code\git\bpr-windows`, fast-forwarded
+`7160c283` → `b594abed` from a verified-clean state. The build was
+incremental (19.6 s, zero configure), and all three freshly linked images —
+the wrapper, the course driver, and the relinked canary — were launch-probed
+ALLOWED before any run, so no host-policy refusal touches these results.
+
+- **At `b594abed`: PASS, 6.20 s** — the ordinary run over the non-ASCII
+  `wräpper/` staging, on a host where ANSI and UTF-8 genuinely differ.
+- **Counter-run: FAIL, typed, the original signature.** With only
+  `installed_git_process.cpp` restored to `b594abed~1` (narrow ANSI decode
+  back, wrapper still replying UTF-8) and rebuilt, the course fails in
+  32.52 s printing `EPOCH_CACHE_FAILURE:10:` — `git_cache_failure` index 10
+  is `process_failure` with an EMPTY detail — and
+  `EPOCH_EFFECT_FAILED:revision-prepare:6`, `core::epoch_failure` index 6,
+  `process_failure`. That is verbatim the bare-detail `process_failure`
+  this card's opening section names, so the counter-run reproduces
+  BPR-0240's original defect specifically rather than merely failing.
+- **Restored: PASS, 8.14 s.** Both checkouts ended `git status --short`
+  clean; no commits, pushes, or tracker edits were made on that host.
+
+The ten-selector focused sweep then matched macOS target-native: all eight
+`application_agent_invocation_*_contract` courses plus
+`git_process_contract` (35.37 s) and `git_cache_contract` (53.69 s), 10/10
+in 176.49 s. The lane flagged `application_agent_invocation_cleanup_retry_contract`
+passing against matrix-10's record of it as a designed gap; resolved — that
+gap was [[BPR-0465]]'s, closed 2026-08-27 after matrix-10's snapshot, so the
+pass is expected.
+
+Every required-final-state bullet now has direct evidence: byte-identical
+replies proven by the Windows pass over the non-ASCII component, the
+fails-without-the-repair criterion demonstrated by the counter-run's exact
+original signature, and POSIX behavior proven unchanged by the macOS 10/10
+runs recorded above. Host facts worth keeping: the reputation-settled
+Windows build tree is the `windows-lane` worktree at `C:\code\git\bpr-windows`
+(its gitdir is Windows-form, so `git worktree list` from WSL2 shows it as
+"prunable" — it is not); the main checkout's `build/windows-dev` is a bare
+2026-08-17 configure whose from-scratch path was refused by Smart App
+Control on the nested KSyntaxHighlighting Release indexer, a per-image
+refusal still standing past 71 minutes on that tree, immaterial to these
+results and left to the owner's recorded disposition.
