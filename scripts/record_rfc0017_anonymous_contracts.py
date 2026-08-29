@@ -209,6 +209,31 @@ CONDITIONAL_OPERATION = "rest_conditional_not_modified"
 CONDITIONAL_EXPECTED_STATUS = 304
 CONDITION_SOURCE_KEY = "condition_source"
 CONDITION_SOURCE_KEYS = frozenset({"capture_file", "file_sha256"})
+#: The second form a ``condition_source`` may take, and the key that selects
+#: it. It names another course in this same authorized run, whose freshly
+#: recorded validators the conditional request replays.
+#:
+#: The first form pins a committed capture, and one live attempt taught what
+#: that costs: a pull-request representation embeds volatile repository
+#: counters — stargazers, forks, watchers — so its entity tag goes stale on its
+#: own, without the pull request changing at all. A validator committed days
+#: earlier is therefore stale by construction, and the conditional question it
+#: asks is answered with a body. A validator observed seconds earlier, in the
+#: same authorized run, is the only one that asks what the course means to ask.
+SAME_RUN_COURSE_KEY = "same_run_course"
+SAME_RUN_COURSE_KEYS = frozenset({SAME_RUN_COURSE_KEY})
+#: Operations whose recorded answer is a representation an entity tag can
+#: identify, and which may therefore be named as a same-run source. The three
+#: excluded ones each fail for their own reason: a 404 discloses no
+#: representation to revalidate, a GraphQL refusal is a zero-quota POST to
+#: another URL entirely, and a not-modified answer is itself only a
+#: revalidation — chaining one would source a course's validators from an
+#: answer that never carried a fresh representation.
+SAME_RUN_SOURCE_OPERATIONS = frozenset({
+    "rest_rate_limit",
+    "rest_pull_request",
+    "rest_pull_request_comments",
+})
 #: Exactly the outbound headers a conditional request may add. Nothing else may
 #: be attached to any request this module issues.
 CONDITIONAL_VALIDATOR_HEADERS = ("If-None-Match", "If-Modified-Since")
@@ -468,6 +493,7 @@ def parse_authority(packet_bytes: bytes) -> dict:
         if name in seen:
             raise ContractError(f"authority repeats target {name}")
         seen.add(name)
+    validate_same_run_sources(targets)
     return authority
 
 
@@ -515,17 +541,96 @@ def require_repository_relative_path(value: Any, label: str) -> str:
 
 
 def validate_condition_source(value: Any, label: str) -> dict:
-    """Bound the pin: one repository-relative capture and its exact digest.
+    """Bound one of the two forms the pin may take.
 
-    The authority names the source by path *and* digest, so the operator's
-    signature covers the bytes the request will replay. Nothing about the
-    conditional request is looked up ambiently at run time.
+    A pinned source names one repository-relative capture and its exact digest,
+    so the operator's signature covers the bytes the request will replay. A
+    same-run source names a course instead, because the bytes it will replay do
+    not exist yet when the packet is signed; what the signature covers there is
+    the pairing, and every part of the pairing that can be decided without
+    traffic is decided in `validate_same_run_sources` and the course manifest.
+
+    `same_run_course` is the discriminant: a source carrying it is read as a
+    same-run source and must carry nothing else, and a source without it is
+    read as a pinned one and must carry exactly the pinned members. Either way
+    nothing about the conditional request is looked up ambiently at run time.
     """
+    if not isinstance(value, dict):
+        raise ContractError(f"{label} is not an object")
+    if SAME_RUN_COURSE_KEY in value:
+        require_exact_keys(value, set(SAME_RUN_COURSE_KEYS), label)
+        require_text(
+            value[SAME_RUN_COURSE_KEY], f"{label}.{SAME_RUN_COURSE_KEY}", 64)
+        return value
     require_exact_keys(value, set(CONDITION_SOURCE_KEYS), label)
     require_repository_relative_path(
         value["capture_file"], f"{label}.capture_file")
     require_sha256(value["file_sha256"], f"{label}.file_sha256")
     return value
+
+
+def same_run_source_course(target: dict) -> str | None:
+    """The course this target replays validators from, if it names one."""
+    source = target.get(CONDITION_SOURCE_KEY)
+    if isinstance(source, dict) and SAME_RUN_COURSE_KEY in source:
+        return source[SAME_RUN_COURSE_KEY]
+    return None
+
+
+def validate_same_run_sources(targets: list) -> None:
+    """Every same-run reference must name a sibling that can supply validators.
+
+    All four rules below are decidable from the packet alone, so they refuse
+    while the authority is being parsed — before any receipt is reserved, and
+    long before any request. Only two things about a same-run source cannot be
+    settled here: its position in the run, which belongs to the course manifest
+    and is checked there, and whether it actually recorded an entity tag, which
+    nothing can know until the run has captured it.
+    """
+    authorized = {target["name"]: target for target in targets}
+    for index, target in enumerate(targets):
+        referenced = same_run_source_course(target)
+        if referenced is None:
+            continue
+        label = f"target[{index}].{CONDITION_SOURCE_KEY}.{SAME_RUN_COURSE_KEY}"
+        if referenced == target["name"]:
+            raise ContractError(f"{label} names its own course")
+        source = authorized.get(referenced)
+        if source is None:
+            raise ContractError(f"{label} names no authorized target")
+        if source["operation"] not in SAME_RUN_SOURCE_OPERATIONS:
+            raise ContractError(
+                f"{label} names {source['operation']}, which records no "
+                "revalidatable representation")
+        if source["url"] != target["url"]:
+            # Replaying one resource's validators against another asks a
+            # question the authority does not describe, and would record an
+            # answer under a URL that never produced the entity tag it carries.
+            raise ContractError(f"{label} names a target with another URL")
+
+
+def require_same_run_course_order(authorized: dict, courses: list) -> None:
+    """A same-run source must be a course this run captures strictly earlier.
+
+    Capture mode runs the manifest's courses in manifest order and stops at the
+    first refusal, so "earlier" is exactly what makes the validators exist by
+    the time the conditional request is built. Capture mode also requires the
+    packet's own approved course list to equal this one before it writes
+    anything, so ordering the manifest is ordering the approval.
+    """
+    positions = {course["name"]: index for index, course in enumerate(courses)}
+    for name, index in positions.items():
+        referenced = same_run_source_course(authorized[name])
+        if referenced is None:
+            continue
+        if referenced not in positions:
+            raise ContractError(
+                f"course {name} names same-run source course {referenced}, "
+                "which this manifest does not run")
+        if positions[referenced] >= index:
+            raise ContractError(
+                f"course {name} must run after its same-run source course "
+                f"{referenced}")
 
 
 def validate_url(url: str, operation: str, label: str) -> None:
@@ -1005,12 +1110,41 @@ def sanitize_capture(
 # Conditional revalidation
 #
 # The conditional course asks GitHub whether a document already on record is
-# still current, so its request has to carry that document's validators. They
-# come from one committed capture, pinned by the authority by path and digest:
-# the packet's own digest therefore binds the exact source bytes, and a source
-# that has moved, changed, or lost its entity tag stops the run before it
-# reserves anything. No ambient lookup, no most-recent-capture guessing.
+# still current, so its request has to carry that document's validators. The
+# authority says where they come from, in one of two forms, and neither is an
+# ambient lookup or a most-recent-capture guess.
+#
+# A *pinned* source names one committed capture by path and digest, so the
+# packet's own digest binds the exact source bytes; a source that has moved,
+# changed, or lost its entity tag stops the run before it reserves anything.
+#
+# A *same-run* source names another course in this same authorized run. Its
+# bytes cannot be pinned, because they do not exist when the packet is signed,
+# so what is proved before traffic is the pairing instead: an earlier course,
+# the same URL, an operation that records a revalidatable representation. The
+# entity tag itself is checked in the one place it can be — after the source
+# course has been captured, before the conditional request is issued.
 # --------------------------------------------------------------------------
+
+def parse_condition_source_record(payload: bytes, label: str) -> dict:
+    """Bound one capture record before its headers are replayed on the wire."""
+    record = parse_json_unique(payload, label)
+    if not isinstance(record, dict):
+        raise ContractError(f"{label} is not an object")
+    if record.get("schema_name") != CAPTURE_SCHEMA:
+        raise ContractError(f"{label} is not an anonymous capture record")
+    version = require_positive_int(
+        record.get("schema_version"),
+        f"{label} schema version",
+        CAPTURE_SCHEMA_VERSION,
+    )
+    if version != CAPTURE_SCHEMA_VERSION:
+        raise ContractError(f"{label} schema version mismatch")
+    headers = record.get("retained_headers")
+    if minimize_headers(headers) != headers:
+        raise ContractError(f"{label} retained headers mismatch")
+    return record
+
 
 def load_condition_source(condition_source: dict, label: str) -> dict:
     """Load the pinned capture, accepting only its exact recorded bytes."""
@@ -1022,45 +1156,56 @@ def load_condition_source(condition_source: dict, label: str) -> dict:
     if sha256_bytes(payload) != condition_source["file_sha256"]:
         raise ContractError(
             f"{label} condition source differs from its pinned digest")
-    record = parse_json_unique(payload, f"{label} condition source")
-    if not isinstance(record, dict):
-        raise ContractError(f"{label} condition source is not an object")
-    if record.get("schema_name") != CAPTURE_SCHEMA:
-        raise ContractError(
-            f"{label} condition source is not an anonymous capture record")
-    version = require_positive_int(
-        record.get("schema_version"),
-        f"{label} condition source schema version",
-        CAPTURE_SCHEMA_VERSION,
-    )
-    if version != CAPTURE_SCHEMA_VERSION:
-        raise ContractError(f"{label} condition source schema version mismatch")
-    headers = record.get("retained_headers")
-    if minimize_headers(headers) != headers:
-        raise ContractError(
-            f"{label} condition source retained headers mismatch")
-    return record
+    return parse_condition_source_record(payload, f"{label} condition source")
+
+
+def validator_request_headers(record: dict, label: str) -> dict[str, str]:
+    """Build the outbound validators one source record supports."""
+    headers = record["retained_headers"]
+    if "etag" not in headers:
+        # Without an entity tag there is nothing exact to revalidate against,
+        # and a modification date alone is a weaker request than the authority
+        # describes. Refuse rather than quietly ask a different question.
+        raise ContractError(f"{label} records no etag")
+    # The record was already proved to carry only bounded retained text, so
+    # these go on the wire exactly as they were recorded.
+    request_headers = {"If-None-Match": headers["etag"]}
+    if "last-modified" in headers:
+        request_headers["If-Modified-Since"] = headers["last-modified"]
+    return request_headers
 
 
 def conditional_request_headers(
     target: dict, label: str
 ) -> dict[str, str] | None:
-    """Build one conditional request's validators, or nothing for any other."""
-    if target["operation"] != CONDITIONAL_OPERATION:
+    """Build one pinned conditional request's validators, or nothing else.
+
+    This runs before the attempt receipt exists, which is why a same-run source
+    is deliberately not resolved here: the record it names has not been written
+    yet, and failing to load it would consume a single-use authorization over a
+    file the run itself was about to create.
+    """
+    if (target["operation"] != CONDITIONAL_OPERATION
+            or same_run_source_course(target) is not None):
         return None
-    headers = load_condition_source(
-        target[CONDITION_SOURCE_KEY], label)["retained_headers"]
-    if "etag" not in headers:
-        # Without an entity tag there is nothing exact to revalidate against,
-        # and a modification date alone is a weaker request than the authority
-        # describes. Refuse rather than quietly ask a different question.
-        raise ContractError(f"{label} condition source records no etag")
-    # `load_condition_source` already proved every retained value is bounded
-    # text, so these go on the wire exactly as they were recorded.
-    request_headers = {"If-None-Match": headers["etag"]}
-    if "last-modified" in headers:
-        request_headers["If-Modified-Since"] = headers["last-modified"]
-    return request_headers
+    return validator_request_headers(
+        load_condition_source(target[CONDITION_SOURCE_KEY], label),
+        f"{label} condition source")
+
+
+def same_run_request_headers(
+    target: dict, source_path: Path, label: str
+) -> dict[str, str]:
+    """Build the validators this run itself recorded for the source course.
+
+    The record is read back from the run's own output root rather than kept in
+    memory, so what goes on the wire is what was actually persisted as
+    evidence — the entity tag a reader of the pair can see for themselves.
+    """
+    source_label = f"{label} same-run source {same_run_source_course(target)}"
+    record = parse_condition_source_record(
+        read_bounded(source_path, source_label), source_label)
+    return validator_request_headers(record, source_label)
 
 
 # --------------------------------------------------------------------------
@@ -1566,6 +1711,7 @@ def validate_course_manifest(manifest_bytes: bytes, authority: dict) -> dict:
                 and expected_status != CONDITIONAL_EXPECTED_STATUS):
             raise ContractError(
                 f"course {name} must expect {CONDITIONAL_EXPECTED_STATUS}")
+    require_same_run_course_order(authorized, courses)
     return manifest
 
 
@@ -1661,7 +1807,9 @@ def run_capture(args: argparse.Namespace) -> int:
     targets = {target["name"]: target for target in authority["targets"]}
     # Load and authenticate every pinned condition source before anything is
     # written or reserved. A request whose validators cannot be proved must not
-    # consume the packet's single-use authorization.
+    # consume the packet's single-use authorization. A same-run source has no
+    # bytes to authenticate yet; the structure standing in for them was already
+    # proved by the authority and the course manifest above.
     validators = {
         course["name"]: conditional_request_headers(
             targets[course["name"]], f"course {course['name']}")
@@ -1703,9 +1851,18 @@ def run_capture(args: argparse.Namespace) -> int:
                 f"capture {target['name']} already exists; "
                 "authorization is single-use") from error
         with os.fdopen(descriptor, "wb") as handle:
+            request_headers = validators[target["name"]]
+            referenced = same_run_source_course(target)
+            if referenced is not None:
+                # The manifest proved this course runs after the one it names,
+                # and any refusal there ended the run, so the source record is
+                # on disk. Reading it now is what makes the replayed validators
+                # this run's own rather than a committed answer's.
+                request_headers = same_run_request_headers(
+                    target, destinations[referenced],
+                    f"course {target['name']}")
             status, headers, body = perform_request(
-                target["url"], target["operation"], None,
-                validators[target["name"]])
+                target["url"], target["operation"], None, request_headers)
             if len(body) > MAX_RESPONSE_BYTES:
                 raise ContractError(
                     f"{course['name']} response exceeds the byte limit")

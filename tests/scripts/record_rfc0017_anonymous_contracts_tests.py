@@ -181,6 +181,43 @@ def conditional_target(
     return target
 
 
+# --------------------------------------------------------------------------
+# The paired course: one fresh request, then the conditional request replaying
+# what it just recorded.
+#
+# The fresh answer's validators appear nowhere else — not in a committed
+# capture, not in the pinned fixture above — so a conditional request carrying
+# them can only have read them from the record this run itself wrote.
+# --------------------------------------------------------------------------
+
+SAME_RUN_SOURCE_COURSE = "fresh-pull-request"
+SAME_RUN_FRESH_ETAG = '"fixture-fresh-9f1c2b3a4d5e6f708192a3b4c5d6e7f80a1b2c3d"'
+SAME_RUN_FRESH_LAST_MODIFIED = "Fri, 28 Aug 2026 21:14:07 GMT"
+SECOND_PULL_REQUEST_URL = "https://api.github.com/repos/octocat/Hello-World/pulls/2"
+
+
+def fresh_source_target(
+    *, name=SAME_RUN_SOURCE_COURSE, operation="rest_pull_request",
+    url=FIXTURE_PULL_REQUEST_URL,
+) -> dict:
+    """The course whose freshly recorded validators a conditional replays."""
+    return {"name": name, "operation": operation, "url": url}
+
+
+def same_run_target(
+    *, name=CONDITIONAL_COURSE, course=SAME_RUN_SOURCE_COURSE,
+    url=FIXTURE_PULL_REQUEST_URL, **overrides,
+) -> dict:
+    target = {
+        "name": name,
+        "operation": REC.CONDITIONAL_OPERATION,
+        "url": url,
+        REC.CONDITION_SOURCE_KEY: {REC.SAME_RUN_COURSE_KEY: course},
+    }
+    target.update(overrides)
+    return target
+
+
 class FakeResponse:
     """One recorded HTTP answer, shaped like what `urllib` hands back."""
 
@@ -211,6 +248,28 @@ class RecordingOpener:
     def open(self, request, timeout):
         self.requests.append(request)
         return FakeResponse(self.status, dict(self.headers), self.body)
+
+
+class ScriptedOpener:
+    """Answers each request from a fixed script, in order, keeping them all.
+
+    A course that replays another course's answer needs the two answers to
+    differ, which one canned response cannot express. Running out of script is
+    a test failure rather than a repeat: a run that issues more requests than
+    it was authorized for is exactly the fault worth failing on.
+    """
+
+    def __init__(self, answers):
+        self.answers = list(answers)
+        self.requests = []
+
+    def open(self, request, timeout):
+        self.requests.append(request)
+        if not self.answers:
+            raise AssertionError(
+                "the run issued more requests than the script answers")
+        status, headers, body = self.answers.pop(0)
+        return FakeResponse(status, dict(headers), body)
 
 
 GIT_AVAILABLE = shutil.which("git") is not None
@@ -1897,6 +1956,108 @@ class ConditionalAuthorityTests(unittest.TestCase):
                 ):
                     self.parse([conditional_target(digest)])
 
+    # -- the same-run form ---------------------------------------------------
+
+    def test_accepts_both_condition_source_forms_in_one_authority(self) -> None:
+        parsed = self.parse([
+            fresh_source_target(),
+            same_run_target(),
+            conditional_target("a" * 64, name="pinned-not-modified"),
+        ])
+
+        sources = {
+            target["name"]: target.get(REC.CONDITION_SOURCE_KEY)
+            for target in parsed["targets"]
+        }
+        self.assertIsNone(sources[SAME_RUN_SOURCE_COURSE])
+        self.assertEqual(
+            sources[CONDITIONAL_COURSE],
+            {REC.SAME_RUN_COURSE_KEY: SAME_RUN_SOURCE_COURSE})
+        self.assertEqual(
+            sources["pinned-not-modified"],
+            {"capture_file": CONDITION_SOURCE_RELATIVE,
+             "file_sha256": "a" * 64})
+
+    def test_refuses_a_same_run_source_carrying_any_other_member(self) -> None:
+        defects = {
+            "capture_file": CONDITION_SOURCE_RELATIVE,
+            "file_sha256": "a" * 64,
+            "unknown": 1,
+        }
+        for member, value in defects.items():
+            with self.subTest(member=member):
+                with self.assertRaisesRegex(
+                    REC.ContractError,
+                    r"target\[1\]\.condition_source key mismatch: missing=\[\] "
+                    rf"unexpected=\['{member}'\]",
+                ):
+                    self.parse([
+                        fresh_source_target(),
+                        same_run_target(**{REC.CONDITION_SOURCE_KEY: {
+                            REC.SAME_RUN_COURSE_KEY: SAME_RUN_SOURCE_COURSE,
+                            member: value,
+                        }}),
+                    ])
+
+    def test_refuses_a_same_run_course_that_is_not_bounded_text(self) -> None:
+        for course in ("", "x" * 65, 1, None):
+            with self.subTest(course=course):
+                with self.assertRaisesRegex(
+                    REC.ContractError,
+                    r"condition_source\.same_run_course is not bounded text",
+                ):
+                    self.parse([
+                        fresh_source_target(), same_run_target(course=course)])
+
+    def test_refuses_a_same_run_source_naming_its_own_course(self) -> None:
+        with self.assertRaisesRegex(
+            REC.ContractError,
+            r"target\[0\]\.condition_source\.same_run_course names its own "
+            "course",
+        ):
+            self.parse([same_run_target(course=CONDITIONAL_COURSE)])
+
+    def test_refuses_a_same_run_source_naming_no_authorized_target(self) -> None:
+        with self.assertRaisesRegex(
+            REC.ContractError,
+            r"target\[0\]\.condition_source\.same_run_course names no "
+            "authorized target",
+        ):
+            self.parse([same_run_target()])
+
+    def test_refuses_a_same_run_source_recording_no_representation(self) -> None:
+        # Every operation outside the allowlist, and the reason each is out of
+        # it: a 404 has no representation, a GraphQL refusal is a zero-quota
+        # POST elsewhere, and a not-modified answer is itself a revalidation.
+        sources = {
+            "rest_absent_not_disclosed": fresh_source_target(
+                operation="rest_absent_not_disclosed"),
+            REC.GRAPHQL_REFUSAL_OPERATION: fresh_source_target(
+                operation=REC.GRAPHQL_REFUSAL_OPERATION,
+                url="https://api.github.com/graphql"),
+            REC.CONDITIONAL_OPERATION: conditional_target(
+                "a" * 64, name=SAME_RUN_SOURCE_COURSE),
+        }
+        for operation, source in sources.items():
+            with self.subTest(operation=operation):
+                with self.assertRaisesRegex(
+                    REC.ContractError,
+                    rf"same_run_course names {operation}, which records no "
+                    "revalidatable representation",
+                ):
+                    self.parse([source, same_run_target()])
+
+    def test_refuses_a_same_run_source_at_another_url(self) -> None:
+        with self.assertRaisesRegex(
+            REC.ContractError,
+            r"target\[1\]\.condition_source\.same_run_course names a target "
+            "with another URL",
+        ):
+            self.parse([
+                fresh_source_target(url=SECOND_PULL_REQUEST_URL),
+                same_run_target(),
+            ])
+
     def test_refuses_a_condition_source_path_that_can_leave_the_repository(
         self,
     ) -> None:
@@ -2004,7 +2165,56 @@ class ConditionalRecordTests(unittest.TestCase):
                         None, {header: "x"})
 
 
-class ConditionalCaptureTests(unittest.TestCase):
+class CaptureDriverMixin:
+    """Drives `main` over a review directory the test case built itself."""
+
+    def argv(self, *extra: str) -> list[str]:
+        return [
+            "--packet", str(self.packet),
+            "--response", str(self.response),
+            "--course-manifest", str(self.manifest),
+            "--output-root", str(self.captures),
+            *extra,
+        ]
+
+    def run_main(self, *extra: str) -> tuple[int, str]:
+        stream = io.StringIO()
+        with contextlib.redirect_stdout(stream):
+            code = REC.main(self.argv(*extra))
+        return code, stream.getvalue()
+
+    def assert_refused(self, reason: str, *extra: str) -> None:
+        stream = io.StringIO()
+        with contextlib.redirect_stderr(stream):
+            code = REC.main(self.argv(*extra))
+        self.assertEqual(code, 3)
+        self.assertEqual(
+            stream.getvalue(),
+            f"RFC0017_ANONYMOUS_CONTRACTS_REFUSED:{reason}\n")
+
+    def install(self, opener):
+        original = REC.build_bounded_opener
+        REC.build_bounded_opener = lambda: opener
+        self.addCleanup(setattr, REC, "build_bounded_opener", original)
+        return opener
+
+    def install_opener(self, **keywords) -> RecordingOpener:
+        return self.install(RecordingOpener(**keywords))
+
+    def forbid_traffic(self) -> None:
+        original = REC.perform_request
+
+        def explode(*args, **keywords):
+            raise AssertionError("a refused course issued a request")
+
+        REC.perform_request = explode
+        self.addCleanup(setattr, REC, "perform_request", original)
+
+    def sent_headers(self, request) -> dict[str, str]:
+        return {name.lower(): value for name, value in request.header_items()}
+
+
+class ConditionalCaptureTests(CaptureDriverMixin, unittest.TestCase):
     """The whole conditional course, over a fake transport."""
 
     def setUp(self) -> None:
@@ -2059,52 +2269,6 @@ class ConditionalCaptureTests(unittest.TestCase):
     def write_source(self, record: dict, **keywords) -> None:
         self.write_source_bytes(REC.canonical_json(record), **keywords)
 
-    # -- drivers -------------------------------------------------------------
-
-    def argv(self, *extra: str) -> list[str]:
-        return [
-            "--packet", str(self.packet),
-            "--response", str(self.response),
-            "--course-manifest", str(self.manifest),
-            "--output-root", str(self.captures),
-            *extra,
-        ]
-
-    def run_main(self, *extra: str) -> tuple[int, str]:
-        stream = io.StringIO()
-        with contextlib.redirect_stdout(stream):
-            code = REC.main(self.argv(*extra))
-        return code, stream.getvalue()
-
-    def assert_refused(self, reason: str, *extra: str) -> None:
-        stream = io.StringIO()
-        with contextlib.redirect_stderr(stream):
-            code = REC.main(self.argv(*extra))
-        self.assertEqual(code, 3)
-        self.assertEqual(
-            stream.getvalue(),
-            f"RFC0017_ANONYMOUS_CONTRACTS_REFUSED:{reason}\n")
-
-    def install_opener(self, **keywords) -> RecordingOpener:
-        opener = RecordingOpener(**keywords)
-        original = REC.build_bounded_opener
-        REC.build_bounded_opener = lambda: opener
-        self.addCleanup(setattr, REC, "build_bounded_opener", original)
-        return opener
-
-    def forbid_traffic(self) -> None:
-        original = REC.perform_request
-
-        def explode(*args, **keywords):
-            raise AssertionError("a refused course issued a request")
-
-        REC.perform_request = explode
-        self.addCleanup(setattr, REC, "perform_request", original)
-
-    def sent_headers(self, opener: RecordingOpener) -> dict[str, str]:
-        request, = opener.requests
-        return {name.lower(): value for name, value in request.header_items()}
-
     # -- the course ----------------------------------------------------------
 
     def test_captures_a_not_modified_contract_that_revalidates(self) -> None:
@@ -2141,13 +2305,13 @@ class ConditionalCaptureTests(unittest.TestCase):
         self.assertEqual(self.run_main()[0], 0)
 
         source = json.loads(self.source_path.read_bytes())
-        sent = self.sent_headers(opener)
+        request, = opener.requests
+        sent = self.sent_headers(request)
         self.assertEqual(
             sent["if-none-match"], source["retained_headers"]["etag"])
         self.assertEqual(
             sent["if-modified-since"],
             source["retained_headers"]["last-modified"])
-        request, = opener.requests
         self.assertEqual(request.get_method(), "GET")
         self.assertIsNone(request.data)
         self.assertEqual(request.host, "api.github.com")
@@ -2157,7 +2321,8 @@ class ConditionalCaptureTests(unittest.TestCase):
         opener = self.install_opener()
         self.assertEqual(self.run_main()[0], 0)
 
-        sent = self.sent_headers(opener)
+        request, = opener.requests
+        sent = self.sent_headers(request)
         self.assertEqual(sent["if-none-match"], CONDITIONAL_ETAG)
         self.assertNotIn("if-modified-since", sent)
 
@@ -2265,6 +2430,277 @@ class ConditionalCaptureTests(unittest.TestCase):
         self.assert_refused(
             f"capture {CONDITIONAL_COURSE} not-modified body is not empty",
             "--validate-existing")
+
+
+class SameRunConditionalCaptureTests(CaptureDriverMixin, unittest.TestCase):
+    """The paired course: a fresh request, then its own revalidation."""
+
+    FRESH_BODY = REC.canonical_json({"number": 1, "state": "closed"})
+    FRESH_HEADERS = {
+        "Content-Type": "application/json; charset=utf-8",
+        "ETag": SAME_RUN_FRESH_ETAG,
+        "Last-Modified": SAME_RUN_FRESH_LAST_MODIFIED,
+        "X-RateLimit-Remaining": "58",
+        "Server": "GitHub.com",
+    }
+    NOT_MODIFIED_HEADERS = {
+        "ETag": SAME_RUN_FRESH_ETAG,
+        "X-RateLimit-Remaining": "57",
+    }
+    PAIRED_COURSES = [
+        {"name": SAME_RUN_SOURCE_COURSE, "expected_status": 200},
+        {"name": CONDITIONAL_COURSE, "expected_status": 304},
+    ]
+
+    def setUp(self) -> None:
+        self.temporary = ContainedTemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.attempts = self.root / "capture-attempts"
+        self.addCleanup(
+            setattr, REC, "CAPTURE_ATTEMPT_REGISTRY",
+            REC.CAPTURE_ATTEMPT_REGISTRY)
+        REC.CAPTURE_ATTEMPT_REGISTRY = self.attempts
+        self.review = self.root / "review"
+        self.review.mkdir()
+        self.packet = self.review / "operator-packet.md"
+        self.response = self.review / "operator-response.md"
+        self.manifest = self.review / "course-manifest.json"
+        self.captures = self.review / "captures"
+        self.write_review()
+
+    # -- fixture construction ------------------------------------------------
+
+    def write_review(self, targets=None, courses=None) -> None:
+        targets = [fresh_source_target(), same_run_target()] \
+            if targets is None else targets
+        courses = self.PAIRED_COURSES if courses is None else courses
+        self.packet.write_text(packet_text(
+            authority(targets, version=REC.AUTHORITY_CONDITION_SOURCE_VERSION),
+            courses))
+        self.response.write_text(response_text(self.packet.read_bytes()))
+        self.manifest.write_bytes(REC.canonical_json({
+            "schema_name": REC.MANIFEST_SCHEMA,
+            "schema_version": REC.MANIFEST_SCHEMA_VERSION,
+            "packet_sha256": REC.sha256_bytes(self.packet.read_bytes()),
+            "courses": courses,
+        }))
+
+    def install_pair(
+        self, *, fresh_headers=None, fresh_body=None
+    ) -> ScriptedOpener:
+        return self.install(ScriptedOpener([
+            (200,
+             self.FRESH_HEADERS if fresh_headers is None else fresh_headers,
+             self.FRESH_BODY if fresh_body is None else fresh_body),
+            (304, self.NOT_MODIFIED_HEADERS, b""),
+        ]))
+
+    def captured(self, courses) -> dict[str, dict]:
+        """Read every record the run wrote, validating it as the tool does."""
+        targets = {
+            target["name"]: target for target in
+            REC.parse_authority(self.packet.read_bytes())["targets"]
+        }
+        records = {}
+        for course in courses:
+            payload = (self.captures / f"{course['name']}.json").read_bytes()
+            record = json.loads(payload)
+            self.assertEqual(payload, REC.canonical_json(record))
+            REC.validate_capture_record(record, targets[course["name"]], course)
+            records[course["name"]] = record
+        return records
+
+    # -- the paired course ---------------------------------------------------
+
+    def test_captures_a_pair_whose_conditional_replays_this_run(self) -> None:
+        opener = self.install_pair()
+
+        code, output = self.run_main()
+        self.assertEqual(
+            (code, output), (0, "RFC0017_ANONYMOUS_CONTRACTS_CAPTURED:2\n"))
+
+        records = self.captured(self.PAIRED_COURSES)
+        fresh = records[SAME_RUN_SOURCE_COURSE]
+        conditional = records[CONDITIONAL_COURSE]
+        self.assertEqual(fresh["http_status"], 200)
+        self.assertEqual(fresh["retained_headers"]["etag"], SAME_RUN_FRESH_ETAG)
+        self.assertEqual(conditional["http_status"], 304)
+        self.assertIsNone(conditional["body"])
+        self.assertEqual(conditional["body_sha256"], REC.sha256_bytes(b""))
+
+        fresh_request, conditional_request = opener.requests
+        self.assertNotIn("if-none-match", self.sent_headers(fresh_request))
+        sent = self.sent_headers(conditional_request)
+        # The validators on the wire are the ones this run recorded seconds
+        # earlier, not any committed value: the fresh course's own headers.
+        self.assertEqual(
+            sent["if-none-match"], fresh["retained_headers"]["etag"])
+        self.assertEqual(sent["if-none-match"], SAME_RUN_FRESH_ETAG)
+        self.assertNotEqual(sent["if-none-match"], CONDITIONAL_ETAG)
+        self.assertEqual(
+            sent["if-modified-since"],
+            fresh["retained_headers"]["last-modified"])
+        self.assertEqual(conditional_request.get_method(), "GET")
+
+        code, output = self.run_main("--validate-existing")
+        self.assertEqual(code, 0)
+        self.assertIn("RFC0017_ANONYMOUS_CONTRACTS_VALID:2", output)
+
+    def test_runs_both_condition_source_forms_in_one_run(self) -> None:
+        repository = self.root / "repository"
+        source_path = repository / CONDITION_SOURCE_RELATIVE
+        source_path.parent.mkdir(parents=True)
+        payload = REC.canonical_json(conditional_source_record())
+        source_path.write_bytes(payload)
+        self.addCleanup(
+            setattr, REC, "CONDITION_SOURCE_ROOT", REC.CONDITION_SOURCE_ROOT)
+        REC.CONDITION_SOURCE_ROOT = repository
+        courses = [
+            {"name": "pinned-not-modified", "expected_status": 304},
+            *self.PAIRED_COURSES,
+        ]
+        self.write_review(
+            targets=[
+                conditional_target(
+                    REC.sha256_bytes(payload), name="pinned-not-modified",
+                    url=SECOND_PULL_REQUEST_URL),
+                fresh_source_target(),
+                same_run_target(),
+            ],
+            courses=courses)
+        opener = self.install(ScriptedOpener([
+            (304, {"ETag": CONDITIONAL_ETAG}, b""),
+            (200, self.FRESH_HEADERS, self.FRESH_BODY),
+            (304, self.NOT_MODIFIED_HEADERS, b""),
+        ]))
+
+        code, output = self.run_main()
+        self.assertEqual(
+            (code, output), (0, "RFC0017_ANONYMOUS_CONTRACTS_CAPTURED:3\n"))
+        self.captured(courses)
+
+        pinned, _fresh, same_run = opener.requests
+        self.assertEqual(
+            self.sent_headers(pinned)["if-none-match"], CONDITIONAL_ETAG)
+        self.assertEqual(
+            self.sent_headers(same_run)["if-none-match"], SAME_RUN_FRESH_ETAG)
+        self.assertIn(
+            "RFC0017_ANONYMOUS_CONTRACTS_VALID:3",
+            self.run_main("--validate-existing")[1])
+
+    def test_same_run_validators_are_bounded_as_a_capture_record(self) -> None:
+        # The run writes this file itself, which is exactly why reading it back
+        # is bounded like any other source: it is what stands between a
+        # tampered output root and a header going on the wire unexamined.
+        path = self.root / "source.json"
+        record = conditional_source_record(etag=SAME_RUN_FRESH_ETAG)
+        path.write_bytes(REC.canonical_json(record))
+        target = same_run_target()
+
+        headers = REC.same_run_request_headers(target, path, "course c")
+        self.assertEqual(headers["If-None-Match"], SAME_RUN_FRESH_ETAG)
+        self.assertEqual(
+            headers["If-Modified-Since"], CONDITIONAL_LAST_MODIFIED)
+
+        defects = {
+            "another schema": REC.canonical_json(
+                {"schema_name": "bpr.rfc0017.something_else"}),
+            "unretained headers": REC.canonical_json(dict(
+                record, retained_headers={"server": "GitHub.com"})),
+            "no etag": REC.canonical_json(
+                conditional_source_record(etag=None)),
+        }
+        for label, payload in defects.items():
+            with self.subTest(source=label):
+                path.write_bytes(payload)
+                with self.assertRaisesRegex(
+                    REC.ContractError,
+                    f"course c same-run source {SAME_RUN_SOURCE_COURSE}",
+                ):
+                    REC.same_run_request_headers(target, path, "course c")
+
+    def test_refuses_a_fresh_course_that_records_no_etag(self) -> None:
+        # The one rule a same-run source cannot prove before traffic. It lands
+        # after the source course is captured and before the conditional
+        # request exists — the only place it can.
+        opener = self.install_pair(fresh_headers={
+            "Content-Type": "application/json; charset=utf-8",
+            "Last-Modified": SAME_RUN_FRESH_LAST_MODIFIED,
+        })
+
+        self.assert_refused(
+            f"course {CONDITIONAL_COURSE} same-run source "
+            f"{SAME_RUN_SOURCE_COURSE} records no etag")
+
+        self.assertEqual(len(opener.requests), 1)
+        self.assertEqual(
+            (self.captures / f"{CONDITIONAL_COURSE}.json").read_bytes(), b"")
+
+    def test_a_refused_fresh_course_stops_before_the_conditional(self) -> None:
+        opener = self.install_pair(fresh_body=b"<html>not json</html>")
+
+        self.assert_refused("response body is not JSON")
+
+        self.assertEqual(len(opener.requests), 1)
+        self.assertFalse(
+            (self.captures / f"{CONDITIONAL_COURSE}.json").exists())
+
+    def test_refuses_a_source_course_the_manifest_does_not_run(self) -> None:
+        self.write_review(
+            courses=[{"name": CONDITIONAL_COURSE, "expected_status": 304}])
+        self.forbid_traffic()
+
+        self.assert_refused(
+            f"course {CONDITIONAL_COURSE} names same-run source course "
+            f"{SAME_RUN_SOURCE_COURSE}, which this manifest does not run")
+
+        self.assertFalse(self.attempts.exists())
+        self.assertFalse(self.captures.exists())
+
+    def test_refuses_a_source_course_that_runs_later(self) -> None:
+        self.write_review(courses=[
+            {"name": CONDITIONAL_COURSE, "expected_status": 304},
+            {"name": SAME_RUN_SOURCE_COURSE, "expected_status": 200},
+        ])
+        self.forbid_traffic()
+
+        self.assert_refused(
+            f"course {CONDITIONAL_COURSE} must run after its same-run source "
+            f"course {SAME_RUN_SOURCE_COURSE}")
+
+        self.assertFalse(self.attempts.exists())
+        self.assertFalse(self.captures.exists())
+
+    def test_structural_refusals_precede_the_attempt_receipt(self) -> None:
+        # Everything a same-run pairing can be wrong about, except the entity
+        # tag, refuses while the authority and manifest are read — so a packet
+        # that could never have worked cannot consume its single issuance.
+        defects = {
+            "itself": [same_run_target(course=CONDITIONAL_COURSE)],
+            "no target": [same_run_target(course="absent-course")],
+            "another url": [
+                fresh_source_target(url=SECOND_PULL_REQUEST_URL),
+                same_run_target()],
+            "no representation": [
+                fresh_source_target(operation="rest_absent_not_disclosed"),
+                same_run_target()],
+        }
+        for label, targets in defects.items():
+            with self.subTest(defect=label):
+                self.write_review(targets=targets, courses=[
+                    {"name": target["name"],
+                     "expected_status": (
+                         304 if target["operation"] == REC.CONDITIONAL_OPERATION
+                         else 200)}
+                    for target in targets
+                ])
+                self.forbid_traffic()
+                stream = io.StringIO()
+                with contextlib.redirect_stderr(stream):
+                    self.assertEqual(REC.main(self.argv()), 3)
+                self.assertIn(REC.SAME_RUN_COURSE_KEY, stream.getvalue())
+                self.assertFalse(self.attempts.exists())
 
 
 @unittest.skipUnless(
