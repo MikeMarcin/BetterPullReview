@@ -772,7 +772,6 @@ ready lanes — and the lane says which answer it needs:
 
 | Root | Lane | Needs |
 |---|---|---|
-| BPR-0481 | `30-in-progress/` | Reopened by its own re-review. The four gaps are closed and verified, but the new runner has become evidence without a guard saying so: the identity fixture recomputes the runner digest from the live file, so editing the runner leaves every ctest gate green and breaks only the ledger's manual run — exactly the failure BPR-0480 paid a debugging session to learn and then pinned for BPR-0276's runner |
 | BPR-0318 | `40-parked/` | **An attended sitting on a macOS host.** Every unattended thing is done: the distributable identity is registered and admitted, [[BPR-0480]]'s runner produces the designated read-only course evidence and self-checks it against the verifier before publishing, and no new approval is needed — fact_4 of the accepted registration decision already authorizes this exact course. The owner runs `run_rfc0016_production_course_attended.py`, types the device code, and the run does the rest; then the macOS capability flip and its clean rerun follow unattended |
 | BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session, deferring: [[BPR-0311]] still waits on [[BPR-0318]]'s distributable identity — registered and admitted, now behind one attended device-login sitting, [[BPR-0480]] being Done — and on [[BPR-0036]], and [[BPR-0315]] on BPR-0311 and [[BPR-0306]] |
 | BPR-0235 | `40-parked/` | The Windows counterexample replay is discharged by matrix-10, so one criterion remains: the default-off designated live lane target-native, which waits on the separately authorized session authority and attended procedure for a real call against `MikeMarcin/BPR-Test#1` |
@@ -850,7 +849,7 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these eight roots or reaches one
+card on this board is either one of these seven roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
 of the 36 cards in `10-backlog/`, only [[BPR-0240]] has all its
 dependencies in `60-done/`, and it stays there by its own terms — waiting

@@ -54,6 +54,12 @@ REVIEW_DIRECTORY = (
     / "reviews"
     / "rfc0016-production-app-registration-v001"
 )
+PRODUCTION_RUNNER = (
+    REPOSITORY_ROOT / "scripts" / "run_rfc0016_production_course_attended.py"
+)
+RECORDED_PRODUCTION_COURSE = (
+    REVIEW_DIRECTORY / "read-only-course" / "course-execution.json"
+)
 RECORDED_COURSE = (
     REPOSITORY_ROOT
     / "docs"
@@ -201,6 +207,41 @@ class ImmutableAuthorityTests(unittest.TestCase):
             "run_rfc0016_device_capture_attended.py is digest-bound into "
             "BPR-0276's admitted capture and must not be edited; add a separate "
             "tool instead",
+        )
+
+    def test_this_runner_freezes_once_a_course_is_recorded(self) -> None:
+        """The symmetric guard for this runner, armed by the sitting itself.
+
+        `verify_rfc0016_production_identity.py` requires a course to name the
+        digest of this runner, so the moment a course is committed this file
+        becomes evidence exactly as BPR-0276's runner already is. Nothing would
+        say so: the identity suite recomputes the digest from the live file and
+        therefore always agrees with itself, so an edit would leave every gate
+        green and break only the ledger's manual run.
+
+        So this case reads the *recorded* course rather than recomputing, and it
+        arms itself — inert while no course exists, load-bearing the moment one
+        lands, with no follow-up card to remember.
+        """
+        if not RECORDED_PRODUCTION_COURSE.is_file():
+            # Not a silent skip: assert the reason it is absent, so a half
+            # written course cannot disarm the guard it is supposed to arm.
+            self.assertFalse(
+                (REVIEW_DIRECTORY / "read-only-course").exists(),
+                "a course directory exists without course-execution.json; the "
+                "runner-immutability guard below is disarmed until it does",
+            )
+            return
+        recorded = json.loads(RECORDED_PRODUCTION_COURSE.read_bytes())[
+            "capture_runner_sha256"
+        ]
+        live = "sha256:" + hashlib.sha256(PRODUCTION_RUNNER.read_bytes()).hexdigest()
+        self.assertEqual(
+            live,
+            recorded,
+            "run_rfc0016_production_course_attended.py is digest-bound into the "
+            "recorded designated read-only course and must not be edited; the "
+            "course would stop being admissible. Add a separate tool instead.",
         )
 
     def test_the_authority_constant_matches_the_committed_decision(self) -> None:

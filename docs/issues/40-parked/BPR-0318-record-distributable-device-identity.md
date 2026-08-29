@@ -283,3 +283,14 @@ than synthetic. The artifact selects no production client because
 `shipped_device_authorization_capability()` still returns `{ .Registered = false }`
 for every platform. After the macOS-only change, the same command against the
 rebuilt artifact must pass, which is what closes the ledger row's second half.
+
+### The sitting freezes the runner
+
+Worth knowing before the command is run rather than after: the verifier requires
+a course to name the digest of
+`scripts/run_rfc0016_production_course_attended.py`, so the moment that course
+is committed, that file becomes evidence exactly as [[BPR-0276]]'s runner already
+is. A later edit to it — a comment, a lint fix — invalidates the recorded course.
+[[BPR-0481]] added a self-arming test that fails with that explanation as soon as
+a course exists, so the constraint announces itself; this note is so the operator
+is not surprised by it.

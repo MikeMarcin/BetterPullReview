@@ -7,7 +7,10 @@ verification identity. BPR-0318 records a second, distributable identity under
 the accepted `rfc0016-production-app-registration-v001` authority, and this
 script is what decides whether that record is real.
 
-It reads committed evidence and never opens a socket. The registration happens
+It reads committed evidence and never opens a socket — neither does the one
+other file it loads, BPR-0276's offline contract module, which it imports so the
+probe catalog and GraphQL document keep a single definition rather than a second
+copy here that could drift. The registration happens
 in an attended sitting on GitHub and the designated read-only course runs under
 the attended runner; both leave files behind. The question here is not whether
 those files exist but whether they say the exact thing the owner approved.
@@ -574,7 +577,6 @@ def check_route_probes(
     probes = document.get("probes")
     require(isinstance(probes, list), "route-probes:probes-missing")
     assert isinstance(probes, list)
-
 
     seen: set[str] = set()
     for probe in probes:
