@@ -1,7 +1,7 @@
 ---
 id: BPR-0480
 title: Write the bounded production-course runner
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
