@@ -1,10 +1,9 @@
 ---
 id: BPR-0298
 title: Record anonymous GitHub service contracts
-status: Parked
+status: Done
 rfc: RFC-BPR-0017
 depends_on: [BPR-0297, BPR-0405, BPR-0445]
-parked_on: awaiting-live-github
 ---
 
 # Record anonymous GitHub service contracts
@@ -385,3 +384,16 @@ between the pair's requests. The service's own counters say a 304 is not
 free on the unauthenticated core budget, which contradicts the common
 assumption and is precisely the kind of fact this card existed to record
 rather than assume.
+
+`capture-bindings.json` for v005 was written and revalidates `BOUND:2`
+beside `VALID:2`, with both captures' owning commit `fec572d2`. Every
+required-final-state bullet now has direct evidence: the digest-bound
+packets (v001, and v004/v005 for the conditional course), sanitized
+records for GraphQL refusal, REST review comments and paging, budget
+headers, conditional-304 accounting, and 404 non-disclosure, the derived
+synthetic exhaustion shaped only from recorded values, the GHES
+record-eligibility disposition, minimized credential-free bodies, and the
+recorder's `--validate-existing` authenticating every capture's bytes,
+minimized-body digest, and owning commit. The card is done; the
+final-head replay of these validations belongs to RFC-BPR-0017's closeout
+rows, not here.
