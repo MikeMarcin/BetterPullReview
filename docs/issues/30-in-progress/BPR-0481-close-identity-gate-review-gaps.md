@@ -1,7 +1,7 @@
 ---
 id: BPR-0481
 title: Close the review gaps in the RFC-0016 identity gate
-status: Done
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
