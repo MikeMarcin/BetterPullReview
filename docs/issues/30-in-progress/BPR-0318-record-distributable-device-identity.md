@@ -148,3 +148,56 @@ course — real device-flow token success for the new client plus the
 read-only catalog probes, evidence under `read-only-course/`; then, on the
 macOS host only, the BPR-0282 unavailable-course rerun, the one-time macOS
 capability-selection flip, and the complete clean enabled rerun.
+
+## The verifier exists, and it defines the course — 2026-08-29
+
+`scripts/verify_rfc0016_production_identity.py` and
+`tests/scripts/verify_rfc0016_production_identity_tests.py` are written, and
+the isolated gate is `rfc0016_production_identity_security`, registered in
+`tests/CMakeLists.txt`, counted by `scripts/verify_rfc0016_test_inventory.py`
+in both `dev` and `core-only`, and named by the ledger row it closes.
+
+The identity half passes at this head. `RFC0016_PRODUCTION_IDENTITY_OK` over
+the committed authority, the sanitized observation, and the secret-free
+evidence, reporting `RFC0016_PRODUCTION_CLIENT:Iv23liitiYN1WSSbag50` and
+`RFC0016_PRODUCTION_RECORD_COMMIT:c82e51c2c933887632fb0bb35db876375a151de9`,
+with `--validate-existing` passing as well. `--require-complete` fails closed
+on the absent `read-only-course/`, which is exactly the attended sitting that
+has not happened.
+
+A gate is only worth its negative cases, so eleven of its checks were removed
+one at a time and each turned the 62-test suite red — the course-to-observation
+client join, both digest bindings, both authority-subject bindings, the
+designated-URL equality, catalog completeness, the empty-scope rule, the
+verification-client exclusion, the exact permission set, and the byte scan.
+Two of those were found *because* of that pass rather than confirmed by it: a
+mutation test that looked like it covered the execution record was really being
+caught by the probe provenance beside it, and one anchor never applied at all.
+Both now have isolating cases.
+
+The verifier also settles something this card had left open. `read-only-course/`
+does not exist, so nothing described its shape; the verifier is now that
+description, and the attended sitting must produce it: `registration.json`,
+`course-execution.json` carrying `gate`, `authority_subject_sha256`, and the
+digest of the registration bytes beside it, `outcomes/device_code_success.json`
+and `outcomes/token_success.json` with `authorization_pending` permitted but not
+required — requiring an outcome that depends on poll timing would be a gate that
+fails on correct evidence — and `route-probes.json` over the exact ten-operation
+read-only catalog. Every provenance block binds decision subject
+`18b867d3a05321cedcd4570227c732459779bebff23728d354de9411c4e5370b`, so course
+evidence produced under any other authority fails rather than reads plausibly.
+
+One unattended prerequisite surfaced and belongs to the sitting, not to a new
+card: `scripts/run_rfc0016_device_capture_attended.py` pins
+`APPROVED_PUBLIC_CLIENT_ID` to the verification client `Iv23lil08fH3933w9MkW`
+and refuses any other, which is correct for BPR-0276's authority and means the
+runner cannot execute the production course as written. Teaching it the
+production identity under this gate's recorded authority — and writing the
+`gate`/`authority_subject_sha256` provenance the verifier requires — is the
+first step of the attended slice.
+
+The macOS enablement step also gains a check it did not have. The platform
+course proves the shipped artifact does *not* carry the private verification
+identity; nothing proved it carries the right one. `--release-binary` on this
+verifier requires the enabled artifact to select `Iv23liitiYN1WSSbag50` and not
+the verification client, and the ledger row now runs it after the flip.

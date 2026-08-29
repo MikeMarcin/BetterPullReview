@@ -526,6 +526,46 @@ run before and after a one-time enablement flip. It prints
 `RFC0016_PLATFORM_COURSE_OK` with the selector count, the observed stage, the
 request count, and the artifact path.
 
+### The distributable identity
+
+A production platform may only become available once a *distributable* GitHub
+App identity exists — BPR-0276's private owner-only verification app is not one,
+and must never be shipped as one.
+`scripts/verify_rfc0016_production_identity.py` is what admits the record of
+that second identity:
+
+```sh
+python3 scripts/verify_rfc0016_production_identity.py \
+    --registration-observation docs/verification/reviews/rfc0016-production-app-registration-v001/registration-observation.json \
+    --course-evidence-root docs/verification/reviews/rfc0016-production-app-registration-v001/read-only-course \
+    --require-complete
+```
+
+It performs no network traffic at all; the registration and the designated
+read-only course happen in attended sittings, and this reads what they left
+behind. The checks are joins rather than fields, because each document is
+plausible on its own: the course's registration record must name the client the
+sanitized observation names and neither may be the verification client, the
+execution record's digest must be the digest of the registration bytes beside
+it, every probe URL is rebuilt from `MikeMarcin/BPR-Test` and pull request 1
+rather than pattern-matched, the token projection must omit the token and report
+the empty scope the approved permission set implies, and a byte scan re-reads
+every evidence file for material that should never have been written down.
+
+Drop `--require-complete` to admit the identity alone, which is the state
+between the registration and the course sitting. Add `--validate-existing` for
+closeout, where every evidence file must also be tracked and unmodified, and
+`--release-binary` to require a shipped artifact to select the recorded
+production client and not the verification one. It prints
+`RFC0016_PRODUCTION_IDENTITY_OK` with the gate, record commit, client, probe
+count, and scanned file count.
+
+`rfc0016_production_identity_security` is its isolated gate. Most of that suite
+builds a valid course and then breaks exactly one join, and the mutations are
+applied before the tree is digested where a field is under test — otherwise the
+run would fail on a stale digest and the field check would never be reached,
+which is a green test for a red reason.
+
 ## Targets
 
 | Target | Responsibility |
