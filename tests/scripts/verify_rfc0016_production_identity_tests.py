@@ -31,16 +31,19 @@ import sys
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts import verify_rfc0016_production_identity  # noqa: E402
 from scripts.contained_temporary_support import (  # noqa: E402
     contained_temporary_directory,
 )
 from scripts.verify_rfc0016_production_identity import (  # noqa: E402
     APPROVED_CLAIM,
     APPROVED_REPOSITORY_PERMISSIONS,
+    COURSE_RUNNER,
     DESIGNATED_DATABASE_ID,
     DESIGNATED_NAME,
     DESIGNATED_OWNER,
@@ -61,6 +64,7 @@ from scripts.verify_rfc0016_production_identity import (  # noqa: E402
     check_selected_client,
     designated_route_catalog,
     evidence_files,
+    offline_module,
     sha256,
 )
 
@@ -84,11 +88,12 @@ FOREIGN_SUBJECT = (
     "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178"
 )
 
-GRAPHQL_DOCUMENT = (
-    "query GetReviewData($owner:String!,$name:String!,$number:Int!)"
-    "{repository(owner:$owner,name:$name){id pullRequest(number:$number)"
-    "{id headRefOid}}}"
-)
+# The real document and the real probe table, not lookalikes. A fixture that
+# invents its own cannot detect substitution of the thing it is standing in for,
+# which is how an unpinned `graphql_document` went unnoticed.
+OFFLINE = offline_module()
+GRAPHQL_DOCUMENT = OFFLINE.GRAPHQL_DOCUMENT
+COURSE_RUNNER_SHA256 = sha256(COURSE_RUNNER.read_bytes())
 
 
 def write_json(path: Path, document: dict[str, Any]) -> bytes:
@@ -185,6 +190,7 @@ def build_course(
         course / "course-execution.json",
         {
             "authority_subject_sha256": subject,
+            "capture_runner_sha256": COURSE_RUNNER_SHA256,
             "course": "token-success",
             "executed_at_utc": "2026-08-29T01:02:03Z",
             "gate": GATE,
@@ -258,28 +264,13 @@ def build_course(
         },
     )
 
-    probes = [
-        {
-            "http_status": 200,
-            "method": method,
-            "operation": operation,
-            "request_contract_sha256": sha256(operation.encode("utf-8")),
-            "result": "success",
-            "transport": transport,
-            "url": url,
-        }
-        for operation, (method, transport, url) in designated_route_catalog().items()
-    ]
+    probes = OFFLINE.expected_route_probes()
     write_json(
         course / "route-probes.json",
         {
             "graphql_document": GRAPHQL_DOCUMENT,
             "graphql_document_sha256": sha256(GRAPHQL_DOCUMENT.encode("utf-8")),
-            "graphql_variables": {
-                "name": DESIGNATED_NAME,
-                "number": DESIGNATED_PULL_REQUEST,
-                "owner": DESIGNATED_OWNER,
-            },
+            "graphql_variables": dict(OFFLINE.GRAPHQL_VARIABLES),
             "probes": probes,
             "provenance": provenance("read_only_route_probes"),
             "repository": {
@@ -1289,7 +1280,122 @@ class TokenProjectionTests(unittest.TestCase):
             write_json(course / "outcomes" / "access_denied.json", {})
             with self.assertRaises(IdentityFailure) as caught:
                 admit(course)
-            self.assertIn("unexpected-file", str(caught.exception))
+            self.assertIn("course-tree:undeclared-file", str(caught.exception))
+
+
+class ReviewGapTests(unittest.TestCase):
+    """The gaps an independent review found, each admitted before BPR-0481.
+
+    None of these was reachable by mutation sweeping: there was no condition to
+    neutralize, because the check did not exist. They are the complement to that
+    instrument, not a duplicate of it.
+    """
+
+    def test_a_course_with_no_runner_digest_fails(self) -> None:
+        with contained_temporary_directory() as directory:
+            course = build_course(Path(directory))
+            path = course / "course-execution.json"
+            document = read_json(path)
+            del document["capture_runner_sha256"]
+            write_json(path, document)
+            with self.assertRaises(IdentityFailure) as caught:
+                admit(course)
+            self.assertIn("not-produced-by-the-recorded-course-runner", str(caught.exception))
+
+    def test_a_course_naming_another_runner_fails(self) -> None:
+        with contained_temporary_directory() as directory:
+            course = build_course(Path(directory))
+            path = course / "course-execution.json"
+            document = read_json(path)
+            document["capture_runner_sha256"] = "sha256:" + "f" * 64
+            write_json(path, document)
+            with self.assertRaises(IdentityFailure) as caught:
+                admit(course)
+            self.assertIn("not-produced-by-the-recorded-course-runner", str(caught.exception))
+
+    def test_fabricated_request_digests_fail(self) -> None:
+        """Well formed, so the per-probe check passes; the backstop catches it."""
+        with contained_temporary_directory() as directory:
+            course = build_course(Path(directory))
+            path = course / "route-probes.json"
+            document = read_json(path)
+            for probe in document["probes"]:
+                probe["request_contract_sha256"] = "sha256:" + "f" * 64
+            write_json(path, document)
+            with self.assertRaises(IdentityFailure) as caught:
+                admit(course)
+            self.assertIn(
+                "probes-not-the-recomputed-designated-table", str(caught.exception)
+            )
+
+    def test_a_graphql_document_naming_another_repository_fails(self) -> None:
+        """Hardcoded literals, so the pinned variables never see it."""
+        with contained_temporary_directory() as directory:
+            course = build_course(Path(directory))
+            path = course / "route-probes.json"
+            document = read_json(path)
+            forged = (
+                'query{repository(owner:"SomeoneElse",name:"Private")'
+                "{pullRequest(number:99){id}}}"
+            )
+            document["graphql_document"] = forged
+            document["graphql_document_sha256"] = sha256(forged.encode("utf-8"))
+            write_json(path, document)
+            with self.assertRaises(IdentityFailure) as caught:
+                admit(course)
+            self.assertIn(
+                "graphql-document-not-the-designated-query", str(caught.exception)
+            )
+
+    def test_an_empty_graphql_document_fails(self) -> None:
+        with contained_temporary_directory() as directory:
+            course = build_course(Path(directory))
+            path = course / "route-probes.json"
+            document = read_json(path)
+            document["graphql_document"] = ""
+            document["graphql_document_sha256"] = sha256(b"")
+            write_json(path, document)
+            with self.assertRaises(IdentityFailure) as caught:
+                admit(course)
+            self.assertIn(
+                "graphql-document-not-the-designated-query", str(caught.exception)
+            )
+
+    def test_an_undeclared_file_in_the_course_root_fails(self) -> None:
+        with contained_temporary_directory() as directory:
+            course = build_course(Path(directory))
+            (course / "unexpected-extra.json").write_text("{}\n", encoding="utf-8")
+            with self.assertRaises(IdentityFailure) as caught:
+                admit(course)
+            self.assertIn("course-tree:undeclared-file", str(caught.exception))
+
+    def test_a_file_nested_under_outcomes_fails(self) -> None:
+        """A non-recursive listing never sees this one."""
+        with contained_temporary_directory() as directory:
+            course = build_course(Path(directory))
+            nested = course / "outcomes" / "nested"
+            nested.mkdir()
+            (nested / "denied.json").write_text("{}\n", encoding="utf-8")
+            with self.assertRaises(IdentityFailure) as caught:
+                admit(course)
+            self.assertIn("course-tree:undeclared-file", str(caught.exception))
+
+    def test_a_user_code_in_attended_prose_is_found(self) -> None:
+        """The scan's weakest rule used to skip exactly these files."""
+        with contained_temporary_directory() as directory:
+            path = Path(directory) / "operator-response.md"
+            path.write_text(
+                "> I approve. The code shown was WDJB-MJHT.\n", encoding="utf-8"
+            )
+            with self.assertRaises(IdentityFailure) as caught:
+                check_secret_free([path])
+            self.assertIn("user-code-shape", str(caught.exception))
+
+    def test_the_committed_review_prose_survives_the_widened_scan(self) -> None:
+        """Widening the rule must not fail on the real attended files."""
+        scanned = evidence_files(REVIEW_DIRECTORY)
+        self.assertGreater(len(scanned), 0)
+        self.assertEqual(check_secret_free(scanned), len(scanned))
 
 
 class SecretScanTests(unittest.TestCase):
@@ -1377,14 +1483,17 @@ class CommittedEvidenceTests(unittest.TestCase):
             subprocess.run(command, cwd=root, check=True, capture_output=True)
         evidence = root / "evidence" / "record.json"
         write_json(evidence, {"state": "recorded"})
+        self.commit(root, "record")
+        return root, evidence
+
+    def commit(self, root: Path, message: str) -> None:
         subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
         subprocess.run(
-            ["git", "commit", "--quiet", "-m", "record"],
+            ["git", "commit", "--quiet", "--allow-empty", "-m", message],
             cwd=root,
             check=True,
             capture_output=True,
         )
-        return root, evidence
 
     def test_committed_evidence_is_accepted(self) -> None:
         with contained_temporary_directory() as directory:
@@ -1407,6 +1516,48 @@ class CommittedEvidenceTests(unittest.TestCase):
             write_json(evidence, {"state": "recorded"})
             with self.assertRaises(IdentityFailure) as caught:
                 check_committed(root, [evidence])
+            self.assertIn("git-ls-files-failed", str(caught.exception))
+
+    def test_evidence_on_an_ignored_path_fails(self) -> None:
+        """`git status` is silent about an ignored file, so quiet is not tracked."""
+        with contained_temporary_directory() as directory:
+            root, _ = self.build_repository(directory)
+            (root / ".gitignore").write_text("ignored/\n", encoding="utf-8")
+            self.commit(root, "ignore")
+            hidden = root / "ignored" / "record.json"
+            write_json(hidden, {"state": "hidden"})
+            status = subprocess.run(
+                ["git", "status", "--porcelain", "--", "ignored/record.json"],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual(status.stdout.strip(), "", "precondition: status is quiet")
+            with self.assertRaises(IdentityFailure) as caught:
+                check_committed(root, [hidden])
+            self.assertIn("evidence-not-tracked", str(caught.exception))
+
+    def test_a_failing_status_call_is_not_read_as_a_clean_tree(self) -> None:
+        """`git status` failing yields empty output, which would read as clean.
+
+        Reachable only by making the second Git call fail while the first
+        succeeds, which is why it is mocked rather than staged on disk.
+        """
+        with contained_temporary_directory() as directory:
+            root, evidence = self.build_repository(directory)
+            real = verify_rfc0016_production_identity.run
+
+            def failing(command: list[str], *, cwd: Path):
+                if command[1] == "status":
+                    return subprocess.CompletedProcess(command, 128, "", "fatal")
+                return real(command, cwd=cwd)
+
+            with mock.patch.object(
+                verify_rfc0016_production_identity, "run", failing
+            ):
+                with self.assertRaises(IdentityFailure) as caught:
+                    check_committed(root, [evidence])
             self.assertIn("git-status-failed", str(caught.exception))
 
     def test_an_untracked_evidence_file_fails(self) -> None:
@@ -1416,7 +1567,7 @@ class CommittedEvidenceTests(unittest.TestCase):
             write_json(extra, {"state": "new"})
             with self.assertRaises(IdentityFailure) as caught:
                 check_committed(root, [extra])
-            self.assertIn("evidence-not-committed", str(caught.exception))
+            self.assertIn("evidence-not-tracked", str(caught.exception))
 
 
 class OperatorRecordReplayTests(unittest.TestCase):

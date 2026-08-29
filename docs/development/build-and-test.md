@@ -552,6 +552,20 @@ rather than pattern-matched, the token projection must omit the token and report
 the empty scope the approved permission set implies, and a byte scan re-reads
 every evidence file for material that should never have been written down.
 
+Four of its checks exist because an independent review found them missing, and
+each is the kind a mutation sweep cannot find — there was no condition to
+neutralize. The course must name the digest of
+`run_rfc0016_production_course_attended.py`, which is what makes it attributable
+and what freezes that runner once a course is recorded. The probe table is
+recomputed by equality against `expected_route_probes()` rather than
+spot-checked, because `request_contract_sha256` is the only field tying a record
+to the exact request bytes and, for the GraphQL probe, is the entire selector.
+The GraphQL document is pinned to the designated query, since a document can
+name a repository in hardcoded literals and never consult the pinned variables.
+And the course tree is bounded to its exact file set, so an undeclared file —
+including one nested a level deeper than a non-recursive listing sees — is
+refused rather than carried along.
+
 Drop `--require-complete` to admit the identity alone, which is the state
 between the registration and the course sitting. Add `--validate-existing` for
 closeout, where every evidence file must also be tracked and unmodified, and

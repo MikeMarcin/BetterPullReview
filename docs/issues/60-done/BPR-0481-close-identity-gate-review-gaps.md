@@ -1,7 +1,7 @@
 ---
 id: BPR-0481
 title: Close the review gaps in the RFC-0016 identity gate
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -67,3 +67,43 @@ substitutes for the other.
   verifier — the two tools must not drift apart while one is tightened.
 - The whole-file mutation sweep is rerun on the verifier; new conditions must be
   killed by the new cases, and the survivor set must stay shape guards only.
+
+## Closed — 2026-08-29
+
+Every reproduction now refuses, each on its own diagnostic rather than on a
+neighbour's:
+
+```
+course-execution WITHOUT capture_runner_sha256   course-execution:not-produced-by-the-recorded-course-runner
+course-execution with FABRICATED digest          course-execution:not-produced-by-the-recorded-course-runner
+every probe request digest fabricated            route-probes:probes-not-the-recomputed-designated-table
+graphql_document naming a FOREIGN repository     route-probes:graphql-document-not-the-designated-query
+undeclared extra + nested outcome files          course-tree:undeclared-file:[...]
+valid course                                     ADMITTED probes=10
+```
+
+Two decisions inside the fix are worth recording.
+
+The recomputed-probe-table check runs **after** the per-probe loop, not before.
+Placing it first would have made every specific diagnostic — which probe, which
+field — unreachable, and turned the whole loop into dead code that the next
+mutation sweep would have reported as survivors. Last, it is an exhaustive
+backstop over checks that still say what went wrong.
+
+The test fixture now uses the real `GRAPHQL_DOCUMENT` and the real
+`expected_route_probes()` rather than lookalikes it defined itself. That was the
+root of finding 3: a fixture that invents its own copy of the thing it stands in
+for cannot detect substitution of it, even in principle, so the gap was
+invisible to a suite that otherwise looked thorough.
+
+Sweep after: 84 of 106 refusals turn the 122-test gate red. The 22 survivors are
+shape and existence guards plus the offline-loader guard and
+`revision.returncode`, which the review adjudicated as non-load-bearing because
+the length check on the next line already covers it. Reordering `check_committed`
+briefly uncovered `git status`'s return code — previously killed by the
+not-a-repository case, which now stops at `git ls-files` — so that path is
+covered by a mocked failure, the only way to make the second Git call fail while
+the first succeeds.
+
+The two tools still agree: the runner's stub-driven publish is admitted end to
+end, and both BPR-0276 suites remain green.

@@ -37,11 +37,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import pathlib
 import re
 import subprocess
 import sys
+import types
 
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -51,6 +53,20 @@ APPROVED_CLAIM = "rfc0016_production_app_registration_v001_approved"
 
 OFFICIAL_VALIDATOR = pathlib.PurePosixPath(
     ".agents/skills/bpr-attended-review/scripts/validate_operator_packet.py"
+)
+
+# The tool whose bytes an admitted course must name. Reading the digest off the
+# file rather than pinning a literal means this needs no update when the runner
+# changes before a sitting, and freezes it the moment a course is recorded.
+COURSE_RUNNER = pathlib.Path(__file__).with_name(
+    "run_rfc0016_production_course_attended.py"
+)
+
+# BPR-0276's offline module. The probe catalog and GraphQL document are defined
+# there once, and comparing against them beats restating the same contract here
+# where the two copies could drift apart unnoticed.
+OFFLINE_MODULE = pathlib.Path(__file__).with_name(
+    "capture_rfc0016_device_contracts.py"
 )
 
 # fact_1: the private owner-only verification client is never widened, reused,
@@ -143,6 +159,25 @@ def run(command: list[str], *, cwd: pathlib.Path) -> subprocess.CompletedProcess
 
 def sha256(payload: bytes) -> str:
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def offline_module() -> types.ModuleType:
+    """BPR-0276's contract definitions, loaded by path like its own runner does."""
+    spec = importlib.util.spec_from_file_location(
+        "rfc0016_offline_contracts", OFFLINE_MODULE
+    )
+    if spec is None or spec.loader is None:
+        raise IdentityFailure("offline-contracts-unavailable")
+    if spec.name in sys.modules:
+        return sys.modules[spec.name]
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception as error:
+        del sys.modules[spec.name]
+        raise IdentityFailure("offline-contracts-unloadable") from error
+    return module
 
 
 def load_json(path: pathlib.Path, diagnostic: str) -> dict[str, object]:
@@ -487,6 +522,7 @@ def check_route_probes(
     subject_digest: str,
     registration_digest: str,
 ) -> int:
+    offline = offline_module()
     document = load_json(path, "route-probes")
     require_schema(document, "bpr.rfc0016.read_only_route_probes", "route-probes")
     check_provenance(
@@ -518,6 +554,12 @@ def check_route_probes(
         "route-probes:graphql-document-digest-mismatch",
     )
     require("mutation" not in document_text, "route-probes:graphql-document-mutates")
+    # Pinning the variables is not enough on its own: a document may name a
+    # repository in hardcoded literals and never consult a variable at all.
+    require(
+        document_text == offline.GRAPHQL_DOCUMENT,
+        "route-probes:graphql-document-not-the-designated-query",
+    )
     require(
         document.get("graphql_variables")
         == {
@@ -532,6 +574,7 @@ def check_route_probes(
     probes = document.get("probes")
     require(isinstance(probes, list), "route-probes:probes-missing")
     assert isinstance(probes, list)
+
 
     seen: set[str] = set()
     for probe in probes:
@@ -559,6 +602,17 @@ def check_route_probes(
         )
 
     require(seen == set(catalog), "route-probes:catalog-not-completely-exercised")
+
+    # The exhaustive backstop, last so the per-probe diagnostics above stay
+    # reachable and keep saying which probe was wrong. `request_contract_sha256`
+    # is the only field tying a record to the exact request bytes, and for the
+    # GraphQL probe it is the whole selector because that URL names no
+    # repository; recomputing the table is what BPR-0276's own sanitizer does.
+    # Two independent derivations that must agree also detect drift in either.
+    require(
+        probes == offline.expected_route_probes(),
+        "route-probes:probes-not-the-recomputed-designated-table",
+    )
     return len(catalog)
 
 
@@ -598,6 +652,14 @@ def check_course_evidence(
         execution.get("registration_record_sha256") == registration_digest,
         "course-execution:registration-digest-mismatch",
     )
+    # The field that makes the course attributable to a tool. Reading it is the
+    # whole point of writing it, and requiring it to be *this* runner's digest
+    # is what freezes that runner once a course is recorded — the same property
+    # that makes BPR-0276's runner immutable.
+    require(
+        execution.get("capture_runner_sha256") == sha256(COURSE_RUNNER.read_bytes()),
+        "course-execution:not-produced-by-the-recorded-course-runner",
+    )
     executed_at = execution.get("executed_at_utc")
     require(
         isinstance(executed_at, str) and executed_at.endswith("Z"),
@@ -606,13 +668,32 @@ def check_course_evidence(
 
     outcomes_root = course_root / "outcomes"
     require(outcomes_root.is_dir(), "course-outcomes:missing")
-    present = sorted(path.name for path in outcomes_root.iterdir() if path.is_file())
-    permitted = {
-        f"{name}.json" for name in (*REQUIRED_OUTCOMES, *OPTIONAL_OUTCOMES)
+
+    # Bound the whole tree, not just `outcomes/`. An undeclared file — including
+    # one nested a level deeper, which a non-recursive listing never sees — is
+    # something nobody wrote down as evidence, so it is refused rather than
+    # carried along and merely byte-scanned.
+    permitted_outcomes = {
+        f"outcomes/{name}.json" for name in (*REQUIRED_OUTCOMES, *OPTIONAL_OUTCOMES)
+    }
+    permitted_tree = permitted_outcomes | {
+        "registration.json",
+        "course-execution.json",
+        "route-probes.json",
+    }
+    found = {
+        path.relative_to(course_root).as_posix()
+        for path in course_root.rglob("*")
+        if path.is_file()
     }
     require(
-        set(present) <= permitted,
-        f"course-outcomes:unexpected-file:{sorted(set(present) - permitted)}",
+        found <= permitted_tree,
+        f"course-tree:undeclared-file:{sorted(found - permitted_tree)}",
+    )
+    present = sorted(
+        name.removeprefix("outcomes/")
+        for name in found
+        if name.startswith("outcomes/")
     )
     for outcome in REQUIRED_OUTCOMES:
         require(f"{outcome}.json" in present, f"course-outcomes:required-missing:{outcome}")
@@ -657,11 +738,13 @@ def check_secret_free(paths: list[pathlib.Path]) -> int:
                 shape.search(payload) is None,
                 f"secret-bearing-evidence:{path.name}:token-shape",
             )
-        if path.suffix == ".json":
-            require(
-                USER_CODE_SHAPE.search(payload) is None,
-                f"secret-bearing-evidence:{path.name}:user-code-shape",
-            )
+        # Applied to prose as well as JSON: the attended packet, response, and
+        # decision subject are exactly where a transcribed code would land, and
+        # they are the files the name-then-separator rule above cannot help with.
+        require(
+            USER_CODE_SHAPE.search(payload) is None,
+            f"secret-bearing-evidence:{path.name}:user-code-shape",
+        )
     return len(paths)
 
 
@@ -675,6 +758,14 @@ def check_committed(root: pathlib.Path, paths: list[pathlib.Path]) -> None:
             # Evidence Git cannot name is evidence a replay cannot pin. Saying
             # so beats reporting an internal error for a real reviewer mistake.
             raise IdentityFailure(f"evidence-outside-repository:{path.name}") from None
+    # `git status` is silent about an ignored path, so quiet is not the same as
+    # tracked. Ask for the tracked set explicitly first.
+    listed = run(["git", "ls-files", "--", *relative], cwd=root)
+    require(listed.returncode == 0, "git-ls-files-failed")
+    tracked = {line for line in listed.stdout.splitlines() if line}
+    missing = sorted(set(relative) - tracked)
+    require(not missing, f"evidence-not-tracked:{missing[0] if missing else ''}")
+
     result = run(["git", "status", "--porcelain", "--", *relative], cwd=root)
     require(result.returncode == 0, "git-status-failed")
     dirty = result.stdout.strip()
