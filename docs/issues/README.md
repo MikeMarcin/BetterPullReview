@@ -187,6 +187,37 @@ The old `7b9d6be9…a78fcd93` identity remains the immutable subject of the acce
 BPR-0100 response, but it is no longer the executable in `build/dev`; v003 and
 v007 cannot be reused for the new bytes.
 
+## Allocating IDs
+
+```text
+python3 scripts/allocate_issue_id.py [--count N] [--json]
+```
+
+The allocator prints the claimed IDs and advances `NEXT_ID` as one step under
+an exclusive lock, refusing when the counter is not already ahead of every
+card in the tree or is below the highest value the file has held in Git
+history — the case a concurrent branch creates. Editing `NEXT_ID` by hand
+still works on `main`; the allocator is a convenience and a guard.
+
+On any branch other than `main` — a station branch such as `windows-lane` —
+block reservation is mandatory: the branch never edits `NEXT_ID` and consumes
+IDs only from a block the integrator reserved on `main` with
+
+```text
+python3 scripts/allocate_issue_id.py --count 8 \
+    --reserve-for bpr-win-jaegaw --purpose "windows-lane block"
+```
+
+`--reserve-for` advances the counter and writes one immutable receipt per
+reservation under `docs/issues/_reservations/`. Commit the advanced counter
+and the receipt together on `main`; that commit is the `reservation_commit` a
+dispatch envelope quotes, and the consuming branch verifies its block with
+`git show <reservation_commit>:<receipt-path>` after a fetch, never by
+merging `main`. Receipts are never edited or deleted; an abandoned block
+keeps its receipt and its unused IDs are burned, not recycled. The station
+contract that consumes these reservations lives in
+`.agents/skills/bpr-implement-rfc/references/remote-routing.md`.
+
 ## Current frontiers
 
 RFC-BPR-0001 is `Auto-Verified`, and every linked card is in `60-done/`.
