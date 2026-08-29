@@ -16,3 +16,4 @@ CMakeUserPresets.json
 /out/
 __pycache__/
 /bpr-public-path-*/
+.remote-station.json
