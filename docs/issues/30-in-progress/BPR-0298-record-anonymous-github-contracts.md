@@ -254,3 +254,45 @@ claim-matrix row, and this card makes no product claim.
 sanitization, tests), and then the one bounded live request under a fresh
 digest-bound v004 operator packet — the attended element, prepared and
 parked at the run boundary, never a stop condition before it.
+
+## The conditional-304 mechanism is in — 2026-08-28, night
+
+The second worker slice, reviewed and reproduced by the integrator, makes
+`rest_conditional_not_modified` live end to end with no packet and no
+capture created:
+
+- **Authority schema v2**: `condition_source` (`{capture_file,
+  file_sha256}`) required on a conditional target, refused on every other
+  operation, and a version-1 packet cannot name the conditional operation
+  at all — refusing an authority nothing could execute at parse time is
+  the fail-closed reading. The capture path is bounded repository-relative.
+- **Request side**: the pinned source is loaded under a containment root,
+  verified byte-exact against its digest, and validated as a capture
+  record before `If-None-Match` (etag required — a modification date alone
+  would ask a weaker question than the authority describes) and optional
+  `If-Modified-Since` go on the wire; `perform_request` accepts only those
+  two names and only for this operation, with the no-proxy/no-redirect and
+  credential-header hardening untouched. Sources load **before** the
+  single-use receipt is reserved, so an unprovable source cannot consume
+  an authorization.
+- **Response side**: a non-empty 304 body refuses; the record carries
+  `body: null` with the empty-bytes digest; a conditional course must
+  expect exactly 304.
+- **Evidence**: 151 hermetic tests (119 + 32) green under the integrator's
+  own rerun; the seeded v001 command is byte-identical
+  (`VALID:5`/`BOUND:5`/`DERIVED:1`); the worker's 17-mutation sweep over
+  the new logic caught 17/17, including the receipt-ordering and
+  containment rules. The raw-byte `body_sha256` residue is now documented
+  at its assignment, semantics unchanged, per the prior section's
+  disposition.
+- **Integrator dispositions on the worker's two open questions**: no
+  sanitizer-level status rule for the conditional operation — status is
+  enforced where statuses live, in the course manifest and
+  `validate_capture_record`, and a live 200 already refuses on its
+  non-empty body; and the unfireable schema-version bound stays, a
+  defensive check whose comment says exactly what it is.
+- **Operational fact the v004 packet must state plainly**: if the live
+  conditional request answers 200 — the pull request changed since the
+  pinned ETag — the refusal lands after the attempt receipt exists, the
+  single-use authorization is consumed, and a re-run needs a fresh packet.
+  That matches the graphql-refusal precedent and is deliberate.

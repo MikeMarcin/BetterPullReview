@@ -120,6 +120,12 @@ REQUEST_TIMEOUT_SECONDS = 15
 
 AUTHORITY_SCHEMA = "bpr.rfc0017.anonymous_probe_authority"
 AUTHORITY_SCHEMA_VERSION = 1
+#: Version 2 adds exactly one target member — ``condition_source`` — and only
+#: to a conditional target. Version 1 keeps being parsed by the rules it was
+#: written under, so every packet already committed still means what it meant.
+AUTHORITY_CONDITION_SOURCE_VERSION = 2
+AUTHORITY_SCHEMA_VERSIONS = (
+    AUTHORITY_SCHEMA_VERSION, AUTHORITY_CONDITION_SOURCE_VERSION)
 CAPTURE_SCHEMA = "bpr.rfc0017.anonymous_capture"
 CAPTURE_SCHEMA_VERSION = 1
 MANIFEST_SCHEMA = "bpr.rfc0017.anonymous_course_manifest"
@@ -127,12 +133,18 @@ MANIFEST_SCHEMA_VERSION = 1
 COURSE_SELECTION_SCHEMA = "bpr.rfc0017.anonymous_course_selection"
 COURSE_SELECTION_SCHEMA_VERSION = 1
 RECORDER_REPOSITORY_PATH = "scripts/record_rfc0017_anonymous_contracts.py"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CAPTURE_ATTEMPT_SCHEMA = "bpr.rfc0017.anonymous_capture_attempt"
 CAPTURE_ATTEMPT_SCHEMA_VERSION = 1
 CAPTURE_ATTEMPT_REGISTRY = (
-    Path(__file__).resolve().parents[1]
+    REPOSITORY_ROOT
     / "docs/verification/reviews/rfc0017-anonymous-capture-attempts"
 )
+#: A ``condition_source`` path is resolved against the repository root, because
+#: the capture it pins belongs to an earlier review directory than the packet
+#: naming it. Held as a module constant so a test can point it somewhere else
+#: rather than writing fixtures into the repository.
+CONDITION_SOURCE_ROOT = REPOSITORY_ROOT
 
 BINDING_SCHEMA = "bpr.rfc0017.anonymous_capture_binding"
 BINDING_SCHEMA_VERSION = 1
@@ -188,6 +200,18 @@ GIT_ENVIRONMENT = {
 }
 
 GRAPHQL_REFUSAL_OPERATION = "graphql_unauthenticated_refusal"
+#: The conditional revalidation operation: the only one that reads an earlier
+#: capture before it asks anything, and the only one whose recorded body must
+#: be empty. A 304 is not a document — it is the service agreeing that a
+#: document already on record is still current — so the request cannot be
+#: composed from the packet alone.
+CONDITIONAL_OPERATION = "rest_conditional_not_modified"
+CONDITIONAL_EXPECTED_STATUS = 304
+CONDITION_SOURCE_KEY = "condition_source"
+CONDITION_SOURCE_KEYS = frozenset({"capture_file", "file_sha256"})
+#: Exactly the outbound headers a conditional request may add. Nothing else may
+#: be attached to any request this module issues.
+CONDITIONAL_VALIDATOR_HEADERS = ("If-None-Match", "If-Modified-Since")
 CALLER_ADDRESS_NORMALIZED_FIELD = "caller_address_normalized"
 CALLER_ADDRESS_PLACEHOLDER = "[normalized-caller-address]"
 CAPTURE_RECORD_KEYS = frozenset({
@@ -423,9 +447,12 @@ def parse_authority(packet_bytes: bytes) -> dict:
     authority_version = require_positive_int(
         authority["schema_version"],
         "authority schema version",
-        AUTHORITY_SCHEMA_VERSION,
+        max(AUTHORITY_SCHEMA_VERSIONS),
     )
-    if authority_version != AUTHORITY_SCHEMA_VERSION:
+    if authority_version not in AUTHORITY_SCHEMA_VERSIONS:
+        # Unreachable while the supported versions run contiguously from 1.
+        # It is what keeps a future gap from being admitted by the bound alone,
+        # and it is the only place the supported set is stated as a set.
         raise ContractError("authority schema version mismatch")
     require_text(authority["statement"], "authority statement", 512)
 
@@ -436,15 +463,33 @@ def parse_authority(packet_bytes: bytes) -> dict:
         raise ContractError("authority names too many targets")
     seen: set[str] = set()
     for index, target in enumerate(targets):
-        name = validate_target(target, f"target[{index}]")
+        name = validate_target(
+            target, f"target[{index}]", schema_version=authority_version)
         if name in seen:
             raise ContractError(f"authority repeats target {name}")
         seen.add(name)
     return authority
 
 
-def validate_target(target: Any, label: str) -> str:
-    require_exact_keys(target, {"name", "operation", "url"}, label)
+def validate_target(target: Any, label: str, *, schema_version: int) -> str:
+    if not isinstance(target, dict):
+        raise ContractError(f"{label} is not an object")
+    conditional = target.get("operation") == CONDITIONAL_OPERATION
+    if conditional and schema_version < AUTHORITY_CONDITION_SOURCE_VERSION:
+        # A conditional request is defined by the validators it replays, and
+        # only a version-2 target can say where they come from. A version-1
+        # packet therefore cannot authorize one at all.
+        raise ContractError(
+            f"{label}.operation {CONDITIONAL_OPERATION!r} needs authority "
+            f"schema version {AUTHORITY_CONDITION_SOURCE_VERSION}")
+    if CONDITION_SOURCE_KEY in target and not conditional:
+        raise ContractError(
+            f"{label}.{CONDITION_SOURCE_KEY} is allowed only on "
+            f"{CONDITIONAL_OPERATION}")
+    expected = {"name", "operation", "url"}
+    if conditional:
+        expected.add(CONDITION_SOURCE_KEY)
+    require_exact_keys(target, expected, label)
     name = require_text(target["name"], f"{label}.name", 64)
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name):
         raise ContractError(f"{label}.name is not a safe identifier")
@@ -452,7 +497,35 @@ def validate_target(target: Any, label: str) -> str:
     if operation not in ALLOWED_OPERATIONS:
         raise ContractError(f"{label}.operation {operation!r} is not allowed")
     validate_url(require_text(target["url"], f"{label}.url", 512), operation, label)
+    if conditional:
+        validate_condition_source(
+            target[CONDITION_SOURCE_KEY], f"{label}.{CONDITION_SOURCE_KEY}")
     return name
+
+
+def require_repository_relative_path(value: Any, label: str) -> str:
+    """A path under the repository root, with no component that leaves it."""
+    text = require_text(value, label, 256)
+    if text.startswith("/") or "\\" in text or ":" in text:
+        raise ContractError(f"{label} is not a repository-relative path")
+    for part in text.split("/"):
+        if not part or part.startswith("."):
+            raise ContractError(f"{label} has an unsafe path component")
+    return text
+
+
+def validate_condition_source(value: Any, label: str) -> dict:
+    """Bound the pin: one repository-relative capture and its exact digest.
+
+    The authority names the source by path *and* digest, so the operator's
+    signature covers the bytes the request will replay. Nothing about the
+    conditional request is looked up ambiently at run time.
+    """
+    require_exact_keys(value, set(CONDITION_SOURCE_KEYS), label)
+    require_repository_relative_path(
+        value["capture_file"], f"{label}.capture_file")
+    require_sha256(value["file_sha256"], f"{label}.file_sha256")
+    return value
 
 
 def validate_url(url: str, operation: str, label: str) -> None:
@@ -837,6 +910,18 @@ def validate_capture_record(record: Any, target: dict, course: dict) -> None:
             raise ContractError("normalized GraphQL refusal body digest mismatch")
         assert_no_address_text(record, "normalized GraphQL refusal record")
 
+    if operation == CONDITIONAL_OPERATION:
+        # A not-modified response has no body, so the record must have none
+        # either — and its digest must be the digest of that absence, which is
+        # the one case where the stored digest really does digest what is
+        # stored. The status was already required to match the course above.
+        if record["body"] is not None:
+            raise ContractError(
+                f"capture {course['name']} not-modified body is not empty")
+        if record["body_sha256"] != sha256_bytes(b""):
+            raise ContractError(
+                f"capture {course['name']} not-modified body digest mismatch")
+
 
 def sanitize_capture(
     *,
@@ -860,8 +945,20 @@ def sanitize_capture(
 
     retained_headers = minimize_headers(headers)
     body_text: str | None = None
+    # Two generations live in this one assignment, and the older one is kept
+    # deliberately. For every non-GraphQL operation this digests the raw bytes
+    # the service returned, while the record stores their canonical
+    # re-serialization; the four committed non-GraphQL captures carry exactly
+    # that digest. Only the GraphQL branch below recomputes a digest of what it
+    # actually stores. Tamper evidence for a minimized body therefore lives
+    # outside the record, in `capture-bindings.json`. On the conditional path
+    # the two generations coincide: an empty raw body and an empty minimized
+    # body have the same digest.
     body_sha256 = sha256_bytes(body)
     if body:
+        if operation == CONDITIONAL_OPERATION:
+            raise ContractError(
+                "conditional not-modified response carries a body")
         if operation == GRAPHQL_REFUSAL_OPERATION:
             parsed = parse_json_unique(body, "response body")
             require_graphql_zero_quota(http_status, retained_headers)
@@ -902,6 +999,68 @@ def sanitize_capture(
     payload = canonical_json(record)
     assert_no_forbidden_bytes(payload, f"capture {name}")
     return record
+
+
+# --------------------------------------------------------------------------
+# Conditional revalidation
+#
+# The conditional course asks GitHub whether a document already on record is
+# still current, so its request has to carry that document's validators. They
+# come from one committed capture, pinned by the authority by path and digest:
+# the packet's own digest therefore binds the exact source bytes, and a source
+# that has moved, changed, or lost its entity tag stops the run before it
+# reserves anything. No ambient lookup, no most-recent-capture guessing.
+# --------------------------------------------------------------------------
+
+def load_condition_source(condition_source: dict, label: str) -> dict:
+    """Load the pinned capture, accepting only its exact recorded bytes."""
+    root = CONDITION_SOURCE_ROOT.resolve()
+    path = root / condition_source["capture_file"]
+    if root not in path.resolve().parents:
+        raise ContractError(f"{label} condition source escapes the repository")
+    payload = read_bounded(path, f"{label} condition source")
+    if sha256_bytes(payload) != condition_source["file_sha256"]:
+        raise ContractError(
+            f"{label} condition source differs from its pinned digest")
+    record = parse_json_unique(payload, f"{label} condition source")
+    if not isinstance(record, dict):
+        raise ContractError(f"{label} condition source is not an object")
+    if record.get("schema_name") != CAPTURE_SCHEMA:
+        raise ContractError(
+            f"{label} condition source is not an anonymous capture record")
+    version = require_positive_int(
+        record.get("schema_version"),
+        f"{label} condition source schema version",
+        CAPTURE_SCHEMA_VERSION,
+    )
+    if version != CAPTURE_SCHEMA_VERSION:
+        raise ContractError(f"{label} condition source schema version mismatch")
+    headers = record.get("retained_headers")
+    if minimize_headers(headers) != headers:
+        raise ContractError(
+            f"{label} condition source retained headers mismatch")
+    return record
+
+
+def conditional_request_headers(
+    target: dict, label: str
+) -> dict[str, str] | None:
+    """Build one conditional request's validators, or nothing for any other."""
+    if target["operation"] != CONDITIONAL_OPERATION:
+        return None
+    headers = load_condition_source(
+        target[CONDITION_SOURCE_KEY], label)["retained_headers"]
+    if "etag" not in headers:
+        # Without an entity tag there is nothing exact to revalidate against,
+        # and a modification date alone is a weaker request than the authority
+        # describes. Refuse rather than quietly ask a different question.
+        raise ContractError(f"{label} condition source records no etag")
+    # `load_condition_source` already proved every retained value is bounded
+    # text, so these go on the wire exactly as they were recorded.
+    request_headers = {"If-None-Match": headers["etag"]}
+    if "last-modified" in headers:
+        request_headers["If-Modified-Since"] = headers["last-modified"]
+    return request_headers
 
 
 # --------------------------------------------------------------------------
@@ -1314,7 +1473,12 @@ def build_bounded_opener():
     )
 
 
-def perform_request(url: str, operation: str, body: bytes | None):
+def perform_request(
+    url: str,
+    operation: str,
+    body: bytes | None,
+    request_headers: dict[str, str] | None = None,
+):
     """Issue one credential-free request. Imported lazily on purpose."""
     import urllib.error
     import urllib.request
@@ -1322,12 +1486,19 @@ def perform_request(url: str, operation: str, body: bytes | None):
     method, allows_body = ALLOWED_OPERATIONS[operation]
     if body is not None and not allows_body:
         raise ContractError(f"{operation} may not carry a request body")
+    if request_headers and operation != CONDITIONAL_OPERATION:
+        raise ContractError(
+            f"{operation} may not carry conditional request headers")
     validate_url(url, operation, "request")
 
     request = urllib.request.Request(url, data=body, method=method)
     request.add_header("Accept", "application/vnd.github+json")
     request.add_header("X-GitHub-Api-Version", "2022-11-28")
     request.add_header("User-Agent", "BetterPullReview-RFC0017-anonymous-probe")
+    for name, value in (request_headers or {}).items():
+        if name not in CONDITIONAL_VALIDATOR_HEADERS:
+            raise ContractError(f"request header {name!r} is not a validator")
+        request.add_header(name, value)
     for header, _ in request.header_items():
         if header.lower() in {"authorization", "cookie"}:
             raise ContractError("a credential header was constructed")
@@ -1376,7 +1547,7 @@ def validate_course_manifest(manifest_bytes: bytes, authority: dict) -> dict:
     courses = manifest["courses"]
     if not isinstance(courses, list) or not courses:
         raise ContractError("course manifest names no courses")
-    authorized = {target["name"] for target in authority["targets"]}
+    authorized = {target["name"]: target for target in authority["targets"]}
     seen: set[str] = set()
     for index, course in enumerate(courses):
         require_exact_keys(course, {"name", "expected_status"}, f"course[{index}]")
@@ -1386,8 +1557,15 @@ def validate_course_manifest(manifest_bytes: bytes, authority: dict) -> dict:
         if name in seen:
             raise ContractError(f"course manifest repeats course {name}")
         seen.add(name)
-        require_positive_int(
+        expected_status = require_positive_int(
             course["expected_status"], f"course[{index}].expected_status", 599)
+        # The conditional course exists to record a not-modified answer. A
+        # course that expects anything else is asking a different question
+        # under this operation's name.
+        if (authorized[name]["operation"] == CONDITIONAL_OPERATION
+                and expected_status != CONDITIONAL_EXPECTED_STATUS):
+            raise ContractError(
+                f"course {name} must expect {CONDITIONAL_EXPECTED_STATUS}")
     return manifest
 
 
@@ -1481,6 +1659,14 @@ def run_capture(args: argparse.Namespace) -> int:
     validate_packet_course_selection(packet_bytes, manifest)
     root = resolve_output_root(Path(args.output_root), Path(args.packet))
     targets = {target["name"]: target for target in authority["targets"]}
+    # Load and authenticate every pinned condition source before anything is
+    # written or reserved. A request whose validators cannot be proved must not
+    # consume the packet's single-use authorization.
+    validators = {
+        course["name"]: conditional_request_headers(
+            targets[course["name"]], f"course {course['name']}")
+        for course in manifest["courses"]
+    }
 
     root.mkdir(parents=True, exist_ok=True)
     destinations = {
@@ -1518,7 +1704,8 @@ def run_capture(args: argparse.Namespace) -> int:
                 "authorization is single-use") from error
         with os.fdopen(descriptor, "wb") as handle:
             status, headers, body = perform_request(
-                target["url"], target["operation"], None)
+                target["url"], target["operation"], None,
+                validators[target["name"]])
             if len(body) > MAX_RESPONSE_BYTES:
                 raise ContractError(
                     f"{course['name']} response exceeds the byte limit")

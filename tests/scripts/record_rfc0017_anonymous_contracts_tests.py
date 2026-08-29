@@ -126,6 +126,93 @@ SOURCE_COURSES = [
     {"name": "pull-request", "expected_status": 200},
 ]
 
+# --------------------------------------------------------------------------
+# The conditional course's source capture.
+#
+# Its validators are deliberately not the real recorded ones: a request that
+# hard-coded `octocat/Hello-World#1`'s committed ETag would pass against the
+# real v001 capture and fail here, which is the point.
+# --------------------------------------------------------------------------
+
+CONDITIONAL_COURSE = "conditional-not-modified"
+CONDITIONAL_ETAG = '"fixture-c0ffee0123456789abcdef0123456789abcdef0123456789"'
+CONDITIONAL_LAST_MODIFIED = "Sun, 23 Aug 2026 03:57:54 GMT"
+CONDITION_SOURCE_RELATIVE = (
+    "docs/verification/reviews/rfc0017-anonymous-probe-v001/captures/"
+    "pull-request.json")
+
+
+def conditional_source_record(
+    *,
+    etag=CONDITIONAL_ETAG,
+    last_modified=CONDITIONAL_LAST_MODIFIED,
+    authority_sha256="0" * 64,
+) -> dict:
+    """The earlier committed capture whose validators a 304 request replays."""
+    headers = {
+        "Content-Type": "application/json; charset=utf-8",
+        "X-GitHub-Media-Type": FIXTURE_MEDIA_TYPE,
+        "X-RateLimit-Resource": "core",
+    }
+    if etag is not None:
+        headers["ETag"] = etag
+    if last_modified is not None:
+        headers["Last-Modified"] = last_modified
+    return REC.sanitize_capture(
+        name="pull-request", operation="rest_pull_request",
+        url=FIXTURE_PULL_REQUEST_URL, http_status=200, headers=headers,
+        body=REC.canonical_json({"number": 1, "state": "closed"}),
+        authority_sha256=authority_sha256, source_kind="live")
+
+
+def conditional_target(
+    digest="0" * 64, *, capture_file=CONDITION_SOURCE_RELATIVE, **overrides
+) -> dict:
+    target = {
+        "name": CONDITIONAL_COURSE,
+        "operation": REC.CONDITIONAL_OPERATION,
+        "url": FIXTURE_PULL_REQUEST_URL,
+        REC.CONDITION_SOURCE_KEY: {
+            "capture_file": capture_file,
+            "file_sha256": digest,
+        },
+    }
+    target.update(overrides)
+    return target
+
+
+class FakeResponse:
+    """One recorded HTTP answer, shaped like what `urllib` hands back."""
+
+    def __init__(self, status, headers, body):
+        self.status = status
+        self.headers = headers
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self, limit):
+        return self.body
+
+
+class RecordingOpener:
+    """Stands in for the bounded opener and keeps every request it was given."""
+
+    def __init__(self, status=304, headers=None, body=b""):
+        self.status = status
+        self.headers = {} if headers is None else headers
+        self.body = body
+        self.requests = []
+
+    def open(self, request, timeout):
+        self.requests.append(request)
+        return FakeResponse(self.status, dict(self.headers), self.body)
+
+
 GIT_AVAILABLE = shutil.which("git") is not None
 #: A scratch repository must not read the operator's identity, signing key, or
 #: hooks, and must never be confused with the repository under test.
@@ -457,7 +544,8 @@ class AllowlistTests(unittest.TestCase):
         with self.assertRaisesRegex(REC.ContractError, "is not allowed"):
             REC.validate_target(
                 {"name": "x", "operation": "rest_delete_everything",
-                 "url": "https://api.github.com/rate_limit"}, "target")
+                 "url": "https://api.github.com/rate_limit"}, "target",
+                schema_version=REC.AUTHORITY_SCHEMA_VERSION)
 
 
 class SanitizationTests(unittest.TestCase):
@@ -1704,6 +1792,539 @@ class CaptureBindingTests(ReviewDirectoryMixin, unittest.TestCase):
         self.assertEqual(REC.main(self.argv("--synthesize-exhaustion")), 0)
         self.assertEqual(REC.main(self.argv("--write-bindings")), 0)
         self.assertEqual(REC.main(self.argv("--validate-existing")), 0)
+
+
+class ConditionalAuthorityTests(unittest.TestCase):
+    """Version 2 adds one member, to one operation, and to nothing else."""
+
+    def parse(self, targets, *, version=REC.AUTHORITY_CONDITION_SOURCE_VERSION):
+        return REC.parse_authority(
+            packet_text(authority(targets, version=version)).encode())
+
+    def test_accepts_a_version_two_conditional_target(self) -> None:
+        parsed = self.parse([conditional_target("a" * 64)])
+
+        self.assertEqual(
+            parsed["schema_version"], REC.AUTHORITY_CONDITION_SOURCE_VERSION)
+        self.assertEqual(
+            parsed["targets"][0][REC.CONDITION_SOURCE_KEY],
+            {"capture_file": CONDITION_SOURCE_RELATIVE,
+             "file_sha256": "a" * 64})
+
+    def test_accepts_an_unchanged_version_one_authority(self) -> None:
+        parsed = REC.parse_authority(packet_text().encode())
+
+        self.assertEqual(parsed["schema_version"], REC.AUTHORITY_SCHEMA_VERSION)
+        self.assertEqual(sorted(parsed["targets"][0]), ["name", "operation", "url"])
+
+    def test_refuses_a_condition_source_on_another_operation(self) -> None:
+        target = dict(
+            SOURCE_TARGETS[0],
+            **{REC.CONDITION_SOURCE_KEY: {
+                "capture_file": CONDITION_SOURCE_RELATIVE,
+                "file_sha256": "a" * 64}})
+        with self.assertRaisesRegex(
+            REC.ContractError,
+            r"target\[0\]\.condition_source is allowed only on "
+            "rest_conditional_not_modified",
+        ):
+            self.parse([target])
+
+    def test_refuses_a_conditional_target_without_a_condition_source(self) -> None:
+        target = conditional_target("a" * 64)
+        target.pop(REC.CONDITION_SOURCE_KEY)
+        with self.assertRaisesRegex(
+            REC.ContractError, r"missing=\['condition_source'\]"
+        ):
+            self.parse([target])
+
+    def test_refuses_a_version_one_packet_carrying_a_condition_source(self) -> None:
+        cases = {
+            "conditional": (
+                conditional_target("a" * 64),
+                "needs authority schema version 2"),
+            "another operation": (
+                dict(SOURCE_TARGETS[0],
+                     **{REC.CONDITION_SOURCE_KEY: {
+                         "capture_file": CONDITION_SOURCE_RELATIVE,
+                         "file_sha256": "a" * 64}}),
+                "is allowed only on rest_conditional_not_modified"),
+        }
+        for label, (target, reason) in cases.items():
+            with self.subTest(target=label):
+                with self.assertRaisesRegex(REC.ContractError, reason):
+                    self.parse(
+                        [target], version=REC.AUTHORITY_SCHEMA_VERSION)
+
+    def test_refuses_a_conditional_operation_at_version_one(self) -> None:
+        target = conditional_target("a" * 64)
+        target.pop(REC.CONDITION_SOURCE_KEY)
+        with self.assertRaisesRegex(
+            REC.ContractError, "needs authority schema version 2"
+        ):
+            self.parse([target], version=REC.AUTHORITY_SCHEMA_VERSION)
+
+    def test_refuses_a_schema_version_above_the_supported_set(self) -> None:
+        with self.assertRaisesRegex(
+            REC.ContractError, "authority schema version is out of range"
+        ):
+            self.parse(
+                [conditional_target("a" * 64)],
+                version=REC.AUTHORITY_CONDITION_SOURCE_VERSION + 1)
+
+    def test_refuses_a_condition_source_with_the_wrong_members(self) -> None:
+        defects = (
+            {"capture_file": CONDITION_SOURCE_RELATIVE},
+            {"file_sha256": "a" * 64},
+            {"capture_file": CONDITION_SOURCE_RELATIVE,
+             "file_sha256": "a" * 64, "extra": 1},
+            [CONDITION_SOURCE_RELATIVE, "a" * 64],
+        )
+        for source in defects:
+            with self.subTest(source=source):
+                with self.assertRaisesRegex(
+                    REC.ContractError, r"target\[0\]\.condition_source"
+                ):
+                    self.parse([conditional_target(
+                        "a" * 64, **{REC.CONDITION_SOURCE_KEY: source})])
+
+    def test_refuses_a_condition_source_digest_that_is_not_a_digest(self) -> None:
+        for digest in ("A" * 64, "a" * 63, "sha256:" + "a" * 64, 1):
+            with self.subTest(digest=digest):
+                with self.assertRaisesRegex(
+                    REC.ContractError,
+                    r"condition_source\.file_sha256 is not a SHA-256 digest",
+                ):
+                    self.parse([conditional_target(digest)])
+
+    def test_refuses_a_condition_source_path_that_can_leave_the_repository(
+        self,
+    ) -> None:
+        for capture_file in (
+            "../outside/pull-request.json",
+            "/etc/passwd",
+            "docs\\captures\\pull-request.json",
+            "C:/captures/pull-request.json",
+            "docs/../../pull-request.json",
+            "docs//pull-request.json",
+            "docs/.hidden/pull-request.json",
+        ):
+            with self.subTest(capture_file=capture_file):
+                with self.assertRaisesRegex(
+                    REC.ContractError,
+                    "condition_source.capture_file (is not a repository-relative "
+                    "path|has an unsafe path component)",
+                ):
+                    self.parse([conditional_target(
+                        "a" * 64, capture_file=capture_file)])
+
+
+class ConditionalRecordTests(unittest.TestCase):
+    """What a recorded not-modified answer is allowed to be."""
+
+    COURSE = {"name": CONDITIONAL_COURSE, "expected_status": 304}
+
+    def record(self, **overrides) -> dict:
+        base = dict(
+            name=CONDITIONAL_COURSE, operation=REC.CONDITIONAL_OPERATION,
+            url=FIXTURE_PULL_REQUEST_URL, http_status=304,
+            headers={"ETag": CONDITIONAL_ETAG, "X-RateLimit-Remaining": "57"},
+            body=b"", authority_sha256="0" * 64, source_kind="live")
+        base.update(overrides)
+        return REC.sanitize_capture(**base)
+
+    def test_records_an_empty_body_and_the_empty_digest(self) -> None:
+        record = self.record()
+
+        self.assertIsNone(record["body"])
+        self.assertEqual(record["body_sha256"], REC.sha256_bytes(b""))
+        self.assertEqual(
+            sorted(record["retained_headers"]), ["etag", "x-ratelimit-remaining"])
+        REC.validate_capture_record(
+            record, conditional_target(), self.COURSE)
+
+    def test_the_bound_minimized_digest_is_the_empty_digest(self) -> None:
+        # The one operation where the stored digest really does digest what is
+        # stored, so the external binding and the record agree by construction.
+        record = self.record()
+        self.assertEqual(
+            REC.minimized_body_digest(record, "capture"),
+            record["body_sha256"])
+
+    def test_sanitize_refuses_a_not_modified_response_with_a_body(self) -> None:
+        with self.assertRaisesRegex(
+            REC.ContractError, "conditional not-modified response carries a body"
+        ):
+            self.record(body=b'{"number":1}')
+
+    def test_validate_refuses_a_recorded_not_modified_body(self) -> None:
+        record = self.record()
+        record["body"] = '{"number":1}\n'
+        record["body_sha256"] = REC.sha256_bytes(record["body"].encode("utf-8"))
+        with self.assertRaisesRegex(
+            REC.ContractError,
+            f"capture {CONDITIONAL_COURSE} not-modified body is not empty",
+        ):
+            REC.validate_capture_record(
+                record, conditional_target(), self.COURSE)
+
+    def test_validate_refuses_an_empty_body_with_another_digest(self) -> None:
+        record = self.record()
+        record["body_sha256"] = "f" * 64
+        with self.assertRaisesRegex(
+            REC.ContractError,
+            f"capture {CONDITIONAL_COURSE} not-modified body digest mismatch",
+        ):
+            REC.validate_capture_record(
+                record, conditional_target(), self.COURSE)
+
+    def test_perform_request_refuses_validators_on_another_operation(self) -> None:
+        original = REC.build_bounded_opener
+        REC.build_bounded_opener = lambda: RecordingOpener()
+        self.addCleanup(setattr, REC, "build_bounded_opener", original)
+        with self.assertRaisesRegex(
+            REC.ContractError,
+            "rest_pull_request may not carry conditional request headers",
+        ):
+            REC.perform_request(
+                FIXTURE_PULL_REQUEST_URL, "rest_pull_request", None,
+                {"If-None-Match": CONDITIONAL_ETAG})
+
+    def test_perform_request_refuses_a_header_that_is_not_a_validator(self) -> None:
+        original = REC.build_bounded_opener
+        REC.build_bounded_opener = lambda: RecordingOpener()
+        self.addCleanup(setattr, REC, "build_bounded_opener", original)
+        for header in ("Authorization", "Cookie", "If-Match", "if-none-match"):
+            with self.subTest(header=header):
+                with self.assertRaisesRegex(
+                    REC.ContractError, "is not a validator"
+                ):
+                    REC.perform_request(
+                        FIXTURE_PULL_REQUEST_URL, REC.CONDITIONAL_OPERATION,
+                        None, {header: "x"})
+
+
+class ConditionalCaptureTests(unittest.TestCase):
+    """The whole conditional course, over a fake transport."""
+
+    def setUp(self) -> None:
+        self.temporary = ContainedTemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        # The pinned source is resolved against a repository root, so the
+        # fixture keeps one: everything outside `repository/` is off-limits to
+        # a `condition_source` path by construction.
+        self.repository = self.root / "repository"
+        self.repository.mkdir()
+        self.addCleanup(
+            setattr, REC, "CONDITION_SOURCE_ROOT", REC.CONDITION_SOURCE_ROOT)
+        REC.CONDITION_SOURCE_ROOT = self.repository
+        self.attempts = self.root / "capture-attempts"
+        self.addCleanup(
+            setattr, REC, "CAPTURE_ATTEMPT_REGISTRY",
+            REC.CAPTURE_ATTEMPT_REGISTRY)
+        REC.CAPTURE_ATTEMPT_REGISTRY = self.attempts
+        self.source_path = self.repository / CONDITION_SOURCE_RELATIVE
+        self.source_path.parent.mkdir(parents=True)
+        self.review = self.root / "review"
+        self.review.mkdir()
+        self.packet = self.review / "operator-packet.md"
+        self.response = self.review / "operator-response.md"
+        self.manifest = self.review / "course-manifest.json"
+        self.captures = self.review / "captures"
+        self.capture_path = self.captures / f"{CONDITIONAL_COURSE}.json"
+        self.write_source(conditional_source_record())
+
+    # -- fixture construction ------------------------------------------------
+
+    def write_review(self, digest, *, status=304, **target_overrides) -> None:
+        courses = [{"name": CONDITIONAL_COURSE, "expected_status": status}]
+        self.packet.write_text(packet_text(
+            authority(
+                [conditional_target(digest, **target_overrides)],
+                version=REC.AUTHORITY_CONDITION_SOURCE_VERSION),
+            courses))
+        self.response.write_text(response_text(self.packet.read_bytes()))
+        self.manifest.write_bytes(REC.canonical_json({
+            "schema_name": REC.MANIFEST_SCHEMA,
+            "schema_version": REC.MANIFEST_SCHEMA_VERSION,
+            "packet_sha256": REC.sha256_bytes(self.packet.read_bytes()),
+            "courses": courses,
+        }))
+
+    def write_source_bytes(self, payload: bytes, *, digest=None, **review) -> None:
+        self.source_path.write_bytes(payload)
+        self.write_review(digest or REC.sha256_bytes(payload), **review)
+
+    def write_source(self, record: dict, **keywords) -> None:
+        self.write_source_bytes(REC.canonical_json(record), **keywords)
+
+    # -- drivers -------------------------------------------------------------
+
+    def argv(self, *extra: str) -> list[str]:
+        return [
+            "--packet", str(self.packet),
+            "--response", str(self.response),
+            "--course-manifest", str(self.manifest),
+            "--output-root", str(self.captures),
+            *extra,
+        ]
+
+    def run_main(self, *extra: str) -> tuple[int, str]:
+        stream = io.StringIO()
+        with contextlib.redirect_stdout(stream):
+            code = REC.main(self.argv(*extra))
+        return code, stream.getvalue()
+
+    def assert_refused(self, reason: str, *extra: str) -> None:
+        stream = io.StringIO()
+        with contextlib.redirect_stderr(stream):
+            code = REC.main(self.argv(*extra))
+        self.assertEqual(code, 3)
+        self.assertEqual(
+            stream.getvalue(),
+            f"RFC0017_ANONYMOUS_CONTRACTS_REFUSED:{reason}\n")
+
+    def install_opener(self, **keywords) -> RecordingOpener:
+        opener = RecordingOpener(**keywords)
+        original = REC.build_bounded_opener
+        REC.build_bounded_opener = lambda: opener
+        self.addCleanup(setattr, REC, "build_bounded_opener", original)
+        return opener
+
+    def forbid_traffic(self) -> None:
+        original = REC.perform_request
+
+        def explode(*args, **keywords):
+            raise AssertionError("a refused course issued a request")
+
+        REC.perform_request = explode
+        self.addCleanup(setattr, REC, "perform_request", original)
+
+    def sent_headers(self, opener: RecordingOpener) -> dict[str, str]:
+        request, = opener.requests
+        return {name.lower(): value for name, value in request.header_items()}
+
+    # -- the course ----------------------------------------------------------
+
+    def test_captures_a_not_modified_contract_that_revalidates(self) -> None:
+        self.install_opener(headers={
+            "ETag": CONDITIONAL_ETAG,
+            "X-RateLimit-Limit": "60",
+            "X-RateLimit-Remaining": "57",
+            "X-RateLimit-Resource": "core",
+            "Set-Cookie": "session=abc",
+            "Server": "GitHub.com",
+        })
+        code, output = self.run_main()
+        self.assertEqual(
+            (code, output), (0, "RFC0017_ANONYMOUS_CONTRACTS_CAPTURED:1\n"))
+
+        payload = self.capture_path.read_bytes()
+        record = json.loads(payload)
+        self.assertEqual(payload, REC.canonical_json(record))
+        self.assertEqual(record["http_status"], 304)
+        self.assertEqual(record["operation"], REC.CONDITIONAL_OPERATION)
+        self.assertIsNone(record["body"])
+        self.assertEqual(record["body_sha256"], REC.sha256_bytes(b""))
+        self.assertEqual(
+            sorted(record["retained_headers"]),
+            ["etag", "x-ratelimit-limit", "x-ratelimit-remaining",
+             "x-ratelimit-resource"])
+
+        code, output = self.run_main("--validate-existing")
+        self.assertEqual(code, 0)
+        self.assertIn("RFC0017_ANONYMOUS_CONTRACTS_VALID:1", output)
+
+    def test_sends_exactly_the_recorded_validators(self) -> None:
+        opener = self.install_opener()
+        self.assertEqual(self.run_main()[0], 0)
+
+        source = json.loads(self.source_path.read_bytes())
+        sent = self.sent_headers(opener)
+        self.assertEqual(
+            sent["if-none-match"], source["retained_headers"]["etag"])
+        self.assertEqual(
+            sent["if-modified-since"],
+            source["retained_headers"]["last-modified"])
+        request, = opener.requests
+        self.assertEqual(request.get_method(), "GET")
+        self.assertIsNone(request.data)
+        self.assertEqual(request.host, "api.github.com")
+
+    def test_omits_if_modified_since_when_the_source_records_none(self) -> None:
+        self.write_source(conditional_source_record(last_modified=None))
+        opener = self.install_opener()
+        self.assertEqual(self.run_main()[0], 0)
+
+        sent = self.sent_headers(opener)
+        self.assertEqual(sent["if-none-match"], CONDITIONAL_ETAG)
+        self.assertNotIn("if-modified-since", sent)
+
+    def test_refuses_a_source_capture_without_an_etag(self) -> None:
+        self.write_source(conditional_source_record(etag=None))
+        self.forbid_traffic()
+        self.assert_refused(
+            f"course {CONDITIONAL_COURSE} condition source records no etag")
+        self.assertFalse(self.attempts.exists())
+
+    def test_refuses_a_source_capture_that_differs_from_its_digest(self) -> None:
+        self.write_source(conditional_source_record(), digest="a" * 64)
+        self.forbid_traffic()
+        self.assert_refused(
+            f"course {CONDITIONAL_COURSE} condition source differs from its "
+            "pinned digest")
+        self.assertFalse(self.attempts.exists())
+
+    def test_refuses_a_source_capture_edited_after_the_packet(self) -> None:
+        # The packet keeps the digest it was signed over; only the file moves.
+        pinned = REC.sha256_bytes(self.source_path.read_bytes())
+        edited = conditional_source_record(etag='"a-different-etag"')
+        self.source_path.write_bytes(REC.canonical_json(edited))
+        self.write_review(pinned)
+        self.forbid_traffic()
+        self.assert_refused(
+            f"course {CONDITIONAL_COURSE} condition source differs from its "
+            "pinned digest")
+
+    def test_refuses_an_absent_source_capture(self) -> None:
+        self.source_path.unlink()
+        self.forbid_traffic()
+        self.assert_refused(
+            f"course {CONDITIONAL_COURSE} condition source is not a regular file")
+        self.assertFalse(self.attempts.exists())
+
+    def test_refuses_a_source_that_is_not_a_capture_record(self) -> None:
+        defects = {
+            "another schema": REC.canonical_json(
+                {"schema_name": "bpr.rfc0017.something_else"}),
+            "unretained headers": REC.canonical_json(dict(
+                conditional_source_record(),
+                retained_headers={"server": "GitHub.com"})),
+        }
+        for label, payload in defects.items():
+            with self.subTest(source=label):
+                self.write_source_bytes(payload)
+                self.forbid_traffic()
+                stream = io.StringIO()
+                with contextlib.redirect_stderr(stream):
+                    self.assertEqual(REC.main(self.argv()), 3)
+                self.assertIn(
+                    f"course {CONDITIONAL_COURSE} condition source",
+                    stream.getvalue())
+
+    def test_refuses_a_source_reached_through_a_symlinked_directory(self) -> None:
+        # The path-component rule cannot see this one: every component is safe
+        # and the file itself is not a symlink. Only resolving the path and
+        # asking whether it is still inside the repository refuses it.
+        outside = self.root / "outside"
+        outside.mkdir()
+        payload = REC.canonical_json(conditional_source_record())
+        (outside / "pull-request.json").write_bytes(payload)
+        escape = self.repository / "docs/verification/reviews/escape"
+        try:
+            escape.symlink_to(outside, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("this platform does not create directory symlinks")
+        self.write_review(
+            REC.sha256_bytes(payload),
+            capture_file="docs/verification/reviews/escape/pull-request.json")
+
+        self.forbid_traffic()
+        self.assert_refused(
+            f"course {CONDITIONAL_COURSE} condition source escapes the repository")
+        self.assertFalse(self.attempts.exists())
+
+    def test_refuses_a_course_that_does_not_expect_not_modified(self) -> None:
+        self.write_source(conditional_source_record(), status=200)
+        self.forbid_traffic()
+        self.assert_refused(f"course {CONDITIONAL_COURSE} must expect 304")
+
+    def test_refuses_a_not_modified_response_that_carries_a_body(self) -> None:
+        self.install_opener(body=b'{"number":1}')
+        self.assert_refused("conditional not-modified response carries a body")
+
+    def test_validation_paths_issue_no_traffic(self) -> None:
+        self.install_opener(headers={"ETag": CONDITIONAL_ETAG})
+        self.assertEqual(self.run_main()[0], 0)
+        self.forbid_traffic()
+
+        code, output = self.run_main("--validate-existing")
+        self.assertEqual(code, 0)
+        self.assertIn("RFC0017_ANONYMOUS_CONTRACTS_VALID:1", output)
+
+    def test_refuses_a_recorded_body_on_revalidation(self) -> None:
+        self.install_opener(headers={"ETag": CONDITIONAL_ETAG})
+        self.assertEqual(self.run_main()[0], 0)
+        record = json.loads(self.capture_path.read_bytes())
+        record["body"] = '{"number":1}\n'
+        record["body_sha256"] = REC.sha256_bytes(record["body"].encode("utf-8"))
+        self.capture_path.write_bytes(REC.canonical_json(record))
+
+        self.forbid_traffic()
+        self.assert_refused(
+            f"capture {CONDITIONAL_COURSE} not-modified body is not empty",
+            "--validate-existing")
+
+
+@unittest.skipUnless(
+    GIT_AVAILABLE, "git is required to read the committed v001 evidence")
+class SeededVersionOneEvidenceTests(unittest.TestCase):
+    """Version-1 behaviour, read off the committed v001 review directory."""
+
+    REVIEW = (
+        REPOSITORY_ROOT
+        / "docs/verification/reviews/rfc0017-anonymous-probe-v001")
+
+    def setUp(self) -> None:
+        self.packet = self.REVIEW / "operator-packet.md"
+        if not self.packet.is_file():
+            self.skipTest("the v001 review directory is not present")
+
+    def test_the_committed_packet_still_parses_at_schema_version_one(self) -> None:
+        parsed = REC.parse_authority(self.packet.read_bytes())
+
+        self.assertEqual(parsed["schema_version"], REC.AUTHORITY_SCHEMA_VERSION)
+        for target in parsed["targets"]:
+            self.assertEqual(sorted(target), ["name", "operation", "url"])
+
+    def test_the_seeded_validation_command_output_is_unchanged(self) -> None:
+        bindings = self.REVIEW / "capture-bindings.json"
+        if not bindings.is_file():
+            self.skipTest("the v001 captures carry no external binding")
+        record = json.loads(bindings.read_bytes())
+        for entry in record["bindings"]:
+            probe = subprocess.run(
+                ["git", "cat-file", "-e", f"{entry['owning_commit']}^{{commit}}"],
+                cwd=str(REPOSITORY_ROOT), capture_output=True, check=False)
+            if probe.returncode != 0:
+                self.skipTest("this checkout has no owning-commit history")
+
+        courses = json.loads(
+            (self.REVIEW / "course-manifest.json").read_bytes())["courses"]
+        expected = (
+            f"RFC0017_ANONYMOUS_CONTRACTS_VALID:{len(courses)}\n"
+            f"RFC0017_ANONYMOUS_CONTRACTS_BOUND:{len(courses)}\n"
+            "RFC0017_ANONYMOUS_CONTRACTS_DERIVED:1\n")
+
+        original = REC.perform_request
+
+        def explode(*args, **keywords):
+            raise AssertionError("the seeded validation issued a request")
+
+        REC.perform_request = explode
+        self.addCleanup(setattr, REC, "perform_request", original)
+        stream = io.StringIO()
+        with contextlib.redirect_stdout(stream):
+            code = REC.main([
+                "--packet", str(self.packet),
+                "--response", str(self.REVIEW / "operator-response.md"),
+                "--course-manifest", str(self.REVIEW / "course-manifest.json"),
+                "--output-root", str(self.REVIEW / "captures"),
+                "--validate-existing",
+            ])
+
+        self.assertEqual((code, stream.getvalue()), (0, expected))
 
 
 if __name__ == "__main__":
