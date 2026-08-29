@@ -1,7 +1,7 @@
 ---
 id: RFC-BPR-0005
 title: Native Workbench Shell and Virtualized Review Surface
-status: Proposed
+status: Auto-Verified
 area: BPR
 milestone: M1 Native Read-Only Workbench
 depends_on: [RFC-BPR-0004]

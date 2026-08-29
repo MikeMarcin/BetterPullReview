@@ -1,7 +1,7 @@
 ---
 id: BPR-0100
 title: Run the inherited native visual-acceptance pass
-status: Backlog
+status: Done
 rfc: RFC-BPR-0005
 depends_on: [BPR-0083, BPR-0097, BPR-0186, BPR-0187, BPR-0233]
 ---
@@ -283,3 +283,23 @@ thread map, anchor marker, viewport fill — for deliberate attention. The
 v003 and v004 responses and validation records remain immutable for their
 own bytes. This card parks awaiting that judgment; the acceptance is the
 last gate before RFC-BPR-0005's status flip.
+
+## Terminal v005 accepted — 2026-08-29
+
+The owner ran the attended pass against the closeout executable and
+returned the v005 acceptance statement exactly. The immutable
+[`operator response`](../../verification/reviews/native-visual-acceptance-v005/operator-response.md)
+and [`validation record`](../../verification/reviews/native-visual-acceptance-v005/validation-record.json)
+bind the accepted packet at
+`sha256:dce186e8827857bf2f0e811da21db3bc109eff1a50e0e8c086f73cfcb267697d`,
+the response at
+`sha256:0605da3e477bdd41` (full digest in the record), and executable
+`sha256:462896aa2c48a2a97215bc8595a2fca9c5d1a7f635d1ab0759d8733592652347`.
+The verdict accepts the assembled workbench's native presentation quality
+at the RFC-BPR-0005 closeout head, including the six surfaces new since
+v004. It authorizes no notification, appearance, live-mutation, package,
+or release claim, and the v003/v004 acceptances remain valid only for
+their own bytes.
+
+This card closes in the same commit as [[BPR-0101]], its terminal
+procedure consumed by the final replay.

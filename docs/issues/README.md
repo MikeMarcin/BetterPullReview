@@ -497,11 +497,13 @@ The RFC composes the existing RFC-BPR-0004 panes, shared scroll controller, and
 regrouping, follower-scroll coupling, or synthetic alignment rows would be a
 defect. No RFC-BPR-0005 requirement needs Windows execution, a GitHub mutation,
 a credential, or a network service. Its inherited owner-attended gate,
-BPR-0100, is accepted against both its historical v003 executable and the exact
-final-head v004 executable. Its BPR-0083 wait ended with RFC-BPR-0004's
-2026-08-28 close; it stays in Backlog until the RFC-BPR-0005 terminal
-identity replay; BPR-0101 still makes no closure claim because the ordered
-prior-RFC chain remains open.
+BPR-0100, was accepted against its historical v003 executable, the v004
+final-head successor, and — on 2026-08-29 — the terminal v005 packet at the
+closeout executable. **RFC-BPR-0005 closed `Auto-Verified` on 2026-08-29**:
+BPR-0101's final replay ran the clean-state matrices, the corrected
+row-exact selectors, the first clean whole-tree LLVM-23 tidy gate, the
+composition linker check, and the independent-review repairs, and BPR-0100
+and BPR-0101 closed together in the flip commit.
 
 RFC-BPR-0006 is now the implementation frontier. Done BPR-0103 plans it as
 thirteen cards, BPR-0104 through BPR-0115, and settles the one genuinely forced
@@ -849,11 +851,10 @@ drawer does not anchor a comment to its line, which is [[BPR-0414]].
 The table is the complete frontier rather than a selection from it. Every open
 card on this board is either one of these seven roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it:
-of the 38 cards in `10-backlog/`, only [[BPR-0100]] and [[BPR-0240]] have all
-their dependencies in `60-done/`, and each stays there by its own terms —
-BPR-0100's terminal identity replay binds the RFC-BPR-0005 closeout head,
-which active-lane cards can still relink, and BPR-0240 waits to be consumed
-by [[BPR-0245]]'s final replay. This number has drifted before — it read 46 while the lane held 44,
+of the 36 cards in `10-backlog/`, only [[BPR-0240]] has all its
+dependencies in `60-done/`, and it stays there by its own terms — waiting
+to be consumed by [[BPR-0245]]'s final replay, as [[BPR-0100]] was by
+BPR-0101's on 2026-08-29. This number has drifted before — it read 46 while the lane held 44,
 and 43 while it held 42 — so it is recomputed from the lanes each time rather
 than decremented; the derivation the validator runs covers the table's rows,
 not this sentence's arithmetic. BPR-0417's move to `60-done/` on 2026-08-24 promoted exactly one
@@ -1145,6 +1146,16 @@ and repinned both times, and [[BPR-0478]] removed a 2,074-line orphaned
 uncompilable test source the independent review found. All three closed
 with the run; the count is seven.
 
+The run then finished what it came for: **RFC-BPR-0005 closed
+`Auto-Verified` on 2026-08-29**, the fifth RFC closed in two days. The
+owner accepted the terminal `native-visual-acceptance-v005` packet at the
+closeout executable — the successor verdict BPR-0100's own terms required
+after six visible-behavior commits outran v004 — and [[BPR-0100]] and
+[[BPR-0101]] closed together in the flip commit, their procedures consumed
+by the final replay. Neither was a root, so the count stays seven; the
+closure frontier advances to RFC-BPR-0006, whose terminal cards are
+[[BPR-0114]] and [[BPR-0115]].
+
 Everything else in `10-backlog/` reaches one of those roots transitively.
 
 | Group | Cards | What is actually missing |
@@ -1156,12 +1167,12 @@ Everything else in `10-backlog/` reaches one of those roots transitively.
 | A Linux host | Done BPR-0156, BPR-0444, BPR-0469, BPR-0470, and BPR-0235's Linux half; ready BPR-0310 and BPR-0314 | An Ubuntu 26.04 x86_64 host answered the blocker. BPR-0156 re-established the matrix and BPR-0235's Linux criterion is discharged. BPR-0310 and BPR-0314 wait on their own unmet backlog dependencies rather than on the platform, which is why they sit in `23-ready-lin/` rather than in a blocked lane. The run opened BPR-0341 through BPR-0345; the 2026-08-27 run closed BPR-0444 and opened and closed BPR-0469 and BPR-0470, leaving BPR-0310 and BPR-0314 as the lane's only remaining cards |
 | A designated live GitHub pull request | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Disposable `MikeMarcin/BPR-Test#1` is identity-bound; the live provider, exact-target lane, owner-authenticated mutations, and attended/mixed-client checks remain |
 | Designated live-lane proof blockers | Done BPR-0261/BPR-0262/BPR-0263/BPR-0264/BPR-0448/BPR-0449; backlog BPR-0256 behind BPR-0318 | The approved narrowed replay authority is implemented. v004 failed closed before GUI creation and v005 was invalidated. BPR-0448 and BPR-0449 close retained identity and read-only-image execution. The owner approved reviewed v006 exactly; its one-use lane consumed the approval and reached the current manual-token prompt, then cancelled safely when the owner reaffirmed that device login was the required product interaction. No credential or POST occurred. A successor live packet now waits on the RFC-BPR-0016 device-flow implementation and distributable identity rather than another owner approval. |
-| Owner-attended or native-display judgment | Backlog BPR-0100, BPR-0114, and BPR-0168; done BPR-0210, BPR-0220, BPR-0251, BPR-0391, BPR-0392, and BPR-0410 | Visual v004, notification v006, and appearance v008 establish the native behavior. BPR-0220 corrected the one stale appearance expectation to the measured zero, and the owner accepted the narrow repair without redundant digest-only reruns. BPR-0114 remains open only as the terminal procedure behind BPR-0101 |
+| Owner-attended or native-display judgment | Backlog BPR-0114 and BPR-0168; done BPR-0100, BPR-0210, BPR-0220, BPR-0251, BPR-0391, BPR-0392, and BPR-0410 | Visual v005 (terminal, accepted 2026-08-29 at the RFC-BPR-0005 closeout bytes), notification v006, and appearance v008 establish the native behavior. BPR-0220 corrected the one stale appearance expectation to the measured zero, and the owner accepted the narrow repair without redundant digest-only reruns. BPR-0114 remains open only as the terminal procedure behind BPR-0115, next in closure order now that RFC-BPR-0005 is closed |
 | Product composition | Backlog BPR-0232; done BPR-0223, BPR-0226 through BPR-0231, BPR-0247, and BPR-0250 | Notification request/activation, the workbench host, selected diff, ledger, actionability, fixture-safe review round trip, durable defect workflow, observer-rule queue, portable agent invocation, durable sessions, and explicit private-context selection are composed. The native Windows lifecycle proof BPR-0232 waited on landed 2026-08-26/27 (BPR-0240); its final replay through that same surface remains. |
 | Missing component and resilience scope | Parked BPR-0235; backlog BPR-0240; done BPR-0237 through BPR-0239, BPR-0334, and BPR-0476 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, BPR-0236's appearance-storage fallback, and the single portable agent protocol loop are done. BPR-0240's native Windows transport proof landed 2026-08-26/27; the card waits in the backlog for BPR-0245's final replay to consume it, and done [[BPR-0476]] closed its recorded wrapper-encoding gap target-native |
-| Recorded selected-diff proof | Done BPR-0233, BPR-0246, and BPR-0214; BPR-0100 waits on the RFC-BPR-0005 terminal replay (its BPR-0083 wait ended 2026-08-28); still gating BPR-0210's margin analysis | The real selected-file course binds UIforETW commits/blobs, named replacement pairs, semantic roles, and a cut-wire negative. After the v001 through v004 rejections and the accepted v005 connector repair, the combined v006 batch was accepted whole on 2026-08-18; BPR-0100 accepted the assembled workbench, and no interim presentation rerun is required for BPR-0220's probe-only change |
+| Recorded selected-diff proof | Done BPR-0233, BPR-0246, BPR-0214, and BPR-0100 (its terminal v005 accepted 2026-08-29) | The real selected-file course binds UIforETW commits/blobs, named replacement pairs, semantic roles, and a cut-wire negative. After the v001 through v004 rejections and the accepted v005 connector repair, the combined v006 batch was accepted whole on 2026-08-18; BPR-0100 accepted the assembled workbench, and no interim presentation rerun is required for BPR-0220's probe-only change |
 | Closeout rigor and terminal cards | Done BPR-0234 and BPR-0248; backlog BPR-0241 through BPR-0245 | The standing shipped-binary composition inventory is reconciled with exact fixture/production profiles; replay each anchored executable checklist and retain a live terminal card for each Proposed RFC |
-| Deferred or not a slice | BPR-0101, BPR-0115 | Blocked by closure ordering. BPR-0211 and BPR-0212 are no longer examples here: done [[BPR-0413]] rendered the mockups the owner asked for, so both are answerable decisions rather than deferred ideas. BPR-0156 is no longer an example here: the Ubuntu host arrived, it re-established the matrix, and it is in `60-done/` |
+| Deferred or not a slice | BPR-0115; done BPR-0101 (closed RFC-BPR-0005 on 2026-08-29) | Blocked by closure ordering, which now points at RFC-BPR-0006. BPR-0211 and BPR-0212 are no longer examples here: done [[BPR-0413]] rendered the mockups the owner asked for, so both are answerable decisions rather than deferred ideas. BPR-0156 is no longer an example here: the Ubuntu host arrived, it re-established the matrix, and it is in `60-done/` |
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
 final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench
