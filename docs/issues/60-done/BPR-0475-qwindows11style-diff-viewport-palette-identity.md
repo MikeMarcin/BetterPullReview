@@ -1,7 +1,7 @@
 ---
 id: BPR-0475
 title: QWindows11Style diverges from the diff course's viewport palette-identity check
-status: In Progress
+status: Done
 rfc: RFC-BPR-0005
 depends_on: []
 ---
@@ -170,3 +170,46 @@ What item 3 still owes, by this card's own opening measurement: the
 default-style course on the **native `windows` QPA at real display
 scaling** on the designated host — the offscreen runs were the debuggable
 repro, and the original failure was measured native at 125/150/200%.
+
+## The native default-style course passes; the card closes — 2026-08-28, night
+
+At `bfdb9b12` (tracker-only over `4fdab287`; the lane proved the binary
+identical by `git diff --name-only` over the build inputs before declining
+to rebuild), the shipped executable ran the course on the **native
+`windows` QPA under default QWindows11Style at the desktop's real 150%**
+(2560x1440, DPR 1.5), unattended, with the desktop in dark mode:
+`COURSE_RC=0` in 18.06 s, the full marker block matching the registered
+test's pass expression line by line, 19 frames plus the 19-line
+interaction trace. This run is strictly stronger than every offscreen run
+this card has had: the capture stamp reads the applied dark profile
+(`base #0d1117`), so the palette-identity check matched the profile's dark
+base against a real dark-mode QWindows11Style paint — every offscreen run
+had only ever stamped light `#ffffff`. At real DPR the viewport region
+measures Base `#0d1117` at **54.99%** commonest with the style fill
+`#1c2026` at 6.09% — ordinary chrome in the same ~6% band as offscreen,
+which also retires [[BPR-0474]]'s `#1c2026` nomination for good: that
+color was never going to win the vote; Base going unpainted was the whole
+defect. The real-DPI corner caveat is closed by direct measurement — a
+hard square edge, no arc, same as 1.0x — and the display was verified
+unchanged after the run.
+
+**The 125% and 200% literal replays are deliberately not requested.**
+BPR-0474 established the divergence is independent of QPA, scale, and DPI
+— it failed identically at 1.0x offscreen with no desktop at all — and the
+repaired mechanism (polish clearing the viewport fill) does not consult
+DPR. The fix is now proven at DPR 1.0 offscreen in light identity and DPR
+1.5 native in dark identity, with fusion/windowsvista controls and the
+three-scale Qt sweeps green beside it. A defect visible only at 125% or
+200% while absent at both proven DPRs would be a scale-dependent paint
+defect — a different card, in BPR-0474's high-DPI scope, which stands
+green. Reaching those scales needs owner display changes, and spending an
+attended sitting to re-prove a scale-independent mechanism is the kind of
+digest-only replay the owner has asked not to repeat. Reopen with a
+sitting if the literal pair is wanted.
+
+All three of this card's items have direct evidence: the instrumented
+failure message shipped at `3309687d`, the root cause is measured and
+twice corrected to ground truth, and the fix is proven portable (8/8
+composition-aware), offscreen target-native (three-way plus 6/6 sweep,
+raster inversion undone), and native at real DPR in dark mode. The card is
+done.

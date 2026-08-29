@@ -1,9 +1,10 @@
 ---
 id: BPR-0298
 title: Record anonymous GitHub service contracts
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0017
 depends_on: [BPR-0297, BPR-0405, BPR-0445]
+parked_on: awaiting-live-github
 ---
 
 # Record anonymous GitHub service contracts
@@ -296,3 +297,24 @@ capture created:
   pinned ETag — the refusal lands after the attempt receipt exists, the
   single-use authorization is consumed, and a re-run needs a fresh packet.
   That matches the graphql-refusal precedent and is deliberate.
+
+## The v004 packet is authored; the card parks — 2026-08-28, night
+
+The attended element is prepared and is the current live packet:
+`docs/verification/reviews/rfc0017-anonymous-probe-v004/operator-packet.md`
+(sha256 `fdef8d425733ef9efaded274ea7167ba22a3a13f26a3c76c784f57647f33add2`)
+with its bound `course-manifest.json`. It authorizes exactly one
+credential-free conditional GET replaying the committed `pull-request`
+capture's `ETag`/`Last-Modified`, expected 304, capture written under the
+v004 directory and bound to the v2 authority's own digest; it binds the
+committed recorder bytes (`ebbbf370…`, 76,007) and states the two
+no-capture outcomes plainly, including the 200-consumes-issuance hazard.
+The integrator proved the packet parses end to end against the committed
+recorder with zero traffic: authority v2, course selection,
+recorder-binding row, manifest binding, and the conditional request
+headers built from the digest-pinned source.
+
+The answered v001–v003 packets are frozen history, not superseded — v004
+is a new gate for a new course. Every unattended obligation on this card
+is done, so it parks `awaiting-live-github`: the operator's exact packet
+statement and the one live request are all that remain.
