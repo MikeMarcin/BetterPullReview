@@ -1339,11 +1339,14 @@ as a causal protocol violation. Modes also add 256 KiB of stderr pressure,
 malformed JSON, structurally wrong or oversized frames, failed/interrupted
 remote terminals, nonzero exit, indefinite execution for cancel/timeout, and a
 descendant heartbeat.
-`qt_agent_launch_canary` inspects the POSIX child's full argv, environment,
+`qt_agent_launch_canary` inspects the child's full argv, environment,
 stdin, partial events, terminal classification, recovery, and heartbeat
 cessation; no credential or repository-private fixture content is present.
-On Windows the same target instead proves fail-closed refusal before process
-start. It does not claim Windows process or descendant-containment execution.
+On Windows the same target first ran green target-native on 2026-08-26/27:
+every selected protocol reaches a typed successful terminal through
+`windows_agent_process.cpp`, a child whose Job Object assignment fails never
+runs its first statement, and a spawned grandchild's heartbeat stops on
+teardown (BPR-0240).
 
 `application_agent_invocation_composition_contract` uses that canary as a test
 replacement for the immutable external-terminal executable while traversing

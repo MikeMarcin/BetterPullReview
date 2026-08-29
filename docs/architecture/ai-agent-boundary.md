@@ -156,12 +156,13 @@ until a suspended-create, assign-before-resume path has target-native proof.
 
 > **Known false at HEAD.** The adapter stopped refusing at `c6f3d96`, which
 > replaced that branch with a dispatch into `windows_agent_process.cpp` — a
-> translation unit since compiled under MSVC. Its first target-native canary
-> reaches the backend but fails before a typed successful terminal. The
-> conclusion still holds (no Windows launch lifecycle or descendant containment
-> is claimed and neither has been proved), but the stated mechanism is not the
-> shipped one. BPR-0332 owns the documentation resolution and BPR-0240 owns the
-> lifecycle proof. Marked by BPR-0401.
+> translation unit since compiled under MSVC. On 2026-08-26/27 that backend
+> passed the full target-native canary and all five composed agent courses,
+> including the Job Object no-pre-assignment-side-effect and
+> descendant-teardown courses, so the suspended-create, assign-before-resume
+> path the paragraph above requires now has its target-native proof, recorded
+> in BPR-0240's dated sections. The refusal statement itself remains false and
+> BPR-0332 owns its documentation resolution. Marked by BPR-0401.
 
 The application composition follows one public route: the workbench panel emits
 an intent; `agent_invocation_host` reruns core legality and validates the full
@@ -345,7 +346,7 @@ so rather than pick the reassuring answer.
 | A real child receives only the allowlist | `qt_agent_launch_canary` |
 | Partial stdout and pressured stderr make progress together | `qt_agent_launch_canary` |
 | Every terminal condition is distinct and failed runs publish nothing | `qt_agent_launch_canary` |
-| POSIX timeout terminates a live descendant heartbeat | `qt_agent_launch_canary` |
+| A timeout terminates a live descendant heartbeat, POSIX and Windows alike | `qt_agent_launch_canary` |
 | The composed portable launcher is constructed and invoked once by the real panel gesture | `application_agent_invocation_composition_contract`, `application_agent_invocation_launcher_construction_cut_contract` |
 | Removing the host or disconnecting the gesture cannot satisfy the public canary | `application_agent_invocation_construction_cut_contract`, `application_agent_invocation_gesture_cut_contract` |
 | Windows launch is refused before start pending safe containment — **known false at HEAD, and the cited test does not support it: `test_windows_assignment_failure_has_no_pre_assignment_side_effect` ends on `Outcome == success`. See BPR-0332.** | `qt_agent_launch_canary` (Windows-conditional) |
@@ -371,8 +372,9 @@ The process and shipped composition contracts use the hostile local canary, not
 an installed agent tool or live provider. A smoke test against an installed
 Codex or Claude remains optional extra validation rather than a gate. Windows
 still refuses before child start; no Windows process-lifecycle success or
-descendant-containment claim is made. **The first clause is known false at
+descendant-containment claim is made. **Both clauses are now known false at
 HEAD** — `c6f3d96` replaced the refusal with a dispatch into a backend since
-compiled and exercised under MSVC, whose first target-native canary fails —
-while the second still holds. BPR-0332 owns the documentation resolution and
-BPR-0240 owns the lifecycle proof. Marked by BPR-0401.
+compiled under MSVC, and on 2026-08-26/27 that backend passed the full
+target-native canary and composed courses, so lifecycle and containment
+success are recorded in BPR-0240's dated sections. BPR-0332 owns the
+documentation resolution of the refusal statement. Marked by BPR-0401.

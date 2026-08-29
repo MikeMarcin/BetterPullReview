@@ -141,3 +141,19 @@ every dependency is done and the only missing input is a person.
 Until then the cost recorded above stands, with one correction: the six
 statements are no longer being carried because nothing can compile the backend.
 They are being carried because nothing has yet.
+
+## The premise has moved again — 2026-08-28
+
+`windows_agent_process.cpp` is no longer uncompiled and unproven. [[BPR-0240]]
+records the MSVC compile (2026-08-22), the first failing target-native canary
+(2026-08-23), and the full conversion — the canary and all five composed agent
+courses green — on 2026-08-26/27, with Job Object pre-resume assignment and
+descendant containment proven and assignment-before-resume pinned in source
+order at `88a8c063`. The lifecycle-proof statements in the verification ledger,
+boundary document, and fixture catalog are reconciled to that record; every
+pre-start-refusal statement this card enumerates stays marked known-false and
+unresolved. The choice between restoring the guard and documenting the
+dispatch remains the product owner's, and option 1's original rationale —
+fail closed until target-native proof exists — should now be weighed against
+that proof existing. This card stays in `10-backlog/` behind open
+[[BPR-0240]].
