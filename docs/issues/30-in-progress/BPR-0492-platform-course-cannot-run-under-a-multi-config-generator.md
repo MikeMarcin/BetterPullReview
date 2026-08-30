@@ -1,7 +1,7 @@
 ---
 id: BPR-0492
 title: The platform course cannot run under a multi-config generator
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
