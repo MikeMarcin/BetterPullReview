@@ -1,7 +1,7 @@
 ---
 id: BPR-0491
 title: A launched station's name does not bind in peer agent lists
-status: Ready
+status: In Progress
 rfc: none
 depends_on: []
 ---
@@ -60,3 +60,46 @@ Both halves of the check need a real second machine, but the portable half —
 what the launcher passes, and what the registry claims — starts here.
 Discovered while dispatching [[BPR-0311]] to `bpr-win-jaegaw`; it does not
 block that card's target-native work, which proceeds by hand-pasted envelope.
+
+## Investigation — 2026-08-29, `bpr-main-mac`
+
+Claude Code 2.1.251, macOS 15.7.7, `Michaels-MacBook-Pro.local`.
+
+Three observations, ordered by how well they are established.
+
+**Established: `claude remote-control --help` never returns.** It printed
+nothing and was still running after 120 s; it had to be killed. So the flag
+contract the launcher depends on — `--name`, `--spawn`, `--continue` — is not
+discoverable from the CLI itself, and an operator diagnosing a launch has no
+way to ask what the flags mean. This is a usability defect on its own, whatever
+the binding cause turns out to be, and it is why this card's first question had
+to be answered by reading `launch_remote_station.py` instead.
+
+**Established: two documented setup steps are undone on this machine.**
+`docs/development/remote-stations.md` step 3 requires
+`"crossSessionInbound": "accept"` in `~/.claude/settings.json` and the removal
+of stale `"remoteControlSpawnMode": "same-dir"` from the project entries in
+`~/.claude.json`. On `bpr-main-mac` the setting is absent and the stale value is
+present for this very project. Both are real drift from the documented state.
+Neither is a confirmed cause: the doc scopes both to *worker* machines, and this
+host is the integrator. The stale spawn mode is documented as confusing a manual
+launch, and no station was launched from this host in this session.
+
+**Hypothesis, not established: the peer list on this host is not live for
+cross-machine sessions.** The agent-list contract says other machines' sessions
+appear only when Remote Control is connected in the querying session. This is an
+ordinary interactive session. Every cross-machine row it shows is either offline
+or belongs to another project, and the freshly launched `bpr-win-jaegaw` never
+appeared across six polls spanning hours. That is consistent with a stale
+directory rather than with a station that failed to register — and it would mean
+`remote-stations.md` prescribes a binding check that is only valid from a
+Remote-Control-connected session, without saying so.
+
+The reciprocal test decides it and needs the other machine: does `bpr-main-mac`
+appear in the *Windows* session's agent list? If it does, registration works and
+this is Mac-side visibility, not a launcher defect. If neither host sees the
+other, the fault is in registration or in the account directory.
+
+Settings changes are deliberately not applied here. `~/.claude.json` and
+`~/.claude/settings.json` are the operator's account configuration, not
+repository state, and this card should not silently rewrite them.
