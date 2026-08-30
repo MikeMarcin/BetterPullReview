@@ -803,6 +803,7 @@ ready lanes — and the lane says which answer it needs:
 
 | Root | Lane | Needs |
 |---|---|---|
+| BPR-0492 | `20-ready/` | Any session, but the proof is target-native. `verify_rfc0016_platform_course.py` assumes a single-config build tree, so [[BPR-0311]]'s exact ledger command cannot reach its first assertion under `windows-dev`'s Visual Studio generator. Confirmed against `main` on 2026-08-29 after `bpr-win-jaegaw` reported it. The repair is integrator-owned because `scripts/*` is on the station's must-not-commit list; the Windows reproduction is what it gets verified against |
 | BPR-0491 | `30-in-progress/` | Claimed by `bpr-main-mac` 2026-08-29. Carded 2026-08-29 while dispatching [[BPR-0311]] to `bpr-win-jaegaw`: the Windows station launched cleanly on `windows-lane`, but its registry name never bound in the `bpr-main-mac` peer agent list across six polls over several hours, so the named-dispatch precondition this document states has never been observed to hold. Every cross-machine peer entry shows a free-text conversation title instead, which is the first thing to check. Platform cards are hand-pasting envelopes meanwhile, which the envelope contract permits |
 | BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session. [[BPR-0311]]'s dependencies are all Done as of 2026-08-29 — [[BPR-0318]] closed with the recorded distributable identity, the macOS flip, and the enabled course — so its target-native Windows verification and one-time Windows flip can start the day the `bpr-win-jaegaw` station opens; [[BPR-0315]] still defers on BPR-0311 and [[BPR-0306]] |
 | BPR-0235 | `40-parked/` | The Windows counterexample replay is discharged by matrix-10, so one criterion remains: the default-off designated live lane target-native, which waits on the separately authorized session authority and attended procedure for a real call against `MikeMarcin/BPR-Test#1` |
@@ -880,10 +881,10 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these seven roots or reaches one
+card on this board is either one of these eight roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it
-(it fell to six when [[BPR-0318]] closed on 2026-08-29 and returned to seven
-the same day with [[BPR-0491]], the first `20-ready/` root in some time):
+(it fell to six when [[BPR-0318]] closed on 2026-08-29, then returned to eight
+the same day as [[BPR-0491]] and [[BPR-0492]] came out of the Windows dispatch):
 of the 36 cards in `10-backlog/`, only [[BPR-0240]] has all its
 dependencies in `60-done/`, and it stays there by its own terms — waiting
 to be consumed by [[BPR-0245]]'s final replay, as [[BPR-0100]] was by
