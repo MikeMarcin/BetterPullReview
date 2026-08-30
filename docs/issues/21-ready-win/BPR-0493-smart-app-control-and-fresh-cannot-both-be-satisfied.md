@@ -65,3 +65,49 @@ This is a host condition, not a repository defect, but it blocks a repository
 requirement, so it is tracked rather than left as an operator anecdote. Turning
 Smart App Control off is a real option and an operator decision, not one this
 card takes unilaterally.
+
+## There is no exception mechanism — 2026-08-29
+
+The station investigated whether this can be narrowed rather than resolved, and
+the answer is no. Recorded so nobody spends the same hour again:
+
+- Smart App Control has no allowlist. Its UI is On/Off only, and the active
+  policies under `CodeIntegrity\CiPolicies\Active` are Microsoft-signed WDAC
+  policies (8 active).
+- "Run anyway" belongs to SmartScreen, a different subsystem, and does not
+  affect code-integrity blocking.
+- Defender's `-ExclusionPath` is also a different subsystem and does not affect
+  it either.
+- Signing is not a practical out. The refused image is
+  `katehighlightingindexer.exe` — a third-party dependency's build tool,
+  relinked in every fresh tree, not a BetterPullReview artifact we could sign.
+
+So the options really are two: wait out each reputation verdict, or turn Smart
+App Control off. **Turning it off is irreversible** — restoring it requires a
+Windows reset. That is an operator decision. The station raised it with the
+operator explicitly and correctly declined to treat it as its own; it remains
+open.
+
+## Two-phase does not satisfy the ledger — 2026-08-29
+
+Asked for its judgment, the station's answer, which [[BPR-0311]] has adopted:
+
+> the moment the split is permitted, "which phase produced this row" becomes a
+> thing a reader has to reconstruct
+
+For the *unavailable* rows the risk is low, because a wrong answer fails loudly
+rather than passing quietly. For the *enabled* flip course it is not
+acceptable: that course exists to prove a one-time selection change against a
+clean artifact, and a half-fresh tree is precisely where a stale object could
+still carry the pre-flip constant.
+
+That is why this card is now a `depends_on` of [[BPR-0311]] rather than an
+advisory note beside it. BPR-0311 cannot close on this host while Smart App
+Control enforces, whoever holds write authority — so this card, not the write
+authority, is that card's real gate.
+
+Three rows are currently held here, with their exact codes on the BPR-0311
+card: the `check_device_selection` zero-request probe
+(`1073751882`), `native_https_device_authorization_contract`
+(`win32=4551`), and `verify_runtime_surface.py` (`WinError 4551`, which names
+the policy in plain language and is the attribution for the other two).
