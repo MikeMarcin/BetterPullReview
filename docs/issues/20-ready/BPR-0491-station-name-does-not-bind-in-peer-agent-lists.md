@@ -176,3 +176,42 @@ authorized to commit and push the station branch.
 So this card's scope grows by one requirement: binding a station name is not
 enough. A session must be able to tell whether *it* is the station, not merely
 whether it is standing in the station's directory.
+
+## The likeliest explanation, and the cheapest way to test it — 2026-08-29
+
+Once `jaegaw-shiny-fox` was identified as the hand-started session, the
+launcher's own session was missing from every list — and the launcher's banner
+says why it might never have existed:
+
+```
+·✔︎· Ready · BetterPullReview · windows-lane
+    Single session · exits when complete
+Code anywhere with the Claude mobile app or https://claude.ai/code?environment=...
+```
+
+`claude remote-control --name <n> --spawn session` starts a **server** that
+spawns its single named session when a controller connects. Nobody connected to
+that environment: the operator worked in a separate terminal instead. If the
+named session is created on connection, then there was never a session to carry
+the name, and the peer list was right to omit it. The launcher would not be
+defective at all — the registry's binding check would simply describe a state
+that cannot exist until someone opens the environment.
+
+This fits every observation better than the alternatives: the launcher
+demonstrably worked in each part that does not need a live session (station
+file written, `station_id` durable, writer lease taken, Remote Control
+serving), and `bpr-main-mac` binds under its registry name on a host where a
+controller *has* connected.
+
+The test is cheap and decisive, and needs no code change: open the launcher's
+environment URL once, let the session spawn, then re-check a peer's agent list
+for `bpr-win-jaegaw`. If it appears, this card is a documentation defect —
+`remote-stations.md` must say that a `--spawn session` station does not bind
+until first connection, and the launcher should say so at launch rather than
+printing `Ready`. If it does not appear, the fault is in registration and the
+card keeps its current scope.
+
+Until that test runs, this remains a hypothesis. It is recorded here so the
+next session does not re-derive it, and it does not change the two established
+findings above — `claude remote-control --help` still never returns, and
+station identity is still checkout-scoped.
