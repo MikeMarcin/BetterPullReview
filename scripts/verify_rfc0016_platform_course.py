@@ -123,21 +123,73 @@ def host_platform() -> str:
     raise CourseFailure(f"unsupported-host:{system}")
 
 
-def application_binary(build_dir: pathlib.Path, release: bool) -> pathlib.Path:
+def tree_configuration(build_dir: pathlib.Path, intended: str) -> str | None:
+    """The configuration to name for this tree, or None when it is single-config.
+
+    A multi-config generator — Visual Studio, Xcode — defers the choice to build
+    time and writes artifacts under a per-configuration directory, so the build,
+    the test run, the inventory, and the artifact probe must all name it or they
+    will not agree. A single-config tree fixed the choice at configure time, and
+    naming it again would be wrong rather than merely redundant.
+
+    The single-config branch checks rather than assumes. A Release course that
+    silently scanned a Debug tree would pass every assertion below it while
+    proving nothing about the shipped artifact, which is the quiet failure this
+    course exists to prevent.
+    """
+    cache = build_dir / "CMakeCache.txt"
+    require(cache.is_file(), f"cmake-cache-missing:{build_dir}")
+
+    types = ""
+    build_type = ""
+    for line in cache.read_text(errors="replace").splitlines():
+        if line.startswith("CMAKE_CONFIGURATION_TYPES:"):
+            types = line.partition("=")[2].strip()
+        elif line.startswith("CMAKE_BUILD_TYPE:"):
+            build_type = line.partition("=")[2].strip()
+
+    if types:
+        available = [entry for entry in types.split(";") if entry]
+        require(
+            intended in available,
+            f"configuration-unavailable:{intended}:{types}",
+        )
+        return intended
+
+    require(
+        build_type == intended,
+        f"configuration-mismatch:tree={build_type or 'none'}:course={intended}",
+    )
+    return None
+
+
+def application_binary(
+    build_dir: pathlib.Path,
+    release: bool,
+    configuration: str | None = None,
+) -> pathlib.Path:
     """The shipped executable inside a configured build tree."""
-    candidates = [
-        build_dir / "src" / "app" / "BetterPullReview.app" / "Contents"
-        / "MacOS" / "BetterPullReview",
-        build_dir / "src" / "app" / "better_pull_review.app" / "Contents"
-        / "MacOS" / "better_pull_review",
-        build_dir / "src" / "app" / "BetterPullReview.exe",
-        build_dir / "src" / "app" / "better_pull_review.exe",
-        build_dir / "src" / "app" / "BetterPullReview",
-        build_dir / "src" / "app" / "better_pull_review",
-    ]
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate
+    leaves = (
+        pathlib.Path("BetterPullReview.app") / "Contents" / "MacOS"
+        / "BetterPullReview",
+        pathlib.Path("better_pull_review.app") / "Contents" / "MacOS"
+        / "better_pull_review",
+        pathlib.Path("BetterPullReview.exe"),
+        pathlib.Path("better_pull_review.exe"),
+        pathlib.Path("BetterPullReview"),
+        pathlib.Path("better_pull_review"),
+    )
+    # A multi-config tree keeps the configuration directory first: the flat
+    # path can also exist there as a stale leftover, and picking it up would
+    # scan the wrong bytes.
+    roots = [build_dir / "src" / "app"]
+    if configuration is not None:
+        roots.insert(0, build_dir / "src" / "app" / configuration)
+    for root in roots:
+        for leaf in leaves:
+            candidate = root / leaf
+            if candidate.is_file():
+                return candidate
     raise CourseFailure(
         f"application-binary-missing:{'release' if release else 'debug'}"
     )
@@ -147,54 +199,66 @@ def configure_and_build(
     preset: str,
     build_dir: pathlib.Path,
     fresh: bool,
-) -> None:
+    configuration: str,
+) -> str | None:
     configure = ["cmake", "--preset", preset, "-B", str(build_dir)]
     if fresh:
         configure.append("--fresh")
     result = run(configure, cwd=REPOSITORY_ROOT)
     require(result.returncode == 0, f"configure-failed:{preset}")
 
+    resolved = tree_configuration(build_dir, configuration)
+
     build = ["cmake", "--build", str(build_dir)]
+    if resolved is not None:
+        build += ["--config", resolved]
     if fresh:
         build.append("--clean-first")
     result = run(build, cwd=REPOSITORY_ROOT)
     require(result.returncode == 0, f"build-failed:{preset}")
+    return resolved
 
 
-def check_inventory(build_dir: pathlib.Path) -> None:
+def check_inventory(
+    build_dir: pathlib.Path,
+    configuration: str | None = None,
+) -> None:
     """The inventory runs before any test, never after."""
-    result = run(
-        [
-            sys.executable,
-            str(REPOSITORY_ROOT / "scripts" / "verify_rfc0016_test_inventory.py"),
-            "--build-dir",
-            str(build_dir),
-            "--repository-root",
-            str(REPOSITORY_ROOT),
-        ],
-        cwd=REPOSITORY_ROOT,
-    )
+    command = [
+        sys.executable,
+        str(REPOSITORY_ROOT / "scripts" / "verify_rfc0016_test_inventory.py"),
+        "--build-dir",
+        str(build_dir),
+        "--repository-root",
+        str(REPOSITORY_ROOT),
+    ]
+    # BPR-0462: a multi-config inventory reads an empty manifest without this,
+    # so omitting it would let the selector check pass having inventoried
+    # nothing at all.
+    if configuration is not None:
+        command += ["--build-config", configuration]
+    result = run(command, cwd=REPOSITORY_ROOT)
     require(
         "RFC0016_TEST_INVENTORY_OK" in result.stdout,
         f"inventory-failed:{result.stderr.strip()[:400]}",
     )
 
 
-def check_course_selectors(build_dir: pathlib.Path) -> int:
+def check_course_selectors(
+    build_dir: pathlib.Path,
+    configuration: str | None = None,
+) -> int:
     """Run the focused matrix, requiring at least one test to match."""
-    result = run(
-        [
-            "ctest",
-            "--test-dir",
-            str(build_dir),
-            "--no-tests=error",
-            "--output-on-failure",
-            "-R",
-            COURSE_SELECTOR_PATTERN,
-        ],
-        cwd=REPOSITORY_ROOT,
-        timeout=3600,
-    )
+    command = ["ctest", "--test-dir", str(build_dir)]
+    if configuration is not None:
+        command += ["-C", configuration]
+    command += [
+        "--no-tests=error",
+        "--output-on-failure",
+        "-R",
+        COURSE_SELECTOR_PATTERN,
+    ]
+    result = run(command, cwd=REPOSITORY_ROOT, timeout=3600)
     require(
         result.returncode == 0,
         f"course-selectors-failed:{result.stdout.strip()[-600:]}",
@@ -447,14 +511,18 @@ def main() -> int:
         debug_dir = arguments.build_root / "debug"
         release_dir = arguments.build_root / "release"
 
-        configure_and_build(arguments.dev_preset, debug_dir, arguments.fresh)
-        check_inventory(debug_dir)
-        selectors = check_course_selectors(debug_dir)
-
-        configure_and_build(
-            arguments.release_preset, release_dir, arguments.fresh
+        debug_configuration = configure_and_build(
+            arguments.dev_preset, debug_dir, arguments.fresh, "Debug"
         )
-        shipped = application_binary(release_dir, release=True)
+        check_inventory(debug_dir, debug_configuration)
+        selectors = check_course_selectors(debug_dir, debug_configuration)
+
+        release_configuration = configure_and_build(
+            arguments.release_preset, release_dir, arguments.fresh, "Release"
+        )
+        shipped = application_binary(
+            release_dir, release=True, configuration=release_configuration
+        )
 
         check_platform_surfaces(shipped, arguments.platform)
         check_release_artifact(shipped)

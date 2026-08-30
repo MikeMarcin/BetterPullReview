@@ -1,7 +1,7 @@
 ---
 id: BPR-0492
 title: The platform course cannot run under a multi-config generator
-status: In Progress
+status: Ready
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -71,3 +71,43 @@ station read the script and reported the three gaps; they were then confirmed
 independently against `main` before this card was written. `scripts/*` is on
 the station's must-not-commit list, so the repair is the integrator's on
 `main` and the station's reproduction is the evidence it is verified against.
+
+## Repair and what proves it — 2026-08-29
+
+`tree_configuration()` resolves each configured tree from its own
+`CMakeCache.txt` rather than from the platform or the preset name:
+`CMAKE_CONFIGURATION_TYPES` present means multi-config and the intended
+configuration is named downstream; absent means single-config and
+`CMAKE_BUILD_TYPE` must already equal it. The single-config branch checks
+instead of assuming, which is what closes the quiet failure — a Release course
+run against a Debug tree now stops at `configuration-mismatch` rather than
+scanning the wrong bytes and passing.
+
+The resolved configuration reaches all four places that needed it:
+`cmake --build --config`, `ctest -C`, the artifact probe's
+`src/app/<Config>/` root, and — the one the original card missed —
+`verify_rfc0016_test_inventory.py --build-config`. That last one matters most.
+The inventory script has carried `--build-config` since [[BPR-0462]], with its
+own help text saying it is "required for a multi-config generator, whose
+inventory is empty without one." The course never passed it, so on Windows the
+inventory that exists to make a missing registration fail loudly would itself
+have inventoried nothing, and the selector check would have run against an
+empty manifest. A vacuous pass, in the gate whose whole purpose is to prevent
+vacuous passes.
+
+The multi-config artifact probe puts the configuration directory ahead of the
+flat path, because a stale flat leftover can coexist with a fresh
+per-configuration build and picking it up would scan the wrong bytes.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| Single-config trees resolve to no named configuration | `tree_configuration` over real `build/dev` and `build/app-release` | `None` for both; `CONFIG_TYPES` empty, `BUILD_TYPE` Debug/Release as expected | this commit |
+| A mismatched single-config tree fails loudly | `tree_configuration(build/dev, "Release")` on the real tree | `configuration-mismatch:tree=Debug:course=Release` | this commit |
+| The real macOS artifact is still found | `application_binary(build/app-release, release=True, configuration=None)` | `build/app-release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview` | this commit |
+| Multi-config trees name the configuration | Synthetic caches with `CMAKE_CONFIGURATION_TYPES=Debug;Release;RelWithDebInfo` | Returns `Release` and `Debug`; a tree lacking the configuration fails `configuration-unavailable`; a missing cache fails `cmake-cache-missing` | this commit |
+| The probe prefers the configuration directory | Both `src/app/BetterPullReview.exe` and `src/app/Release/BetterPullReview.exe` present | Picks the `Release/` one; with `configuration=None` picks the flat one | this commit |
+| The Windows course reaches a real assertion | Ledger's exact `py -3` command on `bpr-win-jaegaw` | **Pending** — target-native, and the reason this card is not terminal | Pending |
+
+The macOS half is proven on this host. The Windows half is not provable here at
+all, so the card moves to `21-ready-win/` rather than to `60-done/`: the repair
+is committed and unproven on the only platform that motivated it.
