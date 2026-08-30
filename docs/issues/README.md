@@ -803,6 +803,7 @@ ready lanes — and the lane says which answer it needs:
 
 | Root | Lane | Needs |
 |---|---|---|
+| BPR-0491 | `20-ready/` | Any session. Carded 2026-08-29 while dispatching [[BPR-0311]] to `bpr-win-jaegaw`: the Windows station launched cleanly on `windows-lane`, but its registry name never bound in the `bpr-main-mac` peer agent list across six polls over several hours, so the named-dispatch precondition this document states has never been observed to hold. Every cross-machine peer entry shows a free-text conversation title instead, which is the first thing to check. Platform cards are hand-pasting envelopes meanwhile, which the envelope contract permits |
 | BPR-0311, BPR-0315 | `21-ready-win/` | A Windows session. [[BPR-0311]]'s dependencies are all Done as of 2026-08-29 — [[BPR-0318]] closed with the recorded distributable identity, the macOS flip, and the enabled course — so its target-native Windows verification and one-time Windows flip can start the day the `bpr-win-jaegaw` station opens; [[BPR-0315]] still defers on BPR-0311 and [[BPR-0306]] |
 | BPR-0235 | `40-parked/` | The Windows counterexample replay is discharged by matrix-10, so one criterion remains: the default-off designated live lane target-native, which waits on the separately authorized session authority and attended procedure for a real call against `MikeMarcin/BPR-Test#1` |
 | BPR-0310, BPR-0314 | `23-ready-lin/` | **Not a Linux session.** A Linux session ran this lane on 2026-08-22 and removed every Linux reason it had; the tests-disabled Release build links here ([[BPR-0421]], [[BPR-0440]]) and `coding-tidy` runs here ([[BPR-0443]]). This row's older text said BPR-0310 needed RFC-BPR-0016 implemented at all; that was true on 2026-08-22 and is not now — the contract, transport, application host, schedule, and Qt panel exist and reach `main.cpp`, and [[BPR-0277]] through [[BPR-0282]] are Done. What actually remains upstream: nothing for [[BPR-0310]] as of 2026-08-29 — [[BPR-0318]], its only unmet dependency, closed with the recorded distributable identity, so the Linux course and one-time Linux flip can start in the next Linux session; [[BPR-0314]] must observe a typed public-preview-unavailability selection no code produces yet, which is RFC-BPR-0017 implementation behind [[BPR-0306]] — RFC-BPR-0002, its former gate, closed Auto-Verified on 2026-08-28. BPR-0314 carries three target-native rows now. A Linux session opening this lane closed [[BPR-0444]], [[BPR-0469]], [[BPR-0470]], and [[BPR-0471]] and neither of these |
@@ -879,9 +880,10 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these six roots or reaches one
+card on this board is either one of these seven roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it
-(the count was seven until [[BPR-0318]] closed on 2026-08-29):
+(it fell to six when [[BPR-0318]] closed on 2026-08-29 and returned to seven
+the same day with [[BPR-0491]], the first `20-ready/` root in some time):
 of the 36 cards in `10-backlog/`, only [[BPR-0240]] has all its
 dependencies in `60-done/`, and it stays there by its own terms — waiting
 to be consumed by [[BPR-0245]]'s final replay, as [[BPR-0100]] was by
