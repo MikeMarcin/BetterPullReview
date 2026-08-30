@@ -155,3 +155,42 @@ guard a session opened there is not a station, holds no lease, and must not
 accept a `remote-task` envelope addressed to `bpr-win-jaegaw` — see
 [[BPR-0491]]. It is a third checkout on that machine and should be launched or
 driven deliberately, not by pointing the existing station session at it.
+
+## Decision: Smart App Control is being turned off — 2026-08-29
+
+The product owner decided to disable Smart App Control on the JaegAW Windows
+host outright, declining both the Dev Drive test and the dependency-cache
+question. The decision was taken with the irreversibility stated in advance:
+restoring Smart App Control requires a Windows reset, and this is a permanent
+reduction in that machine's protection.
+
+The operator performs that change themselves. It is a system security setting,
+so no agent makes it and none was asked to — not this session, and not the
+station, which would be the same act at one remove.
+
+### What this settles, and what it does not
+
+Settled: the three held rows on [[BPR-0311]] — the `check_device_selection`
+zero-request probe, `native_https_device_authorization_contract`, and
+`verify_runtime_surface.py` — should all run once the policy stops enforcing,
+and the ledger's `--fresh` requirement stops conflicting with the host. That
+must be confirmed by re-running rather than assumed; a policy that has stopped
+blocking is not the same as a row that has passed.
+
+Not settled, and this card stays open for it: **the constraint itself is not
+host-specific.** Any Windows machine with Smart App Control enforcing — which
+is the default on a clean Windows 11 install — hits exactly this wall, because
+the refused image is a third-party dependency's build tool relinked from
+source, not anything this project could sign. Turning it off here fixes this
+machine and teaches the project nothing unless it is written down.
+
+So this card's remaining requirement is documentation, not a code change:
+`docs/development/remote-stations.md` should state that a Windows station host
+cannot run the platform courses while Smart App Control enforces, that there is
+no allowlist or exception, and that disabling it is irreversible — so the next
+person provisioning a Windows host learns it from the document instead of from
+a six-and-a-half-minute configure failure with the cause swallowed.
+
+The [[BPR-0492]] repair that made `configure-failed` carry its output tail is
+what would have made that failure self-explanatory the first time, and stands
+regardless of this decision.
