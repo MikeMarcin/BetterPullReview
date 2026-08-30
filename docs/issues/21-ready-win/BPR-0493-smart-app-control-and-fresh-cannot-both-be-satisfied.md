@@ -111,3 +111,47 @@ card: the `check_device_selection` zero-request probe
 (`1073751882`), `native_https_device_authorization_contract`
 (`win32=4551`), and `verify_runtime_surface.py` (`WinError 4551`, which names
 the policy in plain language and is the attribution for the other two).
+
+## Dev Drive hypothesis — open, 2026-08-29
+
+The operator created a Windows Dev Drive at `D:\` and checked the repository
+out to `D:\git\BetterPullReview` to see whether the block does not apply there.
+
+Recorded because it is worth settling, but the mechanism argues against it. A
+Dev Drive's benefit is Microsoft Defender **antivirus** performance mode — ReFS
+plus filter-attach control — and Smart App Control is the **code integrity**
+subsystem, enforced by the kernel's CI policy independently of which volume an
+image lives on. That is the same subsystem boundary that already made Defender
+`-ExclusionPath` useless here. If that reading is right, `D:\` relinks
+`katehighlightingindexer.exe` into its own dependency cache and it is refused
+exactly as on `C:\`.
+
+The test is cheap and decisive, and it should be run before the irreversible
+option is considered:
+
+```powershell
+cd D:\git\BetterPullReview
+cmake --preset windows-dev
+```
+
+Getting past the `bpr_syntax_execute` step means the hypothesis holds and this
+card can close as host-configuration guidance. Failing again at
+`MSB8066` / `1073751882` means it does not, and the card's two real options
+stand unchanged.
+
+Two things to check in the same run, because they cost nothing extra and one of
+them could dissolve this card without touching Smart App Control at all:
+
+- Whether the refused tool is rebuilt per build root at all. It lives under a
+  `_bpr\ksyntaxhighlighting\...` dependency cache rather than inside the course's
+  `--build-root`, so if that cache survives `--fresh`, the tool is linked once
+  and cleared once, and `--fresh` never restarts the clock. The Windows run saw
+  it refused on a first build, which does not distinguish the two cases.
+- Whether a second `--fresh` configure against an already-cleared cache
+  proceeds. That is the same question from the other direction.
+
+`D:\git\BetterPullReview` has no `.remote-station.json`, so by the identity
+guard a session opened there is not a station, holds no lease, and must not
+accept a `remote-task` envelope addressed to `bpr-win-jaegaw` — see
+[[BPR-0491]]. It is a third checkout on that machine and should be launched or
+driven deliberately, not by pointing the existing station session at it.
