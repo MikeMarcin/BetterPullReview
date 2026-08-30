@@ -35,13 +35,34 @@ station; never reuse a name for a different checkout.
 | Station name | Machine | Environment | Branch | Status |
 |---|---|---|---|---|
 | `bpr-main-mac` | MacBook Pro | macos | `main` | provisioned 2026-08-29 |
-| `bpr-win-jaegaw` | JaegAW | windows-native | `windows-lane` | **unprovisioned** — host still runs free-text sessions |
+| `bpr-win-jaegaw` | JaegAW | windows-native | `windows-lane` | launched 2026-08-29 (`--read-only`); station file written and writer lease taken, but **the name does not bind** — see [[BPR-0491]] |
 | `bpr-linux-jaegaw` | JaegAW (WSL2) | wsl2 | `linux-lane` | **unprovisioned** — host still runs free-text sessions |
 
 A row is aspirational until its host is relaunched through
 `scripts/launch_remote_station.py` and the name shows up bound in a peer's
 agent list: dispatch to an unbound name resolves to a silent auto-variant and
-misroutes rather than failing loudly. Retire the current free-text sessions
+misroutes rather than failing loudly.
+
+That check has never once succeeded, and 2026-08-29 is when that stopped
+being a theory. `bpr-win-jaegaw` launched cleanly — station file written,
+writer lease taken, Remote Control serving — and its name never appeared in
+the `bpr-main-mac` peer list. The Windows host could not see `bpr-main-mac`
+either. The station was reached only by probing the one JaegAW session that
+was visible, under the auto-generated name `jaegaw-shiny-fox`, which turned
+out to be a hand-started CLI session rather than the launcher's.
+
+Two things follow, and until [[BPR-0491]] resolves them, dispatch here is by
+hand-pasted envelope or by probing an auto-named session and confirming its
+identity before sending anything binding.
+
+- A visible name is not evidence of which process it is. Confirm identity by
+  asking for `.remote-station.json`, the toplevel, the branch, and `HEAD`
+  before dispatching, and treat the answer as identifying the *checkout*.
+- `.remote-station.json` lives at the checkout root, so every session opened
+  in that directory reads it and answers as that station — including one the
+  launcher never wrapped and the writer lease cannot see. Launching
+  `--read-only` is what bounds that today: it holds such a session to
+  read-only work no matter what it believes it is. Retire the current free-text sessions
 ("BPR windows scope routing", "BPR linux work") as their stations come up.
 Add machine suffixes as soon as one platform exists on two machines.
 
