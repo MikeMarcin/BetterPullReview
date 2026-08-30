@@ -142,3 +142,37 @@ interactive sessions predating the lease contract, held to claim-by-committed-
 lane-move, which is how every commit on this card was made. The exception is
 documented as something to retire, and the two-sessions-one-checkout state
 found here is the concrete argument for retiring it.
+
+## Station identity is checkout-scoped, not session-scoped — 2026-08-29
+
+The operator confirmed that `jaegaw-shiny-fox` is **not** the launcher's
+session. It is an ordinary `claude` CLI session started by hand in
+`C:/code/git/bpr-windows`, given `/bpr-implement-rfc BPR-0311`. Its name is the
+Remote Control auto-name pattern — machine token plus two words — which is what
+a session gets when nothing passes `--name`. Only the launcher passes it.
+
+That session answered an identity probe as `bpr-win-jaegaw`, quoting the
+station file, the branch, and `read-only-proof`, and it was right to: it read
+`.remote-station.json` off the checkout root, which is where the launcher wrote
+it. Nothing in the identity guard distinguishes the session the launcher
+wrapped from any other session opened in the same directory. Station identity
+is a property of the checkout, so an ad-hoc session inherits a station identity
+it was never granted, and answers for that station convincingly.
+
+Both processes were live in that one checkout: the launcher holding the writer
+lease, and the unwrapped session doing the work. `station_lease.py status`
+reported `station-writer: held` with `(no holder record)`, so the guard could
+not even name the holder. This is the hole `remote-routing.md` already
+describes — "the lock cannot see a session that was never wrapped" — reached in
+practice rather than in theory, and reached by the ordinary route of an
+operator opening a terminal.
+
+The damage was bounded only by `--read-only`: with `authority: read-only-proof`
+in the station file, the identity guard holds the unwrapped session to
+read-only, so nothing could reach `main`. Had the station been launched
+`lane-commit`, an unwrapped session in that checkout would have believed itself
+authorized to commit and push the station branch.
+
+So this card's scope grows by one requirement: binding a station name is not
+enough. A session must be able to tell whether *it* is the station, not merely
+whether it is standing in the station's directory.
