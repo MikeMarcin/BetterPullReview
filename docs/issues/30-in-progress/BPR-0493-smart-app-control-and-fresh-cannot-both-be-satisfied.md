@@ -1,7 +1,7 @@
 ---
 id: BPR-0493
 title: Smart App Control and the ledger's --fresh requirement are mutually exclusive
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -194,3 +194,33 @@ a six-and-a-half-minute configure failure with the cause swallowed.
 The [[BPR-0492]] repair that made `configure-failed` carry its output tail is
 what would have made that failure self-explanatory the first time, and stands
 regardless of this decision.
+
+## Claimed on JaegAW, and Smart App Control is off — 2026-08-29
+
+The operator performed the decided change. Read back on this host at 23:08
+local, before any build ran:
+
+```text
+HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy\VerifiedAndReputablePolicyState = 0
+Win32_DeviceGuard.UsermodeCodeIntegrityPolicyEnforcementStatus            = 0
+Win32_DeviceGuard.CodeIntegrityPolicyEnforcementStatus                    = 2
+CodeIntegrity\CiPolicies\Active                                           = 8 files
+```
+
+`0`/`0` is the not-enforcing reading of the same two values this card recorded
+as `1`/`2` when it was written. The eight signed policies still sit under
+`CiPolicies\Active` — those are the base Windows policies and were never the
+Smart App Control verdict — and `CodeIntegrityPolicyEnforcementStatus = 2` is
+kernel-mode HVCI, a different policy from the user-mode one that did the
+blocking. The user-mode number is the one this card is about, and it is `0`.
+
+A policy that has stopped enforcing is not a row that has passed, exactly as
+the decision section says. The confirmation this card needs is a real
+`--fresh` course completing on this host, which is [[BPR-0311]]'s exact ledger
+command, so that run is this card's evidence as well as that one's.
+
+Claimed by the session driving `C:\code\git\BetterPullReview` on `main`, which
+is where the work has to land: the `bpr-win-jaegaw` station is
+`read-only-proof` and cannot commit, and this is a native Windows host, so the
+project integrator and the target-native platform are the same session here.
+Both writer leases read free before the claim.
