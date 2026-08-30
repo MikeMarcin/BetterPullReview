@@ -205,7 +205,15 @@ def configure_and_build(
     if fresh:
         configure.append("--fresh")
     result = run(configure, cwd=REPOSITORY_ROOT)
-    require(result.returncode == 0, f"configure-failed:{preset}")
+    # The tail matters as much here as on the ctest and inventory paths. A bare
+    # `configure-failed:<preset>` cost a hand reproduction on Windows to learn
+    # that a dependency's generated tool had been blocked by Device Guard, which
+    # the captured output said outright.
+    require(
+        result.returncode == 0,
+        f"configure-failed:{preset}:"
+        f"{(result.stdout + result.stderr).strip()[-600:]}",
+    )
 
     resolved = tree_configuration(build_dir, configuration)
 
@@ -215,7 +223,11 @@ def configure_and_build(
     if fresh:
         build.append("--clean-first")
     result = run(build, cwd=REPOSITORY_ROOT)
-    require(result.returncode == 0, f"build-failed:{preset}")
+    require(
+        result.returncode == 0,
+        f"build-failed:{preset}:"
+        f"{(result.stdout + result.stderr).strip()[-600:]}",
+    )
     return resolved
 
 

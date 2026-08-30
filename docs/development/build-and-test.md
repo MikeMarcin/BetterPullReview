@@ -378,7 +378,8 @@ paths or source content. Scale rasters are written below
 System-theme or final presentation-polish evidence.
 
 Windows developers and release operators use the conditional
-multi-configuration preset that selects the Visual Studio 2022 x64 generator:
+multi-configuration preset that selects the Visual Studio 18 2026 x64
+generator:
 
 ```powershell
 cmake --preset windows-dev

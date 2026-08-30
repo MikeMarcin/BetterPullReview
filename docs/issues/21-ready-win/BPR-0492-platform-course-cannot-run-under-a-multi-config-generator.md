@@ -86,14 +86,11 @@ scanning the wrong bytes and passing.
 The resolved configuration reaches all four places that needed it:
 `cmake --build --config`, `ctest -C`, the artifact probe's
 `src/app/<Config>/` root, and — the one the original card missed —
-`verify_rfc0016_test_inventory.py --build-config`. That last one matters most.
-The inventory script has carried `--build-config` since [[BPR-0462]], with its
-own help text saying it is "required for a multi-config generator, whose
-inventory is empty without one." The course never passed it, so on Windows the
-inventory that exists to make a missing registration fail loudly would itself
-have inventoried nothing, and the selector check would have run against an
-empty manifest. A vacuous pass, in the gate whose whole purpose is to prevent
-vacuous passes.
+`verify_rfc0016_test_inventory.py --build-config`. The inventory script has
+carried that argument since [[BPR-0462]], with its own help text saying it is
+"required for a multi-config generator, whose inventory is empty without one."
+The course never passed it, so on Windows the inventory step refused. Passing
+it is what lets that gate do its job rather than stop at a broken invocation.
 
 The multi-config artifact probe puts the configuration directory ahead of the
 flat path, because a stale flat leftover can coexist with a fresh
@@ -111,3 +108,62 @@ per-configuration build and picking it up would scan the wrong bytes.
 The macOS half is proven on this host. The Windows half is not provable here at
 all, so the card moves to `21-ready-win/` rather than to `60-done/`: the repair
 is committed and unproven on the only platform that motivated it.
+
+## Correction: the missing `--build-config` was never a vacuous pass — 2026-08-29
+
+This card and its commit `db011a54` claimed that omitting `--build-config`
+would let the inventory gate pass vacuously on Windows, and called that a worse
+outcome than `application-binary-missing`. That was wrong, and `bpr-win-jaegaw`
+disproved it target-native at HEAD `6941a91b`:
+
+```text
+py -3 scripts\verify_rfc0016_test_inventory.py --build-dir build\windows-dev --repository-root .
+  -> rfc0016-test-inventory:fail:ctest-inventory-empty   exit 1
+py -3 ... --build-config Debug
+  -> RFC0016_TEST_INVENTORY_OK                           exit 0
+```
+
+Confirmed independently here by reading the script: `registered_tests` raises
+`InventoryFailure("ctest-inventory-empty")` on an empty result, with the comment
+"an empty inventory is a broken invocation, never a graph fact."
+[[BPR-0462]] had already hardened exactly this. The gate fails closed, so the
+course would have stopped at `check_inventory`'s `inventory-failed:` — loudly,
+and before `application-binary-missing` — rather than proving nothing quietly.
+
+The repair still stands and is still worth having: passing `--build-config` is
+what makes the inventory *run* instead of refuse. But it fixed a fail-closed
+refusal, not a silent hole, and the claim is corrected here rather than left
+standing as a defect that never existed. The one genuine silent-failure risk
+this card closes is the other one — a Release course scanning a Debug tree,
+which `tree_configuration`'s single-config branch now refuses.
+
+## Target-native results — 2026-08-29, `bpr-win-jaegaw` at `6941a91b`
+
+The repaired code paths were never reached. The exact ledger command failed at
+the first step, 6.5 minutes in, at `configure-failed:windows-dev`. The cause is
+a host condition rather than anything in this repository: Smart App Control is
+on and enforcing (`VerifiedAndReputablePolicyState = 1`,
+`UsermodeCodeIntegrityPolicyEnforcementStatus = 2`), and it blocked the freshly
+linked `katehighlightingindexer.exe` that the syntax-highlighting dependency
+generates during configure. That is the [[BPR-0424]] quirk. It is tracked
+separately as [[BPR-0493]], because its consequence is structural rather than
+incidental.
+
+Diagnosing it required a hand reproduction, because `configure-failed:{preset}`
+discarded the captured output that named Device Guard outright — while the
+ctest and inventory paths already carried a tail. Both `configure-failed` and
+`build-failed` now carry one too.
+
+Pre-flip Windows rows that do pass at this HEAD, via
+`ctest --test-dir build\windows-dev -C Debug` — which is the repaired `-C`
+argument working as intended:
+
+- Credential Manager 4/4; PE/runtime/dependency 2/2 (`binary_dependency_surface`
+  selecting `dumpbin`, `runtime_process_surface`).
+- The RFC-0016 course selector matrix 13/14, the single failure being
+  `native_https_device_authorization_contract` with
+  `BPR_NETWORK_ISOLATION_UNAVAILABLE:launch:win32=4551` — the same Device Guard
+  condition, not the product.
+
+Device capability stayed `unavailable` throughout and
+`github_application.cpp` was untouched, as the dispatch required.
