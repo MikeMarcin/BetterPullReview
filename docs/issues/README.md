@@ -803,6 +803,7 @@ ready lanes — and the lane says which answer it needs:
 
 | Root | Lane | Needs |
 |---|---|---|
+| BPR-0494 | `21-ready-win/` | A Windows session. The course's five symbol prohibitions passed against an empty table on Windows, because an MSVC-linked image has no COFF symbol table — a build that linked QtWebEngine would have satisfied the check forbidding it. Repaired to reuse [[BPR-0364]]'s linker-map reader and to refuse an empty table; the macOS half is proven and the target-native half is not |
 | BPR-0493 | `21-ready-win/` | A decision plus a Windows session. Smart App Control refuses the freshly linked `katehighlightingindexer.exe` the syntax-highlighting dependency generates, and `--fresh` relinks it every run, so the ledger's `--fresh` requirement and this host cannot both be satisfied in one pass. Found 2026-08-29 running [[BPR-0311]]'s exact command. Turning Smart App Control off is an operator decision, not this card's to take |
 | BPR-0492 | `21-ready-win/` | A Windows session. The repair is committed and its macOS non-regression half is proven; what remains is target-native. `verify_rfc0016_platform_course.py` assumes a single-config build tree, so [[BPR-0311]]'s exact ledger command cannot reach its first assertion under `windows-dev`'s Visual Studio generator. Confirmed against `main` on 2026-08-29 after `bpr-win-jaegaw` reported it. The repair is integrator-owned because `scripts/*` is on the station's must-not-commit list; the Windows reproduction is what it gets verified against |
 | BPR-0491 | `20-ready/` | Any session. Carded 2026-08-29 while dispatching [[BPR-0311]] to `bpr-win-jaegaw`: the Windows station launched cleanly on `windows-lane`, but its registry name never bound in the `bpr-main-mac` peer agent list across six polls over several hours, so the named-dispatch precondition this document states has never been observed to hold. Every cross-machine peer entry shows a free-text conversation title instead, which is the first thing to check. Platform cards are hand-pasting envelopes meanwhile, which the envelope contract permits |
@@ -882,11 +883,11 @@ person who made it. And the owner named a gap nobody had carded: the shipped
 drawer does not anchor a comment to its line, which is [[BPR-0414]].
 
 The table is the complete frontier rather than a selection from it. Every open
-card on this board is either one of these nine roots or reaches one
+card on this board is either one of these ten roots or reaches one
 transitively — checked by deriving it from the lanes rather than asserting it
 (it fell to six when [[BPR-0318]] closed on 2026-08-29, then returned to eight
-then to nine as [[BPR-0491]], [[BPR-0492]], and [[BPR-0493]] came out of the
-Windows dispatch):
+then to ten as [[BPR-0491]] through [[BPR-0494]] came out of the Windows
+dispatch):
 of the 36 cards in `10-backlog/`, only [[BPR-0240]] has all its
 dependencies in `60-done/`, and it stays there by its own terms — waiting
 to be consumed by [[BPR-0245]]'s final replay, as [[BPR-0100]] was by

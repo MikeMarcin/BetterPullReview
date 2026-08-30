@@ -34,7 +34,6 @@ import os
 import pathlib
 import platform
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -296,18 +295,42 @@ def check_course_selectors(
 
 
 def symbol_table(binary: pathlib.Path) -> str:
-    if platform.system() == "Windows":
-        tools = (("dumpbin", ["/symbols"]), ("llvm-readobj", ["--symbols"]))
-    else:
-        tools = (("nm", ["-a"]), ("llvm-nm", ["-a"]), ("objdump", ["-t"]))
-    for tool, arguments in tools:
-        resolved = shutil.which(tool)
-        if resolved is None:
-            continue
-        result = run([resolved, *arguments, str(binary)])
-        if result.returncode == 0:
-            return result.stdout
-    raise CourseFailure("symbol-inspector-unavailable")
+    """Every symbol the linked image kept, as one text blob to search.
+
+    This used to shell `dumpbin /symbols` on Windows, which is blind: an
+    MSVC-linked image carries no COFF symbol table, because the linker consumed
+    it. `dumpbin` answers with a header and no symbols, so every
+    `require(symbol not in table)` below it passed on an empty string — a build
+    that genuinely linked QtWebEngine would have satisfied the check whose only
+    purpose is to forbid it (BPR-0494).
+
+    The repository had already solved this for the composed-host gate in
+    BPR-0364: `link /MAP` writes the linked image's symbols beside the
+    executable, and `verify_composed_hosts.inspect_symbols` reads, demangles,
+    and normalizes them, falling back to llvm-nm, nm, or objdump off Windows.
+    `src/app/CMakeLists.txt` said "Nothing else consumes it"; this course was
+    the consumer that should have. Reuse that reader rather than keeping a
+    second, weaker one here.
+    """
+    scripts_directory = str(REPOSITORY_ROOT / "scripts")
+    if scripts_directory not in sys.path:
+        sys.path.insert(0, scripts_directory)
+    import verify_composed_hosts
+
+    try:
+        inspected = verify_composed_hosts.inspect_symbols(binary)
+    except Exception as error:  # noqa: BLE001 - reported, never swallowed
+        raise CourseFailure(
+            f"symbol-inspector-unavailable:{str(error)[:300]}"
+        ) from error
+
+    # An empty table cannot distinguish a clean artifact from an unreadable
+    # one, and every prohibition below is a negative check. Refuse instead.
+    require(
+        bool(inspected.symbols),
+        f"symbol-table-empty:{inspected.inspector}",
+    )
+    return "\n".join(inspected.symbols)
 
 
 def check_platform_surfaces(
