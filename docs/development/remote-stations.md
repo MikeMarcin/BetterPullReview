@@ -123,6 +123,51 @@ authoritative everywhere else, and the station file is authoritative always.
    session's identity guard still applies: ask a station for out-of-scope
    work and it names the right station instead of doing it.
 
+## Windows hosts: Smart App Control must be off
+
+A Windows station cannot run the platform verification courses while Smart App
+Control is enforcing, and it is **on by default on a clean Windows 11
+install**. Check before provisioning:
+
+```powershell
+(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy').VerifiedAndReputablePolicyState
+(Get-CimInstance -Namespace root\Microsoft\Windows\DeviceGuard `
+    -ClassName Win32_DeviceGuard).UsermodeCodeIntegrityPolicyEnforcementStatus
+```
+
+`1` and `2` mean enforcing. The symptom is a configure that dies around six
+minutes in with `MSB8066` and exit code `1073751882`, and a run of the shipped
+artifact failing with `WinError 4551`, "An Application Control policy has
+blocked this file". Smart App Control refuses every freshly linked unsigned
+executable until a reputation verdict lands — 15–40 minutes, sometimes longer.
+
+What makes it fatal rather than merely slow is that the refused image is
+`katehighlightingindexer.exe`, a build tool the syntax-highlighting dependency
+generates and runs during configure. It is third-party, it is relinked from
+source in every fresh dependency cache, and this project cannot sign it. The
+courses require `--fresh`, so the flag that makes the evidence trustworthy is
+the flag that guarantees the run cannot finish (BPR-0493).
+
+There is no narrower fix, and each of these was checked rather than assumed:
+
+- Smart App Control has no allowlist. Its UI is On/Off only, and the active
+  policies under `CodeIntegrity\CiPolicies\Active` are Microsoft-signed WDAC
+  policies.
+- "Run anyway" is SmartScreen, a different subsystem, and does not affect
+  code-integrity blocking.
+- Defender's `-ExclusionPath` is also a different subsystem and does not
+  affect it.
+- A Dev Drive does not help either, for the same reason: its benefit is
+  Defender antivirus performance mode, while this is kernel code integrity,
+  enforced regardless of volume.
+
+So provisioning a Windows station means turning Smart App Control off, in
+Windows Security under App & browser control. **That is irreversible** —
+restoring it requires a Windows reset — and it is a permanent reduction in
+that machine's protection, so it is a decision for whoever owns the machine
+and not one an agent makes or is asked to make. Prefer a dedicated build host
+over a personal machine for exactly this reason.
+
 ## Dispatch and merge in one paragraph
 
 The integrator reserves an ID block on `main`
