@@ -103,3 +103,42 @@ other, the fault is in registration or in the account directory.
 Settings changes are deliberately not applied here. `~/.claude.json` and
 `~/.claude/settings.json` are the operator's account configuration, not
 repository state, and this card should not silently rewrite them.
+
+## The reciprocal test, and what it falsified — 2026-08-29
+
+The Windows host was asked whether it could see `bpr-main-mac`. It could not,
+and it listed its own local peer as `bpr-windows-bc`. Minutes later the Mac
+peer list gained two rows it had not held across six earlier polls:
+
+```
+bpr-main-mac [b8acfe]      · Remote Control · idle
+jaegaw-shiny-fox [fa59e5]  · Remote Control · running
+```
+
+That kills the hypothesis recorded above. The peer list **is** live for
+cross-machine sessions — it gained entries and reports live idle/running state
+— and `--name` **does** bind, because `bpr-main-mac` is present under exactly
+its registry name. Neither of the two documented-setup gaps found earlier can
+be the cause either, since both are still unrepaired on this host while
+`bpr-main-mac` binds anyway. The remaining fact is narrower and stranger: the
+Windows launch specifically did not produce a session named `bpr-win-jaegaw`.
+The only JaegAW session visible is auto-named `jaegaw-shiny-fox`, and the
+Windows host sees itself locally as `bpr-windows-bc` — a name derived from its
+checkout directory, not from `--name`.
+
+So the card's question narrows from "does binding work" to "why did binding
+work on macOS and not on the Windows launch". Candidates worth separating
+before any fix: whether `claude` on Windows is a shim that drops arguments
+across `subprocess.run`; whether the interactive `Enable Remote Control? (y/n)`
+prompt takes a path that discards `--name`; and whether an already-running
+session in that checkout won the name first.
+
+A second thing surfaced that is not this card's subject but should not stay
+unrecorded. `bpr-main-mac [b8acfe]` is a real, idle, launcher-started session —
+and it is **not** the session doing this work. This session is the ordinary
+interactive `betterpullreview-e4`, editing the checkout that station owns. That
+is permitted today only by the explicit exception in `remote-routing.md` for
+interactive sessions predating the lease contract, held to claim-by-committed-
+lane-move, which is how every commit on this card was made. The exception is
+documented as something to retire, and the two-sessions-one-checkout state
+found here is the concrete argument for retiring it.
