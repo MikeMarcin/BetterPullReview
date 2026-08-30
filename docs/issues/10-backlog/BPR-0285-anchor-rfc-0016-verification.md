@@ -102,3 +102,38 @@ and remains BPR-0318's to enable and this card's to replay.
       no unresolved blocker.
 - [ ] RFC status, verification ledger, issue board, and all claimed commits and
       artifacts agree before the RFC is marked `Auto-Verified`.
+
+## BPR-0311 dispatched to bpr-win-jaegaw — 2026-08-29
+
+[[BPR-0311]] is the last non-terminal target-native card in this closure. It
+sits in `21-ready-win/`, so it is not startable on `bpr-main-mac`: every row it
+owns is Windows-native, and the card itself excludes macOS, Wine,
+cross-compilation, mocks, and hosted workflows as substitutes. Its
+`windows-app-release` preset is not separable into a portable half either —
+its only proof is a target-native configure — so the board's split rule
+declines that split.
+
+The Windows host came up on `windows-lane` through
+`scripts/launch_remote_station.py win --machine jaegaw --read-only`. Two facts
+about that launch bound this dispatch:
+
+- The station is `read-only-proof`. It builds, tests, and reports; it makes no
+  commits, pushes, or tracker edits. So the dispatch covers pre-flip evidence
+  only. BPR-0311's production-selection flip and its post-flip Release/public/
+  native/hygiene rerun stay with a lane-commit station or the integrator, and
+  the card cannot become terminal on this dispatch.
+- The station has not yet appeared under its deterministic name in a peer agent
+  list. `docs/development/remote-stations.md` treats an unbound name as
+  undispatchable, because dispatch to one resolves to a silent auto-variant and
+  misroutes instead of failing. Until the name binds, the envelope goes to the
+  station by hand-paste, which the envelope contract explicitly permits.
+
+Integrator prep committed on `main`: reservation `idr-bpr-20260829-babf`,
+`BPR-0483..BPR-0490`, reservation commit `acfb6fef`. The block is not required
+for a `read-only-proof` dispatch — that station cannot mint cards at all — and
+is reserved against the station gaining push credentials; its IDs are burned if
+that does not happen. Cards proposed by the reply are created by the integrator
+on `main`.
+
+`bpr-main-mac` holds no other startable RFC-BPR-0016 work: this closure's only
+open cards are BPR-0311 and the backlog anchor itself.
