@@ -215,3 +215,25 @@ Until that test runs, this remains a hypothesis. It is recorded here so the
 next session does not re-derive it, and it does not change the two established
 findings above — `claude remote-control --help` still never returns, and
 station identity is still checkout-scoped.
+
+### Evidence against that hypothesis
+
+The launcher's own banner argues the other way and is recorded here so the
+hypothesis above is not read as settled:
+
+```
+Take this session with you and pick up right where you left off on any device.
+The session keeps running on this machine. Press Ctrl+C to stop.
+```
+
+That is present tense about a session that exists, not a server waiting to
+create one. If a session is genuinely running under the launcher and still does
+not appear under `bpr-win-jaegaw` in any peer list, then spawn-on-connect is the
+wrong explanation and the fault is in registration or in name propagation after
+all — the card's original scope.
+
+So the one-step test stays worth running, but its outcome is genuinely open
+rather than expected. Whoever runs it should also record what the launcher's
+terminal actually shows: a live session, or a server banner and nothing else.
+The operator is the only one who can see that, and neither reading has been
+confirmed.
