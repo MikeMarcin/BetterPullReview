@@ -118,3 +118,37 @@ regardless of who holds write authority. That is recorded in `depends_on`.
 outside the checkout on that host. Station's hand count for the run: 1
 `rfc-scout`, which spawned 1 `rfc-utility` descendant; 0 `rfc-worker` (station
 is read-only-proof, no writes permitted); 0 reviewer (no closeout to review).
+
+## The `windows-app-release` preset has landed — 2026-08-29
+
+The card requires this preset to land in the same commit as the card. It could
+not: the station that built and measured it is `read-only-proof`, so the
+integrator landed it on `main` instead. The product owner approved that
+substitution explicitly, on the reasoning that the requirement exists to stop
+the preset landing untethered from its evidence — so the commit names this card
+and quotes the exact artifact the preset produced:
+
+```text
+build/windows-app-release/src/app/better_pull_review.exe
+sha256 f901bf9e620f4426caf0d0aada60058464848bda879d9f7b05e52a5b7edabf0e
+7,517,184 bytes — clean configure, 270/270 build, target-native
+```
+
+It is `app-release`'s cache variables plus `windows-dev`'s host condition, on
+`_ninja-common`. **Ninja rather than the multi-config Visual Studio generator**
+was the product owner's decision, taken with the tradeoff stated: the shipped
+Windows artifact now comes from a different generator than the one developers
+build with under `windows-dev`. Two things bound that cost, and both were
+measured rather than assumed — `/MAP` is emitted under `if(MSVC)` regardless of
+generator, so the composed-host and platform-course symbol evidence is
+identical either way; and [[BPR-0492]]'s `tree_configuration()` repair means
+multi-config was no longer *blocked*, only heavier, so this was a preference
+rather than a forced move. The station recorded its own lean toward Ninja as a
+preference and explicitly declined to offer it as a target-native finding.
+
+[[BPR-0315]] and [[BPR-0035]]'s dormant-CLI-symbol row also consume this
+preset, so the choice is not BPR-0311's alone to live with.
+
+The ledger's Windows command names `--release-preset windows-app-release`; that
+preset now exists in `CMakePresets.json` rather than only in a gitignored
+`CMakeUserPresets.json`.

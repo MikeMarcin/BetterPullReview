@@ -89,6 +89,24 @@
       "cacheVariables": {
         "BPR_BUILD_QT": "ON"
       }
+    },
+    {
+      "name": "windows-app-release",
+      "displayName": "Windows Release application (tests disabled)",
+      "description": "app-release on Windows: Ninja single-config, so the shipped artifact lands at src/app without a per-configuration directory (BPR-0311).",
+      "inherits": "_ninja-common",
+      "binaryDir": "${sourceDir}/build/windows-app-release",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "BPR_BUILD_QT": "ON",
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TEST_BUILD_DEPENDS": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -119,6 +137,14 @@
       "inherits": "_build-common",
       "configurePreset": "windows-dev",
       "configuration": "Debug"
+    },
+    {
+      "name": "windows-app-release",
+      "inherits": "_build-common",
+      "configurePreset": "windows-app-release",
+      "targets": [
+        "app_better_pull_review"
+      ]
     }
   ],
   "testPresets": [
