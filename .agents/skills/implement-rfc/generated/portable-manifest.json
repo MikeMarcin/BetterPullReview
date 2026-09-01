@@ -81,8 +81,20 @@
       "sha256": "75a3d1eb5a7337be49f8708e2937d5423a2bb0e12ec7042ef035bc4cf63e8337"
     },
     {
+      "path": "scripts/codex_station.py",
+      "sha256": "6d92cf99fbe74f6d3e1ac546d6cd921ae274f7e633e7c1650e5e94727a16c24d"
+    },
+    {
+      "path": "scripts/launch_remote_station.py",
+      "sha256": "9ddf2889822d27868ad0f4d1d77b68736581cb0e04b49868039cdfd76aabdf81"
+    },
+    {
       "path": "scripts/project_config.py",
       "sha256": "dd8b527e5da958393e26b3ec5fb312f07c91c5154910e9a8e2cd8b1750210bb9"
+    },
+    {
+      "path": "scripts/remote_station_guard.py",
+      "sha256": "cef815068d4c9b103d8e9f061c93d5796feaadadd909da77f2bd91f141d3333a"
     },
     {
       "path": "scripts/render_runtime_adapters.py",
@@ -105,8 +117,20 @@
       "sha256": "1cb22967a9b1de6288c7d2571441ccfa9632826734d55d23bdc62b0b6383ad30"
     },
     {
+      "path": "tests/test_codex_station.py",
+      "sha256": "b7b73def36fab05461955348338c34b4511c1724e486247cbab8354e236c2522"
+    },
+    {
+      "path": "tests/test_launch_remote_station.py",
+      "sha256": "c4dabe8abaacc7d03f7902e57376368f7c9f0acc12076ba0a42098bcd76c1ff1"
+    },
+    {
       "path": "tests/test_project_config.py",
       "sha256": "f12f4c993c729184ac87e67c074d2508fe29842a6056fe901d853e932bbaf53a"
+    },
+    {
+      "path": "tests/test_remote_station_guard.py",
+      "sha256": "fd906522595a66cc5684cb6a1eadbd2c1baecc21738cc5320a98d9febd84b00c"
     },
     {
       "path": "tests/test_render_runtime_adapters.py",
@@ -117,6 +141,6 @@
       "sha256": "0c570e408e59704d19c64e228d206bf3b915622f6ee684a773d1c3e80e2f4bda"
     }
   ],
-  "portable_digest": "0c74167e030b4e38",
+  "portable_digest": "e136472f98e3e88e",
   "schema": "implement-rfc.portable-manifest.v1"
 }
