@@ -1,0 +1,146 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "026aca76a0128580398c4400177f79e4df9a4595e7fa1d9a087b4518e6fb3eb0"
+    },
+    {
+      "path": "SKILL.md",
+      "sha256": "f002ec65eba1844f33ee2b3830dcf24496c77d47a1af43bac801c821e8c57568"
+    },
+    {
+      "path": "agents/openai.yaml",
+      "sha256": "4092e303a5d4c8c39d3e0b0af183eeea9884290173bcf6357ae9c909e7cece5e"
+    },
+    {
+      "path": "config/claude-bedrock-model-overrides.example.json",
+      "sha256": "ae823248bbe25154311eb814c21b3424dc1c5b58caf74c8dff34c59e180fb4ed"
+    },
+    {
+      "path": "config/codex-config.fragment.toml",
+      "sha256": "9c8d2ede9bb828d29bad2bbce9de86bf2210dc99b33e26e1ce57f4a9fef04e07"
+    },
+    {
+      "path": "config/roles.json",
+      "sha256": "64f48bb26d4974bdc96a55f9f56427a111ea842735bd9fb31eb6c84de11675df"
+    },
+    {
+      "path": "config/routing.json",
+      "sha256": "a5bcf239ec5b2c2f7a7b97fcc5490c47c308568a1684101ea5866e4b694facb6"
+    },
+    {
+      "path": "references/codex-lanes.md",
+      "sha256": "0253d6ed5c57df96d7146b5133d9801b2b1dd2f200f973004e61ea333845fcbb"
+    },
+    {
+      "path": "references/delegated-execution.md",
+      "sha256": "9f20d5a973a4462eaa7e925c50f383c8c43da3a8d593939f2c8bcb7ba8b549aa"
+    },
+    {
+      "path": "references/model-routing.md",
+      "sha256": "15125bc0ca8a22633bcf66aa074865900211f1ec2d5deb93806db7a7f7dd7c80"
+    },
+    {
+      "path": "references/pack-lifecycle.md",
+      "sha256": "92bae748bcccbe7398b0ef6ca1321ebe4a6bda9353095088606f1d924a6548a2"
+    },
+    {
+      "path": "references/remote-routing.md",
+      "sha256": "d8ef8a3229f57a2b9847a21a537cdc6024297d6dcdd1722aaaf1ad4c789a8518"
+    },
+    {
+      "path": "references/runtime-compatibility.md",
+      "sha256": "a55c88e92914fa9004432f2ab79812872d129a8f2404c3a9f1d8b39c9e9ead0f"
+    },
+    {
+      "path": "schemas/project.schema.json",
+      "sha256": "0b93b8712b142b82c02b5a79e8a8b7dc9aa7aa23f5c8a7c9ed2f5c3795c00426"
+    },
+    {
+      "path": "schemas/remote-station.schema.json",
+      "sha256": "d778a089384018a412aa10ea1ea6bfb34186d2da43cab648076046cec7853e98"
+    },
+    {
+      "path": "schemas/remote-task-envelope.schema.json",
+      "sha256": "9453e755ef8468e866e9651b32f8b73899ee2c3c9b7ecc002cdc21149af1aae6"
+    },
+    {
+      "path": "schemas/roles.schema.json",
+      "sha256": "a6fbb14facd92f29b97e9497b1e80d07df90e9482ad681c3492b1c215f2fedae"
+    },
+    {
+      "path": "schemas/routing.schema.json",
+      "sha256": "5e8f899773ad1edb8c1fc3a2e95a9211754ea844dc01aa7f70bc007ef5b351a4"
+    },
+    {
+      "path": "scripts/audit_board.py",
+      "sha256": "8e37ed56d71e0c5f8d15271e3cb57aeb1ca9168357e073e2da783c41f8756c59"
+    },
+    {
+      "path": "scripts/codex_lane.py",
+      "sha256": "75a3d1eb5a7337be49f8708e2937d5423a2bb0e12ec7042ef035bc4cf63e8337"
+    },
+    {
+      "path": "scripts/codex_station.py",
+      "sha256": "6d92cf99fbe74f6d3e1ac546d6cd921ae274f7e633e7c1650e5e94727a16c24d"
+    },
+    {
+      "path": "scripts/launch_remote_station.py",
+      "sha256": "9ddf2889822d27868ad0f4d1d77b68736581cb0e04b49868039cdfd76aabdf81"
+    },
+    {
+      "path": "scripts/project_config.py",
+      "sha256": "dd8b527e5da958393e26b3ec5fb312f07c91c5154910e9a8e2cd8b1750210bb9"
+    },
+    {
+      "path": "scripts/remote_station_guard.py",
+      "sha256": "cef815068d4c9b103d8e9f061c93d5796feaadadd909da77f2bd91f141d3333a"
+    },
+    {
+      "path": "scripts/render_runtime_adapters.py",
+      "sha256": "06e117694e9ce30ead56d9f9294ff447264964cdadadcd38c81a178375cdc8f3"
+    },
+    {
+      "path": "scripts/station_lease.py",
+      "sha256": "15ee902733f8ecabffdb468821eba8c76b758e6cd18f80acc3cae90f42c450c0"
+    },
+    {
+      "path": "scripts/validate_portable_agents.py",
+      "sha256": "421ac75308e48528ffc103d812a3726fbe02489e891574cb35b42fac2c6a4acf"
+    },
+    {
+      "path": "tests/test_audit_board.py",
+      "sha256": "62b1c4b222243d4ea59a45d7ba480d66d94cfdcbe6a4b34bdcd8e8fede337a6c"
+    },
+    {
+      "path": "tests/test_codex_lane.py",
+      "sha256": "1cb22967a9b1de6288c7d2571441ccfa9632826734d55d23bdc62b0b6383ad30"
+    },
+    {
+      "path": "tests/test_codex_station.py",
+      "sha256": "b7b73def36fab05461955348338c34b4511c1724e486247cbab8354e236c2522"
+    },
+    {
+      "path": "tests/test_launch_remote_station.py",
+      "sha256": "c4dabe8abaacc7d03f7902e57376368f7c9f0acc12076ba0a42098bcd76c1ff1"
+    },
+    {
+      "path": "tests/test_project_config.py",
+      "sha256": "f12f4c993c729184ac87e67c074d2508fe29842a6056fe901d853e932bbaf53a"
+    },
+    {
+      "path": "tests/test_remote_station_guard.py",
+      "sha256": "fd906522595a66cc5684cb6a1eadbd2c1baecc21738cc5320a98d9febd84b00c"
+    },
+    {
+      "path": "tests/test_render_runtime_adapters.py",
+      "sha256": "97a9caa4d05b50fe9482dc3d498e3a4e51ad7fe337410edc43c6f7df2a912a84"
+    },
+    {
+      "path": "tests/test_station_lease.py",
+      "sha256": "0c570e408e59704d19c64e228d206bf3b915622f6ee684a773d1c3e80e2f4bda"
+    }
+  ],
+  "portable_digest": "e136472f98e3e88e",
+  "schema": "implement-rfc.portable-manifest.v1"
+}

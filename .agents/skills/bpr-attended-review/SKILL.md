@@ -79,7 +79,7 @@ immutably, and drive the issue-board lifecycle for pending checkpoints, per
 
 ## Related Skills
 
-- `betterpullreview-implement-rfc` defines when attended checkpoints occur
+- `implement-rfc` defines when attended checkpoints occur
   during RFC work and how they batch at run boundaries.
 
 ## Validation

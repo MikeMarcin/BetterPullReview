@@ -1,0 +1,55 @@
+{
+  "schema": "implement-rfc.routing.v1",
+  "verified_as_of": "2026-09-01",
+  "assignments": {
+    "rfc-utility": "mechanical",
+    "rfc-scout": "balanced",
+    "rfc-worker": "deep",
+    "rfc-verifier": "deep",
+    "rfc-reviewer": "deep",
+    "rfc-critical-reviewer": "deep-max"
+  },
+  "providers": {
+    "codex": {
+      "classes": {
+        "mechanical": {
+          "model": "gpt-5.6-luna",
+          "effort": "max"
+        },
+        "balanced": {
+          "model": "gpt-5.6-terra",
+          "effort": "high"
+        },
+        "deep": {
+          "model": "gpt-5.6-sol",
+          "effort": "xhigh"
+        },
+        "deep-max": {
+          "model": "gpt-5.6-sol",
+          "effort": "max"
+        }
+      }
+    },
+    "claude": {
+      "minimum_cli_version": "2.1.219",
+      "classes": {
+        "mechanical": {
+          "model": "claude-haiku-4-5",
+          "effort": null
+        },
+        "balanced": {
+          "model": "claude-sonnet-5",
+          "effort": "high"
+        },
+        "deep": {
+          "model": "claude-opus-5",
+          "effort": "xhigh"
+        },
+        "deep-max": {
+          "model": "claude-fable-5-1",
+          "effort": "max"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "modelOverrides": {
+    "claude-haiku-4-5": "arn:aws:bedrock:REGION:ACCOUNT_ID:application-inference-profile/YOUR_HAIKU_PROFILE",
+    "claude-sonnet-5": "arn:aws:bedrock:REGION:ACCOUNT_ID:application-inference-profile/YOUR_SONNET_PROFILE",
+    "claude-opus-5": "arn:aws:bedrock:REGION:ACCOUNT_ID:application-inference-profile/YOUR_OPUS_PROFILE",
+    "claude-fable-5-1": "arn:aws:bedrock:REGION:ACCOUNT_ID:application-inference-profile/YOUR_FABLE_PROFILE"
+  }
+}

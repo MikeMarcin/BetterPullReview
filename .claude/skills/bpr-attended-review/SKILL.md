@@ -6,7 +6,7 @@ description: "Prepare, collect, validate, and record attended human-approval ver
 # BPR Attended Review portable entrypoint
 
 This is a manually maintained Claude Code entrypoint; it is not owned by the
-bpr-implement-rfc renderer. Read and follow
+implement-rfc renderer. Read and follow
 `${CLAUDE_PROJECT_DIR}/.agents/skills/bpr-attended-review/SKILL.md` as the
 authoritative skill before doing any attended-review work. Resolve every
 relative path in that skill from

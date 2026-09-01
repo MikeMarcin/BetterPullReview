@@ -2,19 +2,23 @@
 
 Machine setup for running BetterPullReview RFC work across computers without
 mixing project, platform, or branch context. The contract a session follows
-lives in `.agents/skills/bpr-implement-rfc/references/remote-routing.md`; this
+lives in `.agents/skills/implement-rfc/references/remote-routing.md`; this
 document is the operator-facing half: what to provision on each machine and
 how to launch it.
 
 ## The shape
 
-One **station** per platform role per machine, each in its own dedicated
-checkout on its own station branch, hosted by its own `claude remote-control
---spawn session` server with a deterministic name (or, for Codex-orchestrated
-work, a Codex session launched directly in the same checkout under the same
-lease). The **project integrator** — the session on whichever host you are
-driving — is the only writer for `main`, `docs/issues/NEXT_ID`, ID
-reservations, and the board index, and the only merger of station branches.
+One **station** per workstream checkout per machine. One foreground supervisor
+holds the checkout's writer lease and exposes that same durable station through
+two provider endpoints with one deterministic name: a Claude Remote Control
+session and a persistent Codex task reachable through Codex Managed Remote.
+Workstreams are declared in `.agents/skills/implement-rfc/config/project.json`:
+`main` is the integrator, and `win`, `linux`, and `mac` are platform-bound
+verification lanes on `windows-lane`, `linux-lane`, and `mac-lane`. The
+**project integrator** — the session on whichever host you are driving — is
+the only writer for `main`, `docs/issues/NEXT_ID`, ID reservations, and the
+board index, and the only merger of station branches. Both endpoints may be
+connected, but dispatch through one provider at a time.
 
 Platform policy: Windows work runs in a native-Windows station, Linux work in
 a WSL2 or native-Linux station, macOS work in a native-macOS station. JaegAW
@@ -32,11 +36,18 @@ explicitly dispatched to it.
 The authoritative list of names in use. Add a row before launching a new
 station; never reuse a name for a different checkout.
 
-| Station name | Machine | Environment | Branch | Status |
-|---|---|---|---|---|
-| `bpr-main-mac` | MacBook Pro | macos | `main` | provisioned 2026-08-29 |
-| `bpr-win-jaegaw` | JaegAW | windows-native | `windows-lane` | launched 2026-08-29 (`--read-only`); station file written and writer lease taken, but **the name does not bind** — see [[BPR-0491]] |
-| `bpr-linux-jaegaw` | JaegAW (WSL2) | wsl2 | `linux-lane` | **unprovisioned** — host still runs free-text sessions |
+| Station name | Machine | Environment | Workstream | Branch | Status |
+|---|---|---|---|---|---|
+| `bpr-main-mac` | MacBook Pro | macos | main (integrator) | `main` | provisioned 2026-08-29 under the v1 station file; relaunch through the v2 launcher before dispatching through Codex |
+| `bpr-win-jaegaw` | JaegAW | windows-native | win | `windows-lane` | launched 2026-08-29 (`--read-only`, v1); station file written and writer lease taken, but **the name does not bind** — see [[BPR-0491]] |
+| `bpr-linux-jaegaw` | JaegAW (WSL2) | wsl2 | linux | `linux-lane` | **unprovisioned** — host still runs free-text sessions |
+
+The station file format changed to `implement-rfc.remote-station.v2` on
+2026-09-01 (workstream instead of role, plus the Codex task and Claude session
+identities the supervisor records). A station still carrying a v1 file keeps
+its `station_id` on relaunch; until then the Codex hook guard
+(`.codex/hooks.json`) stays inactive for that checkout and says so on stderr,
+because a v1 file carries no Codex task binding to enforce.
 
 A row is aspirational until its host is relaunched through
 `scripts/launch_remote_station.py` and the name shows up bound in a peer's
@@ -110,13 +121,18 @@ authoritative everywhere else, and the station file is authoritative always.
    python3 scripts/launch_remote_station.py linux --no-server # Codex: provision only
    ```
 
-   The launcher refuses a wrong repository, wrong branch, or a role that
-   does not match the host (WSL2 counts as Linux, native Windows as
-   Windows), writes the untracked `.remote-station.json` (keeping its
-   durable `station_id` across relaunches), and starts the server under the
-   exclusive writer lease — `station_lease.py` in the skill pack — so a
-   second writer in the same checkout is denied mechanically. For Codex it
-   prints the lease-wrapped launch command instead.
+   The launcher refuses a wrong repository, wrong branch, or a
+   platform-bound workstream that does not match the host (WSL2 counts as
+   Linux, native Windows as Windows), writes the untracked
+   `.remote-station.json` (keeping its durable `station_id` across
+   relaunches), provisions the persistent Codex task, and starts the Claude
+   server under the exclusive writer lease — `station_lease.py` in the
+   skill — so a second writer in the same checkout is denied mechanically.
+   `--pair-codex` prints a Codex Remote pairing code on Unix hosts; native
+   Windows pairs through Codex Desktop. `--no-server` is the deprecated
+   direct-Codex path that writes the station file only. The
+   `scripts/launch_remote_station.py` at the repository root forwards to the
+   skill's launcher.
 
 5. **Driving.** Every station server appears at claude.ai/code and in the
    mobile app; driving one directly from your phone is normal operation. The

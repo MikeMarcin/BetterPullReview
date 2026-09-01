@@ -64,6 +64,7 @@ On macOS `/usr/bin/python3` is older than that, so `python3` must resolve to a
 newer interpreter. Run a gate without a pipe: `| tail` reports the pipe's exit
 status, not the gate's.
 
-Before RFC closeout, run the documentation gate over the immutable RFC base,
-the complete verification matrix from clean state, the selected runtime and
-package checks, and `git diff --check`.
+Before RFC closeout, run the documentation gate, the focused check each
+acceptance criterion names plus one direct public-path lane, and
+`git diff --check`. The full matrices and `coding-tidy` run only on an
+explicit request or when a change plausibly reaches beyond its slice.

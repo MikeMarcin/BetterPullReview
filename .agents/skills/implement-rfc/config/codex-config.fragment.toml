@@ -1,0 +1,5 @@
+# Merge this table into the repository's .codex/config.toml.
+# Keep runtime headroom while implement-rfc voluntarily schedules at most five child lanes.
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 10
