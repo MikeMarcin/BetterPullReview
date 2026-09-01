@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://implement-rfc.local/schemas/remote-station.v2.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "station_id",
+    "station",
+    "project",
+    "workstream",
+    "environment",
+    "branch",
+    "authority",
+    "codex"
+  ],
+  "properties": {
+    "schema": {"const": "implement-rfc.remote-station.v2"},
+    "station_id": {"type": "string", "pattern": "^stn-[0-9a-f]{8}$"},
+    "station": {"$ref": "#/$defs/sessionName"},
+    "project": {"$ref": "#/$defs/token"},
+    "workstream": {"$ref": "#/$defs/token"},
+    "environment": {"enum": ["macos", "windows-native", "wsl2", "linux-native"]},
+    "branch": {"$ref": "#/$defs/branchName"},
+    "authority": {"enum": ["lane-commit", "read-only-proof"]},
+    "codex": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/codexTask"}
+      ]
+    },
+    "claude": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/claudeSession"}
+      ]
+    }
+  },
+  "$defs": {
+    "token": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "sessionName": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)+$"},
+    "branchName": {"type": "string", "pattern": "^[A-Za-z0-9._/-]{1,255}$"},
+    "codexTask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thread_id", "thread_name", "cli_version"],
+      "properties": {
+        "thread_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{8,128}$"},
+        "thread_name": {"$ref": "#/$defs/sessionName"},
+        "cli_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+      }
+    },
+    "claudeSession": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id"],
+      "properties": {
+        "session_id": {"type": "string", "pattern": "^session_[A-Za-z0-9]+$"}
+      }
+    }
+  }
+}

@@ -216,7 +216,7 @@ dispatch envelope quotes, and the consuming branch verifies its block with
 merging `main`. Receipts are never edited or deleted; an abandoned block
 keeps its receipt and its unused IDs are burned, not recycled. The station
 contract that consumes these reservations lives in
-`.agents/skills/bpr-implement-rfc/references/remote-routing.md`.
+`.agents/skills/implement-rfc/references/remote-routing.md`.
 
 ## Current frontiers
 

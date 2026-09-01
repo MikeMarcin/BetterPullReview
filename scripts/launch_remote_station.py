@@ -12,7 +12,7 @@ usage: launch_remote_station.py <role> [options]
 
 One implementation for every host: run it with `python3` on macOS, Linux, and
 WSL2, and `py -3` on native Windows. The station contract this implements
-lives in .agents/skills/bpr-implement-rfc/references/remote-routing.md.
+lives in .agents/skills/implement-rfc/references/remote-routing.md.
 """
 
 from __future__ import annotations
@@ -184,7 +184,7 @@ def main() -> int:
         root
         / ".agents"
         / "skills"
-        / "bpr-implement-rfc"
+        / "implement-rfc"
         / "scripts"
         / "station_lease.py"
     )

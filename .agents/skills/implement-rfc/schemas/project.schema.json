@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://implement-rfc.local/schemas/project.v1.json",
+  "title": "implement-rfc project configuration",
+  "description": "The only machine-read project-specific file in the portable implement-rfc skill. scripts/project_config.py validates it without a JSON Schema library; this schema documents the same contract.",
+  "type": "object",
+  "required": [
+    "schema", "project", "display_name", "session_prefix", "origin_repo_name",
+    "rfc_root", "issue_root", "next_id", "reservations_dir", "allocate_id_command",
+    "lanes", "lane_statuses", "rfc_link_field", "terminal_rfc_status", "closeout_card",
+    "structure_gate", "attended_review_skill", "station_registry_doc", "workstreams",
+    "role_addenda"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "token": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "relativePath": {"type": "string", "pattern": "^[^/][^\\n]*[^/]$"}
+  },
+  "properties": {
+    "schema": {"const": "implement-rfc.project.v1"},
+    "project": {"$ref": "#/$defs/token"},
+    "display_name": {"type": "string", "minLength": 1},
+    "session_prefix": {"$ref": "#/$defs/token"},
+    "origin_repo_name": {"type": "string", "minLength": 1},
+    "rfc_root": {"$ref": "#/$defs/relativePath"},
+    "issue_root": {"$ref": "#/$defs/relativePath"},
+    "next_id": {
+      "type": "object",
+      "required": ["mode", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {"enum": ["single-file"]},
+        "path": {"$ref": "#/$defs/relativePath"}
+      }
+    },
+    "reservations_dir": {"$ref": "#/$defs/relativePath"},
+    "allocate_id_command": {"type": "string", "minLength": 1},
+    "lanes": {
+      "type": "object",
+      "required": ["backlog", "ready", "platform_ready", "in_progress", "parked", "blocked", "done"],
+      "additionalProperties": false,
+      "properties": {
+        "backlog": {"$ref": "#/$defs/token"},
+        "ready": {"$ref": "#/$defs/token"},
+        "platform_ready": {"type": "object", "additionalProperties": {"$ref": "#/$defs/token"}},
+        "in_progress": {"$ref": "#/$defs/token"},
+        "parked": {"$ref": "#/$defs/token"},
+        "blocked": {"$ref": "#/$defs/token"},
+        "done": {"$ref": "#/$defs/token"}
+      }
+    },
+    "lane_statuses": {
+      "description": "Front-matter status word expected in each lane directory.",
+      "type": "object",
+      "additionalProperties": {"type": "string", "minLength": 1}
+    },
+    "rfc_link_field": {"type": "string", "minLength": 1},
+    "terminal_rfc_status": {"type": "string", "minLength": 1},
+    "closeout_card": {
+      "description": "Exactly one detection rule for an RFC's closeout card.",
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "filename_pattern": {"type": "string", "minLength": 1},
+        "front_matter": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 1,
+          "additionalProperties": {"type": "string"}
+        }
+      }
+    },
+    "structure_gate": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "attended_review_skill": {"type": ["string", "null"]},
+    "station_registry_doc": {"$ref": "#/$defs/relativePath"},
+    "workstreams": {
+      "type": "object",
+      "required": ["main"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["branch"],
+        "additionalProperties": false,
+        "properties": {
+          "branch": {"type": "string", "minLength": 1},
+          "platform": {"enum": ["win", "linux", "mac"]}
+        }
+      }
+    },
+    "role_addenda": {
+      "type": "object",
+      "additionalProperties": {"type": "array", "items": {"type": "string", "minLength": 1}}
+    }
+  }
+}

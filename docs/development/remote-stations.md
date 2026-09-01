@@ -2,7 +2,7 @@
 
 Machine setup for running BetterPullReview RFC work across computers without
 mixing project, platform, or branch context. The contract a session follows
-lives in `.agents/skills/bpr-implement-rfc/references/remote-routing.md`; this
+lives in `.agents/skills/implement-rfc/references/remote-routing.md`; this
 document is the operator-facing half: what to provision on each machine and
 how to launch it.
 

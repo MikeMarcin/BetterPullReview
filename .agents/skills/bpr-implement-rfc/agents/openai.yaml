@@ -1,4 +1,0 @@
-interface:
-  display_name: "Implement BetterPullReview RFC"
-  short_description: "Implement BPR RFCs with portable delegated review"
-  default_prompt: "Use $betterpullreview-implement-rfc to implement /Users/jaeger/Downloads/betterpullreview_rfc_pack through verified closeout."

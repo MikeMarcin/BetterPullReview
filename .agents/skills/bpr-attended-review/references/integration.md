@@ -36,7 +36,7 @@ as history. If a later schema pins this validator's path and digest,
 historical records keep their recorded digests; reproduce them with the
 recorded tool version rather than editing the record.
 
-## Card Lifecycle (betterpullreview-implement-rfc)
+## Card Lifecycle (implement-rfc)
 
 1. When a card's remaining evidence is attended-only, build the packet or
    page, reference it from the card, and park the card with an

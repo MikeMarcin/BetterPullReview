@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement RFC"
+  short_description: "Implement RFCs with portable delegated review"
+  default_prompt: "Use $implement-rfc to implement /Users/jaeger/Downloads/example_rfc_pack through verified closeout."
