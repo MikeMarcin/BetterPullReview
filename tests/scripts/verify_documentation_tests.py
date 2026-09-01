@@ -36,12 +36,7 @@ sys.path.insert(0, str(REPOSITORY_ROOT))
 from scripts.contained_temporary_support import ContainedTemporaryDirectory  # noqa: E402
 
 from scripts.verify_documentation import (  # noqa: E402
-    CLOSEOUT_COLUMNS,
-    CLOSEOUT_NO_LIVE_BLOCKER,
-    CLOSEOUT_REPLAY_STATEMENT,
     front_matter,
-    verify_board_lane_claims,
-    verify_frontier_roots,
     verify_issue_board,
     verify_operator_packet_records,
     verify_pending_packet_manifests,
@@ -333,29 +328,28 @@ class IssueGraphTests(unittest.TestCase):
 
 
 class CloseoutContractTests(unittest.TestCase):
+    """The light closeout contract: RFC base plus one row per criterion.
+
+    Retired on 2026-09-01: the eight-column schema, gate-class and live-blocker
+    tokens, anchored ledger links, per-row procedure links, placeholder and
+    length policing, and the final-replay statement. They policed the record's
+    shape rather than the acceptance and made every closeout cost a replay.
+    """
+
+    LIGHT_HEADER = "| Criterion | Check | Result | Commit |\n|---|---|---|---|\n"
+
     def setUp(self) -> None:
         self.temporary = ContainedTemporaryDirectory()
         self.root = Path(self.temporary.name)
         for lane in ("10-backlog", "20-ready", "30-in-progress", "60-done"):
             (self.root / "docs/issues" / lane).mkdir(parents=True)
         (self.root / "docs/rfcs").mkdir(parents=True)
-        (self.root / "docs/verification").mkdir(parents=True)
         self.rfc_id = "RFC-BPR-0999"
         self.base = "a" * 40
         self.card_path = (
-            self.root
-            / "docs/issues/10-backlog/BPR-0999-close-rfc-0999.md"
-        )
-        self.blocker_path = (
-            self.root / "docs/issues/10-backlog/BPR-0998-attended-blocker.md"
-        )
-        self.done_blocker_path = (
-            self.root / "docs/issues/60-done/BPR-0997-done-blocker.md"
+            self.root / "docs/issues/10-backlog/BPR-0999-close-rfc-0999.md"
         )
         self.write_rfc()
-        self.write_ledger()
-        self.write_blocker(self.blocker_path, "Backlog")
-        self.write_blocker(self.done_blocker_path, "Done")
         self.write_card()
 
     def tearDown(self) -> None:
@@ -372,88 +366,31 @@ class CloseoutContractTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def write_ledger(
-        self,
-        base: str | None = None,
-        headings: tuple[str, ...] = ("Claim matrix",),
-    ) -> None:
-        (self.root / "docs/verification/RFC-BPR-0999.md").write_text(
-            f"# Ledger\n\nRFC base: `{base or self.base}`\n\n"
-            + "".join(f"## {heading}\n" for heading in headings),
-            encoding="utf-8",
-        )
-
-    def write_blocker(
-        self,
-        path: Path,
-        status: str,
-        *,
-        procedure_heading: str = "Required direct evidence",
-        procedure_body: str = (
-            "Run the exact fixture interaction, compare the visible projection "
-            "with the recorded server state, and retain the resulting verdict "
-            "artifact for final-head replay."
-        ),
-    ) -> None:
-        path.write_text(
-            "---\n"
-            f"id: {path.name[:8]}\n"
-            "title: Attended blocker\n"
-            f"status: {status}\n"
-            "rfc: RFC-BPR-0999\n"
-            "depends_on: []\n"
-            "---\n\n"
-            "# Attended blocker\n\n"
-            f"## {procedure_heading}\n\n"
-            f"{procedure_body}\n",
-            encoding="utf-8",
-        )
-
     def table(self, rows: list[list[str]] | None = None) -> str:
         effective_rows = rows or [
             [
-                "[ ]",
                 "First canonical criterion.",
-                "Fixture executable command and projection assertion surface",
-                "Run `python3 scripts/verify_documentation.py --root .` and "
-                "inspect its projection assertion",
-                "The focused fixture reports the first canonical projection "
-                "result exactly once.",
-                "First fixture row in the [RFC-BPR-0999 verification ledger]"
-                "(../../verification/RFC-BPR-0999.md#claim-matrix); final replay "
-                "record keyed by “First canonical criterion.”",
-                "automated",
-                CLOSEOUT_NO_LIVE_BLOCKER,
+                "`ctest --preset dev -R '^fixture$' --output-on-failure`",
+                "Pass, 1/1",
+                "`abc1234`",
             ],
             [
-                "[ ]",
                 "Second canonical criterion with a multiline continuation.",
-                "Attended fixture control and visible projection review surface",
-                "Perform [BPR-0998](BPR-0998-attended-blocker.md"
-                "#required-direct-evidence)'s attended fixture interaction and "
-                "record its visible result",
-                "The reviewer observes the complete multiline criterion result "
-                "and records one verdict.",
-                "Second fixture row in the [RFC-BPR-0999 verification ledger]"
-                "(../../verification/RFC-BPR-0999.md#claim-matrix); final replay "
-                "record keyed by “Second canonical criterion with a multiline "
-                "continuation.”",
-                "owner-attended",
-                "[BPR-0998](BPR-0998-attended-blocker.md)",
+                "Attended fixture interaction, recorded verdict",
+                "Pass",
+                "`abc1234`",
             ],
         ]
-        header = "| " + " | ".join(CLOSEOUT_COLUMNS) + " |\n"
-        separator = "|" + "|".join("---" for _ in CLOSEOUT_COLUMNS) + "|\n"
-        body = "".join("| " + " | ".join(row) + " |\n" for row in effective_rows)
-        return header + separator + body
+        return self.LIGHT_HEADER + "".join(
+            "| " + " | ".join(row) + " |\n" for row in effective_rows
+        )
 
     def write_card(
         self,
         *,
         base: str | None = None,
         table: str | None = None,
-        replay: str | None = None,
-        dependencies: str = "BPR-0998",
+        heading: str = "## Closeout checklist",
     ) -> None:
         self.card_path.write_text(
             "---\n"
@@ -461,44 +398,57 @@ class CloseoutContractTests(unittest.TestCase):
             "title: Verify and close RFC-BPR-0999\n"
             "status: Backlog\n"
             "rfc: RFC-BPR-0999\n"
-            f"depends_on: [{dependencies}]\n"
+            "depends_on: []\n"
             "---\n\n"
             "# Verify and close RFC-BPR-0999\n\n"
             f"RFC base: `{base or self.base}`.\n\n"
-            "## Closeout checklist\n\n"
-            f"{replay or CLOSEOUT_REPLAY_STATEMENT}\n\n"
+            f"{heading}\n\n"
             f"{table if table is not None else self.table()}",
             encoding="utf-8",
         )
+
+    def accept(self) -> None:
+        verify_terminal_closeout_cards(self.root)
 
     def reject(self) -> None:
         with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
             verify_terminal_closeout_cards(self.root)
 
-    def test_accepts_exact_numbered_checkbox_multiline_contract(self) -> None:
-        verify_terminal_closeout_cards(self.root)
+    def test_accepts_light_contract(self) -> None:
+        self.accept()
 
-    def test_rejects_closeout_row_calling_an_open_blocker_done(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "| [BPR-0998](BPR-0998-attended-blocker.md) |",
-                "| [BPR-0998](BPR-0998-attended-blocker.md) is done; "
-                "final-head focused replay remains required. |",
+    def test_accepts_reordered_and_extra_rows(self) -> None:
+        rows = [
+            ["Second canonical criterion with a multiline continuation.", "check", "Pass", "`abc1234`"],
+            ["An extra row the RFC did not name.", "check", "Pass", "`abc1234`"],
+            ["First canonical criterion.", "check", "Pass", "`abc1234`"],
+        ]
+        self.write_card(table=self.table(rows))
+        self.accept()
+
+    def test_accepts_the_retired_eight_column_shape(self) -> None:
+        header = (
+            "| State | Criterion | Direct verification surface | Command or attended "
+            "interaction | Expected result | Durable evidence location | Gate class | "
+            "Live blocker |\n|---|---|---|---|---|---|---|---|\n"
+        )
+        rows = "".join(
+            f"| [ ] | {criterion} | surface | command | result | evidence | automated | none |\n"
+            for criterion in (
+                "First canonical criterion.",
+                "Second canonical criterion with a multiline continuation.",
             )
         )
+        self.write_card(table=header + rows)
+        self.accept()
 
-        self.reject()
-
-    def test_accepts_closeout_row_naming_an_open_blocker_as_open(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "| [BPR-0998](BPR-0998-attended-blocker.md) |",
-                "| [BPR-0998](BPR-0998-attended-blocker.md) remains open; "
-                "final-head focused replay remains required. |",
-            )
-        )
-
-        verify_terminal_closeout_cards(self.root)
+    def test_accepts_markdown_code_normalization_in_criterion(self) -> None:
+        rows = [
+            ["`First` canonical criterion.", "check", "Pass", "`abc1234`"],
+            ["Second canonical criterion with a multiline continuation.", "check", "Pass", "`abc1234`"],
+        ]
+        self.write_card(table=self.table(rows))
+        self.accept()
 
     def test_rejects_missing_base(self) -> None:
         self.card_path.write_text(
@@ -509,530 +459,35 @@ class CloseoutContractTests(unittest.TestCase):
         )
         self.reject()
 
-    def test_rejects_mismatched_base(self) -> None:
-        self.write_card(base="b" * 40)
+    def test_rejects_missing_checklist(self) -> None:
+        self.write_card(heading="## Something else")
         self.reject()
 
-    def test_rejects_missing_checklist(self) -> None:
-        self.card_path.write_text(
-            self.card_path.read_text(encoding="utf-8").replace(
-                "## Closeout checklist", "## Evidence"
-            ),
-            encoding="utf-8",
+    def test_rejects_table_without_criterion_column(self) -> None:
+        self.write_card(
+            table="| Claim | Result |\n|---|---|\n| First canonical criterion. | Pass |\n"
         )
         self.reject()
 
-    def test_rejects_wrong_columns(self) -> None:
-        self.write_card(table=self.table().replace("Expected result", "Outcome"))
+    def test_rejects_empty_cell(self) -> None:
+        rows = [
+            ["First canonical criterion.", "", "Pass", "`abc1234`"],
+            ["Second canonical criterion with a multiline continuation.", "check", "Pass", "`abc1234`"],
+        ]
+        self.write_card(table=self.table(rows))
         self.reject()
 
-    def test_rejects_empty_cell(self) -> None:
-        rows = [row.split(" | ") for row in self.table().splitlines()[2:]]
-        rows[0] = [cell.strip("| ") for cell in rows[0]]
-        rows[1] = [cell.strip("| ") for cell in rows[1]]
-        rows[0][2] = ""
+    def test_rejects_omitted_criterion(self) -> None:
+        rows = [["First canonical criterion.", "check", "Pass", "`abc1234`"]]
         self.write_card(table=self.table(rows))
         self.reject()
 
     def test_rejects_altered_criterion(self) -> None:
-        self.write_card(table=self.table().replace("First canonical", "Altered"))
-        self.reject()
-
-    def test_rejects_omitted_criterion(self) -> None:
         rows = [
-            [
-                "[ ]", "First canonical criterion.", "Surface", "Command",
-                "Expected", "Evidence", "automated", "No blocker",
-            ]
+            ["First canonical criterion, reworded.", "check", "Pass", "`abc1234`"],
+            ["Second canonical criterion with a multiline continuation.", "check", "Pass", "`abc1234`"],
         ]
         self.write_card(table=self.table(rows))
-        self.reject()
-
-    def test_rejects_duplicate_criterion(self) -> None:
-        rows = [
-            [
-                "[ ]", "First canonical criterion.", "Surface", "Command",
-                "Expected", "Evidence", "automated", "No blocker",
-            ],
-            [
-                "[ ]", "First canonical criterion.", "Surface", "Command",
-                "Expected", "Evidence", "automated", "No blocker",
-            ],
-        ]
-        self.write_card(table=self.table(rows))
-        self.reject()
-
-    def test_rejects_extra_criterion(self) -> None:
-        rows = [row.split(" | ") for row in self.table().splitlines()[2:]]
-        rows = [[cell.strip("| ") for cell in row] for row in rows]
-        rows.append(
-            [
-                "[ ]", "Extra criterion.", "Surface", "Command", "Expected",
-                "Evidence", "automated", "No blocker",
-            ]
-        )
-        self.write_card(table=self.table(rows))
-        self.reject()
-
-    def test_rejects_reordered_criteria(self) -> None:
-        rows = [row.split(" | ") for row in self.table().splitlines()[2:]]
-        rows = [[cell.strip("| ") for cell in row] for row in rows]
-        self.write_card(table=self.table(list(reversed(rows))))
-        self.reject()
-
-    def test_accepts_escaped_pipe_in_canonical_criterion(self) -> None:
-        rfc_path = self.root / "docs/rfcs/RFC-BPR-0999-fixture.md"
-        rfc_path.write_text(
-            rfc_path.read_text(encoding="utf-8").replace(
-                "First canonical criterion.",
-                "First canonical | criterion.",
-            ),
-            encoding="utf-8",
-        )
-        self.write_card(
-            table=self.table().replace(
-                "First canonical criterion.",
-                r"First canonical \| criterion.",
-            )
-        )
-        verify_terminal_closeout_cards(self.root)
-
-    def test_accepts_markdown_code_normalization_in_evidence_key(self) -> None:
-        rfc_path = self.root / "docs/rfcs/RFC-BPR-0999-fixture.md"
-        rfc_path.write_text(
-            rfc_path.read_text(encoding="utf-8").replace(
-                "First canonical criterion.",
-                "First `canonical` criterion.",
-            ),
-            encoding="utf-8",
-        )
-        self.write_card(
-            table=self.table().replace(
-                "First canonical criterion.",
-                "First `canonical` criterion.",
-                1,
-            )
-        )
-        verify_terminal_closeout_cards(self.root)
-
-    def test_rejects_checked_open_row(self) -> None:
-        self.write_card(table=self.table().replace("| [ ] |", "| [x] |", 1))
-        self.reject()
-
-    def test_rejects_unknown_gate_class(self) -> None:
-        self.write_card(table=self.table().replace("automated", "manual", 1))
-        self.reject()
-
-    def test_rejects_nonautomated_missing_blocker_link(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "[BPR-0998](BPR-0998-attended-blocker.md)", "Pending"
-            )
-        )
-        self.reject()
-
-    def test_rejects_nonautomated_done_blocker_link(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "[BPR-0998](BPR-0998-attended-blocker.md)",
-                "[BPR-0997](../60-done/BPR-0997-done-blocker.md)",
-            )
-        )
-        self.reject()
-
-    def test_rejects_nonautomated_unrelated_open_blocker(self) -> None:
-        unrelated_path = (
-            self.root / "docs/issues/10-backlog/BPR-0996-unrelated-blocker.md"
-        )
-        self.write_blocker(unrelated_path, "Backlog")
-        self.write_card(
-            table=self.table().replace(
-                "[BPR-0998](BPR-0998-attended-blocker.md)",
-                "[BPR-0996](BPR-0996-unrelated-blocker.md)",
-            )
-        )
-        self.reject()
-
-    def test_rejects_one_character_direct_surface(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "Fixture executable command and projection assertion surface",
-                "x",
-            )
-        )
-        self.reject()
-
-    def test_rejects_one_character_command(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "Run `python3 scripts/verify_documentation.py --root .` and "
-                "inspect its projection assertion",
-                "x",
-            )
-        )
-        self.reject()
-
-    def test_rejects_one_character_expected_result(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "The focused fixture reports the first canonical projection result "
-                "exactly once.",
-                "x",
-            )
-        )
-        self.reject()
-
-    def test_rejects_one_character_evidence_location(self) -> None:
-        rows = self.table().splitlines()
-        first = rows[2].split(" | ")
-        first[5] = "x"
-        rows[2] = " | ".join(first)
-        self.write_card(table="\n".join(rows) + "\n")
-        self.reject()
-
-    def test_rejects_one_character_live_blocker(self) -> None:
-        self.write_card(
-            table=self.table().replace(CLOSEOUT_NO_LIVE_BLOCKER, "x", 1)
-        )
-        self.reject()
-
-    def test_rejects_wrong_ledger_link(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "../../verification/RFC-BPR-0999.md#claim-matrix",
-                "../../verification/RFC-BPR-0001.md#claim-matrix",
-                1,
-            )
-        )
-        self.reject()
-
-    def test_rejects_ledger_link_without_anchor(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "../../verification/RFC-BPR-0999.md#claim-matrix",
-                "../../verification/RFC-BPR-0999.md",
-                1,
-            )
-        )
-        self.reject()
-
-    def test_rejects_ledger_link_with_nonexistent_anchor(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "../../verification/RFC-BPR-0999.md#claim-matrix",
-                "../../verification/RFC-BPR-0999.md#does-not-exist",
-                1,
-            )
-        )
-        self.reject()
-
-    def test_rejects_ledger_heading_inside_html_comment(self) -> None:
-        ledger_path = self.root / "docs/verification/RFC-BPR-0999.md"
-        ledger_path.write_text(
-            ledger_path.read_text(encoding="utf-8").replace(
-                "## Claim matrix",
-                "<!--\n## Claim matrix\n-->",
-            ),
-            encoding="utf-8",
-        )
-        self.reject()
-
-    def test_accepts_direct_claim_matrix_anchor(self) -> None:
-        self.write_ledger(headings=("Direct claim matrix",))
-        self.write_card(
-            table=self.table().replace("#claim-matrix", "#direct-claim-matrix")
-        )
-        verify_terminal_closeout_cards(self.root)
-
-    def test_accepts_duplicate_heading_suffix_anchor(self) -> None:
-        self.write_ledger(headings=("Claim matrix", "Claim matrix"))
-        self.write_card(
-            table=self.table().replace("#claim-matrix", "#claim-matrix-1")
-        )
-        verify_terminal_closeout_cards(self.root)
-
-    def test_rejects_evidence_with_criterion_outside_wrong_key(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "record keyed by “First canonical criterion.”",
-                "notes mention First canonical criterion.; final replay record "
-                "keyed by “A different criterion.”",
-                1,
-            )
-        )
-        self.reject()
-
-    def test_rejects_non_action_command(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "Run `python3 scripts/verify_documentation.py --root .` and "
-                "inspect its projection assertion",
-                "The fixture uses `python3 scripts/verify_documentation.py "
-                "--root .` for deterministic projection output",
-            )
-        )
-        self.reject()
-
-    def test_rejects_action_without_command_or_procedure(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "Run `python3 scripts/verify_documentation.py --root .` and "
-                "inspect its projection assertion",
-                "Run alpha beta gamma delta epsilon operation",
-            )
-        )
-        self.reject()
-
-    def test_rejects_nonallowlisted_backticked_executable(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "Run `python3 scripts/verify_documentation.py --root .` and "
-                "inspect its projection assertion",
-                "`x` followed by filler words for a pretend repository operation",
-            )
-        )
-        self.reject()
-
-    def test_accepts_exact_ctest_command(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "Run `python3 scripts/verify_documentation.py --root .` and "
-                "inspect its projection assertion",
-                "`ctest --preset dev -R '^documentation_structure$' "
-                "--output-on-failure`",
-            )
-        )
-        verify_terminal_closeout_cards(self.root)
-
-    def test_accepts_exact_documentation_command(self) -> None:
-        verify_terminal_closeout_cards(self.root)
-
-    def test_accepts_exact_format_and_diff_command(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "Run `python3 scripts/verify_documentation.py --root .` and "
-                "inspect its projection assertion",
-                "`cmake --build --preset dev --target coding-format-check "
-                "coding-tidy && git diff --check`",
-            )
-        )
-        verify_terminal_closeout_cards(self.root)
-
-    def test_rejects_ctest_unknown_option(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "Run `python3 scripts/verify_documentation.py --root .` and "
-                "inspect its projection assertion",
-                "`ctest --preset dev -R '^documentation_structure$' "
-                "--output-on-failure --verbose`",
-            )
-        )
-        self.reject()
-
-    def test_rejects_ctest_trailing_composition(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "Run `python3 scripts/verify_documentation.py --root .` and "
-                "inspect its projection assertion",
-                "`ctest --preset dev -R '^documentation_structure$' "
-                "--output-on-failure && bogus`",
-            )
-        )
-        self.reject()
-
-    def test_accepts_linked_dependency_procedure(self) -> None:
-        verify_terminal_closeout_cards(self.root)
-
-    def test_rejects_plain_dependency_id_as_procedure(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "Perform [BPR-0998](BPR-0998-attended-blocker.md"
-                "#required-direct-evidence)'s attended fixture interaction and "
-                "record its visible result",
-                "Run BPR-0998 bananas through the attended fixture procedure",
-            )
-        )
-        self.reject()
-
-    def test_rejects_procedure_link_without_anchor(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "BPR-0998-attended-blocker.md#required-direct-evidence",
-                "BPR-0998-attended-blocker.md",
-                1,
-            )
-        )
-        self.reject()
-
-    def test_rejects_nonexistent_procedure_anchor(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "#required-direct-evidence",
-                "#does-not-exist",
-                1,
-            )
-        )
-        self.reject()
-
-    def test_rejects_procedure_heading_inside_html_comment(self) -> None:
-        blocker_text = self.blocker_path.read_text(encoding="utf-8")
-        self.blocker_path.write_text(
-            blocker_text.replace(
-                "## Required direct evidence",
-                "<!--\n## Required direct evidence",
-            ).rstrip()
-            + "\n-->\n",
-            encoding="utf-8",
-        )
-        self.reject()
-
-    def test_rejects_nonaction_procedure_anchor(self) -> None:
-        self.write_blocker(
-            self.blocker_path,
-            "Backlog",
-            procedure_heading="Background",
-        )
-        self.write_card(
-            table=self.table().replace(
-                "#required-direct-evidence",
-                "#background",
-                1,
-            )
-        )
-        self.reject()
-
-    def test_rejects_done_owned_procedure(self) -> None:
-        self.write_card(
-            dependencies="BPR-0998, BPR-0997",
-            table=self.table().replace(
-                "[BPR-0998](BPR-0998-attended-blocker.md"
-                "#required-direct-evidence)",
-                "[BPR-0997](../60-done/BPR-0997-done-blocker.md"
-                "#required-direct-evidence)",
-                1,
-            ),
-        )
-        self.reject()
-
-    def test_rejects_unowned_procedure_reference(self) -> None:
-        unrelated_path = (
-            self.root / "docs/issues/10-backlog/BPR-0996-unrelated-blocker.md"
-        )
-        self.write_blocker(unrelated_path, "Backlog")
-        self.write_card(
-            table=self.table().replace(
-                "[BPR-0998](BPR-0998-attended-blocker.md"
-                "#required-direct-evidence)",
-                "[BPR-0996](BPR-0996-unrelated-blocker.md"
-                "#required-direct-evidence)",
-                1,
-            )
-        )
-        self.reject()
-
-    def test_rejects_nonsubstantive_procedure_section(self) -> None:
-        self.write_blocker(
-            self.blocker_path,
-            "Backlog",
-            procedure_body="x",
-        )
-        self.reject()
-
-    def test_accepts_automated_dependency_blocker(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                CLOSEOUT_NO_LIVE_BLOCKER,
-                "[BPR-0998](BPR-0998-attended-blocker.md) remains open.",
-                1,
-            )
-        )
-        verify_terminal_closeout_cards(self.root)
-
-    def test_rejects_automated_unrelated_open_blocker(self) -> None:
-        unrelated_path = (
-            self.root / "docs/issues/10-backlog/BPR-0996-unrelated-blocker.md"
-        )
-        self.write_blocker(unrelated_path, "Backlog")
-        self.write_card(
-            table=self.table().replace(
-                CLOSEOUT_NO_LIVE_BLOCKER,
-                "[BPR-0996](BPR-0996-unrelated-blocker.md) remains open.",
-                1,
-            )
-        )
-        self.reject()
-
-    def test_rejects_automated_done_blocker(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                CLOSEOUT_NO_LIVE_BLOCKER,
-                "[BPR-0997](../60-done/BPR-0997-done-blocker.md) remains open.",
-                1,
-            )
-        )
-        self.reject()
-
-    def test_rejects_automated_arbitrary_blocker(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                CLOSEOUT_NO_LIVE_BLOCKER,
-                "An arbitrary future task remains pending.",
-                1,
-            )
-        )
-        self.reject()
-
-    def test_rejects_automated_self_blocker(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                CLOSEOUT_NO_LIVE_BLOCKER,
-                "[BPR-0999](BPR-0999-close-rfc-0999.md) remains open.",
-                1,
-            )
-        )
-        self.reject()
-
-    def test_rejects_generic_direct_surface_placeholder(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "Fixture executable command and projection assertion surface",
-                "RFC-BPR-0999 criterion 1 through the direct architecture, "
-                "runtime, or authority boundary named by the criterion",
-            )
-        )
-        self.reject()
-
-    def test_rejects_generic_full_matrix_command_placeholder(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "Run `python3 scripts/verify_documentation.py --root .` and "
-                "inspect its projection assertion",
-                "`cmake --preset dev && cmake --build --preset dev && "
-                "ctest --preset dev --output-on-failure`",
-            )
-        )
-        self.reject()
-
-    def test_rejects_generic_expected_result_placeholder(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "The focused fixture reports the first canonical projection result "
-                "exactly once.",
-                "The final-head replay demonstrates the criterion exactly as "
-                "written, without historical-count or proxy substitution.",
-            )
-        )
-        self.reject()
-
-    def test_rejects_generic_evidence_location_placeholder(self) -> None:
-        self.write_card(
-            table=self.table().replace(
-                "First fixture row in the [RFC-BPR-0999 verification ledger]"
-                "(../../verification/RFC-BPR-0999.md#claim-matrix); final replay "
-                "record keyed by “First canonical criterion.”",
-                "Fixture ledger, criterion-specific final-head row",
-            )
-        )
         self.reject()
 
     def test_rejects_future_terminal_card_without_schema(self) -> None:
@@ -1280,316 +735,6 @@ class OperatorPacketRecordTests(unittest.TestCase):
         self.write_card("BPR-0001", "40-parked", "See capture-v001 and gate-v001.")
 
         verify_operator_packet_records(self.root)
-
-
-class FrontierRootsTests(unittest.TestCase):
-    """The frontier table says it is complete, so the lanes decide its rows."""
-
-    def setUp(self) -> None:
-        self.temporary = ContainedTemporaryDirectory()
-        self.root = Path(self.temporary.name)
-        self.issue_root = self.root / "docs/issues"
-        for lane in (
-            "10-backlog",
-            "20-ready",
-            "21-ready-win",
-            "22-ready-mac",
-            "23-ready-lin",
-            "30-in-progress",
-            "40-parked",
-            "50-blocked",
-            "60-done",
-        ):
-            (self.issue_root / lane).mkdir(parents=True)
-
-    def tearDown(self) -> None:
-        self.temporary.cleanup()
-
-    def write_card(self, issue_id: str, lane: str) -> None:
-        (self.issue_root / lane / f"{issue_id}-fixture.md").write_text(
-            "---\n"
-            f"id: {issue_id}\n"
-            "title: Fixture\n"
-            "status: Parked\n"
-            "rfc: RFC-BPR-TEST\n"
-            "depends_on: []\n"
-            "---\n",
-            encoding="utf-8",
-        )
-
-    def write_readme(self, rows: str, count: str) -> None:
-        (self.issue_root / "README.md").write_text(
-            "# Board\n\n"
-            "#### Frontier roots\n\n"
-            "| Root | Lane | Needs |\n"
-            "|---|---|---|\n"
-            f"{rows}"
-            "\n"
-            f"Every open card is one of these {count} roots or reaches one "
-            "transitively.\n",
-            encoding="utf-8",
-        )
-
-    def reject(self) -> None:
-        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
-            verify_frontier_roots(self.root)
-
-    def test_accepts_a_table_that_matches_the_lanes(self) -> None:
-        self.write_card("BPR-0001", "40-parked")
-        self.write_card("BPR-0002", "50-blocked")
-        self.write_card("BPR-0003", "60-done")
-        self.write_card("BPR-0004", "10-backlog")
-        self.write_readme(
-            "| BPR-0001 | `40-parked/` | A person |\n"
-            "| BPR-0002 | `50-blocked/` | A Linux host |\n",
-            "two",
-        )
-
-        verify_frontier_roots(self.root)
-
-    def test_derives_a_platform_ready_lane(self) -> None:
-        self.write_card("BPR-0001", "21-ready-win")
-        self.write_card("BPR-0002", "23-ready-lin")
-        self.write_readme(
-            "| BPR-0001 | `21-ready-win/` | A Windows session |\n"
-            "| BPR-0002 | `23-ready-lin/` | A Linux session |\n",
-            "two",
-        )
-
-        verify_frontier_roots(self.root)
-
-    def test_accepts_a_hyphenated_count_word(self) -> None:
-        # The count table has carried "twenty-one" onward since it was
-        # written, but the sentence regex matched only [a-z]+, so the first
-        # board with more than twenty roots was told it stated no count at
-        # all. Found on 2026-08-22 when the Windows run opened the
-        # twenty-first root.
-        rows = ""
-        for index in range(1, 22):
-            issue_id = f"BPR-{index:04d}"
-            self.write_card(issue_id, "40-parked")
-            rows += f"| {issue_id} | `40-parked/` | A person |\n"
-        self.write_readme(rows, "twenty-one")
-
-        verify_frontier_roots(self.root)
-
-        self.write_readme(rows, "twenty")
-        self.reject()
-
-    def test_rejects_an_omitted_platform_root(self) -> None:
-        self.write_card("BPR-0001", "21-ready-win")
-        self.write_readme("", "zero")
-
-        self.reject()
-
-    def test_rejects_an_omitted_root(self) -> None:
-        self.write_card("BPR-0001", "40-parked")
-        self.write_card("BPR-0002", "50-blocked")
-        self.write_readme("| BPR-0001 | `40-parked/` | A person |\n", "one")
-
-        self.reject()
-
-    def test_rejects_a_root_that_has_since_closed(self) -> None:
-        self.write_card("BPR-0001", "40-parked")
-        self.write_card("BPR-0002", "60-done")
-        self.write_readme(
-            "| BPR-0001, BPR-0002 | `40-parked/` | A person |\n",
-            "two",
-        )
-
-        self.reject()
-
-    def test_rejects_a_backlog_card_listed_as_a_root(self) -> None:
-        self.write_card("BPR-0001", "10-backlog")
-        self.write_readme("| BPR-0001 | `10-backlog/` | Another card |\n", "one")
-
-        self.reject()
-
-    def test_rejects_the_wrong_lane_for_a_listed_root(self) -> None:
-        self.write_card("BPR-0001", "50-blocked")
-        self.write_readme("| BPR-0001 | `40-parked/` | A person |\n", "one")
-
-        self.reject()
-
-    def test_rejects_a_count_that_disagrees_with_the_rows(self) -> None:
-        self.write_card("BPR-0001", "40-parked")
-        self.write_card("BPR-0002", "50-blocked")
-        self.write_readme(
-            "| BPR-0001 | `40-parked/` | A person |\n"
-            "| BPR-0002 | `50-blocked/` | A Linux host |\n",
-            "three",
-        )
-
-        self.reject()
-
-    def test_rejects_a_root_listed_twice(self) -> None:
-        self.write_card("BPR-0001", "40-parked")
-        self.write_readme(
-            "| BPR-0001 | `40-parked/` | A person |\n"
-            "| BPR-0001 | `40-parked/` | A person again |\n",
-            "one",
-        )
-
-        self.reject()
-
-    def test_rejects_a_missing_frontier_section(self) -> None:
-        self.write_card("BPR-0001", "40-parked")
-        (self.issue_root / "README.md").write_text("# Board\n", encoding="utf-8")
-
-        self.reject()
-
-
-class BoardLaneClaimTests(unittest.TestCase):
-    """A table cell naming a card's lane has to name the lane it is in.
-
-    The frontier gate derives which cards the table lists. Nothing read what
-    the cells said about them, and [[BPR-0466]] found twenty-three cells
-    naming a lane the card had left -- four of them a lane [[BPR-0419]] had
-    removed outright.
-    """
-
-    def setUp(self) -> None:
-        self.temporary = ContainedTemporaryDirectory()
-        self.root = Path(self.temporary.name)
-        self.issue_root = self.root / "docs/issues"
-        for lane in (
-            "10-backlog",
-            "20-ready",
-            "21-ready-win",
-            "22-ready-mac",
-            "23-ready-lin",
-            "30-in-progress",
-            "40-parked",
-            "50-blocked",
-            "60-done",
-        ):
-            (self.issue_root / lane).mkdir(parents=True)
-
-    def tearDown(self) -> None:
-        self.temporary.cleanup()
-
-    def write_card(self, issue_id: str, lane: str) -> None:
-        (self.issue_root / lane / f"{issue_id}-fixture.md").write_text(
-            "---\n"
-            f"id: {issue_id}\n"
-            "title: Fixture\n"
-            "status: Done\n"
-            "rfc: RFC-BPR-TEST\n"
-            "depends_on: []\n"
-            "---\n",
-            encoding="utf-8",
-        )
-
-    def write_readme(self, body: str) -> None:
-        (self.issue_root / "README.md").write_text(
-            "# Board\n\n" + body, encoding="utf-8"
-        )
-
-    def reject(self) -> None:
-        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
-            verify_board_lane_claims(self.root)
-
-    def test_accepts_a_cell_that_names_the_right_lane(self) -> None:
-        self.write_card("BPR-0001", "60-done")
-        self.write_card("BPR-0002", "21-ready-win")
-        self.write_readme(
-            "| Group | Cards |\n"
-            "|---|---|\n"
-            "| A | Done BPR-0001; ready BPR-0002 |\n"
-        )
-
-        verify_board_lane_claims(self.root)
-
-    def test_rejects_a_cell_naming_a_lane_the_card_left(self) -> None:
-        self.write_card("BPR-0001", "60-done")
-        self.write_readme(
-            "| Group | Cards |\n"
-            "|---|---|\n"
-            "| A | Backlog BPR-0001 |\n"
-        )
-
-        self.reject()
-
-    def test_rejects_a_lane_the_board_no_longer_uses(self) -> None:
-        # BPR-0419 replaced 50-blocked/ with the per-platform ready lanes and
-        # moved nine cards. The group table kept the old word for four of
-        # them, which is unsatisfiable rather than merely stale.
-        self.write_card("BPR-0001", "23-ready-lin")
-        self.write_readme(
-            "| Group | Cards |\n"
-            "|---|---|\n"
-            "| A | Blocked BPR-0001 |\n"
-        )
-
-        self.reject()
-
-    def test_rejects_a_cell_naming_a_card_that_does_not_exist(self) -> None:
-        self.write_readme(
-            "| Group | Cards |\n"
-            "|---|---|\n"
-            "| A | Done BPR-0404 |\n"
-        )
-
-        self.reject()
-
-    def test_reads_every_id_in_a_run_not_only_the_first(self) -> None:
-        # The drift hid inside list glue: "backlog BPR-0277 through BPR-0285"
-        # named nine cards and six of them had closed.
-        self.write_card("BPR-0001", "10-backlog")
-        self.write_card("BPR-0002", "60-done")
-        self.write_readme(
-            "| Group | Cards |\n"
-            "|---|---|\n"
-            "| A | Backlog BPR-0001 through BPR-0002 |\n"
-        )
-
-        self.reject()
-
-    def test_leaves_narrative_prose_alone(self) -> None:
-        # "BPR-0391 and BPR-0392, which parked on operator packets on
-        # 2026-08-19" is a true sentence about cards now in 60-done/. A check
-        # that read prose would reject the board's own history.
-        self.write_card("BPR-0001", "60-done")
-        self.write_readme(
-            "The card parked BPR-0001 on an operator packet in\n"
-            "August, and it is done now.\n"
-        )
-
-        verify_board_lane_claims(self.root)
-
-    def test_leaves_a_possessive_alone(self) -> None:
-        # "Done BPR-0235's Linux half" claims one half of a card closed, not
-        # that the card is in 60-done/.
-        self.write_card("BPR-0235", "21-ready-win")
-        self.write_readme(
-            "| Group | Cards |\n"
-            "|---|---|\n"
-            "| A | Done BPR-0235's Linux half |\n"
-        )
-
-        verify_board_lane_claims(self.root)
-
-    def test_does_not_read_an_rfc_number_as_a_card(self) -> None:
-        self.write_readme(
-            "| Group | Cards |\n"
-            "|---|---|\n"
-            "| A | Blocked by RFC-BPR-0006 closeout |\n"
-        )
-
-        verify_board_lane_claims(self.root)
-
-    def test_stops_a_run_at_the_next_clause(self) -> None:
-        # A lane word governs the list that follows it, not the rest of the
-        # cell: the second clause carries its own word.
-        self.write_card("BPR-0001", "60-done")
-        self.write_card("BPR-0002", "10-backlog")
-        self.write_readme(
-            "| Group | Cards |\n"
-            "|---|---|\n"
-            "| A | Done BPR-0001; backlog BPR-0002 |\n"
-        )
-
-        verify_board_lane_claims(self.root)
 
 
 class FrontMatterQuotingTests(unittest.TestCase):
