@@ -111,9 +111,10 @@ Closeout review runtime: claude (claude-opus-5, xhigh) — waived: <reason cross
 ```
 
 A dual-family critical review records both lines. The line exists because
-the cross-family preference has silently drifted before: in the PlaceOfMind
-trial, two consecutive closeouts slipped back to same-family review with no
-decision behind it, and nothing on the board made the deviation visible.
+the cross-family preference has silently drifted before: in an earlier
+mixed-runtime trial, two consecutive closeouts slipped back to same-family
+review with no decision behind it, and nothing on the board made the
+deviation visible.
 Recording is the whole obligation — no audit enforces it, and review itself
 stays optional and risk-triggered per `SKILL.md`.
 

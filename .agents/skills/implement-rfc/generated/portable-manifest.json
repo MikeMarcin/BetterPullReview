@@ -30,7 +30,7 @@
     },
     {
       "path": "references/codex-lanes.md",
-      "sha256": "44d190e18c74bb6508f55119de877f7ca74eab028a2f43cffe053919b2ff0224"
+      "sha256": "0253d6ed5c57df96d7146b5133d9801b2b1dd2f200f973004e61ea333845fcbb"
     },
     {
       "path": "references/delegated-execution.md",
@@ -117,6 +117,6 @@
       "sha256": "0c570e408e59704d19c64e228d206bf3b915622f6ee684a773d1c3e80e2f4bda"
     }
   ],
-  "portable_digest": "3bb838128ea7dd9d",
+  "portable_digest": "0c74167e030b4e38",
   "schema": "implement-rfc.portable-manifest.v1"
 }
