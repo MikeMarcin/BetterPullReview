@@ -1,7 +1,7 @@
 ---
 id: BPR-0494
 title: The platform course's symbol prohibitions are blind on Windows
-status: Ready
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -79,7 +79,7 @@ both foreign vaults and all three browser-engine symbols absent. That is
 evidence the artifact is clean; it is not yet evidence this repaired code path
 produces that answer, which is what the target-native row below needs.
 
-| Target-native Windows verification | Pending — the reason this card is not terminal |
+| Target-native Windows verification | Recorded below — the repaired reader answers on Windows |
 |---|---|
 
 ## Notes
@@ -90,3 +90,62 @@ Release-artifact evidence, and confirmed here against the repository's own
 Distinct from [[BPR-0492]], which was about build configuration rather than
 symbol readability; both were latent for the same reason, that no Windows
 station had ever run this course.
+
+## Target-native results — 2026-09-01, station `bpr-win` at `86659977`
+
+The repaired reader was exercised by the course itself, not only by hand.
+`check_platform_surfaces` is step six of `verify_rfc0016_platform_course.main()`
+and it **passed** on this host during the exact ledger run; the run went on to
+fail at step nine for an unrelated launch-environment reason recorded on
+[[BPR-0492]] and [[BPR-0311]]. Passing step six is the row this card needed:
+the negative checks were evaluated against a real table rather than an empty
+one.
+
+Artifact under test — a real tests-disabled Release build from the committed
+`windows-app-release` preset, produced by that same course run:
+
+```text
+build/rfc0016-windows-enablement/release/src/app/better_pull_review.exe
+7,517,184 bytes
+sha256 0112e65e7ac6bf1563506b8f99cf66748f62803102f1648ec9639be1ea207190
+```
+
+Measured directly against it, inside the Visual Studio developer environment
+that `inspect_symbols` requires for `undname`:
+
+| Claim | Result |
+|---|---|
+| The reader used is the composed-host gate's, not a second implementation | `inspector = "link /MAP \| undname"`, reading `better_pull_review.map` beside the executable |
+| The reader returns real symbols | **32,906 symbol lines, 7,570,076 chars** — the table `dumpbin /symbols` reported as 340 bytes and "0 number of symbols" |
+| This platform's vault is present | `windows_credential_manager` PRESENT, 301 occurrences |
+| Foreign vaults are absent | `macos_keychain` ABSENT (0), `linux_secret_service` ABSENT (0) |
+| Browser engines are absent | `QWebEngine`, `QWebView`, `QtWebEngine` all ABSENT |
+| The payload string checks still hold | `client_secret`, `QtWebEngineCore` ABSENT from the file's bytes |
+| The full gate passes for this platform | `check_platform_surfaces(artifact, "windows")` passes |
+| A false platform claim is still refused | `check_platform_surfaces(artifact, "macos")` → `platform-vault-absent:macos_keychain` |
+
+The last row matters as much as the vault row. On the old `dumpbin /symbols`
+path an empty table made every negative check pass, so a false claim about a
+*foreign* platform could only ever have been caught by the one positive check.
+Here the reader has 32,906 lines to answer from, the positive check refuses the
+wrong platform, and the five prohibitions are answered from data rather than
+from its absence.
+
+### Two numbers that differ from the earlier hand read, and why
+
+The 2026-08-29 hand read reported 494 occurrences of
+`windows_credential_manager`; this reads 301. The counts are not comparable and
+neither is wrong: that read was a raw `findstr` over the map text, this is
+`parse_map_defined_symbols` plus `undname` demangling, which keeps defined
+symbols only and rewrites each one. The claim both support — present, and
+present in quantity — is unchanged.
+
+The artifact is the same 7,517,184 bytes as the earlier build but a different
+sha256 (`0112e65e…` here, `f901bf9e…` on 2026-08-29). MSVC embeds a build
+timestamp and a fresh PDB signature, so two builds of the same source do not
+produce identical bytes. This card does not claim a reproducible build, and
+the earlier hash is left standing as the record of that earlier artifact rather
+than silently replaced.
+
+The card is terminal: the reader answers on Windows, from the linked image's
+own map, and the answers are the ones the artifact should give.
