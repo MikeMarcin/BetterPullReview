@@ -1,7 +1,7 @@
 ---
 id: BPR-0451
 title: Reconcile the credential-free symbol guard with the shipped device transport
-status: In Progress
+status: Done
 rfc: RFC-BPR-0017
 depends_on: [BPR-0318]
 ---
@@ -83,3 +83,37 @@ python3 scripts/verify_rfc0017_test_inventory.py \
 ctest --preset dev --output-on-failure -R '^rfc0017_test_inventory$'
 python3 scripts/verify_documentation.py --root .
 ```
+
+## Repair and what proves it — 2026-09-01
+
+`FORBIDDEN_SYMBOLS` now names the two `BPR_NATIVE_HTTPS_TESTING` factories —
+`make_native_https_credential_free_transport_for_test` and its bootstrap
+sibling — which are the only entry points that construct a transport under
+the test policy and therefore the only way the demonstration seam can be
+reached. `credential_free_request` is gone from the list: it is the binding
+the production factory `make_native_https_credential_free_transport`
+constructs for RFC-BPR-0016's device flow, shipped deliberately since
+[[BPR-0279]] and made truthful in Release by [[BPR-0318]]. That factory is
+recorded in `KNOWN_PRODUCT_CREDENTIAL_FREE` with its owning RFC beside the
+designated-live observer, and the docstring says why.
+
+The narrowed guard keeps its teeth. The negative control is registered as
+`rfc0017_release_absence_negative_control` in the ordinary graph: the same
+scan against the tests-enabled application, which links both factories, and
+the test passes only when the scan fails naming the credential-free `_for_test`
+factory. A scan that could pass against that binary would pass against
+anything, and this test would go red.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The shipped Release artifact passes the narrowed scan | `python3 scripts/verify_rfc0017_test_inventory.py --release-binary build/app-release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview` against the artifact at `sha256:1d2fab547fdb42abe385be17da3e90d802ff6cf84c5732e935e42aef01b425f0` (10,075,792 bytes); `cmake --build --preset app-release` reported `ninja: no work to do`, so the artifact is the committed tree's, not a `--fresh --clean-first` rebuild | `RFC0017_TEST_INVENTORY_OK`; the binary carries 9 `credential_free_request` symbol lines, all device-flow, and neither `_for_test` factory | this commit |
+| The seam still fails the scan when present | `ctest --test-dir build/dev -R '^rfc0017_release_absence_negative_control$'` (the tests-enabled `app_better_pull_review`) | Passed 1.45 s — the scan exits 1 naming `make_native_https_credential_free_transport_for_test`; run directly it also names the bootstrap factory and the marker string | this commit |
+| The inventory half is unchanged | `ctest --test-dir build/dev -R '^rfc0017_test_inventory$'` | Passed 0.11 s, `RFC0017_TEST_INVENTORY_OK` | this commit |
+| The ledger and the build guide say what the guard checks | `python3 scripts/verify_documentation.py --root .` after editing `docs/verification/RFC-BPR-0017.md`'s non-product row and `docs/development/build-and-test.md`'s guard section | `DOCUMENTATION_OK` | this commit |
+
+Not run: the card's `cmake --preset app-release --fresh && cmake --build
+--preset app-release --clean-first`. The claim is about which symbols the
+committed tree's Release artifact carries, and an incremental build that has
+nothing to do answers it from the same objects a fresh build would produce;
+RFC-BPR-0017's own closeout row still names the fresh build and inherits this
+repaired guard when it runs.

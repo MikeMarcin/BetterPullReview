@@ -49,11 +49,16 @@ REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
 GRAPH_ANCHOR = "native_https_transport_fixture"
 
 # Symbols that must not exist in a tests-disabled Release build. These are the
-# credential-free entry points; if one appears, the demonstration has escaped
-# into the product.
+# `BPR_NATIVE_HTTPS_TESTING` factories: the only entry points that construct
+# a transport under the test policy, and the only way the credential-free
+# demonstration can be reached. If one appears, the test seam has escaped into
+# the product. `credential_free_request` was listed here until BPR-0451; it is
+# the transport's credential-free binding, which RFC-BPR-0016 ships on purpose
+# (see KNOWN_PRODUCT_CREDENTIAL_FREE), so its presence no longer distinguishes
+# the demonstration from the product.
 FORBIDDEN_SYMBOLS: tuple[str, ...] = (
     "make_native_https_credential_free_transport_for_test",
-    "credential_free_request",
+    "make_native_https_bootstrap_transport_for_test",
 )
 
 # Strings that must not appear in a shipped binary for the same reason. Only
@@ -65,12 +70,23 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
     "credential-free-material-present",
 )
 
-# `make_designated_review_public_observer` also performs a credential-free GET
-# and IS compiled into a shipped build. It predates RFC-BPR-0017, belongs to
-# the attended designated-live lane, and is not this RFC's evidence. Recording
-# it here keeps a future reader from either flagging it as a regression or
-# quoting it as a credential-free product capability this RFC established.
-KNOWN_PRODUCT_CREDENTIAL_FREE = ("make_designated_review_public_observer",)
+# Credential-free product capabilities that ARE compiled into a shipped build
+# and are not this RFC's evidence. Recording them here keeps a future reader
+# from either flagging one as a regression or quoting it as a credential-free
+# product capability this RFC established.
+#
+# - `make_designated_review_public_observer` performs a credential-free GET,
+#   predates RFC-BPR-0017, and belongs to the attended designated-live lane.
+# - `make_native_https_credential_free_transport` is RFC-BPR-0016's device
+#   authorization transport: the device-code and token-poll requests run
+#   before any credential exists, so the production factory binds
+#   `credential_free_request` deliberately (BPR-0279, made truthful in
+#   shipped builds by BPR-0318). The anonymous-read seam this script guards
+#   is reachable only through the `_for_test` factories above.
+KNOWN_PRODUCT_CREDENTIAL_FREE: dict[str, str] = {
+    "make_designated_review_public_observer": "designated-live lane (pre-RFC-BPR-0017)",
+    "make_native_https_credential_free_transport": "RFC-BPR-0016 device authorization",
+}
 
 
 class InventoryFailure(RuntimeError):
