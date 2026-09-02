@@ -11,19 +11,32 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <utility>
+#include <vector>
 
 namespace bpr::qt {
 	namespace {
 		using application::device_authorization_handoff;
 		using application::device_authorization_presentation;
 
-		[[nodiscard]] auto live(
-			const core::device_authorization_stage aStage) noexcept -> bool
+		// Whether the core says this command may be issued right now. The panel
+		// asks; it does not work the answer out from the stage, because the
+		// stage is not the whole rule — a cancellation in flight forbids
+		// beginning again, and a widget that reasons from "requested or
+		// awaiting" offers a button the core would refuse. An unpublished
+		// command is a disabled one, so a projection that arrives without this
+		// command disables it rather than assuming.
+		[[nodiscard]] auto enabled(
+			const std::vector<core::device_authorization_command_projection>&
+														aCommands,
+			const core::device_authorization_command_id aId) noexcept -> bool
 		{
-			return aStage == core::device_authorization_stage::requested
-				|| aStage
-				== core::device_authorization_stage::awaiting_authorization;
+			const auto match = std::ranges::find(
+				aCommands,
+				aId,
+				&core::device_authorization_command_projection::Id);
+			return match != aCommands.end() && match->Enabled;
 		}
 
 		[[nodiscard]] auto stage_text(
@@ -243,14 +256,17 @@ namespace bpr::qt {
 
 	void device_authorization_panel::apply_commands()
 	{
-		const auto running  = live(Presentation.Stage);
-		const auto hasCode  = !Presentation.UserCode.empty();
-		const auto hasPlace = !Presentation.VerificationUri.empty();
-
-		BeginButton->setEnabled(!running);
-		CancelButton->setEnabled(running);
-		CopyButton->setEnabled(hasCode);
-		OpenButton->setEnabled(hasPlace);
+		// Beginning and cancelling are core commands, so their legality comes
+		// from the core. Copying and opening are not: neither moves the flow,
+		// and both are answerable from what is on screen.
+		BeginButton->setEnabled(enabled(
+			Presentation.Commands,
+			core::device_authorization_command_id::begin_device_authorization));
+		CancelButton->setEnabled(enabled(
+			Presentation.Commands,
+			core::device_authorization_command_id::cancel_device_authorization));
+		CopyButton->setEnabled(!Presentation.UserCode.empty());
+		OpenButton->setEnabled(!Presentation.VerificationUri.empty());
 
 		// The one gesture that changes wording rather than only enablement: a
 		// terminal flow is retried by asking for a new code, and calling that

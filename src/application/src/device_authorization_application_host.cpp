@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <limits>
 #include <utility>
+#include <vector>
 
 namespace bpr::application {
 	namespace {
@@ -184,7 +185,7 @@ namespace bpr::application {
 		implementation(
 			core::device_authorization_state       aInitialState,
 			device_authorization_transport_port&   aTransport,
-			github_credential_vault_port&          aVault,
+			github_credential_refresh_vault_port&  aVault,
 			device_authorization_enrollment_port&  aEnrollment,
 			device_authorization_clock_port&       aClock,
 			device_authorization_timer_port&       aTimer,
@@ -205,6 +206,11 @@ namespace bpr::application {
 			, Handoff{ std::move(aHandoff) }
 			, Capability{ aCapability }
 		{
+			// The command set presentation sees before any transition. It is
+			// the core's answer for the state this host was constructed with,
+			// asked for rather than restated, so the first publication carries
+			// the same legality every later one does.
+			Commands = core::device_authorization_commands(State);
 		}
 
 		// -- lane and clock ------------------------------------------------
@@ -256,6 +262,16 @@ namespace bpr::application {
 
 		void publish(const core::device_authorization_transition_output& aOutput)
 		{
+			// The core decides which commands are legal and says so in the
+			// output it just produced. The host carries that decision to
+			// presentation unchanged; nothing downstream re-derives it, and a
+			// republication with no transition behind it reports the last
+			// answer the core gave rather than a fresh guess.
+			if (core::has_changed(
+					aOutput.Changed,
+					core::device_authorization_changed_domain::commands)) {
+				Commands = aOutput.Commands;
+			}
 			if (!aOutput.Status.has_value()) {
 				return;
 			}
@@ -277,6 +293,7 @@ namespace bpr::application {
 				.VerificationUri          = { },
 				.RemainingValiditySeconds = 0U,
 				.Handoff                  = LastHandoff,
+				.Commands                 = Commands,
 			};
 			if (
 				State.Stage
@@ -1112,7 +1129,7 @@ namespace bpr::application {
 
 		core::device_authorization_state      State;
 		device_authorization_transport_port*  Transport    = nullptr;
-		github_credential_vault_port*         Vault        = nullptr;
+		github_credential_refresh_vault_port* Vault        = nullptr;
 		device_authorization_enrollment_port* Enrollment   = nullptr;
 		device_authorization_clock_port*      Clock        = nullptr;
 		device_authorization_timer_port*      Timer        = nullptr;
@@ -1143,7 +1160,11 @@ namespace bpr::application {
 		device_authorization_refresh_observation                  Refresh;
 
 		device_authorization_presentation Presentation;
-		device_authorization_handoff      LastHandoff
+		// The last command legality the core published. Held rather than
+		// recomputed so a republication cannot answer differently from the
+		// transition that produced it.
+		std::vector<core::device_authorization_command_projection> Commands;
+		device_authorization_handoff                               LastHandoff
 			= device_authorization_handoff::not_attempted;
 		std::uint64_t NextHostRequest          = 1U;
 		std::uint64_t NextRefreshGeneration    = 1U;
@@ -1157,7 +1178,7 @@ namespace bpr::application {
 	device_authorization_application_host::device_authorization_application_host(
 		core::device_authorization_state       aInitialState,
 		device_authorization_transport_port&   aTransport,
-		github_credential_vault_port&          aVault,
+		github_credential_refresh_vault_port&  aVault,
 		device_authorization_enrollment_port&  aEnrollment,
 		device_authorization_clock_port&       aClock,
 		device_authorization_timer_port&       aTimer,

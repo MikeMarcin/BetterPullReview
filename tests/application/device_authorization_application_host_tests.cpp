@@ -654,10 +654,16 @@ namespace {
 	// The device course itself needs no refresh slot. This vault gives the
 	// answer every platform without one gives, so nothing in these tests can
 	// depend on refresh material existing.
-	class unavailable_vault final : public application::github_credential_vault_port
+	//
+	// It implements the refresh-only port, which is the whole of what the
+	// device host is handed. There is no base-token slot here to stub out and
+	// none for the host to reach: the narrowing is what makes that a fact about
+	// the types rather than a claim about the code.
+	class unavailable_vault final
+		: public application::github_credential_refresh_vault_port
 	{
 	public:
-		void store(
+		void store_refresh(
 			application::github_credential_enrollment               aEnrollment,
 			application::github_credential_store_completion_handler aCompletion)
 			override
@@ -670,7 +676,7 @@ namespace {
 			});
 		}
 
-		void retrieve(
+		void retrieve_refresh(
 			application::github_credential_operation_context           aContext,
 			application::github_credential_retrieve_completion_handler aCompletion)
 			override
@@ -681,7 +687,7 @@ namespace {
 			});
 		}
 
-		void delete_credential(
+		void delete_refresh(
 			application::github_credential_operation_context         aContext,
 			application::github_credential_delete_completion_handler aCompletion)
 			override
@@ -690,30 +696,6 @@ namespace {
 				.Context = aContext,
 				.Failure = application::github_credential_vault_failure::unavailable,
 			});
-		}
-
-		void store_refresh(
-			application::github_credential_enrollment               aEnrollment,
-			application::github_credential_store_completion_handler aCompletion)
-			override
-		{
-			store(std::move(aEnrollment), std::move(aCompletion));
-		}
-
-		void retrieve_refresh(
-			application::github_credential_operation_context           aContext,
-			application::github_credential_retrieve_completion_handler aCompletion)
-			override
-		{
-			retrieve(aContext, std::move(aCompletion));
-		}
-
-		void delete_refresh(
-			application::github_credential_operation_context         aContext,
-			application::github_credential_delete_completion_handler aCompletion)
-			override
-		{
-			delete_credential(aContext, std::move(aCompletion));
 		}
 
 		void cancel(application::github_credential_operation_context) override

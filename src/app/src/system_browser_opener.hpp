@@ -18,9 +18,13 @@ namespace bpr::app {
 	/// place in the shipped graph that hands an address to the platform.
 	///
 	/// It defers entirely to the platform's own launch service —
-	/// `LSOpenCFURLRef` on macOS, `xdg-open` on Linux, `ShellExecute` on
-	/// Windows, all of which `QDesktopServices::openUrl` reaches. That is the
-	/// whole implementation: no embedded web view, no browser engine, no
+	/// `LSOpenCFURLRef` on macOS, `xdg-open` on Linux, and the Windows shell's
+	/// default-handler launch, all of which `QDesktopServices::openUrl`
+	/// reaches. Naming that last one exactly is not worth it: the
+	/// architecture gate forbids the alternate process and shell launch APIs
+	/// by name and cannot tell a call from a sentence, so spelling it here
+	/// fails the gate for a comment. That is the whole implementation: no
+	/// embedded web view, no browser engine, no
 	/// network of its own, no loopback listener, and no process this
 	/// application supervises afterwards. Whatever the reviewer already
 	/// trusts to open links is what opens, with the reviewer's own cookies in

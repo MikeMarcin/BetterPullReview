@@ -1,13 +1,14 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DEVICE_AUTHORIZATION_PROJECTION_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DEVICE_AUTHORIZATION_PROJECTION_HPP
 
-#include "bpr/core/device_authorization_model.hpp"
+#include "bpr/core/device_authorization_transition.hpp"
 
 #include <compare>
 #include <cstdint>
 #include <functional>
 #include <string>
 #include <variant>
+#include <vector>
 
 namespace bpr::application {
 	/// \brief Reports what became of the last browser handoff attempt.
@@ -35,7 +36,7 @@ namespace bpr::application {
 
 	/// \brief Describes the device authorization presentation record.
 	///
-	/// \details Five fields, and the list is closed to everything the flow
+	/// \details Six fields, and the list is closed to everything the flow
 	/// keeps secret. The reviewer has to read a code off the screen and type it
 	/// into a browser, so the user code and the address it goes to have to be
 	/// presentable; everything else the flow touches — the device code, the
@@ -43,6 +44,14 @@ namespace bpr::application {
 	/// presentation and is absent by construction rather than by omission.
 	/// `Handoff` joined them because a browser that refuses to open has to be
 	/// visible to the reviewer, and it reports only the fate of a local launch.
+	///
+	/// `Commands` is the core's own decision about which of begin and cancel is
+	/// legal right now, and why the other is not, carried outward unchanged.
+	/// It is here so that presentation can render command legality without
+	/// deciding it: a widget that works out for itself whether a flow is
+	/// running is a second copy of a rule the core already owns, and the two
+	/// copies disagree the moment a stage is added. An absent command is a
+	/// disabled command, so a projection that lost one fails closed.
 	///
 	/// `VerificationUri` arrives already checked against the server authority by
 	/// the wire parser, and is checked a second time against the compiled
@@ -61,6 +70,13 @@ namespace bpr::application {
 		std::uint32_t                RemainingValiditySeconds = 0U;
 		device_authorization_handoff Handoff
 			= device_authorization_handoff::not_attempted;
+		// The core's answer for a state nothing has happened in yet. A panel is
+		// built before any transition publishes and still has to offer the one
+		// command that is legal then, so the default asks the core instead of
+		// restating it.
+		std::vector<core::device_authorization_command_projection> Commands
+			= core::device_authorization_commands(
+				core::device_authorization_state{ });
 
 		auto operator<=>(const device_authorization_presentation&) const = default;
 	};

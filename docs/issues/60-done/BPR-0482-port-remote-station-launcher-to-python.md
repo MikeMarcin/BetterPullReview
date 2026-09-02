@@ -72,4 +72,3 @@ The one check that still needs the real machine is unchanged in kind from
 the bash launcher's never-run acceptance row: first provisioning of
 `bpr-win-jaegaw` from PowerShell or cmd on JaegAW, which BPR-0311's
 dispatch performs anyway.
-

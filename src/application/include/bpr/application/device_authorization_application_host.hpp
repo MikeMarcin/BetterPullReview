@@ -221,13 +221,6 @@ namespace bpr::application {
 		virtual void cancel() noexcept             = 0;
 	};
 
-	// The compiled authority a GitHub.com profile's verification address must
-	// sit under. It is a constant rather than a setting because an operator who
-	// can edit it can be talked into editing it, and the whole point of the
-	// check is that the address the server sent is not the one that decides.
-	inline constexpr std::string_view default_device_verification_authority
-		= "github.com";
-
 	/// \brief Provides the device authorization browser port contract.
 	///
 	/// \details The narrowest capability the flow needs: hand one already
@@ -429,7 +422,7 @@ namespace bpr::application {
 		device_authorization_application_host(
 			core::device_authorization_state      aInitialState,
 			device_authorization_transport_port&  aTransport,
-			github_credential_vault_port&         aVault,
+			github_credential_refresh_vault_port& aVault,
 			device_authorization_enrollment_port& aEnrollment,
 			device_authorization_clock_port&      aClock,
 			device_authorization_timer_port&      aTimer,

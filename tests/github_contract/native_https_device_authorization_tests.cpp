@@ -654,43 +654,17 @@ namespace {
 
 	// One slot, held in memory. The point of this vault is that the host reads
 	// renewal material out of it and writes rotated material back into it over
-	// a real socket, not that any platform store behaves a particular way.
-	class lifecycle_vault final : public application::github_credential_vault_port
+	// a real socket, not that any platform store behaves a particular way. It
+	// is the refresh-only port, which is all the device host takes; the access
+	// token this course enrolls leaves through the enrollment boundary, and
+	// this vault has no slot that could quietly receive it instead.
+	class lifecycle_vault final
+		: public application::github_credential_refresh_vault_port
 	{
 	public:
 		explicit lifecycle_vault(std::string aRefresh)
 			: Refresh{ std::move(aRefresh) }
 		{
-		}
-
-		void store(
-			application::github_credential_enrollment               aEnrollment,
-			application::github_credential_store_completion_handler aCompletion)
-			override
-		{
-			Access = text_of(aEnrollment.Credential);
-			aCompletion(application::github_credential_store_success{
-				.Context = aEnrollment.Context,
-			});
-		}
-
-		void retrieve(
-			const application::github_credential_operation_context     aContext,
-			application::github_credential_retrieve_completion_handler aCompletion)
-			override
-		{
-			answer(aContext, Access, std::move(aCompletion));
-		}
-
-		void delete_credential(
-			const application::github_credential_operation_context   aContext,
-			application::github_credential_delete_completion_handler aCompletion)
-			override
-		{
-			Access.clear();
-			aCompletion(application::github_credential_delete_success{
-				.Context = aContext,
-			});
 		}
 
 		void store_refresh(
@@ -728,7 +702,6 @@ namespace {
 		{
 		}
 
-		std::string Access;
 		std::string Refresh;
 		std::size_t Rotations = 0U;
 

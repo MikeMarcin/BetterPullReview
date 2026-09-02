@@ -294,50 +294,22 @@ namespace {
 		std::vector<application::device_authorization_presentation> Published;
 	};
 
-	// Two slots, both in memory, both under manual control. Completions run
-	// immediately because the host marshals them onto its own lane anyway; what
-	// the test controls is what each slot answers.
-	class slotted_vault final : public application::github_credential_vault_port
+	// One slot, in memory, under manual control. Completions run immediately
+	// because the host marshals them onto its own lane anyway; what the test
+	// controls is what the slot answers.
+	//
+	// One slot rather than two because the refresh-only port is all the device
+	// host is given. The base-token slot used to be stubbed here to satisfy the
+	// full vault, and every one of those stubs was unreachable — a renewal
+	// course that accidentally stored an access token would have been caught by
+	// nothing. Now it would not compile.
+	class slotted_vault final
+		: public application::github_credential_refresh_vault_port
 	{
 	public:
 		explicit slotted_vault(order_log& aOrder)
 			: Order{ &aOrder }
 		{
-		}
-
-		void store(
-			application::github_credential_enrollment               aEnrollment,
-			application::github_credential_store_completion_handler aCompletion)
-			override
-		{
-			const auto context = aEnrollment.Context;
-			aEnrollment.Credential.reset();
-			aCompletion(application::github_credential_store_error{
-				.Context = context,
-				.Failure = application::github_credential_vault_failure::unavailable,
-			});
-		}
-
-		void retrieve(
-			application::github_credential_operation_context           aContext,
-			application::github_credential_retrieve_completion_handler aCompletion)
-			override
-		{
-			aCompletion(application::github_credential_retrieve_error{
-				.Context = aContext,
-				.Failure = application::github_credential_vault_failure::unavailable,
-			});
-		}
-
-		void delete_credential(
-			application::github_credential_operation_context         aContext,
-			application::github_credential_delete_completion_handler aCompletion)
-			override
-		{
-			aCompletion(application::github_credential_delete_error{
-				.Context = aContext,
-				.Failure = application::github_credential_vault_failure::unavailable,
-			});
 		}
 
 		void store_refresh(

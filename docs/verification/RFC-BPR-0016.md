@@ -240,6 +240,118 @@ immutable final-head platform replay is the closeout result.
 - The primary agent alone owns tracker transitions, attended responses,
   integration, commits, final verification, and RFC status.
 
+## Simplification
+
+BPR-0283's focused pass over the shipped device-authorization implementation.
+Six behaviour-preserving removals, one behaviour *correction* that is the
+point of the first of them, and the reasoning for what was deliberately left
+alone. Nothing here collapses a security check, an erasure, a cancellation, or
+a bounded-state rule into a helper; those are the parts a reader has to be
+able to audit line by line, and they are untouched.
+
+**Removed: Qt's second copy of command legality.** The core already decides
+which of begin and cancel is legal and why the other is not, and publishes it
+as `device_authorization_transition_output::Commands`. The host dropped that
+field on the floor and `device_authorization_panel.cpp` worked the answer out
+again from `Stage`, in a four-line `live()` predicate. The projection now
+carries the core's `device_authorization_command_projection` values, the host
+forwards them from the transition that produced them rather than recomputing
+them, and the panel looks each command up and enables the button. `live()` is
+deleted. An absent command is a disabled command, so a projection that lost
+one fails closed rather than falling back to a rule of the panel's own.
+
+This is where the two copies had already drifted: `cancelling` is neither
+`requested` nor `awaiting_authorization`, so the panel offered "Get a code"
+during a cancellation the core refuses with `cancellation_in_progress`. That
+one stage is the whole observable difference, and it now matches the core.
+Copying the code and opening a browser stay derived from what is on screen —
+neither moves the flow, and the core has no opinion about either.
+
+**Removed: the device host's reach into the base-token slot.** The host was
+handed the whole `github_credential_vault_port` and used three of its seven
+methods; `store`, `retrieve`, `delete_credential`, and `delete_refresh` were
+reachable and unused. `github_credential_refresh_vault_port` now declares the
+refresh slot alone — `store_refresh`, `retrieve_refresh`, `delete_refresh`,
+`cancel` — and the full vault derives from it, so composition still hands one
+platform object to both and no composition line changed. The device host takes
+the narrow port. Reaching the base-token slot from it is a compile error
+rather than a rule somebody has to keep.
+
+**Removed: the full vault port's duplicated rule of five.** It declared its
+own defaulted constructor and destructor and its own four deleted copy and
+move operations. Deriving from the refresh port inherits every one of them —
+a base with a deleted copy constructor gives a derived class a deleted copy
+constructor — so the five declarations said nothing the type did not already
+say.
+
+**Removed: nine unreachable base-slot stubs across three test doubles.**
+`unavailable_vault`, `slotted_vault`, and `lifecycle_vault` each implemented
+`store`, `retrieve`, and `delete_credential` only to be constructible as a
+full vault, and nothing ever called them; `lifecycle_vault::Access` was
+written by one of them and read by no assertion. All three now implement the
+refresh port. The subtraction is the proof: a renewal course that accidentally
+stored an access token in the account slot used to be caught by nothing, and
+now does not compile.
+
+**Removed: the second spelling of the verification authority.**
+`expected_verification_authority` in the GitHub adapter's contract parser and
+`default_device_verification_authority` in the host's handoff were two
+independent literals for one deliberate double check. The declaration moved to
+`bpr/application/github_host_authority.hpp`, beside the other GitHub authority
+facts, and the parser compares against it. Both checks stay — the parser
+refuses an off-authority `verification_uri` at the wire so it never reaches a
+host, and the host refuses it again against the authority its composition
+handed it — but a registration that ever moved the device endpoints can no
+longer leave half the product trusting the old authority.
+
+**Removed: a comment that fails the architecture gate.**
+`src/app/src/system_browser_opener.hpp` named the Windows shell launch API in
+a doc comment listing what each platform's opener defers to.
+`VerifyArchitectureBoundaries.cmake` forbids that name and cannot tell a
+sentence from a call, so `check_boundaries` has been red at the repository
+head since BPR-0516 added the file. The comment now describes the service
+without spelling it, and says why. No code changed, and the gate stays strict;
+relaxing the pattern instead would have widened a security rule to fit a
+comment.
+
+**Not removed: the browser-handoff comment.** BPR-0283's scout carded it
+because it read "no browser capability is composed in this slice", which
+stopped being true when BPR-0516 composed `bpr::app::system_browser_opener`.
+BPR-0516 rewrote it in the same commit that made it stale. The current text
+describes the composed opener, the tests-enabled recording seam, why that seam
+is total rather than fixture-conditional, and the construction cut; it was
+read against the composition it describes and left alone.
+`github_application.cpp` is therefore unchanged by this pass, and neither of
+its two source digest pins
+in `tests/end_to_end/application_review_round_trip_composition_contract.cmake`
+moved.
+
+**Not removed: the four two-line completion-context visitors.** The host has
+`context_of` for device-code and token completions and `vault_context_of` for
+store and retrieve completions, each a `std::visit` over one variant. One
+function template collapses all four and saves six lines, at the cost of
+taking the context type out of the signature — which is exactly what a reader
+checks when asking whether a vault context could ever be compared against a
+flow context. The comparison is the staleness guard; keeping the types spelled
+out is worth more than the six lines.
+
+**Not removed: the disabled reason that travels unrendered.** `Commands`
+carries the core's reason code as well as the flag, and the panel renders only
+the flag. Forwarding the core's record whole is what keeps a host-authored
+shape from appearing between the core and Qt; splitting it to carry exactly
+what today's panel draws would put one there. Rendering the reason is a
+presentational change, and this pass preserves behaviour.
+
+**Not removed, and re-confirmed:** the per-poll `DeviceCode` copy is the
+transport port's stated owned-material contract; `deliver()` republishing the
+whole presentation is the atomic-publication rule the application host owes
+Qt; the `RegisteredDeviceCourse` fixture override is compile-time gated on
+`BPR_BUILD_TESTING` end to end and cannot reach the tests-disabled Release;
+and `valid_github_authority_hostname`'s own `github.com` answers a different
+question — which hostname the GitHub.com *server contract* names — so
+binding it to the verification authority would make a GHES-only change to one
+silently move the other.
+
 ## Closeout blockers
 
 - Any eligibility row remains pending, or a packet is treated as approval

@@ -345,3 +345,11 @@ Produced by the enabled course above, at the JaegAW desktop. What remains is
 the one thing no selector can prove and this station deliberately did not do:
 that pressing the handoff action opens the real system browser at the real
 verification address. That row stays Pending for the owner.
+
+## Correction — 2026-09-02
+
+`cmake --build build/dev --target check_boundaries` was red at this slice's
+head: a doc comment in `src/app/src/system_browser_opener.hpp` named a
+forbidden Windows shell API in prose. The integrator's reproduction ran the
+selectors and the composition contract and not that gate. [[BPR-0283]]
+reworded the comment with no code change and the gate is green again.
