@@ -1,7 +1,7 @@
 ---
 id: BPR-0525
 title: Mirror the two POSIX-guarded device-authorization selectors into the Windows registration
-status: Ready
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -317,3 +317,54 @@ commit for this card; reported to the integrator.
 | `WINDOWS_UNCONTAINED` measured, not inherited | Done |
 | All seventeen names register on Windows | Done — the matrix ran 17 and passed 16 |
 | The course reports `RFC0016_COURSE_SELECTORS:17` | **Blocked** on the inventory gate above |
+
+## Closed — 2026-09-02, station `bpr-win` at `a51ca43d`
+
+The course reports all seventeen. From a build root deleted whole, under the
+[[BPR-0493]] procedure, with `--expected-device-selection enabled --fresh`:
+
+```text
+RFC0016_PLATFORM:windows
+RFC0016_SELECTION:enabled
+RFC0016_COURSE_SELECTORS:17
+RFC0016_DEVICE_STAGE:cancelled
+RFC0016_DEVICE_REQUESTS:0
+RFC0016_ELAPSED_SECONDS:996
+RFC0016_PLATFORM_COURSE_OK
+```
+
+Artifact:
+
+```text
+build/rfc0016-windows-enablement/release/src/app/better_pull_review.exe
+7,665,152 bytes
+sha256 293106c854681e0736eeab0a01aa21468d99b85684bb794bfcf6f26405a4cd34
+```
+
+`rfc0016_test_inventory` passes inside the matrix, and both inventory
+selectors pass directly beforehand — `rfc0017_test_inventory` 0.19 s and
+`rfc0016_test_inventory` 0.18 s, both under `bpr_windows_uncontained`, neither
+printing `ctest-inventory-command-absent`.
+
+The Windows count is now the same seventeen macOS and Linux audit, with no
+exclusion table entry and nothing unexplained.
+
+### What this card took, and why the count is worth the trouble
+
+The registration itself was one mirrored block. Everything after it was other
+tables and gates that had recorded the same omission and did not know about
+each other:
+
+| Attempt | Refused with | Owned by |
+|---|---|---|
+| 1 | `course-exclusion-stale:windows:...` — [[BPR-0524]]'s exclusion table still listed both names | integrator, pruned |
+| 2 | `expected 0 registration(s) ... this platform has no APPLE/Linux wire block` — the inventory's own `wire_block = sys.platform in {"darwin", "linux"}` | integrator, fixed |
+| 3 | `command omits --suite refresh` — a listing the AppContainer had emptied, read as a registration that carries no arguments | [[BPR-0528]] |
+
+Three separate records of "Windows does not have these two", in three places,
+with nothing linking them. Each was correct when written and each outlived the
+fact. That is the shape [[BPR-0524]] was opened about — a count not explained
+by the thing that produces it — and closing this card is what finally made
+every platform's number follow from the pattern alone.
+
+The card is terminal.
