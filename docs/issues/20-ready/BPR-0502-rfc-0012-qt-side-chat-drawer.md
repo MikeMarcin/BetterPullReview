@@ -1,7 +1,7 @@
 ---
 id: BPR-0502
 title: "Qt: side-chat drawer with context chips and stale state"
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0012
 depends_on: [BPR-0499, BPR-0500]
 ---

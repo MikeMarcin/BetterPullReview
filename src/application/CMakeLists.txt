@@ -11,6 +11,7 @@ add_library(
         src/review_synchronization.cpp
         src/review_queue_refresh.cpp
         src/review_queue_enrollment.cpp
+        src/agent_finding_delivery.cpp
         src/agent_launch.cpp
 		src/agent_invocation_host.cpp
         src/agent_workspace.cpp

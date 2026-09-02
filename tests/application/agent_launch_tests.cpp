@@ -7,7 +7,9 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <string>
 #include <string_view>
@@ -851,6 +853,53 @@ namespace {
 				&& stale.Events.empty(),
 			"the core's head-movement verdict rejects rather than retargets output");
 	}
+	void test_private_prose_crosses_only_through_the_session_keyed_optin()
+	{
+		auto unselected          = observation();
+		unselected.IncludedNotes = { };
+		unselected.IncludedDraft.reset();
+		const auto gated = application::build_agent_context_supplement(
+			unselected, session());
+		expect(
+			gated.has_value() && gated->Notes.empty() && gated->Drafts.empty(),
+			"a session that opted into nothing carries no note and no draft");
+		expect(
+			!unselected.Private.Notes.empty()
+				&& unselected.CurrentDraft.has_value(),
+			"and the review still held both, so the gate is what emptied them");
+		expect(
+			gated->Files.size() == 1U && gated->Defects.size() == 1U
+				&& gated->Selection.has_value()
+				&& gated->LastReviewedHead == commit(4U),
+			"the private prose is dropped, never the rest of the context");
+
+		const auto selected = built_supplement();
+		expect(
+			selected.Notes.size() == 1U && selected.Drafts.size() == 1U
+				&& selected.Notes.front().Text == "check retry exhaustion",
+			"an explicit selection is what turns the opt-in on for this session");
+
+		// The opt-in is keyed to the session that carries it, so the two must
+		// be built together. Reading the source is how "the ungated overload is
+		// no longer reachable from the host" is checked: no behavioural
+		// difference could show it, because the only opt-in the host can build
+		// is the one its own selection implies.
+		auto       source = std::ifstream{ BPR_AGENT_LAUNCH_SOURCE, std::ios::binary };
+		const auto text   = std::string{
+			std::istreambuf_iterator<char>{ source },
+			std::istreambuf_iterator<char>{ },
+		};
+		expect(!text.empty(), "the host's context source is readable");
+		expect(
+			text.find("core::build_agent_supplement(request, optIn)")
+				!= std::string::npos,
+			"the host builds its supplement through the gated overload");
+		expect(
+			text.find("core::build_agent_supplement(request)")
+				== std::string::npos,
+			"no ungated one-argument build remains reachable from the host");
+	}
+
 } // namespace
 
 auto main() -> int
@@ -862,6 +911,7 @@ auto main() -> int
 	test_launch_refuses_inexact_profile_session_and_schema();
 	test_every_protocol_decoder_handles_partial_frames();
 	test_process_and_staleness_outcomes_remain_distinct();
+	test_private_prose_crosses_only_through_the_session_keyed_optin();
 	std::cout << "agent-launch-tests:pass\n";
 	return EXIT_SUCCESS;
 }

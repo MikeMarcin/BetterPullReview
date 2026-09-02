@@ -168,6 +168,12 @@ namespace bpr::application {
 			std::vector<std::pair<std::string, json_value>> Members;
 			std::vector<json_value>                         Elements;
 			bool                                            Boolean = false;
+			/// The half-open byte range this value occupied in its own input.
+			/// Recorded so a payload can be lifted out of a frame exactly as it
+			/// was written, rather than re-serialized into something the agent
+			/// never sent.
+			std::size_t Begin = 0U;
+			std::size_t End   = 0U;
 		};
 
 		class bounded_json_parser final
@@ -208,6 +214,19 @@ namespace bpr::application {
 			}
 
 			[[nodiscard]] auto parse_value(const std::size_t aDepth)
+				-> std::expected<json_value, agent_protocol_failure>
+			{
+				skip_space();
+				const auto begin = Position;
+				auto       value = parse_value_at(aDepth);
+				if (value) {
+					value->Begin = begin;
+					value->End   = Position;
+				}
+				return value;
+			}
+
+			[[nodiscard]] auto parse_value_at(const std::size_t aDepth)
 				-> std::expected<json_value, agent_protocol_failure>
 			{
 				if (aDepth >= maximum_json_depth) {
@@ -624,11 +643,35 @@ namespace bpr::application {
 			return { };
 		}
 
+		/// \brief Lifts one result frame's finding payload out, undecoded.
+		///
+		/// \details The payload is carried as the exact bytes the child wrote,
+		/// taken from the recorded span, so the shared loop decodes what
+		/// arrived rather than a re-rendering of it. Deciding what those bytes
+		/// mean is deliberately not done here: the frame readers know the
+		/// protocol, and the loop is the one place both transports reach.
+		[[nodiscard]] auto payload_events(
+			const json_value&      aCarrier,
+			const std::string_view aFrame) -> std::vector<agent_protocol_event>
+		{
+			const auto* payload = member(aCarrier, agent_finding_payload_member);
+			if (payload == nullptr || payload->End <= payload->Begin
+				|| payload->End > aFrame.size()) {
+				return no_protocol_events();
+			}
+			return std::vector<agent_protocol_event>{ {
+				.Kind = agent_protocol_event_kind::finding_payload,
+				.Text = std::string{ aFrame.substr(
+					payload->Begin, payload->End - payload->Begin) },
+			} };
+		}
+
 		[[nodiscard]] auto decode_app_server_frame(
-			const json_value& aRoot,
-			std::uint8_t&     aPhase,
-			std::string&      aThread,
-			std::string&      aTurn)
+			const json_value&      aRoot,
+			const std::string_view aFrame,
+			std::uint8_t&          aPhase,
+			std::string&           aThread,
+			std::string&           aTurn)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			if (const auto* id = member(aRoot, "id"); id != nullptr) {
@@ -727,7 +770,7 @@ namespace bpr::application {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
 				aPhase = 6U;
-				return no_protocol_events();
+				return payload_events(*turn, aFrame);
 			}
 			if (*method == "error") {
 				return std::unexpected(agent_protocol_failure::remote_failed);
@@ -745,9 +788,10 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] auto decode_codex_jsonl_frame(
-			const json_value& aRoot,
-			std::uint8_t&     aPhase,
-			std::string&      aThread)
+			const json_value&      aRoot,
+			const std::string_view aFrame,
+			std::uint8_t&          aPhase,
+			std::string&           aThread)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto* type = string_member(aRoot, "type");
@@ -776,7 +820,7 @@ namespace bpr::application {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
 				aPhase = 3U;
-				return no_protocol_events();
+				return payload_events(aRoot, aFrame);
 			}
 			if ((*type == "item.started" || *type == "item.completed")
 				&& aPhase == 2U) {
@@ -803,10 +847,11 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] auto decode_claude_frame(
-			const json_value& aRoot,
-			std::uint8_t&     aPhase,
-			bool&             aSawAssistant,
-			std::string&      aSession)
+			const json_value&      aRoot,
+			const std::string_view aFrame,
+			std::uint8_t&          aPhase,
+			bool&                  aSawAssistant,
+			std::string&           aSession)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto* type    = string_member(aRoot, "type");
@@ -874,9 +919,398 @@ namespace bpr::application {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
 				aPhase = 2U;
-				return no_protocol_events();
+				return payload_events(aRoot, aFrame);
 			}
 			return std::unexpected(agent_protocol_failure::malformed_frame);
+		}
+
+		[[nodiscard]] auto malformed_payload()
+			-> std::unexpected<agent_protocol_failure>
+		{
+			return std::unexpected(
+				agent_protocol_failure::malformed_finding_payload);
+		}
+
+		/// \brief Reads one JSON number as a bounded non-negative integer.
+		///
+		/// \details Signs, fractions, and exponents are refused rather than
+		/// rounded: an agent that wrote `1e3` for a line number did not write a
+		/// line number, and accepting it would put a value nobody typed into an
+		/// identity.
+		[[nodiscard]] auto decode_unsigned(
+			const json_value* aValue, const std::uint64_t aMaximum) noexcept
+			-> std::optional<std::uint64_t>
+		{
+			if (aValue == nullptr || aValue->Kind != json_kind::number_value
+				|| aValue->Text.empty()) {
+				return std::nullopt;
+			}
+			auto value = std::uint64_t{ 0U };
+			for (const auto character : aValue->Text) {
+				if (character < '0' || character > '9') {
+					return std::nullopt;
+				}
+				if (value > (aMaximum - static_cast<std::uint64_t>(character - '0')) / 10U) {
+					return std::nullopt;
+				}
+				value = value * 10U + static_cast<std::uint64_t>(character - '0');
+			}
+			return value;
+		}
+
+		[[nodiscard]] auto decode_hex_digit(const char aCharacter) noexcept
+			-> std::optional<std::uint8_t>
+		{
+			if (aCharacter >= '0' && aCharacter <= '9') {
+				return static_cast<std::uint8_t>(aCharacter - '0');
+			}
+			if (aCharacter >= 'a' && aCharacter <= 'f') {
+				return static_cast<std::uint8_t>(aCharacter - 'a' + 10);
+			}
+			return std::nullopt;
+		}
+
+		/// \brief Reads exactly `aCharacters` lowercase hex digits into bytes.
+		///
+		/// \details Lowercase only, and exact width only. Accepting a short
+		/// identity would let two different identities share a spelling, and
+		/// accepting uppercase would give one identity two.
+		[[nodiscard]] auto decode_hex_bytes(
+			const std::string& aText, const std::size_t aCharacters) noexcept
+			-> std::optional<std::array<std::uint8_t, 32U>>
+		{
+			if (aText.size() != aCharacters) {
+				return std::nullopt;
+			}
+			auto bytes = std::array<std::uint8_t, 32U>{ };
+			for (auto index = std::size_t{ 0U }; index < aCharacters; index += 2U) {
+				const auto high = decode_hex_digit(aText[index]);
+				const auto low  = decode_hex_digit(aText[index + 1U]);
+				if (!high || !low) {
+					return std::nullopt;
+				}
+				bytes[index / 2U] = static_cast<std::uint8_t>(
+					(*high << 4U) | *low);
+			}
+			return bytes;
+		}
+
+		template <typename Identity>
+		[[nodiscard]] auto decode_identity(
+			const json_value& aObject, const std::string_view aName) noexcept
+			-> std::optional<Identity>
+		{
+			const auto* text = string_member(aObject, aName);
+			if (text == nullptr) {
+				return std::nullopt;
+			}
+			const auto bytes = decode_hex_bytes(*text, 64U);
+			if (!bytes) {
+				return std::nullopt;
+			}
+			return Identity{ *bytes };
+		}
+
+		/// \brief Reads one commit identifier in its canonical hex spelling.
+		///
+		/// \details The width selects the algorithm, exactly as Git's own
+		/// spelling does, so there is no second algorithm field that could
+		/// disagree with the digits beside it.
+		[[nodiscard]] auto decode_commit_oid(const std::string& aText) noexcept
+			-> std::optional<core::git_commit_oid>
+		{
+			const auto algorithm = aText.size() == 40U
+				? core::git_hash_algorithm::sha1
+				: aText.size() == 64U ? core::git_hash_algorithm::sha256
+									  : core::git_hash_algorithm::invalid;
+			if (algorithm == core::git_hash_algorithm::invalid) {
+				return std::nullopt;
+			}
+			const auto bytes = decode_hex_bytes(aText, aText.size());
+			if (!bytes) {
+				return std::nullopt;
+			}
+			return core::git_commit_oid{ algorithm, *bytes };
+		}
+
+		[[nodiscard]] auto decode_side(const std::string& aText) noexcept
+			-> std::optional<core::diff_side>
+		{
+			if (aText == "left") {
+				return core::diff_side::left;
+			}
+			if (aText == "right") {
+				return core::diff_side::right;
+			}
+			return std::nullopt;
+		}
+
+		/// \brief Reads one enumerator by the stable name the core already emits.
+		template <typename Enumerator, std::size_t Count>
+		[[nodiscard]] auto decode_named_enumerator(
+			const std::string&                   aText,
+			const std::array<Enumerator, Count>& aDeclared) noexcept
+			-> std::optional<Enumerator>
+		{
+			for (const auto declared : aDeclared) {
+				if (name(declared) == aText) {
+					return declared;
+				}
+			}
+			return std::nullopt;
+		}
+
+		/// \brief Reads how sure the agent said it was.
+		///
+		/// \details The four spellings are declared here and nowhere else,
+		/// because `agent_finding.hpp` deliberately never bounds confidence:
+		/// refusing an undeclared enumerator there would be a branch in which
+		/// confidence changed an anchoring outcome. This is that refusal's home.
+		[[nodiscard]] auto decode_confidence(const std::string& aText) noexcept
+			-> std::optional<core::agent_finding_confidence>
+		{
+			if (aText == "unstated") {
+				return core::agent_finding_confidence::unstated;
+			}
+			if (aText == "low") {
+				return core::agent_finding_confidence::low;
+			}
+			if (aText == "medium") {
+				return core::agent_finding_confidence::medium;
+			}
+			if (aText == "high") {
+				return core::agent_finding_confidence::high;
+			}
+			return std::nullopt;
+		}
+
+		[[nodiscard]] auto decode_position(
+			const json_value&      aAnchor,
+			const std::string_view aName,
+			const std::string_view aOrdinate) noexcept
+			-> std::optional<std::pair<core::file_comparison_digest,
+									   std::pair<core::diff_side, std::uint32_t>>>
+		{
+			const auto* position = object_member(aAnchor, aName);
+			if (position == nullptr) {
+				return std::nullopt;
+			}
+			const auto comparison
+				= decode_identity<core::file_comparison_digest>(
+					*position, "comparison");
+			const auto* side = string_member(*position, "side");
+			const auto  ordinate
+				= decode_unsigned(member(*position, aOrdinate), 0xFFFF'FFFFU);
+			if (!comparison || side == nullptr || !ordinate) {
+				return std::nullopt;
+			}
+			const auto decodedSide = decode_side(*side);
+			if (!decodedSide) {
+				return std::nullopt;
+			}
+			return std::pair{
+				*comparison,
+				std::pair{ *decodedSide, static_cast<std::uint32_t>(*ordinate) },
+			};
+		}
+
+		/// \brief Reads the position and refinements the agent named.
+		///
+		/// \details Absent members stay absent. Whether the result names a
+		/// place the frozen snapshot contains — or names two places, or none —
+		/// is `core::validate_agent_finding`'s verdict and not decided here.
+		[[nodiscard]] auto decode_anchor(const json_value& aFinding) noexcept
+			-> std::optional<core::agent_finding_anchor>
+		{
+			const auto* anchor = object_member(aFinding, "anchor");
+			if (anchor == nullptr) {
+				return std::nullopt;
+			}
+			auto result = core::agent_finding_anchor{ };
+			if (member(*anchor, "line") != nullptr) {
+				const auto line = decode_position(*anchor, "line", "line");
+				if (!line) {
+					return std::nullopt;
+				}
+				result.Line = core::source_line_ref{
+					.Comparison = line->first,
+					.Side       = line->second.first,
+					.Line       = line->second.second,
+				};
+			}
+			if (member(*anchor, "boundary") != nullptr) {
+				const auto boundary
+					= decode_position(*anchor, "boundary", "boundary");
+				if (!boundary) {
+					return std::nullopt;
+				}
+				result.Boundary = core::source_boundary_ref{
+					.Comparison = boundary->first,
+					.Side       = boundary->second.first,
+					.Boundary   = boundary->second.second,
+				};
+			}
+			if (member(*anchor, "segment") != nullptr) {
+				result.Segment = decode_identity<core::alignment_segment_id>(
+					*anchor, "segment");
+				if (!result.Segment) {
+					return std::nullopt;
+				}
+			}
+			if (member(*anchor, "group") != nullptr) {
+				result.Group = decode_identity<core::change_group_id>(
+					*anchor, "group");
+				if (!result.Group) {
+					return std::nullopt;
+				}
+			}
+			if (member(*anchor, "move") != nullptr) {
+				result.Move = decode_identity<core::move_relation_id>(
+					*anchor, "move");
+				if (!result.Move) {
+					return std::nullopt;
+				}
+			}
+			return result;
+		}
+
+		[[nodiscard]] auto decode_bounded_text(
+			const json_value&      aFinding,
+			const std::string_view aName,
+			const std::size_t      aMaximum) noexcept -> std::optional<std::string>
+		{
+			const auto* text = string_member(aFinding, aName);
+			if (text == nullptr || text->size() > aMaximum) {
+				return std::nullopt;
+			}
+			return *text;
+		}
+
+		[[nodiscard]] auto decode_analyzed_commits(const json_value& aFinding)
+			-> std::optional<std::vector<core::git_commit_oid>>
+		{
+			const auto* commits = member(aFinding, "analyzedCommits");
+			if (commits == nullptr || commits->Kind != json_kind::array_value
+				|| commits->Elements.size() > core::maximum_finding_analyzed_oids) {
+				return std::nullopt;
+			}
+			auto result = std::vector<core::git_commit_oid>{ };
+			result.reserve(commits->Elements.size());
+			for (const auto& element : commits->Elements) {
+				if (element.Kind != json_kind::string_value) {
+					return std::nullopt;
+				}
+				const auto oid = decode_commit_oid(element.Text);
+				if (!oid) {
+					return std::nullopt;
+				}
+				result.push_back(*oid);
+			}
+			return result;
+		}
+
+		[[nodiscard]] auto decode_finding(const json_value& aFinding)
+			-> std::optional<core::agent_finding>
+		{
+			if (aFinding.Kind != json_kind::object_value) {
+				return std::nullopt;
+			}
+			const auto provider
+				= decode_unsigned(member(aFinding, "provider"), 0xFFFF'FFFF'FFFF'FFFFU);
+			const auto* severity   = string_member(aFinding, "severity");
+			const auto* confidence = string_member(aFinding, "confidence");
+			const auto* category   = string_member(aFinding, "category");
+			if (
+				!provider || severity == nullptr || confidence == nullptr
+				|| category == nullptr) {
+				return std::nullopt;
+			}
+			const auto decodedSeverity
+				= decode_named_enumerator(*severity, std::array{
+														 core::defect_severity::trivial,
+														 core::defect_severity::minor,
+														 core::defect_severity::major,
+														 core::defect_severity::critical,
+													 });
+			const auto decodedCategory
+				= decode_named_enumerator(*category, std::array{
+														 core::defect_category::correctness,
+														 core::defect_category::security,
+														 core::defect_category::performance,
+														 core::defect_category::maintainability,
+														 core::defect_category::style,
+														 core::defect_category::documentation,
+														 core::defect_category::other,
+													 });
+			const auto decodedConfidence = decode_confidence(*confidence);
+			if (!decodedSeverity || !decodedCategory || !decodedConfidence) {
+				return std::nullopt;
+			}
+			const auto* lines  = object_member(aFinding, "lines");
+			const auto  begin  = lines == nullptr
+				? std::nullopt
+				: decode_unsigned(member(*lines, "begin"), 0xFFFF'FFFFU);
+			const auto  end    = lines == nullptr
+				? std::nullopt
+				: decode_unsigned(member(*lines, "end"), 0xFFFF'FFFFU);
+			const auto  anchor = decode_anchor(aFinding);
+			if (!begin || !end || !anchor) {
+				return std::nullopt;
+			}
+			const auto path = decode_bounded_text(
+				aFinding, "path", core::maximum_identified_path_bytes);
+			const auto claim = decode_bounded_text(
+				aFinding, "claim", core::maximum_finding_claim_bytes);
+			const auto evidence = decode_bounded_text(
+				aFinding, "evidence", core::maximum_finding_evidence_bytes);
+			const auto consequence = decode_bounded_text(
+				aFinding, "consequence", core::maximum_finding_consequence_bytes);
+			const auto requiredContext = decode_bounded_text(
+				aFinding,
+				"requiredContext",
+				core::maximum_finding_required_context_bytes);
+			if (!path || !claim || !evidence || !consequence || !requiredContext) {
+				return std::nullopt;
+			}
+			auto suggested = std::optional<std::string>{ };
+			if (member(aFinding, "suggestedComment") != nullptr) {
+				suggested = decode_bounded_text(
+					aFinding,
+					"suggestedComment",
+					core::maximum_finding_comment_bytes);
+				if (!suggested) {
+					return std::nullopt;
+				}
+			}
+			const auto* base = string_member(aFinding, "analyzedBase");
+			const auto* head = string_member(aFinding, "analyzedHead");
+			if (base == nullptr || head == nullptr) {
+				return std::nullopt;
+			}
+			const auto decodedBase = decode_commit_oid(*base);
+			const auto decodedHead = decode_commit_oid(*head);
+			const auto commits     = decode_analyzed_commits(aFinding);
+			if (!decodedBase || !decodedHead || !commits) {
+				return std::nullopt;
+			}
+			return core::agent_finding{
+				.Provider         = core::agent_profile_id{ *provider },
+				.Severity         = *decodedSeverity,
+				.Confidence       = *decodedConfidence,
+				.Category         = *decodedCategory,
+				.Path             = *path,
+				.Lines            = { .Begin = static_cast<std::uint32_t>(*begin),
+									  .End   = static_cast<std::uint32_t>(*end) },
+				.Anchor           = *anchor,
+				.Claim            = *claim,
+				.Evidence         = *evidence,
+				.Consequence      = *consequence,
+				.SuggestedComment = suggested,
+				.RequiredContext  = *requiredContext,
+				.AnalyzedBaseOid  = *decodedBase,
+				.AnalyzedHeadOid  = *decodedHead,
+				.AnalyzedCommits  = *commits,
+			};
 		}
 
 		[[nodiscard]] auto decode_structured_frame(
@@ -890,6 +1324,17 @@ namespace bpr::application {
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			if (aProtocol == core::agent_protocol::external_terminal) {
+				// External terminal has no result frame, so a payload has no
+				// carrier here. The sentinel is still recognized rather than
+				// ignored: an attempt to return findings over this protocol
+				// must be refused by name, and reading it as ordinary output
+				// would hide it from the reviewer and the decoder alike.
+				if (aFrame.starts_with(agent_finding_payload_sentinel)) {
+					return std::vector<agent_protocol_event>{ {
+						.Kind = agent_protocol_event_kind::finding_payload,
+						.Text = std::string{ aFrame },
+					} };
+				}
 				return std::vector<agent_protocol_event>{ {
 					.Kind = agent_protocol_event_kind::output,
 					.Text = std::string{ aFrame },
@@ -901,12 +1346,13 @@ namespace bpr::application {
 			}
 			switch (aProtocol) {
 			case core::agent_protocol::codex_app_server:
-				return decode_app_server_frame(*parsed, aPhase, aThread, aTurn);
+				return decode_app_server_frame(
+					*parsed, aFrame, aPhase, aThread, aTurn);
 			case core::agent_protocol::codex_jsonl_exec:
-				return decode_codex_jsonl_frame(*parsed, aPhase, aThread);
+				return decode_codex_jsonl_frame(*parsed, aFrame, aPhase, aThread);
 			case core::agent_protocol::claude_stream_json:
 				return decode_claude_frame(
-					*parsed, aPhase, aSawAssistant, aSession);
+					*parsed, aFrame, aPhase, aSawAssistant, aSession);
 			case core::agent_protocol::external_terminal:
 				break;
 			}
@@ -959,6 +1405,15 @@ namespace bpr::application {
 			});
 		}
 
+		// The opt-in is built here, beside the selection, and starts off. It
+		// is keyed to this session, so it admits nothing into the next one, and
+		// it is turned on only by the reviewer having named prose for *this*
+		// invocation. Deriving it from anything else — a profile, a setting, or
+		// the mere existence of notes in the ledger — is the "switched on in
+		// March, leaking in September" shape `agent_private_context_optin`
+		// exists to prevent.
+		auto optIn = core::agent_private_context_optin{ .Session = aSession.Id };
+
 		auto selected = std::vector<local_note_id>{ };
 		selected.reserve(aObservation.IncludedNotes.size());
 		for (const auto id : aObservation.IncludedNotes) {
@@ -992,6 +1447,7 @@ namespace bpr::application {
 					: std::nullopt,
 				.Text       = found->Note.Text,
 			});
+			optIn.Notes = true;
 		}
 
 		if (aObservation.IncludedDraft.has_value()) {
@@ -1014,9 +1470,14 @@ namespace bpr::application {
 				.Anchor = current.Draft.Anchor,
 				.Text   = current.Draft.Body,
 			});
+			optIn.Drafts = true;
 		}
 
-		const auto built = core::build_agent_supplement(request);
+		// The gated overload, always. The ungated one-argument build is no
+		// longer reachable from the host: it would carry whatever the request
+		// happened to hold, and the request is assembled a few lines above from
+		// a ledger observation the reviewer did not necessarily select from.
+		const auto built = core::build_agent_supplement(request, optIn);
 		if (!built) {
 			return std::unexpected(agent_context_failure::invalid_observation);
 		}
@@ -1307,6 +1768,55 @@ namespace bpr::application {
 		return request;
 	}
 
+	auto decode_agent_finding_payload(
+		const core::agent_protocol   aProtocol,
+		const std::string_view       aPayload,
+		const core::agent_session_id aSession)
+		-> std::expected<agent_finding_payload, agent_protocol_failure>
+	{
+		if (aProtocol == core::agent_protocol::external_terminal) {
+			return std::unexpected(
+				agent_protocol_failure::unsupported_finding_transport);
+		}
+		if (aPayload.size() > maximum_agent_finding_payload_bytes) {
+			return std::unexpected(
+				agent_protocol_failure::finding_payload_too_large);
+		}
+		const auto parsed = bounded_json_parser{ aPayload }.parse();
+		if (!parsed || parsed->Kind != json_kind::object_value) {
+			return malformed_payload();
+		}
+		const auto session = decode_unsigned(
+			member(*parsed, "session"), 0xFFFF'FFFF'FFFF'FFFFU);
+		if (!session) {
+			return malformed_payload();
+		}
+		// Before a single finding is read. A payload naming another session is
+		// not this run's answer, and decoding it first would mean deciding what
+		// to do with findings that were never about this conversation.
+		if (core::agent_session_id{ *session } != aSession) {
+			return std::unexpected(
+				agent_protocol_failure::unknown_finding_session);
+		}
+		const auto* findings = member(*parsed, "findings");
+		if (findings == nullptr || findings->Kind != json_kind::array_value) {
+			return malformed_payload();
+		}
+		if (findings->Elements.size() > maximum_agent_findings_per_turn) {
+			return std::unexpected(agent_protocol_failure::too_many_findings);
+		}
+		auto payload = agent_finding_payload{ .Session = aSession };
+		payload.Findings.reserve(findings->Elements.size());
+		for (const auto& element : findings->Elements) {
+			auto finding = decode_finding(element);
+			if (!finding) {
+				return malformed_payload();
+			}
+			payload.Findings.push_back(std::move(*finding));
+		}
+		return payload;
+	}
+
 	auto build_agent_protocol_followup(
 		const agent_launch_request& aRequest,
 		const agent_protocol_event& aControl)
@@ -1329,6 +1839,7 @@ namespace bpr::application {
 				+ "\",\"input\":[{\"type\":\"text\",\"text\":\""
 				+ json_escape(aRequest.DeferredContext) + "\"}]}}\n";
 		case agent_protocol_event_kind::output:
+		case agent_protocol_event_kind::finding_payload:
 			break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
@@ -1382,10 +1893,16 @@ namespace bpr::application {
 				Failed = true;
 				return std::unexpected(decoded.error());
 			}
+			// A finding payload is deliberately not a control event. It asks
+			// the host for no follow-up write, so pausing the decode on it
+			// would change the causal contract App Server's two follow-ups own.
 			const auto hasControl = std::ranges::any_of(
 				*decoded,
 				[](const agent_protocol_event& aEvent) {
-					return aEvent.Kind != agent_protocol_event_kind::output;
+					return aEvent.Kind
+						== agent_protocol_event_kind::initialization_complete
+						|| aEvent.Kind
+						== agent_protocol_event_kind::context_channel_ready;
 				});
 			if (hasControl && !Pending.empty()) {
 				Failed = true;

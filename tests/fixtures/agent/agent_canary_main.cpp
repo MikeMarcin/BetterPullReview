@@ -186,16 +186,53 @@ namespace {
 		}
 	}
 
-	void finish_output(
-		const protocol aProtocol, const std::string_view aTerminalStatus)
+	/// \brief The exact structured-finding payload this fixture returns.
+	///
+	/// \details One well-formed finding, stated in the wire shape
+	/// `decode_agent_finding_payload` documents, with every identity written as
+	/// a fixed repeated hex digit so a parent can compare it field for field
+	/// rather than searching the output for a substring. The session is the
+	/// one the parent started the run with; a mismatch is what the parent's
+	/// unknown-session course deliberately provokes.
+	[[nodiscard]] auto findings_payload(const std::string& aSession) -> std::string
 	{
+		return "{\"session\":" + aSession
+			+ ",\"findings\":[{"
+			  "\"provider\":1,\"severity\":\"major\",\"confidence\":\"high\","
+			  "\"category\":\"correctness\",\"path\":\"src/canary.cpp\","
+			  "\"lines\":{\"begin\":10,\"end\":12},"
+			  "\"anchor\":{\"line\":{\"comparison\":\""
+			+ std::string(64U, '5')
+			+ "\",\"side\":\"right\",\"line\":11}},"
+			  "\"claim\":\"canary-claim\",\"evidence\":\"canary-evidence\","
+			  "\"consequence\":\"canary-consequence\","
+			  "\"suggestedComment\":\"canary-suggested-comment\","
+			  "\"requiredContext\":\"canary-required-context\","
+			  "\"analyzedBase\":\""
+			+ std::string(40U, '1') + "\",\"analyzedHead\":\""
+			+ std::string(40U, '2') + "\",\"analyzedCommits\":[\""
+			+ std::string(40U, '3') + "\"]}]}";
+	}
+
+	[[nodiscard]] auto findings_member(const std::string& aPayload) -> std::string
+	{
+		return aPayload.empty() ? std::string{ }
+								: ",\"bprFindings\":" + aPayload;
+	}
+
+	void finish_output(
+		const protocol         aProtocol,
+		const std::string_view aTerminalStatus,
+		const std::string&     aFindings)
+	{
+		const auto findings = findings_member(aFindings);
 		switch (aProtocol) {
 		case protocol::codex_app_server:
 			write_partial(
 				"{\"method\":\"turn/completed\",\"params\":{"
 				"\"threadId\":\"canary-thread\",\"turn\":{"
 				"\"id\":\"canary-turn\",\"items\":[],\"status\":\""
-				+ std::string{ aTerminalStatus } + "\"}}}\n");
+				+ std::string{ aTerminalStatus } + "\"" + findings + "}}}\n");
 			break;
 		case protocol::codex_jsonl:
 			if (aTerminalStatus == "failed") {
@@ -204,7 +241,8 @@ namespace {
 				write_partial(
 					"{\"type\":\"turn.completed\",\"usage\":{"
 					"\"input_tokens\":1,\"cached_input_tokens\":0,"
-					"\"output_tokens\":1}}\n");
+					"\"output_tokens\":1}"
+					+ findings + "}\n");
 			}
 			break;
 		case protocol::claude_stream_json:
@@ -216,12 +254,45 @@ namespace {
 				write_partial(
 					"{\"type\":\"result\",\"subtype\":\"success\","
 					"\"is_error\":false,\"result\":\"canary-complete\","
-					"\"session_id\":\"canary-session\"}\n");
+					"\"session_id\":\"canary-session\""
+					+ findings + "}\n");
 			}
 			break;
 		case protocol::external_terminal:
 			break;
 		}
+	}
+
+	/// \brief Writes one complete payload-bearing transcript and nothing else.
+	///
+	/// \details Reads no standard input and dumps no argv, environment, or
+	/// workspace state, so a parent can drive it through an ordinary pipe
+	/// without first arranging a protocol conversation. External terminal has
+	/// no result frame to carry a payload, so this writes the sentinel that
+	/// makes the attempt visible and refusable instead of inventing framing.
+	void findings_transcript(const protocol aProtocol, const std::string& aSession)
+	{
+		if (aProtocol == protocol::external_terminal) {
+			write_partial("BPR-FINDINGS/1 " + findings_payload(aSession) + "\n");
+			return;
+		}
+		if (aProtocol == protocol::codex_app_server) {
+			// The three responses the parent's follow-up writes unlock, in the
+			// order they unlock them. Written here without reading standard
+			// input so the transcript can be replayed through an ordinary
+			// pipe; a parent still has to deliver them one frame at a time,
+			// because delivering them together is the causal violation the
+			// protocol loop already refuses.
+			write_partial("{\"id\":0,\"result\":{}}\n");
+			write_partial(
+				"{\"id\":1,\"result\":{\"thread\":{\"id\":\"canary-thread\"}}}\n");
+			write_partial(
+				"{\"id\":2,\"result\":{\"turn\":{\"id\":\"canary-turn\","
+				"\"items\":[],\"status\":\"inProgress\"}}}\n");
+		}
+		begin_output(aProtocol);
+		emit(aProtocol, "canary-complete");
+		finish_output(aProtocol, "completed", findings_payload(aSession));
 	}
 
 	[[nodiscard]] auto read_input(
@@ -368,8 +439,16 @@ auto main(int argc, char** argv) -> int
 		sideEffect.flush();
 	}
 
-	const auto protocol = selected_protocol(argc, argv);
-	const auto input    = read_input(
+	const auto protocol         = selected_protocol(argc, argv);
+	auto       findings_session = argument_after(argc, argv, "--findings-session");
+	if (findings_session.empty()) {
+		findings_session = "41";
+	}
+	if (has_argument(argc, argv, "--findings-transcript")) {
+		findings_transcript(protocol, findings_session);
+		return EXIT_SUCCESS;
+	}
+	const auto input = read_input(
 		protocol, has_argument(argc, argv, "--preemptive-app-server"));
 	// Deliberately not `write_partial` and deliberately ahead of
 	// `begin_output`: the whole refused exchange has to reach the pipe in one
@@ -516,7 +595,12 @@ auto main(int argc, char** argv) -> int
 		: has_argument(argc, argv, "--remote-interrupted")
 		? std::string_view{ "interrupted" }
 		: std::string_view{ "completed" };
-	finish_output(protocol, terminalStatus);
+	finish_output(
+		protocol,
+		terminalStatus,
+		has_argument(argc, argv, "--emit-findings")
+			? findings_payload(findings_session)
+			: std::string{ });
 	if (executable_mode(argv, "cleanup-retry-wait")) {
 #if defined(_WIN32)
 		// Windows holds a process's current directory handle without delete

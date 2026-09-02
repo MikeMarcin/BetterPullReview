@@ -448,6 +448,14 @@ target_link_libraries(
     PRIVATE
         BetterPullReview::Application
 )
+# "The ungated overload is no longer reachable from the host" is a claim about
+# what the host does not call, and no value it returns can show it. The suite
+# reads the one translation unit that could call it.
+target_compile_definitions(
+    test_better_pull_review_agent_launch_tests
+    PRIVATE
+        "BPR_AGENT_LAUNCH_SOURCE=\"${PROJECT_SOURCE_DIR}/src/application/src/agent_launch.cpp\""
+)
 bpr_enable_hardening(test_better_pull_review_agent_launch_tests)
 bpr_enable_warnings(test_better_pull_review_agent_launch_tests)
 
@@ -486,6 +494,49 @@ set_tests_properties(
     application_agent_protocol_loop
     PROPERTIES
         PASS_REGULAR_EXPRESSION "agent-protocol-loop-tests:pass"
+)
+
+bpr_add_executable(
+    test_better_pull_review_agent_finding_protocol_tests
+    agent_finding_protocol_tests.cpp
+    "${PROJECT_SOURCE_DIR}/src/adapters/agent/src/agent_protocol_loop.cpp"
+)
+target_include_directories(
+    test_better_pull_review_agent_finding_protocol_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/agent/src"
+)
+target_link_libraries(
+    test_better_pull_review_agent_finding_protocol_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+# The real child fixture only exists where Qt is configured, because that is
+# where the process adapter it serves exists. Without it the suite still proves
+# the wire contract and every typed cause; it reports the absence rather than
+# passing quietly on a course it did not run.
+if(BPR_BUILD_QT)
+    target_compile_definitions(
+        test_better_pull_review_agent_finding_protocol_tests
+        PRIVATE
+            "BPR_AGENT_CANARY_EXECUTABLE=\"$<TARGET_FILE:test_better_pull_review_agent_canary>\""
+    )
+    add_dependencies(
+        test_better_pull_review_agent_finding_protocol_tests
+        test_better_pull_review_agent_canary
+    )
+endif()
+bpr_enable_hardening(test_better_pull_review_agent_finding_protocol_tests)
+bpr_enable_warnings(test_better_pull_review_agent_finding_protocol_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_agent_finding_protocol
+    COMMAND test_better_pull_review_agent_finding_protocol_tests
+)
+set_tests_properties(
+    application_agent_finding_protocol
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "agent-finding-protocol-tests:pass"
 )
 
 bpr_add_executable(

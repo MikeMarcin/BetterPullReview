@@ -279,6 +279,7 @@ namespace {
 				.Outcome  = application::agent_run_outcome::success,
 				.Events   = { event },
 				.ExitCode = 0,
+				.Findings = Payload,
 			};
 		}
 
@@ -292,6 +293,103 @@ namespace {
 		bool                                             LastStopRequested = false;
 		std::optional<application::agent_launch_request> LastRequest;
 		std::function<void()>                            AfterStart;
+		/// What a completed turn returned, as the shared loop decoded it.
+		std::optional<application::agent_finding_payload> Payload;
+	};
+
+	/// \brief Records every durable authority agent output could try to reach.
+	class ledger_store_spy final : public application::review_ledger_store_port
+	{
+	public:
+		[[nodiscard]] auto commit(const application::receipt_persistence_request&)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			Touched.emplace_back("commit");
+			return { };
+		}
+
+		[[nodiscard]] auto load(const core::file_identity&) -> std::expected<
+			std::optional<core::file_receipt>,
+			application::ledger_store_failure> override
+		{
+			Touched.emplace_back("load");
+			return std::optional<core::file_receipt>{ };
+		}
+
+		[[nodiscard]] auto store_note(const application::local_note_record& aNote)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			Touched.emplace_back("store_note");
+			Notes.push_back(aNote);
+			if (Refusal.has_value()) {
+				return std::unexpected(*Refusal);
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto erase_note(application::local_note_id)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			Touched.emplace_back("erase_note");
+			return { };
+		}
+
+		[[nodiscard]] auto store_last_reviewed_head(const core::git_commit_oid&)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			Touched.emplace_back("store_last_reviewed_head");
+			return { };
+		}
+
+		[[nodiscard]] auto erase_last_reviewed_head()
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			Touched.emplace_back("erase_last_reviewed_head");
+			return { };
+		}
+
+		[[nodiscard]] auto store_defect(const application::durable_defect_record&)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			Touched.emplace_back("store_defect");
+			return { };
+		}
+
+		[[nodiscard]] auto erase_defect(core::defect_id)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			Touched.emplace_back("erase_defect");
+			return { };
+		}
+
+		[[nodiscard]] auto load_private() -> std::expected<
+			application::private_ledger_observation,
+			application::ledger_store_failure> override
+		{
+			Touched.emplace_back("load_private");
+			return application::private_ledger_observation{ };
+		}
+
+		[[nodiscard]] auto admit_agent_session(
+			const application::agent_session_admission&)
+			-> std::expected<core::agent_session, application::ledger_store_failure> override
+		{
+			Touched.emplace_back("admit_agent_session");
+			return std::unexpected(
+				application::ledger_store_failure::unavailable);
+		}
+
+		[[nodiscard]] auto load_agent_session_catalog() -> std::expected<
+			application::agent_session_catalog_state,
+			application::ledger_store_failure> override
+		{
+			Touched.emplace_back("load_agent_session_catalog");
+			return application::agent_session_catalog_state{ };
+		}
+
+		std::vector<std::string>                         Touched;
+		std::vector<application::local_note_record>      Notes;
+		std::optional<application::ledger_store_failure> Refusal;
 	};
 
 	class blocking_process_spy final : public application::agent_process_port
@@ -403,6 +501,14 @@ namespace {
 			}
 		}
 
+		void deliver_findings(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::agent_finding_delivery&               aDelivery) override
+		{
+			DeliveryIdentities.push_back(aIdentity);
+			Deliveries.push_back(aDelivery);
+		}
+
 		void present_session_catalog(
 			const application::agent_session_catalog_projection& aProjection)
 			override
@@ -423,6 +529,9 @@ namespace {
 													 FinishIdentities;
 		std::vector<application::agent_stream_event> Streamed;
 		std::vector<application::agent_run_result>   Finished;
+		std::vector<application::agent_invocation_projection_identity>
+														 DeliveryIdentities;
+		std::vector<application::agent_finding_delivery> Deliveries;
 		std::vector<application::agent_session_catalog_projection>
 							  SessionCatalogs;
 		std::function<void()> AfterFinish;
@@ -1055,6 +1164,256 @@ namespace {
 				&& host->statistics().WorkspaceCleanups == 1U,
 			"one actor-confined retry exact-cleans with the retained capability");
 	}
+	[[nodiscard]] auto snapshot_files()
+		-> std::vector<core::agent_finding_snapshot_file>
+	{
+		return { {
+			.Path           = "src/canary.cpp",
+			.Comparison     = opaque<core::file_comparison_digest>(5U),
+			.LeftLineCount  = 40U,
+			.RightLineCount = 40U,
+		} };
+	}
+
+	[[nodiscard]] auto returned_finding(std::string aPath) -> core::agent_finding
+	{
+		return {
+			.Provider        = core::agent_profile_id{ 1U },
+			.Severity        = core::defect_severity::major,
+			.Confidence      = core::agent_finding_confidence::high,
+			.Category        = core::defect_category::correctness,
+			.Path            = std::move(aPath),
+			.Lines           = { .Begin = 10U, .End = 12U },
+			.Anchor          = { .Line = core::source_line_ref{
+									 .Comparison
+									 = opaque<core::file_comparison_digest>(5U),
+									 .Side = core::diff_side::right,
+									 .Line = 11U,
+								 } },
+			.Claim           = "the retry loop never terminates",
+			.Evidence        = "while (true) with no bound",
+			.Consequence     = "the worker hangs",
+			.RequiredContext = "the caller's timeout",
+			.AnalyzedBaseOid = commit(1U),
+			.AnalyzedHeadOid = commit(2U),
+			.AnalyzedCommits = { commit(2U) },
+		};
+	}
+
+	[[nodiscard]] auto finding_request(
+		const core::git_host_id                 aHost,
+		const std::vector<core::agent_finding>& aFindings)
+		-> application::agent_invocation_request
+	{
+		auto built        = request(aHost, core::external_terminal_profile_id);
+		built.FrozenFiles = snapshot_files();
+		static_cast<void>(aFindings);
+		return built;
+	}
+
+	[[nodiscard]] auto payload_of(const std::vector<core::agent_finding>& aFindings)
+		-> application::agent_finding_payload
+	{
+		return {
+			.Session  = core::agent_session_id{ 41U },
+			.Findings = aFindings,
+		};
+	}
+
+	void expect_binding_field_for_field(
+		const core::agent_revision_binding& aDelivered,
+		const core::agent_revision_binding& aExpected)
+	{
+		expect(
+			aDelivered.Host == aExpected.Host
+				&& aDelivered.Repository == aExpected.Repository
+				&& aDelivered.PullRequest == aExpected.PullRequest
+				&& aDelivered.BaseOid == aExpected.BaseOid
+				&& aDelivered.HeadOid == aExpected.HeadOid
+				&& aDelivered.LeftEpoch == aExpected.LeftEpoch
+				&& aDelivered.RightEpoch == aExpected.RightEpoch,
+			"the delivered binding is the session's own, field for field");
+	}
+
+	void test_findings_reenter_once_with_the_sessions_own_binding()
+	{
+		auto test              = harness{ };
+		test.Processes.Payload = payload_of({ returned_finding("src/canary.cpp") });
+		test.Host.observe(
+			core::application_session_id{ 1U },
+			authority(core::git_host_id{ 1U }),
+			binding(core::git_host_id{ 1U }));
+		test.Host.dispatch(
+			finding_request(core::git_host_id{ 1U }, { }));
+		test.settle();
+		expect(
+			test.Projection.Deliveries.size() == 1U
+				&& test.Projection.DeliveryIdentities.size() == 1U
+				&& test.Projection.DeliveryIdentities.front().Session.Id
+					== core::agent_session_id{ 41U },
+			"one run's payload re-enters exactly once, on the completion lane");
+		const auto& delivered = test.Projection.Deliveries.front();
+		expect(
+			delivered.Session == core::agent_session_id{ 41U }
+				&& delivered.Staleness == core::agent_session_staleness::current,
+			"the delivery names its own session and reports it current");
+		expect_binding_field_for_field(
+			delivered.Binding, binding(core::git_host_id{ 1U }));
+		expect(
+			delivered.Findings.size() == 1U
+				&& delivered.Findings.front().Verdict.State
+					== core::agent_finding_anchor_state::anchored
+				&& delivered.Findings.front().Verdict.Refusal
+					== core::agent_finding_refusal::none
+				&& delivered.Findings.front().Finding
+					== returned_finding("src/canary.cpp"),
+			"a finding the frozen snapshot contains arrives anchored and intact");
+		expect(
+			test.Projection.Finished.size() == 1U
+				&& !test.Projection.Finished.front().Findings.has_value(),
+			"no undecoded payload reaches a presentation beside the verdicts");
+	}
+
+	void test_an_invalid_anchor_reenters_unanchored_rather_than_dropped()
+	{
+		auto test              = harness{ };
+		test.Processes.Payload = payload_of({
+			returned_finding("src/canary.cpp"),
+			returned_finding("src/nobody-named-this.cpp"),
+		});
+		test.Host.observe(
+			core::application_session_id{ 1U },
+			authority(core::git_host_id{ 1U }),
+			binding(core::git_host_id{ 1U }));
+		test.Host.dispatch(finding_request(core::git_host_id{ 1U }, { }));
+		test.settle();
+		expect(
+			test.Projection.Deliveries.size() == 1U
+				&& test.Projection.Deliveries.front().Findings.size() == 2U,
+			"a finding the snapshot cannot place is delivered, not discarded");
+		const auto& refused = test.Projection.Deliveries.front().Findings.back();
+		expect(
+			refused.Verdict.State == core::agent_finding_anchor_state::unanchored
+				&& refused.Verdict.Refusal
+					== core::agent_finding_refusal::unknown_path
+				&& refused.Finding.Path == "src/nobody-named-this.cpp"
+				&& refused.Verdict.AnalyzedBaseOid == commit(1U)
+				&& refused.Verdict.AnalyzedHeadOid == commit(2U),
+			"the verdict names the refusal and keeps the finding's own revisions");
+		expect(
+			test.Projection.Deliveries.front().Findings.front().Verdict.State
+				== core::agent_finding_anchor_state::anchored,
+			"one refused anchor does not refuse the finding beside it");
+	}
+
+	void test_a_payload_after_an_accepted_head_move_arrives_stale()
+	{
+		auto       test            = harness{ };
+		const auto activeAuthority = authority(core::git_host_id{ 1U });
+		test.Processes.Payload     = payload_of({ returned_finding("src/canary.cpp") });
+		test.Host.observe(
+			core::application_session_id{ 1U },
+			activeAuthority,
+			binding(core::git_host_id{ 1U }));
+		test.Host.dispatch(finding_request(core::git_host_id{ 1U }, { }));
+		test.Decisions.drain();
+		test.Effects.drain();
+		auto moved    = binding(core::git_host_id{ 1U });
+		moved.HeadOid = commit(9U);
+		test.Host.observe(core::application_session_id{ 1U }, activeAuthority, moved);
+		test.settle();
+		expect(
+			test.Projection.Finished.size() == 1U
+				&& test.Projection.Finished.front().Outcome
+					== application::agent_run_outcome::stale_result,
+			"the terminal still reports the accepted head move as stale");
+		expect(
+			test.Projection.Deliveries.size() == 1U
+				&& test.Projection.Deliveries.front().Staleness
+					== core::agent_session_staleness::head_moved,
+			"the payload survives supersession and arrives stale by name");
+		const auto& delivered = test.Projection.Deliveries.front();
+		expect_binding_field_for_field(
+			delivered.Binding, binding(core::git_host_id{ 1U }));
+		expect(
+			delivered.Binding.HeadOid == commit(2U)
+				&& delivered.Binding.HeadOid != moved.HeadOid,
+			"the delivery keeps the head the run started with, not the new one");
+		expect(
+			delivered.Findings.size() == 1U
+				&& delivered.Findings.front().Finding.AnalyzedBaseOid == commit(1U)
+				&& delivered.Findings.front().Finding.AnalyzedHeadOid == commit(2U)
+				&& delivered.Findings.front().Verdict.AnalyzedHeadOid == commit(2U),
+			"the analyzed revisions survive the move intact");
+	}
+
+	void test_a_promoted_finding_reaches_only_the_note_authority()
+	{
+		auto       store    = ledger_store_spy{ };
+		const auto finding  = returned_finding("src/canary.cpp");
+		const auto snapshot = core::agent_finding_snapshot{
+			.Binding = binding(core::git_host_id{ 1U }),
+			.Files   = snapshot_files(),
+		};
+		const auto verdict = core::validate_agent_finding(finding, snapshot);
+		expect(
+			verdict.State == core::agent_finding_anchor_state::anchored,
+			"the promoted finding is one the frozen snapshot anchors");
+		const auto stored = application::store_promoted_finding(
+			store,
+			application::local_note_id{ 7U },
+			application::local_note_attachment{
+				.File       = opaque<core::file_identity>(4U),
+				.Comparison = opaque<core::file_comparison_digest>(5U),
+			},
+			core::agent_finding_promotion_request{
+				.Finding = finding,
+				.Verdict = verdict,
+				.Choice  = core::agent_finding_promotion_choice::private_note,
+			});
+		expect(
+			stored.has_value() && stored->Id == application::local_note_id{ 7U }
+				&& stored->Note.Text == finding.Claim,
+			"a promoted note carries the claim verbatim into the durable record");
+		expect(
+			store.Touched.size() == 1U && store.Touched.front() == "store_note"
+				&& store.Notes.size() == 1U,
+			"agent output reaches store_note and no other durable authority");
+
+		auto       elsewhere = ledger_store_spy{ };
+		const auto refused   = application::store_promoted_finding(
+			elsewhere,
+			application::local_note_id{ 8U },
+			std::nullopt,
+			core::agent_finding_promotion_request{
+				.Finding = finding,
+				.Verdict = verdict,
+				.Choice  = core::agent_finding_promotion_choice::defect,
+			});
+		expect(
+			!refused.has_value() && refused.error().WrongArtifact
+				&& elsewhere.Touched.empty(),
+			"a promotion into another artifact writes nothing through this path");
+
+		auto       unanchored = ledger_store_spy{ };
+		const auto missing    = returned_finding("src/nobody-named-this.cpp");
+		const auto refusal    = application::store_promoted_finding(
+			unanchored,
+			application::local_note_id{ 9U },
+			std::nullopt,
+			core::agent_finding_promotion_request{
+				.Finding = missing,
+				.Verdict = core::validate_agent_finding(missing, snapshot),
+				.Choice  = core::agent_finding_promotion_choice::private_note,
+			});
+		expect(
+			!refusal.has_value()
+				&& refusal.error().Refusal
+					== core::agent_finding_promotion_refusal::unanchored
+				&& unanchored.Touched.empty(),
+			"an unanchored finding is refused before the store is touched");
+	}
+
 } // namespace
 
 auto main() -> int
@@ -1075,6 +1434,10 @@ auto main() -> int
 	test_destruction_cancels_running_work_before_ports_can_die();
 	test_reentrant_projection_destruction_never_waits_on_itself();
 	test_cleanup_refusal_retains_exact_authority_and_nonquiescence();
+	test_findings_reenter_once_with_the_sessions_own_binding();
+	test_an_invalid_anchor_reenters_unanchored_rather_than_dropped();
+	test_a_payload_after_an_accepted_head_move_arrives_stale();
+	test_a_promoted_finding_reaches_only_the_note_authority();
 	std::cout << "agent-invocation-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_INVOCATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_INVOCATION_HOST_HPP
 
+#include "bpr/application/agent_finding_delivery.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/port.hpp"
@@ -23,6 +24,24 @@ namespace bpr::application {
 		agent_context_observation           Context;
 		bool                                ExistingCheckoutChosen = false;
 		std::optional<checkout_observation> ExistingCheckout;
+		/// The frozen per-path alignment facts a returned finding is checked
+		/// against: the comparison each path was aligned under, its line counts
+		/// on both sides, and the segment, group, and move identities that
+		/// alignment contained.
+		///
+		/// Stated here, as values, rather than read from a live alignment when
+		/// a result arrives. That is the whole point: an alignment consulted at
+		/// delivery is whichever one exists then, and measuring an older
+		/// answer against it is the silent re-anchoring RFC-BPR-0012 forbids.
+		/// The host pairs these with the admitted session's own binding to make
+		/// the `core::agent_finding_snapshot` it validates against; the binding
+		/// is deliberately not caller-supplied, so a caller cannot name a
+		/// revision the session was not started against.
+		///
+		/// An empty list is a complete answer, not a missing one: every finding
+		/// then arrives unanchored, which is what a caller that froze nothing
+		/// has evidence for.
+		std::vector<core::agent_finding_snapshot_file> FrozenFiles;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};
@@ -67,6 +86,25 @@ namespace bpr::application {
 		virtual void finish(
 			const agent_invocation_projection_identity& aIdentity,
 			const agent_run_result&                     aResult) = 0;
+		/// \brief Reports one run's validated findings on the completion lane.
+		///
+		/// \details Called at most once per run, immediately before `finish`,
+		/// and only when the turn returned a payload. The delivery carries the
+		/// session's own binding and one core verdict per finding; a
+		/// presentation reads verdicts rather than deciding them.
+		///
+		/// Deliberately not pure. Presenting findings is RFC-BPR-0012's widget
+		/// slice, and making every existing implementor answer a question it
+		/// has no queue for would be a change to presentation dressed as a
+		/// change to the host. The default presents nothing and refuses
+		/// nothing.
+		virtual void deliver_findings(
+			const agent_invocation_projection_identity& aIdentity,
+			const agent_finding_delivery&               aDelivery)
+		{
+			static_cast<void>(aIdentity);
+			static_cast<void>(aDelivery);
+		}
 		virtual void present_session_catalog(
 			const agent_session_catalog_projection& aProjection) = 0;
 	};

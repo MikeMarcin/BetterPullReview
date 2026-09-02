@@ -48,13 +48,19 @@ namespace bpr::application {
 		{
 			invocation(
 				agent_invocation_projection_identity aIdentity,
+				core::agent_finding_snapshot         aSnapshot,
 				std::shared_ptr<std::stop_source>    aStop)
 				: Identity{ std::move(aIdentity) }
+				, Snapshot{ std::move(aSnapshot) }
 				, Stop{ std::move(aStop) }
 			{
 			}
 
 			agent_invocation_projection_identity Identity;
+			/// Frozen at admission and never rebuilt. Const in effect: nothing
+			/// below writes it, so the verdict a payload receives is the one
+			/// the revision it was asked about produces.
+			const core::agent_finding_snapshot   Snapshot;
 			std::shared_ptr<std::stop_source>    Stop;
 			std::mutex                           WorkspaceMutex;
 			std::optional<owned_agent_workspace> OwnedWorkspace;
@@ -175,6 +181,16 @@ namespace bpr::application {
 		{
 			try {
 				Projection.finish(aIdentity, aResult);
+			} catch (...) {
+			}
+		}
+
+		void project_findings(
+			const agent_invocation_projection_identity& aIdentity,
+			const agent_finding_delivery&               aDelivery) noexcept
+		{
+			try {
+				Projection.deliver_findings(aIdentity, aDelivery);
 			} catch (...) {
 			}
 		}
@@ -314,6 +330,10 @@ namespace bpr::application {
 				project_refuse("invalid_agent_context");
 				return;
 			}
+			if (aRequest.FrozenFiles.size() > core::maximum_supplement_paths) {
+				project_refuse("invalid_agent_finding_snapshot");
+				return;
+			}
 
 			auto job = std::shared_ptr<invocation>{ };
 			{
@@ -351,6 +371,14 @@ namespace bpr::application {
 						.Authority            = aRequest.Authority,
 						.Session              = *admitted,
 						.InvocationGeneration = ++InvocationGeneration,
+					},
+					// The binding comes from the session the store admitted,
+					// never from the request. A caller cannot name a revision
+					// this session was not started against, because there is
+					// nowhere for it to say one.
+					core::agent_finding_snapshot{
+						.Binding = admitted->Binding,
+						.Files   = aRequest.FrozenFiles,
 					},
 					std::make_shared<std::stop_source>());
 				ActiveInvocation = job;
@@ -640,6 +668,14 @@ namespace bpr::application {
 								observed = self->Binding;
 							}
 						}
+						// Lifted off the result before any staleness decision.
+						// A terminal that supersession replaces wholesale would
+						// otherwise take the turn's findings with it, and a
+						// payload the reviewer can no longer act on is still
+						// one they are entitled to see refused by revision
+						// rather than to never learn about.
+						auto payload = std::move(result.Findings);
+						result.Findings.reset();
 						auto final = aInvocation->Superseded.load(std::memory_order_acquire)
 							? agent_run_result{
 								  .Session = aInvocation->Identity.Session.Id,
@@ -650,6 +686,21 @@ namespace bpr::application {
 														 .Session = aInvocation->Identity.Session.Id,
 														 .Outcome = agent_run_outcome::stale_result,
 													 };
+						// The terminal carries no undecoded payload. Findings
+						// leave the host exactly once, with a verdict each, and
+						// through the call below; there is no second route by
+						// which an unvalidated finding could reach a
+						// presentation.
+						final.Findings.reset();
+						if (payload.has_value()) {
+							self->project_findings(
+								aInvocation->Identity,
+								deliver_agent_findings(
+									*payload,
+									aInvocation->Identity.Session,
+									aInvocation->Snapshot,
+									observed));
+						}
 						self->project_finish(aInvocation->Identity, final);
 						aInvocation->TerminalComplete.store(
 							true, std::memory_order_release);

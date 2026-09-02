@@ -637,6 +637,55 @@ namespace {
 			"a later termination failure cannot replace the decoder's first cause");
 		expect_single_termination(firstCause, "first-cause failure terminates once");
 	}
+	void test_a_failed_turn_carries_no_findings()
+	{
+		const auto payload = std::string{
+			"{\"session\":41,\"findings\":[]}"
+		};
+		auto ok   = fake_transport{ };
+		ok.Output = {
+			{
+				.Status = agent_protocol_pipe_read_status::data,
+				.Bytes  = "{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n"
+						  "{\"type\":\"turn.started\"}\n"
+						  "{\"type\":\"turn.completed\",\"usage\":{},"
+						  "\"bprFindings\":"
+					+ payload + "}\n",
+			},
+			{ .Status = agent_protocol_pipe_read_status::closed },
+		};
+		const auto accepted = run(core::agent_protocol::codex_jsonl_exec, ok);
+		expect(
+			accepted.Outcome == application::agent_run_outcome::success
+				&& accepted.Findings.has_value()
+				&& accepted.Findings->Findings.empty(),
+			"a completed turn carries the payload it declared, empty or not");
+
+		auto nonzero   = fake_transport{ };
+		nonzero.Output = ok.Output;
+		nonzero.Output = {
+			{
+				.Status = agent_protocol_pipe_read_status::data,
+				.Bytes  = "{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n"
+						  "{\"type\":\"turn.started\"}\n"
+						  "{\"type\":\"turn.completed\",\"usage\":{},"
+						  "\"bprFindings\":"
+					+ payload + "}\n",
+			},
+			{ .Status = agent_protocol_pipe_read_status::closed },
+		};
+		nonzero.Waits = {
+			{ .Status = agent_protocol_wait_status::exited, .ExitCode = 3 },
+		};
+		const auto refused
+			= run(core::agent_protocol::codex_jsonl_exec, nonzero);
+		expect(
+			refused.Outcome == application::agent_run_outcome::nonzero_exit
+				&& !refused.Findings.has_value(),
+			"a run that did not succeed reports no findings of its own");
+		expect_single_termination(nonzero, "a payload-bearing failure terminates once");
+	}
+
 } // namespace
 
 int main()
@@ -648,6 +697,7 @@ int main()
 	test_wait_outcomes_and_exit_classification();
 	test_teardown_failure_preserves_the_first_cause();
 	test_finish_backpressure_first_cause_and_termination_order();
+	test_a_failed_turn_carries_no_findings();
 	std::cout << "agent-protocol-loop-tests:pass\n";
 	return EXIT_SUCCESS;
 }
