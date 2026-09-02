@@ -1,7 +1,7 @@
 ---
 id: BPR-0514
 title: "Host: compose a side-chat session host so a send reaches the agent"
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0012
 depends_on: [BPR-0504]
 ---
