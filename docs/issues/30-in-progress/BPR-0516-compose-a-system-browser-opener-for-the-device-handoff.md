@@ -147,3 +147,15 @@ allocated in `scripts/verify_rfc0016_test_inventory.py` with their required
 arguments, so the stations' release scan proves their absence from the
 tests-disabled artifact. The code is landed; the card stays open for the
 three target-native observation rows.
+
+## macOS — 2026-09-02
+
+Run on the integrator host at `5b5f0d65` (the tree of `d46a766a` plus one
+card move), in a fresh build root:
+
+| Row | Command | Result |
+|---|---|---|
+| Enabled platform course | `python3 scripts/verify_rfc0016_platform_course.py --platform macos --dev-preset dev --release-preset app-release --build-root build/rfc0016-macos-browser --expected-device-selection enabled --fresh` | exit 0 in 146 s: `RFC0016_COURSE_SELECTORS:16`, `RFC0016_DEVICE_STAGE:cancelled`, `RFC0016_DEVICE_REQUESTS:0`, `RFC0016_PLATFORM_COURSE_OK` |
+| The opener's anchor in both binaries | `composed_application_hosts` inside the course | `composed_application_hosts passed inside the course with the opener anchor required` |
+| Staged artifact | `build/rfc0016-macos-browser/release/src/app/BetterPullReview.app` | 10,406,976 bytes, sha256 `759e743c4ce6a1dbe972098e90cb0264b5b53e11629ff2d9e2f87f7fc1d12050` |
+| The action opens the system browser at the verification address | Launch the staged app, start sign-in, click "Open browser" | **Pending** — the owner's attended observation; it starts a real device flow, so no agent performs it |
