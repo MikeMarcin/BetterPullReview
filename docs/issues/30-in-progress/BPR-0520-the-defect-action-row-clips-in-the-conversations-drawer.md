@@ -1,7 +1,7 @@
 ---
 id: BPR-0520
 title: "Qt: the defect action row clips in the conversations drawer at 100 %"
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0010
 depends_on: [BPR-0513]
 ---
