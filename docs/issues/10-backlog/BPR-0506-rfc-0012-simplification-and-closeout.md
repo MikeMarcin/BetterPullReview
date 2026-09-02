@@ -81,3 +81,48 @@ next person choosing between two forms does not rediscover the argument.
 - [[BPR-0517]] added a test-only `LastChatTurn` evidence field to the
   composition so the continued course can read the dispatched turn; drop it
   if the counters suffice.
+
+## Scouted worklist — 2026-09-02
+
+A read-only scout over the delivered slices, with the decision each item
+needs; the pass records the outcome of each in the ledger's
+`## Simplification` section.
+
+1. **Remove:** `mcp_context_helper.hpp:106` says "the four this helper
+   implements"; it answers three (`initialize`, `tools/list`,
+   `tools/call`) and never answered a fourth. Proven by
+   `application_mcp_context_helper`.
+2. **Keep, with the reason:** `LastChatTurn` (`github_application.cpp`,
+   test-only). The launch path admits its own session, so the chat host's
+   counters prove a turn happened but not what it carried or which binding
+   it kept; `agent_chat_composition_public_path.cpp` asserts the message
+   bytes and the kept binding through it. Not a counter's job.
+3. **Doc consistency:** `docs/ux/ai-experience.md:27` still promises the six
+   comment-workshop operations without the "specification only" caveat that
+   `ai-agent-boundary.md` and [[BPR-0505]] already carry. One line; decide
+   with the owner whether a card owns the six or the promise is withdrawn.
+4. **Judgment:** eight construction-cut flags
+   (`Disable…Composition` in `github_application_fixture_access.hpp:66-77`)
+   share one identical declare/copy/guard shape at eight sites. Folding them
+   into one mechanism is new structure, not a deletion; record it as a
+   deliberate non-removal or split it to its own card.
+5. **Settle two ledger labels:** the "Private notes and drafts" row reads
+   `Core half verified` with a leftover "the composed course remains
+   `Planned`" phrase, and the "Finding/chat/promotion decisions" row reads
+   `Qt half verified` while its own text says the composed workbench is
+   verified. Confirm `application_agent_invocation_composition_contract`
+   asserts zero note and draft counts before relabelling the first.
+6. **Confirmed, decision needed:** `continue_against_old_revision` keeps the
+   session's old binding (`agent_chat_session_host.cpp`, `choose`) while
+   `github_application.cpp` composes the frozen snapshot from the epoch
+   host's current revision. Behaviour, so not this pass's to change; the
+   owner decides whether old-revision context is required and a card
+   follows.
+7. **Presentation fix:** the finding queue's six buttons sit in one
+   `QHBoxLayout` (`workbench_window.cpp:709-721`) and clip at 100 %; wrap or
+   stack them. Proven by `qt_finding_queue_view` and
+   `qt_composed_github_scale_100`'s capture.
+
+Not read by the scout and therefore unconfirmed for duplicated policy:
+`agent_chat_scope.cpp`, `agent_finding_promotion.cpp`, the Qt widgets'
+bodies, and `agent_protocol_loop.cpp`; the pass reads them itself.
