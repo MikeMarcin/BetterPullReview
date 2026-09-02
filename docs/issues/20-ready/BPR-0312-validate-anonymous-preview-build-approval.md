@@ -1,7 +1,7 @@
 ---
 id: BPR-0312
 title: Validate the positive anonymous-preview build decision
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0017
 depends_on: [BPR-0299]
 ---
@@ -24,3 +24,13 @@ depends_on: [BPR-0299]
   BPR-0300/BPR-0301 and every transitive implementation card.
 - This gate grants no additional network, credential, private-read, mutation,
   release, or RFC-closeout authority.
+
+## Lane — 2026-09-01
+
+[[BPR-0299]] is decided: build. The owner's acceptance carried no note, so the
+four definitions this card validates — public-preview naming, limit
+presentation, sign-in handoff, and supported-platform policy — are still to be
+supplied; this card's packet is where they get bound and validated. It moves
+to `20-ready/` as the next unattended step of RFC-BPR-0017: write the
+decision packet the ledger's "Product build/no-build decision and positive
+gate" row names, with the validator script it seeds, and present it.

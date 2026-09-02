@@ -1,0 +1,91 @@
+{
+  "artifacts": {
+    "after_image": {
+      "expected_path": "/tmp/bpr-appearance-foreground-v008.BNpMCm/after.png",
+      "result": "missing_as_reported"
+    },
+    "before_image": {
+      "expected_path": "/tmp/bpr-appearance-foreground-v008.BNpMCm/before.png",
+      "result": "missing_as_reported"
+    }
+  },
+  "bound_executable": {
+    "byte_length": 51383520,
+    "path": "build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+    "sha256": "sha256:10899f24d0a2253eb707c345650522ce1ee9b91a7634dc65a7f1226338181b28"
+  },
+  "bound_implementation_record": {
+    "byte_length": 4144,
+    "path": "docs/issues/60-done/BPR-0249-make-native-appearance-probe-await-selected-diff.md",
+    "sha256": "sha256:fe76c86329e9eb6650a9fa11103739fb0bfae0480a174b69689a74d057ff153b"
+  },
+  "checks": {
+    "bound_executable_exact": true,
+    "bound_implementation_record_exact": true,
+    "complete_raw_log_exact": true,
+    "operator_statement_exact_after_markdown_reflow_normalization": true,
+    "overall": "pass",
+    "selected_diff_binding_exact": true
+  },
+  "claims": {
+    "bpr_0100_final_head_visual_acceptance": false,
+    "bpr_0114_native_appearance_acceptance": false,
+    "bpr_0220_geometry_measurement_observed": true,
+    "bpr_0220_product_fix_authorized": false,
+    "bpr_0391_owner_return_wait_observed": true,
+    "bpr_0410_diagnostic_attribution_satisfied": true,
+    "live_github_mutation_authorized": false,
+    "package_or_release_authorized": false,
+    "rfc_bpr_0006_closeout_authorized": false
+  },
+  "gate": "appearance-scheme-foreground-v008",
+  "observation": {
+    "changed_capture": "not_attempted_state_precondition",
+    "exit_status": 1,
+    "geometry_attribution_complete": true,
+    "geometry_rebuild_causes": [],
+    "geometry_rebuild_delta": 0,
+    "initial_capture": "captured",
+    "owner_operands_after_return": {
+      "application_active_window": true,
+      "exact_focus": true,
+      "window_active": true
+    },
+    "owner_operands_at_wait_entry": {
+      "application_active_window": false,
+      "exact_focus": false,
+      "window_active": false
+    },
+    "owner_returned": true,
+    "persistence": "not_attempted",
+    "public_path": {
+      "cleanup_failed": false,
+      "presentation": false,
+      "shutdown_complete": true
+    },
+    "wait_episode": 1
+  },
+  "operator_response": {
+    "byte_length": 617,
+    "path": "docs/verification/reviews/appearance-scheme-foreground-v008/operator-response.md",
+    "sha256": "sha256:fa32fe78c726c2115c052bd019551bb75b9f2589784e455baff4bdf5e494c0a8"
+  },
+  "outcome": "observed_failure",
+  "raw_log": {
+    "byte_length": 3645,
+    "path": "docs/verification/reviews/appearance-scheme-foreground-v008/foreground-run-attempt-1.log",
+    "sha256": "sha256:917f84320c0ba271b69aa029c04893fec8a2b402e9b6a0745926a20c731ed5f5"
+  },
+  "recorded_at": "2026-08-21T17:05:03-07:00",
+  "result": "pass",
+  "reviewed_packet": {
+    "byte_length": 11327,
+    "path": "docs/verification/reviews/appearance-scheme-foreground-v008/operator-packet.md",
+    "sha256": "sha256:181e661ca62a04a302d18aebe47cee614f60829c3429aa1894d1adb0125e0d71"
+  },
+  "schema_name": "bpr.operator_observation_validation",
+  "schema_version": 1,
+  "statement_extraction_rule": "take the blockquote after the unique 'Paste the complete v008 raw log' marker, remove the Markdown quote prefix, trim authoring wraps, join wrapped lines with one ASCII space, and append one LF",
+  "validated_commit": "8899acf8939f82b42c59091d364c5d7e822936f5",
+  "validation_command": "python3 -c 'from pathlib import Path; p=Path(\"docs/verification/reviews/appearance-scheme-foreground-v008/operator-packet.md\").read_text(); r=Path(\"docs/verification/reviews/appearance-scheme-foreground-v008/operator-response.md\").read_text(); marker=\"Paste the complete v008 raw log, then include this exact statement:\\n\\n\"; block=p.split(marker,1)[1].split(\"\\n\\nIf the procedure\",1)[0].splitlines(); expected=\" \".join((line[2:] if line.startswith(\"> \") else line[1:]).strip() for line in block)+\"\\n\"; assert r==expected' && cmp -s /private/tmp/bpr-appearance-foreground-v008.BNpMCm/bpr-0114-foreground-v008.log docs/verification/reviews/appearance-scheme-foreground-v008/foreground-run-attempt-1.log"
+}

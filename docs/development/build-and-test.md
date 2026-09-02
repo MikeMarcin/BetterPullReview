@@ -450,12 +450,26 @@ python3 scripts/verify_rfc0017_test_inventory.py \
 Both print `RFC0017_TEST_INVENTORY_OK`. Later RFC-BPR-0017 cards add their
 selectors to the same script rather than starting a second checker.
 
-Note that `make_designated_review_public_observer` also performs a
-credential-free GET and *is* compiled into a shipped build. It predates
-RFC-BPR-0017, belongs to the attended designated-live lane, duplicates the
-transport's TLS and redirect policy rather than exercising it, and skips
-system-proxy discovery. It is neither a regression the absence scan should flag
-nor evidence for this RFC's gate.
+The absence half forbids the `BPR_NATIVE_HTTPS_TESTING` transport factories
+(`make_native_https_credential_free_transport_for_test` and its bootstrap
+sibling) and the demonstration's marker strings. It deliberately does not
+forbid the transport's credential-free binding itself: since BPR-0451 that
+binding, `credential_free_request`, ships on purpose as RFC-BPR-0016's device
+authorization transport, whose device-code and token-poll requests run before
+any credential exists. The scan's own negative control,
+`rfc0017_release_absence_negative_control`, runs the same scan against the
+tests-enabled application in the ordinary graph and passes only when it fails
+naming the test-seam factory, so a scan that could pass against anything is
+caught in the same `ctest` run.
+
+Two credential-free capabilities *are* compiled into a shipped build and are
+neither regressions the absence scan should flag nor evidence for this RFC's
+gate; the script records both in `KNOWN_PRODUCT_CREDENTIAL_FREE`.
+`make_designated_review_public_observer` performs a credential-free GET,
+predates RFC-BPR-0017, belongs to the attended designated-live lane,
+duplicates the transport's TLS and redirect policy rather than exercising it,
+and skips system-proxy discovery. `make_native_https_credential_free_transport`
+is the RFC-BPR-0016 device authorization factory.
 
 ## The RFC-BPR-0016 device-flow guards
 

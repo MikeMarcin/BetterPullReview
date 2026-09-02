@@ -173,6 +173,101 @@ class LauncherTests(unittest.TestCase):
 
         self.assertEqual(recorded, ["session_NewActa456"])
 
+    def test_watch_outlives_the_grace_and_records_a_late_session(self) -> None:
+        """`--spawn session` creates the session on first connection, not at launch."""
+        recorded: list[str] = []
+        released: list[str] = []
+        stop = launcher.threading.Event()
+        answers = iter([None, None, None, "session_LateActa789"])
+        with mock.patch.object(
+            launcher, "CLAUDE_BRIDGE_ISOLATION_GRACE_SECONDS", 0.0
+        ), mock.patch.object(
+            launcher, "CLAUDE_SESSION_RECORD_POLL_SECONDS", 0.001
+        ), mock.patch.object(
+            launcher,
+            "read_claude_bridge_session_id",
+            side_effect=lambda _root: next(answers),
+        ):
+            launcher.watch_for_claude_session(
+                self.context,
+                previous_session_id=None,
+                record_session=recorded.append,
+                stop=stop,
+                grace_elapsed=lambda: released.append("released"),
+            )
+
+        self.assertEqual(recorded, ["session_LateActa789"])
+        self.assertEqual(released, ["released"])
+
+    def test_watch_ends_without_a_session_only_when_claude_stops(self) -> None:
+        recorded: list[str] = []
+        released: list[str] = []
+        stop = launcher.threading.Event()
+        polls: list[int] = []
+
+        def never(_root: launcher.pathlib.Path) -> None:
+            polls.append(1)
+            if len(polls) == 5:
+                stop.set()
+            return None
+
+        with mock.patch.object(
+            launcher, "CLAUDE_BRIDGE_ISOLATION_GRACE_SECONDS", 0.0
+        ), mock.patch.object(
+            launcher, "CLAUDE_SESSION_RECORD_POLL_SECONDS", 0.001
+        ), mock.patch.object(
+            launcher, "read_claude_bridge_session_id", side_effect=never
+        ):
+            launcher.watch_for_claude_session(
+                self.context,
+                previous_session_id=None,
+                record_session=recorded.append,
+                stop=stop,
+                grace_elapsed=lambda: released.append("released"),
+            )
+
+        self.assertEqual(recorded, [])
+        self.assertEqual(released, ["released"])
+        self.assertEqual(len(polls), 5)
+
+    def test_releasing_siblings_keeps_the_stale_target_hidden(self) -> None:
+        target = self.context.root / "target" / "bridge-pointer.json"
+        sibling = self.context.root / "sibling" / "bridge-pointer.json"
+        target.parent.mkdir()
+        sibling.parent.mkdir()
+        target.write_text("old-target", encoding="utf-8")
+        sibling.write_text("old-sibling", encoding="utf-8")
+
+        with mock.patch.object(
+            launcher,
+            "claude_worktree_bridge_pointers",
+            return_value=(target, sibling),
+        ), mock.patch.object(
+            launcher, "claude_bridge_pointer", return_value=target
+        ):
+            isolation = launcher.ClaudeBridgeIsolation.begin(self.context.root)
+        isolation.release_siblings()
+
+        self.assertFalse(target.exists())
+        self.assertTrue(target.with_name(launcher.CLAUDE_BRIDGE_BACKUP_NAME).exists())
+        self.assertEqual(sibling.read_text(encoding="utf-8"), "old-sibling")
+        self.assertFalse(
+            sibling.with_name(launcher.CLAUDE_BRIDGE_BACKUP_NAME).exists()
+        )
+
+        target.write_text("new-target", encoding="utf-8")
+        isolation.session_started()
+        self.assertEqual(target.read_text(encoding="utf-8"), "new-target")
+        self.assertFalse(
+            target.with_name(launcher.CLAUDE_BRIDGE_BACKUP_NAME).exists()
+        )
+
+    def test_fresh_claude_announces_the_bound_name(self) -> None:
+        notice = launcher.session_bound_notice(self.context)
+        self.assertIn("fx-main-mac", notice)
+        self.assertIn("as soon as it starts", notice)
+        self.assertIn("--continue", notice)
+
     def test_supervisor_migrates_v1_and_preserves_station_id(self) -> None:
         self.context.station_file.write_text(
             json.dumps(
@@ -203,7 +298,10 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(migrated["station_id"], "stn-1234abcd")
         self.assertEqual(migrated["codex"], codex)
         self.assertIsNone(migrated["claude"])
-        self.assertEqual(run.call_args.args[0][0:2], ["claude", "remote-control"])
+        self.assertEqual(
+            run.call_args.args[0][0:3],
+            ["claude", "--remote-control", self.context.name],
+        )
 
     def test_exact_session_id_is_forwarded_only_to_claude(self) -> None:
         command = launcher.claude_command(
@@ -217,16 +315,57 @@ class LauncherTests(unittest.TestCase):
         self.assertNotIn("--name", command)
         self.assertNotIn("--spawn", command)
 
-    def test_fresh_claude_session_has_the_station_name_and_spawn_mode(self) -> None:
+    def test_fresh_claude_is_the_interactive_form_bound_to_the_station_name(self) -> None:
+        """The served session is the process itself, so the name binds at launch.
+
+        The `remote-control` server, `--spawn session` included, creates its
+        session only when a controller connects: four probes of it on
+        2026-09-01 left no session and no peer-list entry, while the
+        interactive form was listed under its name within seconds.
+        """
         command = launcher.claude_command(
             arguments(),
             self.context,
             reattach=False,
         )
 
-        self.assertIn("--name", command)
-        self.assertEqual(command[command.index("--name") + 1], self.context.name)
-        self.assertIn("--spawn", command)
+        self.assertEqual(command[:3], ["claude", "--remote-control", self.context.name])
+        self.assertIn("--permission-mode", command)
+        self.assertNotIn("remote-control", command)
+        self.assertNotIn("--spawn", command)
+        self.assertNotIn("--name", command)
+
+    def test_reattach_without_an_id_continues_the_directory_conversation(self) -> None:
+        command = launcher.claude_command(
+            arguments(reattach=True),
+            self.context,
+            reattach=True,
+            continue_conversation=True,
+        )
+        self.assertEqual(
+            command[:4],
+            ["claude", "--continue", "--remote-control", self.context.name],
+        )
+        self.assertNotIn("--session-id", command)
+
+    def test_normal_start_continues_a_directory_conversation_then_falls_back(self) -> None:
+        unavailable = subprocess.CompletedProcess(["claude"], 1)
+        fresh = subprocess.CompletedProcess(["claude"], 0)
+        with (
+            mock.patch.object(launcher, "has_local_conversation", return_value=True),
+            mock.patch.object(
+                launcher.subprocess,
+                "run",
+                side_effect=[unavailable, fresh],
+            ) as run,
+            mock.patch.object(launcher.time, "monotonic", return_value=10.0),
+        ):
+            result = launcher.run_claude(arguments(), self.context)
+
+        self.assertEqual(result, 0)
+        self.assertIn("--continue", run.call_args_list[0].args[0])
+        self.assertNotIn("--continue", run.call_args_list[1].args[0])
+        self.assertEqual(run.call_args_list[1].args[0][:2], ["claude", "--remote-control"])
 
     def test_normal_start_reattaches_then_falls_back_to_fresh_claude(self) -> None:
         unavailable = subprocess.CompletedProcess(["claude"], 1)
@@ -281,7 +420,8 @@ class LauncherTests(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.assertNotIn("--session-id", run.call_args.args[0])
-        self.assertIn("--name", run.call_args.args[0])
+        self.assertNotIn("--continue", run.call_args.args[0])
+        self.assertEqual(run.call_args.args[0][:3], ["claude", "--remote-control", self.context.name])
 
     def test_explicit_new_claude_session_skips_reattachment(self) -> None:
         fresh = subprocess.CompletedProcess(["claude"], 0)

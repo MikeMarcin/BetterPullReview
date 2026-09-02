@@ -1,0 +1,44 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/c7e77830ef4fa92c6047c99b",
+  "review_gate": "run_boundary_product_decisions",
+  "review_scope": "product_owner_choose_one_decisions_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0332/document-the-shipped-dispatch",
+      "subject_digest": "sha256:7514c050c37ecaeb9421b76d262571d1f88382d8ae2da5cf9178f431526a69ad"
+    },
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0299/build-credential-optional-preview",
+      "subject_digest": "sha256:797d7aac2054bfd426489803b4e209b3e48a97da3dd01babbdf1fe3aa42fb1c9"
+    },
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0114/accept-v008-as-terminal",
+      "subject_digest": "sha256:5a7a6b5bd03cd33173025108ed3ae7b39afb2bf36210f3a4f32d33748390cf1d"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {},
+  "downstream_claims": {
+    "release_gate_satisfied": false,
+    "rfc_0006_closeout_claimed": false,
+    "rfc_0011_closeout_claimed": false,
+    "rfc_0017_eligibility_claimed": false,
+    "windows_launch_behavior_changed": false
+  },
+  "not_chosen_subjects": [
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0332/restore-the-pre-start-refusal",
+      "subject_digest": "sha256:a1a5934e7ba96a799f7f7664ba5c9bbf789ca51178015cbff3f7476d293250bb"
+    },
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0299/do-not-build",
+      "subject_digest": "sha256:c9e6750bc997e0560c78226e4e295dc67d9efa35fc2467504c1e79b83153238e"
+    },
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0114/sit-a-v009-run",
+      "subject_digest": "sha256:eeb60fd31a52408cd658208ad3b2f9b9c4295eccb1c10734f33001c98dd51053"
+    }
+  ]
+}

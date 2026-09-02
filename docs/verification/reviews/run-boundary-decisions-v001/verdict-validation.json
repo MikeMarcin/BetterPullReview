@@ -1,0 +1,49 @@
+{
+  "schema_name": "bpr.attended_review_validation_record",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/c7e77830ef4fa92c6047c99b",
+  "recorded_at": "2026-09-01T18:12:04-07:00",
+  "validated_commit": "63eb406bfc2464e7bbf9972f900dda3e5e4a1ef0",
+  "validation_command": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/run-boundary-decisions-v001/offline-package/attended-review-manifest.json --verdict docs/verification/reviews/run-boundary-decisions-v001/human-verdict.json",
+  "validation_result": "valid complete verdict for bpr:/attended-review/betterpullreview/c7e77830ef4fa92c6047c99b",
+  "manifest": {
+    "path": "docs/verification/reviews/run-boundary-decisions-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:0a7f415d4de834c3862d582cd2d9ee61dece294baaba890c6ae1edf8652c0c1d",
+    "byte_length": 20075
+  },
+  "verdict": {
+    "path": "docs/verification/reviews/run-boundary-decisions-v001/human-verdict.json",
+    "sha256": "sha256:e46474c5ae2856541c592c5513ef8c64b56c2f97f37913f0734f674fdac762fb",
+    "byte_length": 1789
+  },
+  "official_validator": {
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:a7c6887dcde15b54e0d29d6a7a43847355e8c9dac38093fcd29b6abb603013ce",
+    "byte_length": 45951
+  },
+  "accepted_subjects": [
+    "decision:/betterpullreview/bpr-0332/document-the-shipped-dispatch",
+    "decision:/betterpullreview/bpr-0299/build-credential-optional-preview",
+    "decision:/betterpullreview/bpr-0114/accept-v008-as-terminal"
+  ],
+  "not_chosen_subjects": [
+    "decision:/betterpullreview/bpr-0332/restore-the-pre-start-refusal",
+    "decision:/betterpullreview/bpr-0299/do-not-build",
+    "decision:/betterpullreview/bpr-0114/sit-a-v009-run"
+  ],
+  "rejected_subjects": [],
+  "claims": {
+    "bpr_0332_document_the_shipped_dispatch_chosen": true,
+    "bpr_0332_restore_pre_start_refusal_chosen": false,
+    "bpr_0299_build_credential_optional_preview_chosen": true,
+    "bpr_0299_do_not_build_chosen": false,
+    "bpr_0114_v008_accepted_as_terminal_attended_row": true,
+    "bpr_0114_v009_sitting_requested": false,
+    "rfc_0006_closeout_claimed": false,
+    "rfc_0011_closeout_claimed": false,
+    "rfc_0017_eligibility_claimed": false,
+    "windows_launch_behavior_changed": false,
+    "release_gate_satisfied": false
+  },
+  "notes": "The owner accepted the build alternative for BPR-0299 without the note the subject asked for (naming, limit presentation, sign-in handoff, platform policy); those four definitions remain owed and are bound by BPR-0312, not inferred here."
+}

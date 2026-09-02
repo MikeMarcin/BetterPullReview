@@ -50,7 +50,7 @@
     },
     {
       "path": "references/runtime-compatibility.md",
-      "sha256": "a55c88e92914fa9004432f2ab79812872d129a8f2404c3a9f1d8b39c9e9ead0f"
+      "sha256": "55c67920c4111ceb6b2e6e919717c27a5b7828c89494a9a5c9336ecf4717d433"
     },
     {
       "path": "schemas/project.schema.json",
@@ -86,7 +86,7 @@
     },
     {
       "path": "scripts/launch_remote_station.py",
-      "sha256": "9ddf2889822d27868ad0f4d1d77b68736581cb0e04b49868039cdfd76aabdf81"
+      "sha256": "dd3c1057c06841e1995f650e585f0cf1edc8239490dec5f5e30d451b9e3218b5"
     },
     {
       "path": "scripts/project_config.py",
@@ -122,7 +122,7 @@
     },
     {
       "path": "tests/test_launch_remote_station.py",
-      "sha256": "c4dabe8abaacc7d03f7902e57376368f7c9f0acc12076ba0a42098bcd76c1ff1"
+      "sha256": "b34872946fed8608ff28e153700db63edd8820257ab06a9389da81d8402db498"
     },
     {
       "path": "tests/test_project_config.py",
@@ -141,6 +141,6 @@
       "sha256": "0c570e408e59704d19c64e228d206bf3b915622f6ee684a773d1c3e80e2f4bda"
     }
   ],
-  "portable_digest": "e136472f98e3e88e",
+  "portable_digest": "dd1f6d20d4f6f938",
   "schema": "implement-rfc.portable-manifest.v1"
 }

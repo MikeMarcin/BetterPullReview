@@ -61,7 +61,7 @@ WORKSTREAMS = PROJECT["workstreams"]
 STATION_SCHEMA = "implement-rfc.remote-station.v2"
 MINIMUM_CODEX_VERSION = (0, 151, 0)
 CLAUDE_RESUME_FAILURE_WINDOW_SECONDS = 30.0
-CLAUDE_SESSION_RECORD_TIMEOUT_SECONDS = 30.0
+CLAUDE_BRIDGE_ISOLATION_GRACE_SECONDS = 30.0
 CLAUDE_SESSION_RECORD_POLL_SECONDS = 0.1
 DEFAULT_CODEX_PAIRING_WAIT_SECONDS = 300.0
 MAXIMUM_CODEX_PAIRING_WAIT_SECONDS = 600.0
@@ -592,22 +592,44 @@ def claude_command(
     *,
     reattach: bool,
     session_id: str | None = None,
+    continue_conversation: bool = False,
 ) -> list[str]:
-    command = [
-        "claude",
-        "remote-control",
-        "--permission-mode",
-        arguments.permission_mode,
-    ]
+    """The Claude process a station runs.
+
+    A fresh station uses the interactive form, `claude --remote-control
+    <station>`: the running process is the served session, so the name
+    exists and binds in peer lists the moment the process starts. The
+    `claude remote-control` server (`--spawn session` included) creates its
+    session only when a controller connects, which left every station
+    launched that way nameless until someone opened its environment.
+
+    Reattachment prefers the recorded session ID through the server form,
+    which is how a server-created session comes back; a station whose
+    session came from the interactive form has no recorded ID until the
+    bridge pointer appears, and resumes its own directory's conversation
+    with `--continue`, which reconnects through that conversation's
+    reconnection record.
+    """
+    permission = ["--permission-mode", arguments.permission_mode]
     if reattach:
-        if session_id is None:
-            raise LaunchRefusal(
-                "this station has no recorded Claude session; run normally to create one"
-            )
-        command += ["--session-id", session_id]
-    else:
-        command += ["--name", context.name, "--spawn", "session"]
-    return command
+        if session_id is not None:
+            return ["claude", "remote-control", *permission, "--session-id", session_id]
+        if continue_conversation:
+            return ["claude", "--continue", "--remote-control", context.name, *permission]
+        raise LaunchRefusal(
+            "this station has no recorded Claude session; run normally to create one"
+        )
+    return ["claude", "--remote-control", context.name, *permission]
+
+
+def has_local_conversation(root: pathlib.Path) -> bool:
+    """Whether Claude has a conversation record for this exact directory."""
+    encoded_root = re.sub(r"[^A-Za-z0-9-]", "-", str(root.resolve()))
+    project_dir = pathlib.Path.home() / ".claude" / "projects" / encoded_root
+    try:
+        return any(project_dir.glob("*.jsonl"))
+    except OSError:
+        return False
 
 
 def claude_bridge_pointer(root: pathlib.Path) -> pathlib.Path:
@@ -664,6 +686,30 @@ class ClaudeBridgeIsolation:
         """Keep the new target pointer and make sibling pointers visible again."""
         self._restore(preserve_target=True)
 
+    def release_siblings(self) -> None:
+        """Make sibling pointers visible again while the target stays hidden.
+
+        Claude's bridge pointer for a fresh session can appear long after
+        launch. Sibling worktrees should not lose their pointers for that
+        whole wait, but the old target pointer must stay aside so a stale
+        session ID cannot be read as the new one.
+        """
+        remaining: list[tuple[pathlib.Path, pathlib.Path]] = []
+        for pointer, backup in self.backups:
+            if pointer == self.target:
+                remaining.append((pointer, backup))
+                continue
+            if not backup.exists():
+                continue
+            try:
+                if pointer.exists():
+                    backup.unlink()
+                else:
+                    backup.replace(pointer)
+            except OSError:
+                remaining.append((pointer, backup))
+        self.backups = tuple(remaining)
+
     def close(self) -> None:
         self._restore(preserve_target=self.target.exists())
 
@@ -706,9 +752,20 @@ def watch_for_claude_session(
     record_session: Callable[[str], None],
     stop: threading.Event,
     session_started: Callable[[], None] | None = None,
+    grace_elapsed: Callable[[], None] | None = None,
 ) -> None:
-    deadline = time.monotonic() + CLAUDE_SESSION_RECORD_TIMEOUT_SECONDS
-    while not stop.is_set() and time.monotonic() < deadline:
+    """Record the station's Claude session whenever it is created.
+
+    Claude writes the bridge pointer on its own schedule, not necessarily at
+    startup, so the watch runs until `stop` — the Claude process exiting —
+    rather than for a fixed startup window. After
+    `CLAUDE_BRIDGE_ISOLATION_GRACE_SECONDS` without a session, `grace_elapsed`
+    runs once so bridge isolation can release sibling pointers while the wait
+    continues.
+    """
+    grace_deadline = time.monotonic() + CLAUDE_BRIDGE_ISOLATION_GRACE_SECONDS
+    grace_pending = grace_elapsed is not None
+    while not stop.is_set():
         session_id = read_claude_bridge_session_id(context.root)
         if session_id is not None and session_id != previous_session_id:
             try:
@@ -717,8 +774,21 @@ def watch_for_claude_session(
                 if session_started is not None:
                     session_started()
             return
-        remaining = max(0.0, deadline - time.monotonic())
-        stop.wait(min(CLAUDE_SESSION_RECORD_POLL_SECONDS, remaining))
+        if grace_pending and time.monotonic() >= grace_deadline:
+            grace_pending = False
+            grace_elapsed()
+        stop.wait(CLAUDE_SESSION_RECORD_POLL_SECONDS)
+
+
+def session_bound_notice(context: StationContext) -> str:
+    """What a peer will see: the station name, from the moment Claude starts."""
+    return (
+        f"Claude station {context.name}: this process is the served session, "
+        f"so peers see it as {context.name} as soon as it starts. "
+        f"{context.station_file.name} records the session ID when Claude's "
+        "bridge pointer appears; until then a relaunch resumes this "
+        "directory's conversation with --continue."
+    )
 
 
 def run_fresh_claude(
@@ -736,11 +806,13 @@ def run_fresh_claude(
             "previous_session_id": None,
             "record_session": record_session or (lambda _: None),
             "session_started": isolation.session_started,
+            "grace_elapsed": isolation.release_siblings,
             "stop": stop,
         },
         daemon=True,
     )
     watcher.start()
+    print(session_bound_notice(context), flush=True)
     try:
         return subprocess.run(
             claude_command(arguments, context, reattach=False),
@@ -761,6 +833,9 @@ def run_claude(
     record_session: Callable[[str], None] | None = None,
 ) -> int:
     """Run Claude, resuming only the session bound to this exact station."""
+    continue_conversation = session_id is None and has_local_conversation(
+        context.root
+    )
     if arguments.reattach:
         return subprocess.run(
             claude_command(
@@ -768,6 +843,7 @@ def run_claude(
                 context,
                 reattach=True,
                 session_id=session_id,
+                continue_conversation=continue_conversation,
             ),
             cwd=context.root,
             check=False,
@@ -778,7 +854,7 @@ def run_claude(
             context,
             record_session=record_session,
         )
-    if session_id is None:
+    if session_id is None and not continue_conversation:
         return run_fresh_claude(
             arguments,
             context,
@@ -792,6 +868,7 @@ def run_claude(
             context,
             reattach=True,
             session_id=session_id,
+            continue_conversation=continue_conversation,
         ),
         cwd=context.root,
         check=False,

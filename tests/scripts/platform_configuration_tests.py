@@ -51,6 +51,15 @@ class PlatformConfigurationTests(unittest.TestCase):
         self.assertEqual(windows["cacheVariables"]["BPR_BUILD_QT"], "ON")
         self.assertEqual(windows["cacheVariables"]["BUILD_TESTING"], "ON")
         self.assertNotIn("CMAKE_EXPORT_COMPILE_COMMANDS", windows["cacheVariables"])
+        # BPR-0495: the syntax provider builds its dependency once per entry
+        # of this list, and Visual Studio's four-entry default made a fresh
+        # configure build MinSizeRel, which does not compile and which nothing
+        # selects. The pin is exact so that adding a configuration is a
+        # deliberate change to what the provider builds.
+        self.assertEqual(
+            windows["cacheVariables"]["CMAKE_CONFIGURATION_TYPES"],
+            "Debug;Release",
+        )
 
     def test_windows_build_and_test_select_debug_configuration(self) -> None:
         for key in ("buildPresets", "testPresets"):
