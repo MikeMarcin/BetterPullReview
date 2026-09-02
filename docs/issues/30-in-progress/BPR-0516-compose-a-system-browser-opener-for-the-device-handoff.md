@@ -127,8 +127,8 @@ by each station.
 | The whole dev graph builds clean under `-Werror` | `cmake --build --preset dev` | Exit 0, zero `error:` or `warning:` lines in the whole log | this commit |
 | Every touched C++ file is formatted | `clang-format --dry-run --Werror` on the six touched files | Exit 0 after reflowing four lines of `github_application.cpp` and one of `main.cpp` | this commit |
 | macOS: the action opens the system browser at the verification address | The owner's attended sitting against the restaged artifact | Observed 2026-09-02 by the owner: the device flow connected end to end — see *macOS — the owner's observation — 2026-09-02* | this commit |
-| Linux: the action opens the system browser at the verification address | Target-native observation on the Linux station | Pending — the artifact is staged and every row around it is green; see *Linux — 2026-09-02* below. The click itself is the owner's | Pending |
-| Windows x64: the action opens the system browser at the verification address | Target-native observation on the Windows station | Artifact staged and everything short of the click recorded — see "Windows — 2026-09-02"; the click itself is the owner's | Pending |
+| Linux: the action opens the system browser at the verification address | The owner's attended sitting on the JaegAW WSLg desktop against the restaged artifact | Observed 2026-09-02 by the owner: the code and web-browser flow works end to end — see *Linux and Windows — the owner's sittings — 2026-09-02* | this commit |
+| Windows x64: the action opens the system browser at the verification address | The owner's attended sitting at the JaegAW desktop | Not yet observable: the staged artifact does not launch from Explorer (`Qt6Gui.dll was not found`) because it is a bare Release build the course runs under its own launch environment — see *Linux and Windows — the owner's sittings — 2026-09-02*. A self-contained copy is requested from `bpr-win` | Pending |
 
 ## Integrator reproduction — 2026-09-02
 
@@ -514,3 +514,39 @@ the owner's own Keychain under the owner's own account.
 
 The Linux and Windows rows stay the owner's, against the artifacts staged
 above.
+
+## Linux and Windows — the owner's sittings — 2026-09-02
+
+**Linux is observed.** The owner ran the staged Linux artifact on the WSLg
+desktop and reported, in full: "The linux code and web browser flow works."
+As on macOS, the report is the end-to-end outcome — code, browser, device
+flow — from the tests-disabled artifact restaged at `8a6e7612`
+(`/home/mmarcin/bpr-linux/build/rfc0016-linux-enablement/release/src/app/better_pull_review`,
+11,370,392 bytes, sha256 `ddae8dc2…a4f9`, per the staging row above). No
+agent performed or observed any part of it.
+
+**Windows did not launch.** Double-clicking
+`C:/code/git/bpr-windows/build/rfc0016-windows-enablement/release/src/app/better_pull_review.exe`
+from Explorer produced the system error "The code execution cannot proceed
+because Qt6Gui.dll was not found." That is not the opener and not the
+panel: the staged artifact is the bare Release executable the platform
+course builds, and the course launches it under the launch environment
+[[BPR-0511]] reads from the ctest inventory — the Qt runtime directory
+prepended to `PATH`. Explorer prepends nothing, so the loader cannot find
+the Qt DLLs beside a binary that was never deployed with them. Every
+Windows row above stands: the course's own runs, the composed-host audit,
+the panel and opener anchors, and the release scan were all made against
+this same image under that environment.
+
+Two consequences. First, the owner can launch the staged image now from a
+shell with the Qt runtime directory on `PATH` — the same directory the
+course uses. Second, a staged artifact meant for a desktop click should be
+self-contained; `bpr-win` is asked to stage a deployed copy (`windeployqt`
+beside a copy of the exact image, digest recorded before and after) so the
+observation is a double-click rather than a shell incantation. Whether a
+shipped Windows package deploys Qt is a packaging question outside this
+card; here it only decides how the click is made.
+
+| Row | Result |
+|---|---|
+| Windows x64: the action opens the system browser at the verification address | **Pending — the owner's click against the self-contained copy once `bpr-win` stages it** |
