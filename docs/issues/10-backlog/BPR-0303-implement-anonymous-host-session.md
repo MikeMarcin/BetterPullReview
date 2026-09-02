@@ -3,7 +3,7 @@ id: BPR-0303
 title: Implement viewer-less anonymous host sessions
 status: Backlog
 rfc: RFC-BPR-0017
-depends_on: [BPR-0300, BPR-0302]
+depends_on: [BPR-0300, BPR-0302, BPR-0531]
 ---
 
 # Implement viewer-less anonymous host sessions
