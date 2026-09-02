@@ -1,7 +1,7 @@
 ---
 id: BPR-0472
 title: The review-ledger composition's epoch handoff never completes on WSL2
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0007
 depends_on: []
 ---
