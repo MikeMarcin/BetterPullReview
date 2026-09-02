@@ -694,6 +694,14 @@ namespace {
 			// ends the flow at the first stage only a registered composition
 			// can reach.
 			bool CancelDispatched = false;
+			// RFC-BPR-0016 browser handoff. One "Open browser" request, made
+			// when the flow reaches `awaiting_authorization` because that is
+			// the only stage at which there is an address to open. The
+			// composed opener under a tests-enabled build is the recording
+			// one, so this proves the request reaches a bound capability and
+			// starts no program.
+			bool BrowserProbe   = false;
+			bool OpenDispatched = false;
 		};
 
 		stage Stage = stage::start;
@@ -2879,6 +2887,25 @@ namespace {
 		return "idle";
 	}
 
+	[[nodiscard]] auto device_authorization_handoff_text(
+		const bpr::application::device_authorization_handoff aHandoff)
+		-> const char*
+	{
+		switch (aHandoff) {
+		case bpr::application::device_authorization_handoff::not_attempted:
+			return "not_attempted";
+		case bpr::application::device_authorization_handoff::opened:
+			return "opened";
+		case bpr::application::device_authorization_handoff::refused:
+			return "refused";
+		case bpr::application::device_authorization_handoff::failed:
+			return "failed";
+		case bpr::application::device_authorization_handoff::unavailable:
+			return "unavailable";
+		}
+		return "not_attempted";
+	}
+
 	void finish_automated_run(
 		bpr::app::github_application& aApplication,
 		const automated_run&          aRun)
@@ -3087,6 +3114,24 @@ namespace {
 				   << static_cast<unsigned long long>(
 						  status.DeviceAuthorizationTransportReached)
 				   << '\n';
+			if (aRun.Device.BrowserProbe) {
+				// Three separate facts again. Whether a capability was bound
+				// at all, how many addresses reached it, and what the host
+				// made of the attempt: the construction cut turns the first
+				// false and the third `unavailable` while leaving every line
+				// above this untouched, which is what makes it a cut rather
+				// than a different run.
+				stream << "DEVICE_FLOW_BROWSER_COMPOSED:"
+					   << (status.DeviceAuthorizationBrowserComposed ? "true"
+																	 : "false")
+					   << "\nDEVICE_FLOW_BROWSER_OPENS:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationBrowserOpens)
+					   << "\nDEVICE_FLOW_HANDOFF:"
+					   << device_authorization_handoff_text(
+							  status.DeviceAuthorizationHandoff)
+					   << '\n';
+			}
 			if (aRun.Device.Registered) {
 				// The registered course makes the opposite claim: the grant
 				// must reach the existing vault exactly once, and the token
@@ -4146,6 +4191,20 @@ namespace {
 					if (!bpr::core::terminal(
 							aApplication.status()
 								.DeviceAuthorizationStage)) {
+						// One "Open browser" request, at the only stage that
+						// has an address to open. Made once rather than every
+						// tick: the claim is that the request reaches the
+						// composed capability, not that it can be repeated.
+						// A tests-enabled graph composes the recording opener,
+						// so nothing starts.
+						if (aRun->Device.BrowserProbe
+							&& aApplication.status().DeviceAuthorizationStage
+								== bpr::core::device_authorization_stage::
+									awaiting_authorization
+							&& !aRun->Device.OpenDispatched) {
+							aRun->Device.OpenDispatched = true;
+							aApplication.open_device_verification_address();
+						}
 						// A registered platform's real flow parks in
 						// `awaiting_authorization` until a human answers,
 						// which the probe neither needs nor has budget for:
@@ -5853,6 +5912,13 @@ auto main(int argc, char** argv) -> int
 			argc,
 			argv,
 			"--device-authorization-registered-course");
+		// RFC-BPR-0016 construction cut. Composes the device host with no
+		// browser capability, which is what every build had before
+		// [[BPR-0516]] composed one.
+		fixtureOptions.SuppressDeviceBrowser = has_argument(
+			argc,
+			argv,
+			"--device-authorization-browser-absent");
 		if (const auto fixture = argument_value(argc, argv, "--github-fixture");
 			fixture.has_value()) {
 			if (*fixture == "github-com") {
@@ -5963,6 +6029,18 @@ auto main(int argc, char** argv) -> int
 			= has_argument(argc, argv, "--device-authorization-probe");
 		const auto registeredDeviceCourse
 			= has_argument(argc, argv, "--device-authorization-registered-course");
+		// Tests-enabled only. A shipped binary opens a browser when the
+		// reviewer asks it to and at no other time: the stations run the
+		// release courses unattended, and a command-line flag that could start
+		// a browser in one of those runs is a failure nobody would be watching
+		// for. The composed opener is proven in a shipped graph by linkage and
+		// construction instead.
+		const auto deviceBrowserProbe =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-browser-probe");
+#else
+			false;
+#endif
 		const auto renderPath                 = argument_value(argc, argv, "--render-evidence");
 		const auto renderCollapsesFilesDrawer = has_argument(
 			argc, argv, "--render-evidence-collapse-files");
@@ -6423,8 +6501,9 @@ auto main(int argc, char** argv) -> int
 							.EnterpriseHostname = std::move(enterpriseHostname),
 						},
 						.Device = automated_run::device_authorization_probe_state{
-							.Enabled    = verifyDeviceAuthorization,
-							.Registered = registeredDeviceCourse,
+							.Enabled      = verifyDeviceAuthorization,
+							.Registered   = registeredDeviceCourse,
+							.BrowserProbe = verifyDeviceAuthorization && deviceBrowserProbe,
 						},
 #if defined(BPR_BUILD_TESTING)
 						.Fixture                         = !fixtureName.empty(),

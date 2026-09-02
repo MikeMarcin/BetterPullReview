@@ -59,6 +59,9 @@ SELECTORS: dict[str, int] = {
     "application_device_authorization_unavailable": 1,
     "application_device_authorization_release_contract": 1,
     "application_device_authorization_registered_course": 1,
+    # BPR-0516: the composed system-browser opener and its construction cut.
+    "application_device_authorization_browser_handoff": 1,
+    "application_device_authorization_browser_absent": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector below
@@ -80,6 +83,13 @@ REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "application_device_authorization_registered_course": (
         "--device-authorization-registered-course",
         "--github-fixture",
+    ),
+    "application_device_authorization_browser_handoff": (
+        "--device-authorization-probe",
+        "--device-authorization-registered-course",
+    ),
+    "application_device_authorization_browser_absent": (
+        "--device-authorization-probe",
     ),
 }
 

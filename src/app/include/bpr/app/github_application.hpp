@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 #define BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 
+#include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/core/device_authorization_model.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -203,6 +204,25 @@ namespace bpr::app {
 		// contain the enrolled token, which must be none — the vault is the
 		// only place a credential belongs, and settings and SQLite are the two
 		// places a second copy would plausibly appear.
+		//
+		// Whether composition bound a browser capability to the handoff, as
+		// opposed to linking one. A shipped build binds the system opener; a
+		// tests-enabled build binds a recording one so no suite can start a
+		// browser; the construction cut binds none, and only then may the
+		// action answer `unavailable`.
+		bool DeviceAuthorizationBrowserComposed = false;
+		// The fate of the last handoff attempt in this run, kept across the
+		// stage change that clears it from the live presentation. Reported
+		// rather than the current value, because a run that finished
+		// authorizing would otherwise show `not_attempted` for an attempt
+		// that did happen.
+		application::device_authorization_handoff DeviceAuthorizationHandoff
+			= application::device_authorization_handoff::not_attempted;
+		// Addresses handed to the recording opener. Zero in a shipped build,
+		// which has no recording opener; the system opener counts nothing,
+		// because its evidence is a browser window on a station rather than a
+		// number this process can read.
+		std::size_t DeviceAuthorizationBrowserOpens         = 0U;
 		std::size_t DeviceAuthorizationVaultStores          = 0U;
 		std::size_t DeviceAuthorizationDurableCopies        = 0U;
 		std::size_t DeviceAuthorizationTransportSubmissions = 0U;
@@ -266,6 +286,17 @@ namespace bpr::app {
 		/// platform's real flow inside its run budget; on an unregistered
 		/// platform there is never a live flow to cancel.
 		void cancel_device_authorization();
+
+		/// \brief Asks the composed browser capability to open the address.
+		///
+		/// \details The same request the Qt panel's "Open browser" action
+		/// makes. It changes no core state: the host revalidates the retained
+		/// address against the compiled authority, invokes the capability only
+		/// if that passes, and republishes what happened. Every outcome —
+		/// including a refused address and an absent capability — leaves the
+		/// flow exactly where it was, so this can be called on a live grant
+		/// without risking it.
+		void open_device_verification_address();
 
 		[[nodiscard]] auto window() noexcept -> qt::workbench_window&;
 		[[nodiscard]] auto status() const noexcept -> github_application_status;

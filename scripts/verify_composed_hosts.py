@@ -168,6 +168,10 @@ SHARED_REQUIRED = (
         "Qt workbench window constructor",
         "bpr::qt::workbench_window::workbench_window",
     ),
+    function_anchor(
+        "system browser opener constructor",
+        "bpr::app::system_browser_opener::system_browser_opener",
+    ),
 )
 
 FIXTURE_REQUIRED = (

@@ -5,6 +5,7 @@
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "review_mutation_execution_authority.hpp"
+#include "system_browser_opener.hpp"
 
 #include "bpr/app/worker_executor.hpp"
 
@@ -1058,12 +1059,30 @@ namespace bpr::app {
 			{
 				Last = aPresentation;
 				++Published;
+				// The host clears the handoff on the next stage change, so a
+				// reader that arrives after the flow moved on sees
+				// `not_attempted` and cannot tell an opener that answered
+				// from one that was never asked. This keeps the answer
+				// instead of the moment it was true: what a self-test needs
+				// at shutdown is which fate the last attempt met, and only a
+				// new attempt or a new run replaces it.
+				if (
+					aPresentation.Handoff
+					!= application::device_authorization_handoff::not_attempted) {
+					LastAttempt = aPresentation.Handoff;
+				}
 			}
 
 			[[nodiscard]] auto last() const noexcept
 				-> const application::device_authorization_presentation&
 			{
 				return Last;
+			}
+
+			[[nodiscard]] auto last_attempt() const noexcept
+				-> application::device_authorization_handoff
+			{
+				return LastAttempt;
 			}
 
 			[[nodiscard]] auto published() const noexcept -> std::size_t
@@ -1073,8 +1092,47 @@ namespace bpr::app {
 
 		private:
 			application::device_authorization_presentation Last;
-			std::size_t                                    Published = 0U;
+			application::device_authorization_handoff      LastAttempt
+				= application::device_authorization_handoff::not_attempted;
+			std::size_t Published = 0U;
 		};
+
+#if defined(BPR_BUILD_TESTING)
+		// The fixture profile's opener. A tests-enabled graph never binds the
+		// real one: `system_browser_opener` hands the address to the desktop,
+		// and a suite that launched a browser on a reviewer's machine — or on
+		// a station running unattended — would be doing the one thing no test
+		// here is allowed to do. This records what it was given and answers
+		// yes, which is what the handoff contract needs to observe `opened`
+		// without any program starting.
+		class recording_device_authorization_browser final
+			: public application::device_authorization_browser_port
+		{
+		public:
+			[[nodiscard]] auto open(const std::string_view aAddress)
+				-> bool override
+			{
+				LastAddress.assign(aAddress);
+				++Opens;
+				return true;
+			}
+
+			[[nodiscard]] auto opens() const noexcept -> std::size_t
+			{
+				return Opens;
+			}
+
+			[[nodiscard]] auto last_address() const noexcept
+				-> const std::string&
+			{
+				return LastAddress;
+			}
+
+		private:
+			std::string LastAddress;
+			std::size_t Opens = 0U;
+		};
+#endif
 
 		// No registered application identity means there is nothing to talk to.
 		// This is not a fixture and not a stub standing in for a real transport: it
@@ -2483,6 +2541,7 @@ namespace bpr::app {
 					= aFixtureOptions.ExternalAgentExecutable;
 				CodexAgentExecutable   = aFixtureOptions.CodexAgentExecutable;
 				RegisteredDeviceCourse = aFixtureOptions.RegisteredDeviceCourse;
+				SuppressDeviceBrowser  = aFixtureOptions.SuppressDeviceBrowser;
 				const auto host        = fixture_host(*aFixture);
 				append_profile(
 					Profiles,
@@ -3244,7 +3303,29 @@ namespace bpr::app {
 			}
 #endif
 			DeviceCapabilityRegistered = deviceCapability.Registered;
-			DeviceHost                 = std::make_unique<
+			// The browser handoff, under the same seam as the transport above
+			// and for the same reason: the shipped graph gets the real
+			// capability, a tests-enabled graph gets a recording one. The
+			// seam is total here rather than fixture-conditional, because a
+			// fixture transport that is reached by mistake writes a line to a
+			// log and a browser that is opened by mistake opens a browser.
+			//
+			// `SystemBrowser` is constructed either way. Its constructor is
+			// the anchor `verify_composed_hosts.py` requires in both
+			// profiles, so a build that stopped composing the opener fails
+			// the audit rather than silently going back to answering
+			// `unavailable` forever, which is the defect [[BPR-0516]] found.
+			auto* deviceBrowser
+				= static_cast<application::device_authorization_browser_port*>(
+					&SystemBrowser);
+#if defined(BPR_BUILD_TESTING)
+			deviceBrowser = SuppressDeviceBrowser
+				? nullptr
+				: static_cast<application::device_authorization_browser_port*>(
+					  &RecordingBrowser);
+#endif
+			DeviceBrowserComposed = deviceBrowser != nullptr;
+			DeviceHost            = std::make_unique<
 				application::device_authorization_application_host>(
 				initial_device_authorization_state(),
 				*deviceTransport,
@@ -3256,11 +3337,11 @@ namespace bpr::app {
 				DeviceProjections,
 				application::device_authorization_host_limits{ },
 				application::device_authorization_browser_handoff{
-					// No browser capability is composed in this slice. A build
-					// that cannot start a flow has nothing to open, and the
-					// host reports `unavailable` for the handoff rather than
-					// inventing an address.
-					.Browser   = nullptr,
+					// Null only under the construction cut, where the host
+					// reports `unavailable` rather than inventing an address.
+					// The authority travels with the pointer so a profile
+					// that is not GitHub.com cannot inherit GitHub.com's.
+					.Browser   = deviceBrowser,
 					.Authority = std::string{
 						application::default_device_verification_authority },
 				},
@@ -3479,6 +3560,18 @@ namespace bpr::app {
 			return 0U;
 		}
 
+		// Only the recording opener counts. The shipped opener's evidence is a
+		// browser window a person sees on a station, which this process has no
+		// way to observe and must not claim to.
+		[[nodiscard]] auto device_browser_opens() const noexcept -> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			return RecordingBrowser.opens();
+#else
+			return 0U;
+#endif
+		}
+
 		[[nodiscard]] auto device_enrollments() const noexcept -> std::size_t
 		{
 #if defined(BPR_BUILD_TESTING)
@@ -3570,6 +3663,18 @@ namespace bpr::app {
 				return;
 			}
 			DeviceHost->dispatch(core::cancel_device_authorization_intent{ });
+		}
+
+		// The same request the device panel's "Open browser" action makes.
+		// Not a core intent: opening a browser decides nothing about the
+		// grant, so it reaches the host directly and the host republishes
+		// what happened without a transition ([[BPR-0280]]).
+		void open_device_verification_address()
+		{
+			if (Closing || DeviceHost == nullptr) {
+				return;
+			}
+			DeviceHost->open_verification_address();
 		}
 
 		void dispatch_workbench_intent(
@@ -6217,6 +6322,15 @@ namespace bpr::app {
 		bool DeviceCapabilityRegistered = false;
 #if defined(BPR_BUILD_TESTING)
 		bool RegisteredDeviceCourse = false;
+		bool SuppressDeviceBrowser  = false;
+#endif
+		// Whether a browser capability was bound at all, which is the fact the
+		// handoff's `unavailable` answer reports and the construction cut
+		// removes.
+		bool                  DeviceBrowserComposed = false;
+		system_browser_opener SystemBrowser;
+#if defined(BPR_BUILD_TESTING)
+		recording_device_authorization_browser RecordingBrowser;
 #endif
 		qt::event_loop_device_timer          DeviceTimer;
 		device_authorization_projection_sink DeviceProjections;
@@ -6795,6 +6909,12 @@ namespace bpr::app {
 			= Implementation->UnregisteredDeviceTransport.reached(),
 			.DeviceAuthorizationPublications
 			= Implementation->DeviceProjections.published(),
+			.DeviceAuthorizationBrowserComposed
+			= Implementation->DeviceBrowserComposed,
+			.DeviceAuthorizationHandoff
+			= Implementation->DeviceProjections.last_attempt(),
+			.DeviceAuthorizationBrowserOpens
+			= Implementation->device_browser_opens(),
 			.DeviceAuthorizationVaultStores
 			= Implementation->device_vault_stores(),
 			.DeviceAuthorizationDurableCopies
@@ -6814,6 +6934,11 @@ namespace bpr::app {
 	void github_application::cancel_device_authorization()
 	{
 		Implementation->cancel_device_authorization();
+	}
+
+	void github_application::open_device_verification_address()
+	{
+		Implementation->open_device_verification_address();
 	}
 
 #if defined(BPR_BUILD_TESTING)

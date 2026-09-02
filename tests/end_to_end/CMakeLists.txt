@@ -281,6 +281,80 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# RFC-BPR-0016's browser handoff, and its construction cut. Both drive the
+# registered course, because `awaiting_authorization` is the only stage that
+# has an address to open and the recorded grant is the only composition that
+# reaches it without a human. Neither starts a browser: a tests-enabled graph
+# binds the recording opener rather than `system_browser_opener`, so what these
+# prove is that the action reaches a bound capability and what the host makes
+# of the answer. That the shipped opener is the one bound in a shipped graph is
+# proven by linkage (`composed_application_hosts`) and by construction; that it
+# reaches a real browser is a target-native observation the stations record.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_browser_handoff
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-registered-course
+        --device-authorization-browser-probe
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_browser_handoff
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_BROWSER_COMPOSED:true[\r\n]+DEVICE_FLOW_BROWSER_OPENS:1[\r\n]+DEVICE_FLOW_HANDOFF:opened[\r\n]+DEVICE_FLOW_ENROLLMENTS:1"
+)
+bpr_bound_automated_run(
+    application_device_authorization_browser_handoff
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# The construction cut. One construction removed and nothing else: the same
+# course, the same flow, the same grant reaching the same vault once, with no
+# browser capability bound. The action still answers - `unavailable`, which is
+# what every build did before the opener was composed - and the positive marker
+# is false, so a run that quietly stopped composing the opener could not pass
+# the handoff contract above by accident.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_browser_absent
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-registered-course
+        --device-authorization-browser-probe
+        --device-authorization-browser-absent
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_browser_absent
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_PRESENTED:true[\r\n]+DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_BROWSER_COMPOSED:false[\r\n]+DEVICE_FLOW_BROWSER_OPENS:0[\r\n]+DEVICE_FLOW_HANDOFF:unavailable[\r\n]+DEVICE_FLOW_ENROLLMENTS:1"
+)
+bpr_bound_automated_run(
+    application_device_authorization_browser_absent
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
 bpr_add_network_isolated_test(
     NAME application_device_authorization_release_contract
     WINDOWS_UNCONTAINED
