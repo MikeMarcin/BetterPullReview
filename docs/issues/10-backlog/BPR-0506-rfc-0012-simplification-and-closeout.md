@@ -70,3 +70,6 @@ next person choosing between two forms does not rediscover the argument.
   not delivered. Decide whether they are a card or a removed promise.
 - The panels are composed and, after [[BPR-0513]], placed; the side-chat
   session host is [[BPR-0514]]. Neither is this card's.
+- At 100 % the finding queue's six action buttons overflow the conversations
+  drawer's width and the last two are clipped ([[BPR-0513]]'s capture);
+  wrap or stack them.

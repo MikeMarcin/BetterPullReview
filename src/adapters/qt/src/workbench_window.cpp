@@ -8,6 +8,8 @@
 
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
 
 #include <QAbstractItemView>
 #include <QAccessible>
@@ -679,6 +681,44 @@ namespace bpr::qt {
 		AgentPanel = new agent_launch_panel{ { }, conversationContents };
 		AgentPanel->setMaximumHeight(300);
 		conversationLayout->addWidget(AgentPanel);
+		// BPR-0513. RFC-BPR-0012's two agent surfaces go where the launcher
+		// that produces their content already is, in the order the work runs:
+		// ask the agent, watch the chat, read what it found, and promote a
+		// finding into the draft editor above — whose comment workshop is the
+		// view a promotion opens, and which is already in this drawer.
+		//
+		// Placement only. Neither panel is given a dispatch here, so a window
+		// nobody has composed emits nothing from either, and neither gains a
+		// member, an action, or a field by being laid out.
+		SideChat = new side_chat_panel{ { }, conversationContents };
+		conversationLayout->addWidget(SideChat);
+		auto* const chatActions = new QHBoxLayout{ };
+		for (auto* const action : { SideChat->send_action(),
+									SideChat->add_context_action(),
+									SideChat->new_session_action(),
+									SideChat->continue_old_revision_action() }) {
+			auto* const button = new QToolButton{ conversationContents };
+			button->setDefaultAction(action);
+			chatActions->addWidget(button);
+		}
+		conversationLayout->addLayout(chatActions);
+		FindingQueue = new finding_queue_view{ { }, conversationContents };
+		conversationLayout->addWidget(FindingQueue);
+		// One button per declared action, indexed by the enumerator, so a
+		// seventh finding action cannot be declared and then never offered.
+		auto* const findingActions = new QHBoxLayout{ };
+		for (auto index = std::size_t{ 0U }; index < finding_queue_action_count;
+			 ++index) {
+			auto* const action = FindingQueue->action(
+				static_cast<finding_queue_action>(index));
+			if (action == nullptr) {
+				continue;
+			}
+			auto* const button = new QToolButton{ conversationContents };
+			button->setDefaultAction(action);
+			findingActions->addWidget(button);
+		}
+		conversationLayout->addLayout(findingActions);
 		auto* const defectNavigation = new QHBoxLayout{ };
 		auto* const classifyButton   = new QToolButton{ conversationContents };
 		classifyButton->setDefaultAction(ClassifyDefect);
@@ -703,8 +743,26 @@ namespace bpr::qt {
 			defectActions->addWidget(button);
 		}
 		conversationLayout->addLayout(defectActions);
+		// BPR-0513. The column now stacks the conversation tree, the draft
+		// editor with its comment workshop, the agent launcher, the side chat,
+		// and the finding queue. That is more than a short drawer can show at
+		// once, and a column that simply squeezed would show each panel with
+		// its own fields overlapping — which is showing a reviewer nothing.
+		// So the content scrolls. Collapse, width reporting, and the toggle
+		// are untouched: this is inside the drawer's content, not around it.
+		auto* const conversationScroll = new QScrollArea{ Drawers[1].Panel };
+		conversationScroll->setObjectName(
+			QStringLiteral("workbenchConversationDrawerScroll"));
+		conversationScroll->setWidgetResizable(true);
+		conversationScroll->setFrameShape(QFrame::NoFrame);
+		// Vertically only. A drawer is a column, and a column that also
+		// scrolled sideways would hide a control behind a gesture nobody
+		// makes; the width a panel gets is still the width the reviewer gave
+		// the drawer, exactly as it was before this content scrolled at all.
+		conversationScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		conversationScroll->setWidget(conversationContents);
 		Drawers[1].Panel->set_content_widget(
-			conversationContents, ConversationPanel->view());
+			conversationScroll, ConversationPanel->view());
 		CentralSplitter->addWidget(Drawers[0].Panel);
 		CentralSplitter->addWidget(CentreSurface);
 		CentralSplitter->addWidget(Drawers[1].Panel);
@@ -2244,6 +2302,16 @@ namespace bpr::qt {
 	auto workbench_window::agent_panel() const noexcept -> agent_launch_panel*
 	{
 		return AgentPanel;
+	}
+
+	auto workbench_window::side_chat() const noexcept -> side_chat_panel*
+	{
+		return SideChat;
+	}
+
+	auto workbench_window::finding_queue() const noexcept -> finding_queue_view*
+	{
+		return FindingQueue;
 	}
 
 	auto workbench_window::review_editor() const noexcept -> review_draft_editor*

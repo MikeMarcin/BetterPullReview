@@ -2883,16 +2883,22 @@ namespace bpr::app {
 			if (!DisableSideChatPanelComposition)
 #endif
 			{
-				SideChat = std::make_unique<qt::side_chat_panel>(
-					[this](qt::side_chat_intent aIntent) {
-						dispatch_side_chat_intent(std::move(aIntent));
-					});
+				// BPR-0513: the window places both panels in its conversations
+				// drawer, so the composition here is the one edge that matters
+				// — the dispatch. A panel this branch skips stays on screen and
+				// stays inert, because a widget nobody handed a dispatch to has
+				// nowhere to send anything.
+				SideChat = Window->side_chat();
+				SideChat->set_dispatch([this](qt::side_chat_intent aIntent) {
+					dispatch_side_chat_intent(std::move(aIntent));
+				});
 			}
 #if defined(BPR_BUILD_TESTING)
 			if (!DisableFindingQueueComposition)
 #endif
 			{
-				FindingQueue = std::make_unique<qt::finding_queue_view>(
+				FindingQueue = Window->finding_queue();
+				FindingQueue->set_dispatch(
 					[this](qt::finding_action_intent aIntent) {
 						dispatch_finding_intent(std::move(aIntent));
 					});
@@ -3066,8 +3072,7 @@ namespace bpr::app {
 							.ApplicationSession = core::application_session_id{
 								908U },
 							.Profile            = Profiles.front().profile(),
-							.IdentityGeneration = core::github_identity_generation{
-								909U },
+							.IdentityGeneration = core::github_identity_generation{ 909U },
 						});
 				if (deviceWire.has_value()) {
 					auto deviceAdapter = adapters::github::detail::
@@ -3100,7 +3105,7 @@ namespace bpr::app {
 			}
 #endif
 			DeviceCapabilityRegistered = deviceCapability.Registered;
-			DeviceHost = std::make_unique<
+			DeviceHost                 = std::make_unique<
 				application::device_authorization_application_host>(
 				initial_device_authorization_state(),
 				*deviceTransport,
@@ -6111,12 +6116,15 @@ namespace bpr::app {
 #endif
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;
 		std::unique_ptr<application::agent_invocation_host>      AgentHost;
-		// RFC-BPR-0012. Composed beside the agent host, owned here, and driven
-		// by the shipped window's own gestures. The two panels hold no
-		// process, provider, credential, or store of their own; the only way
-		// out of either is an intent this composition answers.
-		std::unique_ptr<qt::side_chat_panel>                            SideChat;
-		std::unique_ptr<qt::finding_queue_view>                         FindingQueue;
+		// RFC-BPR-0012. Composed beside the agent host and driven by the
+		// shipped window's own gestures. BPR-0513 moved the two panels into
+		// the window's conversations drawer, which owns them as it owns every
+		// other widget it places, so these are observers of what is on screen
+		// rather than a second lifetime for it. They hold no process,
+		// provider, credential, or store of their own; the only way out of
+		// either is an intent this composition answers.
+		qt::side_chat_panel*                                            SideChat     = nullptr;
+		qt::finding_queue_view*                                         FindingQueue = nullptr;
 		std::unique_ptr<composition_agent_finding_projection>           FindingProjections;
 		std::unique_ptr<application::agent_finding_host>                FindingHost;
 		std::unique_ptr<composition_comment_workshop_projection>        WorkshopProjections;
@@ -11608,7 +11616,7 @@ namespace bpr::app {
 	{
 		const auto* const implementation = aApplication.Implementation.get();
 		return implementation == nullptr ? nullptr
-										 : implementation->FindingQueue.get();
+										 : implementation->FindingQueue;
 	}
 
 	auto detail::github_application_fixture_access::side_chat_panel(
@@ -11616,7 +11624,7 @@ namespace bpr::app {
 	{
 		const auto* const implementation = aApplication.Implementation.get();
 		return implementation == nullptr ? nullptr
-										 : implementation->SideChat.get();
+										 : implementation->SideChat;
 	}
 
 	auto detail::github_application_fixture_access::start_mcp_context_helper(

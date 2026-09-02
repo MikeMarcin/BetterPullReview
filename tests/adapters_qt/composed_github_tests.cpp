@@ -1,6 +1,8 @@
 #include "bpr/qt/workbench_window.hpp"
 
+#include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
 
 #include <QAbstractItemDelegate>
 #include <QAbstractItemModel>
@@ -17,6 +19,7 @@
 #include <QImage>
 #include <QItemSelectionModel>
 #include <QLabel>
+#include <QLayout>
 #include <QLineEdit>
 #include <QListView>
 #include <QPalette>
@@ -2192,6 +2195,213 @@ namespace {
 				&& window.conversation_model()->statistics().ModelResets == 0U,
 			"rendered projection path performs no full model or window reset");
 	}
+	/// \brief BPR-0513: both agent surfaces are laid into the review drawer.
+	///
+	/// \details The claim this case makes is placement and nothing else. It
+	/// finds each panel the way a keyboard or assistive user does — by the
+	/// accessible name the panel gives itself — and then asks the drawer's own
+	/// column whether it manages the widget it found. Both halves are needed:
+	/// a panel constructed as a child of the column but never added to it is
+	/// still a `findChild` hit, and would still be painted, at the default
+	/// geometry, on top of the conversation tree.
+	auto test_agent_surfaces_are_placed_in_the_conversations_drawer() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		publish_session_ready(window);
+		publish_pull_request(window);
+		// Tall enough that the drawer can show the whole agent stack at once,
+		// which is what the capture below has to be a picture of.
+		window.resize(1'400, 1'500);
+		window.show();
+
+		// The drawer opens because the core said so, which is the only way it
+		// ever opens; the window decides no drawer state of its own.
+		auto opened    = application::workbench_projection{ };
+		opened.Drawers = core::workbench_drawer_delta{
+			.Files         = core::workbench_drawer_state::expanded,
+			.Conversations = core::workbench_drawer_state::expanded,
+		};
+		window.publish(opened);
+		QApplication::processEvents();
+
+		auto* const drawer = window.conversations_drawer();
+		expect(
+			drawer != nullptr && drawer->isVisible(),
+			"the conversations drawer opens on the core's decided state");
+
+		const auto named = [drawer](const QString& aName) -> QWidget* {
+			for (auto* const widget : drawer->findChildren<QWidget*>()) {
+				if (widget->accessibleName() == aName) {
+					return widget;
+				}
+			}
+			return nullptr;
+		};
+		auto* const sideChat     = named(QStringLiteral("AI side chat"));
+		auto* const findingQueue = named(QStringLiteral("AI finding queue"));
+		expect(
+			sideChat != nullptr && sideChat == window.side_chat(),
+			"the open drawer holds the side chat panel under its accessible name");
+		expect(
+			findingQueue != nullptr && findingQueue == window.finding_queue(),
+			"the open drawer holds the finding queue under its accessible name");
+
+		const auto laidOut = [](QWidget* const aWidget) {
+			auto* const parent
+				= aWidget == nullptr ? nullptr : aWidget->parentWidget();
+			return parent != nullptr && parent->layout() != nullptr
+				&& parent->layout()->indexOf(aWidget) >= 0;
+		};
+		expect(
+			laidOut(sideChat),
+			"the side chat is laid into the drawer's own column, not merely parented to it");
+		expect(
+			laidOut(findingQueue),
+			"the finding queue is laid into the drawer's own column, not merely parented to it");
+
+		auto* const agentPanel = window.agent_panel();
+		auto* const editor     = window.review_editor();
+		expect(
+			agentPanel != nullptr && editor != nullptr
+				&& agentPanel->parentWidget() == sideChat->parentWidget()
+				&& sideChat->parentWidget() == findingQueue->parentWidget(),
+			"both agent surfaces share the drawer column the agent launch panel is in");
+		const auto columnTop = [drawer](const QWidget* const aWidget) {
+			return aWidget->mapTo(drawer, QPoint{ 0, 0 }).y();
+		};
+		expect(
+			sideChat->isVisible() && findingQueue->isVisible()
+				&& sideChat->width() > 0 && sideChat->height() > 0
+				&& findingQueue->width() > 0 && findingQueue->height() > 0
+				&& columnTop(agentPanel) < columnTop(sideChat)
+				&& columnTop(sideChat) < columnTop(findingQueue),
+			"the agent launcher, the side chat, and the finding queue stack down one visible column");
+
+		// The workshop a promotion opens is the draft editor's own, and that
+		// editor is already in this drawer. There is no second workshop, and
+		// no window of its own for one to appear in.
+		expect(
+			drawer->isAncestorOf(editor)
+				&& drawer->isAncestorOf(editor->workshop_original_editor())
+				&& drawer->isAncestorOf(editor->workshop_proposal_editor()),
+			"the comment workshop a finding promotion reaches is in this drawer already");
+
+		auto* const convert = window.finding_queue()->action(
+			qt::finding_queue_action::convert_to_draft_comment);
+		expect(convert != nullptr, "the queue declares the promotion action");
+		auto* offered = static_cast<QToolButton*>(nullptr);
+		for (auto* const button : drawer->findChildren<QToolButton*>()) {
+			if (button->defaultAction() == convert) {
+				offered = button;
+			}
+		}
+		expect(
+			offered != nullptr && offered->isVisible(),
+			"the finding action that opens the workshop is offered in the drawer");
+
+		// The drawer button reaches the panel's own way out and nothing else.
+		// The window sets no dispatch, so this one is the test's.
+		auto intents = std::vector<qt::finding_action_intent>{ };
+		window.finding_queue()->set_dispatch(
+			[&intents](qt::finding_action_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			});
+		auto delivery = application::agent_finding_delivery{ };
+		delivery.Findings.push_back(application::agent_delivered_finding{ });
+		delivery.Findings.front().Finding.Claim = "BPR-0513 placed finding";
+		window.finding_queue()->present(delivery);
+		window.finding_queue()->select(0U);
+		offered->click();
+		QApplication::processEvents();
+		expect(
+			intents.size() == 1U
+				&& intents.front().Action
+					== qt::finding_queue_action::convert_to_draft_comment,
+			"clicking the placed button emits exactly one promotion intent and performs nothing");
+		window.finding_queue()->set_dispatch({ });
+
+		// The column is taller than the drawer, so it scrolls. Bringing the
+		// two agent surfaces into the drawer's own visible region is what
+		// makes the capture below a picture of them rather than of whatever
+		// happened to be at the top of the column.
+		auto* const column = drawer->findChild<QScrollArea*>(
+			QStringLiteral("workbenchConversationDrawerScroll"));
+		expect(
+			column != nullptr,
+			"the drawer's column scrolls rather than squeezing its panels");
+		column->verticalScrollBar()->setValue(
+			column->verticalScrollBar()->value()
+			+ sideChat->mapTo(column->viewport(), QPoint{ 0, 0 }).y());
+		QApplication::processEvents();
+		const auto mostlyShown = [drawer](const QWidget* const aWidget) {
+			const QRect placed{
+				aWidget->mapTo(drawer, QPoint{ 0, 0 }),
+				aWidget->size(),
+			};
+			return drawer->rect().intersected(placed).height()
+				>= placed.height() / 2;
+		};
+		expect(
+			mostlyShown(sideChat) && mostlyShown(findingQueue),
+			"scrolling the drawer's column shows both agent surfaces inside the drawer");
+
+		// The capture the acceptance criterion asks for, cropped to the drawer
+		// the panels are in. A whole-window diff would pass on a repaint
+		// anywhere; this raster is the drawer and only the drawer.
+		QApplication::processEvents();
+		const auto rendered = window.grab();
+		const auto ratio    = window.devicePixelRatioF();
+		const auto scaled   = [ratio](const int aValue) {
+			return static_cast<int>(
+				std::lround(static_cast<double>(aValue) * ratio));
+		};
+		const auto  origin = drawer->mapTo(&window, QPoint{ 0, 0 });
+		const QRect region{
+			QPoint{ scaled(origin.x()), scaled(origin.y()) },
+			QSize{ scaled(drawer->width()), scaled(drawer->height()) },
+		};
+		const auto cropped = rendered.copy(region);
+		expect(
+			!cropped.isNull() && cropped.width() == scaled(drawer->width())
+				&& cropped.height() == scaled(drawer->height()),
+			"the drawer crop has the drawer's exact device dimensions");
+		const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH");
+		if (!renderPath.isEmpty()) {
+			const QFileInfo configured{ renderPath };
+			expect(
+				cropped.save(
+					QStringLiteral("%1/%2-agent-drawer.png")
+						.arg(configured.path(), configured.completeBaseName()),
+					"PNG"),
+				"the drawer crop is saved in the ignored build tree");
+		}
+
+		// Collapse is the drawer's, and the placed panels inherit it rather
+		// than answering it themselves.
+		auto collapsed    = application::workbench_projection{ };
+		collapsed.Drawers = core::workbench_drawer_delta{
+			.Files         = core::workbench_drawer_state::expanded,
+			.Conversations = core::workbench_drawer_state::collapsed,
+		};
+		window.publish(collapsed);
+		QApplication::processEvents();
+		expect(
+			!drawer->isVisible() && !sideChat->isVisible()
+				&& !findingQueue->isVisible(),
+			"collapsing the drawer hides both placed agent surfaces with it");
+		window.publish(opened);
+		QApplication::processEvents();
+		expect(
+			drawer->isVisible() && sideChat->isVisible()
+				&& findingQueue->isVisible(),
+			"reopening the drawer restores both placed agent surfaces");
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -2209,6 +2419,7 @@ auto main(int argc, char** argv) -> int
 	test_native_inheritance_and_wrapped_conversation_layout();
 	test_accessible_announcements_are_combined_and_deduplicated();
 	test_accessibility_minimum_geometry_and_render();
+	test_agent_surfaces_are_placed_in_the_conversations_drawer();
 
 	std::cout << "All GitHub Qt presentation tests passed\n";
 	return EXIT_SUCCESS;

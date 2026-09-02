@@ -50,6 +50,12 @@ class QVBoxLayout;
 namespace bpr::qt {
 	class diff_workbench;
 	class epoch_comparison_control;
+	// RFC-BPR-0012's two agent surfaces. Declared rather than included: the
+	// window places them and hands them out, and nothing in this header needs
+	// their shape, so a consumer of the shell does not acquire the finding
+	// delivery and chat-scope vocabularies along with it.
+	class finding_queue_view;
+	class side_chat_panel;
 
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
 	using workbench_intent_dispatch = std::function<void(core::workbench_interaction_intent)>;
@@ -244,6 +250,21 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversation_panel() const noexcept
 			-> github_conversation_panel*;
 		[[nodiscard]] auto agent_panel() const noexcept -> agent_launch_panel*;
+		/// \brief The side chat, placed beside the agent launcher it belongs to.
+		///
+		/// \details BPR-0513. The panel is composed here because the drawer is
+		/// where a reviewer can see it; the window supplies no dispatch, so
+		/// until the application sets one every gesture on it goes nowhere.
+		/// Placement adds nothing to what the panel holds — the aggregate its
+		/// own tests bind by name is untouched.
+		[[nodiscard]] auto side_chat() const noexcept -> side_chat_panel*;
+		/// \brief The finding queue, placed above the draft the promotion fills.
+		///
+		/// \details BPR-0513, on the same terms as `side_chat()`. Its
+		/// conversion actions are offered as buttons in this drawer, and the
+		/// workshop those promotions reach is the one already inside
+		/// `review_editor()`, one widget below it.
+		[[nodiscard]] auto finding_queue() const noexcept -> finding_queue_view*;
 		[[nodiscard]] auto review_editor() const noexcept -> review_draft_editor*;
 		[[nodiscard]] auto defect_card() const noexcept -> defect_card_view*;
 		[[nodiscard]] auto classify_defect_action() const noexcept -> QAction*;
@@ -490,6 +511,8 @@ namespace bpr::qt {
 		bool                                                       LeftConversationEndpointCurrent  = false;
 		bool                                                       RightConversationEndpointCurrent = false;
 		agent_launch_panel*                                        AgentPanel                       = nullptr;
+		side_chat_panel*                                           SideChat                         = nullptr;
+		finding_queue_view*                                        FindingQueue                     = nullptr;
 		review_draft_editor*                                       ReviewEditor                     = nullptr;
 		defect_card_view*                                          DefectCard                       = nullptr;
 		QLabel*                                                    DefectCountLabel                 = nullptr;
