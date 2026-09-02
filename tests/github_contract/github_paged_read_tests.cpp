@@ -5,8 +5,14 @@
 #include <QJsonObject>
 
 #include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <initializer_list>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <stop_token>
@@ -484,6 +490,12 @@ namespace {
 		}
 
 		std::vector<github_wire_request> Requests;
+		// The signed-out inline review-comment listing the fixture serves.
+		// Each RFC-BPR-0017 case is a specific promoted or synthetic payload,
+		// so the pages are handed in rather than generated.
+		std::vector<std::string> ReviewCommentPages;
+		int                      ReviewCommentStatus = 200;
+		std::vector<http_header> ReviewCommentHeaders;
 
 	private:
 		[[nodiscard]] auto advertised_file_count() const noexcept -> std::uint32_t
@@ -1329,6 +1341,43 @@ namespace {
 			return success_response(json(envelope));
 		}
 
+		/// Serves the signed-out inline review-comment listing.
+		///
+		/// The pages are supplied by the test rather than generated here
+		/// because each case is a specific promoted or synthetic payload, and
+		/// the point of most of them is a linkage the generator would have to
+		/// be taught to break. A page other than the last carries a `Link`
+		/// header so exhaustion is driven by the header the real service
+		/// sends, never by the page count the test knows.
+		[[nodiscard]] auto review_comments_response(
+			const github_wire_request& aRequest) const -> wire_response
+		{
+			if (ReviewCommentStatus != 200) {
+				return {
+					.Status       = ReviewCommentStatus,
+					.Headers      = ReviewCommentHeaders,
+					.Body         = ReviewCommentPages.empty()
+						? std::string{ "{}" }
+						: ReviewCommentPages.front(),
+					.Completeness = page_completeness::complete,
+				};
+			}
+			const auto page  = aRequest.Wire.Semantic.Page;
+			const auto index = static_cast<std::size_t>(page) - 1U;
+			if (index >= ReviewCommentPages.size()) {
+				return success_response(json(QJsonArray{ }));
+			}
+			if (index + 1U == ReviewCommentPages.size()) {
+				return success_response(ReviewCommentPages[index]);
+			}
+			const auto link = "<https://" + Authority + aRequest.Wire.Path
+				+ "?per_page=100&page=" + std::to_string(page + 1U)
+				+ ">; rel=\"next\"";
+			return success_response(ReviewCommentPages[index],
+									link,
+									page_completeness::has_next_page);
+		}
+
 		[[nodiscard]] auto response_for(const github_wire_request& aRequest) const
 			-> wire_response
 		{
@@ -1355,6 +1404,8 @@ namespace {
 					return checks_response();
 				case read_operation::search_pull_requests:
 					return search_response(aRequest);
+				case read_operation::list_review_comments:
+					return review_comments_response(aRequest);
 				case read_operation::get_viewer_identity:
 					break;
 				}
@@ -2251,6 +2302,312 @@ namespace {
 		expect(!rejected.has_value() && laundered.Requests.empty(),
 			   "caller cannot launder a fabricated capability-shaped read");
 	}
+
+	// --- RFC-BPR-0017: the signed-out inline review conversation ----------
+
+	[[nodiscard]] auto anonymous_fixture_bytes(const std::string_view aRelative)
+		-> std::string
+	{
+		const auto path = std::filesystem::path{ BPR_RFC0017_ANONYMOUS_FIXTURE_ROOT }
+			/ aRelative;
+		std::ifstream stream{ path, std::ios::binary };
+		expect(stream.good(), "an RFC-BPR-0017 fixture is readable");
+		return std::string{ std::istreambuf_iterator<char>{ stream },
+							std::istreambuf_iterator<char>{ } };
+	}
+
+	/// Builds the request a signed-out profile presents.
+	///
+	/// Every capability fact is unsupported, so the projected read shape is
+	/// all-false and the projection helper stops before a GraphQL body
+	/// exists. No account transport is attached, because an anonymous
+	/// authority holds no lease to present.
+	[[nodiscard]] auto anonymous_provider_request()
+		-> application::github_pull_request_provider_request
+	{
+		auto request = provider_request();
+		for (auto& fact : request.CapabilityEvidence.Facts) {
+			fact.State = core::github_capability_state::unsupported;
+		}
+		for (auto& fact : request.CapabilityEvidence.SchemaFacts) {
+			fact.State = core::github_capability_state::unsupported;
+		}
+		const auto observation = application::github_capability_probe_observation{
+			.Authority   = request.CapabilityEvidence.Authority,
+			.ObservedAt  = request.CapabilityEvidence.ObservedAt,
+			.Facts       = request.CapabilityEvidence.Facts,
+			.SchemaFacts = request.CapabilityEvidence.SchemaFacts,
+		};
+		request.CapabilityEvidence.Capabilities
+			= application::projected_capabilities(observation);
+		request.CapabilityEvidence.ReadShape
+			= application::projected_read_shape(observation);
+		request.AccountTransport = nullptr;
+		expect(request.CapabilityEvidence.ReadShape
+				   == application::github_read_shape{ },
+			   "a signed-out profile carries an all-false read shape");
+		return request;
+	}
+
+	[[nodiscard]] auto anonymous_read(paged_fixture_transport& aTransport)
+		-> github_paged_read_result
+	{
+		return perform_paged_github_read(
+			aTransport,
+			profile(),
+			anonymous_provider_request(),
+			core::provider_snapshot_id{ 55U },
+			std::stop_token{ },
+			github_paged_read_limits{ },
+			github_provider_read_authority::anonymous_public);
+	}
+
+	[[nodiscard]] auto anonymous_read_of(
+		const std::initializer_list<std::string_view> aPages)
+		-> github_paged_read_result
+	{
+		auto transport = paged_fixture_transport{ fixture_scenario::success };
+		for (const auto page : aPages) {
+			transport.ReviewCommentPages.push_back(anonymous_fixture_bytes(page));
+		}
+		return anonymous_read(transport);
+	}
+
+	auto test_anonymous_review_comments_group_by_linkage() -> void
+	{
+		auto transport = paged_fixture_transport{ fixture_scenario::success };
+		transport.ReviewCommentPages.push_back(
+			anonymous_fixture_bytes("synthetic/review-comments-linked.json"));
+		const auto result = anonymous_read(transport);
+		expect(result.has_value(), "a signed-out read normalizes");
+		expect(
+			result->ReviewCommentsAvailability
+					== application::github_collection_availability::available
+				&& result->ReviewCommentGroups.size() == 2U,
+			"the flat listing becomes one group per root");
+		const auto& first  = result->ReviewCommentGroups.front();
+		const auto& second = result->ReviewCommentGroups.back();
+		expect(
+			first.Root.Comment == application::github_comment_id{ "101" }
+				&& first.Replies.size() == 2U
+				&& first.Replies.front().Comment
+					== application::github_comment_id{ "103" }
+				&& first.Replies.back().Comment
+					== application::github_comment_id{ "104" },
+			"replies join the root their linkage names, in server order");
+		expect(
+			second.Root.Comment == application::github_comment_id{ "102" }
+				&& second.Replies.empty(),
+			"a root that sits between two replies to another root keeps none of "
+			"them: position decides no membership");
+		expect(
+			!first.Root.ReplyTo.has_value()
+				&& first.Replies.front().ReplyTo
+					== std::optional{ application::github_comment_id{ "101" } },
+			"the linkage that produced the grouping is retained, not consumed");
+		expect(
+			result->ReviewThreadsAvailability
+					== application::github_collection_availability::unavailable
+				&& result->ReviewThreads.empty(),
+			"the REST conversation never reaches the GraphQL thread collection");
+		expect(
+			std::ranges::all_of(
+				result->Files,
+				[](const application::github_file_record& aFile) {
+					return aFile.ViewedState
+						== application::github_file_viewed_state::unavailable;
+				}),
+			"viewed-file state stays unavailable on a signed-out read");
+		expect(
+			std::ranges::none_of(
+				transport.Requests,
+				[](const github_wire_request& aRequest) {
+					return aRequest.Wire.Operation
+						== read_operation::list_review_threads;
+				}),
+			"no GraphQL request is constructed for a signed-out read");
+		expect(
+			std::ranges::any_of(
+				transport.Requests,
+				[](const github_wire_request& aRequest) {
+					return aRequest.Wire.Operation
+						== read_operation::list_review_comments
+						&& aRequest.Wire.Path
+						== "/repos/octo-org/review-repository/pulls/17/comments"
+						&& aRequest.Wire.Method == http_method::get;
+				}),
+			"the signed-out read issues the REST review-comment route");
+	}
+
+	auto test_anonymous_review_comments_exhaust_their_pages() -> void
+	{
+		auto transport = paged_fixture_transport{ fixture_scenario::success };
+		transport.ReviewCommentPages.push_back(
+			anonymous_fixture_bytes("synthetic/review-comments-page-1.json"));
+		transport.ReviewCommentPages.push_back(
+			anonymous_fixture_bytes("synthetic/review-comments-page-2.json"));
+		const auto result = anonymous_read(transport);
+		expect(result.has_value() && result->ReviewCommentGroups.size() == 100U,
+			   "both pages contribute to the same conversation");
+		expect(
+			result->ReviewCommentGroups.front().Replies.size() == 1U
+				&& result->ReviewCommentGroups.front().Replies.front().Comment
+					== application::github_comment_id{ "203" }
+				&& result->ReviewCommentGroups[1U].Replies.size() == 1U
+				&& result->ReviewCommentGroups[1U].Replies.front().Comment
+					== application::github_comment_id{ "204" }
+				&& result->ReviewCommentGroups.back().Replies.empty(),
+			"a reply on the second page still joins its root from the first");
+		auto pages = std::size_t{ 0U };
+		for (const auto& request : transport.Requests) {
+			if (request.Wire.Operation == read_operation::list_review_comments) {
+				++pages;
+			}
+		}
+		expect(pages == 2U,
+			   "the listing is exhausted by its Link header and stops there");
+	}
+
+	auto test_anonymous_observed_empty_is_not_unavailable() -> void
+	{
+		const auto observed = anonymous_read_of(
+			{ "synthetic/review-comments-observed-empty.json" });
+		expect(
+			observed.has_value()
+				&& observed->ReviewCommentsAvailability
+					== application::github_collection_availability::available
+				&& observed->ReviewCommentGroups.empty(),
+			"a conversation that was read and holds nothing is observed, "
+			"not unavailable");
+
+		auto       authenticated = paged_fixture_transport{ fixture_scenario::success };
+		const auto credentialed  = perform_paged_github_read(
+			authenticated,
+			profile(),
+			provider_request(),
+			core::provider_snapshot_id{ 55U },
+			std::stop_token{ });
+		expect(
+			credentialed.has_value()
+				&& credentialed->ReviewCommentsAvailability
+					== application::github_collection_availability::unavailable
+				&& credentialed->ReviewCommentGroups.empty(),
+			"a collection the authenticated read never asks for is unavailable");
+		expect(
+			std::ranges::none_of(
+				authenticated.Requests,
+				[](const github_wire_request& aRequest) {
+					return aRequest.Wire.Operation
+						== read_operation::list_review_comments;
+				}),
+			"the authenticated read issues no REST review-comment request");
+	}
+
+	auto test_anonymous_review_comment_linkage_violations_are_refused() -> void
+	{
+		constexpr std::array<std::string_view, 7> hostile{
+			"synthetic/review-comments-self-reply.json",
+			"synthetic/review-comments-cyclic.json",
+			"synthetic/review-comments-missing-parent.json",
+			"synthetic/review-comments-reply-to-reply.json",
+			"synthetic/review-comments-duplicate-id.json",
+			"synthetic/review-comments-malformed-linkage.json",
+			"synthetic/review-comments-missing-position.json",
+		};
+		for (const auto fixture : hostile) {
+			auto transport = paged_fixture_transport{ fixture_scenario::success };
+			transport.ReviewCommentPages.push_back(anonymous_fixture_bytes(fixture));
+			const auto result = anonymous_read(transport);
+			expect(
+				!result.has_value()
+					&& provider_failure_of(result)
+						== application::github_provider_failure::malformed_response,
+				"a conversation whose linkage cannot be trusted is refused "
+				"rather than repaired");
+		}
+	}
+
+	auto test_anonymous_review_comment_anchor_is_read_not_defaulted() -> void
+	{
+		const auto result = anonymous_read_of(
+			{ "synthetic/review-comments-outdated.json" });
+		expect(
+			result.has_value() && result->ReviewCommentGroups.size() == 1U
+				&& result->ReviewCommentGroups.front().Root.Outdated
+				&& !result->ReviewCommentGroups.front().Root.Line.has_value(),
+			"a null position is read as an outdated anchor rather than "
+			"defaulted to a live one");
+	}
+
+	auto test_anonymous_review_comments_absent_is_not_disclosed() -> void
+	{
+		auto transport                 = paged_fixture_transport{ fixture_scenario::success };
+		transport.ReviewCommentStatus  = 404;
+		transport.ReviewCommentHeaders = response_headers(std::nullopt);
+		transport.ReviewCommentPages.push_back(
+			anonymous_fixture_bytes("captures/absent-not-disclosed.json"));
+		const auto result = anonymous_read(transport);
+		expect(
+			!result.has_value()
+				&& provider_failure_of(result)
+					== application::github_provider_failure::permission,
+			"a 404 is reported as permission, which asserts neither existence "
+			"nor absence");
+	}
+
+	auto test_anonymous_review_comments_rate_limit_is_typed() -> void
+	{
+		auto transport                = paged_fixture_transport{ fixture_scenario::success };
+		transport.ReviewCommentStatus = 403;
+		transport.ReviewCommentHeaders
+			= { { .Name = "Content-Type", .Value = "application/json" },
+				{ .Name = "X-RateLimit-Limit", .Value = "60" },
+				{ .Name = "X-RateLimit-Remaining", .Value = "0" },
+				{ .Name = "X-RateLimit-Reset", .Value = "1787546881" },
+				{ .Name = "X-RateLimit-Resource", .Value = "core" } };
+		transport.ReviewCommentPages.push_back(
+			anonymous_fixture_bytes("captures/rate-exhaustion.json"));
+		const auto result = anonymous_read(transport);
+		const auto error  = provider_error_of(result);
+		expect(
+			error.has_value()
+				&& error->Failure
+					== application::github_provider_failure::rate_limit,
+			"an exhausted budget is a rate-limit diagnostic, not a network or "
+			"authentication failure");
+		expect(
+			error->RateLimitCause.has_value()
+				&& error->RateLimitCause->Limit == 60U
+				&& error->RateLimitCause->ResetUnixSeconds == 1'787'546'881U
+				&& error->RateLimitCause->Remaining == 0U
+				&& !error->RateLimitCause->SecondaryLimited,
+			"the refusal names the limit and the reset the caller must wait for");
+		expect(!error->RetryAfterSeconds.has_value(),
+			   "a primary budget refusal offers no retry");
+		auto attempts = std::size_t{ 0U };
+		for (const auto& request : transport.Requests) {
+			if (request.Wire.Operation == read_operation::list_review_comments) {
+				++attempts;
+			}
+		}
+		expect(attempts == 1U, "nothing retries past the limit");
+	}
+
+	auto test_anonymous_review_comments_oversized_body_is_refused() -> void
+	{
+		auto transport = paged_fixture_transport{ fixture_scenario::success };
+		auto oversized = std::string{ "[{\"id\":1,\"path\":\"README\",\"position\":1,"
+									  "\"user\":null,\"body\":\"" };
+		oversized.append(std::size_t{ 5U } * 1024U * 1024U, 'x');
+		oversized.append("\"}]");
+		transport.ReviewCommentPages.push_back(std::move(oversized));
+		const auto result = anonymous_read(transport);
+		expect(
+			!result.has_value()
+				&& provider_failure_of(result)
+					== application::github_provider_failure::response_limit,
+			"an oversized listing is refused by the response limits");
+	}
 }
 
 auto main() -> int
@@ -2265,5 +2622,13 @@ auto main() -> int
 	test_raw_status_classification();
 	test_collection_count_contract();
 	test_atomic_failures();
+	test_anonymous_review_comments_group_by_linkage();
+	test_anonymous_review_comments_exhaust_their_pages();
+	test_anonymous_observed_empty_is_not_unavailable();
+	test_anonymous_review_comment_linkage_violations_are_refused();
+	test_anonymous_review_comment_anchor_is_read_not_defaulted();
+	test_anonymous_review_comments_absent_is_not_disclosed();
+	test_anonymous_review_comments_rate_limit_is_typed();
+	test_anonymous_review_comments_oversized_body_is_refused();
 	return EXIT_SUCCESS;
 }

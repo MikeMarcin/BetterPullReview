@@ -708,6 +708,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_reviews:
 			case read_operation::list_review_threads:
 			case read_operation::list_issue_comments:
+			case read_operation::list_review_comments:
 				return true;
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
@@ -728,6 +729,7 @@ namespace bpr::adapters::github::detail {
 				return 3U;
 			case read_operation::list_reviews:
 			case read_operation::list_issue_comments:
+			case read_operation::list_review_comments:
 			case read_operation::list_checks:
 				return 100U;
 			case read_operation::search_pull_requests:
@@ -745,8 +747,8 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto known_read_operation(
 			const read_operation aOperation) noexcept -> bool
 		{
-			return std::ranges::find(read_operation_catalog, aOperation)
-				!= read_operation_catalog.end();
+			return std::ranges::find(all_read_operations, aOperation)
+				!= all_read_operations.end();
 		}
 
 		[[nodiscard]] auto unsafe_header_name(const std::string_view aName) noexcept
@@ -850,6 +852,19 @@ namespace bpr::adapters::github::detail {
 			}
 			std::ranges::sort(keys);
 			return sorted_keys(aObject) == keys;
+		}
+
+		[[nodiscard]] auto has_required_fixture_keys(
+			const QJsonObject&                            aObject,
+			const std::initializer_list<std::string_view> aExpected) -> bool
+		{
+			return std::ranges::all_of(
+				aExpected,
+				[&aObject](const std::string_view aKey) {
+					return aObject.contains(
+						QString::fromUtf8(aKey.data(),
+										  static_cast<qsizetype>(aKey.size())));
+				});
 		}
 
 		constexpr qsizetype maximum_fixture_page_records = 100;
@@ -1467,6 +1482,60 @@ namespace bpr::adapters::github::detail {
 			});
 		}
 
+		/// Validates a REST inline review-comment listing.
+		///
+		/// Unlike the sanitized recorded fixtures above this one accepts the
+		/// live payload's full key set. Its fixtures are byte-exact captures
+		/// of the real service promoted under their own digests, so demanding
+		/// an exact key list would mean editing the capture, which is the one
+		/// thing a promoted capture may not survive. The required keys and
+		/// their types are still exact, and `in_reply_to_id` is required to be
+		/// an exact positive integer when present, because reply linkage is
+		/// the only structure this response carries.
+		[[nodiscard]] auto validate_review_comments_fixture(
+			const QJsonDocument& aDocument) -> bool
+		{
+			if (
+				!aDocument.isArray()
+				|| aDocument.array().size() > maximum_fixture_page_records) {
+				return false;
+			}
+			return std::ranges::all_of(aDocument.array(), [](const QJsonValue& aValue) {
+				if (
+					!aValue.isObject()
+					|| !has_required_fixture_keys(
+						aValue.toObject(),
+						{
+							"body",
+							"id",
+							"path",
+							"user",
+						})) {
+					return false;
+				}
+				const auto object = aValue.toObject();
+				const auto reply  = object.value("in_reply_to_id");
+				if (
+					!reply.isUndefined() && !reply.isNull()
+					&& !exact_integer(reply, true)) {
+					return false;
+				}
+				const auto user = object.value("user");
+				if (
+					!user.isNull()
+					&& (!user.isObject()
+						|| !has_required_fixture_keys(user.toObject(),
+													  { "login", "node_id" })
+						|| !nonempty_string(user.toObject().value("login"))
+						|| !nonempty_string(user.toObject().value("node_id")))) {
+					return false;
+				}
+				return exact_integer(object.value("id"), true)
+					&& nonempty_string(object.value("path"))
+					&& object.value("body").isString();
+			});
+		}
+
 		[[nodiscard]] auto validate_checks_fixture(const QJsonDocument& aDocument)
 			-> bool
 		{
@@ -1673,6 +1742,8 @@ namespace bpr::adapters::github::detail {
 				return validate_checks_fixture(aDocument);
 			case read_operation::search_pull_requests:
 				return validate_search_fixture(aDocument);
+			case read_operation::list_review_comments:
+				return validate_review_comments_fixture(aDocument);
 			}
 			return false;
 		}
@@ -1702,6 +1773,8 @@ namespace bpr::adapters::github::detail {
 			return "ListChecks";
 		case read_operation::search_pull_requests:
 			return "SearchPullRequests";
+		case read_operation::list_review_comments:
+			return "ListReviewComments";
 		}
 		return { };
 	}
@@ -1709,7 +1782,7 @@ namespace bpr::adapters::github::detail {
 	auto read_operation_from_name(const std::string_view aName) noexcept
 		-> operation_result
 	{
-		for (const auto operation : read_operation_catalog) {
+		for (const auto operation : all_read_operations) {
 			if (operation_name(operation) == aName) {
 				return operation;
 			}
@@ -1842,6 +1915,11 @@ namespace bpr::adapters::github::detail {
 		case read_operation::list_issue_comments:
 			result.Path = repository_path(*prefix, aRequest) + "/issues/"
 				+ std::to_string(aRequest.PullRequestNumber) + "/comments";
+			result.Query = "page=" + std::to_string(aRequest.Page)
+				+ "&per_page=100";
+			break;
+		case read_operation::list_review_comments:
+			result.Path  = pull_request_path(*prefix, aRequest) + "/comments";
 			result.Query = "page=" + std::to_string(aRequest.Page)
 				+ "&per_page=100";
 			break;

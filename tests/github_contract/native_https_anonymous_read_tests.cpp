@@ -198,6 +198,7 @@ namespace {
 		case read_operation::list_pull_request_commits:
 		case read_operation::list_reviews:
 		case read_operation::list_issue_comments:
+		case read_operation::list_review_comments:
 			semantic.PullRequestNumber = context.Number.value();
 			break;
 		case read_operation::list_review_threads:
@@ -298,7 +299,7 @@ namespace {
 		auto transport = anonymous_transport(aProfile);
 		auto admitted  = std::size_t{ 0U };
 		auto refused   = std::size_t{ 0U };
-		for (const auto operation : read_operation_catalog) {
+		for (const auto operation : all_read_operations) {
 			const auto request = wire_request_for(aProfile, operation);
 			if (anonymous_read_eligible(operation)) {
 				expect(reached_the_wire(*transport, request),
@@ -310,10 +311,16 @@ namespace {
 				++refused;
 			}
 		}
-		// Eight REST reads in, viewer identity and the GraphQL-routed operation
+		// Nine REST reads in, viewer identity and the GraphQL-routed operation
 		// out. Counting both sides keeps a future operation from joining the
-		// catalogue without a verdict recorded here.
-		expect(admitted == 8U && refused == 2U && read_operation_catalog.size() == 10U,
+		// catalogue without a verdict recorded here. The ninth is the REST
+		// inline review-comment read, which is why the table is walked over
+		// every compiled operation rather than over the recorded manifest
+		// catalogue: an operation outside that recording still has to have a
+		// verdict here.
+		expect(admitted == 9U && refused == 2U
+				   && all_read_operations.size() == 11U
+				   && read_operation_catalog.size() == 10U,
 			   "eligible-set-size");
 	}
 

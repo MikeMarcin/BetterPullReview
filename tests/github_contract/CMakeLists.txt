@@ -609,6 +609,15 @@ target_include_directories(
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
 )
+# The promoted captures and the review packet they were promoted from. The
+# test binds one to the other by digest, so a promoted body that drifts from
+# the recorded capture fails rather than becoming its own authority.
+target_compile_definitions(
+    test_better_pull_review_github_anonymous_read_contract_tests
+    PRIVATE
+        BPR_RFC0017_ANONYMOUS_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/github/rfc0017-anonymous-v001"
+        BPR_RFC0017_ANONYMOUS_CAPTURE_ROOT="${PROJECT_SOURCE_DIR}/docs/verification/reviews/rfc0017-anonymous-probe-v001"
+)
 bpr_enable_hardening(
     test_better_pull_review_github_anonymous_read_contract_tests
 )
@@ -724,6 +733,11 @@ target_include_directories(
     test_better_pull_review_github_paged_read_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    test_better_pull_review_github_paged_read_tests
+    PRIVATE
+        BPR_RFC0017_ANONYMOUS_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/github/rfc0017-anonymous-v001"
 )
 bpr_enable_hardening(
     test_better_pull_review_github_paged_read_tests

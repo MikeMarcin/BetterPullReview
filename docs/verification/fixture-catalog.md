@@ -135,6 +135,43 @@ adds no production loader and does not upgrade this constructed content into
 real-world need or shipped-public-path evidence — the map is proven to render
 the shape, not that any pull request ever carried it.
 
+## Promoted RFC-BPR-0017 anonymous capture set v001
+
+`tests/fixtures/github/rfc0017-anonymous-v001/` holds the signed-out read
+evidence for BPR-0302. It has two halves that must never be confused, and
+`provenance.json` states which half every file belongs to.
+
+`captures/` is real. Each file is the response body of a live unauthenticated
+request to api.github.com, promoted byte for byte out of the probe review at
+`docs/verification/reviews/rfc0017-anonymous-probe-v001/`: the public pull
+request, its inline review comments at `per_page=1`, the rate-limit resource,
+a 404 for a repository that does not exist, and the GraphQL refusal. The sixth
+file, `rate-exhaustion.json`, is that review's own derived artifact and says
+`synthetic` in its provenance entry rather than claiming to be an observed
+403.
+
+Nothing here re-records those bodies, and nothing here is authority for them
+on its own. `github_anonymous_read_contract` binds each promoted body to the
+digest the probe review recorded for it, binds the capture file it came from
+to that file's own recorded digest, and compares the promoted bytes against
+the capture's `body` field. Editing a promoted body to make a test pass fails
+all three checks. This is the `uiforetw-74` rule applied to a smaller set:
+generated content is compared against its recording rather than trusted
+because it looks plausible.
+
+`synthetic/` is hand-written and never presented as service behaviour. The
+live comments capture holds exactly one comment, so it cannot express a reply,
+a second page, or any hostile linkage. The synthetic files supply those cases:
+reply-linkage grouping where a second root sits between two replies to the
+first, a full first page plus a second page whose replies belong to roots from
+the first, an observed-empty listing, a self-reference, a two-comment cycle, a
+reply to a comment nobody returned, a reply chained onto another reply, a
+duplicate identity, `in_reply_to_id` carried as text, an absent anchor field,
+and a null anchor meaning the comment's line has left the diff. Each carries
+its purpose and its digest in `provenance.json`, and each is consumed by
+`github_paged_read` as a refusal or a grouping case, never as evidence that
+GitHub returned such a payload.
+
 ## Recorded RFC-BPR-0016 device-authorization contract v1
 
 `tests/fixtures/github/device-authorization/v1/` now holds the real sanitized

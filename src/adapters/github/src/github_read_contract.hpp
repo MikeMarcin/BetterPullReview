@@ -30,8 +30,17 @@ namespace bpr::adapters::github::detail {
 		list_issue_comments,
 		list_checks,
 		search_pull_requests,
+		list_review_comments,
 	};
 
+	/// \brief Names the ten operations the recorded contract manifest holds.
+	///
+	/// \details This is the recorded authenticated wire shape and its exact
+	/// order: a contract fixture manifest is checked against it entry by
+	/// entry, so the catalog is a recording contract rather than the set of
+	/// operations the adapter can compile. `all_read_operations` is the
+	/// latter. Adding an operation here changes what every recorded manifest
+	/// must contain; adding one there does not.
 	inline constexpr std::array<read_operation, 10> read_operation_catalog{
 		read_operation::get_viewer_identity,
 		read_operation::get_repository,
@@ -40,6 +49,46 @@ namespace bpr::adapters::github::detail {
 		read_operation::list_pull_request_commits,
 		read_operation::list_reviews,
 		read_operation::list_review_threads,
+		read_operation::list_issue_comments,
+		read_operation::list_checks,
+		read_operation::search_pull_requests,
+	};
+
+	/// \brief Names every read operation the contract compiles.
+	///
+	/// \details `list_review_comments` is the REST inline review-comment read
+	/// RFC-BPR-0017 needs, and it is deliberately outside the recorded
+	/// manifest catalog above: the authenticated read never issues it, so the
+	/// authenticated recording stays at ten interactions. Route, admission,
+	/// and name lookups work from this array so a compiled operation cannot
+	/// be unknown to them.
+	inline constexpr std::array<read_operation, 11> all_read_operations{
+		read_operation::get_viewer_identity,
+		read_operation::get_repository,
+		read_operation::get_pull_request,
+		read_operation::list_pull_request_files,
+		read_operation::list_pull_request_commits,
+		read_operation::list_reviews,
+		read_operation::list_review_threads,
+		read_operation::list_issue_comments,
+		read_operation::list_checks,
+		read_operation::search_pull_requests,
+		read_operation::list_review_comments,
+	};
+
+	/// \brief Names the operations a signed-out public read may issue.
+	///
+	/// \details Nine of the eleven. The two absent ones are absent for
+	/// different reasons that RFC-BPR-0017 requires to stay distinguishable:
+	/// viewer identity has no anonymous answer and the GraphQL operation is
+	/// served only to an authenticated caller.
+	inline constexpr std::array<read_operation, 9> anonymous_read_operations{
+		read_operation::get_repository,
+		read_operation::get_pull_request,
+		read_operation::list_pull_request_files,
+		read_operation::list_pull_request_commits,
+		read_operation::list_reviews,
+		read_operation::list_review_comments,
 		read_operation::list_issue_comments,
 		read_operation::list_checks,
 		read_operation::search_pull_requests,
@@ -238,17 +287,55 @@ namespace bpr::adapters::github::detail {
 
 	using normalized_read_result = std::expected<normalized_github_read, contract_failure>;
 
+	/// \brief Describes the operations and shape one normalized read admits.
+	///
+	/// \details The normalizer used to iterate the whole recorded catalog and
+	/// hardcode an all-true read shape, which made it unusable for any
+	/// profile that reaches fewer operations with fewer capabilities. The
+	/// admitted set and the shape are now one record the caller supplies, and
+	/// the response count is checked against that set rather than against the
+	/// catalog. `Viewer` answers the one question the operation set cannot:
+	/// when the viewer-identity operation is not admitted there is no `/user`
+	/// document to build a viewer from, so the caller states the viewer the
+	/// profile is bound to instead of the normalizer inventing one.
+	struct github_read_admission
+	{
+		std::span<const read_operation> Operations = read_operation_catalog;
+		application::github_read_shape  Shape{
+			.ReviewThreads       = true,
+			.ViewedFileState     = true,
+			.ResolvePermission   = true,
+			.UnresolvePermission = true,
+		};
+		std::optional<application::github_viewer_record> Viewer;
+	};
+
+	/// \brief Yields the admission the recorded authenticated contract uses.
+	[[nodiscard]] auto authenticated_read_admission() -> github_read_admission;
+
+	/// \brief Yields the admission a signed-out public read uses.
+	///
+	/// \details The nine credential-free operations and an all-false shape.
+	/// Viewer identity and the GraphQL operation are absent because an
+	/// anonymous authority refuses them before a request exists, so nothing
+	/// here can issue them.
+	[[nodiscard]] auto anonymous_read_admission(
+		const application::github_viewer_record& aViewer)
+		-> github_read_admission;
+
 	class github_transport;
 
 	[[nodiscard]] auto normalize_github_read(
 		const github_read_normalization_context& aContext,
-		std::span<const operation_response>      aResponses)
-		-> normalized_read_result;
+		std::span<const operation_response>      aResponses,
+		const github_read_admission&             aAdmission
+		= authenticated_read_admission()) -> normalized_read_result;
 
 	[[nodiscard]] auto perform_normalized_github_read(
 		github_transport&                        aTransport,
-		const github_read_normalization_context& aContext)
-		-> normalized_read_result;
+		const github_read_normalization_context& aContext,
+		const github_read_admission&             aAdmission
+		= authenticated_read_admission()) -> normalized_read_result;
 
 	class strict_recorded_transport final : public github_transport
 	{

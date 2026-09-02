@@ -43,7 +43,8 @@ namespace bpr::adapters::github::detail {
 	/// \brief Reports whether an operation is reachable without a credential.
 	///
 	/// \details The eligible set is the REST read surface: repository, pull
-	/// request, files, commits, reviews, issue comments, checks, and search.
+	/// request, files, commits, reviews, inline review comments, issue
+	/// comments, checks, and search.
 	/// The two exclusions are deliberate rather than incidental — GraphQL is
 	/// authenticated-only and viewer identity has no anonymous meaning — so
 	/// this switch is exhaustive and a new operation cannot default into the
@@ -58,6 +59,7 @@ namespace bpr::adapters::github::detail {
 		case read_operation::list_pull_request_commits:
 		case read_operation::list_reviews:
 		case read_operation::list_issue_comments:
+		case read_operation::list_review_comments:
 		case read_operation::list_checks:
 		case read_operation::search_pull_requests:
 			return true;

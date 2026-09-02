@@ -25,12 +25,13 @@ namespace {
 	using mode   = core::github_access_mode;
 	using reason = core::anonymous_refusal_reason;
 
-	constexpr std::array<intent, 8> legal_intents{
+	constexpr std::array<intent, 9> legal_intents{
 		intent::read_repository,
 		intent::read_pull_request,
 		intent::read_changed_files,
 		intent::read_commits,
 		intent::read_reviews,
+		intent::read_review_comments,
 		intent::read_issue_comments,
 		intent::read_checks,
 		intent::search_pull_requests,
@@ -589,6 +590,39 @@ namespace {
 			core::anonymous_observations().InlineReviewComments == unread,
 			"public preview never observed the inline conversation");
 	}
+
+	/// The REST inline conversation and the GraphQL thread read are different
+	/// intents with different answers, and collapsing them would make a
+	/// refusal look like an answer. Reading the comments is legal signed out;
+	/// reading the threads is refused, and so is everything keyed to the
+	/// reader.
+	void test_the_rest_conversation_is_legal_while_threads_are_refused()
+	{
+		expect(
+			core::legal(intent::read_review_comments),
+			"the REST inline review conversation is reachable signed out");
+		const auto threads = refusal_of(
+			core::legality(intent::read_review_threads));
+		expect(
+			threads.has_value()
+				&& threads->Reason == reason::graphql_refused
+				&& !core::legal(intent::read_review_threads),
+			"the GraphQL thread read stays refused for its own reason");
+		expect(
+			!core::legal(intent::read_viewer_identity)
+				&& !core::legal(intent::resolve_review_thread)
+				&& !core::legal(intent::unresolve_review_thread)
+				&& !core::legal(intent::set_viewed_file_state),
+			"reading the conversation grants no resolution, no viewed state, "
+			"and no viewer");
+		expect(
+			core::catalog_index(intent::read_review_comments)
+				!= core::catalog_index(intent::read_review_threads),
+			"the two intents occupy distinct catalog positions");
+		expect(
+			legal_intents.size() == 9U,
+			"nine intents mirror the nine credential-free read operations");
+	}
 }
 
 auto main() -> int
@@ -606,6 +640,7 @@ auto main() -> int
 	test_the_public_preview_capability_shape_is_all_false();
 	test_unavailable_observations_are_states_and_not_defaults();
 	test_inline_review_comments_are_unavailable_and_not_empty();
+	test_the_rest_conversation_is_legal_while_threads_are_refused();
 	std::cout << "anonymous public read core tests passed\n";
 	return EXIT_SUCCESS;
 }

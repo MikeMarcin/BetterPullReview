@@ -1,4 +1,5 @@
 #include "github_paged_read.hpp"
+#include "github_review_comment_grouping.hpp"
 
 #include <QByteArray>
 #include <QJsonArray>
@@ -1250,6 +1251,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_reviews:
 			case read_operation::list_review_threads:
 			case read_operation::list_issue_comments:
+			case read_operation::list_review_comments:
 				result.PullRequestNumber = aContext.Number.value();
 				break;
 			case read_operation::get_viewer_identity:
@@ -1384,6 +1386,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_pull_request_commits:
 			case read_operation::list_reviews:
 			case read_operation::list_issue_comments:
+			case read_operation::list_review_comments:
 			case read_operation::list_checks:
 				break;
 			case read_operation::get_viewer_identity:
@@ -2465,6 +2468,69 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
+		/// Parses one entry of the REST inline review-comment listing.
+		///
+		/// The identity used here is the REST numeric id rendered as text
+		/// rather than the node id, because `in_reply_to_id` names the numeric
+		/// id and reply linkage is only checkable when both ends live in one
+		/// identifier space. `position` is required and carries the anchor
+		/// fact: the service returns null once the comment's line has left the
+		/// diff, which is what outdated means on this surface. Nothing here
+		/// reads resolution, viewer, viewed, or actionability, because the
+		/// response carries none of them and inferring one is prohibited.
+		[[nodiscard]] auto parse_review_comment(const QJsonValue& aValue)
+			-> std::expected<application::github_review_comment_record,
+							 github_paged_read_failure>
+		{
+			if (!aValue.isObject()
+				|| !has_required_keys(aValue.toObject(),
+									  {
+										  "body",
+										  "id",
+										  "path",
+										  "position",
+										  "user",
+									  })) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			const auto object = aValue.toObject();
+			const auto author = optional_rest_actor(object.value("user"));
+			const auto reply  = object.value("in_reply_to_id");
+			if (!exact_integer(object.value("id"), true) || !author.Valid
+				|| !object.value("body").isString()
+				|| !nonempty_string(object.value("path"))
+				|| (!object.value("position").isNull()
+					&& !exact_integer(object.value("position"), true))
+				|| (!object.value("line").isUndefined()
+					&& !object.value("line").isNull()
+					&& !exact_integer(object.value("line"), true))
+				|| (!object.value("original_line").isUndefined()
+					&& !object.value("original_line").isNull()
+					&& !exact_integer(object.value("original_line"), true))
+				|| (!reply.isUndefined() && !reply.isNull()
+					&& !exact_integer(reply, true))) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto replyTo = std::optional<application::github_comment_id>{ };
+			if (reply.isDouble()) {
+				replyTo = application::github_comment_id{
+					std::to_string(integer(reply))
+				};
+			}
+			return application::github_review_comment_record{
+				.Comment = application::github_comment_id{
+					std::to_string(integer(object.value("id"))) },
+				.ReplyTo      = std::move(replyTo),
+				.Author       = author.Actor,
+				.Body         = text(object.value("body")),
+				.Path         = text(object.value("path")),
+				.Line         = optional_line(object.value("line")),
+				.OriginalLine = optional_line(object.value("original_line")),
+				.Outdated     = object.value("position").isNull(),
+				.Deleted      = false,
+			};
+		}
+
 		[[nodiscard]] auto parse_check(const QJsonValue&      aValue,
 									   const std::string_view aHeadOid)
 			-> std::expected<application::github_check_record,
@@ -3461,18 +3527,20 @@ namespace bpr::adapters::github::detail {
 					.Actor = aRequest.Viewer.Node,
 					.Login = aRequest.Viewer.Login,
 				},
-				.Snapshot                  = aSnapshotId,
-				.Repository                = std::move(*repository),
-				.PullRequest               = std::move(pullRequest->Record),
-				.Files                     = { },
-				.Commits                   = { },
-				.Reviews                   = { },
-				.ReviewThreadsAvailability = application::github_collection_availability::unavailable,
-				.ReviewThreads             = { },
-				.IssueComments             = { },
-				.Checks                    = { },
-				.SearchResults             = { },
-				.CapabilityEvidence        = application::github_capability_evidence{
+				.Snapshot                   = aSnapshotId,
+				.Repository                 = std::move(*repository),
+				.PullRequest                = std::move(pullRequest->Record),
+				.Files                      = { },
+				.Commits                    = { },
+				.Reviews                    = { },
+				.ReviewThreadsAvailability  = application::github_collection_availability::unavailable,
+				.ReviewThreads              = { },
+				.ReviewCommentsAvailability = application::github_collection_availability::unavailable,
+				.ReviewCommentGroups        = { },
+				.IssueComments              = { },
+				.Checks                     = { },
+				.SearchResults              = { },
+				.CapabilityEvidence         = application::github_capability_evidence{
 					.Capabilities    = aRequest.CapabilityEvidence.Capabilities,
 					.Revision        = aRequest.CapabilityEvidence.Revision,
 					.ReadShape       = aRequest.CapabilityEvidence.ReadShape,
@@ -3539,6 +3607,39 @@ namespace bpr::adapters::github::detail {
 																aLimits);
 				!graphql.has_value()) {
 				return std::unexpected{ execution.enrich(graphql.error()) };
+			}
+
+			// The inline review conversation is read over REST only under the
+			// signed-out authority. An authenticated read already has the
+			// GraphQL threads, which carry resolution the REST listing cannot;
+			// issuing both would put the same conversation in two places and
+			// would change the recorded authenticated wire shape. The
+			// availability field stays `unavailable` on that path, which is
+			// the truthful answer for a collection that was never asked for.
+			if (aReadAuthority
+				== github_provider_read_authority::anonymous_public) {
+				std::vector<application::github_review_comment_record> flat;
+				if (const auto reviewComments = read_rest_array_collection(
+						execution,
+						aProfile,
+						semantic_request_for(*server,
+											 aRequest.Context,
+											 read_operation::list_review_comments),
+						flat,
+						aLimits.Records.MaximumTotalComments,
+						aLimits.MaximumPageRecords,
+						[](const QJsonValue& aValue) {
+							return parse_review_comment(aValue);
+						});
+					!reviewComments.has_value()) {
+					return std::unexpected{ execution.enrich(reviewComments.error()) };
+				}
+				if (!group_review_comments(std::move(flat),
+										   result.ReviewCommentGroups)) {
+					return execution.terminal_failure(
+						application::github_provider_failure::malformed_response);
+				}
+				result.ReviewCommentsAvailability = application::github_collection_availability::available;
 			}
 
 			if (const auto comments = read_rest_array_collection(

@@ -30,16 +30,23 @@ namespace bpr::core {
 	};
 
 	/// The intents a reader can express against a pull request. The first
-	/// eight mirror, one to one, the read operations that need no credential,
+	/// nine mirror, one to one, the read operations that need no credential,
 	/// so the adapter maps its catalog onto this policy without keeping a
-	/// second table. The remaining nine are the operations and conditions
+	/// second table. The remaining eight are the operations and conditions
 	/// public preview refuses.
+	///
+	/// `read_review_comments` is the inline review conversation read over
+	/// REST. It is legal and distinct from `read_review_threads`, which is
+	/// the GraphQL thread read: the conversation is reachable signed out, the
+	/// threads and their resolution are not, and collapsing the two would
+	/// make a refusal look like an answer.
 	enum class anonymous_read_intent : std::uint8_t {
 		read_repository,
 		read_pull_request,
 		read_changed_files,
 		read_commits,
 		read_reviews,
+		read_review_comments,
 		read_issue_comments,
 		read_checks,
 		search_pull_requests,
@@ -54,7 +61,7 @@ namespace bpr::core {
 		select_enterprise_host,
 	};
 
-	inline constexpr std::size_t anonymous_read_intent_count = 17U;
+	inline constexpr std::size_t anonymous_read_intent_count = 18U;
 
 	/// Every intent, in declaration order. `catalog_index` decides an intent's
 	/// position with a switch that names each enumerator, so an intent added
@@ -67,6 +74,7 @@ namespace bpr::core {
 			anonymous_read_intent::read_changed_files,
 			anonymous_read_intent::read_commits,
 			anonymous_read_intent::read_reviews,
+			anonymous_read_intent::read_review_comments,
 			anonymous_read_intent::read_issue_comments,
 			anonymous_read_intent::read_checks,
 			anonymous_read_intent::search_pull_requests,
