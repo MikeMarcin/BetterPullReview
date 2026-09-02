@@ -1,7 +1,7 @@
 ---
 id: BPR-0516
 title: Compose a system-browser opener for the device-authorization handoff
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0280, BPR-0318]
 ---
