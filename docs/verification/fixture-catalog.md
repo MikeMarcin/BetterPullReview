@@ -1326,6 +1326,9 @@ polish claims remain outside this deterministic fixture boundary.
 - Head changes during analysis
 - Invalid finding anchor
 - Corporate host mapped to forbidden personal provider
+- Structured finding payload on each carrying protocol, and no carrier on the
+  external terminal
+- Read-only MCP context helper over a frozen snapshot root
 
 `tests/fixtures/agent/agent_canary_main.cpp` is the sanitized BPR-0240 process
 boundary fixture. It performs the App Server initialize/thread/id-2-turn
@@ -1372,6 +1375,69 @@ keeps the host non-quiescent. After restoring the original directory identity,
 composed shutdown requests the actor-confined retry, removes the exact workspace
 and empty parent root, reaches its bounded terminal state, and leaves the
 substitute untouched until explicit fixture teardown.
+
+### The finding-payload canary
+
+RFC-BPR-0012 gave the same `tests/fixtures/agent/agent_canary_main.cpp` three
+more switches rather than a second process fixture, because a finding rides
+inside the protocol framing that fixture already speaks. `--emit-findings`
+attaches `{"session":<n>,"findings":[…]}` to the frame each protocol actually
+carries it on — `params.turn.bprFindings` on the App Server `turn/completed`
+notification, top-level `bprFindings` on Codex JSONL's `turn.completed`, and
+top-level `bprFindings` on Claude's successful `result`. `--findings-session`
+names the session the payload claims, which is what the parent's
+unknown-session course provokes a mismatch with. `--findings-transcript`
+writes one complete payload-bearing transcript and reads no standard input, so
+a parent can replay it through an ordinary pipe; on the external terminal,
+which has no result frame at all, it writes a `BPR-FINDINGS/1` sentinel line
+instead — a carrier nobody specified, present so the host has something to
+refuse as `unsupported_finding_transport` rather than a silence that could be
+read as agreement. Every identity in the payload is a fixed repeated hex
+digit, so a parent compares it field for field instead of searching output for
+a substring, and so the delivered-but-unanchored path is what the ordinary
+canary produces — an unanchored finding is the one a reviewer most needs to
+still see (BPR-0500, `application_agent_finding_protocol`).
+
+`tests/end_to_end/agent_finding_canary_main.cpp` is the other half, and exists
+because the first canary cannot prove it. It reads the `name<TAB>value`
+supplement the composed context handed it — the same payload
+`encode_agent_supplement` wrote — and anchors its finding at
+`selection.preferred`, the exact `core::source_line_ref` the reviewer selected,
+so a correctly placed answer validates against the snapshot the application
+froze. It speaks Codex JSONL for the reason above. One executable serves seven
+registered courses — the positive course, the full-agent course, and one
+construction cut per composed host — and each course is a separate `ctest`
+selector whose pass marker is its own (BPR-0504,
+`application_agent_finding_composition_contract` and its siblings).
+
+### The MCP helper canary
+
+`tests/application/mcp_context_helper_tests.cpp` drives the shipped
+`tool_better_pull_review_mcp_context_helper` as a real child over real stdio
+rather than calling the library in-process, because what the helper refuses is
+a property of the process a stranger's agent would talk to. It links
+`BetterPullReview::AdapterMcp` and is compiled with `BPR_MCP_TOOL_SOURCE`
+pointing at the adapter's own header, so the advertised list is compared
+against three independently sourced ones: the `enum class mcp_tool` text read
+out of that header, the compiled `mcp_tools` array, and a fourth list written
+in the canary itself — a tool added to the first three still fails until a
+person edits the test.
+
+The refusal sweep drives twenty-one entries through that executable — a URL
+argument, a `//host:port` authority, a UNC authority, `net/connect`,
+`net/listen`, `../../../etc/passwd`, `/etc/passwd`, `../binding`, a real
+directory symlink out of the snapshot on both path-taking tools, ten
+write/draft/publish/note/network tool names, and a helper started with
+`--listen 127.0.0.1:8080` — and requires each to be refused by its own exact
+typed cause with no result beside it. The parent holds planted `GITHUB_TOKEN`,
+`ANTHROPIC_API_KEY`, and `AWS_SECRET_ACCESS_KEY` while the child runs; the
+child's environment reduces to exactly `BPR_MCP_SNAPSHOT_ROOT` and
+`BPR_MCP_PINNED_BINDING`, and no secret value reaches either child channel.
+With the pin unchanged and the snapshot's binding record moved to a new head,
+every `tools/call` answers `revision_binding_stale` and the transcript carries
+neither the frozen bytes nor the frozen paths. The registration declares no
+`LOOPBACK_PORT_COUNT`: the helper has no socket surface at all, so zero is the
+claim rather than an omission (BPR-0501, `application_mcp_context_helper`).
 
 ## Architecture and concurrency harnesses
 

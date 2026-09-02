@@ -54,3 +54,19 @@ next person choosing between two forms does not rediscover the argument.
 - `git diff --check` is clean over the slice.
 - RFC-BPR-0012 remains `Proposed`, and no sentence in the ledger makes a
   closure claim.
+
+## Inputs from the landed slices — 2026-09-02
+
+- `src/adapters/mcp/include/bpr/adapters/mcp/mcp_context_helper.hpp`'s
+  comment counts four request methods; the helper answers three
+  (`initialize`, `tools/list`, `tools/call`). Found by [[BPR-0505]].
+- The ledger row "Private notes and drafts are never included without
+  explicit selection" still reads core-half verified with its composed half
+  planned, while `application_agent_invocation_composition_contract` already
+  asserts zero note and draft counts; settle the row against that evidence.
+- The six comment-workshop operations `docs/ux/ai-experience.md` names
+  (clarify, shorten, make actionable, phrase as a question, make more direct,
+  check the premise) exist nowhere in the tree; [[BPR-0505]] records them as
+  not delivered. Decide whether they are a card or a removed promise.
+- The panels are composed and, after [[BPR-0513]], placed; the side-chat
+  session host is [[BPR-0514]]. Neither is this card's.

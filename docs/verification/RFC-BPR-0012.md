@@ -214,12 +214,114 @@ cost of the alternative named.
 
 ## Documentation ledger
 
-BPR-0505 fills this section. Nothing is recorded yet. It must identify
-functional-core, application-host, and Qt-presentation-adapter ownership; the
-typed intents, events, observations, requests, and deltas; authority;
-concurrency and generation; and any evidence-backed no-impact region — and it
-extends `docs/architecture/ai-agent-boundary.md` rather than adding a second
-document beside it.
+Filled by BPR-0505 on 2026-09-02. Documentation only: no source, test, or
+build file was touched, so nothing here changes what the tree does.
+
+`docs/architecture/ai-agent-boundary.md` was **extended in place**, as
+BPR-0178 required and as this card's non-goals restate: a second AI document
+beside it would leave a reader working out which was current. Its new
+top-level section, **Explicit AI review: findings, chat, workshop, and the MCP
+helper**, carries nine subsections — the finding schema, the anchor policy and
+its three states, chat scope, the two stale continuations, the promotion
+boundary, full-agent behaviour, the MCP tool list, privacy, and a
+claim-to-test table — followed by **What RFC-BPR-0012 does not claim**, which
+states the limitations and names everything not delivered.
+
+`docs/ux/ai-experience.md` gained **Implementation truth**: what shipped, the
+three anchor-state names as the queue prints them, the two continuations by
+name, the workshop's plain-text surface, and what the document specifies that
+the tree does not yet have. `docs/verification/fixture-catalog.md` gained
+**The finding-payload canary** and **The MCP helper canary** in its `## AI`
+section. `docs/verification/master-verification-matrix.md` rows AI-3 and AI-4
+now name the delivered surfaces and their selectors, and AI-5 (MCP read-only
+enforcement) and AI-6 (side-chat staleness) are new.
+
+No sentence in any of them asserts a behaviour the tree does not have. Each is
+traceable to a selector recorded in this ledger, and every selector named in a
+new or edited matrix row was confirmed present in `ctest --preset dev -N`, with
+the core rows also confirmed in `ctest --preset core-only -N`.
+
+### Region ownership
+
+| Region | What RFC-BPR-0012 put there | Evidence |
+|---|---|---|
+| Functional core | `agent_finding.hpp` (the finding, its anchor, the frozen snapshot, and `validate_agent_finding`), `agent_finding_promotion.hpp` (`promote_agent_finding` and its eleven refusals), `agent_chat_scope.hpp` (seven entry points, four observations, the ordered scope ladder, `decide_agent_action`), and additive extensions to `agent_session.hpp` (`agent_continuation`, `offer_agent_continuations`) and `agent_context_supplement.hpp` (`agent_private_context_optin`) | `core_agent_finding`, `core_agent_finding_promotion`, `core_agent_chat_scope`, `core_agent_session`, `core_agent_context_supplement`, all Qt-free and provider-free under `core-only` |
+| Application host | Payload decode in the one portable protocol loop, the validation seam and typed re-entry in `agent_finding_delivery.hpp`, `agent_finding_host.hpp` (holds one delivery, answers one action, reaches one durable authority), `agent_comment_workshop_host.hpp` (one proposal, five refusals, applies nothing), and `mcp_context_helper_supervisor.hpp` (pin, describe, start, stop) | `application_agent_finding_protocol`, `application_agent_invocation_host`, `application_agent_launch`, `application_agent_protocol_loop`, `application_mcp_context_helper` |
+| Qt presentation adapter | `side_chat_panel.hpp` (ten disclosed fields, four intents, an `observe` that starts nothing) and `finding_queue_view.hpp` (seven disclosed fields, six actions), plus the comment workshop inside the existing `review_draft_editor` | `qt_side_chat_panel`, `qt_finding_queue_view`, `qt_review_draft_editor`, each linking `BetterPullReview::AdapterQt` only and registered through `bpr_add_network_isolated_test` |
+| Shipped MCP adapter | `src/adapters/mcp/`, whose library links `BetterPullReview::Core` and nothing else, and the `tool_`-prefixed executable the live-mutation manifest walks | `application_mcp_context_helper`, `live_mutation_isolation`, and the link line itself |
+| Composition | Five constructions in `src/app/src/github_application.cpp` under the same fixture and production split as `AgentHost`, all five named in `SHARED_REQUIRED` | `application_agent_finding_composition_contract`, `composed_application_hosts`, and one construction cut per host |
+
+Neither agent output nor MCP input mutates core or Qt state directly. Every
+result re-enters through a typed value carrying the session's exact binding.
+
+### Typed intents, events, observations, requests, and deltas
+
+| Kind | Values | Where the shape is held |
+|---|---|---|
+| Intents | `core::agent_action_intent` (deleted default constructor, `explicit`), `core::agent_scope_widening_intent` (the same), and the Qt intents `send_chat_message_intent`, `widen_chat_scope_intent`, `chat_private_context_intent`, `choose_chat_continuation_intent`, and `finding_action_intent` | `core_agent_chat_scope`, `qt_side_chat_panel`, `qt_finding_queue_view` |
+| Events | `application::agent_finding_delivery` — session, the session's own binding, staleness, and one `agent_delivered_finding` per finding, verdict included. `agent_protocol_event_kind::finding_payload` carries the exact undecoded bytes out of a result frame, so the shared loop rather than a frame reader is where a payload becomes findings | `application_agent_finding_protocol`, `application_agent_invocation_host` |
+| Observations | `core::agent_observation` — `refresh`, `navigation`, `comment_arrival`, `revision_update` — whose only product is a one-field `agent_observation_record`. `intent_for` returns nothing for every one of them, unconditionally | `core_agent_chat_scope`, `qt_side_chat_panel` |
+| Requests | `core::agent_finding_promotion_request` (finding, verdict, choice, standing, and the target being promoted onto), `application::agent_finding_action_request` (session, ordinal, action, standing, target, note identity — **and no verdict field**), and `application::mcp_helper_launch` (executable, working directory, environment; **no argument vector at all**) | `core_agent_finding_promotion`, `application_agent_finding_composition_contract`, `application_mcp_context_helper` |
+| Deltas | Both new widgets present whole accepted projections rather than deltas, and neither computes one. The single increment either retains is the finding queue's selected ordinal, which survives a re-presentation that still has a row at it, so an accepted refresh does not move the reviewer somewhere they did not ask to be | `qt_finding_queue_view` |
+
+### Authority
+
+One rule, held in three places so no single edit can lift it.
+
+`core::agent_finding_promotion` has no field a `review_publication_proposal`
+could occupy, and the draft command it emits is always an `edit`.
+`application::agent_finding_outcome` has no field for one either, nor for a
+`review_mutation_target`, and the finding host holds exactly two ports — a
+supplier of the durable ledger store open for the review right now, and a
+projection. The one durable write agent output can reach is
+`review_ledger_store_port::store_note`. The composition source names
+`review_mutation_coordinator` zero times and carries exactly one
+`ReviewMutationHost->publish(` call site, which is the reviewer's own
+`begin_publish` branch.
+
+Authority over an anchor is single too: `core::validate_agent_finding` is the
+only place the question is decided, the verdict is supplied to promotion rather
+than recomputed, and the Qt request has no verdict field a widget could forge
+one into. The MCP helper's authority is a pin: the host that froze the
+projection supplies the binding, and every `tools/call` compares the snapshot's
+own record against it before reading anything.
+
+### Concurrency and generation
+
+RFC-BPR-0012 introduces **no new generation counter**, and that is a decision
+rather than an omission. Identity here is the `core::agent_session_id` plus the
+frozen `core::agent_revision_binding` the session was started with, and
+`core::agent_session_staleness` — `current`, `head_moved`, `epoch_pair_changed`,
+`different_review` — is the whole vocabulary for how the world has moved since.
+A second counter would be a second answer to the same question.
+
+Everything that could race is answered by identity rather than by ordering.
+Findings re-enter on the existing serialized completion lane and are projected
+immediately before `finish`, so the terminal carries no undecoded payload and a
+verdict is the only route to a presentation. `agent_finding_delivery` carries
+the session's own binding and has no field the head current at delivery could
+occupy, so a payload that arrives after an accepted head move is `head_moved`
+rather than retargeted. `agent_finding_host` holds one delivery: an action
+naming another session is refused `other_session`, and one naming an ordinal
+that is not there is `unknown_finding`, rather than either being answered with
+somebody else's finding. `mcp_context_helper_supervisor` refuses a second child
+as `already_running`, because two helpers answering from one snapshot would have
+two lifetimes and the reviewer could stop neither by name; it holds its own
+process launcher for the same reason, since a shared one would let one cancel
+stop whichever child the reviewer did not mean. The helper's own staleness is a
+refusal, not a re-read: a moved head makes every call `revision_binding_stale`
+and reads no projection at all.
+
+### Evidence-backed no-impact regions
+
+| Region | Claim | Evidence |
+|---|---|---|
+| The RFC-BPR-0008 mutation path | No new edge reaches it, and publication still round-trips through the one it already had | `application_agent_finding_full_agent_contract` (zero GitHub mutation calls of every kind; `review_mutation_coordinator` named zero times in the composition source), `application_review_round_trip_composition_contract` (green on the repinned digests) |
+| The GitHub, Git, and SQLite adapters | The shipped MCP helper cannot reach any of them | `better_pull_review_adapter_mcp` links `BetterPullReview::Core` and nothing else — a one-line link check — and `live_mutation_isolation` walks the `tool_`-prefixed binary |
+| Effect-freedom of `src/adapters/qt` | The two new widgets start no process and hold no launcher, credential, endpoint, or store | `architecture_boundaries` (no `QProcess` in the Qt adapter), plus the aggregate guards in `qt_side_chat_panel` and `qt_finding_queue_view`, each pinned by `sizeof` so a member added outside the aggregate fails too |
+| The RFC-BPR-0004 alignment model | Findings consume its identities and add none; no coordinate is representable in a finding, an anchor, or a chat scope | `core_agent_finding`, `core_agent_chat_scope` (structured-binding guards that fail to compile on an added field) |
+| The composed workbench's existing rendering | New drawer content stays downstream of the composed window | `qt_composed_github_scale_100` |
+| Every other core suite | The additive core extensions disturbed nothing | `ctest --preset core-only -R '^core_'`, recorded green by BPR-0497 and BPR-0499 |
 
 ## Simplification
 
