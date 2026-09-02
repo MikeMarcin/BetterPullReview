@@ -323,7 +323,7 @@ Implementation may begin only after all of the following exist:
 - A product decision that a read-only, triage-less, rate-limited preview of
   public GitHub.com pull requests is a mode the product wants, recorded with
   its intended presentation of those limits. This is
-  [BPR-0299](../../issues/10-backlog/BPR-0299-decide-anonymous-public-preview.md),
+  [BPR-0299](../../issues/40-parked/BPR-0299-decide-anonymous-public-preview.md),
   which depends on both of the above.
 - RFC-BPR-0002 Auto-Verified, since this mode reuses its transport and
   normalization guarantees rather than restating them.

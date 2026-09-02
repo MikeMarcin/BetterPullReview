@@ -1,0 +1,42 @@
+---
+id: BPR-0299
+title: Decide whether to build anonymous public preview
+status: Parked
+rfc: RFC-BPR-0017
+depends_on: [BPR-0298, BPR-0313]
+parked_on: awaiting-product-decision
+---
+
+# Decide whether to build anonymous public preview
+
+## Required final state
+
+- A digest-bound product decision accepts or rejects the measured request cost,
+  shared-address quota behavior, refresh behavior, triage/viewer/action loss,
+  private-repository ambiguity, and GitHub.com-only scope.
+- Approval defines exact public-preview naming, limit presentation, sign-in
+  handoff, and supported-platform policy and grants no mutation or private read.
+- A `do not build` result leaves RFC-BPR-0017 Deferred and BPR-0312 unresolved,
+  so every implementation card remains dependency-blocked. It is recorded as
+  evidence, not converted into Auto-Verified or a completed positive gate.
+- Any available-target implementation exception is independent, cannot waive
+  RFC-BPR-0002 final closeout, and updates RFC/card dependencies atomically.
+
+## Parked on the product decision — 2026-09-01
+
+[[BPR-0298]] and [[BPR-0313]] are done, so the measured facts this decision
+rests on exist and are digest-bound: the sanitized captures under
+`docs/verification/reviews/rfc0017-anonymous-probe-v001/captures/` plus the
+conditional-request pair recorded by the family's live packet,
+`rfc0017-anonymous-probe-v005` (60 core
+requests per hour per source address, shared; a `304 Not Modified` costs one
+of them; GraphQL refused with limit 0; REST review comments answered `200`
+anonymously; 404 rather than 403 for a private or missing repository) and
+RFC-BPR-0017's own recommendation that RFC-BPR-0016 is the stronger answer.
+The decision is a choose-one subject in
+`docs/verification/reviews/run-boundary-decisions-v001/offline-package/index.html`
+(group `anonymous-public-preview`). A "do not build" outcome is recorded as
+evidence on this card and leaves RFC-BPR-0017 `Deferred` with [[BPR-0312]]
+unresolved; a "build" outcome must carry the naming, limit presentation,
+sign-in handoff, and platform policy in its note, which [[BPR-0312]] then
+validates.

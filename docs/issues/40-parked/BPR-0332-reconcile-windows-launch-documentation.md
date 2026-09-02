@@ -1,9 +1,10 @@
 ---
 id: BPR-0332
 title: Reconcile the Windows launch documentation with the shipped dispatch
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0011
 depends_on: [BPR-0240]
+parked_on: awaiting-product-decision
 ---
 
 # Reconcile the Windows launch documentation with the shipped dispatch
@@ -157,3 +158,15 @@ dispatch remains the product owner's, and option 1's original rationale —
 fail closed until target-native proof exists — should now be weighed against
 that proof existing. This card stays in `10-backlog/` behind open
 [[BPR-0240]].
+
+## Parked on the product decision — 2026-09-01
+
+[[BPR-0240]] closed today with the Windows backend proven target-native, so
+every dependency is done and the only missing input is the choice this card
+has always carried: restore the pre-start refusal, or document the shipped
+dispatch. It is presented as a choose-one subject in
+`docs/verification/reviews/run-boundary-decisions-v001/offline-package/index.html`
+(group `windows-launch-documentation`). Whichever alternative is chosen, the
+documentation half is portable and this card returns to `20-ready/`; a restored
+guard additionally needs its Windows-only failing-without-it test on the
+Windows station.
