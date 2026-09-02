@@ -3,6 +3,8 @@
 #include "designated_review_public_observer.hpp"
 #include "review_mutation_execution_authority.hpp"
 
+#include "github_anonymous_read_admission.hpp"
+
 #include "github_paged_read.hpp"
 #include "github_wire_request_validation.hpp"
 
@@ -137,8 +139,24 @@ namespace bpr::adapters::github::detail {
 			core::github_session_request_context Context;
 		};
 
-		using credential_binding = std::
-			variant<bootstrap_credential, account_credential, credential_free_request>;
+		/// \brief A deliberate anonymous read authority.
+		///
+		/// \details Distinct from `credential_free_request`, which exists so
+		/// the device flow can run before any credential does, and distinct
+		/// from a missing credential, which is a failure rather than a state.
+		/// Like that one it carries no material field, so there is no empty or
+		/// wiped credential for a later change to mistake for a usable one.
+		/// Unlike that one its read-path match is the same in a shipped build
+		/// as in a test build: RFC-BPR-0017's public preview ships.
+		struct anonymous_read_request
+		{
+			core::github_session_request_context Context;
+		};
+
+		using credential_binding = std::variant<bootstrap_credential,
+												account_credential,
+												credential_free_request,
+												anonymous_read_request>;
 
 		enum class native_request_surface : std::uint8_t {
 			rest_read,
@@ -2239,6 +2257,16 @@ namespace bpr::adapters::github::detail {
 		{
 		}
 
+		implementation(
+			const validated_github_host_profile& aProfile,
+			anonymous_read_request               aCredential,
+			transport_policy                     aPolicy)
+			: Profile{ aProfile }
+			, Credential{ std::move(aCredential) }
+			, Policy{ std::move(aPolicy) }
+		{
+		}
+
 		implementation(const implementation&)                    = delete;
 		auto operator=(const implementation&) -> implementation& = delete;
 
@@ -2469,13 +2497,17 @@ namespace bpr::adapters::github::detail {
 			const application::git_smart_request_context& aContext) const noexcept
 			-> bool
 		{
-			// A credential-free binding never leases the Git smart surface: that
-			// surface authenticates with HTTP Basic and has no anonymous form
-			// here. `credential_matches` already refuses it by requiring an
-			// account credential; this term restates that refusal where it can be
-			// read, so a later change to either one cannot open the surface alone.
-			return !Closing.load(std::memory_order_acquire) && !credential_free()
-				&& application::valid(aContext) && credential_matches(aContext);
+			// No binding without authorization material leases the Git smart
+			// surface: that surface authenticates with HTTP Basic and has no
+			// anonymous form here. Public smart HTTP is RFC-BPR-0017's separate
+			// question and belongs to [[BPR-0317]], not to this transport.
+			// `credential_matches` already refuses both such bindings by
+			// requiring an account credential; this term restates that refusal
+			// where it can be read, so a later change to either one cannot open
+			// the surface alone.
+			return !Closing.load(std::memory_order_acquire)
+				&& carries_authorization() && application::valid(aContext)
+				&& credential_matches(aContext);
 		}
 
 		void cancel_lease(
@@ -2911,6 +2943,45 @@ namespace bpr::adapters::github::detail {
 							&& aRequest.Correlation.Operation
 							== read_operation::get_viewer_identity;
 					} else if constexpr (
+						std::same_as<credential_type, anonymous_read_request>) {
+						// One table in every build. The eligible operations are
+						// the public REST reads; viewer identity and the
+						// GraphQL-routed operation are refused here, before a
+						// request is constructed, because `perform_validated`
+						// claims the credential before it builds anything.
+						if (!admit_anonymous_read(
+								 aRequest.Correlation.Operation,
+								 Profile.server_contract())
+								 .has_value()) {
+							return false;
+						}
+						return std::visit(
+							[&aCredential, this](const auto& aParent) noexcept {
+								if (
+									aParent.ApplicationSession
+										!= aCredential.Context.ApplicationSession
+									|| aParent.Profile != Profile.profile()
+									|| aParent.IdentityGeneration
+										!= aCredential.Context.IdentityGeneration) {
+									return false;
+								}
+								using parent_type = std::remove_cvref_t<decltype(aParent)>;
+								if constexpr (
+									std::same_as<
+										parent_type,
+										core::pull_request_request_context>) {
+									// An anonymous authority holds no account,
+									// so there is no account identity to
+									// correlate against — not account zero, not
+									// the profile's, none. The host binding is
+									// the whole of what remains to check.
+									return aParent.Host == Profile.host();
+								} else {
+									return true;
+								}
+							},
+							aRequest.Correlation.Parent);
+					} else if constexpr (
 						std::same_as<credential_type, credential_free_request>) {
 #if defined(BPR_NATIVE_HTTPS_TESTING)
 						// Exactly the session this binding was handed, nothing
@@ -3014,6 +3085,10 @@ namespace bpr::adapters::github::detail {
 		{
 			// The device flow runs to obtain the first credential, so the only
 			// binding it may run under is the one that deliberately holds none.
+			// `credential_free()` names exactly one alternative, so the
+			// anonymous read binding is refused here too: an anonymous
+			// authority never asks for a credential it would then have nowhere
+			// to put.
 			// `make_request` omits the authorization header under exactly that
 			// state, so refusing every other binding here is what keeps the
 			// header's absence a property of this code rather than of a caller.
@@ -3054,6 +3129,20 @@ namespace bpr::adapters::github::detail {
 			return std::holds_alternative<credential_free_request>(Credential);
 		}
 
+		/// \brief Reports whether this binding has a credential to send.
+		///
+		/// \details The authorization header's absence is structural, not
+		/// conditional: it is derived from which binding was named at
+		/// construction, and the two bindings that name no material are
+		/// enumerated here rather than inferred from an empty field. A future
+		/// alternative must be added to this list to send a header, which is
+		/// the direction the mistake should be hard in.
+		[[nodiscard]] auto carries_authorization() const noexcept -> bool
+		{
+			return !std::holds_alternative<credential_free_request>(Credential)
+				&& !std::holds_alternative<anonymous_read_request>(Credential);
+		}
+
 		[[nodiscard]] auto credential_bytes() const noexcept
 			-> std::span<const std::byte>
 		{
@@ -3065,9 +3154,10 @@ namespace bpr::adapters::github::detail {
 					// future alternative that renames or omits `Material` compile
 					// and silently send an empty credential; naming the type
 					// keeps that a build failure.
-					if constexpr (std::same_as<
-									  std::remove_cvref_t<decltype(aCredential)>,
-									  credential_free_request>) {
+					using credential_type = std::remove_cvref_t<decltype(aCredential)>;
+					if constexpr (
+						std::same_as<credential_type, credential_free_request>
+						|| std::same_as<credential_type, anonymous_read_request>) {
 						return { };
 					} else {
 						return aCredential.Material.bytes();
@@ -3199,11 +3289,12 @@ namespace bpr::adapters::github::detail {
 			request.setRawHeader("Accept-Encoding", "identity");
 			request.setRawHeader("Accept-Language", "*");
 
-			// The only way to reach this without an authorization header is
-			// the deliberate credential-free binding — the device flow's,
-			// whose whole point is that no credential exists yet. Every other
+			// The only ways to reach this without an authorization header are
+			// the two bindings that deliberately hold no material — the device
+			// flow's, whose whole point is that no credential exists yet, and
+			// the anonymous read authority, which never has one. Every other
 			// binding sends exactly its held credential.
-			if (!credential_free()) {
+			if (carries_authorization()) {
 				QByteArray                  authorization{ "Bearer " };
 				const qbytearray_wipe_guard authorizationGuard{ authorization };
 				const auto                  credential = credential_bytes();
@@ -3929,6 +4020,21 @@ namespace bpr::adapters::github::detail {
 			return { };
 		}
 
+		/// \brief Reports whether a profile may be selected anonymously.
+		///
+		/// \details Asked before a transport exists, so a GHES profile costs
+		/// no thread, no manager, and no request. `admit_anonymous_read` owns
+		/// the contract rule; asking it here with an eligible operation keeps
+		/// the factory and the binding reading the same table.
+		[[nodiscard]] auto anonymous_read_contract_admitted(
+			const validated_github_host_profile& aProfile) noexcept -> bool
+		{
+			return admit_anonymous_read(
+					   read_operation::get_repository,
+					   aProfile.server_contract())
+				.has_value();
+		}
+
 #if defined(BPR_NATIVE_HTTPS_TESTING)
 		[[nodiscard]] auto make_test_policy(
 			const native_https_test_configuration& aTest) -> transport_policy
@@ -4189,6 +4295,31 @@ namespace bpr::adapters::github::detail {
 			make_production_policy());
 	}
 
+	auto make_native_https_anonymous_read_transport(
+		const validated_github_host_profile& aProfile,
+		core::github_session_request_context aContext) noexcept
+		-> native_https_transport_factory_result
+	{
+		if (
+			!application::detail::valid_context(aContext)
+			|| aContext.Profile != aProfile.profile()) {
+			return std::unexpected{
+				native_https_configuration_failure::
+					invalid_bootstrap_context
+			};
+		}
+		if (!anonymous_read_contract_admitted(aProfile)) {
+			return std::unexpected{
+				native_https_configuration_failure::
+					anonymous_read_contract_unsupported
+			};
+		}
+		return make_transport(
+			aProfile,
+			anonymous_read_request{ .Context = aContext },
+			make_production_policy());
+	}
+
 #if defined(BPR_NATIVE_HTTPS_TESTING)
 	auto make_native_https_bootstrap_transport_for_test(
 		const validated_github_host_profile&    aProfile,
@@ -4288,6 +4419,38 @@ namespace bpr::adapters::github::detail {
 		return make_transport(
 			aProfile,
 			credential_free_request{ .Context = aContext },
+			make_test_policy(aConfiguration));
+	}
+
+	auto make_native_https_anonymous_read_transport_for_test(
+		const validated_github_host_profile&   aProfile,
+		core::github_session_request_context   aContext,
+		const native_https_test_configuration& aConfiguration) noexcept
+		-> native_https_transport_factory_result
+	{
+		if (
+			!application::detail::valid_context(aContext)
+			|| aContext.Profile != aProfile.profile()) {
+			return std::unexpected{
+				native_https_configuration_failure::
+					invalid_bootstrap_context
+			};
+		}
+		if (!anonymous_read_contract_admitted(aProfile)) {
+			return std::unexpected{
+				native_https_configuration_failure::
+					anonymous_read_contract_unsupported
+			};
+		}
+		if (!valid_test_configuration(aConfiguration)) {
+			return std::unexpected{
+				native_https_configuration_failure::
+					invalid_test_configuration
+			};
+		}
+		return make_transport(
+			aProfile,
+			anonymous_read_request{ .Context = aContext },
 			make_test_policy(aConfiguration));
 	}
 #endif

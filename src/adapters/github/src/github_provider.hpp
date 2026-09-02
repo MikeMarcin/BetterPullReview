@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_PROVIDER_HPP
 #define BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_PROVIDER_HPP
 
+#include "github_anonymous_read_admission.hpp"
 #include "github_host_profile.hpp"
 #include "github_wire_transport.hpp"
 
@@ -11,6 +12,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <span>
 
 namespace bpr::adapters::github::detail {
@@ -58,6 +60,29 @@ namespace bpr::adapters::github::detail {
 			const validated_github_host_profile&            aProfile,
 			application::github_credential_retrieve_success aCredential) noexcept
 			-> github_wire_transport_factory_result = 0;
+
+		/// \brief Builds a transport bound to an anonymous read authority.
+		///
+		/// \details Deliberately not pure. A factory that has no anonymous
+		/// form should refuse rather than be forced to invent one, and the
+		/// refusal is the safe default: a provider configured for anonymous
+		/// reads against such a factory sends nothing. There is no credential
+		/// parameter, so no caller can supply material through this entry.
+		[[nodiscard]] virtual auto make_anonymous(
+			const validated_github_host_profile& aProfile,
+			core::github_session_request_context aContext) noexcept
+			-> github_wire_transport_factory_result
+		{
+			static_cast<void>(aProfile);
+			static_cast<void>(aContext);
+			return std::unexpected{ application::github_provider_error{
+				.Failure = application::github_provider_failure::
+					unsupported_capability,
+				.RetryAfterSeconds = std::nullopt,
+				.RateLimits        = { },
+				.RateLimitCause    = std::nullopt,
+			} };
+		}
 	};
 
 	class native_github_wire_transport_factory final
@@ -73,6 +98,11 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto make_account(
 			const validated_github_host_profile&            aProfile,
 			application::github_credential_retrieve_success aCredential) noexcept
+			-> github_wire_transport_factory_result override;
+
+		[[nodiscard]] auto make_anonymous(
+			const validated_github_host_profile& aProfile,
+			core::github_session_request_context aContext) noexcept
 			-> github_wire_transport_factory_result override;
 	};
 
@@ -133,14 +163,18 @@ namespace bpr::adapters::github::detail {
 	make_github_provider(std::span<const validated_github_host_profile> aProfiles,
 						 application::effect_executor&                  aEffects,
 						 std::shared_ptr<github_wire_transport_factory_port>
-							 aTransportFactory) noexcept
+														aTransportFactory,
+						 github_provider_read_authority aReadAuthority
+						 = github_provider_read_authority::authenticated) noexcept
 		-> github_provider_factory_result;
 
 	[[nodiscard]] auto make_github_provider(
 		std::span<const validated_github_host_profile* const> aProfiles,
 		application::effect_executor&                         aEffects,
-		std::shared_ptr<github_wire_transport_factory_port>
-			aTransportFactory) noexcept -> github_provider_factory_result;
+		std::shared_ptr<github_wire_transport_factory_port>   aTransportFactory,
+		github_provider_read_authority                        aReadAuthority
+		= github_provider_read_authority::authenticated) noexcept
+		-> github_provider_factory_result;
 }
 
 #endif // BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_PROVIDER_HPP

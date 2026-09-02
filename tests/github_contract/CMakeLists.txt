@@ -172,6 +172,52 @@ set_tests_properties(
         TIMEOUT 30
 )
 
+# RFC-BPR-0017's anonymous read authority is asked its whole question without a
+# network: the binding's match table, the surfaces that refuse it, and the
+# refusals the factory makes before a transport exists. It runs on every Qt
+# graph because none of it needs a loopback fixture.
+bpr_add_executable(
+    test_better_pull_review_native_https_anonymous_read_tests
+    native_https_anonymous_read_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_native_https_anonymous_read_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        BetterPullReview::Application
+        Qt6::Core
+        Qt6::Network
+        Threads::Threads
+)
+target_include_directories(
+    test_better_pull_review_native_https_anonymous_read_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    test_better_pull_review_native_https_anonymous_read_tests
+    PRIVATE
+        BPR_NATIVE_HTTPS_TESTING=1
+)
+bpr_enable_hardening(
+    test_better_pull_review_native_https_anonymous_read_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_native_https_anonymous_read_tests
+)
+
+bpr_add_network_isolated_test(
+    NAME native_https_anonymous_read_contract
+    COMMAND
+        test_better_pull_review_native_https_anonymous_read_tests
+        --contract
+)
+set_tests_properties(
+    native_https_anonymous_read_contract
+    PROPERTIES
+        TIMEOUT 60
+)
+
 if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_program(
         BPR_TEST_NATIVE_HTTPS_OPENSSL
@@ -218,6 +264,33 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
             TIMEOUT 90
             PASS_REGULAR_EXPRESSION
                 "rfc0017-credential-free-native-https:pass"
+    )
+
+    # RFC-BPR-0017's anonymous read runs against the same loopback CONNECT and
+    # TLS fixture, on the GitHub.com authority the anonymous factory admits. It
+    # carries its own selector because the pass line is the evidence: a REST
+    # read served with no authorization header, and a canary course through the
+    # same fixture proving the header check is live.
+    bpr_add_network_isolated_test(
+        NAME native_https_anonymous_read_fixture
+        LOOPBACK_PORT_COUNT 2
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/verify_native_https_transport.py"
+            --executable
+            "$<TARGET_FILE:test_better_pull_review_native_https_transport_tests>"
+            --openssl
+            "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
+            --suite
+            anonymous_read
+    )
+    set_tests_properties(
+        native_https_anonymous_read_fixture
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 90
+            PASS_REGULAR_EXPRESSION
+                "native-https-anonymous-read-fixture:pass"
     )
 
     bpr_add_network_isolated_test(
@@ -513,6 +586,39 @@ bpr_enable_warnings(test_better_pull_review_github_contract_tests)
 bpr_add_network_isolated_test(
     NAME github_read_contract
     COMMAND test_better_pull_review_github_contract_tests
+)
+
+# RFC-BPR-0017's provider admission, asked without a network: the verdict table
+# over every operation, the refusals that cost zero requests, and the door an
+# eligible read goes through.
+bpr_add_executable(
+    test_better_pull_review_github_anonymous_read_contract_tests
+    github_anonymous_read_contract_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_github_anonymous_read_contract_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        BetterPullReview::Application
+        Qt6::Core
+        Qt6::Network
+        Threads::Threads
+)
+target_include_directories(
+    test_better_pull_review_github_anonymous_read_contract_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+bpr_enable_hardening(
+    test_better_pull_review_github_anonymous_read_contract_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_github_anonymous_read_contract_tests
+)
+
+bpr_add_network_isolated_test(
+    NAME github_anonymous_read_contract
+    COMMAND test_better_pull_review_github_anonymous_read_contract_tests
 )
 
 bpr_add_executable(
