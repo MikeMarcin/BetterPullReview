@@ -385,8 +385,12 @@ namespace {
 	{
 		// Read off the types first. A sweep alone would prove only that the
 		// four values nobody wired up today produce nothing today.
-		using record              = core::agent_observation_record;
-		const auto& [observation] = record{ };
+		using record = core::agent_observation_record;
+		// The binding is named only inside `decltype`, an unevaluated context;
+		// Clang and GCC count that as a use and MSVC does not (C4189 under
+		// warnings-as-errors), so the attribute says so for all three
+		// (BPR-0512).
+		[[maybe_unused]] const auto& [observation] = record{ };
 		static_assert(
 			std::is_same_v<decltype(observation), const core::agent_observation>);
 		static_assert(
