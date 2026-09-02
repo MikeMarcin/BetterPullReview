@@ -1,0 +1,22 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/479439050b23e8fe4415ce6a",
+  "review_gate": "rfc0017_public_preview_definitions",
+  "review_scope": "public_preview_definition_binding_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0312/public-preview-definitions",
+      "subject_digest": "sha256:657e5459996d7e8adc4a64197072da9b624ebdabb592961ee58f16c418a5d5af"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {},
+  "downstream_claims": {
+    "credential_mutation_or_private_read_authorized": false,
+    "implementation_cards_started": false,
+    "platform_enablement_claimed": false,
+    "release_gate_satisfied": false,
+    "rfc_0017_closeout_claimed": false
+  }
+}

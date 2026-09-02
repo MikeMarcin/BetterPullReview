@@ -1,0 +1,145 @@
+{
+  "schema_name": "bpr.rfc0017.public_preview_decision_record",
+  "schema_version": 1,
+  "recorded_at": "2026-09-02T14:17:54+00:00",
+  "validated_commit": "623cd2dd4841bdae52af31c4db7364ab1c67dea2",
+  "validation_command": "python3 scripts/validate_rfc0017_public_preview_decision.py --packet docs/verification/reviews/rfc0017-public-preview-decision-v001/operator-packet.md --response docs/verification/reviews/rfc0017-public-preview-decision-v001/human-verdict.json --require build --output docs/verification/reviews/rfc0017-public-preview-decision-v001/validation-record.json",
+  "required_decision": "build",
+  "decision": "build",
+  "result": "accepted: the owner's exact verdict approves building the measured public-preview mode and binds all four definitions",
+  "batch_id": "bpr:/attended-review/betterpullreview/479439050b23e8fe4415ce6a",
+  "review_gate": "rfc0017_public_preview_definitions",
+  "review_scope": "public_preview_definition_binding_only",
+  "subject_id": "decision:/betterpullreview/bpr-0312/public-preview-definitions",
+  "subject_digest": "sha256:657e5459996d7e8adc4a64197072da9b624ebdabb592961ee58f16c418a5d5af",
+  "reviewed_packet": {
+    "path": "docs/verification/reviews/rfc0017-public-preview-decision-v001/operator-packet.md",
+    "sha256": "sha256:66a366dbbeb25c04b30cd4cea1447a735e44f39ff16a829384e5d75f7a3d1f7e",
+    "byte_length": 16322
+  },
+  "response": {
+    "path": "docs/verification/reviews/rfc0017-public-preview-decision-v001/human-verdict.json",
+    "sha256": "sha256:142bf1b109057c53999984f1ca9fe500a1267b548220361429afc8e8e4f3782e",
+    "byte_length": 809
+  },
+  "review_manifest": {
+    "path": "docs/verification/reviews/rfc0017-public-preview-decision-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:e9f18df8b10def3737028a00d68d5294b7bae91ddeead9983086a4bf9f2bcb7d",
+    "byte_length": 12352
+  },
+  "validator": {
+    "path": "scripts/validate_rfc0017_public_preview_decision.py",
+    "sha256": "sha256:959ec8d155a7fdff86d4b18e3c199ea6b80064eaa8851297f89cec09fd87893b",
+    "byte_length": 35749
+  },
+  "response_note": "",
+  "definitions": [
+    {
+      "key": "public_preview_name",
+      "term": "Public-preview name",
+      "question": "What is the mode called wherever the product names it?",
+      "proposed": "“Public preview”, with “signed out” stated beside it wherever the mode is named — the profile selector, the window title, and the workbench header all read “Public preview — signed out”. It is never presented as the authenticated workbench with fields missing.",
+      "bound": "“Public preview”, with “signed out” stated beside it wherever the mode is named — the profile selector, the window title, and the workbench header all read “Public preview — signed out”. It is never presented as the authenticated workbench with fields missing.",
+      "source": "packet"
+    },
+    {
+      "key": "limit_presentation",
+      "term": "Limit presentation",
+      "question": "How are the shared hourly budget, and the things the preview cannot do, presented?",
+      "proposed": "Not a persistent bar. A small ring indicator in the workbench fills as the shared hourly core budget is consumed, in the manner of Claude Desktop’s usage ring. Hovering it shows a tooltip carrying the consumed fraction and the reset time — “32% of the hourly limit · Resets in 3 hr 4 min” — and, in that same tooltip, what the preview cannot do: GitHub.com only, no review threads, no triage or publishing. A conditional request answered 304 spends one unit like any other, so the ring moves on refresh. Budget exhaustion is a typed refusal naming the limit and the reset time, never a network or authentication error.",
+      "bound": "Not a persistent bar. A small ring indicator in the workbench fills as the shared hourly core budget is consumed, in the manner of Claude Desktop’s usage ring. Hovering it shows a tooltip carrying the consumed fraction and the reset time — “32% of the hourly limit · Resets in 3 hr 4 min” — and, in that same tooltip, what the preview cannot do: GitHub.com only, no review threads, no triage or publishing. A conditional request answered 304 spends one unit like any other, so the ring moves on refresh. Budget exhaustion is a typed refusal naming the limit and the reset time, never a network or authentication error.",
+      "source": "packet"
+    },
+    {
+      "key": "sign_in_handoff",
+      "term": "Sign-in handoff",
+      "question": "How does the preview hand off to signing in?",
+      "proposed": "The RFC-BPR-0016 device authorization flow is offered from the ring’s tooltip and from every refusal — budget exhausted, review threads unavailable, and any triage or publishing attempt — and returns to the same pull request after sign-in.",
+      "bound": "The RFC-BPR-0016 device authorization flow is offered from the ring’s tooltip and from every refusal — budget exhausted, review threads unavailable, and any triage or publishing attempt — and returns to the same pull request after sign-in.",
+      "source": "packet"
+    },
+    {
+      "key": "supported_platform_policy",
+      "term": "Supported-platform policy",
+      "question": "Which platforms and profiles does the preview support?",
+      "proposed": "All three desktop platforms — macOS, Linux, and Windows x64 — because the preview needs no credential store. GitHub.com public repositories only; every GHES profile stays unavailable and sends zero requests. The sign-in handoff is shown only where device authorization is enabled on that platform: macOS and Linux today, since BPR-0310 is terminal, and Windows once BPR-0311 — now ready on the Windows lane — is terminal too.",
+      "bound": "All three desktop platforms — macOS, Linux, and Windows x64 — because the preview needs no credential store. GitHub.com public repositories only; every GHES profile stays unavailable and sends zero requests. The sign-in handoff is shown only where device authorization is enabled on that platform: macOS and Linux today, since BPR-0310 is terminal, and Windows once BPR-0311 — now ready on the Windows lane — is terminal too.",
+      "source": "packet"
+    }
+  ],
+  "probe_evidence": [
+    {
+      "path": "docs/verification/reviews/rfc0017-anonymous-probe-v001/captures/rate-limit.json",
+      "sha256": "sha256:9b52844edae8de5cd728ed59a7f205a0b432a7c1418953d8d94bc1e3adc41e76",
+      "byte_length": 1119
+    },
+    {
+      "path": "docs/verification/reviews/rfc0017-anonymous-probe-v001/captures/graphql-refusal.json",
+      "sha256": "sha256:67def7232c8fff7413238dca7181879539dda26cdc42cd0f832eb90e112094bd",
+      "byte_length": 986
+    },
+    {
+      "path": "docs/verification/reviews/rfc0017-anonymous-probe-v001/captures/pull-request.json",
+      "sha256": "sha256:0f0737d8572f16cb77cd6a7d6c8734cd69adf15d37de73567e83d7b33316445f",
+      "byte_length": 17077
+    },
+    {
+      "path": "docs/verification/reviews/rfc0017-anonymous-probe-v001/captures/pull-request-comments.json",
+      "sha256": "sha256:dd16dd6948458db8bc12c20e4882a4d78d93952ae0df4cd08c011898a5ddae7d",
+      "byte_length": 3402
+    },
+    {
+      "path": "docs/verification/reviews/rfc0017-anonymous-probe-v001/captures/absent-not-disclosed.json",
+      "sha256": "sha256:2d7e0b9088acd8c6763ab541b56ac6ea8f69676d6d7bc56dd076e664f05ddc0e",
+      "byte_length": 864
+    },
+    {
+      "path": "docs/verification/reviews/rfc0017-anonymous-probe-v001/capture-bindings.json",
+      "sha256": "sha256:a54477d9f4181a8c088db5ed530c4eef5eb1c09976bb9e0edd8df31ab893baab",
+      "byte_length": 1986
+    },
+    {
+      "path": "docs/verification/reviews/rfc0017-anonymous-probe-v005/captures/pull-request-fresh.json",
+      "sha256": "sha256:7f99c19116ccc892a4a0b5a435bd8d5b51357e067509f508e6111d3e514bb290",
+      "byte_length": 17083
+    },
+    {
+      "path": "docs/verification/reviews/rfc0017-anonymous-probe-v005/captures/pull-request-conditional.json",
+      "sha256": "sha256:3f9006250099e9c294da28a8b24b460b8a2d67a1c7b6299dd3c09f2df55e2424",
+      "byte_length": 856
+    },
+    {
+      "path": "docs/verification/reviews/rfc0017-anonymous-probe-v005/capture-bindings.json",
+      "sha256": "sha256:a1bc0c7fb42aa2e2ea161601f2479f52b97129f41709457351fb3280dbbde986",
+      "byte_length": 832
+    }
+  ],
+  "decision_evidence": [
+    {
+      "path": "docs/verification/reviews/run-boundary-decisions-v001/human-verdict.json",
+      "sha256": "sha256:e46474c5ae2856541c592c5513ef8c64b56c2f97f37913f0734f674fdac762fb",
+      "byte_length": 1789
+    },
+    {
+      "path": "docs/verification/reviews/run-boundary-decisions-v001/verdict-validation.json",
+      "sha256": "sha256:62d955fe44e4adcec9360374aa4730a3275a1ae972bf6691c7f2943c7a349ddd",
+      "byte_length": 2700
+    }
+  ],
+  "downstream_claims": {
+    "credential_mutation_or_private_read_authorized": false,
+    "implementation_cards_started": false,
+    "platform_enablement_claimed": false,
+    "release_gate_satisfied": false,
+    "rfc_0017_closeout_claimed": false
+  },
+  "claims": {
+    "bpr_0312_positive_build_gate_satisfied": true,
+    "public_preview_definitions_bound": true,
+    "rfc_0017_closeout_claimed": false,
+    "implementation_cards_started": false,
+    "credential_mutation_or_private_read_authorized": false,
+    "platform_enablement_claimed": false,
+    "release_gate_satisfied": false
+  }
+}

@@ -1,7 +1,7 @@
 ---
 id: BPR-0312
 title: Validate the positive anonymous-preview build decision
-status: In Progress
+status: Done
 rfc: RFC-BPR-0017
 depends_on: [BPR-0299]
 ---
@@ -93,3 +93,37 @@ Until that verdict arrives this card is not satisfied, the ledger's positive
 build approval stays `Pending`, and [[BPR-0300]] onward stay
 dependency-blocked. A rejection is a recordable answer, not a failure: it is
 recorded as evidence and leaves this gate unresolved.
+
+## Validated — 2026-09-02
+
+The owner's verdict arrived and was saved byte-preserved as
+`docs/verification/reviews/rfc0017-public-preview-decision-v001/human-verdict.json`:
+the one subject accepted, no subject rejected, an empty note, and every
+downstream claim `false`. An empty note binds the packet's proposed text, and
+the packet's proposed text was written from the owner's own answers given
+before it was presented — the suggested names, "a ring that fills up with a
+tooltip ala claude desktop's usage", the suggested handoff, and the suggested
+platform policy — so the four bound definitions are the owner's words twice
+over, not an agent's defaults accepted by silence.
+
+The validator accepted it on the first run and again with nothing written.
+The record binds the subject digest, the response bytes, the packet the owner
+saw, the review manifest, the validator itself, the nine probe captures, the
+two [[BPR-0299]] decision artifacts, all four definitions with their source,
+and the validated commit. `claims.bpr_0312_positive_build_gate_satisfied` is
+`true`; every other claim in the record is `false`, as the packet promised: no
+credential, private read, mutation, release, platform flip, or closeout was
+granted here.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The verdict is byte-exact, affirmative, and bound with the definitions | the ledger command: `python3 scripts/validate_rfc0017_public_preview_decision.py --packet … --response … --require build --output …validation-record.json` | exit 0: `RFC0017_PUBLIC_PREVIEW_DECISION_RECORDED:build`, `RFC0017_PUBLIC_PREVIEW_DEFINITIONS_BOUND:4`, `RFC0017_PUBLIC_PREVIEW_EVIDENCE_BOUND:11` | this commit |
+| Revalidation writes nothing and agrees | the same command with `--validate-existing` | exit 0: `RFC0017_PUBLIC_PREVIEW_DECISION_VALID:build`, `DEFINITIONS_BOUND:4`, `EVIDENCE_BOUND:11`; the record's bytes unchanged | this commit |
+| The record binds what the card required | `validation-record.json` | `decision: build`, `validated_commit: 623cd2dd`, subject digest `657e5459…a5d5af`, response sha256 `142bf1b1…f3782e` (809 bytes), 4 definitions all `source: packet`, 9 probe and 2 decision evidence files by digest, `downstream_claims` all `false` | this commit |
+| The tree's documentation, packet, and issue-graph contracts hold | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | this commit |
+| No whitespace damage | `git diff --check` | clean | this commit |
+
+Consequences applied in this commit: the ledger's positive-approval row is
+Verified and its decision row records the build decision as taken; the RFC
+index says implementation may start; [[BPR-0300]] and [[BPR-0301]], whose
+only other dependency is the terminal [[BPR-0035]], move to `20-ready/`.
