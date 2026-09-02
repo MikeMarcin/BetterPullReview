@@ -2,7 +2,7 @@
 
 RFC base: `91e6b7044ced7b73af6a1d1993c9ed97f4f6b2d4`
 
-Status: **semantic palette customization, safe local import, and the recorded
+Status: **RFC-BPR-0006 is `Auto-Verified` as of 2026-09-01; the closeout record is on BPR-0115 and in the Closeout section at the end of this ledger. Before that: semantic palette customization, safe local import, and the recorded
 UIforETW comparison now reach the real selected-file path; the final-head
 native appearance observation is returned, while its measured zero-rebuild
 expectation repair and other attended gates remain open.** BPR-0181
@@ -392,25 +392,17 @@ mutation, a credential, or a network service at runtime. The one build-time
 network need is the first CPM fetch of the pinned sources, after which the
 cache serves offline configures.
 
-## Closeout blockers
+## Closeout
 
-RFC-BPR-0006 cannot become `Auto-Verified` until RFC-BPR-0005 is, which
-requires RFC-BPR-0004, RFC-BPR-0003, and RFC-BPR-0002, and therefore real
-Windows x64 evidence.
-
-The composition half of that block is now clear: BPR-0181 through BPR-0185 are
-all in `done/`, and the composed application reports its own composition at
-runtime rather than being read off a symbol table. BPR-0236 additionally proves
-the same host, profile-to-window, and syntax-to-pane path under exact appearance
-store-open failure, with a separate process proving session changes do not
-survive as false durable state. BPR-0114 has been run against the final-head
-native executable and its two headline behavior claims hold. The frontmost
-owner-return path is now directly observed, but the attributable zero
-geometry-rebuild delta fails the probe's former exact-one expectations.
-BPR-0220's exact-zero repair is complete and owner-accepted, so BPR-0114 is no
-longer waiting on it.
-
-BPR-0115 therefore stays in `backlog/` and makes no closure claim, but its
-autonomous preparation — replaying the claim matrix against the composed
-application and resolving the documentation ledger — is no longer blocked. The
-terminal transition remains blocked by BPR-0114 and by closure ordering.
+RFC-BPR-0006 is **`Auto-Verified` as of 2026-09-01**. The ordered chain
+closed first (RFC-BPR-0002 through RFC-BPR-0005, by 2026-08-29). The
+automated rows replayed 18/18 on BPR-0115 at `cc17d703`; the terminal
+attended row is the owner-accepted v008 observation, accepted as terminal on
+2026-09-01 in `run-boundary-decisions-v001` rather than re-sat, because no
+appearance-path source changed since 2026-08-21 and the owner had asked that
+no redundant digest-only rerun be required; the colour-independence row rests
+on `core_appearance_contrast` plus the accepted attended batches in the
+history above. The composition audit (`composed_application_hosts`) passed
+in the same replay. Independent review was not selected for the closeout
+diff and is recorded as an omitted optional lane. The complete record is on
+[BPR-0115](../issues/60-done/BPR-0115-close-rfc-0006.md).

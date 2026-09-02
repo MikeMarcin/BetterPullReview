@@ -36,7 +36,7 @@ before every listed dependency is `Auto-Verified`.
 | [RFC-BPR-0003](RFC-BPR-0003-git-cache-pr-identity-review-epochs.md) | Local Git Cache, Pull Request Identity, and Review Epochs | Auto-Verified | RFC-BPR-0001, RFC-BPR-0002 |
 | [RFC-BPR-0004](RFC-BPR-0004-diff-computation-line-mapping-grouping.md) | Diff Computation, Correspondence Mapping, Grouping, and Alignment-Space Scrolling | Auto-Verified | RFC-BPR-0003 |
 | [RFC-BPR-0005](RFC-BPR-0005-native-workbench-virtualized-review-surface.md) | Native Workbench Shell and Virtualized Review Surface | Auto-Verified | RFC-BPR-0004 |
-| [RFC-BPR-0006](RFC-BPR-0006-syntax-highlighting-themes-appearance.md) | Syntax Highlighting, Themes, Fonts, and Appearance Profiles | Proposed | RFC-BPR-0005 |
+| [RFC-BPR-0006](RFC-BPR-0006-syntax-highlighting-themes-appearance.md) | Syntax Highlighting, Themes, Fonts, and Appearance Profiles | Auto-Verified | RFC-BPR-0005 |
 | [RFC-BPR-0007](RFC-BPR-0007-local-review-ledger-actionability.md) | Local Review Ledger, File and Conversation Receipts, and Actionability | Proposed | RFC-BPR-0003, RFC-BPR-0005 |
 | [RFC-BPR-0008](RFC-BPR-0008-github-review-round-trip-interactions.md) | GitHub Review Synchronization and Round-Trip Interactions | Proposed | RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007 |
 | [RFC-BPR-0009](RFC-BPR-0009-defect-fix-verification-workflow.md) | Defect Classification, Fix Claims, and Verification | Proposed | RFC-BPR-0008 |
@@ -59,7 +59,7 @@ closeout, and remain deferred until their eligibility gates exist:
 |---|---|---|---|
 | [RFC-BPR-0015](future/RFC-BPR-0015-github-cli-production-enablement.md) | GitHub CLI Production Enablement | Deferred | RFC-BPR-0014 closed and official `gh` supplies the required safety contract |
 | [RFC-BPR-0016](future/RFC-BPR-0016-github-device-authorization-flow.md) | GitHub Device Authorization Flow | Deferred | The recorded narrow exception permits implementation/hermetic verification after its application identity and real-contract gates; RFC-BPR-0002 closeout remains mandatory before this RFC can close |
-| [RFC-BPR-0017](future/RFC-BPR-0017-unauthenticated-public-review-read.md) | Unauthenticated Public Review Read | Deferred | RFC-BPR-0002 closed, recorded anonymous-access probe evidence, and a product decision that the mode is wanted |
+| [RFC-BPR-0017](future/RFC-BPR-0017-unauthenticated-public-review-read.md) | Unauthenticated Public Review Read | Proposed | Eligible since 2026-09-01: RFC-BPR-0002 is Auto-Verified, BPR-0298 recorded the anonymous-access probe evidence, and the product owner decided to build (BPR-0299); BPR-0312 binds the name, limit presentation, sign-in handoff, and platform policy before implementation starts |
 | [RFC-BPR-0018](future/RFC-BPR-0018-robust-settings-center.md) | Robust Settings Center and Preference Ownership | Deferred | RFC-BPR-0014 closed or an explicit post-pack frontier exception, plus a complete existing-setting authority and persistence inventory |
 | [RFC-BPR-0019](future/RFC-BPR-0019-dif-visual-identity-sprite-assets.md) | Dif Visual Identity, Sprite Assets, and Animation Contract | Deferred | RFC-BPR-0006 and RFC-BPR-0013 closed, RFC-BPR-0014 closed or an explicit post-pack frontier exception, and confirmed asset ownership/provenance |
 | [RFC-BPR-0020](future/RFC-BPR-0020-animated-dif-mascot-qt-composition.md) | Animated Dif Mascot Qt Presentation and Workbench Composition | Deferred | RFC-BPR-0019 closed, its live appearance/workbench/resource paths inventoried, and RFC-BPR-0014 closed or an explicit post-pack frontier exception |

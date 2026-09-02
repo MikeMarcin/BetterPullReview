@@ -1,7 +1,7 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449]
 ---
@@ -994,3 +994,17 @@ distributable identity required for production selection. BPR-0256 therefore
 returns to `10-backlog/` with BPR-0318 as its transitive login-flow prerequisite.
 It must not request another live-publication approval until that dependency is
 Done and a successor packet binds the resulting authentication path.
+
+## Lane — 2026-09-01
+
+[[BPR-0318]] is done, so the login-flow prerequisite this card returned to
+`10-backlog/` for is met: the macOS Release artifact selects the recorded
+production client and the device flow is the shipped authentication path.
+The next action is unattended macOS work — a v007 regeneration of the capsule,
+source manifest, approval subject, and packet from committed source that binds
+the device-authorization login path, followed by a fresh capability-critical
+review — so the card moves to `22-ready-mac/`. It is deliberately sequenced
+after the portable slices that can still change bound `src/app` sources, since
+every one of them would invalidate a regenerated packet. The terminal
+requirement is unchanged: one exact attended operator decision, then the live
+lane against the now-public `MikeMarcin/BPR-Test#1`.

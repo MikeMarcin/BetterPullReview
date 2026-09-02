@@ -81,13 +81,15 @@
       "generator": "Visual Studio 18 2026",
       "architecture": "x64",
       "binaryDir": "${sourceDir}/build/windows-dev",
+      "description": "Multi-config Visual Studio graph. CMAKE_CONFIGURATION_TYPES names only the configurations the tree selects; the syntax provider builds its dependency once per entry, and Visual Studio's four-entry default made it build MinSizeRel, which does not compile and which nothing consumes (BPR-0495).",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Windows"
       },
       "cacheVariables": {
-        "BPR_BUILD_QT": "ON"
+        "BPR_BUILD_QT": "ON",
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
       }
     },
     {

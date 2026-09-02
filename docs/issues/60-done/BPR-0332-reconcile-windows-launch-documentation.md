@@ -1,7 +1,7 @@
 ---
 id: BPR-0332
 title: Reconcile the Windows launch documentation with the shipped dispatch
-status: Backlog
+status: Done
 rfc: RFC-BPR-0011
 depends_on: [BPR-0240]
 ---
@@ -157,3 +157,40 @@ dispatch remains the product owner's, and option 1's original rationale —
 fail closed until target-native proof exists — should now be weighed against
 that proof existing. This card stays in `10-backlog/` behind open
 [[BPR-0240]].
+
+## Parked on the product decision — 2026-09-01
+
+[[BPR-0240]] closed today with the Windows backend proven target-native, so
+every dependency is done and the only missing input is the choice this card
+has always carried: restore the pre-start refusal, or document the shipped
+dispatch. It is presented as a choose-one subject in
+`docs/verification/reviews/run-boundary-decisions-v001/offline-package/index.html`
+(group `windows-launch-documentation`). Whichever alternative is chosen, the
+documentation half is portable and this card returns to `20-ready/`; a restored
+guard additionally needs its Windows-only failing-without-it test on the
+Windows station.
+
+## Decided and closed — 2026-09-01
+
+The product owner chose option 2, documenting the shipped dispatch, on the
+`run-boundary-decisions-v001` page (batch
+`bpr:/attended-review/betterpullreview/c7e77830ef4fa92c6047c99b`, subject
+`decision:/betterpullreview/bpr-0332/document-the-shipped-dispatch`
+accepted, the restore-the-guard alternative recorded as not chosen; the
+validated verdict and record are beside the page).
+
+The six statements now say what is true. `docs/verification/RFC-BPR-0011.md`'s
+status paragraph and its "Not delivered" bullet describe the suspended-create,
+assign, resume backend and its 2026-08-26/27 target-native proof instead of a
+refusal; `docs/architecture/ai-agent-boundary.md`'s lifecycle paragraph and
+its "What is not claimed" clause do the same; and the evidence row that cited
+a success-ending test as proof of refusal now names the two Job Object tests
+for the claim they actually support. Every `Known false at HEAD` banner
+[[BPR-0401]] placed is gone with the falsehoods it marked. No source changed,
+so no Windows runtime property is claimed beyond BPR-0240's record.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| No document asserts a Windows pre-start refusal | `grep -rn 'refuses Windows launch\|refuses before .QProcess::start\|Known false at HEAD' docs/verification/RFC-BPR-0011.md docs/architecture/ai-agent-boundary.md` | no matches | this commit |
+| The evidence row supports its claim | the row now names `test_windows_assignment_failure_has_no_pre_assignment_side_effect` and `test_timeout_terminates_the_descendant_process_tree` for the containment claim | by inspection | this commit |
+| The documentation gate holds | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | this commit |

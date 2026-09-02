@@ -218,6 +218,29 @@ set_tests_properties(
         TIMEOUT 60
 )
 
+# The negative control for the absence half. This graph's application is
+# tests-enabled and links the `BPR_NATIVE_HTTPS_TESTING` factories, so the
+# scan that must pass against a shipped artifact must fail against it, naming
+# the test-seam factory. A scan that could pass here would pass against
+# anything (BPR-0451). The core-only graph has no application to scan.
+if(TARGET app_better_pull_review)
+    bpr_add_network_isolated_test(
+        NAME rfc0017_release_absence_negative_control
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/scripts/verify_rfc0017_test_inventory.py"
+            --release-binary
+            "$<TARGET_FILE:app_better_pull_review>"
+    )
+    set_tests_properties(
+        rfc0017_release_absence_negative_control
+        PROPERTIES
+            PASS_REGULAR_EXPRESSION
+                "symbol present in release binary: make_native_https_credential_free_transport_for_test"
+            TIMEOUT 120
+    )
+endif()
+
 # Same split as above, for the same reason. The inventory half runs in every
 # configured graph and anchors itself on whether Qt and the loopback fixture
 # were built; the shipped-artifact scan needs a tests-disabled Release build

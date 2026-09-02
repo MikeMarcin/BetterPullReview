@@ -15,20 +15,13 @@ terminal classification, and exactly-once teardown while each backend retains
 only its native process primitives.
 BPR-0247 connects the real workbench gesture through core policy, the retained
 Git actor, exact-head workspace, local hostile child, typed projection,
-cancellation/staleness, and exact cleanup. Windows launch remains disabled
-before process start until safe pre-start descendant containment is proved
-target-native.
-
-> **Known false at HEAD.** The sentence above, and every other statement in this
-> ledger asserting a Windows pre-start refusal, stopped being true at `c6f3d96`,
-> which replaced the refusal with a dispatch into `windows_agent_process.cpp` —
-> a translation unit since compiled under MSVC. BPR-0332 owns the documentation
-> resolution of those refusal statements, and no pre-start-refusal claim should
-> be relied on until it closes. The lifecycle half has since converted: on
-> 2026-08-26/27 the full canary and all five composed agent courses ran green
-> target-native, so the Windows success and containment records in this ledger
-> now rest on BPR-0240's recorded runs; BPR-0245's final closeout replay has
-> not yet consumed them. Marked by BPR-0401.
+cancellation/staleness, and exact cleanup. Windows launches through the
+private WIN32 backend (suspended create, Job Object assignment, then resume);
+its lifecycle and descendant containment ran green target-native on
+2026-08-26/27 and rest on BPR-0240's recorded runs, which the 2026-09-01
+focused replay on BPR-0245 joined on the portable side. No pre-start refusal
+exists on Windows; BPR-0332 recorded the product owner's choice to document
+the shipped dispatch rather than restore one.
 
 BPR-0250 adds the bounded immutable session catalog and the
 reviewer control that explicitly selects opaque note IDs and the current draft
@@ -261,18 +254,13 @@ Named rather than left for a reader to infer from silence:
   was run and no live compatibility claim is made. An installed Codex or
   corporate Claude harness remains optional extra validation, not a gate.
   Findings, chat, and MCP helpers remain RFC-BPR-0012 scope.
-- **No Windows agent launch.** `QProcess` cannot assign a Job Object before
-  start, and post-start assignment permits descendant escape. The adapter
-  refuses before `QProcess::start`; a suspended-create/assign/resume design and
-  target-native proof remain required before Windows launch can be claimed.
-  **Known false at HEAD:** the adapter no longer refuses. `c6f3d96` replaced
-  that branch with a dispatch into `windows_agent_process.cpp`, which compiles
-  under MSVC and, as of 2026-08-26/27, passes the full target-native canary
-  including the Job Object and descendant-containment courses — the
-  suspended-create/assign/resume design this bullet asks for is the one the
-  backend implements, and its proof is recorded in BPR-0240's dated sections.
-  The stated refusal mechanism is still not the shipped one; BPR-0332 owns
-  reconciling this bullet. Marked by BPR-0401.
+- **No Windows launch through `QProcess`.** `QProcess` cannot assign a Job
+  Object before start, and post-start assignment permits descendant escape, so
+  Windows launches only through `windows_agent_process.cpp`: suspended create,
+  Job Object assignment, then resume, with the order pinned in source. That is
+  the delivered design, not a deferral; its target-native proof is BPR-0240's
+  2026-08-26/27 record, and there is no pre-start refusal to document
+  (BPR-0332).
 - **No agent output/result/private-prose persistence.** The bounded catalog
   stores only immutable session/profile/revision metadata. Stream, terminal,
   findings, chat, and MCP lifecycle persistence remain RFC-BPR-0012 scope.

@@ -1,7 +1,7 @@
 ---
 id: BPR-0240
 title: Complete agent context and process lifecycle semantics
-status: Backlog
+status: Done
 rfc: RFC-BPR-0011
 depends_on: [BPR-0238]
 ---
@@ -387,3 +387,16 @@ closeout replay consuming its six cited procedure rows, which is the closeout
 card's work — the lane that says "waiting on another card". [[BPR-0036]] and
 [[BPR-0053]] waited out the same rule in the same lane before their RFCs'
 closeouts consumed them on 2026-08-28.
+
+## Closed — 2026-09-01
+
+The only reason this card stayed open was a documentation-gate rule that no
+longer exists: `scripts/verify_documentation.py` now checks the light
+closeout contract (RFC base, one row per criterion) and no longer requires a
+closeout card's cited procedures to stay open until replay. Every required
+final state above has direct evidence — the version-two supplement and
+four-protocol lifecycle on the portable surface, and the Job Object,
+descendant-containment, and five-course conversion target-native on Windows
+(2026-08-26/27). The 2026-09-01 macOS focused replay recorded on [[BPR-0245]]
+reran the whole agent selector set at 16/16. [[BPR-0332]] keeps the
+documentation decision; [[BPR-0245]] keeps the closeout.

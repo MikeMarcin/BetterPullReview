@@ -39,8 +39,8 @@ station; never reuse a name for a different checkout.
 | Station name | Machine | Environment | Workstream | Branch | Status |
 |---|---|---|---|---|---|
 | `bpr-main-mac` | MacBook Pro | macos | main (integrator) | `main` | provisioned 2026-08-29 under the v1 station file; relaunch through the v2 launcher before dispatching through Codex |
-| `bpr-win-jaegaw` | JaegAW | windows-native | win | `windows-lane` | launched 2026-08-29 (`--read-only`, v1); station file written and writer lease taken, but **the name does not bind** — see [[BPR-0491]] |
-| `bpr-linux-jaegaw` | JaegAW (WSL2) | wsl2 | linux | `linux-lane` | **unprovisioned** — host still runs free-text sessions |
+| `bpr-win-jaegaw` | JaegAW | windows-native | win | `windows-lane` | relaunched 2026-09-01 under v2 with `lane-commit` and the writer lease, but with the server form the launcher used until [[BPR-0491]]: **no session exists**; relaunch once through the corrected launcher |
+| `bpr-linux-jaegaw` | JaegAW (WSL2) | wsl2 | linux | `linux-lane` | relaunched 2026-09-01 under v2 with `lane-commit` and the writer lease, same server-form launch: **no session exists**; relaunch once through the corrected launcher |
 
 The station file format changed to `implement-rfc.remote-station.v2` on
 2026-09-01 (workstream instead of role, plus the Codex task and Claude session
@@ -49,33 +49,41 @@ its `station_id` on relaunch; until then the Codex hook guard
 (`.codex/hooks.json`) stays inactive for that checkout and says so on stderr,
 because a v1 file carries no Codex task binding to enforce.
 
-A row is aspirational until its host is relaunched through
-`scripts/launch_remote_station.py` and the name shows up bound in a peer's
-agent list: dispatch to an unbound name resolves to a silent auto-variant and
-misroutes rather than failing loudly.
+A row is real once its host is launched through
+`scripts/launch_remote_station.py` and the name shows up, bare and exact, in
+a peer's agent list — which now happens at launch. The launcher runs the
+interactive form, `claude --remote-control <station>`: the running process is
+the served session, so the name binds the moment the supervisor starts and
+nobody has to open anything. Until 2026-09-01 it ran the `claude
+remote-control --spawn session` server instead, and every mode of that
+server creates its session only when a controller connects — so every
+station launched before the fix sat at "Ready" with an environment URL and
+no session, absent from every peer list, and the 2026-08-29 launch of
+`bpr-win-jaegaw` was that state misread as a registration failure. The
+same-launcher control group that settled it, and the four flag probes that
+found the working form, are on [[BPR-0491]]. A station launched before the
+fix is relaunched once through the corrected launcher; nothing else changes.
 
-That check has never once succeeded, and 2026-08-29 is when that stopped
-being a theory. `bpr-win-jaegaw` launched cleanly — station file written,
-writer lease taken, Remote Control serving — and its name never appeared in
-the `bpr-main-mac` peer list. The Windows host could not see `bpr-main-mac`
-either. The station was reached only by probing the one JaegAW session that
-was visible, under the auto-generated name `jaegaw-shiny-fox`, which turned
-out to be a hand-started CLI session rather than the launcher's.
+Dispatch is not the silent misroute this document once feared. Sending to a
+name that no live session carries is refused loudly (`No agent named
+'bpr-win-jaegaw' is reachable`), so the pre-send check is the peer list
+itself: a station name is dispatchable exactly when it appears there, bare
+and exact. Two cautions survive:
 
-Two things follow, and until [[BPR-0491]] resolves them, dispatch here is by
-hand-pasted envelope or by probing an auto-named session and confirming its
-identity before sending anything binding.
-
-- A visible name is not evidence of which process it is. Confirm identity by
-  asking for `.remote-station.json`, the toplevel, the branch, and `HEAD`
-  before dispatching, and treat the answer as identifying the *checkout*.
+- A visible name is not evidence of which process it is. Before sending
+  anything binding, ask for `.remote-station.json`, the toplevel, the branch,
+  and `HEAD`, and treat the answer as identifying the *checkout*. A
+  hand-started session in another checkout on the same machine appears under
+  an auto-generated name (`jaegaw-shiny-fox`, `jaegaw-curried-spark`) and
+  will answer.
 - `.remote-station.json` lives at the checkout root, so every session opened
   in that directory reads it and answers as that station — including one the
-  launcher never wrapped and the writer lease cannot see. Launching
-  `--read-only` is what bounds that today: it holds such a session to
-  read-only work no matter what it believes it is. Retire the current free-text sessions
-("BPR windows scope routing", "BPR linux work") as their stations come up.
-Add machine suffixes as soon as one platform exists on two machines.
+  launcher never wrapped and the writer lease cannot see. Only the session
+  the launcher spawned holds the lease; an unwrapped session in a
+  `lane-commit` checkout must not edit it.
+
+Retire the free-text sessions as their stations come up. Add machine suffixes
+as soon as one platform exists on two machines.
 
 Same-machine wrinkle: a station's `--name` is its cross-machine and
 claude.ai/code identity, but peers on the *same* machine see the pre-created
@@ -105,21 +113,28 @@ authoritative everywhere else, and the station file is authoritative always.
 
 3. **Claude settings.** On each worker machine, set
    `"crossSessionInbound": "accept"` in `~/.claude/settings.json`, and remove
-   any stale `"remoteControlSpawnMode": "same-dir"` from the project entries
-   in `~/.claude.json` (the launcher passes `--spawn session` explicitly, but
-   the stale value should not survive to confuse a manual launch).
+   any stale `"remoteControlSpawnMode"` from the project entries in
+   `~/.claude.json` (the launcher's interactive form does not read it, but
+   the stale value should not survive to confuse a manual server launch).
 
 4. **Launch.** From the station checkout, with the host's own Python —
    `py -3` in a native-Windows shell (PowerShell or cmd), `python3`
    everywhere else:
 
    ```sh
-   py -3 scripts/launch_remote_station.py win --machine jaegaw --read-only
-   python3 scripts/launch_remote_station.py linux --machine jaegaw --read-only
+   py -3 scripts/launch_remote_station.py win                # native Windows station
+   python3 scripts/launch_remote_station.py linux            # WSL2 or Linux station
    python3 scripts/launch_remote_station.py main             # the integrator itself
    py -3 scripts/launch_remote_station.py win --continue     # reattach after restart
    python3 scripts/launch_remote_station.py linux --no-server # Codex: provision only
    ```
+
+   That is the whole command. Two options exist for cases this project does
+   not currently have: `--machine <suffix>` when the same platform runs on
+   more than one machine (the JaegAW stations were registered with
+   `--machine jaegaw` before that rule was read closely; keep passing it for
+   them so their names stay stable), and `--read-only` for a checkout with
+   no push credential for its station branch.
 
    The launcher refuses a wrong repository, wrong branch, or a
    platform-bound workstream that does not match the host (WSL2 counts as
@@ -202,8 +217,8 @@ proposed `Auto-Verified` status on `main`.
 Deferred from local verification; run once per newly provisioned machine:
 
 - the station credential pushes its station branch and is refused on `main`;
-- the station appears in another machine's agent list under its exact name
-  (no auto-variant suffix);
+- at launch, with no controller connected, the station appears in another
+  machine's agent list under its exact name (no auto-variant suffix);
 - a well-formed envelope is accepted and a mismatched one refused by name;
 - the mobile app can drive the station;
 - `--continue` reattaches after a reboot with the same station identity;

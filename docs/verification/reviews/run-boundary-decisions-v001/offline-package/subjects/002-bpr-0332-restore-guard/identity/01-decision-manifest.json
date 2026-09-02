@@ -1,0 +1,320 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Run-boundary product decisions (RFC-BPR-0006, RFC-BPR-0011, RFC-BPR-0017)",
+  "review_gate": "run_boundary_product_decisions",
+  "review_scope": "product_owner_choose_one_decisions_only",
+  "downstream_claims": {
+    "rfc_0006_closeout_claimed": false,
+    "rfc_0011_closeout_claimed": false,
+    "rfc_0017_eligibility_claimed": false,
+    "windows_launch_behavior_changed": false,
+    "release_gate_satisfied": false
+  },
+  "reference_disclaimer": "Each group is one question with alternatives; accepting one alternative records the others as not chosen, not as defective. RFC text and the board outrank this page's summaries.",
+  "selection_groups": [
+    {
+      "group_id": "windows-launch-documentation",
+      "title": "BPR-0332: what should be true about Windows agent launch?",
+      "min_accept": 1,
+      "max_accept": 1
+    },
+    {
+      "group_id": "anonymous-public-preview",
+      "title": "BPR-0299: build anonymous public preview (RFC-BPR-0017)?",
+      "min_accept": 1,
+      "max_accept": 1
+    },
+    {
+      "group_id": "rfc-0006-appearance-row",
+      "title": "BPR-0114: RFC-BPR-0006's terminal attended appearance row",
+      "min_accept": 1,
+      "max_accept": 1
+    }
+  ],
+  "subjects": [
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0332/document-the-shipped-dispatch",
+      "subject_key": "bpr-0332-document-dispatch",
+      "display_name": "Document the shipped dispatch (option 2)",
+      "description": "Keep the Windows dispatch into the MSVC-compiled backend and rewrite the six pre-start-refusal statements to say what is true: the backend is compiled, its Job Object pre-resume assignment and descendant containment are proven target-native (BPR-0240, 2026-08-26/27), and no pre-start refusal exists. Fix ai-agent-boundary.md's evidence row that cites a test whose final assertion is success.",
+      "acceptance_criteria": [
+        "The shipped behavior stays as it is and the documents describe it truthfully."
+      ],
+      "known_concerns": [
+        "Documentation-only; the guard-versus-proof question is settled in favor of the proof."
+      ],
+      "selection_group": "windows-launch-documentation",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "BPR-0240 closed 2026-09-01 with the target-native record; the RFC-0011 focused replay passed 16/16 at cc17d703."
+      },
+      "media_groups": [],
+      "detail_sections": [
+        {
+          "heading": "What changes",
+          "kind": "list",
+          "items": [
+            "docs/verification/RFC-BPR-0011.md: the four marked known-false statements are rewritten to the dispatch; the claim-matrix Result cell stops saying Windows starts no child.",
+            "docs/architecture/ai-agent-boundary.md: the two refusal statements are rewritten; the evidence row at the Windows-refusal claim names the Job Object tests BPR-0240 recorded.",
+            "No source change; BPR-0332 returns to 20-ready and closes on the documentation gate."
+          ]
+        },
+        {
+          "heading": "Bound documents (digests at build time)",
+          "kind": "list",
+          "items": [
+            "BPR-0332 card \u2014 docs/issues/40-parked/BPR-0332-reconcile-windows-launch-documentation.md: sha256:979007f6127d05aef3471ae1d38e37d0d5037237bdd4c23b10c624e75dd1ccf4 (8589 bytes)",
+            "RFC-BPR-0011 verification ledger \u2014 docs/verification/RFC-BPR-0011.md: sha256:252209b3d731a6b61068e254b8f3771b59cfab544bb6188d16bd922b255b6ce7 (25843 bytes)",
+            "AI agent boundary \u2014 docs/architecture/ai-agent-boundary.md: sha256:bee4365e34ec1c07e957b935d58169b189e5745fbb72091e55664bbd06d63cf4 (23805 bytes)"
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Decision manifest",
+          "path": "offline-review-input.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0332/restore-the-pre-start-refusal",
+      "subject_key": "bpr-0332-restore-guard",
+      "display_name": "Restore the pre-start refusal (option 1)",
+      "description": "Put the failed_to_start guard back inside the Q_OS_WIN branch of agent_process_launcher.cpp so the documented refusal becomes true again and the proven backend is unreachable until a later card re-enables it. Requires a Windows-only test that fails without the guard, run on the Windows station.",
+      "acceptance_criteria": [
+        "Windows agent launch refuses before any process starts, and a test fails without the guard."
+      ],
+      "known_concerns": [
+        "Changes shipped behavior; makes the 2026-08-26/27 target-native proof unreachable from the product until re-enabled; needs the Windows station for its test."
+      ],
+      "selection_group": "windows-launch-documentation",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Implementable; the guard's original code is in git history at c6f3d96."
+      },
+      "media_groups": [],
+      "detail_sections": [
+        {
+          "heading": "What changes",
+          "kind": "list",
+          "items": [
+            "src/adapters/agent/src/agent_process_launcher.cpp: restore the pre-dispatch refusal in the Windows branch.",
+            "A Windows-conditional test asserting failed_to_start with the recorded message; the six documents then describe a true refusal.",
+            "BPR-0332 returns to 21-ready-win for the test; the documentation half stays portable."
+          ]
+        },
+        {
+          "heading": "Bound documents (digests at build time)",
+          "kind": "list",
+          "items": [
+            "BPR-0332 card \u2014 docs/issues/40-parked/BPR-0332-reconcile-windows-launch-documentation.md: sha256:979007f6127d05aef3471ae1d38e37d0d5037237bdd4c23b10c624e75dd1ccf4 (8589 bytes)"
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Decision manifest",
+          "path": "offline-review-input.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0299/do-not-build",
+      "subject_key": "bpr-0299-do-not-build",
+      "display_name": "Do not build anonymous public preview",
+      "description": "RFC-BPR-0017 stays Deferred, BPR-0312 stays unresolved, and every implementation card (BPR-0300 through BPR-0317) stays dependency-blocked. The device-authorization flow (RFC-BPR-0016, shipped on macOS since BPR-0318) is the answer to reading a pull request without a stored token, as the RFC itself recommends when the rate budget is not workable.",
+      "acceptance_criteria": [
+        "The mode is not wanted under the measured limits; the decision is recorded as evidence on BPR-0299."
+      ],
+      "known_concerns": [
+        "Public repositories still require sign-in; RFC-0016's device flow is enabled only on macOS so far (Windows and Linux flips are BPR-0311 and BPR-0310)."
+      ],
+      "selection_group": "anonymous-public-preview",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "All five probe captures validate (VALID:5, BOUND:5) at their owning commits."
+      },
+      "media_groups": [],
+      "detail_sections": [
+        {
+          "heading": "Measured facts (docs/verification/reviews/rfc0017-anonymous-probe-v001)",
+          "kind": "list",
+          "items": [
+            "Unauthenticated REST core budget: x-ratelimit-limit 60 per hour per source address, shared by every client behind that address; opening one pull request costs several requests.",
+            "A conditional GET answered 304 Not Modified consumed one core unit (used 3 -> 4), so refresh is not exempt.",
+            "GraphQL refuses anonymous callers with 403 and x-ratelimit-limit 0, so the workbench's review-thread selection has no anonymous route.",
+            "REST pull-request review comments answered 200 anonymously (per_page=1 course), so source-anchored comments could be recovered through a new read operation nobody has carded.",
+            "A private or missing repository answers 404, so the mode cannot distinguish absent from private.",
+            "GHES in private mode rejects all unauthenticated access; the mode would be GitHub.com-only."
+          ]
+        },
+        {
+          "heading": "Bound documents (digests at build time)",
+          "kind": "list",
+          "items": [
+            "BPR-0299 card \u2014 docs/issues/40-parked/BPR-0299-decide-anonymous-public-preview.md: sha256:a59a1df8cfd9b8f16008b5ca0f6e68937e6c511b2feabace515e481ec6da87a0 (2124 bytes)",
+            "RFC-BPR-0017 \u2014 docs/rfcs/future/RFC-BPR-0017-unauthenticated-public-review-read.md: sha256:ead7c05484703ffa2e6e6cf4cfef7451d764833981d8e846c2957ba69435fad0 (26329 bytes)"
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "rate-limit capture",
+          "path": "../rfc0017-anonymous-probe-v001/captures/rate-limit.json"
+        },
+        {
+          "label": "GraphQL refusal capture",
+          "path": "../rfc0017-anonymous-probe-v001/captures/graphql-refusal.json"
+        },
+        {
+          "label": "pull-request capture",
+          "path": "../rfc0017-anonymous-probe-v001/captures/pull-request.json"
+        },
+        {
+          "label": "review-comments capture",
+          "path": "../rfc0017-anonymous-probe-v001/captures/pull-request-comments.json"
+        },
+        {
+          "label": "absent-not-disclosed capture",
+          "path": "../rfc0017-anonymous-probe-v001/captures/absent-not-disclosed.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0299/build-credential-optional-preview",
+      "subject_key": "bpr-0299-build",
+      "display_name": "Build it as a credential-optional preview mode on the existing read path",
+      "description": "Accept the measured limits and authorize the RFC-BPR-0017 implementation cards. Accept only with a note that gives the four things the approval must define: the public-preview name, how the 60-per-hour shared limit and the missing review threads and triage are presented, the sign-in handoff to the device flow, and the supported-platform policy (GitHub.com only). BPR-0312 validates that positive decision next.",
+      "acceptance_criteria": [
+        "A read-only, triage-less, rate-limited preview of public GitHub.com pull requests is a mode the product wants, with its limits presented up front."
+      ],
+      "known_concerns": [
+        "Roughly six to twelve pull-request opens per hour per shared address; silent degradation when a colleague on the same network opens one; a new REST review-comment read operation and its fixtures are uncarded; RFC-BPR-0002 closeout is already Auto-Verified so that gate no longer blocks."
+      ],
+      "selection_group": "anonymous-public-preview",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Eligible only as a credential-optional profile on the existing path; the RFC prohibits a parallel read path."
+      },
+      "media_groups": [],
+      "detail_sections": [
+        {
+          "heading": "Required in the accepting note",
+          "kind": "list",
+          "items": [
+            "Exact public-preview naming.",
+            "Limit presentation: the shared 60-per-hour budget, the 304 cost, and the absent review threads and triage.",
+            "Sign-in handoff: how the preview offers the device flow.",
+            "Supported-platform policy: GitHub.com public repositories only; every GHES profile stays unavailable."
+          ]
+        },
+        {
+          "heading": "Bound documents (digests at build time)",
+          "kind": "list",
+          "items": [
+            "BPR-0299 card \u2014 docs/issues/40-parked/BPR-0299-decide-anonymous-public-preview.md: sha256:a59a1df8cfd9b8f16008b5ca0f6e68937e6c511b2feabace515e481ec6da87a0 (2124 bytes)",
+            "RFC-BPR-0017 \u2014 docs/rfcs/future/RFC-BPR-0017-unauthenticated-public-review-read.md: sha256:ead7c05484703ffa2e6e6cf4cfef7451d764833981d8e846c2957ba69435fad0 (26329 bytes)"
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Decision manifest",
+          "path": "offline-review-input.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0114/accept-v008-as-terminal",
+      "subject_key": "bpr-0114-reuse-v008",
+      "display_name": "Accept the v008 observation as RFC-BPR-0006's terminal attended row",
+      "description": "The owner-accepted v008 foreground run (2026-08-21) recorded APPEARANCE_SYSTEM_FOLLOWS_OK, APPEARANCE_EXPLICIT_IGNORES_OK, APPEARANCE_VARIANTS:0:1:0:1, strict owner return, and zero attributed geometry rebuilds; BPR-0220's zero-expectation repair was accepted without another run. No commit since 2026-08-21 touches the appearance profile, host, settings adapter, or syntax adapter, and the only appearance-related change in main.cpp is a failure-message format (BPR-0475). Under the board's reuse rule this closes BPR-0114 and unblocks BPR-0115; the high-contrast row likewise reuses the accepted high-contrast-scheme-acceptance-v001, diff-scheme-acceptance-v002, and intraline batches.",
+      "acceptance_criteria": [
+        "RFC-BPR-0006's 'System mode responds to OS scheme changes; explicit mode does not' and 'state remains understandable without color alone' rows may close on the existing accepted verdicts."
+      ],
+      "known_concerns": [
+        "The RFC-0005 closeout precedent sat a fresh attended packet against the closeout executable; this alternative deliberately does not."
+      ],
+      "selection_group": "rfc-0006-appearance-row",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "RFC-0006 automated rows replayed 18/18 at cc17d703; git log since 2026-08-21 on the appearance components is empty."
+      },
+      "media_groups": [],
+      "detail_sections": [
+        {
+          "heading": "Bound evidence",
+          "kind": "list",
+          "items": [
+            "appearance-scheme-foreground-v008/operator-response.md, validation-record.json, and foreground-run-attempt-1.log (the complete Cocoa log).",
+            "BPR-0220's accepted zero-rebuild repair at 761d416.",
+            "BPR-0115's 2026-09-01 focused replay table."
+          ]
+        },
+        {
+          "heading": "Bound documents (digests at build time)",
+          "kind": "list",
+          "items": [
+            "v008 operator response \u2014 docs/verification/reviews/appearance-scheme-foreground-v008/operator-response.md: sha256:fa32fe78c726c2115c052bd019551bb75b9f2589784e455baff4bdf5e494c0a8 (617 bytes)",
+            "BPR-0114 card \u2014 docs/issues/40-parked/BPR-0114-rfc-0006-system-scheme-toggle.md: sha256:1a6f4ab73d8a306a7e5d3df8235be566767be0da5a5190f22439799b4bbac999 (25298 bytes)"
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "v008 validation record",
+          "path": "../appearance-scheme-foreground-v008/validation-record.json"
+        },
+        {
+          "label": "v008 raw log",
+          "path": "../appearance-scheme-foreground-v008/foreground-run-attempt-1.log"
+        }
+      ]
+    },
+    {
+      "subject_id": "decision:/betterpullreview/bpr-0114/sit-a-v009-run",
+      "subject_key": "bpr-0114-v009-sitting",
+      "display_name": "Sit one v009 foreground run against the closeout executable",
+      "description": "The integrator regenerates appearance-scheme-foreground-v009 bound to the final RFC-BPR-0006 closeout binary after every portable slice that could rebuild it, and the owner runs the Light-to-Dark procedure once more with the window frontmost, restoring the desktop scheme afterwards. That log becomes the row's evidence; v008 stays as history.",
+      "acceptance_criteria": [
+        "A fresh digest-bound attended run is wanted before RFC-BPR-0006 closes."
+      ],
+      "known_concerns": [
+        "Costs the owner one more desktop appearance change and sitting; delays RFC-0006 closeout until the last src/app change of the run."
+      ],
+      "selection_group": "rfc-0006-appearance-row",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "The v008 procedure and its BPR-0410 diagnostics are ready to rebind; the v009 directory exists and is empty."
+      },
+      "media_groups": [],
+      "detail_sections": [
+        {
+          "heading": "What happens next",
+          "kind": "list",
+          "items": [
+            "v009 packet regenerated last, bound to the closeout executable digest.",
+            "One attended sitting; the complete marker log committed beside the packet.",
+            "BPR-0114 then closes and BPR-0115 replays its attended row from that log."
+          ]
+        },
+        {
+          "heading": "Bound documents (digests at build time)",
+          "kind": "list",
+          "items": [
+            "v008 operator packet (procedure to rebind) \u2014 docs/verification/reviews/appearance-scheme-foreground-v008/operator-packet.md: sha256:181e661ca62a04a302d18aebe47cee614f60829c3429aa1894d1adb0125e0d71 (11327 bytes)",
+            "BPR-0114 card \u2014 docs/issues/40-parked/BPR-0114-rfc-0006-system-scheme-toggle.md: sha256:1a6f4ab73d8a306a7e5d3df8235be566767be0da5a5190f22439799b4bbac999 (25298 bytes)"
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Decision manifest",
+          "path": "offline-review-input.json"
+        }
+      ]
+    }
+  ]
+}

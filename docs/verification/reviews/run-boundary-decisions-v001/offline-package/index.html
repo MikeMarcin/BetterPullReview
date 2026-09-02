@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Run-boundary product decisions (RFC-BPR-0006, RFC-BPR-0011, RFC-BPR-0017)</title>
+  <style>
+:root {
+  color-scheme: dark;
+  --page: #101419;
+  --panel: #192027;
+  --panel-strong: #202a33;
+  --text: #edf3f7;
+  --muted: #a8b5bf;
+  --line: #3a4853;
+  --accent: #75b9d5;
+  --accept: #57c48c;
+  --reject: #ed7777;
+  --pending: #e6b85d;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+a { color: #9fdcf3; }
+header, main { width: min(1480px, calc(100% - 2rem)); margin-inline: auto; }
+header { padding: 2rem 0 1rem; }
+h1, h2, h3, p { margin-top: 0; }
+.lede, .muted { color: var(--muted); }
+.scope-warning {
+  border-left: 4px solid var(--pending);
+  background: #282418;
+  padding: 1rem;
+}
+.reference-disclaimer {
+  border-left: 4px solid var(--accent);
+  background: #16222a;
+  padding: 1rem;
+  margin-top: .75rem;
+}
+.review-controls {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: .8rem 1rem;
+  margin-bottom: 1rem;
+  background: #081016;
+  border: 1px solid var(--line);
+  border-radius: .6rem;
+  box-shadow: 0 .25rem .75rem #0008;
+}
+.review-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+}
+.review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .9rem;
+  font-weight: 700;
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+  margin-left: auto;
+}
+#review-status {
+  min-height: 1.3em;
+  margin: .4rem 0 0;
+  color: var(--muted);
+  font-size: .9rem;
+}
+button, textarea { font: inherit; }
+button {
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  padding: .55rem .8rem;
+  background: #28343e;
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+button:disabled {
+  cursor: not-allowed;
+  color: #c2cdd4;
+  background: #2f3b43;
+  border-color: #61717a;
+}
+.subject {
+  scroll-margin-top: 8rem;
+  margin: 0 0 1.25rem;
+  padding: 1.1rem;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: .7rem;
+}
+.subject[data-review-state="accept"] { border-color: var(--accept); }
+.subject[data-review-state="reject"] { border-color: var(--reject); }
+.subject[data-review-state="pending"] { border-color: var(--pending); }
+.subject[data-review-state="not-chosen"] { border-color: var(--line); opacity: .78; }
+.selection-group {
+  margin: 0 0 1rem;
+  padding: 1rem 1.1rem;
+  background: #131c24;
+  border: 1px solid var(--accent);
+  border-radius: .7rem;
+}
+.selection-group h2 { margin-bottom: .35rem; }
+.selection-group-status { margin: 0; font-weight: 700; color: var(--accent); }
+.selection-group-members {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  margin-top: .8rem;
+  align-items: start;
+}
+.selection-group-members .subject { margin: 0; position: relative; }
+.selection-group-members .media-grid { grid-template-columns: 1fr; }
+.subject.option { padding: .85rem; background: var(--panel-strong); }
+.subject.option h3 { margin-bottom: .3rem; padding-right: 5.5rem; }
+.option-actions { margin: .8rem 0 .3rem; align-items: center; }
+.option-actions .choose { flex: 1 1 auto; font-weight: 700; background: #1d3a4d; }
+.option-actions .minor { padding: .3rem .55rem; font-size: .85rem; background: transparent; }
+.option-extra, .notes-fold { margin-top: .5rem; color: var(--muted); font-size: .9rem; }
+.option-extra summary, .notes-fold summary { cursor: pointer; }
+.option-extra section { margin-top: .5rem; }
+.option-extra h4 { margin: 0 0 .25rem; }
+.selection-group-members .subject::after {
+  position: absolute;
+  top: .6rem;
+  right: .6rem;
+  padding: .1rem .5rem;
+  border-radius: .3rem;
+  font-size: .8rem;
+  font-weight: 700;
+}
+.selection-group-members .subject[data-review-state="accept"]::after {
+  content: "Chosen";
+  background: var(--accept);
+  color: #07150f;
+}
+.selection-group-members .subject[data-review-state="reject"]::after {
+  content: "Defective";
+  background: var(--reject);
+  color: #1b0808;
+}
+.selection-group-members .subject[data-review-state="not-chosen"]::after {
+  content: "Not chosen";
+  background: #2a333b;
+  color: var(--muted);
+}
+@media (max-width: 850px) {
+  .selection-group-members { grid-template-columns: 1fr; }
+}
+.subject-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+.identity { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; word-break: break-all; }
+.audit-banner {
+  padding: .55rem .8rem;
+  border-radius: .4rem;
+  font-weight: 700;
+}
+.audit-banner[data-audit="pass"] { background: #12281c; color: var(--accept); border: 1px solid var(--accept); }
+.audit-banner[data-audit="fail"] { background: #2b1414; color: var(--reject); border: 1px solid var(--reject); }
+.media-groups { display: grid; gap: 1rem; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: .75rem; }
+.media-grid.compare { grid-template-columns: 1fr 1fr; }
+figure { margin: 0; padding: .6rem; background: var(--panel-strong); border-radius: .4rem; }
+figure img, figure video {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  background-color: #6d7479;
+  background-image:
+    linear-gradient(45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(-45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #8a9297 75%),
+    linear-gradient(-45deg, transparent 75%, #8a9297 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}
+figure audio { display: block; width: 100%; margin: .5rem 0; }
+figcaption { padding-top: .45rem; color: var(--muted); }
+.criteria { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.detail-sections { display: grid; gap: 1rem; margin-top: 1rem; }
+.detail-sections dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; margin: 0; }
+.detail-sections dt { color: var(--muted); }
+.detail-sections dd { margin: 0; }
+.detail-sections pre {
+  margin: 0;
+  padding: .65rem;
+  overflow-x: auto;
+  background: #11171c;
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .82rem;
+}
+.identity-files { margin-top: 1rem; }
+.decision-row { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+button[data-decision="accept"][aria-pressed="true"] { color: #07150f; background: var(--accept); }
+button[data-decision="reject"][aria-pressed="true"] { color: #1b0808; background: var(--reject); }
+.audit-note { margin: -.5rem 0 1rem; }
+.notes { display: grid; gap: .35rem; }
+textarea { width: 100%; min-height: 5rem; padding: .65rem; color: var(--text); background: #11171c; border: 1px solid var(--line); border-radius: .35rem; }
+.export-panel { margin: 1rem 0 3rem; padding: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: .6rem; }
+#verdict-output { min-height: 14rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; }
+@media (max-width: 850px) {
+  .criteria, .media-grid.compare { grid-template-columns: 1fr; }
+  .review-actions { margin-left: 0; }
+}
+@media (max-width: 620px) {
+  .review-summary, .review-actions { width: 100%; }
+}
+
+/* Full-resolution inspection. A quiet affordance on the thumbnail,
+   and an overlay that shows the image at its native size so a one-pixel
+   connector can actually be judged. */
+.media-zoom {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  position: relative;
+}
+.media-zoom img { display: block; width: 100%; }
+.media-zoom-hint {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  border-radius: 0.2rem;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.media-zoom:hover .media-zoom-hint,
+.media-zoom:focus-visible .media-zoom-hint { opacity: 1; }
+.media-zoom:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+.media-viewer[hidden] { display: none; }
+.media-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+}
+.media-viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  color: #fff;
+  font-size: 0.9rem;
+}
+.media-viewer-close {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
+  color: #fff;
+  border-radius: 0.25rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+.media-viewer-counter {
+  color: rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  padding-right: 1rem;
+}
+.media-viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1001;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.9rem;
+  line-height: 1;
+  padding: .45rem .75rem .6rem;
+  border-radius: .35rem;
+}
+.media-viewer-nav[hidden] { display: none; }
+.media-viewer-prev { left: .75rem; }
+.media-viewer-next { right: .75rem; }
+.media-viewer-surface { flex: 1; overflow: auto; display: flex; }
+/* Native size, not fitted: fitting it would reproduce the defect this fixes.
+   Auto margins center an image smaller than the viewport and collapse to zero
+   when it overflows, keeping large captures scrollable from their origin. */
+.media-viewer-surface img { display: block; image-rendering: pixelated; margin: auto; }
+
+</style>
+</head>
+<body>
+  <header>
+    <h1>Run-boundary product decisions (RFC-BPR-0006, RFC-BPR-0011, RFC-BPR-0017)</h1>
+    <p class="lede">Project: betterpullreview · Gate: run_boundary_product_decisions · Scope: product_owner_choose_one_decisions_only · Batch: bpr:/attended-review/betterpullreview/c7e77830ef4fa92c6047c99b</p>
+    <p class="scope-warning"><strong>Scope:</strong> This page records attended human decisions for this exact batch and gate only. It stores choices in this browser and cannot write repository evidence. Acceptance asserts nothing beyond this gate; these claims remain false: release_gate_satisfied, rfc_0006_closeout_claimed, rfc_0011_closeout_claimed, rfc_0017_eligibility_claimed, windows_launch_behavior_changed. Export the complete verdict and return it to the requesting agent session for validation.</p>
+    <p class="reference-disclaimer"><strong>Reference:</strong> Each group is one question with alternatives; accepting one alternative records the others as not chosen, not as defective. RFC text and the board outrank this page&#x27;s summaries.</p>
+  </header>
+  <main>
+    <section class="review-controls" aria-label="Review progress and export">
+      <div class="review-controls-row">
+        <div class="review-summary">
+          <span id="review-progress">0/6 reviewed</span>
+          <span id="review-totals">0 accepted · 0 rejected · 6 pending</span>
+        </div>
+        <div class="review-actions">
+          <label><input id="pending-only" type="checkbox"> Show pending only</label>
+          <button id="export-verdict" type="button" disabled>Copy the complete verdict</button>
+        </div>
+      </div>
+      <p id="review-status" role="status" aria-live="polite" aria-atomic="true">Resolve every exact subject to unlock the final verdict.</p>
+    </section>
+    <section class="selection-group" data-selection-group-header="windows-launch-documentation"><h2>BPR-0332: what should be true about Windows agent launch?</h2><p class="muted">Choose exactly one alternative. Unchosen alternatives are recorded as not chosen, never as rejections; Reject marks an alternative genuinely defective.</p><p class="selection-group-status" data-selection-group-status="windows-launch-documentation">No alternatives chosen yet.</p><div class="selection-group-members">
+<article class="subject option" data-subject-id="decision:/betterpullreview/bpr-0332/document-the-shipped-dispatch" data-subject-digest="sha256:7514c050c37ecaeb9421b76d262571d1f88382d8ae2da5cf9178f431526a69ad" data-selection-group="windows-launch-documentation" data-review-state="pending">
+  <h3>Document the shipped dispatch (option 2)</h3>
+  <p class="muted">Keep the Windows dispatch into the MSVC-compiled backend and rewrite the six pre-start-refusal statements to say what is true: the backend is compiled, its Job Object pre-resume assignment and descendant containment are proven target-native (BPR-0240, 2026-08-26/27), and no pre-start refusal exists. Fix ai-agent-boundary.md&#x27;s evidence row that cites a test whose final assertion is success.</p>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — BPR-0240 closed 2026-09-01 with the target-native record; the RFC-0011 focused replay passed 16/16 at cc17d703.</p>
+  <div class="media-groups">
+
+  </div>
+  <details class="option-extra"><summary>Details and identity</summary><section><h4>Acceptance criteria</h4><ul><li>The shipped behavior stays as it is and the documents describe it truthfully.</li></ul></section><section><h4>Known concerns</h4><ul><li>Documentation-only; the guard-versus-proof question is settled in favor of the proof.</li></ul></section><div class="detail-sections"><section><h3>What changes</h3><ul><li>docs/verification/RFC-BPR-0011.md: the four marked known-false statements are rewritten to the dispatch; the claim-matrix Result cell stops saying Windows starts no child.</li><li>docs/architecture/ai-agent-boundary.md: the two refusal statements are rewritten; the evidence row at the Windows-refusal claim names the Job Object tests BPR-0240 recorded.</li><li>No source change; BPR-0332 returns to 20-ready and closes on the documentation gate.</li></ul></section><section><h3>Bound documents (digests at build time)</h3><ul><li>BPR-0332 card — docs/issues/40-parked/BPR-0332-reconcile-windows-launch-documentation.md: sha256:979007f6127d05aef3471ae1d38e37d0d5037237bdd4c23b10c624e75dd1ccf4 (8589 bytes)</li><li>RFC-BPR-0011 verification ledger — docs/verification/RFC-BPR-0011.md: sha256:252209b3d731a6b61068e254b8f3771b59cfab544bb6188d16bd922b255b6ce7 (25843 bytes)</li><li>AI agent boundary — docs/architecture/ai-agent-boundary.md: sha256:bee4365e34ec1c07e957b935d58169b189e5745fbb72091e55664bbd06d63cf4 (23805 bytes)</li></ul></section></div><section><h4>Identity-bound files</h4><ul><li><a href="subjects/001-bpr-0332-document-dispatch/identity/01-decision-manifest.json">Decision manifest</a> <span class="identity">sha256:b83c8a98ce7a9c87eca3ed0c545895bd9ec04f1db539c6308766800112561f53</span></li></ul></section><p class="identity">decision:/betterpullreview/bpr-0332/document-the-shipped-dispatch<br>sha256:7514c050c37ecaeb9421b76d262571d1f88382d8ae2da5cf9178f431526a69ad</p></details>
+  <div class="decision-row option-actions" role="group" aria-label="Decision for Document the shipped dispatch (option 2)">
+    <button type="button" class="choose" data-decision="accept" aria-pressed="false">Choose</button>
+    <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
+  </div>
+  <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
+</article>
+<article class="subject option" data-subject-id="decision:/betterpullreview/bpr-0332/restore-the-pre-start-refusal" data-subject-digest="sha256:a1a5934e7ba96a799f7f7664ba5c9bbf789ca51178015cbff3f7476d293250bb" data-selection-group="windows-launch-documentation" data-review-state="pending">
+  <h3>Restore the pre-start refusal (option 1)</h3>
+  <p class="muted">Put the failed_to_start guard back inside the Q_OS_WIN branch of agent_process_launcher.cpp so the documented refusal becomes true again and the proven backend is unreachable until a later card re-enables it. Requires a Windows-only test that fails without the guard, run on the Windows station.</p>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — Implementable; the guard&#x27;s original code is in git history at c6f3d96.</p>
+  <div class="media-groups">
+
+  </div>
+  <details class="option-extra"><summary>Details and identity</summary><section><h4>Acceptance criteria</h4><ul><li>Windows agent launch refuses before any process starts, and a test fails without the guard.</li></ul></section><section><h4>Known concerns</h4><ul><li>Changes shipped behavior; makes the 2026-08-26/27 target-native proof unreachable from the product until re-enabled; needs the Windows station for its test.</li></ul></section><div class="detail-sections"><section><h3>What changes</h3><ul><li>src/adapters/agent/src/agent_process_launcher.cpp: restore the pre-dispatch refusal in the Windows branch.</li><li>A Windows-conditional test asserting failed_to_start with the recorded message; the six documents then describe a true refusal.</li><li>BPR-0332 returns to 21-ready-win for the test; the documentation half stays portable.</li></ul></section><section><h3>Bound documents (digests at build time)</h3><ul><li>BPR-0332 card — docs/issues/40-parked/BPR-0332-reconcile-windows-launch-documentation.md: sha256:979007f6127d05aef3471ae1d38e37d0d5037237bdd4c23b10c624e75dd1ccf4 (8589 bytes)</li></ul></section></div><section><h4>Identity-bound files</h4><ul><li><a href="subjects/002-bpr-0332-restore-guard/identity/01-decision-manifest.json">Decision manifest</a> <span class="identity">sha256:b83c8a98ce7a9c87eca3ed0c545895bd9ec04f1db539c6308766800112561f53</span></li></ul></section><p class="identity">decision:/betterpullreview/bpr-0332/restore-the-pre-start-refusal<br>sha256:a1a5934e7ba96a799f7f7664ba5c9bbf789ca51178015cbff3f7476d293250bb</p></details>
+  <div class="decision-row option-actions" role="group" aria-label="Decision for Restore the pre-start refusal (option 1)">
+    <button type="button" class="choose" data-decision="accept" aria-pressed="false">Choose</button>
+    <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
+  </div>
+  <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
+</article>
+</div></section>
+<section class="selection-group" data-selection-group-header="anonymous-public-preview"><h2>BPR-0299: build anonymous public preview (RFC-BPR-0017)?</h2><p class="muted">Choose exactly one alternative. Unchosen alternatives are recorded as not chosen, never as rejections; Reject marks an alternative genuinely defective.</p><p class="selection-group-status" data-selection-group-status="anonymous-public-preview">No alternatives chosen yet.</p><div class="selection-group-members">
+<article class="subject option" data-subject-id="decision:/betterpullreview/bpr-0299/do-not-build" data-subject-digest="sha256:c9e6750bc997e0560c78226e4e295dc67d9efa35fc2467504c1e79b83153238e" data-selection-group="anonymous-public-preview" data-review-state="pending">
+  <h3>Do not build anonymous public preview</h3>
+  <p class="muted">RFC-BPR-0017 stays Deferred, BPR-0312 stays unresolved, and every implementation card (BPR-0300 through BPR-0317) stays dependency-blocked. The device-authorization flow (RFC-BPR-0016, shipped on macOS since BPR-0318) is the answer to reading a pull request without a stored token, as the RFC itself recommends when the rate budget is not workable.</p>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — All five probe captures validate (VALID:5, BOUND:5) at their owning commits.</p>
+  <div class="media-groups">
+
+  </div>
+  <details class="option-extra"><summary>Details and identity</summary><section><h4>Acceptance criteria</h4><ul><li>The mode is not wanted under the measured limits; the decision is recorded as evidence on BPR-0299.</li></ul></section><section><h4>Known concerns</h4><ul><li>Public repositories still require sign-in; RFC-0016&#x27;s device flow is enabled only on macOS so far (Windows and Linux flips are BPR-0311 and BPR-0310).</li></ul></section><div class="detail-sections"><section><h3>Measured facts (docs/verification/reviews/rfc0017-anonymous-probe-v001)</h3><ul><li>Unauthenticated REST core budget: x-ratelimit-limit 60 per hour per source address, shared by every client behind that address; opening one pull request costs several requests.</li><li>A conditional GET answered 304 Not Modified consumed one core unit (used 3 -&gt; 4), so refresh is not exempt.</li><li>GraphQL refuses anonymous callers with 403 and x-ratelimit-limit 0, so the workbench&#x27;s review-thread selection has no anonymous route.</li><li>REST pull-request review comments answered 200 anonymously (per_page=1 course), so source-anchored comments could be recovered through a new read operation nobody has carded.</li><li>A private or missing repository answers 404, so the mode cannot distinguish absent from private.</li><li>GHES in private mode rejects all unauthenticated access; the mode would be GitHub.com-only.</li></ul></section><section><h3>Bound documents (digests at build time)</h3><ul><li>BPR-0299 card — docs/issues/40-parked/BPR-0299-decide-anonymous-public-preview.md: sha256:a59a1df8cfd9b8f16008b5ca0f6e68937e6c511b2feabace515e481ec6da87a0 (2124 bytes)</li><li>RFC-BPR-0017 — docs/rfcs/future/RFC-BPR-0017-unauthenticated-public-review-read.md: sha256:ead7c05484703ffa2e6e6cf4cfef7451d764833981d8e846c2957ba69435fad0 (26329 bytes)</li></ul></section></div><section><h4>Identity-bound files</h4><ul><li><a href="subjects/003-bpr-0299-do-not-build/identity/01-rate-limit-capture.json">rate-limit capture</a> <span class="identity">sha256:9b52844edae8de5cd728ed59a7f205a0b432a7c1418953d8d94bc1e3adc41e76</span></li><li><a href="subjects/003-bpr-0299-do-not-build/identity/02-graphql-refusal-capture.json">GraphQL refusal capture</a> <span class="identity">sha256:67def7232c8fff7413238dca7181879539dda26cdc42cd0f832eb90e112094bd</span></li><li><a href="subjects/003-bpr-0299-do-not-build/identity/03-pull-request-capture.json">pull-request capture</a> <span class="identity">sha256:0f0737d8572f16cb77cd6a7d6c8734cd69adf15d37de73567e83d7b33316445f</span></li><li><a href="subjects/003-bpr-0299-do-not-build/identity/04-review-comments-capture.json">review-comments capture</a> <span class="identity">sha256:dd16dd6948458db8bc12c20e4882a4d78d93952ae0df4cd08c011898a5ddae7d</span></li><li><a href="subjects/003-bpr-0299-do-not-build/identity/05-absent-not-disclosed-capture.json">absent-not-disclosed capture</a> <span class="identity">sha256:2d7e0b9088acd8c6763ab541b56ac6ea8f69676d6d7bc56dd076e664f05ddc0e</span></li></ul></section><p class="identity">decision:/betterpullreview/bpr-0299/do-not-build<br>sha256:c9e6750bc997e0560c78226e4e295dc67d9efa35fc2467504c1e79b83153238e</p></details>
+  <div class="decision-row option-actions" role="group" aria-label="Decision for Do not build anonymous public preview">
+    <button type="button" class="choose" data-decision="accept" aria-pressed="false">Choose</button>
+    <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
+  </div>
+  <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
+</article>
+<article class="subject option" data-subject-id="decision:/betterpullreview/bpr-0299/build-credential-optional-preview" data-subject-digest="sha256:797d7aac2054bfd426489803b4e209b3e48a97da3dd01babbdf1fe3aa42fb1c9" data-selection-group="anonymous-public-preview" data-review-state="pending">
+  <h3>Build it as a credential-optional preview mode on the existing read path</h3>
+  <p class="muted">Accept the measured limits and authorize the RFC-BPR-0017 implementation cards. Accept only with a note that gives the four things the approval must define: the public-preview name, how the 60-per-hour shared limit and the missing review threads and triage are presented, the sign-in handoff to the device flow, and the supported-platform policy (GitHub.com only). BPR-0312 validates that positive decision next.</p>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — Eligible only as a credential-optional profile on the existing path; the RFC prohibits a parallel read path.</p>
+  <div class="media-groups">
+
+  </div>
+  <details class="option-extra"><summary>Details and identity</summary><section><h4>Acceptance criteria</h4><ul><li>A read-only, triage-less, rate-limited preview of public GitHub.com pull requests is a mode the product wants, with its limits presented up front.</li></ul></section><section><h4>Known concerns</h4><ul><li>Roughly six to twelve pull-request opens per hour per shared address; silent degradation when a colleague on the same network opens one; a new REST review-comment read operation and its fixtures are uncarded; RFC-BPR-0002 closeout is already Auto-Verified so that gate no longer blocks.</li></ul></section><div class="detail-sections"><section><h3>Required in the accepting note</h3><ul><li>Exact public-preview naming.</li><li>Limit presentation: the shared 60-per-hour budget, the 304 cost, and the absent review threads and triage.</li><li>Sign-in handoff: how the preview offers the device flow.</li><li>Supported-platform policy: GitHub.com public repositories only; every GHES profile stays unavailable.</li></ul></section><section><h3>Bound documents (digests at build time)</h3><ul><li>BPR-0299 card — docs/issues/40-parked/BPR-0299-decide-anonymous-public-preview.md: sha256:a59a1df8cfd9b8f16008b5ca0f6e68937e6c511b2feabace515e481ec6da87a0 (2124 bytes)</li><li>RFC-BPR-0017 — docs/rfcs/future/RFC-BPR-0017-unauthenticated-public-review-read.md: sha256:ead7c05484703ffa2e6e6cf4cfef7451d764833981d8e846c2957ba69435fad0 (26329 bytes)</li></ul></section></div><section><h4>Identity-bound files</h4><ul><li><a href="subjects/004-bpr-0299-build/identity/01-decision-manifest.json">Decision manifest</a> <span class="identity">sha256:b83c8a98ce7a9c87eca3ed0c545895bd9ec04f1db539c6308766800112561f53</span></li></ul></section><p class="identity">decision:/betterpullreview/bpr-0299/build-credential-optional-preview<br>sha256:797d7aac2054bfd426489803b4e209b3e48a97da3dd01babbdf1fe3aa42fb1c9</p></details>
+  <div class="decision-row option-actions" role="group" aria-label="Decision for Build it as a credential-optional preview mode on the existing read path">
+    <button type="button" class="choose" data-decision="accept" aria-pressed="false">Choose</button>
+    <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
+  </div>
+  <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
+</article>
+</div></section>
+<section class="selection-group" data-selection-group-header="rfc-0006-appearance-row"><h2>BPR-0114: RFC-BPR-0006&#x27;s terminal attended appearance row</h2><p class="muted">Choose exactly one alternative. Unchosen alternatives are recorded as not chosen, never as rejections; Reject marks an alternative genuinely defective.</p><p class="selection-group-status" data-selection-group-status="rfc-0006-appearance-row">No alternatives chosen yet.</p><div class="selection-group-members">
+<article class="subject option" data-subject-id="decision:/betterpullreview/bpr-0114/accept-v008-as-terminal" data-subject-digest="sha256:5a7a6b5bd03cd33173025108ed3ae7b39afb2bf36210f3a4f32d33748390cf1d" data-selection-group="rfc-0006-appearance-row" data-review-state="pending">
+  <h3>Accept the v008 observation as RFC-BPR-0006&#x27;s terminal attended row</h3>
+  <p class="muted">The owner-accepted v008 foreground run (2026-08-21) recorded APPEARANCE_SYSTEM_FOLLOWS_OK, APPEARANCE_EXPLICIT_IGNORES_OK, APPEARANCE_VARIANTS:0:1:0:1, strict owner return, and zero attributed geometry rebuilds; BPR-0220&#x27;s zero-expectation repair was accepted without another run. No commit since 2026-08-21 touches the appearance profile, host, settings adapter, or syntax adapter, and the only appearance-related change in main.cpp is a failure-message format (BPR-0475). Under the board&#x27;s reuse rule this closes BPR-0114 and unblocks BPR-0115; the high-contrast row likewise reuses the accepted high-contrast-scheme-acceptance-v001, diff-scheme-acceptance-v002, and intraline batches.</p>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — RFC-0006 automated rows replayed 18/18 at cc17d703; git log since 2026-08-21 on the appearance components is empty.</p>
+  <div class="media-groups">
+
+  </div>
+  <details class="option-extra"><summary>Details and identity</summary><section><h4>Acceptance criteria</h4><ul><li>RFC-BPR-0006&#x27;s &#x27;System mode responds to OS scheme changes; explicit mode does not&#x27; and &#x27;state remains understandable without color alone&#x27; rows may close on the existing accepted verdicts.</li></ul></section><section><h4>Known concerns</h4><ul><li>The RFC-0005 closeout precedent sat a fresh attended packet against the closeout executable; this alternative deliberately does not.</li></ul></section><div class="detail-sections"><section><h3>Bound evidence</h3><ul><li>appearance-scheme-foreground-v008/operator-response.md, validation-record.json, and foreground-run-attempt-1.log (the complete Cocoa log).</li><li>BPR-0220&#x27;s accepted zero-rebuild repair at 761d416.</li><li>BPR-0115&#x27;s 2026-09-01 focused replay table.</li></ul></section><section><h3>Bound documents (digests at build time)</h3><ul><li>v008 operator response — docs/verification/reviews/appearance-scheme-foreground-v008/operator-response.md: sha256:fa32fe78c726c2115c052bd019551bb75b9f2589784e455baff4bdf5e494c0a8 (617 bytes)</li><li>BPR-0114 card — docs/issues/40-parked/BPR-0114-rfc-0006-system-scheme-toggle.md: sha256:1a6f4ab73d8a306a7e5d3df8235be566767be0da5a5190f22439799b4bbac999 (25298 bytes)</li></ul></section></div><section><h4>Identity-bound files</h4><ul><li><a href="subjects/005-bpr-0114-reuse-v008/identity/01-v008-validation-record.json">v008 validation record</a> <span class="identity">sha256:33aba1e03524b641a95852b5bfc6b03f0be6ab3db10a3047f61dc6fbbaef6538</span></li><li><a href="subjects/005-bpr-0114-reuse-v008/identity/02-v008-raw-log.log">v008 raw log</a> <span class="identity">sha256:917f84320c0ba271b69aa029c04893fec8a2b402e9b6a0745926a20c731ed5f5</span></li></ul></section><p class="identity">decision:/betterpullreview/bpr-0114/accept-v008-as-terminal<br>sha256:5a7a6b5bd03cd33173025108ed3ae7b39afb2bf36210f3a4f32d33748390cf1d</p></details>
+  <div class="decision-row option-actions" role="group" aria-label="Decision for Accept the v008 observation as RFC-BPR-0006&#x27;s terminal attended row">
+    <button type="button" class="choose" data-decision="accept" aria-pressed="false">Choose</button>
+    <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
+  </div>
+  <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
+</article>
+<article class="subject option" data-subject-id="decision:/betterpullreview/bpr-0114/sit-a-v009-run" data-subject-digest="sha256:eeb60fd31a52408cd658208ad3b2f9b9c4295eccb1c10734f33001c98dd51053" data-selection-group="rfc-0006-appearance-row" data-review-state="pending">
+  <h3>Sit one v009 foreground run against the closeout executable</h3>
+  <p class="muted">The integrator regenerates appearance-scheme-foreground-v009 bound to the final RFC-BPR-0006 closeout binary after every portable slice that could rebuild it, and the owner runs the Light-to-Dark procedure once more with the window frontmost, restoring the desktop scheme afterwards. That log becomes the row&#x27;s evidence; v008 stays as history.</p>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — The v008 procedure and its BPR-0410 diagnostics are ready to rebind; the v009 directory exists and is empty.</p>
+  <div class="media-groups">
+
+  </div>
+  <details class="option-extra"><summary>Details and identity</summary><section><h4>Acceptance criteria</h4><ul><li>A fresh digest-bound attended run is wanted before RFC-BPR-0006 closes.</li></ul></section><section><h4>Known concerns</h4><ul><li>Costs the owner one more desktop appearance change and sitting; delays RFC-0006 closeout until the last src/app change of the run.</li></ul></section><div class="detail-sections"><section><h3>What happens next</h3><ul><li>v009 packet regenerated last, bound to the closeout executable digest.</li><li>One attended sitting; the complete marker log committed beside the packet.</li><li>BPR-0114 then closes and BPR-0115 replays its attended row from that log.</li></ul></section><section><h3>Bound documents (digests at build time)</h3><ul><li>v008 operator packet (procedure to rebind) — docs/verification/reviews/appearance-scheme-foreground-v008/operator-packet.md: sha256:181e661ca62a04a302d18aebe47cee614f60829c3429aa1894d1adb0125e0d71 (11327 bytes)</li><li>BPR-0114 card — docs/issues/40-parked/BPR-0114-rfc-0006-system-scheme-toggle.md: sha256:1a6f4ab73d8a306a7e5d3df8235be566767be0da5a5190f22439799b4bbac999 (25298 bytes)</li></ul></section></div><section><h4>Identity-bound files</h4><ul><li><a href="subjects/006-bpr-0114-v009-sitting/identity/01-decision-manifest.json">Decision manifest</a> <span class="identity">sha256:b83c8a98ce7a9c87eca3ed0c545895bd9ec04f1db539c6308766800112561f53</span></li></ul></section><p class="identity">decision:/betterpullreview/bpr-0114/sit-a-v009-run<br>sha256:eeb60fd31a52408cd658208ad3b2f9b9c4295eccb1c10734f33001c98dd51053</p></details>
+  <div class="decision-row option-actions" role="group" aria-label="Decision for Sit one v009 foreground run against the closeout executable">
+    <button type="button" class="choose" data-decision="accept" aria-pressed="false">Choose</button>
+    <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
+  </div>
+  <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
+</article>
+</div></section>
+    <section class="export-panel">
+      <h2>Final result</h2>
+      <p>The pinned copy button unlocks after every exact subject has Accept or Reject selected. Its result stays visible in the top review bar, and the complete JSON remains below as a manual-copy fallback.</p>
+      <textarea id="verdict-output" readonly aria-label="Exported verdict JSON"></textarea>
+    </section>
+  </main>
+  <script id="attended-review-config" type="application/json">{"batch_id":"bpr:/attended-review/betterpullreview/c7e77830ef4fa92c6047c99b","downstream_claims":{"release_gate_satisfied":false,"rfc_0006_closeout_claimed":false,"rfc_0011_closeout_claimed":false,"rfc_0017_eligibility_claimed":false,"windows_launch_behavior_changed":false},"project_id":"betterpullreview","reference_disclaimer":"Each group is one question with alternatives; accepting one alternative records the others as not chosen, not as defective. RFC text and the board outrank this page's summaries.","review_gate":"run_boundary_product_decisions","review_scope":"product_owner_choose_one_decisions_only","schema_name":"bpr.attended_review_batch","schema_version":1,"selection_groups":[{"group_id":"windows-launch-documentation","max_accept":1,"min_accept":1,"note":"","title":"BPR-0332: what should be true about Windows agent launch?"},{"group_id":"anonymous-public-preview","max_accept":1,"min_accept":1,"note":"","title":"BPR-0299: build anonymous public preview (RFC-BPR-0017)?"},{"group_id":"rfc-0006-appearance-row","max_accept":1,"min_accept":1,"note":"","title":"BPR-0114: RFC-BPR-0006's terminal attended appearance row"}],"subjects":[{"ab_group":"","acceptance_criteria":["The shipped behavior stays as it is and the documents describe it truthfully."],"audit_verdict":{"note":"BPR-0240 closed 2026-09-01 with the target-native record; the RFC-0011 focused replay passed 16/16 at cc17d703.","status":"pass"},"choice_group":"","description":"Keep the Windows dispatch into the MSVC-compiled backend and rewrite the six pre-start-refusal statements to say what is true: the backend is compiled, its Job Object pre-resume assignment and descendant containment are proven target-native (BPR-0240, 2026-08-26/27), and no pre-start refusal exists. Fix ai-agent-boundary.md's evidence row that cites a test whose final assertion is success.","detail_sections":[{"heading":"What changes","items":["docs/verification/RFC-BPR-0011.md: the four marked known-false statements are rewritten to the dispatch; the claim-matrix Result cell stops saying Windows starts no child.","docs/architecture/ai-agent-boundary.md: the two refusal statements are rewritten; the evidence row at the Windows-refusal claim names the Job Object tests BPR-0240 recorded.","No source change; BPR-0332 returns to 20-ready and closes on the documentation gate."],"kind":"list"},{"heading":"Bound documents (digests at build time)","items":["BPR-0332 card — docs/issues/40-parked/BPR-0332-reconcile-windows-launch-documentation.md: sha256:979007f6127d05aef3471ae1d38e37d0d5037237bdd4c23b10c624e75dd1ccf4 (8589 bytes)","RFC-BPR-0011 verification ledger — docs/verification/RFC-BPR-0011.md: sha256:252209b3d731a6b61068e254b8f3771b59cfab544bb6188d16bd922b255b6ce7 (25843 bytes)","AI agent boundary — docs/architecture/ai-agent-boundary.md: sha256:bee4365e34ec1c07e957b935d58169b189e5745fbb72091e55664bbd06d63cf4 (23805 bytes)"],"kind":"list"}],"display_name":"Document the shipped dispatch (option 2)","identity_files":[{"label":"Decision manifest","media_kind":"file","path":"subjects/001-bpr-0332-document-dispatch/identity/01-decision-manifest.json","sha256":"sha256:b83c8a98ce7a9c87eca3ed0c545895bd9ec04f1db539c6308766800112561f53"}],"known_concerns":["Documentation-only; the guard-versus-proof question is settled in favor of the proof."],"media_groups":[],"selection_group":"windows-launch-documentation","subject_digest":"sha256:7514c050c37ecaeb9421b76d262571d1f88382d8ae2da5cf9178f431526a69ad","subject_id":"decision:/betterpullreview/bpr-0332/document-the-shipped-dispatch","subject_key":"bpr-0332-document-dispatch"},{"ab_group":"","acceptance_criteria":["Windows agent launch refuses before any process starts, and a test fails without the guard."],"audit_verdict":{"note":"Implementable; the guard's original code is in git history at c6f3d96.","status":"pass"},"choice_group":"","description":"Put the failed_to_start guard back inside the Q_OS_WIN branch of agent_process_launcher.cpp so the documented refusal becomes true again and the proven backend is unreachable until a later card re-enables it. Requires a Windows-only test that fails without the guard, run on the Windows station.","detail_sections":[{"heading":"What changes","items":["src/adapters/agent/src/agent_process_launcher.cpp: restore the pre-dispatch refusal in the Windows branch.","A Windows-conditional test asserting failed_to_start with the recorded message; the six documents then describe a true refusal.","BPR-0332 returns to 21-ready-win for the test; the documentation half stays portable."],"kind":"list"},{"heading":"Bound documents (digests at build time)","items":["BPR-0332 card — docs/issues/40-parked/BPR-0332-reconcile-windows-launch-documentation.md: sha256:979007f6127d05aef3471ae1d38e37d0d5037237bdd4c23b10c624e75dd1ccf4 (8589 bytes)"],"kind":"list"}],"display_name":"Restore the pre-start refusal (option 1)","identity_files":[{"label":"Decision manifest","media_kind":"file","path":"subjects/002-bpr-0332-restore-guard/identity/01-decision-manifest.json","sha256":"sha256:b83c8a98ce7a9c87eca3ed0c545895bd9ec04f1db539c6308766800112561f53"}],"known_concerns":["Changes shipped behavior; makes the 2026-08-26/27 target-native proof unreachable from the product until re-enabled; needs the Windows station for its test."],"media_groups":[],"selection_group":"windows-launch-documentation","subject_digest":"sha256:a1a5934e7ba96a799f7f7664ba5c9bbf789ca51178015cbff3f7476d293250bb","subject_id":"decision:/betterpullreview/bpr-0332/restore-the-pre-start-refusal","subject_key":"bpr-0332-restore-guard"},{"ab_group":"","acceptance_criteria":["The mode is not wanted under the measured limits; the decision is recorded as evidence on BPR-0299."],"audit_verdict":{"note":"All five probe captures validate (VALID:5, BOUND:5) at their owning commits.","status":"pass"},"choice_group":"","description":"RFC-BPR-0017 stays Deferred, BPR-0312 stays unresolved, and every implementation card (BPR-0300 through BPR-0317) stays dependency-blocked. The device-authorization flow (RFC-BPR-0016, shipped on macOS since BPR-0318) is the answer to reading a pull request without a stored token, as the RFC itself recommends when the rate budget is not workable.","detail_sections":[{"heading":"Measured facts (docs/verification/reviews/rfc0017-anonymous-probe-v001)","items":["Unauthenticated REST core budget: x-ratelimit-limit 60 per hour per source address, shared by every client behind that address; opening one pull request costs several requests.","A conditional GET answered 304 Not Modified consumed one core unit (used 3 -\u003e 4), so refresh is not exempt.","GraphQL refuses anonymous callers with 403 and x-ratelimit-limit 0, so the workbench's review-thread selection has no anonymous route.","REST pull-request review comments answered 200 anonymously (per_page=1 course), so source-anchored comments could be recovered through a new read operation nobody has carded.","A private or missing repository answers 404, so the mode cannot distinguish absent from private.","GHES in private mode rejects all unauthenticated access; the mode would be GitHub.com-only."],"kind":"list"},{"heading":"Bound documents (digests at build time)","items":["BPR-0299 card — docs/issues/40-parked/BPR-0299-decide-anonymous-public-preview.md: sha256:a59a1df8cfd9b8f16008b5ca0f6e68937e6c511b2feabace515e481ec6da87a0 (2124 bytes)","RFC-BPR-0017 — docs/rfcs/future/RFC-BPR-0017-unauthenticated-public-review-read.md: sha256:ead7c05484703ffa2e6e6cf4cfef7451d764833981d8e846c2957ba69435fad0 (26329 bytes)"],"kind":"list"}],"display_name":"Do not build anonymous public preview","identity_files":[{"label":"rate-limit capture","media_kind":"file","path":"subjects/003-bpr-0299-do-not-build/identity/01-rate-limit-capture.json","sha256":"sha256:9b52844edae8de5cd728ed59a7f205a0b432a7c1418953d8d94bc1e3adc41e76"},{"label":"GraphQL refusal capture","media_kind":"file","path":"subjects/003-bpr-0299-do-not-build/identity/02-graphql-refusal-capture.json","sha256":"sha256:67def7232c8fff7413238dca7181879539dda26cdc42cd0f832eb90e112094bd"},{"label":"pull-request capture","media_kind":"file","path":"subjects/003-bpr-0299-do-not-build/identity/03-pull-request-capture.json","sha256":"sha256:0f0737d8572f16cb77cd6a7d6c8734cd69adf15d37de73567e83d7b33316445f"},{"label":"review-comments capture","media_kind":"file","path":"subjects/003-bpr-0299-do-not-build/identity/04-review-comments-capture.json","sha256":"sha256:dd16dd6948458db8bc12c20e4882a4d78d93952ae0df4cd08c011898a5ddae7d"},{"label":"absent-not-disclosed capture","media_kind":"file","path":"subjects/003-bpr-0299-do-not-build/identity/05-absent-not-disclosed-capture.json","sha256":"sha256:2d7e0b9088acd8c6763ab541b56ac6ea8f69676d6d7bc56dd076e664f05ddc0e"}],"known_concerns":["Public repositories still require sign-in; RFC-0016's device flow is enabled only on macOS so far (Windows and Linux flips are BPR-0311 and BPR-0310)."],"media_groups":[],"selection_group":"anonymous-public-preview","subject_digest":"sha256:c9e6750bc997e0560c78226e4e295dc67d9efa35fc2467504c1e79b83153238e","subject_id":"decision:/betterpullreview/bpr-0299/do-not-build","subject_key":"bpr-0299-do-not-build"},{"ab_group":"","acceptance_criteria":["A read-only, triage-less, rate-limited preview of public GitHub.com pull requests is a mode the product wants, with its limits presented up front."],"audit_verdict":{"note":"Eligible only as a credential-optional profile on the existing path; the RFC prohibits a parallel read path.","status":"pass"},"choice_group":"","description":"Accept the measured limits and authorize the RFC-BPR-0017 implementation cards. Accept only with a note that gives the four things the approval must define: the public-preview name, how the 60-per-hour shared limit and the missing review threads and triage are presented, the sign-in handoff to the device flow, and the supported-platform policy (GitHub.com only). BPR-0312 validates that positive decision next.","detail_sections":[{"heading":"Required in the accepting note","items":["Exact public-preview naming.","Limit presentation: the shared 60-per-hour budget, the 304 cost, and the absent review threads and triage.","Sign-in handoff: how the preview offers the device flow.","Supported-platform policy: GitHub.com public repositories only; every GHES profile stays unavailable."],"kind":"list"},{"heading":"Bound documents (digests at build time)","items":["BPR-0299 card — docs/issues/40-parked/BPR-0299-decide-anonymous-public-preview.md: sha256:a59a1df8cfd9b8f16008b5ca0f6e68937e6c511b2feabace515e481ec6da87a0 (2124 bytes)","RFC-BPR-0017 — docs/rfcs/future/RFC-BPR-0017-unauthenticated-public-review-read.md: sha256:ead7c05484703ffa2e6e6cf4cfef7451d764833981d8e846c2957ba69435fad0 (26329 bytes)"],"kind":"list"}],"display_name":"Build it as a credential-optional preview mode on the existing read path","identity_files":[{"label":"Decision manifest","media_kind":"file","path":"subjects/004-bpr-0299-build/identity/01-decision-manifest.json","sha256":"sha256:b83c8a98ce7a9c87eca3ed0c545895bd9ec04f1db539c6308766800112561f53"}],"known_concerns":["Roughly six to twelve pull-request opens per hour per shared address; silent degradation when a colleague on the same network opens one; a new REST review-comment read operation and its fixtures are uncarded; RFC-BPR-0002 closeout is already Auto-Verified so that gate no longer blocks."],"media_groups":[],"selection_group":"anonymous-public-preview","subject_digest":"sha256:797d7aac2054bfd426489803b4e209b3e48a97da3dd01babbdf1fe3aa42fb1c9","subject_id":"decision:/betterpullreview/bpr-0299/build-credential-optional-preview","subject_key":"bpr-0299-build"},{"ab_group":"","acceptance_criteria":["RFC-BPR-0006's 'System mode responds to OS scheme changes; explicit mode does not' and 'state remains understandable without color alone' rows may close on the existing accepted verdicts."],"audit_verdict":{"note":"RFC-0006 automated rows replayed 18/18 at cc17d703; git log since 2026-08-21 on the appearance components is empty.","status":"pass"},"choice_group":"","description":"The owner-accepted v008 foreground run (2026-08-21) recorded APPEARANCE_SYSTEM_FOLLOWS_OK, APPEARANCE_EXPLICIT_IGNORES_OK, APPEARANCE_VARIANTS:0:1:0:1, strict owner return, and zero attributed geometry rebuilds; BPR-0220's zero-expectation repair was accepted without another run. No commit since 2026-08-21 touches the appearance profile, host, settings adapter, or syntax adapter, and the only appearance-related change in main.cpp is a failure-message format (BPR-0475). Under the board's reuse rule this closes BPR-0114 and unblocks BPR-0115; the high-contrast row likewise reuses the accepted high-contrast-scheme-acceptance-v001, diff-scheme-acceptance-v002, and intraline batches.","detail_sections":[{"heading":"Bound evidence","items":["appearance-scheme-foreground-v008/operator-response.md, validation-record.json, and foreground-run-attempt-1.log (the complete Cocoa log).","BPR-0220's accepted zero-rebuild repair at 761d416.","BPR-0115's 2026-09-01 focused replay table."],"kind":"list"},{"heading":"Bound documents (digests at build time)","items":["v008 operator response — docs/verification/reviews/appearance-scheme-foreground-v008/operator-response.md: sha256:fa32fe78c726c2115c052bd019551bb75b9f2589784e455baff4bdf5e494c0a8 (617 bytes)","BPR-0114 card — docs/issues/40-parked/BPR-0114-rfc-0006-system-scheme-toggle.md: sha256:1a6f4ab73d8a306a7e5d3df8235be566767be0da5a5190f22439799b4bbac999 (25298 bytes)"],"kind":"list"}],"display_name":"Accept the v008 observation as RFC-BPR-0006's terminal attended row","identity_files":[{"label":"v008 validation record","media_kind":"file","path":"subjects/005-bpr-0114-reuse-v008/identity/01-v008-validation-record.json","sha256":"sha256:33aba1e03524b641a95852b5bfc6b03f0be6ab3db10a3047f61dc6fbbaef6538"},{"label":"v008 raw log","media_kind":"file","path":"subjects/005-bpr-0114-reuse-v008/identity/02-v008-raw-log.log","sha256":"sha256:917f84320c0ba271b69aa029c04893fec8a2b402e9b6a0745926a20c731ed5f5"}],"known_concerns":["The RFC-0005 closeout precedent sat a fresh attended packet against the closeout executable; this alternative deliberately does not."],"media_groups":[],"selection_group":"rfc-0006-appearance-row","subject_digest":"sha256:5a7a6b5bd03cd33173025108ed3ae7b39afb2bf36210f3a4f32d33748390cf1d","subject_id":"decision:/betterpullreview/bpr-0114/accept-v008-as-terminal","subject_key":"bpr-0114-reuse-v008"},{"ab_group":"","acceptance_criteria":["A fresh digest-bound attended run is wanted before RFC-BPR-0006 closes."],"audit_verdict":{"note":"The v008 procedure and its BPR-0410 diagnostics are ready to rebind; the v009 directory exists and is empty.","status":"pass"},"choice_group":"","description":"The integrator regenerates appearance-scheme-foreground-v009 bound to the final RFC-BPR-0006 closeout binary after every portable slice that could rebuild it, and the owner runs the Light-to-Dark procedure once more with the window frontmost, restoring the desktop scheme afterwards. That log becomes the row's evidence; v008 stays as history.","detail_sections":[{"heading":"What happens next","items":["v009 packet regenerated last, bound to the closeout executable digest.","One attended sitting; the complete marker log committed beside the packet.","BPR-0114 then closes and BPR-0115 replays its attended row from that log."],"kind":"list"},{"heading":"Bound documents (digests at build time)","items":["v008 operator packet (procedure to rebind) — docs/verification/reviews/appearance-scheme-foreground-v008/operator-packet.md: sha256:181e661ca62a04a302d18aebe47cee614f60829c3429aa1894d1adb0125e0d71 (11327 bytes)","BPR-0114 card — docs/issues/40-parked/BPR-0114-rfc-0006-system-scheme-toggle.md: sha256:1a6f4ab73d8a306a7e5d3df8235be566767be0da5a5190f22439799b4bbac999 (25298 bytes)"],"kind":"list"}],"display_name":"Sit one v009 foreground run against the closeout executable","identity_files":[{"label":"Decision manifest","media_kind":"file","path":"subjects/006-bpr-0114-v009-sitting/identity/01-decision-manifest.json","sha256":"sha256:b83c8a98ce7a9c87eca3ed0c545895bd9ec04f1db539c6308766800112561f53"}],"known_concerns":["Costs the owner one more desktop appearance change and sitting; delays RFC-0006 closeout until the last src/app change of the run."],"media_groups":[],"selection_group":"rfc-0006-appearance-row","subject_digest":"sha256:eeb60fd31a52408cd658208ad3b2f9b9c4295eccb1c10734f33001c98dd51053","subject_id":"decision:/betterpullreview/bpr-0114/sit-a-v009-run","subject_key":"bpr-0114-v009-sitting"}],"title":"Run-boundary product decisions (RFC-BPR-0006, RFC-BPR-0011, RFC-BPR-0017)"}</script>
+  <script>
+(function (root) {
+  "use strict";
+
+  const STORAGE_PREFIX = "bpr.attended-review.v1";
+  const VERDICT_SCHEMA = "bpr.attended_review_verdict";
+
+  function identityKey(subject) {
+    return `${subject.subject_id}@${subject.subject_digest}`;
+  }
+
+  function storageKey(batchId, subject) {
+    return `${STORAGE_PREFIX}:${batchId}:${subject.subject_id}:${subject.subject_digest}`;
+  }
+
+  function createMemoryStorage() {
+    const values = new Map();
+    return {
+      getItem(key) {
+        return values.has(key) ? values.get(key) : null;
+      },
+      setItem(key, value) {
+        values.set(key, String(value));
+      },
+      removeItem(key) {
+        values.delete(key);
+      },
+    };
+  }
+
+  function availableStorage() {
+    try {
+      if (!root.localStorage) {
+        return createMemoryStorage();
+      }
+      const probe = `${STORAGE_PREFIX}:probe`;
+      root.localStorage.setItem(probe, "1");
+      root.localStorage.removeItem(probe);
+      return root.localStorage;
+    } catch (_error) {
+      return createMemoryStorage();
+    }
+  }
+
+  function normalizeSaved(value) {
+    if (!value || typeof value !== "object") {
+      return { decision: null, notes: "" };
+    }
+    const decision = value.decision === "accept" || value.decision === "reject"
+      ? value.decision
+      : null;
+    return {
+      decision,
+      notes: typeof value.notes === "string" ? value.notes : "",
+    };
+  }
+
+  function auditFailed(subject) {
+    return Boolean(subject.audit_verdict && subject.audit_verdict.status === "fail");
+  }
+
+  class ReviewController {
+    constructor(config, storage) {
+      if (!config || !Array.isArray(config.subjects)) {
+        throw new Error("review config must contain subjects");
+      }
+      if (!config.downstream_claims || typeof config.downstream_claims !== "object") {
+        throw new Error("review config must declare downstream_claims");
+      }
+      this.config = config;
+      this.groups = new Map();
+      for (const group of config.selection_groups || []) {
+        this.groups.set(group.group_id, group);
+      }
+      for (const subject of config.subjects) {
+        const token = subject.choice_group;
+        if (token && !this.groups.has(token)) {
+          this.groups.set(token, { group_id: token, min_accept: 1, max_accept: 1 });
+        }
+      }
+      this.storage = storage || availableStorage();
+      this.states = new Map();
+      for (const subject of config.subjects) {
+        const raw = this.storage.getItem(storageKey(config.batch_id, subject));
+        let parsed = null;
+        if (raw !== null) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch (_error) {
+            parsed = null;
+          }
+        }
+        const state = normalizeSaved(parsed);
+        if (state.decision === "accept" && auditFailed(subject)) {
+          state.decision = null;
+        }
+        this.states.set(identityKey(subject), state);
+      }
+    }
+
+    subject(subjectId, subjectDigest) {
+      const found = this.config.subjects.find(
+        (item) => item.subject_id === subjectId && item.subject_digest === subjectDigest
+      );
+      if (!found) {
+        throw new Error(`unknown subject identity: ${subjectId}@${subjectDigest}`);
+      }
+      return found;
+    }
+
+    state(subject) {
+      return this.states.get(identityKey(subject));
+    }
+
+    save(subject) {
+      this.storage.setItem(
+        storageKey(this.config.batch_id, subject),
+        JSON.stringify(this.state(subject))
+      );
+    }
+
+    subjectGroupId(subject) {
+      return subject.selection_group || subject.choice_group || null;
+    }
+
+    groupMembers(groupId) {
+      return this.config.subjects.filter((item) => this.subjectGroupId(item) === groupId);
+    }
+
+    groupTally(groupId) {
+      const group = this.groups.get(groupId);
+      const members = this.groupMembers(groupId);
+      let chosen = 0;
+      let rejected = 0;
+      for (const member of members) {
+        const decision = this.state(member).decision;
+        if (decision === "accept") chosen += 1;
+        if (decision === "reject") rejected += 1;
+      }
+      const undecided = members.length - chosen - rejected;
+      const satisfied = (chosen >= group.min_accept && chosen <= group.max_accept)
+        || (chosen === 0 && rejected === members.length);
+      return { group, members, chosen, rejected, undecided, satisfied };
+    }
+
+    setDecision(subjectId, subjectDigest, decision) {
+      if (decision !== "accept" && decision !== "reject" && decision !== null) {
+        throw new Error(`invalid decision: ${decision}`);
+      }
+      const subject = this.subject(subjectId, subjectDigest);
+      if (decision === "accept" && auditFailed(subject)) {
+        throw new Error("subject failed its mechanical audit; accept is unavailable");
+      }
+      const groupId = this.subjectGroupId(subject);
+      if (decision === "accept" && groupId && this.groups.has(groupId)) {
+        const tally = this.groupTally(groupId);
+        const alreadyChosen = this.state(subject).decision === "accept";
+        if (!alreadyChosen && tally.chosen >= tally.group.max_accept) {
+          if (tally.group.max_accept === 1) {
+            for (const member of tally.members) {
+              const memberState = this.state(member);
+              if (memberState.decision === "accept") {
+                memberState.decision = null;
+                this.save(member);
+              }
+            }
+          } else {
+            throw new Error(
+              `selection group '${groupId}' allows at most ${tally.group.max_accept} chosen alternatives; clear one first`
+            );
+          }
+        }
+      }
+      this.state(subject).decision = decision;
+      this.save(subject);
+      return this.summary();
+    }
+
+    setNotes(subjectId, subjectDigest, notes) {
+      const subject = this.subject(subjectId, subjectDigest);
+      this.state(subject).notes = String(notes || "");
+      this.save(subject);
+      return this.summary();
+    }
+
+    summary() {
+      let accepted = 0;
+      let rejected = 0;
+      let notChosen = 0;
+      let pending = 0;
+      for (const subject of this.config.subjects) {
+        const decision = this.state(subject).decision;
+        if (decision === "accept") accepted += 1;
+        if (decision === "reject") rejected += 1;
+        if (!decision && !this.subjectGroupId(subject)) pending += 1;
+      }
+      for (const groupId of this.groups.keys()) {
+        const tally = this.groupTally(groupId);
+        if (tally.satisfied) {
+          notChosen += tally.undecided;
+        } else {
+          pending += tally.undecided || 1;
+        }
+      }
+      const total = this.config.subjects.length;
+      return {
+        accepted,
+        rejected,
+        notChosen,
+        resolved: total - pending,
+        pending,
+        total,
+      };
+    }
+
+    buildVerdict() {
+      for (const groupId of this.groups.keys()) {
+        const tally = this.groupTally(groupId);
+        if (!tally.satisfied) {
+          throw new Error(
+            `cannot export: selection group '${groupId}' is unresolved; choose between `
+            + `${tally.group.min_accept} and ${tally.group.max_accept} alternatives or reject every member`
+          );
+        }
+      }
+      const summary = this.summary();
+      if (summary.pending !== 0) {
+        throw new Error(`cannot export: ${summary.pending} subject(s) remain pending`);
+      }
+      const accepted = [];
+      const rejected = [];
+      const notChosen = [];
+      const notes = {};
+      for (const subject of this.config.subjects) {
+        const state = this.state(subject);
+        const identity = {
+          subject_id: subject.subject_id,
+          subject_digest: subject.subject_digest,
+        };
+        if (state.decision === "accept") {
+          accepted.push(identity);
+        } else if (state.decision === "reject") {
+          rejected.push(identity);
+        } else {
+          notChosen.push(identity);
+        }
+        if (state.notes.trim()) {
+          notes[identityKey(subject)] = state.notes;
+        }
+      }
+      const verdict = {
+        schema_name: VERDICT_SCHEMA,
+        schema_version: 1,
+        batch_id: this.config.batch_id,
+        review_gate: this.config.review_gate,
+        review_scope: this.config.review_scope,
+        accepted_subjects: accepted,
+        rejected_subjects: rejected,
+        notes_by_subject_identity: notes,
+        downstream_claims: { ...this.config.downstream_claims },
+      };
+      if (this.groups.size > 0) {
+        verdict.not_chosen_subjects = notChosen;
+      }
+      return verdict;
+    }
+  }
+
+  async function copyText(text, environment) {
+    const env = environment || root;
+    if (env.navigator && env.navigator.clipboard && env.navigator.clipboard.writeText) {
+      try {
+        await env.navigator.clipboard.writeText(text);
+        return "clipboard";
+      } catch (_error) {
+        // Local file origins frequently expose Clipboard API but deny writes.
+        // Continue to the legacy selection-based copy path in that case.
+      }
+    }
+    const document = env.document;
+    if (!document || !document.execCommand) {
+      throw new Error("clipboard copy is unavailable; copy the displayed JSON manually");
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (!copied) {
+      throw new Error("clipboard copy failed; copy the displayed JSON manually");
+    }
+    return "execCommand";
+  }
+
+  function initializePage(document) {
+    const configNode = document.getElementById("attended-review-config");
+    if (!configNode) return null;
+    const config = JSON.parse(configNode.textContent);
+    const controller = new ReviewController(config);
+    const cards = Array.from(document.querySelectorAll("[data-subject-id]"));
+    const progress = document.getElementById("review-progress");
+    const totals = document.getElementById("review-totals");
+    const pendingOnly = document.getElementById("pending-only");
+    const exportButton = document.getElementById("export-verdict");
+    const exportOutput = document.getElementById("verdict-output");
+    const reviewStatus = document.getElementById("review-status");
+
+    function cardSubject(card) {
+      return controller.subject(card.dataset.subjectId, card.dataset.subjectDigest);
+    }
+
+    function render() {
+      const summary = controller.summary();
+      progress.textContent = `${summary.resolved}/${summary.total} reviewed`;
+      const segments = [`${summary.accepted} accepted`, `${summary.rejected} rejected`];
+      if (controller.groups.size > 0) {
+        segments.push(`${summary.notChosen} not chosen`);
+      }
+      segments.push(`${summary.pending} pending`);
+      totals.textContent = segments.join(" · ");
+      exportButton.disabled = summary.pending !== 0;
+      if (summary.pending !== 0) {
+        exportButton.textContent = "Copy the complete verdict";
+      }
+      const tallies = new Map();
+      for (const groupId of controller.groups.keys()) {
+        tallies.set(groupId, controller.groupTally(groupId));
+      }
+      for (const card of cards) {
+        const subject = cardSubject(card);
+        const state = controller.state(subject);
+        let reviewState = state.decision || "pending";
+        const groupId = controller.subjectGroupId(subject);
+        if (!state.decision && groupId) {
+          const tally = tallies.get(groupId);
+          if (tally && tally.satisfied) {
+            reviewState = "not-chosen";
+          }
+        }
+        card.dataset.reviewState = reviewState;
+        card.hidden = Boolean(pendingOnly.checked && reviewState !== "pending");
+        for (const button of card.querySelectorAll("[data-decision]")) {
+          button.setAttribute("aria-pressed", String(button.dataset.decision === state.decision));
+        }
+      }
+      for (const node of document.querySelectorAll("[data-selection-group-status]")) {
+        const tally = tallies.get(node.dataset.selectionGroupStatus);
+        if (!tally) continue;
+        const range = tally.group.min_accept === tally.group.max_accept
+          ? String(tally.group.max_accept)
+          : `${tally.group.min_accept}-${tally.group.max_accept}`;
+        if (tally.satisfied && tally.chosen === 0) {
+          node.textContent = `Every alternative rejected: this question has no acceptable answer (needs ${range}).`;
+        } else if (tally.satisfied) {
+          node.textContent = `Satisfied: ${tally.chosen} chosen of ${range}; ${tally.undecided} not chosen, ${tally.rejected} rejected.`;
+        } else {
+          node.textContent = `Unresolved: ${tally.chosen} chosen of ${range} needed; ${tally.undecided} undecided, ${tally.rejected} rejected.`;
+        }
+      }
+    }
+
+    for (const card of cards) {
+      const subject = cardSubject(card);
+      const state = controller.state(subject);
+      const notes = card.querySelector("[data-review-notes]");
+      notes.value = state.notes;
+      for (const button of card.querySelectorAll("[data-decision]")) {
+        button.addEventListener("click", () => {
+          let decision = button.dataset.decision === "clear" ? null : button.dataset.decision;
+          if (decision && controller.state(subject).decision === decision) {
+            decision = null;
+          }
+          try {
+            controller.setDecision(subject.subject_id, subject.subject_digest, decision);
+          } catch (error) {
+            reviewStatus.textContent = error.message;
+            return;
+          }
+          exportOutput.value = "";
+          reviewStatus.textContent = "Decision saved in this browser.";
+          exportButton.textContent = "Copy the complete verdict";
+          render();
+        });
+      }
+      notes.addEventListener("input", () => {
+        controller.setNotes(subject.subject_id, subject.subject_digest, notes.value);
+        exportOutput.value = "";
+        reviewStatus.textContent = "Notes saved in this browser.";
+        exportButton.textContent = "Copy the complete verdict";
+      });
+    }
+
+    pendingOnly.addEventListener("change", render);
+    exportButton.addEventListener("click", async () => {
+      try {
+        const text = `${JSON.stringify(controller.buildVerdict(), null, 2)}\n`;
+        exportOutput.value = text;
+        const method = await copyText(text);
+        exportButton.textContent = "Copied — return it to the agent";
+        reviewStatus.textContent = method === "clipboard"
+          ? "Complete verdict copied. Paste it back to the requesting agent session."
+          : "Complete verdict copied with the local fallback. Paste it back to the requesting agent session.";
+      } catch (error) {
+        exportButton.textContent = "Copy the complete verdict";
+        exportOutput.focus();
+        exportOutput.select();
+        reviewStatus.textContent = `${error.message}. The complete JSON below is selected for manual copy.`;
+      }
+    });
+    render();
+    return controller;
+  }
+
+  const api = {
+    ReviewController,
+    copyText,
+    createMemoryStorage,
+    identityKey,
+    initializePage,
+    storageKey,
+  };
+  root.BprAttendedReview = api;
+  if (root.document) {
+    if (root.document.readyState === "loading") {
+      root.document.addEventListener("DOMContentLoaded", () => initializePage(root.document));
+    } else {
+      initializePage(root.document);
+    }
+  }
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+// Full-resolution inspection. Opening and closing the viewer must not
+// touch decision state or the export lock, so this only reads the DOM.
+(function attachFullResolutionViewer() {
+  // The runtime is loaded browserless by the skill's own tests, so it must not
+  // touch the DOM at import time.
+  if (typeof document === 'undefined' || !document.body) { return; }
+  var viewer = document.createElement('div');
+  viewer.className = 'media-viewer';
+  viewer.hidden = true;
+  viewer.setAttribute('role', 'dialog');
+  viewer.setAttribute('aria-modal', 'true');
+  viewer.innerHTML =
+    '<div class="media-viewer-bar">' +
+    '<span class="media-viewer-label"></span>' +
+    '<span class="media-viewer-counter"></span>' +
+    '<button type="button" class="media-viewer-close">Close</button>' +
+    '</div><div class="media-viewer-surface"><img alt=""></div>' +
+    '<button type="button" class="media-viewer-nav media-viewer-prev" aria-label="Previous image">&#8249;</button>' +
+    '<button type="button" class="media-viewer-nav media-viewer-next" aria-label="Next image">&#8250;</button>';
+  document.body.appendChild(viewer);
+
+  var image = viewer.querySelector('.media-viewer-surface img');
+  var label = viewer.querySelector('.media-viewer-label');
+  var counter = viewer.querySelector('.media-viewer-counter');
+  var closeButton = viewer.querySelector('.media-viewer-close');
+  var prevButton = viewer.querySelector('.media-viewer-prev');
+  var nextButton = viewer.querySelector('.media-viewer-next');
+  var lastTrigger = null;
+
+  function visibleTriggers() {
+    return Array.prototype.filter.call(
+      document.querySelectorAll('.media-zoom'),
+      function (candidate) { return candidate.offsetParent !== null; }
+    );
+  }
+
+  function close() {
+    viewer.hidden = true;
+    image.removeAttribute('src');
+    if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+  }
+
+  function open(trigger, focusClose) {
+    lastTrigger = trigger;
+    image.src = trigger.getAttribute('data-full-source');
+    image.alt = trigger.getAttribute('data-full-label') || '';
+    label.textContent = trigger.getAttribute('data-full-label') || '';
+    var list = visibleTriggers();
+    var index = list.indexOf(trigger);
+    var navigable = list.length > 1;
+    counter.textContent = navigable && index >= 0 ? (index + 1) + ' / ' + list.length : '';
+    prevButton.hidden = !navigable;
+    nextButton.hidden = !navigable;
+    viewer.hidden = false;
+    if (focusClose !== false) { closeButton.focus(); }
+  }
+
+  function step(delta) {
+    var list = visibleTriggers();
+    if (!list.length) { return; }
+    var index = list.indexOf(lastTrigger);
+    var next = ((index < 0 ? 0 : index + delta) + list.length) % list.length;
+    open(list[next], false);
+  }
+
+  document.addEventListener('click', function (event) {
+    var trigger = event.target.closest ? event.target.closest('.media-zoom') : null;
+    if (trigger) { event.preventDefault(); open(trigger); return; }
+    if (viewer.hidden) { return; }
+    if (event.target.closest && event.target.closest('.media-viewer-prev')) { step(-1); return; }
+    if (event.target.closest && event.target.closest('.media-viewer-next')) { step(1); return; }
+    if (event.target === viewer || event.target === closeButton) { close(); }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (viewer.hidden) { return; }
+    if (event.key === 'Escape') { close(); return; }
+    if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); return; }
+    if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
+  });
+})();
+
+</script>
+</body>
+</html>

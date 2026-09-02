@@ -1,7 +1,7 @@
 ---
 id: BPR-0491
 title: A launched station's name does not bind in peer agent lists
-status: Ready
+status: Done
 rfc: none
 depends_on: []
 ---
@@ -237,3 +237,117 @@ rather than expected. Whoever runs it should also record what the launcher's
 terminal actually shows: a live session, or a server banner and nothing else.
 The operator is the only one who can see that, and neither reading has been
 confirmed.
+
+## Settled with a control group — 2026-09-01
+
+The spawn-on-connect hypothesis is confirmed, and the "evidence against it"
+was a misreading of the banner. Both JaegAW stations were relaunched today
+through the v2 launcher, `lane-commit`, each holding its writer lease:
+`claude remote-control --permission-mode bypassPermissions --name
+bpr-win-jaegaw --spawn session` (pid 30500) and the same for
+`bpr-linux-jaegaw` inside WSL2 (pid 267555). Neither name appears in any
+peer list, from this Mac or from the hand-started JaegAW session. Both
+station files record `"claude": null`.
+
+What makes that a conclusion rather than a correlation, measured read-only by
+the hand-started JaegAW session (existence only, nothing opened):
+
+- Every Aito checkout on that machine has a `bridge-pointer.json` under
+  `~/.claude/projects/`; neither BetterPullReview checkout does, on Windows or
+  in WSL2. The bridge pointer is what the launcher reads to learn the session
+  ID; it appears only when a session exists.
+- The Aito stations are launched by the same launcher with identical flags,
+  differing only in `--name`, and their names bind in peer lists on both
+  machines. `aito-acta-win` is already running as `claude remote-control
+  --session-id session_…` — the launcher's resume-by-ID path, reachable only
+  after a session was once created and recorded.
+- The one difference is that somebody has opened the Aito environments and
+  nobody has opened the BPR ones (`env_01LjTC49xVQwzUagnazZMgFf` for Windows,
+  `env_01FgmY1otxpN3bNBxM9Lowh1` for Linux).
+
+So `--spawn session` starts a server, not a session; the named session is
+created on the first controller connection, and until then there is nothing
+for a peer list to show. The 2026-08-29 launch was in exactly this state.
+
+The silent-misroute half of the risk is also settled, by trying it: a
+`SendMessage` to `bpr-win-jaegaw` from this session was refused with `No
+agent named 'bpr-win-jaegaw' is reachable`. An unbound station name does not
+resolve to an auto-variant; it fails loudly, so the pre-send check is the
+peer list itself and a name is dispatchable exactly when it appears there bare
+and exact. What the auto-variant caution still covers is a *second* session
+with the same name, and a hand-started session in another checkout answering
+an identity probe as the station because it read the station file — that
+happened again today (`jaegaw-curried-spark`, a `main` checkout with two local
+commits, correctly declined to act as the Windows lane once asked).
+
+### What changed
+
+- `docs/development/remote-stations.md` stops claiming a launched name binds
+  and prescribes the check that works: launch, open the environment once, then
+  look for the bare exact name in the peer list; refuse anything that is not
+  there. The registry rows carry both environment IDs and the
+  "session not yet spawned" state.
+- `launch_remote_station.py` reports the identity a peer will see and when:
+  `spawn_on_connect_notice` prints at every fresh start that the named
+  session is created on the first controller connection, that the name is in
+  no peer list until then, and that the station file records `"claude": null`
+  meanwhile. The session watcher no longer gives up after 30 seconds — the
+  window that guaranteed a station connected later would never have its
+  session recorded, and would create a fresh session on every relaunch instead
+  of resuming. It now runs until the Claude process exits, and after the old
+  30-second grace it releases only the *sibling* worktree pointers while the
+  stale target pointer stays aside, so a late connection cannot be recorded
+  from an old session ID. Four tests cover the late record, the stop without a
+  session, the sibling release, and the notice.
+- `references/runtime-compatibility.md` records the rule for the portable
+  skill; adapters and the portable manifest are regenerated.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The launcher records a session created after the grace window | `python3 -m unittest tests.test_launch_remote_station` in the skill root | 36/36, including `test_watch_outlives_the_grace_and_records_a_late_session`, `test_watch_ends_without_a_session_only_when_claude_stops`, `test_releasing_siblings_keeps_the_stale_target_hidden`, `test_fresh_claude_announces_spawn_on_connect` | this commit |
+| An unbound station name fails loudly | `SendMessage` to `bpr-win-jaegaw` from `bpr-main-mac` while no such session exists | refused: `No agent named 'bpr-win-jaegaw' is reachable` | recorded here |
+| The portable skill is regenerated and consistent | `render_runtime_adapters.py` then `validate_portable_agents.py` | see the commit's generated files | this commit |
+| The documentation gate holds | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | this commit |
+
+Residual, recorded in the registry's acceptance checks rather than kept here:
+the positive half — a BetterPullReview station name appearing in this Mac's
+peer list after its first connection, and its station file gaining
+`claude.session_id` — needs the operator to open each environment once. Every
+required final state above is met from observed behavior; that observation
+confirms the rule on this project's own names.
+
+Also observed and left as-is: `claude remote-control --help` still never
+returns (a hung one from 2026-08-29 is still running on this Mac, pid 37121).
+It is a CLI defect, not this repository's.
+
+## The launcher was using the wrong form, and the fix is one flag — 2026-09-01
+
+The product owner pointed at the Aito stations, which "just worked", and
+asked what this launcher does differently. The Claude command is
+byte-identical in both launchers — `claude remote-control --name <station>
+--spawn session` — so the difference was only that the Aito environments had
+been opened once. That is not a fix; it is the defect. Four probes on this
+Mac, each from a gitignored directory inside the trusted checkout, each
+watched for 40–75 seconds for the bridge pointer and the peer list:
+
+| Command | Session created at launch? |
+|---|---|
+| `claude remote-control --name X --spawn session` | no — "Single session · exits when complete", environment URL, no pointer, absent from every peer list |
+| `claude remote-control --name X --spawn session --create-session-in-dir` | no — identical |
+| `claude remote-control --name X --capacity 1` (default `same-dir`) | no — "Capacity: 0/1 · New sessions will be created in the current directory" |
+| `claude --remote-control X` (the interactive form, under a pty) | **yes** — `X · Remote Control · idle` in this session's peer list within seconds, nobody connected |
+
+The `remote-control` subcommand is a *server*; every mode of it creates
+sessions when a controller connects, and the documented `--create-session-in-dir`
+default did not change that in these probes. The `--remote-control` *flag* on
+an interactive session makes the running process the served session, so the
+name exists the moment the process does. A station supervisor already runs
+Claude in the foreground for its whole life, which is exactly the shape the
+interactive form wants.
+
+So the launcher's fresh path now runs `claude --remote-control <station>
+--permission-mode <mode>`; the environment-URL step disappears, the bridge
+pointer appears at startup, the session ID is recorded immediately, and the
+spawn-on-connect notice above becomes a description of the form the launcher
+no longer uses. The two JaegAW stations launched today with the server form
+have to be relaunched once through the corrected launcher to get a session.
