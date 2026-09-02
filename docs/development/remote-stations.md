@@ -267,6 +267,47 @@ course reads the configuration each tree declares (BPR-0492) and the
 dependency provider builds only the configurations the tree selects
 (BPR-0495).
 
+## Linux hosts: the Secret Service `login` collection must be unlocked
+
+The `linux_secret_service_native*` fixtures and every RFC-BPR-0016 vault row
+on Linux talk to the real `org.freedesktop.secrets` service and target the
+collection the `default` alias names — the `login` collection. The vault
+refuses to prompt by construction, so a locked collection makes those rows
+fail with `github_credential_vault_failure::locked` and nothing on the host
+will ever unlock it: on a stock desktop PAM unlocks it at login with the user's
+password, and a WSL2 host has no such login. Recorded from the JaegAW WSL2
+host, 2026-09-02 (BPR-0310):
+
+- Check first, and again before every course run, since a one-shot unlock is
+  per daemon and re-locks whenever gnome-keyring restarts:
+
+  ```bash
+  DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus gdbus call --session \
+    --dest org.freedesktop.secrets \
+    --object-path /org/freedesktop/secrets/collection/login \
+    --method org.freedesktop.DBus.Properties.Get \
+    org.freedesktop.Secret.Collection Locked
+  ```
+
+  `(<false>,)` is the state the rows need.
+- gnome-keyring 50 rejects an empty password: the widely quoted
+  `echo -n "" | gnome-keyring-daemon --unlock` creates nothing and prints no
+  error. A blank-password, always-unlocked keyring is not available.
+- `--unlock` alone does not touch a daemon that is already running; only
+  `--replace --unlock` does, and under systemd the
+  `gnome-keyring-daemon.socket` unit socket-activates the daemon, so a
+  hand-started one cannot take the bus name.
+- The durable shape is a systemd user override
+  (`~/.config/systemd/user/gnome-keyring-daemon.service.d/`) whose
+  `ExecStart` adds `--unlock` with a password file on stdin, so the
+  collection unlocks at every session start. The password file is
+  plaintext-equivalent at rest: it buys a working Secret Service for the
+  fixtures, not secrecy, so store nothing real in that keyring. If the file
+  goes missing the service fails to start rather than prompting, and
+  Secret Service clients then report no service at all.
+- A `login.keyring` whose password nobody knows cannot be recovered; move it
+  aside and let the new collection be created.
+
 ## Dispatch and merge in one paragraph
 
 The integrator reserves an ID block on `main`
