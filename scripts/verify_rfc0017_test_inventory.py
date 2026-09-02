@@ -30,6 +30,7 @@ import sys
 # describing what actually ran.
 SELECTORS: dict[str, int] = {
     "rfc0017_credential_free_native_https": 1,
+    "core_anonymous_public_read": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector also
@@ -40,13 +41,26 @@ REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "rfc0017_credential_free_native_https": ("--suite", "rfc0017"),
 }
 
-# Not every configured graph builds the native HTTPS loopback fixture — the
-# core-only preset has no Qt and therefore no transport to demonstrate. Rather
-# than let the count check pass vacuously there, anchor it: a graph that
-# registers the sibling fixture must register every selector exactly as stated
-# above, and a graph that does not must register none of them. Both directions
-# are checked, so neither a missing selector nor a stray one can hide.
-GRAPH_ANCHOR = "native_https_transport_fixture"
+# Not every configured graph builds every surface — the core-only preset has
+# no Qt and therefore no native HTTPS loopback fixture to demonstrate against.
+# Rather than let the count check pass vacuously there, each selector names
+# the sibling registration that proves its graph builds the surface it tests:
+# a graph that registers the anchor must register the selector exactly as
+# stated above, and a graph that does not must register none of it. Both
+# directions are checked, so neither a missing selector nor a stray one can
+# hide. A selector anchored on `None` is required of every configured graph;
+# the core policy suite links only the core library and has no graph in which
+# its absence is legitimate (BPR-0300).
+SELECTOR_ANCHORS: dict[str, str | None] = {
+    "rfc0017_credential_free_native_https": "native_https_transport_fixture",
+    "core_anonymous_public_read": None,
+}
+
+# The anchored native-HTTPS selectors live in the APPLE/Linux wire block:
+# BPR-0446 registered the anchor fixture on Windows while deliberately leaving
+# this RFC's credential-free selector out of it, so on Windows the anchor no
+# longer implies the selector.
+WIRE_BLOCK_PLATFORMS = frozenset({"darwin", "linux"})
 
 # Symbols that must not exist in a tests-disabled Release build. These are the
 # `BPR_NATIVE_HTTPS_TESTING` factories: the only entry points that construct
@@ -151,28 +165,54 @@ def registered_tests(
     return registered
 
 
+def selector_expected(
+    selector: str, names: list[str]
+) -> tuple[int, str]:
+    """How many registrations this graph owes the selector, and why."""
+    anchor = SELECTOR_ANCHORS[selector]
+    declared = SELECTORS[selector]
+    if anchor is None:
+        return declared, "required of every configured graph"
+    if anchor in names and sys.platform in WIRE_BLOCK_PLATFORMS:
+        return declared, f"graph builds {anchor}"
+    if anchor in names:
+        return 0, f"graph builds {anchor} outside the APPLE/Linux wire block"
+    return 0, f"graph does not build {anchor}"
+
+
 def check_inventory(
-    build_root: pathlib.Path, build_config: str | None
+    build_root: pathlib.Path,
+    build_config: str | None,
+    required: tuple[str, ...] = (),
+    require_all: bool = False,
 ) -> list[str]:
-    """Require every selector exactly its expected number of times."""
+    """Require every selector exactly its expected number of times.
+
+    ``required`` names selectors the caller insists this graph registers —
+    the ledger's ``--required`` form — so a graph that legitimately omits an
+    anchored selector still fails when the caller needed it; ``require_all``
+    is the same insistence over every selector, the ``--all`` form.
+    """
+    if set(SELECTORS) != set(SELECTOR_ANCHORS):
+        raise InventoryFailure("selector-anchor-table-mismatch")
+    unknown = sorted(set(required) - set(SELECTORS))
+    if unknown:
+        raise InventoryFailure(f"unknown-required-selector:{','.join(unknown)}")
+    insisted = set(SELECTORS) if require_all else set(required)
     registered = registered_tests(build_root, build_config)
     names = [name for name, _ in registered]
-    # BPR-0446 registered the anchor fixture on Windows while deliberately
-    # leaving this RFC's credential-free selector to the APPLE/Linux wire
-    # block, so on Windows the anchor no longer implies the selector.
-    anchored = GRAPH_ANCHOR in names and sys.platform in {"darwin", "linux"}
     failures: list[str] = []
-    for selector, declared in sorted(SELECTORS.items()):
-        expected = declared if anchored else 0
+    for selector in sorted(SELECTORS):
+        expected, reason = selector_expected(selector, names)
+        if selector in insisted and expected == 0:
+            failures.append(
+                f"{selector}: required but not owed by this graph ({reason})"
+            )
+            continue
         matching = [
             arguments for name, arguments in registered if name == selector
         ]
         if len(matching) != expected:
-            reason = (
-                "graph builds the native HTTPS fixture"
-                if anchored
-                else "graph does not build the APPLE/Linux wire block"
-            )
             failures.append(
                 f"{selector}: expected {expected} registration(s), "
                 f"found {len(matching)} ({reason})"
@@ -267,8 +307,25 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--build-root",
+        "--build-dir",
+        dest="build_root",
         type=pathlib.Path,
         help="Configured tests-enabled build directory to inventory.",
+    )
+    parser.add_argument(
+        "--required",
+        action="append",
+        default=[],
+        metavar="SELECTOR",
+        help=(
+            "A selector this graph must register; repeatable. Fails when the "
+            "graph does not owe it rather than accepting the anchored zero."
+        ),
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Require every selector of this graph, whatever its anchor.",
     )
     parser.add_argument(
         "--build-config",
@@ -298,7 +355,12 @@ def main() -> int:
     try:
         if arguments.build_root is not None:
             failures.extend(
-                check_inventory(arguments.build_root, arguments.build_config)
+                check_inventory(
+                    arguments.build_root,
+                    arguments.build_config,
+                    tuple(arguments.required),
+                    arguments.all,
+                )
             )
         if arguments.release_binary is not None:
             failures.extend(check_release_absence(arguments.release_binary))

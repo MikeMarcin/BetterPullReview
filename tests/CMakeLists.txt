@@ -441,6 +441,18 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/validate_rfc0017_public_preview_decision_tests.py"
 )
 
+# The RFC-BPR-0017 evidence-selector inventory's own refusal table, fed
+# inventories directly so no build tree or CTest is consulted: a missing or
+# duplicated selector, an anchored selector present where its graph does not
+# build the anchor, the ledger's --required/--all insistence, an unknown name,
+# and a command that lost the argument that makes it the right suite.
+bpr_add_network_isolated_test(
+    NAME rfc0017_test_inventory_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/verify_rfc0017_test_inventory_tests.py"
+)
+
 bpr_add_network_isolated_test(
     NAME rfc0016_device_live_runner_security
     COMMAND
