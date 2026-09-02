@@ -1,7 +1,7 @@
 ---
 id: BPR-0521
 title: "Host: continuing against the old revision composes the old revision's context"
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0012
 depends_on: [BPR-0517]
 ---
