@@ -53,8 +53,9 @@ conclusion.
    slice" predates the flips.** `github_application.cpp` composes
    `device_authorization_browser_handoff{ .Browser = nullptr }` on every
    platform, so "Open browser" always resolves `unavailable` where the flow
-   can now start. Whether that is a stale comment or a missing port is
-   decided beside this card, not inside it.
+   can now start. Confirmed a missing port, not a stale comment: nothing in
+   `src/` opens a browser. Carded as [[BPR-0516]]; this pass only rewrites
+   the comment to say so.
 5. **Confirmed not a defect:** the `RegisteredDeviceCourse` fixture override
    is compile-time gated on `BPR_BUILD_TESTING` end to end and cannot reach
    the tests-disabled Release.
