@@ -143,9 +143,15 @@ namespace bpr::qt {
 		UserCodeField = make_readonly_field(
 			QStringLiteral("bpr-device-authorization-user-code"),
 			tr("Device code to enter"));
+		UserCodeField->setAccessibleDescription(
+			tr("The code to type at the sign-in address. Empty until a code "
+			   "has been asked for, and empty again at every terminal."));
 		AddressField = make_readonly_field(
 			QStringLiteral("bpr-device-authorization-address"),
 			tr("Address to enter the code at"));
+		AddressField->setAccessibleDescription(
+			tr("The sign-in address this profile's code is entered at. It may "
+			   "be read and typed on any device."));
 
 		ValidityLabel = new QLabel{ };
 		ValidityLabel->setObjectName(
@@ -168,6 +174,23 @@ namespace bpr::qt {
 		OpenButton->setObjectName(QStringLiteral("bpr-device-authorization-open"));
 		CancelButton->setObjectName(
 			QStringLiteral("bpr-device-authorization-cancel"));
+		// Named apart from the visible text. `BeginButton` relabels itself at a
+		// terminal, and an accessible name that moved with it would rename a
+		// stop under an assistive reader mid-flow.
+		BeginButton->setAccessibleName(tr("Get a device sign-in code"));
+		BeginButton->setAccessibleDescription(
+			tr("Asks this host profile for a code to authorize in a browser."));
+		CopyButton->setAccessibleName(tr("Copy the device sign-in code"));
+		CopyButton->setAccessibleDescription(
+			tr("Copies the code to the clipboard. The address is never copied "
+			   "with it."));
+		OpenButton->setAccessibleName(tr("Open the device sign-in address"));
+		OpenButton->setAccessibleDescription(
+			tr("Asks the host to open the sign-in address in a browser. The "
+			   "flow stays live whether or not one opens."));
+		CancelButton->setAccessibleName(tr("Cancel device sign-in"));
+		CancelButton->setAccessibleDescription(
+			tr("Ends the running sign-in without authorizing it."));
 
 		auto* const fields = new QFormLayout{ };
 		fields->addRow(tr("Code"), UserCodeField);
@@ -275,6 +298,18 @@ namespace bpr::qt {
 			Presentation.Stage == core::device_authorization_stage::idle
 				? tr("Get a code")
 				: tr("Get a new code"));
+	}
+
+	void device_authorization_panel::bind_profile(
+		const core::host_profile_id aProfile)
+	{
+		Profile = aProfile;
+	}
+
+	auto device_authorization_panel::bound_profile() const noexcept
+		-> core::host_profile_id
+	{
+		return Profile;
 	}
 
 	auto device_authorization_panel::copy_user_code() -> bool

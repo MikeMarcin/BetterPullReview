@@ -355,6 +355,79 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# [[BPR-0526]]'s mount, and its construction cut, on the same terms as the
+# browser pair above: one course, one difference. The first starts the flow by
+# pressing the begin control on the panel the shipped window mounts, found by
+# the accessible name it announces rather than through any accessor the
+# composition holds, and then makes the identical registered-course claim -
+# same terminal, same single enrollment, same single vault store, same two
+# recorded submissions. A window that stopped mounting the panel, or a
+# composition that stopped wiring it, reports `DEVICE_FLOW_PANEL_BEGAN:false`
+# and never reaches that claim.
+#
+# The second removes exactly one thing: composition adopts neither edge of the
+# panel. The window still draws it, `select_device_authorization` still starts
+# the same flow to the same terminal, and the positive marker is false - so a
+# graph that quietly stopped composing the panel cannot pass the course above
+# by accident.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_panel_course
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-registered-course
+        --device-authorization-panel-course
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_panel_course
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK[\r\n]+DEVICE_FLOW_PANEL_BEGAN:true[\r\n]+DEVICE_FLOW_PANEL_COMPOSED:true"
+)
+bpr_bound_automated_run(
+    application_device_authorization_panel_course
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_panel_absent
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-registered-course
+        --device-authorization-panel-absent
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_panel_absent
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK[\r\n]+DEVICE_FLOW_PANEL_COMPOSED:false"
+)
+bpr_bound_automated_run(
+    application_device_authorization_panel_absent
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
 bpr_add_network_isolated_test(
     NAME application_device_authorization_release_contract
     WINDOWS_UNCONTAINED

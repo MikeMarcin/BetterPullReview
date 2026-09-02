@@ -114,14 +114,23 @@ The panel receives a projection and never a token, a refresh token, a device
 code, a client identifier, or an endpoint; those fields do not exist on the
 type it is handed.
 
-**What is composed today.** The application constructs the device host on
-every platform and publishes its presentations, but binds the projection port
-to a recording sink that the public self-test reads; no shipped window mounts
-this panel yet, so the reviewer-facing entry is
-`github_application::select_device_authorization()` rather than a control in
-the workbench. The panel's own contracts run at the adapter boundary
-(`qt_device_authorization_scale_100`, `_125`, `_200`), and the composed path
-is proven separately (`application_device_authorization_public_path`).
+**Where it is mounted.** The workbench places the panel in the review header
+column, directly under the session chrome that offers the host picker and the
+Connect control, because a profile has two ways in and a reviewer looking for
+either looks in one place. It is bound to whichever profile that picker names
+and is rebound when the picker changes, so the token prompt and the device code
+can never mean two different hosts. The header column scrolls, and the panel is
+below the fold at the default height ([[BPR-0526]]).
+
+The application constructs the device host on every platform and binds its
+projection port to a fan-out: every publication reaches the recording sink the
+public self-test reads, and then the mounted panel. The panel's own contracts
+run at the adapter boundary (`qt_device_authorization_scale_100`, `_125`,
+`_200`); its placement, profile binding and gestures are proven in the composed
+window (`qt_composed_github_scale_100`, `_125`, `_200`); and that beginning a
+flow from the mounted control reaches the device host is proven end to end
+(`application_device_authorization_panel_course`, with
+`application_device_authorization_panel_absent` as its construction cut).
 
 ## Primary actions
 

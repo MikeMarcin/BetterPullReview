@@ -64,6 +64,7 @@
 #include "bpr/application/workbench_snapshot_observation.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/event_loop_device_timer.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
@@ -1095,6 +1096,48 @@ namespace bpr::app {
 			application::device_authorization_handoff      LastAttempt
 				= application::device_authorization_handoff::not_attempted;
 			std::size_t Published = 0U;
+		};
+
+		// The device host publishes to exactly one port, and [[BPR-0526]] gave
+		// the presentation a second reader without taking the first one away.
+		// So this stands where the sink stood and hands every publication to
+		// both: the sink first and unconditionally, then the mounted panel if
+		// one was composed.
+		//
+		// Unconditionally is the whole point. Six executable contracts read
+		// `DeviceProjections` through the self-test markers, and they have to
+		// read exactly what they read before a window was in the picture --
+		// including in a graph whose panel composition was cut. `publish()` is
+		// synchronous and returns nothing, so a second reader cannot reorder,
+		// delay, or veto what the first one sees.
+		class composition_device_authorization_projection final
+			: public application::device_authorization_projection_port
+		{
+		public:
+			using presented_sink = std::function<void(
+				const application::device_authorization_presentation&)>;
+
+			composition_device_authorization_projection(
+				application::device_authorization_projection_port& aRecorded,
+				presented_sink                                     aPresented)
+				: Recorded{ &aRecorded }
+				, Presented{ std::move(aPresented) }
+			{
+			}
+
+			void publish(
+				const application::device_authorization_presentation& aPresentation)
+				override
+			{
+				Recorded->publish(aPresentation);
+				if (Presented) {
+					Presented(aPresentation);
+				}
+			}
+
+		private:
+			application::device_authorization_projection_port* Recorded = nullptr;
+			presented_sink                                     Presented;
 		};
 
 #if defined(BPR_BUILD_TESTING)
@@ -2542,7 +2585,10 @@ namespace bpr::app {
 				CodexAgentExecutable   = aFixtureOptions.CodexAgentExecutable;
 				RegisteredDeviceCourse = aFixtureOptions.RegisteredDeviceCourse;
 				SuppressDeviceBrowser  = aFixtureOptions.SuppressDeviceBrowser;
-				const auto host        = fixture_host(*aFixture);
+				DisableDeviceAuthorizationPanelComposition
+					= aFixtureOptions
+						  .DisableDeviceAuthorizationPanelComposition;
+				const auto host = fixture_host(*aFixture);
 				append_profile(
 					Profiles,
 					ProfileOptions,
@@ -3048,6 +3094,23 @@ namespace bpr::app {
 						dispatch_finding_intent(std::move(aIntent));
 					});
 			}
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableDeviceAuthorizationPanelComposition)
+#endif
+			{
+				// [[BPR-0526]], on exactly the terms above. The window mounted
+				// the panel in its review header; the composition adopts it and
+				// wires its two edges — gestures out through the device host,
+				// presentations in through the fan-out below, which reads
+				// `DevicePanel` on every publication. Skipping this branch
+				// leaves a panel that is drawn, is inert, and is never told
+				// anything.
+				DevicePanel = Window->device_authorization();
+				Window->set_device_authorization_dispatch(
+					[this](application::device_authorization_gesture aGesture) {
+						dispatch_device_authorization_gesture(aGesture);
+					});
+			}
 			FindingProjections
 				= std::make_unique<composition_agent_finding_projection>(
 					[this](const application::agent_finding_delivery& aDelivery) {
@@ -3326,7 +3389,22 @@ namespace bpr::app {
 					  &RecordingBrowser);
 #endif
 			DeviceBrowserComposed = deviceBrowser != nullptr;
-			DeviceHost            = std::make_unique<
+			// One port, two readers. The recording sink keeps its place at the
+			// front of the fan-out, so every existing device contract still
+			// observes the identical sequence of publications; the mounted
+			// panel is told the same thing afterwards when the composition
+			// adopted one.
+			DeviceProjectionFanOut = std::make_unique<
+				composition_device_authorization_projection>(
+				DeviceProjections,
+				[this](
+					const application::device_authorization_presentation&
+						aPresentation) {
+					if (DevicePanel != nullptr) {
+						DevicePanel->apply(aPresentation);
+					}
+				});
+			DeviceHost = std::make_unique<
 				application::device_authorization_application_host>(
 				initial_device_authorization_state(),
 				*deviceTransport,
@@ -3335,7 +3413,7 @@ namespace bpr::app {
 				*DeviceClock,
 				DeviceTimer,
 				DecisionLane,
-				DeviceProjections,
+				*DeviceProjectionFanOut,
 				application::device_authorization_host_limits{ },
 				application::device_authorization_browser_handoff{
 					// Null only under the construction cut, where the host
@@ -3639,6 +3717,32 @@ namespace bpr::app {
 #else
 			return 0U;
 #endif
+		}
+
+		// The mounted panel's one way out. Beginning and cancelling are core
+		// intents and reach the host's transition lane; opening a browser is
+		// not an intent and reaches the host's handoff directly. Qt never opens
+		// an address itself, so this is the only place a device gesture becomes
+		// an effect.
+		void dispatch_device_authorization_gesture(
+			const application::device_authorization_gesture& aGesture)
+		{
+			if (Closing || DeviceHost == nullptr) {
+				return;
+			}
+			if (const auto* const begin
+				= std::get_if<core::begin_device_authorization_intent>(
+					&aGesture)) {
+				DeviceHost->dispatch(*begin);
+				return;
+			}
+			if (const auto* const cancel
+				= std::get_if<core::cancel_device_authorization_intent>(
+					&aGesture)) {
+				DeviceHost->dispatch(*cancel);
+				return;
+			}
+			DeviceHost->open_verification_address();
 		}
 
 		// The same typed intent the device panel dispatches. Composition owns
@@ -6361,8 +6465,9 @@ namespace bpr::app {
 		// build.
 		bool DeviceCapabilityRegistered = false;
 #if defined(BPR_BUILD_TESTING)
-		bool RegisteredDeviceCourse = false;
-		bool SuppressDeviceBrowser  = false;
+		bool RegisteredDeviceCourse                     = false;
+		bool SuppressDeviceBrowser                      = false;
+		bool DisableDeviceAuthorizationPanelComposition = false;
 #endif
 		// Whether a browser capability was bound at all, which is the fact the
 		// handoff's `unavailable` answer reports and the construction cut
@@ -6374,6 +6479,12 @@ namespace bpr::app {
 #endif
 		qt::event_loop_device_timer          DeviceTimer;
 		device_authorization_projection_sink DeviceProjections;
+		// The window's panel, adopted rather than owned: the window built it
+		// and keeps it alive. Null under the construction cut, and read on
+		// every publication, which is why the fan-out asks rather than binds.
+		qt::device_authorization_panel* DevicePanel = nullptr;
+		std::unique_ptr<composition_device_authorization_projection>
+			DeviceProjectionFanOut;
 		std::unique_ptr<application::device_authorization_clock_port>
 			DeviceClock;
 		std::unique_ptr<application::github_host_device_authorization_enrollment>
@@ -6963,6 +7074,8 @@ namespace bpr::app {
 			= Implementation->device_transport_submissions(),
 			.DeviceAuthorizationEnrollments
 			= Implementation->device_enrollments(),
+			.DeviceAuthorizationPanelComposed
+			= Implementation->DevicePanel != nullptr,
 		};
 	}
 

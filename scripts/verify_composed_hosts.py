@@ -165,6 +165,10 @@ SHARED_REQUIRED = (
         "bpr::qt::finding_queue_view::finding_queue_view",
     ),
     function_anchor(
+        "Qt device authorization panel constructor",
+        "bpr::qt::device_authorization_panel::device_authorization_panel",
+    ),
+    function_anchor(
         "Qt workbench window constructor",
         "bpr::qt::workbench_window::workbench_window",
     ),

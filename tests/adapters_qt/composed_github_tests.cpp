@@ -1,5 +1,6 @@
 #include "bpr/qt/workbench_window.hpp"
 
+#include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -26,6 +27,7 @@
 #include <QPersistentModelIndex>
 #include <QPixmap>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSpinBox>
@@ -46,6 +48,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace {
@@ -2585,6 +2588,216 @@ namespace {
 				"the defect drawer crop is saved in the ignored build tree");
 		}
 	}
+
+	/// \brief BPR-0526: device sign-in is mounted beside the token prompt.
+	///
+	/// \details Found the way an assistive reader finds it -- by the accessible
+	/// name the panel announces -- and then asked the review header's own column
+	/// whether it manages what was found, because a panel parented to the header
+	/// but never laid into it is still a `findChildren` hit and would still be
+	/// painted at the default geometry on top of the session chrome.
+	///
+	/// The gestures are the second half. The window supplies no dispatch, so the
+	/// sink here is the test's; in the shipped graph it is the one the
+	/// composition sets, which ends at the device host. What this case proves is
+	/// that pressing begin on the mounted panel emits exactly one typed intent
+	/// naming exactly the profile the session panel's picker names -- before and
+	/// after the reviewer changes that picker -- and that nothing else leaves.
+	auto test_device_sign_in_is_mounted_beside_the_session_chrome() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		publish_session_ready(window);
+		publish_pull_request(window);
+		window.resize(1'100, 900);
+		window.show();
+		QApplication::processEvents();
+
+		auto* const header = required_child<QWidget>(
+			window, "workbenchReviewHeader");
+		auto* found = static_cast<QWidget*>(nullptr);
+		for (auto* const widget : header->findChildren<QWidget*>()) {
+			if (widget->accessibleName()
+				== QStringLiteral("Sign in with a device code")) {
+				found = widget;
+			}
+		}
+		expect(
+			found != nullptr && found == window.device_authorization(),
+			"the review header holds the device sign-in panel under its "
+			"accessible name");
+
+		auto* const panel = window.device_authorization();
+		expect(
+			panel->parentWidget() == header
+				&& header->layout() != nullptr
+				&& header->layout()->indexOf(panel) >= 0,
+			"the device panel is laid into the review header's own column, not "
+			"merely parented to it");
+		auto* const session = window.session_panel();
+		expect(
+			session != nullptr && session->parentWidget() == header
+				&& header->layout()->indexOf(panel)
+					== header->layout()->indexOf(session) + 1,
+			"device sign-in is the stop directly after the session chrome that "
+			"offers the token prompt");
+		expect(
+			panel->isVisible() && panel->width() > 0 && panel->height() > 0
+				&& panel->mapTo(header, QPoint{ 0, 0 }).y()
+					> session->mapTo(header, QPoint{ 0, 0 }).y(),
+			"the mounted panel is a visible region under the Connect control");
+
+		const auto declared = window.focus_order();
+		expect(
+			declared.contains(panel->begin_button())
+				&& declared.contains(panel->cancel_button())
+				&& declared.indexOf(panel->user_code_field())
+					== declared.indexOf(session->refresh_button()) + 1,
+			"the panel's stops are declared directly after the session chrome's");
+
+		// The window sets no dispatch of its own, so this one is the test's,
+		// exactly as it is for the two agent surfaces above.
+		auto gestures = std::vector<application::device_authorization_gesture>{ };
+		window.set_device_authorization_dispatch(
+			[&gestures](application::device_authorization_gesture aGesture) {
+				gestures.push_back(std::move(aGesture));
+			});
+
+		const auto selected = session->selected_profile();
+		expect(
+			selected.has_value() && panel->bound_profile() == *selected,
+			"the mounted panel is bound to the profile the picker already names");
+		expect(
+			panel->begin_button()->isEnabled(),
+			"asking for a code is the one command the core allows before a flow");
+		panel->begin_button()->click();
+		QApplication::processEvents();
+		expect(
+			gestures.size() == 1U
+				&& std::holds_alternative<core::begin_device_authorization_intent>(
+					gestures.front())
+				&& std::get<core::begin_device_authorization_intent>(
+					   gestures.front())
+						.Profile
+					== *selected,
+			"pressing begin emits one intent naming the picker's own profile");
+
+		// The picker names the host the Connect button acts on. Sign-in has to
+		// mean the same host through both doors, so changing it here changes
+		// which profile a new code would be asked for.
+		const auto first = session->profile_selector()->currentIndex();
+		session->profile_selector()->setCurrentIndex(first == 0 ? 1 : 0);
+		QApplication::processEvents();
+		const auto changed = session->selected_profile();
+		expect(
+			changed.has_value() && *changed != *selected
+				&& panel->bound_profile() == *changed,
+			"changing the host picker rebinds the mounted panel to that profile");
+		panel->begin_button()->click();
+		QApplication::processEvents();
+		expect(
+			gestures.size() == 2U
+				&& std::get<core::begin_device_authorization_intent>(
+					   gestures.back())
+						.Profile
+					== *changed,
+			"the next request names the profile the picker changed to");
+
+		// One published presentation, applied through the same call the
+		// composition's fan-out makes. It is what turns the two gestures below
+		// into legal ones, and it is what the capture is a picture of.
+		auto awaiting = application::device_authorization_presentation{
+			.Stage                    = core::device_authorization_stage::awaiting_authorization,
+			.UserCode                 = "WDJB-MJHT",
+			.VerificationUri          = "https://github.com/login/device",
+			.RemainingValiditySeconds = 899U,
+		};
+		awaiting.Commands = core::device_authorization_commands(
+			core::device_authorization_state{
+				.Stage = core::device_authorization_stage::awaiting_authorization,
+			});
+		panel->apply(awaiting);
+		QApplication::processEvents();
+		expect(
+			panel->user_code_field()->text() == QStringLiteral("WDJB-MJHT")
+				&& panel->address_field()->text()
+					== QStringLiteral("https://github.com/login/device"),
+			"a published presentation reaches the mounted panel's own fields");
+
+		panel->open_button()->click();
+		panel->cancel_button()->click();
+		QApplication::processEvents();
+		expect(
+			gestures.size() == 4U
+				&& std::holds_alternative<
+					application::open_verification_address_gesture>(
+					gestures[2])
+				&& std::holds_alternative<
+					core::cancel_device_authorization_intent>(gestures[3]),
+			"opening a browser and cancelling both leave through the same sink "
+			"and neither is performed here");
+		window.set_device_authorization_dispatch({ });
+
+		// The header column is taller than the bound its scroll area keeps, so
+		// the panel has to be scrolled into that region before the capture is a
+		// picture of it rather than of the chrome above it.
+		auto* const headerScroll = window.findChild<QScrollArea*>(
+			QStringLiteral("workbenchReviewHeaderScroll"));
+		expect(
+			headerScroll != nullptr,
+			"the review header column scrolls rather than squeezing its panels");
+		headerScroll->verticalScrollBar()->setValue(
+			headerScroll->verticalScrollBar()->value()
+			+ panel->mapTo(headerScroll->viewport(), QPoint{ 0, 0 }).y());
+		QApplication::processEvents();
+		const QRect placed{
+			panel->mapTo(headerScroll, QPoint{ 0, 0 }),
+			panel->size(),
+		};
+		expect(
+			headerScroll->rect().intersected(placed).height()
+				>= placed.height() / 2,
+			"scrolling the header column shows the device panel inside it");
+
+		// Cropped to the header the panel is in. A whole-window raster would
+		// pass on a repaint anywhere; this one is the header and only the
+		// header.
+		QApplication::processEvents();
+		const auto rendered = window.grab();
+		const auto ratio    = window.devicePixelRatioF();
+		const auto scaled   = [ratio](const int aValue) {
+			return static_cast<int>(
+				std::lround(static_cast<double>(aValue) * ratio));
+		};
+		const auto origin = headerScroll->mapTo(&window, QPoint{ 0, 0 });
+		// Two rounded edges rather than a rounded origin plus a rounded size,
+		// for the reason BPR-0520 recorded one crop below.
+		const QRect region{
+			QPoint{ scaled(origin.x()), scaled(origin.y()) },
+			QPoint{ scaled(origin.x() + headerScroll->width()) - 1,
+					scaled(origin.y() + headerScroll->height()) - 1 },
+		};
+		const auto cropped = rendered.copy(region);
+		expect(
+			rendered.rect().contains(region) && !cropped.isNull()
+				&& cropped.size() == region.size(),
+			"the review header crop has the header's exact device dimensions");
+		const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH");
+		if (!renderPath.isEmpty()) {
+			const QFileInfo configured{ renderPath };
+			expect(
+				cropped.save(
+					QStringLiteral("%1/%2-device-sign-in.png")
+						.arg(configured.path(), configured.completeBaseName()),
+					"PNG"),
+				"the device sign-in crop is saved in the ignored build tree");
+		}
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -2604,6 +2817,7 @@ auto main(int argc, char** argv) -> int
 	test_accessibility_minimum_geometry_and_render();
 	test_agent_surfaces_are_placed_in_the_conversations_drawer();
 	test_defect_actions_are_reachable_in_the_conversations_drawer();
+	test_device_sign_in_is_mounted_beside_the_session_chrome();
 
 	std::cout << "All GitHub Qt presentation tests passed\n";
 	return EXIT_SUCCESS;

@@ -22,6 +22,7 @@
 #include <vector>
 
 namespace bpr::qt {
+	class device_authorization_panel;
 	class finding_queue_view;
 	class side_chat_panel;
 } // namespace bpr::qt
@@ -92,6 +93,14 @@ namespace bpr::app::detail {
 		// still starts, the address is still presented, and the open action
 		// answers `unavailable` rather than doing nothing.
 		bool SuppressDeviceBrowser = false;
+		// [[BPR-0526]] construction cut. The window still builds and mounts the
+		// device sign-in panel -- placement is the window's decision, not the
+		// composition's -- but the composition adopts neither end of it: no
+		// gesture sink is set and no presentation is forwarded. The panel is on
+		// screen and inert, the recording sink still reads every publication,
+		// and the flow stays reachable through the self-test, so a graph that
+		// silently stopped composing the panel cannot pass for one that did.
+		bool DisableDeviceAuthorizationPanelComposition = false;
 	};
 
 	struct queue_notification_fixture_evidence

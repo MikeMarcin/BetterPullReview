@@ -32,6 +32,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPixmap>
+#include <QPushButton>
 #include <QSize>
 #include <QSpinBox>
 #include <QStandardPaths>
@@ -51,7 +52,6 @@
 	#include <QPalette>
 	#include <QPersistentModelIndex>
 	#include <QPlainTextEdit>
-	#include <QPushButton>
 	#include <QScrollArea>
 	#include <QSplitter>
 	#include <QStyle>
@@ -702,6 +702,13 @@ namespace {
 			// starts no program.
 			bool BrowserProbe   = false;
 			bool OpenDispatched = false;
+			// [[BPR-0526]]. Starts the flow the way a reviewer does: through
+			// the panel the window mounts, found by the accessible name it
+			// announces rather than through any accessor the composition
+			// holds. A window that stopped mounting it, or a composition that
+			// stopped adopting it, finds nothing and reports so.
+			bool PanelCourse = false;
+			bool PanelBegan  = false;
 		};
 
 		stage Stage = stage::start;
@@ -2727,6 +2734,37 @@ namespace {
 	}
 #endif
 
+	// [[BPR-0526]]. Starts the device flow the way a reviewer does, and finds
+	// the control the way an assistive reader does: by walking the shipped
+	// window for the accessible name the panel announces. Nothing here reaches
+	// through a composition accessor, so a window that stopped mounting the
+	// panel, a panel that stopped announcing itself, or a composition that
+	// never wired the panel's dispatch each end here with `false` rather than
+	// with a flow that started by another route.
+	[[nodiscard]] auto begin_through_device_panel(
+		const bpr::qt::workbench_window& aWindow) -> bool
+	{
+		for (auto* const widget : aWindow.findChildren<QWidget*>()) {
+			if (widget->accessibleName()
+				!= QStringLiteral("Sign in with a device code")) {
+				continue;
+			}
+			for (auto* const button : widget->findChildren<QPushButton*>()) {
+				if (button->accessibleName()
+					!= QStringLiteral("Get a device sign-in code")) {
+					continue;
+				}
+				if (!button->isEnabled()) {
+					return false;
+				}
+				button->click();
+				return true;
+			}
+			return false;
+		}
+		return false;
+	}
+
 	[[nodiscard]] auto cli_fail_closed_presentation_passed(
 		const bpr::qt::workbench_window& aWindow,
 		const automated_run&             aRun) -> bool
@@ -3183,6 +3221,19 @@ namespace {
 				stream << (deviceRefused ? "DEVICE_FLOW_UNAVAILABLE_OK\n"
 										 : "DEVICE_FLOW_UNAVAILABLE_FAILED\n");
 			}
+			// Last, and deliberately outside every line above it. [[BPR-0526]]
+			// added a second reader of the same publications, and the point of
+			// the marker is that adding or cutting it changes nothing the
+			// existing contracts read — so it is printed after all of them
+			// rather than between any two.
+			if (aRun.Device.PanelCourse) {
+				stream << "DEVICE_FLOW_PANEL_BEGAN:"
+					   << (aRun.Device.PanelBegan ? "true" : "false") << '\n';
+			}
+			stream << "DEVICE_FLOW_PANEL_COMPOSED:"
+				   << (status.DeviceAuthorizationPanelComposed ? "true"
+															   : "false")
+				   << '\n';
 		}
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Fixture && !aRun.ReviewLedgerCompositionProbe.has_value()
@@ -4245,7 +4296,17 @@ namespace {
 				// than continuing into the fixture's own stages.
 				if (aRun->Device.Enabled && aRun->Device.Registered) {
 					aRun->Device.Selected = true;
-					aApplication.select_device_authorization();
+					// The one difference between this course and the panel
+					// course beside it: which control starts the flow. Every
+					// stage, terminal, vault store and enrollment below is the
+					// same, so a difference in the evidence is a difference in
+					// the mount rather than in the flow.
+					if (aRun->Device.PanelCourse) {
+						aRun->Device.PanelBegan
+							= begin_through_device_panel(window);
+					} else {
+						aApplication.select_device_authorization();
+					}
 					break;
 				}
 
@@ -5919,6 +5980,14 @@ auto main(int argc, char** argv) -> int
 			argc,
 			argv,
 			"--device-authorization-browser-absent");
+		// [[BPR-0526]] construction cut. The window still mounts the device
+		// sign-in panel; composition adopts neither of its edges, so it is
+		// drawn and inert while the flow stays reachable through this
+		// self-test.
+		fixtureOptions.DisableDeviceAuthorizationPanelComposition = has_argument(
+			argc,
+			argv,
+			"--device-authorization-panel-absent");
 		if (const auto fixture = argument_value(argc, argv, "--github-fixture");
 			fixture.has_value()) {
 			if (*fixture == "github-com") {
@@ -6041,6 +6110,11 @@ auto main(int argc, char** argv) -> int
 #else
 			false;
 #endif
+		// [[BPR-0526]]. Starts the flow through the mounted panel rather than
+		// through `select_device_authorization`, which is the only difference
+		// between this course and the registered one beside it.
+		const auto devicePanelCourse
+			= has_argument(argc, argv, "--device-authorization-panel-course");
 		const auto renderPath                 = argument_value(argc, argv, "--render-evidence");
 		const auto renderCollapsesFilesDrawer = has_argument(
 			argc, argv, "--render-evidence-collapse-files");
@@ -6504,6 +6578,7 @@ auto main(int argc, char** argv) -> int
 							.Enabled      = verifyDeviceAuthorization,
 							.Registered   = registeredDeviceCourse,
 							.BrowserProbe = verifyDeviceAuthorization && deviceBrowserProbe,
+							.PanelCourse  = verifyDeviceAuthorization && devicePanelCourse,
 						},
 #if defined(BPR_BUILD_TESTING)
 						.Fixture                         = !fixtureName.empty(),

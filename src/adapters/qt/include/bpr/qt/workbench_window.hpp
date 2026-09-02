@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 
+#include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
@@ -56,6 +57,10 @@ namespace bpr::qt {
 	// delivery and chat-scope vocabularies along with it.
 	class finding_queue_view;
 	class side_chat_panel;
+	// RFC-BPR-0016's second way into a profile, declared for the same reason:
+	// the window places it and hands it out, and a consumer of the shell does
+	// not need the panel's shape to ask for it.
+	class device_authorization_panel;
 
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
 	using workbench_intent_dispatch = std::function<void(core::workbench_interaction_intent)>;
@@ -212,6 +217,15 @@ namespace bpr::qt {
 			workbench_review_draft_dispatch aDraftDispatch);
 		void set_defect_dispatch(workbench_defect_dispatch aDefectDispatch);
 		void set_agent_dispatch(agent_intent_dispatch aAgentDispatch);
+		/// \brief Adopts the sink the mounted device-sign-in panel dispatches to.
+		///
+		/// \details On the same terms as `set_agent_dispatch`: the window
+		/// mounts the panel because the review header is where sign-in lives,
+		/// and supplies no sink of its own. Until the composition sets one,
+		/// every gesture on the panel goes nowhere — which is exactly what the
+		/// construction cut leaves behind.
+		void set_device_authorization_dispatch(
+			application::device_authorization_gesture_dispatch aDispatch);
 		void set_defect_classification_dispatch(
 			workbench_defect_classification_dispatch aClassificationDispatch);
 		void set_queue_rule_dispatch(workbench_queue_rule_dispatch aDispatch);
@@ -297,6 +311,16 @@ namespace bpr::qt {
 		[[nodiscard]] auto queue_status_label() const noexcept -> QLabel*;
 
 		[[nodiscard]] auto session_panel() const noexcept -> github_session_panel*;
+		/// \brief The device sign-in panel, mounted beside the token prompt.
+		///
+		/// \details [[BPR-0526]]. Sign-in has two ways in and they belong in
+		/// one place: this sits directly under the session panel's host picker
+		/// and Connect control, in the review header column, and is bound to
+		/// whichever profile that picker currently names. The composition
+		/// publishes device presentations straight to it and reads its gestures
+		/// through `set_device_authorization_dispatch`.
+		[[nodiscard]] auto device_authorization() const noexcept
+			-> device_authorization_panel*;
 		[[nodiscard]] auto pull_request_panel() const noexcept
 			-> github_pull_request_panel*;
 		[[nodiscard]] auto github_connect_action() const noexcept -> QAction*;
@@ -462,6 +486,8 @@ namespace bpr::qt {
 			-> std::optional<workbench_defect_classification>;
 		void synchronize_selected_conversation(const QModelIndex& aIndex);
 		void build_queue_landing(QWidget* aParent, QVBoxLayout& aLayout);
+		/// \brief Points device sign-in at the host profile the picker names.
+		void rebind_device_authorization_profile();
 		void dispatch_queue_rule(application::queue_rule_action aAction);
 		void update_queue_rule_actions();
 		void dispatch_queue_preferences();
@@ -541,8 +567,10 @@ namespace bpr::qt {
 		QLabel*                                                    QueueStatus           = nullptr;
 		std::vector<core::observer_rule>                           QueueRules;
 		application::queue_landing_projection                      QueueProjection;
-		QScrollArea*                                               HeaderScroll         = nullptr;
-		github_session_panel*                                      SessionPanel         = nullptr;
+		QScrollArea*                                               HeaderScroll = nullptr;
+		github_session_panel*                                      SessionPanel = nullptr;
+		device_authorization_panel*                                DevicePanel  = nullptr;
+		application::device_authorization_gesture_dispatch         DeviceDispatch;
 		github_pull_request_panel*                                 PullRequestPanel     = nullptr;
 		appearance_settings_panel*                                 AppearanceSettings   = nullptr;
 		QStackedWidget*                                            PullRequestStack     = nullptr;

@@ -61,6 +61,20 @@ namespace bpr::qt {
 		void apply(
 			const application::device_authorization_presentation& aPresentation);
 
+		/// \brief Rebinds sign-in to the profile the composing window now names.
+		///
+		/// \details The panel is given a profile rather than choosing one, and
+		/// a window that offers a host picker changes which one it means. The
+		/// presentation is left exactly where it was, because the flow belongs
+		/// to the host and not to a profile: one is running or none is, and a
+		/// panel that cleared a live code because the picker moved would throw
+		/// away the only copy of a code the reviewer is mid-way through typing.
+		/// What changes is the profile a *new* request would name, and the core
+		/// forbids beginning one while a flow is live.
+		void bind_profile(core::host_profile_id aProfile);
+
+		[[nodiscard]] auto bound_profile() const noexcept -> core::host_profile_id;
+
 		/// \brief Copies the presented user code to the system clipboard.
 		///
 		/// \returns Whether there was a code to copy. Nothing else about the

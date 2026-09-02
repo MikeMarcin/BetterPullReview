@@ -231,6 +231,13 @@ namespace bpr::app {
 		// repeated enrollment for the same profile before the vault sees it —
 		// so a vault store count alone cannot tell one enrollment from two.
 		std::size_t DeviceAuthorizationEnrollments = 0U;
+		// Whether composition adopted the window's device sign-in panel, as
+		// opposed to the window having mounted one. [[BPR-0526]]: the panel is
+		// drawn either way, so the fact worth reporting is whether its gestures
+		// reach the device host and whether the host's publications reach it.
+		// The construction cut turns exactly this false and leaves every line
+		// above it as it was.
+		bool DeviceAuthorizationPanelComposed = false;
 	};
 
 	/// \brief Provides the github application contract.

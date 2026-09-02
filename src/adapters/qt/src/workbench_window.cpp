@@ -6,6 +6,7 @@
 
 #include "bpr/qt/menu_tool_button.hpp"
 
+#include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
@@ -28,6 +29,7 @@
 #include <QPainter>
 #include <QPalette>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QSizePolicy>
 #include <QSpinBox>
@@ -883,12 +885,43 @@ namespace bpr::qt {
 		};
 		PullRequestPanel = new github_pull_request_panel{ };
 
+		// [[BPR-0526]]. A profile has two ways in -- the token prompt the
+		// Connect button opens, and a code read aloud into a browser -- and a
+		// reviewer looking for either looks in one place. So the device panel
+		// is mounted directly under the session chrome rather than behind a
+		// drawer or a dialog of its own, in the same column, under the same
+		// scroll bound.
+		//
+		// The window supplies no dispatch. Every gesture leaves through
+		// `DeviceDispatch`, which the composition sets, so a panel nobody wired
+		// stays visible and inert instead of quietly performing a host effect
+		// from the presentation layer.
+		DevicePanel = new device_authorization_panel{
+			SessionPanel->selected_profile().value_or(core::host_profile_id{ }),
+			[this](application::device_authorization_gesture aGesture) {
+				if (DeviceDispatch) {
+					DeviceDispatch(std::move(aGesture));
+				}
+			},
+			nullptr,
+		};
+
 		auto* const header = new QWidget;
 		header->setObjectName(QStringLiteral("workbenchReviewHeader"));
 		header->setAccessibleName(QStringLiteral("Pull request"));
 		auto* const column = new QVBoxLayout{ header };
 		column->setContentsMargins(0, 0, 0, 0);
 		column->addWidget(SessionPanel);
+		column->addWidget(DevicePanel);
+		// The picker names the profile the Connect button acts on, so it names
+		// the profile a device code is asked for too. Two sign-in controls side
+		// by side that meant two different hosts would be the defect this mount
+		// is most likely to introduce.
+		connect(
+			SessionPanel->profile_selector(),
+			&QComboBox::currentIndexChanged,
+			this,
+			[this] { rebind_device_authorization_profile(); });
 		build_queue_landing(header, *column);
 
 		// The empty state is not decoration. Without it a reviewer with no pull
@@ -1694,6 +1727,12 @@ namespace bpr::qt {
 		AgentPanel->set_dispatch(std::move(aAgentDispatch));
 	}
 
+	void workbench_window::set_device_authorization_dispatch(
+		application::device_authorization_gesture_dispatch aDispatch)
+	{
+		DeviceDispatch = std::move(aDispatch);
+	}
+
 	void workbench_window::set_defect_classification_dispatch(
 		workbench_defect_classification_dispatch aClassificationDispatch)
 	{
@@ -2036,6 +2075,10 @@ namespace bpr::qt {
 		}
 		if (aTransition.Identity.has_value()) {
 			SessionPanel->apply_identity(*aTransition.Identity);
+			// An accepted identity moves the picker with its signals blocked,
+			// so the rebind the picker's own change would have performed has to
+			// be performed here as well. Both paths end at the same profile.
+			rebind_device_authorization_profile();
 			++Statistics.GithubIdentityUpdates;
 		}
 		if (aTransition.Capabilities.has_value()) {
@@ -2299,6 +2342,23 @@ namespace bpr::qt {
 		return SessionPanel;
 	}
 
+	auto workbench_window::device_authorization() const noexcept
+		-> device_authorization_panel*
+	{
+		return DevicePanel;
+	}
+
+	void workbench_window::rebind_device_authorization_profile()
+	{
+		if (DevicePanel == nullptr || SessionPanel == nullptr) {
+			return;
+		}
+		if (const auto profile = SessionPanel->selected_profile();
+			profile.has_value()) {
+			DevicePanel->bind_profile(*profile);
+		}
+	}
+
 	auto workbench_window::pull_request_panel() const noexcept
 		-> github_pull_request_panel*
 	{
@@ -2550,6 +2610,17 @@ namespace bpr::qt {
 			append(SessionPanel->pull_request_editor());
 			append(SessionPanel->open_button());
 			append(SessionPanel->refresh_button());
+		}
+		// Device sign-in reads directly under the session chrome, so it is
+		// walked directly after it. The panel declares its own internal order;
+		// this places that run in the shell's.
+		if (DevicePanel != nullptr) {
+			append(DevicePanel->user_code_field());
+			append(DevicePanel->address_field());
+			append(DevicePanel->begin_button());
+			append(DevicePanel->copy_button());
+			append(DevicePanel->open_button());
+			append(DevicePanel->cancel_button());
 		}
 		append(QueueView);
 		append(QueueRoleFilter);
