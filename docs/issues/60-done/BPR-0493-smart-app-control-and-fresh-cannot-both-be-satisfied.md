@@ -1,7 +1,7 @@
 ---
 id: BPR-0493
 title: Smart App Control and the ledger's --fresh requirement are mutually exclusive
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -224,3 +224,43 @@ is where the work has to land: the `bpr-win-jaegaw` station is
 `read-only-proof` and cannot commit, and this is a native Windows host, so the
 project integrator and the target-native platform are the same session here.
 Both writer leases read free before the claim.
+
+## Closed on `main` by the integrator — 2026-09-02
+
+The hand-started session that claimed this card on 2026-08-29 did not return
+to it; its later work landed as [[BPR-0509]]. The remaining requirement was
+documentation, and the input this card said it would decide from has arrived:
+`bpr-win` completed BPR-0311's exact `--fresh` ledger command twice on the
+JaegAW host with Smart App Control off (`VerifiedAndReputablePolicyState=0`,
+`UsermodeCodeIntegrityPolicyEnforcementStatus=0`), in one pass each, with no
+two-phase resume — 13 m 32 s from a plain shell, failing at the release
+configure, and 12 m 04 s under `vcvars64`, reaching step nine of ten. That
+run is [[BPR-0495]]'s closing evidence as well.
+
+Against the required final state:
+
+- *Satisfiable without weakening `--fresh`*: yes, on the supported host state,
+  which is Smart App Control off. The ledger's requirement is unchanged; the
+  narrowing is of the supported host, recorded in
+  `docs/development/remote-stations.md`, not of the evidence.
+- *The course distinguishes a Device Guard refusal*: not implemented. The
+  owner's decision made the condition non-occurring on the supported host,
+  and the operator document now says an enforcing host is unsupported rather
+  than detected. [[BPR-0492]]'s output tail on `configure-failed` is what
+  makes such a failure readable if it ever recurs.
+- *Written down as the supported Windows procedure*: the new section
+  "Windows hosts: the supported platform-course procedure" in
+  `docs/development/remote-stations.md`, carrying the two further findings
+  from the same run — the Visual Studio developer environment that both the
+  Ninja release preset and the `undname` symbol reader require, and the
+  `Duplicate preset` collision from a stale `CMakeUserPresets.json` — and the
+  `_bpr/` dependency cache that `--fresh` does not clear.
+- *A run that waited out a verdict is distinguishable*: moot on the supported
+  host; the station's envelope reply records the policy readings before the
+  run, which is the distinction that remains meaningful.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The procedure is written down where a Windows operator reads | `docs/development/remote-stations.md`, section "Windows hosts: the supported platform-course procedure" | present, five numbered steps | this commit |
+| The documentation gate | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | this commit |
+| The requirement is met on the supported host | BPR-0311's ledger command on `bpr-win`, 2026-09-02, twice, single pass | steps 1–8 pass; step 9 is [[BPR-0511]] | `f2e39891` on `windows-lane`, merged at `c2d7b84f` |

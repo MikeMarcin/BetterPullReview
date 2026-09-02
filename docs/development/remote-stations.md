@@ -226,6 +226,47 @@ that machine's protection, so it is a decision for whoever owns the machine
 and not one an agent makes or is asked to make. Prefer a dedicated build host
 over a personal machine for exactly this reason.
 
+## Windows hosts: the supported platform-course procedure
+
+Recorded under BPR-0493 from the first complete `--fresh` runs of BPR-0311's
+ledger command on the JaegAW host (2026-09-02), so the next Windows station
+learns these from the document rather than from a failed run each.
+
+1. **Smart App Control is off.** That is the supported state, per the section
+   above; the course does not detect an enforcing host, it fails at configure
+   the way that section describes. A run on an enforcing host is unsupported,
+   not merely slow.
+2. **Run the ledger command from a Visual Studio developer environment** —
+   the "x64 Native Tools Command Prompt", or a shell that has run
+   `vcvars64.bat`. Two independent steps need it: `windows-app-release` is a
+   Ninja preset and an ordinary shell has no `ninja` on `PATH` (`CMake was
+   unable to find a build program corresponding to "Ninja"`), and the
+   symbol reader behind `check_platform_surfaces` shells `link /MAP` and
+   `undname`, which only that environment provides. The failure without it
+   is `configure-failed:windows-app-release` at the release step, thirteen
+   minutes in.
+3. **Delete the build root, not just its cache.** `--fresh` clears the CMake
+   cache; it does not clear the dependency cache under
+   `build/<tree>/_bpr/`, which keeps earlier configuration logs and the
+   objects they describe. When the run must prove a clean tree, remove the
+   whole build root first.
+4. **Retire hand-written presets that the repository has since committed.**
+   A gitignored `CMakeUserPresets.json` that still carries a preset the
+   repository now ships (`windows-app-release` was one) makes *every* preset
+   command on the host fail with `Duplicate preset`, `windows-dev` included.
+   Remove the superseded pair before running anything.
+5. **The shipped artifact's launch environment is the course's job.** The
+   course launches the artifact outside CTest and gives those launches the Qt
+   runtime directory the registered tests declare (BPR-0511); an operator
+   should not prepend it by hand, and a run that needed a hand-repaired
+   `PATH` is not a ledger row.
+
+The multi-config `windows-dev` tree and the single-config
+`windows-app-release` tree resolve from their own caches in one run; the
+course reads the configuration each tree declares (BPR-0492) and the
+dependency provider builds only the configurations the tree selects
+(BPR-0495).
+
 ## Dispatch and merge in one paragraph
 
 The integrator reserves an ID block on `main`
