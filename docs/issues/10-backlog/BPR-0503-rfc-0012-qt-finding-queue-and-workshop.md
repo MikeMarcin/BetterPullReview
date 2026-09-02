@@ -58,3 +58,14 @@ editor's existing rule: the only way out of this widget is a semantic command.
   member is added to either widget.
 - Each assertion is shown to fail when the behaviour it constrains is
   neutered.
+
+## Shape inherited from BPR-0498 — 2026-09-01
+
+`promote_agent_finding` promotes *onto* an existing draft or defect (an
+`edit` of a named draft, a `reclassify` of a named defect) because the core's
+command vocabularies create neither; only the private note is a payload of
+its own. The "convert to local draft comment" and "convert to local draft
+defect" actions therefore create the target through the existing editor and
+ledger paths first and then apply the promotion command; a target anchored
+anywhere but the finding's line is refused as `anchor_elsewhere`, and a
+boundary-anchored finding can only become a note.
