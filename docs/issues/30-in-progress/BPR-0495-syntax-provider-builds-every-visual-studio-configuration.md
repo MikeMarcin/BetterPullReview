@@ -1,7 +1,7 @@
 ---
 id: BPR-0495
 title: The syntax provider builds every Visual Studio configuration and MinSizeRel does not compile
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
