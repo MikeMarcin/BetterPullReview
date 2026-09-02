@@ -1,7 +1,7 @@
 ---
 id: BPR-0504
 title: "Composition: wire findings, chat, workshop, and MCP into the shipped workbench"
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0012
 depends_on: [BPR-0500, BPR-0501, BPR-0502, BPR-0503]
 ---
