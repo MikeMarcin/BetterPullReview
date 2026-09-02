@@ -39,8 +39,8 @@ station; never reuse a name for a different checkout.
 | Station name | Machine | Environment | Workstream | Branch | Status |
 |---|---|---|---|---|---|
 | `bpr-main-mac` | MacBook Pro | macos | main (integrator) | `main` | provisioned 2026-08-29 under the v1 station file; relaunch through the v2 launcher before dispatching through Codex |
-| `bpr-win-jaegaw` | JaegAW | windows-native | win | `windows-lane` | relaunched 2026-09-01 under v2 with `lane-commit` and the writer lease, but with the server form the launcher used until [[BPR-0491]]: **no session exists**; relaunch once through the corrected launcher |
-| `bpr-linux-jaegaw` | JaegAW (WSL2) | wsl2 | linux | `linux-lane` | relaunched 2026-09-01 under v2 with `lane-commit` and the writer lease, same server-form launch: **no session exists**; relaunch once through the corrected launcher |
+| `bpr-win` | JaegAW | windows-native | win | `windows-lane` | launched 2026-09-02 through the corrected launcher (`py -3 scripts/launch_remote_station.py`, [[BPR-0491]], [[BPR-0508]], [[BPR-0509]]) with `lane-commit` and the writer lease; the interactive session is the station. Succeeds `bpr-win-jaegaw`, whose server-form launch never created a session |
+| `bpr-linux` | JaegAW (WSL2) | wsl2 | linux | `linux-lane` | launched 2026-09-02 through the corrected launcher with `lane-commit` and the writer lease; the interactive session is the station. Succeeds `bpr-linux-jaegaw`, same history |
 
 The station file format changed to `implement-rfc.remote-station.v2` on
 2026-09-01 (workstream instead of role, plus the Codex task and Claude session

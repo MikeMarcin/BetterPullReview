@@ -43,3 +43,47 @@ was never true. `org.freedesktop.secrets` is owned by `gnome-keyring-d` and
 likely cause is that nothing unlocked the collection in this session and the
 fixture refuses prompts by construction. Not diagnosed further here — it
 belongs to whoever runs this card's native course.
+
+## Pre-flip platform course green; the keyring rows named — 2026-09-02
+
+Produced by `bpr-linux` on the JaegAW WSL2 host at `6fff0a53`, read-only,
+and recorded here by the integrator. No flip was taken.
+
+**The platform course passes.** `python3
+scripts/verify_rfc0016_platform_course.py --platform linux --dev-preset dev
+--release-preset app-release --build-root build/rfc0016-linux-enablement
+--expected-device-selection unavailable --fresh` exited 0 in 235 s with
+`RFC0016_COURSE_SELECTORS:16`, `RFC0016_DEVICE_STAGE:unavailable`,
+`RFC0016_DEVICE_REQUESTS:0`, and `RFC0016_PLATFORM_COURSE_OK`. All eleven
+stages passed in order; the sixteen selectors were enumerated from the
+course's own Debug tree. The station re-derived the surface facts against the
+shipped artifact (ELF x86-64 PIE, 10,945,016 bytes): `linux_secret_service`
+present (99 symbol-table occurrences), `macos_keychain`,
+`windows_credential_manager`, `QWebEngine`, `QWebView`, `QtWebEngine` all
+absent. Zero requests from the shipped Release artifact is the "stays
+unavailable until terminal" row.
+
+**The Secret Service native rows are blocked by host state, now named.**
+`linux_secret_service_contract` passes; `_native_setup` and
+`_native_cleanup` fail and `_native` is not run, exactly the 2026-08-22 host
+note. Over the session bus, `ReadAlias default` resolves to
+`/org/freedesktop/secrets/collection/login`, whose `Locked` property is
+`true`; the unlocked `session` collection is gnome-keyring's ephemeral one and
+not what the vault targets. The vault resolves `SECRET_COLLECTION_DEFAULT`,
+returns `github_credential_vault_failure::locked` when the collection is
+locked, and installs a non-prompting service that dismisses every unlock
+prompt — deliberate, and what makes the fixture non-interactive. Positive
+proof: the native test binary's `--expect-locked` mode passes on the host
+right now. Nothing unlocks the collection at login because
+`pam_gnome_keyring.so` appears only in `common-password`, and both daemons
+were started without `--unlock`; `login.keyring` is dated 2026-08-18, the day
+after [[BPR-0156]] recorded the four passing.
+
+**Operator action, not taken by the station.** The `login` collection must be
+unlocked in the session the tests run in: either `gnome-keyring-daemon
+--unlock` with the session bus address set (per boot), or adding
+`pam_gnome_keyring.so` to the `auth` and `session` PAM stacks (durable,
+root-owned). Re-aliasing `default` to the in-memory `session` collection
+would turn the rows green while invalidating them and is recommended
+against. Once unlocked, all four fixtures are expected to pass without a code
+change; that is the observation this card's flip waits on.
