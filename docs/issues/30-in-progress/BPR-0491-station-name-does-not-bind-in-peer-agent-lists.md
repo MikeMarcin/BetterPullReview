@@ -1,7 +1,7 @@
 ---
 id: BPR-0491
 title: A launched station's name does not bind in peer agent lists
-status: Ready
+status: In Progress
 rfc: none
 depends_on: []
 ---
