@@ -473,6 +473,84 @@ bpr_enable_warnings(
     test_better_pull_review_agent_invocation_composition_public_path
 )
 
+# RFC-BPR-0012. A fixture agent that anchors its finding at the identity the
+# composed context disclosed, rather than at a fixed repeated hex digit. The
+# existing canary proves an unanchored answer still reaches the reviewer; this
+# one proves a correctly placed answer validates against the frozen snapshot.
+bpr_add_executable(
+    test_better_pull_review_agent_finding_canary
+    agent_finding_canary_main.cpp
+)
+target_compile_features(
+    test_better_pull_review_agent_finding_canary
+    PRIVATE
+        cxx_std_23
+)
+bpr_enable_hardening(test_better_pull_review_agent_finding_canary)
+bpr_enable_warnings(test_better_pull_review_agent_finding_canary)
+
+bpr_add_executable(
+    test_better_pull_review_agent_finding_composition_public_path
+    agent_finding_composition_public_path.cpp
+)
+target_link_libraries(
+    test_better_pull_review_agent_finding_composition_public_path
+    PRIVATE
+        BetterPullReview::Composition
+)
+target_compile_definitions(
+    test_better_pull_review_agent_finding_composition_public_path
+    PRIVATE
+        BPR_BUILD_TESTING=1
+        "BPR_COMPOSITION_SOURCE=\"${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp\""
+)
+add_dependencies(
+    test_better_pull_review_agent_finding_composition_public_path
+    test_better_pull_review_agent_finding_canary
+)
+bpr_enable_hardening(
+    test_better_pull_review_agent_finding_composition_public_path
+)
+bpr_enable_warnings(
+    test_better_pull_review_agent_finding_composition_public_path
+)
+
+foreach(
+    course
+    IN ITEMS
+        positive
+        full-agent
+        finding-host-construction-cut
+        workshop-construction-cut
+        mcp-construction-cut
+        chat-panel-construction-cut
+        queue-construction-cut
+)
+    if(course STREQUAL "positive")
+        set(finding_test_name application_agent_finding_composition_contract)
+        set(finding_pass_marker "agent-finding-composition:pass")
+    else()
+        string(REPLACE "-" "_" finding_course_name "${course}")
+        set(finding_test_name "application_agent_finding_${finding_course_name}_contract")
+        set(finding_pass_marker "agent-finding-${course}:pass")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME "${finding_test_name}"
+        WINDOWS_UNCONTAINED
+        COMMAND
+            test_better_pull_review_agent_finding_composition_public_path
+            "${course}"
+            $<TARGET_FILE:test_better_pull_review_agent_finding_canary>
+    )
+    set_tests_properties(
+        "${finding_test_name}"
+        PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment};GITHUB_TOKEN=must-not-cross-agent-boundary"
+            PASS_REGULAR_EXPRESSION "${finding_pass_marker}"
+            TIMEOUT 120
+    )
+endforeach()
+
 foreach(
     course
     IN ITEMS

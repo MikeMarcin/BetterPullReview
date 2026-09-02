@@ -29,6 +29,7 @@ if(BPR_BUILD_QT)
             BetterPullReview::AdapterSyntax
             BetterPullReview::AdapterAI
 			BetterPullReview::AdapterAgent
+            BetterPullReview::AdapterMcp
             BetterPullReview::AdapterQt
             Threads::Threads
     )
@@ -53,6 +54,15 @@ if(BPR_BUILD_QT)
                 "BPR_GITHUB_CAPABILITY_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/capabilities/v1\""
                 "BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/pull-requests\""
                 "BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/device-authorization/v1\""
+                # RFC-BPR-0012. The tests-enabled composition supervises the
+                # shipped helper out of the build tree; the shipped one resolves
+                # it beside its own executable. The construction is the same in
+                # both graphs, and only the path differs.
+                "BPR_MCP_HELPER_EXECUTABLE=\"$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>\""
+        )
+        add_dependencies(
+            better_pull_review_composition
+            tool_better_pull_review_mcp_context_helper
         )
     endif()
 

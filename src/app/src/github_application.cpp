@@ -32,6 +32,7 @@
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/git/installed_git_process.hpp"
+#include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
@@ -40,6 +41,8 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/application/agent_comment_workshop_host.hpp"
+#include "bpr/application/agent_finding_host.hpp"
 #include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/defect_correlation.hpp"
@@ -49,6 +52,7 @@
 #include "bpr/application/epoch_runtime_ports.hpp"
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
@@ -60,7 +64,9 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/event_loop_device_timer.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
+#include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/system_tray_notification_sink.hpp"
 
 #include <QApplication>
@@ -1984,6 +1990,286 @@ namespace bpr::app {
 			= application::ledger_store_failure::unavailable;
 	};
 
+	/// \brief Names one core promotion refusal for a reviewer to read.
+	///
+	/// \details Presentation wording lives at this boundary because the core
+	/// publishes none: `core::agent_finding_promotion_refusal` is a decision,
+	/// and how it is worded to a reviewer is not the core's business. Every
+	/// declared enumerator has a case, so a refusal added later fails to
+	/// compile here rather than reaching the reviewer as an empty string.
+	[[nodiscard]] constexpr auto promotion_refusal_name(
+		const core::agent_finding_promotion_refusal aRefusal) noexcept
+		-> std::string_view
+	{
+		switch (aRefusal) {
+		case core::agent_finding_promotion_refusal::none:
+			return "none";
+		case core::agent_finding_promotion_refusal::unknown_choice:
+			return "unknown_choice";
+		case core::agent_finding_promotion_refusal::dismissed:
+			return "dismissed";
+		case core::agent_finding_promotion_refusal::unanchored:
+			return "unanchored";
+		case core::agent_finding_promotion_refusal::stale:
+			return "stale";
+		case core::agent_finding_promotion_refusal::foreign_verdict:
+			return "foreign_verdict";
+		case core::agent_finding_promotion_refusal::malformed_finding:
+			return "malformed_finding";
+		case core::agent_finding_promotion_refusal::unnamed_target:
+			return "unnamed_target";
+		case core::agent_finding_promotion_refusal::anchor_elsewhere:
+			return "anchor_elsewhere";
+		case core::agent_finding_promotion_refusal::boundary_anchor:
+			return "boundary_anchor";
+		case core::agent_finding_promotion_refusal::no_suggested_comment:
+			return "no_suggested_comment";
+		}
+		return "unknown";
+	}
+
+	/// \brief The Qt action a composed finding gesture asks the host for.
+	[[nodiscard]] constexpr auto composed_finding_action(
+		const qt::finding_queue_action aAction) noexcept
+		-> application::agent_finding_action
+	{
+		switch (aAction) {
+		case qt::finding_queue_action::open_evidence:
+			return application::agent_finding_action::open_evidence;
+		case qt::finding_queue_action::ask_follow_up:
+			return application::agent_finding_action::ask_follow_up;
+		case qt::finding_queue_action::convert_to_draft_comment:
+			return application::agent_finding_action::convert_to_draft_comment;
+		case qt::finding_queue_action::convert_to_draft_defect:
+			return application::agent_finding_action::convert_to_draft_defect;
+		case qt::finding_queue_action::add_to_private_notes:
+			return application::agent_finding_action::add_to_private_notes;
+		case qt::finding_queue_action::dismiss:
+			return application::agent_finding_action::dismiss;
+		}
+		return application::agent_finding_action::open_evidence;
+	}
+
+	static_assert(
+		qt::finding_queue_action_count == application::agent_finding_action_count,
+		"the composed finding vocabulary and the queue's must stay one list");
+
+	/// \brief Writes one frozen review projection the MCP helper may serve.
+	///
+	/// \details The same values the invocation request freezes for anchor
+	/// validation, written once so the helper answers about exactly what the
+	/// agent was asked about. The layout is the one
+	/// `adapters::mcp::mcp_context_helper` reads: a `binding` line, an
+	/// `alignment` record, and a `files` directory the helper resolves inside.
+	[[nodiscard]] auto freeze_mcp_snapshot(
+		const std::filesystem::path&                          aRoot,
+		const std::string&                                    aBinding,
+		const std::vector<core::agent_finding_snapshot_file>& aFiles) -> bool
+	{
+		auto error = std::error_code{ };
+		std::filesystem::remove_all(aRoot, error);
+		std::filesystem::create_directories(aRoot / "files", error);
+		if (error) {
+			return false;
+		}
+		const auto hex = [](const auto& aIdentity) {
+			constexpr auto digits = std::string_view{ "0123456789abcdef" };
+			auto           text   = std::string{ };
+			for (const auto byte : aIdentity.bytes()) {
+				text.push_back(digits[static_cast<std::size_t>(byte) >> 4U]);
+				text.push_back(digits[static_cast<std::size_t>(byte) & 0x0FU]);
+			}
+			return text;
+		};
+		auto binding = std::ofstream{ aRoot / "binding", std::ios::binary };
+		binding << aBinding << '\n';
+		auto alignment = std::ofstream{ aRoot / "alignment", std::ios::binary };
+		for (const auto& file : aFiles) {
+			alignment << "file\t" << file.Path << '\n'
+					  << "comparison\t" << hex(file.Comparison) << '\n'
+					  << "left_line_count\t" << file.LeftLineCount << '\n'
+					  << "right_line_count\t" << file.RightLineCount << '\n';
+			for (const auto& segment : file.Segments) {
+				alignment << "segment\t" << hex(segment) << '\n';
+			}
+			for (const auto& group : file.Groups) {
+				alignment << "group\t" << hex(group) << '\n';
+			}
+			for (const auto& move : file.Moves) {
+				alignment << "move\t" << hex(move) << '\n';
+			}
+		}
+		return binding.good() && alignment.good();
+	}
+
+	/// \brief Carries every invocation projection onward, findings included.
+	///
+	/// \details The launch panel stays the invocation surface it already is;
+	/// this adds one edge, from the host's typed finding delivery to the
+	/// composed finding host. It is deliberately the *only* new edge out of the
+	/// agent host: there is no path from here to the review-mutation
+	/// coordinator, and RFC-BPR-0012's "no private backchannel" is that absence
+	/// rather than a check somewhere downstream.
+	class composition_agent_invocation_projection final
+		: public application::agent_invocation_projection_port
+	{
+	public:
+		using finding_sink = std::function<void(
+			const application::agent_invocation_projection_identity&,
+			const application::agent_finding_delivery&)>;
+
+		composition_agent_invocation_projection(
+			application::agent_invocation_projection_port& aPanel,
+			finding_sink                                   aFindings)
+			: Panel{ aPanel }
+			, Findings{ std::move(aFindings) }
+		{
+		}
+
+		void offer(const std::span<const core::agent_profile> aProfiles) override
+		{
+			Panel.offer(aProfiles);
+		}
+
+		void refuse(const std::string_view aReason) override
+		{
+			Panel.refuse(aReason);
+		}
+
+		void admit(
+			const application::agent_invocation_projection_identity& aIdentity)
+			override
+		{
+			Panel.admit(aIdentity);
+		}
+
+		void start(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::prepared_workspace&                   aWorkspace) override
+		{
+			Panel.start(aIdentity, aWorkspace);
+		}
+
+		void stream(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::agent_stream_event&                   aEvent) override
+		{
+			Panel.stream(aIdentity, aEvent);
+		}
+
+		void finish(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::agent_run_result&                     aResult) override
+		{
+			Panel.finish(aIdentity, aResult);
+		}
+
+		void deliver_findings(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::agent_finding_delivery&               aDelivery) override
+		{
+			Panel.deliver_findings(aIdentity, aDelivery);
+			if (Findings) {
+				Findings(aIdentity, aDelivery);
+			}
+		}
+
+		void present_session_catalog(
+			const application::agent_session_catalog_projection& aProjection)
+			override
+		{
+			Panel.present_session_catalog(aProjection);
+		}
+
+	private:
+		application::agent_invocation_projection_port& Panel;
+		finding_sink                                   Findings;
+	};
+
+	/// \brief Forwards finding deliveries and outcomes to their surfaces.
+	class composition_agent_finding_projection final
+		: public application::agent_finding_projection_port
+	{
+	public:
+		using delivery_sink
+			= std::function<void(const application::agent_finding_delivery&)>;
+		using outcome_sink
+			= std::function<void(const application::agent_finding_outcome&)>;
+		using clear_sink = std::function<void()>;
+
+		composition_agent_finding_projection(
+			delivery_sink aDelivered, outcome_sink aAnswered, clear_sink aCleared)
+			: Delivered{ std::move(aDelivered) }
+			, Answered{ std::move(aAnswered) }
+			, Cleared{ std::move(aCleared) }
+		{
+		}
+
+		void present(const application::agent_finding_delivery& aDelivery) override
+		{
+			if (Delivered) {
+				Delivered(aDelivery);
+			}
+		}
+
+		void present(const application::agent_finding_outcome& aOutcome) override
+		{
+			if (Answered) {
+				Answered(aOutcome);
+			}
+		}
+
+		void clear() override
+		{
+			if (Cleared) {
+				Cleared();
+			}
+		}
+
+	private:
+		delivery_sink Delivered;
+		outcome_sink  Answered;
+		clear_sink    Cleared;
+	};
+
+	/// \brief Forwards one proposed revision, or the reason there is none.
+	class composition_comment_workshop_projection final
+		: public application::agent_comment_workshop_projection_port
+	{
+	public:
+		using proposal_sink = std::function<void(
+			const application::agent_comment_workshop_proposal&)>;
+		using refusal_sink
+			= std::function<void(application::agent_comment_workshop_refusal)>;
+
+		composition_comment_workshop_projection(
+			proposal_sink aProposed, refusal_sink aRefused)
+			: Proposed{ std::move(aProposed) }
+			, Refused{ std::move(aRefused) }
+		{
+		}
+
+		void present(
+			const application::agent_comment_workshop_proposal& aProposal) override
+		{
+			if (Proposed) {
+				Proposed(aProposal);
+			}
+		}
+
+		void refuse(
+			const application::agent_comment_workshop_refusal aRefusal) override
+		{
+			if (Refused) {
+				Refused(aRefusal);
+			}
+		}
+
+	private:
+		proposal_sink Proposed;
+		refusal_sink  Refused;
+	};
+
 	/// \brief Forwards selected diff terminals and observes accepted availability.
 	class composition_diff_projection final
 		: public application::diff_projection_port
@@ -2117,8 +2403,19 @@ namespace bpr::app {
 					= aFixtureOptions.DisableAgentHostComposition;
 				DisableAgentGestureWire
 					= aFixtureOptions.DisableAgentGestureWire;
+				DisableAgentFindingHostComposition
+					= aFixtureOptions.DisableAgentFindingHostComposition;
+				DisableCommentWorkshopComposition
+					= aFixtureOptions.DisableCommentWorkshopComposition;
+				DisableMcpHelperComposition
+					= aFixtureOptions.DisableMcpHelperComposition;
+				DisableSideChatPanelComposition
+					= aFixtureOptions.DisableSideChatPanelComposition;
+				DisableFindingQueueComposition
+					= aFixtureOptions.DisableFindingQueueComposition;
 				ExternalAgentExecutable
 					= aFixtureOptions.ExternalAgentExecutable;
+				CodexAgentExecutable   = aFixtureOptions.CodexAgentExecutable;
 				RegisteredDeviceCourse = aFixtureOptions.RegisteredDeviceCourse;
 				const auto host        = fixture_host(*aFixture);
 				append_profile(
@@ -2463,6 +2760,24 @@ namespace bpr::app {
 				|| within(cachePath, agentWorkspacePath)) {
 				throw std::runtime_error{ "Agent workspace root crosses Git cache" };
 			}
+			// The one new edge out of the agent host. The launch panel still
+			// receives every projection it already did; this adds the typed
+			// finding delivery, and nothing else. There is deliberately no
+			// path from here to the review-mutation coordinator: RFC-BPR-0012's
+			// "no private backchannel" is that absence rather than a check
+			// somewhere downstream.
+			AgentProjections
+				= std::make_unique<composition_agent_invocation_projection>(
+					*Window->agent_panel(),
+					[this](
+						const application::
+							agent_invocation_projection_identity&  aIdentity,
+						const application::agent_finding_delivery& aDelivery) {
+						static_cast<void>(aIdentity);
+						if (!Closing && FindingHost != nullptr) {
+							FindingHost->deliver(aDelivery);
+						}
+					});
 			auto agentProfiles = core::built_in_agent_profiles();
 #if defined(BPR_BUILD_TESTING)
 			if (ExternalAgentExecutable.has_value()) {
@@ -2472,6 +2787,15 @@ namespace bpr::app {
 					&core::agent_profile::Id);
 				if (external != agentProfiles.end()) {
 					external->Executable = ExternalAgentExecutable->string();
+				}
+			}
+			if (CodexAgentExecutable.has_value()) {
+				const auto codex = std::ranges::find(
+					agentProfiles,
+					core::codex_jsonl_profile_id,
+					&core::agent_profile::Id);
+				if (codex != agentProfiles.end()) {
+					codex->Executable = CodexAgentExecutable->string();
 				}
 			}
 #endif
@@ -2516,7 +2840,7 @@ namespace bpr::app {
 					},
 					AgentEffects,
 					DecisionLane,
-					*Window->agent_panel());
+					*AgentProjections);
 			}
 			Window->set_agent_dispatch(
 				[this](qt::agent_intent aIntent) {
@@ -2527,6 +2851,109 @@ namespace bpr::app {
 #endif
 					dispatch_agent_intent(std::move(aIntent));
 				});
+			// RFC-BPR-0012 composition, here rather than anywhere else and
+			// under the same fixture and production split the agent host and
+			// the review-mutation host already use. A surface built in one of
+			// the two graphs is a claim about the other one nobody checks.
+			auto mcpHelper = std::filesystem::path{ };
+#if defined(BPR_BUILD_TESTING)
+			mcpHelper = std::filesystem::path{ BPR_MCP_HELPER_EXECUTABLE };
+#else
+			mcpHelper = std::filesystem::path{
+				QCoreApplication::applicationDirPath().toStdString()
+			} / "tool_better_pull_review_mcp_context_helper";
+#endif
+			// Its own launcher rather than the agent's. `cancel` is a launcher
+			// operation, and one shared between an agent run and a helper
+			// lifetime would stop whichever the reviewer did not mean.
+			McpProcess      = std::make_unique<adapters::agent::agent_process_launcher>();
+			McpSnapshotRoot = ApplicationDataRoot / "mcp-snapshot";
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableMcpHelperComposition)
+#endif
+			{
+				McpHelper = std::make_unique<
+					application::mcp_context_helper_supervisor>(
+					std::move(mcpHelper),
+					*McpProcess,
+					McpEffects,
+					DecisionLane);
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableSideChatPanelComposition)
+#endif
+			{
+				SideChat = std::make_unique<qt::side_chat_panel>(
+					[this](qt::side_chat_intent aIntent) {
+						dispatch_side_chat_intent(std::move(aIntent));
+					});
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableFindingQueueComposition)
+#endif
+			{
+				FindingQueue = std::make_unique<qt::finding_queue_view>(
+					[this](qt::finding_action_intent aIntent) {
+						dispatch_finding_intent(std::move(aIntent));
+					});
+			}
+			FindingProjections
+				= std::make_unique<composition_agent_finding_projection>(
+					[this](const application::agent_finding_delivery& aDelivery) {
+						if (FindingQueue != nullptr) {
+							FindingQueue->present(aDelivery);
+						}
+					},
+					[this](const application::agent_finding_outcome& aOutcome) {
+						present_finding_outcome(aOutcome);
+					},
+					[this]() {
+						if (FindingQueue != nullptr) {
+							FindingQueue->present(
+								application::agent_finding_delivery{ });
+						}
+					});
+			WorkshopProjections
+				= std::make_unique<composition_comment_workshop_projection>(
+					[this](
+						const application::agent_comment_workshop_proposal&
+							aProposal) {
+						if (Window == nullptr
+							|| Window->review_editor() == nullptr) {
+							return;
+						}
+						++CommentWorkshopProposals;
+						Window->review_editor()->present(
+							qt::comment_workshop_proposal{
+								.Draft    = aProposal.Draft,
+								.Original = aProposal.Original,
+								.Proposed = aProposal.Proposed,
+							});
+					},
+					[this](
+						const application::agent_comment_workshop_refusal
+							aRefusal) {
+						present_agent_refusal(
+							"comment workshop", application::name(aRefusal));
+					});
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableCommentWorkshopComposition)
+#endif
+			{
+				WorkshopHost = std::make_unique<
+					application::agent_comment_workshop_host>(
+					*WorkshopProjections);
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableAgentFindingHostComposition)
+#endif
+			{
+				FindingHost = std::make_unique<application::agent_finding_host>(
+					[this]() -> application::review_ledger_store_port* {
+						return ReviewLedger.get();
+					},
+					*FindingProjections);
+			}
 			Window->epoch_selectors()->set_dispatch(
 				[this](application::epoch_intent aIntent) { dispatch_epoch_intent(std::move(aIntent)); });
 			DiffProjections = std::make_unique<composition_diff_projection>(
@@ -4328,6 +4755,15 @@ namespace bpr::app {
 					.RightEpoch  = comparison.Right.Identity.Epoch,
 				});
 			refresh_agent_private_context_choices();
+			present_side_chat(core::agent_revision_binding{
+				.Host        = authority.Host,
+				.Repository  = authority.Repository,
+				.PullRequest = authority.PullRequest,
+				.BaseOid     = revision.Base,
+				.HeadOid     = revision.Head,
+				.LeftEpoch   = comparison.Left.Identity.Epoch,
+				.RightEpoch  = comparison.Right.Identity.Epoch,
+			});
 			Window->agent_panel()->disclose_scope(
 				QStringLiteral(
 					"The selected agent receives the exact accepted PR/diff identities, "
@@ -4417,6 +4853,19 @@ namespace bpr::app {
 					};
 				}
 			}
+			// The frozen snapshot, stated once and used twice: the host
+			// validates every returned finding against it, and the MCP helper
+			// is pinned to the same values on disk. Two answers about one
+			// revision cannot disagree if they are one value.
+			auto frozen = frozen_snapshot_files();
+			if (McpHelper != nullptr) {
+				const auto encoded
+					= adapters::mcp::encode_revision_binding(binding);
+				if (freeze_mcp_snapshot(McpSnapshotRoot, encoded, frozen)) {
+					++FrozenSnapshotWrites;
+					McpHelper->pin(McpSnapshotRoot, encoded);
+				}
+			}
 			AgentHost->dispatch(application::agent_invocation_request{
 				.ApplicationSession     = state.ApplicationSession,
 				.Authority              = authority,
@@ -4424,6 +4873,227 @@ namespace bpr::app {
 				.Context                = std::move(observation),
 				.ExistingCheckoutChosen = start.ExistingCheckoutChosen,
 				.ExistingCheckout       = ExistingCheckout,
+				.FrozenFiles            = std::move(frozen),
+			});
+		}
+
+		/// \brief The frozen alignment facts one invocation is answered against.
+		///
+		/// \details Read from the alignment the reviewer is actually looking
+		/// at, once, and carried as values. An empty list is a complete answer
+		/// rather than a missing one: every finding then arrives unanchored,
+		/// which is what a run that froze nothing has evidence for.
+		[[nodiscard]] auto frozen_snapshot_files() const
+			-> std::vector<core::agent_finding_snapshot_file>
+		{
+			auto files = std::vector<core::agent_finding_snapshot_file>{ };
+			if (Window == nullptr || !SelectedDiffPublication.has_value()) {
+				return files;
+			}
+			const auto* const workbench = Window->comparison_surface();
+			if (workbench == nullptr || workbench->current_result() == nullptr
+				|| workbench->current_result()->Alignment.Key
+					!= SelectedDiffPublication->Key) {
+				return files;
+			}
+			const auto& alignment = workbench->current_result()->Alignment;
+			auto        file      = core::agent_finding_snapshot_file{
+				.Path           = SelectedDiffPublication->Request.File.PresentationPath,
+				.Comparison     = alignment.Digest,
+				.LeftLineCount  = alignment.LeftLineCount,
+				.RightLineCount = alignment.RightLineCount,
+			};
+			file.Segments.reserve(alignment.Segments.size());
+			for (const auto& segment : alignment.Segments) {
+				file.Segments.push_back(segment.Id);
+			}
+			file.Groups.reserve(alignment.Groups.size());
+			for (const auto& group : alignment.Groups) {
+				file.Groups.push_back(group.Id);
+			}
+			file.Moves.reserve(alignment.Moves.size());
+			for (const auto& move : alignment.Moves) {
+				file.Moves.push_back(move.Id);
+			}
+			files.push_back(std::move(file));
+			return files;
+		}
+
+		void present_agent_refusal(
+			const std::string_view aSubject, const std::string_view aReason)
+		{
+			if (Window == nullptr || Window->agent_panel() == nullptr) {
+				return;
+			}
+			Window->agent_panel()->refuse(
+				std::string{ aSubject } + " refused: " + std::string{ aReason });
+		}
+
+		/// \brief Presents what one asked-for finding action produced.
+		///
+		/// \details A promoted comment becomes a *proposal* rather than a
+		/// draft: the reviewer reads the before and the after on the shipped
+		/// editor and accepts it there, which is the one gesture that emits a
+		/// local draft command. Nothing here writes, and nothing here reaches
+		/// the review-mutation host.
+		void present_finding_outcome(
+			const application::agent_finding_outcome& aOutcome)
+		{
+			if (aOutcome.Draft.has_value() && WorkshopHost != nullptr
+				&& ReviewDraft.has_value()) {
+				static_cast<void>(
+					WorkshopHost->propose(*ReviewDraft, *aOutcome.Draft));
+				return;
+			}
+			if (aOutcome.Defect.has_value()) {
+				dispatch_defect(*aOutcome.Defect);
+				return;
+			}
+			if (aOutcome.Note.has_value()) {
+				refresh_agent_private_context_choices();
+				return;
+			}
+			// A refused conversion is presented, not dropped. A reviewer who
+			// is shown nothing cannot tell a refusal from a swallowed gesture.
+			++FindingRefusalsPresented;
+			present_agent_refusal(
+				application::name(aOutcome.Action),
+				aOutcome.Refusal
+						!= application::agent_finding_action_refusal::none
+					? application::name(aOutcome.Refusal)
+					: promotion_refusal_name(aOutcome.Promotion));
+		}
+
+		[[nodiscard]] auto next_private_note_id() const
+			-> application::local_note_id
+		{
+			auto next = std::uint64_t{ 1U };
+			if (ReviewLedgerHost != nullptr) {
+				if (const auto observed = ReviewLedgerHost->private_observation();
+					observed.has_value()) {
+					for (const auto& note : observed->Notes) {
+						next = std::max(next, note.Id.value() + 1U);
+					}
+				}
+			}
+			return application::local_note_id{ next };
+		}
+
+		[[nodiscard]] auto current_note_attachment() const
+			-> std::optional<application::local_note_attachment>
+		{
+			if (!SelectedDiffPublication.has_value()) {
+				return std::nullopt;
+			}
+			return application::local_note_attachment{
+				.File       = SelectedDiffPublication->Request.File.File,
+				.Comparison = core::comparison_digest(SelectedDiffPublication->Key),
+			};
+		}
+
+		/// \brief The durable defect anchored exactly where the finding is.
+		///
+		/// \details Nothing is moved onto a nearby defect. `promote_agent_finding`
+		/// refuses `anchor_elsewhere` when the two disagree, and supplying the
+		/// nearest one here would be that refusal arriving from the other
+		/// direction.
+		[[nodiscard]] auto anchored_durable_defect(
+			const core::agent_finding& aFinding) const
+			-> std::optional<core::defect_record>
+		{
+			if (!aFinding.Anchor.Line.has_value()) {
+				return std::nullopt;
+			}
+			for (const auto& durable : DurableDefects) {
+				if (durable.History.Defect.Anchor == *aFinding.Anchor.Line) {
+					return durable.History.Defect;
+				}
+			}
+			return std::nullopt;
+		}
+
+		void dispatch_finding_intent(qt::finding_action_intent aIntent)
+		{
+			if (Closing || FindingHost == nullptr) {
+				return;
+			}
+			auto request = application::agent_finding_action_request{
+				.Session = aIntent.Subject.Session,
+				.Ordinal = aIntent.Subject.Ordinal,
+				.Action  = composed_finding_action(aIntent.Action),
+			};
+			switch (request.Action) {
+			case application::agent_finding_action::convert_to_draft_comment:
+				request.Draft = ReviewDraft;
+				break;
+			case application::agent_finding_action::convert_to_draft_defect:
+				request.Defect = anchored_durable_defect(aIntent.Subject.Finding);
+				break;
+			case application::agent_finding_action::add_to_private_notes:
+				request.Note       = next_private_note_id();
+				request.Attachment = current_note_attachment();
+				break;
+			case application::agent_finding_action::open_evidence:
+			case application::agent_finding_action::ask_follow_up:
+			case application::agent_finding_action::dismiss:
+				break;
+			}
+			static_cast<void>(FindingHost->act(request));
+		}
+
+		/// \brief Records one side-chat gesture, and starts nothing.
+		///
+		/// \details RFC-BPR-0012's chat *session* host is not composed by this
+		/// slice, and a send that quietly did nothing would be worse than one
+		/// that says so. The refusal is the reviewer's answer until a chat host
+		/// exists; every other gesture is recorded and changes nothing.
+		void dispatch_side_chat_intent(qt::side_chat_intent aIntent)
+		{
+			++SideChatIntents;
+			if (std::holds_alternative<qt::send_chat_message_intent>(aIntent)) {
+				present_agent_refusal("side chat", "no composed chat session host");
+			}
+		}
+
+		void present_side_chat(const core::agent_revision_binding& aBinding)
+		{
+			if (SideChat == nullptr || !AgentReview.has_value()) {
+				return;
+			}
+			auto session = core::agent_session{
+				.Id      = core::agent_session_id{ 1U },
+				.Profile = core::codex_jsonl_profile_id,
+				.Binding = aBinding,
+			};
+			if (ReviewLedgerHost != nullptr) {
+				if (const auto catalog = ReviewLedgerHost->session_catalog();
+					catalog.has_value() && catalog->Latest.has_value()) {
+					session = *catalog->Latest;
+				}
+			}
+			auto       provider = std::string{ };
+			const auto profiles = core::built_in_agent_profiles();
+			for (const auto& profile : profiles) {
+				if (profile.Id == session.Profile) {
+					provider = profile.DisplayName;
+				}
+			}
+			++SideChatPresentations;
+			SideChat->present(qt::side_chat_projection{
+				.Session       = session,
+				.Continuations = core::offer_agent_continuations(session, aBinding),
+				.Chat          = core::agent_chat_state{
+					.Scope = core::agent_chat_scope{
+						.Kind = core::agent_chat_scope_kind::pull_request,
+					},
+				},
+				.PrivateContext = core::agent_private_context_optin{
+					.Session = session.Id,
+				},
+				.EntryPoint = core::agent_entry_point::ask_about_selection,
+				.Provider   = std::move(provider),
+				.GitHost    = AgentReview->Hostname,
+				.Workspace  = AgentWorkspaceRoot != nullptr ? AgentWorkspaceRoot->path().toStdString() : std::string{ },
 			});
 		}
 
@@ -5361,7 +6031,13 @@ namespace bpr::app {
 		bool                                 DisableAgentProcessLauncherComposition = false;
 		bool                                 DisableAgentHostComposition            = false;
 		bool                                 DisableAgentGestureWire                = false;
+		bool                                 DisableAgentFindingHostComposition     = false;
+		bool                                 DisableCommentWorkshopComposition      = false;
+		bool                                 DisableMcpHelperComposition            = false;
+		bool                                 DisableSideChatPanelComposition        = false;
+		bool                                 DisableFindingQueueComposition         = false;
 		std::optional<std::filesystem::path> ExternalAgentExecutable;
+		std::optional<std::filesystem::path> CodexAgentExecutable;
 		bool                                 ReviewLedgerWasPresentOnEntry     = false;
 		bool                                 ReviewLedgerRoundTripPassed       = false;
 		bool                                 FixtureReviewMutationHostComposed = false;
@@ -5421,6 +6097,7 @@ namespace bpr::app {
 		worker_executor                                                EpochEffects;
 		worker_executor                                                DiffEffects;
 		worker_executor                                                AgentEffects;
+		worker_executor                                                McpEffects;
 		worker_executor                                                WorkbenchEffects;
 		worker_executor                                                AppearanceEffects;
 		worker_executor                                                QueueEffects;
@@ -5432,7 +6109,26 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 		std::unique_ptr<composition_agent_process_launcher_probe> AgentProcessProbe;
 #endif
-		std::unique_ptr<application::agent_invocation_host>             AgentHost;
+		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;
+		std::unique_ptr<application::agent_invocation_host>      AgentHost;
+		// RFC-BPR-0012. Composed beside the agent host, owned here, and driven
+		// by the shipped window's own gestures. The two panels hold no
+		// process, provider, credential, or store of their own; the only way
+		// out of either is an intent this composition answers.
+		std::unique_ptr<qt::side_chat_panel>                            SideChat;
+		std::unique_ptr<qt::finding_queue_view>                         FindingQueue;
+		std::unique_ptr<composition_agent_finding_projection>           FindingProjections;
+		std::unique_ptr<application::agent_finding_host>                FindingHost;
+		std::unique_ptr<composition_comment_workshop_projection>        WorkshopProjections;
+		std::unique_ptr<application::agent_comment_workshop_host>       WorkshopHost;
+		std::unique_ptr<adapters::agent::agent_process_launcher>        McpProcess;
+		std::unique_ptr<application::mcp_context_helper_supervisor>     McpHelper;
+		std::filesystem::path                                           McpSnapshotRoot;
+		std::size_t                                                     CommentWorkshopProposals = 0U;
+		std::size_t                                                     FindingRefusalsPresented = 0U;
+		std::size_t                                                     SideChatIntents          = 0U;
+		std::size_t                                                     SideChatPresentations    = 0U;
+		std::size_t                                                     FrozenSnapshotWrites     = 0U;
 		std::unique_ptr<composition_diff_projection>                    DiffProjections;
 		std::unique_ptr<application::diff_application_host>             DiffHost;
 		std::unique_ptr<application::workbench_application_host>        WorkbenchHost;
@@ -10905,6 +11601,103 @@ namespace bpr::app {
 			.Catalog    = std::move(*catalog),
 			.Statistics = implementation->ReviewLedgerHost->statistics(),
 		};
+	}
+
+	auto detail::github_application_fixture_access::finding_queue(
+		const github_application& aApplication) noexcept -> qt::finding_queue_view*
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation == nullptr ? nullptr
+										 : implementation->FindingQueue.get();
+	}
+
+	auto detail::github_application_fixture_access::side_chat_panel(
+		const github_application& aApplication) noexcept -> qt::side_chat_panel*
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation == nullptr ? nullptr
+										 : implementation->SideChat.get();
+	}
+
+	auto detail::github_application_fixture_access::start_mcp_context_helper(
+		github_application& aApplication, std::string aRequest)
+		-> application::mcp_helper_refusal
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->McpHelper == nullptr) {
+			return application::mcp_helper_refusal::no_helper;
+		}
+		return implementation->McpHelper->start(std::move(aRequest));
+	}
+
+	auto detail::github_application_fixture_access::agent_finding_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::agent_finding_composition_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return { };
+		}
+		auto evidence = detail::agent_finding_composition_evidence{
+			.FindingHostComposed = implementation->FindingHost != nullptr,
+			.CommentWorkshopComposed
+			= implementation->WorkshopHost != nullptr,
+			.McpHelperComposed     = implementation->McpHelper != nullptr,
+			.SideChatPanelComposed = implementation->SideChat != nullptr,
+			.FindingQueueComposed  = implementation->FindingQueue != nullptr,
+			.QueuedFindings        = implementation->FindingQueue != nullptr
+				? implementation->FindingQueue->finding_count()
+				: 0U,
+			.WorkshopProposals     = implementation->CommentWorkshopProposals,
+			.RefusalsPresented     = implementation->FindingRefusalsPresented,
+			.SideChatPresentations = implementation->SideChatPresentations,
+			.SideChatIntents       = implementation->SideChatIntents,
+			.FrozenSnapshotWrites  = implementation->FrozenSnapshotWrites,
+			.FrozenFileCount       = implementation->frozen_snapshot_files().size(),
+			.FindingStatistics     = implementation->FindingHost != nullptr
+				? implementation->FindingHost->statistics()
+				: application::agent_finding_host_statistics{ },
+			.WorkshopStatistics    = implementation->WorkshopHost != nullptr
+				? implementation->WorkshopHost->statistics()
+				: application::agent_comment_workshop_statistics{ },
+			.McpStatistics         = implementation->McpHelper != nullptr
+				? implementation->McpHelper->statistics()
+				: application::mcp_helper_supervisor_statistics{ },
+			.McpLaunch             = implementation->McpHelper != nullptr
+				? implementation->McpHelper->describe()
+				: std::nullopt,
+			.McpAnswer             = implementation->McpHelper != nullptr
+				? implementation->McpHelper->answer()
+				: std::string{ },
+		};
+		if (implementation->FindingQueue != nullptr) {
+			evidence.QueuedClaim
+				= implementation->FindingQueue->claim_text().toStdString();
+			evidence.QueuedAnchorState
+				= implementation->FindingQueue->anchor_state_text().toStdString();
+		}
+		if (implementation->ReviewDraft.has_value()) {
+			evidence.LocalDraftBody = implementation->ReviewDraft->Body;
+		}
+		if (implementation->Window != nullptr) {
+			if (auto* const editor = implementation->Window->review_editor();
+				editor != nullptr) {
+				evidence.WorkshopOriginalText
+					= editor->workshop_original_text().toStdString();
+				evidence.WorkshopProposalText
+					= editor->workshop_proposal_text().toStdString();
+			}
+			if (auto* const panel = implementation->Window->agent_panel();
+				panel != nullptr) {
+				evidence.AgentPanelStatusText
+					= panel->status_text().toStdString();
+			}
+		}
+		if (implementation->SideChat != nullptr) {
+			evidence.SideChatHeadOidText
+				= implementation->SideChat->head_oid_text().toStdString();
+		}
+		return evidence;
 	}
 
 	auto detail::github_application_fixture_access::agent_invocation_evidence(

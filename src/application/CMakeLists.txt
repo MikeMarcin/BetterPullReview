@@ -11,10 +11,13 @@ add_library(
         src/review_synchronization.cpp
         src/review_queue_refresh.cpp
         src/review_queue_enrollment.cpp
+        src/agent_comment_workshop_host.cpp
         src/agent_finding_delivery.cpp
+        src/agent_finding_host.cpp
         src/agent_launch.cpp
 		src/agent_invocation_host.cpp
         src/agent_workspace.cpp
+        src/mcp_context_helper_supervisor.cpp
         src/notification_delivery.cpp
         src/review_queue_notification.cpp
         src/workbench_snapshot_observation.cpp

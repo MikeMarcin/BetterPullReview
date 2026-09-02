@@ -1,0 +1,555 @@
+/// \file
+/// \brief RFC-BPR-0012 composition, driven through the shipped application.
+///
+/// \details Modelled on `agent_invocation_composition_public_path.cpp`, and
+/// deliberately the same shape: one real fixture-served review, real gestures,
+/// and a construction cut per composed surface.
+///
+/// What this course is for, in one sentence: a reviewer's gesture reaches one
+/// delivered finding, converting it produces one local draft, and no GitHub
+/// mutation call happens anywhere along the way.
+
+#include "public_path_poll.hpp"
+
+#include "../../src/app/src/github_application_fixture_access.hpp"
+
+#include "bpr/adapters/mcp/mcp_context_helper.hpp"
+#include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/workbench_drawer.hpp"
+
+#include <QAction>
+#include <QApplication>
+#include <QComboBox>
+#include <QItemSelectionModel>
+#include <QLineEdit>
+#include <QListView>
+#include <QPlainTextEdit>
+#include <QSpinBox>
+#include <QTemporaryDir>
+#include <QThread>
+#include <QToolButton>
+
+#include <algorithm>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+#include <string>
+#include <string_view>
+
+namespace {
+	using namespace bpr;
+
+	using e2e::default_agent_budget;
+	using e2e::extended_agent_budget;
+	using e2e::wait_terms;
+
+	/// The reviewer's own comment, byte for byte, before any agent sees it.
+	constexpr std::string_view reviewer_original
+		= "BPR_REVIEWER_ORIGINAL_0504 retry\tbudget? ";
+	/// Exactly what `agent_finding_canary_main.cpp` proposes instead.
+	constexpr std::string_view agent_suggested
+		= "BPR_FINDING_SUGGESTED_0504 name the exhausted retry in the message";
+	constexpr std::string_view agent_claim
+		= "BPR_FINDING_CLAIM_0504 the retry budget is not reported to the caller";
+
+	template <typename Predicate>
+	[[nodiscard]] auto wait_until_reporting(
+		wait_terms&                     aTerms,
+		Predicate                       aPredicate,
+		const std::chrono::milliseconds aBudget = default_agent_budget) -> bool
+	{
+		return e2e::wait_until(aTerms, aPredicate, aBudget);
+	}
+
+	[[nodiscard]] auto shutdown(app::github_application& aApplication) -> bool
+	{
+		aApplication.begin_shutdown();
+		auto terms = wait_terms{ };
+		return wait_until_reporting(
+			terms,
+			[&aApplication](wait_terms& aTerms) {
+				QApplication::processEvents();
+				return aTerms.require(
+					"shutdown-complete", aApplication.status().ShutdownComplete);
+			},
+			extended_agent_budget);
+	}
+
+	[[nodiscard]] auto fail(
+		app::github_application& aApplication,
+		const std::string_view   aReason,
+		const std::string_view   aState = { }) -> int
+	{
+		std::cerr << "agent-finding-composition-failure:" << aReason;
+		if (!aState.empty()) {
+			std::cerr << ' ' << aState;
+		}
+		std::cerr << '\n';
+		static_cast<void>(shutdown(aApplication));
+		return EXIT_FAILURE;
+	}
+
+	/// \brief Whether the composed helper launch is exactly what was pinned.
+	///
+	/// \details Three properties, all of them absences: no argument vector, an
+	/// environment of exactly the two allowlisted names in the adapter's own
+	/// order, and a working directory that is the pinned snapshot root and
+	/// names no host. A supervisor that could add a fourth thing to this list
+	/// could add `--listen`.
+	[[nodiscard]] auto exact_helper_launch(
+		const app::detail::agent_finding_composition_evidence& aEvidence,
+		const std::filesystem::path&                           aSnapshotRoot)
+		-> bool
+	{
+		if (!aEvidence.McpLaunch.has_value()) {
+			return false;
+		}
+		const auto& launch = *aEvidence.McpLaunch;
+		const auto  names
+			= application::mcp_context_helper_supervisor::environment_names();
+		if (
+			launch.Environment.size() != adapters::mcp::mcp_environment_allowlist.size()
+			|| names.size() != adapters::mcp::mcp_environment_allowlist.size()) {
+			return false;
+		}
+		for (auto index = std::size_t{ 0U }; index < names.size(); ++index) {
+			if (
+				names[index] != adapters::mcp::mcp_environment_allowlist[index]
+				|| launch.Environment[index].first != names[index]) {
+				return false;
+			}
+		}
+		return launch.WorkingDirectory == aSnapshotRoot.string()
+			&& !launch.Executable.empty()
+			&& !adapters::mcp::names_uri_scheme(launch.WorkingDirectory)
+			&& !adapters::mcp::names_network_authority(launch.WorkingDirectory)
+			&& !application::mcp_context_helper_supervisor::names_network_location(
+				   launch.WorkingDirectory)
+			&& launch.Environment[1].second
+			== adapters::mcp::encode_revision_binding(
+				   *adapters::mcp::decode_revision_binding(
+					   launch.Environment[1].second));
+	}
+} // namespace
+
+auto main(int argc, char** argv) -> int
+{
+	QApplication qtApplication{ argc, argv };
+	QApplication::setQuitOnLastWindowClosed(false);
+	if (argc != 3) {
+		return EXIT_FAILURE;
+	}
+	const auto course = std::string_view{ argv[1] };
+	if (
+		course != "positive" && course != "full-agent"
+		&& course != "finding-host-construction-cut"
+		&& course != "workshop-construction-cut"
+		&& course != "mcp-construction-cut"
+		&& course != "chat-panel-construction-cut"
+		&& course != "queue-construction-cut") {
+		return EXIT_FAILURE;
+	}
+	auto data = QTemporaryDir{ };
+	if (!data.isValid()) {
+		return EXIT_FAILURE;
+	}
+	const auto dataRoot    = std::filesystem::path{ data.path().toStdString() };
+	auto       application = app::detail::github_application_fixture_access::make(
+		app::detail::github_public_path_fixture::github_com,
+		{
+			.ApplicationDataRoot = dataRoot,
+			.EpochPhase          = app::detail::github_epoch_fixture_phase::single,
+			.DisableAgentFindingHostComposition
+			= course == "finding-host-construction-cut",
+			.DisableCommentWorkshopComposition
+			= course == "workshop-construction-cut",
+			.DisableMcpHelperComposition = course == "mcp-construction-cut",
+			.DisableSideChatPanelComposition
+			= course == "chat-panel-construction-cut",
+			.DisableFindingQueueComposition
+			= course == "queue-construction-cut",
+			.CodexAgentExecutable = std::filesystem::path{ argv[2] },
+		});
+	application->show();
+	auto& window = application->window();
+	window.github_connect_action()->trigger();
+	auto connected = wait_terms{ };
+	if (!wait_until_reporting(connected, [&window](wait_terms& aTerms) {
+			aTerms.note_identifier("status", window.github_status_text());
+			return aTerms.require(
+					   "status-is-connected",
+					   window.github_status_text() == "GitHub account connected.")
+				&& aTerms.require(
+					"open-enabled", window.github_open_action()->isEnabled());
+		})) {
+		return fail(*application, "connect", connected.render());
+	}
+	window.session_panel()->owner_editor()->setText(QStringLiteral("octo-org"));
+	window.session_panel()->repository_editor()->setText(
+		QStringLiteral("review-repository"));
+	window.session_panel()->pull_request_editor()->setValue(17);
+	window.github_open_action()->trigger();
+
+	auto* const panel     = window.agent_panel();
+	auto        offerings = wait_terms{ };
+	if (!wait_until_reporting(offerings, [&window, panel](wait_terms& aTerms) {
+			return aTerms.require(
+					   "files-listed",
+					   window.files_drawer()->contents_view()->model()->rowCount()
+						   != 0)
+				&& aTerms.require(
+					"profiles-is-four", panel->profile_selector()->count() == 4)
+				&& aTerms.require(
+					"disclosure-present", !panel->disclosure_text().isEmpty());
+		})) {
+		return fail(*application, "agent-offerings", offerings.render());
+	}
+
+	auto* const files = window.files_drawer()->contents_view();
+	files->selectionModel()->setCurrentIndex(
+		files->model()->index(0, 0),
+		QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+	auto selectedDiff = wait_terms{ };
+	if (!wait_until_reporting(
+			selectedDiff,
+			[&window, panel](wait_terms& aTerms) {
+				return aTerms.require(
+						   "comparison-shown",
+						   window.comparison_surface()->current_result() != nullptr)
+					&& aTerms.require(
+						"start-enabled", panel->start_action()->isEnabled());
+			},
+			extended_agent_budget)) {
+		return fail(*application, "selected-diff", selectedDiff.render());
+	}
+	auto* const surface = window.comparison_surface();
+	if (!surface->navigate_change(
+			core::change_navigation_direction::next,
+			core::change_navigation_policy::stop)) {
+		return fail(*application, "semantic-selection-action");
+	}
+	auto semantic = wait_terms{ };
+	if (!wait_until_reporting(semantic, [surface](wait_terms& aTerms) {
+			return aTerms.require(
+				"selection-present", surface->selection().has_value());
+		})) {
+		return fail(*application, "semantic-selection", semantic.render());
+	}
+	if (!window.read_action()->isEnabled()) {
+		return fail(*application, "receipt-action");
+	}
+	window.read_action()->trigger();
+	auto receipt = wait_terms{ };
+	if (!wait_until_reporting(receipt, [&window](wait_terms& aTerms) {
+			return aTerms.require(
+				"read-checked", window.read_action()->isChecked());
+		})) {
+		return fail(*application, "receipt-projection", receipt.render());
+	}
+
+	auto* const editor     = window.review_editor();
+	auto        draftReady = wait_terms{ };
+	if (
+		editor == nullptr
+		|| !wait_until_reporting(draftReady, [editor](wait_terms& aTerms) {
+			   return aTerms.require(
+				   "draft-shown", editor->shown_draft().has_value());
+		   })) {
+		return fail(*application, "local-draft", draftReady.render());
+	}
+	// The reviewer's own bytes, tab and trailing space included, so a proposal
+	// that overwrote them has nowhere to hide.
+	editor->body_editor()->setPlainText(
+		QString::fromUtf8(
+			reviewer_original.data(),
+			static_cast<qsizetype>(reviewer_original.size())));
+	QApplication::processEvents();
+
+	const auto codexIndex = panel->profile_selector()->findData(
+		QVariant::fromValue<qulonglong>(core::codex_jsonl_profile_id.value()));
+	if (codexIndex < 0) {
+		return fail(*application, "codex-profile");
+	}
+	panel->profile_selector()->setCurrentIndex(codexIndex);
+	panel->start_button()->click();
+
+	auto delivered = wait_terms{ };
+	if (!wait_until_reporting(
+			delivered,
+			[&application](wait_terms& aTerms) {
+				const auto invocation = app::detail::
+					github_application_fixture_access::agent_invocation_evidence(
+						*application);
+				aTerms.note(
+					"process",
+					static_cast<std::uint64_t>(
+						invocation.Statistics.ProcessStarts));
+				return aTerms.require(
+						   "run-quiescent",
+						   invocation.Quiescent
+							   && invocation.Statistics.ProcessStarts == 1U)
+					&& aTerms.require(
+						"cleanups-is-one",
+						invocation.Statistics.WorkspaceCleanups == 1U);
+			},
+			extended_agent_budget)) {
+		return fail(*application, "agent-run", delivered.render());
+	}
+	QApplication::processEvents();
+
+	const auto snapshotRoot = dataRoot / "mcp-snapshot";
+
+	// Detailing the delivered finding is a Qt-local navigation and emits
+	// nothing; it is what makes the seven disclosed facts readable.
+	auto* const queue
+		= app::detail::github_application_fixture_access::finding_queue(
+			*application);
+	if (queue != nullptr && queue->finding_count() != 0U) {
+		queue->select(0U);
+		QApplication::processEvents();
+	}
+	const auto afterDelivery
+		= app::detail::github_application_fixture_access::agent_finding_evidence(
+			*application);
+
+	// The conversion gesture, on the composed queue, against the finding the
+	// run delivered. Nothing is published by it and nothing can be.
+	if (queue != nullptr && queue->finding_count() != 0U) {
+		auto* const convert
+			= queue->action(qt::finding_queue_action::convert_to_draft_comment);
+		if (convert == nullptr) {
+			return fail(*application, "convert-action");
+		}
+		convert->trigger();
+		QApplication::processEvents();
+	}
+	const auto afterConversion
+		= app::detail::github_application_fixture_access::agent_finding_evidence(
+			*application);
+
+	// The acceptance gesture, on the shipped editor. This is the one gesture
+	// that emits a local draft command, and it emits exactly one.
+	if (
+		afterConversion.WorkshopProposals == 1U
+		&& editor->accept_revision_action() != nullptr
+		&& editor->accept_revision_action()->isEnabled()) {
+		editor->accept_revision_action()->trigger();
+		QApplication::processEvents();
+	}
+	const auto helperRefusal
+		= app::detail::github_application_fixture_access::start_mcp_context_helper(
+			*application,
+			"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}\n");
+	auto helperAnswered = wait_terms{ };
+	static_cast<void>(
+		helperRefusal != application::mcp_helper_refusal::none
+		|| wait_until_reporting(
+			helperAnswered,
+			[&application](wait_terms& aTerms) {
+				const auto current = app::detail::github_application_fixture_access::
+					agent_finding_evidence(*application);
+				return aTerms.require(
+					"helper-completed", current.McpStatistics.Completions == 1U);
+			},
+			default_agent_budget));
+
+	const auto evidence
+		= app::detail::github_application_fixture_access::agent_finding_evidence(
+			*application);
+	const auto mutation
+		= app::detail::github_application_fixture_access::review_mutation_evidence(
+			*application);
+
+	// Zero, everywhere, on every course. Converting a finding and accepting a
+	// revision are local operations, and a backchannel from the agent host to
+	// the RFC-BPR-0008 coordinator would show up here as a call nobody asked
+	// for.
+	const auto noGithubMutation = mutation.Submissions == 0U
+		&& mutation.TargetObservations == 0U && mutation.StoredComments == 0U;
+
+	const auto positiveMarker = evidence.FindingHostComposed
+		&& evidence.CommentWorkshopComposed && evidence.McpHelperComposed
+		&& evidence.SideChatPanelComposed && evidence.FindingQueueComposed
+		&& evidence.QueuedFindings == 1U && evidence.WorkshopProposals == 1U
+		&& evidence.LocalDraftBody == agent_suggested
+		&& evidence.SideChatPresentations != 0U
+		&& exact_helper_launch(evidence, snapshotRoot);
+
+	if (course == "positive" || course == "full-agent") {
+		const auto exact = positiveMarker && noGithubMutation
+			&& afterDelivery.FindingStatistics.Deliveries == 1U
+			&& afterDelivery.FindingStatistics.DeliveredFindings == 1U
+			&& afterDelivery.QueuedFindings == 1U
+			&& afterDelivery.FrozenFileCount == 1U
+			&& afterDelivery.FrozenSnapshotWrites == 1U
+			&& afterDelivery.QueuedClaim.find(agent_claim) != std::string::npos
+			&& afterDelivery.QueuedAnchorState == "anchored (none)"
+			&& afterDelivery.WorkshopProposals == 0U
+			&& afterConversion.FindingStatistics.Actions == 1U
+			&& afterConversion.FindingStatistics.DraftCommands == 1U
+			&& afterConversion.FindingStatistics.StoredNotes == 0U
+			&& afterConversion.WorkshopStatistics.Proposals == 1U
+			&& afterConversion.WorkshopOriginalText == reviewer_original
+			&& afterConversion.WorkshopProposalText == agent_suggested
+			// The conversion alone changes no draft. The reviewer's bytes are
+			// still theirs until they accept.
+			&& afterConversion.LocalDraftBody == reviewer_original
+			&& evidence.LocalDraftBody == agent_suggested
+			&& helperRefusal == application::mcp_helper_refusal::none
+			&& evidence.McpStatistics.Starts == 1U
+			&& evidence.McpStatistics.Refusals == 0U
+			&& evidence.McpStatistics.Completions == 1U
+			&& evidence.McpAnswer.find("snapshot_binding") != std::string::npos
+			&& evidence.McpAnswer.find("read_snapshot_file") != std::string::npos
+			&& std::filesystem::exists(snapshotRoot / "binding")
+			&& std::filesystem::exists(snapshotRoot / "alignment");
+		if (!exact) {
+			std::cerr << "agent-finding-positive-evidence:"
+					  << afterDelivery.FindingStatistics.Deliveries << ':'
+					  << afterDelivery.QueuedFindings << ':'
+					  << afterDelivery.FrozenFileCount << ':'
+					  << afterDelivery.FrozenSnapshotWrites << ':'
+					  << afterConversion.WorkshopProposals << ':'
+					  << afterConversion.FindingStatistics.DraftCommands << ':'
+					  << static_cast<int>(helperRefusal) << ':'
+					  << evidence.McpStatistics.Completions << ':'
+					  << mutation.Submissions << ':' << mutation.TargetObservations
+					  << "\nqueued-claim:" << afterDelivery.QueuedClaim
+					  << "\nanchor-state:" << afterDelivery.QueuedAnchorState
+					  << "\nworkshop-original:" << afterConversion.WorkshopOriginalText
+					  << "\nworkshop-proposal:" << afterConversion.WorkshopProposalText
+					  << "\ndraft-body:" << evidence.LocalDraftBody
+					  << "\nmcp-answer:" << evidence.McpAnswer
+					  << "\npanel-status:" << evidence.AgentPanelStatusText << '\n';
+		}
+		if (course == "positive") {
+			if (!shutdown(*application) || !exact) {
+				return EXIT_FAILURE;
+			}
+			std::cout << "agent-finding-composition:pass\n";
+			return EXIT_SUCCESS;
+		}
+		// The full-agent half. The launch above is the full agent session: a
+		// real child process, its own workspace, a returned structured
+		// payload, and a promotion the reviewer accepted. What this course
+		// adds is the *absence* the criterion is about.
+		//
+		// Two readings, because one alone would not be enough. The composed
+		// run records zero GitHub mutation calls of any kind, so nothing left
+		// the application while the agent was working or afterwards. And the
+		// composition source itself names the RFC-BPR-0008 coordinator zero
+		// times and carries exactly one publication call site - the reviewer's
+		// own `begin_publish` branch - so there is no second edge for a
+		// backchannel to travel along. The positive direction, that a
+		// publication does round-trip through that one path, is
+		// `application_review_round_trip_composition_contract`, which pins
+		// this same file by digest.
+		auto composition = std::ifstream{
+			std::filesystem::path{ BPR_COMPOSITION_SOURCE },
+			std::ios::binary,
+		};
+		const auto source = std::string{
+			std::istreambuf_iterator<char>{ composition },
+			std::istreambuf_iterator<char>{ },
+		};
+		const auto occurrences
+			= [&source](const std::string_view aToken) -> std::size_t {
+			auto count = std::size_t{ 0U };
+			auto at    = source.find(aToken);
+			while (at != std::string::npos) {
+				++count;
+				at = source.find(aToken, at + aToken.size());
+			}
+			return count;
+		};
+		const auto noSecondEdge = !source.empty()
+			&& occurrences("review_mutation_coordinator") == 0U
+			&& occurrences("ReviewMutationHost->publish(") == 1U
+			&& occurrences("->submit(") == 1U && occurrences(".submit(") == 0U
+			&& occurrences("->observe_target(") == 0U
+			&& occurrences(".observe_target(") == 0U
+			// The finding host, the workshop host, and the helper supervisor
+			// each reach exactly the ports they were given. None of them is
+			// handed the mutation host, and no call site here hands it over.
+			&& occurrences("FindingHost = std::make_unique<") == 1U
+			&& occurrences("WorkshopHost = std::make_unique<") == 1U
+			&& occurrences("McpHelper = std::make_unique<") == 1U
+			&& source.find("FindingHost->deliver(") != std::string::npos
+			&& source.find("ReviewMutationHost") != std::string::npos;
+		if (!shutdown(*application) || !exact || !noSecondEdge) {
+			std::cerr << "agent-finding-full-agent:" << exact << ':'
+					  << noSecondEdge << ':' << source.size() << ':'
+					  << mutation.Submissions << ':' << mutation.TargetObservations
+					  << ':' << mutation.StoredComments << '\n';
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-finding-full-agent:pass\n";
+		return EXIT_SUCCESS;
+	}
+
+	// Every construction cut asserts the same three things about a different
+	// construction: the gesture still fired, its downstream effect is zero, and
+	// the shared positive marker is false.
+	const auto invocation
+		= app::detail::github_application_fixture_access::agent_invocation_evidence(
+			*application);
+	const auto gestureObserved = panel->statistics().StartIntents == 1U
+		&& invocation.AgentProcessLauncherInvocations == 1U
+		&& invocation.Statistics.ProcessStarts == 1U;
+	auto effectsZero = false;
+	if (course == "finding-host-construction-cut") {
+		effectsZero = !evidence.FindingHostComposed
+			&& evidence.FindingStatistics
+				== application::agent_finding_host_statistics{ }
+			&& evidence.QueuedFindings == 0U && evidence.WorkshopProposals == 0U
+			&& evidence.LocalDraftBody == reviewer_original;
+	} else if (course == "queue-construction-cut") {
+		effectsZero = !evidence.FindingQueueComposed
+			&& evidence.QueuedFindings == 0U
+			&& evidence.FindingStatistics.Actions == 0U
+			&& evidence.WorkshopProposals == 0U
+			&& evidence.LocalDraftBody == reviewer_original;
+	} else if (course == "workshop-construction-cut") {
+		effectsZero = !evidence.CommentWorkshopComposed
+			&& evidence.WorkshopStatistics
+				== application::agent_comment_workshop_statistics{ }
+			&& evidence.WorkshopProposals == 0U
+			&& evidence.LocalDraftBody == reviewer_original
+			&& evidence.RefusalsPresented == 1U;
+	} else if (course == "mcp-construction-cut") {
+		effectsZero = !evidence.McpHelperComposed
+			&& !evidence.McpLaunch.has_value()
+			&& evidence.McpStatistics
+				== application::mcp_helper_supervisor_statistics{ }
+			&& evidence.FrozenSnapshotWrites == 0U
+			&& helperRefusal == application::mcp_helper_refusal::no_helper
+			&& !std::filesystem::exists(snapshotRoot);
+	} else {
+		effectsZero = !evidence.SideChatPanelComposed
+			&& evidence.SideChatPresentations == 0U
+			&& evidence.SideChatIntents == 0U;
+	}
+	const auto passed = gestureObserved && effectsZero && !positiveMarker
+		&& noGithubMutation;
+	if (!passed) {
+		std::cerr << "agent-finding-cut-evidence:" << gestureObserved << ':'
+				  << effectsZero << ':' << positiveMarker << ':'
+				  << noGithubMutation << ':' << evidence.QueuedFindings << ':'
+				  << evidence.WorkshopProposals << ':'
+				  << evidence.RefusalsPresented << ':'
+				  << evidence.SideChatPresentations << ':'
+				  << evidence.FrozenSnapshotWrites << "\ndraft-body:"
+				  << evidence.LocalDraftBody << '\n';
+	}
+	if (!shutdown(*application) || !passed) {
+		return EXIT_FAILURE;
+	}
+	std::cout << "agent-finding-" << course << ":pass\n";
+	return EXIT_SUCCESS;
+}

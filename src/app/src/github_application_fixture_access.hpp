@@ -6,6 +6,9 @@
 #endif
 
 #include "bpr/app/github_application.hpp"
+#include "bpr/application/agent_comment_workshop_host.hpp"
+#include "bpr/application/agent_finding_host.hpp"
+#include "bpr/application/mcp_context_helper_supervisor.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -16,6 +19,11 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+namespace bpr::qt {
+	class finding_queue_view;
+	class side_chat_panel;
+} // namespace bpr::qt
 
 namespace bpr::app::detail {
 	enum class github_public_path_fixture {
@@ -57,7 +65,19 @@ namespace bpr::app::detail {
 		bool                                 DisableAgentProcessLauncherComposition = false;
 		bool                                 DisableAgentHostComposition            = false;
 		bool                                 DisableAgentGestureWire                = false;
+		// RFC-BPR-0012 construction cuts. One per composed surface, each
+		// removing exactly one construction and nothing else, so a course can
+		// show that the gesture still fires and its effect is gone.
+		bool                                 DisableAgentFindingHostComposition = false;
+		bool                                 DisableCommentWorkshopComposition  = false;
+		bool                                 DisableMcpHelperComposition        = false;
+		bool                                 DisableSideChatPanelComposition    = false;
+		bool                                 DisableFindingQueueComposition     = false;
 		std::optional<std::filesystem::path> ExternalAgentExecutable;
+		/// Points the Codex JSONL profile at a fixture executable. That
+		/// protocol is the one with a result frame a finding payload can ride
+		/// on; the external terminal has none and refuses one by design.
+		std::optional<std::filesystem::path> CodexAgentExecutable;
 		std::optional<std::filesystem::path> GitExecutable;
 		// RFC-BPR-0016. Composes a registered device capability against the
 		// recorded BPR-0276 grant so the enrollment reaches the real vault.
@@ -277,6 +297,35 @@ namespace bpr::app::detail {
 	};
 
 	/// \brief Raw accepted authorities used to falsify the emitted agent context.
+	/// \brief What the RFC-BPR-0012 composition actually did, as values.
+	struct agent_finding_composition_evidence
+	{
+		bool                                           FindingHostComposed     = false;
+		bool                                           CommentWorkshopComposed = false;
+		bool                                           McpHelperComposed       = false;
+		bool                                           SideChatPanelComposed   = false;
+		bool                                           FindingQueueComposed    = false;
+		std::size_t                                    QueuedFindings          = 0U;
+		std::size_t                                    WorkshopProposals       = 0U;
+		std::size_t                                    RefusalsPresented       = 0U;
+		std::size_t                                    SideChatPresentations   = 0U;
+		std::size_t                                    SideChatIntents         = 0U;
+		std::size_t                                    FrozenSnapshotWrites    = 0U;
+		std::size_t                                    FrozenFileCount         = 0U;
+		application::agent_finding_host_statistics     FindingStatistics;
+		application::agent_comment_workshop_statistics WorkshopStatistics;
+		application::mcp_helper_supervisor_statistics  McpStatistics;
+		std::optional<application::mcp_helper_launch>  McpLaunch;
+		std::string                                    McpAnswer;
+		std::string                                    QueuedClaim;
+		std::string                                    QueuedAnchorState;
+		std::string                                    LocalDraftBody;
+		std::string                                    WorkshopOriginalText;
+		std::string                                    WorkshopProposalText;
+		std::string                                    SideChatHeadOidText;
+		std::string                                    AgentPanelStatusText;
+	};
+
 	struct agent_invocation_context_evidence
 	{
 		core::application_session_id                        ApplicationSession;
@@ -547,6 +596,21 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto defect_composition_evidence(
 			const github_application& aApplication) noexcept
 			-> defect_composition_probe_evidence;
+		[[nodiscard]] static auto agent_finding_evidence(
+			const github_application& aApplication) noexcept
+			-> agent_finding_composition_evidence;
+		/// \brief The composed finding queue, or nothing when it was cut.
+		[[nodiscard]] static auto finding_queue(
+			const github_application& aApplication) noexcept
+			-> qt::finding_queue_view*;
+		/// \brief The composed side-chat panel, or nothing when it was cut.
+		[[nodiscard]] static auto side_chat_panel(
+			const github_application& aApplication) noexcept
+			-> qt::side_chat_panel*;
+		/// \brief Starts the shipped read-only helper on one request line.
+		[[nodiscard]] static auto start_mcp_context_helper(
+			github_application& aApplication, std::string aRequest)
+			-> application::mcp_helper_refusal;
 		[[nodiscard]] static auto agent_invocation_evidence(
 			const github_application& aApplication) noexcept
 			-> agent_invocation_composition_evidence;

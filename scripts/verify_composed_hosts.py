@@ -141,6 +141,26 @@ SHARED_REQUIRED = (
         "bpr::qt::agent_launch_panel::agent_launch_panel",
     ),
     function_anchor(
+        "agent finding application host constructor",
+        "bpr::application::agent_finding_host::agent_finding_host",
+    ),
+    function_anchor(
+        "agent comment workshop application host constructor",
+        "bpr::application::agent_comment_workshop_host::agent_comment_workshop_host",
+    ),
+    function_anchor(
+        "MCP context helper supervisor constructor",
+        "bpr::application::mcp_context_helper_supervisor::mcp_context_helper_supervisor",
+    ),
+    function_anchor(
+        "Qt side chat panel constructor",
+        "bpr::qt::side_chat_panel::side_chat_panel",
+    ),
+    function_anchor(
+        "Qt finding queue view constructor",
+        "bpr::qt::finding_queue_view::finding_queue_view",
+    ),
+    function_anchor(
         "Qt workbench window constructor",
         "bpr::qt::workbench_window::workbench_window",
     ),
