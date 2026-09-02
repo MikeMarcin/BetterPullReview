@@ -167,6 +167,12 @@ namespace {
 			+ errorPath.string() + "\"";
 
 #if defined(_WIN32)
+		// `_popen` hands the whole string to `cmd.exe /c`, whose quoting rule
+		// strips the outer quote pair from a string that begins with one and
+		// carries more quotes, mangling the executable path and both
+		// redirections so the helper never starts. Wrapping the entire
+		// command in one more pair is cmd's documented remedy (BPR-0522).
+		command          = "\"" + command + "\"";
 		auto* const pipe = ::_popen(command.c_str(), "r");
 #else
 		auto* const pipe = ::popen(command.c_str(), "r");

@@ -57,6 +57,9 @@ COURSE_SELECTOR_PATTERN = (
     "|native_https_device_authorization_(contract|fixture)"
     "|qt_device_authorization_scale_(100|125|200)"
     "|rfc0016_test_inventory"
+    # BPR-0523: the composed-host audit of the tests-enabled binary, so a
+    # platform whose dev graph lost a required constructor fails here.
+    "|composed_application_hosts"
     ")$"
 )
 
@@ -469,6 +472,33 @@ def launch_environment(
     )
 
 
+def check_composed_hosts_of_the_artifact(binary: pathlib.Path) -> None:
+    """The shipped artifact carries every production-required host.
+
+    `composed_application_hosts` in the Debug tree audits the tests-enabled
+    binary; nothing in the course audited the tests-disabled artifact it
+    ships, so a platform whose production graph had lost a composed host
+    (the system-browser opener, BPR-0516, was the case that showed it) would
+    have passed. This runs the same verifier under its production profile
+    against the artifact the rest of the course measures (BPR-0523).
+    """
+    result = run(
+        [
+            sys.executable,
+            str(REPOSITORY_ROOT / "scripts" / "verify_composed_hosts.py"),
+            "--profile",
+            "production",
+            str(binary),
+        ],
+        cwd=REPOSITORY_ROOT,
+        timeout=600,
+    )
+    require(
+        result.returncode == 0 and "COMPOSED_HOSTS_OK" in result.stdout,
+        f"composed-hosts-of-artifact-failed:{(result.stdout + result.stderr).strip()[-400:]}",
+    )
+
+
 def check_runtime_and_dependencies(
     binary: pathlib.Path,
     environment: dict[str, str] | None = None,
@@ -662,6 +692,7 @@ def main() -> int:
         )
 
         check_platform_surfaces(shipped, arguments.platform)
+        check_composed_hosts_of_the_artifact(shipped)
         check_release_artifact(shipped)
         check_no_private_identity(shipped)
         check_runtime_and_dependencies(shipped, launch)
