@@ -115,9 +115,14 @@ GRAPH_INDEPENDENT_SELECTORS = frozenset(
     }
 )
 
-# BPR-0446 registered the anchor fixture on Windows without the APPLE/Linux
-# wire block that carries these two, so the anchor no longer implies them.
-# Their condition is the platform holding that block, not the fixture.
+# The two selectors of the wire block. BPR-0446 registered the anchor fixture
+# on Windows without the APPLE/Linux block that carried them, so for a while
+# the anchor did not imply them there; BPR-0525 mirrored both into the
+# Windows registration, so the anchor implies them on every platform again.
+# The set stays named so that a platform which loses them is refused with
+# this reason rather than a generic count — the same omission was once
+# written down here and in the platform course's exclusion table with
+# nothing linking the two, and pruning one silently left the other.
 WIRE_BLOCK_SELECTORS = frozenset(
     {
         "github_device_authorization_refresh_contract",
@@ -257,11 +262,10 @@ def check_inventory(
     registered = registered_tests(build_dir, build_config)
     names = [name for name, _ in registered]
     anchored = GRAPH_ANCHOR in names
-    wire_block = sys.platform in {"darwin", "linux"}
     failures: list[str] = []
     for selector, declared in sorted(SELECTORS.items()):
         if selector in WIRE_BLOCK_SELECTORS:
-            expected = declared if anchored and wire_block else 0
+            expected = declared if anchored else 0
         elif anchored or selector in GRAPH_INDEPENDENT_SELECTORS:
             expected = declared
         else:
@@ -272,9 +276,10 @@ def check_inventory(
         if len(matching) != expected:
             if selector in WIRE_BLOCK_SELECTORS:
                 reason = (
-                    "the APPLE/Linux wire block is configured"
+                    "the anchor fixture implies the wire block on every "
+                    "platform since BPR-0525"
                     if expected
-                    else "this platform has no APPLE/Linux wire block"
+                    else "graph registers no anchor fixture"
                 )
             elif anchored:
                 reason = "graph builds the Qt and loopback halves"

@@ -184,3 +184,20 @@ already carries the graph condition.
 
 The card stays in `21-ready-win/`: everything it owns is done and measured,
 and its closing row waits on a script this station may not edit.
+
+## The second table — 2026-09-02
+
+`scripts/verify_rfc0016_test_inventory.py` carried its own per-platform
+expectation of the same two names (`WIRE_BLOCK_SELECTORS`, expected only
+where `sys.platform` is darwin or linux), so once the station registered
+them on Windows the course refused at its inventory step with
+`expected 0 registration(s), found 1`. The same omission had been written
+down in two scripts with nothing linking them, and pruning one left the
+other; found by `bpr-win` by running the course, which no reading of the
+first table would have surfaced. The inventory now expects both wherever
+the anchor fixture is registered, on every platform, and its comment says
+why the set stays named.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The inventory passes on macOS with the platform distinction removed | `python3 scripts/verify_rfc0016_test_inventory.py --build-dir build/dev` and `ctest --preset dev -R '^rfc0016_test_inventory$'` | `RFC0016_TEST_INVENTORY_OK`; Passed | this commit |
