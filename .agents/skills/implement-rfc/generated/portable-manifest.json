@@ -1,14 +1,6 @@
 {
   "files": [
     {
-      "path": "README.md",
-      "sha256": "026aca76a0128580398c4400177f79e4df9a4595e7fa1d9a087b4518e6fb3eb0"
-    },
-    {
-      "path": "SKILL.md",
-      "sha256": "f002ec65eba1844f33ee2b3830dcf24496c77d47a1af43bac801c821e8c57568"
-    },
-    {
       "path": "agents/openai.yaml",
       "sha256": "4092e303a5d4c8c39d3e0b0af183eeea9884290173bcf6357ae9c909e7cece5e"
     },
@@ -29,6 +21,10 @@
       "sha256": "a5bcf239ec5b2c2f7a7b97fcc5490c47c308568a1684101ea5866e4b694facb6"
     },
     {
+      "path": "README.md",
+      "sha256": "026aca76a0128580398c4400177f79e4df9a4595e7fa1d9a087b4518e6fb3eb0"
+    },
+    {
       "path": "references/codex-lanes.md",
       "sha256": "0253d6ed5c57df96d7146b5133d9801b2b1dd2f200f973004e61ea333845fcbb"
     },
@@ -46,7 +42,7 @@
     },
     {
       "path": "references/remote-routing.md",
-      "sha256": "d8ef8a3229f57a2b9847a21a537cdc6024297d6dcdd1722aaaf1ad4c789a8518"
+      "sha256": "c3c166b38b25c8b95460fe7ecde76a582a71e55f908912d82a9ee67d4b366fad"
     },
     {
       "path": "references/runtime-compatibility.md",
@@ -82,11 +78,11 @@
     },
     {
       "path": "scripts/codex_station.py",
-      "sha256": "6d92cf99fbe74f6d3e1ac546d6cd921ae274f7e633e7c1650e5e94727a16c24d"
+      "sha256": "a922ac049eebbdcb052b154a9e6f0afb38598569c1785ba93c5f8b58198739ec"
     },
     {
       "path": "scripts/launch_remote_station.py",
-      "sha256": "68f72807530b73a07bed8a757f91314ec79c473a1448111adb11354df9fd9942"
+      "sha256": "e031795e03ae0459a44537c7f024cdc02e50639478fa9b4d34395d920a03b703"
     },
     {
       "path": "scripts/project_config.py",
@@ -109,6 +105,10 @@
       "sha256": "421ac75308e48528ffc103d812a3726fbe02489e891574cb35b42fac2c6a4acf"
     },
     {
+      "path": "SKILL.md",
+      "sha256": "f002ec65eba1844f33ee2b3830dcf24496c77d47a1af43bac801c821e8c57568"
+    },
+    {
       "path": "tests/test_audit_board.py",
       "sha256": "62b1c4b222243d4ea59a45d7ba480d66d94cfdcbe6a4b34bdcd8e8fede337a6c"
     },
@@ -118,11 +118,11 @@
     },
     {
       "path": "tests/test_codex_station.py",
-      "sha256": "b7b73def36fab05461955348338c34b4511c1724e486247cbab8354e236c2522"
+      "sha256": "5353222f26618164022b9fb72cfc9669448c3eb1a7e9f9ec71e537113e5e5f6d"
     },
     {
       "path": "tests/test_launch_remote_station.py",
-      "sha256": "4cf1de806052d9b88ec49f269679d9d9edc38db30d37d4adad6428b886d9ceeb"
+      "sha256": "3abcec6118fd3461726c4c0ae35ee864387817d01e35ac26fd83edcb563eab0c"
     },
     {
       "path": "tests/test_project_config.py",
@@ -141,6 +141,6 @@
       "sha256": "0c570e408e59704d19c64e228d206bf3b915622f6ee684a773d1c3e80e2f4bda"
     }
   ],
-  "portable_digest": "e76c1e02ebd14cb0",
+  "portable_digest": "0c52a77c182fe9e1",
   "schema": "implement-rfc.portable-manifest.v1"
 }

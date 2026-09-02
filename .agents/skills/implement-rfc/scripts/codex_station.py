@@ -1005,3 +1005,51 @@ def provision_named_thread(
             except CodexStationError:
                 if succeeded:
                     raise
+
+
+def release_named_threads(
+    client: _AppServerRpcClient,
+    *,
+    cwd: pathlib.Path,
+    name: str,
+    recorded_thread_id: str | None,
+) -> list[str]:
+    """Archive every task that would answer to ``name`` in ``cwd``, and report it.
+
+    Starting a station over has to leave nothing a later launch would adopt:
+    the recorded identity, whatever it happens to be named now, and anything
+    already carrying the station name. Archiving is Codex's own reversible
+    form of forgetting — the task's history stays readable, it simply stops
+    being the station — so a fresh start is never a deletion.
+    """
+    cwd = cwd.resolve()
+    candidates: list[str] = []
+    if recorded_thread_id:
+        candidates.append(recorded_thread_id)
+    for thread in _list_named_threads(client, cwd=cwd, name=name):
+        thread_id = thread.get("id")
+        if isinstance(thread_id, str) and thread_id not in candidates:
+            candidates.append(thread_id)
+
+    released: list[str] = []
+    for thread_id in candidates:
+        try:
+            thread = _read_thread(client, thread_id)
+        except CodexStationError:
+            released.append(f"{thread_id} no longer exists")
+            continue
+        thread_cwd = thread.get("cwd")
+        if (
+            not isinstance(thread_cwd, str)
+            or _normalized_path(thread_cwd) != _normalized_path(cwd)
+        ):
+            raise CodexStationError(
+                f"Codex task {thread_id} belongs to {thread_cwd!r}, not "
+                f"{str(cwd)!r}; refusing to archive another checkout's task"
+            )
+        if thread.get("archived") is True:
+            released.append(f"{thread_id} was already archived")
+            continue
+        client.request("thread/archive", {"threadId": thread_id})
+        released.append(f"{thread_id} archived")
+    return released

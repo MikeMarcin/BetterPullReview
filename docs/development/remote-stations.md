@@ -125,6 +125,7 @@ authoritative everywhere else, and the station file is authoritative always.
    py -3 scripts/launch_remote_station.py                    # native Windows station
    python3 scripts/launch_remote_station.py                  # WSL2/Linux station, or the Mac integrator
    py -3 scripts/launch_remote_station.py --continue         # reattach after restart
+   py -3 scripts/launch_remote_station.py --fresh-station    # forget this station and start over
    python3 scripts/launch_remote_station.py --no-server      # Codex: provision only
    ```
 
@@ -132,12 +133,27 @@ authoritative everywhere else, and the station file is authoritative always.
    `.remote-station.json` when the checkout was launched before, otherwise
    from the checkout's branch (`windows-lane` is `win`, `linux-lane` is
    `linux`, `main` is `main`). Passing it explicitly is allowed and refuses
-   if it disagrees with the checkout. Two options exist for cases this
-   project does not currently have: `--machine <suffix>` when the same
-   platform runs on more than one machine (the JaegAW stations were
-   registered with `--machine jaegaw` before that rule was read closely;
-   keep passing it for them so their names stay stable), and `--read-only`
-   for a checkout with no push credential for its station branch.
+   if it disagrees with the checkout. So is the machine suffix: the JaegAW
+   stations were registered with `--machine jaegaw` before that rule was read
+   closely, and the launcher now reads that suffix back out of the station
+   file, so their names stay stable without anyone retyping it. `--machine`
+   remains available for the case the rule is actually for — the same
+   platform on more than one machine — and refuses when it contradicts what
+   the checkout already recorded. `--read-only` is for a checkout with no
+   push credential for its station branch.
+
+   **Starting over.** Every identity in `.remote-station.json` is durable on
+   purpose, so when a station's recorded bindings go wrong there is no
+   ordinary launch that clears them. `--fresh-station` is the one that does:
+   it archives the recorded Codex task and anything else answering to the
+   station name in this checkout, drops the recorded `station_id`, Codex task
+   and Claude session, and provisions the workstream's canonical name again —
+   without the inferred machine suffix, so it is also how a station is
+   deliberately renamed. Nothing is deleted; archiving is Codex's own
+   reversible form of forgetting, and the abandoned task stays readable in
+   the sidebar. It refuses next to `--continue` and `--no-server`, which
+   respectively need the session it discards and cannot release the old task
+   at all.
 
    **What you will see.** After the Codex task is provisioned, Claude opens
    in that terminal. That interactive session *is* the station: it is the

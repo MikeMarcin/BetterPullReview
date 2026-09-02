@@ -930,5 +930,120 @@ class ProvisionNamedThreadTests(unittest.TestCase):
             )
 
 
+class ReleaseNamedThreadsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._temporary = tempfile.TemporaryDirectory()
+        self.cwd = Path(self._temporary.name).resolve()
+        self.name = "fx-main-mac"
+
+    def tearDown(self) -> None:
+        self._temporary.cleanup()
+
+    def test_recorded_task_is_archived_under_its_own_name(self) -> None:
+        """A fresh start forgets the recorded task even after a rename."""
+        client = FakeClient(
+            [
+                {
+                    "id": "thr-recorded",
+                    "cwd": str(self.cwd),
+                    "name": f"{self.name}-jaegaw",
+                }
+            ]
+        )
+
+        outcomes = codex_station.release_named_threads(
+            client,
+            cwd=self.cwd,
+            name=self.name,
+            recorded_thread_id="thr-recorded",
+        )
+
+        self.assertEqual(outcomes, ["thr-recorded archived"])
+        self.assertTrue(client.threads["thr-recorded"]["archived"])
+
+    def test_every_task_answering_to_the_name_is_archived(self) -> None:
+        client = FakeClient(
+            [
+                {"id": "thr-recorded", "cwd": str(self.cwd), "name": self.name},
+                {"id": "thr-stray", "cwd": str(self.cwd), "name": self.name},
+            ]
+        )
+
+        outcomes = codex_station.release_named_threads(
+            client,
+            cwd=self.cwd,
+            name=self.name,
+            recorded_thread_id="thr-recorded",
+        )
+
+        self.assertEqual(
+            sorted(outcomes), ["thr-recorded archived", "thr-stray archived"]
+        )
+        self.assertTrue(client.threads["thr-stray"]["archived"])
+
+    def test_an_already_archived_or_missing_task_is_reported_not_repeated(self) -> None:
+        client = FakeClient(
+            [
+                {
+                    "id": "thr-recorded",
+                    "cwd": str(self.cwd),
+                    "name": self.name,
+                    "archived": True,
+                }
+            ]
+        )
+
+        self.assertEqual(
+            codex_station.release_named_threads(
+                client,
+                cwd=self.cwd,
+                name=self.name,
+                recorded_thread_id="thr-recorded",
+            ),
+            ["thr-recorded was already archived"],
+        )
+        self.assertEqual(
+            codex_station.release_named_threads(
+                client,
+                cwd=self.cwd,
+                name=self.name,
+                recorded_thread_id="thr-gone",
+            ),
+            ["thr-gone no longer exists"],
+        )
+        self.assertNotIn(
+            "thread/archive", [method for method, _ in client.calls]
+        )
+
+    def test_a_recorded_task_from_another_checkout_is_never_archived(self) -> None:
+        client = FakeClient(
+            [{"id": "thr-elsewhere", "cwd": "/somewhere/else", "name": self.name}]
+        )
+
+        with self.assertRaisesRegex(
+            codex_station.CodexStationError, "refusing to archive"
+        ):
+            codex_station.release_named_threads(
+                client,
+                cwd=self.cwd,
+                name=self.name,
+                recorded_thread_id="thr-elsewhere",
+            )
+        self.assertFalse(client.threads["thr-elsewhere"].get("archived", False))
+
+    def test_nothing_recorded_and_nothing_named_releases_nothing(self) -> None:
+        client = FakeClient()
+
+        self.assertEqual(
+            codex_station.release_named_threads(
+                client,
+                cwd=self.cwd,
+                name=self.name,
+                recorded_thread_id=None,
+            ),
+            [],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
