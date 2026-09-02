@@ -31,6 +31,9 @@ import sys
 SELECTORS: dict[str, int] = {
     "rfc0017_credential_free_native_https": 1,
     "core_anonymous_public_read": 1,
+    "native_https_anonymous_read_contract": 1,
+    "native_https_anonymous_read_fixture": 1,
+    "github_anonymous_read_contract": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector also
@@ -39,6 +42,8 @@ SELECTORS: dict[str, int] = {
 # demonstration silently stops running.
 REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "rfc0017_credential_free_native_https": ("--suite", "rfc0017"),
+    "native_https_anonymous_read_contract": ("--contract",),
+    "native_https_anonymous_read_fixture": ("--suite", "anonymous_read"),
 }
 
 # Not every configured graph builds every surface — the core-only preset has
@@ -50,16 +55,20 @@ REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
 # directions are checked, so neither a missing selector nor a stray one can
 # hide. A selector anchored on `None` is required of every configured graph;
 # the core policy suite links only the core library and has no graph in which
-# its absence is legitimate (BPR-0300).
-SELECTOR_ANCHORS: dict[str, str | None] = {
-    "rfc0017_credential_free_native_https": "native_https_transport_fixture",
-    "core_anonymous_public_read": None,
+# its absence is legitimate (BPR-0300). The second field says whether the
+# selector lives in the APPLE/Linux wire block: BPR-0446 registered the
+# loopback fixture on Windows while deliberately leaving this RFC's wire
+# suites out of it, so on Windows that anchor no longer implies them, while a
+# contract suite registered beside `github_read_contract` is owed by every Qt
+# graph on every platform (BPR-0301).
+SELECTOR_ANCHORS: dict[str, tuple[str | None, bool]] = {
+    "rfc0017_credential_free_native_https": ("native_https_transport_fixture", True),
+    "core_anonymous_public_read": (None, False),
+    "native_https_anonymous_read_contract": ("github_read_contract", False),
+    "native_https_anonymous_read_fixture": ("native_https_transport_fixture", True),
+    "github_anonymous_read_contract": ("github_read_contract", False),
 }
 
-# The anchored native-HTTPS selectors live in the APPLE/Linux wire block:
-# BPR-0446 registered the anchor fixture on Windows while deliberately leaving
-# this RFC's credential-free selector out of it, so on Windows the anchor no
-# longer implies the selector.
 WIRE_BLOCK_PLATFORMS = frozenset({"darwin", "linux"})
 
 # Symbols that must not exist in a tests-disabled Release build. These are the
@@ -73,6 +82,7 @@ WIRE_BLOCK_PLATFORMS = frozenset({"darwin", "linux"})
 FORBIDDEN_SYMBOLS: tuple[str, ...] = (
     "make_native_https_credential_free_transport_for_test",
     "make_native_https_bootstrap_transport_for_test",
+    "make_native_https_anonymous_read_transport_for_test",
 )
 
 # Strings that must not appear in a shipped binary for the same reason. Only
@@ -81,6 +91,7 @@ FORBIDDEN_SYMBOLS: tuple[str, ...] = (
 # one would be a check that can never fire in either direction.
 FORBIDDEN_STRINGS: tuple[str, ...] = (
     "make_native_https_credential_free_transport_for_test",
+    "make_native_https_anonymous_read_transport_for_test",
     "credential-free-material-present",
 )
 
@@ -95,10 +106,16 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
 #   authorization transport: the device-code and token-poll requests run
 #   before any credential exists, so the production factory binds
 #   `credential_free_request` deliberately (BPR-0279, made truthful in
-#   shipped builds by BPR-0318). The anonymous-read seam this script guards
-#   is reachable only through the `_for_test` factories above.
+#   shipped builds by BPR-0318).
+# - `make_native_https_anonymous_read_transport` is this RFC's own shipped
+#   anonymous-read transport (BPR-0301): a distinct typed binding that admits
+#   the eight credential-free read operations and nothing else. It is product
+#   code by design, so its presence in a Release image is expected; the seam
+#   this script guards is its `_for_test` twin above, which carries the
+#   loopback proxy and fixture CA.
 KNOWN_PRODUCT_CREDENTIAL_FREE: dict[str, str] = {
     "make_designated_review_public_observer": "designated-live lane (pre-RFC-BPR-0017)",
+    "make_native_https_anonymous_read_transport": "RFC-BPR-0017 anonymous public-preview reads (BPR-0301)",
     "make_native_https_credential_free_transport": "RFC-BPR-0016 device authorization",
 }
 
@@ -169,15 +186,15 @@ def selector_expected(
     selector: str, names: list[str]
 ) -> tuple[int, str]:
     """How many registrations this graph owes the selector, and why."""
-    anchor = SELECTOR_ANCHORS[selector]
+    anchor, wire_block = SELECTOR_ANCHORS[selector]
     declared = SELECTORS[selector]
     if anchor is None:
         return declared, "required of every configured graph"
-    if anchor in names and sys.platform in WIRE_BLOCK_PLATFORMS:
-        return declared, f"graph builds {anchor}"
-    if anchor in names:
+    if anchor not in names:
+        return 0, f"graph does not build {anchor}"
+    if wire_block and sys.platform not in WIRE_BLOCK_PLATFORMS:
         return 0, f"graph builds {anchor} outside the APPLE/Linux wire block"
-    return 0, f"graph does not build {anchor}"
+    return declared, f"graph builds {anchor}"
 
 
 def check_inventory(

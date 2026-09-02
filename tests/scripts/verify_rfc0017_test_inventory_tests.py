@@ -44,12 +44,23 @@ def load_module():
 
 NATIVE = "rfc0017_credential_free_native_https"
 CORE = "core_anonymous_public_read"
+CONTRACT = "native_https_anonymous_read_contract"
+FIXTURE = "native_https_anonymous_read_fixture"
+PROVIDER = "github_anonymous_read_contract"
 ANCHOR = "native_https_transport_fixture"
+QT_ANCHOR = "github_read_contract"
 BUILD = pathlib.Path("/nonexistent/build")
+
+# The wire suites: registered only inside the APPLE/Linux wire block.
+WIRE_SUITES = (NATIVE, FIXTURE)
 
 DEV_GRAPH = [
     (ANCHOR, ("fixture",)),
+    (QT_ANCHOR, ("read_contract",)),
     (NATIVE, ("runner", "--suite", "rfc0017")),
+    (FIXTURE, ("runner", "--suite", "anonymous_read")),
+    (CONTRACT, ("anonymous_read_tests", "--contract")),
+    (PROVIDER, ("provider_tests",)),
     (CORE, ("core_tests",)),
     ("unrelated", ("other",)),
 ]
@@ -86,8 +97,35 @@ class InventoryTable(unittest.TestCase):
     def test_every_selector_has_exactly_one_anchor_entry(self) -> None:
         self.assertEqual(
             set(self.module.SELECTORS), set(self.module.SELECTOR_ANCHORS))
-        self.assertIsNone(self.module.SELECTOR_ANCHORS[CORE])
-        self.assertEqual(self.module.SELECTOR_ANCHORS[NATIVE], ANCHOR)
+        anchors = self.module.SELECTOR_ANCHORS
+        self.assertEqual(anchors[CORE], (None, False))
+        self.assertEqual(anchors[NATIVE], (ANCHOR, True))
+        self.assertEqual(anchors[FIXTURE], (ANCHOR, True))
+        self.assertEqual(anchors[CONTRACT], (QT_ANCHOR, False))
+        self.assertEqual(anchors[PROVIDER], (QT_ANCHOR, False))
+        for selector, (anchor, wire_block) in anchors.items():
+            if wire_block:
+                self.assertIn(selector, WIRE_SUITES)
+                self.assertEqual(anchor, ANCHOR)
+
+    def test_a_qt_graph_without_the_wire_block_owes_the_contract_suites(
+            self) -> None:
+        graph = [entry for entry in DEV_GRAPH
+                 if entry[0] not in (ANCHOR, NATIVE, FIXTURE)]
+        self.assertEqual(self.check(graph), [])
+        without_provider = [entry for entry in graph if entry[0] != PROVIDER]
+        failures = self.check(without_provider)
+        self.assertEqual(len(failures), 1, failures)
+        self.assertIn(f"{PROVIDER}: expected 1 registration(s), found 0",
+                      failures[0])
+        self.assertIn(f"graph builds {QT_ANCHOR}", failures[0])
+
+    def test_the_forbidden_test_factory_is_named_in_both_scans(self) -> None:
+        factory = "make_native_https_anonymous_read_transport_for_test"
+        self.assertIn(factory, self.module.FORBIDDEN_SYMBOLS)
+        self.assertIn(factory, self.module.FORBIDDEN_STRINGS)
+        self.assertIn("make_native_https_anonymous_read_transport",
+                      self.module.KNOWN_PRODUCT_CREDENTIAL_FREE)
 
     def test_the_tests_enabled_graph_passes(self) -> None:
         self.assertEqual(self.check(DEV_GRAPH), [])
@@ -129,6 +167,13 @@ class InventoryTable(unittest.TestCase):
         ]
         failures = self.check(repointed)
         self.assertEqual(failures, [f"{NATIVE}: command omits rfc0017"])
+        repointed = [
+            (name, ("anonymous_read_tests",) if name == CONTRACT
+             else arguments)
+            for name, arguments in DEV_GRAPH
+        ]
+        self.assertEqual(
+            self.check(repointed), [f"{CONTRACT}: command omits --contract"])
 
     def test_required_insists_on_an_anchored_selector(self) -> None:
         failures = self.check(CORE_ONLY_GRAPH, required=(NATIVE,))
@@ -141,8 +186,12 @@ class InventoryTable(unittest.TestCase):
     def test_all_insists_on_every_selector(self) -> None:
         self.assertEqual(self.check(DEV_GRAPH, require_all=True), [])
         failures = self.check(CORE_ONLY_GRAPH, require_all=True)
-        self.assertEqual(len(failures), 1, failures)
-        self.assertIn(f"{NATIVE}: required but not owed", failures[0])
+        anchored = sorted(
+            selector for selector, (anchor, _) in
+            self.module.SELECTOR_ANCHORS.items() if anchor is not None)
+        self.assertEqual(len(failures), len(anchored), failures)
+        for selector, failure in zip(anchored, failures):
+            self.assertIn(f"{selector}: required but not owed", failure)
 
     def test_an_unknown_required_selector_is_refused_by_name(self) -> None:
         with self.assertRaises(self.module.InventoryFailure) as caught:
@@ -151,17 +200,18 @@ class InventoryTable(unittest.TestCase):
             str(caught.exception),
             "unknown-required-selector:no_such_selector")
 
-    def test_windows_owes_the_core_selector_but_not_the_wire_block(
-            self) -> None:
+    def test_windows_owes_every_selector_but_the_wire_block(self) -> None:
         self.assertEqual(
-            self.check([entry for entry in DEV_GRAPH if entry[0] != NATIVE],
+            self.check([entry for entry in DEV_GRAPH
+                        if entry[0] not in WIRE_SUITES],
                        platform="win32"),
             [])
         failures = self.check(DEV_GRAPH, platform="win32")
-        self.assertEqual(len(failures), 1, failures)
-        self.assertIn(f"{NATIVE}: expected 0 registration(s), found 1",
-                      failures[0])
-        self.assertIn("outside the APPLE/Linux wire block", failures[0])
+        self.assertEqual(len(failures), 2, failures)
+        for selector, failure in zip(sorted(WIRE_SUITES), failures):
+            self.assertIn(f"{selector}: expected 0 registration(s), found 1",
+                          failure)
+            self.assertIn("outside the APPLE/Linux wire block", failure)
 
     def test_a_selector_without_an_anchor_entry_is_a_table_defect(
             self) -> None:

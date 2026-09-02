@@ -178,6 +178,10 @@ MACOS_LOOPBACK_AUTHORITIES = {
     "native_https_transport_fixture": 2,
     "native_git_smart_transport_fixture": 1,
     "rfc0017_credential_free_native_https": 2,
+    # BPR-0301. The anonymous-read wire suite runs the same
+    # verify_native_https_transport.py course as the fixture above: one
+    # loopback CONNECT proxy and one loopback TLS origin, nothing outbound.
+    "native_https_anonymous_read_fixture": 2,
     # BPR-0452. Both drive verify_native_https_device_authorization.py, which
     # binds one listener at 127.0.0.1, refuses a non-loopback peer, and issues
     # no outbound request; its only github.com string is a verification_uri
