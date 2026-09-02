@@ -2,11 +2,15 @@
 
 RFC base: `2966ff8103dc442775425386f6a31f8ac1a391c6`
 
-Status: **planning. No claim in this ledger is verified.** BPR-0496 allocated
-the card set; no source has moved. RFC-BPR-0012 is the first RFC in the pack
-with no implementation at all — before BPR-0496 no card linked it — so every
-row of the claim matrix below reads `Planned` and names the card that will
-supply its evidence.
+Status: **partially implemented; claims are verified row by row.** BPR-0496
+allocated the card set on 2026-09-01, when RFC-BPR-0012 was the first RFC in
+the pack with no implementation at all. Since then BPR-0497 through BPR-0501
+have landed the core finding, promotion, and chat-scope semantics, the host's
+finding decode and delivery, and the read-only MCP context helper; the rows
+those slices own read `Verified` or `Core half verified` below, each naming
+its evidence. The rows still reading `Planned` name the card that will supply
+theirs: the Qt surfaces (BPR-0502, BPR-0503) and the composition, hygiene, and
+closeout slices (BPR-0504 through BPR-0507).
 
 RFC-BPR-0012 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0008 and RFC-BPR-0011.
@@ -92,9 +96,36 @@ moves off `Planned` only when its card lands with direct evidence.
 | Core half verified | Converting a finding creates only a local draft until explicit publication. | Core promotion and the composed conversion course | `core_agent_finding_promotion`, `application_agent_finding_composition_contract` | One promotion yields exactly one command, no result type can carry a `review_publication_proposal`, and the conversion course records zero GitHub mutation calls | **Core half verified** (BPR-0498, 2026-09-01): `promote_agent_finding` returns exactly one `edit` draft command, one `reclassify` defect command, or one note payload, or a typed refusal; the result type fails to compile with a `review_publication_proposal` field; the suggested comment is carried byte for byte. The composed course remains `Planned` — BPR-0504 |
 | Planned | Full-agent GitHub changes round-trip through normal synchronization without a private backchannel. | Composed end-to-end over the RFC-BPR-0008 fixture path | `application_agent_finding_composition_contract`, `application_review_round_trip_composition_contract`, `composed_application_hosts` | The resulting GitHub state arrives only through RFC-BPR-0008 synchronization; a second edge from the agent host would appear as a mutation call outside it | `Planned` — BPR-0504 |
 | Core half verified | The side chat shows stale state after head movement and offers new-session or explicit old-revision continuation. | Core session state and the Qt side-chat panel | `core_agent_session`, `core_agent_chat_scope`, `qt_side_chat_panel` | After `head_moved` the session offers exactly two continuations, retargets neither, and the panel starts neither by itself | **Core half verified** (BPR-0499, 2026-09-01): `offer_agent_continuations` carries `observe_agent_session`'s verdict, offers a two-element `std::array` of continuations, and names the session's own binding as the only continuation target; the panel half remains `Planned` — BPR-0502 |
-| Planned | The MCP helper exposes only documented read-only operations and cannot access credentials, network, writes, or unrelated filesystem content. | The helper's stdio canary | `application_mcp_context_helper`, and `test_network_isolation_manifest` if any socket surface exists | The advertised tool list is compared exactly against the source enumeration, and a sweep over every refusal — connect, listener bind, read above the snapshot root, symlink escape, and each write, draft, publish, and note name — refuses each while the parent holds planted secrets | `Planned` — BPR-0501 |
+| Verified | The MCP helper exposes only documented read-only operations and cannot access credentials, network, writes, or unrelated filesystem content. | The helper's stdio canary | `application_mcp_context_helper` | The advertised tool list is compared exactly against the source enumeration, and a sweep over every refusal — connect, listener bind, read above the snapshot root, symlink escape, and each write, draft, publish, and note name — refuses each while the parent holds planted secrets | **Verified** (BPR-0501, 2026-09-02): the shipped `tool_better_pull_review_mcp_context_helper` speaks newline-delimited JSON-RPC 2.0 over stdio — `initialize`, `tools/list`, `tools/call` — and advertises four read-only tools over one frozen snapshot pinned to one `agent_revision_binding`. The advertised list is compared against three independent sources: the `enum class mcp_tool` text read out of the header, the compiled `mcp_tools` array, and a list written in the canary, so a tool added to the first two still fails. The refusal sweep drives twenty-one entries through the real executable — a URL argument, a `//host:port` authority, a UNC authority, `net/connect`, `net/listen`, `../../../etc/passwd`, `/etc/passwd`, `../binding`, a real directory symlink out of the snapshot on both path-taking tools, ten write/draft/publish/note/network tool names, and a helper started with `--listen 127.0.0.1:8080` — and each is refused by its own exact typed cause with no result beside it. Nineteen scripted negative controls each removed one check, rebuilt, and made the canary fail; every restore was byte-exact by md5 and the restored tree builds and passes. The child's complete environment reduces to exactly `BPR_MCP_SNAPSHOT_ROOT` and `BPR_MCP_PINNED_BINDING` while the parent holds planted GitHub, Anthropic, and AWS secrets, and no secret value reaches either child channel. Head movement with the pin unchanged makes every call `revision_binding_stale` and re-reads nothing. **No socket surface survives**: `nm -u` on the shipped binary shows no socket, connect, bind, listen, accept, or resolver import among its 84 undefined symbols, so `LOOPBACK_PORT_COUNT` stays 0 and `test_network_isolation_manifest` is not required. Constructing and supervising the helper inside the shipped application remains BPR-0504's |
 | Core half verified | Private notes and drafts are never included without explicit selection. | Core session opt-in, the context supplement, and the composed course | `core_agent_context_supplement`, `core_agent_chat_scope`, `application_agent_invocation_composition_contract` | A session without the per-session opt-in carries zero notes and zero drafts even when both exist for the review, and the composed course keeps its existing zero note and draft counts | **Core half verified** (BPR-0499, 2026-09-01): `agent_private_context_optin` is keyed by session id with notes and drafts separately default-off, and the two-argument `build_agent_supplement` carries zero of both without it; the host now builds through the opt-in overload keyed to the session (BPR-0500, with a source-order assertion that the ungated overload is unreachable from the host); the composed course remains `Planned` — BPR-0504 |
 | Planned | Finding/chat/promotion decisions are core-tested without agent/Qt dependencies; host protocol tests and Qt workflow tests prove all results re-enter through typed revision-bound events. | All three regions | `ctest --preset core-only -R '^core_agent_'`, `application_agent_finding_protocol`, `qt_side_chat_panel`, `qt_finding_queue_view` | The core suites link `BetterPullReview::Core` only, the delivered event's binding is compared field for field against the session's, and deleting the validation call at the decode-to-core seam fails an invalid-anchor case | `Planned` — BPR-0497 through BPR-0503 |
+
+## Placement decision (BPR-0501)
+
+BPR-0501 asked the implementing slice to confirm or overturn `src/adapters/mcp/`
+as the helper's home, with the reason either way. **Confirmed.**
+
+The reason the card offered survives contact with the code, and the build file
+makes it checkable rather than asserted: `src/adapters/agent` is a narrow launch
+port for a program BetterPullReview does not implement and only starts, and it
+links `BetterPullReview::Application` and `Qt6::Core` to do it. This helper is
+the opposite direction of the same boundary — a program BetterPullReview
+implements and ships, serving its own frozen projection outward to somebody
+else's agent. Housing a server inside a launch port would make one directory
+answer for both directions, and the target that starts an agent would link the
+target that answers one.
+
+Two consequences are load-bearing rather than tidy. `better_pull_review_adapter_mcp`
+links `BetterPullReview::Core` and nothing else — not the application host, not
+Qt, not the GitHub, Git, or SQLite adapters — so the claim that the helper reaches
+no credential and no network is a link line a reviewer reads in one line. And
+`src/adapters/agent/CMakeLists.txt` returns early without Qt, so a helper placed
+there would not exist in the `core-only` configuration at all; here it builds and
+is proven in both.
+
+The `tool_` prefix is deliberate: it puts the helper in the manifest
+`live_mutation_isolation` walks, so every build also proves the shipped helper
+links no live GitHub mutation. `app_` would have exempted it.
 
 ## Cards
 

@@ -1,0 +1,94 @@
+/// \file
+/// \brief Entry point for the read-only MCP context helper.
+///
+/// \details The whole program is one loop over newline-delimited JSON-RPC 2.0
+/// messages on stdin. There is no listener, no outbound socket, no credential,
+/// and no filesystem root beyond the frozen snapshot: the executable links
+/// `BetterPullReview::Core` and the standard library, and nothing else.
+
+#include "bpr/adapters/mcp/mcp_context_helper.hpp"
+
+#include <cstdlib>
+#include <filesystem>
+#include <iostream>
+#include <string>
+
+namespace {
+	using namespace bpr;
+
+	/// \brief Reads one line, dropping anything past the declared bound.
+	///
+	/// \details The bound is enforced here so a hostile writer cannot make the
+	/// helper allocate without limit before the request is even looked at. A
+	/// line that reaches the bound is delivered at exactly the bound, which
+	/// `handle_line` refuses as `invalid_request`.
+	[[nodiscard]] auto read_bounded_line(std::istream& aInput, std::string& aLine)
+		-> bool
+	{
+		aLine.clear();
+		auto character = aInput.get();
+		if (character == std::char_traits<char>::eof()) {
+			return false;
+		}
+		while (character != std::char_traits<char>::eof() && character != '\n') {
+			if (aLine.size() < adapters::mcp::maximum_mcp_request_bytes) {
+				aLine.push_back(static_cast<char>(character));
+			}
+			character = aInput.get();
+		}
+		return true;
+	}
+} // namespace
+
+auto main(const int aArgumentCount, char**) -> int
+{
+	// Before a single byte of request is read. The parent's environment is
+	// whatever the parent had; this process keeps only the allowlist.
+	const auto environment = adapters::mcp::reduce_environment_to_allowlist();
+	for (const auto& variableName : environment.Received) {
+		std::cerr << "mcp-environment-received\t" << variableName << '\n';
+	}
+	for (const auto& variableName : environment.Retained) {
+		std::cerr << "mcp-environment-retained\t" << variableName << '\n';
+	}
+
+	// Closed: this helper takes no option at all, so no host, port, endpoint,
+	// or listener can be named to it. The count is reported; the text is not,
+	// because a diagnostic that echoes argv is a diagnostic that can print a
+	// secret somebody passed by mistake.
+	if (aArgumentCount != 1) {
+		std::cerr << "mcp-startup-refusal\tunexpected_argument\t"
+				  << (aArgumentCount - 1) << '\n';
+		return EXIT_FAILURE;
+	}
+
+	const auto* const snapshotRoot = std::getenv("BPR_MCP_SNAPSHOT_ROOT");
+	const auto* const pinnedText   = std::getenv("BPR_MCP_PINNED_BINDING");
+	if (snapshotRoot == nullptr || pinnedText == nullptr) {
+		std::cerr << "mcp-startup-refusal\tmissing_environment\n";
+		return EXIT_FAILURE;
+	}
+	const auto pinned = adapters::mcp::decode_revision_binding(pinnedText);
+	if (!pinned) {
+		std::cerr << "mcp-startup-refusal\tinvalid_pinned_binding\n";
+		return EXIT_FAILURE;
+	}
+
+	auto helper = adapters::mcp::mcp_context_helper{
+		std::filesystem::path{ snapshotRoot },
+		*pinned,
+	};
+	std::cerr << "mcp-ready\t"
+			  << adapters::mcp::encode_revision_binding(helper.pinned_binding())
+			  << '\n';
+
+	auto line = std::string{ };
+	while (read_bounded_line(std::cin, line)) {
+		const auto response = helper.handle_line(line);
+		if (response) {
+			std::cout << *response << '\n';
+			std::cout.flush();
+		}
+	}
+	return EXIT_SUCCESS;
+}

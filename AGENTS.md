@@ -22,7 +22,7 @@ The core decides. The host performs. Qt presents.
 | `src/core/` | Deterministic policy, compact interaction state, typed transitions, request identity, semantic deltas, diagnostics |
 | `src/application/` | Effects, bounded observations, serialized completion lane, cancellation, lifecycle |
 | `src/adapters/qt/` | Qt events, widgets, actions, models, focus, accessibility, rendering, incremental projection |
-| `src/adapters/{github,git,sqlite,agent,syntax}` | Narrow application-host capability ports; no provider types cross inward |
+| `src/adapters/{github,git,sqlite,agent,syntax,mcp}` | Narrow application-host capability ports; no provider types cross inward. `mcp` is the shipped read-only context helper (its own executable, core-only link) |
 | `src/app/` | Concrete composition and application entry point |
 | `tests/` | Core, host, contract, Qt, end-to-end, fixture, benchmark, and fuzz evidence |
 | `packaging/` | Distribution metadata and release-time platform policy |

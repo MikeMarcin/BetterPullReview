@@ -657,3 +657,42 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "workbench-snapshot-observation-tests:pass"
         TIMEOUT 60
 )
+
+# The MCP context helper's evidence is what a separate process reaches, so the
+# canary drives the shipped executable over real stdio rather than calling the
+# library in-process. It links the adapter as well, because the advertised tool
+# list is compared against the compiled enumeration and the source text.
+bpr_add_executable(
+    test_better_pull_review_mcp_context_helper_tests
+    mcp_context_helper_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_mcp_context_helper_tests
+    PRIVATE
+        BetterPullReview::AdapterMcp
+)
+target_compile_definitions(
+    test_better_pull_review_mcp_context_helper_tests
+    PRIVATE
+        "BPR_MCP_HELPER_EXECUTABLE=\"$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>\""
+        "BPR_MCP_TOOL_SOURCE=\"${PROJECT_SOURCE_DIR}/src/adapters/mcp/include/bpr/adapters/mcp/mcp_context_helper.hpp\""
+)
+add_dependencies(
+    test_better_pull_review_mcp_context_helper_tests
+    tool_better_pull_review_mcp_context_helper
+)
+bpr_enable_hardening(test_better_pull_review_mcp_context_helper_tests)
+bpr_enable_warnings(test_better_pull_review_mcp_context_helper_tests)
+
+# No LOOPBACK_PORT_COUNT: the helper declares no socket surface at all, so the
+# default of zero is the claim rather than an omission.
+bpr_add_network_isolated_test(
+    NAME application_mcp_context_helper
+    COMMAND test_better_pull_review_mcp_context_helper_tests
+)
+set_tests_properties(
+    application_mcp_context_helper
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "mcp-context-helper-tests:pass"
+        TIMEOUT 120
+)
