@@ -126,7 +126,7 @@ by each station.
 | No embedded browser engine is present in the artifact | `verify_composed_hosts.py`'s `inspect_symbols` (`llvm-nm --demangle`) plus a raw image scan over `build/dev`'s app binary, against `check_platform_surfaces`'s own forbidden sets | 117 727 demangled symbols, zero hits for `QWebEngine`, `QWebView`, `QtWebEngine`; the 58 137 872-byte image contains none of those as ASCII, nor `QtWebEngineCore`. The full platform course was not run here — it builds two fresh trees and is a station command | this commit |
 | The whole dev graph builds clean under `-Werror` | `cmake --build --preset dev` | Exit 0, zero `error:` or `warning:` lines in the whole log | this commit |
 | Every touched C++ file is formatted | `clang-format --dry-run --Werror` on the six touched files | Exit 0 after reflowing four lines of `github_application.cpp` and one of `main.cpp` | this commit |
-| macOS: the action opens the system browser at the verification address | Target-native observation on the macOS station | Pending — the station records it | Pending |
+| macOS: the action opens the system browser at the verification address | The owner's attended sitting against the restaged artifact | Observed 2026-09-02 by the owner: the device flow connected end to end — see *macOS — the owner's observation — 2026-09-02* | this commit |
 | Linux: the action opens the system browser at the verification address | Target-native observation on the Linux station | Pending — the artifact is staged and every row around it is green; see *Linux — 2026-09-02* below. The click itself is the owner's | Pending |
 | Windows x64: the action opens the system browser at the verification address | Target-native observation on the Windows station | Artifact staged and everything short of the click recorded — see "Windows — 2026-09-02"; the click itself is the owner's | Pending |
 
@@ -492,3 +492,25 @@ The sign-in panel sits in the review header under the session panel's
 launch the app, choose the GitHub.com profile, press "Get a code", and
 press "Open browser" when the code and address appear; judge only whether
 the system default browser opens at the verification address.
+
+## macOS — the owner's observation — 2026-09-02
+
+The owner ran the staged macOS app and reported, in full: "I ran the mac
+app and got the device flow connected, seemed to work ok." The artifact at
+`build/rfc0016-macos-browser/release/src/app/BetterPullReview.app` at the
+time was the `8a6e7612` restage above (10,463,760 bytes, sha256
+`531b21ac…16a2`); the owner did not re-read the digest, and it is recorded
+here from the staging row rather than from the sitting.
+
+What the report establishes: a real device flow was started from the
+shipped, tests-disabled artifact, the verification address was reached,
+authorization completed, and the profile connected — the whole path this
+card composed the opener for, exercised by its user on the platform it
+ships on. The report does not separately name the "Open browser" press, so
+the row records the owner's words and the end-to-end outcome rather than a
+finer claim than was made. No agent performed or observed any part of it,
+and no agent-side evidence of it exists or should: the enrollment lives in
+the owner's own Keychain under the owner's own account.
+
+The Linux and Windows rows stay the owner's, against the artifacts staged
+above.
