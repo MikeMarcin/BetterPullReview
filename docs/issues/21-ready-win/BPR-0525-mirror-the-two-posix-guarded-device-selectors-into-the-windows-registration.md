@@ -201,3 +201,119 @@ why the set stays named.
 | Claim | Command | Result | Commit |
 |---|---|---|---|
 | The inventory passes on macOS with the platform distinction removed | `python3 scripts/verify_rfc0016_test_inventory.py --build-dir build/dev` and `ctest --preset dev -R '^rfc0016_test_inventory$'` | `RFC0016_TEST_INVENTORY_OK`; Passed | this commit |
+
+## Third attempt: the inventory expectation is fixed and the course still refuses — 2026-09-02, at `7195c30a`
+
+The `wire_block` platform check is gone and the course got past it. It now
+fails one step later, at the selector matrix, on the registered
+`rfc0016_test_inventory` selector:
+
+```text
+rfc0016-platform-course:fail:course-selectors-failed:
+17/17 Test #237: composed_application_hosts ... Passed 6.98 sec
+94% tests passed, 1 tests failed out of 17
+The following tests FAILED:
+	 12 - rfc0016_test_inventory (Failed)   bpr_network_isolated
+```
+
+**Seventeen tests ran and sixteen passed.** The matrix is complete — this
+card's registration is doing exactly what it was for — and the one failure is
+in the inventory gate rather than in either mirrored selector.
+
+Its exact line:
+
+```text
+rfc0016-test-inventory:fail:github_device_authorization_refresh_contract: command omits --suite refresh
+```
+
+The registration does not omit it. `ctest --show-only=json-v1` on the course's
+own debug tree reports the command in full:
+
+```text
+python.exe  verify_native_https_device_authorization.py
+  --executable ...better_pull_review_native_https_device_authorization_tests.exe
+  --openssl    C:/Program Files/Git/mingw64/bin/openssl.exe
+  --suite      refresh
+```
+
+### The same script, the same tree, the same arguments, two answers
+
+`verify_rfc0016_test_inventory.py` was run twice against the course's debug
+tree with the identical arguments CTest uses:
+
+| Invocation | Result |
+|---|---|
+| Directly | `RFC0016_TEST_INVENTORY_OK`, exit 0 |
+| Through `better_pull_review_network_sandbox.exe`, as its registration runs it | `command omits --suite refresh`, exit 1 |
+
+That is also why the course's own step-two inventory call passed: the course
+runs the script itself, uncontained. Only the registered selector is
+sandboxed.
+
+### What the container does to the listing
+
+The inventory shells `ctest --show-only=json-v1`. Comparing that listing taken
+plainly and taken inside the AppContainer, both `-C Debug`, same tree:
+
+| Listing | Tests | With no `command` field |
+|---|---|---|
+| Plain | 238 | 0 |
+| Inside the AppContainer | 238 | **14** |
+
+The fourteen entries carry `name`, `config`, `properties` and `backtrace` but
+no `command` at all. They are an exact set:
+
+- all fourteen are `bpr_windows_uncontained`, and
+- all fourteen have a command whose first token is the
+  `Python3::Interpreter` under `%LOCALAPPDATA%\Python`, and
+- **no** other test does — the 63 remaining uncontained tests start with
+  `cmake.exe` or a built `.exe` and keep their commands.
+
+So a lowbox token cannot read the interpreter's path, CTest cannot resolve it
+while listing, and it drops the whole `command` rather than reporting it. This
+is [[BPR-0362]]'s cause once more, reaching the listing rather than the run.
+
+`registered_tests` then turns that absence into an empty argument tuple:
+
+```python
+if command is None:
+    arguments: tuple[str, ...] = ()
+```
+
+and `REQUIRED_ARGUMENTS` compares against `()`, so "CTest did not tell me the
+command" is reported as "the command omits `--suite refresh`" — an accusation
+about the registration, produced by a listing that never described it.
+
+### Latent before this card, and why nobody had seen it
+
+`native_https_transport_fixture` is in the affected fourteen and has been
+since [[BPR-0446]] registered it on Windows. Nothing noticed because it has no
+`REQUIRED_ARGUMENTS` entry, so its empty tuple was never compared against
+anything. This card registered the first affected selector that does have one.
+The defect is older than the card that revealed it.
+
+### What would fix it
+
+Two changes, and the second matters more than the first:
+
+1. `WINDOWS_UNCONTAINED` on `rfc0016_test_inventory`. It shells `ctest`, which
+   needs the drive-letter translation a lowbox token is refused — the same
+   reason its fourteen subjects already carry the keyword. It reads a listing
+   and opens no socket, so the exemption costs no network claim.
+2. `registered_tests` should refuse an absent `command` by its own name rather
+   than substituting `()`. As written, a listing that fails to describe a test
+   is indistinguishable from a registration that genuinely carries no
+   arguments, and the gate reports the second when it has met the first. A
+   distinct cause would have named this in one line instead of four
+   measurements.
+
+Both are in `scripts/**` and the test registration, which this station may not
+commit for this card; reported to the integrator.
+
+| Row | State |
+|---|---|
+| Both registered, POSIX arguments verbatim | Done |
+| Both pass on the Windows station | Done — 10.19 s and 3.74 s |
+| `WINDOWS_UNCONTAINED` measured, not inherited | Done |
+| All seventeen names register on Windows | Done — the matrix ran 17 and passed 16 |
+| The course reports `RFC0016_COURSE_SELECTORS:17` | **Blocked** on the inventory gate above |
