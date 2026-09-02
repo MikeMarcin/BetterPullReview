@@ -1150,15 +1150,17 @@ namespace bpr::app {
 			= std::string_view{ "Iv23liitiYN1WSSbag50" };
 
 		// macOS is registered under the recorded distributable identity since
-		// [[BPR-0318]]; Linux and Windows stay unregistered until [[BPR-0310]]
-		// and [[BPR-0311]] flip their own platform in their own slice. Moving a
-		// card between folders does not enable a capability, and neither does
-		// building on a different operating system: this constant is the only
-		// thing that does.
+		// [[BPR-0318]] and Windows since [[BPR-0311]]; each flipped its own
+		// platform in its own slice, against its own target-native course, and
+		// neither flipped another's. Linux stays unregistered here until
+		// [[BPR-0310]]'s slice lands on this branch. Moving a card between
+		// folders does not enable a capability, and neither does building on a
+		// different operating system: this constant is the only thing that
+		// does.
 		[[nodiscard]] constexpr auto shipped_device_authorization_capability() noexcept
 			-> application::device_authorization_capability
 		{
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(_WIN32)
 			return { .Registered = true };
 #else
 			return { .Registered = false };

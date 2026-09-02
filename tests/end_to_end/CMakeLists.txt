@@ -4,16 +4,38 @@ else()
     set(bpr_native_platform_vault_self_test_result "false")
 endif()
 
-# RFC-BPR-0016. What the shipped device-authorization selection answers under
-# network isolation, per platform. macOS is registered under the recorded
-# distributable identity since BPR-0318: its real flow starts, the isolated
-# transport fails immediately, and the refusing transport is never touched, so
-# the terminal is `failed` with zero gate bypasses. Every other platform stays
-# unregistered until BPR-0310/BPR-0311 flip it, and keeps the typed refusal
-# with nothing sent.
+# RFC-BPR-0016. What the shipped device-authorization selection answers in this
+# gate, per platform. `DEVICE_FLOW_REQUESTS` counts submissions that reached the
+# refusing transport, never HTTP requests, so zero means the capability gate
+# held on every platform below and is the one value they share.
+#
+# macOS is registered under the recorded distributable identity since BPR-0318:
+# the real flow starts, sandbox-exec denies the connect immediately, and the
+# refusing transport is never touched, so the terminal is `failed`. Deterministic
+# because the denial is local.
+#
+# Windows is registered since BPR-0311 and answers `cancelled` instead, for a
+# reason that is not a different isolation but the absence of one. This test
+# carries WINDOWS_UNCONTAINED: a lowbox token cannot give it what it needs, so
+# BPR-0362 exempts it from the AppContainer and it is labelled
+# `bpr_windows_uncontained`. Nothing denies the connect, so the real flow
+# reaches `awaiting_authorization` against GitHub and the probe's budget cancels
+# it there — which is the registered behaviour BPR-0318 built, observed without
+# a boundary in front of it.
+#
+# That makes this the one platform whose expectation depends on reaching GitHub:
+# an offline or blocked host lands `failed` here and fails this gate. Measured
+# on the JaegAW station at the BPR-0311 flip; recorded rather than assumed, and
+# recorded as network-dependent rather than claimed deterministic.
+#
+# Linux stays unregistered until BPR-0310's slice lands, and keeps the typed
+# refusal with nothing sent.
 if(APPLE)
     set(bpr_device_selection_self_test_expression
         "DEVICE_FLOW_STAGE:failed[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_REGISTERED_SELECTION_OK")
+elseif(WIN32)
+    set(bpr_device_selection_self_test_expression
+        "DEVICE_FLOW_STAGE:cancelled[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_REGISTERED_SELECTION_OK")
 else()
     set(bpr_device_selection_self_test_expression
         "DEVICE_FLOW_STAGE:unavailable[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_UNAVAILABLE_OK")
