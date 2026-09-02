@@ -539,6 +539,68 @@ bpr_enable_warnings(
     test_better_pull_review_agent_finding_composition_public_path
 )
 
+# RFC-BPR-0012 (BPR-0514). The side-chat session, driven through the shipped
+# panel: one send reaches one turn on the launch path that already existed, a
+# stale send is refused by the core's verdict and named on screen, and a
+# continuation choice starts exactly one session.
+bpr_add_executable(
+    test_better_pull_review_agent_chat_composition_public_path
+    agent_chat_composition_public_path.cpp
+)
+target_link_libraries(
+    test_better_pull_review_agent_chat_composition_public_path
+    PRIVATE
+        BetterPullReview::Composition
+)
+target_compile_definitions(
+    test_better_pull_review_agent_chat_composition_public_path
+    PRIVATE
+        BPR_BUILD_TESTING=1
+        "BPR_COMPOSITION_SOURCE=\"${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp\""
+)
+add_dependencies(
+    test_better_pull_review_agent_chat_composition_public_path
+    test_better_pull_review_agent_finding_canary
+)
+bpr_enable_hardening(
+    test_better_pull_review_agent_chat_composition_public_path
+)
+bpr_enable_warnings(
+    test_better_pull_review_agent_chat_composition_public_path
+)
+
+foreach(
+    course
+    IN ITEMS
+        positive
+        stale
+        construction-cut
+)
+    if(course STREQUAL "positive")
+        set(chat_test_name application_agent_chat_composition_contract)
+        set(chat_pass_marker "agent-chat-composition:pass")
+    else()
+        string(REPLACE "-" "_" chat_course_name "${course}")
+        set(chat_test_name "application_agent_chat_${chat_course_name}_contract")
+        set(chat_pass_marker "agent-chat-${course}:pass")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME "${chat_test_name}"
+        WINDOWS_UNCONTAINED
+        COMMAND
+            test_better_pull_review_agent_chat_composition_public_path
+            "${course}"
+            $<TARGET_FILE:test_better_pull_review_agent_finding_canary>
+    )
+    set_tests_properties(
+        "${chat_test_name}"
+        PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment};GITHUB_TOKEN=must-not-cross-agent-boundary"
+            PASS_REGULAR_EXPRESSION "${chat_pass_marker}"
+            TIMEOUT 120
+    )
+endforeach()
+
 foreach(
     course
     IN ITEMS

@@ -145,6 +145,10 @@ SHARED_REQUIRED = (
         "bpr::application::agent_finding_host::agent_finding_host",
     ),
     function_anchor(
+        "agent chat session application host constructor",
+        "bpr::application::agent_chat_session_host::agent_chat_session_host",
+    ),
+    function_anchor(
         "agent comment workshop application host constructor",
         "bpr::application::agent_comment_workshop_host::agent_comment_workshop_host",
     ),

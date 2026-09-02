@@ -41,6 +41,7 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/application/agent_chat_session_host.hpp"
 #include "bpr/application/agent_comment_workshop_host.hpp"
 #include "bpr/application/agent_finding_host.hpp"
 #include "bpr/application/agent_invocation_host.hpp"
@@ -2118,12 +2119,15 @@ namespace bpr::app {
 		using finding_sink = std::function<void(
 			const application::agent_invocation_projection_identity&,
 			const application::agent_finding_delivery&)>;
+		using session_sink = std::function<void(const core::agent_session&)>;
 
 		composition_agent_invocation_projection(
 			application::agent_invocation_projection_port& aPanel,
-			finding_sink                                   aFindings)
+			finding_sink                                   aFindings,
+			session_sink                                   aSessions)
 			: Panel{ aPanel }
 			, Findings{ std::move(aFindings) }
+			, Sessions{ std::move(aSessions) }
 		{
 		}
 
@@ -2142,6 +2146,13 @@ namespace bpr::app {
 			override
 		{
 			Panel.admit(aIdentity);
+			// The one place an agent session identity is allocated. The chat
+			// host learns the session its turn actually runs under from here
+			// rather than keeping one of its own, so the delivery this run
+			// produces is keyed to the session the chat is holding.
+			if (Sessions) {
+				Sessions(aIdentity.Session);
+			}
 		}
 
 		void start(
@@ -2185,6 +2196,58 @@ namespace bpr::app {
 	private:
 		application::agent_invocation_projection_port& Panel;
 		finding_sink                                   Findings;
+		session_sink                                   Sessions;
+	};
+
+	/// \brief Forwards chat state and chat outcomes to their surfaces.
+	///
+	/// \details The same shape `composition_agent_finding_projection` already
+	/// uses: the host decides, this carries the decision to the widget that
+	/// shows it. There is no branch here that starts anything.
+	class composition_agent_chat_projection final
+		: public application::agent_chat_projection_port
+	{
+	public:
+		using state_sink
+			= std::function<void(const application::agent_chat_projection&)>;
+		using outcome_sink
+			= std::function<void(const application::agent_chat_outcome&)>;
+		using clear_sink = std::function<void()>;
+
+		composition_agent_chat_projection(
+			state_sink aState, outcome_sink aOutcome, clear_sink aClear)
+			: State{ std::move(aState) }
+			, Outcome{ std::move(aOutcome) }
+			, Clear{ std::move(aClear) }
+		{
+		}
+
+		void present(
+			const application::agent_chat_projection& aProjection) override
+		{
+			if (State) {
+				State(aProjection);
+			}
+		}
+
+		void present(const application::agent_chat_outcome& aOutcome) override
+		{
+			if (Outcome) {
+				Outcome(aOutcome);
+			}
+		}
+
+		void clear() override
+		{
+			if (Clear) {
+				Clear();
+			}
+		}
+
+	private:
+		state_sink   State;
+		outcome_sink Outcome;
+		clear_sink   Clear;
 	};
 
 	/// \brief Forwards finding deliveries and outcomes to their surfaces.
@@ -2406,6 +2469,8 @@ namespace bpr::app {
 					= aFixtureOptions.DisableAgentGestureWire;
 				DisableAgentFindingHostComposition
 					= aFixtureOptions.DisableAgentFindingHostComposition;
+				DisableChatSessionHostComposition
+					= aFixtureOptions.DisableChatSessionHostComposition;
 				DisableCommentWorkshopComposition
 					= aFixtureOptions.DisableCommentWorkshopComposition;
 				DisableMcpHelperComposition
@@ -2775,11 +2840,38 @@ namespace bpr::app {
 							agent_invocation_projection_identity&  aIdentity,
 						const application::agent_finding_delivery& aDelivery) {
 						static_cast<void>(aIdentity);
-						if (!Closing && FindingHost != nullptr) {
+						if (Closing) {
+							return;
+						}
+						if (FindingHost != nullptr) {
 							FindingHost->deliver(aDelivery);
+						}
+						// The chat's reply is this same validated value, at
+						// this same seam. There is no second delivery edge for
+						// a chat turn, so nothing a chat receives can bypass
+						// the finding bounds this one enforces.
+						if (ChatHost != nullptr) {
+							ChatHost->deliver(aDelivery);
+						}
+					},
+					[this](const core::agent_session& aSession) {
+						if (!Closing && ChatHost != nullptr) {
+							ChatHost->admitted(aSession);
 						}
 					});
 			auto agentProfiles = core::built_in_agent_profiles();
+			// Stated once and given to both hosts. The chat host asks
+			// `core::decide_agent_action` the same host-policy question the
+			// launch host already asks, and two lists written apart are two
+			// answers waiting to differ.
+			const auto agentPolicies = std::vector<core::agent_host_policy>{
+				core::built_in_agent_policy(
+					core::git_host_id{ 1U },
+					core::built_in_agent_host_kind::github_com),
+				core::built_in_agent_policy(
+					core::git_host_id{ 2U },
+					core::built_in_agent_host_kind::explicit_ghes),
+			};
 #if defined(BPR_BUILD_TESTING)
 			if (ExternalAgentExecutable.has_value()) {
 				const auto external = std::ranges::find(
@@ -2816,15 +2908,8 @@ namespace bpr::app {
 #endif
 			{
 				AgentHost = std::make_unique<application::agent_invocation_host>(
-					std::move(agentProfiles),
-					std::vector<core::agent_host_policy>{
-						core::built_in_agent_policy(
-							core::git_host_id{ 1U },
-							core::built_in_agent_host_kind::github_com),
-						core::built_in_agent_policy(
-							core::git_host_id{ 2U },
-							core::built_in_agent_host_kind::explicit_ghes),
-					},
+					agentProfiles,
+					agentPolicies,
 					agentWorkspacePath,
 					*this,
 					*EpochHost,
@@ -2960,6 +3045,51 @@ namespace bpr::app {
 						return ReviewLedger.get();
 					},
 					*FindingProjections);
+			}
+			// RFC-BPR-0012's chat *session*, under the same fixture and
+			// production split every other agent host here uses. The turn it
+			// produces is handed to `dispatch_agent_invocation` — the one
+			// launch path in this file — so a chat send and a launch-panel
+			// start are the same launch, the same protocol, and the same
+			// frozen snapshot findings are delivered from.
+			ChatProjections
+				= std::make_unique<composition_agent_chat_projection>(
+					[this](const application::agent_chat_projection& aChat) {
+						present_side_chat(aChat);
+					},
+					[this](const application::agent_chat_outcome& aOutcome) {
+						present_chat_outcome(aOutcome);
+					},
+					[this]() {
+						if (SideChat != nullptr) {
+							++SideChatPresentations;
+							SideChat->present(qt::side_chat_projection{ });
+						}
+					});
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableChatSessionHostComposition)
+#endif
+			{
+				ChatHost
+					= std::make_unique<application::agent_chat_session_host>(
+						agentProfiles,
+						agentPolicies,
+						core::codex_jsonl_profile_id,
+						[this](const application::agent_chat_turn_request&
+								   aTurn) -> bool {
+							return dispatch_agent_invocation(
+								aTurn.Session.Profile,
+								aTurn.IncludeNotes
+									? all_private_note_ids()
+									: std::vector<application::local_note_id>{ },
+								aTurn.IncludeDraft ? current_agent_draft_choice()
+												   : std::nullopt,
+								false);
+						},
+						[this]() -> application::agent_chat_private_prose {
+							return current_chat_private_prose();
+						},
+						*ChatProjections);
 			}
 			Window->epoch_selectors()->set_dispatch(
 				[this](application::epoch_intent aIntent) { dispatch_epoch_intent(std::move(aIntent)); });
@@ -4728,6 +4858,41 @@ namespace bpr::app {
 					: std::nullopt);
 		}
 
+		/// \brief What the reviewer is pointing at, in RFC-BPR-0004 identities.
+		///
+		/// \details Read from the alignment on screen, and only when the
+		/// selection and the published comparison are the same one. **There is
+		/// no coordinate here and none reachable from here**: a file identity
+		/// and a semantic selection are the whole of it.
+		[[nodiscard]] auto current_agent_chat_selection() const
+			-> std::optional<core::agent_selection>
+		{
+			if (Window == nullptr || !SelectedDiffPublication.has_value()) {
+				return std::nullopt;
+			}
+			const auto&       selected  = *SelectedDiffPublication;
+			const auto* const workbench = Window->comparison_surface();
+			if (
+				workbench == nullptr || !workbench->selection().has_value()
+				|| workbench->current_result() == nullptr
+				|| workbench->current_result()->Alignment.Key != selected.Key
+				|| workbench->selection()->Comparison
+					!= workbench->current_result()->Alignment.Digest) {
+				return std::nullopt;
+			}
+			return core::agent_selection{
+				.File      = selected.Request.File.File,
+				.Selection = *workbench->selection(),
+			};
+		}
+
+		void clear_side_chat()
+		{
+			if (ChatHost != nullptr) {
+				ChatHost->clear();
+			}
+		}
+
 		void refresh_agent_authority()
 		{
 			if (AgentHost == nullptr || EpochHost == nullptr || Window == nullptr) {
@@ -4737,6 +4902,7 @@ namespace bpr::app {
 			if (!state.Authority.has_value() || !state.AcceptedRevision.has_value()
 				|| !state.AcceptedComparison.has_value() || !AgentReview.has_value()) {
 				AgentHost->clear();
+				clear_side_chat();
 				return;
 			}
 			const auto& authority  = *state.Authority;
@@ -4746,6 +4912,7 @@ namespace bpr::app {
 				|| authority.Repository != AgentReview->Repository
 				|| authority.PullRequest != AgentReview->PullRequest) {
 				AgentHost->clear();
+				clear_side_chat();
 				return;
 			}
 			AgentHost->observe(
@@ -4761,7 +4928,7 @@ namespace bpr::app {
 					.RightEpoch  = comparison.Right.Identity.Epoch,
 				});
 			refresh_agent_private_context_choices();
-			present_side_chat(core::agent_revision_binding{
+			const auto observedBinding = core::agent_revision_binding{
 				.Host        = authority.Host,
 				.Repository  = authority.Repository,
 				.PullRequest = authority.PullRequest,
@@ -4769,7 +4936,16 @@ namespace bpr::app {
 				.HeadOid     = revision.Head,
 				.LeftEpoch   = comparison.Left.Identity.Epoch,
 				.RightEpoch  = comparison.Right.Identity.Epoch,
-			});
+			};
+			if (ChatHost != nullptr) {
+				// Recorded, never retargeted. The chat host presents itself
+				// through its own projection, so a head that moved makes the
+				// session stale on screen instead of quietly re-pointing it.
+				ChatHost->observe_selection(current_agent_chat_selection());
+				ChatHost->observe(observedBinding);
+			} else {
+				present_side_chat(observedBinding);
+			}
 			Window->agent_panel()->disclose_scope(
 				QStringLiteral(
 					"The selected agent receives the exact accepted PR/diff identities, "
@@ -4792,13 +4968,41 @@ namespace bpr::app {
 				AgentHost->cancel();
 				return;
 			}
-			const auto  start = std::get<qt::start_agent_intent>(aIntent);
+			const auto start = std::get<qt::start_agent_intent>(aIntent);
+			static_cast<void>(dispatch_agent_invocation(
+				start.Profile,
+				start.IncludedNotes,
+				start.IncludedDraft,
+				start.ExistingCheckoutChosen));
+		}
+
+		/// \brief The one launch path, and there is deliberately no second.
+		///
+		/// \details Both the launch panel's start gesture and the side chat's
+		/// send arrive here, so the agent host's own `dispatch` has exactly one
+		/// call site in this file. A chat that had grown its own launch would have its own
+		/// workspace, its own frozen snapshot, and its own answer about the
+		/// same revision; `application_agent_chat_composition_contract` reads
+		/// this file and fails if a second call site appears.
+		///
+		/// \returns Whether exactly one invocation was dispatched. A refusal is
+		/// already named on the launch panel before this returns `false`.
+		[[nodiscard]] auto dispatch_agent_invocation(
+			const core::agent_profile_id                          aProfile,
+			const std::vector<application::local_note_id>&        aIncludedNotes,
+			const std::optional<application::agent_draft_choice>& aIncludedDraft,
+			const bool                                            aExistingCheckoutChosen) -> bool
+		{
+			if (Closing || AgentHost == nullptr || EpochHost == nullptr
+				|| Window == nullptr) {
+				return false;
+			}
 			const auto& state = EpochHost->state();
 			if (!state.Authority.has_value() || !state.AcceptedRevision.has_value()
 				|| !state.AcceptedComparison.has_value() || !AgentReview.has_value()
 				|| ReviewLedgerHost == nullptr) {
 				Window->agent_panel()->refuse("no exact accepted review context");
-				return;
+				return false;
 			}
 			const auto& authority          = *state.Authority;
 			const auto& revision           = *state.AcceptedRevision;
@@ -4808,7 +5012,7 @@ namespace bpr::app {
 				auto observed = ReviewLedgerHost->private_observation();
 				if (!observed.has_value()) {
 					Window->agent_panel()->refuse("private review context is unavailable");
-					return;
+					return false;
 				}
 				privateObservation = std::move(*observed);
 			}
@@ -4828,8 +5032,8 @@ namespace bpr::app {
 					+ AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name
 					+ "/pull/" + std::to_string(AgentReview->Number.value()),
 				.Private       = std::move(privateObservation),
-				.IncludedNotes = start.IncludedNotes,
-				.IncludedDraft = start.IncludedDraft,
+				.IncludedNotes = aIncludedNotes,
+				.IncludedDraft = aIncludedDraft,
 			};
 			observation.CurrentDraft = current_agent_draft_observation();
 			if (SelectedDiffPublication.has_value()) {
@@ -4875,12 +5079,13 @@ namespace bpr::app {
 			AgentHost->dispatch(application::agent_invocation_request{
 				.ApplicationSession     = state.ApplicationSession,
 				.Authority              = authority,
-				.Profile                = start.Profile,
+				.Profile                = aProfile,
 				.Context                = std::move(observation),
-				.ExistingCheckoutChosen = start.ExistingCheckoutChosen,
+				.ExistingCheckoutChosen = aExistingCheckoutChosen,
 				.ExistingCheckout       = ExistingCheckout,
 				.FrozenFiles            = std::move(frozen),
 			});
+			return true;
 		}
 
 		/// \brief The frozen alignment facts one invocation is answered against.
@@ -5047,45 +5252,214 @@ namespace bpr::app {
 			static_cast<void>(FindingHost->act(request));
 		}
 
-		/// \brief Records one side-chat gesture, and starts nothing.
+		/// \brief Carries one side-chat gesture to the composed chat host.
 		///
-		/// \details RFC-BPR-0012's chat *session* host is not composed by this
-		/// slice, and a send that quietly did nothing would be worse than one
-		/// that says so. The refusal is the reviewer's answer until a chat host
-		/// exists; every other gesture is recorded and changes nothing.
+		/// \details Translation and nothing else. The Qt intents are restated
+		/// as the application's own request values because this host may not
+		/// depend on the adapter that emits them, and every decision below the
+		/// translation belongs to `agent_chat_session_host` and, through it, to
+		/// the core. With the chat host cut, a send is refused by name rather
+		/// than quietly doing nothing.
 		void dispatch_side_chat_intent(qt::side_chat_intent aIntent)
 		{
 			++SideChatIntents;
-			if (std::holds_alternative<qt::send_chat_message_intent>(aIntent)) {
-				present_agent_refusal("side chat", "no composed chat session host");
+			if (ChatHost == nullptr) {
+				if (std::holds_alternative<qt::send_chat_message_intent>(
+						aIntent)) {
+					present_agent_refusal(
+						"side chat", "no composed chat session host");
+				}
+				return;
 			}
+			if (const auto* const send
+				= std::get_if<qt::send_chat_message_intent>(&aIntent);
+				send != nullptr) {
+				// Read at the gesture, from the alignment on screen. A
+				// selection observed earlier would answer for where the
+				// reviewer was, not where they are.
+				ChatHost->observe_selection(current_agent_chat_selection());
+				static_cast<void>(
+					ChatHost->send(application::agent_chat_send{
+						.Session = send->Session,
+						.Action  = send->Action,
+						.Scope   = send->Scope,
+						.Text    = send->Text,
+					}));
+				return;
+			}
+			if (const auto* const widen
+				= std::get_if<qt::widen_chat_scope_intent>(&aIntent);
+				widen != nullptr) {
+				static_cast<void>(
+					ChatHost->widen(application::agent_chat_widening{
+						.Session  = widen->Session,
+						.Widening = widen->Widening,
+					}));
+				return;
+			}
+			if (const auto* const optIn
+				= std::get_if<qt::chat_private_context_intent>(&aIntent);
+				optIn != nullptr) {
+				static_cast<void>(ChatHost->set_private_context(optIn->OptIn));
+				return;
+			}
+			const auto& choice
+				= std::get<qt::choose_chat_continuation_intent>(aIntent);
+			static_cast<void>(
+				ChatHost->choose(application::agent_chat_continuation_choice{
+					.Session        = choice.Session,
+					.Choice         = choice.Choice,
+					.OfferedBinding = choice.OfferedBinding,
+				}));
 		}
 
+		/// \brief Says on the panel what one chat gesture produced.
+		///
+		/// \details A refusal is presented, never dropped. The reason is the
+		/// host's own name for it, which carries the core's verdict where there
+		/// is one, so a reviewer whose send was refused is told which of the
+		/// core's answers refused it rather than watching a chat do nothing.
+		void present_chat_outcome(const application::agent_chat_outcome& aOutcome)
+		{
+			if (aOutcome.Refusal == application::agent_chat_refusal::none) {
+				if (aOutcome.Turn.has_value()) {
+					++SideChatTurns;
+				}
+				return;
+			}
+			++SideChatRefusals;
+			auto reason = std::string{ application::name(aOutcome.Refusal) };
+			switch (aOutcome.Refusal) {
+			case application::agent_chat_refusal::session_stale:
+				reason += " (";
+				reason += core::stable_name(aOutcome.Staleness);
+				reason += ")";
+				break;
+			case application::agent_chat_refusal::action_refused:
+				reason += " (";
+				reason += core::stable_name(aOutcome.Action);
+				reason += ")";
+				break;
+			case application::agent_chat_refusal::scope_refused:
+				reason += " (";
+				reason += core::stable_name(aOutcome.Scope);
+				reason += ")";
+				break;
+			case application::agent_chat_refusal::none:
+			case application::agent_chat_refusal::no_session:
+			case application::agent_chat_refusal::other_session:
+			case application::agent_chat_refusal::private_context_refused:
+			case application::agent_chat_refusal::empty_message:
+			case application::agent_chat_refusal::unknown_continuation:
+			case application::agent_chat_refusal::binding_mismatch:
+			case application::agent_chat_refusal::launch_refused:
+				break;
+			}
+			present_agent_refusal("side chat", reason);
+		}
+
+		/// \brief Every private note the review holds, by identity.
+		[[nodiscard]] auto all_private_note_ids() const
+			-> std::vector<application::local_note_id>
+		{
+			auto notes = std::vector<application::local_note_id>{ };
+			if (ReviewLedgerHost == nullptr) {
+				return notes;
+			}
+			const auto observed = ReviewLedgerHost->private_observation();
+			if (!observed.has_value()) {
+				return notes;
+			}
+			notes.reserve(observed->Notes.size());
+			for (const auto& note : observed->Notes) {
+				notes.push_back(note.Id);
+			}
+			return notes;
+		}
+
+		/// \brief The draft a chat turn may carry, when there is one to carry.
+		[[nodiscard]] auto current_agent_draft_choice() const
+			-> std::optional<application::agent_draft_choice>
+		{
+			const auto draft = current_agent_draft_observation();
+			if (
+				!draft.has_value()
+				|| draft->Draft.State != core::review_draft_state::drafting) {
+				return std::nullopt;
+			}
+			return draft->Choice;
+		}
+
+		/// \brief The reviewer's own prose, as the core admission takes it.
+		///
+		/// \details Read at call time and never held. This is the *material*
+		/// the core decides about; whether any of it crosses is
+		/// `core::admit_private_context`'s answer, keyed by session.
+		[[nodiscard]] auto current_chat_private_prose() const
+			-> application::agent_chat_private_prose
+		{
+			auto prose = application::agent_chat_private_prose{ };
+			if (ReviewLedgerHost != nullptr) {
+				if (const auto observed = ReviewLedgerHost->private_observation();
+					observed.has_value()) {
+					prose.Notes.reserve(observed->Notes.size());
+					for (const auto& note : observed->Notes) {
+						prose.Notes.push_back(note.Note);
+					}
+				}
+			}
+			if (const auto draft = current_agent_draft_observation();
+				draft.has_value()
+				&& draft->Draft.State == core::review_draft_state::drafting) {
+				prose.Drafts.push_back(
+					core::supplement_draft{ .Text = draft->Draft.Body });
+			}
+			return prose;
+		}
+
+		/// \brief Shows the chat the composed host is holding, and nothing else.
+		///
+		/// \details Every revision-bearing field comes from the host's own
+		/// projection, which carries the *session's* binding. The composition
+		/// adds only the four fields the core has no opinion about — provider
+		/// name, Git host, workspace, and chips — so there is still no path by
+		/// which the head now under review reaches this widget.
+		void present_side_chat(const application::agent_chat_projection& aChat)
+		{
+			if (SideChat == nullptr || !AgentReview.has_value()) {
+				return;
+			}
+			++SideChatPresentations;
+			SideChat->present(qt::side_chat_projection{
+				.Session        = aChat.Session,
+				.Continuations  = aChat.Continuations,
+				.Chat           = aChat.Chat,
+				.PrivateContext = aChat.PrivateContext,
+				.EntryPoint     = aChat.EntryPoint,
+				.Provider       = agent_provider_name(aChat.Session.Profile),
+				.GitHost        = AgentReview->Hostname,
+				.Workspace      = AgentWorkspaceRoot != nullptr ? AgentWorkspaceRoot->path().toStdString() : std::string{ },
+			});
+		}
+
+		/// \brief Shows the chat when its host was cut out of the composition.
+		///
+		/// \details The panel stays on screen and stays truthful: it is handed
+		/// the session it would have, presented as current, so the send gesture
+		/// is still reachable and still observable. What is gone is the turn —
+		/// `dispatch_side_chat_intent` refuses it by name — which is exactly
+		/// what a construction cut is supposed to leave behind.
 		void present_side_chat(const core::agent_revision_binding& aBinding)
 		{
 			if (SideChat == nullptr || !AgentReview.has_value()) {
 				return;
 			}
-			auto session = core::agent_session{
+			const auto session = core::agent_session{
 				.Id      = core::agent_session_id{ 1U },
 				.Profile = core::codex_jsonl_profile_id,
 				.Binding = aBinding,
 			};
-			if (ReviewLedgerHost != nullptr) {
-				if (const auto catalog = ReviewLedgerHost->session_catalog();
-					catalog.has_value() && catalog->Latest.has_value()) {
-					session = *catalog->Latest;
-				}
-			}
-			auto       provider = std::string{ };
-			const auto profiles = core::built_in_agent_profiles();
-			for (const auto& profile : profiles) {
-				if (profile.Id == session.Profile) {
-					provider = profile.DisplayName;
-				}
-			}
-			++SideChatPresentations;
-			SideChat->present(qt::side_chat_projection{
+			present_side_chat(application::agent_chat_projection{
 				.Session       = session,
 				.Continuations = core::offer_agent_continuations(session, aBinding),
 				.Chat          = core::agent_chat_state{
@@ -5097,10 +5471,19 @@ namespace bpr::app {
 					.Session = session.Id,
 				},
 				.EntryPoint = core::agent_entry_point::ask_about_selection,
-				.Provider   = std::move(provider),
-				.GitHost    = AgentReview->Hostname,
-				.Workspace  = AgentWorkspaceRoot != nullptr ? AgentWorkspaceRoot->path().toStdString() : std::string{ },
 			});
+		}
+
+		[[nodiscard]] static auto agent_provider_name(
+			const core::agent_profile_id aProfile) -> std::string
+		{
+			const auto profiles = core::built_in_agent_profiles();
+			for (const auto& profile : profiles) {
+				if (profile.Id == aProfile) {
+					return profile.DisplayName;
+				}
+			}
+			return { };
 		}
 
 		void publish(
@@ -6038,6 +6421,7 @@ namespace bpr::app {
 		bool                                 DisableAgentHostComposition            = false;
 		bool                                 DisableAgentGestureWire                = false;
 		bool                                 DisableAgentFindingHostComposition     = false;
+		bool                                 DisableChatSessionHostComposition      = false;
 		bool                                 DisableCommentWorkshopComposition      = false;
 		bool                                 DisableMcpHelperComposition            = false;
 		bool                                 DisableSideChatPanelComposition        = false;
@@ -6128,6 +6512,8 @@ namespace bpr::app {
 		qt::finding_queue_view*                                         FindingQueue = nullptr;
 		std::unique_ptr<composition_agent_finding_projection>           FindingProjections;
 		std::unique_ptr<application::agent_finding_host>                FindingHost;
+		std::unique_ptr<composition_agent_chat_projection>              ChatProjections;
+		std::unique_ptr<application::agent_chat_session_host>           ChatHost;
 		std::unique_ptr<composition_comment_workshop_projection>        WorkshopProjections;
 		std::unique_ptr<application::agent_comment_workshop_host>       WorkshopHost;
 		std::unique_ptr<adapters::agent::agent_process_launcher>        McpProcess;
@@ -6137,6 +6523,8 @@ namespace bpr::app {
 		std::size_t                                                     FindingRefusalsPresented = 0U;
 		std::size_t                                                     SideChatIntents          = 0U;
 		std::size_t                                                     SideChatPresentations    = 0U;
+		std::size_t                                                     SideChatTurns            = 0U;
+		std::size_t                                                     SideChatRefusals         = 0U;
 		std::size_t                                                     FrozenSnapshotWrites     = 0U;
 		std::unique_ptr<composition_diff_projection>                    DiffProjections;
 		std::unique_ptr<application::diff_application_host>             DiffHost;
@@ -11637,6 +12025,94 @@ namespace bpr::app {
 			return application::mcp_helper_refusal::no_helper;
 		}
 		return implementation->McpHelper->start(std::move(aRequest));
+	}
+
+	auto detail::github_application_fixture_access::agent_chat_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::agent_chat_composition_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return { };
+		}
+		auto evidence = detail::agent_chat_composition_evidence{
+			.ChatHostComposed      = implementation->ChatHost != nullptr,
+			.SideChatPanelComposed = implementation->SideChat != nullptr,
+			.Intents               = implementation->SideChatIntents,
+			.Presentations         = implementation->SideChatPresentations,
+			.Turns                 = implementation->SideChatTurns,
+			.RefusalsPresented     = implementation->SideChatRefusals,
+			.Statistics            = implementation->ChatHost != nullptr
+				? implementation->ChatHost->statistics()
+				: application::agent_chat_session_statistics{ },
+		};
+		if (implementation->ChatHost != nullptr) {
+			evidence.Session    = implementation->ChatHost->session();
+			evidence.Observed   = implementation->ChatHost->observed();
+			evidence.Projection = implementation->ChatHost->projection();
+		}
+		if (implementation->SideChat != nullptr) {
+			evidence.SendEnabled
+				= implementation->SideChat->send_action() != nullptr
+					&& implementation->SideChat->send_action()->isEnabled()
+				? "enabled"
+				: "disabled";
+			evidence.SessionStateText
+				= implementation->SideChat->session_state_text().toStdString();
+			evidence.HeadOidText
+				= implementation->SideChat->head_oid_text().toStdString();
+		}
+		if (implementation->Window != nullptr) {
+			if (auto* const panel = implementation->Window->agent_panel();
+				panel != nullptr) {
+				evidence.AgentPanelStatusText
+					= panel->status_text().toStdString();
+			}
+		}
+		return evidence;
+	}
+
+	auto detail::github_application_fixture_access::dispatch_side_chat_send(
+		github_application& aApplication, std::string aText) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (
+			implementation == nullptr || implementation->SideChat == nullptr
+			|| implementation->ChatHost == nullptr) {
+			return false;
+		}
+		const auto shown = implementation->ChatHost->projection();
+		if (!shown.has_value()) {
+			return false;
+		}
+		implementation->dispatch_side_chat_intent(qt::send_chat_message_intent{
+			.Session = shown->Session.Id,
+			.Action  = core::agent_action_intent{ shown->EntryPoint },
+			.Scope   = shown->Chat.Scope,
+			.Text    = std::move(aText),
+		});
+		return true;
+	}
+
+	auto detail::github_application_fixture_access::
+		dispatch_side_chat_private_context(
+			github_application&          aApplication,
+			const core::agent_session_id aSession,
+			const bool                   aNotes,
+			const bool                   aDrafts) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->ChatHost == nullptr) {
+			return false;
+		}
+		implementation->dispatch_side_chat_intent(qt::chat_private_context_intent{
+			.OptIn = {
+				.Session = aSession,
+				.Notes   = aNotes,
+				.Drafts  = aDrafts,
+			},
+		});
+		return true;
 	}
 
 	auto detail::github_application_fixture_access::agent_finding_evidence(

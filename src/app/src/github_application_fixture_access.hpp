@@ -6,6 +6,7 @@
 #endif
 
 #include "bpr/app/github_application.hpp"
+#include "bpr/application/agent_chat_session_host.hpp"
 #include "bpr/application/agent_comment_workshop_host.hpp"
 #include "bpr/application/agent_finding_host.hpp"
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
@@ -69,6 +70,7 @@ namespace bpr::app::detail {
 		// removing exactly one construction and nothing else, so a course can
 		// show that the gesture still fires and its effect is gone.
 		bool                                 DisableAgentFindingHostComposition = false;
+		bool                                 DisableChatSessionHostComposition  = false;
 		bool                                 DisableCommentWorkshopComposition  = false;
 		bool                                 DisableMcpHelperComposition        = false;
 		bool                                 DisableSideChatPanelComposition    = false;
@@ -298,6 +300,25 @@ namespace bpr::app::detail {
 
 	/// \brief Raw accepted authorities used to falsify the emitted agent context.
 	/// \brief What the RFC-BPR-0012 composition actually did, as values.
+	/// \brief What the RFC-BPR-0012 side-chat session composition did.
+	struct agent_chat_composition_evidence
+	{
+		bool                                              ChatHostComposed      = false;
+		bool                                              SideChatPanelComposed = false;
+		std::size_t                                       Intents               = 0U;
+		std::size_t                                       Presentations         = 0U;
+		std::size_t                                       Turns                 = 0U;
+		std::size_t                                       RefusalsPresented     = 0U;
+		application::agent_chat_session_statistics        Statistics;
+		std::optional<core::agent_session>                Session;
+		std::optional<core::agent_revision_binding>       Observed;
+		std::optional<application::agent_chat_projection> Projection;
+		std::string                                       SendEnabled;
+		std::string                                       SessionStateText;
+		std::string                                       HeadOidText;
+		std::string                                       AgentPanelStatusText;
+	};
+
 	struct agent_finding_composition_evidence
 	{
 		bool                                           FindingHostComposed     = false;
@@ -599,6 +620,23 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto agent_finding_evidence(
 			const github_application& aApplication) noexcept
 			-> agent_finding_composition_evidence;
+		[[nodiscard]] static auto agent_chat_evidence(
+			const github_application& aApplication) noexcept
+			-> agent_chat_composition_evidence;
+		/// \brief Hands one side-chat intent to the composed dispatch.
+		///
+		/// \details The same edge the panel's own dispatch callback uses, and
+		/// the only way to put a value the panel's enablement rules will not
+		/// let a reviewer emit — a send against a stale session — to the host
+		/// that must refuse it. It composes nothing and decides nothing.
+		[[nodiscard]] static auto dispatch_side_chat_send(
+			github_application& aApplication, std::string aText) -> bool;
+		/// \brief Hands one private-context opt-in to the composed dispatch.
+		[[nodiscard]] static auto dispatch_side_chat_private_context(
+			github_application&    aApplication,
+			core::agent_session_id aSession,
+			bool                   aNotes,
+			bool                   aDrafts) -> bool;
 		/// \brief The composed finding queue, or nothing when it was cut.
 		[[nodiscard]] static auto finding_queue(
 			const github_application& aApplication) noexcept
