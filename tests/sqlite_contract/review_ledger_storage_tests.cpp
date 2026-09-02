@@ -533,6 +533,30 @@ namespace {
 	// The prohibition is checked against the schema the build creates, not
 	// against the insert statements someone remembered to read. A presentation
 	// coordinate added later fails here even if nothing ever writes to it.
+	// A path that exists but cannot be read as a file is an obstruction the
+	// store reports, not an exception it lets escape. The end-to-end
+	// composition contract forces exactly this shape by leaving a directory
+	// where the ledger belongs, and the preflight read is where it lands: the
+	// open succeeds on POSIX and the first read is what fails. libstdc++
+	// raises that failure out of `basic_filebuf::underflow` whatever the
+	// stream's exception mask says, so the throw crossed this
+	// `std::expected` boundary and unwound the composition above it
+	// (BPR-0472).
+	void test_a_directory_in_the_ledgers_place_is_a_typed_refusal()
+	{
+		const scratch_directory directory;
+		const auto              path = directory.file("l.db");
+		std::filesystem::create_directory(path);
+
+		const auto refused = review_ledger_database::open(path, { });
+		expect(
+			!refused && refused.error() == catalog_database_failure::unavailable,
+			"a directory left in the ledger's place is refused as unavailable");
+		expect(
+			std::filesystem::is_directory(path),
+			"the refusal leaves the obstruction exactly as it found it");
+	}
+
 	void test_the_schema_stores_no_presentation_coordinate()
 	{
 		const scratch_directory directory;
@@ -2433,6 +2457,7 @@ namespace {
 
 auto main() -> int
 {
+	test_a_directory_in_the_ledgers_place_is_a_typed_refusal();
 	test_the_schema_stores_no_presentation_coordinate();
 	test_receipts_do_not_leak_across_identity();
 	test_a_version_one_database_migrates_forward();

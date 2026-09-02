@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <fstream>
+#include <ios>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -572,21 +573,48 @@ namespace bpr::adapters::sqlite::detail {
 			-> std::expected<preflight_file_image, failure>
 		{
 			auto       error  = std::error_code{ };
-			const auto exists = std::filesystem::exists(aPath, error);
+			const auto status = std::filesystem::status(aPath, error);
+			// `status` reports a missing path as `not_found` and, unlike
+			// `exists`, leaves the error code set; a ledger that does not exist
+			// yet is the ordinary first open, not an obstruction.
+			if (status.type() == std::filesystem::file_type::not_found) {
+				return preflight_file_image{ };
+			}
 			if (error) {
 				return std::unexpected(failure::unavailable);
 			}
-			if (!exists) {
-				return preflight_file_image{ };
+			// A path that exists but is not a file -- a directory left in the
+			// ledger's place is the shape the composition contract forces -- is
+			// refused before anything reads it. Opening a directory as a
+			// stream succeeds on POSIX and the failure only arrives at the
+			// first read, where the two standard libraries disagree: libc++
+			// hands back an empty image that the schema preflight then
+			// misreports as a version mismatch, and libstdc++ throws
+			// `std::ios_base::failure` out of `basic_filebuf::underflow`
+			// whatever the stream's exception mask says (BPR-0472). Deciding
+			// on the file type first gives every platform the same typed
+			// refusal.
+			if (!std::filesystem::is_regular_file(status)) {
+				return std::unexpected(failure::unavailable);
 			}
 			auto input = std::ifstream{ aPath, std::ios::binary };
 			if (!input) {
 				return std::unexpected(failure::unavailable);
 			}
-			auto bytes = std::string{
-				std::istreambuf_iterator<char>{ input },
-				std::istreambuf_iterator<char>{ },
-			};
+			// The read itself is contained as well. This function owes its
+			// caller a typed failure whatever goes wrong underneath, and an
+			// exception escaping an `std::expected` boundary is not one: it
+			// unwinds through the whole composition above it, which is how the
+			// directory case hung the WSL2 epoch handoff before the check above
+			// existed.
+			auto bytes = std::string{ };
+			try {
+				bytes.assign(
+					std::istreambuf_iterator<char>{ input },
+					std::istreambuf_iterator<char>{ });
+			} catch (const std::ios_base::failure&) {
+				return std::unexpected(failure::unavailable);
+			}
 			if (input.bad()) {
 				return std::unexpected(failure::unavailable);
 			}
