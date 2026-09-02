@@ -1,7 +1,7 @@
 ---
 id: BPR-0498
 title: "Core: finding promotion into a local draft or defect, never a publication"
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0012
 depends_on: [BPR-0497]
 ---
