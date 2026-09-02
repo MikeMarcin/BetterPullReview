@@ -1,7 +1,7 @@
 ---
 id: BPR-0522
 title: The MCP helper's test builds a command cmd.exe mangles, so the helper never starts on Windows
-status: Ready
+status: Done
 rfc: RFC-BPR-0012
 depends_on: [BPR-0501]
 ---
@@ -39,7 +39,7 @@ The wrap, under `_WIN32`, in `tests/application/mcp_context_helper_tests.cpp`.
 | Claim | Command | Result | Commit |
 |---|---|---|---|
 | The suite is unchanged on macOS | `ctest --preset dev -R '^application_mcp_context_helper$' --output-on-failure` | Passed 0.28 s | this commit |
-| The helper's test passes under MSVC | `bpr-win`'s `ctest --test-dir build/windows-dev -C Debug -R '^application_mcp_context_helper$'` from a checkout of this commit | **Still failing** — the quoting repair works; a second, independent defect sits behind it, recorded below | Pending |
+| The helper's test passes under MSVC | `bpr-win`'s `ctest --test-dir build/windows-dev -C Debug -R '^application_mcp_context_helper$'` from a checkout of this commit | **Passed 0.28 s**, label `bpr_windows_uncontained` — recorded below | `497c3973` |
 
 ## Target-native result — 2026-09-02, station `bpr-win` at `3c62036c`
 
@@ -217,3 +217,32 @@ passes; they stand in order above.
 | Claim | Command | Result | Commit |
 |---|---|---|---|
 | The suite passes under MSVC outside the AppContainer | `bpr-win`'s `ctest --test-dir build/windows-dev -C Debug -R '^application_mcp_context_helper$'` from a checkout of this commit | **Pending** — target-native, the closing row | Pending |
+
+## Closed — 2026-09-02, station `bpr-win` at `497c3973`
+
+```text
+1/1 Test #100: application_mcp_context_helper ...   Passed    0.28 sec
+100% tests passed out of 1
+Label Time Summary:
+bpr_windows_uncontained    =   0.28 sec*proc (1 test)
+```
+
+The label reads `bpr_windows_uncontained` rather than `bpr_network_isolated`,
+which is the exemption doing its job. Build clean beforehand: `cmake --preset
+windows-dev` exit 0 and `cmake --build --preset windows-dev --config Debug`
+exit 0, 137 projects, zero errors, zero warnings.
+
+All three causes are cleared and the card is terminal. They are listed here in
+the order they were found because each was invisible until the one before it
+was fixed, and a later reader seeing only the last would misjudge the first
+two as unnecessary:
+
+| # | Cause | Symptom it produced | Fixed by |
+|---|---|---|---|
+| 1 | `_popen` hands the whole string to `cmd /c`, which strips the outer quote pair from a command that begins with one | `Access is denied.` / `The filename, directory name, or volume label syntax is incorrect.`; the helper never started, so stderr was empty and the first assertion that read it failed | this card's wrap |
+| 2 | The helper writes `'\n'` through a text-mode stream, so the redirected file holds CRLF; the test reads it binary and splits on LF | every parsed name carried a trailing carriage return, so `retained == allowlist` compared two names against two different names | [[BPR-0522]]'s strip |
+| 3 | A lowbox token refuses the drive-letter translation `weakly_canonical` needs | the three refusal-table rows that reach the filesystem answered `snapshot_unavailable` where `path_outside_snapshot` was expected; the other rows passed because they refuse on scheme or authority first | `WINDOWS_UNCONTAINED` |
+
+Only the third was a property of the platform. The first two were the test's
+own portability, and neither would have been found without the other being
+fixed first.

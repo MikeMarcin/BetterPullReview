@@ -117,3 +117,70 @@ reporting `RFC0016_COURSE_SELECTORS:17`.
 |---|---|---|---|
 | The course contract with an empty live table and synthetic exclusion cases | `python3 tests/scripts/rfc0016_platform_course_tests.py` | 16/16 | this commit |
 | The Windows course audits all seventeen | `bpr-win`'s ledger command from a checkout of this commit | **Pending** — target-native, the closing row | Pending |
+
+## The final course is blocked by a second stale table — 2026-09-02, at `497c3973`
+
+All seventeen enumerated names now register on Windows, which is this card's
+substance:
+
+```text
+ctest --test-dir build/windows-dev -C Debug -N -R "<COURSE_SELECTOR_PATTERN>"
+Total Tests: 17
+```
+
+with `native_https_device_authorization_fixture` (Test #159) and
+`github_device_authorization_refresh_contract` (Test #160) among them. The
+exclusion table is pruned to empty, so the course would no longer refuse for
+`course-exclusion-stale`.
+
+It refuses for a different reason. The exact ledger command, from a build root
+deleted whole, ran for thirteen minutes and stopped at step two:
+
+```text
+rfc0016-platform-course:fail:inventory-failed:rfc0016-test-inventory:fail:github_device_authorization_refresh_contract: expected 0 registration(s), found 1 (this platform has no APPLE/Linux wire block)
+rfc0016-test-inventory:fail:native_https_device_authorization_fixture: expected 0 registration(s), found 1 (this platform has no APPLE/Linux wire block)
+```
+
+`scripts/verify_rfc0016_test_inventory.py` carries its own per-platform
+expectation, and it encodes the omission this card removed:
+
+```python
+WIRE_BLOCK_SELECTORS = frozenset({
+    "github_device_authorization_refresh_contract",
+    "native_https_device_authorization_fixture",
+})
+...
+wire_block = sys.platform in {"darwin", "linux"}          # line 260
+expected = declared if anchored and wire_block else 0     # line 264
+```
+
+Its comment states the assumption plainly — "BPR-0446 registered the anchor
+fixture on Windows without the APPLE/Linux wire block that carries these two,
+so the anchor no longer implies them" — and that sentence stopped being true
+when this card registered them. The gate is working exactly as designed: it
+refuses an *extra* registration as firmly as a missing one, and by its own
+lights this station added two.
+
+So there were two tables recording the same omission, in two scripts, and
+pruning one left the other. That is the same shape [[BPR-0524]] was written
+about — a count that is not explained by the thing that produces it — and it
+is worth noting that the second table was found only by running the course
+rather than by reading, because nothing links the two.
+
+`scripts/**` is the integrator's, so this station stopped rather than editing
+it. The change appears to be one line, `wire_block`, which no longer
+distinguishes platforms now that all three register the block; whether the
+concept should survive at all is the integrator's call, since `anchored`
+already carries the graph condition.
+
+| Row | State |
+|---|---|
+| Both registered in the Windows block with POSIX arguments | Done |
+| Both pass on the Windows station | Done — 10.19 s and 3.74 s |
+| `WINDOWS_UNCONTAINED` only where measurement justifies it | Done — measured contained first |
+| All seventeen names register on Windows | Done — `Total Tests: 17` above |
+| The Windows entries leave `PLATFORM_SELECTOR_EXCLUSIONS` | Done by the integrator at `497c3973` |
+| The course reports `RFC0016_COURSE_SELECTORS:17` | **Blocked** on the inventory expectation above |
+
+The card stays in `21-ready-win/`: everything it owns is done and measured,
+and its closing row waits on a script this station may not edit.
