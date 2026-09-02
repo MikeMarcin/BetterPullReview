@@ -99,6 +99,15 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_device_authorization_public_path": "dos-volume-name",
     "application_device_authorization_unavailable": "dos-volume-name",
     "application_device_authorization_registered_course": "dos-volume-name",
+    "application_device_authorization_browser_handoff": "dos-volume-name",
+    "application_device_authorization_browser_absent": "dos-volume-name",
+    "application_device_authorization_panel_course": "dos-volume-name",
+    "application_device_authorization_panel_absent": "dos-volume-name",
+    "application_mcp_context_helper": "dos-volume-name",
+    "rfc0017_test_inventory": "dos-volume-name",
+    "rfc0017_release_absence_negative_control": "dos-volume-name",
+    "rfc0016_test_inventory": "dos-volume-name",
+    "github_device_authorization_refresh_contract": "dos-volume-name",
     "application_device_authorization_release_contract": "dos-volume-name",
     "application_epoch_maintenance_public_path": "dos-volume-name",
     "application_appearance_gesture_contract": "dos-volume-name",
@@ -169,6 +178,10 @@ MACOS_LOOPBACK_AUTHORITIES = {
     "native_https_transport_fixture": 2,
     "native_git_smart_transport_fixture": 1,
     "rfc0017_credential_free_native_https": 2,
+    # BPR-0301. The anonymous-read wire suite runs the same
+    # verify_native_https_transport.py course as the fixture above: one
+    # loopback CONNECT proxy and one loopback TLS origin, nothing outbound.
+    "native_https_anonymous_read_fixture": 2,
     # BPR-0452. Both drive verify_native_https_device_authorization.py, which
     # binds one listener at 127.0.0.1, refuses a non-loopback peer, and issues
     # no outbound request; its only github.com string is a verification_uri

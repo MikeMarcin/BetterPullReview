@@ -119,6 +119,19 @@ namespace {
 		};
 	}
 
+	[[nodiscard]] auto github_com_profile_candidate()
+		-> github_host_profile_candidate
+	{
+		auto candidate = profile_candidate(
+			application::github_authentication_transport::native_https);
+		candidate.Server = application::github_server_contract::
+			github_com_2022_11_28;
+		candidate.Hostname    = "github.com";
+		candidate.RestRoot    = "https://api.github.com";
+		candidate.GraphqlRoot = "https://api.github.com/graphql";
+		return candidate;
+	}
+
 	[[nodiscard]] auto session_context(
 		const validated_github_host_profile& aProfile)
 		-> core::github_session_request_context
@@ -246,6 +259,53 @@ namespace {
 				.ServerContract = aProfile.server_contract(),
 			},
 			.IdentityGeneration = aRequest.IdentityGeneration,
+		};
+	}
+
+	/// \brief Derives the session an anonymous read correlates against.
+	///
+	/// \details An anonymous binding compares the parent's application session
+	/// and identity generation, never its account, so the session it is handed
+	/// has to be the one the pull-request parent carries rather than the
+	/// unrelated one the bootstrap courses use.
+	[[nodiscard]] auto anonymous_session_context(
+		const validated_github_host_profile& aProfile)
+		-> core::github_session_request_context
+	{
+		const auto parent = pull_request_context(aProfile);
+		return {
+			.Request            = parent.Request,
+			.ApplicationSession = parent.ApplicationSession,
+			.Profile            = parent.Profile,
+			.IdentityGeneration = parent.IdentityGeneration,
+		};
+	}
+
+	/// \brief Builds a GitHub.com read the anonymous authority may admit.
+	///
+	/// \details The anonymous courses need a different authority from the rest
+	/// of this file: the anonymous factory admits only `github.com`, so the
+	/// semantic, the correlation, and the fixture host all move together.
+	[[nodiscard]] auto anonymous_wire_request_for(
+		const validated_github_host_profile& aProfile,
+		const read_operation                 aOperation) -> github_wire_request
+	{
+		auto semantic   = semantic_request(aOperation);
+		semantic.Server = server_contract::github_com;
+		const auto wire = compile_read_request(semantic);
+		expect(wire.has_value(), "anonymous-canonical-wire-request");
+		return {
+			.Correlation = github_wire_correlation{
+				.Parent          = aOperation == read_operation::get_viewer_identity
+					? github_wire_parent_context{ session_context(aProfile) }
+					: github_wire_parent_context{
+						  pull_request_context(aProfile) },
+				.ProfileRevision = aProfile.revision(),
+				.Host            = aProfile.host(),
+				.Operation       = aOperation,
+				.Page            = 1U,
+			},
+			.Wire = *wire,
 		};
 	}
 
@@ -861,6 +921,8 @@ namespace {
 		capability_403_rate,
 		capability_429,
 		credential_free,
+		anonymous_read,
+		anonymous_read_canary,
 	};
 
 	[[nodiscard]] auto parse_scenario(const std::string_view aValue)
@@ -871,6 +933,12 @@ namespace {
 		}
 		if (aValue == "credential-free") {
 			return fixture_scenario::credential_free;
+		}
+		if (aValue == "anonymous-read") {
+			return fixture_scenario::anonymous_read;
+		}
+		if (aValue == "anonymous-read-canary") {
+			return fixture_scenario::anonymous_read_canary;
 		}
 		if (aValue == "mutation-witness") {
 			return fixture_scenario::mutation_witness;
@@ -985,6 +1053,10 @@ namespace {
 			return "success";
 		case fixture_scenario::credential_free:
 			return "credential-free";
+		case fixture_scenario::anonymous_read:
+			return "anonymous-read";
+		case fixture_scenario::anonymous_read_canary:
+			return "anonymous-read-canary";
 		case fixture_scenario::mutation_witness:
 			return "mutation-witness";
 		case fixture_scenario::mutation_witness_failure:
@@ -1336,6 +1408,11 @@ namespace {
 		switch (aScenario) {
 		case fixture_scenario::success:
 		case fixture_scenario::credential_free:
+		// The anonymous courses assert their own completions before reaching
+		// here, so listing them keeps the switch exhaustive without claiming a
+		// shared expectation they do not use.
+		case fixture_scenario::anonymous_read:
+		case fixture_scenario::anonymous_read_canary:
 		case fixture_scenario::mutation_witness:
 		case fixture_scenario::mutation_witness_failure:
 		case fixture_scenario::mutation_proxy_no_fallback:
@@ -1500,7 +1577,8 @@ namespace {
 		// empty credential frame. That is the point: this process never holds
 		// credential material, so there is nothing to discover, look up, or fall
 		// back to. Every other course still requires one.
-		if (aScenario == fixture_scenario::credential_free) {
+		if (aScenario == fixture_scenario::credential_free
+			|| aScenario == fixture_scenario::anonymous_read) {
 			expect(framedCredential.empty(), "credential-free-material-present");
 		} else {
 			expect(!framedCredential.empty(), "fixture-credential-empty");
@@ -1524,6 +1602,66 @@ namespace {
 				: native_https_maximum_response_body_bytes,
 		};
 
+		if (aScenario == fixture_scenario::anonymous_read
+			|| aScenario == fixture_scenario::anonymous_read_canary) {
+			const auto anonymousProfile = validate_github_host_profile(
+				github_com_profile_candidate());
+			expect(anonymousProfile.has_value(), "anonymous-profile");
+			const auto request = anonymous_wire_request_for(
+				*anonymousProfile, read_operation::get_repository);
+			if (aScenario == fixture_scenario::anonymous_read) {
+				// This process is handed no credential at all, so there is
+				// nothing here to look up, discover, or fall back to. The
+				// fixture treats any authorization header as a violation, and
+				// the canary course below proves it would have seen one.
+				expect(framedCredential.empty(),
+					   "anonymous-read-material-present");
+				auto transport = make_native_https_anonymous_read_transport_for_test(
+					*anonymousProfile,
+					anonymous_session_context(*anonymousProfile),
+					configuration);
+				expect(transport.has_value(), "anonymous-read-transport");
+				const auto  completion = (*transport)->perform(request, std::stop_token{ });
+				const auto* success    = std::get_if<github_wire_success>(&completion);
+				expect(success != nullptr
+						   && success->Correlation == request.Correlation
+						   && success->Response.Status == 200,
+					   "anonymous-read-success");
+				// The two refused operations. Each returns before a request is
+				// built, and the fixture's exact request count is what proves
+				// neither one reached the wire.
+				for (const auto refusedOperation :
+					 { read_operation::list_review_threads,
+					   read_operation::get_viewer_identity }) {
+					const auto refused = anonymous_wire_request_for(
+						*anonymousProfile, refusedOperation);
+					expect_unavailable(
+						(*transport)->perform(refused, std::stop_token{ }),
+						refused.Correlation,
+						"anonymous-read-refusal");
+				}
+				return;
+			}
+			expect(!framedCredential.empty(), "anonymous-canary-credential-empty");
+			const auto parent = std::get<core::pull_request_request_context>(
+				request.Correlation.Parent);
+			auto transport = make_native_https_account_transport_for_test(
+				*anonymousProfile,
+				application::github_credential_retrieve_success{
+					.Context    = account_operation_context(*anonymousProfile, parent),
+					.Credential = credential_material(framedCredential),
+				},
+				configuration);
+			wipe(framedCredential);
+			expect(transport.has_value(), "anonymous-canary-transport");
+			const auto  completion = (*transport)->perform(request, std::stop_token{ });
+			const auto* success    = std::get_if<github_wire_success>(&completion);
+			expect(success != nullptr
+					   && success->Correlation == request.Correlation
+					   && success->Response.Status == 200,
+				   "anonymous-canary-success");
+			return;
+		}
 		if (aScenario == fixture_scenario::credential_free) {
 			const auto request = wire_request_for(
 				*profile, read_operation::get_viewer_identity);

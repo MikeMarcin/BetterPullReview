@@ -100,6 +100,13 @@ head movement the panel says stale in the core's own words, offers exactly those
 two, starts neither, and disables Send until the reviewer answers (BPR-0499,
 `core_agent_session`; BPR-0502, `qt_side_chat_panel`).
 
+Continuing against the old revision runs the turn on that revision's files
+and binding, but its findings arrive unanchored: the comparison the old
+revision was reviewed under is not kept once the head moves, and
+BetterPullReview does not place old findings against the new comparison.
+That is the product behaviour by the owner's decision (BPR-0521); a fresh
+session at the new head anchors as usual.
+
 ### What surface the workshop actually uses
 
 Plain text, on two `QPlainTextEdit` surfaces shown at once: the reviewer's

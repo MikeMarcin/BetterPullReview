@@ -3,7 +3,7 @@ id: BPR-0317
 title: Implement anonymous Git cache epoch and diff authority
 status: Backlog
 rfc: RFC-BPR-0017
-depends_on: [BPR-0301, BPR-0303]
+depends_on: [BPR-0301, BPR-0303, BPR-0531]
 ---
 
 # Implement anonymous Git cache epoch and diff authority

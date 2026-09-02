@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_PAGED_READ_HPP
 #define BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_PAGED_READ_HPP
 
+#include "github_anonymous_read_admission.hpp"
 #include "github_host_profile.hpp"
 #include "github_wire_transport.hpp"
 
@@ -80,7 +81,9 @@ namespace bpr::adapters::github::detail {
 		const application::github_pull_request_provider_request& aRequest,
 		core::provider_snapshot_id                               aSnapshot,
 		std::stop_token                                          aStop,
-		const github_paged_read_limits&                          aLimits = { }) noexcept
+		const github_paged_read_limits&                          aLimits = { },
+		github_provider_read_authority                           aReadAuthority
+		= github_provider_read_authority::authenticated) noexcept
 		-> github_paged_read_result;
 }
 

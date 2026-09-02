@@ -2074,7 +2074,8 @@ namespace bpr::adapters::github::detail {
 			const validated_github_host_profile&                     aProfile,
 			const application::github_pull_request_provider_request& aRequest,
 			const core::provider_snapshot_id                         aSnapshot,
-			const github_paged_read_limits&                          aLimits) noexcept -> bool
+			const github_paged_read_limits&                          aLimits,
+			const github_provider_read_authority                     aReadAuthority) noexcept -> bool
 		{
 			const auto& context     = aRequest.Context;
 			const auto& authority   = aRequest.ProfileAuthority;
@@ -2088,7 +2089,13 @@ namespace bpr::adapters::github::detail {
 			return limits_valid(aLimits) && aSnapshot.value() != 0U
 				&& application::detail::valid_context(context)
 				&& application::valid(authority) && aRequest.Attempt.valid()
-				&& aRequest.AccountTransport != nullptr
+				// An anonymous read holds no account, so it holds no account
+				// transport lease to present. Every other term below still
+				// applies to it; only the lease is authority-specific, and the
+				// authenticated authority keeps requiring it.
+				&& (aReadAuthority
+						== github_provider_read_authority::anonymous_public
+					|| aRequest.AccountTransport != nullptr)
 				&& aRequest.Viewer.Account.value() != 0U
 				&& aRequest.Viewer.Account == context.Account
 				&& bounded_text(aRequest.Viewer.Node.value(),
@@ -3393,11 +3400,13 @@ namespace bpr::adapters::github::detail {
 		const application::github_pull_request_provider_request& aRequest,
 		const core::provider_snapshot_id                         aSnapshotId,
 		const std::stop_token                                    aStop,
-		const github_paged_read_limits&                          aLimits) noexcept -> github_paged_read_result
+		const github_paged_read_limits&                          aLimits,
+		const github_provider_read_authority                     aReadAuthority) noexcept -> github_paged_read_result
 	{
 		auto observedRateLimits = application::github_rate_limit_state{ };
 		try {
-			if (!provider_request_valid(aProfile, aRequest, aSnapshotId, aLimits)) {
+			if (!provider_request_valid(
+					aProfile, aRequest, aSnapshotId, aLimits, aReadAuthority)) {
 				return failed(
 					application::github_provider_failure::malformed_response);
 			}
