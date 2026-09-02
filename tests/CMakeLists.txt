@@ -440,6 +440,15 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_production_course_tests.py"
 )
 
+# BPR-0511. The platform course launches the shipped artifact outside CTest,
+# so it must carry the Qt runtime directory the registered tests declare.
+bpr_add_network_isolated_test(
+    NAME rfc0016_platform_course_launch_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_platform_course_tests.py"
+)
+
 bpr_add_network_isolated_test(
     NAME test_network_isolation_structure_contract
     WINDOWS_UNCONTAINED

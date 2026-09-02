@@ -377,7 +377,104 @@ def check_release_artifact(binary: pathlib.Path) -> None:
     )
 
 
-def check_runtime_and_dependencies(binary: pathlib.Path) -> None:
+def ctest_inventory(
+    build_dir: pathlib.Path,
+    configuration: str | None = None,
+) -> dict:
+    """CTest's own JSON inventory of the configured tree, properties included."""
+    command = ["ctest", "--test-dir", str(build_dir)]
+    if configuration is not None:
+        command += ["-C", configuration]
+    command.append("--show-only=json-v1")
+    result = run(command, cwd=REPOSITORY_ROOT, timeout=600)
+    require(
+        result.returncode == 0,
+        f"launch-environment-inventory-unavailable:{result.stderr.strip()[:400]}",
+    )
+    try:
+        document = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        require(False, "launch-environment-inventory-malformed")
+    require(isinstance(document, dict), "launch-environment-inventory-shape")
+    return document
+
+
+def environment_from_inventory(
+    document: dict,
+    base: dict[str, str],
+    platform_name: str,
+) -> dict[str, str]:
+    """The environment the shipped artifact is launched in.
+
+    The registered tests already know how to run a Qt-linked executable on
+    this host: `cmake/BprTestIsolation.cmake` prepends the directory of
+    Qt6::Core's DLL to PATH and names a font directory for every test on
+    Windows, because nothing deploys Qt beside the executables and a Windows
+    loader finds a shared Qt only on PATH (BPR-0430, BPR-0412). The course
+    launches the shipped artifact outside CTest — the runtime-surface check
+    and the device-selection probe — so those two steps used to run with the
+    ambient environment and the artifact exited before `main` with
+    STATUS_DLL_NOT_FOUND, printing nothing (BPR-0511). Rather than resolve Qt
+    a second time, the course takes the exact modification the tree declares
+    for its tests, from CTest's own inventory, and applies it the way CTest
+    would. On a platform whose tests declare nothing the environment is the
+    ambient one, unchanged.
+    """
+    prepends: list[str] = []
+    settings: dict[str, str] = {}
+    for entry in document.get("tests", []):
+        if not isinstance(entry, dict):
+            continue
+        for property_ in entry.get("properties", []):
+            if (
+                not isinstance(property_, dict)
+                or property_.get("name") != "ENVIRONMENT_MODIFICATION"
+            ):
+                continue
+            for modification in property_.get("value", []):
+                if not isinstance(modification, str):
+                    continue
+                name, _, rest = modification.partition("=")
+                operation, _, value = rest.partition(":")
+                if name == "PATH" and operation == "path_list_prepend":
+                    if value and value not in prepends:
+                        prepends.append(value)
+                elif name == "QT_QPA_FONTDIR" and operation == "set" and value:
+                    settings[name] = value
+    if platform_name == "windows":
+        # A Windows tree that declares no Qt directory would make both direct
+        # launches fail the same opaque way the tests would; name it instead.
+        require(bool(prepends), "qt-runtime-directory-undeclared")
+    environment = dict(base)
+    if prepends:
+        existing = environment.get("PATH", "")
+        parts = list(prepends)
+        if existing:
+            parts.append(existing)
+        environment["PATH"] = os.pathsep.join(parts)
+    environment.update(settings)
+    return environment
+
+
+def launch_environment(
+    build_dir: pathlib.Path,
+    configuration: str | None,
+    platform_name: str,
+) -> dict[str, str]:
+    """The shipped artifact's launch environment, from the test tree's declaration."""
+    return environment_from_inventory(
+        ctest_inventory(build_dir, configuration),
+        dict(os.environ),
+        platform_name,
+    )
+
+
+def check_runtime_and_dependencies(
+    binary: pathlib.Path,
+    environment: dict[str, str] | None = None,
+) -> None:
+    # The runtime-surface check launches the shipped artifact itself, with
+    # the environment it inherits here; see environment_from_inventory.
     for script in (
         "verify_binary_dependencies.py",
         "verify_runtime_surface.py",
@@ -386,6 +483,7 @@ def check_runtime_and_dependencies(binary: pathlib.Path) -> None:
             [sys.executable, str(REPOSITORY_ROOT / "scripts" / script), str(binary)],
             cwd=REPOSITORY_ROOT,
             timeout=300,
+            environment=environment,
         )
         require(
             result.returncode == 0,
@@ -396,9 +494,10 @@ def check_runtime_and_dependencies(binary: pathlib.Path) -> None:
 def check_device_selection(
     binary: pathlib.Path,
     expected: str,
+    launch: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Run the shipped self-test and require the exact stated selection."""
-    environment = dict(os.environ)
+    environment = dict(os.environ if launch is None else launch)
     environment["QT_QPA_PLATFORM"] = "offscreen"
     result = run(
         [
@@ -551,6 +650,9 @@ def main() -> int:
         )
         check_inventory(debug_dir, debug_configuration)
         selectors = check_course_selectors(debug_dir, debug_configuration)
+        launch = launch_environment(
+            debug_dir, debug_configuration, arguments.platform
+        )
 
         release_configuration = configure_and_build(
             arguments.release_preset, release_dir, arguments.fresh, "Release"
@@ -562,9 +664,9 @@ def main() -> int:
         check_platform_surfaces(shipped, arguments.platform)
         check_release_artifact(shipped)
         check_no_private_identity(shipped)
-        check_runtime_and_dependencies(shipped)
+        check_runtime_and_dependencies(shipped, launch)
         markers = check_device_selection(
-            shipped, arguments.expected_device_selection
+            shipped, arguments.expected_device_selection, launch
         )
     except CourseFailure as error:
         print(f"rfc0016-platform-course:fail:{error}", file=sys.stderr)
