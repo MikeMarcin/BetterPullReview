@@ -1,7 +1,7 @@
 ---
 id: BPR-0451
 title: Reconcile the credential-free symbol guard with the shipped device transport
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: [BPR-0318]
 ---
