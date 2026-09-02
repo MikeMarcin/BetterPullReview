@@ -27,6 +27,7 @@ add_library(
     src/github_pull_request_panel.cpp
         src/measured_alignment_axis.cpp
         src/sensitive_text_input.cpp
+        src/side_chat_panel.cpp
         src/workbench_drawer.cpp
         src/workbench_window.cpp
 )
