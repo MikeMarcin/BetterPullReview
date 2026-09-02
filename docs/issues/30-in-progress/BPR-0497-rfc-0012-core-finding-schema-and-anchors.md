@@ -1,7 +1,7 @@
 ---
 id: BPR-0497
 title: "Core: structured finding schema and anchor validation"
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0012
 depends_on: [BPR-0496]
 ---
