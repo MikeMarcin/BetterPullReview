@@ -127,7 +127,7 @@ by each station.
 | The whole dev graph builds clean under `-Werror` | `cmake --build --preset dev` | Exit 0, zero `error:` or `warning:` lines in the whole log | this commit |
 | Every touched C++ file is formatted | `clang-format --dry-run --Werror` on the six touched files | Exit 0 after reflowing four lines of `github_application.cpp` and one of `main.cpp` | this commit |
 | macOS: the action opens the system browser at the verification address | Target-native observation on the macOS station | Pending — the station records it | Pending |
-| Linux: the action opens the system browser at the verification address | Target-native observation on the Linux station | Pending — the station records it | Pending |
+| Linux: the action opens the system browser at the verification address | Target-native observation on the Linux station | Pending — the artifact is staged and every row around it is green; see *Linux — 2026-09-02* below. The click itself is the owner's | Pending |
 | Windows x64: the action opens the system browser at the verification address | Target-native observation on the Windows station | Pending — the station records it | Pending |
 
 ## Integrator reproduction — 2026-09-02
@@ -147,3 +147,108 @@ allocated in `scripts/verify_rfc0016_test_inventory.py` with their required
 arguments, so the stations' release scan proves their absence from the
 tests-disabled artifact. The code is landed; the card stays open for the
 three target-native observation rows.
+## Linux — 2026-09-02
+
+Produced by `bpr-linux` on the JaegAW WSL2 host (Ubuntu 26.04, kernel
+6.18.33.2-microsoft-standard-WSL2 x86_64, GCC 15.2.0, Qt 6.10.3, WSLg with
+`DISPLAY=:0` and `WAYLAND_DISPLAY=wayland-0`) at `5b5f0d65`, which contains
+`d46a766a`. **No browser was opened and no real device flow was started** —
+that row is the owner's and is left Pending below.
+
+Precondition, read first: `Locked` on
+`/org/freedesktop/secrets/collection/login` is `(<false>,)` at
+2026-09-02T08:08:21Z, so the vault rows below are real rather than skipped.
+
+`cmake --preset dev` and `cmake --build --preset dev` both exit 0, with zero
+`error:` or `warning:` lines in the whole build log.
+
+### The focused selectors, including the two new browser contracts
+
+`ctest --preset dev -R '^(application_device_authorization_host|qt_device_authorization_scale_(100|125|200)|application_device_authorization_(public_path|unavailable|release_contract|registered_course|browser_handoff|browser_absent)|composed_application_hosts|rfc0016_test_inventory|linux_secret_service_[a-z_]*)$' --output-on-failure`
+— exit 0, **16/16 passed, 33.67 s total**:
+
+| Test | Result | Time |
+|---|---|---|
+| `rfc0016_test_inventory` | Passed | 0.06 sec |
+| `application_device_authorization_host` | Passed | 0.00 sec |
+| `qt_device_authorization_scale_100` | Passed | 4.75 sec |
+| `qt_device_authorization_scale_125` | Passed | 4.73 sec |
+| `qt_device_authorization_scale_200` | Passed | 4.73 sec |
+| `linux_secret_service_contract` | Passed | 0.01 sec |
+| `linux_secret_service_native_setup` | Passed | 0.01 sec |
+| `linux_secret_service_native` | Passed | 0.42 sec |
+| `linux_secret_service_native_cleanup` | Passed | 0.01 sec |
+| `application_device_authorization_public_path` | Passed | 0.16 sec |
+| `application_device_authorization_unavailable` | Passed | 0.17 sec |
+| `application_device_authorization_registered_course` | Passed | 5.69 sec |
+| `application_device_authorization_browser_handoff` | Passed | 5.69 sec |
+| `application_device_authorization_browser_absent` | Passed | 5.69 sec |
+| `application_device_authorization_release_contract` | Passed | 0.15 sec |
+| `composed_application_hosts` | Passed | 1.39 sec |
+
+### The enabled course
+
+`build/rfc0016-linux-enablement` was deleted whole first. The ledger's exact
+Linux command with `--expected-device-selection enabled --fresh`, exit 0 in
+236 s: `RFC0016_PLATFORM:linux`, `RFC0016_SELECTION:enabled`,
+`RFC0016_COURSE_SELECTORS:16`, `RFC0016_DEVICE_STAGE:cancelled`,
+`RFC0016_DEVICE_REQUESTS:0`, `RFC0016_PLATFORM_COURSE_OK`.
+
+`DEVICE_FLOW_REQUESTS:0` against the enabled artifact is the row that matters
+here as it did for [[BPR-0310]]: the shipped build composes and presents, and
+still sends nothing unattended.
+
+### The opener's anchor, in both binaries
+
+The course's `COURSE_SELECTOR_PATTERN` does not include
+`composed_application_hosts`, so the course does not prove the anchor and the
+proof is taken directly against each binary instead. The demangled anchor
+`verify_composed_hosts.py` requires — "system browser opener constructor",
+`bpr::app::system_browser_opener::system_browser_opener` — is present in both:
+
+```text
+tests-enabled  build/dev/src/app/better_pull_review
+  000000000019857a T bpr::app::system_browser_opener::system_browser_opener()
+tests-disabled build/rfc0016-linux-enablement/release/src/app/better_pull_review
+  00000000000ec4f0 T bpr::app::system_browser_opener::system_browser_opener()
+```
+
+Both composed-host audits agree, each under its own profile:
+
+```text
+COMPOSED_HOSTS_OK: profile=development-fixture required=27 forbidden=2 inspector=nm | c++filt
+COMPOSED_HOSTS_OK: profile=production           required=26 forbidden=7 inspector=nm | c++filt
+```
+
+The release gate on the browser probe is confirmed from the shipped side as
+well: `--device-authorization-browser-probe` does not occur in the
+tests-disabled artifact as a string at all, which is the flag's absence
+observed rather than inferred from the `#if`.
+
+### The staged artifact, for the owner's one attended click
+
+```text
+/home/mmarcin/bpr-linux/build/rfc0016-linux-enablement/release/src/app/better_pull_review
+size    11,325,064 bytes
+sha256  79d602c07b427f2f8748e1cabdafb6c54be4489f5dea378b24f32d763c5e2ed6
+```
+
+This is the tests-disabled Release artifact the enabled course just verified,
+left in place. Launch it from the WSLg desktop **without**
+`QT_QPA_PLATFORM=offscreen`, since the observation needs a real display and a
+real default browser:
+
+```sh
+/home/mmarcin/bpr-linux/build/rfc0016-linux-enablement/release/src/app/better_pull_review
+```
+
+Take the device-authorization flow to `awaiting_authorization` and press
+**Open browser**. The row is whether the system default browser opens at the
+verification address shown beside the code — nothing about which browser, only
+that it is the system one and the address matches. `xdg-open` is what
+`QDesktopServices::openUrl` defers to here, so the browser that answers is
+whatever `xdg-settings get default-web-browser` names.
+
+| Row | Result |
+|---|---|
+| Linux: the action opens the system browser at the verification address | **Pending — the owner's attended click.** Everything it depends on is green above; the station did not click it |
