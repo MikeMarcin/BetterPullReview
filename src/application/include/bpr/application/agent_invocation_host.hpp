@@ -42,6 +42,29 @@ namespace bpr::application {
 		/// then arrives unanchored, which is what a caller that froze nothing
 		/// has evidence for.
 		std::vector<core::agent_finding_snapshot_file> FrozenFiles;
+		/// The already-admitted session this turn continues, when it continues
+		/// one instead of starting one.
+		///
+		/// \details RFC-BPR-0012's `continue_against_old_revision`. A reviewer
+		/// who chooses it is asking about the revision their session was bound
+		/// to, which is no longer the revision under review, so the host may
+		/// not answer under a session bound to the head that moved.
+		///
+		/// Engaged, this turn runs under exactly this session: no identity is
+		/// allocated, and the frozen snapshot's `Binding` is read out of this
+		/// value. That keeps the property the empty case has for a different
+		/// reason — **the snapshot's binding is the session's binding, always**
+		/// — while letting the session be an older one. What a caller may not
+		/// do is disagree with itself: `Context.Binding` must equal this
+		/// session's own `Binding`, and a turn whose two revisions differ is
+		/// refused as `agent_continuation_binding_mismatch` rather than run
+		/// under either of them.
+		///
+		/// Absent is the ordinary case and the only one that reaches the
+		/// catalog: the turn is about the revision under review, the host
+		/// admits a new identity, and a caller-named revision is refused as
+		/// `stale_or_mismatched_agent_context` exactly as before.
+		std::optional<core::agent_session> ContinuedSession;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};

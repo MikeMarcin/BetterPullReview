@@ -334,10 +334,37 @@ namespace bpr::application {
 				project_refuse("invalid_agent_finding_snapshot");
 				return;
 			}
+			// A continuation says two things about one revision, and they are
+			// checked against each other before anything is run. The session
+			// the turn continues carries its own binding; the context the
+			// caller composed carries one too. A turn whose two answers differ
+			// would freeze a snapshot under one revision and ask about the
+			// other, which is exactly the mismatch
+			// `continue_against_old_revision` exists to prevent, so it is
+			// refused by name rather than resolved in favour of either.
+			if (aRequest.ContinuedSession.has_value()) {
+				if (!core::valid_agent_session(*aRequest.ContinuedSession)
+					|| aRequest.ContinuedSession->Profile != profile->Id) {
+					project_refuse("agent_continuation_invalid_session");
+					return;
+				}
+				if (aRequest.ContinuedSession->Binding
+					!= aRequest.Context.Binding) {
+					project_refuse("agent_continuation_binding_mismatch");
+					return;
+				}
+			}
 
 			auto job = std::shared_ptr<invocation>{ };
 			{
 				std::scoped_lock lock{ StateMutex };
+				// The revision this turn is about: the one under review, or —
+				// for a continuation — the one the continued session was
+				// bound to. Both are values this host holds or was handed
+				// whole; neither is a revision a caller named on its own.
+				const auto turnBinding = aRequest.ContinuedSession.has_value()
+					? aRequest.ContinuedSession->Binding
+					: Binding.value_or(core::agent_revision_binding{ });
 				if (
 					!ApplicationSession.has_value() || !Authority.has_value()
 					|| !Binding.has_value() || ActiveInvocation
@@ -345,39 +372,50 @@ namespace bpr::application {
 					|| aRequest.Context.ApplicationSession
 						!= aRequest.ApplicationSession
 					|| aRequest.Authority != *Authority
-					|| aRequest.Context.Binding != *Binding
+					|| aRequest.Context.Binding != turnBinding
+					|| !binding_matches_authority(turnBinding, *Authority)
 					|| !binding_matches_authority(*Binding, *Authority)) {
 					project_refuse(
 						ActiveInvocation ? "agent_invocation_already_running"
 										 : "stale_or_mismatched_agent_context");
 					return;
 				}
-				++SessionAdmissions;
-				auto admitted = Sessions.admit(agent_session_admission{
-					.Profile = profile->Id,
-					.Binding = *Binding,
-				});
-				if (!admitted) {
-					++SessionAdmissionFailures;
-					project_refuse(
-						std::string{ "agent_session_admission_" }
-						+ std::string{ name(admitted.error()) });
-					return;
+				// Continuing is the one path that allocates nothing. The
+				// identity already exists in the catalog, which is what makes
+				// it a continuation rather than a second conversation, and
+				// re-admitting it would mint an identity the reviewer's own
+				// session is not keyed to.
+				auto session = aRequest.ContinuedSession;
+				if (!session.has_value()) {
+					++SessionAdmissions;
+					auto admitted = Sessions.admit(agent_session_admission{
+						.Profile = profile->Id,
+						.Binding = *Binding,
+					});
+					if (!admitted) {
+						++SessionAdmissionFailures;
+						project_refuse(
+							std::string{ "agent_session_admission_" }
+							+ std::string{ name(admitted.error()) });
+						return;
+					}
+					session = *admitted;
 				}
-				supplement->Session = *admitted;
+				supplement->Session = *session;
 				job                 = std::make_shared<invocation>(
 					agent_invocation_projection_identity{
 						.ApplicationSession   = aRequest.ApplicationSession,
 						.Authority            = aRequest.Authority,
-						.Session              = *admitted,
+						.Session              = *session,
 						.InvocationGeneration = ++InvocationGeneration,
 					},
-					// The binding comes from the session the store admitted,
-					// never from the request. A caller cannot name a revision
-					// this session was not started against, because there is
-					// nowhere for it to say one.
+					// The binding comes from the session this turn runs under,
+					// never from the request beside it. A caller cannot name a
+					// revision that session was not started against, because
+					// there is nowhere for it to say one and the one place it
+					// could restate it has already been checked equal.
 					core::agent_finding_snapshot{
-						.Binding = admitted->Binding,
+						.Binding = session->Binding,
 						.Files   = aRequest.FrozenFiles,
 					},
 					std::make_shared<std::stop_source>());

@@ -3151,7 +3151,8 @@ namespace bpr::app {
 								aTurn.IncludeDraft ? current_agent_draft_choice()
 												   : std::nullopt,
 								false,
-								aTurn.Message);
+								aTurn.Message,
+								aTurn.Session);
 						},
 						[this]() -> application::agent_chat_private_prose {
 							return current_chat_private_prose();
@@ -5089,7 +5090,8 @@ namespace bpr::app {
 				start.IncludedNotes,
 				start.IncludedDraft,
 				start.ExistingCheckoutChosen,
-				std::string_view{ }));
+				std::string_view{ },
+				std::nullopt));
 		}
 
 		/// \brief The one launch path, and there is deliberately no second.
@@ -5107,6 +5109,12 @@ namespace bpr::app {
 		/// a question enters an invocation is a value passed at a call site a
 		/// reader can see.
 		///
+		/// `aTurnSession` is the session a chat turn is sent under, and is
+		/// absent for the launch panel's start gesture. When that session is
+		/// bound to a revision the review has moved away from — which is what
+		/// RFC-BPR-0012's `continue_against_old_revision` leaves behind — the
+		/// revision *it* names is the one everything below composes from.
+		///
 		/// \returns Whether exactly one invocation was dispatched. A refusal is
 		/// already named on the launch panel before this returns `false`.
 		[[nodiscard]] auto dispatch_agent_invocation(
@@ -5114,7 +5122,8 @@ namespace bpr::app {
 			const std::vector<application::local_note_id>&        aIncludedNotes,
 			const std::optional<application::agent_draft_choice>& aIncludedDraft,
 			const bool                                            aExistingCheckoutChosen,
-			const std::string_view                                aChatMessage) -> bool
+			const std::string_view                                aChatMessage,
+			const std::optional<core::agent_session>&             aTurnSession) -> bool
 		{
 			if (Closing || AgentHost == nullptr || EpochHost == nullptr
 				|| Window == nullptr) {
@@ -5148,9 +5157,24 @@ namespace bpr::app {
 				.LeftEpoch   = comparison.Left.Identity.Epoch,
 				.RightEpoch  = comparison.Right.Identity.Epoch,
 			};
+			// RFC-BPR-0012's `continue_against_old_revision`, composed and not
+			// only kept. A chat turn whose session is bound to a revision the
+			// epoch host has moved past is a question about *that* revision,
+			// so the revision it names — not the one under review — is what
+			// this invocation is built from. The next line is the whole of it;
+			// without it the turn would be framed from the current head while
+			// still naming the older session, and `agent_invocation_host`
+			// refuses that disagreement as
+			// `agent_continuation_binding_mismatch`.
+			const auto continuing
+				= aTurnSession.has_value() && aTurnSession->Binding != binding;
+			auto turnBinding = binding;
+			if (continuing) {
+				turnBinding = aTurnSession->Binding;
+			}
 			auto observation = application::agent_context_observation{
 				.ApplicationSession = state.ApplicationSession,
-				.Binding            = binding,
+				.Binding            = turnBinding,
 				.PullRequestUrl     = "https://" + AgentReview->Hostname + "/"
 					+ AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name
 					+ "/pull/" + std::to_string(AgentReview->Number.value()),
@@ -5160,7 +5184,15 @@ namespace bpr::app {
 				.ChatMessage   = std::string{ aChatMessage },
 			};
 			observation.CurrentDraft = current_agent_draft_observation();
-			if (SelectedDiffPublication.has_value()) {
+			// The receipt and the semantic selection below are read off the
+			// alignment the reviewer is looking at, which belongs to the
+			// revision under review. Under a continuation they belong to a
+			// different revision than the one being asked about, so they are
+			// not sent: carrying a newer comparison's identities beneath an
+			// older binding is the silent re-anchoring this continuation
+			// exists to prevent, and stating nothing about the old alignment
+			// is the honest answer the design can give.
+			if (!continuing && SelectedDiffPublication.has_value()) {
 				const auto& selected = *SelectedDiffPublication;
 				const auto  lock     = std::scoped_lock{ ReviewLedgerStateMutex };
 				if (ReviewLedgerReceipt.has_value()
@@ -5191,10 +5223,17 @@ namespace bpr::app {
 			// validates every returned finding against it, and the MCP helper
 			// is pinned to the same values on disk. Two answers about one
 			// revision cannot disagree if they are one value.
-			auto frozen = frozen_snapshot_files();
+			// Empty under a continuation, and empty is a complete answer: the
+			// only alignment this application holds is the current one, so a
+			// turn about an older revision freezes no per-path identities and
+			// every finding it returns arrives unanchored rather than anchored
+			// against a comparison nobody asked about.
+			auto frozen = continuing
+				? std::vector<core::agent_finding_snapshot_file>{ }
+				: frozen_snapshot_files();
 			if (McpHelper != nullptr) {
 				const auto encoded
-					= adapters::mcp::encode_revision_binding(binding);
+					= adapters::mcp::encode_revision_binding(turnBinding);
 				if (freeze_mcp_snapshot(McpSnapshotRoot, encoded, frozen)) {
 					++FrozenSnapshotWrites;
 					McpHelper->pin(McpSnapshotRoot, encoded);
@@ -5208,6 +5247,7 @@ namespace bpr::app {
 				.ExistingCheckoutChosen = aExistingCheckoutChosen,
 				.ExistingCheckout       = ExistingCheckout,
 				.FrozenFiles            = std::move(frozen),
+				.ContinuedSession       = continuing ? aTurnSession : std::nullopt,
 			});
 			return true;
 		}

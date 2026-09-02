@@ -18,7 +18,10 @@
 /// choosing `continue_against_old_revision` starts no session at all, and the
 /// next send produces one turn under the session the chat kept - still bound
 /// to the revision it was asked about, which the revision under review has
-/// moved away from. **construction-cut**: with the chat host's construction
+/// moved away from, and composed from that revision: the binding the MCP
+/// helper is pinned to, the binding record the frozen snapshot carries on
+/// disk, and the kept session's own binding are one value, and it is not the
+/// head the reviewer moved to. **construction-cut**: with the chat host's construction
 /// removed, the same send gesture is still made and still observed, its turn
 /// count is zero, and the positive marker is false.
 
@@ -26,6 +29,7 @@
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 
+#include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
@@ -130,6 +134,21 @@ namespace {
 			queue->select(0U);
 			QApplication::processEvents();
 		}
+	}
+
+	/// \brief Reads the binding record the frozen snapshot carries on disk.
+	///
+	/// \details The first line of the snapshot root's `binding` file - exactly
+	/// what `adapters::mcp::mcp_context_helper` reads before it serves anything
+	/// and compares its own pin against. Read from disk rather than asked of the
+	/// composition, because the question is what the helper would find there.
+	[[nodiscard]] auto snapshot_binding_record(
+		const std::filesystem::path& aSnapshotRoot) -> std::string
+	{
+		auto file = std::ifstream{ aSnapshotRoot / "binding", std::ios::binary };
+		auto line = std::string{ };
+		std::getline(file, line);
+		return line;
 	}
 
 	/// \brief Counts one exact token in the composition source.
@@ -600,8 +619,50 @@ auto main(int argc, char** argv) -> int
 			continued_message.data(),
 			static_cast<qsizetype>(continued_message.size())));
 		QApplication::processEvents();
+		const auto beforeContinuedSend = app::detail::
+			github_application_fixture_access::agent_finding_evidence(
+				*application);
 		chat->send_action()->trigger();
 		QApplication::processEvents();
+
+		// The composition half, checked before the run rather than after it.
+		// One revision said three times - the binding the MCP helper is pinned
+		// to, the binding record the frozen snapshot carries on disk, and the
+		// session the reviewer kept - and it is not the head on screen. The
+		// launch path composes, freezes, and pins synchronously inside the
+		// gesture above, so a turn framed from the current revision fails here
+		// by name instead of as an answer that never arrived.
+		const auto composed = app::detail::
+			github_application_fixture_access::agent_finding_evidence(
+				*application);
+		const auto pinnedBinding = composed.McpLaunch.has_value()
+				&& composed.McpLaunch->Environment.size() == 2U
+			? composed.McpLaunch->Environment[1].second
+			: std::string{ };
+		const auto recordedBinding
+			= snapshot_binding_record(std::filesystem::path{
+				composed.McpLaunch.has_value()
+					? composed.McpLaunch->WorkingDirectory
+					: std::string{ } });
+		const auto keptEncoded
+			= adapters::mcp::encode_revision_binding(keptBinding);
+		const auto observedEncoded
+			= adapters::mcp::encode_revision_binding(*afterContinue.Observed);
+		const auto oldRevisionComposed = !keptEncoded.empty()
+			&& keptEncoded != observedEncoded && pinnedBinding == keptEncoded
+			&& recordedBinding == keptEncoded
+			&& composed.FrozenSnapshotWrites
+				== beforeContinuedSend.FrozenSnapshotWrites + 1U;
+		if (!oldRevisionComposed) {
+			std::cerr << "agent-chat-continued-composition:"
+					  << "\npinned:" << pinnedBinding
+					  << "\nrecorded:" << recordedBinding
+					  << "\nkept:" << keptEncoded
+					  << "\nobserved:" << observedEncoded
+					  << "\nfreezes:" << beforeContinuedSend.FrozenSnapshotWrites
+					  << "->" << composed.FrozenSnapshotWrites << '\n';
+			return fail(*application, "continued-old-revision-composition");
+		}
 		auto continuedAnswer = wait_terms{ };
 		if (!wait_until_reporting(
 				continuedAnswer,
@@ -646,6 +707,15 @@ auto main(int argc, char** argv) -> int
 		const auto continuedTurn = afterTurn.Statistics.Turns == 2U
 			&& afterTurn.Statistics.SessionsStarted
 				== beforeContinue.Statistics.SessionsStarted
+			// The turn continued the session rather than starting a second
+			// one, so nothing was adopted and the chat still holds the binding
+			// it kept: an admission bound to the head on screen would have
+			// retargeted it here, after the reviewer said not to.
+			&& afterTurn.Statistics.SessionsAdopted
+				== beforeContinue.Statistics.SessionsAdopted
+			&& afterTurn.Session.has_value()
+			&& afterTurn.Session->Id == keptSessionId
+			&& afterTurn.Session->Binding == keptBinding
 			&& afterTurn.LastTurn.has_value()
 			// The turn ran under the session the reviewer kept, bound to the
 			// revision that session was asked about and not to the one on
@@ -664,11 +734,12 @@ auto main(int argc, char** argv) -> int
 			&& continuedMutation.TargetObservations == 0U
 			&& continuedMutation.StoredComments == 0U;
 		const auto continuedPassed = positive && staleRefused && keptSession
-			&& continuedTurn && continuedNoMutation;
+			&& oldRevisionComposed && continuedTurn && continuedNoMutation;
 		if (!continuedPassed) {
 			std::cerr << "agent-chat-continued-evidence:" << positive << ':'
 					  << staleRefused << ':' << keptSession << ':'
-					  << continuedTurn << ':' << continuedNoMutation << ':'
+					  << oldRevisionComposed << ':' << continuedTurn << ':'
+					  << continuedNoMutation << ':'
 					  << afterTurn.Statistics.Turns << ':'
 					  << afterTurn.Statistics.SessionsStarted << ':'
 					  << afterTurn.Statistics.Continuations
