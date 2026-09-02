@@ -1,7 +1,7 @@
 ---
 id: BPR-0503
 title: "Qt: finding queue and before/after comment workshop"
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0012
 depends_on: [BPR-0498, BPR-0500]
 ---
