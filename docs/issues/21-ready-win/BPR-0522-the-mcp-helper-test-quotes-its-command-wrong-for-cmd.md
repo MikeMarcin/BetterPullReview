@@ -199,3 +199,21 @@ the names comparing, and only then could the third be seen at all.
 
 The card stays in `21-ready-win/` with its closing row Pending, because that
 row says the test passes on the Windows station and it does not.
+
+## The third cause: the AppContainer — 2026-09-02
+
+With the command parsed and the names comparing, three refusal-table rows
+still failed — exactly the three that reach the filesystem. Inside the
+AppContainer `weakly_canonical` on the snapshot root sets an error code,
+because a lowbox token refuses the drive-letter translation it needs, so
+the helper answers `snapshot_unavailable` where `path_outside_snapshot` is
+expected; outside the container the whole suite passes. That is
+[[BPR-0362]]'s measured cause, and the registration now carries
+`WINDOWS_UNCONTAINED` with the reason beside it, as its siblings do; the
+helper opens no socket, so the exemption costs no network claim. Three
+causes stacked, each hiding the next, which is why this card took three
+passes; they stand in order above.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The suite passes under MSVC outside the AppContainer | `bpr-win`'s `ctest --test-dir build/windows-dev -C Debug -R '^application_mcp_context_helper$'` from a checkout of this commit | **Pending** — target-native, the closing row | Pending |

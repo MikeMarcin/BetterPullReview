@@ -127,18 +127,33 @@ class CourseRegistrationTests(unittest.TestCase):
             "course-selector-missing:linux:qt_device_authorization_scale_125",
         )
 
+    def _with_exclusions(self, table):
+        original = course.PLATFORM_SELECTOR_EXCLUSIONS
+        course.PLATFORM_SELECTOR_EXCLUSIONS = table
+        self.addCleanup(setattr, course, "PLATFORM_SELECTOR_EXCLUSIONS", original)
+
     def test_a_documented_exclusion_is_accepted_only_on_its_platform(self) -> None:
-        excluded = set(course.PLATFORM_SELECTOR_EXCLUSIONS["windows"])
-        registered = set(course.COURSE_SELECTOR_NAMES) - excluded
+        self._with_exclusions({"windows": {"qt_device_authorization_scale_125": "synthetic reason"}})
+        registered = set(course.COURSE_SELECTOR_NAMES) - {"qt_device_authorization_scale_125"}
         course.check_course_registration(registered, "windows")
         with self.assertRaises(course.CourseFailure) as refused:
             course.check_course_registration(registered, "linux")
-        self.assertTrue(str(refused.exception).startswith("course-selector-missing:linux:"))
+        self.assertEqual(
+            str(refused.exception),
+            "course-selector-missing:linux:qt_device_authorization_scale_125",
+        )
 
     def test_an_exclusion_whose_name_is_registered_is_stale(self) -> None:
+        self._with_exclusions({"windows": {"qt_device_authorization_scale_125": "synthetic reason"}})
         with self.assertRaises(course.CourseFailure) as refused:
             course.check_course_registration(set(course.COURSE_SELECTOR_NAMES), "windows")
-        self.assertTrue(str(refused.exception).startswith("course-exclusion-stale:windows:"))
+        self.assertEqual(
+            str(refused.exception),
+            "course-exclusion-stale:windows:qt_device_authorization_scale_125",
+        )
+
+    def test_the_live_table_is_empty_since_the_windows_mirror(self) -> None:
+        self.assertEqual(course.PLATFORM_SELECTOR_EXCLUSIONS, {})
 
     def test_the_enumeration_matches_the_pattern(self) -> None:
         import re as _re

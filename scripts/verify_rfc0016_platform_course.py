@@ -90,18 +90,9 @@ COURSE_SELECTOR_NAMES = (
 # registered on that platform is refused as stale, so the table shrinks the
 # moment the registration lands rather than outliving it.
 PLATFORM_SELECTOR_EXCLUSIONS: dict[str, dict[str, str]] = {
-    "windows": {
-        "github_device_authorization_refresh_contract": (
-            "registered under `if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL \"Linux\")` in "
-            "tests/github_contract/CMakeLists.txt and not yet mirrored into the "
-            "Windows block BPR-0446 added; unmeasured on Windows (BPR-0525)"
-        ),
-        "native_https_device_authorization_fixture": (
-            "same guard, same omission; its sibling contract is registered on "
-            "Windows and needed WINDOWS_UNCONTAINED (BPR-0362), so this likely "
-            "does too once mirrored (BPR-0525)"
-        ),
-    },
+    # Empty since BPR-0525 mirrored the two POSIX-guarded selectors into the
+    # Windows registration; the shape stays so the next omission is written
+    # down here with its reason rather than passing on a count.
 }
 
 

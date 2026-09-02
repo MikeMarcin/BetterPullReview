@@ -686,8 +686,15 @@ bpr_enable_warnings(test_better_pull_review_mcp_context_helper_tests)
 
 # No LOOPBACK_PORT_COUNT: the helper declares no socket surface at all, so the
 # default of zero is the claim rather than an omission.
+# BPR-0522: the suite's three filesystem rows reach weakly_canonical on the
+# snapshot root, and a lowbox token refuses the drive-letter translation that
+# needs, so inside the AppContainer the helper answers snapshot_unavailable
+# where path_outside_snapshot is expected (BPR-0362's cause, measured on the
+# Windows station); outside it the whole suite passes. The helper itself
+# opens no socket, so the exemption costs no network claim.
 bpr_add_network_isolated_test(
     NAME application_mcp_context_helper
+    WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_mcp_context_helper_tests
 )
 set_tests_properties(

@@ -103,3 +103,17 @@ an artifact of the split ownership rather than a fact about the platform.
 Recording it as a course result would be recording a staged failure. The
 integrator prunes the two entries on merge and asks for one final course run,
 which is this card's closing row.
+
+## The exclusion table is pruned — 2026-09-02
+
+Both selectors are registered on Windows and pass there under a measured
+`WINDOWS_UNCONTAINED` (both refused with `unavailable-executable` when run
+contained first), so `PLATFORM_SELECTOR_EXCLUSIONS` in the course is empty
+again; its shape and the stale-exclusion refusal stay, and the course
+contract pins the live table empty. The closing row is the Windows course
+reporting `RFC0016_COURSE_SELECTORS:17`.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The course contract with an empty live table and synthetic exclusion cases | `python3 tests/scripts/rfc0016_platform_course_tests.py` | 16/16 | this commit |
+| The Windows course audits all seventeen | `bpr-win`'s ledger command from a checkout of this commit | **Pending** — target-native, the closing row | Pending |
