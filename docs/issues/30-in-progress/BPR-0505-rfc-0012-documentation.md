@@ -1,7 +1,7 @@
 ---
 id: BPR-0505
 title: "Documentation: extend the AI boundary, UX, fixture catalog, and matrix"
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0012
 depends_on: [BPR-0504]
 ---
