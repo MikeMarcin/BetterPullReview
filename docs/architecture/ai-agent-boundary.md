@@ -149,20 +149,18 @@ cancelled, timed-out, and stale results expose no final event collection.
 Cancellation and deadlines are observed in bounded polling slices on the
 QProcess-owning thread. POSIX children start in their own process group, so
 teardown targets the descendant tree and not only the immediate process.
-`QProcess` cannot assign a Windows Job Object before the child begins running;
-post-start assignment leaves a descendant-escape race. The adapter therefore
-refuses Windows launch before `QProcess::start`. Windows support remains blocked
-until a suspended-create, assign-before-resume path has target-native proof.
-
-> **Known false at HEAD.** The adapter stopped refusing at `c6f3d96`, which
-> replaced that branch with a dispatch into `windows_agent_process.cpp` — a
-> translation unit since compiled under MSVC. On 2026-08-26/27 that backend
-> passed the full target-native canary and all five composed agent courses,
-> including the Job Object no-pre-assignment-side-effect and
-> descendant-teardown courses, so the suspended-create, assign-before-resume
-> path the paragraph above requires now has its target-native proof, recorded
-> in BPR-0240's dated sections. The refusal statement itself remains false and
-> BPR-0332 owns its documentation resolution. Marked by BPR-0401.
+`QProcess` cannot assign a Windows Job Object before the child begins running,
+and post-start assignment leaves a descendant-escape race, so Windows does not
+launch through `QProcess` at all. The adapter dispatches into a private WIN32
+backend, `windows_agent_process.cpp`, which creates the child suspended,
+assigns the Job Object, and only then resumes it; assignment-before-resume is
+pinned by a source-order assertion in the architecture suite. That backend
+compiled under MSVC on 2026-08-22 and on 2026-08-26/27 passed the full
+target-native canary — including the no-pre-assignment-side-effect and
+descendant-teardown courses — and all five composed agent courses, recorded in
+BPR-0240's dated sections. There is no pre-start refusal on Windows; the
+product owner chose to document the shipped dispatch rather than restore one
+(BPR-0332, 2026-09-01).
 
 The application composition follows one public route: the workbench panel emits
 an intent; `agent_invocation_host` reruns core legality and validates the full
@@ -349,7 +347,7 @@ so rather than pick the reassuring answer.
 | A timeout terminates a live descendant heartbeat, POSIX and Windows alike | `qt_agent_launch_canary` |
 | The composed portable launcher is constructed and invoked once by the real panel gesture | `application_agent_invocation_composition_contract`, `application_agent_invocation_launcher_construction_cut_contract` |
 | Removing the host or disconnecting the gesture cannot satisfy the public canary | `application_agent_invocation_construction_cut_contract`, `application_agent_invocation_gesture_cut_contract` |
-| Windows launch is refused before start pending safe containment — **known false at HEAD, and the cited test does not support it: `test_windows_assignment_failure_has_no_pre_assignment_side_effect` ends on `Outcome == success`. See BPR-0332.** | `qt_agent_launch_canary` (Windows-conditional) |
+| A Windows child whose Job Object assignment fails never runs its first statement, and teardown stops a spawned grandchild's heartbeat | `qt_agent_launch_canary` (Windows-conditional: `test_windows_assignment_failure_has_no_pre_assignment_side_effect`, `test_timeout_terminates_the_descendant_process_tree`), target-native 2026-08-27 |
 | Existing-checkout mode needs a choice | `application_agent_workspace` |
 | Dirty state is reported, unknown stays unknown | `application_agent_workspace` |
 | The launch surface only emits intents | `qt_agent_launch_panel` |
@@ -370,11 +368,7 @@ own GitHub access and its own tools, which is the point of the arrangement.
 
 The process and shipped composition contracts use the hostile local canary, not
 an installed agent tool or live provider. A smoke test against an installed
-Codex or Claude remains optional extra validation rather than a gate. Windows
-still refuses before child start; no Windows process-lifecycle success or
-descendant-containment claim is made. **Both clauses are now known false at
-HEAD** — `c6f3d96` replaced the refusal with a dispatch into a backend since
-compiled under MSVC, and on 2026-08-26/27 that backend passed the full
-target-native canary and composed courses, so lifecycle and containment
-success are recorded in BPR-0240's dated sections. BPR-0332 owns the
-documentation resolution of the refusal statement. Marked by BPR-0401.
+Codex or Claude remains optional extra validation rather than a gate. The
+Windows process lifecycle and descendant containment are claimed only on the
+strength of BPR-0240's 2026-08-26/27 target-native runs; a portable host
+cannot reproduce them and does not pretend to.
