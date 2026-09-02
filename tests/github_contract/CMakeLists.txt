@@ -324,6 +324,69 @@ if(WIN32)
             RESOURCE_LOCK native_https_loopback
             TIMEOUT 90
     )
+
+    # BPR-0525 mirrors the two RFC-BPR-0016 device-authorization selectors the
+    # APPLE/Linux block above registers and BPR-0446 did not. The guard there
+    # exists for the openssl binary this block has already found, and the
+    # executable both drive is registered on Windows unguarded as
+    # `native_https_device_authorization_contract`, so nothing but the omission
+    # kept them off this platform. Arguments are the POSIX ones verbatim.
+    #
+    # Uncontained for the same dos-volume-name cause as the wire fixture
+    # above, measured here rather than inherited: registered contained
+    # first, both selectors refused at once with
+    # `fail:unavailable-executable` -- the driver's strict executable
+    # resolution needs the drive-letter translation a lowbox token is
+    # refused (BPR-0362, BPR-0525). Neither reaches a network it is not
+    # entitled to; both talk only to their own loopback origin, exactly as
+    # their POSIX registrations do.
+    bpr_add_network_isolated_test(
+        NAME native_https_device_authorization_fixture
+        WINDOWS_UNCONTAINED
+        LOOPBACK_PORT_COUNT 1
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/github_contract/verify_native_https_device_authorization.py"
+            --executable
+            "$<TARGET_FILE:test_better_pull_review_native_https_device_authorization_tests>"
+            --openssl
+            "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
+    )
+    set_tests_properties(
+        native_https_device_authorization_fixture
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 90
+            PASS_REGULAR_EXPRESSION
+                "native-https-device-authorization:pass"
+    )
+
+    # BPR-0450's separate selector for the renewal courses, mirrored here for
+    # the same reason: the RFC-BPR-0016 ledger allocates this exact name and
+    # verify_rfc0016_test_inventory.py must be able to count one selector for
+    # it on every platform the course audits.
+    bpr_add_network_isolated_test(
+        NAME github_device_authorization_refresh_contract
+        WINDOWS_UNCONTAINED
+        LOOPBACK_PORT_COUNT 1
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/github_contract/verify_native_https_device_authorization.py"
+            --executable
+            "$<TARGET_FILE:test_better_pull_review_native_https_device_authorization_tests>"
+            --openssl
+            "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
+            --suite
+            refresh
+    )
+    set_tests_properties(
+        github_device_authorization_refresh_contract
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 90
+            PASS_REGULAR_EXPRESSION
+                "github-device-authorization-refresh:pass"
+    )
 endif()
 
 bpr_add_executable(

@@ -1,7 +1,7 @@
 ---
 id: BPR-0524
 title: The Windows platform course audits two fewer selectors than macOS and Linux, and nothing says which
-status: Ready
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -178,3 +178,41 @@ and [[BPR-0525]] as their expiry.
 | Missing name refused by name; documented exclusion accepted only on its platform; stale exclusion refused; the enumeration matches the pattern; every exclusion names an enumerated selector with a reason | `python3 tests/scripts/rfc0016_platform_course_tests.py` | 15/15 | this commit |
 | The macOS tree registers all seventeen and the check passes | `check_course_registration(registered_course_selectors(build/dev), "macos")` | `MACOS_REGISTRATION_OK` | this commit |
 | The Windows course passes with fifteen registered and the two exclusions, and refuses once [[BPR-0525]] registers them without pruning the table | `bpr-win`'s next course run | **Pending** — target-native | Pending |
+
+## Closed on the Windows station — 2026-09-02, `bpr-win` at `1818d6a0`
+
+The course now enumerates its seventeen names, reads what CTest registers, and
+accepts fewer only through `PLATFORM_SELECTOR_EXCLUSIONS`. Run under the
+[[BPR-0493]] procedure from a build root deleted whole, with
+`--expected-device-selection enabled --fresh`:
+
+```text
+RFC0016_PLATFORM:windows
+RFC0016_SELECTION:enabled
+RFC0016_COURSE_SELECTORS:15
+RFC0016_DEVICE_STAGE:cancelled
+RFC0016_DEVICE_REQUESTS:0
+RFC0016_ELAPSED_SECONDS:982
+RFC0016_PLATFORM_COURSE_OK
+```
+
+Fifteen registered names plus the table's two documented Windows entries
+accounts for all seventeen. It refused with neither `course-selector-missing`
+nor `course-exclusion-stale`.
+
+That is the card's complaint answered on both halves: the count is now
+explained rather than merely printed, and a name that disappears from a
+platform is a refusal by name instead of a silently smaller number. The
+Windows count moved from an unexplained `:14` to an explained `:15` without
+any selector changing — [[BPR-0523]] added `composed_application_hosts` to the
+pattern between the two runs.
+
+The two entries in the table are this card's own finding, carried with the
+reason the station reported and [[BPR-0525]] as their expiry. [[BPR-0525]]'s
+registration landed on this lane in the same push, so those two entries are
+now stale by construction and the course would refuse them; the table is in
+`scripts/**` and the integrator prunes it on merge, then asks for one final
+course run expecting `RFC0016_COURSE_SELECTORS:17`. That run is [[BPR-0525]]'s
+closing row, not this card's.
+
+The card is terminal.
