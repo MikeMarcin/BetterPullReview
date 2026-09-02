@@ -130,8 +130,14 @@ def registered_tests(
             raise InventoryFailure("ctest-inventory-name")
         command = entry.get("command")
         if command is None:
-            arguments: tuple[str, ...] = ()
-        elif isinstance(command, list) and all(
+            # CTest lists a test it cannot describe with no `command` at all
+            # — inside a Windows AppContainer that is every test whose
+            # interpreter path a lowbox token cannot read. Reading that as
+            # an empty argument list turned "CTest did not describe this
+            # test" into "the command omits --suite refresh", an accusation
+            # about a registration the listing never saw (BPR-0528).
+            raise InventoryFailure(f"ctest-inventory-command-absent:{name}")
+        if isinstance(command, list) and all(
             isinstance(argument, str) for argument in command
         ):
             arguments = tuple(command)

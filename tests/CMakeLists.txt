@@ -201,8 +201,14 @@ set_tests_properties(
 # Only the inventory half runs here. The tests-disabled Release absence scan
 # needs a build this graph does not contain, so it stays a closeout command
 # documented in docs/development/build-and-test.md.
+# BPR-0528: the inventory shells `ctest --show-only`, which needs the
+# drive-letter translation a lowbox token is refused, so inside the
+# AppContainer CTest lists the Python-driven tests with no command at all;
+# it reads a listing and opens no socket, so the exemption costs no network
+# claim.
 bpr_add_network_isolated_test(
     NAME rfc0017_test_inventory
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/scripts/verify_rfc0017_test_inventory.py"
@@ -246,8 +252,14 @@ endif()
 # were built; the shipped-artifact scan needs a tests-disabled Release build
 # this graph does not contain, so it stays a closeout command documented in
 # docs/development/build-and-test.md and named in the RFC-BPR-0016 ledger.
+# BPR-0528: the inventory shells `ctest --show-only`, which needs the
+# drive-letter translation a lowbox token is refused, so inside the
+# AppContainer CTest lists the Python-driven tests with no command at all;
+# it reads a listing and opens no socket, so the exemption costs no network
+# claim.
 bpr_add_network_isolated_test(
     NAME rfc0016_test_inventory
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/scripts/verify_rfc0016_test_inventory.py"
