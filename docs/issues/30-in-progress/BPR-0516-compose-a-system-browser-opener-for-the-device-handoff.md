@@ -353,3 +353,12 @@ head: a doc comment in `src/app/src/system_browser_opener.hpp` named a
 forbidden Windows shell API in prose. The integrator's reproduction ran the
 selectors and the composition contract and not that gate. [[BPR-0283]]
 reworded the comment with no code change and the gate is green again.
+
+## The observation rows wait on a mount — 2026-09-02
+
+[[BPR-0284]] found that no shipped window mounts the device-authorization
+panel: the composition binds the projection port to a self-test sink, so
+the staged artifacts on all three platforms offer no sign-in control and the
+"Open browser" observation cannot be made from them. The three observation
+rows above stay pending on [[BPR-0526]], which mounts the panel; the staged
+artifacts and every other row here stand.

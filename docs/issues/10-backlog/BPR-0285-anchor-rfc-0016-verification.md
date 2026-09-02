@@ -3,7 +3,7 @@ id: BPR-0285
 title: Anchor RFC-BPR-0016 capability-critical verification
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318]
+depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526]
 ---
 
 # Anchor RFC-BPR-0016 capability-critical verification
