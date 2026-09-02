@@ -114,3 +114,21 @@ dispatched to measure rather than to repair.
 
 The card stays in `21-ready-win/` with its closing row Pending, because that
 row says the test passes on the Windows station and it does not.
+
+## The second defect: carriage returns — 2026-09-02
+
+With the command parsed, the helper runs and the suite fails on
+`the child's complete environment equals the helper's allowlist` because a
+Windows text-mode `std::cerr` writes each `'\n'` as `"\r\n"`, the file is
+read back in binary, and `split_lines` kept the carriage return, so
+`BPR_MCP_PINNED_BINDING\r` never equalled its allowlist entry. The helper's
+environment was right both directly and through `cmd`; the parse was
+wrong. `split_lines` now strips one trailing carriage return per line, which
+keeps `read_file` binary for its other callers. Measured by `bpr-win` from
+the bytes the exact command produced, with the per-drive `=C:` entries, the
+AppContainer, and the wrap itself ruled out first.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The suite still compiles for Clang and is unchanged on POSIX by construction (no carriage return to strip) | the `build/dev` compile command with `-fsyntax-only` | exit 0 | this commit |
+| The helper's test passes under MSVC | `bpr-win`'s `ctest --test-dir build/windows-dev -C Debug -R '^application_mcp_context_helper$'` from a checkout of this commit | **Pending** — target-native, the closing row | Pending |

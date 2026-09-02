@@ -135,6 +135,14 @@ namespace {
 			lines.push_back(aText.substr(position, next - position));
 			position = next + 1U;
 		}
+		// A Windows text-mode stream writes the helper's '\n' as "\r\n", and
+		// the file is read back in binary, so each line would carry a
+		// trailing carriage return that no allowlist entry has (BPR-0522).
+		for (auto& line : lines) {
+			if (!line.empty() && line.back() == '\r') {
+				line.pop_back();
+			}
+		}
 		return lines;
 	}
 

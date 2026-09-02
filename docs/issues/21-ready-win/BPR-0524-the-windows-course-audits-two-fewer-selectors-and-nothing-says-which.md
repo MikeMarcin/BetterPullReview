@@ -159,3 +159,22 @@ requires, these two names are its first Windows entries, and on this evidence
 the honest reason is not "unsupported on Windows" but "not yet mirrored by
 BPR-0446, unmeasured on Windows" — which is a reason with an expiry rather
 than a permanent exemption.
+
+## The course names its set and its exclusions — 2026-09-02
+
+`scripts/verify_rfc0016_platform_course.py` now enumerates the seventeen
+names as `COURSE_SELECTOR_NAMES` (a contract case proves each matches the
+pattern), reads what CTest registers with `ctest -N -R`, and refuses
+`course-selector-missing:<platform>:<name>` for any enumerated name not
+registered unless `PLATFORM_SELECTOR_EXCLUSIONS` lists it for that platform
+with its reason. An exclusion whose name is registered after all is refused
+as `course-exclusion-stale`, so the table cannot outlive the omission. The
+table's only entries are the two Windows names, with the reason the
+station established ("not yet mirrored into the Windows block, unmeasured")
+and [[BPR-0525]] as their expiry.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| Missing name refused by name; documented exclusion accepted only on its platform; stale exclusion refused; the enumeration matches the pattern; every exclusion names an enumerated selector with a reason | `python3 tests/scripts/rfc0016_platform_course_tests.py` | 15/15 | this commit |
+| The macOS tree registers all seventeen and the check passes | `check_course_registration(registered_course_selectors(build/dev), "macos")` | `MACOS_REGISTRATION_OK` | this commit |
+| The Windows course passes with fifteen registered and the two exclusions, and refuses once [[BPR-0525]] registers them without pruning the table | `bpr-win`'s next course run | **Pending** — target-native | Pending |

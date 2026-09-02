@@ -63,6 +63,91 @@ COURSE_SELECTOR_PATTERN = (
     ")$"
 )
 
+# The same set, enumerated, so the course can say which name is missing on a
+# platform rather than passing on "more than zero matched" (BPR-0524).
+COURSE_SELECTOR_NAMES = (
+    "core_device_authorization",
+    "application_device_authorization_host",
+    "application_device_authorization_refresh",
+    "application_device_authorization_public_path",
+    "application_device_authorization_unavailable",
+    "application_device_authorization_release_contract",
+    "application_device_authorization_registered_course",
+    "application_github_credential_vault",
+    "github_device_authorization_contract",
+    "github_device_authorization_refresh_contract",
+    "native_https_device_authorization_contract",
+    "native_https_device_authorization_fixture",
+    "qt_device_authorization_scale_100",
+    "qt_device_authorization_scale_125",
+    "qt_device_authorization_scale_200",
+    "rfc0016_test_inventory",
+    "composed_application_hosts",
+)
+
+# The only way a platform audits fewer names than the pattern enumerates.
+# Every entry carries its reason, and an entry whose name turns out to be
+# registered on that platform is refused as stale, so the table shrinks the
+# moment the registration lands rather than outliving it.
+PLATFORM_SELECTOR_EXCLUSIONS: dict[str, dict[str, str]] = {
+    "windows": {
+        "github_device_authorization_refresh_contract": (
+            "registered under `if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL \"Linux\")` in "
+            "tests/github_contract/CMakeLists.txt and not yet mirrored into the "
+            "Windows block BPR-0446 added; unmeasured on Windows (BPR-0525)"
+        ),
+        "native_https_device_authorization_fixture": (
+            "same guard, same omission; its sibling contract is registered on "
+            "Windows and needed WINDOWS_UNCONTAINED (BPR-0362), so this likely "
+            "does too once mirrored (BPR-0525)"
+        ),
+    },
+}
+
+
+def registered_course_selectors(
+    build_dir: pathlib.Path,
+    configuration: str | None = None,
+) -> set[str]:
+    """The course selectors CTest actually lists in this tree."""
+    command = ["ctest", "--test-dir", str(build_dir)]
+    if configuration is not None:
+        command += ["-C", configuration]
+    command += ["-N", "-R", COURSE_SELECTOR_PATTERN]
+    result = run(command, cwd=REPOSITORY_ROOT, timeout=600)
+    require(
+        result.returncode == 0,
+        f"course-registration-unreadable:{result.stderr.strip()[:400]}",
+    )
+    return set(re.findall(r"Test\s+#\d+:\s+(\S+)", result.stdout))
+
+
+def check_course_registration(
+    registered: set[str],
+    platform_name: str,
+) -> None:
+    """Every enumerated selector is registered, or its absence is written down.
+
+    A count above zero says nothing about which audits ran; the Windows
+    course passed at fourteen while macOS and Linux ran sixteen and no
+    output said which two were missing (BPR-0524). A name absent on a
+    platform is a refusal by name unless the exclusion table names it with
+    its reason, and an exclusion for a name that is registered after all is
+    refused too, so the table cannot outlive the omission it records.
+    """
+    exclusions = PLATFORM_SELECTOR_EXCLUSIONS.get(platform_name, {})
+    for name in COURSE_SELECTOR_NAMES:
+        if name in registered:
+            require(
+                name not in exclusions,
+                f"course-exclusion-stale:{platform_name}:{name}",
+            )
+        else:
+            require(
+                name in exclusions,
+                f"course-selector-missing:{platform_name}:{name}",
+            )
+
 # The platform credential store each host must select, and the symbol that
 # proves the shipped artifact actually contains it. A build that linked the
 # wrong one would still pass a selection check that only read a boolean.
@@ -679,6 +764,10 @@ def main() -> int:
             arguments.dev_preset, debug_dir, arguments.fresh, "Debug"
         )
         check_inventory(debug_dir, debug_configuration)
+        check_course_registration(
+            registered_course_selectors(debug_dir, debug_configuration),
+            arguments.platform,
+        )
         selectors = check_course_selectors(debug_dir, debug_configuration)
         launch = launch_environment(
             debug_dir, debug_configuration, arguments.platform

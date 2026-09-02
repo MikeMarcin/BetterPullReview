@@ -111,6 +111,51 @@ class LaunchEnvironmentTests(unittest.TestCase):
         self.assertEqual(environment["PATH"], QT_DIRECTORY)
 
 
+class CourseRegistrationTests(unittest.TestCase):
+    """The course names a missing selector instead of passing on a count."""
+
+    def test_every_name_registered_passes_on_every_platform(self) -> None:
+        for platform_name in ("macos", "linux"):
+            course.check_course_registration(set(course.COURSE_SELECTOR_NAMES), platform_name)
+
+    def test_a_missing_name_is_refused_by_name(self) -> None:
+        registered = set(course.COURSE_SELECTOR_NAMES) - {"qt_device_authorization_scale_125"}
+        with self.assertRaises(course.CourseFailure) as refused:
+            course.check_course_registration(registered, "linux")
+        self.assertEqual(
+            str(refused.exception),
+            "course-selector-missing:linux:qt_device_authorization_scale_125",
+        )
+
+    def test_a_documented_exclusion_is_accepted_only_on_its_platform(self) -> None:
+        excluded = set(course.PLATFORM_SELECTOR_EXCLUSIONS["windows"])
+        registered = set(course.COURSE_SELECTOR_NAMES) - excluded
+        course.check_course_registration(registered, "windows")
+        with self.assertRaises(course.CourseFailure) as refused:
+            course.check_course_registration(registered, "linux")
+        self.assertTrue(str(refused.exception).startswith("course-selector-missing:linux:"))
+
+    def test_an_exclusion_whose_name_is_registered_is_stale(self) -> None:
+        with self.assertRaises(course.CourseFailure) as refused:
+            course.check_course_registration(set(course.COURSE_SELECTOR_NAMES), "windows")
+        self.assertTrue(str(refused.exception).startswith("course-exclusion-stale:windows:"))
+
+    def test_the_enumeration_matches_the_pattern(self) -> None:
+        import re as _re
+
+        pattern = _re.compile(course.COURSE_SELECTOR_PATTERN)
+        for name in course.COURSE_SELECTOR_NAMES:
+            self.assertIsNotNone(pattern.match(name), name)
+        self.assertEqual(len(set(course.COURSE_SELECTOR_NAMES)), len(course.COURSE_SELECTOR_NAMES))
+
+    def test_every_exclusion_names_an_enumerated_selector_with_a_reason(self) -> None:
+        for platform_name, table in course.PLATFORM_SELECTOR_EXCLUSIONS.items():
+            self.assertIn(platform_name, course.PLATFORMS)
+            for name, reason in table.items():
+                self.assertIn(name, course.COURSE_SELECTOR_NAMES)
+                self.assertTrue(reason.strip())
+
+
 class DirectLaunchStepsTests(unittest.TestCase):
     """Both steps that run the artifact outside CTest receive the environment."""
 
