@@ -54,3 +54,40 @@ Historical evidence is provenance only; every row requires final replay at the f
 | [ ] | Theme imports reject unknown fields, URLs, includes, oversized files, and executable/style payloads. | core_theme_exchange validation plus BPR-0237 composed import/preview interaction | Run `ctest --preset dev -R '^(core_theme_exchange)$' --output-on-failure`, then execute BPR-0237's composed semantic-role preview/commit/cancel/restart and valid/invalid import matrix against the selected comparison. | Unknown fields, URLs, includes, oversize, executable/style payloads, malformed/forward versions, and contrast-invalid roles get distinct rejections; a valid theme round-trips and previews safely. | Theme-import-is-safe row and BPR-0237 required final-state contract in [RFC-BPR-0006 verification ledger](../../verification/RFC-BPR-0006.md#claim-matrix); final replay record keyed by “Theme imports reject unknown fields, URLs, includes, oversized files, and executable/style payloads.” | automated | No live blocker; final-head focused replay remains required. |
 | [ ] | High-contrast and color-vision checks prove state remains understandable without color alone. | Four shipped palettes, semantic non-color cues, and digest-bound high-contrast captures | Run `ctest --preset dev -R '^core_appearance_contrast$' --output-on-failure`, then complete BPR-0210's exact Light/Dark/high-contrast attended capture review with BPR-0233's selected recorded diff. | Every review state retains an icon, label, mark, outline, prefix, or accessible name; required contrast/color-vision pairs pass and the attended captures remain readable. | State-survives-without-colour row and BPR-0210 verdict artifact in [RFC-BPR-0006 verification ledger](../../verification/RFC-BPR-0006.md#claim-matrix); final replay record keyed by “High-contrast and color-vision checks prove state remains understandable without color alone.” | owner-attended | [BPR-0114](BPR-0114-rfc-0006-system-scheme-toggle.md) remains open and anchors the terminal attended sitting this row's replay joins; the prior-RFC blocker resolved when RFC-BPR-0005 closed Auto-Verified on 2026-08-29. |
 | [ ] | Dependency scans prove no font/color/KSyntaxHighlighting/Qt types enter the functional core; theme/font interactions update host caches and Qt presentation without mutating review semantics. | Core dependency scans, appearance host cache counters, and Qt syntax/profile projection | `ctest --preset dev -R '^(core_dependency_boundary\|application_appearance_host\|qt_syntax_pane_composition\|qt_appearance_profile)$' --output-on-failure` | Core contains no font/color/KSyntaxHighlighting/Qt type; host cache invalidations and Qt repaint/geometry changes do not mutate review mapping or selection. | Core-stays-free-of-presentation-types row in the claim matrix in [RFC-BPR-0006 verification ledger](../../verification/RFC-BPR-0006.md#claim-matrix); final replay record keyed by “Dependency scans prove no font/color/KSyntaxHighlighting/Qt types enter the functional core; theme/font interactions update host caches and Qt presentation without mutating review semantics.” | automated | No live blocker; final-head focused replay remains required. |
+
+## Focused replay of the automated rows — 2026-09-01
+
+Run against `build/dev` at the tree of `cc17d703`, whose `src/` and
+`tests/` are byte-identical to the closeout candidate's for every surface
+these rows name (`cmake --build --preset dev` reported `ninja: no work to
+do`). Under the light closeout contract this is the check per criterion, its
+result, and its commit; a later commit that does not touch these surfaces
+does not reopen them.
+
+`ctest --test-dir build/dev --output-on-failure --no-tests=error -R '^(syntax_classification_contract|composed_application_hosts|qt_syntax_pane_composition|application_appearance_host|application_appearance_gesture_contract|qt_appearance_profile|qt_diff_axis_scale_(100|125|200)|sqlite_appearance_settings_storage|qt_appearance_settings_panel|core_theme_exchange|core_appearance_contrast|core_dependency_boundary|application_appearance_theme_customization_contract|application_appearance_store_fallback_contract|application_uiforetw_selected_diff_contract|application_native_appearance_probe_contract)$'`
+— **18/18 passed**, 100%.
+
+| Criterion | Selectors run | Result | Commit |
+|---|---|---|---|
+| Definitions are selected correctly | `syntax_classification_contract`, `composed_application_hosts` | pass | `cc17d703` |
+| Hunk classification equals whole-blob classification | `qt_syntax_pane_composition` | pass | `cc17d703` |
+| Theme change does not re-parse | `application_appearance_host`, `qt_syntax_pane_composition`, `application_appearance_gesture_contract`, plus BPR-0237's `application_appearance_theme_customization_contract` (the selected-comparison repaint trace with the lexical-submission count held) | pass | `cc17d703` |
+| Font change preserves semantics | `qt_appearance_profile`, `qt_diff_axis_scale_100/125/200`; BPR-0227's selected-comparison font path is exercised by `application_uiforetw_selected_diff_contract` | pass | `cc17d703` |
+| Predefined settings persist and preview | `application_appearance_gesture_contract`, `sqlite_appearance_settings_storage`, `qt_appearance_settings_panel`, `application_appearance_theme_customization_contract`, `application_appearance_store_fallback_contract` | pass | `cc17d703` |
+| Theme import is safe | `core_theme_exchange`, `application_appearance_theme_customization_contract` | pass | `cc17d703` |
+| The core stays free of presentation types | `core_dependency_boundary`, `application_appearance_host`, `qt_syntax_pane_composition`, `qt_appearance_profile` | pass | `cc17d703` |
+| System mode follows the OS; explicit does not | `application_native_appearance_probe_contract` (the probe's deterministic contract) passes here; the frontmost observation itself is the owner-accepted v008 record | automated half pass; attended half see below | `cc17d703` |
+| State survives without colour | `core_appearance_contrast` passes here; the attended captures are the accepted `high-contrast-scheme-acceptance-v001` and `diff-scheme-acceptance-v002` verdicts | automated half pass; attended half see below | `cc17d703` |
+
+### The two attended rows
+
+Neither attended surface has changed since its verdict: no commit since
+2026-08-21 touches the appearance profile, host, settings adapter, or syntax
+adapter (`git log --since=2026-08-21 -- src/*/appearance* src/adapters/syntax`
+is empty), and the only appearance-related change to `main.cpp` since v008
+is a failure-message format ([[BPR-0475]]). The v008 owner acceptance and the
+owner's recorded request that no redundant digest-only rerun be required
+therefore stand as this row's evidence under the reuse rule. Whether to close
+the RFC on that reuse or to sit one more v009 foreground run against the
+closeout executable is the owner's call; it is presented with the run's other
+pending verdicts rather than decided here, and [[BPR-0114]] carries it.
