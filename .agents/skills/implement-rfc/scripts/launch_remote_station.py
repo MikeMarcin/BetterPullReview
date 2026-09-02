@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Launch this checkout as one named Claude and Codex remote station.
 
-usage: launch_remote_station.py <workstream> [options]
-  workstream: a key of `workstreams` in config/project.json (`main` is the
-              integrator); a platform-bound workstream launches only on its host
+usage: launch_remote_station.py [workstream] [options]
+  workstream: optional. Inferred from `.remote-station.json` when the checkout
+              was launched before, otherwise from the checkout's branch (each
+              workstream in config/project.json names its branch). Pass it only
+              to be explicit; a value that disagrees with the checkout refuses.
+              `main` is the integrator; a platform-bound workstream launches
+              only on its host.
   --machine <suffix>   append a machine token to the station name (mandatory
                        when the same platform exists on more than one machine)
   --read-only          bind with authority read-only-proof
@@ -14,6 +18,12 @@ usage: launch_remote_station.py <workstream> [options]
                        and print the lease-wrapped direct Codex command
   --permission-mode <m> Claude permission mode; defaults to bypassPermissions
                        because an unattended station that prompts simply hangs
+
+What you will see: after the Codex task is provisioned, Claude opens in this
+terminal. That is the station — the interactive session is the only form that
+exists, and is named, from the moment it starts — so leave it running. Work
+arrives as messages from the integrator; you can also drive it from
+claude.ai/code, the mobile app, or by typing here.
 
 The default path holds one writer lease while Codex Managed Remote provisions
 and materializes a persistent task named for the station, then resumes the exact
@@ -234,9 +244,13 @@ def resolve_context(arguments: argparse.Namespace) -> StationContext:
             f"{PROJECT['display_name']} repository"
         )
 
+    current = run_git(root, "branch", "--show-current")
+    if arguments.workstream is None:
+        arguments.workstream = infer_workstream(
+            root / ".remote-station.json", current
+        )
     workstream = WORKSTREAMS[arguments.workstream]
     branch = workstream["branch"]
-    current = run_git(root, "branch", "--show-current")
     if current != branch:
         raise LaunchRefusal(
             f"checkout is on '{current}' but workstream "
@@ -272,6 +286,40 @@ def resolve_context(arguments: argparse.Namespace) -> StationContext:
         authority=arguments.authority,
         lease_role=lease_role,
         station_file=root / ".remote-station.json",
+    )
+
+
+def infer_workstream(station_file: pathlib.Path, current_branch: str) -> str:
+    """The workstream this checkout is, without being told.
+
+    A checkout launched before says so in its station file. A fresh one says
+    so by its branch: every workstream in `config/project.json` names the one
+    branch it lives on, so the branch identifies the workstream exactly or not
+    at all. Nothing is inferred from the host platform — a Windows host can
+    hold the integrator checkout, and the branch is what makes that unambiguous.
+    """
+    try:
+        recorded = load_station_file(station_file)
+    except LaunchRefusal:
+        recorded = {}
+    recorded_workstream = recorded.get("workstream")
+    if isinstance(recorded_workstream, str) and recorded_workstream in WORKSTREAMS:
+        return recorded_workstream
+    matches = [
+        name
+        for name, workstream in WORKSTREAMS.items()
+        if workstream["branch"] == current_branch
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    branches = ", ".join(
+        f"{name} ({workstream['branch']})"
+        for name, workstream in sorted(WORKSTREAMS.items())
+    )
+    raise LaunchRefusal(
+        f"cannot infer a workstream: this checkout is on '{current_branch}', "
+        f"which no workstream names, and it has no station file; the "
+        f"workstreams are {branches}"
     )
 
 
@@ -781,13 +829,15 @@ def watch_for_claude_session(
 
 
 def session_bound_notice(context: StationContext) -> str:
-    """What a peer will see: the station name, from the moment Claude starts."""
+    """What the operator is about to see, and what a peer will see."""
     return (
-        f"Claude station {context.name}: this process is the served session, "
-        f"so peers see it as {context.name} as soon as it starts. "
-        f"{context.station_file.name} records the session ID when Claude's "
-        "bridge pointer appears; until then a relaunch resumes this "
-        "directory's conversation with --continue."
+        f"Claude station {context.name}: Claude opens in this terminal now, "
+        f"and that interactive session IS the station — peers see it as "
+        f"{context.name} as soon as it starts. Leave it running; work arrives "
+        "as messages, and you can drive it from claude.ai/code, the mobile "
+        f"app, or by typing here. {context.station_file.name} records the "
+        "session ID when Claude's bridge pointer appears; until then a "
+        "relaunch resumes this directory's conversation with --continue."
     )
 
 
@@ -1052,7 +1102,13 @@ def run_legacy_no_server(context: StationContext) -> int:
 
 def parse_arguments(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("workstream", choices=sorted(WORKSTREAMS))
+    parser.add_argument(
+        "workstream",
+        nargs="?",
+        default=None,
+        choices=sorted(WORKSTREAMS),
+        help="optional; inferred from the station file or the checkout's branch",
+    )
     parser.add_argument("--machine", default="")
     parser.add_argument(
         "--read-only",

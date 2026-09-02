@@ -266,7 +266,38 @@ class LauncherTests(unittest.TestCase):
         notice = launcher.session_bound_notice(self.context)
         self.assertIn("fx-main-mac", notice)
         self.assertIn("as soon as it starts", notice)
+        self.assertIn("opens in this terminal", notice)
         self.assertIn("--continue", notice)
+
+    def test_workstream_is_inferred_from_the_station_file(self) -> None:
+        self.context.station_file.write_text(
+            json.dumps({"schema": launcher.STATION_SCHEMA, "workstream": "linux"}),
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            launcher.infer_workstream(self.context.station_file, "unrelated"),
+            "linux",
+        )
+
+    def test_workstream_is_inferred_from_the_branch(self) -> None:
+        for name, workstream in launcher.WORKSTREAMS.items():
+            self.assertEqual(
+                launcher.infer_workstream(
+                    self.context.station_file, workstream["branch"]
+                ),
+                name,
+            )
+
+    def test_unknown_branch_without_a_station_file_refuses_to_guess(self) -> None:
+        with self.assertRaisesRegex(launcher.LaunchRefusal, "cannot infer a workstream"):
+            launcher.infer_workstream(self.context.station_file, "feature/x")
+
+    def test_omitted_workstream_resolves_from_the_checkout(self) -> None:
+        """`launch_remote_station.py` with no argument is the documented command."""
+        parsed = launcher.parse_arguments([])
+        self.assertIsNone(parsed.workstream)
+        parsed = launcher.parse_arguments(["linux"])
+        self.assertEqual(parsed.workstream, "linux")
 
     def test_supervisor_migrates_v1_and_preserves_station_id(self) -> None:
         self.context.station_file.write_text(

@@ -122,19 +122,30 @@ authoritative everywhere else, and the station file is authoritative always.
    everywhere else:
 
    ```sh
-   py -3 scripts/launch_remote_station.py win                # native Windows station
-   python3 scripts/launch_remote_station.py linux            # WSL2 or Linux station
-   python3 scripts/launch_remote_station.py main             # the integrator itself
-   py -3 scripts/launch_remote_station.py win --continue     # reattach after restart
-   python3 scripts/launch_remote_station.py linux --no-server # Codex: provision only
+   py -3 scripts/launch_remote_station.py                    # native Windows station
+   python3 scripts/launch_remote_station.py                  # WSL2/Linux station, or the Mac integrator
+   py -3 scripts/launch_remote_station.py --continue         # reattach after restart
+   python3 scripts/launch_remote_station.py --no-server      # Codex: provision only
    ```
 
-   That is the whole command. Two options exist for cases this project does
-   not currently have: `--machine <suffix>` when the same platform runs on
-   more than one machine (the JaegAW stations were registered with
-   `--machine jaegaw` before that rule was read closely; keep passing it for
-   them so their names stay stable), and `--read-only` for a checkout with
-   no push credential for its station branch.
+   That is the whole command. The workstream is inferred: from
+   `.remote-station.json` when the checkout was launched before, otherwise
+   from the checkout's branch (`windows-lane` is `win`, `linux-lane` is
+   `linux`, `main` is `main`). Passing it explicitly is allowed and refuses
+   if it disagrees with the checkout. Two options exist for cases this
+   project does not currently have: `--machine <suffix>` when the same
+   platform runs on more than one machine (the JaegAW stations were
+   registered with `--machine jaegaw` before that rule was read closely;
+   keep passing it for them so their names stay stable), and `--read-only`
+   for a checkout with no push credential for its station branch.
+
+   **What you will see.** After the Codex task is provisioned, Claude opens
+   in that terminal. That interactive session *is* the station: it is the
+   only form that exists, and is named, from the moment it starts, which is
+   what makes the name bind. Leave it running. Work arrives as messages from
+   the integrator; you can also drive it from claude.ai/code, the mobile
+   app, or by typing there. The old server form showed a status screen
+   instead — and never created a session.
 
    The launcher refuses a wrong repository, wrong branch, or a
    platform-bound workstream that does not match the host (WSL2 counts as

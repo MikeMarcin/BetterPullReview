@@ -20,6 +20,7 @@ add_library(
         src/review_queue.cpp
         src/agent_context_supplement.cpp
         src/agent_finding.cpp
+        src/agent_finding_promotion.cpp
         src/agent_profile.cpp
         src/agent_session.cpp
         src/review_queue_attention.cpp

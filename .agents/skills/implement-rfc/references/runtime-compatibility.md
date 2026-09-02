@@ -150,7 +150,11 @@ supported — that is how several stations share a host.
   <station> --permission-mode <mode>`: the running process is the served
   session, so the name exists and binds in peer lists the moment it starts,
   and the supervisor already runs Claude in the foreground for its whole
-  life. The `claude remote-control` *server* is the wrong shape for a
+  life. The operator therefore sees Claude open in the launch terminal; that
+  session is the station and stays running, driven by messages, the web or
+  mobile app, or the keyboard. The launcher infers the workstream from the
+  station file or the checkout's branch, so the documented command takes no
+  argument. The `claude remote-control` *server* is the wrong shape for a
   station whatever its `--spawn` mode: `session`, the default `same-dir`,
   and `worktree` all create sessions only when a controller connects, so a
   station launched that way has no session and no peer-list entry until
