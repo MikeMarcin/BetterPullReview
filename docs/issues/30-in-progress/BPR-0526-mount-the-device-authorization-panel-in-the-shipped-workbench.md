@@ -1,7 +1,7 @@
 ---
 id: BPR-0526
 title: Mount the device-authorization panel in the shipped workbench
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0280]
 ---
