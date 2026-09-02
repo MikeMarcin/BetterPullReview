@@ -1,7 +1,7 @@
 ---
 id: BPR-0495
 title: The syntax provider builds every Visual Studio configuration and MinSizeRel does not compile
-status: Ready
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -103,8 +103,59 @@ can do silently.
 | The preset declares the list and the contract pins it | `python3 tests/scripts/platform_configuration_tests.py` | 5/5, including the new exact `CMAKE_CONFIGURATION_TYPES` assertion | this commit |
 | The preset file stays valid presets JSON | `python3 -c 'import json; json.load(open("CMakePresets.json"))'` | loads | this commit |
 | Single-config trees are untouched | The provider's `SINGLE_CONFIGURATION` branch is unchanged; only a comment was added inside the multi-config branch | no macOS/Linux behavior change by construction; the RFC-0006/0011 focused selectors run on this host at this tree stayed green (18/18 and pending) | this commit |
-| The fresh `windows-dev` configure completes from the committed preset, and only Debug/Release dependency logs exist | `cmake --preset windows-dev --fresh` on the JaegAW host from a checkout of this commit | **Pending** — target-native, and the reason this card is not terminal | Pending |
+| The fresh `windows-dev` configure completes from the committed preset, and only Debug/Release dependency logs exist | `cmake --preset windows-dev --fresh` on the JaegAW host from a checkout of this commit | Recorded target-native below | `6fff0a53` |
 
 The card moves to `21-ready-win/`: the repair is committed and the remaining
 row can only be produced on the Windows host. The exact ledger command for
 [[BPR-0311]] then follows on the station.
+
+## Target-native result — 2026-09-01, station `bpr-win` at `6fff0a53`
+
+The pending row is now measured. Smart App Control is **off** on this host
+(`VerifiedAndReputablePolicyState = 0`,
+`Win32_DeviceGuard.UsermodeCodeIntegrityPolicyEnforcementStatus = 0`), which is
+the condition [[BPR-0493]] describes and the reason the configure could get
+past `katehighlightingindexer.exe` at all.
+
+`build/windows-dev` was deleted outright before the run rather than relying on
+`--fresh` alone. `--fresh` clears the cache but not `_bpr/`, and that directory
+still held the four-configuration logs from the pre-repair run — so with the
+tree left in place, "which logs exist" could not distinguish a narrowed build
+from stale leftovers. The deletion is what makes the log listing below evidence.
+
+| Claim | Command | Result |
+|---|---|---|
+| The fresh multi-config configure completes | `cmake --preset windows-dev --fresh` | exit 0, `-- Configuring done (214.8s)`, `-- Generating done (1.2s)`, `-- Build files have been written to: C:/code/git/bpr-windows/build/windows-dev`; 3 m 36 s wall. No `C1083`, and no `MinSizeRel` compile attempted |
+| The committed preset supplies the list, not the generator default | `CMakeCache.txt` after the run | `CMAKE_CONFIGURATION_TYPES:UNINITIALIZED=Debug;Release` |
+| The provider built and installed exactly the configurations the tree selects | `ls build/windows-dev/_bpr/ksyntaxhighlighting/6.28.1/logs/` | `syntax-highlighting-build-Debug.log`, `syntax-highlighting-build-Release.log`, `syntax-highlighting-install-Debug.log`, `syntax-highlighting-install-Release.log`, plus the single `syntax-highlighting-configure.log` and the two `extra-cmake-modules-*` logs. **No `MinSizeRel` or `RelWithDebInfo` log of either kind** |
+| Selecting a configuration the provider did not build fails loudly | `cmake --build build/windows-dev --config MinSizeRel` | exit 1, `error MSB8013: This project doesn't contain the Configuration and Platform combination of MinSizeRel\|x64` — the generator refuses at build time rather than linking against the wrong install |
+
+The last row is worth stating plainly because the repair commit asserted it by
+construction — "no provider-side check was added because the generator already
+refuses" — and did not measure it. It is measured now, and the generator does
+refuse.
+
+### A host-state defect found on the way, and not a repository one
+
+The first attempt at the exact command failed in 70 ms:
+
+```text
+CMake Error: Could not read presets from C:/code/git/bpr-windows:
+Duplicate preset: "windows-app-release"
+```
+
+[[BPR-0311]] landed `windows-app-release` in `CMakePresets.json`, and this
+checkout's gitignored `CMakeUserPresets.json` still carried the hand-built
+preset of the same name from that card's earlier read-only run. Two presets
+with one name make *every* preset command on the host unreadable, including
+`windows-dev`. The superseded configure/build pair was removed from the
+untracked file — the unrelated `windows-app-release-vs` experiment was kept —
+and the command then ran as recorded above.
+
+No card is minted: the file is machine-local, untracked, and not a repository
+artifact, so there is no repository state to repair. It is recorded here because
+any station whose checkout predates that preset landing will hit it, and the
+error names neither the file nor the fact that one of the two presets is stale.
+
+The card is terminal. [[BPR-0311]]'s exact ledger command follows on this
+station and its result is recorded there, not here.
