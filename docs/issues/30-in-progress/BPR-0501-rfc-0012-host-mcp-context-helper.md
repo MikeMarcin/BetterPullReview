@@ -1,7 +1,7 @@
 ---
 id: BPR-0501
 title: "Host: read-only MCP context helper over stdio"
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0012
 depends_on: [BPR-0496]
 ---
