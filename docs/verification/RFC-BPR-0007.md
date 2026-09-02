@@ -2,18 +2,17 @@
 
 RFC base: `ea3a3b8223c00f9e0999bf0ab2882496abf65843`
 
-Status: **the durable authority and selected-file product composition are
-complete; broader queue and mutation workflows remain open.** BPR-0121 through BPR-0128 delivered file and conversation
+Status: **RFC-BPR-0007 is `Auto-Verified` as of 2026-09-02; the closeout
+record is on BPR-0241 and in the Closeout section at the end of this ledger.**
+Before that: BPR-0121 through BPR-0128 delivered file and conversation
 receipts, actionability policy, Qt projection, and the first two schema
-versions. BPR-0238 adds schema version 3 and bounded ports for private notes,
-the existing receipt-owned exclusions, last-reviewed heads, and defect
-metadata/history. BPR-0228 composes one `review_ledger_application_host` under
-the exact accepted pull-request authority, routes receipt actions and private
-records through it, and derives selected-file actionability from exact material
-facts. Unknown material remains conservatively actionable. BPR-0229 through
-BPR-0231 own the broader queue, mutation, and notification workflows.
-
-RFC-BPR-0007 stays `Proposed`. No card here makes a closure claim.
+versions; BPR-0238 added schema version 3 and bounded ports for private notes,
+exclusions, last-reviewed heads, and defect metadata/history; BPR-0228
+composed one `review_ledger_application_host` under the exact accepted
+pull-request authority; BPR-0229 through BPR-0231 composed the round trip,
+the defect workflow, and honest queue enrollment; BPR-0472 removed the last
+platform defect (a directory in the ledger's place escaped the store as an
+exception on libstdc++). Unknown material remains conservatively actionable.
 
 ## Why this RFC can be implemented now
 
@@ -62,13 +61,13 @@ reading `Planned` have none yet, and a partially claimed row says which half.
 
 | Claim | Direct surface | Command or interaction | What proves it | Result |
 |---|---|---|---|---|
-| Receipt invalidation is precise | Core plus SQLite | Advance a fixture with mixed changed and unchanged material | Only receipts whose material identity changed are invalidated; unchanged ones survive the epoch advance | Core half verified. BPR-0122 asserts retention per file across a mixed advance rather than by count, and distinguishes an absent file from a changed one; the SQLite half lands with BPR-0125 |
+| Receipt invalidation is precise | Core plus SQLite | Advance a fixture with mixed changed and unchanged material | Only receipts whose material identity changed are invalidated; unchanged ones survive the epoch advance | Verified. BPR-0122 asserts retention per file across a mixed advance rather than by count, and distinguishes an absent file from a changed one; the persisted half is BPR-0125's host carry-over (`test_material_observation_loads_carries_and_publishes_in_order` in `application_review_ledger_host`) and BPR-0228's composition contract, whose newer-head reopen proves a receipt load and one core-decided carry-over write |
 | Read, accepted, excluded, and seen survive restart | Host persistence | Set each state, restart, re-read | Every state returns identical after a clean restart | Verified. BPR-0125 writes each of the four states to its own file identity in a real database, reopens, and compares byte for byte; a file never written reads back absent rather than defaulted |
-| New or edited comments reopen the right conversation | Core plus host | Add a comment, then edit one in place | Both reopen unread, and only the affected conversation | Core half verified. BPR-0121 proves an in-place edit reopens unread and outdates acceptance while carrying the same comment identity; the host half lands with BPR-0125 |
-| Crash recovery is sound | Process-kill integration | Kill during a transaction and during a refresh, then restart | Committed state survives and incomplete transactions are discarded | Transaction persistence verified. BPR-0126 SIGKILLs a child holding an open receipt transaction. BPR-0238 repeats the real kill with note, reviewed-head, and defect writes in one transaction: all committed values survive and all abandoned values disappear together. Both assert `WTERMSIG == SIGKILL`; the POSIX-only tests compile out on Windows. The composed refresh path remains BPR-0228 |
+| New or edited comments reopen the right conversation | Core plus host | Add a comment, then edit one in place | Both reopen unread, and only the affected conversation | Verified. BPR-0121 proves an in-place edit reopens unread and outdates acceptance while carrying the same comment identity; the host builds the bounded conversation observations the core decides on (BPR-0125) and the conversation receipts persist and migrate with their identity (BPR-0124, BPR-0238, `sqlite_review_ledger_storage`) |
+| Crash recovery is sound | Process-kill integration | Kill during a transaction and during a refresh, then restart | Committed state survives and incomplete transactions are discarded | Transaction persistence verified. BPR-0126 SIGKILLs a child holding an open receipt transaction. BPR-0238 repeats the real kill with note, reviewed-head, and defect writes in one transaction: all committed values survive and all abandoned values disappear together. Both assert `WTERMSIG == SIGKILL`; the POSIX-only tests compile out on Windows. The composed refresh path is BPR-0228's composition contract, replayed at closeout |
 | Migrations are forward-only and complete | Host migration tests | Open a database at every supported prior schema | Each migrates to current and no migration is reversible | Verified through schema version 3. A real version-1 database with nonzero valid identities and legal acceptance state traverses 1→2→3; an exact version-2 fixture traverses 2→3 and retains both file and conversation receipt rows. A newer database is refused *without being written to*. Separate wrong-application v1 and v2 fixtures are refused before migration and preserve the whole database byte-for-byte, application/user/schema metadata, exact `sqlite_schema` definitions, the exact file receipt, and the v2 conversation receipt |
 | No cross-identity leak | Persistence integration | Reuse PR numbers and paths across hosts, accounts, and repositories | No receipt is visible outside the identity that wrote it | Verified. BPR-0124 resolves pull request 7 on four identities differing in one field each to four distinct scopes, and BPR-0125 shows the same file identity written under one host carries no receipt under another |
-| GitHub remains unchanged | Database-loss test | Delete the ledger and inspect an independent GitHub fixture | Only private state is lost and a clean ledger is recreated | Verified for store independence. BPR-0126 deletes the ledger with its `-wal` and `-shm`, recreates a clean one, and shows a second database beside it untouched; the test fails if the two ever share a file. Inspecting a live GitHub fixture belongs to BPR-0128's public path |
+| GitHub remains unchanged | Database-loss test | Delete the ledger and inspect an independent GitHub fixture | Only private state is lost and a clean ledger is recreated | Verified for store independence. BPR-0126 deletes the ledger with its `-wal` and `-shm`, recreates a clean one, and shows a second database beside it untouched; the test fails if the two ever share a file. Inspecting the independent GitHub fixture is BPR-0128's public path, terminal, and the composition contract's seed/reopen course runs against that fixture |
 | Next actionable is deterministic and explains itself | Core | Rank a fixture queue twice and read the explanation | The order is identical and the explanation names the deciding facts | Verified. BPR-0123 ranks a fixture whose top reason is tied and whose supplied order the tie-break must overturn, and re-ranks the reversed input to the identical result; the reason is a core value the adapter renders rather than composes |
 | The ledger decision and effect split holds | Core, fake store, Qt, and shipped composition | Drive a receipt intent end to end | Intent transition, persistence request, typed completion, and UI delta are each separately observable | Verified. BPR-0125's fake store and fake projection share one log, and BPR-0228 drives seven inverse receipt actions through the shipped `QAction` surface, requiring one command, durable completion, and changed projection per gesture |
 | The core stays free of storage and presentation | Dependency scan | Scan the core target | No SQLite, Qt, filesystem, clock, thread, or credential identifier appears | Verified. The whole ledger policy — receipts (BPR-0121), carry-over (BPR-0122), and ranking (BPR-0123) — builds and runs under `core-only`, which links neither Qt nor SQLite, so the separation is proven by the build rather than by a scan |
@@ -145,7 +144,30 @@ purge is file deletion.
 
 ## Closeout blockers
 
-RFC-BPR-0007 cannot become `Auto-Verified` until RFC-BPR-0005 is, which
-requires RFC-BPR-0004, RFC-BPR-0003, and RFC-BPR-0002, and therefore real
-Windows x64 evidence in BPR-0036 and BPR-0053. BPR-0130 will make no closure
-claim.
+Discharged 2026-09-02. RFC-BPR-0002 through RFC-BPR-0005 are `Auto-Verified`,
+BPR-0036 and BPR-0053 supplied the real Windows x64 evidence, and BPR-0130
+made no closure claim as it said; BPR-0241 makes it.
+
+## Closeout — 2026-09-02
+
+Recorded on [BPR-0241](../issues/60-done/BPR-0241-close-rfc-0007.md) under
+the light closeout contract. The automated rows were replayed at `6dd7240a`
+with `ctest --preset dev --no-tests=error -R '^(core_review_ledger|application_review_ledger_host|sqlite_review_ledger_storage|qt_review_queue|application_review_ledger_composition_contract|composed_application_hosts)$' --output-on-failure`
+— 6/6, `ninja: no work to do` beforehand — and the same three ledger
+selectors passed on the WSL2 station at `8948d61a` under BPR-0472. The
+final replay record, keyed by criterion:
+
+| Criterion | Selectors | Result | Commit |
+|---|---|---|---|
+| Read, accepted, excluded, and seen states survive restart. | `application_review_ledger_host`, `sqlite_review_ledger_storage`, `application_review_ledger_composition_contract` | pass | `6dd7240a` |
+| Changed material invalidates only affected receipts. | `core_review_ledger`, `application_review_ledger_host`, `sqlite_review_ledger_storage`, `application_review_ledger_composition_contract` | pass | `6dd7240a` |
+| New or edited comment versions reopen the correct conversation. | `core_review_ledger`, `sqlite_review_ledger_storage`, `application_review_ledger_composition_contract` | pass | `6dd7240a` |
+| Database deletion loses only private state and recreates a clean ledger without changing GitHub. | `sqlite_review_ledger_storage`, `application_review_ledger_host`, `application_review_ledger_composition_contract` | pass | `6dd7240a` |
+| Abrupt termination and WAL recovery preserve committed state and discard incomplete transactions. | `sqlite_review_ledger_storage` | pass | `6dd7240a` |
+| Migrations are forward-only, versioned, backed up where policy requires, and tested from every supported prior schema. | `sqlite_review_ledger_storage` | pass | `6dd7240a` |
+| Strong identity prevents state reuse across host, account, repository, PR, epoch, and material boundaries. | `core_review_ledger`, `sqlite_review_ledger_storage` | pass | `6dd7240a` |
+| `Next actionable` is deterministic and explains its ranking. | `core_review_ledger`, `application_review_ledger_host`, `application_review_ledger_composition_contract` | pass | `6dd7240a` |
+| Receipt/actionability transitions are directly replay-tested without SQLite/Qt, while host persistence tests and Qt projection tests prove the complete request/completion/delta path. | `core_review_ledger`, `application_review_ledger_host`, `qt_review_queue`, `application_review_ledger_composition_contract` | pass | `6dd7240a` |
+
+`composed_application_hosts` passed in the same replay, which is the standing
+linkage audit above. RFC-BPR-0007 is `Auto-Verified`.
