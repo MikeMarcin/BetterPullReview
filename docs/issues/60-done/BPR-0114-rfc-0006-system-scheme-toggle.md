@@ -1,10 +1,9 @@
 ---
 id: BPR-0114
 title: Verify System mode follows a live OS scheme change
-status: Parked
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0101, BPR-0106, BPR-0183, BPR-0184, BPR-0220, BPR-0249]
-parked_on: awaiting-owner-verdict
 ---
 
 # Verify System mode follows a live OS scheme change
@@ -503,3 +502,19 @@ card and unblocks [[BPR-0115]]; choosing the sitting has the integrator
 regenerate `appearance-scheme-foreground-v009` bound to the final closeout
 binary, after every other portable slice that could rebuild it; until then
 `appearance-scheme-foreground-v008` remains the family's live, answered packet.
+
+## Closed on the accepted v008 observation — 2026-09-01
+
+The product owner accepted the v008 observation as RFC-BPR-0006's terminal
+attended row on the `run-boundary-decisions-v001` page (batch
+`bpr:/attended-review/betterpullreview/c7e77830ef4fa92c6047c99b`, subject
+`decision:/betterpullreview/bpr-0114/accept-v008-as-terminal` accepted; the
+v009 sitting recorded as not chosen; validated verdict and record beside the
+page). The evidence this card closes on is the v008 operator response, raw
+log, and validation record — `APPEARANCE_SYSTEM_FOLLOWS_OK`,
+`APPEARANCE_EXPLICIT_IGNORES_OK`, `APPEARANCE_VARIANTS:0:1:0:1`, strict owner
+return — plus [[BPR-0220]]'s accepted zero-rebuild repair, under the board's
+reuse rule: no appearance-path commit since 2026-08-21, and the owner's own
+2026-08-21 request that no redundant digest-only rerun be required. The
+`appearance-scheme-foreground-v009` directory stays empty; v008 is the
+family's live, answered packet.
