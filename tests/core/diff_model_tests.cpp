@@ -1,5 +1,7 @@
 #include "bpr/core/diff_model.hpp"
 
+#include "bpr/core/anonymous_read_policy.hpp"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -417,11 +419,29 @@ namespace {
 		const auto keyDigest = comparison_digest(key);
 		expect(keyDigest.valid() && keyDigest == comparison_digest(key),
 			   "comparison digest replays exactly");
+		// Unchanged across BPR-0531, and that is the point of running it here.
+		// This digest is persisted: the review ledger and the recovery store
+		// hold anchors keyed by it. Adding the access mode to the authority
+		// must leave the authenticated encoding byte-identical, so this vector
+		// is the compatibility proof, not just a replay check.
 		expect(keyDigest.bytes()
 				   == digest_bytes(
 					   "fbdfe1e651fe7e0227040953c236b296"
 					   "032ddcf3f30503c7107d6d8037f588ae"),
 			   "comparison digest matches the exact-key known-answer vector");
+
+		// The same files compared under the two access modes. The
+		// authenticated encoding is frozen, so discrimination rests entirely
+		// on the public-preview encoding carrying something the authenticated
+		// one never can.
+		auto previewKey              = key;
+		previewKey.Authority.Mode    = github_access_mode::public_preview;
+		previewKey.Authority.Account = github_account_id{ };
+		previewKey.Authority.Viewer  = github_viewer_actor_id{ };
+		expect(valid(previewKey) && comparison_digest(previewKey).valid()
+				   && comparison_digest(previewKey) != keyDigest,
+			   "a public-preview comparison never shares a cache key with the "
+			   "authenticated comparison of the same files");
 
 		auto variants = std::vector<file_comparison_key>{ };
 		variants.push_back(key);
@@ -573,6 +593,10 @@ namespace {
 										   { 2U, 7U },
 										   4U),
 			   "segment identity replays from canonical comparison and structure");
+		// This vector and the three below it derive from the comparison digest
+		// of an authenticated key, so they hold across BPR-0531 for the same
+		// reason that digest does. A drift here would mean the authenticated
+		// encoding moved.
 		expect(segment.bytes()
 				   == digest_bytes(
 					   "612fe655afb24746886fcb5c4b8f13db"
