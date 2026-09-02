@@ -362,3 +362,22 @@ the staged artifacts on all three platforms offer no sign-in control and the
 "Open browser" observation cannot be made from them. The three observation
 rows above stay pending on [[BPR-0526]], which mounts the panel; the staged
 artifacts and every other row here stand.
+
+## macOS — restaged with the mounted panel — 2026-09-02
+
+With [[BPR-0526]] landed, the enabled course was rerun from a deleted root
+at `8a6e7612`: exit 0 in 116 s, `RFC0016_COURSE_SELECTORS:17` (the course
+now audits `composed_application_hosts`, the shipped artifact's production
+profile, and its own registration set), `RFC0016_DEVICE_STAGE:cancelled`,
+`RFC0016_DEVICE_REQUESTS:0`, `RFC0016_PLATFORM_COURSE_OK`. The staged
+artifact replaces the earlier one:
+
+| Artifact | Size | sha256 |
+|---|---|---|
+| `build/rfc0016-macos-browser/release/src/app/BetterPullReview.app` | 10,463,760 bytes | `531b21ac7ab6d75fe0d836baf78146b32e573a3935d737441c762617c19416a2` |
+
+The sign-in panel sits in the review header under the session panel's
+"Connect GitHub host" control. The macOS observation row stays the owner's:
+launch the app, choose the GitHub.com profile, press "Get a code", and
+press "Open browser" when the code and address appear; judge only whether
+the system default browser opens at the verification address.
