@@ -1,7 +1,7 @@
 ---
 id: BPR-0495
 title: The syntax provider builds every Visual Studio configuration and MinSizeRel does not compile
-status: In Progress
+status: Ready
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -82,3 +82,29 @@ Reported 2026-09-01 by the hand-started JaegAW session working BPR-0311 in a
 `main` checkout; minted here on `main` by the integrator because that session
 holds no reservation. Found the same hour Smart App Control was turned off,
 which is why no earlier Windows run could have reached it.
+
+## Repair and what proves it — 2026-09-01
+
+The mechanism is declared in the preset rather than left to the generator's
+default: `windows-dev` now sets `CMAKE_CONFIGURATION_TYPES` to `Debug;Release`,
+which is exactly the set every build preset, test preset, and course selects,
+and the provider's loop comments say why it iterates that list. Asking Visual
+Studio for a configuration outside the list fails at build time, which is the
+loud failure the required final state asks for; no provider-side check was
+added because the generator already refuses.
+
+`platform_configuration_contract` pins the list exactly, so widening it is a
+deliberate change to what the provider builds rather than something a default
+can do silently.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| A fresh multi-config configure completes with the list narrowed | `cmake --preset windows-dev -B build/rfc0016-configtypes-probe --fresh -D "CMAKE_CONFIGURATION_TYPES=Debug;Release"` on the JaegAW host, run read-only by the hand-started session in its `main` checkout before the preset change existed | exit 0, "Configuring done (226.6s)", generating done; the `C1083` failure is confined to configurations nothing consumes | probe against `32aee527`; this commit lands the same list in the preset |
+| The preset declares the list and the contract pins it | `python3 tests/scripts/platform_configuration_tests.py` | 5/5, including the new exact `CMAKE_CONFIGURATION_TYPES` assertion | this commit |
+| The preset file stays valid presets JSON | `python3 -c 'import json; json.load(open("CMakePresets.json"))'` | loads | this commit |
+| Single-config trees are untouched | The provider's `SINGLE_CONFIGURATION` branch is unchanged; only a comment was added inside the multi-config branch | no macOS/Linux behavior change by construction; the RFC-0006/0011 focused selectors run on this host at this tree stayed green (18/18 and pending) | this commit |
+| The fresh `windows-dev` configure completes from the committed preset, and only Debug/Release dependency logs exist | `cmake --preset windows-dev --fresh` on the JaegAW host from a checkout of this commit | **Pending** — target-native, and the reason this card is not terminal | Pending |
+
+The card moves to `21-ready-win/`: the repair is committed and the remaining
+row can only be produced on the Windows host. The exact ledger command for
+[[BPR-0311]] then follows on the station.

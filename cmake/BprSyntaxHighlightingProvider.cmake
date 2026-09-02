@@ -506,6 +506,14 @@ function(bpr_acquire_syntax_highlighting)
         )
         set(configurations "")
         if(multi_config)
+            # One dependency build and install per configuration the tree
+            # can select. That list is whatever CMAKE_CONFIGURATION_TYPES
+            # holds, so the preset that selects a multi-config generator must
+            # pin it to the configurations the project builds: the Visual
+            # Studio default adds MinSizeRel and RelWithDebInfo, nothing here
+            # selects either, and MinSizeRel does not compile (BPR-0495).
+            # Asking the generator for a configuration outside this list
+            # fails at build time rather than linking the wrong install.
             set(configurations ${CMAKE_CONFIGURATION_TYPES})
         endif()
         if(NOT configurations)
