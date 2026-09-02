@@ -62,3 +62,45 @@ mints a device code, and the rate-limit headers consumed), and run the same
 selector with outbound network blocked to record the exact failing line. That
 measurement is the input to the owner's choice above; the chosen outcome is
 then verified by the selector under the condition it claims.
+
+## Measured on the Windows station — 2026-09-02
+
+`bpr-win`, read-only at `windows-lane` `4627b6e1`, unelevated (no firewall
+rule or packet capture available), sampling the process's TCP table every
+20 ms for its whole lifetime and diffing the DNS client cache around the
+run. Recorded by the integrator from the reply.
+
+| Claim | Measurement |
+|---|---|
+| What leaves the host per run | Exactly one outbound connection, to `github.com:443` (DNS cache gained `github.com` → the same address); no `api.github.com` resolution and no second connection. Sampling at 20 ms cannot count HTTP requests inside one TLS session, only connections |
+| A device code is minted per run | Yes, by code path rather than inference: the probe dispatches cancel only from `awaiting_authorization`, which is reached only in the device-code completion handler from `requested`, so `cancelled` implies GitHub answered with a code every run |
+| Request paths, rate-limit headers, client identity on the wire | Not observable without MITM; from source, `/login/device/code` and `/login/oauth/access_token` with the embedded distributable client, which the enabled artifact is known to contain |
+| Egress denied (per-user system proxy at `127.0.0.1:1`, a closed port) | `DEVICE_FLOW_STAGE:failed`, `DEVICE_FLOW_REQUESTS:0`, `DEVICE_FLOW_REGISTERED_SELECTION_OK`; the gate's regex on `cancelled` misses and the selector fails in 4.84 s against 1.13 s unblocked, so something waits before giving up |
+| Host restored | Proxy keys back to their prior values under try/finally; no firewall rule; `Test-NetConnection github.com -Port 443` true afterwards; tree untouched |
+
+Two findings beyond the measurement. `application::github_proxy_mode` has
+exactly one enumerator, `system`: there is no per-profile, per-process, or
+environment proxy override anywhere in the application, so a test cannot be
+pointed at a local denial without changing the application. And the only
+unelevated way to deny egress is the per-user system proxy, which for about
+five seconds pointed every application in that logged-in session at a closed
+port — a reason not to script this measurement into a routine on a shared
+host.
+
+On containment: [[BPR-0362]]'s reasoning stands — the test needs the
+`\GLOBAL??\C:` link, the mount-point manager, the volume device, and the
+pipe namespace, which a lowbox token cannot reach — so the AppContainer stays
+off the table for it. A denial at the socket sidesteps the token entirely,
+and a deterministic local denial lands on exactly `failed`, which is already
+the macOS and Linux expectation: a shim would unify all three platforms on
+one gate value rather than needing a Windows-specific one.
+
+The station's reading of the three options, for the owner: (a) a proxy or
+endpoint override the harness can set per process — small, and the only one
+that returns Windows to `failed` beside the other two; (b) an admin-scoped
+firewall rule per executable, needing elevation the station lacks and CI
+would have to grant; (c) accept the exemption with the network-dependent
+expectation and this cost written down. The integrator's recommendation is
+(a) confined to the tests-enabled fixture profile, so the tests-disabled
+Release carries no proxy override and the RFC-BPR-0017 fixture-seam
+inventory keeps proving its absence.
