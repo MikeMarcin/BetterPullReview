@@ -1,7 +1,7 @@
 ---
 id: BPR-0513
 title: "Qt: place the side-chat panel and finding queue in the workbench drawer"
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0012
 depends_on: [BPR-0504]
 ---
