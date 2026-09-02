@@ -391,20 +391,71 @@ shipped implementation is present by linkage **and** by construction in both
 profiles, and the tests-enabled graph still binds the recording opener, so no
 test on this host can launch a browser.
 
-### Staged for the owner's one attended click
+### Restaged for the owner's one attended click — 2026-09-02, at `8a6e7612`
+
+The earlier staging predates [[BPR-0526]], so the artifact it named had no
+panel to press. This one has. Course rerun from a build root deleted whole:
 
 ```text
-C:\code\gitpr-windowsuild
-fc0016-windows-enablement
-elease\srcppetter_pull_review.exe
-7,661,056 bytes
-sha256 4ec7297c95c5faa3f45facddd51bb647d5d536d56e6947eca948c31c173c1139
+RFC0016_SELECTION:enabled       RFC0016_COURSE_SELECTORS:17
+RFC0016_DEVICE_STAGE:cancelled  RFC0016_DEVICE_REQUESTS:0
+RFC0016_ELAPSED_SECONDS:1063    RFC0016_PLATFORM_COURSE_OK
 ```
 
-Produced by the enabled course above, at the JaegAW desktop. What remains is
-the one thing no selector can prove and this station deliberately did not do:
-that pressing the handoff action opens the real system browser at the real
-verification address. That row stays Pending for the owner.
+The artifact, absolute path first because that is what the owner needs:
+
+```text
+C:/code/git/bpr-windows/build/rfc0016-windows-enablement/release/src/app/better_pull_review.exe
+7,685,632 bytes
+sha256 5997e1587e379750cee5b518946ae6421ed234f323827e8cc2f57667e1afeba5
+```
+
+**Where to press.** [[BPR-0526]] mounts `qt::device_authorization_panel` in
+`workbench_window` beside `github_session_panel`, laid into the **review header
+column directly under the "Connect GitHub host" control**, reached by the
+`device_authorization()` accessor. Sign-in is where sign-in belongs, so the
+owner should not have to hunt for it.
+
+Both anchors are in this exact image, read from its own linker map
+(`link /MAP | undname`, 34,321 symbols):
+
+| Anchor | Hits |
+|---|---|
+| `bpr::qt::device_authorization_panel::device_authorization_panel(...)` — the mounted panel | 163 |
+| `bpr::app::system_browser_opener::system_browser_opener(void)` — the opener it dispatches to | 21 |
+| `QWebEngine`, `QWebView`, `QtWebEngine` | absent |
+
+So the artifact carries the panel, the panel's one way out, and no embedded
+engine — which is everything the click depends on except the click.
+
+The dev-tree contracts behind it, all green at this head: 9/9 including the two
+new `application_device_authorization_panel_course` (6.37 s) and `panel_absent`
+(6.35 s), `browser_handoff` (6.36 s), `browser_absent` (6.36 s), the three
+`qt_composed_github_scale_100/125/200` (7.49 / 8.03 / 10.05 s),
+`composed_application_hosts` (7.13 s) and `rfc0016_test_inventory` (0.19 s).
+
+**No browser was opened and no device flow was started by hand.** The
+observation row stays Pending: that pressing the panel's action opens the real
+system browser at the real verification address is the owner's row, at the
+JaegAW desktop, against the artifact above.
+
+### A correction to the previous staging
+
+The absolute path recorded here on 2026-09-02 was corrupted and unusable. It
+was written through a shell heredoc that interpreted its own backslashes, so
+`\b`, `\r` and `\a` became a backspace, a carriage return and a bell:
+
+```text
+C:\code\git<BS>pr-windows<BS>uild
+fc0016-windows-enablement
+elease\src<BEL>pp<BS>etter_pull_review.exe
+```
+
+The size and digest beside it were correct; the one field the owner actually
+needed to find the file was not. It is replaced above, written with forward
+slashes so no later quoting can eat it again. Recorded rather than quietly
+fixed, because a staging row exists to be acted on by someone else and this one
+could not have been.
 
 ## Correction — 2026-09-02
 
