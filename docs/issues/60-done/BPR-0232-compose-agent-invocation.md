@@ -1,7 +1,7 @@
 ---
 id: BPR-0232
 title: Compose explicit agent invocation into the shipped workbench
-status: Backlog
+status: Done
 rfc: RFC-BPR-0011
 depends_on: [BPR-0226, BPR-0228, BPR-0229, BPR-0230, BPR-0240, BPR-0247, BPR-0250, BPR-0420]
 ---
@@ -70,3 +70,14 @@ configured agent remains a typed failed-to-start result.
   exact positive predicate stays false and all downstream effects stay zero.
   This remains portable evidence only. The umbrella still waits on
   [[BPR-0240]] for target-native Windows creation and descendant containment.
+
+## Closed — 2026-09-01
+
+The umbrella waited on [[BPR-0240]] for target-native Windows creation and
+descendant containment; that landed 2026-08-26/27 and BPR-0240 closes today.
+Every required final state above is met on the composed portable path
+([[BPR-0247]], [[BPR-0250]], [[BPR-0335]], [[BPR-0420]]) and the composed
+courses are green target-native on Windows. The 2026-09-01 focused replay on
+[[BPR-0245]] — composition, cancellation, staleness, cleanup-retry, and
+workspace-diagnostic contracts plus the canary and panel — is this card's
+closing evidence on macOS.
