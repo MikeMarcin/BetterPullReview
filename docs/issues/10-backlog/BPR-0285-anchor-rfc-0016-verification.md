@@ -137,3 +137,12 @@ on `main`.
 
 `bpr-main-mac` holds no other startable RFC-BPR-0016 work: this closure's only
 open cards are BPR-0311 and the backlog anchor itself.
+
+## Two platforms now prove registered selection under the `unavailable` name — 2026-09-02
+
+[[BPR-0318]] recorded for macOS that `application_device_authorization_unavailable`
+proves the registered selection under a selector whose name says
+`unavailable`, and left the rename to this card. [[BPR-0311]] makes it two
+platforms (Windows answers `cancelled` there, for the reason [[BPR-0515]]
+adjudicates), and [[BPR-0310]] three. The final-head replay should rename
+the selector, or record why the name stays, before it closes.
