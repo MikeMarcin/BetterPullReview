@@ -488,6 +488,12 @@ Named rather than left for a reader to infer from silence:
   Re-opening the old comparison would need retained epoch history or a
   re-alignment request against the binding's epoch pair, and is an owner
   decision rather than storage a slice should invent.
+  **Decided 2026-09-02 by the product owner: accepted as the product
+  behaviour.** A turn continued against an old revision returns its findings
+  unanchored, and that is what is shipped and documented; no epoch history is
+  retained and no re-alignment request exists. Retained epoch history, so
+  such turns could anchor, is BPR-0532 in backlog, outside RFC-BPR-0012's
+  closeout by that decision.
 - **`application_agent_invocation_composition_contract` does not pass at
   HEAD.** BPR-0517 added the `chat_message` field to `encode_agent_supplement`
   and did not add it to this course's `expected_context_fields` builder, so the

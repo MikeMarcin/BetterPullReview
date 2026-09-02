@@ -92,3 +92,14 @@ files. The limit the slice states is accepted as fact: the old revision's
 binding and file bytes are recoverable and its alignment is not, so a
 continued turn freezes no per-path identities; whether to retain epoch
 history or re-align the old pair is the owner's, recorded in the ledger.
+
+## Owner decision — 2026-09-02
+
+The alignment question this slice left open is decided: the owner accepted
+that a turn continued against an old revision returns its findings
+unanchored, and that this is the product behaviour rather than a gap to
+close. No epoch history is retained and no re-alignment request is added.
+The alternative — retaining epoch history so continued turns can anchor —
+is recorded as [[BPR-0532]] in backlog for whenever anchored continuations
+are wanted, and is not part of RFC-BPR-0012's closeout. [[BPR-0256]] no
+longer waits on this card.
