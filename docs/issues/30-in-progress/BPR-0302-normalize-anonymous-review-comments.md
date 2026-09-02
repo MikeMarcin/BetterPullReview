@@ -1,7 +1,7 @@
 ---
 id: BPR-0302
 title: Normalize anonymous REST review comments and unavailable state
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: [BPR-0300, BPR-0301]
 ---
