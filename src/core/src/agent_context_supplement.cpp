@@ -149,6 +149,21 @@ namespace bpr::core {
 			return aDraft.Text.size() <= maximum_draft_bytes
 				&& (!aDraft.Anchor || valid_line_identity(*aDraft.Anchor));
 		}
+
+		/// \brief Whether this session may carry the supplied typed question.
+		///
+		/// \details The gate is the message's own session identity, checked
+		/// the way `admit_private_context` checks the opt-in's: a message
+		/// typed into one conversation is not admitted into the next one just
+		/// because both were sent by the same reviewer.
+		[[nodiscard]] auto valid_chat_message(
+			const agent_session&                     aSession,
+			const std::optional<agent_chat_message>& aMessage) noexcept -> bool
+		{
+			return !aMessage
+				|| (aMessage->Session == aSession.Id
+					&& aMessage->Text.size() <= maximum_chat_message_bytes);
+		}
 	} // namespace
 
 	auto build_agent_supplement(const agent_supplement_request& aRequest)
@@ -164,6 +179,7 @@ namespace bpr::core {
 			|| aRequest.SelectedDrafts.size() > maximum_selected_drafts
 			|| (aRequest.PreviousUpload && !aRequest.PreviousUpload->valid())
 			|| (aRequest.LastReviewedHead && !aRequest.LastReviewedHead->valid())
+			|| !valid_chat_message(aRequest.Session, aRequest.Message)
 			|| (aRequest.Selection && !valid_selection(*aRequest.Selection))) {
 			return std::nullopt;
 		}
@@ -188,6 +204,8 @@ namespace bpr::core {
 			.ApplicationSession = aRequest.ApplicationSession,
 			.Session            = aRequest.Session,
 			.PullRequestUrl     = aRequest.PullRequestUrl,
+			.Message            = aRequest.Message ? aRequest.Message->Text
+												   : std::string{ },
 			.PreviousUpload     = aRequest.PreviousUpload,
 			.LastReviewedHead   = aRequest.LastReviewedHead,
 			.Files              = aRequest.Files,

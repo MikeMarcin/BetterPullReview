@@ -225,6 +225,7 @@ namespace {
 					 applicationSession,
 					 run,
 					 url,
+					 message,
 					 previous,
 					 lastReviewed,
 					 files,
@@ -237,6 +238,7 @@ namespace {
 					  decltype(applicationSession),
 					  const core::application_session_id>);
 		static_assert(std::is_same_v<decltype(run), const core::agent_session>);
+		static_assert(std::is_same_v<decltype(message), const std::string>);
 		static_assert(std::is_same_v<
 					  decltype(selection),
 					  const std::optional<core::supplement_semantic_context>>);
@@ -247,8 +249,9 @@ namespace {
 		expect(
 			version == core::agent_supplement_schema_version
 				&& applicationSession.value() == 0U && run.Id.value() == 0U
-				&& url.empty() && !previous && !lastReviewed && files.empty()
-				&& defects.empty() && !selection && notes.empty() && drafts.empty(),
+				&& url.empty() && message.empty() && !previous && !lastReviewed
+				&& files.empty() && defects.empty() && !selection && notes.empty()
+				&& drafts.empty(),
 			"the complete type contains only domain identity, bounded source/prose, "
 			"and explicit absence - no argv, environment, token, Qt index, or coordinate");
 
@@ -422,6 +425,92 @@ namespace {
 			"quietly emptied by an opt-in that happened to be off");
 	}
 
+	/// \brief A typed question is admitted for its own session, or not at all.
+	void test_a_chat_message_is_admitted_only_for_its_own_session()
+	{
+		using message              = core::agent_chat_message;
+		const auto& [keyed, typed] = message{ };
+		static_assert(
+			std::is_same_v<decltype(keyed), const core::agent_session_id>);
+		static_assert(std::is_same_v<decltype(typed), const std::string>);
+		static_assert(
+			sizeof(message)
+				== sizeof(core::agent_session_id) + sizeof(std::string),
+			"agent_chat_message gained a field. A message is the session it "
+			"was typed into and the words that were typed; a note, a draft, or "
+			"a selection here would be a second way to attach what the opt-in "
+			"refused.");
+
+		expect(
+			core::build_agent_supplement(minimal_request())->Message.empty(),
+			"a supplement built outside a chat turn carries no message, so an "
+			"empty message means nothing was asked rather than that a question "
+			"was dropped");
+
+		auto request    = private_request();
+		request.Message = message{
+			.Session = request.Session.Id,
+			.Text    = "what does this retry budget do?",
+		};
+		const auto built = core::build_agent_supplement(request);
+		expect(
+			built && built->Message == request.Message->Text,
+			"a message typed into this session travels exactly as typed");
+
+		auto withoutMessage = request;
+		withoutMessage.Message.reset();
+		auto expected    = *core::build_agent_supplement(withoutMessage);
+		expected.Message = request.Message->Text;
+		expect(
+			*built == expected,
+			"and changes nothing else: the same identities, receipts, defect "
+			"history, and semantic selection travel beside it");
+
+		const auto withheld = core::build_agent_supplement(
+			request, { .Session = request.Session.Id });
+		expect(
+			withheld && withheld->Message == request.Message->Text
+				&& withheld->Notes.empty() && withheld->Drafts.empty(),
+			"the message is not a channel for the prose the opt-in refused: a "
+			"session that opted into neither still carries its own question and "
+			"zero notes and zero drafts");
+
+		auto other    = request;
+		other.Message = message{
+			.Session = core::agent_session_id{ request.Session.Id.value() + 1U },
+			.Text    = "what does this retry budget do?",
+		};
+		expect(
+			!core::build_agent_supplement(other).has_value(),
+			"an out-of-session message refuses the whole build: a question "
+			"typed into one conversation cannot be sent by the next one");
+		expect(
+			!core::build_agent_supplement(other, { .Session = other.Session.Id })
+				 .has_value(),
+			"and the gated build refuses it for the same reason, so an opt-in "
+			"this session did make cannot admit a message it did not type");
+
+		auto atBound    = request;
+		atBound.Message = message{
+			.Session = request.Session.Id,
+			.Text    = std::string(core::maximum_chat_message_bytes, 'q'),
+		};
+		expect(
+			core::build_agent_supplement(atBound).has_value(),
+			"a message exactly at the bound is admitted, so the refusal below "
+			"is about the byte past it");
+
+		auto oversize    = request;
+		oversize.Message = message{
+			.Session = request.Session.Id,
+			.Text    = std::string(core::maximum_chat_message_bytes + 1U, 'q'),
+		};
+		expect(
+			!core::build_agent_supplement(oversize).has_value(),
+			"an oversized message is refused whole rather than truncated: half "
+			"a question is not the question that was asked");
+	}
+
 	void test_invalid_or_oversize_context_is_refused_whole()
 	{
 		auto request = minimal_request();
@@ -485,6 +574,7 @@ auto main() -> int
 	test_absent_and_present_empty_source_text_are_different();
 	test_no_field_can_hold_presentation_or_credential_authority();
 	test_private_prose_travels_only_where_this_session_opted_in();
+	test_a_chat_message_is_admitted_only_for_its_own_session();
 	test_invalid_or_oversize_context_is_refused_whole();
 	std::cout << "agent-context-supplement-tests:pass\n";
 	return EXIT_SUCCESS;

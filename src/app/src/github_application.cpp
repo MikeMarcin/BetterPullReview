@@ -3077,6 +3077,13 @@ namespace bpr::app {
 						core::codex_jsonl_profile_id,
 						[this](const application::agent_chat_turn_request&
 								   aTurn) -> bool {
+#if defined(BPR_BUILD_TESTING)
+							LastChatTurn = aTurn;
+#endif
+							// The reviewer's own words, from the send intent
+							// the chat host validated, handed to the same
+							// launch path a start gesture uses. This is the
+							// only call site that passes a message.
 							return dispatch_agent_invocation(
 								aTurn.Session.Profile,
 								aTurn.IncludeNotes
@@ -3084,7 +3091,8 @@ namespace bpr::app {
 									: std::vector<application::local_note_id>{ },
 								aTurn.IncludeDraft ? current_agent_draft_choice()
 												   : std::nullopt,
-								false);
+								false,
+								aTurn.Message);
 						},
 						[this]() -> application::agent_chat_private_prose {
 							return current_chat_private_prose();
@@ -4969,11 +4977,14 @@ namespace bpr::app {
 				return;
 			}
 			const auto start = std::get<qt::start_agent_intent>(aIntent);
+			// A start gesture is not a chat turn, so it asks nothing: the
+			// supplement's message stays empty on this path.
 			static_cast<void>(dispatch_agent_invocation(
 				start.Profile,
 				start.IncludedNotes,
 				start.IncludedDraft,
-				start.ExistingCheckoutChosen));
+				start.ExistingCheckoutChosen,
+				std::string_view{ }));
 		}
 
 		/// \brief The one launch path, and there is deliberately no second.
@@ -4985,13 +4996,20 @@ namespace bpr::app {
 		/// same revision; `application_agent_chat_composition_contract` reads
 		/// this file and fails if a second call site appears.
 		///
+		/// `aChatMessage` is what the reviewer typed for this turn, and is
+		/// empty for every gesture that is not a chat send. It is an argument
+		/// rather than something read from the chat host here, so the one place
+		/// a question enters an invocation is a value passed at a call site a
+		/// reader can see.
+		///
 		/// \returns Whether exactly one invocation was dispatched. A refusal is
 		/// already named on the launch panel before this returns `false`.
 		[[nodiscard]] auto dispatch_agent_invocation(
 			const core::agent_profile_id                          aProfile,
 			const std::vector<application::local_note_id>&        aIncludedNotes,
 			const std::optional<application::agent_draft_choice>& aIncludedDraft,
-			const bool                                            aExistingCheckoutChosen) -> bool
+			const bool                                            aExistingCheckoutChosen,
+			const std::string_view                                aChatMessage) -> bool
 		{
 			if (Closing || AgentHost == nullptr || EpochHost == nullptr
 				|| Window == nullptr) {
@@ -5034,6 +5052,7 @@ namespace bpr::app {
 				.Private       = std::move(privateObservation),
 				.IncludedNotes = aIncludedNotes,
 				.IncludedDraft = aIncludedDraft,
+				.ChatMessage   = std::string{ aChatMessage },
 			};
 			observation.CurrentDraft = current_agent_draft_observation();
 			if (SelectedDiffPublication.has_value()) {
@@ -6592,6 +6611,12 @@ namespace bpr::app {
 		bool                       DisableNotificationRequestWire   = false;
 		bool                       DisableNotificationSelectionWire = false;
 		std::size_t                CapturedNotificationDisplays     = 0U;
+
+		/// The last turn this composition handed to the launch path, kept so a
+		/// course can read what was dispatched. It cannot be read back off the
+		/// chat host afterwards: the launch path admits a session of its own,
+		/// so by the time a turn has run the host is holding a different one.
+		std::optional<application::agent_chat_turn_request> LastChatTurn;
 #endif
 	};
 
@@ -12046,6 +12071,7 @@ namespace bpr::app {
 				? implementation->ChatHost->statistics()
 				: application::agent_chat_session_statistics{ },
 		};
+		evidence.LastTurn = implementation->LastChatTurn;
 		if (implementation->ChatHost != nullptr) {
 			evidence.Session    = implementation->ChatHost->session();
 			evidence.Observed   = implementation->ChatHost->observed();

@@ -580,6 +580,20 @@ send carries a `core::agent_action_intent` built from the projection's own
 entry point, so every message leaving the panel names the explicit action it is
 (BPR-0502, `qt_side_chat_panel`).
 
+**The typed message rides the supplement, not a second channel.** Since
+[BPR-0517](../issues/60-done/BPR-0517-rfc-0012-carry-the-side-chat-message-in-the-agent-frame.md)
+`core::agent_context_supplement` carries a bounded `Message`
+(`maximum_chat_message_bytes`, 16 KiB) that the core admits only for the
+session the send names — `valid_chat_message` refuses an out-of-session or
+oversized message by name — and only the chat session host fills it, from the
+panel's send intent. `encode_agent_supplement` writes it once as
+`chat_message` after `pull_request_url`, and `frame_agent_input` documents
+where each protocol carries that payload; the decode side is unchanged.
+`application_agent_chat_composition_contract` asserts the fixture agent
+receives the question exactly once, and
+`application_agent_chat_continued_contract` drives
+`continue_against_old_revision` to one further turn under the kept session.
+
 ### The two stale continuations
 
 After head movement a session is stale and is never retargeted.

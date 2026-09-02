@@ -68,6 +68,14 @@ namespace bpr::application {
 		std::optional<agent_draft_observation>           CurrentDraft;
 		std::vector<local_note_id>                       IncludedNotes;
 		std::optional<agent_draft_choice>                IncludedDraft;
+		/// What the reviewer typed for this turn, when this is a chat turn.
+		///
+		/// \details Empty for every other invocation, and empty is what the
+		/// supplement then carries. Keyed to a session here would be keyed to
+		/// the wrong one: the launch path allocates the session identity, so
+		/// `build_agent_context_supplement` is where the message is bound to
+		/// the session it is actually being sent under.
+		std::string ChatMessage;
 
 		auto operator<=>(const agent_context_observation&) const = default;
 	};

@@ -68,6 +68,45 @@ namespace {
 		const auto found = aFields.find(aName);
 		return found == aFields.end() ? std::string{ aFallback } : found->second;
 	}
+
+	/// \brief Counts one exact token in the frame this process was handed.
+	///
+	/// \details Counted over the whole received input rather than over the
+	/// parsed fields, so a question placed twice - once in the supplement and
+	/// once beside it in the framing - is two here and not one.
+	[[nodiscard]] auto occurrences(
+		const std::string_view aInput, const std::string_view aToken)
+		-> std::size_t
+	{
+		if (aToken.empty()) {
+			return 0U;
+		}
+		auto count = std::size_t{ 0U };
+		auto at    = aInput.find(aToken);
+		while (at != std::string_view::npos) {
+			++count;
+			at = aInput.find(aToken, at + aToken.size());
+		}
+		return count;
+	}
+
+	/// \brief Escapes the echoed message so a reply stays parseable JSON.
+	[[nodiscard]] auto json_escaped(const std::string_view aValue) -> std::string
+	{
+		auto output = std::string{ };
+		for (const auto character : aValue) {
+			const auto byte = static_cast<unsigned char>(character);
+			if (character == '"' || character == '\\') {
+				output.push_back('\\');
+				output.push_back(character);
+			} else if (byte < 0x20U) {
+				output += ' ';
+			} else {
+				output.push_back(character);
+			}
+		}
+		return output;
+	}
 } // namespace
 
 auto main() -> int
@@ -84,7 +123,13 @@ auto main() -> int
 	const auto sideValue = field(fields, "selection.preferred.side", "1");
 	const auto side      = sideValue == "0" ? "left" : "right";
 	const auto lineValue = field(fields, "selection.preferred.line", "1");
-	auto       endLine   = std::string{ "1" };
+	// What the reviewer typed, read back out of the frame this process was
+	// handed, with the number of times it appeared in it. Reported rather than
+	// asserted: this fixture says what it received, and the course that sent it
+	// says what that had to be.
+	const auto message = field(fields, "chat_message", "");
+	const auto echoed  = std::to_string(occurrences(payload, message));
+	auto       endLine = std::string{ "1" };
 	try {
 		endLine = std::to_string(std::stoull(lineValue) + 1U);
 	} catch (...) {
@@ -106,7 +151,9 @@ auto main() -> int
 	findings += ",\"anchor\":{\"line\":{\"comparison\":\"" + comparison
 		+ "\",\"side\":\"" + side + "\",\"line\":" + lineValue + "}}";
 	findings += ",\"claim\":\"BPR_FINDING_CLAIM_0504 the retry budget is not "
-				"reported to the caller\"";
+				"reported to the caller"
+				" | BPR_CHAT_ECHO_0517 count="
+		+ echoed + " text=" + json_escaped(message) + "\"";
 	findings += ",\"evidence\":\"BPR_FINDING_EVIDENCE_0504\"";
 	findings += ",\"consequence\":\"BPR_FINDING_CONSEQUENCE_0504\"";
 	findings += ",\"suggestedComment\":\"" + std::string{ suggested } + "\"";

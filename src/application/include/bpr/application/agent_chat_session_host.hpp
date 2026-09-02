@@ -152,9 +152,10 @@ namespace bpr::application {
 		core::agent_private_context_optin PrivateContext;
 		bool                              IncludeNotes = false;
 		bool                              IncludeDraft = false;
-		/// What the reviewer typed, carried as a value. Whether it rides the
-		/// protocol frame is `agent_launch`'s framing question and not this
-		/// host's; nothing here reframes anything.
+		/// What the reviewer typed, carried as a value, and the only thing that
+		/// fills the supplement's own `Message`. Where it sits in the protocol
+		/// frame is `agent_launch`'s question and not this host's; nothing here
+		/// frames, escapes, or reframes anything.
 		std::string Message;
 
 		auto operator<=>(const agent_chat_turn_request&) const = default;

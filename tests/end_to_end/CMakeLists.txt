@@ -539,10 +539,12 @@ bpr_enable_warnings(
     test_better_pull_review_agent_finding_composition_public_path
 )
 
-# RFC-BPR-0012 (BPR-0514). The side-chat session, driven through the shipped
-# panel: one send reaches one turn on the launch path that already existed, a
-# stale send is refused by the core's verdict and named on screen, and a
-# continuation choice starts exactly one session.
+# RFC-BPR-0012 (BPR-0514, BPR-0517). The side-chat session, driven through the
+# shipped panel: one send reaches one turn on the launch path that already
+# existed and the typed message reaches the agent's frame exactly once, a stale
+# send is refused by the core's verdict and named on screen, `start_new_session`
+# starts exactly one session, and `continue_against_old_revision` starts none
+# and takes one further turn under the session the reviewer kept.
 bpr_add_executable(
     test_better_pull_review_agent_chat_composition_public_path
     agent_chat_composition_public_path.cpp
@@ -574,6 +576,7 @@ foreach(
     IN ITEMS
         positive
         stale
+        continued
         construction-cut
 )
     if(course STREQUAL "positive")

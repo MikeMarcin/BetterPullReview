@@ -389,6 +389,12 @@ auto main(int argc, char** argv) -> int
 			&& afterDelivery.FrozenFileCount == 1U
 			&& afterDelivery.FrozenSnapshotWrites == 1U
 			&& afterDelivery.QueuedClaim.find(agent_claim) != std::string::npos
+			// A start gesture is not a chat turn, so the frame this run was
+			// handed carried no question. The fixture counts what it received
+			// and says so: zero here is the other half of the chat course's
+			// exactly-one.
+			&& afterDelivery.QueuedClaim.find("BPR_CHAT_ECHO_0517 count=0 text=")
+				!= std::string::npos
 			&& afterDelivery.QueuedAnchorState == "anchored (none)"
 			&& afterDelivery.WorkshopProposals == 0U
 			&& afterConversion.FindingStatistics.Actions == 1U

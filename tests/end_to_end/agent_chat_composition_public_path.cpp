@@ -9,12 +9,18 @@
 /// typed into the shipped side-chat panel reaches exactly one agent turn on
 /// the launch path that already existed, and exactly one delivered reply
 /// arrives back through the finding-delivery bounds, with zero GitHub mutation
-/// calls anywhere. **stale**: after the head moves, a send against the session
-/// the chat is still holding is refused by the core's own verdict and the
-/// refusal is named on screen; choosing a continuation then starts exactly one
-/// session and starts no process. **construction-cut**: with the chat host's
-/// construction removed, the same send gesture is still made and still
-/// observed, its turn count is zero, and the positive marker is false.
+/// calls anywhere, and the message the reviewer typed appears exactly once in
+/// the frame the agent was handed - counted by the agent itself and echoed
+/// back. **stale**: after the head moves, a send against the session the chat
+/// is still holding is refused by the core's own verdict and the refusal is
+/// named on screen; choosing `start_new_session` then starts exactly one
+/// session and starts no process. **continued**: from the same stale state,
+/// choosing `continue_against_old_revision` starts no session at all, and the
+/// next send produces one turn under the session the chat kept - still bound
+/// to the revision it was asked about, which the revision under review has
+/// moved away from. **construction-cut**: with the chat host's construction
+/// removed, the same send gesture is still made and still observed, its turn
+/// count is zero, and the positive marker is false.
 
 #include "public_path_poll.hpp"
 
@@ -22,6 +28,7 @@
 
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
@@ -53,6 +60,23 @@ namespace {
 	/// Exactly what the reviewer types into the composed panel's composer.
 	constexpr std::string_view chat_message
 		= "BPR_CHAT_SEND_0514 what does this retry budget do?";
+
+	/// The second question, asked of the session the reviewer chose to keep.
+	/// Distinct bytes from the first, so a turn that re-sent the earlier
+	/// message would not satisfy the echo below.
+	constexpr std::string_view continued_message
+		= "BPR_CHAT_SEND_0517 which retry did the old revision exhaust?";
+
+	/// \brief What the fixture agent must report having received, and once.
+	///
+	/// \details The count is the agent's own, taken over the whole frame it was
+	/// handed rather than over the fields it parsed, so a message placed both
+	/// in the supplement and beside it in the framing reads as two.
+	[[nodiscard]] auto exactly_once_echo(const std::string_view aMessage)
+		-> std::string
+	{
+		return "BPR_CHAT_ECHO_0517 count=1 text=" + std::string{ aMessage };
+	}
 
 	template <typename Predicate>
 	[[nodiscard]] auto wait_until_reporting(
@@ -91,6 +115,23 @@ namespace {
 		return EXIT_FAILURE;
 	}
 
+	/// \brief Details the delivered finding so its claim is readable.
+	///
+	/// \details A Qt-local navigation on the composed queue, exactly what
+	/// `agent_finding_composition_public_path` does and for the same reason:
+	/// the queue shows a row's detail when a row is selected, and nothing is
+	/// sent, published, or promoted by looking at one.
+	void detail_queued_finding(app::github_application& aApplication)
+	{
+		auto* const queue
+			= app::detail::github_application_fixture_access::finding_queue(
+				aApplication);
+		if (queue != nullptr && queue->finding_count() != 0U) {
+			queue->select(0U);
+			QApplication::processEvents();
+		}
+	}
+
 	/// \brief Counts one exact token in the composition source.
 	[[nodiscard]] auto occurrences(
 		const std::string& aSource, const std::string_view aToken) -> std::size_t
@@ -114,7 +155,7 @@ auto main(int argc, char** argv) -> int
 	}
 	const auto course = std::string_view{ argv[1] };
 	if (
-		course != "positive" && course != "stale"
+		course != "positive" && course != "stale" && course != "continued"
 		&& course != "construction-cut") {
 		return EXIT_FAILURE;
 	}
@@ -126,8 +167,14 @@ auto main(int argc, char** argv) -> int
 	auto       application = app::detail::github_application_fixture_access::make(
 		app::detail::github_public_path_fixture::github_com,
 		{
-			.ApplicationDataRoot               = dataRoot,
-			.EpochPhase                        = app::detail::github_epoch_fixture_phase::single,
+			.ApplicationDataRoot = dataRoot,
+			// The continued course needs the head to move *and* the new
+			// revision to be preparable, because it goes on to ask a further
+			// question; the refresh recording is the only fixture path that
+			// serves a second head's material.
+			.EpochPhase                        = course == "continued"
+				? app::detail::github_epoch_fixture_phase::seed
+				: app::detail::github_epoch_fixture_phase::single,
 			.DisableChatSessionHostComposition = course == "construction-cut",
 			.CodexAgentExecutable              = std::filesystem::path{ argv[2] },
 		});
@@ -303,6 +350,7 @@ auto main(int argc, char** argv) -> int
 		return fail(*application, "chat-turn", answered.render());
 	}
 	QApplication::processEvents();
+	detail_queued_finding(*application);
 
 	const auto afterSend
 		= app::detail::github_application_fixture_access::agent_chat_evidence(
@@ -358,6 +406,13 @@ auto main(int argc, char** argv) -> int
 		&& afterSend.Session.has_value()
 		&& beforeSend.Statistics.SessionsStarted == 1U
 		&& afterSend.Statistics.SessionsStarted == 1U
+		// The typed message reached the agent, in the frame, exactly once. The
+		// fixture counted its own input and said so; the host's `chat_message`
+		// field is the only thing that could have put it there.
+		&& finding.QueuedClaim.find(exactly_once_echo(chat_message))
+			!= std::string::npos
+		&& afterSend.LastTurn.has_value()
+		&& afterSend.LastTurn->Message == chat_message
 		&& noGithubMutation && oneLaunchPath;
 
 	if (course == "positive") {
@@ -371,6 +426,7 @@ auto main(int argc, char** argv) -> int
 					  << invocation.Statistics.ProcessStarts << ':'
 					  << finding.FindingStatistics.Deliveries << ':'
 					  << oneLaunchPath << ':' << noGithubMutation
+					  << "\nqueued-claim:" << finding.QueuedClaim
 					  << "\npanel-status:" << afterSend.AgentPanelStatusText
 					  << '\n';
 		}
@@ -382,9 +438,15 @@ auto main(int argc, char** argv) -> int
 	}
 
 	// The stale half. The head moves under a session that was asked about the
-	// old one, and the session is never retargeted to follow it.
-	if (!app::detail::github_application_fixture_access::reaccept_fixture_revision(
-			*application, true)) {
+	// old one, and the session is never retargeted to follow it. The `stale`
+	// course moves it by replaying an accepted handoff, which is the cheapest
+	// way to move a head and leaves the new revision unprepared; `continued`
+	// moves it with the shipped refresh gesture against the seeded recording,
+	// so the revision the reviewer is now looking at is a real one.
+	if (course == "continued") {
+		window.github_refresh_action()->trigger();
+	} else if (!app::detail::github_application_fixture_access::
+				   reaccept_fixture_revision(*application, true)) {
 		return fail(*application, "stale-revision");
 	}
 	auto staleShown = wait_terms{ };
@@ -438,7 +500,191 @@ auto main(int argc, char** argv) -> int
 			   "side chat refused: session_stale (head_moved)")
 			!= std::string::npos;
 
-	// The continuation. Exactly one session starts, and no process does.
+	// The other continuation, driven to a turn. Choosing to keep talking to a
+	// session about the revision it was asked about is the half BPR-0514
+	// implemented and never drove, so this is what it does when it is used.
+	if (course == "continued") {
+		const auto beforeContinue = app::detail::
+			github_application_fixture_access::agent_chat_evidence(*application);
+		const auto beforeContinueInvocation = app::detail::
+			github_application_fixture_access::agent_invocation_evidence(
+				*application);
+		if (
+			chat->continue_old_revision_action() == nullptr
+			|| !chat->continue_old_revision_action()->isEnabled()) {
+			return fail(*application, "continue-old-revision-action");
+		}
+		chat->continue_old_revision_action()->trigger();
+		QApplication::processEvents();
+		const auto afterContinue = app::detail::
+			github_application_fixture_access::agent_chat_evidence(*application);
+		const auto afterContinueInvocation = app::detail::
+			github_application_fixture_access::agent_invocation_evidence(
+				*application);
+		const auto keptSession = afterContinue.Statistics.Continuations
+				== beforeContinue.Statistics.Continuations + 1U
+			// Nothing was started and nothing was adopted: this continuation is
+			// the absence of a new session, which is what distinguishes it from
+			// the other one.
+			&& afterContinue.Statistics.SessionsStarted
+				== beforeContinue.Statistics.SessionsStarted
+			&& afterContinue.Statistics.SessionsAdopted
+				== beforeContinue.Statistics.SessionsAdopted
+			&& afterContinue.Session.has_value()
+			&& beforeContinue.Session.has_value()
+			&& afterContinue.Session->Id == beforeContinue.Session->Id
+			&& afterContinue.Session->Binding == beforeContinue.Session->Binding
+			// Still bound to the revision it was asked about, which is not the
+			// one under review.
+			&& afterContinue.Observed.has_value()
+			&& afterContinue.Session->Binding != *afterContinue.Observed
+			// Only "you have to answer" was answered. The staleness verdict is
+			// the core's and is untouched.
+			&& afterContinue.Projection.has_value()
+			&& !afterContinue.Projection->Continuations.Required
+			&& afterContinue.Projection->Continuations.Status.Staleness
+				== core::agent_session_staleness::head_moved
+			&& afterContinueInvocation.Statistics.ProcessStarts
+				== beforeContinueInvocation.Statistics.ProcessStarts
+			&& chat->send_action()->isEnabled();
+		const auto keptSessionId = afterContinue.Session->Id;
+		const auto keptBinding   = afterContinue.Session->Binding;
+
+		// The head moving cleared the workbench selection with the comparison
+		// it belonged to, so the reviewer points at something again before
+		// asking about it: `ask_about_selection` is one of the three entry
+		// points the core refuses without a selection. Navigating is how one
+		// is made, and navigating adds no context by itself - the chat's own
+		// scope and session are untouched by it.
+		auto continuedFiles = wait_terms{ };
+		if (!wait_until_reporting(
+				continuedFiles,
+				[files](wait_terms& aTerms) {
+					QApplication::processEvents();
+					return aTerms.require(
+						"files-listed", files->model()->rowCount() != 0);
+				},
+				extended_agent_budget)) {
+			return fail(*application, "continued-files", continuedFiles.render());
+		}
+		files->selectionModel()->clearCurrentIndex();
+		QApplication::processEvents();
+		files->selectionModel()->setCurrentIndex(
+			files->model()->index(0, 0),
+			QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+		auto continuedSelection = wait_terms{ };
+		if (!wait_until_reporting(
+				continuedSelection,
+				[surface](wait_terms& aTerms) {
+					QApplication::processEvents();
+					if (
+						!surface->selection().has_value()
+						&& surface->current_result() != nullptr) {
+						static_cast<void>(surface->navigate_change(
+							core::change_navigation_direction::next,
+							core::change_navigation_policy::stop));
+					}
+					return aTerms.require(
+							   "comparison-shown",
+							   surface->current_result() != nullptr)
+						&& aTerms.require(
+							"selection-present",
+							surface->selection().has_value());
+				},
+				extended_agent_budget)) {
+			return fail(
+				*application, "continued-selection", continuedSelection.render());
+		}
+
+		chat->composer()->setPlainText(QString::fromUtf8(
+			continued_message.data(),
+			static_cast<qsizetype>(continued_message.size())));
+		QApplication::processEvents();
+		chat->send_action()->trigger();
+		QApplication::processEvents();
+		auto continuedAnswer = wait_terms{ };
+		if (!wait_until_reporting(
+				continuedAnswer,
+				[&application](wait_terms& aTerms) {
+					const auto invocationNow = app::detail::
+						github_application_fixture_access::agent_invocation_evidence(
+							*application);
+					const auto chatNow = app::detail::
+						github_application_fixture_access::agent_chat_evidence(
+							*application);
+					aTerms.note(
+						"process",
+						static_cast<std::uint64_t>(
+							invocationNow.Statistics.ProcessStarts));
+					aTerms.note(
+						"replies",
+						static_cast<std::uint64_t>(chatNow.Statistics.Replies));
+					aTerms.note_identifier(
+						"panel", chatNow.AgentPanelStatusText);
+					return aTerms.require(
+							   "second-run-quiescent",
+							   invocationNow.Quiescent
+								   && invocationNow.Statistics.ProcessStarts == 2U)
+						&& aTerms.require(
+							"second-reply-delivered",
+							chatNow.Statistics.Replies == 2U);
+				},
+				extended_agent_budget)) {
+			return fail(
+				*application, "continued-turn", continuedAnswer.render());
+		}
+		QApplication::processEvents();
+		detail_queued_finding(*application);
+		const auto afterTurn = app::detail::
+			github_application_fixture_access::agent_chat_evidence(*application);
+		const auto continuedFinding = app::detail::
+			github_application_fixture_access::agent_finding_evidence(
+				*application);
+		const auto continuedMutation = app::detail::
+			github_application_fixture_access::review_mutation_evidence(
+				*application);
+		const auto continuedTurn = afterTurn.Statistics.Turns == 2U
+			&& afterTurn.Statistics.SessionsStarted
+				== beforeContinue.Statistics.SessionsStarted
+			&& afterTurn.LastTurn.has_value()
+			// The turn ran under the session the reviewer kept, bound to the
+			// revision that session was asked about and not to the one on
+			// screen.
+			&& afterTurn.LastTurn->Session.Id == keptSessionId
+			&& afterTurn.LastTurn->Session.Binding == keptBinding
+			&& afterTurn.Observed.has_value()
+			&& afterTurn.LastTurn->Session.Binding != *afterTurn.Observed
+			// Carrying the second question, and the agent received it once.
+			&& afterTurn.LastTurn->Message == continued_message
+			&& continuedFinding.QueuedClaim.find(
+				   exactly_once_echo(continued_message))
+				!= std::string::npos
+			&& continuedFinding.FindingStatistics.Deliveries == 2U;
+		const auto continuedNoMutation = continuedMutation.Submissions == 0U
+			&& continuedMutation.TargetObservations == 0U
+			&& continuedMutation.StoredComments == 0U;
+		const auto continuedPassed = positive && staleRefused && keptSession
+			&& continuedTurn && continuedNoMutation;
+		if (!continuedPassed) {
+			std::cerr << "agent-chat-continued-evidence:" << positive << ':'
+					  << staleRefused << ':' << keptSession << ':'
+					  << continuedTurn << ':' << continuedNoMutation << ':'
+					  << afterTurn.Statistics.Turns << ':'
+					  << afterTurn.Statistics.SessionsStarted << ':'
+					  << afterTurn.Statistics.Continuations
+					  << "\nqueued-claim:" << continuedFinding.QueuedClaim
+					  << "\nsession-state:" << afterTurn.SessionStateText
+					  << "\npanel-status:" << afterTurn.AgentPanelStatusText
+					  << '\n';
+		}
+		if (!shutdown(*application) || !continuedPassed) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-chat-continued:pass\n";
+		return EXIT_SUCCESS;
+	}
+
+	// The continuation that starts one. Exactly one session, and no process.
 	const auto beforeChoice
 		= app::detail::github_application_fixture_access::agent_chat_evidence(
 			*application);

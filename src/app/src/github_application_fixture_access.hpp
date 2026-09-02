@@ -317,6 +317,12 @@ namespace bpr::app::detail {
 		std::string                                       SessionStateText;
 		std::string                                       HeadOidText;
 		std::string                                       AgentPanelStatusText;
+
+		/// The last turn the composition handed to the launch path, as a
+		/// value. Read after a send because the launch path admits a session
+		/// of its own, so the chat's current session is no longer the one the
+		/// turn was produced under.
+		std::optional<application::agent_chat_turn_request> LastTurn;
 	};
 
 	struct agent_finding_composition_evidence

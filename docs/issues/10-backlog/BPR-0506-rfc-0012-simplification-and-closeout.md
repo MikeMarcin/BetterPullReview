@@ -73,3 +73,11 @@ next person choosing between two forms does not rediscover the argument.
 - At 100 % the finding queue's six action buttons overflow the conversations
   drawer's width and the last two are clipped ([[BPR-0513]]'s capture);
   wrap or stack them.
+- `continue_against_old_revision` is old-revision in the session sense only:
+  the launch path still composes context from the revision now under review
+  and then admits a session bound to the old one ([[BPR-0517]]). Decide
+  whether the context must also be composed from the old revision, and card
+  it if so.
+- [[BPR-0517]] added a test-only `LastChatTurn` evidence field to the
+  composition so the continued course can read the dispatched turn; drop it
+  if the counters suffice.

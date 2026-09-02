@@ -31,6 +31,12 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_semantic_groups        = 4'096U;
 	inline constexpr std::size_t maximum_pull_request_url_bytes = 16U * 1024U;
 	inline constexpr std::size_t maximum_selected_source_bytes  = 256U * 1024U;
+	/// The longest question one chat turn may carry.
+	///
+	/// \details The same ceiling as a note and a draft, and for the same
+	/// reason: it is prose a person typed, and a message longer than the
+	/// longest comment they could have written is not a question.
+	inline constexpr std::size_t maximum_chat_message_bytes = 16U * 1024U;
 
 	/// \brief One file's exact local review state.
 	struct supplement_file_state
@@ -100,15 +106,39 @@ namespace bpr::core {
 		auto operator<=>(const supplement_draft&) const = default;
 	};
 
+	/// \brief One chat turn's typed question, keyed to the session it is for.
+	///
+	/// \details The session identity is the same gate `agent_private_context_optin`
+	/// carries and is here for the same reason: a message is prose the reviewer
+	/// typed into one conversation, and a build that paired it with a different
+	/// session is a caller that should not be sending it. There is no field
+	/// here a note, a draft, or a selection could occupy — the message is what
+	/// was asked, not a second way to attach what the opt-in refused.
+	///
+	/// Absent is the ordinary state. Every launch that is not a chat turn omits
+	/// this, and the supplement's message is then empty rather than a
+	/// placeholder saying so.
+	struct agent_chat_message
+	{
+		agent_session_id Session;
+		std::string      Text;
+
+		auto operator<=>(const agent_chat_message&) const = default;
+	};
+
 	/// \brief What the reviewer approved for one versioned supplement.
 	///
 	/// \details The request contains no store and no implicit note or draft
 	/// source. Empty selections therefore stay empty by construction.
+	///
+	/// `Message` is the reviewer's typed question, engaged only when this
+	/// build is for one chat turn and keyed to the session it was typed into.
 	struct agent_supplement_request
 	{
 		application_session_id                     ApplicationSession;
 		agent_session                              Session;
 		std::string                                PullRequestUrl;
+		std::optional<agent_chat_message>          Message;
 		std::optional<git_commit_oid>              PreviousUpload;
 		std::optional<git_commit_oid>              LastReviewedHead;
 		std::vector<supplement_file_state>         Files;
@@ -126,6 +156,12 @@ namespace bpr::core {
 	/// This value carries exact local identities and only explicitly admitted
 	/// private prose. Optional values remain optional through serialization so
 	/// absent never collapses into an empty string or empty collection.
+	///
+	/// `Message` is what the reviewer typed for this turn, admitted by
+	/// `build_agent_supplement` from a request whose `agent_chat_message`
+	/// names this session. Empty means no question was asked - which is what
+	/// every launch that is not a chat turn carries - rather than a question
+	/// this build dropped.
 	struct agent_context_supplement
 	{
 		std::uint32_t SchemaVersion
@@ -133,6 +169,7 @@ namespace bpr::core {
 		application_session_id                     ApplicationSession;
 		agent_session                              Session;
 		std::string                                PullRequestUrl;
+		std::string                                Message;
 		std::optional<git_commit_oid>              PreviousUpload;
 		std::optional<git_commit_oid>              LastReviewedHead;
 		std::vector<supplement_file_state>         Files;
@@ -145,6 +182,12 @@ namespace bpr::core {
 	};
 
 	/// \brief Builds one exact bounded supplement, or refuses it whole.
+	///
+	/// \details A request carrying a message is refused whole when the message
+	/// names another session or is longer than `maximum_chat_message_bytes`,
+	/// exactly as an oversize note or an out-of-session opt-in is. Truncating
+	/// it would send the agent half a question, and dropping it would send a
+	/// turn the reviewer asked for with nothing in it.
 	[[nodiscard]] auto build_agent_supplement(
 		const agent_supplement_request& aRequest)
 		-> std::optional<agent_context_supplement>;

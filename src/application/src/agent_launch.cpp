@@ -129,6 +129,22 @@ namespace bpr::application {
 			return output;
 		}
 
+		/// \brief Wraps one encoded supplement in the protocol's own first frame.
+		///
+		/// \details Where the reviewer's typed message ends up is a property of
+		/// this function, and it is one position: `chat_message`, inside the
+		/// payload, which every protocol carries exactly once. For
+		/// `codex_jsonl_exec` and `external_terminal` the payload is the frame
+		/// body after the `BPR-CONTEXT/2` header; for `claude_stream_json` it is
+		/// the JSON-escaped text of the one user message; and for
+		/// `codex_app_server` this frame is the handshake, so the payload — and
+		/// with it the message — rides the deferred context
+		/// `build_agent_protocol_followup` sends once the thread is identified.
+		///
+		/// Nothing is appended to a frame here. A message added beside the
+		/// payload would be the same question asked twice on three protocols
+		/// and lost on the fourth, and the decode side would have to learn a
+		/// second place to look for it.
 		[[nodiscard]] auto frame_agent_input(
 			const core::agent_protocol aProtocol, const std::string_view aPayload)
 			-> std::string
@@ -1370,7 +1386,8 @@ namespace bpr::application {
 			|| aObservation.Files.size() > core::maximum_supplement_paths
 			|| aObservation.Private.Notes.size() > maximum_private_notes
 			|| aObservation.Private.Defects.size() > maximum_private_defects
-			|| aObservation.IncludedNotes.size() > core::maximum_selected_notes) {
+			|| aObservation.IncludedNotes.size() > core::maximum_selected_notes
+			|| aObservation.ChatMessage.size() > core::maximum_chat_message_bytes) {
 			return std::unexpected(agent_context_failure::invalid_observation);
 		}
 		auto request = core::agent_supplement_request{
@@ -1381,6 +1398,16 @@ namespace bpr::application {
 			.LastReviewedHead   = aObservation.Private.LastReviewedHead,
 			.Selection          = aObservation.Selection,
 		};
+		if (!aObservation.ChatMessage.empty()) {
+			// Bound here, to the session this build is for, because that is
+			// the session the turn runs under: the launch path allocates the
+			// identity, and a message keyed to the one the chat was holding
+			// would be a message for the previous conversation.
+			request.Message = core::agent_chat_message{
+				.Session = aSession.Id,
+				.Text    = aObservation.ChatMessage,
+			};
+		}
 		request.Files.reserve(aObservation.Files.size());
 		for (const auto& input : aObservation.Files) {
 			request.Files.push_back({
@@ -1524,6 +1551,13 @@ namespace bpr::application {
 			"pull_request",
 			aSupplement.Session.Binding.PullRequest.value());
 		append_field(result, "pull_request_url", aSupplement.PullRequestUrl);
+		// The one position the reviewer's typed question occupies. Written
+		// unconditionally, and empty when the launch is not a chat turn, so a
+		// reader never has to decide whether a missing line means "no question"
+		// or "a question this build forgot". Written once, here, because this
+		// is the supplement's whole wire form: a question placed in the framing
+		// as well would reach the agent twice and it would have been asked once.
+		append_field(result, "chat_message", aSupplement.Message);
 		append_field(
 			result,
 			"base",
