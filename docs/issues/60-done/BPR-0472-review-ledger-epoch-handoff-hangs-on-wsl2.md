@@ -1,7 +1,7 @@
 ---
 id: BPR-0472
 title: The review-ledger composition's epoch handoff never completes on WSL2
-status: In Progress
+status: Done
 rfc: RFC-BPR-0007
 depends_on: []
 ---
@@ -170,3 +170,20 @@ now decided before the error code is consulted.
 | The landed shape | `ctest --preset dev -R '^(sqlite_review_ledger_storage\|application_review_ledger_composition_contract\|application_review_ledger_host)$' --output-on-failure` | 3/3: storage 0.70 s, composition contract 43.52 s, host 0.07 s | this commit |
 | Format | `clang-format --dry-run --Werror` on the adapter and the test | clean | this commit |
 | The defect's own host | the same three selectors on the WSL2 station at this commit | **Pending** — the station measured its own diff, not the landed one; requested by envelope, and the card closes on that reply | Pending |
+
+## Confirmed on the defect's own host — 2026-09-02
+
+`bpr-linux` fast-forwarded `linux-lane` to `8948d61a` (a descendant of the
+landing commit `73aafa04`), reconfigured and rebuilt `dev` (373/373), and
+measured the landed shape rather than its own diff:
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The three selectors pass on WSL2 | `ctest --preset dev -R '^(sqlite_review_ledger_storage\|application_review_ledger_composition_contract\|application_review_ledger_host)$' --output-on-failure` | 3/3: host 0.00 s, storage 0.83 s (the regression test that aborted with SIGABRT before the fix), composition contract 2.07 s against 2 m 31 s and a failure at `6fff0a53` | `8948d61a` |
+| Nothing else moved | `ctest --preset dev --output-on-failure`, 221 tests | 218 pass; the three failures are the locked-keyring Secret Service fixtures [[BPR-0310]] carries, unchanged; `application_composition_contract` and the round-trip contract pass, confirming [[BPR-0510]] on Linux | `8948d61a` |
+
+The station's reading of the landed shape: the type-check-first ordering
+closes a failure mode its own diff did not — the libc++ empty-image path that
+would have been a silent misdiagnosis on macOS rather than a loud hang — and
+the contained read still answers the check-then-open concern. Nothing
+further outstanding; the card is terminal.
