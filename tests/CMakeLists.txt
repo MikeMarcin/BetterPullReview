@@ -419,6 +419,16 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_device_capture_tests.py"
 )
 
+# BPR-0312. The gate standing between "the owner approved building public
+# preview" and "these four definitions are what gets built". It reaches no
+# network and writes only inside a scratch repository it creates.
+bpr_add_network_isolated_test(
+    NAME rfc0017_public_preview_decision_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/validate_rfc0017_public_preview_decision_tests.py"
+)
+
 bpr_add_network_isolated_test(
     NAME rfc0016_device_live_runner_security
     COMMAND
