@@ -1132,6 +1132,122 @@ fixture-seam absence, and dependency/runtime/ELF audits. Windows target-native
 evidence remains in BPR-0036. Mock transports, cross-compilation, and
 vault-only evidence cannot substitute for a retained platform claim.
 
+### RFC-BPR-0016 device authorization
+
+A second credential-acquisition path over this same native HTTPS transport.
+It adds no transport rule and relaxes none, and manual token entry remains
+available on every profile, including one the device grant already enrolled.
+
+#### The registered identity and its permissions
+
+The shipped artifact carries one public GitHub App client identifier, recorded
+as the distributable production identity by [[BPR-0318]] and admitted by
+`scripts/verify_rfc0016_production_identity.py`. No client secret exists in
+the application; the registration is constrained to a public client, which is
+what makes that possible. A second, private, owner-only identity exists for
+[[BPR-0276]]'s recorded capture and must never be shipped as the production
+one — the release scan requires the recorded distributable client to be
+present and the verification client to be absent.
+
+The requested permission set is the minimum the shipped operation catalog
+justifies, and it is compiled in rather than operator-editable, because an
+editable scope set reintroduces the decision this path exists to remove:
+
+| Authority | Permission | Why the catalog needs it |
+|---|---|---|
+| Repository metadata | Metadata, read-only | Repository identity and metadata `GET` |
+| Git object access | Contents, read-only | Native smart-HTTP discovery and `git-upload-pack` |
+| Check state | Checks, read-only | Commit check-runs `GET` |
+| Pull-request observation and publication | Pull requests, read and write | PR, files, commits, reviews, comments, and GraphQL reads, plus the single review-comment `POST` |
+
+No Issues, Actions, Workflows, Commit statuses, Administration, organization,
+enterprise, or account permission and no OAuth scope is justified by the
+current catalog. A new route that needs a wider real token reopens the
+attended permission decision rather than widening this table.
+
+#### Exact endpoints and route admission
+
+Two routes on `github.com`, both `POST` with a form body:
+
+| Endpoint | Route |
+|---|---|
+| Device code | `/login/device/code` |
+| Token exchange and refresh | `/login/oauth/access_token` |
+
+URL construction admits the `github_com_2022_11_28` server contract, an empty
+query, and exactly those two paths; it re-encodes the address and requires a
+byte-identical round trip, no port, no userinfo, and no fragment. Anything
+else yields no request at all rather than a rejected one. Responses are
+bounded at 64 KiB and parsed into one typed completion, and a
+`verification_uri` outside the expected authority is refused at the wire
+before it can reach a host ([[BPR-0278]],
+`github_device_authorization_contract`,
+`native_https_device_authorization_contract`).
+
+#### Polling discipline
+
+The host honors the server's interval within a floor of 5 s and a ceiling of
+300 s, applies at least the RFC 8628 five-second increase when the service
+answers `slow_down` and the larger interval the recorded GitHub contract
+names when it names one, and stops at a total bound of 900 s or 256 polls
+whichever comes first. Grant validity is capped at 3,600 s. Three consecutive
+transport failures inside one poll window end the flow; a refusal of the
+server's identity or of the response shape ends it immediately and is not
+counted against that budget. Polling is cancellable from the UI and at
+shutdown, and cancellation retains no device code ([[BPR-0279]],
+`application_device_authorization_host`).
+
+#### Refresh
+
+The selected registration is a GitHub App, so the access token expires and
+refresh material accompanies it. Renewal is armed 300 s before expiry, or at
+the midpoint of a lifetime shorter than twice that lead, and reuses the token
+endpoint with the stored refresh material. Rotation is atomic: new material
+that cannot be stored is not adopted, because rotating would otherwise leave
+nothing durable behind. A stale or canceled renewal cannot rotate anything,
+and an exhausted one reports `reenrollment_required` once rather than retrying
+forever — the reviewer authorizes again. A registration that issues no refresh
+material schedules no rotation at all ([[BPR-0279]], [[BPR-0283]],
+`application_device_authorization_refresh`,
+`github_device_authorization_refresh_contract`).
+
+Refresh material is keyed by the same authority as the credential itself and
+kept beside it in a second vault slot, so neither can be retrieved under the
+other's name and deleting one never silently removes the other. The authority
+a refresh entry is keyed by is only knowable once an authenticated `/user`
+observation has bound the profile to an account, which happens after
+enrollment; until it arrives the host holds new refresh material in memory and
+stores it the moment it can, and every terminal, cancellation, and shutdown
+erases it instead.
+
+#### The vault join point
+
+Success enters the existing profile-enrollment path at exactly the point the
+manual prompt enters it today. The access token becomes
+`github_credential_material` and is enrolled through `enroll_profile`; from
+that moment it is indistinguishable to the rest of the system from a token the
+operator pasted, and vault storage, identity observation, and capability
+probing are unchanged. There is no second store, no settings copy, and no
+SQLite copy ([[BPR-0281]], [[BPR-0282]],
+`application_device_authorization_registered_course`).
+
+#### GHES and unregistered profiles
+
+The device path is composed against the first configured profile, and the only
+transport that can be built for it is the GitHub.com one: route admission
+refuses every other server contract. A build whose first profile is GitHub
+Enterprise Server therefore composes the refusing transport, the capability
+stays unregistered, and selecting device sign-in answers `device_flow_unavailable`
+with zero requests — structurally, before a request is constructed, rather than
+as a count that happens to be zero. Adding a GHES profile beside GitHub.com
+does not change the GitHub.com device path.
+
+An enterprise instance would need an application registered on that instance,
+which is an administration action RFC-BPR-0016 does not own. Until one exists,
+GHES keeps the manual token path. The ledger's end-to-end GHES claim row is
+still open: no current selector drives the device probe against a GHES front
+profile, and closing it is [[BPR-0285]]'s.
+
 ## Read-only enforcement
 
 The RFC-BPR-0002 composition exposes only narrow provider-read ports. Its

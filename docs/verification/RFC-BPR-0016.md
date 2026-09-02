@@ -213,16 +213,18 @@ immutable final-head platform replay is the closeout result.
 
 ## Documentation impact ledger
 
-| Surface | Owner | Required disposition |
-|---|---|---|
-| `docs/architecture/product-contract.md` | BPR-0284 | Acquisition choices, manual fallback, user-visible terminals, GHES rule |
-| `docs/architecture/system-architecture.md` | BPR-0284 | Core/host/GitHub/Qt/browser/composition ownership and typed flow |
-| `docs/architecture/github-host-implementation.md` | BPR-0284 | Selected permissions, exact endpoints, polling, refresh, vault join point |
-| `docs/architecture/review-round-trip.md` | BPR-0284 | Credential acquisition no-impact or exact changed authority |
-| `docs/security/foundation-security.md` | BPR-0284 | Public client, no secret, transient material, redirects, browser/listener prohibitions |
-| `docs/development/build-and-test.md` | BPR-0284 | Registration selection, fixture provenance, local/Release/negative gates |
-| Operator authentication guidance | BPR-0284 | Installation, device course, manual fallback, diagnostics, re-enrollment |
-| Agent guidance | BPR-0284 | Update only if the completed work establishes a reusable stable rule |
+| Surface | Owner | Required disposition | Delivered 2026-09-02 |
+|---|---|---|---|
+| `docs/architecture/product-contract.md` | BPR-0284 | Acquisition choices, manual fallback, user-visible terminals, GHES rule | `## Credential acquisition`: the two acquisition paths into one vault, the manual path staying first-class, the seven reviewer-visible terminals, the failed handoff that is not one of them, and the GHES rule as a structural route refusal with its ledger row still open |
+| `docs/architecture/system-architecture.md` | BPR-0284 | Core/host/GitHub/Qt/browser/composition ownership and typed flow | `## RFC-BPR-0016 device authorization allocation` plus a Feature-allocation row: the typed flow end to end, and per-region ownership for core, host, GitHub adapter, native HTTPS, Qt, the composition-owned browser opener, and identity/platform selection |
+| `docs/architecture/github-host-implementation.md` | BPR-0284 | Selected permissions, exact endpoints, polling, refresh, vault join point | `### RFC-BPR-0016 device authorization`: the registered identity and its permission table, the two `/login` routes and their admission rule, the exact polling bounds, the refresh lifecycle and its second vault slot, the enrollment join point, and GHES/unregistered selection |
+| `docs/architecture/review-round-trip.md` | BPR-0284 | Credential acquisition no-impact or exact changed authority | `## Credential acquisition has no impact here`: an evidence-backed no-impact region — publication authority, drafts, anchoring, safe targets, retries, and reconciliation never consult how enrollment happened |
+| `docs/architecture/security-threat-model.md` | BPR-0284 | Authority boundaries, prohibited designs, fixture/production split, test network posture | `## RFC-BPR-0016 device authorization boundary`: what the device host may reach and what it structurally cannot, the closed presentation record, the twice-checked verification authority, the still-prohibited designs, the `BPR_BUILD_TESTING` browser seam, and the per-platform automated-test network posture |
+| `docs/security/foundation-security.md` | BPR-0284 | Public client, no secret, transient material, redirects, browser/listener prohibitions | `## RFC-BPR-0016 device authorization boundary`: public client with no secret, transient material confined to the host, inherited redirect/certificate rules, the system-browser opener with no engine or listener, and why the service endpoints are deliberately not forbidden material |
+| `docs/development/build-and-test.md` | BPR-0284 | Registration selection, fixture provenance, local/Release/negative gates | `### Platform selection and what each platform's gate expects`, `### Running a target-native course`, and `### What RFC-BPR-0016 does not deliver yet`, beside the existing guard sections: per-platform isolation and expectation, the uncontained Windows gate and BPR-0515, the two named Windows exclusions and BPR-0525, the Linux and Windows course commands, and the three open observations |
+| Operator authentication guidance | BPR-0284 | Installation, device course, manual fallback, diagnostics, re-enrollment | `docs/development/build-and-test.md` `### Signing in with a device code`: the registered GitHub App and its any-account installation implication, the compiled permission set, manual fallback, terminals and diagnostics, refresh and re-enrollment, handoff failure, GHES, and the refusals not to work around; target-native procedure by reference to `docs/development/remote-stations.md` |
+| Sign-in presentation | BPR-0284 | The Qt surface a reviewer sees, and what composition actually mounts | `docs/ux/workbench-specification.md` `## Signing in with a device code`: the panel's fields, its four actions, command legality taken from the core's projection, handoff reporting, terminal clearing, and the recorded truth that composition binds the projection to a self-test sink and no shipped window mounts the panel yet |
+| Agent guidance | BPR-0284 | Update only if the completed work establishes a reusable stable rule | No change. This slice established no reusable cross-slice rule; every boundary it documents is RFC-BPR-0016's own and is already enforced by `VerifyArchitectureBoundaries.cmake`, `verify_composed_hosts.py`, and `verify_rfc0016_test_inventory.py` rather than by guidance |
 
 ## Delegation and execution record
 

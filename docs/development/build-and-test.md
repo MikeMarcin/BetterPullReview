@@ -631,6 +631,92 @@ agree on every run rather than assumed to. That check earned its keep during
 development by catching the verifier demanding HTTP 200 for
 `authorization_pending`, which GitHub is entitled to send as 400.
 
+### Platform selection and what each platform's gate expects
+
+All three shipped platforms select the recorded distributable identity. Each
+was flipped in its own slice against its own target-native course, and none
+flipped another's; the constant in `src/app/src/github_application.cpp` is the
+only thing that enables a platform, and building on a different operating
+system is not.
+
+| Platform | Enabled by | Dev-tree isolation | Device gate expectation |
+|---|---|---|---|
+| macOS | [[BPR-0318]], 2026-08-29 | `macos-sandbox-exec` profile | `DEVICE_FLOW_STAGE:failed`, `DEVICE_FLOW_REQUESTS:0` |
+| Linux | [[BPR-0310]], 2026-09-02 | `linux-network-namespace` | `DEVICE_FLOW_STAGE:failed`, `DEVICE_FLOW_REQUESTS:0` |
+| Windows x64 | [[BPR-0311]], 2026-09-02 | AppContainer, but these selectors are `WINDOWS_UNCONTAINED` | `DEVICE_FLOW_STAGE:cancelled`, `DEVICE_FLOW_REQUESTS:0` |
+
+The expectation differs because the isolation does. On macOS and Linux the
+boundary denies the network, so a registered platform's probe cannot reach
+GitHub and lands on `failed`. On Windows the device selectors run outside the
+AppContainer — [[BPR-0362]] measured why a lowbox token cannot give them what
+they need — so the real flow starts, reaches `awaiting_authorization` against
+GitHub, and the probe's own budget cancels it there. An offline Windows host
+lands `failed` and fails that gate.
+
+Read `DEVICE_FLOW_REQUESTS:0` exactly: it counts submissions that reached the
+*refusing* transport, never HTTP requests. Zero proves the capability gate
+held, and is entirely consistent with a real device-code request having gone
+out. On macOS and Linux the isolation makes the two readings coincide; on
+Windows they come apart. Whether an unattended Windows gate may make outbound
+contact at all is adjudicated by [[BPR-0515]], which is open.
+
+The course enumerates every selector by name rather than counting matches, so
+a name that is not registered on a platform is a refusal by name unless the
+per-platform exclusion table in `scripts/verify_rfc0016_platform_course.py`
+lists it with its reason — and an exclusion for a name that is registered
+after all is refused as stale. Windows excludes exactly two:
+`github_device_authorization_refresh_contract` and
+`native_https_device_authorization_fixture`, both registered under a POSIX
+guard in `tests/github_contract/CMakeLists.txt` and not yet mirrored into the
+Windows block. Mirroring them, or making one exclusion permanent with its
+cause, is [[BPR-0525]] ([[BPR-0524]] named them).
+
+### Running a target-native course
+
+The Linux and Windows courses are the same script with that platform's
+interpreter and presets, run on that platform:
+
+```sh
+python3 scripts/verify_rfc0016_platform_course.py \
+    --platform linux \
+    --dev-preset dev \
+    --release-preset app-release \
+    --build-root build/rfc0016-linux-enablement \
+    --expected-device-selection enabled \
+    --fresh
+```
+
+```text
+py -3 scripts\verify_rfc0016_platform_course.py ^
+    --platform windows ^
+    --dev-preset windows-dev ^
+    --release-preset windows-app-release ^
+    --build-root build\rfc0016-windows-enablement ^
+    --expected-device-selection enabled ^
+    --fresh
+```
+
+Getting a station into the state where either of those runs — the hosts, the
+lanes, the launcher, the writer lease, and the supported Windows procedure —
+is not repeated here. It is in
+[remote stations](remote-stations.md), which is the operator procedure of
+record for both.
+
+### What RFC-BPR-0016 does not deliver yet
+
+- **The browser handoff has never been observed opening a real browser.** The
+  opener's presence in a shipped graph is proven by linkage and construction,
+  and no suite may launch one. That the action reaches a real browser at a
+  real verification address is a target-native observation, and all three
+  rows — macOS, Linux, and Windows x64 — are still pending on [[BPR-0516]].
+- **The Windows gate's network posture is undecided.** [[BPR-0515]] is open
+  and owns it.
+- **Nothing here is closeout evidence.** Every result above is an ordinary
+  run. The immutable final-head replay on each enabled platform, the complete
+  local matrix, and the independent capability-critical review are
+  [[BPR-0285]]'s, and RFC-BPR-0016 stays `Deferred` until BPR-0035/BPR-0036
+  close RFC-BPR-0002 besides.
+
 ## Targets
 
 | Target | Responsibility |
@@ -2266,6 +2352,50 @@ success claim.
   after an orderly lifecycle, not crash recovery; Windows target-native
   cleanup remains BPR-0036. Do not compensate with a broad credential
   deletion.
+
+### Signing in with a device code
+
+- Device sign-in is a second way to enrol a profile, not a replacement for the
+  token field. Manual token entry stays available on every profile, including
+  one the device grant already enrolled. Selecting the device path never
+  silently does nothing: it produces one typed terminal — authorized, denied,
+  expired, disabled, unavailable, cancelled, or failed.
+- The registered identity is a GitHub App owned by the GitHub user
+  `MikeMarcin`, with device flow and expiring user tokens enabled, an
+  any-account installation policy, and the exact approved permission set. Its
+  client identifier is public, is compiled into the binary, and carries no
+  secret; there is no secret to protect and none to configure.
+- **Installation implication.** A GitHub App's user token reaches a repository
+  only where the app is installed, so reviewing an organization's pull
+  requests through the device path depends on that organization installing it,
+  which is an administrator action outside the reviewer's control.
+  BetterPullReview does not require that of anyone — the token path remains
+  first-class precisely so administrator installation stays optional, which is
+  what keeps "requiring repository administrators to install a GitHub App" an
+  explicit product non-goal.
+- The reviewer never chooses a scope. The requested permissions are compiled
+  in and are the minimum the shipped operation catalog justifies; they are not
+  operator-editable, because an editable scope set reintroduces the decision
+  this path removes.
+- The acquired token expires and renews itself shortly before it does. A
+  renewal that cannot complete says so once and asks for re-enrollment rather
+  than retrying forever; enrol again from the same panel. Refresh material
+  lives in a second slot of the same platform vault, keyed by the same
+  authority, and an orderly shutdown removes only what it retained.
+- Opening a browser can fail, and that is not an authorization failure. The
+  code and the address stay on screen and the flow completes on whatever
+  device the reviewer finishes it on. An address that does not sit under the
+  compiled authority is refused and no browser is opened for it.
+- GHES profiles report device sign-in as unavailable and keep the token path.
+  An enterprise instance would need its own registered application, which is
+  an enterprise-administration action outside RFC-BPR-0016.
+- Do not work around an unavailable device path by pasting the client
+  identifier, editing an endpoint, or supplying a verification address by
+  hand. None of those is an input the application accepts, and the refusals
+  that reject them are the point of the design.
+- Target-native device-flow courses run on the stations rather than here; see
+  [remote stations](remote-stations.md) for the hosts, lanes, launcher, and
+  the supported Windows procedure.
 
 ### Retained Git history and epoch storage
 

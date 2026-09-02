@@ -81,6 +81,48 @@ control follows this same native-System inheritance. User-selectable System,
 Light, Dark, and high-contrast profiles remain RFC-BPR-0006 work, with a fresh
 installation defaulting to System.
 
+## Signing in with a device code
+
+RFC-BPR-0016 adds a second way to enrol a profile beside the token field, and
+the token field stays. `qt::device_authorization_panel` is the surface:
+
+- A heading, two read-only fields — the user code and the address to enter it
+  at — a remaining-validity label, and a browser-handoff label. The reviewer
+  has to read the code aloud or type it elsewhere, so both fields are
+  selectable text rather than a status line.
+- Four actions: Get a code, Copy code, Open browser, and Cancel. Get a code
+  becomes Get a new code once the flow has left `idle`, because offering
+  "Get a code" after a denial reads as though nothing happened.
+- Get a code and Cancel are enabled from the core's command projection rather
+  than from a rule the panel keeps for itself. An absent command is a disabled
+  command, so a projection that lost one fails closed. Copy and Open are
+  enabled from what is on screen, because neither moves the flow
+  ([[BPR-0283]], `qt_device_authorization_scale_100`).
+- The handoff label reports what became of the last attempt to open a browser
+  and never an authorization outcome. A refused, failed, or unavailable
+  handoff leaves the flow exactly as live as an opened one, with the code and
+  the address still presented ([[BPR-0280]], [[BPR-0516]]).
+- Every terminal, including the successful one, clears the code and the
+  address. A user code that outlives its flow is a code the reviewer can still
+  be tricked into typing.
+- Each published change produces at most one combined polite announcement
+  carrying the stage, the code, and the handoff together, under the same rule
+  as the rest of this window, and the panel is rendered at 1.0x, 1.25x, and
+  2.0x in the Qt harness.
+
+The panel receives a projection and never a token, a refresh token, a device
+code, a client identifier, or an endpoint; those fields do not exist on the
+type it is handed.
+
+**What is composed today.** The application constructs the device host on
+every platform and publishes its presentations, but binds the projection port
+to a recording sink that the public self-test reads; no shipped window mounts
+this panel yet, so the reviewer-facing entry is
+`github_application::select_device_authorization()` rather than a control in
+the workbench. The panel's own contracts run at the adapter boundary
+(`qt_device_authorization_scale_100`, `_125`, `_200`), and the composed path
+is proven separately (`application_device_authorization_public_path`).
+
 ## Primary actions
 
 Previous/next file and previous/next change are always visible in one compact

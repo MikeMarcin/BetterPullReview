@@ -537,6 +537,24 @@ A provider that cannot resolve threads or record viewed state reports that
 rather than skipping the operation. Silently skipping would leave a reviewer
 believing they had resolved something.
 
+## Credential acquisition has no impact here
+
+RFC-BPR-0016 adds a second way to acquire the credential and changes nothing
+about what this document describes. The round trip's authority is unchanged:
+publication still runs under the acting user's identity, through the same
+provider, over the same native HTTPS transport, using a credential the
+platform vault holds. A token the device grant enrolled and a token the
+operator pasted are the same `github_credential_material` by the time the
+mutation host sees one, and the mutation host cannot tell them apart
+([[BPR-0281]], `application_device_authorization_registered_course`).
+
+Nothing in the draft, anchoring, safe-target, retry, or reconciliation rules
+consults how enrollment happened, and no device-flow type appears on this
+path. This is an evidence-backed no-impact region, not an untested one: the
+registered course drives a real enrollment through the composed application
+and the round-trip composition contract is pinned across it
+([[BPR-0516]], `application_review_round_trip_composition_contract`).
+
 ## What is not proven here
 
 Three acceptance criteria still require the live product path, session-scoped

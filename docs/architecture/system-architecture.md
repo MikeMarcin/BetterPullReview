@@ -572,6 +572,7 @@ the application selects it.
 | Feature family | Functional core | Application host | Qt presentation adapter |
 |---|---|---|---|
 | GitHub/GHES | host/account identity policy, command legality, completion acceptance | provider capability port, session/staging/cache lifecycle; external GitHub adapter implements authentication and transports | account/host selection, errors, capability presentation |
+| Device authorization | stage, command legality, request/generation identity, stale rejection, terminal reason | device-code request, bounded polling, token exchange, refresh before expiry, handoff authority check, refresh-only vault slot | user code, address, validity, handoff outcome, buttons enabled from the core's command projection |
 | Git/epochs | epoch-selection rules, comparison intent, stale acceptance | Git process, bare cache, refs, clocks, persistence | epoch selectors, labels, unavailable states |
 | Diff/navigation | exact comparison identity, byte-faithful text decoding, deterministic alignment/pairing/intraline policy, stable mapping/group/move identities, active change, navigation policy | blob residency, immutable worker inputs, jobs, exact diff caches, cancellation, stale-result rejection | natural-layout panes, measured max-extent axis, retained comparison position, shared scrollbar, `DiffLinkMap`, lower detail, focus |
 | Review ledger | receipt/actionability transitions | SQLite authority, queries, migrations | badges, filters, commands, explanations |
@@ -862,6 +863,114 @@ newest-current-viewer review fact changes, the core issues the
 `associate review` variant instead. It performs one expected-revision
 SQLite-only catalog mutation, advances the revision only for a changed
 association, and creates no epoch, Git object import, or ref.
+
+## RFC-BPR-0016 device authorization allocation
+
+Device authorization is a second credential-acquisition path over
+RFC-BPR-0002's native HTTPS transport. It does not replace the manual token
+prompt, which stays first-class on every profile, and it relaxes no transport
+rule. Like the epoch slice above it is a dedicated core policy and application
+host rather than growth in the GitHub reducer, and no Qt projection is used as
+an internal bus.
+
+```text
+begin/cancel intent from Qt
+    -> device authorization core (stage, legality, request identity)
+    -> typed host request
+    -> device authorization application host (code, poll, exchange, renew)
+    -> GitHub device-authorization contract adapter (form body, parser)
+    -> native HTTPS transport (the two /login routes)
+    -> one typed observation, accepted by the core
+    -> revisioned presentation published outward
+    -> authorized token -> the existing enrollment -> the platform vault
+```
+
+**The core decides.** `core::device_authorization_state` carries the stage,
+the pending request context, the generation, and the terminal reason;
+`core::transition` returns the changed domains, the host requests, the status
+delta, the diagnostics, and which of `begin_device_authorization` and
+`cancel_device_authorization` is legal — and, when one is not, the reason code
+that says why — as `device_authorization_command_projection` values. The core
+names no client identifier, endpoint, device code, token, or poll interval
+([[BPR-0277]], `core_device_authorization`).
+
+**The host performs.** `application::device_authorization_application_host`
+owns the device-code request, the poll schedule under the server's interval
+and its requested `slow_down` backoff, the total wall-clock bound and the
+maximum poll count, cancellation from the UI and at shutdown, renewal before
+expiry, and the erasure that follows every terminal including the successful
+one. It reads a monotonic clock rather than the epoch host's UTC clock,
+because a wall clock that steps backwards would let a poll outrun its interval
+and one that steps forward would end a live flow early ([[BPR-0279]],
+`application_device_authorization_host`,
+`application_device_authorization_refresh`).
+
+Two narrowings keep that host from reaching further than the flow needs.
+It takes `github_credential_refresh_vault_port` — `store_refresh`,
+`retrieve_refresh`, `delete_refresh`, `cancel` — rather than the whole vault,
+so naming the base-token slot from the device host is a compile error rather
+than a rule somebody has to keep; the full `github_credential_vault_port`
+derives from it, so composition still hands one platform object to both. And
+authorized material passes through once: the access token becomes a vault
+entry through the existing enrollment boundary and the host keeps no copy,
+while refresh material is read back from the vault when it is needed
+([[BPR-0283]], `application_device_authorization_refresh`,
+`application_github_credential_vault`).
+
+**The GitHub adapter speaks the wire.** It builds the exact form bodies,
+parses each recorded response into one typed completion under a bounded
+response limit, and refuses a `verification_uri` that does not sit under the
+expected authority before the address can reach a host at all. That authority
+is declared once, as
+`application::default_device_verification_authority`, and checked twice —
+at the wire by the parser and again in the host against the authority
+composition handed it — so a registration that moved the device endpoints
+cannot leave half the product trusting the old one ([[BPR-0278]],
+[[BPR-0283]], `github_device_authorization_contract`,
+`github_device_authorization_refresh_contract`).
+
+**Native HTTPS carries it unchanged.** Both endpoints are the same transport
+under the same rules: system trust and proxy configuration, no
+certificate-error bypass, unknown-authority redirects rejected before any
+credential or body is forwarded, and every query-bearing redirect failing
+closed. URL construction admits the `github_com_2022_11_28` server contract,
+no query, and exactly the two `/login` paths; anything else yields no request
+at all ([[BPR-0278]], `native_https_device_authorization_contract`,
+`native_https_device_authorization_fixture`).
+
+**Qt presents, and decides nothing.** `qt::device_authorization_panel` renders
+the user code, the verification address, the remaining validity, and the fate
+of the last browser handoff, and enables its begin and cancel buttons by
+looking each command up in the core's projection. An absent command is a
+disabled command, so a projection that lost one fails closed rather than
+falling back to a rule of the panel's own. Copy and open stay derived from
+what is on screen, because neither moves the flow ([[BPR-0280]],
+[[BPR-0283]], `qt_device_authorization_scale_100`,
+`qt_device_authorization_scale_125`, `qt_device_authorization_scale_200`).
+
+**The browser capability is composition's, not Qt's.**
+`VerifyArchitectureBoundaries.cmake` refuses `QUrl`, `QDesktopServices`, and a
+literal scheme anywhere under `src/adapters/qt/`, so the presentation adapter
+cannot hold an address and cannot acquire an opener. `bpr::app::system_browser_opener`
+is the one place in the shipped graph that hands an address to the platform's
+own launch service: no embedded web view, no browser engine, no network of its
+own, no listener, and no supervised child. A shipped graph binds it; a
+tests-enabled graph binds a recording opener instead, so no suite in this
+repository can start a browser. Composing none at all is the construction cut,
+and only then does the action answer `unavailable` ([[BPR-0516]],
+`application_device_authorization_browser_handoff`,
+`application_device_authorization_browser_absent`, `composed_application_hosts`).
+
+**Composition selects the identity and the platform.** The device path is
+composed on every platform, registered or not, because the visible choice and
+its typed answer are the product behaviour: selecting device sign-in on an
+unregistered platform must say so rather than do nothing. A registered
+platform composes the credential-free wire bound to the recorded distributable
+client identifier; an unregistered one composes a refusing transport whose
+reached-count proves the capability gate held. A composition failure falls
+closed to the refusal ([[BPR-0281]], [[BPR-0318]],
+`application_device_authorization_public_path`,
+`application_device_authorization_release_contract`).
 
 ## Performance contract
 
