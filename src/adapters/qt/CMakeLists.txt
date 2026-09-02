@@ -14,6 +14,7 @@ add_library(
         src/comparison_scroll_controller.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp
+        src/finding_queue_view.cpp
         src/event_loop_executor.cpp
         src/event_loop_device_timer.cpp
         src/epoch_comparison_control.cpp

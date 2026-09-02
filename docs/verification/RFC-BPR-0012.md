@@ -4,14 +4,14 @@ RFC base: `2966ff8103dc442775425386f6a31f8ac1a391c6`
 
 Status: **partially implemented; claims are verified row by row.** BPR-0496
 allocated the card set on 2026-09-01, when RFC-BPR-0012 was the first RFC in
-the pack with no implementation at all. Since then BPR-0497 through BPR-0502
+the pack with no implementation at all. Since then BPR-0497 through BPR-0503
 have landed the core finding, promotion, and chat-scope semantics, the host's
-finding decode and delivery, the read-only MCP context helper, and the Qt
-side-chat panel; the rows those slices own read `Verified`, `Core and panel
-verified`, or `Core half verified` below, each naming its evidence. The rows
-still reading `Planned` name the card that will supply theirs: the remaining
-Qt surface (BPR-0503) and the composition, hygiene, and closeout slices
-(BPR-0504 through BPR-0507).
+finding decode and delivery, the read-only MCP context helper, the Qt
+side-chat panel, and the Qt finding queue and comment workshop; the rows those
+slices own read `Verified`, `Core and panel verified`, `Qt half verified`, or
+`Core half verified` below, each naming its evidence. The rows still reading
+`Planned` name the card that will supply theirs: the composition, hygiene, and
+closeout slices (BPR-0504 through BPR-0507).
 
 RFC-BPR-0012 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0008 and RFC-BPR-0011.
@@ -92,14 +92,14 @@ moves off `Planned` only when its card lands with direct evidence.
 | State | Claim | Direct surface | Command | What will prove it | Result |
 |---|---|---|---|---|---|
 | Core and panel verified | Every AI action originates from an explicit visible user command. | Core legality, the side-chat panel, and the composed workbench | `core_agent_profile`, `core_agent_chat_scope`, `qt_side_chat_panel`, `application_agent_finding_composition_contract`, `architecture_boundaries` | Each of the seven entry points is legal only with its own explicit intent, and a sweep of refresh, navigation, comment arrival, and revision update produces zero invocations and zero process launches | **Core half** (BPR-0499, 2026-09-01): `core_agent_chat_scope` proves the seven entry points legal only with their own explicit `agent_action_intent` (not default-constructible, `explicit`), an eighth failing the count at compile time, and every observation producing no intent; the panel half is now direct too (BPR-0502, 2026-09-02): `qt_side_chat_panel` drives every declared observation — refresh, navigation, comment arrival, and revision update — through the shipped panel and asserts zero intents, zero chips, and no movement in any of its ten presented fields, while each of the four gestures emits exactly one typed intent, the send carrying a `core::agent_action_intent` that names its entry point. The composed half remains `Planned` — BPR-0504 |
-| Planned | Comment workshop preserves the original draft and shows a reviewable proposed revision. | Qt review-draft editor and finding queue | `qt_review_draft_editor`, `qt_finding_queue_view` | Rejecting leaves the original draft byte-identical, and both texts are asserted on two separately presented values so a single overwritten buffer fails | `Planned` — BPR-0503 |
+| Verified | Comment workshop preserves the original draft and shows a reviewable proposed revision. | Qt review-draft editor and finding queue | `ctest --preset dev -R '^(qt_finding_queue_view\|qt_review_draft_editor)$'` | Rejecting leaves the original draft byte-identical, and both texts are asserted on two separately presented values so a single overwritten buffer fails | **Verified** (BPR-0503, 2026-09-02): the workshop lives inside `review_draft_editor`, which holds a `comment_workshop_proposal` carrying the reviewer's `Original` and the agent's `Proposed` as two members and shows them on two `QPlainTextEdit` surfaces at once; the suite asserts each against its own source and asserts the two widgets are different objects. Accepting emits exactly one `review_draft_command` — an `edit` of the draft the proposal names, carrying the proposed text byte for byte — and writes nothing: the reviewer's body and the accepted draft projection are still byte-identical afterwards, and the receipt path is untouched. Rejecting emits nothing at all and leaves the body byte for byte what it was, tab and trailing space included. Six scripted negative controls each neutered one of these and failed by name: accepting twice fails `accepting a revision emits exactly one review draft command`, accepting zero times fails the same line, rejecting written back into the body fails `rejecting a revision asks for nothing at all`, pointing both surfaces at one buffer fails `the original, the proposal, and the editable body are three separately announced surfaces`, deleting the proposal's presentation fails `and the proposed revision is presented as a second, separate value at the same time`, and a `void*` store member added to the editor fails to compile at `decomposes into 20 elements, but only 19 names were provided`. Every restore was byte-exact by md5 |
 | Verified | Structured findings validate path/line/OID and cannot silently attach to a newer revision. | Core finding schema and the host decode path | `core_agent_finding`, `application_agent_finding_protocol`, `application_agent_invocation_host` | Valid, invalid, and stale anchors return three verdicts distinguishable by value, and a payload arriving after a head move is stale with its analyzed OIDs intact | **Verified** (BPR-0497 and BPR-0500): the core decides anchored, unanchored, and stale against the session's frozen binding; the host decodes a bounded payload once in the shared loop, validates every finding through that core function before re-entry (deleting the call fails by name), and delivers a payload arriving after an accepted head move as `head_moved` with the session's own binding and the analyzed OIDs intact. The composed population of the frozen snapshot is BPR-0504's |
 | Core half verified | Converting a finding creates only a local draft until explicit publication. | Core promotion and the composed conversion course | `core_agent_finding_promotion`, `application_agent_finding_composition_contract` | One promotion yields exactly one command, no result type can carry a `review_publication_proposal`, and the conversion course records zero GitHub mutation calls | **Core half verified** (BPR-0498, 2026-09-01): `promote_agent_finding` returns exactly one `edit` draft command, one `reclassify` defect command, or one note payload, or a typed refusal; the result type fails to compile with a `review_publication_proposal` field; the suggested comment is carried byte for byte. The composed course remains `Planned` — BPR-0504 |
 | Planned | Full-agent GitHub changes round-trip through normal synchronization without a private backchannel. | Composed end-to-end over the RFC-BPR-0008 fixture path | `application_agent_finding_composition_contract`, `application_review_round_trip_composition_contract`, `composed_application_hosts` | The resulting GitHub state arrives only through RFC-BPR-0008 synchronization; a second edge from the agent host would appear as a mutation call outside it | `Planned` — BPR-0504 |
 | Core and panel verified | The side chat shows stale state after head movement and offers new-session or explicit old-revision continuation. | Core session state and the Qt side-chat panel | `core_agent_session`, `core_agent_chat_scope`, `qt_side_chat_panel` | After `head_moved` the session offers exactly two continuations, retargets neither, and the panel starts neither by itself | **Core half** (BPR-0499, 2026-09-01): `offer_agent_continuations` carries `observe_agent_session`'s verdict, offers a two-element `std::array` of continuations, and names the session's own binding as the only continuation target. **The panel half is verified** (BPR-0502, 2026-09-02): `qt_side_chat_panel` presents a stale projection as stale with the core's own `head_moved` name, offers exactly the two-element `agent_continuation` array core defined, and emits nothing while doing it — the intent count after presenting a stale session is zero, and the send action is disabled until the reviewer answers. Each continuation emits exactly one `choose_chat_continuation_intent` when and only when it is chosen, carrying `ContinueAgainst` — the session's own binding, asserted unequal to the moved head — because the projection type has no field the observed revision could occupy. Making either continuation start itself on presentation fails `presenting a stale session starts neither continuation`, both restored byte-exact by md5. Constructing the panel in the shipped window remains `Planned` — BPR-0504 |
 | Verified | The MCP helper exposes only documented read-only operations and cannot access credentials, network, writes, or unrelated filesystem content. | The helper's stdio canary | `application_mcp_context_helper` | The advertised tool list is compared exactly against the source enumeration, and a sweep over every refusal — connect, listener bind, read above the snapshot root, symlink escape, and each write, draft, publish, and note name — refuses each while the parent holds planted secrets | **Verified** (BPR-0501, 2026-09-02): the shipped `tool_better_pull_review_mcp_context_helper` speaks newline-delimited JSON-RPC 2.0 over stdio — `initialize`, `tools/list`, `tools/call` — and advertises four read-only tools over one frozen snapshot pinned to one `agent_revision_binding`. The advertised list is compared against three independent sources: the `enum class mcp_tool` text read out of the header, the compiled `mcp_tools` array, and a list written in the canary, so a tool added to the first two still fails. The refusal sweep drives twenty-one entries through the real executable — a URL argument, a `//host:port` authority, a UNC authority, `net/connect`, `net/listen`, `../../../etc/passwd`, `/etc/passwd`, `../binding`, a real directory symlink out of the snapshot on both path-taking tools, ten write/draft/publish/note/network tool names, and a helper started with `--listen 127.0.0.1:8080` — and each is refused by its own exact typed cause with no result beside it. Nineteen scripted negative controls each removed one check, rebuilt, and made the canary fail; every restore was byte-exact by md5 and the restored tree builds and passes. The child's complete environment reduces to exactly `BPR_MCP_SNAPSHOT_ROOT` and `BPR_MCP_PINNED_BINDING` while the parent holds planted GitHub, Anthropic, and AWS secrets, and no secret value reaches either child channel. Head movement with the pin unchanged makes every call `revision_binding_stale` and re-reads nothing. **No socket surface survives**: `nm -u` on the shipped binary shows no socket, connect, bind, listen, accept, or resolver import among its 84 undefined symbols, so `LOOPBACK_PORT_COUNT` stays 0 and `test_network_isolation_manifest` is not required. Constructing and supervising the helper inside the shipped application remains BPR-0504's |
 | Core half verified | Private notes and drafts are never included without explicit selection. | Core session opt-in, the context supplement, and the composed course | `core_agent_context_supplement`, `core_agent_chat_scope`, `application_agent_invocation_composition_contract` | A session without the per-session opt-in carries zero notes and zero drafts even when both exist for the review, and the composed course keeps its existing zero note and draft counts | **Core half verified** (BPR-0499, 2026-09-01): `agent_private_context_optin` is keyed by session id with notes and drafts separately default-off, and the two-argument `build_agent_supplement` carries zero of both without it; the host now builds through the opt-in overload keyed to the session (BPR-0500, with a source-order assertion that the ungated overload is unreachable from the host); the composed course remains `Planned` — BPR-0504 |
-| Planned | Finding/chat/promotion decisions are core-tested without agent/Qt dependencies; host protocol tests and Qt workflow tests prove all results re-enter through typed revision-bound events. | All three regions | `ctest --preset core-only -R '^core_agent_'`, `application_agent_finding_protocol`, `qt_side_chat_panel`, `qt_finding_queue_view` | The core suites link `BetterPullReview::Core` only, the delivered event's binding is compared field for field against the session's, and deleting the validation call at the decode-to-core seam fails an invalid-anchor case | `Planned` — BPR-0503. The side-chat half of the Qt evidence landed with BPR-0502: `qt_side_chat_panel` links `BetterPullReview::AdapterQt` only, runs under `bpr_add_network_isolated_test`, and proves the panel moves only when `present` is called with an accepted projection. The finding queue and workshop are BPR-0503's |
+| Qt half verified | Finding/chat/promotion decisions are core-tested without agent/Qt dependencies; host protocol tests and Qt workflow tests prove all results re-enter through typed revision-bound events. | All three regions | `ctest --preset core-only -R '^core_agent_'`, `application_agent_finding_protocol`, `qt_side_chat_panel`, `qt_finding_queue_view` | The core suites link `BetterPullReview::Core` only, the delivered event's binding is compared field for field against the session's, and deleting the validation call at the decode-to-core seam fails an invalid-anchor case | **The Qt half is verified** (BPR-0502 and BPR-0503, 2026-09-02): both Qt suites link `BetterPullReview::AdapterQt` only and run under `bpr_add_network_isolated_test`. `qt_finding_queue_view` presents an `application::agent_finding_delivery` — the typed, revision-bound value BPR-0500 delivers, verdict included — and offers exactly the six actions `docs/ux/ai-experience.md` names, each emitting one `finding_action_intent` carrying the session, the ordinal, the finding, and the verdict. A table sweeps all six against `finding_queue_action_count`, so a seventh action declared without a case fails at compile time on `expression evaluates to '6 == 7'`; dropping one action's intent fails `add_to_private_notes must emit exactly one intent, no more and no fewer`. Ten disclosed fields are swept and each must move alone, so freezing the presented confidence or anchor state fails `the confidence field did not move` and `the anchor state field did not move`. Neither widget holds a provider, a network address, a store, or a process: both member sets are one aggregate bound by name, and a `void*` store member added to either fails to compile. The core-only link line and the host decode evidence this row also names are BPR-0497's and BPR-0500's, already recorded above and not re-run here; the composed workbench remains `Planned` — BPR-0504 |
 
 ## Placement decision (BPR-0501)
 
@@ -127,6 +127,42 @@ is proven in both.
 The `tool_` prefix is deliberate: it puts the helper in the manifest
 `live_mutation_isolation` walks, so every build also proves the shipped helper
 links no live GitHub mutation. `app_` would have exempted it.
+
+## Surface decision (BPR-0503)
+
+BPR-0503 was asked to record the comment workshop's before/after surface rather
+than assume it, and to justify a renderer in this ledger if it chose one.
+**Plain text, in the editor's existing presentation.**
+
+The premise the card offered survives contact with the code. There is no
+Markdown or rich-text rendering surface anywhere in the tree:
+`grep -rn 'setMarkdown\|setHtml\|Qt::RichText\|toHtml\|cmark\|md4c' src/`
+returns nothing, and the single `QTextDocument` include in
+`src/adapters/qt/src/measured_alignment_axis.cpp` measures plain-text block
+geometry rather than rendering markup. Every label this adapter builds calls
+`setTextFormat(Qt::PlainText)` on purpose. The workshop's two surfaces are
+`QPlainTextEdit`, which is the widget the reviewer's own draft body already is.
+
+Three consequences make that the right answer rather than the cheap one. The
+comparison is between the reviewer's bytes and the agent's bytes, and a
+renderer would show neither: a proposal differing from the original only by a
+backtick or a leading `#` would render identically to it, which is the case the
+reviewer most needs to see. The original must survive rejection **byte for
+byte**, and a rendered surface has no bytes to compare - the suite's fixture
+carries a tab and a trailing space for exactly that reason, and both survive a
+`QPlainTextEdit` round trip. And GitHub, not BetterPullReview, decides how this
+text finally renders; a local renderer would be a second opinion about that,
+and the reviewer would be agreeing to what BetterPullReview drew rather than to
+what they are about to publish.
+
+What a renderer would have cost, stated so a later slice can weigh it rather
+than rediscover it: a rich-text pipeline in the Qt adapter for one view
+(`QTextDocument::setMarkdown` is Qt's own, but it is a document that normalizes
+what it parses rather than a buffer that keeps it); a second text path in a
+widget whose existing one is proven byte-exact; and a surface on which "the
+original is unchanged" could only be asserted about a rendering rather than
+about the text. None of that buys the reviewer a comparison they cannot already
+make.
 
 ## Cards
 
@@ -170,9 +206,10 @@ A smoke run against an installed Codex or Claude harness stays optional extra
 validation, exactly as it is for RFC-BPR-0011. Carding it would put a
 permanent open item on the board.
 
-One decision is left explicit rather than pre-empted: the comment workshop's
+One decision was left explicit rather than pre-empted: the comment workshop's
 before/after surface, since no Markdown renderer exists in the tree. BPR-0503
-records plain text as the chosen surface and names what a renderer would cost.
+answered it in **Surface decision (BPR-0503)** above - plain text, with the
+cost of the alternative named.
 
 ## Documentation ledger
 

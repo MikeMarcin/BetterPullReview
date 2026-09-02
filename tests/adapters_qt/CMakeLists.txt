@@ -700,6 +700,35 @@ set_tests_properties(
     qt_review_draft_editor
     PROPERTIES
         ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "review-draft-editor-tests:pass"
+)
+
+# The finding queue sits beside the draft editor and is proven the same way:
+# it holds no provider, no endpoint, and no store, so an intent naming one
+# exact finding is the only thing that can leave it.
+bpr_add_executable(
+    test_better_pull_review_qt_finding_queue_view_tests
+    finding_queue_view_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_finding_queue_view_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_finding_queue_view_tests)
+bpr_enable_warnings(test_better_pull_review_qt_finding_queue_view_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_finding_queue_view
+    COMMAND test_better_pull_review_qt_finding_queue_view_tests
+)
+set_tests_properties(
+    qt_finding_queue_view
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "finding-queue-view-tests:pass"
+        TIMEOUT 120
 )
 
 bpr_add_executable(
