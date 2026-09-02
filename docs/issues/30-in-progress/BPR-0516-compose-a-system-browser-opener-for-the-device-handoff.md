@@ -128,7 +128,7 @@ by each station.
 | Every touched C++ file is formatted | `clang-format --dry-run --Werror` on the six touched files | Exit 0 after reflowing four lines of `github_application.cpp` and one of `main.cpp` | this commit |
 | macOS: the action opens the system browser at the verification address | Target-native observation on the macOS station | Pending — the station records it | Pending |
 | Linux: the action opens the system browser at the verification address | Target-native observation on the Linux station | Pending — the artifact is staged and every row around it is green; see *Linux — 2026-09-02* below. The click itself is the owner's | Pending |
-| Windows x64: the action opens the system browser at the verification address | Target-native observation on the Windows station | Pending — the station records it | Pending |
+| Windows x64: the action opens the system browser at the verification address | Target-native observation on the Windows station | Artifact staged and everything short of the click recorded — see "Windows — 2026-09-02"; the click itself is the owner's | Pending |
 
 ## Integrator reproduction — 2026-09-02
 
@@ -264,3 +264,84 @@ card move), in a fresh build root:
 | The opener's anchor in both binaries | `composed_application_hosts` inside the course | `composed_application_hosts passed inside the course with the opener anchor required` |
 | Staged artifact | `build/rfc0016-macos-browser/release/src/app/BetterPullReview.app` | 10,406,976 bytes, sha256 `759e743c4ce6a1dbe972098e90cb0264b5b53e11629ff2d9e2f87f7fc1d12050` |
 | The action opens the system browser at the verification address | Launch the staged app, start sign-in, click "Open browser" | **Pending** — the owner's attended observation; it starts a real device flow, so no agent performs it |
+
+## Windows — 2026-09-02
+
+Station `bpr-win` at `37018b7c`, under the [[BPR-0493]] procedure: Smart App
+Control off, `vcvars64`, and each build root deleted whole rather than trusted
+to `--fresh`. **No browser was opened and no device flow was started by hand**;
+the observation row below is the owner's and stays Pending.
+
+### The dev tree
+
+`cmake --preset windows-dev` exit 0, "Configuring done (12.1s)".
+`cmake --build --preset windows-dev --config Debug` exit 0 — 137 projects
+linked, zero `error C` and zero `warning C` lines in the whole log.
+
+The focused set, 12/12 in 47.64 s:
+
+| Selector | Result |
+|---|---|
+| `rfc0016_test_inventory` | Passed 0.47 s |
+| `application_device_authorization_host` | Passed 0.07 s |
+| `qt_device_authorization_scale_100` / `_125` / `_200` | Passed 7.48 / 5.18 / 4.99 s |
+| `application_device_authorization_public_path` | Passed 1.13 s |
+| `application_device_authorization_unavailable` | Passed 1.18 s |
+| `application_device_authorization_registered_course` | Passed 6.37 s |
+| **`application_device_authorization_browser_handoff`** | **Passed 6.33 s** |
+| **`application_device_authorization_browser_absent`** | **Passed 6.34 s** |
+| `application_device_authorization_release_contract` | Passed 1.03 s |
+| `composed_application_hosts` | Passed 7.01 s — `COMPOSED_HOSTS_OK: profile=development-fixture required=27 forbidden=2 inspector=link /MAP \| undname` |
+
+`application_device_authorization_unavailable` is the uncontained gate
+[[BPR-0515]] adjudicates. Its stage is `DEVICE_FLOW_STAGE:cancelled`,
+`DEVICE_FLOW_REQUESTS:0`, `DEVICE_FLOW_REGISTERED_SELECTION_OK` — matching the
+committed Windows expectation, and reaching GitHub once, exactly as measured
+under that card. Recorded here so the run is not read as network-free.
+
+### The enabled platform course
+
+Build root deleted whole, then the exact ledger command with
+`--expected-device-selection enabled --fresh`:
+
+```text
+RFC0016_PLATFORM:windows
+RFC0016_SELECTION:enabled
+RFC0016_COURSE_SELECTORS:14
+RFC0016_DEVICE_STAGE:cancelled
+RFC0016_DEVICE_REQUESTS:0
+RFC0016_ELAPSED_SECONDS:973
+RFC0016_PLATFORM_COURSE_OK
+```
+
+### The opener is in both binaries, and no engine came with it
+
+`check_platform_surfaces` passed inside the course, and the shipped image was
+read again directly:
+
+| Claim | Result |
+|---|---|
+| The production profile admits the shipped artifact | `COMPOSED_HOSTS_OK: profile=production required=26 forbidden=7 inspector=link /MAP \| undname` |
+| The opener's anchor is present in the tests-**disabled** Release image | 21 `system_browser_opener` symbols in 34,072, including the anchor the audit names: `bpr::app::system_browser_opener::system_browser_opener(void) __ptr64`, plus `::open(class std::basic_string_view<char,...>)`, the vftable and the RTTI records |
+| The opener's anchor is present in the tests-**enabled** Debug image | `composed_application_hosts` passes under `development-fixture`, whose required set includes the same anchor |
+| No embedded browser engine came with it | `QWebEngine`, `QWebView`, `QtWebEngine` all ABSENT from the 34,072-symbol table |
+
+Both binaries carry the constructor, which is what the card asked for: the
+shipped implementation is present by linkage **and** by construction in both
+profiles, and the tests-enabled graph still binds the recording opener, so no
+test on this host can launch a browser.
+
+### Staged for the owner's one attended click
+
+```text
+C:\code\gitpr-windowsuild
+fc0016-windows-enablement
+elease\srcppetter_pull_review.exe
+7,661,056 bytes
+sha256 4ec7297c95c5faa3f45facddd51bb647d5d536d56e6947eca948c31c173c1139
+```
+
+Produced by the enabled course above, at the JaegAW desktop. What remains is
+the one thing no selector can prove and this station deliberately did not do:
+that pressing the handoff action opens the real system browser at the real
+verification address. That row stays Pending for the owner.

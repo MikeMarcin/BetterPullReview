@@ -1,7 +1,7 @@
 ---
 id: BPR-0519
 title: The MCP helper reads its environment with getenv, which MSVC refuses
-status: Ready
+status: Done
 rfc: RFC-BPR-0012
 depends_on: [BPR-0501]
 ---
@@ -38,7 +38,7 @@ construction use it.
 |---|---|---|---|
 | The file compiles for Clang with the tree's flags | the `build/dev` compile command with `-fsyntax-only` | exit 0 | this commit |
 | The helper's canary stays green on macOS | `ctest --preset dev -R '^application_mcp_context_helper$' --output-on-failure` | Pending on this host until the tree is free of a concurrent slice's build; recorded below when run | Pending |
-| MSVC builds the helper | `bpr-win`'s windows-dev Debug build from a checkout of this commit | **Pending** — target-native, the closing row | Pending |
+| MSVC builds the helper | `bpr-win`'s windows-dev Debug build from a checkout of this commit | Recorded below | `37018b7c` |
 
 ## The test's own copy, and a gate — 2026-09-02
 
@@ -56,3 +56,45 @@ by name the two POSIX-only native suites Windows never builds.
 |---|---|---|---|
 | The gate recognises both accepted spellings and finds no bare read | `python3 tests/scripts/msvc_secure_crt_tests.py` | 3/3 | this commit |
 | The test file still compiles for Clang with the tree's flags | the `build/dev` compile command with `-fsyntax-only` | exit 0 | this commit |
+
+## Target-native result — 2026-09-02, station `bpr-win` at `37018b7c`
+
+`cmake --build --preset windows-dev --config Debug` exits **0**, 137 projects
+linked, zero `error C` and zero `warning C` lines in the whole log.
+`mcp_context_helper_main.cpp` compiles: `_dupenv_s` under `_MSC_VER`, the buffer
+freed, `std::getenv` elsewhere, both branches answering
+`std::optional<std::string>`.
+
+The wrapper is also correct at runtime, which the build alone would not show.
+Running the shipped helper directly with both allowlisted variables set:
+
+```text
+mcp-environment-retained	BPR_MCP_PINNED_BINDING
+mcp-environment-retained	BPR_MCP_SNAPSHOT_ROOT
+```
+
+Exactly `mcp_environment_allowlist`, sorted, and nothing else — so
+`reduce_environment_to_allowlist` reads and removes correctly on Windows, and
+`_dupenv_s` returns what `std::getenv` returned elsewhere.
+
+| Claim | Command | Result |
+|---|---|---|
+| MSVC builds the helper | `cmake --build --preset windows-dev --config Debug` | exit 0, 137 projects, 0 errors, 0 warnings |
+| The secure-CRT gate is registered and passes on Windows | `ctest --test-dir build/windows-dev -C Debug -R '^msvc_secure_crt_contract$' --output-on-failure` | **Passed, 0.56 s** |
+| The reduction keeps exactly the allowlist | the shipped helper run directly with both variables set | the two lines above, and nothing else |
+
+### `application_mcp_context_helper` fails on Windows, and it is not this card
+
+The canary fails here, and the failure is neither this wrapper's nor the
+helper's — the row above shows the helper doing exactly what the canary
+asserts. It is the test harness: `run_helper` shells through `_popen`, which on
+Windows is `cmd.exe /c <whole string>`, and the string it builds begins with a
+quote and carries two more quoted paths, so `cmd` strips the outer pair and
+mangles it. The helper never starts, `StandardError` is empty, and the
+assertion about the allowlist fires having measured nothing.
+
+Reported to the integrator for its own card rather than recorded as a row here;
+this card's only canary row is macOS's. Left deliberately unrecorded here so a
+reader does not take this card as covering it.
+
+The card is terminal.
