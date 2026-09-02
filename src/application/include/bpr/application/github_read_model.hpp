@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_READ_MODEL_HPP
 
 #include "bpr/application/github_host_authority.hpp"
+#include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_model.hpp"
 
 #include <compare>
@@ -514,9 +515,38 @@ namespace bpr::application {
 		github_viewer_record       Viewer;
 		github_capability_evidence CapabilityEvidence;
 		github_rate_limit_state    RateLimits;
+		// The mode this session was accepted in. Last and defaulted so every
+		// session written before the mode existed still means the
+		// authenticated session it meant, and part of the defaulted
+		// comparison so no equality can drop the discriminant. A
+		// public-preview session is a session of its own, not an
+		// authenticated one with an absent viewer: `validate` refuses a
+		// viewer under public preview and demands one under the
+		// authenticated mode, so neither can be read as the other.
+		core::github_access_mode Mode{ };
 
 		auto operator<=>(const github_session_read_model&) const = default;
 	};
+
+	/// \brief Reports whether the viewer record carries no identity at all.
+	///
+	/// A public-preview session has no reader to name. That is an absence
+	/// rather than a zeroed account: every field must be empty, so a session
+	/// cannot carry half a viewer.
+	[[nodiscard]] inline auto anonymous(
+		const github_viewer_record& aViewer) noexcept -> bool
+	{
+		return aViewer.Account.value() == 0U && aViewer.Node.value().empty()
+			&& aViewer.Login.empty() && aViewer.DisplayName.empty();
+	}
+
+	/// \brief Reports whether the read shape claims nothing.
+	[[nodiscard]] constexpr auto reads_nothing(
+		const github_read_shape& aShape) noexcept -> bool
+	{
+		return !aShape.ReviewThreads && !aShape.ViewedFileState
+			&& !aShape.ResolvePermission && !aShape.UnresolvePermission;
+	}
 
 	/// \brief Describes the github pull request snapshot record.
 	struct github_pull_request_snapshot
@@ -546,6 +576,11 @@ namespace bpr::application {
 		std::vector<github_search_result_record>        SearchResults;
 		github_capability_evidence                      CapabilityEvidence;
 		github_rate_limit_state                         RateLimits;
+		// The mode this snapshot was read in. Last and defaulted so every
+		// snapshot written before the mode existed still means the
+		// authenticated read it meant. Under public preview Account and the
+		// viewer actor are empty by rule rather than by omission.
+		core::github_access_mode Mode{ };
 
 		auto operator<=>(const github_pull_request_snapshot&) const = default;
 	};
@@ -699,10 +734,17 @@ namespace bpr::application {
 		[[nodiscard]] inline auto valid_context(
 			const core::pull_request_request_context& aContext) noexcept -> bool
 		{
+			// Two rules, one per mode: public preview names no reader and the
+			// authenticated mode names an exact one. Neither context can be
+			// read under the other's rule.
+			const auto readerAsExpected = aContext.Mode
+					== core::github_access_mode::public_preview
+				? aContext.Account.value() == 0U
+				: aContext.Account.value() != 0U;
 			return aContext.Request.value() != 0U
 				&& aContext.ApplicationSession.value() != 0U
 				&& aContext.Profile.value() != 0U && aContext.Host.value() != 0U
-				&& aContext.Account.value() != 0U && core::valid(aContext.Repository)
+				&& readerAsExpected && core::valid(aContext.Repository)
 				&& aContext.Number.valid()
 				&& (!aContext.ExpectedRepository.has_value()
 					|| aContext.ExpectedRepository->value() != 0U)
@@ -1620,9 +1662,12 @@ namespace bpr::application {
 			return detail::validation(
 				github_read_validation_error::invalid_context);
 		}
+		const auto anonymousMode = aModel.Mode
+			== core::github_access_mode::public_preview;
 		if (
 			aModel.Profile.value() == 0U || aModel.Host.value() == 0U
-			|| aModel.Viewer.Account.value() == 0U) {
+			|| (!anonymousMode && aModel.Viewer.Account.value() == 0U)
+			|| (anonymousMode && !anonymous(aModel.Viewer))) {
 			return detail::validation(
 				github_read_validation_error::missing_identity);
 		}
@@ -1630,11 +1675,19 @@ namespace bpr::application {
 			return detail::validation(
 				github_read_validation_error::identity_mismatch);
 		}
+		// Public preview probes nothing, so it may claim nothing. A shape
+		// that claims a read the mode cannot perform is a malformed session
+		// rather than a capability the host merely declines to use.
+		if (anonymousMode && !reads_nothing(aModel.CapabilityEvidence.ReadShape)) {
+			return detail::validation(github_read_validation_error::invalid_enum);
+		}
 
 		detail::github_text_budget budget{ aLimits };
-		if (const auto error = detail::validate_viewer(aModel.Viewer, budget, aLimits);
-			error != github_read_validation_error::none) {
-			return detail::validation(error);
+		if (!anonymousMode) {
+			if (const auto error = detail::validate_viewer(aModel.Viewer, budget, aLimits);
+				error != github_read_validation_error::none) {
+				return detail::validation(error);
+			}
 		}
 		if (const auto error = detail::validate_capabilities(aModel.CapabilityEvidence);
 			error != github_read_validation_error::none) {
@@ -1662,10 +1715,15 @@ namespace bpr::application {
 			return detail::validation(
 				github_read_validation_error::invalid_context);
 		}
+		const auto anonymousMode = aSnapshot.Mode
+			== core::github_access_mode::public_preview;
+		const auto readerAsExpected = anonymousMode
+			? (aSnapshot.Account.value() == 0U
+			   && aSnapshot.Viewer == github_actor_record{ })
+			: aSnapshot.Account.value() != 0U;
 		if (
 			aSnapshot.Profile.value() == 0U || aSnapshot.Host.value() == 0U
-			|| aSnapshot.Account.value() == 0U
-			|| aSnapshot.Snapshot.value() == 0U) {
+			|| !readerAsExpected || aSnapshot.Snapshot.value() == 0U) {
 			return detail::validation(
 				github_read_validation_error::missing_identity);
 		}
@@ -1820,13 +1878,15 @@ namespace bpr::application {
 		}
 
 		detail::github_text_budget budget{ aLimits };
-		if (const auto error = detail::validate_actor(
-				aSnapshot.Viewer,
-				budget,
-				aLimits,
-				true);
-			error != github_read_validation_error::none) {
-			return detail::validation(error);
+		if (!anonymousMode) {
+			if (const auto error = detail::validate_actor(
+					aSnapshot.Viewer,
+					budget,
+					aLimits,
+					true);
+				error != github_read_validation_error::none) {
+				return detail::validation(error);
+			}
 		}
 		if (const auto error = detail::validate_repository(
 				aSnapshot.Repository,
