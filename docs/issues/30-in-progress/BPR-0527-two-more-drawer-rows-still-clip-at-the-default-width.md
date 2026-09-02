@@ -1,7 +1,7 @@
 ---
 id: BPR-0527
 title: "Qt: the conversation panel's and agent launcher's rows still clip at the drawer's default width"
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0010
 depends_on: [BPR-0520]
 ---
