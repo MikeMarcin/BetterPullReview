@@ -87,3 +87,10 @@ root-owned). Re-aliasing `default` to the in-memory `session` collection
 would turn the rows green while invalidating them and is recommended
 against. Once unlocked, all four fixtures are expected to pass without a code
 change; that is the observation this card's flip waits on.
+
+**For the flip envelope.** The one-shot unlock is per daemon, not per run:
+the collection re-locks whenever gnome-keyring restarts, so the flip's rerun
+must read `Locked` on `/org/freedesktop/secrets/collection/login` as its
+first row, immediately before the course starts, or green rows can quietly
+stop being reproducible. The course's `--fresh` rebuilds both trees from
+scratch (about four minutes on this host), so a warm tree buys nothing.
