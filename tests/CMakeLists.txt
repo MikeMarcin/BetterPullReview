@@ -454,6 +454,15 @@ bpr_add_network_isolated_test(
 # so it must carry the Qt runtime directory the registered tests declare.
 # BPR-0518. The type-read structured-binding idiom must carry
 # [[maybe_unused]], or MSVC's C4189 breaks the Windows lane one slice at a time.
+# BPR-0519. std::getenv in a Windows-built unit must carry the scoped C4996
+# suppression or a _dupenv_s branch, or MSVC refuses it on the lane alone.
+bpr_add_network_isolated_test(
+    NAME msvc_secure_crt_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/msvc_secure_crt_tests.py"
+)
+
 bpr_add_network_isolated_test(
     NAME type_read_binding_contract
     COMMAND

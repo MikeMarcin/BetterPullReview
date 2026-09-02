@@ -60,7 +60,18 @@ namespace {
 
 	[[nodiscard]] auto environment_value(const std::string& aName) -> std::string
 	{
+		// `std::getenv` is the only portable spelling this Qt-free suite can
+		// use; the MSVC CRT deprecates it in favour of the nonportable
+		// `_dupenv_s`. The suppression covers exactly this read, as
+		// tests/fixtures/agent/agent_canary_main.cpp does (BPR-0519).
+#if defined(_MSC_VER)
+	#pragma warning(push)
+	#pragma warning(disable : 4996)
+#endif
 		const auto* const value = std::getenv(aName.c_str());
+#if defined(_MSC_VER)
+	#pragma warning(pop)
+#endif
 		return value == nullptr ? std::string{ } : std::string{ value };
 	}
 

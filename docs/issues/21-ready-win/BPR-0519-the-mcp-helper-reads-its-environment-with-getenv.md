@@ -39,3 +39,20 @@ construction use it.
 | The file compiles for Clang with the tree's flags | the `build/dev` compile command with `-fsyntax-only` | exit 0 | this commit |
 | The helper's canary stays green on macOS | `ctest --preset dev -R '^application_mcp_context_helper$' --output-on-failure` | Pending on this host until the tree is free of a concurrent slice's build; recorded below when run | Pending |
 | MSVC builds the helper | `bpr-win`'s windows-dev Debug build from a checkout of this commit | **Pending** — target-native, the closing row | Pending |
+
+## The test's own copy, and a gate — 2026-09-02
+
+`bpr-win` reported the tree still failing on
+`tests/application/mcp_context_helper_tests.cpp`'s same-named
+`environment_value`, the test's own `std::getenv` copy, with that the only
+error left in the whole graph. It now carries the scoped C4996 suppression
+`tests/fixtures/agent/agent_canary_main.cpp` already uses, with the reason.
+`tests/scripts/msvc_secure_crt_tests.py`, registered as
+`msvc_secure_crt_contract`, refuses any `std::getenv` in `src/` or `tests/`
+that carries neither the suppression nor a `_dupenv_s` branch, allowlisting
+by name the two POSIX-only native suites Windows never builds.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The gate recognises both accepted spellings and finds no bare read | `python3 tests/scripts/msvc_secure_crt_tests.py` | 3/3 | this commit |
+| The test file still compiles for Clang with the tree's flags | the `build/dev` compile command with `-fsyntax-only` | exit 0 | this commit |
