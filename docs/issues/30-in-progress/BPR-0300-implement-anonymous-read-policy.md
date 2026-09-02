@@ -1,7 +1,7 @@
 ---
 id: BPR-0300
 title: Implement deterministic anonymous-read policy
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: [BPR-0035, BPR-0312]
 ---
