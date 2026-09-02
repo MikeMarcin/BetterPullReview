@@ -225,33 +225,93 @@ well: `--device-authorization-browser-probe` does not occur in the
 tests-disabled artifact as a string at all, which is the flag's absence
 observed rather than inferred from the `#if`.
 
-### The staged artifact, for the owner's one attended click
+### Restaged at `8a6e7612` — the artifact the observation actually needs
+
+The artifact staged earlier in this section (11,325,064 bytes, sha256
+`79d602c0…`, built at `5b5f0d65`) is **superseded and should not be used**.
+The opener was composed in it, but [[BPR-0526]] had not yet mounted the panel,
+so the shipped workbench offered no way to reach the handoff: the observation
+was not merely unrecorded, it was impossible from that binary. Everything else
+in this section stands as the record of that head.
+
+Restaged at `8a6e7612`, which contains `bc352bad`. `Locked` on
+`/org/freedesktop/secrets/collection/login` read `(<false>,)` at
+2026-09-02T11:01:38Z before anything ran; `cmake --preset dev` and
+`cmake --build --preset dev` both exit 0 with zero `error:` or `warning:`
+lines.
+
+`ctest --preset dev -R '^(application_device_authorization_(panel_course|panel_absent|browser_handoff|browser_absent)|qt_composed_github_scale_(100|125|200)|composed_application_hosts|rfc0016_test_inventory)$' --output-on-failure`
+— exit 0, **9/9 passed, 27.12 s**:
+
+| Test | Result | Time |
+|---|---|---|
+| `rfc0016_test_inventory` | Passed | 0.06 sec |
+| `qt_composed_github_scale_100` | Passed | 0.69 sec |
+| `qt_composed_github_scale_125` | Passed | 0.82 sec |
+| `qt_composed_github_scale_200` | Passed | 1.41 sec |
+| `application_device_authorization_browser_handoff` | Passed | 5.68 sec |
+| `application_device_authorization_browser_absent` | Passed | 5.68 sec |
+| **`application_device_authorization_panel_course`** | **Passed** | **5.68 sec** |
+| **`application_device_authorization_panel_absent`** | **Passed** | **5.68 sec** |
+| `composed_application_hosts` | Passed | 1.40 sec |
+
+The enabled course on a root deleted whole first, exit 0 in 251 s:
+`RFC0016_PLATFORM:linux`, `RFC0016_SELECTION:enabled`,
+**`RFC0016_COURSE_SELECTORS:17`**, `RFC0016_DEVICE_STAGE:cancelled`,
+`RFC0016_DEVICE_REQUESTS:0`, `RFC0016_PLATFORM_COURSE_OK`. Seventeen is
+[[BPR-0523]]'s addition of `composed_application_hosts` to the course's own
+selector set, so from this run onward the course audits the composed hosts of
+the tree it ships rather than assuming them.
 
 ```text
 /home/mmarcin/bpr-linux/build/rfc0016-linux-enablement/release/src/app/better_pull_review
-size    11,325,064 bytes
-sha256  79d602c07b427f2f8748e1cabdafb6c54be4489f5dea378b24f32d763c5e2ed6
+size    11,370,392 bytes
+sha256  ddae8dc21b617e91c49d4c3b77e37ebfa84d5f014f13bac8a737b4b8d4a4a4f9
 ```
 
-This is the tests-disabled Release artifact the enabled course just verified,
-left in place. Launch it from the WSLg desktop **without**
-`QT_QPA_PLATFORM=offscreen`, since the observation needs a real display and a
-real default browser:
+The panel is present in that artifact, not merely in the dev graph:
+
+```text
+000000000040f900 T bpr::qt::device_authorization_panel::device_authorization_panel(...)
+00000000000ef7e0 T bpr::app::system_browser_opener::system_browser_opener()
+COMPOSED_HOSTS_OK: profile=production required=27 forbidden=7 inspector=nm | c++filt
+```
+
+Its user-visible strings are in the image too — "Sign in with a device code",
+"Get a code", "Open browser", "Opened in your browser." — so the control the
+observation needs is in the shipped binary and not only in a tests-enabled one.
+
+### For the owner: where the panel is, and what the row is
+
+Launch it from the WSLg desktop **without** `QT_QPA_PLATFORM=offscreen`, since
+the observation needs a real display and a real default browser:
 
 ```sh
 /home/mmarcin/bpr-linux/build/rfc0016-linux-enablement/release/src/app/better_pull_review
 ```
 
-Take the device-authorization flow to `awaiting_authorization` and press
-**Open browser**. The row is whether the system default browser opens at the
-verification address shown beside the code — nothing about which browser, only
-that it is the system one and the address matches. `xdg-open` is what
-`QDesktopServices::openUrl` defers to here, so the browser that answers is
-whatever `xdg-settings get default-web-browser` names.
+Since [[BPR-0526]] the sign-in panel is mounted **in the review header,
+directly under the session panel** — the same column, no drawer and no dialog
+— headed "Sign in with a device code". It acts on whichever profile the
+session panel's picker names, which is the same profile that panel's Connect
+control acts on; that shared picker is deliberate, so two sign-in controls
+side by side cannot mean two different hosts.
+
+Press **Get a code**, wait for the status to read "Waiting for you to
+authorize" with a code and an address filled in, then press **Open browser**.
+
+The row is only whether the system default browser opens at the address shown
+beside the code — nothing about which browser, only that it is the system one
+and the address matches. `QDesktopServices::openUrl` defers to `xdg-open`
+here, so the browser that answers is whatever
+`xdg-settings get default-web-browser` names. The panel's own handoff line
+reads "Opened in your browser." when the opener reports success, which is the
+application's claim; the row is whether the browser actually came up at that
+address, which is why it is an attended observation and not a selector.
 
 | Row | Result |
 |---|---|
-| Linux: the action opens the system browser at the verification address | **Pending — the owner's attended click.** Everything it depends on is green above; the station did not click it |
+| Linux: the action opens the system browser at the verification address | **Pending — the owner's attended click.** It starts a real device flow, so the station did not perform it. Everything it depends on is green above |
 
 ## macOS — 2026-09-02
 
