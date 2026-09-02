@@ -116,3 +116,13 @@ eleven touched C++ files. The placement's home in `encode_agent_supplement`
 rather than literally inside `frame_agent_input` is accepted with the reason
 both doc comments give; the boundary document now states the field and its
 position. The two follow-ups the slice named are on [[BPR-0506]].
+
+## Follow-up: the invocation contract's field list — 2026-09-02
+
+`application_agent_invocation_composition_contract` (RFC-BPR-0011) counts
+the supplement's fields against an expected list, and this slice added
+`chat_message` to the encoder without adding it there; the contract read
+162 fields against 161 and was red at HEAD. The integrator's reproduction
+had not included that selector. The list now carries `chat_message`, empty
+for a launch-panel invocation, and the contract passes (30.41 s). Found by
+the [[BPR-0506]] pass.
