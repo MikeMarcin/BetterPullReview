@@ -3,7 +3,7 @@ id: BPR-0506
 title: Simplification and closeout preparation
 status: Backlog
 rfc: RFC-BPR-0012
-depends_on: [BPR-0505]
+depends_on: [BPR-0505, BPR-0513, BPR-0514]
 ---
 
 # Simplification and closeout preparation
