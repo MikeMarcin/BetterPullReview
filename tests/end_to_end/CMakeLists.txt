@@ -4,27 +4,40 @@ else()
     set(bpr_native_platform_vault_self_test_result "false")
 endif()
 
-# RFC-BPR-0016. What the shipped device-authorization selection answers under
-# network isolation, per platform. macOS is registered under the recorded
-# distributable identity since BPR-0318 and Linux since BPR-0310: the real flow
-# starts, the isolated transport fails immediately, and the refusing transport
-# is never touched, so the terminal is `failed` with zero gate bypasses.
+# RFC-BPR-0016. What the shipped device-authorization selection answers in this
+# gate, per platform. `DEVICE_FLOW_REQUESTS` counts submissions that reached the
+# refusing transport, never HTTP requests, so zero means the capability gate
+# held on every platform below and is the one value they share.
 #
-# The two registered platforms reach that terminal by different mechanisms, so
-# the Linux value was measured on the host rather than carried across from
-# macOS. macOS denies the connect through sandbox-exec. Linux runs the test
-# under `unshare(CLONE_NEWUSER | CLONE_NEWNET)` in a namespace whose only
-# interface is loopback, so the first outbound attempt has no route out of the
-# namespace and fails at once: the shipped probe lands on `failed` in 0.15 s
-# against a 10,000 ms budget, three runs identical, which is an immediate
-# refusal rather than a budget that expired.
+# macOS is registered under the recorded distributable identity since BPR-0318
+# and Linux since BPR-0310: the real flow starts, the isolated transport fails
+# immediately, and the refusing transport is never touched, so the terminal is
+# `failed`. The two reach it by different mechanisms, so the Linux value was
+# measured on the host rather than carried across. macOS denies the connect
+# through sandbox-exec. Linux runs the test under
+# `unshare(CLONE_NEWUSER | CLONE_NEWNET)` in a namespace whose only interface is
+# loopback, so the first outbound attempt has no route out and fails at once:
+# the shipped probe lands on `failed` in 0.15 s against a 10,000 ms budget,
+# three runs identical. Both are deterministic because the denial is local.
 #
-# Windows stays unregistered until BPR-0311 flips it, and keeps the typed
-# refusal with nothing sent. `DEVICE_FLOW_REQUESTS:0` is what every platform
-# shares either way: registered or not, under isolation nothing is ever sent.
+# Windows is registered since BPR-0311 and answers `cancelled` instead, for a
+# reason that is not a different isolation but the absence of one. This test
+# carries WINDOWS_UNCONTAINED: a lowbox token cannot give it what it needs, so
+# BPR-0362 exempts it from the AppContainer and it is labelled
+# `bpr_windows_uncontained`. Nothing denies the connect, so the real flow
+# reaches `awaiting_authorization` against GitHub and the probe's budget cancels
+# it there — the registered behaviour BPR-0318 built, observed without a
+# boundary in front of it. That makes Windows the one platform whose
+# expectation depends on reaching GitHub: an offline or blocked host lands
+# `failed` here and fails this gate. Measured on the JaegAW station at the
+# BPR-0311 flip and recorded as network-dependent rather than claimed
+# deterministic; BPR-0515 adjudicates that posture.
 if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(bpr_device_selection_self_test_expression
         "DEVICE_FLOW_STAGE:failed[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_REGISTERED_SELECTION_OK")
+elseif(WIN32)
+    set(bpr_device_selection_self_test_expression
+        "DEVICE_FLOW_STAGE:cancelled[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_REGISTERED_SELECTION_OK")
 else()
     set(bpr_device_selection_self_test_expression
         "DEVICE_FLOW_STAGE:unavailable[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_UNAVAILABLE_OK")
