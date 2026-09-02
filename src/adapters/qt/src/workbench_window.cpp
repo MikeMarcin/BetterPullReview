@@ -732,14 +732,28 @@ namespace bpr::qt {
 			findingActions->addWidget(button);
 		}
 		conversationLayout->addLayout(findingActions);
-		auto* const defectNavigation = new QHBoxLayout{ };
+		// BPR-0520. Stacked, for the reason BPR-0506 stacked the finding
+		// actions, and now on a measurement rather than on a suspicion. At the
+		// drawer's default width the column's visible region was 522 px wide
+		// while these two rows asked for 621, and the drawer scrolls down but
+		// never sideways. *Next defect* began 17 px past the right edge and so
+		// was not offscreen but absent; *Previous defect* lost its last
+		// pixels; and one row below, *Apply local classification* lost two
+		// thirds of itself. A column cannot clip: each button is as wide as
+		// its own label, and the drawer already scrolls down.
+		//
+		// The count label keeps its place between the classify action and the
+		// pair that walks the queue, and loses only the horizontal stretch
+		// that used to push that pair to the far edge - a column has nothing
+		// to push against.
+		auto* const defectNavigation = new QVBoxLayout{ };
 		auto* const classifyButton   = new QToolButton{ conversationContents };
 		classifyButton->setDefaultAction(ClassifyDefect);
 		defectNavigation->addWidget(classifyButton);
 		DefectCountLabel = new QLabel{ QStringLiteral("Defects 0/0"), conversationContents };
 		DefectCountLabel->setObjectName(QStringLiteral("defectCount"));
 		DefectCountLabel->setAccessibleName(QStringLiteral("Defect queue position"));
-		defectNavigation->addWidget(DefectCountLabel, 1);
+		defectNavigation->addWidget(DefectCountLabel);
 		for (auto* const action : { PreviousDefect, NextDefect }) {
 			auto* const button = new QToolButton{ conversationContents };
 			button->setDefaultAction(action);
@@ -747,7 +761,12 @@ namespace bpr::qt {
 		}
 		conversationLayout->addLayout(defectNavigation);
 		conversationLayout->addWidget(DefectCard);
-		auto* const defectActions = new QHBoxLayout{ };
+		// BPR-0520, the second half of the same measurement. The five verdicts
+		// RFC-BPR-0009 and RFC-BPR-0010 give a defect are the same five, in the
+		// same order, under the same labels and object names, each emitting the
+		// single intent it emitted before. This is where they are drawn, not
+		// what they are.
+		auto* const defectActions = new QVBoxLayout{ };
 		for (auto* const action : { DefectCard->verify_action(),
 									DefectCard->reopen_action(), DefectCard->withdraw_action(),
 									DefectCard->accept_as_is_action(), DefectCard->reclassify_action() }) {

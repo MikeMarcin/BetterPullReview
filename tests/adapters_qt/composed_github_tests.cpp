@@ -2361,15 +2361,22 @@ namespace {
 			return static_cast<int>(
 				std::lround(static_cast<double>(aValue) * ratio));
 		};
-		const auto  origin = drawer->mapTo(&window, QPoint{ 0, 0 });
+		const auto origin = drawer->mapTo(&window, QPoint{ 0, 0 });
+		// A logical rectangle's device rectangle is its two rounded edges, not
+		// a rounded origin plus a rounded size. Those two disagree by a pixel
+		// at 1.25x for half the drawer widths there are, and `copy` answers a
+		// rectangle that leaves the raster by returning a smaller pixmap
+		// rather than refusing, so the disagreement arrived here as a crop of
+		// the wrong size (BPR-0520).
 		const QRect region{
 			QPoint{ scaled(origin.x()), scaled(origin.y()) },
-			QSize{ scaled(drawer->width()), scaled(drawer->height()) },
+			QPoint{ scaled(origin.x() + drawer->width()) - 1,
+					scaled(origin.y() + drawer->height()) - 1 },
 		};
 		const auto cropped = rendered.copy(region);
 		expect(
-			!cropped.isNull() && cropped.width() == scaled(drawer->width())
-				&& cropped.height() == scaled(drawer->height()),
+			rendered.rect().contains(region) && !cropped.isNull()
+				&& cropped.size() == region.size(),
 			"the drawer crop has the drawer's exact device dimensions");
 		const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH");
 		if (!renderPath.isEmpty()) {
@@ -2402,6 +2409,182 @@ namespace {
 				&& findingQueue->isVisible(),
 			"reopening the drawer restores both placed agent surfaces");
 	}
+	/// \brief Whether a layout, or a row nested inside it, manages a widget.
+	///
+	/// \details BPR-0520 follows BPR-0513's membership check one level deeper,
+	/// because a defect button sits in a row nested in the drawer's column
+	/// rather than directly in the column. A button constructed as a child of
+	/// that column but never added to any of its rows still answers
+	/// `findChildren`, still paints, and would sit at the column's origin -
+	/// which is inside the visible width, and so would pass the measurement
+	/// below for entirely the wrong reason.
+	[[nodiscard]] auto laid_into(
+		const QLayout* const aLayout,
+		const QWidget* const aWidget) -> bool
+	{
+		if (aLayout == nullptr) {
+			return false;
+		}
+		for (auto index = 0; index < aLayout->count(); ++index) {
+			auto* const item = aLayout->itemAt(index);
+			if (item->widget() == aWidget || laid_into(item->layout(), aWidget)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/// \brief BPR-0520: every defect action is inside the drawer's visible width.
+	///
+	/// \details The drawer's column scrolls down and refuses to scroll
+	/// sideways, so a control whose rectangle leaves the visible width is not
+	/// offscreen — it is absent, and no gesture in the product reaches it.
+	/// BPR-0513's capture showed that happening to the defect rows; this case
+	/// measures it rather than looking at it. It finds each button by the
+	/// object name its action already carried, asks the drawer's own column
+	/// whether the button is laid into it rather than merely parented to it,
+	/// and then asks whether the button's rectangle is inside the column's
+	/// visible width. One executable is the 1.0x, 1.25x and 2.0x scale cases,
+	/// so the measurement is taken at each of the three scales the card names.
+	auto test_defect_actions_are_reachable_in_the_conversations_drawer() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		publish_session_ready(window);
+		publish_pull_request(window);
+		// Only the centre absorbs a window resize, so widening the window
+		// leaves the drawer at the width the composition gives it - which is
+		// the default width the claim is about. The height is generous so the
+		// whole defect stack can be shown at once, which is what the capture
+		// below has to be a picture of.
+		window.resize(1'400, 1'500);
+		window.show();
+
+		auto opened    = application::workbench_projection{ };
+		opened.Drawers = core::workbench_drawer_delta{
+			.Files         = core::workbench_drawer_state::expanded,
+			.Conversations = core::workbench_drawer_state::expanded,
+		};
+		window.publish(opened);
+		QApplication::processEvents();
+
+		auto* const drawer = window.conversations_drawer();
+		expect(
+			drawer != nullptr && drawer->isVisible(),
+			"the conversations drawer opens on the core's decided state");
+		auto* const column = drawer->findChild<QScrollArea*>(
+			QStringLiteral("workbenchConversationDrawerScroll"));
+		expect(
+			column != nullptr && column->viewport() != nullptr
+				&& column->viewport()->width() > 0,
+			"the drawer's column has a visible width to be inside of");
+		// The premise everything below rests on. With sideways scrolling
+		// refused, the viewport's width is the whole of what a reviewer can
+		// reach, at every scroll position the column has.
+		expect(
+			column->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff
+				&& !column->horizontalScrollBar()->isVisible(),
+			"the drawer's column still refuses to scroll sideways");
+
+		const auto offered = [drawer](const QString& aName) -> QToolButton* {
+			auto* found = static_cast<QToolButton*>(nullptr);
+			for (auto* const button : drawer->findChildren<QToolButton*>()) {
+				auto* const action = button->defaultAction();
+				if (action != nullptr && action->objectName() == aName) {
+					found = button;
+				}
+			}
+			return found;
+		};
+		// Every action the drawer offers for a defect, under the object name
+		// it already carried: the three that fill and walk the defect queue,
+		// then the five verdicts RFC-BPR-0009 and RFC-BPR-0010 give the
+		// selected defect. Renaming one is a failure here, not a silent skip.
+		for (const auto* const name :
+			 { "classifySelectedDefect", "previousDefect", "nextDefect",
+			   "defectVerify", "defectReopen", "defectWithdraw",
+			   "defectAcceptAsIs", "defectReclassify" }) {
+			auto* const button = offered(QString::fromLatin1(name));
+			expect(
+				button != nullptr && button->isVisible() && button->width() > 0
+					&& button->height() > 0,
+				std::string{ "the open drawer offers a visible button for " }
+					+ name);
+			expect(
+				laid_into(button->parentWidget()->layout(), button),
+				std::string{ "the defect action is laid into the drawer's own "
+							 "column, not merely parented to it: " }
+					+ name);
+			const QRect placed{
+				button->mapTo(column->viewport(), QPoint{ 0, 0 }),
+				button->size(),
+			};
+			expect(
+				placed.left() >= 0
+					&& placed.right() < column->viewport()->width(),
+				std::string{ "the defect action is inside the drawer's "
+							 "visible width: " }
+					+ name);
+		}
+
+		// The column is taller than the drawer, so the defect stack has to be
+		// brought into the drawer's visible region before a capture is a
+		// picture of it. Scrolling moves these rows down the drawer; what it
+		// cannot do is move them across it, which is the whole point.
+		auto* const first = offered(QStringLiteral("classifySelectedDefect"));
+		auto* const last  = offered(QStringLiteral("defectReclassify"));
+		column->verticalScrollBar()->setValue(
+			column->verticalScrollBar()->value()
+			+ first->mapTo(column->viewport(), QPoint{ 0, 0 }).y());
+		QApplication::processEvents();
+		const auto wholly = [column](const QWidget* const aWidget) {
+			const QRect placed{
+				aWidget->mapTo(column->viewport(), QPoint{ 0, 0 }),
+				aWidget->size(),
+			};
+			return column->viewport()->rect().contains(placed);
+		};
+		expect(
+			wholly(first) && wholly(last),
+			"the defect stack from its first action to its last is inside the drawer's visible region");
+
+		// The capture the card asks for, cropped to the drawer the actions are
+		// in. A whole-window raster would differ on a repaint anywhere; this
+		// one is the drawer and only the drawer.
+		QApplication::processEvents();
+		const auto rendered = window.grab();
+		const auto ratio    = window.devicePixelRatioF();
+		const auto scaled   = [ratio](const int aValue) {
+			return static_cast<int>(
+				std::lround(static_cast<double>(aValue) * ratio));
+		};
+		const auto  origin = drawer->mapTo(&window, QPoint{ 0, 0 });
+		const QRect region{
+			QPoint{ scaled(origin.x()), scaled(origin.y()) },
+			QPoint{ scaled(origin.x() + drawer->width()) - 1,
+					scaled(origin.y() + drawer->height()) - 1 },
+		};
+		const auto cropped = rendered.copy(region);
+		expect(
+			rendered.rect().contains(region) && !cropped.isNull()
+				&& cropped.size() == region.size(),
+			"the defect drawer crop has the drawer's exact device dimensions");
+		const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH");
+		if (!renderPath.isEmpty()) {
+			const QFileInfo configured{ renderPath };
+			expect(
+				cropped.save(
+					QStringLiteral("%1/%2-defect-drawer.png")
+						.arg(configured.path(), configured.completeBaseName()),
+					"PNG"),
+				"the defect drawer crop is saved in the ignored build tree");
+		}
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -2420,6 +2603,7 @@ auto main(int argc, char** argv) -> int
 	test_accessible_announcements_are_combined_and_deduplicated();
 	test_accessibility_minimum_geometry_and_render();
 	test_agent_surfaces_are_placed_in_the_conversations_drawer();
+	test_defect_actions_are_reachable_in_the_conversations_drawer();
 
 	std::cout << "All GitHub Qt presentation tests passed\n";
 	return EXIT_SUCCESS;
