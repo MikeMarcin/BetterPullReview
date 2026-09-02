@@ -4,10 +4,11 @@
 Forwards to the portable launcher in the implement-rfc skill so the documented
 command keeps working from the repository root:
 
-    python3 scripts/launch_remote_station.py <workstream> [options]   # macOS, Linux, WSL2
-    py -3 scripts/launch_remote_station.py <workstream> [options]     # native Windows
+    python3 scripts/launch_remote_station.py [options]   # macOS, Linux, WSL2
+    py -3 scripts/launch_remote_station.py [options]     # native Windows
 
-Workstreams and their branches are declared in
+The workstream is inferred from the station file or the checkout's branch;
+pass one only to be explicit. Workstreams and their branches are declared in
 .agents/skills/implement-rfc/config/project.json; the station contract lives in
 .agents/skills/implement-rfc/references/remote-routing.md.
 """
