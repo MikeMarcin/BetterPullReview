@@ -550,3 +550,83 @@ card; here it only decides how the click is made.
 | Row | Result |
 |---|---|
 | Windows x64: the action opens the system browser at the verification address | **Pending — the owner's click against the self-contained copy once `bpr-win` stages it** |
+
+### Deployed for the owner's click — 2026-09-02
+
+The staged image is unchanged and was not rebuilt. Its digest still reads
+`5997e1587e379750cee5b518946ae6421ed234f323827e8cc2f57667e1afeba5`, so the
+copy below is the same executable every Windows row above was made against.
+
+**The Qt runtime directory the course prepends.** Read from the registered
+tests' `ENVIRONMENT_MODIFICATION`, the `path_list_prepend` value on
+`application_device_authorization_public_path` and on every other registered
+test — one distinct value across the whole build tree:
+
+```text
+C:/code/git/bpr-windows/build/.cpm-cache/bprqt/6.10.3/6.10.3/msvc2022_64/bin
+```
+
+That is what a shell launch of the *undeployed* image needs on `PATH` today.
+The deployed copy needs none of it.
+
+**The deployed copy.** `windeployqt --release --no-translations
+--no-compiler-runtime`, from that same Qt install, run against a copy of the
+exact image:
+
+```text
+C:/code/git/bpr-windows/build/rfc0016-windows-enablement/deployed/better_pull_review.exe
+7,685,632 bytes
+sha256 5997e1587e379750cee5b518946ae6421ed234f323827e8cc2f57667e1afeba5
+```
+
+The digest is identical before and after deployment — `windeployqt` writes
+beside the executable, never into it. The directory holds **22 files**,
+80,220,992 bytes: the executable and ten DLLs at the top level (`Qt6Core`,
+`Qt6Gui`, `Qt6Network`, `Qt6Svg`, `Qt6Widgets`, `icuuc`, `opengl32sw`,
+`d3dcompiler_47`, `dxcompiler`, `dxil`) and seven plugin directories —
+`platforms` (`qwindows.dll`), `styles` (`qmodernwindowsstyle.dll`),
+`imageformats` (4), `tls` (2), `generic`, `iconengines`, `networkinformation`.
+
+`dumpbin /dependents` on the copy names four Qt imports — `Qt6Core.dll`,
+`Qt6Gui.dll`, `Qt6Network.dll`, `Qt6Widgets.dll` — and each of the four sits
+beside the executable. The rest are `ADVAPI32`, `KERNEL32`, `bcrypt`, the
+`api-ms-win-crt-*` set, and the MSVC runtime (`MSVCP140`,
+`MSVCP140_ATOMIC_WAIT`, `VCRUNTIME140`, `VCRUNTIME140_1`), which
+`--no-compiler-runtime` deliberately leaves to the system; all four are
+present in `C:/WINDOWS/System32` on this host, so the copy is self-contained
+in the sense that matters here — it carries every Qt dependency.
+
+**Launch check, no device flow.** From a `cmd` whose `PATH` carries no Qt
+directory, the copy started with no arguments, was still running after five
+seconds with the main window `BetterPullReview`, and was then terminated.
+Every Qt module it had loaded resolved from the deployed directory:
+
+```text
+deployed/Qt6Core.dll  deployed/Qt6Gui.dll  deployed/Qt6Network.dll
+deployed/Qt6Widgets.dll  deployed/platforms/qwindows.dll
+deployed/styles/qmodernwindowsstyle.dll
+```
+
+Nothing was pressed, no flag was passed, no device flow was started and no
+browser was opened.
+
+**One thing the check found that the deployment does not fix.** With `PATH`
+set to `%SystemRoot%\System32` *alone*, the copy loads Qt fine — no
+`0xC0000135`, the Qt6Gui failure is gone — but the application then exits 1
+printing `STARTUP_FAILED`. The debug artifact, run the same way, names the
+cause the tests-disabled build withholds:
+
+```text
+STARTUP_FAILED_CAUSE: Application data or installed Git is unavailable
+```
+
+It is a missing `git.exe`, not a missing DLL. The undeployed image with the
+Qt directory prepended refuses the same bare launch identically, which is
+what proves the deployment complete rather than short: the refusal is the
+application's, and predates this work. Adding `C:/Program Files/Git/cmd` to
+that bare `PATH` — nothing else, still no Qt directory — is what produced the
+running window above. The owner's persisted `PATH`, which is what Explorer
+hands a double-clicked process, already contains `C:/Program Files/Git/cmd`
+and does not contain the Qt directory, so the click should reach the window.
+
+The observation row stays Pending. The click is the owner's.
