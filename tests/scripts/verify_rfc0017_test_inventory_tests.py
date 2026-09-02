@@ -47,8 +47,10 @@ CORE = "core_anonymous_public_read"
 CONTRACT = "native_https_anonymous_read_contract"
 FIXTURE = "native_https_anonymous_read_fixture"
 PROVIDER = "github_anonymous_read_contract"
+HOST = "application_anonymous_read_host"
 ANCHOR = "native_https_transport_fixture"
 QT_ANCHOR = "github_read_contract"
+HOST_ANCHOR = "application_github_host"
 BUILD = pathlib.Path("/nonexistent/build")
 
 # The wire suites: registered only inside the APPLE/Linux wire block.
@@ -61,6 +63,8 @@ DEV_GRAPH = [
     (FIXTURE, ("runner", "--suite", "anonymous_read")),
     (CONTRACT, ("anonymous_read_tests", "--contract")),
     (PROVIDER, ("provider_tests",)),
+    (HOST_ANCHOR, ("host_tests",)),
+    (HOST, ("anonymous_host_tests",)),
     (CORE, ("core_tests",)),
     ("unrelated", ("other",)),
 ]
@@ -103,6 +107,7 @@ class InventoryTable(unittest.TestCase):
         self.assertEqual(anchors[FIXTURE], (ANCHOR, True))
         self.assertEqual(anchors[CONTRACT], (QT_ANCHOR, False))
         self.assertEqual(anchors[PROVIDER], (QT_ANCHOR, False))
+        self.assertEqual(anchors[HOST], (HOST_ANCHOR, False))
         for selector, (anchor, wire_block) in anchors.items():
             if wire_block:
                 self.assertIn(selector, WIRE_SUITES)

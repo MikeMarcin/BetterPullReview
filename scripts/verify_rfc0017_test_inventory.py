@@ -34,6 +34,7 @@ SELECTORS: dict[str, int] = {
     "native_https_anonymous_read_contract": 1,
     "native_https_anonymous_read_fixture": 1,
     "github_anonymous_read_contract": 1,
+    "application_anonymous_read_host": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector also
@@ -67,6 +68,7 @@ SELECTOR_ANCHORS: dict[str, tuple[str | None, bool]] = {
     "native_https_anonymous_read_contract": ("github_read_contract", False),
     "native_https_anonymous_read_fixture": ("native_https_transport_fixture", True),
     "github_anonymous_read_contract": ("github_read_contract", False),
+    "application_anonymous_read_host": ("application_github_host", False),
 }
 
 WIRE_BLOCK_PLATFORMS = frozenset({"darwin", "linux"})

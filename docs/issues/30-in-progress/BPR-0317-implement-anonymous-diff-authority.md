@@ -1,7 +1,7 @@
 ---
 id: BPR-0317
 title: Implement anonymous Git cache epoch and diff authority
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: [BPR-0301, BPR-0303, BPR-0531]
 ---
@@ -31,3 +31,20 @@ depends_on: [BPR-0301, BPR-0303, BPR-0531]
   two-process restart course prove migrated authenticated rows remain readable,
   anonymous rows reopen without viewer identity, mode switching never reuses the
   other namespace, and no credential is discovered or persisted.
+
+## Lane — 2026-09-02
+
+[[BPR-0301]], [[BPR-0303]], and [[BPR-0531]] are terminal; claimed straight
+into `30-in-progress/` by the integrator, its worker started in a worktree on
+the head that carries all three, under the transition exception. What they
+leave at this card's door: core's `pull_request_authority.Mode` (zero account
+and viewer under public preview by rule; the comparison digest appends the
+mode byte only for a non-authenticated authority so persisted anchors keep
+matching — making that unconditional belongs with a domain bump and a
+migration here); the application's `epoch_catalog_authority_key` and epoch
+handoff records carrying `Mode` with the same two-rule validity; a host that
+under public preview opens no epoch catalog and no Git cache and reports the
+handoff `unavailable` through `epoch_handoff_unavailable`; and a transport
+whose `can_acquire_smart` refuses every credential-free binding, so public
+smart HTTP needs its own typed binding and factory beside
+`anonymous_read_request`.
