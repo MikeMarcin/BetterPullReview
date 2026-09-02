@@ -97,3 +97,11 @@ asserts the rendered `--repo-root` argument equals the literal `/explicit/repo-r
 while the validator normalizes it through `Path`, which spells it
 `\explicit\repo-root` here. It is a POSIX-only assertion in a test this slice
 does not touch, and it needs its own card.
+
+## Manifest regenerated — 2026-09-02
+
+The launcher change landed without `generated/portable-manifest.json` being
+re-rendered, so `validate_portable_agents.py` reported the manifest stale
+on the integrator host. Re-rendered with `render_runtime_adapters.py`; the
+suite passes (140 tests, 2 skipped) and `--compare` against the PlaceOfMind
+copy reports `portable set identical`.
