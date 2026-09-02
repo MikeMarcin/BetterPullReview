@@ -312,8 +312,8 @@ namespace {
 	/// \brief Private notes and drafts are opt-in per session, and default off.
 	void test_private_prose_travels_only_where_this_session_opted_in()
 	{
-		using admitted              = core::agent_private_context;
-		const auto& [notes, drafts] = admitted{ };
+		using admitted                               = core::agent_private_context;
+		[[maybe_unused]] const auto& [notes, drafts] = admitted{ };
 		static_assert(std::is_same_v<
 					  decltype(notes), const std::vector<core::supplement_note>>);
 		static_assert(std::is_same_v<
@@ -428,8 +428,8 @@ namespace {
 	/// \brief A typed question is admitted for its own session, or not at all.
 	void test_a_chat_message_is_admitted_only_for_its_own_session()
 	{
-		using message              = core::agent_chat_message;
-		const auto& [keyed, typed] = message{ };
+		using message                               = core::agent_chat_message;
+		[[maybe_unused]] const auto& [keyed, typed] = message{ };
 		static_assert(
 			std::is_same_v<decltype(keyed), const core::agent_session_id>);
 		static_assert(std::is_same_v<decltype(typed), const std::string>);

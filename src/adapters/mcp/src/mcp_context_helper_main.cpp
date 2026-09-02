@@ -11,9 +11,39 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <string>
 
 namespace {
+	/// \brief One environment variable's value, or nothing when it is unset.
+	///
+	/// \details The helper links no Qt, so the portable `qEnvironmentVariable`
+	/// idiom the application uses is not available here. MSVC refuses
+	/// `std::getenv` under its secure-CRT policy (C4996) and offers
+	/// `_dupenv_s`, which allocates a copy the caller frees; every other
+	/// toolchain's `std::getenv` returns a pointer into the process
+	/// environment that is copied at once (BPR-0519).
+	[[nodiscard]] auto environment_value(const char* const aName)
+		-> std::optional<std::string>
+	{
+#if defined(_MSC_VER)
+		char*       buffer = nullptr;
+		std::size_t size   = 0;
+		if (_dupenv_s(&buffer, &size, aName) != 0 || buffer == nullptr) {
+			return std::nullopt;
+		}
+		auto value = std::string{ buffer };
+		std::free(buffer);
+		return value;
+#else
+		const char* const value = std::getenv(aName);
+		if (value == nullptr) {
+			return std::nullopt;
+		}
+		return std::string{ value };
+#endif
+	}
+
 	using namespace bpr;
 
 	/// \brief Reads one line, dropping anything past the declared bound.
@@ -62,20 +92,20 @@ auto main(const int aArgumentCount, char**) -> int
 		return EXIT_FAILURE;
 	}
 
-	const auto* const snapshotRoot = std::getenv("BPR_MCP_SNAPSHOT_ROOT");
-	const auto* const pinnedText   = std::getenv("BPR_MCP_PINNED_BINDING");
-	if (snapshotRoot == nullptr || pinnedText == nullptr) {
+	const auto snapshotRoot = environment_value("BPR_MCP_SNAPSHOT_ROOT");
+	const auto pinnedText   = environment_value("BPR_MCP_PINNED_BINDING");
+	if (!snapshotRoot || !pinnedText) {
 		std::cerr << "mcp-startup-refusal\tmissing_environment\n";
 		return EXIT_FAILURE;
 	}
-	const auto pinned = adapters::mcp::decode_revision_binding(pinnedText);
+	const auto pinned = adapters::mcp::decode_revision_binding(*pinnedText);
 	if (!pinned) {
 		std::cerr << "mcp-startup-refusal\tinvalid_pinned_binding\n";
 		return EXIT_FAILURE;
 	}
 
 	auto helper = adapters::mcp::mcp_context_helper{
-		std::filesystem::path{ snapshotRoot },
+		std::filesystem::path{ *snapshotRoot },
 		*pinned,
 	};
 	std::cerr << "mcp-ready\t"

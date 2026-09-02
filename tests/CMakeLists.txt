@@ -452,6 +452,15 @@ bpr_add_network_isolated_test(
 
 # BPR-0511. The platform course launches the shipped artifact outside CTest,
 # so it must carry the Qt runtime directory the registered tests declare.
+# BPR-0518. The type-read structured-binding idiom must carry
+# [[maybe_unused]], or MSVC's C4189 breaks the Windows lane one slice at a time.
+bpr_add_network_isolated_test(
+    NAME type_read_binding_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/type_read_binding_tests.py"
+)
+
 bpr_add_network_isolated_test(
     NAME rfc0016_platform_course_launch_contract
     COMMAND

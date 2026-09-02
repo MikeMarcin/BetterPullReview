@@ -701,8 +701,8 @@ namespace {
 			"a default scope is the narrowest one with nothing engaged, so the "
 			"widest scope is never what a half-filled value means");
 
-		using selected                       = core::agent_selection;
-		const auto& [selectedFile, semantic] = selected{ };
+		using selected                                        = core::agent_selection;
+		[[maybe_unused]] const auto& [selectedFile, semantic] = selected{ };
 		static_assert(
 			std::is_same_v<decltype(selectedFile), const core::file_identity>);
 		static_assert(
