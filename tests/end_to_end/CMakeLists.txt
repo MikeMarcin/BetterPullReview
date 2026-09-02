@@ -6,12 +6,23 @@ endif()
 
 # RFC-BPR-0016. What the shipped device-authorization selection answers under
 # network isolation, per platform. macOS is registered under the recorded
-# distributable identity since BPR-0318: its real flow starts, the isolated
-# transport fails immediately, and the refusing transport is never touched, so
-# the terminal is `failed` with zero gate bypasses. Every other platform stays
-# unregistered until BPR-0310/BPR-0311 flip it, and keeps the typed refusal
-# with nothing sent.
-if(APPLE)
+# distributable identity since BPR-0318 and Linux since BPR-0310: the real flow
+# starts, the isolated transport fails immediately, and the refusing transport
+# is never touched, so the terminal is `failed` with zero gate bypasses.
+#
+# The two registered platforms reach that terminal by different mechanisms, so
+# the Linux value was measured on the host rather than carried across from
+# macOS. macOS denies the connect through sandbox-exec. Linux runs the test
+# under `unshare(CLONE_NEWUSER | CLONE_NEWNET)` in a namespace whose only
+# interface is loopback, so the first outbound attempt has no route out of the
+# namespace and fails at once: the shipped probe lands on `failed` in 0.15 s
+# against a 10,000 ms budget, three runs identical, which is an immediate
+# refusal rather than a budget that expired.
+#
+# Windows stays unregistered until BPR-0311 flips it, and keeps the typed
+# refusal with nothing sent. `DEVICE_FLOW_REQUESTS:0` is what every platform
+# shares either way: registered or not, under isolation nothing is ever sent.
+if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(bpr_device_selection_self_test_expression
         "DEVICE_FLOW_STAGE:failed[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_REGISTERED_SELECTION_OK")
 else()
