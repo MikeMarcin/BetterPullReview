@@ -148,6 +148,76 @@ namespace bpr::core {
 	[[nodiscard]] auto build_agent_supplement(
 		const agent_supplement_request& aRequest)
 		-> std::optional<agent_context_supplement>;
+
+	/// \brief Whether one named session may carry the reviewer's private prose.
+	///
+	/// \details Both default to false, and the opt-in names the session it is
+	/// for. That identity is what keeps it from being turned on once and
+	/// forgotten: a new session has a new `agent_session_id`, so an opt-in
+	/// made for the previous conversation admits nothing into the next one.
+	/// The alternative homes were both worse — a profile field would follow
+	/// the tool across every review, and a setting would follow the reviewer
+	/// across every session, which is precisely the "turned on in March,
+	/// leaking in September" shape this avoids.
+	///
+	/// Notes and drafts are separately opt-in because they are separately
+	/// private: a reviewer may well want the agent to see the comment they are
+	/// drafting without also handing it the notes they took about the author.
+	struct agent_private_context_optin
+	{
+		agent_session_id Session;
+		bool             Notes  = false;
+		bool             Drafts = false;
+
+		auto operator<=>(const agent_private_context_optin&) const = default;
+	};
+
+	/// \brief The private prose one session is allowed to carry.
+	///
+	/// \details Produced only by `admit_private_context`. The type holds
+	/// exactly the two collections and nothing that could describe them, so
+	/// there is no "the reviewer declined, here is a summary anyway" field.
+	struct agent_private_context
+	{
+		std::vector<supplement_note>  Notes;
+		std::vector<supplement_draft> Drafts;
+
+		auto operator<=>(const agent_private_context&) const = default;
+	};
+
+	/// \brief Admits the reviewer's private prose into one session, or none of it.
+	///
+	/// \details The gate is the session's own opt-in, checked by identity. An
+	/// opt-in belonging to a different session admits nothing rather than
+	/// nearly everything: a caller that paired the wrong session with the
+	/// wrong opt-in is a caller that should not be sending private prose.
+	///
+	/// \returns Exactly the supplied notes and drafts whose flag is set for
+	/// this session, and empty collections otherwise. Never a subset chosen
+	/// here, and never a placeholder.
+	[[nodiscard]] auto admit_private_context(
+		const agent_session&                 aSession,
+		const agent_private_context_optin&   aOptIn,
+		const std::vector<supplement_note>&  aNotes,
+		const std::vector<supplement_draft>& aDrafts) -> agent_private_context;
+
+	/// \brief Builds one supplement carrying only the prose this session opted into.
+	///
+	/// \details The same build as the single-argument overload in every other
+	/// respect — the same identities, receipts, defect history, and semantic
+	/// selection, validated the same way and refused whole the same way — with
+	/// the reviewer's selected notes and drafts passed through
+	/// `admit_private_context` first. A session that has not opted in carries
+	/// zero notes and zero drafts even when the request named some and the
+	/// review holds more, and the rest of the supplement is unchanged: the
+	/// private prose is dropped, not the context.
+	///
+	/// An opt-in naming a different session refuses the whole build, as every
+	/// other malformed request here does.
+	[[nodiscard]] auto build_agent_supplement(
+		const agent_supplement_request&    aRequest,
+		const agent_private_context_optin& aOptIn)
+		-> std::optional<agent_context_supplement>;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CONTEXT_SUPPLEMENT_HPP

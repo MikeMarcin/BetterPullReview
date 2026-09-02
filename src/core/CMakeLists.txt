@@ -18,6 +18,7 @@ add_library(
         src/model.cpp
         src/review_ledger.cpp
         src/review_queue.cpp
+        src/agent_chat_scope.cpp
         src/agent_context_supplement.cpp
         src/agent_finding.cpp
         src/agent_finding_promotion.cpp

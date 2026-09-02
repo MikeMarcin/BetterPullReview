@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string_view>
+#include <tuple>
 
 namespace {
 	using namespace bpr;
@@ -122,6 +123,89 @@ namespace {
 			"other, because it was asked a different question");
 	}
 
+	/// \brief A stale session offers two continuations and retargets neither.
+	void test_a_stale_session_offers_exactly_two_continuations()
+	{
+		static_assert(
+			core::agent_continuation_count == 2U,
+			"there are two things to do with a session that no longer matches. "
+			"A third would be retargeting it, which is what the binding exists "
+			"to prevent.");
+
+		const auto pinned     = session();
+		auto       moved      = binding();
+		moved.HeadOid         = commit(9U);
+		auto reselected       = binding();
+		reselected.RightEpoch = core::epoch_ordinal{ 5 };
+		auto elsewhere        = binding();
+		elsewhere.PullRequest = core::pull_request_id{ 31U };
+
+		struct staleness_row
+		{
+			core::agent_revision_binding  Observed;
+			core::agent_session_staleness Staleness;
+			bool                          Required;
+		};
+		const auto rows = std::array{
+			staleness_row{
+				moved, core::agent_session_staleness::head_moved, true },
+			staleness_row{
+				reselected,
+				core::agent_session_staleness::epoch_pair_changed,
+				true },
+			staleness_row{
+				elsewhere,
+				core::agent_session_staleness::different_review,
+				true },
+			staleness_row{
+				binding(), core::agent_session_staleness::current, false },
+		};
+
+		for (const auto& row : rows) {
+			const auto offer = core::offer_agent_continuations(pinned, row.Observed);
+			static_assert(
+				std::tuple_size_v<decltype(offer.Choices)>
+					== core::agent_continuation_count,
+				"the offer names exactly two continuations, and the array is "
+				"what says so rather than a branch that could append a third");
+			expect(
+				offer.Status
+					== core::observe_agent_session(pinned, row.Observed),
+				"the offer carries the verdict observe_agent_session returned, "
+				"so there is one staleness vocabulary and not two");
+			expect(
+				offer.Status.Staleness == row.Staleness
+					&& offer.Required == row.Required,
+				"a session that no longer matches requires a choice, and a "
+				"current one does not");
+			expect(
+				offer.Choices[0] == core::agent_continuation::start_new_session
+					&& offer.Choices[1]
+						== core::agent_continuation::continue_against_old_revision
+					&& offer.Choices[0] != offer.Choices[1],
+				"the two choices are asking again about what you are looking at, "
+				"and keeping this answer about what it was asked");
+			expect(
+				offer.ContinueAgainst == pinned.Binding
+					&& offer.ContinueAgainst
+						== core::continue_against_binding(pinned),
+				"and continuing answers about the session's own binding");
+			expect(
+				row.Observed == pinned.Binding
+					|| offer.ContinueAgainst != row.Observed,
+				"which is never the revision now under review, so offering the "
+				"choice does not quietly take it");
+			expect(
+				pinned.Binding == binding(),
+				"offering a continuation retargets nothing: the session still "
+				"carries the identity it was started with");
+			expect(
+				!core::stable_name(offer.Choices[0]).empty()
+					&& !core::stable_name(offer.Choices[1]).empty(),
+				"both continuations have stable names a drawer can label");
+		}
+	}
+
 	/// \brief A session about another review is not stale, it is elsewhere.
 	void test_another_review_is_not_staleness()
 	{
@@ -142,6 +226,7 @@ auto main() -> int
 	test_head_movement_makes_a_session_stale();
 	test_a_stale_session_refuses_to_be_current();
 	test_the_epoch_pair_is_part_of_the_identity();
+	test_a_stale_session_offers_exactly_two_continuations();
 	test_another_review_is_not_staleness();
 	std::cout << "agent-session-tests:pass\n";
 	return EXIT_SUCCESS;

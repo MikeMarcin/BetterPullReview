@@ -20,18 +20,6 @@ namespace bpr::core {
 				&& enumerator_at_most(aLine.Side, diff_side::right);
 		}
 
-		[[nodiscard]] auto valid_session(const agent_session& aSession) noexcept
-			-> bool
-		{
-			const auto& binding = aSession.Binding;
-			return aSession.Id.value() != 0U && aSession.Profile.value() != 0U
-				&& binding.Host.value() != 0U
-				&& binding.Repository.value() != 0U
-				&& binding.PullRequest.value() != 0U && binding.BaseOid.valid()
-				&& binding.HeadOid.valid() && binding.LeftEpoch.value() != 0U
-				&& binding.RightEpoch.value() != 0U;
-		}
-
 		[[nodiscard]] auto valid_file(
 			const supplement_file_state& aFile) noexcept -> bool
 		{
@@ -168,7 +156,7 @@ namespace bpr::core {
 	{
 		if (
 			aRequest.ApplicationSession.value() == 0U
-			|| !valid_session(aRequest.Session) || aRequest.PullRequestUrl.empty()
+			|| !valid_agent_session(aRequest.Session) || aRequest.PullRequestUrl.empty()
 			|| aRequest.PullRequestUrl.size() > maximum_pull_request_url_bytes
 			|| aRequest.Files.size() > maximum_supplement_paths
 			|| aRequest.Defects.size() > maximum_supplement_defects
@@ -208,5 +196,44 @@ namespace bpr::core {
 			.Notes              = aRequest.SelectedNotes,
 			.Drafts             = aRequest.SelectedDrafts,
 		};
+	}
+
+	auto admit_private_context(
+		const agent_session&                 aSession,
+		const agent_private_context_optin&   aOptIn,
+		const std::vector<supplement_note>&  aNotes,
+		const std::vector<supplement_draft>& aDrafts) -> agent_private_context
+	{
+		if (!valid_agent_session(aSession) || aOptIn.Session != aSession.Id) {
+			return { };
+		}
+		return {
+			.Notes  = aOptIn.Notes ? aNotes : std::vector<supplement_note>{ },
+			.Drafts = aOptIn.Drafts ? aDrafts : std::vector<supplement_draft>{ },
+		};
+	}
+
+	auto build_agent_supplement(
+		const agent_supplement_request&    aRequest,
+		const agent_private_context_optin& aOptIn)
+		-> std::optional<agent_context_supplement>
+	{
+		if (!valid_agent_session(aRequest.Session)
+			|| aOptIn.Session != aRequest.Session.Id) {
+			return std::nullopt;
+		}
+		// Validated as the request stands, so an oversize or malformed note
+		// still refuses the whole supplement rather than being silently
+		// dropped by an opt-in that happened to be off.
+		auto built = build_agent_supplement(aRequest);
+		if (!built.has_value()) {
+			return std::nullopt;
+		}
+		auto admitted = admit_private_context(
+			aRequest.Session, aOptIn, aRequest.SelectedNotes,
+			aRequest.SelectedDrafts);
+		built->Notes  = std::move(admitted.Notes);
+		built->Drafts = std::move(admitted.Drafts);
+		return built;
 	}
 } // namespace bpr::core

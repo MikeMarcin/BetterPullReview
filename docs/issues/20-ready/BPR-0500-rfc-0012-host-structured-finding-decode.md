@@ -1,7 +1,7 @@
 ---
 id: BPR-0500
 title: "Host: structured-finding decode, limits, and typed revision-bound re-entry"
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0012
 depends_on: [BPR-0497, BPR-0499]
 ---

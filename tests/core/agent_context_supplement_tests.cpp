@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -277,6 +278,150 @@ namespace {
 			"semantic context is exactly domain identity, mappings, and optional source text");
 	}
 
+	[[nodiscard]] auto private_request() -> core::agent_supplement_request
+	{
+		auto request      = minimal_request();
+		request.Selection = semantic_context();
+		request.Files     = {
+			{
+				.File     = identity<core::file_identity>(3U),
+				.Material = identity<core::file_material_id>(4U),
+				.Path     = "src/retry.cpp",
+				.Read     = core::file_read_state::read,
+			},
+		};
+		request.SelectedNotes = {
+			{
+				.File       = identity<core::file_identity>(3U),
+				.Comparison = identity<core::file_comparison_digest>(5U),
+				.Text       = "check retry exhaustion",
+			},
+		};
+		request.SelectedDrafts = {
+			{
+				.Anchor = request.Selection->Selection.PreferredLine,
+				.Text   = "Would a bounded retry be safer?",
+			},
+		};
+		return request;
+	}
+
+	/// \brief Private notes and drafts are opt-in per session, and default off.
+	void test_private_prose_travels_only_where_this_session_opted_in()
+	{
+		using admitted              = core::agent_private_context;
+		const auto& [notes, drafts] = admitted{ };
+		static_assert(std::is_same_v<
+					  decltype(notes), const std::vector<core::supplement_note>>);
+		static_assert(std::is_same_v<
+					  decltype(drafts),
+					  const std::vector<core::supplement_draft>>);
+		static_assert(
+			sizeof(admitted)
+				== sizeof(std::vector<core::supplement_note>)
+					+ sizeof(std::vector<core::supplement_draft>),
+			"agent_private_context gained a field. Admitted prose is the two "
+			"collections and nothing that could describe them, so there is no "
+			"'the reviewer declined, here is a summary anyway'.");
+		expect(
+			notes.empty() && drafts.empty(),
+			"a default admission carries nothing, so forgetting to opt in fails "
+			"toward zero private prose rather than toward all of it");
+
+		const auto request = private_request();
+		expect(
+			!request.SelectedNotes.empty() && !request.SelectedDrafts.empty(),
+			"the review holds one note and one unpublished draft, so the "
+			"absences below are about the opt-in and not about an empty review");
+
+		const auto defaulted = core::agent_private_context_optin{
+			.Session = request.Session.Id,
+		};
+		expect(
+			!defaulted.Notes && !defaulted.Drafts,
+			"an opt-in defaults to off for both");
+
+		const auto withheld = core::build_agent_supplement(request, defaulted);
+		expect(withheld.has_value(), "a session that has not opted in still builds");
+		expect(
+			withheld->Notes.empty() && withheld->Drafts.empty(),
+			"and carries zero notes and zero drafts even though both exist for "
+			"the review");
+		auto expected   = *core::build_agent_supplement(request);
+		expected.Notes  = { };
+		expected.Drafts = { };
+		expect(
+			*withheld == expected,
+			"the private prose is dropped and nothing else is: the same "
+			"identities, receipts, defect history, and semantic selection "
+			"travel exactly as they do without the opt-in");
+
+		const auto onlyNotes = core::build_agent_supplement(
+			request,
+			{ .Session = request.Session.Id, .Notes = true });
+		expect(
+			onlyNotes && onlyNotes->Notes == request.SelectedNotes
+				&& onlyNotes->Drafts.empty(),
+			"notes and drafts are separately opt-in, so seeing the comment "
+			"being drafted is not the same permission as reading the notes "
+			"taken about the author");
+
+		const auto both = core::build_agent_supplement(
+			request,
+			{ .Session = request.Session.Id, .Notes = true, .Drafts = true });
+		expect(
+			both && both->Notes == request.SelectedNotes
+				&& both->Drafts == request.SelectedDrafts,
+			"an explicit opt-in carries exactly what the reviewer selected, "
+			"unchanged");
+
+		const auto stale = core::build_agent_supplement(
+			request,
+			{
+				.Session = core::agent_session_id{ request.Session.Id.value() + 1U },
+				.Notes   = true,
+				.Drafts  = true,
+			});
+		expect(
+			!stale.has_value(),
+			"an opt-in made for another session refuses the whole build: a "
+			"permission granted to one conversation cannot be spent by the "
+			"next one");
+		expect(
+			core::admit_private_context(
+				request.Session,
+				{
+					.Session = core::agent_session_id{
+						request.Session.Id.value() + 1U },
+					.Notes  = true,
+					.Drafts = true,
+				},
+				request.SelectedNotes, request.SelectedDrafts)
+				== core::agent_private_context{ },
+			"and the admission itself carries nothing across sessions");
+		expect(
+			core::admit_private_context(
+				request.Session,
+				{ .Session = request.Session.Id, .Notes = true, .Drafts = true },
+				request.SelectedNotes,
+				request.SelectedDrafts)
+				== core::agent_private_context{
+					.Notes  = request.SelectedNotes,
+					.Drafts = request.SelectedDrafts,
+				},
+			"while this session's own opt-in admits exactly what was selected, "
+			"so the refusal above is about the identity and not about the "
+			"admission refusing everything");
+
+		auto oversize = request;
+		oversize.SelectedNotes.assign(
+			core::maximum_selected_notes + 1U, { .Text = "note" });
+		expect(
+			!core::build_agent_supplement(oversize, defaulted).has_value(),
+			"a malformed request is still refused whole rather than being "
+			"quietly emptied by an opt-in that happened to be off");
+	}
+
 	void test_invalid_or_oversize_context_is_refused_whole()
 	{
 		auto request = minimal_request();
@@ -339,6 +484,7 @@ auto main() -> int
 	test_every_required_local_and_semantic_field_travels_exactly();
 	test_absent_and_present_empty_source_text_are_different();
 	test_no_field_can_hold_presentation_or_credential_authority();
+	test_private_prose_travels_only_where_this_session_opted_in();
 	test_invalid_or_oversize_context_is_refused_whole();
 	std::cout << "agent-context-supplement-tests:pass\n";
 	return EXIT_SUCCESS;
