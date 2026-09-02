@@ -1,7 +1,7 @@
 ---
 id: BPR-0517
 title: "Host: carry the side-chat message in the agent's input frame"
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0012
 depends_on: [BPR-0500, BPR-0514]
 ---
