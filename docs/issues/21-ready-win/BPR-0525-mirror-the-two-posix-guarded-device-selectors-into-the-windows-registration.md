@@ -44,3 +44,62 @@ unmeasured on Windows" — a reason with an expiry.
 ctest --test-dir build\windows-dev -C Debug -R '^(github_device_authorization_refresh_contract\|native_https_device_authorization_fixture)$' --output-on-failure
 py -3 scripts/verify_rfc0016_platform_course.py --platform windows --dev-preset windows-dev --release-preset windows-app-release --build-root build/rfc0016-windows-enablement --expected-device-selection enabled --fresh
 ```
+
+## Windows — 2026-09-02, station `bpr-win` at `1818d6a0`
+
+Both selectors are registered in `tests/github_contract/CMakeLists.txt`'s
+`if(WIN32)` block with their POSIX arguments verbatim, and both pass:
+
+```text
+1/2 Test #159: native_https_device_authorization_fixture ......   Passed   10.19 sec
+2/2 Test #160: github_device_authorization_refresh_contract ...   Passed    3.74 sec
+100% tests passed out of 2
+```
+
+`cmake --preset windows-dev` exit 0 and `cmake --build --preset windows-dev
+--config Debug` exit 0, with zero errors and zero warnings, before each run.
+
+### `WINDOWS_UNCONTAINED` was measured, not inherited
+
+The card allows the keyword only if measurement shows [[BPR-0362]]'s cause
+applies. It was therefore left off first, and both selectors were registered
+contained and run:
+
+```text
+1/2 Test #159: native_https_device_authorization_fixture ......***Failed  0.19 sec
+    native-https-device-authorization:fail:unavailable-executable
+2/2 Test #160: github_device_authorization_refresh_contract ...***Failed  0.13 sec
+    github-device-authorization-refresh:fail:unavailable-executable
+```
+
+Both refuse at once, before reaching their loopback origin, with the driver
+unable to resolve its own executable — the drive-letter translation a lowbox
+token is refused, which is exactly the cause the wire fixture beside them
+records. The keyword was added only then, and the comment beside it says what
+was observed rather than what was expected. With it, the two runs above pass;
+the label moves from `bpr_network_isolated` to `bpr_windows_uncontained`, as
+its sibling's does.
+
+Neither selector reaches a network it is not entitled to. Both drive the same
+`verify_native_https_device_authorization.py` against their own loopback
+origin, which is what their POSIX registrations do and what the uncontained
+exemption is for.
+
+### What this card still needs, and why this station stopped short
+
+| Row | State |
+|---|---|
+| Both registered in the Windows block with POSIX arguments | Done, this commit |
+| Both pass on the Windows station | Done — 10.19 s and 3.74 s above |
+| `WINDOWS_UNCONTAINED` only where measurement justifies it | Done — measured contained first, recorded above |
+| The Windows entries leave `PLATFORM_SELECTOR_EXCLUSIONS` | **Not done** — that table is in `scripts/**`, which this station may not commit |
+| The Windows course reports `RFC0016_COURSE_SELECTORS:17` | **Not run** — see below |
+
+The course was deliberately **not** run after registering these two. The
+exclusion table still lists both names, and [[BPR-0524]]'s new check refuses a
+name that is both registered and excluded — so a course run at this lane head
+would fail with `course-exclusion-stale:windows:...` and that failure would be
+an artifact of the split ownership rather than a fact about the platform.
+Recording it as a course result would be recording a staged failure. The
+integrator prunes the two entries on merge and asks for one final course run,
+which is this card's closing row.

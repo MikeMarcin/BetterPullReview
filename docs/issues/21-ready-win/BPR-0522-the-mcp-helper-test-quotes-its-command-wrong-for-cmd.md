@@ -132,3 +132,70 @@ AppContainer, and the wrap itself ruled out first.
 |---|---|---|---|
 | The suite still compiles for Clang and is unchanged on POSIX by construction (no carriage return to strip) | the `build/dev` compile command with `-fsyntax-only` | exit 0 | this commit |
 | The helper's test passes under MSVC | `bpr-win`'s `ctest --test-dir build/windows-dev -C Debug -R '^application_mcp_context_helper$'` from a checkout of this commit | **Pending** — target-native, the closing row | Pending |
+
+## Second target-native result — 2026-09-02, station `bpr-win` at `1818d6a0`
+
+The carriage-return strip works. The allowlist assertion this card's previous
+run stopped at is gone, and the selector now fails further in, on a third and
+final cause that is neither the quoting nor the parse:
+
+```text
+1/1 Test #100: application_mcp_context_helper ...***Failed  Required regular expression not found. Regex=[mcp-context-helper-tests:pass
+]  0.13 sec
+FAILED: refusal table entry 'read_above_snapshot_root' must be refused as path_outside_snapshot
+FAILED: refusal table entry 'read_absolute_outside_snapshot' must be refused as path_outside_snapshot
+FAILED: refusal table entry 'read_snapshot_metadata_above_files_root' must be refused as path_outside_snapshot
+FAILED: every entry of the refusal table is refused by its own exact cause
+```
+
+### The cause is the AppContainer, and the bytes say so
+
+Three of the table's rows fail and the rest pass. The three are the only rows
+that reach the filesystem: every earlier row refuses on scheme or authority
+inside `resolve_snapshot_path` before `weakly_canonical` is ever called.
+
+Driving the shipped helper directly against an equivalent fixture, with the
+same three requests, outside and then inside the sandbox launcher:
+
+| Context | Answer for all three rows |
+|---|---|
+| Outside the AppContainer | `{"refusal":"path_outside_snapshot"}` — the expected cause |
+| Inside the AppContainer | `{"refusal":"snapshot_unavailable"}` |
+
+`snapshot_unavailable` is what `resolve_snapshot_path` returns when
+`weakly_canonical(files_root(...))` sets an error code. Under a lowbox token
+that canonicalization cannot translate the volume device into a drive letter,
+which is [[BPR-0362]]'s measured cause, so the helper refuses correctly but for
+the wrong reason and the table's exact-cause check fails.
+
+The whole suite confirms it end to end: run outside the AppContainer at this
+head it **passes**.
+
+```text
+=== DIRECT (no AppContainer) ===
+mcp-context-helper-tests:pass
+=== DIRECT EXIT 0 ===
+```
+
+### What would fix it
+
+`WINDOWS_UNCONTAINED` on `application_mcp_context_helper`, the same keyword
+`native_https_transport_fixture` already carries for the same cause. One
+keyword, in the test's registration. Not applied here: this station's
+`tests/**` authority for this task covers [[BPR-0525]]'s registrations, and
+this is a different card's file.
+
+### The three causes in order, so none is mistaken for another
+
+| # | Cause | Found | Fixed |
+|---|---|---|---|
+| 1 | `_popen`'s command begins with a quote and `cmd` strips the outer pair | this card | this card's wrap |
+| 2 | the helper writes CRLF and `split_lines` splits on LF, leaving `\r` on every name | [[BPR-0522]]'s first station run | the strip at `1818d6a0` |
+| 3 | the AppContainer refuses the drive-letter translation, so the filesystem rows refuse as `snapshot_unavailable` | this run | not yet |
+
+Each was hidden behind the one before it, which is why this took three passes
+rather than one: the first stopped the helper from starting, the second stopped
+the names comparing, and only then could the third be seen at all.
+
+The card stays in `21-ready-win/` with its closing row Pending, because that
+row says the test passes on the Windows station and it does not.
