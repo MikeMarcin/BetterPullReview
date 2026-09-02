@@ -24,7 +24,7 @@ Expanding from selected lines to an entire file, PR, or repository requires an e
 
 ## Comment workshop
 
-Operations include clarify, shorten, make actionable, phrase as a question, make more direct, and check whether the premise is supported. Results stay in the local editor until the user publishes through normal GitHub review controls.
+Operations include clarify, shorten, make actionable, phrase as a question, make more direct, and check whether the premise is supported. **Those six operations are specification only**: they appear nowhere in the tree, and what shipped is one path from a proposed draft edit to a before/after proposal, with `workshop_comment` as a single entry point — the same statement `docs/architecture/ai-agent-boundary.md` carries, restated here so this section is not read as a list of controls somebody can click. Results stay in the local editor until the user publishes through normal GitHub review controls.
 
 ## AI findings
 
@@ -115,13 +115,14 @@ tab and trailing space included (BPR-0503, `qt_review_draft_editor`).
 
 ### What is specified here but not yet built
 
-- **The panels are not in the workbench drawer.** They are constructed, driven,
-  and cut-tested in the shipped application, but not laid into
-  `workbench_window`'s drawer, so a reviewer reaches a finding through the
-  composed gesture path rather than by opening a drawer — [[BPR-0513]].
-- **A send does not reach an agent.** There is no composed side-chat session
-  host, so the panel's send is refused by name on the agent panel rather than
-  quietly doing nothing — [[BPR-0514]].
+Delivered since this list was first written, and kept here so the list is
+read against the tree rather than against its history: the side-chat panel
+and the finding queue sit in the conversations drawer ([[BPR-0513]]); a
+send reaches one agent turn through the composed side-chat session host
+([[BPR-0514]]); and the typed message rides the agent's input frame
+([[BPR-0517]]).
+
+
 - **The six comment-workshop operations above are not entry points.** Clarify,
   shorten, make actionable, phrase as a question, make more direct, and check
   the premise appear nowhere in the tree. What exists is one shipped path:

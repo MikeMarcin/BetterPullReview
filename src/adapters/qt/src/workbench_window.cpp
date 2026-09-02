@@ -692,7 +692,10 @@ namespace bpr::qt {
 		// member, an action, or a field by being laid out.
 		SideChat = new side_chat_panel{ { }, conversationContents };
 		conversationLayout->addWidget(SideChat);
-		auto* const chatActions = new QHBoxLayout{ };
+		// Stacked, as the finding queue's actions are: the drawer never scrolls
+		// sideways, so a row wider than the drawer loses its last actions rather
+		// than pushing them offscreen (BPR-0506).
+		auto* const chatActions = new QVBoxLayout{ };
 		for (auto* const action : { SideChat->send_action(),
 									SideChat->add_context_action(),
 									SideChat->new_session_action(),
@@ -706,7 +709,17 @@ namespace bpr::qt {
 		conversationLayout->addWidget(FindingQueue);
 		// One button per declared action, indexed by the enumerator, so a
 		// seventh finding action cannot be declared and then never offered.
-		auto* const findingActions = new QHBoxLayout{ };
+		//
+		// BPR-0506. Stacked rather than in a row. Six buttons whose longest
+		// label is *Convert to local draft comment* need more width than any
+		// drawer a reviewer is likely to give this column, and the drawer
+		// deliberately does not scroll sideways, so a row put the last two
+		// actions somewhere no gesture reaches. A column cannot clip: each
+		// button is as wide as its own label and the drawer already scrolls
+		// down. The six actions, their order, their labels, and the single
+		// intent each emits are untouched - this is where they are drawn, not
+		// what they are.
+		auto* const findingActions = new QVBoxLayout{ };
 		for (auto index = std::size_t{ 0U }; index < finding_queue_action_count;
 			 ++index) {
 			auto* const action = FindingQueue->action(

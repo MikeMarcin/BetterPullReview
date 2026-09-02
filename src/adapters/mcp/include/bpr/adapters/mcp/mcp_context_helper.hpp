@@ -103,7 +103,10 @@ namespace bpr::adapters::mcp {
 	enum class mcp_refusal : std::uint8_t {
 		/// The line was not a well-formed JSON-RPC 2.0 request.
 		invalid_request,
-		/// The method is not one of the four this helper implements.
+		/// The method is not one of the three this helper implements:
+		/// `initialize`, `tools/list`, and `tools/call`. Named rather than
+		/// counted, because a count beside a list nobody wrote down is the
+		/// kind of fact that stops being true without anyone noticing.
 		unknown_method,
 		/// The name is not in `mcp_tools`. Every write, draft, publish, and
 		/// note name arrives here, because none of them is a tool.

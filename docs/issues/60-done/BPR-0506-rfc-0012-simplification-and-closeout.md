@@ -1,7 +1,7 @@
 ---
 id: BPR-0506
 title: Simplification and closeout preparation
-status: In Progress
+status: Done
 rfc: RFC-BPR-0012
 depends_on: [BPR-0505, BPR-0513, BPR-0514, BPR-0517]
 ---
@@ -126,3 +126,35 @@ needs; the pass records the outcome of each in the ledger's
 Not read by the scout and therefore unconfirmed for duplicated policy:
 `agent_chat_scope.cpp`, `agent_finding_promotion.cpp`, the Qt widgets'
 bodies, and `agent_protocol_loop.cpp`; the pass reads them itself.
+
+## What this slice delivered — 2026-09-02
+
+Two removals, two settled ledger labels plus two more of the same class, the
+`## Simplification` and `## Closeout preparation` sections, and the reruns.
+`github_application.cpp` was not touched, so neither digest pin moved.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The MCP helper's "four request methods" is now the three it implements, named | `ctest --preset dev -R '^application_mcp_context_helper$'` | Passed 0.29 s | this commit |
+| The finding queue's six actions no longer clip at 100 %; actions and intents unchanged | `ctest --preset dev -R '^(qt_finding_queue_view\|qt_composed_github_scale_100\|qt_composed_github_scale_125\|qt_composed_github_scale_200)$'` | 4/4 passed, 2.76 s; drawer crop recaptured at `build/dev/tests/adapters_qt/composed-github-100-agent-drawer.png` and read — all six labels whole | this commit |
+| `docs/ux/ai-experience.md` states the six workshop operations are specification only, matching `ai-agent-boundary.md` | `python3 scripts/verify_documentation.py --root .` | Passed | this commit |
+| No claim-matrix row reads `Planned`; four stale `State` cells settled against evidence already in their own results | Read of `docs/verification/RFC-BPR-0012.md` | Nine rows, all `Verified`, each naming its card and command | this commit |
+| Core rerun after the simplification | `ctest --preset core-only -R '^core_agent_' --output-on-failure` | 6/6 passed, 1.00 s (`cmake --build --preset core-only` exit 0) | this commit |
+| Composed rerun after the simplification | `ctest --preset dev -R '^(application_agent_\|application_mcp_\|qt_side_chat_panel\|qt_finding_queue_view\|qt_review_draft_editor\|composed_application_hosts)' --output-on-failure` | 28/29 passed, 291.31 s (`cmake --build --preset dev` exit 0); `application_agent_invocation_composition_contract` fails on BPR-0517's missing `chat_message` in `expected_context_fields` — pre-existing at HEAD, not repaired here | this commit |
+| The digest pins did not move | `ctest --preset dev -R '^application_review_round_trip_composition_contract$'` | Passed 32.75 s on the existing pins | this commit |
+| Formatting and hygiene | `clang-format --dry-run --Werror` on both touched C++ files; `git diff --check` | Exit 0; clean | this commit |
+
+### Decisions recorded rather than acted on
+
+- **`LastChatTurn` stays.** The launch path admits its own session, so the chat
+  host's counters cannot say what a turn carried or which binding it kept.
+- **The eight `Disable…Composition` flags stay as eight.** Folding them is new
+  structure, the cuts fail by name, and a ninth flag of the same shape
+  (RFC-BPR-0016's) would sit outside any mechanism built for eight.
+- **`review_draft_editor::mutation_status_label()` is dead but not this RFC's.**
+  BPR-0229 added it under RFC-BPR-0008; `mutation_status_text()` superseded it.
+  Named in the ledger, left for its own card.
+- **`continue_against_old_revision`'s context is still composed from the current
+  revision.** Behaviour, so not this pass's; needs an owner decision and a card.
+- **The side-chat and defect action rows still clip.** Same one-word fix, but
+  they are RFC-BPR-0009's and RFC-BPR-0010's surfaces, not this slice's.

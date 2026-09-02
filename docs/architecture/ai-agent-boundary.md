@@ -923,15 +923,11 @@ session (BPR-0500, `application_agent_invocation_host`).
 
 **Not delivered.** Named here rather than left to silence:
 
-- **The panels are not in the workbench drawer.** `qt::side_chat_panel` and
-  `qt::finding_queue_view` are constructed in the shipped application, driven
-  through the composed gesture path, and cut-tested, but they are not laid into
-  `workbench_window`'s drawer — that is an edit to `src/adapters/qt/`, outside
-  the composition slice's file surface. Carded as [[BPR-0513]].
-- **There is no composed side-chat session host.** The core chat scope and the
-  Qt panel exist and the panel's presentation is composed and proven, but the
-  turn is not: a send is refused by name on the agent panel rather than quietly
-  doing nothing. Carded as [[BPR-0514]].
+- **Delivered after this list was first written**, and struck from it rather
+  than left to contradict the tree: the panels sit in the conversations
+  drawer ([[BPR-0513]]), a send reaches one agent turn through the composed
+  side-chat session host ([[BPR-0514]]), and the typed message rides the
+  input frame ([[BPR-0517]]).
 - **The frozen snapshot carries alignment facts, not file bytes.** The helper's
   `binding` and `alignment` records are written from the same values the finding
   validator uses, and `files/` is created empty, so `list_snapshot_files`
