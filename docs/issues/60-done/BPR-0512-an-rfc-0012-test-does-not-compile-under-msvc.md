@@ -1,7 +1,7 @@
 ---
 id: BPR-0512
 title: An RFC-0012 test does not compile under MSVC because a structured binding is used only in decltype
-status: Ready
+status: Done
 rfc: RFC-BPR-0012
 depends_on: []
 ---
@@ -46,4 +46,28 @@ error.
 | The fix is well-formed for Clang with the tree's own flags | the `build/dev` compile command for the file, run with `-fsyntax-only` | exit 0 | this commit |
 | Format | `clang-format --dry-run --Werror tests/core/agent_chat_scope_tests.cpp` | clean | this commit |
 | The test still passes on macOS | `ctest --preset dev -R '^core_agent_chat_scope$' --output-on-failure` | Pending on this host until the tree frees; the change cannot alter behaviour | Pending |
-| MSVC builds the tree and the ledger command passes the build step | `bpr-win`'s rerun of BPR-0311's exact command from a checkout of this commit | **Pending** — target-native, the card's closing row | Pending |
+| MSVC builds the tree and the ledger command passes the build step | `bpr-win`'s rerun of BPR-0311's exact command from a checkout of this commit | Recorded below | `3d2726ba` |
+
+## Target-native result — 2026-09-01, station `bpr-win` at `3d2726ba`
+
+The closing row is measured. `windows-lane` merged `main` at `3d2726ba`, the
+build root was removed whole, and [[BPR-0311]]'s exact ledger command ran under
+the Visual Studio developer environment:
+
+| Claim | Result |
+|---|---|
+| MSVC compiles the file | `agent_chat_scope_tests.cpp` builds; the `C2220`/`C4189` pair is gone |
+| The Debug build step passes | the course got past `build-failed:windows-dev`, which is where it stopped at `8948d61a` |
+| No other MSVC error appeared in the tree | the whole course completed, `exit 0`, `RFC0016_PLATFORM_COURSE_OK` in 941 s |
+
+The type assertion is kept, not removed: `decltype(observation)` still names
+the binding, and the attribute only tells MSVC that naming it there is the
+whole point.
+
+That the run reached `RFC0016_PLATFORM_COURSE_OK` is a stronger row than this
+card needs — it asked only to get past the build step — but it is the same
+command and the same build, so it is recorded here as the evidence rather than
+a narrower re-run of it. The course-level rows belong to [[BPR-0311]] and
+[[BPR-0511]].
+
+The card is terminal.

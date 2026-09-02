@@ -1,7 +1,7 @@
 ---
 id: BPR-0511
 title: The platform course launches the shipped artifact without the Qt runtime directory on Windows
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -84,5 +84,54 @@ loader on both steps.
 | Claim | Command | Result | Commit |
 |---|---|---|---|
 | The declaration is applied, once, in front of the ambient `PATH`; an undeclared Windows tree is refused by name; other platforms are unchanged; both launch steps receive the environment | `python3 tests/scripts/rfc0016_platform_course_tests.py` | 9/9 | this commit |
-| The test is registered and isolated | `ctest --preset dev -R '^rfc0016_platform_course_launch_contract$' --output-on-failure` | Pending on this host until the tree reconfigures | this commit |
-| The ledger command reaches the tenth step with the course's own environment | BPR-0311's exact command on `bpr-win` from a checkout of this commit | **Pending** — target-native | Pending |
+| The test is registered and isolated | `ctest --preset dev -R '^rfc0016_platform_course_launch_contract$' --output-on-failure` | Recorded target-native below | `3d2726ba` |
+| The ledger command reaches the tenth step with the course's own environment | BPR-0311's exact command on `bpr-win` from a checkout of this commit | Recorded target-native below | `3d2726ba` |
+
+## Target-native results — 2026-09-01, station `bpr-win` at `3d2726ba`
+
+Both pending rows are measured, and **nothing was prepended by hand**. The
+build root was removed whole, the run was made under `vcvars64.bat`, and the
+only environment the shipped artifact got is the one the course derives.
+
+| Claim | Command | Result |
+|---|---|---|
+| The derivation, the named refusal, the unchanged other platforms, and both launch steps | `py -3 tests/scripts/rfc0016_platform_course_tests.py` | **9/9** |
+| The test is registered and isolated | `ctest --test-dir build/windows-dev -C Debug -R '^rfc0016_platform_course_launch_contract$' --output-on-failure` | **Passed, 0.17 s**, label `bpr_network_isolated` |
+| The ledger command reaches the tenth step with the course's own environment | BPR-0311's exact command, `--expected-device-selection unavailable --fresh` | **`RFC0016_PLATFORM_COURSE_OK`, exit 0, 941 s** |
+
+The tenth step's own markers, which is the row this card exists for:
+
+```text
+RFC0016_PLATFORM:windows
+RFC0016_SELECTION:unavailable
+RFC0016_COURSE_SELECTORS:14
+RFC0016_DEVICE_STAGE:unavailable
+RFC0016_DEVICE_REQUESTS:0
+RFC0016_ELAPSED_SECONDS:941
+RFC0016_PLATFORM_COURSE_OK
+```
+
+`check_runtime_and_dependencies` and `check_device_selection` both launched the
+shipped artifact and both got answers, where at `6fff0a53` the first refused
+with `application exited before runtime inspection` and the artifact died at
+`0xC0000135` before `main`. The station's earlier hand-prepended measurement is
+superseded by this one: the course now produces the row itself, which is
+exactly the distinction that kept it off the ledger last time.
+
+Release artifact the run produced:
+
+```text
+build/rfc0016-windows-enablement/release/src/app/better_pull_review.exe
+7,543,296 bytes
+sha256 23be95d78756b48f85e126717f497d928c1f4b75c658a7d1f449ec8deefa5f4f
+```
+
+### One note on the Verification block
+
+It names `ctest --preset dev`, which is not a Windows preset — `dev` has a
+non-Windows host condition. The Windows reading is the `windows-dev` tree with
+an explicit `-C Debug`, which is what was run. The integrator is correcting the
+wording on `main` at integration; it is recorded here so the command in this
+card is not read literally by the next Windows station.
+
+The card is terminal.
