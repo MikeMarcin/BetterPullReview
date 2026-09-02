@@ -1,7 +1,7 @@
 ---
 id: BPR-0312
 title: Validate the positive anonymous-preview build decision
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: [BPR-0299]
 ---
