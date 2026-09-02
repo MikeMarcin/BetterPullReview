@@ -7,7 +7,6 @@
 #include "github_presentation_text.hpp"
 
 #include <QAction>
-#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QItemSelectionModel>
 #include <QLabel>
@@ -167,8 +166,28 @@ namespace bpr::qt {
 		AvailabilityLabel->setWordWrap(true);
 		detail::set_plain_text_label(AvailabilityLabel);
 
-		auto* const header = new QHBoxLayout;
-		header->addWidget(AvailabilityLabel, 1);
+		// BPR-0527. Stacked, for the reason BPR-0506 stacked the finding
+		// actions and BPR-0520 the defect rows. This panel is the top of the
+		// conversations drawer's column, which scrolls down and never
+		// sideways, so a row wider than the drawer loses its last control
+		// rather than pushing it offscreen. *Show review threads* was
+		// measured 17 px past the right edge at the drawer's default width.
+		//
+		// Not because of this row, as it turned out. The sentence wraps, so
+		// horizontal it asked for 198 px, and what put the button past the
+		// edge was the widest row elsewhere in the column stretching every
+		// panel beside it. Stacked anyway: the default width is the only
+		// width that measurement was about, and the drawer drags down to
+		// `minimum_workbench_drawer_width`. A column cannot clip - the
+		// sentence wraps to whatever width there is and the button is as wide
+		// as its own label - so this row holds at every width, not one.
+		//
+		// The stretch goes with the row. It gave the sentence the width the
+		// button did not take, and a column has nothing to divide. The action,
+		// its label, its object name, its accessible name, and the order it is
+		// read and tabbed in are untouched.
+		auto* const header = new QVBoxLayout;
+		header->addWidget(AvailabilityLabel);
 		RevealButton = new QToolButton{ this };
 		RevealButton->setObjectName(QStringLiteral("showReviewThreadsButton"));
 		RevealButton->setAccessibleName(QStringLiteral("Show review threads"));

@@ -74,6 +74,37 @@ namespace bpr::qt {
 			static_cast<std::size_t>(application::file_receipt_action_id::excluded)
 			== 3U);
 
+		/// \brief The width the conversations drawer opens at, in logical pixels.
+		///
+		/// \details Stated here because the alternative is what the drawer had
+		/// before: whichever row was widest set the column's size hint, the
+		/// splitter handed the drawer exactly that, and then the vertical scroll
+		/// bar took 18 px back out of it. So the widest row was always the row
+		/// that lost its last control, at whatever width the drawer opened -
+		/// 540 px while the defect rows were horizontal, 366 px once BPR-0520
+		/// stacked them and the agent launcher's run controls became the widest
+		/// row instead. A number nobody chose, that moved whenever a label did,
+		/// and that was wrong by the scroll bar's width every time.
+		///
+		/// Measured at 100 % with every row of the drawer stacked (BPR-0506,
+		/// BPR-0520, BPR-0527): the column asks for 357 px to draw every control
+		/// at its natural width, needs 251 px for its widest single control -
+		/// *Classify selected conversation as defect* - below which it starts
+		/// losing controls again, and the vertical scroll bar takes 18 px that
+		/// the column never gets. 357 plus 18 is this. A style or system font
+		/// whose metrics run wider than this machine's - the headless Linux gate
+		/// uses a different style from macOS - squeezes the column toward the
+		/// 251 it needs rather than clipping it, which is why the number that is
+		/// stated is the one the column asks for and not the one it needs.
+		///
+		/// It is a floor on the column, not on the drawer. The panel keeps its
+		/// own explicit `minimum_workbench_drawer_width`, so a reviewer can still
+		/// drag the drawer narrower and the host still persists what they chose.
+		/// What holds at those narrower widths is that every row is a column, so
+		/// a row cannot put its last control out of reach; this number is only
+		/// what the product opens at.
+		constexpr int conversation_drawer_default_width = 375;
+
 		/// \brief Recolours one native icon silhouette for the live widget palette.
 		///
 		/// \details Some styles return fixed black arrow pixels even when a widget
@@ -789,6 +820,9 @@ namespace bpr::qt {
 			QStringLiteral("workbenchConversationDrawerScroll"));
 		conversationScroll->setWidgetResizable(true);
 		conversationScroll->setFrameShape(QFrame::NoFrame);
+		// BPR-0527. The drawer opens at the width stated above rather than at
+		// whatever the widest row asked for.
+		conversationScroll->setMinimumWidth(conversation_drawer_default_width);
 		// Vertically only. A drawer is a column, and a column that also
 		// scrolled sideways would hide a control behind a gesture nobody
 		// makes; the width a panel gets is still the width the reviewer gave

@@ -4,7 +4,6 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFormLayout>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
 #include <QListWidgetItem>
@@ -69,7 +68,28 @@ namespace bpr::qt {
 		layout->addLayout(form);
 		layout->addWidget(Disclosure);
 
-		auto* const actions    = new QHBoxLayout{ };
+		// BPR-0527. Stacked, for the reason BPR-0506 stacked the finding
+		// actions and BPR-0520 the defect rows. This panel is mounted in the
+		// conversations drawer, which scrolls down and never sideways, so a row
+		// wider than the drawer does not push a button offscreen - it puts the
+		// button where no gesture reaches. Measured at the drawer's default
+		// width, *Stop the agent* began 8 px past the right edge. A column
+		// cannot clip: each button is as wide as its own label.
+		//
+		// This row was also the widest thing in that column - 366 px against
+		// the 226 px the stacked version asks for - so it set the width the
+		// drawer opened at and then overflowed it by what the vertical scroll
+		// bar took, and it stretched the panels above it past the same edge.
+		// `workbench_window.cpp` now states the opening width rather than
+		// inheriting it from whichever row is widest, which is the other half
+		// of this repair.
+		//
+		// The stretch goes with the row. It held the two run controls at the
+		// far edge, away from the run-scope toggle, and a column has nothing to
+		// push against. The three actions, their order, their labels, their
+		// object names, and the single intent each emits are untouched - this
+		// is where they are drawn, not what they are.
+		auto* const actions    = new QVBoxLayout{ };
 		ExistingCheckoutButton = new QToolButton{ this };
 		ExistingCheckoutButton->setDefaultAction(ExistingCheckoutAction);
 		ExistingCheckoutButton->setAccessibleName(
@@ -81,7 +101,6 @@ namespace bpr::qt {
 		CancelButton->setDefaultAction(CancelAction);
 		CancelButton->setAccessibleName(QStringLiteral("Stop running AI agent"));
 		actions->addWidget(ExistingCheckoutButton);
-		actions->addStretch();
 		actions->addWidget(StartButton);
 		actions->addWidget(CancelButton);
 		layout->addLayout(actions);
