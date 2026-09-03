@@ -4926,6 +4926,29 @@ namespace {
 					// `refreshing` so the state it reports is a settled one
 					// rather than whichever instant the poll happened to land
 					// on.
+					//
+					// [[BPR-0544]]. Waiting for the rotation is not waiting for
+					// what the rotation is claimed to have done. The rotation
+					// counter and `scheduled` are published on this lane the
+					// moment the exchange settles, while the new access token
+					// reaches the vault through an off-lane worker, and on the
+					// JaegAW Windows station that store lands about 138 ms
+					// later -- fourteen 10 ms polls after the run had already
+					// decided it was finished. So the run read
+					// `DEVICE_FLOW_VAULT_STORES:1` and failed the row, except
+					// on the first run after a relink, when the cold image was
+					// slow enough for the store to win the race. The count is
+					// waited for here for the same reason the registered
+					// course waits for its first store, which makes the row
+					// deterministic without raising the budget: the bound was
+					// never the cause, and a 60,000 ms budget produced the same
+					// failure in the same 6.6 s.
+					//
+					// `reenrollment_required` is the typed refusal that ends
+					// the wait when the store cannot land at all -- a vault
+					// that answered a failure takes the host down that path --
+					// so a broken store is still reported rather than waited
+					// out to the budget.
 					if (aRun->Device.RefreshCourse
 						&& (aApplication.status()
 									.DeviceAuthorizationRefreshRotations
@@ -4934,7 +4957,15 @@ namespace {
 									.DeviceAuthorizationRefreshState
 								== bpr::application::
 									device_authorization_refresh_state::
-										refreshing)) {
+										refreshing
+							|| (aApplication.status()
+										.DeviceAuthorizationVaultStores
+									< 2U
+								&& aApplication.status()
+										.DeviceAuthorizationRefreshState
+									!= bpr::application::
+										device_authorization_refresh_state::
+											reenrollment_required))) {
 						break;
 					}
 					aRun->PresentationPassed
