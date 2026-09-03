@@ -167,6 +167,7 @@ class InventoryTable(unittest.TestCase):
         for shipped in ("make_native_https_anonymous_read_transport",
                         "make_native_https_anonymous_smart_transport"):
             self.assertIn(shipped, self.module.KNOWN_PRODUCT_CREDENTIAL_FREE)
+        self.assertIn("--network-denied", self.module.FORBIDDEN_STRINGS)
 
     def test_the_tests_enabled_graph_passes(self) -> None:
         self.assertEqual(self.check(DEV_GRAPH), [])

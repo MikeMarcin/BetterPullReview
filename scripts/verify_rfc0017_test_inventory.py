@@ -121,6 +121,10 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
     "make_native_https_anonymous_read_transport_for_test",
     "make_native_https_anonymous_smart_transport_for_test",
     "credential-free-material-present",
+    # BPR-0515: the tests-enabled flag that routes the device-authorization
+    # probe through a closed loopback proxy so the dev-tree gate is denied
+    # locally on every platform; a shipped build must not know it.
+    "--network-denied",
 )
 
 # Credential-free product capabilities that ARE compiled into a shipped build
