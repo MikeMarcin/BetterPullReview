@@ -291,7 +291,16 @@ namespace {
 			Published.push_back(aPresentation);
 		}
 
+		void publish_refresh(
+			const application::device_authorization_refresh_observation&
+				aObservation) override
+		{
+			Refreshes.push_back(aObservation);
+		}
+
 		std::vector<application::device_authorization_presentation> Published;
+		std::vector<application::device_authorization_refresh_observation>
+			Refreshes;
 	};
 
 	// One slot, in memory, under manual control. Completions run immediately
@@ -320,6 +329,17 @@ namespace {
 			Order->emplace_back("store-refresh");
 			const auto context = aEnrollment.Context;
 			StoreContexts.push_back(context);
+			if (HoldStore) {
+				// The slot has taken the material and has not answered yet.
+				// Whatever the host does next, it does with a store
+				// outstanding, which is the only way to test what a late
+				// answer does.
+				Stored = text_of(aEnrollment.Credential.bytes());
+				aEnrollment.Credential.reset();
+				HeldStore        = std::move(aCompletion);
+				HeldStoreContext = context;
+				return;
+			}
 			if (RefuseStore) {
 				aEnrollment.Credential.reset();
 				aCompletion(application::github_credential_store_error{
@@ -400,6 +420,30 @@ namespace {
 			}
 		}
 
+		// Answers a store that was held, either way. The host has to survive
+		// both, and after a cancel neither may change anything.
+		void release_held_store(const bool aStored)
+		{
+			auto held = std::exchange(
+				HeldStore,
+				application::github_credential_store_completion_handler{ });
+			expect(held != nullptr, "a store was held");
+			if (!aStored) {
+				Stored.reset();
+				held(application::github_credential_store_error{
+					.Context = HeldStoreContext,
+					.Failure = application::github_credential_vault_failure::
+						unavailable,
+				});
+				return;
+			}
+			held(application::github_credential_store_success{
+				.Context     = HeldStoreContext,
+				.Disposition = application::
+					github_credential_store_disposition::stored,
+			});
+		}
+
 		void release_held()
 		{
 			auto held = std::exchange(
@@ -419,9 +463,12 @@ namespace {
 		std::vector<application::github_credential_operation_context> Cancellations;
 		application::github_credential_retrieve_completion_handler    HeldRetrieve;
 		application::github_credential_operation_context              HeldContext;
+		application::github_credential_store_completion_handler       HeldStore;
+		application::github_credential_operation_context              HeldStoreContext;
 		bool                                                          RefuseStore    = false;
 		bool                                                          RefuseRetrieve = false;
 		bool                                                          HoldRetrieve   = false;
+		bool                                                          HoldStore      = false;
 	};
 
 	struct harness
@@ -1022,6 +1069,112 @@ namespace {
 				== application::device_authorization_refresh_state::idle,
 			"there is nothing to renew");
 	}
+	// [[BPR-0285]] residual R1. The store is submitted inside the flow and its
+	// answer is marshalled onto the host's lane, so a cancel that arrives
+	// first is a cancel that arrives while the slot is still outstanding.
+	// This is the shape a reviewer produces by pressing Cancel during a
+	// re-authorization.
+	void test_a_store_that_answers_after_a_cancel_arms_no_renewal()
+	{
+		harness world;
+		world.Vault.HoldStore = true;
+		world.Host.bind_refresh_authority(authority());
+		world.reach_awaiting();
+		world.poll_once();
+		world.Transport.answer_token(world.issued());
+		world.Lane.drain();
+		expect(
+			!world.Vault.StoreContexts.empty(),
+			"the refresh entry is being written");
+		expect(
+			world.Host.state().Stage
+				!= core::device_authorization_stage::authorized,
+			"and the flow has not finished, because the entry is not durable");
+
+		world.Host.dispatch(core::cancel_device_authorization_intent{ });
+		expect(
+			!world.Vault.Cancellations.empty(),
+			"the cancel released the outstanding refresh slot");
+		world.Vault.release_held_store(true);
+		world.Lane.drain();
+
+		expect(
+			world.Host.state().Stage
+				== core::device_authorization_stage::cancelled,
+			"the flow is cancelled");
+		expect(
+			!world.Timer.armed(),
+			"a store that answered after the cancel arms no renewal");
+		expect(
+			world.Host.refresh_observation().State
+				== application::device_authorization_refresh_state::idle,
+			"and renewal stays idle");
+		expect(
+			world.Host.refresh_observation().Rotations == 0U,
+			"nothing rotated");
+		expect(
+			world.Enrollment.Credentials.empty(),
+			"and no access token was enrolled from a cancelled flow");
+	}
+
+	// The other half of R1. A refused store after a cancel used to tell the
+	// reviewer to authorize again, which is an instruction about a flow they
+	// had just stopped.
+	void test_a_refused_store_after_a_cancel_asks_for_nothing()
+	{
+		harness world;
+		world.Vault.HoldStore = true;
+		world.Host.bind_refresh_authority(authority());
+		world.reach_awaiting();
+		world.poll_once();
+		world.Transport.answer_token(world.issued());
+		world.Lane.drain();
+
+		world.Host.dispatch(core::cancel_device_authorization_intent{ });
+		world.Vault.release_held_store(false);
+		world.Lane.drain();
+
+		expect(
+			world.Host.state().Stage
+				== core::device_authorization_stage::cancelled,
+			"the flow is cancelled rather than failed");
+		expect(
+			world.Host.refresh_observation().State
+				!= application::device_authorization_refresh_state::
+					reenrollment_required,
+			"a store refused after a cancel asks for no re-enrollment");
+		expect(
+			world.Host.refresh_observation().Failure
+				== application::device_authorization_refresh_failure::none,
+			"and reports no renewal failure");
+		expect(!world.Timer.armed(), "and arms nothing");
+	}
+
+	// The lifecycle has to leave the host to be worth anything: every state a
+	// reviewer could act on is one presentation was told about.
+	void test_the_renewal_lifecycle_reaches_presentation()
+	{
+		harness world;
+		world.authorize_with_bound_authority();
+		expect(
+			!world.Projections.Refreshes.empty(),
+			"renewal was published at least once");
+		expect(
+			world.Projections.Refreshes.back()
+				== world.Host.refresh_observation(),
+			"and what presentation holds is what the host holds");
+		expect(
+			world.Projections.Refreshes.back().State
+				== application::device_authorization_refresh_state::scheduled,
+			"a renewal armed is a renewal presentation knows about");
+
+		const auto published = world.Projections.Refreshes.size();
+		world.Host.bind_refresh_authority(authority());
+		world.Lane.drain();
+		expect(
+			world.Projections.Refreshes.size() == published,
+			"and an unchanged observation publishes nothing");
+	}
 } // namespace
 
 auto main() -> int
@@ -1041,6 +1194,9 @@ auto main() -> int
 	test_a_second_answer_for_a_resolved_renewal_rotates_nothing();
 	test_shutdown_during_a_renewal_cancels_it_and_rotates_nothing();
 	test_an_answer_with_no_refresh_material_schedules_no_renewal();
+	test_a_store_that_answers_after_a_cancel_arms_no_renewal();
+	test_a_refused_store_after_a_cancel_asks_for_nothing();
+	test_the_renewal_lifecycle_reaches_presentation();
 
 	std::cout << "device-authorization-refresh-tests:pass\n";
 	return EXIT_SUCCESS;

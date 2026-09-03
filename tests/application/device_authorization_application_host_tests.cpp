@@ -627,6 +627,13 @@ namespace {
 			Published.push_back(aPresentation);
 		}
 
+		void publish_refresh(
+			const application::device_authorization_refresh_observation&
+				aObservation) override
+		{
+			Refreshes.push_back(aObservation);
+		}
+
 		[[nodiscard]] auto last() const
 			-> application::device_authorization_presentation
 		{
@@ -635,7 +642,9 @@ namespace {
 		}
 
 		std::vector<application::device_authorization_presentation> Published;
-		bool                                                        Throw = false;
+		std::vector<application::device_authorization_refresh_observation>
+			 Refreshes;
+		bool Throw = false;
 	};
 
 	// Counts every call so a test can prove the browser was never reached, not

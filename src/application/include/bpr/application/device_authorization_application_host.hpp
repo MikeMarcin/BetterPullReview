@@ -300,47 +300,6 @@ namespace bpr::application {
 		github_application_host* Host;
 	};
 
-	enum class device_authorization_refresh_state : std::uint8_t {
-		// No account has authorized material to renew.
-		idle,
-		// A renewal is armed for a moment before the access token expires.
-		scheduled,
-		// A renewal exchange is in flight.
-		refreshing,
-		// Renewal cannot continue. The reviewer has to authorize again, and the
-		// host says so once instead of retrying forever.
-		reenrollment_required,
-	};
-
-	enum class device_authorization_refresh_failure : std::uint8_t {
-		none,
-		// The vault could not be reached or refused the slot.
-		vault_unavailable,
-		// The vault holds no refresh material for this authority.
-		refresh_absent,
-		// The server refused the refresh material it was given.
-		refresh_rejected,
-		// The exchange did not complete.
-		transport_failed,
-		// New material arrived but could not be stored, so rotating would have
-		// left nothing durable behind.
-		storage_failed,
-	};
-
-	/// \brief Describes the device authorization refresh observation record.
-	struct device_authorization_refresh_observation
-	{
-		device_authorization_refresh_state State
-			= device_authorization_refresh_state::idle;
-		device_authorization_refresh_failure Failure
-			= device_authorization_refresh_failure::none;
-		// How many times material has been rotated under this host.
-		std::uint32_t Rotations = 0U;
-
-		auto operator<=>(const device_authorization_refresh_observation&) const
-			= default;
-	};
-
 	/// \brief Describes the device authorization capability record.
 	///
 	/// \details Whether this build has a registered application identity to

@@ -61,6 +61,20 @@ namespace bpr::qt {
 		void apply(
 			const application::device_authorization_presentation& aPresentation);
 
+		/// \brief Applies one published renewal observation.
+		///
+		/// \details Renewal is silent while it works. The reviewer authorized
+		/// once and should not be told about a scheduled timer, an exchange in
+		/// flight, or a rotation that succeeded: none of those is anything for
+		/// them to do. The one state that is theirs is
+		/// `reenrollment_required`, which says the renewal chain is gone and
+		/// only a new code can restore it -- so it is presented as a typed line
+		/// beside the "Get a code" button that answers it, and nothing else
+		/// here changes.
+		void apply_refresh(
+			const application::device_authorization_refresh_observation&
+				aObservation);
+
 		/// \brief Rebinds sign-in to the profile the composing window now names.
 		///
 		/// \details The panel is given a profile rather than choosing one, and
@@ -89,6 +103,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto address_field() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto validity_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto handoff_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto renewal_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto begin_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto open_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto copy_button() const noexcept -> QPushButton*;
@@ -99,20 +114,22 @@ namespace bpr::qt {
 		void               apply_commands();
 		[[nodiscard]] auto compose_status() const -> QString;
 
-		application::device_authorization_gesture_dispatch Dispatch;
-		core::host_profile_id                              Profile;
-		application::device_authorization_presentation     Presentation;
-		device_authorization_panel_statistics              Statistics;
-		QString                                            LastAnnouncement;
-		QLabel*                                            HeadingLabel  = nullptr;
-		QLineEdit*                                         UserCodeField = nullptr;
-		QLineEdit*                                         AddressField  = nullptr;
-		QLabel*                                            ValidityLabel = nullptr;
-		QLabel*                                            HandoffLabel  = nullptr;
-		QPushButton*                                       BeginButton   = nullptr;
-		QPushButton*                                       CopyButton    = nullptr;
-		QPushButton*                                       OpenButton    = nullptr;
-		QPushButton*                                       CancelButton  = nullptr;
+		application::device_authorization_gesture_dispatch    Dispatch;
+		core::host_profile_id                                 Profile;
+		application::device_authorization_presentation        Presentation;
+		application::device_authorization_refresh_observation Refresh;
+		device_authorization_panel_statistics                 Statistics;
+		QString                                               LastAnnouncement;
+		QLabel*                                               HeadingLabel  = nullptr;
+		QLineEdit*                                            UserCodeField = nullptr;
+		QLineEdit*                                            AddressField  = nullptr;
+		QLabel*                                               ValidityLabel = nullptr;
+		QLabel*                                               HandoffLabel  = nullptr;
+		QLabel*                                               RenewalLabel  = nullptr;
+		QPushButton*                                          BeginButton   = nullptr;
+		QPushButton*                                          CopyButton    = nullptr;
+		QPushButton*                                          OpenButton    = nullptr;
+		QPushButton*                                          CancelButton  = nullptr;
 	};
 } // namespace bpr::qt
 

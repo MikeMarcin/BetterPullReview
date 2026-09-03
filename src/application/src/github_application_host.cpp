@@ -3568,6 +3568,19 @@ namespace bpr::application {
 		return Implementation->AcceptedSnapshot;
 	}
 
+	auto github_application_host::accepted_credential_authority() const noexcept
+		-> std::optional<github_credential_authority_key>
+	{
+		// Gated on acceptance rather than on the key existing. A key is minted
+		// while a session is still being established and is dropped again if
+		// any later step refuses it, so answering from the key alone would
+		// name a slot for a session that never happened.
+		if (!Implementation->AcceptedSession.has_value()) {
+			return std::nullopt;
+		}
+		return Implementation->CredentialAuthority;
+	}
+
 	auto github_application_host::accepted_review_mutation_transport() const noexcept
 		-> review_mutation_transport
 	{

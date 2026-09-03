@@ -810,6 +810,12 @@ namespace {
 			const application::device_authorization_presentation&) override
 		{
 		}
+
+		void publish_refresh(
+			const application::device_authorization_refresh_observation&)
+			override
+		{
+		}
 	};
 
 	[[nodiscard]] auto lifecycle_authority()

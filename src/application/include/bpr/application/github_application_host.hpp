@@ -156,6 +156,17 @@ namespace bpr::application {
 			-> const std::optional<github_session_read_model>&;
 		[[nodiscard]] auto accepted_snapshot() const noexcept
 			-> const std::optional<github_pull_request_snapshot>&;
+		/// \brief Returns the vault authority the accepted session is keyed by.
+		///
+		/// \details Absent until an authenticated `/user` observation has been
+		/// accepted under an exact account, which is the first moment the key
+		/// exists at all: it is minted from the profile authority and the
+		/// account the viewer reported, and nothing outside this host may
+		/// assemble one. Absent for every public-preview session, which has no
+		/// account and no vault entry. It names a slot, not a credential; no
+		/// credential byte is reachable through it.
+		[[nodiscard]] auto accepted_credential_authority() const noexcept
+			-> std::optional<github_credential_authority_key>;
 		/// \brief Returns the opaque transport for the currently accepted account.
 		///
 		/// \details The capability is absent unless the host has accepted an exact

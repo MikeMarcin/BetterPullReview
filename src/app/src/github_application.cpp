@@ -1075,10 +1075,33 @@ namespace bpr::app {
 				}
 			}
 
+			// The renewal lifecycle the host published last. Recorded for the
+			// same reason the presentation is: a composed course has to state
+			// what a reviewer would be told about renewal rather than infer it
+			// from a rotation count nobody surfaced.
+			void publish_refresh(
+				const application::device_authorization_refresh_observation&
+					aObservation) override
+			{
+				LastRefresh = aObservation;
+				++RefreshPublished;
+			}
+
 			[[nodiscard]] auto last() const noexcept
 				-> const application::device_authorization_presentation&
 			{
 				return Last;
+			}
+
+			[[nodiscard]] auto last_refresh() const noexcept
+				-> const application::device_authorization_refresh_observation&
+			{
+				return LastRefresh;
+			}
+
+			[[nodiscard]] auto refresh_published() const noexcept -> std::size_t
+			{
+				return RefreshPublished;
 			}
 
 			[[nodiscard]] auto last_attempt() const noexcept
@@ -1093,10 +1116,12 @@ namespace bpr::app {
 			}
 
 		private:
-			application::device_authorization_presentation Last;
-			application::device_authorization_handoff      LastAttempt
+			application::device_authorization_presentation        Last;
+			application::device_authorization_refresh_observation LastRefresh;
+			application::device_authorization_handoff             LastAttempt
 				= application::device_authorization_handoff::not_attempted;
-			std::size_t Published = 0U;
+			std::size_t Published        = 0U;
+			std::size_t RefreshPublished = 0U;
 		};
 
 		// The device host publishes to exactly one port, and [[BPR-0526]] gave
@@ -1117,12 +1142,16 @@ namespace bpr::app {
 		public:
 			using presented_sink = std::function<void(
 				const application::device_authorization_presentation&)>;
+			using renewed_sink   = std::function<void(
+				const application::device_authorization_refresh_observation&)>;
 
 			composition_device_authorization_projection(
 				application::device_authorization_projection_port& aRecorded,
-				presented_sink                                     aPresented)
+				presented_sink                                     aPresented,
+				renewed_sink                                       aRenewed)
 				: Recorded{ &aRecorded }
 				, Presented{ std::move(aPresented) }
+				, Renewed{ std::move(aRenewed) }
 			{
 			}
 
@@ -1136,9 +1165,58 @@ namespace bpr::app {
 				}
 			}
 
+			// The renewal lifecycle fans out on the same terms and in the same
+			// order: the sink first and unconditionally, then whoever
+			// composition bound to watch renewal. [[BPR-0536]].
+			void publish_refresh(
+				const application::device_authorization_refresh_observation&
+					aObservation) override
+			{
+				Recorded->publish_refresh(aObservation);
+				if (Renewed) {
+					Renewed(aObservation);
+				}
+			}
+
 		private:
 			application::device_authorization_projection_port* Recorded = nullptr;
 			presented_sink                                     Presented;
+			renewed_sink                                       Renewed;
+		};
+
+		// The session projection, with composition listening behind the window.
+		// [[BPR-0536]] needs one fact the window has no use for: that an
+		// authenticated `/user` observation was accepted, which is the first
+		// moment the vault authority a refresh entry is keyed by exists. The
+		// window is told first and unchanged, so every existing reader sees
+		// exactly the sequence it saw before; composition only reads.
+		class composition_github_projection final
+			: public application::github_projection_port
+		{
+		public:
+			using accepted_sink = std::function<void(
+				const application::github_presentation_update&)>;
+
+			composition_github_projection(
+				application::github_projection_port& aPresented,
+				accepted_sink                        aAccepted)
+				: Presented{ &aPresented }
+				, Accepted{ std::move(aAccepted) }
+			{
+			}
+
+			void publish(
+				const application::github_presentation_update& aUpdate) override
+			{
+				Presented->publish(aUpdate);
+				if (Accepted) {
+					Accepted(aUpdate);
+				}
+			}
+
+		private:
+			application::github_projection_port* Presented = nullptr;
+			accepted_sink                        Accepted;
 		};
 
 		// Records what the signed-out presentation was told. The window is the
@@ -3946,7 +4024,15 @@ namespace bpr::app {
 			}
 #endif
 			PublicPreviewComposed = publicPreview.Available;
-			Host                  = std::make_unique<application::github_application_host>(
+			// The session fan-out. The window keeps its place at the front, and
+			// composition reads acceptances behind it so the device host's
+			// refresh authority can be bound the moment one exists.
+			GithubProjectionFanOut = std::make_unique<composition_github_projection>(
+				*Window,
+				[this](const application::github_presentation_update& aUpdate) {
+					bind_device_refresh_authority(aUpdate);
+				});
+			Host = std::make_unique<application::github_application_host>(
 				initial_github_state(),
 				*Provider,
 				*Provider,
@@ -3955,7 +4041,7 @@ namespace bpr::app {
 				credential_vault(),
 				CredentialBindings,
 				DecisionLane,
-				*Window,
+				*GithubProjectionFanOut,
 				application::github_credential_shutdown_policy::
 					delete_retained_on_shutdown,
 				this,
@@ -4123,6 +4209,11 @@ namespace bpr::app {
 					if (DevicePanel != nullptr) {
 						DevicePanel->apply(aPresentation);
 					}
+				},
+				[this](
+					const application::device_authorization_refresh_observation&
+						aObservation) {
+					observe_device_refresh(aObservation);
 				});
 			DeviceHost = std::make_unique<
 				application::device_authorization_application_host>(
@@ -4613,6 +4704,72 @@ namespace bpr::app {
 #else
 			return 0U;
 #endif
+		}
+
+		// [[BPR-0536]]. The one place the device host learns which vault slot
+		// its renewable material belongs to, and the only caller that may name
+		// one: the key is minted inside `github_application_host` when an
+		// authenticated `/user` observation is accepted, and composition reads
+		// it rather than assembling one.
+		//
+		// Bound only after this run's device flow authorized. A profile signed
+		// in with a token the reviewer pasted has no renewable material and no
+		// renewal chain to lose, and telling its panel to renew would end in a
+		// vault that answers `absent` and a reviewer told to authorize again
+		// for no reason.
+		//
+		// A later acceptance under a *different* key for the same profile is
+		// the resume: the credential was re-established from what the vault
+		// already held, so renewal continues from the entry rather than
+		// starting over. The guard is exact key equality, so a republication
+		// that names the same slot does nothing at all.
+		void bind_device_refresh_authority(
+			const application::github_presentation_update& aUpdate)
+		{
+			if (
+				Closing || Host == nullptr || DeviceHost == nullptr
+				|| Profiles.empty() || !aUpdate.Session.has_value()) {
+				return;
+			}
+			if (aUpdate.Session->Profile != Profiles.front().profile()) {
+				return;
+			}
+			if (
+				DeviceHost->state().Stage
+				!= core::device_authorization_stage::authorized) {
+				return;
+			}
+			const auto authority = Host->accepted_credential_authority();
+			if (!authority.has_value()) {
+				return;
+			}
+			if (
+				DeviceRefreshAuthority.has_value()
+				&& *DeviceRefreshAuthority == *authority) {
+				return;
+			}
+			const auto resuming    = DeviceRefreshAuthority.has_value();
+			DeviceRefreshAuthority = *authority;
+			if (resuming) {
+				++DeviceRefreshResumes;
+				DeviceHost->resume_refresh(*authority);
+				return;
+			}
+			++DeviceRefreshBindings;
+			DeviceHost->bind_refresh_authority(*authority);
+		}
+
+		// Renewal, as presentation is told it. The panel is the reader that
+		// matters; the counters are what a composed course states.
+		void observe_device_refresh(
+			const application::device_authorization_refresh_observation&
+				aObservation)
+		{
+			DeviceRefreshObservation = aObservation;
+			++DeviceRefreshPublications;
+			if (DevicePanel != nullptr) {
+				DevicePanel->apply_refresh(aObservation);
+			}
 		}
 
 		// The mounted panel's one way out. Beginning and cancelling are core
@@ -7472,6 +7629,16 @@ namespace bpr::app {
 		qt::device_authorization_panel* DevicePanel = nullptr;
 		std::unique_ptr<composition_device_authorization_projection>
 			DeviceProjectionFanOut;
+		// The vault slot this run's renewable material belongs to, and what
+		// composition did with it. Held so a republication of the same
+		// acceptance cannot bind twice or renew on every update.
+		std::optional<application::github_credential_authority_key>
+					DeviceRefreshAuthority;
+		std::size_t DeviceRefreshBindings     = 0U;
+		std::size_t DeviceRefreshResumes      = 0U;
+		std::size_t DeviceRefreshPublications = 0U;
+		application::device_authorization_refresh_observation
+			DeviceRefreshObservation;
 		std::unique_ptr<application::device_authorization_clock_port>
 			DeviceClock;
 		std::unique_ptr<application::github_host_device_authorization_enrollment>
@@ -7835,6 +8002,7 @@ namespace bpr::app {
 		std::optional<queue_activity_baseline>                          QueueActivityBaseline;
 		std::optional<queue_activity_fact>                              QueueActivity;
 		std::vector<queue_notification_transition>                      ActiveQueueNotifications;
+		std::unique_ptr<composition_github_projection>                  GithubProjectionFanOut;
 		std::unique_ptr<application::github_application_host>           Host;
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
 		struct agent_review_facts
