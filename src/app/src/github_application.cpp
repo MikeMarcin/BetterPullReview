@@ -4730,11 +4730,12 @@ namespace bpr::app {
 		// vault that answers `absent` and a reviewer told to authorize again
 		// for no reason.
 		//
-		// A later acceptance under a *different* key for the same profile is
-		// the resume: the credential was re-established from what the vault
-		// already held, so renewal continues from the entry rather than
-		// starting over. The guard is exact key equality, so a republication
-		// that names the same slot does nothing at all.
+		// An acceptance with no authorized stage behind it is the restart: the
+		// credential was re-established from what the vault already held, so
+		// renewal continues from the entry rather than starting over -- but
+		// only once the host says an entry is there. The guard is exact key
+		// equality against a key we actually acted on, so a republication that
+		// names the same slot does nothing once armed and everything before.
 		void bind_device_refresh_authority(
 			const application::github_presentation_update& aUpdate)
 		{
@@ -4746,11 +4747,6 @@ namespace bpr::app {
 			if (aUpdate.Session->Profile != Profiles.front().profile()) {
 				return;
 			}
-			if (
-				DeviceHost->state().Stage
-				!= core::device_authorization_stage::authorized) {
-				return;
-			}
 			const auto authority = Host->accepted_credential_authority();
 			if (!authority.has_value()) {
 				return;
@@ -4760,15 +4756,28 @@ namespace bpr::app {
 				&& *DeviceRefreshAuthority == *authority) {
 				return;
 			}
-			const auto resuming    = DeviceRefreshAuthority.has_value();
-			DeviceRefreshAuthority = *authority;
-			if (resuming) {
-				++DeviceRefreshResumes;
-				DeviceHost->resume_refresh(*authority);
+			if (
+				DeviceHost->state().Stage
+				== core::device_authorization_stage::authorized) {
+				DeviceRefreshAuthority = *authority;
+				++DeviceRefreshBindings;
+				DeviceHost->bind_refresh_authority(*authority);
 				return;
 			}
-			++DeviceRefreshBindings;
-			DeviceHost->bind_refresh_authority(*authority);
+			// The restart. Nothing about this run says a device flow happened,
+			// so the question goes to the host that owns the vault: is there
+			// material beside this credential that renews it? Only a device
+			// grant leaves any, so an affirmative answer is the enrollment
+			// evidence the stage cannot supply after a restart.
+			if (!Host->accepted_credential_renewable()) {
+				// A pasted token, or an answer the vault has not given yet.
+				// Nothing is recorded either way, so the republication that
+				// follows a settled answer is still free to act.
+				return;
+			}
+			DeviceRefreshAuthority = *authority;
+			++DeviceRefreshResumes;
+			DeviceHost->resume_refresh(*authority);
 		}
 
 		// Renewal, as presentation is told it. The panel is the reader that

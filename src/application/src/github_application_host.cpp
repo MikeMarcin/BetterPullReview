@@ -1412,6 +1412,10 @@ namespace bpr::application {
 		{
 			invalidate_epoch_authority();
 			cancel_provider();
+			// The answer described the identity being invalidated. Keeping it
+			// would let a renewal be armed under a key this host has already
+			// let go of.
+			cancel_refresh_probe();
 			const auto* resumeBinding          = NextResumeProfile.has_value()
 				? CredentialBindings.find(*NextResumeProfile)
 				: nullptr;
@@ -2197,6 +2201,133 @@ namespace bpr::application {
 			cancel_session(cancelled.Request.Context);
 		}
 
+		// The one question composition asks about restored material: can this
+		// session renew itself, or would telling its panel to renew end in a
+		// vault that answers `absent` and a reviewer told to authorize again
+		// for no reason? Only the device flow ever writes a refresh entry, so
+		// the entry's existence under this authority is the whole answer.
+		//
+		// Retrieval is the only presence question this port answers, so the
+		// probe retrieves and then destroys what it got, on the vault's own
+		// callback, before anything crosses onto the decision lane. This host
+		// has no business holding renewal material and after this does not.
+		void start_refresh_probe()
+		{
+			if (Closing || !CredentialAuthority.has_value()
+				|| !CredentialSessionContext.has_value()) {
+				return;
+			}
+			const github_credential_operation_context probe{
+				.Request            = CredentialSessionContext->Request,
+				.ApplicationSession = CredentialSessionContext->ApplicationSession,
+				.Authority          = *CredentialAuthority,
+				.IdentityGeneration = CredentialSessionContext->IdentityGeneration,
+			};
+			RefreshProbeContext = probe;
+			const auto  token   = ++RefreshProbeToken;
+			const auto  gate    = std::weak_ptr<completion_gate>{ CompletionGate };
+			auto* const lane    = &DecisionLane;
+			const auto  callback =
+				[gate, lane, token, probe](
+					github_credential_retrieve_completion aCompletion) noexcept {
+					auto* const retrieved = std::get_if<
+						github_credential_retrieve_success>(&aCompletion);
+					if (retrieved == nullptr) {
+						// Absent, unavailable, refused, cancelled: all of them
+						// mean "nothing renews this credential", which is what
+						// the host already believes. Nothing is posted, so a
+						// negative answer costs the decision lane no turn and
+						// changes no order anything else observes.
+						return;
+					}
+					retrieved->Credential.reset();
+					const auto callbackTarget = gate.lock();
+					if (!callbackTarget) {
+						return;
+					}
+					const std::lock_guard callbackBarrier{ callbackTarget->Barrier };
+					if (callbackTarget->Host.load(std::memory_order_acquire) == nullptr) {
+						return;
+					}
+					try {
+						lane->post([gate, token, probe]() {
+							const auto locked = gate.lock();
+							if (!locked) {
+								return;
+							}
+							const std::lock_guard completionBarrier{
+								locked->Barrier
+							};
+							auto* const host = locked->Host.load(std::memory_order_acquire);
+							if (host != nullptr) {
+								host->handle_refresh_probe(token, probe);
+							}
+						});
+					} catch (...) {
+					}
+				};
+			try {
+				Credentials.retrieve_refresh(probe, callback);
+			} catch (...) {
+				RefreshProbeContext.reset();
+			}
+		}
+
+		void handle_refresh_probe(
+			const std::uint64_t                        aToken,
+			const github_credential_operation_context& aExpectedProbe)
+		{
+			run_turn([this, aToken, aExpectedProbe]() {
+				handle_refresh_probe_now(aToken, aExpectedProbe);
+			});
+		}
+
+		void handle_refresh_probe_now(
+			const std::uint64_t                        aToken,
+			const github_credential_operation_context& aExpectedProbe)
+		{
+			if (aToken != RefreshProbeToken || !RefreshProbeContext.has_value()
+				|| *RefreshProbeContext != aExpectedProbe) {
+				return;
+			}
+			RefreshProbeContext.reset();
+			// Anything that invalidated the identity while the vault was
+			// answering makes the answer about a session that no longer
+			// exists, and a stale `true` here would arm renewal under a key
+			// this host has already forgotten.
+			if (Closing || !AcceptedSession.has_value()
+				|| !CredentialAuthority.has_value()
+				|| *CredentialAuthority != aExpectedProbe.Authority) {
+				return;
+			}
+			AcceptedCredentialRenewable = true;
+			republish_accepted_session();
+		}
+
+		// Renewability is a vault answer and the vault answers after the
+		// session was published. Rather than hold an acceptance back on a
+		// keychain round trip, the host publishes the accepted session once
+		// more when it learns. Every reader keyed on the transition sees
+		// nothing new -- there is none -- and the one reader that asks whether
+		// this credential can renew itself now gets a settled answer.
+		void republish_accepted_session() noexcept
+		{
+			if (!AcceptedSession.has_value()) {
+				return;
+			}
+			try {
+				const github_presentation_update update{
+					.Transition      = std::nullopt,
+					.Session         = project_github_session(*AcceptedSession),
+					.PullRequest     = std::nullopt,
+					.HostDiagnostics = { },
+				};
+				Projections.publish(update);
+			} catch (...) {
+				ProjectionDeliveryFailed = true;
+			}
+		}
+
 		void accept_session(session_candidate aCandidate)
 		{
 			const github_session_read_model model{
@@ -2289,6 +2420,15 @@ namespace bpr::application {
 				CredentialLifecycle = credential_lifecycle::persistent;
 			}
 			publish_transition(output, &*AcceptedSession);
+			// Asked on every acceptance that has a slot, rather than only on
+			// the ones a restart produced. The host cannot tell a credential
+			// restored from a device grant from one restored from a pasted
+			// token -- that is the whole reason the question is put to the
+			// vault -- and a grant this run just authorized has not stored its
+			// refresh material yet, so it answers `absent` and binds instead.
+			if (CredentialAuthority.has_value()) {
+				start_refresh_probe();
+			}
 		}
 
 		void start_store(const core::github_session_request_context& aContext)
@@ -3340,6 +3480,19 @@ namespace bpr::application {
 			ActiveVaultContext.reset();
 		}
 
+		// Not cancelled at the vault, deliberately. Only an affirmative answer
+		// is ever carried back, so the host cannot tell an outstanding probe
+		// from a finished one, and cancelling on that guess would submit a
+		// cancellation for work that already ended. There is nothing to
+		// reclaim either way: the probe holds no material past its own
+		// callback, and the completion gate drops a late one.
+		void cancel_refresh_probe()
+		{
+			++RefreshProbeToken;
+			RefreshProbeContext.reset();
+			AcceptedCredentialRenewable = false;
+		}
+
 		void shutdown()
 		{
 			if (TurnActive) {
@@ -3380,6 +3533,7 @@ namespace bpr::application {
 			// itself needs the gate in order to enqueue its terminal.
 			invalidate_epoch_authority();
 			cancel_provider();
+			cancel_refresh_probe();
 			if ((ActiveVaultOperation == vault_operation::store
 				 || ActiveVaultOperation == vault_operation::retrieve)
 				&& ActiveVaultContext.has_value()) {
@@ -3457,6 +3611,14 @@ namespace bpr::application {
 		std::optional<github_credential_operation_context> ActiveVaultContext;
 		std::uint64_t                                      VaultOperationToken = 0U;
 		github_provider_attempt                            PendingRetrieveAttempt{ 1U };
+		// The renewability probe runs beside the vault operation state rather
+		// than inside it. It answers a question about a session that has
+		// already been accepted, so it can neither advance nor abandon one,
+		// and giving it its own token keeps the single-operation invariant the
+		// establishment path depends on exactly as it was.
+		std::optional<github_credential_operation_context> RefreshProbeContext;
+		std::uint64_t                                      RefreshProbeToken           = 0U;
+		bool                                               AcceptedCredentialRenewable = false;
 		std::optional<github_credential_authority_key>     CredentialAuthority;
 		std::optional<core::github_session_request_context>
 												 CredentialSessionContext;
@@ -3579,6 +3741,15 @@ namespace bpr::application {
 			return std::nullopt;
 		}
 		return Implementation->CredentialAuthority;
+	}
+
+	auto github_application_host::accepted_credential_renewable() const noexcept
+		-> bool
+	{
+		if (!Implementation->AcceptedSession.has_value()) {
+			return false;
+		}
+		return Implementation->AcceptedCredentialRenewable;
 	}
 
 	auto github_application_host::accepted_review_mutation_transport() const noexcept
