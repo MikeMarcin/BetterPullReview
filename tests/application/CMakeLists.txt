@@ -111,6 +111,28 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_application_anonymous_diff_authority_tests
+    anonymous_diff_authority_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_application_anonymous_diff_authority_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(
+    test_better_pull_review_application_anonymous_diff_authority_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_application_anonymous_diff_authority_tests
+)
+
+bpr_add_network_isolated_test(
+    NAME application_anonymous_diff_authority
+    COMMAND test_better_pull_review_application_anonymous_diff_authority_tests
+)
+
+bpr_add_executable(
     test_better_pull_review_application_github_contract_tests
     github_contract_tests.cpp
 )

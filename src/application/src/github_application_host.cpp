@@ -135,6 +135,18 @@ namespace bpr::application {
 			{
 			}
 
+			// The credential-free binding. Composition owns the anonymous
+			// factory for the host's lifetime, so the lease borrows it rather
+			// than sharing an account transport it must never hold.
+			bound_git_smart_authority(git_smart_authority_binding            aBinding,
+									  git_smart_transport_factory_port*      aAnonymous,
+									  std::shared_ptr<smart_authority_state> aState)
+				: Binding{ std::move(aBinding) }
+				, Anonymous{ aAnonymous }
+				, State{ std::move(aState) }
+			{
+			}
+
 			~bound_git_smart_authority() override { revoke(); }
 
 			[[nodiscard]] auto binding() const noexcept
@@ -161,7 +173,9 @@ namespace bpr::application {
 					return std::unexpected{ git_smart_transport_error{
 						.Failure = git_smart_transport_failure::invalid_request } };
 				}
-				auto* const factory = dynamic_cast<git_smart_transport_factory_port*>(Account.get());
+				auto* const factory = Account == nullptr
+					? Anonymous
+					: dynamic_cast<git_smart_transport_factory_port*>(Account.get());
 				if (factory == nullptr) {
 					return std::unexpected{ git_smart_transport_error{
 						.Failure = git_smart_transport_failure::unavailable } };
@@ -195,6 +209,7 @@ namespace bpr::application {
 		private:
 			git_smart_authority_binding            Binding;
 			github_account_transport               Account;
+			git_smart_transport_factory_port*      Anonymous = nullptr;
 			std::shared_ptr<smart_authority_state> State;
 		};
 
@@ -560,9 +575,10 @@ namespace bpr::application {
 					   decision_executor&                 aDecisionLane,
 					   github_projection_port&            aProjections,
 					   const github_credential_shutdown_policy
-														aCredentialShutdownPolicy,
-					   github_epoch_handoff_port* const aEpochs,
-					   github_pull_request_port* const  aAnonymousPullRequests)
+														 aCredentialShutdownPolicy,
+					   github_epoch_handoff_port* const  aEpochs,
+					   github_pull_request_port* const   aAnonymousPullRequests,
+					   git_smart_transport_factory_port* aAnonymousSmartGit)
 			: State{ std::move(aInitialState) }
 			, Profiles{ aProfiles }
 			, Viewers{ aViewers }
@@ -576,6 +592,7 @@ namespace bpr::application {
 			, CredentialShutdownPolicy{ aCredentialShutdownPolicy }
 			, Epochs{ aEpochs }
 			, AnonymousPullRequests{ aAnonymousPullRequests }
+			, AnonymousSmartGit{ aAnonymousSmartGit }
 			, CompletionGate{ std::make_shared<completion_gate>() }
 		{
 			CompletionGate->Host.store(this, std::memory_order_release);
@@ -940,9 +957,18 @@ namespace bpr::application {
 				return std::nullopt;
 			}
 
-			const auto viewer        = core::github_viewer_actor_id{ aSnapshot.Account.value() };
+			// A signed-out read has no reader, so the handoff names no account
+			// and no viewer. The zero here is the authority's discriminant,
+			// not a missing value: `core::pull_request_authority` refuses a
+			// public-preview authority that carries either.
+			const auto anonymous = aSnapshot.Mode
+				== core::github_access_mode::public_preview;
+			const auto viewer        = anonymous
+				? core::github_viewer_actor_id{ }
+				: core::github_viewer_actor_id{ aSnapshot.Account.value() };
 			auto       currentReview = std::optional<core::current_viewer_review_candidate>{ };
-			for (std::size_t index = 0U; index < aSnapshot.Reviews.size(); ++index) {
+			for (std::size_t index = 0U; !anonymous && index < aSnapshot.Reviews.size();
+				 ++index) {
 				const auto& review = aSnapshot.Reviews[index];
 				const auto  state  = epoch_review_state(review.State);
 				const auto  commit = review.Commit
@@ -996,9 +1022,20 @@ namespace bpr::application {
 				.CurrentViewerReview   = std::move(currentReview),
 			};
 
-			if (dynamic_cast<git_smart_transport_factory_port*>(
-					AccountTransport.get())
-				!= nullptr) {
+			if (anonymous) {
+				// The anonymous authority reaches Git only through the
+				// credential-free transport composition supplied. Without it
+				// there is no repository to materialize, so the caller keeps
+				// the handoff unavailable rather than sending an authority
+				// that could not fetch.
+				if (AnonymousSmartGit != nullptr) {
+					auto state       = std::make_shared<smart_authority_state>();
+					handoff.SmartGit = std::make_unique<bound_git_smart_authority>(
+						authority_binding(handoff), AnonymousSmartGit, state);
+				}
+			} else if (dynamic_cast<git_smart_transport_factory_port*>(
+						   AccountTransport.get())
+					   != nullptr) {
 				auto state       = std::make_shared<smart_authority_state>();
 				handoff.SmartGit = std::make_unique<bound_git_smart_authority>(
 					authority_binding(handoff), AccountTransport, state);
@@ -1075,12 +1112,12 @@ namespace bpr::application {
 				return;
 			}
 			EpochHandoffUnavailable = false;
-			if (is_public_preview()) {
-				// The credential-free cache, epoch, and diff authority is not
-				// this slice's to build. Until it is, the signed-out mode
-				// opens no catalog and no cache session: it reports the
-				// unavailable state and sends nothing. Sending nothing here is
-				// the designed answer, not a delivery that failed.
+			if (is_public_preview() && AnonymousSmartGit == nullptr) {
+				// Composition supplied no credential-free Git authority, so
+				// the signed-out mode opens no catalog and no cache session:
+				// it reports the unavailable state and sends nothing. Sending
+				// nothing here is the designed answer, not a delivery that
+				// failed.
 				invalidate_epoch_authority();
 				EpochHandoffUnavailable = true;
 				return;
@@ -3253,6 +3290,7 @@ namespace bpr::application {
 		github_credential_shutdown_policy  CredentialShutdownPolicy = github_credential_shutdown_policy::retain;
 		github_epoch_handoff_port*         Epochs                   = nullptr;
 		github_pull_request_port*          AnonymousPullRequests    = nullptr;
+		git_smart_transport_factory_port*  AnonymousSmartGit        = nullptr;
 		std::shared_ptr<completion_gate>   CompletionGate;
 		std::deque<deferred_ingress>       DeferredIngress;
 		bool                               TurnActive               = false;
@@ -3317,7 +3355,8 @@ namespace bpr::application {
 		github_projection_port&                 aProjections,
 		const github_credential_shutdown_policy aCredentialShutdownPolicy,
 		github_epoch_handoff_port* const        aEpochs,
-		github_pull_request_port* const         aAnonymousPullRequests)
+		github_pull_request_port* const         aAnonymousPullRequests,
+		git_smart_transport_factory_port* const aAnonymousSmartGit)
 		: Implementation{ std::make_unique<implementation>(std::move(aInitialState),
 														   aProfiles,
 														   aViewers,
@@ -3329,7 +3368,8 @@ namespace bpr::application {
 														   aProjections,
 														   aCredentialShutdownPolicy,
 														   aEpochs,
-														   aAnonymousPullRequests) }
+														   aAnonymousPullRequests,
+														   aAnonymousSmartGit) }
 	{
 	}
 

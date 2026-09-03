@@ -26,6 +26,11 @@ namespace bpr::application {
 		core::repository_locator         Locator;
 		core::github_identity_generation IdentityGeneration;
 		core::git_hash_algorithm         ObjectFormat = core::git_hash_algorithm::invalid;
+		// Last and defaulted so every binding written before the mode existed
+		// still names the authenticated authority it named, and part of the
+		// defaulted comparison so a lease minted for one mode can never agree
+		// with a handoff made in the other.
+		core::github_access_mode Mode{ };
 
 		auto operator<=>(const git_smart_authority_binding&) const = default;
 	};
@@ -33,13 +38,21 @@ namespace bpr::application {
 	[[nodiscard]] inline auto valid(
 		const git_smart_authority_binding& aBinding) noexcept -> bool
 	{
+		// Two rules, one per mode, matching the authority the lease binds:
+		// public preview names no account, the authenticated mode names an
+		// exact one. A credential-free transport can therefore never be
+		// leased under an account's binding.
+		const auto accountAsExpected = aBinding.Mode
+				== core::github_access_mode::public_preview
+			? aBinding.Account.value() == 0U
+			: aBinding.Account.value() != 0U;
 		return aBinding.ApplicationSession.value() != 0U
 			&& aBinding.Profile.value() != 0U
 			&& aBinding.ProfileRevision.value() != 0U
 			&& aBinding.Host.value() != 0U && aBinding.HostAuthority.valid()
 			&& valid_github_authority_hostname(
 				   aBinding.ServerContract, aBinding.Hostname)
-			&& aBinding.Account.value() != 0U
+			&& accountAsExpected
 			&& aBinding.Repository.value() != 0U
 			&& core::valid(aBinding.Locator)
 			&& aBinding.IdentityGeneration.value() != 0U
@@ -167,6 +180,7 @@ namespace bpr::application {
 			.Locator            = aHandoff.Locator,
 			.IdentityGeneration = aHandoff.IdentityGeneration,
 			.ObjectFormat       = aHandoff.ObjectFormat,
+			.Mode               = aHandoff.Mode,
 		};
 	}
 
@@ -185,20 +199,29 @@ namespace bpr::application {
 			&& aBinding.Repository == aHandoff.Repository
 			&& aBinding.Locator == aHandoff.Locator
 			&& aBinding.IdentityGeneration == aHandoff.IdentityGeneration
-			&& aBinding.ObjectFormat == aHandoff.ObjectFormat;
+			&& aBinding.ObjectFormat == aHandoff.ObjectFormat
+			&& aBinding.Mode == aHandoff.Mode;
 	}
 
 	[[nodiscard]] inline auto valid(
 		const accepted_pull_request_handoff& aHandoff) noexcept -> bool
 	{
-		const auto validFacts = aHandoff.ApplicationSession.value() != 0U
+		// Two rules, one per mode, matching `core::pull_request_authority`:
+		// the authenticated handoff names an exact reader, the public-preview
+		// handoff names none. A public-preview handoff also carries no current
+		// viewer review, because there is no viewer who could have left one.
+		const auto readerAsExpected = aHandoff.Mode
+				== core::github_access_mode::public_preview
+			? (aHandoff.Account.value() == 0U && aHandoff.Viewer.value() == 0U
+			   && !aHandoff.CurrentViewerReview)
+			: (aHandoff.Account.value() != 0U && aHandoff.Viewer.value() != 0U);
+		const auto validFacts       = aHandoff.ApplicationSession.value() != 0U
 			&& aHandoff.Profile.value() != 0U
 			&& aHandoff.ProfileRevision.value() != 0U
 			&& aHandoff.Host.value() != 0U && aHandoff.HostAuthority.valid()
 			&& valid_github_authority_hostname(
 									aHandoff.ServerContract, aHandoff.Hostname)
-			&& aHandoff.Account.value() != 0U
-			&& aHandoff.Viewer.value() != 0U
+			&& readerAsExpected
 			&& aHandoff.Repository.value() != 0U
 			&& core::valid(aHandoff.Locator)
 			&& aHandoff.PullRequest.value() != 0U && aHandoff.Number.valid()

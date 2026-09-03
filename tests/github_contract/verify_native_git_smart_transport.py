@@ -55,6 +55,14 @@ SCENARIOS = (
     "active-shutdown",
 )
 GITHUB_COM_SCENARIOS = ("discovery", "ls-refs", "fetch")
+# The signed-out course. The proxy refuses any Authorization header on
+# these, so a transport that carried one would fail here rather than pass
+# quietly, and only git-upload-pack routes are answered at all.
+ANONYMOUS_SCENARIOS = (
+    "anonymous-discovery",
+    "anonymous-ls-refs",
+    "anonymous-fetch",
+)
 
 
 class ProbeFailure(RuntimeError):
@@ -87,6 +95,7 @@ class Observation:
     connects: int = 0
     origins: int = 0
     sni: list[str | None] = field(default_factory=list)
+    targets: list[str] = field(default_factory=list)
     violations: set[str] = field(default_factory=set)
 
     def fail(self, reason: str) -> None:
@@ -377,6 +386,11 @@ class SmartProxy:
                 body.extend(chunk)
             with self.observation.lock:
                 self.observation.origins += 1
+                self.observation.targets.append(
+                    request_raw.split(b"\r\n", 1)[0].decode(
+                        "ascii", errors="replace"
+                    )
+                )
             self._validate_origin(
                 request_raw,
                 request_line,
@@ -397,6 +411,7 @@ class SmartProxy:
             or self.scenario.startswith("http-")
             or self.scenario
             in {
+                "anonymous-discovery",
                 "discovery",
                 "wrong-media",
                 "header-limit",
@@ -422,13 +437,25 @@ class SmartProxy:
         expected_authorization = b"Basic " + base64.b64encode(
             f"x-access-token:{self.token}".encode("ascii")
         )
-        if one_header(headers, "authorization") != expected_authorization:
-            raise ProbeFailure("authorization")
-        if (
-            request_raw.count(expected_authorization) != 1
-            or self.token.encode("ascii") in request_raw
-        ):
-            raise ProbeFailure("credential-origin")
+        if self.scenario.startswith("anonymous-"):
+            # The whole of the signed-out claim: no authorization of any kind
+            # reaches the origin, and nothing derived from the credential the
+            # driver still supplies appears anywhere in the request.
+            if "authorization" in headers:
+                raise ProbeFailure("anonymous-authorization")
+            if (
+                expected_authorization in request_raw
+                or self.token.encode("ascii") in request_raw
+            ):
+                raise ProbeFailure("anonymous-credential-origin")
+        else:
+            if one_header(headers, "authorization") != expected_authorization:
+                raise ProbeFailure("authorization")
+            if (
+                request_raw.count(expected_authorization) != 1
+                or self.token.encode("ascii") in request_raw
+            ):
+                raise ProbeFailure("credential-origin")
         expected_accept = (
             b"application/x-git-upload-pack-advertisement"
             if discovery
@@ -509,6 +536,7 @@ class SmartProxy:
             body = DISCOVERY_BODY
             content_type = b"application/json"
         elif self.scenario in {
+            "anonymous-discovery",
             "discovery",
             "direct-fallback",
             "revoke-isolation",
@@ -517,7 +545,7 @@ class SmartProxy:
             content_type = (
                 b"application/x-git-upload-pack-advertisement"
             )
-        elif self.scenario == "ls-refs":
+        elif self.scenario in {"ls-refs", "anonymous-ls-refs"}:
             body = LS_REFS_BODY
             content_type = b"application/x-git-upload-pack-result"
         elif self.scenario == "response-limit":
@@ -588,6 +616,16 @@ def run_scenario(
         )
     if observation.sni != [host]:
         raise ProbeFailure(f"{profile_name}-{scenario}-sni")
+    upload = [target for target in observation.targets if "git-upload-pack" in target]
+    receive = [target for target in observation.targets if "git-receive-pack" in target]
+    if len(upload) != 1 or receive:
+        # A push route is unreachable rather than refused: the count is the
+        # proof, because a transport that could route one would have to have
+        # asked for it here.
+        raise ProbeFailure(
+            f"{profile_name}-{scenario}-routes:"
+            f"upload={len(upload)},receive={len(receive)}"
+        )
 
 
 def executable(value: str) -> Path:
@@ -618,7 +656,7 @@ def main() -> int:
                     GHES_HOST,
                     port,
                 )
-            for scenario in GITHUB_COM_SCENARIOS:
+            for scenario in GITHUB_COM_SCENARIOS + ANONYMOUS_SCENARIOS:
                 run_scenario(
                     target,
                     material,

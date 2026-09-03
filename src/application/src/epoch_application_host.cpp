@@ -358,6 +358,9 @@ namespace bpr::application {
 				.PullRequest     = aHandoff.PullRequest,
 				.Number          = aHandoff.Number,
 				.ObjectFormat    = aHandoff.ObjectFormat,
+				// The mode is part of the catalog key, so a signed-out read
+				// opens its own scope rather than reusing an account's.
+				.Mode = aHandoff.Mode,
 			};
 		}
 
@@ -373,7 +376,8 @@ namespace bpr::application {
 				&& aAuthority.Viewer == aHandoff.Viewer
 				&& aAuthority.Repository == aHandoff.Repository
 				&& aAuthority.PullRequest == aHandoff.PullRequest
-				&& aAuthority.Number == aHandoff.Number;
+				&& aAuthority.Number == aHandoff.Number
+				&& aAuthority.Mode == aHandoff.Mode;
 		}
 
 		[[nodiscard]] auto accepted_revision(
@@ -411,6 +415,7 @@ namespace bpr::application {
 				.Repository         = aHandoff.Repository,
 				.PullRequest        = aHandoff.PullRequest,
 				.IdentityGeneration = aHandoff.IdentityGeneration,
+				.Mode               = aHandoff.Mode,
 			};
 		}
 

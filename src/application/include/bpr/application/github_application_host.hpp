@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_APPLICATION_HOST_HPP
 
+#include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/application/github_capability_cache.hpp"
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/github_epoch_handoff.hpp"
@@ -105,7 +106,13 @@ namespace bpr::application {
 			// The credential-free read authority. Null until composition
 			// supplies one, which is what refusing public preview means
 			// today: the mode is unavailable rather than degraded.
-			github_pull_request_port* aAnonymousPullRequests = nullptr);
+			github_pull_request_port* aAnonymousPullRequests = nullptr,
+			// The credential-free smart-Git authority. Composition owns it and
+			// passes an instance that can carry no credential: it is the only
+			// way a public-preview session reaches a Git repository at all.
+			// Null keeps the signed-out epoch handoff unavailable, which is
+			// what a composition without it means.
+			git_smart_transport_factory_port* aAnonymousSmartGit = nullptr);
 		~github_application_host();
 
 		github_application_host(const github_application_host&) = delete;
