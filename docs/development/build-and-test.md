@@ -763,6 +763,22 @@ set `-DBPR_ENABLE_CODING_TARGETS=ON` to add the targets deliberately. The tidy
 profile's narrow compatibility exclusions and compilation-database adaptation
 are documented in `_coding-standard/README.md`.
 
+### Warning classes every compiler treats as errors
+
+`cmake/Warnings.cmake` is the one enforcement point: `bpr_enable_warnings`
+gives every first-party target `/W4 /permissive- /WX` on MSVC and
+`-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror` elsewhere.
+Two classes are worth naming because one compiler used to catch them alone.
+A local that hides an earlier local or a parameter is MSVC's C4456, and since
+BPR-0534 the same code fails on clang (`-Wshadow`) and GCC (`-Wshadow=local`,
+the local-scope form; GCC's plain `-Wshadow` would also reject members and
+globals, which MSVC does not). Narrowing conversions are `-Wconversion` and
+`-Wsign-conversion` on the clang hosts and C4244/C4267 under `/W4`. A slice
+that compiles clean on macOS can still fail the Windows station on a class
+this list does not cover — C4189 (unreferenced local) and C4996 (a deprecated
+CRT name) have both done so — and the fix is the rename or the portable call,
+never a narrower flag.
+
 ### The format gate needs clang-format 22 or newer
 
 The tree is rendered by **clang-format 22 or newer**, and both format scripts
