@@ -1512,6 +1512,85 @@ namespace {
 					== first.size() + second.size() + first.size(),
 			"backend teardown overwrites remaining fake material");
 	}
+	/// [[BPR-0545]] Two operations are never pending under one context, and the
+	/// pairing here is exactly the one that regressed: a refresh-slot delete and
+	/// a base-credential delete submitted under one identical context.
+	///
+	/// This is a characterization test. The vault already behaves this way --
+	/// `queue` keys its pending map by the context and `try_emplace` refuses a
+	/// duplicate before anything is queued -- and that is the point. The rule
+	/// was never written down as a test, so [[BPR-0540]]'s erasure could submit
+	/// both halves under one occasion, watch the second be refused
+	/// `invalid_request`, and leave the access token in the vault with every
+	/// composed row still green. The refusal is the vault's correct answer; the
+	/// defect was a caller that did not know the rule. Now a caller that
+	/// forgets it fails here.
+	///
+	/// The second assertion matters as much as the first: the refusal must not
+	/// damage the operation that was accepted. A vault that refused the
+	/// duplicate by dropping both would satisfy a test that only checked the
+	/// refusal.
+	void test_two_operations_under_one_context_are_not_both_queued()
+	{
+		application::manual_executor lane;
+		auto                         observation    = std::make_shared<wipe_observation>();
+		auto                         backend        = std::make_shared<wiping_fake_backend>(observation);
+		auto                         refreshBackend = std::make_shared<wiping_fake_backend>(observation);
+		auto                         vault          = make_test_vault_with_refresh(lane, backend, refreshBackend);
+
+		// One context, submitted twice, with nothing run in between -- which is
+		// what a caller on the main thread ordinarily achieves.
+		const auto occasion = context(authority(), 800U);
+
+		delete_recorder refreshDelete;
+		vault->delete_refresh(
+			occasion,
+			[&refreshDelete](
+				application::github_credential_delete_completion aTerminal) {
+				refreshDelete.record(std::move(aTerminal));
+			});
+
+		delete_recorder credentialDelete;
+		submit_delete(*vault, occasion, credentialDelete);
+
+		expect(
+			credentialDelete.Calls == 1U,
+			"the duplicate submission terminates immediately, before the lane runs");
+		const auto* refused = terminal_as<
+			application::github_credential_delete_error>(
+			credentialDelete.Terminal);
+		expect(
+			refused != nullptr,
+			"the second operation under one context is refused");
+		expect(
+			refused != nullptr
+				&& refused->Failure == vault_failure::invalid_request,
+			"and the refusal is invalid_request, not a vault failure");
+		expect(
+			refused != nullptr && refused->Context == occasion,
+			"the refusal names the occasion it refused");
+
+		expect(
+			lane.pending() == 1U,
+			"exactly one operation was queued, not two");
+		expect(
+			refreshDelete.Calls == 0U,
+			"and the accepted operation has not terminated yet");
+
+		lane.run_next();
+		expect(
+			refreshDelete.Calls == 1U,
+			"the accepted operation still completes");
+		expect(
+			terminal_as<application::github_credential_delete_success>(
+				refreshDelete.Terminal)
+				!= nullptr,
+			"and succeeds -- the refusal did not damage it");
+		expect(
+			refreshBackend->Calls.size() == 1U && backend->Calls.empty(),
+			"only the refresh store was reached, on the operation that was accepted");
+	}
+
 	/// [[BPR-0542]] The refresh slot is its own store, and the credential slot
 	/// cannot see it. This is the cut that matters: the old adapter answered
 	/// `unavailable` from a stub, and the tempting cheap fix -- one schema, two
@@ -1671,6 +1750,7 @@ auto main() -> int
 	test_cancellation_reentrancy_and_teardown();
 	test_teardown_atomically_claims_queued_work();
 	test_fake_backend_wipes();
+	test_two_operations_under_one_context_are_not_both_queued();
 	test_the_refresh_slot_reaches_only_its_own_service();
 	test_a_vault_without_a_refresh_service_reports_unavailable();
 	return EXIT_SUCCESS;
