@@ -1,7 +1,7 @@
 ---
 id: BPR-0548
 title: The fixture vault obeys the platform vaults' rules
-status: Ready
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -74,3 +74,37 @@ Selector run (16 rows, `-j 2`): 15 passed, one red.
   renewal, so a second one cannot fail.
 
 `check_boundaries` and `clang-format` are clean on the touched files.
+
+## Landed — 2026-09-03
+
+At `3beeec7a`. The fixture vault and the host tests' `fake_vault` now enforce
+what all three platform vaults enforce, on all six port methods and both
+slots: `application::valid()` on every context and enrollment, refused
+`invalid_request` before anything is queued; and one pending operation per
+operation context, a duplicate refused the same way. The fixture claims the
+context synchronously at submit and releases it at the top of the queued
+task, which is the platform's `queue`/`execute` order; the double wraps its
+recorded handlers so the context is released when the test runs the
+completion. A comment above the fixture names each mirrored rule, why it
+exists, and what is deliberately not mirrored (storage stays in-memory and
+authority-keyed).
+
+That alone turned `application_device_authorization_refresh_course` red at a
+head where it had been green, and disabling one rule at a time separated the
+two signals: the refresh markers (`REFRESH_STORES:0`,
+`REFRESH_STATE:reenrollment_required`, `ROTATIONS:0`, `VAULT_STORES:1`) came
+from rule 1 and became [[BPR-0546]]'s control; `cleanup_failed=1` came from
+rule 2 and became [[BPR-0545]]'s. [[BPR-0547]] stayed masked behind
+BPR-0546, as recorded there.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| Both rules hold in both doubles and the tree builds clean | `cmake --build --preset dev` | exit 0, zero `error:`/`warning:` lines | this commit |
+| The rules turn exactly one row red, and the red is the two defects | the 16-row device/vault/public-path selector set | 15 passed, `refresh_course` red with the markers above | this commit |
+| The architecture boundaries hold, format is clean | `check_boundaries`; `clang-format --dry-run --Werror` | exit 0; exit 0 | this commit |
+
+**Left open.** The host-tests double cannot exhibit BPR-0545's shape: its
+`delete_refresh` answers inline, so the pending window closes before the
+credential delete is submitted. The composed fixture course carries that
+control instead, and [[BPR-0545]]'s own host test uses a deliberate
+hold-the-erasure mode added for it.
