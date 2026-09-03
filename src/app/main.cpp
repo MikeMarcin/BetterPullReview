@@ -741,6 +741,14 @@ namespace {
 			// stopped adopting it, finds nothing and reports so.
 			bool PanelCourse = false;
 			bool PanelBegan  = false;
+			// [[BPR-0535]]. The enterprise negative. Drives the picker onto a
+			// GHES profile, which is what the mounted panel binds its begin
+			// to, and presses the same "Get a code" the course above does.
+			// A capability composed for GitHub.com must refuse it before a
+			// request is built, so this course's terminal is `unavailable`
+			// while the panel course beside it enrolls.
+			bool GhesCourse = false;
+			bool GhesBegan  = false;
 		};
 
 		// RFC-BPR-0017. Activating the signed-out preview once, from the
@@ -2844,6 +2852,35 @@ namespace {
 		return false;
 	}
 
+	// [[BPR-0535]]. The same gesture as above, from the enterprise row of the
+	// picker. The picker names the profile the mounted panel asks a code for,
+	// so selecting the row is the whole of "the reviewer was looking at GHES":
+	// nothing here names a profile identity, reaches a composition accessor, or
+	// knows which profile the capability was composed for. A window with no
+	// enterprise row, or none that mounts the panel, ends here with `false`.
+	[[nodiscard]] auto begin_through_ghes_device_panel(
+		const bpr::qt::workbench_window& aWindow) -> bool
+	{
+		auto* const selector = aWindow.profile_selector();
+		if (selector == nullptr) {
+			return false;
+		}
+		for (auto row = 0; row < selector->count(); ++row) {
+			const auto label = selector->itemText(row);
+			if (
+				!label.startsWith(QStringLiteral("GHES"))
+				|| !label.endsWith(QStringLiteral("Native HTTPS"))) {
+				continue;
+			}
+			selector->setCurrentIndex(row);
+			if (selector->currentIndex() != row) {
+				return false;
+			}
+			return begin_through_device_panel(aWindow);
+		}
+		return false;
+	}
+
 	[[nodiscard]] auto cli_fail_closed_presentation_passed(
 		const bpr::qt::workbench_window& aWindow,
 		const automated_run&             aRun) -> bool
@@ -3278,6 +3315,28 @@ namespace {
 					   << '\n'
 					   << (enrolled ? "DEVICE_FLOW_ENROLLED_OK\n"
 									: "DEVICE_FLOW_ENROLLED_FAILED\n");
+			} else if (aRun.Device.GhesCourse) {
+				// [[BPR-0535]]. The enterprise negative, and the one course
+				// whose claim is about which profile asked. The picker named a
+				// GHES profile, the mounted panel was bound to it, and its
+				// "Get a code" was pressed: the composed capability belongs to
+				// GitHub.com, so the answer must be the typed refusal with
+				// nothing built. Reported as two facts, because "the reviewer
+				// pressed it and was refused" and "every other condition of
+				// the refusal held" fail for different reasons.
+				const auto ghesBeginRefused = aRun.Device.GhesBegan
+					&& status.DeviceAuthorizationStage
+						== bpr::core::device_authorization_stage::unavailable;
+				const auto ghesRefusalPassed = ghesBeginRefused
+					&& status.DeviceAuthorizationHostComposed
+					&& status.DeviceAuthorizationPanelComposed
+					&& status.DeviceAuthorizationPublications > 0U
+					&& status.DeviceAuthorizationTransportReached == 0U;
+				stream << "DEVICE_FLOW_GHES_BEGIN_REFUSED:"
+					   << (ghesBeginRefused ? "true" : "false") << '\n'
+					   << (ghesRefusalPassed
+							   ? "DEVICE_FLOW_GHES_REFUSAL_OK\n"
+							   : "DEVICE_FLOW_GHES_REFUSAL_FAILED\n");
 			} else if (status.DeviceAuthorizationCapabilityRegistered) {
 				// The registered claim is the refusal's mirror: the flow left
 				// `unavailable` behind and the refusing transport was never
@@ -4808,6 +4867,30 @@ namespace {
 						// the top of this stage.
 						aRun->PublicPreview.Activated = true;
 						aApplication.activate_public_preview(false);
+					} else if (aRun->Device.Enabled && aRun->Device.GhesCourse) {
+						// [[BPR-0535]]. The same "select once, then wait for
+						// the typed answer" as below, begun the way a reviewer
+						// looking at an enterprise host begins it: through the
+						// picker and the mounted panel rather than through
+						// `select_device_authorization`, which always names
+						// the front profile and so could never reach this
+						// case.
+						aRun->Device.GhesBegan
+							= begin_through_ghes_device_panel(window);
+						aRun->Device.Selected = aRun->Device.GhesBegan;
+						if (!aRun->Device.GhesBegan) {
+							// Nothing was pressed, so no answer is coming.
+							// Report the false marker now rather than
+							// spending the budget waiting for a terminal that
+							// cannot arrive.
+							aRun->PresentationPassed
+								= aRun->Cli.Observed == aRun->Cli.Expected;
+							aRun->RenderSaved = save_render_evidence(
+								window,
+								aRun->RenderPath,
+								aRun->RenderCollapsesFilesDrawer);
+							transition_to_shutdown(aApplication, *aRun);
+						}
 					} else if (aRun->Device.Enabled) {
 						// Select once. The refusal is posted to the decision
 						// lane and has to be allowed to land before the run may
@@ -6602,6 +6685,16 @@ auto main(int argc, char** argv) -> int
 		// between this course and the registered one beside it.
 		const auto devicePanelCourse
 			= has_argument(argc, argv, "--device-authorization-panel-course");
+		// [[BPR-0535]]. Tests-enabled only, like the forced courses below.
+		// It drives the picker onto an enterprise profile and presses the
+		// mounted panel's begin, which is a reviewer's gesture; a shipped
+		// binary offers it from the window and from no command line.
+		const auto deviceGhesCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-ghes-course");
+#else
+			false;
+#endif
 		// RFC-BPR-0017. Unconditional, exactly like the device probe beside
 		// it: the claim a shipped binary has to be able to make is that the
 		// signed-out mode is unavailable and sends nothing, and a flag that
@@ -7160,6 +7253,7 @@ auto main(int argc, char** argv) -> int
 							.Registered   = registeredDeviceCourse,
 							.BrowserProbe = verifyDeviceAuthorization && deviceBrowserProbe,
 							.PanelCourse  = verifyDeviceAuthorization && devicePanelCourse,
+							.GhesCourse   = verifyDeviceAuthorization && deviceGhesCourse,
 						},
 						.PublicPreview = automated_run::public_preview_probe_state{
 							.Enabled         = verifyPublicPreview,

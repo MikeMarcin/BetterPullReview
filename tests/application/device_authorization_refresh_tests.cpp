@@ -435,9 +435,10 @@ namespace {
 					application::device_authorization_host_limits{ },
 					application::device_authorization_browser_handoff{ },
 					// These courses are about renewal, which only a registered
-					// build ever reaches.
+					// build ever reaches, and they begin for the profile the
+					// capability was composed for ([[BPR-0535]]).
 					application::device_authorization_capability{
-						.Registered = true } }
+						.Registered = true, .Profile = profile() } }
 		{
 		}
 

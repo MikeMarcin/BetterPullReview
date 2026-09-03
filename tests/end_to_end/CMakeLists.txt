@@ -438,6 +438,43 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# BPR-0535. The enterprise negative the row above could never make: every
+# course beside it begins for the front profile, and the picker is the only
+# thing that can bind the mounted panel to another one. The capability is
+# composed for GitHub.com, so a begin pressed while a GHES profile is selected
+# has to end in the typed refusal with nothing built - on every platform,
+# registered or not, which is why the expression names no platform. The wire is
+# composed under local denial like the gate above, so a run that stopped
+# refusing reaches a closed loopback port rather than github.com.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_ghes_refusal
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --ghes-host
+        ghe.example.invalid
+        --device-authorization-probe
+        --device-authorization-ghes-course
+        --network-denied
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_ghes_refusal
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_STAGE:unavailable[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_GHES_BEGIN_REFUSED:true[\r\n]+DEVICE_FLOW_GHES_REFUSAL_OK"
+)
+bpr_bound_automated_run(
+    application_device_authorization_ghes_refusal
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
 bpr_add_network_isolated_test(
     NAME application_device_authorization_release_contract
     WINDOWS_UNCONTAINED

@@ -4055,6 +4055,15 @@ namespace bpr::app {
 						deviceTransport     = DeviceWireTransport.get();
 						deviceCapability
 							= shipped_device_authorization_capability();
+						// The identity is registered for one host, and the
+						// wire above is bound to that host's profile. The
+						// capability names the same profile so the host can
+						// refuse a begin for any other one before it builds
+						// a request ([[BPR-0535]]); the picker can bind the
+						// mounted panel to a GHES profile, and this is what
+						// keeps that gesture out of GitHub.com's flow.
+						deviceCapability.Profile
+							= Profiles.front().profile();
 					}
 				}
 			}
@@ -4065,10 +4074,14 @@ namespace bpr::app {
 			// enrollment boundary, and the real vault, which is the only place
 			// "exactly one enrollment, and no settings or SQLite copy" can be
 			// observed rather than argued.
-			if (RegisteredDeviceCourse && Fixture != nullptr) {
+			if (RegisteredDeviceCourse && Fixture != nullptr
+				&& !Profiles.empty()) {
 				deviceTransport  = &Fixture->device_authorization_transport();
 				deviceCapability = application::device_authorization_capability{
-					.Registered = true
+					.Registered = true,
+					// The same profile the course begins for, by the same
+					// rule as the shipped selection above.
+					.Profile = Profiles.front().profile(),
 				};
 			}
 #endif

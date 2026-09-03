@@ -369,11 +369,24 @@ namespace bpr::application {
 			ConsecutiveFailures = 0U;
 
 			Flow = aRequest.Context;
-			if (!Capability.Registered) {
-				// No registered identity, so no request is built and the
-				// transport is never reached. The refusal is posted rather
-				// than applied inline because this runs inside the transition
-				// that produced the request.
+			if (!Capability.Registered
+				|| aRequest.Context.Profile != Capability.Profile) {
+				// No registered identity, or one registered for a different
+				// profile than the one this begin names: either way no
+				// request is built and the transport is never reached.
+				//
+				// The second condition is the same refusal for the same
+				// reason. The capability is composed for exactly one profile
+				// -- the wire is bound to that host and the client identity
+				// is that host's -- so a begin arriving for another profile,
+				// as one does the moment the mounted panel is bound to
+				// whichever profile the picker names, would run this host's
+				// flow under a foreign authority and then enroll the issued
+				// token under the profile that did not issue it
+				// ([[BPR-0535]]).
+				//
+				// The refusal is posted rather than applied inline because
+				// this runs inside the transition that produced the request.
 				post([self = shared_from_this(), context = aRequest.Context] {
 					if (self->Closing || self->Flow != context) {
 						return;

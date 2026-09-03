@@ -344,9 +344,19 @@ namespace bpr::application {
 	/// \brief Describes the device authorization capability record.
 	///
 	/// \details Whether this build has a registered application identity to
-	/// run the flow under, and nothing else. It carries no client identifier,
-	/// because the host does not need the value to know whether one exists and
-	/// a value that never enters the host cannot leak from it.
+	/// run the flow under, and which profile that identity belongs to. It
+	/// carries no client identifier, because the host does not need the value
+	/// to know whether one exists and a value that never enters the host
+	/// cannot leak from it.
+	///
+	/// The profile is here because a registered identity is registered
+	/// somewhere: the composed wire is bound to one host and the client is
+	/// that host's. A begin naming any other profile would run this host's
+	/// flow under a foreign authority and enroll the resulting token under
+	/// the profile that did not issue it, so the host refuses it exactly as
+	/// it refuses an unregistered build ([[BPR-0535]]). It defaults to the
+	/// zero identity, which no composed profile ever has, so an
+	/// unbound capability admits nothing.
 	///
 	/// It defaults to unregistered on purpose. Every shipped build is
 	/// unregistered until [[BPR-0318]] records a distributable identity, and a
@@ -360,6 +370,9 @@ namespace bpr::application {
 	struct device_authorization_capability
 	{
 		bool Registered = false;
+		// The one profile this capability was composed for. Every other
+		// profile is refused before a request is built.
+		core::host_profile_id Profile;
 
 		auto operator<=>(const device_authorization_capability&) const = default;
 	};
