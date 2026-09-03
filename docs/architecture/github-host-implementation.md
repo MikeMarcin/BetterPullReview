@@ -1218,11 +1218,23 @@ the session's credential authority key: while the device stage is
 flushes refresh material parked from the grant); the resume branch
 (`resume_refresh`) exists for a persisted binding, which no session has
 today — the catalog is process-local and no session survives a restart
-([[BPR-0541]]) — and until [[BPR-0540]] lands it is reachable only through
-the case the second review named: an orphaned refresh slot found by the
-host's one-time probe after a pasted token for the same account, which
-BPR-0540 closes by deleting the refresh slot with the base credential and
-gating the resume on device-grant provenance rather than slot presence.
+([[BPR-0541]]). Since [[BPR-0540]] the resume cannot be reached by slot
+presence alone: the GitHub host carries a provenance
+(`github_credential_provenance`, `manual` or `device_grant`) on every
+enrollment, only the device-authorization enrollment boundary says
+`device_grant`, the catalog remembers it beside the authority, and
+`accepted_credential_renewable()` is true only when the vault's refresh
+entry sits beside a credential whose provenance is a device grant — a
+pasted token for an account a past grant enrolled is never renewed from
+that grant's material. And the refresh slot shares the credential's
+erasure: every exact delete of the base credential under an authority
+(`delete_retained_on_shutdown` at orderly shutdown, sign-out, a
+superseding enrollment) issues `delete_refresh` under the same authority
+through the same vault port, counted into quiescence, with only a failure
+reported as a `vault_unavailable` diagnostic (and `shutdown_cleanup_failed`
+when closing). `application_device_authorization_orphan_course` pre-seeds
+the fixture's refresh slot, connects with a pasted credential, and pins
+`REFRESH_RESUMES:0` with the pasted session intact.
 The host publishes its refresh observation on every change
 through the projection port's `publish_refresh`, the sign-in panel renders
 one line for `reenrollment_required` and nothing for the other states, and

@@ -71,6 +71,9 @@ SELECTORS: dict[str, int] = {
     # BPR-0536: one rotation through the composed graph over the fixture's
     # refresh slot, with a course-only clock offset.
     "application_device_authorization_refresh_course": 1,
+    # BPR-0540: a pre-seeded orphan refresh slot and a pasted credential
+    # never resume; the pasted session stays intact.
+    "application_device_authorization_orphan_course": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector below
@@ -118,6 +121,11 @@ REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "application_device_authorization_refresh_course": (
         "--device-authorization-probe",
         "--device-authorization-refresh-course",
+    ),
+    # BPR-0540: the orphan course.
+    "application_device_authorization_orphan_course": (
+        "--device-authorization-probe",
+        "--device-authorization-orphan-course",
     ),
 }
 
@@ -193,6 +201,7 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
     "--device-authorization-registered-course",
     "--device-authorization-panel-course",
     "--device-authorization-refresh-course",
+    "--device-authorization-orphan-course",
     "--device-authorization-browser-absent",
     "--device-authorization-panel-absent",
     "--device-authorization-browser-probe",
