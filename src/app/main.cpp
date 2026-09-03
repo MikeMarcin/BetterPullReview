@@ -6666,8 +6666,21 @@ auto main(int argc, char** argv) -> int
 		const auto selfTest = has_argument(argc, argv, "--self-test");
 		const auto deviceProbe
 			= has_argument(argc, argv, "--device-authorization-probe");
-		const auto registeredDeviceCourse
-			= has_argument(argc, argv, "--device-authorization-registered-course");
+		// [[BPR-0537]]. Tests-enabled only, like the browser probe below.
+		// In a released image this flag suppressed the device probe's own
+		// cancel, so `--self-test --device-authorization-probe
+		// --device-authorization-registered-course` polled GitHub until the
+		// run budget expired. Every registration that passes it is a
+		// tests-enabled row, so gating it costs no course; what it buys is
+		// the string's absence from a tests-disabled image, which is how the
+		// RFC-BPR-0016 inventory scan proves the flag is gone rather than
+		// merely inert.
+		const auto registeredDeviceCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-registered-course");
+#else
+			false;
+#endif
 		// Tests-enabled only. A shipped binary opens a browser when the
 		// reviewer asks it to and at no other time: the stations run the
 		// release courses unattended, and a command-line flag that could start
@@ -6682,9 +6695,14 @@ auto main(int argc, char** argv) -> int
 #endif
 		// [[BPR-0526]]. Starts the flow through the mounted panel rather than
 		// through `select_device_authorization`, which is the only difference
-		// between this course and the registered one beside it.
-		const auto devicePanelCourse
-			= has_argument(argc, argv, "--device-authorization-panel-course");
+		// between this course and the registered one beside it, and
+		// tests-enabled only for the same reason ([[BPR-0537]]).
+		const auto devicePanelCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-panel-course");
+#else
+			false;
+#endif
 		// [[BPR-0535]]. Tests-enabled only, like the forced courses below.
 		// It drives the picker onto an enterprise profile and presses the
 		// mounted panel's begin, which is a reviewer's gesture; a shipped

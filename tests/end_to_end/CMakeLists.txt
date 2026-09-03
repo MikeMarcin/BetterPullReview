@@ -746,6 +746,45 @@ set_tests_properties(
         TIMEOUT 15
 )
 
+# BPR-0537. The composed system-browser opener's address validation, asked
+# directly. The three device-authorization courses observe a browser that
+# opened; this asks what the opener refuses, which is the claim, and drives
+# `open` with the platform launch substituted for a counting stand-in so no
+# test ever hands an address to the desktop. Links the composition for the
+# opener itself and needs no window, no event loop, and no network.
+bpr_add_executable(
+    test_better_pull_review_system_browser_opener_tests
+    system_browser_opener_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_system_browser_opener_tests
+    PRIVATE
+        BetterPullReview::Composition
+)
+target_compile_definitions(
+    test_better_pull_review_system_browser_opener_tests
+    PRIVATE
+        BPR_BUILD_TESTING=1
+)
+target_compile_features(
+    test_better_pull_review_system_browser_opener_tests
+    PRIVATE
+        cxx_std_23
+)
+bpr_enable_hardening(test_better_pull_review_system_browser_opener_tests)
+bpr_enable_warnings(test_better_pull_review_system_browser_opener_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_browser_address
+    COMMAND test_better_pull_review_system_browser_opener_tests
+)
+set_tests_properties(
+    application_device_authorization_browser_address
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "system-browser-opener-tests:pass"
+        TIMEOUT 15
+)
+
 set(bpr_application_composition_contract_command
     Python3::Interpreter
     "${CMAKE_CURRENT_SOURCE_DIR}/composition_contract_tests.py"
