@@ -4156,6 +4156,28 @@ namespace bpr::app {
 			Host->activate_public_preview(selected->profile());
 		}
 
+		// One write and one triage intent, offered to the mode and answered by
+		// the core policy alone. `public_preview_legality` is a pure question:
+		// it reaches no provider, asks for no transport and builds no request,
+		// so the refusals counted here cost exactly the zero requests the
+		// markers beside them report.
+		void attempt_public_preview_writes()
+		{
+			if (Host == nullptr) {
+				return;
+			}
+			constexpr std::array intents{
+				core::anonymous_read_intent::publish_review_comment,
+				core::anonymous_read_intent::set_viewed_file_state,
+			};
+			for (const auto intent : intents) {
+				if (std::holds_alternative<core::anonymous_intent_refused>(
+						Host->public_preview_legality(intent))) {
+					++PublicPreviewWriteRefusals;
+				}
+			}
+		}
+
 		// The instant the signed-out presentation is measured from. The window
 		// reads no clock of its own, so composition hands it one on every
 		// publication; a presentation that carries the host's own instant
@@ -7170,6 +7192,7 @@ namespace bpr::app {
 		// Sign-in gestures the host forwarded. Evidence that the refusal
 		// leaves the reviewer somewhere to go rather than nowhere.
 		std::size_t                    PublicPreviewSignInRequests = 0U;
+		std::size_t                    PublicPreviewWriteRefusals  = 0U;
 		public_preview_projection_sink PublicPreviewProjections;
 		std::unique_ptr<composition_public_preview_projection>
 																	 PublicPreviewProjectionFanOut;
@@ -7555,6 +7578,8 @@ namespace bpr::app {
 			.PublicPreviewReviewCommentGroups
 			= Implementation->PublicPreviewProjections.last()
 				  .ReviewCommentGroups.size(),
+			.PublicPreviewWriteRefusals
+			= Implementation->PublicPreviewWriteRefusals,
 		};
 	}
 
@@ -7576,6 +7601,11 @@ namespace bpr::app {
 	void github_application::activate_public_preview(const bool aEnterprise)
 	{
 		Implementation->activate_public_preview(aEnterprise);
+	}
+
+	void github_application::attempt_public_preview_writes()
+	{
+		Implementation->attempt_public_preview_writes();
 	}
 
 #if defined(BPR_BUILD_TESTING)

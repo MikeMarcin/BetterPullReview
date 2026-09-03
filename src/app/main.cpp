@@ -728,6 +728,10 @@ namespace {
 			bool Enterprise = false;
 			bool Activated  = false;
 			bool Opened     = false;
+			// Whether the run has offered the mode its refused write and
+			// triage intents. Offered exactly once, so the counted refusals
+			// are the two the course asked for and not a tick's worth.
+			bool WritesOffered = false;
 		};
 
 		stage Stage = stage::start;
@@ -3264,7 +3268,14 @@ namespace {
 			// was composed", "which answer the activation produced", and
 			// "nothing was sent, no header was built, no vault was touched"
 			// fail independently, and one verdict would hide which.
-			const auto stageText = status.PublicPreviewSignedOut
+			// The mode lives on the accepted session, and a run reports its
+			// markers after shutdown has closed that session. So the fact is
+			// taken from what the run observed while the session was live --
+			// `Opened` is set only once the status said signed out -- with the
+			// live answer still leading, for the rows that never open one.
+			const auto signedOut = status.PublicPreviewSignedOut
+				|| aRun.PublicPreview.Opened;
+			const auto stageText = signedOut
 				? "enabled"
 				: (status.PublicPreviewPolicyRefused ? "refused"
 													 : "unavailable");
@@ -3289,17 +3300,20 @@ namespace {
 				// through the credential-free authority, the inline
 				// conversation was observed, and neither an authorization
 				// header nor the vault was involved in any of it.
-				const auto enabled = status.PublicPreviewComposed
-					&& status.PublicPreviewSignedOut
+				const auto enabled = status.PublicPreviewComposed && signedOut
 					&& !status.PublicPreviewUnavailable
 					&& status.PublicPreviewRequests >= 1U
 					&& status.PublicPreviewHeaderEffects == 0U
 					&& status.PublicPreviewVaultEffects == 0U
 					&& status.PublicPreviewReviewCommentsObserved
+					&& status.PublicPreviewWriteRefusals == 2U
 					&& status.PublicPreviewPublications > 0U;
 				stream << "PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:"
 					   << static_cast<unsigned long long>(
 							  status.PublicPreviewReviewCommentGroups)
+					   << "\nPUBLIC_PREVIEW_WRITE_REFUSALS:"
+					   << static_cast<unsigned long long>(
+							  status.PublicPreviewWriteRefusals)
 					   << '\n'
 					   << (enabled ? "PUBLIC_PREVIEW_ENABLED_OK\n"
 								   : "PUBLIC_PREVIEW_ENABLED_FAILED\n");
@@ -3308,8 +3322,7 @@ namespace {
 				// the authority was composed and the core policy still refused
 				// the mode, before a request was built.
 				const auto refused = status.PublicPreviewComposed
-					&& status.PublicPreviewPolicyRefused
-					&& !status.PublicPreviewSignedOut
+					&& status.PublicPreviewPolicyRefused && !signedOut
 					&& status.PublicPreviewRequests == 0U
 					&& status.PublicPreviewHeaderEffects == 0U
 					&& status.PublicPreviewVaultEffects == 0U
@@ -3321,8 +3334,7 @@ namespace {
 				// `public_preview_unavailable`, said so where a reviewer can
 				// see it, and sent nothing of any kind.
 				const auto unavailable = !status.PublicPreviewComposed
-					&& status.PublicPreviewUnavailable
-					&& !status.PublicPreviewSignedOut
+					&& status.PublicPreviewUnavailable && !signedOut
 					&& status.PublicPreviewRequests == 0U
 					&& status.PublicPreviewHeaderEffects == 0U
 					&& status.PublicPreviewVaultEffects == 0U
@@ -4380,6 +4392,17 @@ namespace {
 							|| !aApplication.status()
 									.PublicPreviewReviewCommentsObserved) {
 							break;
+						}
+						// Offered once the read is in, so the refusals are
+						// answered by a live signed-out session rather than by
+						// an absent one. Nothing here can send: the marker
+						// beside it still reports one anonymous read and no
+						// header, which is what makes "refused before a
+						// request" a reading of the evidence rather than a
+						// claim about it.
+						if (!aRun->PublicPreview.WritesOffered) {
+							aRun->PublicPreview.WritesOffered = true;
+							aApplication.attempt_public_preview_writes();
 						}
 					}
 #endif

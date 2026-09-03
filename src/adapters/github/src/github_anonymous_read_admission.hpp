@@ -3,8 +3,11 @@
 
 #include "github_read_contract.hpp"
 
+#include "bpr/application/github_capability_cache.hpp"
 #include "bpr/application/github_host_authority.hpp"
 #include "bpr/application/github_provider_port.hpp"
+#include "bpr/application/github_read_model.hpp"
+#include "bpr/core/anonymous_read_policy.hpp"
 
 #include <cstdint>
 #include <expected>
@@ -104,6 +107,39 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 		return { };
+	}
+
+	/// \brief Reports whether a read presents the synthesised signed-out reader.
+	///
+	/// \details A signed-out session never probes: the capability probe is the
+	/// GraphQL surface and `admit_anonymous_read` refuses that before a request
+	/// exists. So the evidence such a read carries cannot be evidence an
+	/// observation produced, and the freshness and projection rules the
+	/// authenticated path applies to it have nothing to check. What it carries
+	/// instead is synthesised by the host and is admitted only in exactly this
+	/// shape: no reader, no account anywhere in the authority, every capability
+	/// unsupported by policy, a read shape that claims nothing, and no
+	/// observation window at all. The two epochs being zero is the load-bearing
+	/// term -- a probe always sets them -- so evidence that was observed can
+	/// never enter through here, and evidence synthesised here can never pass
+	/// for something observed.
+	///
+	/// Shared by the provider and the paged read because both guard the same
+	/// request against the same rule, and two copies of it could disagree.
+	[[nodiscard]] inline auto signed_out_read_identity(
+		const application::github_pull_request_provider_request& aRequest) noexcept
+		-> bool
+	{
+		const auto& evidence = aRequest.CapabilityEvidence;
+		return aRequest.Context.Mode == core::github_access_mode::public_preview
+			&& application::anonymous(aRequest.Viewer)
+			&& aRequest.Context.Account.value() == 0U
+			&& evidence.Authority.Account.value() == 0U
+			&& evidence.Capabilities == core::anonymous_capabilities()
+			&& application::reads_nothing(evidence.ReadShape)
+			&& evidence.Revision.value() != 0U
+			&& evidence.ObservedAt.value() == 0U
+			&& evidence.ExpiresBefore.value() == 0U;
 	}
 
 	/// \brief Projects a refusal onto the provider's failure vocabulary.

@@ -383,6 +383,43 @@ namespace bpr::adapters::github::detail {
 				&& aRequest.Attempt.valid();
 		}
 
+		/// \brief Reports whether a signed-out read names itself correctly.
+		///
+		/// \details The same correlation the authenticated read must satisfy,
+		/// with one term replaced rather than dropped: a signed-out session
+		/// never probed, so `structurally_valid` -- which asks whether the
+		/// evidence is what an observation would have projected -- has nothing
+		/// to check, and the synthesised shape is required in its place. The
+		/// account-shaped terms in `valid_read_correlation` still hold here,
+		/// because a signed-out read names the same absent account in all
+		/// three places rather than naming none.
+		[[nodiscard]] auto valid_anonymous_read_correlation(
+			const application::github_pull_request_provider_request& aRequest) noexcept
+			-> bool
+		{
+			return application::detail::valid_context(aRequest.Context)
+				&& application::valid(aRequest.ProfileAuthority)
+				&& aRequest.Context.Profile == aRequest.ProfileAuthority.Profile
+				&& aRequest.Context.Host == aRequest.ProfileAuthority.Host
+				&& aRequest.Viewer.Account == aRequest.Context.Account
+				&& aRequest.CapabilityEvidence.Authority.Profile
+				== aRequest.Context.Profile
+				&& aRequest.CapabilityEvidence.Authority.Host == aRequest.Context.Host
+				&& aRequest.CapabilityEvidence.Authority.Account
+				== aRequest.Context.Account
+				&& aRequest.CapabilityEvidence.Authority.ProfileRevision
+				== aRequest.ProfileAuthority.ProfileRevision
+				&& aRequest.CapabilityEvidence.Authority.ServerContract
+				== aRequest.ProfileAuthority.ServerContract
+				&& aRequest.CapabilityEvidence.Authority.ProbeContractRevision
+				== aRequest.ProfileAuthority.ProbeContractRevision
+				&& aRequest.CapabilityEvidence.Revision
+				== aRequest.Context.Capabilities
+				&& (signed_out_read_identity(aRequest)
+					|| structurally_valid(aRequest.CapabilityEvidence))
+				&& aRequest.Attempt.valid();
+		}
+
 		[[nodiscard]] auto valid_request(
 			const application::github_pull_request_provider_request& aRequest) noexcept
 			-> bool
@@ -1444,7 +1481,7 @@ namespace bpr::adapters::github::detail {
 				== github_provider_read_authority::anonymous_public;
 		if (
 			Implementation == nullptr
-			|| !(anonymous ? valid_read_correlation(aRequest)
+			|| !(anonymous ? valid_anonymous_read_correlation(aRequest)
 						   : valid_request(aRequest))) {
 			aCompletion(application::github_pull_request_error{
 				.Request = std::move(aRequest),

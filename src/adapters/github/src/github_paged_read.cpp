@@ -2089,6 +2089,14 @@ namespace bpr::adapters::github::detail {
 				.Facts       = evidence.Facts,
 				.SchemaFacts = evidence.SchemaFacts,
 			};
+			// RFC-BPR-0017. The signed-out reader, decided once. Two groups of
+			// terms below describe an account and a probe, and a signed-out
+			// read has neither; every other term still applies to it exactly
+			// as written, and this one is false unless the whole synthesised
+			// shape holds under the authority that is allowed to present it.
+			const auto signedOut = aReadAuthority
+					== github_provider_read_authority::anonymous_public
+				&& signed_out_read_identity(aRequest);
 			return limits_valid(aLimits) && aSnapshot.value() != 0U
 				&& application::detail::valid_context(context)
 				&& application::valid(authority) && aRequest.Attempt.valid()
@@ -2099,13 +2107,18 @@ namespace bpr::adapters::github::detail {
 				&& (aReadAuthority
 						== github_provider_read_authority::anonymous_public
 					|| aRequest.AccountTransport != nullptr)
-				&& aRequest.Viewer.Account.value() != 0U
+				// The reader. Named exactly, or named not at all: a
+				// signed-out read carries an empty viewer, which is the
+				// identity the accepted snapshot is required to carry back.
+				&& (signedOut
+					|| (aRequest.Viewer.Account.value() != 0U
+						&& bounded_text(aRequest.Viewer.Node.value(),
+										aLimits.Records.MaximumIdentityBytes,
+										true)
+						&& bounded_text(aRequest.Viewer.Login,
+										aLimits.Records.MaximumLoginBytes,
+										true)))
 				&& aRequest.Viewer.Account == context.Account
-				&& bounded_text(aRequest.Viewer.Node.value(),
-								aLimits.Records.MaximumIdentityBytes,
-								true)
-				&& bounded_text(
-					   aRequest.Viewer.Login, aLimits.Records.MaximumLoginBytes, true)
 				&& bounded_text(aRequest.Viewer.DisplayName,
 								aLimits.Records.MaximumDisplayNameBytes)
 				&& authority.Profile == context.Profile
@@ -2115,7 +2128,7 @@ namespace bpr::adapters::github::detail {
 				&& authority.Hostname.value() == aProfile.hostname()
 				&& authority.ServerContract == aProfile.server_contract()
 				&& authority.Authentication == aProfile.authentication_transport()
-				&& application::valid(observation)
+				&& (signedOut || application::valid(observation))
 				&& evidence.Authority.Profile == authority.Profile
 				&& evidence.Authority.ProfileRevision == authority.ProfileRevision
 				&& evidence.Authority.Host == authority.Host
@@ -2124,13 +2137,20 @@ namespace bpr::adapters::github::detail {
 				&& evidence.Authority.ProbeContractRevision
 				== authority.ProbeContractRevision
 				&& evidence.Revision == context.Capabilities
-				&& evidence.ExpiresBefore > evidence.ObservedAt
-				&& evidence.ExpiresBefore.value() - evidence.ObservedAt.value()
-				<= application::maximum_github_capability_freshness_window
-				&& evidence.Capabilities
-				== application::projected_capabilities(observation)
-				&& evidence.ReadShape
-				== application::projected_read_shape(observation);
+				// The probe. Observed within the freshness window and
+				// projected from what it observed, or -- signed out -- never
+				// observed at all, which `signed_out_read_identity` has
+				// already checked term by term.
+				&& (signedOut
+					|| (evidence.ExpiresBefore > evidence.ObservedAt
+						&& evidence.ExpiresBefore.value()
+								- evidence.ObservedAt.value()
+							<= application::
+								maximum_github_capability_freshness_window
+						&& evidence.Capabilities
+							== application::projected_capabilities(observation)
+						&& evidence.ReadShape
+							== application::projected_read_shape(observation)));
 		}
 
 		[[nodiscard]] auto
@@ -3685,6 +3705,15 @@ namespace bpr::adapters::github::detail {
 			if (aStop.stop_requested()) {
 				return cancelled();
 			}
+			// The authority the read ran under, carried on the snapshot it
+			// produced. The application layer validates the reader against
+			// this field rather than against the request, so a signed-out read
+			// that forgot to say so would be judged by the authenticated rule
+			// and refused for holding no account.
+			result.Mode           = aReadAuthority
+					== github_provider_read_authority::anonymous_public
+				? core::github_access_mode::public_preview
+				: core::github_access_mode::authenticated;
 			result.RateLimits     = execution.rate_limits();
 			const auto validation = application::validate(result, aRequest.Context, aLimits.Records);
 			if (!validation.valid()) {

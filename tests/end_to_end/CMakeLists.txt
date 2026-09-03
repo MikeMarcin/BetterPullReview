@@ -1475,6 +1475,48 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# The signed-out read, end to end against the recorded public path. The fixture
+# replays a second script here -- the nine credential-free operations in the
+# order the anonymous authority issues them -- so what this row proves is not
+# that a recording exists but that the composed host reaches it: the mode is
+# entered, the pull request opens through the credential-free authority, the
+# inline conversation the signed-out REST surface carries is observed, and
+# neither an authorization header nor the vault was involved in any of it.
+# Tests-enabled only, for the same reason the enterprise row above is.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-probe
+        --public-preview-enabled-course
+        --github-fixture
+        github-com
+        --automated-run-budget-ms
+        ${bpr_fixture_run_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_public_path
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        # Every term of the claim, in the order the run prints them. The two
+        # zeroes are the ones a passing read could most easily have bought:
+        # a header the transport attached, or a vault the read touched. The
+        # two refusals are the write and triage intents the mode was offered
+        # while the session was live, and they sit beside a request count of
+        # one, which is where "refused before a request" is legible.
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:1[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:1[\r\n]+PUBLIC_PREVIEW_WRITE_REFUSALS:2[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_public_path
+    TIMEOUT 60
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
 foreach(
     fixture_case
     IN ITEMS
