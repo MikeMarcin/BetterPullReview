@@ -3,7 +3,7 @@ id: BPR-0285
 title: Anchor RFC-BPR-0016 capability-critical verification
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539]
+depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539, BPR-0540, BPR-0542, BPR-0543]
 ---
 
 # Anchor RFC-BPR-0016 capability-critical verification
@@ -615,3 +615,94 @@ extra refusal, the registered-but-not-owed exception, and the stale
 exception. Both stations' first replays were held and discarded as claims;
 the immutable final-head replays below ran at the head that carries the
 derived table.
+
+## Second independent capability-critical review of `0bd39349` — 2026-09-04
+
+Run read-only at the head that closed BPR-0535, BPR-0536, BPR-0537,
+BPR-0534, and BPR-0539, with the first review's findings as its brief. The
+review's text, verbatim:
+
+Role: rfc-critical-reviewer | Model: claude-fable-5-1 | Effort: max
+
+Head `0bd393490bc8fc626c96bb36041ed83b848778da`, clean tree. Read-only; no build, no ctest, no network. Read in full: the ledger, BPR-0285/0535/0536/0537/0539, the device host, the GitHub host's probe and activation paths, the composition's device regions, the fixture vault, the refresh tests, the RFC. Ran only `nm`/`strings` on the two existing images plus `verify_rfc0016_test_inventory.py` and `verify_composed_hosts.py` in check mode.
+
+## Blocking findings
+
+**B1 — A pasted token for an account that once completed a device grant is silently replaced by a device-refreshed token; this is the only production path that reaches `resume_refresh`.** Claim: RFC acceptance "Manual token entry remains available and functional on every profile, including profiles where device flow succeeded" (ledger row 143). Trace: no product code ever calls `delete_refresh` (`grep -rn 'delete_refresh(' src` finds only the five implementations), while the composition's `delete_retained_on_shutdown` policy deletes the base credential on every orderly shutdown (`github_application_host.cpp:1369-1379`, `3548-3550`). The keychain keys the refresh slot by the authority (`macos_keychain.cpp:1329-1360`, service `github-native-refresh`), and `credential_key` (`github_application_host.cpp:281-292`) is deterministic per profile+account. So after a grant and a quit, the keychain holds an orphaned 6-month refresh token. On the next launch, pasting a PAT for the same account → `/user` → same key → acceptance → `start_refresh_probe` finds the orphan (`2214-2305`) → `republish_accepted_session` → `bind_device_refresh_authority`: stage is not `authorized` this run, `accepted_credential_renewable()` is true → `resume_refresh` (`github_application.cpp:4897-4905`) → `begin_refresh` immediately → the orphan is spent at GitHub → `Enrollment->enroll(profile, device access token)` (`device_authorization_application_host.cpp:867-873`) supersedes and deletes the PAT session. The panel shows nothing (`scheduled` renders no line). Reproduction without network: a fixture course variant that pre-seeds the fixture refresh slot, connects with the fixture credential instead of the grant, and expects `DEVICE_FLOW_REFRESH_RESUMES:1` with `VAULT_STORES:2` and the last stored digest equal to `fixture-access-token-0276-renewal-1` — a passing run demonstrates the defect. Smallest fix: `delete_refresh` under the same authority wherever the base credential is exact-deleted (shutdown, sign-out, superseding enrollment from a manual source), so "presence is the whole answer" becomes true.
+
+**B2 — Refresh material has no erasure rule, and the shutdown-cleanup evidence cannot see it.** Claim: RFC "Token handling" ("refresh token storage under the same vault rules", "no separate erasure rule"); `foundation-security.md:87-90`; the ledger's "under existing vault authority" (row 144/203). Before BPR-0536 nothing ever reached the refresh slot; now it does and nothing ever removes it. The fixture's retained-secret check reads only the base slot (`github_public_path_fixture.cpp:2178`, `SecretRetained = Credential.has_value()`), and `RefreshStores`/`Refresh` are never reported, so `application_device_authorization_refresh_course` passes with the refresh token left in the fixture vault after the orderly shutdown that deleted the access token. Stronger row: print `DEVICE_FLOW_REFRESH_RETAINED:<bool>` from `state->Refresh.has_value()` at evidence time and pin `false`.
+
+## High-risk non-blocking findings
+
+- **R1 — The "restart resume" is unreachable in the composed product.** `resume_profile` has no caller in `src/` outside the host and its tests; `github_credential_binding_catalog` is process-local (`github_application_host.hpp:62-90`) and the documentation says so ("no … process-restart recovery", `github-host-implementation.md:1366-1373`). Without a binding an activation has neither enrollment nor resume and fails with `vault` (`github_application_host.cpp:1696-1706`). So "a persisted grant resumes renewal after a restart" (ledger row 203, `github-host-implementation.md:1216-1222`, `build-and-test.md:2401`, BPR-0536 claim row 1) describes a path no launch can take; `REFRESH_RESUMES:0` is pinned and the branch is exercised only by B1's wrong case.
+- **R2 — Immediate refresh on resume turns a transient failure into `reenrollment_required`.** `resume_refresh` calls `begin_refresh()` at once (`host.cpp:1293-1303`); any `transport_failed` becomes a typed re-enrollment prompt with no retry (`1031-1037`, `1060-1070`) while the access token still works. Latent until R1 is composed.
+- **R3 — Audit anchor strength.** `bind_device_refresh_authority` is a local `t` symbol in Release (`nm`); the audit proves presence, not the call. The dev course proves the call; acceptable but note it.
+- **R4 — Rotation evidence.** The refresh course pins neither the second store's identity nor `RefreshStores`; `ROTATIONS:1` (a host counter read through the projection) plus `VAULT_STORES:2` is the whole proof of refresh-slot rotation.
+
+## Verification failures
+
+- **V7 — BPR-0537's second required-final-state bullet is undelivered:** the replay row (ledger line 210) still does not record the one device code each enabled platform mints per replay; only the card sections do.
+- **V8 — The Release image at `build/app-release` is further behind the head than the brief states:** `git diff --stat 9af4d58d..HEAD -- src` shows BPR-0539's `main.cpp`/fixture edits and BPR-0532's new `agent_realignment.{hpp,cpp}` (326 lines in `src/application`). Its scans (`RFC0016_TEST_INVENTORY_OK`, `COMPOSED_HOSTS_OK required=30`) are provenance, not final-head evidence.
+- First-review items, at this head: V1 resolved (ledger line 23; RFC-0002 front matter `Auto-Verified`). V2 resolved (lines 170-171). V3 resolved (`security-threat-model.md:1087`, `build-and-test.md:661,712`). V4 resolved (BPR-0310 line 241). V5 resolved (rows 141-142 reworded; `application_device_authorization_browser_address` registered at `tests/end_to_end/CMakeLists.txt:833`, in the inventory; `substitute_browser_launch` absent from Release, present in dev). V6 resolved for GHES; for refresh see R1. R2 resolved in the course (`verify_rfc0016_platform_course.py:664-672` requires `cancelled`) but not in the ledger row (V7). R3 resolved: all fourteen forbidden strings are 0 in Release and 1 in dev; the Release carries only `--self-test`, `--device-authorization-probe`, `--public-preview-probe`, `--ghes-host`, `--automated-run-budget-ms`. R4 resolved by `ghes_refusal`. R5 resolved by the guard.
+- Fixture honesty by row: registered course — `VAULT_STORED_TOKEN:f5505a4b89c07e21` is an external digest and `STORED_IS_GRANT` compares to the transport's issued token; skipping enrollment fails it (card's control). Refresh course — the markers read `DeviceRefreshObservation` (`github_application.cpp:8522-8524`), so losing `publish_refresh` or the binding yields `idle`/`ROTATIONS:0`; see R4. GHES refusal — `GhesBegan && Stage == unavailable` under `--network-denied`; a missing guard or a panel not bound to the GHES row lands on `failed` (card's mutation). R1 tests — `test_a_store_that_answers_after_a_cancel_arms_no_renewal` holds the store across `perform(cancel)`; deleting only the context reset leaves `RefreshStoreContext` matching and `schedule_refresh` arms (lifetime set at `authorize`), so the mutation fails as claimed. B1 (first review) — the guard at `host.cpp:401-428` precedes `++Outstanding`; both routes dispatch the same intent (`4926-4945`, `5028-5037`); `bind`/`resume` are gated to `Profiles.front()` (`4872`); no bypass found.
+
+## Residual uncertainty
+
+B1 is traced, not executed. Whether GitHub honours an unused refresh token from a superseded session is documented behaviour, not observed here. I did not read the Linux/Windows vault implementations for the same slot separation.
+
+## Unsupported suspicions
+
+A panel rebound to a GHES profile keeps rendering the GitHub.com host's renewal line (cosmetic). `perform(begin)` for the composed profile does not cancel an armed renewal timer; a new grant simply supersedes it.
+
+**Verdict:** RFC-BPR-0016 may not move to Auto-Verified at this head — B1 and B2 stand until refresh material shares the base credential's erasure path and a row can observe it.
+
+### Adjudication
+
+- **B1 and B2 are accepted as blocking** and carded as [[BPR-0540]]: the
+  refresh slot shares the base credential's erasure path (shutdown,
+  sign-out, a superseding manual enrollment), the resume answers only for
+  device-grant provenance and never for slot presence, the fixture reports
+  the refresh slot and both device courses pin it absent after shutdown,
+  and an orphan course proves a pasted token never resumes. The closeout
+  waits for it; the ledger's refresh row and the three documents were
+  reworded to the truthful scope in the same commit as this record.
+- **R1 and R2 are accepted** and carded as [[BPR-0541]] (a persisted
+  binding across a restart, with the first refresh deferred and retried).
+  They do not block: no acceptance row claims a session survives a
+  restart, and the claims that implied it were reworded.
+- **R3 accepted as stated**: the audit proves the binder's presence; the
+  dev course proves the call.
+- **R4 is folded into BPR-0540's evidence** (`REFRESH_STORES` pinned).
+- **V7 is resolved by the closeout**: the replay row's closing text names
+  the one device code each enabled platform mints per replay.
+- **V8 is by construction**: each platform's replay builds its Release
+  image fresh in a deleted root and scans that image; the integrator's
+  standing `build/app-release` is provenance only.
+- The first review's V1–V6 and R2–R5 are recorded resolved at this head,
+  with the citations the review gives.
+
+## Two enabled platforms have no refresh slot — 2026-09-03
+
+Found while reviewing [[BPR-0540]]'s erasure rule, which treats a vault's
+`unavailable` answer to `delete_refresh` as benign because "a platform
+without a second slot answers that". Two shipped platforms do:
+`linux_secret_service.cpp` and `windows_credential_manager.cpp` implement
+`store_refresh`, `retrieve_refresh`, and `delete_refresh` as stubs that
+answer `unavailable` without touching the store (the Windows comment says
+the slot "has no Credential Manager target of its own yet" and defers it
+to [[BPR-0311]], which closed without it). The registration issues
+expiring user tokens with refresh tokens, so a real Linux or Windows
+sign-in parks the refresh token, flushes it on the `/user` binding
+([[BPR-0536]]), meets `unavailable`, and `fail_storage` reports
+`reenrollment_required` (`storage_failed`) right after the sign-in
+succeeded; the token then expires with nothing to renew it. Every enabled
+course stops at `cancelled` before a grant and every composed course runs
+over the fixture vault, which has a real slot, so no row could see it.
+
+Adjudicated as blocking for rows 1 and 9 on those platforms and carded as
+[[BPR-0542]] (Linux, `23-ready-lin/`, dispatched to `bpr-linux`) and
+[[BPR-0543]] (Windows, `21-ready-win/`, dispatched to `bpr-win`). Both
+are added to this closure; the final-head replays run at the head that
+carries them. BPR-0540's erasure rule is corrected in the same slice to
+treat every error as a failure, since after these cards `unavailable`
+means only an unreachable store, exactly as it does for the base slot.

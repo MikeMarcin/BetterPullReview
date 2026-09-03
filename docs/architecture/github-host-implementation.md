@@ -1215,12 +1215,15 @@ That lifecycle is composed, not only tested ([[BPR-0536]]). On an accepted
 session for the device-enrolled profile, composition hands the device host
 the session's credential authority key: while the device stage is
 `authorized` in this run it binds (`bind_refresh_authority`, which also
-flushes refresh material parked from the grant), and otherwise, when the
-GitHub host's one-time probe of its own refresh slot finds material — only
-a device grant ever writes that slot, which is how a restart tells a
-persisted grant from a pasted token — it resumes (`resume_refresh`), so a
-process that starts with a stored grant re-arms renewal without a new
-device code. The host publishes its refresh observation on every change
+flushes refresh material parked from the grant); the resume branch
+(`resume_refresh`) exists for a persisted binding, which no session has
+today — the catalog is process-local and no session survives a restart
+([[BPR-0541]]) — and until [[BPR-0540]] lands it is reachable only through
+the case the second review named: an orphaned refresh slot found by the
+host's one-time probe after a pasted token for the same account, which
+BPR-0540 closes by deleting the refresh slot with the base credential and
+gating the resume on device-grant provenance rather than slot presence.
+The host publishes its refresh observation on every change
 through the projection port's `publish_refresh`, the sign-in panel renders
 one line for `reenrollment_required` and nothing for the other states, and
 cancelling a flow forgets any outstanding refresh store so a store that
