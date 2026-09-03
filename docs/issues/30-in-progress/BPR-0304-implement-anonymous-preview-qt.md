@@ -1,7 +1,7 @@
 ---
 id: BPR-0304
 title: Implement explicit public-preview Qt presentation
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: [BPR-0303, BPR-0317]
 ---
@@ -21,3 +21,17 @@ depends_on: [BPR-0303, BPR-0317]
 - A selected public file reaches the real rendered diff panes with exact path,
   base/head identity, content, and scroll/focus evidence; missing viewer identity
   does not silently remove the RFC's promised diff-reading surface.
+
+## Lane — 2026-09-02
+
+[[BPR-0303]] and [[BPR-0317]] are terminal; claimed straight into
+`30-in-progress/` by the integrator, its worker started in a worktree on the
+head that carries both, under the transition exception. What they leave at
+this card's door: the host's `access_mode`, `public_preview_refusal`, and
+`public_preview_legality`; the session projection's core rate limits
+(`Limit`, `Remaining`, `ResetUnixSeconds`) that the usage ring reads; the
+snapshot's `ReviewCommentsAvailability` and `ReviewCommentGroups` that the
+read-only conversation presents; the mounted device panel and its dispatch
+that the sign-in gesture reaches; and the bound definitions in
+`docs/verification/reviews/rfc0017-public-preview-decision-v001/validation-record.json`
+— the words this card puts on screen.

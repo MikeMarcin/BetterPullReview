@@ -1,7 +1,7 @@
 ---
 id: BPR-0317
 title: Implement anonymous Git cache epoch and diff authority
-status: In Progress
+status: Done
 rfc: RFC-BPR-0017
 depends_on: [BPR-0301, BPR-0303, BPR-0531]
 ---
@@ -105,3 +105,63 @@ and `sqlite_epoch_catalog_storage_contract`.
 | Every touched C++ file is formatted | `clang-format --dry-run --Werror` over the ten touched files | exit 0, no output | this commit |
 | The shipped image carries the smart factory and not its test twin | `cmake --build --preset app-release`, then `python3 scripts/verify_rfc0017_test_inventory.py --build-dir build/dev --all --release-binary build/app-release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview` | `RFC0017_TEST_INVENTORY_OK`; `nm -C` finds 2 `make_native_https_anonymous_smart_transport` symbols and 0 `_for_test`; the dev binary as a positive control names the new seam twice | this commit |
 | The manifest gate's and the inventory's own contracts | `python3 tests/scripts/verify_test_network_isolation_tests.py`; `python3 tests/scripts/verify_rfc0017_test_inventory_tests.py` | OK; OK | this commit |
+
+## Part two landed — 2026-09-02
+
+Integrated at `283212ae`. With it the card's required final state is met and
+it closes.
+
+**The host delivers the handoff.** `github_application_host` gains one
+trailing defaulted port, `git_smart_transport_factory_port* aAnonymousSmartGit`
+— one port rather than the two the design named, because the host consumes
+no Git cache port on either path: the cache is opened downstream by
+`epoch_application_host` from the handoff's authority, so a cache port on
+the GitHub host would have been an unused parameter. Under public preview
+with the port present, `make_epoch_handoff` builds a `public_preview`
+authority with zero account and viewer and delivers it;
+`deliver_epoch_handoff` reports `epoch_handoff_unavailable` only when the
+port is null, which is today's composition until [[BPR-0305]] wires
+`make_native_https_anonymous_smart_transport`.
+
+**Discrimination reaches the cache.** `git_smart_authority_binding` carries
+`Mode`, `agrees()` compares it, and `valid()` for the binding and for
+`accepted_pull_request_handoff` is mode-discriminated — public preview: zero
+account and viewer and no current viewer review; authenticated: unchanged.
+In `epoch_application_host`, `catalog_key`, `agrees(authority, handoff)`, and
+`invalidation_identity` carry `Mode`, which is what gives a signed-out read
+its own catalog and cache scope through `git_cache_open_request.Authority`
+(part one's mode-scoped manifest). A mode switch invalidates through the
+existing path and reaches the epoch authority.
+
+**`application_anonymous_diff_authority`.** Five cases: the host under public
+preview with the anonymous transport port renders the selected-file diff
+through `diff_application_host` under a `public_preview` authority with zero
+account and viewer; the same pull request under an authenticated session gets
+a different authority and cache scope; a mode switch invalidates the epoch
+authority; zero vault, credential, or `/user` calls; with the port null the
+handoff stays typed-unavailable with zero requests. Registered like its
+siblings, with no isolation keyword. The rendered diff is driven with the
+diff course's fake blob bytes rather than a local fixture repository —
+real-repository rendering under an anonymous authority is the adapter
+courses' evidence here and the platform course's ([[BPR-0306]]) end to end.
+
+**The wire.** `native_git_smart_transport_fixture` gains three anonymous
+scenarios — discovery, ls-refs, fetch — driven by the `_for_test` smart
+factory: each asserts one connection, one origin, exactly one
+`git-upload-pack` target and zero `git-receive-pack`, and the loopback proxy
+raises `anonymous-authorization` or `anonymous-credential-origin` if any
+`Authorization` header or credential-derived byte appears. The driver still
+feeds the credential frame on the anonymous course, so the absence is proved
+rather than arranged. The GHES refusal before the wire sits in
+`native_git_smart_transport_contract`. No new loopback registration.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The dev graph builds clean | `cmake --build --preset dev` | exit 0, zero `error:` or `warning:` lines | this commit |
+| The new selector, the anonymous host, every epoch and diff host course, the smart-HTTP contract and fixture with the anonymous scenarios, the two part-one selectors, core's epoch policy, the manifest and inventory gates, and both composition contracts | `ctest --preset dev -R '^(application_anonymous_diff_authority\|application_anonymous_read_host\|application_epoch_[a-z_0-9-]*\|application_diff_host\|application_github_host\|native_git_smart_transport_(contract\|fixture)\|git_anonymous_public_read\|sqlite_anonymous_epoch_authority\|core_epoch_policy\|test_network_isolation_manifest\|rfc0017_test_inventory\|rfc0017_test_inventory_contract\|application_review_round_trip_composition_contract\|application_composition_contract)$' --output-on-failure` | 20/20 passed | this commit |
+| The architecture boundaries hold | `cmake --build build/dev --target check_boundaries` | exit 0 | this commit |
+| Every touched C++ file is formatted | `clang-format --dry-run --Werror` over the six touched files | exit 0, no output | this commit |
+| The ledger's `--all` inventory form with the new selector allocated | `python3 scripts/verify_rfc0017_test_inventory.py --build-dir build/dev --all` | `RFC0017_TEST_INVENTORY_OK` | this commit |
+| The anonymous handoff cannot wear an account | The worker made the public-preview handoff carry an authenticated-mode account (`51`), rebuilt, ran `application_anonymous_diff_authority`; restored from a byte copy | `FAILED: the anonymous handoff is delivered rather than failed`; restored, passes | this commit |
+| The tree's documentation and issue-graph contracts hold | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | this commit |
+| No whitespace damage | `git diff --check` | clean | this commit |

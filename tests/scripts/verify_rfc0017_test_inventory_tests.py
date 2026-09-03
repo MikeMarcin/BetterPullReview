@@ -55,6 +55,7 @@ GIT = "git_anonymous_public_read"
 GIT_ANCHOR = "git_cache_contract"
 SQLITE = "sqlite_anonymous_epoch_authority"
 SQLITE_ANCHOR = "sqlite_epoch_catalog_storage_contract"
+DIFF = "application_anonymous_diff_authority"
 BUILD = pathlib.Path("/nonexistent/build")
 
 # The wire suites: registered only inside the APPLE/Linux wire block.
@@ -69,6 +70,7 @@ DEV_GRAPH = [
     (PROVIDER, ("provider_tests",)),
     (HOST_ANCHOR, ("host_tests",)),
     (HOST, ("anonymous_host_tests",)),
+    (DIFF, ("anonymous_diff_tests",)),
     (GIT_ANCHOR, ("git_cache_tests",)),
     (GIT, ("anonymous_git_tests",)),
     (SQLITE_ANCHOR, ("catalog_storage_tests",)),
@@ -117,6 +119,7 @@ class InventoryTable(unittest.TestCase):
         self.assertEqual(anchors[PROVIDER], (QT_ANCHOR, False))
         self.assertEqual(anchors[HOST], (HOST_ANCHOR, False))
         self.assertEqual(anchors[GIT], (GIT_ANCHOR, False))
+        self.assertEqual(anchors[DIFF], (HOST_ANCHOR, False))
         self.assertEqual(anchors[SQLITE], (SQLITE_ANCHOR, False))
         for selector, (anchor, wire_block) in anchors.items():
             if wire_block:
