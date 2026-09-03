@@ -1240,7 +1240,16 @@ Enterprise Server therefore composes the refusing transport, the capability
 stays unregistered, and selecting device sign-in answers `device_flow_unavailable`
 with zero requests — structurally, before a request is constructed, rather than
 as a count that happens to be zero. Adding a GHES profile beside GitHub.com
-does not change the GitHub.com device path.
+does not change the GitHub.com device path, and since BPR-0535 it cannot
+borrow it either: the composed capability names the profile it was built
+for, and the host refuses a begin for any other profile before it touches the
+transport, the vault, or enrollment — on the mounted panel's route and on the
+public-preview sign-in route alike. The independent review of the closeout
+head had shown that without that check a reviewer who picked a GHES profile
+and pressed "Get a code" started the GitHub.com flow with the GitHub.com
+client and, on authorization, enrolled a GitHub.com token under the GHES
+profile; `application_device_authorization_ghes_refusal` now drives that
+exact press and proves the refusal with zero requests.
 
 An enterprise instance would need an application registered on that instance,
 which is an administration action RFC-BPR-0016 does not own. Until one exists,

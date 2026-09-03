@@ -103,6 +103,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_device_authorization_browser_absent": "dos-volume-name",
     "application_device_authorization_panel_course": "dos-volume-name",
     "application_device_authorization_panel_absent": "dos-volume-name",
+    "application_device_authorization_ghes_refusal": "dos-volume-name",
     "application_mcp_context_helper": "dos-volume-name",
     "rfc0017_test_inventory": "dos-volume-name",
     "rfc0016_test_inventory": "dos-volume-name",

@@ -65,6 +65,7 @@ SELECTORS: dict[str, int] = {
     # BPR-0526: the mounted sign-in panel's course and its construction cut.
     "application_device_authorization_panel_course": 1,
     "application_device_authorization_panel_absent": 1,
+    "application_device_authorization_ghes_refusal": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector below
@@ -101,6 +102,12 @@ REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "application_device_authorization_panel_absent": (
         "--device-authorization-probe",
         "--device-authorization-panel-absent",
+    ),
+    # BPR-0535: the GHES negative — the mounted panel's begin for a GHES
+    # profile is refused before any transport call.
+    "application_device_authorization_ghes_refusal": (
+        "--device-authorization-probe",
+        "--device-authorization-ghes-course",
     ),
 }
 
@@ -184,6 +191,7 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
     "--public-preview-live-candidate",
     "--test-application-data-root",
     "--github-fixture",
+    "--device-authorization-ghes-course",
 )
 
 # Secret-shaped patterns. GitHub's token prefixes are documented and stable, so

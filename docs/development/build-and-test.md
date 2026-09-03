@@ -2387,8 +2387,12 @@ success claim.
   device the reviewer finishes it on. An address that does not sit under the
   compiled authority is refused and no browser is opened for it.
 - GHES profiles report device sign-in as unavailable and keep the token path.
-  An enterprise instance would need its own registered application, which is
-  an enterprise-administration action outside RFC-BPR-0016.
+  The composed capability names the GitHub.com profile it was built for, so a
+  begin for a GHES profile — from the mounted panel or from the public-preview
+  sign-in — is refused before any transport, vault, or enrollment call
+  (BPR-0535; `application_device_authorization_ghes_refusal`). An enterprise
+  instance would need its own registered application, which is an
+  enterprise-administration action outside RFC-BPR-0016.
 - Do not work around an unavailable device path by pasting the client
   identifier, editing an endpoint, or supplying a verification address by
   hand. None of those is an input the application accepts, and the refusals
