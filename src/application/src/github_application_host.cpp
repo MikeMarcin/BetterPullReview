@@ -578,7 +578,8 @@ namespace bpr::application {
 														 aCredentialShutdownPolicy,
 					   github_epoch_handoff_port* const  aEpochs,
 					   github_pull_request_port* const   aAnonymousPullRequests,
-					   git_smart_transport_factory_port* aAnonymousSmartGit)
+					   git_smart_transport_factory_port* aAnonymousSmartGit,
+					   public_preview_projection_port*   aPublicPreview)
 			: State{ std::move(aInitialState) }
 			, Profiles{ aProfiles }
 			, Viewers{ aViewers }
@@ -593,6 +594,7 @@ namespace bpr::application {
 			, Epochs{ aEpochs }
 			, AnonymousPullRequests{ aAnonymousPullRequests }
 			, AnonymousSmartGit{ aAnonymousSmartGit }
+			, PublicPreview{ aPublicPreview }
 			, CompletionGate{ std::make_shared<completion_gate>() }
 		{
 			CompletionGate->Host.store(this, std::memory_order_release);
@@ -826,6 +828,7 @@ namespace bpr::application {
 				return;
 			}
 			PublicPreviewRefusal.reset();
+			PublicPreviewProfile = aProfile;
 			if (AnonymousPullRequests == nullptr) {
 				// Composition supplied no credential-free read authority, so
 				// the mode cannot be entered. Refuse before the core is asked
@@ -836,6 +839,7 @@ namespace bpr::application {
 						public_preview_unavailable,
 					.Policy = std::nullopt,
 				};
+				publish_public_preview();
 				return;
 			}
 			// A signed-out activation carries no material of any kind. Any
@@ -1198,6 +1202,7 @@ namespace bpr::application {
 			} catch (...) {
 				ProjectionDeliveryFailed = true;
 			}
+			publish_public_preview();
 		}
 
 		void publish_diagnostic(const github_host_diagnostic& aDiagnostic) noexcept
@@ -1213,12 +1218,137 @@ namespace bpr::application {
 			} catch (...) {
 				ProjectionDeliveryFailed = true;
 			}
+			publish_public_preview();
+		}
+
+		[[nodiscard]] static auto projected_refusal_reason(
+			const github_public_preview_refusal& aRefusal) noexcept
+			-> public_preview_refusal_reason
+		{
+			if (aRefusal.Cause
+					!= github_public_preview_refusal_cause::policy_refused
+				|| !aRefusal.Policy.has_value()) {
+				return public_preview_refusal_reason::mode_unavailable;
+			}
+			switch (aRefusal.Policy->Reason) {
+			case core::anonymous_refusal_reason::rate_limited:
+				return public_preview_refusal_reason::budget_exhausted;
+			case core::anonymous_refusal_reason::private_or_missing:
+				return public_preview_refusal_reason::private_or_missing;
+			case core::anonymous_refusal_reason::ghes_unavailable:
+				return public_preview_refusal_reason::enterprise_host_unavailable;
+			case core::anonymous_refusal_reason::graphql_refused:
+				return public_preview_refusal_reason::review_threads_unavailable;
+			case core::anonymous_refusal_reason::viewer_identity_refused:
+				return public_preview_refusal_reason::viewer_identity_unavailable;
+			case core::anonymous_refusal_reason::mutation_refused:
+				break;
+			}
+			return public_preview_refusal_reason::triage_or_publishing_refused;
+		}
+
+		[[nodiscard]] static auto project_review_comment(
+			const github_review_comment_record& aComment)
+			-> public_preview_review_comment
+		{
+			return public_preview_review_comment{
+				.Id          = std::string{ aComment.Comment.value() },
+				.AuthorLogin = aComment.Author.has_value()
+					? aComment.Author->Login
+					: std::string{ },
+				.Body        = aComment.Body,
+				.Path        = aComment.Path,
+				.Line        = aComment.Line,
+			};
+		}
+
+		[[nodiscard]] static auto project_review_comment_group(
+			const github_review_comment_group_record& aGroup)
+			-> public_preview_review_comment_group
+		{
+			public_preview_review_comment_group group{
+				.Root    = project_review_comment(aGroup.Root),
+				.Replies = { },
+			};
+			group.Replies.reserve(aGroup.Replies.size());
+			for (const auto& reply : aGroup.Replies) {
+				group.Replies.push_back(project_review_comment(reply));
+			}
+			return group;
+		}
+
+		[[nodiscard]] auto project_public_preview() const
+			-> public_preview_presentation
+		{
+			public_preview_presentation presentation{ };
+			presentation.Mode = signed_out_mode()
+				? public_preview_mode::signed_out
+				: public_preview_mode::signed_in;
+			if (RateLimits.Core.has_value()) {
+				presentation.Budget = public_preview_budget{
+					.Limit            = RateLimits.Core->Limit,
+					.Remaining        = RateLimits.Core->Remaining,
+					.ResetUnixSeconds = RateLimits.Core->ResetUnixSeconds,
+				};
+			}
+			if (PublicPreviewRefusal.has_value()) {
+				auto refusal = public_preview_refusal_presentation{
+					.Reason = projected_refusal_reason(*PublicPreviewRefusal),
+					.Budget = std::nullopt,
+				};
+				if (PublicPreviewRefusal->Policy.has_value()
+					&& PublicPreviewRefusal->Policy->Budget.has_value()) {
+					const auto& fact = *PublicPreviewRefusal->Policy->Budget;
+					refusal.Budget   = public_preview_budget{
+						.Limit            = fact.Limit,
+						.Remaining        = 0U,
+						.ResetUnixSeconds = fact.Reset,
+					};
+				}
+				presentation.Refusal = refusal;
+			}
+			if (AcceptedSnapshot.has_value()
+				&& AcceptedSnapshot->ReviewCommentsAvailability
+					== github_collection_availability::available) {
+				presentation.ReviewComments
+					= public_preview_observation::observed;
+				presentation.ReviewCommentGroups.reserve(
+					AcceptedSnapshot->ReviewCommentGroups.size());
+				for (const auto& group : AcceptedSnapshot->ReviewCommentGroups) {
+					presentation.ReviewCommentGroups.push_back(
+						project_review_comment_group(group));
+				}
+			}
+			return presentation;
+		}
+
+		// Publication is by change on the four occasions the port promises:
+		// activation, every budget observation, every refusal, and
+		// invalidation. Each of those runs through a transition, a diagnostic,
+		// an observed provider error, or the explicit call in `invalidate`.
+		void publish_public_preview() noexcept
+		{
+			if (PublicPreview == nullptr) {
+				return;
+			}
+			try {
+				auto presentation = project_public_preview();
+				if (PublishedPublicPreview.has_value()
+					&& *PublishedPublicPreview == presentation) {
+					return;
+				}
+				PublishedPublicPreview = presentation;
+				PublicPreview->publish(presentation);
+			} catch (...) {
+				ProjectionDeliveryFailed = true;
+			}
 		}
 
 		void observe_provider_error(const github_provider_error& aError)
 		{
 			if (valid(aError)) {
 				static_cast<void>(merge(RateLimits, aError.RateLimits));
+				publish_public_preview();
 			}
 		}
 
@@ -1321,6 +1451,7 @@ namespace bpr::application {
 			ViewerMode              = viewer_mode::none;
 			DeferredTerminal.reset();
 			DeferredSession.reset();
+			publish_public_preview();
 
 			if (aRequest.Previous.Profile.has_value()
 				&& aRequest.Previous.Host.has_value()
@@ -3291,10 +3422,21 @@ namespace bpr::application {
 		github_epoch_handoff_port*         Epochs                   = nullptr;
 		github_pull_request_port*          AnonymousPullRequests    = nullptr;
 		git_smart_transport_factory_port*  AnonymousSmartGit        = nullptr;
-		std::shared_ptr<completion_gate>   CompletionGate;
-		std::deque<deferred_ingress>       DeferredIngress;
-		bool                               TurnActive               = false;
-		bool                               DeferredIngressScheduled = false;
+		public_preview_projection_port*    PublicPreview            = nullptr;
+		public_preview_sign_in_sink        PublicPreviewSignIn;
+		// The profile the signed-out session was activated for, kept so a
+		// sign-in gesture names the host the reviewer is already reading
+		// rather than whichever one a later picker change would resolve to.
+		core::host_profile_id PublicPreviewProfile{ };
+		// The last presentation delivered. Publication is by change, so the
+		// four occasions the port promises are the occasions something
+		// actually differs on, and a repeated observation is not a repeated
+		// announcement.
+		std::optional<public_preview_presentation> PublishedPublicPreview;
+		std::shared_ptr<completion_gate>           CompletionGate;
+		std::deque<deferred_ingress>               DeferredIngress;
+		bool                                       TurnActive               = false;
+		bool                                       DeferredIngressScheduled = false;
 
 		pending_provider_request                            PendingProvider;
 		std::uint64_t                                       ProviderOperationToken = 0U;
@@ -3356,7 +3498,8 @@ namespace bpr::application {
 		const github_credential_shutdown_policy aCredentialShutdownPolicy,
 		github_epoch_handoff_port* const        aEpochs,
 		github_pull_request_port* const         aAnonymousPullRequests,
-		git_smart_transport_factory_port* const aAnonymousSmartGit)
+		git_smart_transport_factory_port* const aAnonymousSmartGit,
+		public_preview_projection_port* const   aPublicPreview)
 		: Implementation{ std::make_unique<implementation>(std::move(aInitialState),
 														   aProfiles,
 														   aViewers,
@@ -3369,7 +3512,8 @@ namespace bpr::application {
 														   aCredentialShutdownPolicy,
 														   aEpochs,
 														   aAnonymousPullRequests,
-														   aAnonymousSmartGit) }
+														   aAnonymousSmartGit,
+														   aPublicPreview) }
 	{
 	}
 
@@ -3500,6 +3644,23 @@ namespace bpr::application {
 		-> core::github_access_mode
 	{
 		return Implementation->State.AccessMode;
+	}
+
+	void github_application_host::set_public_preview_sign_in(
+		public_preview_sign_in_sink aSignIn)
+	{
+		Implementation->PublicPreviewSignIn = std::move(aSignIn);
+	}
+
+	void github_application_host::request_public_preview_sign_in()
+	{
+		// The gesture is a handoff, not a read: it is honoured while closing
+		// and after a refusal, because a refusal that could not be acted on
+		// would be a dead end rather than an offer.
+		if (!Implementation->PublicPreviewSignIn) {
+			return;
+		}
+		Implementation->PublicPreviewSignIn(Implementation->PublicPreviewProfile);
 	}
 
 	auto github_application_host::public_preview_refusal() const noexcept

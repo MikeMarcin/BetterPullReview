@@ -956,6 +956,20 @@ namespace bpr::qt {
 			&QComboBox::currentIndexChanged,
 			this,
 			[this] { rebind_device_authorization_profile(); });
+		// Switching to sign-in is offered from the ring and from every
+		// refusal, and both go to the one entry point already mounted here:
+		// the device panel's "Get a code", for the profile the picker names.
+		// The window adds no second way in, so sign-in cannot begin against a
+		// host the reviewer is not looking at.
+		SessionPanel->set_public_preview_dispatch(
+			[this](application::public_preview_gesture aGesture) {
+				static_cast<void>(aGesture);
+				if (DevicePanel == nullptr) {
+					return;
+				}
+				rebind_device_authorization_profile();
+				DevicePanel->begin_button()->click();
+			});
 		build_queue_landing(header, *column);
 
 		// The empty state is not decoration. Without it a reviewer with no pull
@@ -2197,6 +2211,173 @@ namespace bpr::qt {
 		update_github_presentation_state();
 	}
 
+	void workbench_window::publish(
+		const application::public_preview_presentation& aPresentation)
+	{
+		PublicPreview          = aPresentation;
+		PublicPreviewSignedOut = aPresentation.Mode
+			== application::public_preview_mode::signed_out;
+		if (SessionPanel != nullptr) {
+			SessionPanel->apply_public_preview(aPresentation, PublicPreviewNow);
+		}
+		update_public_preview_title();
+		apply_public_preview_conversation();
+		// Re-decides the commands from their projections first, then lets the
+		// mode have the last word over them.
+		update_action_state();
+		apply_focus_order();
+		update_github_presentation_state();
+	}
+
+	void workbench_window::set_public_preview_now(
+		const std::uint64_t aNowUnixSeconds)
+	{
+		PublicPreviewNow = aNowUnixSeconds;
+		if (SessionPanel != nullptr) {
+			SessionPanel->apply_public_preview(PublicPreview, PublicPreviewNow);
+		}
+	}
+
+	void workbench_window::update_public_preview_title()
+	{
+		setWindowTitle(
+			PublicPreviewSignedOut
+				? QStringLiteral("BetterPullReview — %1")
+					  .arg(public_preview_mode_text())
+				: QStringLiteral("BetterPullReview"));
+	}
+
+	void workbench_window::apply_public_preview_availability()
+	{
+		const auto restore = [](QWidget* const aWidget) {
+			if (aWidget != nullptr) {
+				aWidget->setEnabled(true);
+				aWidget->setToolTip(QString{ });
+			}
+		};
+		if (!PublicPreviewSignedOut) {
+			restore(QueueRoleFilter);
+			restore(ReviewEditor);
+			restore(
+				ConversationPanel != nullptr ? ConversationPanel->reveal_button()
+											 : nullptr);
+			return;
+		}
+		// Disabled and explained, never hidden and never defaulted. A control
+		// that vanished would leave the reviewer guessing whether the mode
+		// cannot do this or the pull request simply has none of it.
+		const auto refuse_action
+			= [](QAction* const aAction, const QString& aName) {
+				  if (aAction == nullptr) {
+					  return;
+				  }
+				  const auto wording = public_preview_unavailable_text(aName);
+				  aAction->setEnabled(false);
+				  aAction->setToolTip(wording);
+				  aAction->setStatusTip(wording);
+			  };
+		const auto refuse_widget
+			= [](QWidget* const aWidget, const QString& aName) {
+				  if (aWidget == nullptr) {
+					  return;
+				  }
+				  aWidget->setEnabled(false);
+				  aWidget->setToolTip(public_preview_unavailable_text(aName));
+			  };
+		for (auto* const action : ReceiptActions) {
+			refuse_action(action, QStringLiteral("Private review progress"));
+		}
+		refuse_action(
+			ShowReviewThreadsAction,
+			QStringLiteral("Review-thread resolution"));
+		refuse_widget(
+			ConversationPanel != nullptr ? ConversationPanel->reveal_button()
+										 : nullptr,
+			QStringLiteral("Review-thread resolution"));
+		refuse_widget(QueueRoleFilter, QStringLiteral("Queue role"));
+		refuse_widget(ReviewEditor, QStringLiteral("Publishing a review"));
+	}
+
+	void workbench_window::apply_public_preview_conversation()
+	{
+		if (!PublicPreviewSignedOut || ConversationPanel == nullptr) {
+			return;
+		}
+		if (PublicPreview.ReviewComments
+			!= application::public_preview_observation::observed) {
+			// Not an empty conversation. An unobservable conversation and an
+			// observed empty one are different answers and the wording keeps
+			// them apart.
+			ConversationPanel->clear(
+				QStringLiteral("Review comments were not observable."));
+			return;
+		}
+		std::vector<application::github_conversation_projection> conversations;
+		const auto                                               identifier = [](const std::string& aId) {
+			return std::string{ "public-preview-comment:" } + aId;
+		};
+		const auto project =
+			[](const application::public_preview_review_comment& aComment,
+			   std::string                                       aId,
+			   std::optional<std::string>                        aParent) {
+				return application::github_conversation_projection{
+					.Id           = std::move(aId),
+					.ParentId     = std::move(aParent),
+					.Kind         = application::github_conversation_kind::review_comment,
+					.AuthorLogin  = aComment.AuthorLogin,
+					.Body         = aComment.Body,
+					.Path         = aComment.Path,
+					.Line         = aComment.Line,
+					.OriginalLine = std::nullopt,
+					.DiffSide     = std::nullopt,
+					// Signed out there is no selected-revision agreement to
+					// claim, so the anchor is reported as file level rather
+					// than asserted current.
+					.AnchorAvailability = application::
+						github_conversation_anchor_availability::file_level,
+					.ReviewState
+					= application::github_review_state_projection::none,
+					// Resolution needs a reader and there is none. False here
+					// renders nothing at all, which is the absence the mode
+					// requires rather than a claim that it is unresolved.
+					.Resolved = false,
+					.Outdated = false,
+					.Deleted  = false,
+				};
+			};
+		for (const auto& group : PublicPreview.ReviewCommentGroups) {
+			auto rootId = identifier(group.Root.Id);
+			conversations.push_back(project(group.Root, rootId, std::nullopt));
+			for (const auto& reply : group.Replies) {
+				conversations.push_back(
+					project(reply, identifier(reply.Id), rootId));
+			}
+		}
+		ConversationPanel->adopt(
+			conversations,
+			QStringLiteral(
+				"Review comments are read-only in public preview. Review "
+				"threads and their resolution are unavailable."));
+	}
+
+	auto workbench_window::usage_indicator() const noexcept -> usage_ring*
+	{
+		return SessionPanel != nullptr ? SessionPanel->usage_indicator()
+									   : nullptr;
+	}
+
+	auto workbench_window::public_preview_signed_out() const noexcept -> bool
+	{
+		return PublicPreviewSignedOut;
+	}
+
+	auto workbench_window::public_preview_refusal_text() const -> QString
+	{
+		return SessionPanel != nullptr && SessionPanel->refusal_label() != nullptr
+			? SessionPanel->refusal_label()->text()
+			: QString{ };
+	}
+
 	void workbench_window::update_github_presentation_state()
 	{
 		// The session panel reports a presentation change from inside its own
@@ -2636,6 +2817,8 @@ namespace bpr::qt {
 		// The review header sits under the toolbars and above the workbench, so
 		// its stops are declared there. Reading order and focus order agree.
 		if (SessionPanel != nullptr) {
+			// The ring reads above the picker, so it is walked before it.
+			append(SessionPanel->usage_indicator());
 			append(SessionPanel->profile_selector());
 			append(SessionPanel->connect_button());
 			append(SessionPanel->connection_details_button());
@@ -3066,6 +3249,10 @@ namespace bpr::qt {
 			DrawerStates.Conversations);
 		apply_line_numbers();
 		update_receipt_actions();
+		// Last, and deliberately. The mode is not a second opinion about a
+		// command's legality; it is the answer that stands once the core's
+		// projections have had theirs.
+		apply_public_preview_availability();
 	}
 
 	void workbench_window::update_receipt_actions()

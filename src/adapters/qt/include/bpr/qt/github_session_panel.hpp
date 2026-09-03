@@ -2,6 +2,8 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_GITHUB_SESSION_PANEL_HPP
 
 #include "bpr/application/github_projection.hpp"
+#include "bpr/application/public_preview_projection.hpp"
+#include "bpr/qt/usage_ring.hpp"
 
 #include <QString>
 #include <QWidget>
@@ -102,6 +104,21 @@ namespace bpr::qt {
 		void apply_capabilities(const core::github_capabilities& aCapabilities);
 		void apply_rate_limits(
 			const application::github_rate_limits_projection& aLimits);
+		/// \brief Adopts one public-preview presentation.
+		///
+		/// \details Under the signed-out mode this names the mode beside the
+		/// host, fills the usage ring, and states the refusal that ended the
+		/// last read. Under the signed-in mode the strip is removed entirely
+		/// rather than blanked, because an empty mode banner in an
+		/// authenticated session is the ambiguity the mode exists to avoid.
+		/// `aNowUnixSeconds` is the instant the composition measured; the
+		/// panel reads no clock.
+		void apply_public_preview(
+			const application::public_preview_presentation& aPresentation,
+			std::uint64_t                                   aNowUnixSeconds);
+		/// \brief Adopts the sink the ring's sign-in gesture leaves through.
+		void set_public_preview_dispatch(
+			application::public_preview_gesture_dispatch aDispatch);
 		/// \brief Re-reads the selected profile after the reviewer changed it.
 		void update_selected_profile();
 		void update_connect_enabled();
@@ -110,6 +127,13 @@ namespace bpr::qt {
 		void apply_compact_layout(bool aCompact);
 
 		[[nodiscard]] auto profile_selector() const noexcept -> QComboBox*;
+		/// \brief The consumed-budget ring, shown only under public preview.
+		[[nodiscard]] auto usage_indicator() const noexcept -> usage_ring*;
+		/// \brief The label naming the access mode beside the active host.
+		[[nodiscard]] auto access_mode_label() const noexcept -> QLabel*;
+		/// \brief The label stating the refusal that ended the last read.
+		[[nodiscard]] auto refusal_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto public_preview_signed_out() const noexcept -> bool;
 		[[nodiscard]] auto owner_editor() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto repository_editor() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto pull_request_editor() const noexcept -> QSpinBox*;
@@ -167,6 +191,10 @@ namespace bpr::qt {
 		QLabel*      StatusLabel             = nullptr;
 		QFrame*      StatusBanner            = nullptr;
 		QWidget*     ConnectionDetails       = nullptr;
+		QWidget*     PublicPreviewStrip      = nullptr;
+		QLabel*      AccessModeLabel         = nullptr;
+		QLabel*      RefusalLabel            = nullptr;
+		usage_ring*  UsageIndicator          = nullptr;
 		QWidget*     LocatorActions          = nullptr;
 		QGridLayout* LocatorLayout           = nullptr;
 
@@ -179,6 +207,10 @@ namespace bpr::qt {
 		core::github_status                     CurrentStatus               = core::github_status::no_profile;
 
 		github_session_panel_statistics Statistics;
+		// The picker entry the mode wording replaced, so leaving the mode puts
+		// the profile's own label back rather than a second guess at it.
+		QString ReplacedProfileLabel;
+		int     ReplacedProfileIndex = -1;
 	};
 } // namespace bpr::qt
 

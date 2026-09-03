@@ -8,6 +8,7 @@
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/github_provider_port.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_transition.hpp"
@@ -49,6 +50,13 @@ namespace bpr::application {
 
 		auto operator<=>(const github_public_preview_refusal&) const = default;
 	};
+
+	/// Where a switch-to-sign-in gesture goes. The host does not own the
+	/// device-authorization flow, so it forwards the profile the signed-out
+	/// session was activated for and lets composition begin the flow that
+	/// returns the reviewer to the same pull request.
+	using public_preview_sign_in_sink
+		= std::function<void(core::host_profile_id)>;
 
 	/// \brief Provides the github credential binding catalog contract.
 	class github_credential_binding_catalog final
@@ -112,7 +120,11 @@ namespace bpr::application {
 			// way a public-preview session reaches a Git repository at all.
 			// Null keeps the signed-out epoch handoff unavailable, which is
 			// what a composition without it means.
-			git_smart_transport_factory_port* aAnonymousSmartGit = nullptr);
+			git_smart_transport_factory_port* aAnonymousSmartGit = nullptr,
+			// The signed-out presentation sink. Null until composition
+			// supplies one, which leaves the mode working but unpresented
+			// rather than silently authenticated.
+			public_preview_projection_port* aPublicPreview = nullptr);
 		~github_application_host();
 
 		github_application_host(const github_application_host&) = delete;
@@ -175,6 +187,14 @@ namespace bpr::application {
 		[[nodiscard]] auto public_preview_legality(
 			core::anonymous_read_intent aIntent) const noexcept
 			-> core::anonymous_intent_legality;
+		/// \brief Adopts the sink a switch-to-sign-in gesture leaves through.
+		void set_public_preview_sign_in(public_preview_sign_in_sink aSignIn);
+		/// \brief Forwards a switch-to-sign-in gesture to that sink.
+		///
+		/// \details Names the profile the signed-out session was activated
+		/// for, so the code the reviewer is about to read aloud belongs to the
+		/// host they are already reading, and sign-in returns them to it.
+		void request_public_preview_sign_in();
 		/// \brief Reports whether the last accepted snapshot handed the epoch
 		/// authority nothing because the mode has no cache or epoch authority.
 		[[nodiscard]] auto epoch_handoff_unavailable() const noexcept -> bool;
