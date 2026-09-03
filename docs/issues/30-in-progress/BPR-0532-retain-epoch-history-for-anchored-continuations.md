@@ -94,3 +94,31 @@ it; unproven). It was reverted rather than landed red. Part two diagnoses
 that with evidence and composes the re-alignment asynchronously or
 authorizes the continued workspace against the kept generation, whichever
 the evidence names.
+
+
+## Part two diagnosed — 2026-09-04
+
+Instrumented on the worktree and reverted. The continued turn's terminal
+is `Superseded`, not the workspace `stale` check: about ten seconds after
+the refresh a deferred epoch acceptance moves the comparison from ordinal
+1 to 2, `observe` sees a changed binding and `supersede()` stops the active
+invocation, whose `cancelled` completion the terminal rewrites to
+`stale_result`. The same supersession happens with no re-alignment at all;
+the shipped `continued` course passes only because its second turn starts
+its process about 7.7 s before that window closes, and a synchronous
+re-alignment — six seconds, of which the epoch host's `resolve` of the old
+pair is 5.7 s queued behind the refresh's own work, the same off the GUI
+thread — leaves 1.4 s. The course is latently racy today. A second
+finding: at the moment of the continued send the accepted comparison is
+still the old pair, so a re-alignment there is a no-op and a course that
+sends then proves nothing.
+
+Decided for part three: an invocation carrying a continued session is by
+BPR-0521's design bound to a binding that already differs from the
+observed one, so a binding change must not supersede it (a fresh session
+is superseded exactly as today, with a negative case); the re-alignment
+runs asynchronously off the gesture with a stated bound and the dispatch
+follows its completion, the empty freeze remaining the refusal path; and
+the anchored course waits for the comparison to reach the new pair before
+it sends, so the retarget is real and the frozen identities are checked
+against an independent compute of the old pair.
