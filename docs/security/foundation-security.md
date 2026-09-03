@@ -87,8 +87,11 @@ outbound endpoint instead.
   SQLite, or evidence; the access and refresh tokens reach the platform vault
   and nothing else — the refresh token parked by a grant is flushed to the
   vault the moment composition binds the session's authority, and the
-  restart probe that reads the refresh slot destroys what it read on the
-  vault's own thread and passes only a yes ([[BPR-0536]]). The core, the
+  probe that reads the refresh slot destroys what it read on the vault's
+  own thread and passes only a yes ([[BPR-0536]]). Until [[BPR-0540]]
+  lands, an orderly shutdown deletes the access token but not the refresh
+  material, and the probe's yes can be an orphan's; BPR-0540 gives both
+  slots one erasure path and gates the resume on provenance. The core, the
   projection, and the Qt adapter cannot name any of them ([[BPR-0277]],
   [[BPR-0282]], `rfc0016_test_inventory`).
 - **Redirect and certificate rules are inherited, not restated.** Both device

@@ -2397,8 +2397,10 @@ success claim.
   this path removes.
 - The acquired token expires and renews itself shortly before it does, and
   since BPR-0536 the product does this rather than only the host: the
-  composition binds the renewal to the signed-in profile's vault authority,
-  and a restart with a stored grant resumes renewal without a new code. A
+  composition binds the renewal to the signed-in profile's vault authority
+  for the session that enrolled the grant (a session does not survive a
+  restart today; BPR-0541 persists the binding, and BPR-0540 makes the
+  refresh material share the credential's erasure). A
   renewal that cannot complete says so once, as one line on the sign-in
   panel, and asks for re-enrollment rather than retrying forever; enrol again
   from the same panel. Refresh material lives in a second slot of the same
