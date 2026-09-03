@@ -87,6 +87,11 @@ namespace bpr::app::detail {
 		// Only meaningful with a fixture; a shipped build has no identity to
 		// register and this option does not exist there.
 		bool RegisteredDeviceCourse = false;
+		// RFC-BPR-0016 renewal. The same registered grant, plus the two things
+		// a rotation needs that the read-path fixture has no use for: a real
+		// second vault slot and the documented renewal answer on the
+		// transport. Only meaningful with a fixture.
+		bool DeviceRefreshCourse = false;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
 		// browser capability bound at all, which is what every build was
 		// before [[BPR-0516]]. Removes exactly one construction: the flow

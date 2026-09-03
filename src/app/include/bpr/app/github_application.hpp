@@ -255,6 +255,21 @@ namespace bpr::app {
 		// The construction cut turns exactly this false and leaves every line
 		// above it as it was.
 		bool DeviceAuthorizationPanelComposed = false;
+		// [[BPR-0536]]. The renewal lifecycle, as composition observed it
+		// rather than as the host holds it. Rotations and state come from the
+		// published observation, so a graph that stopped delivering
+		// `publish_refresh` reports zero and idle no matter what the host did;
+		// the two counters below come from composition's own arming, so a
+		// graph that stopped calling `bind_refresh_authority` or
+		// `resume_refresh` reports zero no matter what the observation says.
+		// Kept apart because "renewal happened" and "composition asked for it"
+		// fail for different reasons.
+		std::size_t DeviceAuthorizationRefreshRotations = 0U;
+		application::device_authorization_refresh_state
+			DeviceAuthorizationRefreshState
+			= application::device_authorization_refresh_state::idle;
+		std::size_t DeviceAuthorizationRefreshBindings = 0U;
+		std::size_t DeviceAuthorizationRefreshResumes  = 0U;
 		// RFC-BPR-0017. Whether composition handed the host a credential-free
 		// read authority at all. False on every shipped platform in this
 		// candidate slice, which is exactly what makes the signed-out mode

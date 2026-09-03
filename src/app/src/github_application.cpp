@@ -3132,6 +3132,43 @@ namespace bpr::app {
 		publication_sink                   Publication;
 	};
 
+#if defined(BPR_BUILD_TESTING)
+	// A one-way step forward, applied at most once. The port requires a
+	// monotonic reading -- a clock that stepped back would let a poll outrun
+	// its interval -- so the offset latches and stays rather than being added
+	// and removed around a call.
+	class composition_device_refresh_clock final
+		: public application::device_authorization_clock_port
+	{
+	public:
+		composition_device_refresh_clock(
+			std::unique_ptr<application::device_authorization_clock_port> aInner,
+			std::function<bool()>                                         aArmed,
+			const std::chrono::milliseconds                               aOffset)
+			: Inner{ std::move(aInner) }
+			, Armed{ std::move(aArmed) }
+			, Offset{ aOffset }
+		{
+		}
+
+		[[nodiscard]] auto observe_monotonic() noexcept
+			-> std::chrono::milliseconds override
+		{
+			const auto observed = Inner->observe_monotonic();
+			if (!Applied && Armed && Armed()) {
+				Applied = true;
+			}
+			return Applied ? observed + Offset : observed;
+		}
+
+	private:
+		std::unique_ptr<application::device_authorization_clock_port> Inner;
+		std::function<bool()>                                         Armed;
+		std::chrono::milliseconds                                     Offset{ 0 };
+		bool                                                          Applied = false;
+	};
+#endif
+
 	class github_application::implementation final
 		: public application::github_epoch_handoff_port,
 		  public application::epoch_projection_port,
@@ -3252,6 +3289,7 @@ namespace bpr::app {
 					= aFixtureOptions.ExternalAgentExecutable;
 				CodexAgentExecutable   = aFixtureOptions.CodexAgentExecutable;
 				RegisteredDeviceCourse = aFixtureOptions.RegisteredDeviceCourse;
+				DeviceRefreshCourse    = aFixtureOptions.DeviceRefreshCourse;
 				SuppressDeviceBrowser  = aFixtureOptions.SuppressDeviceBrowser;
 				DisableDeviceAuthorizationPanelComposition
 					= aFixtureOptions
@@ -4142,6 +4180,28 @@ namespace bpr::app {
 					*DeviceEnrollment);
 #endif
 			DeviceClock = application::make_system_device_authorization_clock();
+#if defined(BPR_BUILD_TESTING)
+			// [[BPR-0536]]. The one input a fixture cannot supply is time.
+			// A renewal is armed a lead before an eight-hour access token
+			// expires, and no course can wait that out; the transport seam
+			// beside this one replaces the network, and this replaces the
+			// wait. Tests-enabled only, and composed only under the refresh
+			// course, so a shipped image has one clock and it is the system's.
+			//
+			// It latches on the binding rather than on the authorized stage.
+			// The host captures `AuthorizedAt` from this same clock at the
+			// moment the stage turns, so an offset that latched there would
+			// move both ends of `elapsed` and change nothing. Composition's
+			// `bind_refresh_authority` falls strictly between that capture and
+			// the `schedule_refresh` that reads the clock again, which is the
+			// only window where a one-way step shortens the wait to zero.
+			if (DeviceRefreshCourse && Fixture != nullptr) {
+				DeviceClock = std::make_unique<composition_device_refresh_clock>(
+					std::move(DeviceClock),
+					[this]() noexcept { return DeviceRefreshBindings > 0U; },
+					std::chrono::seconds{ 28'800 });
+			}
+#endif
 			// The shipped selection. A registered platform composes the real
 			// credential-free wire bound to the recorded distributable client;
 			// an unregistered platform composes the refusing transport whose
@@ -7761,6 +7821,7 @@ namespace bpr::app {
 		bool DeviceCapabilityRegistered = false;
 #if defined(BPR_BUILD_TESTING)
 		bool RegisteredDeviceCourse                     = false;
+		bool DeviceRefreshCourse                        = false;
 		bool SuppressDeviceBrowser                      = false;
 		bool DisableDeviceAuthorizationPanelComposition = false;
 		// [[BPR-0515]]. Whether this run composes its device wire against the
@@ -8427,6 +8488,14 @@ namespace bpr::app {
 			= Implementation->device_enrollments(),
 			.DeviceAuthorizationPanelComposed
 			= Implementation->DevicePanel != nullptr,
+			.DeviceAuthorizationRefreshRotations
+			= Implementation->DeviceRefreshObservation.Rotations,
+			.DeviceAuthorizationRefreshState
+			= Implementation->DeviceRefreshObservation.State,
+			.DeviceAuthorizationRefreshBindings
+			= Implementation->DeviceRefreshBindings,
+			.DeviceAuthorizationRefreshResumes
+			= Implementation->DeviceRefreshResumes,
 			.PublicPreviewComposed = Implementation->PublicPreviewComposed,
 			.PublicPreviewUnavailable
 			= Implementation->public_preview_unavailable(),

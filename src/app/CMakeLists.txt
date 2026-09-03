@@ -69,6 +69,10 @@ if(BPR_BUILD_QT)
                 "BPR_RFC0017_ANONYMOUS_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/rfc0017-anonymous-v001\""
                 "BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/pull-requests\""
                 "BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/device-authorization/v1\""
+                # RFC-BPR-0016 renewal. Documented rather than recorded, and a
+                # separate root so the refresh course cannot read a documented
+                # projection as a captured one.
+                "BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/device-authorization/documented-v1\""
                 # RFC-BPR-0012. The tests-enabled composition supervises the
                 # shipped helper out of the build tree; the shipped one resolves
                 # it beside its own executable. The construction is the same in

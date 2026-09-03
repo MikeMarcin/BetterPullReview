@@ -749,6 +749,13 @@ namespace {
 			// while the panel course beside it enrolls.
 			bool GhesCourse = false;
 			bool GhesBegan  = false;
+			// [[BPR-0536]]. The registered course carried past its terminal.
+			// Where that one ends when the grant reaches the vault, this one
+			// waits for the renewal the grant armed to rotate the material
+			// under the same authority, which is the only place the claim
+			// "refreshes before expiry under existing vault authority" can be
+			// observed through the composed graph rather than at the host.
+			bool RefreshCourse = false;
 		};
 
 		// RFC-BPR-0017. Activating the signed-out preview once, from the
@@ -3060,6 +3067,27 @@ namespace {
 		return "not_attempted";
 	}
 
+	// [[BPR-0536]]. Printed by name rather than by number: a course whose
+	// renewal landed in `reenrollment_required` and one that never armed at
+	// all are different failures, and an integer marker would read the same.
+	[[nodiscard]] auto device_refresh_state_name(
+		const bpr::application::device_authorization_refresh_state aState)
+		-> const char*
+	{
+		switch (aState) {
+		case bpr::application::device_authorization_refresh_state::idle:
+			return "idle";
+		case bpr::application::device_authorization_refresh_state::scheduled:
+			return "scheduled";
+		case bpr::application::device_authorization_refresh_state::refreshing:
+			return "refreshing";
+		case bpr::application::device_authorization_refresh_state::
+			reenrollment_required:
+			return "reenrollment_required";
+		}
+		return "idle";
+	}
+
 	void finish_automated_run(
 		bpr::app::github_application& aApplication,
 		const automated_run&          aRun)
@@ -3290,7 +3318,51 @@ namespace {
 							  status.DeviceAuthorizationHandoff)
 					   << '\n';
 			}
-			if (aRun.Device.Registered) {
+			if (aRun.Device.RefreshCourse) {
+				// [[BPR-0536]]. The registered course's claim, carried one
+				// step further: the grant reached the vault, composition armed
+				// renewal from the accepted session, and the renewal rotated
+				// the material before the access token expired -- through the
+				// real host, the real vault authority and a real timer. The
+				// vault stores count rises to two because a rotation enrolls a
+				// new access token under the same authority, which is the
+				// rotation being durable rather than a second enrollment;
+				// `DEVICE_FLOW_DURABLE_COPIES` stays zero, because nothing the
+				// renewal writes goes anywhere but the vault.
+				const auto rotated
+					= status.DeviceAuthorizationRefreshRotations >= 1U;
+				const auto bound
+					= status.DeviceAuthorizationRefreshBindings >= 1U;
+				const auto refreshed = status.DeviceAuthorizationHostComposed
+					&& status.DeviceAuthorizationStage
+						== bpr::core::device_authorization_stage::authorized
+					&& bound && rotated
+					&& status.DeviceAuthorizationRefreshState
+						== bpr::application::
+							device_authorization_refresh_state::scheduled
+					&& status.DeviceAuthorizationVaultStores >= 2U
+					&& status.DeviceAuthorizationDurableCopies == 0U;
+				stream << "DEVICE_FLOW_ROTATIONS:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationRefreshRotations)
+					   << "\nDEVICE_FLOW_REFRESH_STATE:"
+					   << device_refresh_state_name(
+							  status.DeviceAuthorizationRefreshState)
+					   << "\nDEVICE_FLOW_VAULT_STORES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationVaultStores)
+					   << "\nDEVICE_FLOW_DURABLE_COPIES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationDurableCopies)
+					   << "\nDEVICE_FLOW_REFRESH_BOUND:"
+					   << (bound ? "true" : "false")
+					   << "\nDEVICE_FLOW_REFRESH_RESUMES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationRefreshResumes)
+					   << '\n'
+					   << (refreshed ? "DEVICE_FLOW_REFRESH_OK\n"
+									 : "DEVICE_FLOW_REFRESH_FAILED\n");
+			} else if (aRun.Device.Registered) {
 				// The registered course makes the opposite claim: the grant
 				// must reach the existing vault exactly once, and the token
 				// must exist nowhere else the application wrote.
@@ -4800,6 +4872,23 @@ namespace {
 					if (aRun->Device.Registered
 						&& aApplication.status().DeviceAuthorizationVaultStores
 							== 0U) {
+						break;
+					}
+					// [[BPR-0536]]. The renewal is armed on a real timer off
+					// this run's lane, so the course waits for it by the count
+					// exactly as the store above is waited for, and waits past
+					// `refreshing` so the state it reports is a settled one
+					// rather than whichever instant the poll happened to land
+					// on.
+					if (aRun->Device.RefreshCourse
+						&& (aApplication.status()
+									.DeviceAuthorizationRefreshRotations
+								== 0U
+							|| aApplication.status()
+									.DeviceAuthorizationRefreshState
+								== bpr::application::
+									device_authorization_refresh_state::
+										refreshing)) {
 						break;
 					}
 					aRun->PresentationPassed
@@ -6539,6 +6628,20 @@ auto main(int argc, char** argv) -> int
 			argc,
 			argv,
 			"--device-authorization-registered-course");
+		// [[BPR-0536]]. The renewal course composes the registered grant and
+		// two more seams: a real second vault slot and the documented renewal
+		// answer. Read here for the same reason as the line above it.
+		fixtureOptions.DeviceRefreshCourse = has_argument(
+			argc,
+			argv,
+			"--device-authorization-refresh-course");
+		// The renewal course is the registered course plus a renewal, so it
+		// composes the registered capability rather than a second one. Every
+		// stage up to the vault store is the same graph, which is what makes
+		// the rotation after it evidence about the shipped composition.
+		fixtureOptions.RegisteredDeviceCourse
+			= fixtureOptions.RegisteredDeviceCourse
+			|| fixtureOptions.DeviceRefreshCourse;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
 		// browser capability, which is what every build had before
 		// [[BPR-0516]] composed one.
@@ -6678,6 +6781,17 @@ auto main(int argc, char** argv) -> int
 		const auto registeredDeviceCourse =
 #if defined(BPR_BUILD_TESTING)
 			has_argument(argc, argv, "--device-authorization-registered-course");
+#else
+			false;
+#endif
+		// [[BPR-0536]]. Tests-enabled only, exactly like the registered course
+		// it extends: it forces a registered capability against the recorded
+		// fixture, and a released image must not be able to do that from a
+		// command line. Its absence from a tests-disabled binary is what the
+		// RFC-BPR-0016 inventory scan reads.
+		const auto deviceRefreshCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-refresh-course");
 #else
 			false;
 #endif
@@ -7268,10 +7382,13 @@ auto main(int argc, char** argv) -> int
 						},
 						.Device = automated_run::device_authorization_probe_state{
 							.Enabled      = verifyDeviceAuthorization,
-							.Registered   = registeredDeviceCourse,
+							.Registered   = registeredDeviceCourse
+								|| deviceRefreshCourse,
 							.BrowserProbe = verifyDeviceAuthorization && deviceBrowserProbe,
 							.PanelCourse  = verifyDeviceAuthorization && devicePanelCourse,
 							.GhesCourse   = verifyDeviceAuthorization && deviceGhesCourse,
+							.RefreshCourse
+							= verifyDeviceAuthorization && deviceRefreshCourse,
 						},
 						.PublicPreview = automated_run::public_preview_probe_state{
 							.Enabled         = verifyPublicPreview,
