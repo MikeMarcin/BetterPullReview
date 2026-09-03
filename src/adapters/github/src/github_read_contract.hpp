@@ -348,6 +348,12 @@ namespace bpr::adapters::github::detail {
 
 		[[nodiscard]] auto consumed_all() const noexcept -> bool;
 
+		// Restarts the script at its first exchange. A recording describes one
+		// session's traffic; a course that establishes a second session sends
+		// the same requests again, and the answers are the same answers. The
+		// cursor is the only state a replay has, so this is the whole of it.
+		void rewind() noexcept;
+
 	private:
 		std::vector<recorded_exchange> Exchanges;
 		std::size_t                    NextExchange = 0;

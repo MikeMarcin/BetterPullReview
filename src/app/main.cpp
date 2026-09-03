@@ -4649,6 +4649,23 @@ namespace {
 								refuse_appearance_gesture(aApplication);
 						QApplication::processEvents();
 					}
+					// [[BPR-0536]]. The renewal course does not connect
+					// first, for the same reason the signed-out courses above
+					// do not: `github_connect_action` enrolls the fixture's own
+					// credential, and that enrollment is a whole session -- it
+					// takes the vault slot, consumes the recorded bootstrap
+					// exchange, and leaves the device grant to arrive as a
+					// second establishment that the strict recording cannot
+					// serve and that the product must first delete its way out
+					// of. The grant is the only session this course wants, so
+					// it goes straight to the stage that starts the flow, and
+					// every store, read and probe the run then observes belongs
+					// to the grant.
+					if (aRun->Device.RefreshCourse) {
+						advance_fixture_stage(
+							*aRun, automated_run::stage::connect);
+						break;
+					}
 					window.github_connect_action()->trigger();
 					advance_fixture_stage(
 						*aRun, automated_run::stage::connect);
@@ -7381,14 +7398,12 @@ auto main(int argc, char** argv) -> int
 							.EnterpriseHostname = std::move(enterpriseHostname),
 						},
 						.Device = automated_run::device_authorization_probe_state{
-							.Enabled      = verifyDeviceAuthorization,
-							.Registered   = registeredDeviceCourse
-								|| deviceRefreshCourse,
-							.BrowserProbe = verifyDeviceAuthorization && deviceBrowserProbe,
-							.PanelCourse  = verifyDeviceAuthorization && devicePanelCourse,
-							.GhesCourse   = verifyDeviceAuthorization && deviceGhesCourse,
-							.RefreshCourse
-							= verifyDeviceAuthorization && deviceRefreshCourse,
+							.Enabled       = verifyDeviceAuthorization,
+							.Registered    = registeredDeviceCourse || deviceRefreshCourse,
+							.BrowserProbe  = verifyDeviceAuthorization && deviceBrowserProbe,
+							.PanelCourse   = verifyDeviceAuthorization && devicePanelCourse,
+							.GhesCourse    = verifyDeviceAuthorization && deviceGhesCourse,
+							.RefreshCourse = verifyDeviceAuthorization && deviceRefreshCourse,
 						},
 						.PublicPreview = automated_run::public_preview_probe_state{
 							.Enabled         = verifyPublicPreview,

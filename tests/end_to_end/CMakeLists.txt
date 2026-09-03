@@ -291,6 +291,46 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# BPR-0536. The registered course carried one step past its terminal, and the
+# only place RFC-BPR-0016's claim-matrix row 9 can be observed through the
+# composed graph rather than at the host: the recorded grant enrolls, the
+# composition binds the refresh authority from the accepted session, and the
+# renewal rotates the access and refresh material under that same vault
+# authority before the access token expires. Two vault stores, because the
+# rotation enrolls the rotated access token under the authority the grant
+# established - that is the rotation being durable rather than a second
+# enrollment - and `DEVICE_FLOW_DURABLE_COPIES` stays zero because nothing the
+# renewal writes goes anywhere but the vault. `WINDOWS_UNCONTAINED` and the
+# isolation keyword are the registered course's, unchanged: this row runs the
+# same graph with one more flag.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_refresh_course
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-refresh-course
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_refresh_course
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ROTATIONS:1[\r\n]+DEVICE_FLOW_REFRESH_STATE:scheduled[\r\n]+DEVICE_FLOW_VAULT_STORES:2[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_REFRESH_BOUND:true[\r\n]+DEVICE_FLOW_REFRESH_RESUMES:0[\r\n]+DEVICE_FLOW_REFRESH_OK"
+)
+bpr_bound_automated_run(
+    application_device_authorization_refresh_course
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
 # RFC-BPR-0016's browser handoff, and its construction cut. Both drive the
 # registered course, because `awaiting_authorization` is the only stage that
 # has an address to open and the recorded grant is the only composition that

@@ -972,7 +972,11 @@ namespace bpr::app::detail {
 					|| aRequest.Correlation.Session.Profile
 						!= State->Profile.profile()
 					|| aRequest.Correlation.ObservedAccount.value() == 0U
-					|| State->CapabilityCalls != 0U) {
+					// [[BPR-0536]]. The same relaxation as the factories
+					// above, and for the same session: the host invalidates
+					// the identity's cached capabilities when the generation
+					// advances, so a second establishment probes again.
+					|| (!State->RepeatSessions && State->CapabilityCalls != 0U)) {
 					return github_capability_probe_wire_error{
 						.Correlation = aRequest.Correlation,
 						.Error       = provider_error(
@@ -1087,6 +1091,16 @@ namespace bpr::app::detail {
 					return std::unexpected{ provider_error(
 						application::github_provider_failure::unavailable) };
 				}
+				// [[BPR-0536]]. A repeat session is a repeat of the recorded
+				// script, not a continuation of it: the renewal course's
+				// rotation re-enrolls the rotated access token, the product
+				// establishes the session again to bind it, and that second
+				// establishment reads `/user` exactly as the first one did.
+				// Off the course the cursor is untouched and the recording
+				// stays consumed-once.
+				if (State->RepeatSessions && State->BootstrapFactoryCalls != 0U) {
+					State->BootstrapRecording.rewind();
+				}
 				++State->BootstrapFactoryCalls;
 				return BootstrapTransport;
 			}
@@ -1111,6 +1125,14 @@ namespace bpr::app::detail {
 						&& State->AccountFactoryCalls != 0U)) {
 					return std::unexpected{ provider_error(
 						application::github_provider_failure::unavailable) };
+				}
+				// [[BPR-0536]]. The bootstrap rewind's counterpart. The
+				// account script opens with the same viewer read the session
+				// makes on the account transport, so a second establishment
+				// needs the cursor back at that exchange rather than at the
+				// pull-request read behind it.
+				if (State->RepeatSessions && State->AccountFactoryCalls != 0U) {
+					State->Recording.rewind();
 				}
 				++State->AccountFactoryCalls;
 				return AccountTransport;
@@ -1582,13 +1604,26 @@ namespace bpr::app::detail {
 				override
 			{
 				Effects.post(
-					[state = State, aContext, completion = std::move(aCompletion)]() mutable {
+					[state = State,
+					 slot  = RefreshSlot,
+					 aContext,
+					 completion = std::move(aCompletion)]() mutable {
 						auto disposition  = application::github_credential_delete_disposition::absent;
 						auto exactContext = true;
 						{
 							const std::scoped_lock lock{ state->Mutex };
-							if (state->Context.has_value()
-								&& state->Context != aContext) {
+							// The same key the retrieve above is defined by.
+							// A real vault deletes what the authority names;
+							// the operation context also carries the request
+							// and the identity generation, and the product
+							// deletes a superseded credential under the *new*
+							// generation -- so an exact-context match refuses
+							// the one delete every re-enrollment performs.
+							const auto matched = !state->Context.has_value()
+								|| (slot ? state->Context->Authority
+											== aContext.Authority
+										 : *state->Context == aContext);
+							if (!matched) {
 								exactContext = false;
 							} else {
 								if (state->Credential.has_value()) {

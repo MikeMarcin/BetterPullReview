@@ -2096,6 +2096,11 @@ namespace bpr::adapters::github::detail {
 	{
 	}
 
+	void strict_recorded_transport::rewind() noexcept
+	{
+		NextExchange = 0U;
+	}
+
 	auto strict_recorded_transport::perform(const wire_request& aRequest)
 		-> response_result
 	{
