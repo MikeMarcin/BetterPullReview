@@ -468,6 +468,9 @@ Named rather than left for a reader to infer from silence:
   `docs/architecture/ai-agent-boundary.md` already carried the qualification.
   Whether a card owns the six or the promise is withdrawn is the owner's
   decision, not this slice's.
+  **Decided 2026-09-02 by the product owner: carded.** The six operations are
+  BPR-0533 in backlog, outside this RFC's closeout; the UX guide names the
+  card beside the promise so nothing reads as a control somebody can click.
 - **`continue_against_old_revision` composes the old revision, except for its
   alignment.** BPR-0521 closed the half BPR-0514 and BPR-0517 named: the turn's
   supplement, the helper's pin, and the frozen snapshot's binding record are

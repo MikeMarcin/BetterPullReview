@@ -45,6 +45,8 @@ SELECTORS: dict[str, int] = {
     "application_anonymous_public_preview_release_contract": 1,
     "application_anonymous_public_preview_ghes_refusal": 1,
     "application_anonymous_public_preview_public_path": 1,
+    "application_anonymous_public_preview_enabled_probe": 1,
+    "application_anonymous_public_preview_live_candidate_wiring": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector also
@@ -59,6 +61,8 @@ REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "application_anonymous_public_preview_release_contract": ("--public-preview-probe",),
     "application_anonymous_public_preview_ghes_refusal": ("--public-preview-ghes-course",),
     "application_anonymous_public_preview_public_path": ("--public-preview-enabled-course",),
+    "application_anonymous_public_preview_enabled_probe": ("--public-preview-selection-enabled-probe",),
+    "application_anonymous_public_preview_live_candidate_wiring": ("--public-preview-live-candidate-dry-run",),
 }
 
 # Not every configured graph builds every surface — the core-only preset has
@@ -93,6 +97,8 @@ SELECTOR_ANCHORS: dict[str, tuple[str | None, bool]] = {
     "application_anonymous_public_preview_release_contract": ("application_device_authorization_release_contract", False),
     "application_anonymous_public_preview_ghes_refusal": ("application_github_public_path_ghes_3_18", False),
     "application_anonymous_public_preview_public_path": ("application_github_public_path_github_com", False),
+    "application_anonymous_public_preview_enabled_probe": ("application_device_authorization_unavailable", False),
+    "application_anonymous_public_preview_live_candidate_wiring": ("application_device_authorization_unavailable", False),
 }
 
 WIRE_BLOCK_PLATFORMS = frozenset({"darwin", "linux"})
@@ -121,6 +127,10 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
     "make_native_https_anonymous_read_transport_for_test",
     "make_native_https_anonymous_smart_transport_for_test",
     "credential-free-material-present",
+    # BPR-0515: the tests-enabled flag that routes the device-authorization
+    # probe through a closed loopback proxy so the dev-tree gate is denied
+    # locally on every platform; a shipped build must not know it.
+    "--network-denied",
 )
 
 # Credential-free product capabilities that ARE compiled into a shipped build

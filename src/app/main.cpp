@@ -288,6 +288,38 @@ namespace {
 		return std::nullopt;
 	}
 
+#if defined(BPR_BUILD_TESTING)
+	/// \brief Reads a fixed run of values that follow one flag.
+	///
+	/// \details [[BPR-0316]]'s live candidate names an owner, a repository and
+	/// a number in one place, so the three are read together or not at all: a
+	/// partial run is no candidate rather than a candidate with a default in
+	/// it.
+	auto argument_values(
+		const int              aArgc,
+		char* const* const     aArgv,
+		const std::string_view aExpected,
+		const int              aCount)
+		-> std::optional<std::vector<std::string_view>>
+	{
+		for (auto index = 1; index < aArgc; ++index) {
+			if (std::string_view{ aArgv[index] } != aExpected) {
+				continue;
+			}
+			if (index + aCount >= aArgc) {
+				return std::nullopt;
+			}
+			auto values = std::vector<std::string_view>{ };
+			values.reserve(static_cast<std::size_t>(aCount));
+			for (auto offset = 1; offset <= aCount; ++offset) {
+				values.emplace_back(aArgv[index + offset]);
+			}
+			return values;
+		}
+		return std::nullopt;
+	}
+#endif
+
 	/// \brief Saves the evidence render, optionally with the files drawer shut.
 	///
 	/// \details Collapsing happens through the shipped toggle action, so the
@@ -732,6 +764,29 @@ namespace {
 			// triage intents. Offered exactly once, so the counted refusals
 			// are the two the course asked for and not a tick's worth.
 			bool WritesOffered = false;
+			// [[BPR-0316]]. The forced selection with no fixture under it.
+			// `SelectionForced` alone activates the mode and stops -- the
+			// verdict for a shipped enabled selection, which reaches zero
+			// requests -- and `LiveCandidate` additionally opens the named
+			// pull request through the production anonymous authority.
+			// `DryRun` composes the live candidate and reports its wiring
+			// without issuing anything.
+			bool SelectionForced = false;
+			bool LiveCandidate   = false;
+			bool DryRun          = false;
+			// Read from the live status while the session is open, because
+			// shutdown closes it before the markers are printed.
+			bool          SignedOutObserved        = false;
+			bool          ProductionFactories      = false;
+			bool          SnapshotSignedOut        = false;
+			bool          BudgetObserved           = false;
+			std::size_t   WireRequests             = 0U;
+			std::size_t   WireCapabilityProbes     = 0U;
+			std::size_t   WireCredentialedRefusals = 0U;
+			std::uint64_t BudgetLimit              = 0U;
+			std::uint64_t BudgetRemaining          = 0U;
+			std::uint64_t BudgetReset              = 0U;
+			std::string   HeadOid;
 		};
 
 		stage Stage = stage::start;
@@ -3274,7 +3329,8 @@ namespace {
 			// `Opened` is set only once the status said signed out -- with the
 			// live answer still leading, for the rows that never open one.
 			const auto signedOut = status.PublicPreviewSignedOut
-				|| aRun.PublicPreview.Opened;
+				|| aRun.PublicPreview.Opened
+				|| aRun.PublicPreview.SignedOutObserved;
 			const auto stageText = signedOut
 				? "enabled"
 				: (status.PublicPreviewPolicyRefused ? "refused"
@@ -3295,7 +3351,90 @@ namespace {
 				   << static_cast<unsigned long long>(
 						  status.PublicPreviewSignInRequests)
 				   << '\n';
-			if (aRun.PublicPreview.Course) {
+#if defined(BPR_BUILD_TESTING)
+			if (aRun.PublicPreview.LiveCandidate) {
+				// [[BPR-0316]]. The live candidate reports what the shipped
+				// composition did, in the same shape the fixture course
+				// reports it, plus the four facts only a real read can carry:
+				// what reached the wire, what the shared budget said, which
+				// mode the accepted snapshot was read in, and which head the
+				// candidate resolved to. No body and no comment text: this
+				// output goes on a card.
+				stream << "PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:"
+					   << static_cast<unsigned long long>(
+							  status.PublicPreviewReviewCommentGroups)
+					   << "\nPUBLIC_PREVIEW_WRITE_REFUSALS:"
+					   << static_cast<unsigned long long>(
+							  status.PublicPreviewWriteRefusals)
+					   << "\nPUBLIC_PREVIEW_LIVE_CANDIDATE_PRODUCTION_FACTORIES:"
+					   << (aRun.PublicPreview.ProductionFactories ? "true"
+																  : "false")
+					   << "\nPUBLIC_PREVIEW_WIRE_REQUESTS:"
+					   << static_cast<unsigned long long>(
+							  aRun.PublicPreview.WireRequests)
+					   << "\nPUBLIC_PREVIEW_WIRE_CAPABILITY_PROBES:"
+					   << static_cast<unsigned long long>(
+							  aRun.PublicPreview.WireCapabilityProbes)
+					   << "\nPUBLIC_PREVIEW_WIRE_CREDENTIALED_REFUSALS:"
+					   << static_cast<unsigned long long>(
+							  aRun.PublicPreview.WireCredentialedRefusals)
+					   << "\nPUBLIC_PREVIEW_BUDGET:"
+					   << static_cast<unsigned long long>(
+							  aRun.PublicPreview.BudgetLimit)
+					   << '/'
+					   << static_cast<unsigned long long>(
+							  aRun.PublicPreview.BudgetRemaining)
+					   << '/'
+					   << static_cast<unsigned long long>(
+							  aRun.PublicPreview.BudgetReset)
+					   << "\nPUBLIC_PREVIEW_SNAPSHOT_MODE:"
+					   << (aRun.PublicPreview.SnapshotSignedOut
+							   ? "public_preview"
+							   : "authenticated")
+					   << "\nPUBLIC_PREVIEW_CANDIDATE:"
+					   << QString::fromStdString(aRun.Expectations.Owner) << '/'
+					   << QString::fromStdString(aRun.Expectations.Repository)
+					   << '#' << aRun.Expectations.Number << ' '
+					   << QString::fromStdString(aRun.PublicPreview.HeadOid)
+					   << '\n';
+				// The wiring claim, which a dry run makes on its own: the
+				// signed-out authority was composed from the production
+				// factories, no credentialed transport was even asked for, and
+				// neither a header nor the vault was involved. The read claim
+				// is added only when a read was asked for.
+				auto passed = status.PublicPreviewComposed
+					&& aRun.PublicPreview.ProductionFactories
+					&& !status.PublicPreviewUnavailable
+					&& !status.PublicPreviewPolicyRefused
+					&& aRun.PublicPreview.WireCredentialedRefusals == 0U
+					&& aRun.PublicPreview.WireCapabilityProbes == 0U
+					&& status.PublicPreviewHeaderEffects == 0U
+					&& status.PublicPreviewVaultEffects == 0U
+					&& status.PublicPreviewSignInRequests == 0U
+					&& status.PublicPreviewSmartAcquisitions == 0U
+					&& status.PublicPreviewPublications > 0U;
+				if (aRun.PublicPreview.DryRun) {
+					// The wiring claim on its own: the mode was entered over
+					// the production authority and the run stopped there, with
+					// nothing on the wire and no snapshot accepted.
+					passed = passed && signedOut
+						&& status.PublicPreviewRequests == 0U
+						&& aRun.PublicPreview.WireRequests == 0U
+						&& !aRun.PublicPreview.SnapshotSignedOut
+						&& aRun.PublicPreview.HeadOid.empty();
+				} else {
+					passed = passed && signedOut
+						&& status.PublicPreviewRequests >= 1U
+						&& aRun.PublicPreview.WireRequests >= 1U
+						&& aRun.PublicPreview.SnapshotSignedOut
+						&& aRun.PublicPreview.BudgetObserved
+						&& !aRun.PublicPreview.HeadOid.empty();
+				}
+				stream << (passed ? "PUBLIC_PREVIEW_LIVE_CANDIDATE_OK\n"
+								  : "PUBLIC_PREVIEW_LIVE_CANDIDATE_FAILED\n");
+			} else
+#endif
+				if (aRun.PublicPreview.Course) {
 				// The enabled claim: the mode was entered, the read went
 				// through the credential-free authority, the inline
 				// conversation was observed, and neither an authorization
@@ -3329,10 +3468,28 @@ namespace {
 					&& status.PublicPreviewPublications > 0U;
 				stream << (refused ? "PUBLIC_PREVIEW_REFUSED_OK\n"
 								   : "PUBLIC_PREVIEW_REFUSED_FAILED\n");
+			} else if (status.PublicPreviewComposed) {
+				// [[BPR-0316]]. A selection that is enabled activates with no
+				// request at all: the mode is entered from the composed
+				// authority and nothing is read until a reviewer asks for
+				// something. So the enabled verdict for a plain probe is
+				// exactly the opposite of the fixture course's -- zero
+				// requests rather than at least one -- and a build whose
+				// selection ships enabled reports it without a course flag.
+				const auto enabled = signedOut
+					&& !status.PublicPreviewUnavailable
+					&& !status.PublicPreviewPolicyRefused
+					&& status.PublicPreviewRequests == 0U
+					&& status.PublicPreviewHeaderEffects == 0U
+					&& status.PublicPreviewVaultEffects == 0U
+					&& status.PublicPreviewSmartAcquisitions == 0U
+					&& status.PublicPreviewPublications > 0U;
+				stream << (enabled ? "PUBLIC_PREVIEW_ENABLED_OK\n"
+								   : "PUBLIC_PREVIEW_ENABLED_FAILED\n");
 			} else {
-				// The shipped selection. Composed nothing, answered
-				// `public_preview_unavailable`, said so where a reviewer can
-				// see it, and sent nothing of any kind.
+				// The shipped selection where it is unavailable. Composed
+				// nothing, answered `public_preview_unavailable`, said so
+				// where a reviewer can see it, and sent nothing of any kind.
 				const auto unavailable = !status.PublicPreviewComposed
 					&& status.PublicPreviewUnavailable && !signedOut
 					&& status.PublicPreviewRequests == 0U
@@ -4364,7 +4521,88 @@ namespace {
 				// tick spent waiting here.
 				if (aRun->PublicPreview.Enabled
 					&& aRun->PublicPreview.Activated) {
+					// Read while the session is open. Shutdown closes it
+					// before the markers are printed, so a run that never
+					// recorded this could not tell an enabled selection from
+					// an unavailable one. [[BPR-0316]].
+					//
+					// Recorded only once the typed answer has been published
+					// and only when that answer was not a refusal. Activation
+					// names the mode before the core has answered, so a poll
+					// that read the mode alone would see the enterprise
+					// course's refused activation as a signed-out session for
+					// the tick between the two.
+					if (aApplication.status().PublicPreviewPublications > 0U
+						&& aApplication.status().PublicPreviewSignedOut
+						&& !aApplication.status().PublicPreviewPolicyRefused
+						&& !aApplication.status().PublicPreviewUnavailable) {
+						aRun->PublicPreview.SignedOutObserved = true;
+					}
 #if defined(BPR_BUILD_TESTING)
+					if (aRun->PublicPreview.LiveCandidate) {
+						const auto live = aApplication.status();
+						aRun->PublicPreview.ProductionFactories
+							= live.PublicPreviewLiveCandidateProductionFactories;
+						aRun->PublicPreview.WireRequests
+							= live.PublicPreviewWireRequests;
+						aRun->PublicPreview.WireCapabilityProbes
+							= live.PublicPreviewWireCapabilityProbes;
+						aRun->PublicPreview.WireCredentialedRefusals
+							= live.PublicPreviewWireCredentialedRefusals;
+						if (live.PublicPreviewBudgetObserved) {
+							aRun->PublicPreview.BudgetObserved = true;
+							aRun->PublicPreview.BudgetLimit
+								= live.PublicPreviewBudgetLimit;
+							aRun->PublicPreview.BudgetRemaining
+								= live.PublicPreviewBudgetRemaining;
+							aRun->PublicPreview.BudgetReset
+								= live.PublicPreviewBudgetResetUnixSeconds;
+						}
+						if (live.PublicPreviewSnapshotPublicPreview) {
+							aRun->PublicPreview.SnapshotSignedOut = true;
+							aRun->PublicPreview.HeadOid
+								= live.PublicPreviewSnapshotHeadOid;
+						}
+						// Read before anything is opened, so a composition
+						// that reached for a credentialed transport, built an
+						// authorization header, touched the vault, or was not
+						// built from the production factories issues no
+						// request at all. The run then ends on its own
+						// publication wait and reports the refusal.
+						const auto composed
+							= live.PublicPreviewLiveCandidateProductionFactories
+							&& live.PublicPreviewWireCredentialedRefusals == 0U
+							&& live.PublicPreviewHeaderEffects == 0U
+							&& live.PublicPreviewVaultEffects == 0U;
+						if (composed && !aRun->PublicPreview.DryRun) {
+							// The mode first, the pull request second, exactly
+							// as the fixture course below: opening before the
+							// session is signed out would read it on whatever
+							// authority the host had.
+							if (!aRun->PublicPreview.Opened) {
+								if (!live.PublicPreviewSignedOut) {
+									break;
+								}
+								aRun->PublicPreview.Opened = true;
+								window.session_panel()->owner_editor()->setText(
+									QString::fromStdString(
+										aRun->Expectations.Owner));
+								window.session_panel()
+									->repository_editor()
+									->setText(QString::fromStdString(
+										aRun->Expectations.Repository));
+								window.session_panel()
+									->pull_request_editor()
+									->setValue(aRun->Expectations.Number);
+								window.github_open_action()->trigger();
+								break;
+							}
+							if (live.PublicPreviewRequests == 0U
+								|| !live.PublicPreviewSnapshotPublicPreview) {
+								break;
+							}
+						}
+					}
 					if (aRun->PublicPreview.Course) {
 						// The mode first, the pull request second. Opening
 						// before the session is signed out would read it on
@@ -6145,6 +6383,21 @@ auto main(int argc, char** argv) -> int
 						   : "APPLICATION_NETWORK_ISOLATION_NOT_DENIED\n");
 			return denied ? EXIT_SUCCESS : EXIT_FAILURE;
 		}
+		// [[BPR-0515]]. Tests-enabled only, and deliberately so: this is the
+		// one flag that changes where the shipped device-authorization wire
+		// dials, and a released binary must not carry a way to redirect its
+		// own egress from a command line. The string exists nowhere else, so
+		// the RFC-BPR-0017 fixture-seam scan can prove its absence from a
+		// tests-disabled Release by looking for it.
+		//
+		// What it buys is one gate's determinism.
+		// `application_device_authorization_unavailable` is exempt from the
+		// Windows AppContainer ([[BPR-0362]]), so on Windows nothing denied
+		// the connect and the gate's expectation depended on reaching
+		// github.com. With this the denial is the application's own, on every
+		// platform, and the expectation is the local `failed` macOS and Linux
+		// already recorded.
+		config.NetworkDenied               = has_argument(argc, argv, "--network-denied");
 		const auto testApplicationDataRoot = argument_value(
 			argc, argv, "--test-application-data-root");
 		if (testApplicationDataRoot.has_value()) {
@@ -6330,6 +6583,66 @@ auto main(int argc, char** argv) -> int
 			has_argument(argc, argv, "--public-preview-ghes-course");
 #else
 			false;
+#endif
+		// [[BPR-0316]]. The forced selection with no fixture underneath it.
+		// Tests-enabled only, for the reason the two courses above are: a
+		// released binary must never be able to override its own selection
+		// from a command line. `--public-preview-selection-enabled-probe`
+		// activates the mode and stops, which is what a shipped build whose
+		// selection is enabled does; the live candidate additionally opens the
+		// named pull request through the production anonymous authority, and
+		// its dry-run twin reports the same wiring having issued nothing.
+		auto publicPreviewSelectionForced = false;
+		auto publicPreviewLiveCandidate   = false;
+		auto publicPreviewLiveDryRun      = false;
+#if defined(BPR_BUILD_TESTING)
+		publicPreviewLiveDryRun = has_argument(
+			argc, argv, "--public-preview-live-candidate-dry-run");
+		if (const auto candidate = argument_values(
+				argc, argv, "--public-preview-live-candidate", 3);
+			candidate.has_value()) {
+			auto              number = 0;
+			const auto* const first  = (*candidate)[2U].data();
+			const auto* const last   = first + (*candidate)[2U].size();
+			const auto        parsed = std::from_chars(first, last, number);
+			if (parsed.ec != std::errc{ } || parsed.ptr != last || number <= 0
+				|| (*candidate)[0U].empty() || (*candidate)[1U].empty()) {
+				QTextStream{ stdout }
+					<< "PUBLIC_PREVIEW_LIVE_CANDIDATE_CONFIGURATION_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			publicPreviewLiveCandidate = true;
+			// The same three fields the fixture courses drive the session
+			// panel from, so the live candidate opens through the shipped
+			// control rather than through a path of its own.
+			fixtureExpectations.Owner.assign((*candidate)[0U]);
+			fixtureExpectations.Repository.assign((*candidate)[1U]);
+			fixtureExpectations.Number = number;
+		}
+		if (publicPreviewLiveDryRun && !publicPreviewLiveCandidate) {
+			QTextStream{ stdout }
+				<< "PUBLIC_PREVIEW_LIVE_CANDIDATE_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		publicPreviewSelectionForced = publicPreviewLiveCandidate
+			|| has_argument(
+										   argc, argv, "--public-preview-selection-enabled-probe");
+		// Refused here, before a graph exists and so before anything could be
+		// sent. A profile that is not GitHub.com has no anonymous read
+		// authority at all; a fixture would replace the production factories
+		// this is composed to exercise; a course flag would override the
+		// selection a second time; and the run bound is mandatory, because
+		// this is the one self-test whose requests leave the machine.
+		if (publicPreviewSelectionForced
+			&& (!selfTest || selectedFixture.has_value()
+				|| enterpriseHostname.has_value() || publicPreviewEnabledCourse
+				|| publicPreviewGhesCourse || deviceProbe
+				|| registeredDeviceCourse
+				|| !has_argument(argc, argv, "--automated-run-budget-ms"))) {
+			QTextStream{ stdout }
+				<< "PUBLIC_PREVIEW_LIVE_CANDIDATE_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
 #endif
 		const auto renderPath                 = argument_value(argc, argv, "--render-evidence");
 		const auto renderCollapsesFilesDrawer = has_argument(
@@ -6719,10 +7032,21 @@ auto main(int argc, char** argv) -> int
 			selectedFixture.has_value()
 			? bpr::app::detail::github_application_fixture_access::make(
 				  *selectedFixture, fixtureOptions)
-			:
+			: (publicPreviewSelectionForced
+				   // [[BPR-0316]]. The shipped graph with one thing changed:
+				   // the public-preview selection is available. Every factory
+				   // below it is the production one.
+				   ? bpr::app::detail::github_application_fixture_access::
+						 make_public_preview_selection_available(
+							 std::move(config))
+				   :
 #endif
-			std::make_unique<bpr::app::github_application>(
-				std::move(config));
+				   std::make_unique<bpr::app::github_application>(
+					   std::move(config))
+#if defined(BPR_BUILD_TESTING)
+			  )
+#endif
+			;
 		application->show();
 
 		// Closing the last window starts the shutdown poll rather than letting
@@ -6736,7 +7060,8 @@ auto main(int argc, char** argv) -> int
 		auto       verifyNativePlatformVault = selfTest;
 		auto       verifyCliUnavailable      = selfTest;
 		const auto verifyDeviceAuthorization = selfTest && deviceProbe;
-		const auto verifyPublicPreview       = selfTest && publicPreviewProbe;
+		const auto verifyPublicPreview       = selfTest
+			&& (publicPreviewProbe || publicPreviewSelectionForced);
 #if defined(BPR_BUILD_TESTING)
 		verifyNativePlatformVault = verifyNativePlatformVault && fixtureName.empty();
 		verifyCliUnavailable      = verifyCliUnavailable && fixtureName.empty();
@@ -6798,9 +7123,12 @@ auto main(int argc, char** argv) -> int
 							.PanelCourse  = verifyDeviceAuthorization && devicePanelCourse,
 						},
 						.PublicPreview = automated_run::public_preview_probe_state{
-							.Enabled    = verifyPublicPreview,
-							.Course     = verifyPublicPreview && publicPreviewEnabledCourse,
-							.Enterprise = verifyPublicPreview && publicPreviewGhesCourse,
+							.Enabled         = verifyPublicPreview,
+							.Course          = verifyPublicPreview && publicPreviewEnabledCourse,
+							.Enterprise      = verifyPublicPreview && publicPreviewGhesCourse,
+							.SelectionForced = publicPreviewSelectionForced,
+							.LiveCandidate   = publicPreviewLiveCandidate,
+							.DryRun          = publicPreviewLiveDryRun,
 						},
 #if defined(BPR_BUILD_TESTING)
 						.Fixture                         = !fixtureName.empty(),

@@ -67,6 +67,10 @@ PREVIEW_ROWS = (
      "application_github_public_path_ghes_3_18", ("--public-preview-ghes-course",)),
     ("application_anonymous_public_preview_public_path",
      "application_github_public_path_github_com", ("--public-preview-enabled-course",)),
+    ("application_anonymous_public_preview_enabled_probe",
+     "application_device_authorization_unavailable", ("--public-preview-selection-enabled-probe",)),
+    ("application_anonymous_public_preview_live_candidate_wiring",
+     "application_device_authorization_unavailable", ("--public-preview-live-candidate-dry-run",)),
 )
 BUILD = pathlib.Path("/nonexistent/build")
 
@@ -167,6 +171,7 @@ class InventoryTable(unittest.TestCase):
         for shipped in ("make_native_https_anonymous_read_transport",
                         "make_native_https_anonymous_smart_transport"):
             self.assertIn(shipped, self.module.KNOWN_PRODUCT_CREDENTIAL_FREE)
+        self.assertIn("--network-denied", self.module.FORBIDDEN_STRINGS)
 
     def test_the_tests_enabled_graph_passes(self) -> None:
         self.assertEqual(self.check(DEV_GRAPH), [])

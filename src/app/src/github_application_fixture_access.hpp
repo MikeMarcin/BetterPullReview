@@ -111,6 +111,14 @@ namespace bpr::app::detail {
 		// refusal there is the core policy's rather than the composition's,
 		// which is a different claim and needs a different course.
 		bool PublicPreviewGhesCourse = false;
+		// [[BPR-0316]]. Forces the shipped public-preview selection available
+		// with no fixture at all. The two options above override the selection
+		// against recorded traffic; this one overrides it against the shipped
+		// composition, so the authority the host is handed is built from the
+		// production factories and a read issued through it would leave the
+		// machine. Only the tests-enabled binary has it, and only the
+		// live-candidate and forced-selection flags set it.
+		bool PublicPreviewSelectionAvailable = false;
 	};
 
 	struct queue_notification_fixture_evidence
@@ -506,6 +514,16 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto make(
 			github_public_path_fixture         aFixture,
 			github_public_path_fixture_options aOptions = { })
+			-> std::unique_ptr<github_application>;
+		/// \brief Composes the shipped graph with the public-preview selection
+		/// forced available and no fixture.
+		///
+		/// \details [[BPR-0316]]. Every factory below this is the production
+		/// one, so a read issued through the authority it composes reaches the
+		/// real service. Construction sends nothing; what the caller does with
+		/// the composed application decides whether anything is issued at all.
+		[[nodiscard]] static auto make_public_preview_selection_available(
+			github_application_config aConfig)
 			-> std::unique_ptr<github_application>;
 		[[nodiscard]] static auto evidence(
 			const github_application& aApplication) noexcept

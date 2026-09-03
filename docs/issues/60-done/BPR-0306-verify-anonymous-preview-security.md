@@ -142,3 +142,16 @@ are [[BPR-0314]]'s and [[BPR-0315]]'s on their stations.
 | The two contracts and their siblings with the inventory owning the public path | `ctest --preset dev -R '^(rfc0017_platform_course_launch_contract\|rfc0017_sanitizer_course_contract\|rfc0017_test_inventory\|rfc0017_test_inventory_contract\|test_network_isolation_manifest)$'` | 5/5 passed; the platform course contract 47 tests OK | this commit |
 | The tree's documentation and issue-graph contracts hold | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | this commit |
 | No whitespace damage | `git diff --check` | clean | this commit |
+
+## Correction — 2026-09-03
+
+[[BPR-0315]]'s station found `rfc0017_platform_course_launch_contract` red
+on Windows: the inventory's `selector_expected` reads the real
+`sys.platform`, and the contract's macOS and Linux cases had no inverse of
+the `as_windows` helper, so on a Windows host they inherited the host's
+answer and the wire selectors read as extras. The course itself was never
+wrong — it refuses a platform it is not on — only the contract that proves
+the audit. The module now pins `sys.platform` to the wire block in
+`setUpModule` and restores it after, so every case is judged from inside
+the block on any host; the two new BPR-0316 rows are allocated in the
+inventory and the manifest at the same time.

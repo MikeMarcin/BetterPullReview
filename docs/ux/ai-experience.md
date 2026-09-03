@@ -24,7 +24,7 @@ Expanding from selected lines to an entire file, PR, or repository requires an e
 
 ## Comment workshop
 
-Operations include clarify, shorten, make actionable, phrase as a question, make more direct, and check whether the premise is supported. **Those six operations are specification only**: they appear nowhere in the tree, and what shipped is one path from a proposed draft edit to a before/after proposal, with `workshop_comment` as a single entry point — the same statement `docs/architecture/ai-agent-boundary.md` carries, restated here so this section is not read as a list of controls somebody can click. Results stay in the local editor until the user publishes through normal GitHub review controls.
+Operations include clarify, shorten, make actionable, phrase as a question, make more direct, and check whether the premise is supported. **Those six operations are specification only, carded as BPR-0533**: they appear nowhere in the tree yet, and what shipped is one path from a proposed draft edit to a before/after proposal, with `workshop_comment` as a single entry point — the same statement `docs/architecture/ai-agent-boundary.md` carries, restated here so this section is not read as a list of controls somebody can click. Results stay in the local editor until the user publishes through normal GitHub review controls.
 
 ## AI findings
 
@@ -130,7 +130,7 @@ send reaches one agent turn through the composed side-chat session host
 ([[BPR-0517]]).
 
 
-- **The six comment-workshop operations above are not entry points.** Clarify,
+- **The six comment-workshop operations above are not entry points yet (BPR-0533).** Clarify,
   shorten, make actionable, phrase as a question, make more direct, and check
   the premise appear nowhere in the tree. What exists is one shipped path:
   `application::agent_comment_workshop_host` turns one proposed draft edit into

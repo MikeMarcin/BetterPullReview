@@ -4,42 +4,41 @@ else()
     set(bpr_native_platform_vault_self_test_result "false")
 endif()
 
-# RFC-BPR-0016. What the shipped device-authorization selection answers in this
-# gate, per platform. `DEVICE_FLOW_REQUESTS` counts submissions that reached the
-# refusing transport, never HTTP requests, so zero means the capability gate
-# held on every platform below and is the one value they share.
+# RFC-BPR-0016, as BPR-0515 left it. What the shipped device-authorization
+# selection answers in the dev-tree matrix, on one mechanism for every platform
+# and every row that uses it. `DEVICE_FLOW_REQUESTS` counts submissions that
+# reached the refusing transport, never HTTP requests, so zero means the
+# capability gate held and is the one value every platform shares.
 #
-# macOS is registered under the recorded distributable identity since BPR-0318
-# and Linux since BPR-0310: the real flow starts, the isolated transport fails
-# immediately, and the refusing transport is never touched, so the terminal is
-# `failed`. The two reach it by different mechanisms, so the Linux value was
-# measured on the host rather than carried across. macOS denies the connect
-# through sandbox-exec. Linux runs the test under
-# `unshare(CLONE_NEWUSER | CLONE_NEWNET)` in a namespace whose only interface is
-# loopback, so the first outbound attempt has no route out and fails at once:
-# the shipped probe lands on `failed` in 0.15 s against a 10,000 ms budget,
-# three runs identical. Both are deterministic because the denial is local.
+# macOS is registered under the recorded distributable identity since BPR-0318,
+# Linux since BPR-0310, and Windows since BPR-0311, so on all three the real
+# flow starts and the refusing transport is never touched. What it starts
+# against is the difference this expression exists to remove. macOS used to get
+# its terminal from sandbox-exec and Linux from a network namespace whose only
+# interface is loopback, while Windows carries WINDOWS_UNCONTAINED - BPR-0362
+# exempts these rows from the AppContainer because a lowbox token cannot give
+# them the drive-letter link, the mount-point manager, or the pipe namespace -
+# so on Windows nothing stood in front of the network at all, the flow reached
+# `awaiting_authorization` against github.com, and a device code was minted once
+# per run per row.
 #
-# Windows is registered since BPR-0311 and answers `cancelled` instead, for a
-# reason that is not a different isolation but the absence of one. This test
-# carries WINDOWS_UNCONTAINED: a lowbox token cannot give it what it needs, so
-# BPR-0362 exempts it from the AppContainer and it is labelled
-# `bpr_windows_uncontained`. Nothing denies the connect, so the real flow
-# reaches `awaiting_authorization` against GitHub and the probe's budget cancels
-# it there — the registered behaviour BPR-0318 built, observed without a
-# boundary in front of it. That makes Windows the one platform whose
-# expectation depends on reaching GitHub: an offline or blocked host lands
-# `failed` here and fails this gate. Measured on the JaegAW station at the
-# BPR-0311 flip and recorded as network-dependent rather than claimed
-# deterministic; BPR-0515 adjudicates that posture.
-if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    set(bpr_device_selection_self_test_expression
+# `--network-denied` replaces all three with the application denying its own
+# egress: the device-authorization wire is composed against a closed loopback
+# port rather than the discovered system proxy, so the connect is refused inside
+# the process before anything is dialled, whatever the harness or the station
+# can reach. It denies at the socket, which is what these rows actually needed
+# and the one thing containment could never have given them, so
+# WINDOWS_UNCONTAINED stays and is now beside the point.
+#
+# One mechanism, so one value: `failed`, which macOS and Linux already recorded
+# and which no longer depends on anything being reachable. An unregistered
+# platform composes no wire for the override to apply to, so it keeps answering
+# the typed refusal.
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(bpr_device_selection_denied_self_test_expression
         "DEVICE_FLOW_STAGE:failed[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_REGISTERED_SELECTION_OK")
-elseif(WIN32)
-    set(bpr_device_selection_self_test_expression
-        "DEVICE_FLOW_STAGE:cancelled[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_REGISTERED_SELECTION_OK")
 else()
-    set(bpr_device_selection_self_test_expression
+    set(bpr_device_selection_denied_self_test_expression
         "DEVICE_FLOW_STAGE:unavailable[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_UNAVAILABLE_OK")
 endif()
 
@@ -218,6 +217,11 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# BPR-0515. `WINDOWS_UNCONTAINED` stays: BPR-0362's reasoning is unchanged, and
+# this test still needs the drive-letter link, the mount-point manager, and the
+# pipe namespace that a lowbox token cannot reach. `--network-denied` does not
+# contain the process; it denies at the socket, which is what this row actually
+# needed and the one thing the container could never have given it.
 bpr_add_network_isolated_test(
     NAME application_device_authorization_unavailable
     WINDOWS_UNCONTAINED
@@ -227,6 +231,7 @@ bpr_add_network_isolated_test(
         --ghes-host
         ghe.example.invalid
         --device-authorization-probe
+        --network-denied
         --automated-run-budget-ms
         ${bpr_self_test_budget_ms}
 )
@@ -235,7 +240,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "${bpr_device_selection_self_test_expression}"
+            "${bpr_device_selection_denied_self_test_expression}"
 )
 bpr_bound_automated_run(
     application_device_authorization_unavailable
@@ -435,6 +440,7 @@ bpr_add_network_isolated_test(
         $<TARGET_FILE:app_better_pull_review>
         --self-test
         --device-authorization-probe
+        --network-denied
         --automated-run-budget-ms
         ${bpr_self_test_budget_ms}
 )
@@ -446,12 +452,17 @@ set_tests_properties(
         # platform vault rather than a fixture, the existing CLI refusal
         # unchanged beside it, and then the device path composed, presented,
         # and answering the platform's shipped selection — the typed refusal
-        # where unregistered, the started-then-terminated real flow where
-        # registered. This is the contract the tests-disabled Release build
-        # inherits; what it cannot check here is symbol absence, which is the
-        # separate closeout scan.
+        # where unregistered, the started-then-locally-refused real flow where
+        # registered. This row runs the same tests-enabled binary against the
+        # same registered selection as the gate above, so BPR-0515 gives it the
+        # same `--network-denied` and the same terminal: the dev-tree matrix
+        # makes no real GitHub connection on any platform. What the override
+        # does not change is what this row is for — the shipped composition,
+        # the real vault, and the shipped capability are exactly what a
+        # tests-disabled Release inherits. What it cannot check here is symbol
+        # absence, which is the separate closeout scan.
         PASS_REGULAR_EXPRESSION
-            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+DEVICE_FLOW_HOST_COMPOSED:true[\r\n]+DEVICE_FLOW_PRESENTED:true[\r\n]+${bpr_device_selection_self_test_expression}"
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+DEVICE_FLOW_HOST_COMPOSED:true[\r\n]+DEVICE_FLOW_PRESENTED:true[\r\n]+${bpr_device_selection_denied_self_test_expression}"
 )
 bpr_bound_automated_run(
     application_device_authorization_release_contract
@@ -528,6 +539,77 @@ set_tests_properties(
 )
 bpr_bound_automated_run(
     application_anonymous_public_preview_release_contract
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# [[BPR-0316]]. The verdict a shipped build whose selection is enabled has to
+# be able to print. An enabled selection activates the mode from the composed
+# authority and reads nothing until a reviewer asks for something, so the
+# passing shape here is the opposite of the fixture course's: the mode entered
+# with zero requests, no authorization header, and no vault operation. The
+# selection is forced from a tests-enabled flag because no platform ships it
+# enabled yet; the markers this asserts are the shipped ones.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_enabled_probe
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-selection-enabled-probe
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_enabled_probe
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_enabled_probe
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# [[BPR-0316]]. The live candidate's wiring, proven without reaching the
+# network. The dry run composes exactly what the live read would compose --
+# the shipped anonymous REST factory, the shipped anonymous smart factory, no
+# fixture -- enters the mode, and stops before opening anything. The
+# production-factories marker is a pointer identity between what the anonymous
+# provider was constructed with and the shipped factory this composition
+# built, so a graph that routed the signed-out read through any other factory
+# turns it false. The row is network-isolated, which is what makes "issued
+# nothing" a fact rather than a promise; the read itself is an authorized
+# operator step and has no selector.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_live_candidate_wiring
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-live-candidate
+        octocat
+        Hello-World
+        1
+        --public-preview-live-candidate-dry-run
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_live_candidate_wiring
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:0[\r\n]+PUBLIC_PREVIEW_WRITE_REFUSALS:0[\r\n]+PUBLIC_PREVIEW_LIVE_CANDIDATE_PRODUCTION_FACTORIES:true[\r\n]+PUBLIC_PREVIEW_WIRE_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_WIRE_CAPABILITY_PROBES:0[\r\n]+PUBLIC_PREVIEW_WIRE_CREDENTIALED_REFUSALS:0[\r\n]+PUBLIC_PREVIEW_BUDGET:0/0/0[\r\n]+PUBLIC_PREVIEW_SNAPSHOT_MODE:authenticated[\r\n]+PUBLIC_PREVIEW_CANDIDATE:octocat/Hello-World#1 [\r\n]+PUBLIC_PREVIEW_LIVE_CANDIDATE_OK"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_live_candidate_wiring
     TIMEOUT 15
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1

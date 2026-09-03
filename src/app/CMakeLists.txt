@@ -51,6 +51,14 @@ if(BPR_BUILD_QT)
             better_pull_review_composition
             PRIVATE
                 BPR_BUILD_TESTING=1
+                # BPR-0515. Makes the GitHub adapter's fixture transport
+                # factories visible to the composition, so a tests-enabled run
+                # can compose its device-authorization wire against a closed
+                # loopback port and deny its own egress locally. The seam is
+                # the adapter's existing one and stays private and
+                # BUILD_TESTING-only in both targets; a tests-disabled build
+                # cannot see the declarations and does not link the symbols.
+                BPR_NATIVE_HTTPS_TESTING=1
                 "BPR_GITHUB_CONTRACT_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/contracts/v1\""
                 "BPR_GITHUB_CAPABILITY_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/capabilities/v1\""
                 # RFC-BPR-0017. The promoted signed-out bodies. The recorded
