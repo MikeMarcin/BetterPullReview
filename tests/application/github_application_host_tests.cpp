@@ -369,13 +369,15 @@ namespace {
 		};
 
 		// [[BPR-0540]]. What the refresh slot's erasure answers with. The
-		// default is the platform that has no second slot, which is what
-		// every test about the credential path wants: nothing was ever
-		// written there, so nothing is left behind and no failure is
-		// reported.
+		// default is a real second slot that deletes what it held, which is
+		// what every test about the credential path wants: the erasure
+		// succeeds beside the credential's and reports nothing. `unavailable`
+		// is the store that could not be reached, and since every shipped
+		// platform has a real slot (BPR-0542, BPR-0543) it is a failure like
+		// any other.
 		enum class refresh_delete_answer : std::uint8_t {
-			no_second_slot,
 			deleted,
+			unavailable,
 			failed,
 		};
 
@@ -451,7 +453,7 @@ namespace {
 			aCompletion(application::github_credential_delete_error{
 				.Context = aContext,
 				.Failure = RefreshDeleteAnswer
-						== refresh_delete_answer::no_second_slot
+						== refresh_delete_answer::unavailable
 					? application::github_credential_vault_failure::unavailable
 					: application::github_credential_vault_failure::operation_failed,
 			});
@@ -471,7 +473,7 @@ namespace {
 		std::vector<application::github_credential_operation_context> RefreshRetrieves;
 		std::vector<application::github_credential_operation_context> RefreshDeletes;
 		refresh_answer                                                RefreshAnswer       = refresh_answer::unavailable;
-		refresh_delete_answer                                         RefreshDeleteAnswer = refresh_delete_answer::no_second_slot;
+		refresh_delete_answer                                         RefreshDeleteAnswer = refresh_delete_answer::deleted;
 		bool                                                          ThrowOnStore        = false;
 	};
 
@@ -4461,16 +4463,22 @@ namespace {
 				   "refresh material left in the vault fails shutdown cleanup");
 		}
 
-		// The platform with no second slot. Nothing was ever written there, so
-		// its typed `unavailable` is not a failure and reports nothing.
+		// The store that could not be reached. Every shipped platform has a
+		// real second slot, so `unavailable` is not "nothing was ever written
+		// there": it is a delete the vault did not perform, and it fails the
+		// cleanup exactly as it would for the base slot.
 		{
 			host_fixture fixture{ policy };
+			fixture.Vault.RefreshDeleteAnswer
+				= fake_vault::refresh_delete_answer::unavailable;
 			static_cast<void>(establish_native_session(fixture));
 			fixture.Host.shutdown();
 			expect(fixture.Vault.RefreshDeletes.size() == 1U
-					   && fixture.Lane.pending() == 0U
-					   && !fixture.Host.shutdown_cleanup_failed(),
-				   "a platform with no refresh slot reports no failure");
+					   && fixture.Lane.pending() == 1U,
+				   "an unreachable refresh store carries its answer onto the lane");
+			fixture.Lane.run_next();
+			expect(fixture.Host.shutdown_cleanup_failed(),
+				   "an unreachable refresh store fails shutdown cleanup");
 		}
 	}
 }

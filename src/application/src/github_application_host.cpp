@@ -399,12 +399,14 @@ namespace bpr::application {
 
 		// [[BPR-0540]]. Whether a refresh-slot erasure left renewal material
 		// in the vault. A deleted slot and an absent one are the same
-		// outcome, and so is a platform whose store has no second slot at all
-		// -- the port answers `unavailable` for exactly that, so a station
-		// without the slot reports no failure for material it could never
-		// have written. Everything else, including a terminal for the wrong
-		// operation and a cancellation this host never asks for, is material
-		// still resident under an authority the reviewer has finished with.
+		// outcome: nothing renews this credential any more. Every error is
+		// the other outcome, `unavailable` included -- since BPR-0542 and
+		// BPR-0543 every shipped platform has a real second slot, so an
+		// `unavailable` answer means the store could not be reached, exactly
+		// as it does for the base slot beside it, and material this host
+		// meant to destroy may still be resident under an authority the
+		// reviewer has finished with. So is a terminal for the wrong
+		// operation and a cancellation this host never asks for.
 		[[nodiscard]] auto erasure_left_material(
 			const github_credential_delete_completion& aCompletion,
 			const github_credential_operation_context& aOperation) noexcept -> bool
@@ -413,15 +415,8 @@ namespace bpr::application {
 				|| completion_context(aCompletion) != aOperation) {
 				return true;
 			}
-			if (std::holds_alternative<github_credential_delete_success>(
-					aCompletion)) {
-				return false;
-			}
-			const auto* error
-				= std::get_if<github_credential_delete_error>(&aCompletion);
-			return error == nullptr
-				|| error->Failure
-				!= github_credential_vault_failure::unavailable;
+			return !std::holds_alternative<github_credential_delete_success>(
+				aCompletion);
 		}
 
 		template <typename Completion>
