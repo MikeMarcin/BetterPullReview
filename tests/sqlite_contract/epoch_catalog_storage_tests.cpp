@@ -501,7 +501,7 @@ namespace {
 				database.integer("PRAGMA application_id") == 0x42504543,
 				"BPEC application ID is exact");
 			expect(
-				database.integer("PRAGMA user_version") == 1,
+				database.integer("PRAGMA user_version") == 2,
 				"BPEC user version is exact");
 			expect(
 				database.integer("PRAGMA page_size") == 4'096,
@@ -527,7 +527,7 @@ namespace {
 						   "SELECT count(*) FROM sqlite_schema "
 						   "WHERE type = 'index' AND sql IS NOT NULL "
 						   "AND name NOT LIKE 'sqlite_%'")
-						== 16
+						== 17
 					&& database.integer(
 						   "SELECT count(*) FROM sqlite_schema "
 						   "WHERE type = 'index' "
@@ -540,8 +540,9 @@ namespace {
 						   "AND instr(sql, 'head_lineage INTEGER NOT NULL "
 						   "CHECK(head_lineage BETWEEN 1 AND 4)') != 0")
 						== 1,
-				"closed BPEC v1 schema includes the append-source identity index "
-				"and checked durable head lineage");
+				"closed BPEC v2 schema includes the append-source identity index, "
+				"the access-mode uniqueness index, and checked durable head "
+				"lineage");
 			expect(
 				database.integer(
 					"SELECT count(*) FROM sqlite_schema WHERE sql IS NOT NULL "
@@ -1252,7 +1253,10 @@ namespace {
 		}
 		{
 			direct_database database{ database_path(wrongVersion.path()) };
-			database.execute("PRAGMA user_version = 2");
+			// A version this build never wrote. Two is now the current
+			// schema, so the fixture names a future one: it must be refused,
+			// not migrated and not recreated.
+			database.execute("PRAGMA user_version = 3");
 		}
 		expect_failure(
 			sqlite::make_epoch_catalog({ .StorageRoot = wrongVersion.path() }),
@@ -1356,7 +1360,7 @@ namespace {
 			direct_database database{ orphans.front() };
 			expect(
 				database.integer("PRAGMA application_id") == 0x42504543
-					&& database.integer("PRAGMA user_version") == 1
+					&& database.integer("PRAGMA user_version") == 2
 					&& database.text("PRAGMA integrity_check(1)") == "ok",
 				"fault seam interrupts only after the orphan is a valid catalog");
 		}

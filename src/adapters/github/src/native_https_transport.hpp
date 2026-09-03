@@ -268,6 +268,39 @@ namespace bpr::adapters::github::detail {
 		core::github_session_request_context aContext) noexcept
 		-> native_https_transport_factory_result;
 
+	/// \brief Builds a shipped transport bound to an anonymous Git smart
+	/// authority.
+	///
+	/// \details RFC-BPR-0017's public preview materializes a public
+	/// repository over Git's smart HTTP surface, which authenticates with
+	/// HTTP Basic and has no credentialed form for a signed-out reader. This
+	/// is the only production entry that produces such a transport, and it
+	/// takes no credential parameter, so an absent, malformed, or revoked
+	/// credential cannot decay into it: reaching this state requires naming
+	/// it. Nothing reachable from here touches a vault.
+	///
+	/// The binding is distinct from `anonymous_read_request`'s: that one
+	/// satisfies the eligible public REST reads and refuses this surface, and
+	/// this one satisfies this surface and refuses every REST read,
+	/// capability probe, review mutation, and device-authorization request.
+	///
+	/// A lease is admitted only for a `public_preview` authority. An
+	/// authenticated authority — a signed-in or private intent — is refused
+	/// before a request is constructed rather than dialed without the
+	/// credential it would need, and a profile whose server contract is not
+	/// `github_com_2022_11_28` is refused here with
+	/// `anonymous_read_contract_unsupported` before any transport exists, so
+	/// a GHES profile sends nothing. The surface reaches only
+	/// `git-upload-pack`: `smart_request_surface` enumerates discovery,
+	/// ls-refs, and fetch and nothing else, so there is no push route to
+	/// refuse at run time. Every other RFC-BPR-0002 rule — system trust,
+	/// ordered proxy candidates, manual redirect refusal, timeouts, and
+	/// response bounds — is the shared production policy, unchanged.
+	[[nodiscard]] auto make_native_https_anonymous_smart_transport(
+		const validated_github_host_profile& aProfile,
+		core::github_session_request_context aContext) noexcept
+		-> native_https_transport_factory_result;
+
 // These factories exist only in test-enabled builds. They preserve the exact
 // production request path while replacing system proxy discovery with one
 // bounded loopback proxy and, when supplied, augmenting trust with one
@@ -309,6 +342,18 @@ namespace bpr::adapters::github::detail {
 	/// the same binding, the same header construction, and the same refusals
 	/// that ship.
 	[[nodiscard]] auto make_native_https_anonymous_read_transport_for_test(
+		const validated_github_host_profile&   aProfile,
+		core::github_session_request_context   aContext,
+		const native_https_test_configuration& aConfiguration) noexcept
+		-> native_https_transport_factory_result;
+
+	/// \brief Builds an anonymous smart transport against the loopback seam.
+	///
+	/// \details The production twin of this factory is the shipped entry; the
+	/// two differ only in policy, so a course driven through this one
+	/// exercises the same binding, the same absent authorization header, and
+	/// the same refusals that ship.
+	[[nodiscard]] auto make_native_https_anonymous_smart_transport_for_test(
 		const validated_github_host_profile&   aProfile,
 		core::github_session_request_context   aContext,
 		const native_https_test_configuration& aConfiguration) noexcept
