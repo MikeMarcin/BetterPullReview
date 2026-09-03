@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <condition_variable>
+#include <cstdint>
 #include <map>
 #include <mutex>
 #include <ranges>
@@ -11,6 +12,20 @@
 
 namespace bpr::application {
 	namespace {
+		/// \brief Why the host is ending whatever is running.
+		///
+		/// \details Two causes, told apart because one of them is not news
+		/// about a continuation. `review_changed` means the reviewer is no
+		/// longer looking at the review this invocation belongs to, which ends
+		/// every turn. `binding_moved` means the revision under review moved
+		/// while the review stayed, which ends a turn asked about the revision
+		/// under review and deliberately does not end one asked about an
+		/// older one.
+		enum class supersession_cause : std::uint8_t {
+			binding_moved,
+			review_changed,
+		};
+
 		[[nodiscard]] auto binding_matches_authority(
 			const core::agent_revision_binding& aBinding,
 			const core::pull_request_authority& aAuthority) noexcept -> bool
@@ -49,9 +64,11 @@ namespace bpr::application {
 			invocation(
 				agent_invocation_projection_identity aIdentity,
 				core::agent_finding_snapshot         aSnapshot,
+				const bool                           aContinued,
 				std::shared_ptr<std::stop_source>    aStop)
 				: Identity{ std::move(aIdentity) }
 				, Snapshot{ std::move(aSnapshot) }
+				, Continued{ aContinued }
 				, Stop{ std::move(aStop) }
 			{
 			}
@@ -60,7 +77,15 @@ namespace bpr::application {
 			/// Frozen at admission and never rebuilt. Const in effect: nothing
 			/// below writes it, so the verdict a payload receives is the one
 			/// the revision it was asked about produces.
-			const core::agent_finding_snapshot   Snapshot;
+			const core::agent_finding_snapshot Snapshot;
+			/// Whether this turn continues a session the reviewer kept.
+			///
+			/// \details Frozen at admission beside the snapshot, and read
+			/// wherever a moved revision would otherwise end the turn. A
+			/// continuation is bound by BPR-0521's design to a revision the
+			/// review may already have moved away from, so "the binding
+			/// changed" is not news about it.
+			const bool                           Continued = false;
 			std::shared_ptr<std::stop_source>    Stop;
 			std::mutex                           WorkspaceMutex;
 			std::optional<owned_agent_workspace> OwnedWorkspace;
@@ -250,18 +275,27 @@ namespace bpr::application {
 			core::agent_revision_binding       aBinding)
 		{
 			auto changed = false;
+			auto cause   = supersession_cause::review_changed;
 			{
 				std::scoped_lock lock{ StateMutex };
-				changed = !ApplicationSession.has_value()
+				const auto       reviewChanged = !ApplicationSession.has_value()
 					|| *ApplicationSession != aApplicationSession
-					|| Authority != std::optional{ aAuthority }
-					|| Binding != std::optional{ aBinding };
+					|| Authority != std::optional{ aAuthority };
+				const auto bindingChanged = Binding != std::optional{ aBinding };
+				changed                   = reviewChanged || bindingChanged;
+				// Only when the review itself stayed put is a moved binding
+				// the whole of the change; anything else is reported as the
+				// larger cause, so a continuation is never carried across a
+				// review it was not asked about.
+				cause              = reviewChanged
+					? supersession_cause::review_changed
+					: supersession_cause::binding_moved;
 				ApplicationSession = aApplicationSession;
 				Authority          = std::move(aAuthority);
 				Binding            = aBinding;
 			}
 			if (changed) {
-				supersede();
+				supersede(cause);
 			}
 			publish_session_catalog(aBinding);
 			publish_offerings();
@@ -275,7 +309,7 @@ namespace bpr::application {
 				Authority.reset();
 				Binding.reset();
 			}
-			supersede();
+			supersede(supersession_cause::review_changed);
 			project_session_catalog({ });
 			publish_offerings();
 		}
@@ -418,6 +452,7 @@ namespace bpr::application {
 						.Binding = session->Binding,
 						.Files   = aRequest.FrozenFiles,
 					},
+					aRequest.ContinuedSession.has_value(),
 					std::make_shared<std::stop_source>());
 				ActiveInvocation = job;
 				ActiveJobs.store(1U, std::memory_order_release);
@@ -714,16 +749,31 @@ namespace bpr::application {
 						// rather than to never learn about.
 						auto payload = std::move(result.Findings);
 						result.Findings.reset();
-						auto final = aInvocation->Superseded.load(std::memory_order_acquire)
+						// Which revision this turn's outcome is judged
+						// against. A fresh turn is judged against the revision
+						// under review, unchanged. A continuation is judged
+						// against the revision its session was started on: the
+						// reviewer asked about that one, the frozen snapshot
+						// every finding below is validated against is that
+						// one's, and judging the answer against the head on
+						// screen would report every continuation as stale by
+						// construction. The delivery below still states its
+						// staleness against `observed`, so how far the review
+						// has moved is reported rather than hidden.
+						const auto judged = aInvocation->Continued
+								&& observed.has_value()
+							? std::optional{ aInvocation->Identity.Session.Binding }
+							: observed;
+						auto       final  = aInvocation->Superseded.load(std::memory_order_acquire)
 							? agent_run_result{
 								  .Session = aInvocation->Identity.Session.Id,
 								  .Outcome = agent_run_outcome::stale_result,
 							  }
-							: observed.has_value() ? finalize_agent_run(std::move(result), aInvocation->Identity.Session, *observed)
-												   : agent_run_result{
-														 .Session = aInvocation->Identity.Session.Id,
-														 .Outcome = agent_run_outcome::stale_result,
-													 };
+							: judged.has_value() ? finalize_agent_run(std::move(result), aInvocation->Identity.Session, *judged)
+												 : agent_run_result{
+													   .Session = aInvocation->Identity.Session.Id,
+													   .Outcome = agent_run_outcome::stale_result,
+												   };
 						// The terminal carries no undecoded payload. Findings
 						// leave the host exactly once, with a verdict each, and
 						// through the call below; there is no second route by
@@ -834,7 +884,7 @@ namespace bpr::application {
 			Processes.cancel();
 		}
 
-		void supersede()
+		void supersede(const supersession_cause aCause)
 		{
 			auto active = std::shared_ptr<invocation>{ };
 			{
@@ -842,6 +892,18 @@ namespace bpr::application {
 				active = ActiveInvocation;
 			}
 			if (!active) {
+				return;
+			}
+			// The guard, and the whole of it. A continuation was dispatched
+			// against the revision its session was started on, which BPR-0521
+			// permits to differ from the one under review — that difference is
+			// what the reviewer chose when they kept the session. Stopping it
+			// because the binding moved would kill the turn for the condition
+			// it was created under, and the reviewer would lose an answer they
+			// asked for on purpose. A fresh turn is superseded exactly as
+			// before: it was asked about the revision that just moved.
+			if (aCause == supersession_cause::binding_moved
+				&& active->Continued) {
 				return;
 			}
 			active->Superseded.store(true, std::memory_order_release);

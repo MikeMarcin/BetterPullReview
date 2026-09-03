@@ -9,6 +9,7 @@
 #include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/agent_session.hpp"
 #include "bpr/core/epoch_transition.hpp"
 
 #include <cstddef>
@@ -79,6 +80,21 @@ namespace bpr::application {
 			const workbench_selected_diff_request& aRequest,
 			std::stop_token                        aStop)
 			-> workbench_selected_diff_observation override;
+		/// \brief Authorizes one re-alignment of an older pair of this review.
+		///
+		/// \details BPR-0532. `context` above answers for the comparison the
+		/// reviewer is looking at; this answers for the pair an agent session
+		/// the reviewer kept was started against, so a turn continued after
+		/// the head moved can be resolved through the same port as a fresh
+		/// one. The returned context is the caller's whole warrant: the host
+		/// mints it, so no caller names a comparison the host did not decide
+		/// to serve, and it is bounded to this review's own host, repository,
+		/// and pull request. Authorized beside `context`'s grant rather than
+		/// over it, so the reviewer's own selected diff keeps resolving.
+		[[nodiscard]] auto realignment_context(
+			const workbench_pull_request_authority& aAuthority,
+			const core::agent_revision_binding&     aBinding) const
+			-> std::optional<workbench_selected_diff_context>;
 		void shutdown();
 
 		[[nodiscard]] auto state() const noexcept -> const core::epoch_state&;

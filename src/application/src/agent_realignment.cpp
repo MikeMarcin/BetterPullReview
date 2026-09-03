@@ -225,7 +225,8 @@ namespace bpr::application {
 			outcome.Refusal = agent_realignment_refusal::incomplete_request;
 			return outcome;
 		}
-		auto frozen = std::vector<core::agent_finding_snapshot_file>{ };
+		auto frozen     = std::vector<core::agent_finding_snapshot_file>{ };
+		auto alignments = std::vector<core::file_alignment>{ };
 		for (const auto& entry : aRequest.Files) {
 			if (aStop.stop_requested()) {
 				outcome.Refusal = agent_realignment_refusal::cancelled;
@@ -315,12 +316,18 @@ namespace bpr::application {
 			try {
 				frozen.push_back(snapshot_for(
 					entry.PresentationPath, computed.Result->Alignment));
+				// Kept beside the snapshot rather than derived from it: the
+				// snapshot states which identities exist, and a turn that has
+				// to point at one of them needs the line counts and spans they
+				// were computed over as well.
+				alignments.push_back(std::move(computed.Result->Alignment));
 			} catch (...) {
 				outcome.Refusal = agent_realignment_refusal::host_failure;
 				return outcome;
 			}
 		}
-		outcome.Files = std::move(frozen);
+		outcome.Files      = std::move(frozen);
+		outcome.Alignments = std::move(alignments);
 		return outcome;
 	}
 } // namespace bpr::application

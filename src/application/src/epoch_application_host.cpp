@@ -810,6 +810,14 @@ namespace bpr::application {
 			std::mutex                             BlobAuthorityMutex;
 			std::optional<blob_authority>          BlobAuthority;
 			std::optional<selected_diff_authority> SelectedDiffAuthority;
+			/// BPR-0532. The one older pair a continued turn may re-align,
+			/// held beside the workbench's own authorization rather than in
+			/// place of it: a re-alignment and the reviewer's own selection
+			/// are two different comparisons of one review, and serving the
+			/// first must not stop serving the second. Minted only by the
+			/// host, replaced by the next re-alignment, and dropped whenever
+			/// the review's context is replaced or revoked.
+			std::optional<selected_diff_authority> RealignmentAuthority;
 			std::uint64_t                          BlobAuthorityGeneration = 0U;
 		};
 
@@ -1049,6 +1057,7 @@ namespace bpr::application {
 			++aActor->BlobAuthorityGeneration;
 			aActor->BlobAuthority = aAuthority;
 			aActor->SelectedDiffAuthority.reset();
+			aActor->RealignmentAuthority.reset();
 		}
 
 		static void authorize_selected_diff(
@@ -1063,6 +1072,22 @@ namespace bpr::application {
 			aActor->SelectedDiffAuthority = aAuthority;
 		}
 
+		/// \brief Grants the one re-alignment authorization, without a bump.
+		///
+		/// \details Deliberately does not touch `BlobAuthorityGeneration`.
+		/// The generation is what tells an in-flight resolve that the review
+		/// moved under it, and a re-alignment is not the review moving; a bump
+		/// here would refuse the reviewer's own selected diff for a turn they
+		/// asked about a different revision. Replacement of the review's
+		/// context still bumps, and still drops this.
+		static void authorize_realignment(
+			const std::shared_ptr<authority_effect_actor>& aActor,
+			const selected_diff_authority&                 aAuthority) noexcept
+		{
+			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+			aActor->RealignmentAuthority = aAuthority;
+		}
+
 		static void revoke_blob_authority(
 			const std::shared_ptr<authority_effect_actor>& aActor,
 			const blob_authority&                          aAuthority) noexcept
@@ -1071,6 +1096,7 @@ namespace bpr::application {
 			if (aActor->BlobAuthority == std::optional{ aAuthority }) {
 				aActor->BlobAuthority.reset();
 				aActor->SelectedDiffAuthority.reset();
+				aActor->RealignmentAuthority.reset();
 				++aActor->BlobAuthorityGeneration;
 			}
 		}
@@ -1085,7 +1111,12 @@ namespace bpr::application {
 				.Diff      = aRequest.Diff,
 			};
 			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
-			if (aActor->SelectedDiffAuthority != std::optional{ expected }) {
+			// Either slot answers, and both answer with the same generation:
+			// a re-alignment is admitted under the review's own generation, so
+			// the review's context being replaced under it refuses it exactly
+			// as it refuses the workbench's.
+			if (aActor->SelectedDiffAuthority != std::optional{ expected }
+				&& aActor->RealignmentAuthority != std::optional{ expected }) {
 				return std::nullopt;
 			}
 			return aActor->BlobAuthorityGeneration;
@@ -3001,8 +3032,27 @@ namespace bpr::application {
 			return actor;
 		}
 
-		[[nodiscard]] auto selected_diff_context(
-			const workbench_pull_request_authority& aAuthority) const
+		/// \brief Mints and authorizes one selected-diff context.
+		///
+		/// \details One body, two callers, because the accepted-state checks
+		/// they need are the same checks. With no binding this is the
+		/// workbench's own context: the accepted comparison, authorized into
+		/// the slot every resolve is measured against. With a binding it is
+		/// BPR-0532's re-alignment context: the same context with its two
+		/// anchors moved to the pair the binding names, authorized into a
+		/// second slot so the workbench keeps the one it is using.
+		///
+		/// The host mints it rather than validating one a caller supplies, so
+		/// no caller can name a comparison the host did not decide to serve;
+		/// and what it decides to serve is bounded to this review — the pair
+		/// must name the same host, repository, and pull request, and the
+		/// capability is scoped to the cache actor that only ever holds this
+		/// pull request's objects. A pair that review's own cache cannot
+		/// answer for refuses as a missing endpoint, which is the answer a
+		/// re-alignment of a revision whose objects are gone should get.
+		[[nodiscard]] auto authorized_selected_diff_context(
+			const workbench_pull_request_authority&            aAuthority,
+			const std::optional<core::agent_revision_binding>& aBinding) const
 			-> std::optional<workbench_selected_diff_context>
 		{
 			if (!application::valid(aAuthority)
@@ -3048,17 +3098,43 @@ namespace bpr::application {
 				.OptionsDigest      = *digest,
 				.Algorithm          = core::supported_diff_algorithm_revision,
 			};
+			if (aBinding.has_value()) {
+				if (aBinding->Host != authority.Host
+					|| aBinding->Repository != authority.Repository
+					|| aBinding->PullRequest != authority.PullRequest) {
+					return std::nullopt;
+				}
+				// The whole retargeting, and deliberately nothing else: the
+				// two anchors name the pair the binding was started against,
+				// and the authority, options, and algorithm stay what they
+				// are, so the key this produces is the key that revision's
+				// alignment already had.
+				context.Comparison.Left.Identity.Epoch  = aBinding->LeftEpoch;
+				context.Comparison.Left.Commit          = aBinding->BaseOid;
+				context.Comparison.Right.Identity.Epoch = aBinding->RightEpoch;
+				context.Comparison.Right.Commit         = aBinding->HeadOid;
+			}
 			if (!Active || Active->Authority != authority
 				|| Active->Revision != revision) {
 				return std::nullopt;
 			}
-			authorize_selected_diff(
-				Active->Actor,
-				selected_diff_authority{
-					.Workbench = aAuthority,
-					.Diff      = context,
-				});
+			const auto granted = selected_diff_authority{
+				.Workbench = aAuthority,
+				.Diff      = context,
+			};
+			if (aBinding.has_value()) {
+				authorize_realignment(Active->Actor, granted);
+			} else {
+				authorize_selected_diff(Active->Actor, granted);
+			}
 			return context;
+		}
+
+		[[nodiscard]] auto selected_diff_context(
+			const workbench_pull_request_authority& aAuthority) const
+			-> std::optional<workbench_selected_diff_context>
+		{
+			return authorized_selected_diff_context(aAuthority, std::nullopt);
 		}
 
 		[[nodiscard]] auto resolve_selected_diff(
@@ -3333,11 +3409,12 @@ namespace bpr::application {
 									if (workStop.stop_requested()
 										|| BlobIngressClosing.load(std::memory_order_acquire)) {
 										observation.Status = workbench_selected_diff_status::cancelled;
-									} else if (actor->SelectedDiffAuthority
-												   != std::optional{ selected_diff_authority{
-													   .Workbench = aRequest.WorkbenchAuthority,
-													   .Diff      = aRequest.Diff,
-												   } }
+									} else if (const auto held = std::optional{ selected_diff_authority{
+												   .Workbench = aRequest.WorkbenchAuthority,
+												   .Diff      = aRequest.Diff,
+											   } };
+											   (actor->SelectedDiffAuthority != held
+												&& actor->RealignmentAuthority != held)
 											   || actor->BlobAuthorityGeneration
 												   != admittedGeneration) {
 										observation.Status = workbench_selected_diff_status::stale;
@@ -6425,6 +6502,15 @@ namespace bpr::application {
 		-> std::optional<workbench_selected_diff_context>
 	{
 		return Implementation->selected_diff_context(aAuthority);
+	}
+
+	auto epoch_application_host::realignment_context(
+		const workbench_pull_request_authority& aAuthority,
+		const core::agent_revision_binding&     aBinding) const
+		-> std::optional<workbench_selected_diff_context>
+	{
+		return Implementation->authorized_selected_diff_context(
+			aAuthority, aBinding);
 	}
 
 	auto epoch_application_host::resolve(

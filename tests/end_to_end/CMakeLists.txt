@@ -1024,6 +1024,7 @@ foreach(
         positive
         stale
         continued
+        anchored-continuation
         construction-cut
 )
     if(course STREQUAL "positive")

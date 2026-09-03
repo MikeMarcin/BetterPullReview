@@ -46,6 +46,7 @@
 #include "bpr/application/agent_comment_workshop_host.hpp"
 #include "bpr/application/agent_finding_host.hpp"
 #include "bpr/application/agent_invocation_host.hpp"
+#include "bpr/application/agent_realignment.hpp"
 #include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/defect_correlation.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
@@ -3798,6 +3799,14 @@ namespace bpr::app {
 			if (!DisableAgentHostComposition && AgentProcessProbe != nullptr)
 #endif
 			{
+				// BPR-0532. The re-alignment a continued turn asks for, served
+				// by the same two ports a fresh alignment resolves and
+				// materializes through, so one revision cannot be aligned two
+				// ways. Composed with the chat host, because it is only a
+				// continued turn of that host's that ever asks for one.
+				Realigner
+					= std::make_unique<application::composed_agent_realignment>(
+						*EpochHost, *EpochHost);
 				AgentHost = std::make_unique<application::agent_invocation_host>(
 					agentProfiles,
 					agentPolicies,
@@ -6582,15 +6591,26 @@ namespace bpr::app {
 				.WorkshopOperation = aWorkshopOperation,
 			};
 			observation.CurrentDraft = current_agent_draft_observation();
-			// The receipt and the semantic selection below are read off the
-			// alignment the reviewer is looking at, which belongs to the
-			// revision under review. Under a continuation they belong to a
-			// different revision than the one being asked about, so they are
-			// not sent: carrying a newer comparison's identities beneath an
-			// older binding is the silent re-anchoring this continuation
-			// exists to prevent, and stating nothing about the old alignment
-			// is the honest answer the design can give.
-			if (!continuing && SelectedDiffPublication.has_value()) {
+			// Which file, and where in it. The two are told apart because
+			// only one of them names a comparison. The file is a path and a
+			// review receipt, which belong to the file rather than to any pair
+			// of commits, so a continuation may say them: the turn is answered
+			// against the frozen snapshot of its own revision, and a finding
+			// that names no file cannot be anchored to one. BPR-0532.
+			//
+			// The semantic selection below is read off the alignment the
+			// reviewer is looking at, and its segments, groups, and comparison
+			// digest belong to the revision under review. Under a continuation
+			// that is a different revision than the one being asked about, so
+			// none of it is sent: carrying a newer comparison's identities
+			// beneath an older binding is the silent re-anchoring BPR-0521
+			// refused, and this card does not un-refuse it. What a
+			// continuation carries instead is the position the reviewer is
+			// pointing at — a side and a line and nothing identified — held
+			// here and said with the old revision's own identities once the
+			// re-alignment below has produced them.
+			auto pointedAt = std::optional<continuation_anchor>{ };
+			if (SelectedDiffPublication.has_value()) {
 				const auto& selected = *SelectedDiffPublication;
 				const auto  lock     = std::scoped_lock{ ReviewLedgerStateMutex };
 				if (ReviewLedgerReceipt.has_value()
@@ -6603,11 +6623,12 @@ namespace bpr::app {
 					});
 				}
 				const auto* const workbench = Window->comparison_surface();
-				if (workbench->selection().has_value()
+				const auto        pointing  = workbench->selection().has_value()
 					&& workbench->current_result() != nullptr
 					&& workbench->current_result()->Alignment.Key == selected.Key
 					&& workbench->selection()->Comparison
-						== workbench->current_result()->Alignment.Digest) {
+						== workbench->current_result()->Alignment.Digest;
+				if (pointing && !continuing) {
 					observation.Selection = core::supplement_semantic_context{
 						.File       = selected.Request.File.File,
 						.Selection  = *workbench->selection(),
@@ -6615,39 +6636,339 @@ namespace bpr::app {
 						.Segments   = workbench->current_result()->Alignment.Segments,
 						.Groups     = workbench->current_result()->Alignment.Groups,
 					};
+				} else if (pointing) {
+					pointedAt = continuation_anchor{
+						.File = selected.Request.File.File,
+						.Side = workbench->selection()->PreferredLine.Side,
+						.Line = workbench->selection()->PreferredLine.Line,
+					};
 				}
 			}
-			// The frozen snapshot, stated once and used twice: the host
-			// validates every returned finding against it, and the MCP helper
-			// is pinned to the same values on disk. Two answers about one
-			// revision cannot disagree if they are one value.
-			// Empty under a continuation, and empty is a complete answer: the
-			// only alignment this application holds is the current one, so a
-			// turn about an older revision freezes no per-path identities and
-			// every finding it returns arrives unanchored rather than anchored
-			// against a comparison nobody asked about.
-			auto frozen = continuing
-				? std::vector<core::agent_finding_snapshot_file>{ }
-				: frozen_snapshot_files();
+			// A continuation asks for the old revision's alignment before it
+			// asks the agent anything, and asks for it off this gesture:
+			// recomputing an alignment queues behind whatever epoch work the
+			// review is already doing, and a gesture that waited for it would
+			// freeze the window for seconds. The reviewer's send returns here;
+			// the dispatch follows the answer.
+			if (continuing) {
+				return begin_continuation_realignment(
+					aProfile,
+					authority,
+					state.ApplicationSession,
+					std::move(observation),
+					aExistingCheckoutChosen,
+					*aTurnSession,
+					pointedAt);
+			}
+			return launch_agent_invocation(
+				aProfile,
+				authority,
+				state.ApplicationSession,
+				std::move(observation),
+				aExistingCheckoutChosen,
+				std::nullopt,
+				frozen_snapshot_files());
+		}
+
+		/// \brief Freezes one turn's identities, pins them, and dispatches it.
+		///
+		/// \details The tail every gesture reaches, whether it got here
+		/// straight from the composition above or from a re-alignment that
+		/// answered later. The agent host's own dispatch is called here and
+		/// nowhere else, which is the property
+		/// `application_agent_chat_composition_contract` reads this file for
+		/// by counting that call site — so this sentence deliberately does not
+		/// spell the token it counts.
+		///
+		/// The frozen snapshot is stated once and used twice: the host
+		/// validates every returned finding against it, and the MCP helper is
+		/// pinned to the same values on disk. Two answers about one revision
+		/// cannot disagree if they are one value. An empty list is a complete
+		/// answer rather than a missing one — every finding then arrives
+		/// unanchored — and it is what a continuation whose re-alignment was
+		/// refused is dispatched with.
+		[[nodiscard]] auto launch_agent_invocation(
+			const core::agent_profile_id                   aProfile,
+			const core::pull_request_authority&            aAuthority,
+			const core::application_session_id             aApplicationSession,
+			application::agent_context_observation         aObservation,
+			const bool                                     aExistingCheckoutChosen,
+			const std::optional<core::agent_session>&      aContinuedSession,
+			std::vector<core::agent_finding_snapshot_file> aFrozen) -> bool
+		{
+			if (Closing || AgentHost == nullptr) {
+				return false;
+			}
 			if (McpHelper != nullptr) {
-				const auto encoded
-					= adapters::mcp::encode_revision_binding(turnBinding);
-				if (freeze_mcp_snapshot(McpSnapshotRoot, encoded, frozen)) {
+				const auto encoded = adapters::mcp::encode_revision_binding(
+					aObservation.Binding);
+				if (freeze_mcp_snapshot(McpSnapshotRoot, encoded, aFrozen)) {
 					++FrozenSnapshotWrites;
 					McpHelper->pin(McpSnapshotRoot, encoded);
 				}
 			}
 			AgentHost->dispatch(application::agent_invocation_request{
-				.ApplicationSession     = state.ApplicationSession,
-				.Authority              = authority,
+				.ApplicationSession     = aApplicationSession,
+				.Authority              = aAuthority,
 				.Profile                = aProfile,
-				.Context                = std::move(observation),
+				.Context                = std::move(aObservation),
 				.ExistingCheckoutChosen = aExistingCheckoutChosen,
 				.ExistingCheckout       = ExistingCheckout,
-				.FrozenFiles            = std::move(frozen),
-				.ContinuedSession       = continuing ? aTurnSession : std::nullopt,
+				.FrozenFiles            = std::move(aFrozen),
+				.ContinuedSession       = aContinuedSession,
 			});
 			return true;
+		}
+
+		/// \brief Where the reviewer is pointing, as a continuation may say it.
+		///
+		/// \details A file, a side, and a line number: the position, with
+		/// every identity of the revision on screen deliberately left behind.
+		/// The comparison digest, the segment, and the group that position
+		/// belongs to are the old revision's to state, and they are stated
+		/// once the re-alignment has recomputed them.
+		struct continuation_anchor
+		{
+			core::file_identity File;
+			core::diff_side     Side = core::diff_side::left;
+			std::uint32_t       Line = 0U;
+		};
+
+		/// \brief What one continued turn is waiting on its alignment to send.
+		struct pending_continuation
+		{
+			core::agent_profile_id                 Profile;
+			core::pull_request_authority           Authority;
+			core::application_session_id           ApplicationSession;
+			application::agent_context_observation Observation;
+			bool                                   ExistingCheckoutChosen = false;
+			core::agent_session                    Session;
+			std::optional<continuation_anchor>     PointedAt;
+		};
+
+		/// \brief Asks for the kept revision's own alignment, then dispatches.
+		///
+		/// \details BPR-0532. The reviewer kept a session bound to a revision
+		/// the review has moved past, so the identities this turn must be
+		/// answered against belong to that revision and not to the comparison
+		/// on screen. They are recomputed rather than retained: the request
+		/// below carries the current selection's authority, options, and file
+		/// and nothing else, and `realignment_lookup` retargets it onto the
+		/// kept binding's epoch pair.
+		///
+		/// Two bounds, both stated in the application layer rather than here:
+		/// `maximum_agent_realignment_files` and the request's own compute
+		/// limits — the limits a fresh alignment has — cap the work, and
+		/// `maximum_agent_realignment_wait` caps the wait. Past the wait the
+		/// request is stopped and the turn is dispatched with nothing frozen,
+		/// which is the same answer any other refusal produces. Nothing here
+		/// blocks and nothing here waits twice: the dispatch happens in the
+		/// completion below, once.
+		[[nodiscard]] auto begin_continuation_realignment(
+			const core::agent_profile_id              aProfile,
+			const core::pull_request_authority&       aAuthority,
+			const core::application_session_id        aApplicationSession,
+			application::agent_context_observation    aObservation,
+			const bool                                aExistingCheckoutChosen,
+			const core::agent_session&                aTurnSession,
+			const std::optional<continuation_anchor>& aPointedAt) -> bool
+		{
+			LastContinuationRealignmentRetargeted = false;
+			auto realignment
+				= std::optional<application::agent_realignment_request>{ };
+			if (Realigner != nullptr && SelectedDiffPublication.has_value()) {
+				const auto& selected = *SelectedDiffPublication;
+				// The warrant, asked of the host that owns the cache the
+				// recompute will read. The reviewer's own selected diff is
+				// authorized for the comparison on screen and nothing else, so
+				// a turn about an older pair is refused as stale unless the
+				// host has decided to answer for that pair; asking for the
+				// decision is what this is, and a host that declines leaves
+				// this turn on the documented empty freeze.
+				const auto warrant = EpochHost->realignment_context(
+					selected.Request.WorkbenchAuthority, aTurnSession.Binding);
+				if (!warrant.has_value()) {
+					return refuse_continuation_realignment(
+						pending_continuation{
+							.Profile                = aProfile,
+							.Authority              = aAuthority,
+							.ApplicationSession     = aApplicationSession,
+							.Observation            = std::move(aObservation),
+							.ExistingCheckoutChosen = aExistingCheckoutChosen,
+							.Session                = aTurnSession,
+							.PointedAt              = aPointedAt,
+						},
+						application::agent_realignment_refusal::host_failure);
+				}
+				realignment = application::agent_realignment_request{
+					.Binding            = aTurnSession.Binding,
+					.Context            = selected.Request.Context,
+					.WorkbenchAuthority = selected.Request.WorkbenchAuthority,
+					.Diff               = *warrant,
+					.Files              = { selected.Request.File },
+					.Options            = warrant->Options,
+					.Limits             = core::diff_compute_limits{ },
+				};
+				// Whether the retarget is a retarget at all. When the kept
+				// binding's pair is the pair already on screen this asks for
+				// what is already there, and a course that proved anything
+				// about re-alignment from such a turn would be proving
+				// nothing.
+				LastContinuationRealignmentRetargeted
+					= application::realignment_lookup(
+						  *realignment, realignment->Files.front())
+					!= selected.Request;
+			}
+			auto turn = pending_continuation{
+				.Profile                = aProfile,
+				.Authority              = aAuthority,
+				.ApplicationSession     = aApplicationSession,
+				.Observation            = std::move(aObservation),
+				.ExistingCheckoutChosen = aExistingCheckoutChosen,
+				.Session                = aTurnSession,
+				.PointedAt              = aPointedAt,
+			};
+			if (!realignment.has_value() || Window == nullptr) {
+				return refuse_continuation_realignment(
+					std::move(turn),
+					application::agent_realignment_refusal::host_failure);
+			}
+			auto        stop      = std::make_shared<std::stop_source>();
+			const auto  token     = stop->get_token();
+			auto* const realigner = Realigner.get();
+			auto* const lane      = &DecisionLane;
+			ContinuationRealignmentsInFlight.fetch_add(
+				1U, std::memory_order_release);
+			try {
+				AgentEffects.post(
+					[this,
+					 lane,
+					 realigner,
+					 token,
+					 asked   = *realignment,
+					 waiting = std::move(turn)]() mutable {
+						auto outcome = realigner->realign(asked, token);
+						try {
+							lane->post([this,
+										produced = std::move(outcome),
+										resumed  = std::move(waiting)]() mutable {
+								finish_continuation_realignment(
+									std::move(resumed), std::move(produced));
+							});
+						} catch (...) {
+							ContinuationRealignmentsInFlight.fetch_sub(
+								1U, std::memory_order_release);
+						}
+					});
+			} catch (...) {
+				ContinuationRealignmentsInFlight.fetch_sub(
+					1U, std::memory_order_release);
+				return refuse_continuation_realignment(
+					std::move(turn),
+					application::agent_realignment_refusal::host_failure);
+			}
+			LastContinuationRealignment = "pending";
+			ContinuationRealignmentStop = stop;
+			// The wall-clock bound, armed on the gesture and disarmed by the
+			// completion resetting the handle it compares against. A timer
+			// that arrives after its own turn finished belongs to no request
+			// and stops nothing.
+			QTimer::singleShot(
+				static_cast<int>(
+					application::maximum_agent_realignment_wait.count()),
+				Window.get(),
+				[this, stop] {
+					if (ContinuationRealignmentStop != stop) {
+						return;
+					}
+					ContinuationRealignmentDeadlineFired = true;
+					static_cast<void>(stop->request_stop());
+				});
+			return true;
+		}
+
+		/// \brief Dispatches a continued turn whose alignment was refused.
+		[[nodiscard]] auto refuse_continuation_realignment(
+			pending_continuation                         aTurn,
+			const application::agent_realignment_refusal aRefusal) -> bool
+		{
+			LastContinuationRealignment
+				= std::string{ application::stable_name(aRefusal) };
+			return launch_agent_invocation(
+				aTurn.Profile,
+				aTurn.Authority,
+				aTurn.ApplicationSession,
+				std::move(aTurn.Observation),
+				aTurn.ExistingCheckoutChosen,
+				aTurn.Session,
+				{ });
+		}
+
+		/// \brief Dispatches the continued turn its alignment answered for.
+		void finish_continuation_realignment(
+			pending_continuation                   aTurn,
+			application::agent_realignment_outcome aOutcome)
+		{
+			ContinuationRealignmentsInFlight.fetch_sub(
+				1U, std::memory_order_release);
+			const auto expired = ContinuationRealignmentDeadlineFired;
+			ContinuationRealignmentStop.reset();
+			ContinuationRealignmentDeadlineFired = false;
+			// The reason, recorded whether or not anything was frozen. A turn
+			// that froze nothing and a turn nobody asked to freeze anything
+			// are different events, and only a recorded reason tells them
+			// apart afterwards.
+			LastContinuationRealignment = expired
+				? std::string{ "deadline" }
+				: std::string{ application::stable_name(aOutcome.Refusal) };
+			if (Closing) {
+				return;
+			}
+			// Where the reviewer is pointing, said in the old revision's own
+			// terms. The position crossed over by line and side, which is a
+			// positional mapping and not an identity one, so the confidence
+			// stated is `approximate` and no segment or group identity is
+			// claimed: this composition did not compute one, and inventing an
+			// identity for a line is the whole failure mode here. What it does
+			// state is the re-aligned pair's own comparison digest, segments,
+			// and groups, so every identity the turn carries and every
+			// identity it is validated against come from the one alignment the
+			// re-alignment produced. Out of the old revision's range the
+			// position is simply not said - that revision has no such line,
+			// and the turn is still answered against its frozen identities.
+			if (!aOutcome.Alignments.empty() && aTurn.PointedAt.has_value()) {
+				const auto& realigned = aOutcome.Alignments.front();
+				const auto  anchor    = core::source_line_ref{
+					.Comparison = realigned.Digest,
+					.Side       = aTurn.PointedAt->Side,
+					.Line       = aTurn.PointedAt->Line,
+				};
+				if (core::valid(
+						anchor,
+						realigned.LeftLineCount,
+						realigned.RightLineCount)) {
+					aTurn.Observation.Selection
+						= core::supplement_semantic_context{
+							  .File      = aTurn.PointedAt->File,
+							  .Selection = core::semantic_selection{
+								  .Comparison    = realigned.Digest,
+								  .Kind          = core::semantic_selection_kind::line,
+								  .PreferredLine = anchor,
+							  },
+							  .Confidence = core::supplement_mapping_confidence::approximate,
+							  .Segments   = realigned.Segments,
+							  .Groups     = realigned.Groups,
+						  };
+				}
+			}
+			static_cast<void>(launch_agent_invocation(
+				aTurn.Profile,
+				aTurn.Authority,
+				aTurn.ApplicationSession,
+				std::move(aTurn.Observation),
+				aTurn.ExistingCheckoutChosen,
+				aTurn.Session,
+				std::move(aOutcome.Files)));
 		}
 
 		/// \brief The frozen alignment facts one invocation is answered against.
@@ -7724,6 +8045,13 @@ namespace bpr::app {
 			}
 			Closing = true;
 			RetryableReviewDraft.reset();
+			// The one outstanding re-alignment is told to stop here rather
+			// than waited on: its ports are closing, and a request that kept
+			// resolving through them would be the hang the poll below reports
+			// as a timeout.
+			if (ContinuationRealignmentStop) {
+				static_cast<void>(ContinuationRealignmentStop->request_stop());
+			}
 			if (AgentHost) {
 				AgentHost->shutdown();
 			}
@@ -7802,6 +8130,9 @@ namespace bpr::app {
 			if (
 				!DiffHost->is_quiescent() || !EpochHost->is_quiescent()
 				|| !Host->is_quiescent()
+				|| ContinuationRealignmentsInFlight.load(
+					   std::memory_order_acquire)
+					!= 0U
 				|| (DeviceHost && !DeviceHost->is_quiescent())
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
 				|| (QueueHost && !QueueHost->is_quiescent())
@@ -8217,6 +8548,27 @@ namespace bpr::app {
 #endif
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;
 		std::unique_ptr<application::agent_invocation_host>      AgentHost;
+		// BPR-0532. Declared after the epoch host it resolves and materializes
+		// through, so it is destroyed before that host is.
+		std::unique_ptr<application::agent_realignment_port> Realigner;
+		/// The stop handle of the one outstanding continuation re-alignment.
+		/// Held so shutdown and the wall-clock bound can stop the same request
+		/// the completion is waiting on, and reset by that completion so a
+		/// late timer stops nothing.
+		std::shared_ptr<std::stop_source> ContinuationRealignmentStop;
+		/// Counted rather than flagged, and atomic because the worker that
+		/// posts the completion decrements it when the lane refuses the post.
+		/// Shutdown waits on this: a re-alignment in flight holds ports that
+		/// close_and_drain would otherwise pull out from under it.
+		std::atomic_size_t ContinuationRealignmentsInFlight{ 0U };
+		bool               ContinuationRealignmentDeadlineFired = false;
+		/// Why the last continued turn froze what it froze: `none` when the
+		/// old revision was aligned again, `deadline` when the wait bound
+		/// stopped it, and the refusal's own name otherwise.
+		std::string LastContinuationRealignment;
+		/// Whether that re-alignment asked about a different pair than the one
+		/// on screen.
+		bool LastContinuationRealignmentRetargeted = false;
 		// RFC-BPR-0012. Composed beside the agent host and driven by the
 		// shipped window's own gestures. BPR-0513 moved the two panels into
 		// the window's conversations drawer, which owns them as it owns every
@@ -14087,6 +14439,10 @@ namespace bpr::app {
 			.McpAnswer             = implementation->McpHelper != nullptr
 				? implementation->McpHelper->answer()
 				: std::string{ },
+			.LastContinuationRealignment
+			= implementation->LastContinuationRealignment,
+			.LastContinuationRealignmentRetargeted
+			= implementation->LastContinuationRealignmentRetargeted,
 		};
 		if (implementation->FindingQueue != nullptr) {
 			evidence.QueuedClaim

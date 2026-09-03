@@ -412,6 +412,15 @@ namespace bpr::app::detail {
 		bool        WorkshopPendingSessionBound = false;
 		std::string SideChatHeadOidText;
 		std::string AgentPanelStatusText;
+		/// Why the last continued turn froze what it froze. `none` names a
+		/// re-alignment that produced the old revision's identities, `deadline`
+		/// the wall-clock bound, and anything else is the refusal's own stable
+		/// name. Empty until a continuation has been sent.
+		std::string LastContinuationRealignment;
+		/// Whether that re-alignment asked about a different epoch pair than
+		/// the selection on screen. False for a request that would have
+		/// resolved exactly what is already displayed.
+		bool LastContinuationRealignmentRetargeted = false;
 	};
 
 	struct agent_invocation_context_evidence
