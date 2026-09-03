@@ -98,6 +98,14 @@ namespace bpr::app::detail {
 		// still starts, the address is still presented, and the open action
 		// answers `unavailable` rather than doing nothing.
 		bool SuppressDeviceBrowser = false;
+		// [[BPR-0540]]. Puts the documented refresh shape in the refresh slot
+		// before this process has a session at all, which is the state a past
+		// grant's orderly shutdown used to leave behind: the access token
+		// deleted, the material keyed beside it still there. Seeded rather
+		// than earned, because the run that earned it is gone -- that is the
+		// whole condition. Only meaningful beside `DeviceRefreshCourse`,
+		// which is what composes a second slot to seed.
+		bool SeedOrphanedRefreshMaterial = false;
 		// [[BPR-0526]] construction cut. The window still builds and mounts the
 		// device sign-in panel -- placement is the window's decision, not the
 		// composition's -- but the composition adopts neither end of it: no
@@ -190,6 +198,21 @@ namespace bpr::app::detail {
 		// credential, and those are exactly the two candidates.
 		std::string VaultStoredDigest;
 		bool        VaultStoredIsDeviceGrant = false;
+		// [[BPR-0540]]. The refresh slot, reported the way `SecretRetained`
+		// above reports the base one. Nothing answered for the material
+		// beside the credential, so a course could show the access token
+		// deleted at shutdown while the refresh entry keyed under the same
+		// authority survived it -- which is exactly the orphan a later
+		// pasted-token session must never spend.
+		bool        RefreshRetained  = false;
+		std::size_t RefreshStores    = 0U;
+		std::size_t RefreshRetrieves = 0U;
+		// The digest of the last credential this fixture handed the connect
+		// path, taken with the same function and the same truncation the
+		// store uses so the two are comparable. A course that connects rather
+		// than granting has no recorded token to compare a store against, and
+		// this is what it compares instead.
+		std::string LastEnrollmentDigest;
 	};
 
 	struct github_epoch_maintenance_fixture_evidence

@@ -397,6 +397,33 @@ namespace bpr::application {
 							  aCompletion);
 		}
 
+		// [[BPR-0540]]. Whether a refresh-slot erasure left renewal material
+		// in the vault. A deleted slot and an absent one are the same
+		// outcome, and so is a platform whose store has no second slot at all
+		// -- the port answers `unavailable` for exactly that, so a station
+		// without the slot reports no failure for material it could never
+		// have written. Everything else, including a terminal for the wrong
+		// operation and a cancellation this host never asks for, is material
+		// still resident under an authority the reviewer has finished with.
+		[[nodiscard]] auto erasure_left_material(
+			const github_credential_delete_completion& aCompletion,
+			const github_credential_operation_context& aOperation) noexcept -> bool
+		{
+			if (aCompletion.valueless_by_exception() || !valid(aCompletion)
+				|| completion_context(aCompletion) != aOperation) {
+				return true;
+			}
+			if (std::holds_alternative<github_credential_delete_success>(
+					aCompletion)) {
+				return false;
+			}
+			const auto* error
+				= std::get_if<github_credential_delete_error>(&aCompletion);
+			return error == nullptr
+				|| error->Failure
+				!= github_credential_vault_failure::unavailable;
+		}
+
 		template <typename Completion>
 		[[nodiscard]] decltype(auto)
 		provider_completion_request(const Completion& aCompletion)
@@ -433,20 +460,47 @@ namespace bpr::application {
 		return nullptr;
 	}
 
+	auto github_credential_binding_catalog::provenance(
+		const core::host_profile_id aProfile) const noexcept
+		-> github_credential_provenance
+	{
+		if (aProfile.value() == 0U) {
+			return github_credential_provenance::manual;
+		}
+		for (std::size_t index = 0U; index < Entries.size(); ++index) {
+			const auto& entry = Entries.at(index);
+			if (entry.has_value() && entry->Profile == aProfile) {
+				return Provenances.at(index);
+			}
+		}
+		return github_credential_provenance::manual;
+	}
+
 	auto github_credential_binding_catalog::remember(
-		const github_credential_authority_key aAuthority) noexcept -> bool
+		const github_credential_authority_key aAuthority,
+		const github_credential_provenance    aProvenance) noexcept -> bool
 	{
 		if (!valid(aAuthority)) {
 			return false;
 		}
-		for (const auto& entry : Entries) {
+		for (std::size_t index = 0U; index < Entries.size(); ++index) {
+			auto& entry = Entries.at(index);
 			if (entry.has_value() && entry->Profile == aAuthority.Profile) {
-				return *entry == aAuthority;
+				if (*entry != aAuthority) {
+					return false;
+				}
+				// The same slot, named again. A grant that re-enrolls over a
+				// pasted token upgrades the origin; a paste over a grant
+				// demotes it, which is the case this whole rule exists for.
+				Provenances.at(index) = aProvenance;
+				return true;
 			}
 		}
-		for (auto& entry : Entries) {
+		for (std::size_t index = 0U; index < Entries.size(); ++index) {
+			auto& entry = Entries.at(index);
 			if (!entry.has_value()) {
-				entry = aAuthority;
+				entry                 = aAuthority;
+				Provenances.at(index) = aProvenance;
 				return true;
 			}
 		}
@@ -459,9 +513,11 @@ namespace bpr::application {
 		if (!valid(aAuthority)) {
 			return;
 		}
-		for (auto& entry : Entries) {
+		for (std::size_t index = 0U; index < Entries.size(); ++index) {
+			auto& entry = Entries.at(index);
 			if (entry == aAuthority) {
 				entry.reset();
+				Provenances.at(index) = github_credential_provenance::manual;
 				return;
 			}
 		}
@@ -529,8 +585,10 @@ namespace bpr::application {
 
 		struct deferred_enrollment
 		{
-			core::host_profile_id      Profile;
-			github_credential_material Credential;
+			core::host_profile_id        Profile;
+			github_credential_material   Credential;
+			github_credential_provenance Provenance
+				= github_credential_provenance::manual;
 		};
 
 		struct deferred_resume
@@ -625,7 +683,8 @@ namespace bpr::application {
 							} else if constexpr (std::is_same_v<ingress_type,
 																deferred_enrollment>) {
 								enroll_profile_now(aIngress.Profile,
-												   std::move(aIngress.Credential));
+												   std::move(aIngress.Credential),
+												   aIngress.Provenance);
 							} else if constexpr (std::is_same_v<ingress_type,
 																deferred_resume>) {
 								resume_profile_now(aIngress.Profile);
@@ -713,8 +772,9 @@ namespace bpr::application {
 			dispatch_core(aEvent);
 		}
 
-		void enroll_profile(const core::host_profile_id aProfile,
-							github_credential_material  aCredential)
+		void enroll_profile(const core::host_profile_id        aProfile,
+							github_credential_material         aCredential,
+							const github_credential_provenance aProvenance)
 		{
 			if (Closing) {
 				return;
@@ -723,6 +783,7 @@ namespace bpr::application {
 				DeferredIngress.emplace_back(deferred_enrollment{
 					.Profile    = aProfile,
 					.Credential = std::move(aCredential),
+					.Provenance = aProvenance,
 				});
 				return;
 			}
@@ -730,29 +791,34 @@ namespace bpr::application {
 				DeferredIngress.emplace_back(deferred_enrollment{
 					.Profile    = aProfile,
 					.Credential = std::move(aCredential),
+					.Provenance = aProvenance,
 				});
 				schedule_deferred_ingress();
 				return;
 			}
-			run_turn([this, aProfile, credential = std::move(aCredential)]() mutable { enroll_profile_now(aProfile, std::move(credential)); });
+			run_turn([this, aProfile, aProvenance, credential = std::move(aCredential)]() mutable { enroll_profile_now(aProfile, std::move(credential), aProvenance); });
 		}
 
-		void enroll_profile_now(const core::host_profile_id aProfile,
-								github_credential_material  aCredential)
+		void enroll_profile_now(const core::host_profile_id        aProfile,
+								github_credential_material         aCredential,
+								const github_credential_provenance aProvenance)
 		{
 			if (Closing) {
 				return;
 			}
 			NextEnrollment.reset();
+			NextEnrollmentProvenance = github_credential_provenance::manual;
 			NextResumeProfile.reset();
 			if (valid(aCredential)) {
 				NextEnrollment.emplace(std::move(aCredential));
+				NextEnrollmentProvenance = aProvenance;
 			}
 			try {
 				dispatch_core(
 					core::activate_host_profile_intent{ .Profile = aProfile });
 			} catch (...) {
 				NextEnrollment.reset();
+				NextEnrollmentProvenance = github_credential_provenance::manual;
 				throw;
 			}
 			// A valid activation synchronously moved this material into the
@@ -760,6 +826,7 @@ namespace bpr::application {
 			// retaining it here would let a later activation consume the wrong
 			// enrollment secret.
 			NextEnrollment.reset();
+			NextEnrollmentProvenance = github_credential_provenance::manual;
 		}
 
 		void resume_profile(const core::host_profile_id aProfile)
@@ -1391,10 +1458,12 @@ namespace bpr::application {
 					} else if constexpr (std::is_same_v<
 											 request_type,
 											 core::establish_github_session_request>) {
-						DeferredSession   = aTypedRequest.Context;
-						SessionEnrollment = std::move(NextEnrollment);
+						DeferredSession             = aTypedRequest.Context;
+						SessionEnrollment           = std::move(NextEnrollment);
+						SessionEnrollmentProvenance = NextEnrollmentProvenance;
 						NextEnrollment.reset();
-						SessionResumeProfile = NextResumeProfile;
+						NextEnrollmentProvenance = github_credential_provenance::manual;
+						SessionResumeProfile     = NextResumeProfile;
 						NextResumeProfile.reset();
 						SessionPublicPreview = NextPublicPreview;
 						NextPublicPreview    = false;
@@ -1448,6 +1517,7 @@ namespace bpr::application {
 			CurrentProfile.reset();
 			BootstrapViewer.reset();
 			SessionEnrollment.reset();
+			SessionEnrollmentProvenance = github_credential_provenance::manual;
 			SessionResumeProfile.reset();
 			SessionPublicPreview = false;
 			PublicPreviewRefusal.reset();
@@ -1484,9 +1554,14 @@ namespace bpr::application {
 			const github_credential_authority_key&      aAuthority,
 			const core::github_session_request_context& aContext)
 		{
-			CredentialAuthority         = aAuthority;
-			CredentialSessionContext    = aContext;
-			CredentialLifecycle         = credential_lifecycle::persistent;
+			CredentialAuthority      = aAuthority;
+			CredentialSessionContext = aContext;
+			CredentialLifecycle      = credential_lifecycle::persistent;
+			// The origin travels with the binding rather than with the
+			// gesture. A resume names a profile and nothing else, so this is
+			// the only place a restored session can learn that what it is
+			// about to be established from came from a device grant.
+			CredentialProvenance        = CredentialBindings.provenance(aAuthority.Profile);
 			CredentialBindingRemembered = true;
 		}
 
@@ -1644,6 +1719,7 @@ namespace bpr::application {
 						select_persistent_credential(*retained, context);
 						if (hasNativeMaterial) {
 							SessionEnrollment.reset();
+							SessionEnrollmentProvenance = github_credential_provenance::manual;
 							SessionResumeProfile.reset();
 							fail_session(context,
 										 core::github_failure::malformed_response,
@@ -1656,6 +1732,7 @@ namespace bpr::application {
 					}
 					if (hasNativeMaterial) {
 						SessionEnrollment.reset();
+						SessionEnrollmentProvenance = github_credential_provenance::manual;
 						SessionResumeProfile.reset();
 						fail_session(context,
 									 core::github_failure::malformed_response);
@@ -1900,7 +1977,9 @@ namespace bpr::application {
 					CredentialAuthority      = credential_key(authority, success->Viewer.Account);
 					CredentialSessionContext = context;
 					CredentialLifecycle      = credential_lifecycle::provisional;
-					if (!CredentialBindings.remember(*CredentialAuthority)) {
+					CredentialProvenance     = SessionEnrollmentProvenance;
+					if (!CredentialBindings.remember(*CredentialAuthority,
+													 CredentialProvenance)) {
 						fail_session(context, core::github_failure::vault);
 						return;
 					}
@@ -2300,6 +2379,16 @@ namespace bpr::application {
 				|| *CredentialAuthority != aExpectedProbe.Authority) {
 				return;
 			}
+			// [[BPR-0540]]. Presence is not the whole answer. Both slots are
+			// keyed by the same authority, so a token the reviewer pasted for
+			// an account a device grant once enrolled lands beside whatever
+			// that grant left behind, and spending it would take the reviewer
+			// off the session they asked for and onto one they did not. The
+			// entry renews *this* credential only when this credential itself
+			// came from a grant.
+			if (CredentialProvenance != github_credential_provenance::device_grant) {
+				return;
+			}
 			AcceptedCredentialRenewable = true;
 			republish_accepted_session();
 		}
@@ -2349,8 +2438,10 @@ namespace bpr::application {
 				return;
 			}
 			if (CredentialAuthority.has_value() && !CredentialBindingRemembered) {
-				if (!CredentialBindings.remember(*CredentialAuthority)) {
+				if (!CredentialBindings.remember(*CredentialAuthority,
+												 CredentialProvenance)) {
 					SessionEnrollment.reset();
+					SessionEnrollmentProvenance = github_credential_provenance::manual;
 					fail_session(aCandidate.Context, core::github_failure::vault);
 					return;
 				}
@@ -2413,6 +2504,7 @@ namespace bpr::application {
 			RateLimits                 = aCandidate.RateLimits;
 			StagedSession.reset();
 			SessionEnrollment.reset();
+			SessionEnrollmentProvenance = github_credential_provenance::manual;
 			SessionResumeProfile.reset();
 			BootstrapViewer.reset();
 			ViewerMode = viewer_mode::none;
@@ -2518,6 +2610,7 @@ namespace bpr::application {
 				});
 			}
 			SessionEnrollment.reset();
+			SessionEnrollmentProvenance = github_credential_provenance::manual;
 		}
 
 		void
@@ -2826,6 +2919,7 @@ namespace bpr::application {
 				CredentialAuthority.reset();
 				CredentialSessionContext.reset();
 				CredentialLifecycle         = credential_lifecycle::none;
+				CredentialProvenance        = github_credential_provenance::manual;
 				CredentialBindingRemembered = false;
 				fail_session_direct(context, core::github_failure::vault);
 				return;
@@ -2836,6 +2930,84 @@ namespace bpr::application {
 				return;
 			}
 			fail_session(context, core::github_failure::vault);
+		}
+
+		// The refresh slot's own erasure. It carries no answer back on the
+		// ordinary occasions: an erased slot, an absent one, and a platform
+		// whose store has no second slot are all "nothing renews this
+		// credential any more", which is what the host already believes and
+		// what the reviewer asked for. Only a failure crosses onto the
+		// decision lane, because a failure means material this host meant to
+		// destroy is still in the vault and somebody has to be told.
+		//
+		// The count, not the answer, is what quiescence reads: composition
+		// holds this host and the vault alive until the terminal has been
+		// delivered, exactly as it does for the credential delete beside it.
+		void start_refresh_delete(
+			const github_credential_operation_context& aOperation)
+		{
+			OutstandingRefreshDeletes.fetch_add(1U, std::memory_order_acq_rel);
+			const auto  gate = std::weak_ptr<completion_gate>{ CompletionGate };
+			auto* const lane = &DecisionLane;
+			const auto  callback =
+				[gate, lane, aOperation](
+					github_credential_delete_completion aCompletion) noexcept {
+					const auto callbackTarget = gate.lock();
+					if (!callbackTarget) {
+						return;
+					}
+					const std::lock_guard callbackBarrier{ callbackTarget->Barrier };
+					auto* const           host = callbackTarget->Host.load(std::memory_order_acquire);
+					if (host == nullptr) {
+						return;
+					}
+					host->OutstandingRefreshDeletes.fetch_sub(
+						1U, std::memory_order_acq_rel);
+					if (!erasure_left_material(aCompletion, aOperation)) {
+						return;
+					}
+					try {
+						lane->post([gate, aOperation]() {
+							const auto locked = gate.lock();
+							if (!locked) {
+								return;
+							}
+							const std::lock_guard completionBarrier{
+								locked->Barrier
+							};
+							auto* const target = locked->Host.load(std::memory_order_acquire);
+							if (target != nullptr) {
+								target->report_refresh_erasure_failure(aOperation);
+							}
+						});
+					} catch (...) {
+					}
+				};
+			try {
+				Credentials.delete_refresh(aOperation, callback);
+			} catch (...) {
+				callback(github_credential_delete_error{
+					.Context = aOperation,
+					.Failure = github_credential_vault_failure::operation_failed,
+				});
+			}
+		}
+
+		void report_refresh_erasure_failure(
+			const github_credential_operation_context& aOperation)
+		{
+			run_turn([this, aOperation] {
+				static_cast<void>(aOperation);
+				if (Closing) {
+					ShutdownCleanupFailed = true;
+				}
+				publish_diagnostic(github_host_diagnostic{
+					.Reason            = core::github_reason_code::vault_unavailable,
+					.RetryAfterSeconds = std::nullopt,
+					.RateLimits        = { },
+					.RateLimitCause    = std::nullopt,
+				});
+			});
 		}
 
 		void start_delete(const core::github_identity_generation   aGeneration,
@@ -2858,9 +3030,17 @@ namespace bpr::application {
 			};
 			ActiveVaultOperation = vault_operation::delete_credential;
 			ActiveVaultContext   = operation;
-			const auto  token    = ++VaultOperationToken;
-			const auto  gate     = std::weak_ptr<completion_gate>{ CompletionGate };
-			auto* const lane     = &DecisionLane;
+			// [[BPR-0540]]. The refresh slot leaves with the credential it
+			// renews, under the same authority, through the same port, on the
+			// same occasion -- an orderly shutdown that deletes what it
+			// retained, a sign-out, or an enrollment superseding the session
+			// that stored it. Deleting one and keeping the other is what
+			// orphaned six months of renewal material behind a session the
+			// reviewer had already ended.
+			start_refresh_delete(operation);
+			const auto  token = ++VaultOperationToken;
+			const auto  gate  = std::weak_ptr<completion_gate>{ CompletionGate };
+			auto* const lane  = &DecisionLane;
 			const auto  callback =
 				[gate, lane, token, operation](
 					github_credential_delete_completion aCompletion) noexcept {
@@ -2994,6 +3174,7 @@ namespace bpr::application {
 					CredentialAuthority.reset();
 					CredentialSessionContext.reset();
 					CredentialLifecycle         = credential_lifecycle::none;
+					CredentialProvenance        = github_credential_provenance::manual;
 					CredentialBindingRemembered = false;
 				} else {
 					ShutdownCleanupFailed = true;
@@ -3029,6 +3210,7 @@ namespace bpr::application {
 			CredentialAuthority.reset();
 			CredentialSessionContext.reset();
 			CredentialLifecycle         = credential_lifecycle::none;
+			CredentialProvenance        = github_credential_provenance::manual;
 			CredentialBindingRemembered = false;
 			if (terminal.has_value()) {
 				finish_deferred_terminal(*terminal);
@@ -3134,6 +3316,7 @@ namespace bpr::application {
 			BootstrapViewer.reset();
 			AccountTransport.reset();
 			SessionEnrollment.reset();
+			SessionEnrollmentProvenance = github_credential_provenance::manual;
 			SessionResumeProfile.reset();
 			SessionPublicPreview = false;
 			ViewerMode           = viewer_mode::none;
@@ -3525,6 +3708,7 @@ namespace bpr::application {
 			// cancellation has been submitted.
 			NextEnrollment.reset();
 			SessionEnrollment.reset();
+			SessionEnrollmentProvenance = github_credential_provenance::manual;
 			NextResumeProfile.reset();
 			SessionResumeProfile.reset();
 
@@ -3595,7 +3779,9 @@ namespace bpr::application {
 		pending_provider_request                            PendingProvider;
 		std::uint64_t                                       ProviderOperationToken = 0U;
 		std::optional<github_credential_material>           NextEnrollment;
+		github_credential_provenance                        NextEnrollmentProvenance = github_credential_provenance::manual;
 		std::optional<github_credential_material>           SessionEnrollment;
+		github_credential_provenance                        SessionEnrollmentProvenance = github_credential_provenance::manual;
 		std::optional<core::host_profile_id>                NextResumeProfile;
 		std::optional<core::host_profile_id>                SessionResumeProfile;
 		bool                                                NextPublicPreview    = false;
@@ -3617,12 +3803,23 @@ namespace bpr::application {
 		// and giving it its own token keeps the single-operation invariant the
 		// establishment path depends on exactly as it was.
 		std::optional<github_credential_operation_context> RefreshProbeContext;
-		std::uint64_t                                      RefreshProbeToken           = 0U;
-		bool                                               AcceptedCredentialRenewable = false;
-		std::optional<github_credential_authority_key>     CredentialAuthority;
+		std::uint64_t                                      RefreshProbeToken = 0U;
+		// The refresh slot's erasure runs beside the credential delete rather
+		// than inside it, for the same reason the probe does: the
+		// single-operation invariant the establishment path depends on is
+		// about the credential slot. It is counted rather than tracked by
+		// context because the only question anything asks of it is whether
+		// the vault still owes this host a terminal, and quiescence is asked
+		// from outside the decision lane. Decremented under the completion
+		// gate's barrier, which is the same place every other vault terminal
+		// establishes that this host is still alive.
+		std::atomic<std::uint32_t>                     OutstandingRefreshDeletes   = 0U;
+		bool                                           AcceptedCredentialRenewable = false;
+		std::optional<github_credential_authority_key> CredentialAuthority;
 		std::optional<core::github_session_request_context>
 												 CredentialSessionContext;
 		credential_lifecycle                     CredentialLifecycle         = credential_lifecycle::none;
+		github_credential_provenance             CredentialProvenance        = github_credential_provenance::manual;
 		bool                                     CredentialBindingRemembered = false;
 		std::optional<deferred_session_terminal> DeferredTerminal;
 		std::optional<core::github_identity_generation>
@@ -3690,9 +3887,12 @@ namespace bpr::application {
 	}
 
 	void github_application_host::enroll_profile(
-		const core::host_profile_id aProfile, github_credential_material aCredential)
+		const core::host_profile_id        aProfile,
+		github_credential_material         aCredential,
+		const github_credential_provenance aProvenance)
 	{
-		Implementation->enroll_profile(aProfile, std::move(aCredential));
+		Implementation->enroll_profile(
+			aProfile, std::move(aCredential), aProvenance);
 	}
 
 	void github_application_host::resume_profile(
@@ -3804,7 +4004,13 @@ namespace bpr::application {
 			&& std::holds_alternative<std::monostate>(
 				   Implementation->PendingProvider)
 			&& Implementation->ActiveVaultOperation
-			== implementation::vault_operation::none;
+			== implementation::vault_operation::none
+			// [[BPR-0540]]. The refresh slot's erasure is part of the exact
+			// cleanup, so composition keeps this host and the vault alive
+			// until the vault has answered for it too.
+			&& Implementation->OutstandingRefreshDeletes.load(
+				   std::memory_order_acquire)
+			== 0U;
 	}
 
 	auto github_application_host::shutdown_cleanup_failed() const noexcept -> bool
