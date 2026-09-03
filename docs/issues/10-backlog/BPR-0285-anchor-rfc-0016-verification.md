@@ -3,7 +3,7 @@ id: BPR-0285
 title: Anchor RFC-BPR-0016 capability-critical verification
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539, BPR-0540, BPR-0542, BPR-0543, BPR-0544, BPR-0545, BPR-0546, BPR-0547, BPR-0548, BPR-0549]
+depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539, BPR-0540, BPR-0542, BPR-0543, BPR-0544, BPR-0545, BPR-0546, BPR-0547, BPR-0548, BPR-0549, BPR-0550, BPR-0551]
 ---
 
 # Anchor RFC-BPR-0016 capability-critical verification
@@ -854,3 +854,96 @@ library boundary without whole-program optimization, which these presets do
 not enable, and a linker that drops unreferenced sections removes it the
 moment composition stops binding — which is exactly the falsification the
 anchor exists for. That change belongs to the fix set above.
+
+## Fourth independent capability-critical review of `1f1f986c` — 2026-09-03
+
+Run read-only at the head where BPR-0545 through BPR-0549 are terminal, with
+the three prior reviews as its brief. It confirmed the third review's three
+blockers are fixed as claimed — the erasure is issued from the credential
+delete's terminal under a context the vault has released, the device host's
+contexts carry a generation every vault accepts, the retention window closes
+on every exit it could construct, and the fixture's two mirrored rules match
+all three platform vaults' submit and queue code exactly — and it found one
+new blocking defect and two verification failures.
+
+**Verdict: RFC-BPR-0016 may not move to Auto-Verified at `1f1f986c`.**
+
+- **B1 — only the first device grant in a process binds its own authority.**
+  `RefreshAuthority` is assigned by `bind_refresh_authority` and
+  `resume_refresh` and never released; `perform(begin)` clears the parked
+  material but not the binding, so a second grant stores its refresh token
+  under the previous session's authority key. Nothing leaks — the mismatch
+  exit [[BPR-0549]] added erases it — but `RefreshDurable` is already true,
+  the host arms a renewal, the panel reports `scheduled`, and at the lead
+  time the retrieve answers absent and the reviewer is told to enroll again
+  minutes before a working token expires. The same shape reaches a pasted
+  token through composition's stale authority memo. Latent since
+  [[BPR-0536]]; effective only since [[BPR-0546]] made the store succeed.
+  Invisible to both composed courses, which drive one account. Carded as
+  [[BPR-0550]] and accepted as blocking: acceptance row 9 says refresh
+  precedes expiry, and for every grant after the first it does not.
+- **V1 and V2 — the ledger row and three documents were stale.** They still
+  asserted an unconditional supersession erasure and a one-rotation course
+  after [[BPR-0547]] introduced the held erasure and the second rotation.
+  Corrected in the same commit as this record: the ledger row and
+  `github-host-implementation.md`, `build-and-test.md`, and
+  `foundation-security.md` now describe the erasure issued from the delete's
+  terminal, the one occasion that holds it and the four exits that release
+  it, and what two rotations prove that one cannot.
+- **V3 — the composed cleanup claim cannot fail.** `cleanup_failed` is
+  printed only when a run has already failed, is not in the row's pass
+  expression, and no fail expression is registered, so a re-regression of
+  the third review's B1 would leave both device rows green. Carded as
+  [[BPR-0551]]: the courses print and pin the cleanup verdict, proven by a
+  deliberate re-regression.
+- **V4 is by construction**: the review ran hermetic binaries built one
+  commit earlier and read the standing Release image, both provenance; each
+  platform's replay builds its own fresh roots.
+- **Residuals accepted**: the refresh probe and the shutdown delete can mint
+  one identical context (R1, unreachable by a human today, deterministic in a
+  test — folded into [[BPR-0551]]'s slice if cheap, else carded); both hosts
+  seed their request counters at 1 (R2); over-erasure inside the retention
+  window costs a re-authorization rather than leaked material (R4, the
+  direction [[BPR-0549]] chose deliberately); two untested branches read
+  correctly (R5); the fixture's `cancel` is advisory where the platforms'
+  is synchronous (R6); and the two-rotation row cannot see the window's
+  mismatch exit, for which the host test is the only guard (R7).
+
+### The three final-head replays at `1f1f986c`
+
+All three platforms green, each from a build root deleted whole, 25 course
+selectors derived from the inventory, `required=30 forbidden=7`. They are
+provenance for this head, not closeout evidence, because B1 falsifies row 9
+here; they rerun at the head that closes [[BPR-0550]] and [[BPR-0551]].
+
+| Platform | Host | Course | Artifact |
+|---|---|---|---|
+| macOS | integrator, Apple Clang, Qt 6.10.3 | exit 0 in 342 s, `SELECTION:enabled`, `DEVICE_STAGE:cancelled`, `DEVICE_REQUESTS:0` | 10,753,440 bytes, sha256 `98140ced…` |
+| Linux | `bpr-linux`, Ubuntu 26.04 WSL2, GCC 15.2.0 | exit 0 in 303 s, same markers; login collection `Locked (<false>,)` before and during | 11,651,608 bytes, sha256 `cf5ea127…` |
+| Windows x64 | `bpr-win`, MSVC 14.51.36231 | exit 0 in 1255 s, same markers | 7,814,656 bytes, sha256 `4e4f6289…` |
+
+Each artifact admitted `RFC0016_PRODUCTION_IDENTITY_OK` with the recorded
+client `Iv23liitiYN1WSSbag50`, `RFC0016_TEST_INVENTORY_OK`, and
+`COMPOSED_HOSTS_OK: required=30 forbidden=7`.
+
+Two things the stations measured that only they could. The two-rotation
+course's bounds were derived on macOS; Windows ran it six times
+(8.73–8.95 s, spread 220 ms) against a 25 s timeout and Linux once at
+7.91 s, so no platform-specific bound is needed. And `bpr-win` recorded
+that this was the first Windows replay in which the composed courses could
+reach the refresh slot at all, BPR-0546 having fixed the context, while the
+markers did not move — so the earlier green Windows replays were reporting
+the same stage and request count for a flow that in fact stopped earlier
+than anyone knew.
+
+### A standing limitation, recorded rather than dropped
+
+Nothing on any platform composes the real host against the real vault. Both
+stations said so independently: their native rows exercise the port and
+sequence operations themselves, and the composed courses run over the
+fixture, which [[BPR-0548]] has aligned to the platform vaults' refusals but
+which is still not the Keychain, the Secret Service, or the Credential
+Manager. That gap is the third review's R3, and it is what let its three
+blocking findings reach a head with two green platform replays. It is
+accepted as a limitation of this closeout, not claimed as covered.
+

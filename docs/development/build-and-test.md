@@ -2409,10 +2409,17 @@ success claim.
   BPR-0543 make it real on Linux and Windows, whose vaults answered
   `unavailable` for the slot), and every exact delete of the base
   credential — orderly shutdown, sign-out, a superseding enrollment —
-  deletes the refresh slot under the same authority too (BPR-0540).
-  `application_device_authorization_refresh_course` proves one rotation
+  deletes the refresh slot under the same authority too (BPR-0540), issued
+  from that delete's own terminal rather than beside it, since a platform
+  vault refuses two operations under one context (BPR-0545). The one
+  exception is a rotation superseding its own session, which would
+  otherwise destroy the material it just stored: there the erasure is held
+  until the incoming session names its authority, and released the moment
+  that authority differs (BPR-0547, BPR-0549).
+  `application_device_authorization_refresh_course` proves two rotations
   through the composed graph over the fixture and pins
-  `DEVICE_FLOW_REFRESH_RETAINED:false` after its orderly shutdown;
+  `DEVICE_FLOW_REFRESH_RETAINED:false` after its orderly shutdown, one
+  erasure, and the second rotation's material in the slot;
   `application_device_authorization_orphan_course` proves a pasted token
   never resumes from a pre-seeded slot.
 - Opening a browser can fail, and that is not an authorization failure. The

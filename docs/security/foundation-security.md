@@ -91,7 +91,10 @@ outbound endpoint instead.
   own thread and passes only a yes ([[BPR-0536]]). Both slots share one
   erasure path — an orderly shutdown, a sign-out, or a superseding
   enrollment deletes the refresh material with the access token under the
-  same authority — and the probe's yes renews a credential only when that
+  same authority, the one exception being a rotation superseding the
+  session it just renewed, where the erasure is held only while the
+  incoming session may still name that same authority and runs the moment
+  it does not ([[BPR-0547]], [[BPR-0549]]) — and the probe's yes renews a credential only when that
   credential's own provenance is a device grant, so a pasted token is
   never silently replaced by a session minted from an orphaned refresh
   token ([[BPR-0540]]). The core, the

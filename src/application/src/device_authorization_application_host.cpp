@@ -401,6 +401,11 @@ namespace bpr::application {
 			PendingAccess.reset();
 			PendingRefresh.reset();
 			AuthorizingContext.reset();
+			// [[BPR-0550]]. Including the slot the previous grant was keyed by.
+			// A second grant in one process may name another account, and a
+			// binding kept across the begin is the one its material would be
+			// written under.
+			release_refresh_binding();
 			ConsecutiveFailures = 0U;
 
 			Flow = aRequest.Context;
@@ -1137,6 +1142,41 @@ namespace bpr::application {
 
 		// -- erasure and lifecycle -----------------------------------------
 
+		// [[BPR-0550]]. A refresh binding belongs to the session that named it
+		// and outlives no flow. Released rather than replaced: the next grant's
+		// material then parks in memory until its own authenticated `/user`
+		// binds it, which is the first-grant path both composed courses drive,
+		// instead of being stored under the previous account's key, called
+		// durable, and renewed against a slot the incoming session erases.
+		//
+		// A renewal in flight goes with the binding. Every step of that
+		// lifecycle mints its context from the authority, so an answer arriving
+		// after the release would either name a slot this host no longer stands
+		// behind or find no authority to name one with at all.
+		void release_refresh_binding()
+		{
+			if (Purpose == timer_purpose::refresh) {
+				cancel_timer();
+			}
+			if (RefreshContext.has_value()) {
+				Transport->cancel(*RefreshContext);
+				RefreshContext.reset();
+			}
+			if (RefreshRetrieveContext.has_value()) {
+				Vault->cancel(*RefreshRetrieveContext);
+				RefreshRetrieveContext.reset();
+			}
+			if (RefreshStoreContext.has_value()) {
+				Vault->cancel(*RefreshStoreContext);
+				RefreshStoreContext.reset();
+			}
+			RefreshAuthority.reset();
+			RefreshIdentityGeneration = core::github_identity_generation{ };
+			RefreshDurable            = false;
+			Refresh.State             = device_authorization_refresh_state::idle;
+			Refresh.Failure           = device_authorization_refresh_failure::none;
+		}
+
 		void erase_flow_transients() noexcept
 		{
 			if (DeviceCode.has_value()) {
@@ -1301,6 +1341,21 @@ namespace bpr::application {
 			Implementation->Closing || !valid(aAuthority)
 			|| aIdentityGeneration.value() == 0U) {
 			return;
+		}
+		// [[BPR-0550]]. A binding names the slot this host's material is kept
+		// in. One arriving under a different authority -- the session changed
+		// account, or composition rebound this host to a token the reviewer
+		// pasted -- says nothing about what that slot holds, so the durability
+		// and the renewal armed for the old one are released rather than
+		// carried across. Carried across, the next renewal reads the new key
+		// for material stored under the old, finds nothing, and asks a
+		// reviewer holding a working credential to enroll again.
+		if (
+			Implementation->RefreshAuthority.has_value()
+			&& (!(*Implementation->RefreshAuthority == aAuthority)
+				|| Implementation->RefreshIdentityGeneration.value()
+					!= aIdentityGeneration.value())) {
+			Implementation->release_refresh_binding();
 		}
 		Implementation->RefreshAuthority          = std::move(aAuthority);
 		Implementation->RefreshIdentityGeneration = aIdentityGeneration;

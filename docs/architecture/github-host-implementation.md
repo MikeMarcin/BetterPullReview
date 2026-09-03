@@ -1227,12 +1227,28 @@ enrollment, only the device-authorization enrollment boundary says
 entry sits beside a credential whose provenance is a device grant — a
 pasted token for an account a past grant enrolled is never renewed from
 that grant's material. And the refresh slot shares the credential's
-erasure: every exact delete of the base credential under an authority
+erasure. Every exact delete of the base credential under an authority
 (`delete_retained_on_shutdown` at orderly shutdown, sign-out, a
 superseding enrollment) issues `delete_refresh` under the same authority
-through the same vault port, counted into quiescence, with only a failure
-reported as a `vault_unavailable` diagnostic (and `shutdown_cleanup_failed`
-when closing). `application_device_authorization_orphan_course` pre-seeds
+through the same vault port — from that credential delete's own terminal,
+never beside it, because the platform vaults key their pending operations
+by the operation context and refuse a second under one key
+([[BPR-0545]]) — counted into quiescence, with only a failure reported as
+a `vault_unavailable` diagnostic (and `shutdown_cleanup_failed` when
+closing).
+
+One occasion withholds that erasure, because renewal would otherwise
+destroy its own chain: a rotation enrolls its new access token, and that
+enrollment supersedes the session it renewed. When the incoming enrollment
+is a device grant for the same profile as the outgoing authority, the
+erasure is *held* rather than issued ([[BPR-0547]]) — held as the exact
+context that would have run it, and released only when the incoming
+session names an authority key. Equal key means the material may still be
+spent and the slot stays; any other key, a session that fails, a later
+invalidation, or a shutdown inside that window erases it under the
+outgoing authority ([[BPR-0549]]). Material is erased exactly when nothing
+may spend it again, and never while something still can.
+`application_device_authorization_orphan_course` pre-seeds
 the fixture's refresh slot, connects with a pasted credential, and pins
 `REFRESH_RESUMES:0` with the pasted session intact.
 The host publishes its refresh observation on every change
@@ -1241,8 +1257,13 @@ one line for `reenrollment_required` and nothing for the other states, and
 cancelling a flow forgets any outstanding refresh store so a store that
 answers late arms nothing. The composed-host audit requires the binding
 function in both profiles, and `application_device_authorization_refresh_course`
-drives one rotation through the real graph over the fixture's refresh slot
-with a course-only clock offset.
+drives two rotations through the real graph over the fixture's refresh
+slot with a course-only clock that steps once per armed renewal. Two
+rather than one is the point: one rotation succeeds whether or not the
+supersession keeps its material, and only the second shows the chain
+surviving. The row pins the second rotation's material in the slot and
+exactly one erasure, which is what tells the rotation's withheld erasure
+apart from the shutdown's.
 
 Refresh material is keyed by the same authority as the credential itself and
 kept beside it in a second vault slot, so neither can be retrieved under the

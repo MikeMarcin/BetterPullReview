@@ -3476,6 +3476,16 @@ namespace {
 					   // material being durable until the orderly shutdown took it.
 					   << "\nDEVICE_FLOW_REFRESH_STORED_TOKEN:"
 					   << QByteArray::fromStdString(refreshDigest)
+					   // [[BPR-0551]]. Whether the orderly shutdown's erasure did what
+					   // it was asked. The host carries the answer and
+					   // `PUBLIC_PATH_VERDICT` prints it, but only on a run that had
+					   // already failed for some other reason, so no row could fail on
+					   // it: a delete the refresh erasure displaced left the access
+					   // token in the vault and both device rows still green. Printed
+					   // here unconditionally, and pinned, it is a marker a red run
+					   // cannot omit.
+					   << "\nDEVICE_FLOW_CLEANUP_FAILED:"
+					   << (status.ShutdownCleanupFailed ? "true" : "false")
 					   << '\n'
 					   << (refreshed ? "DEVICE_FLOW_REFRESH_OK\n"
 									 : "DEVICE_FLOW_REFRESH_FAILED\n");
@@ -3519,7 +3529,14 @@ namespace {
 						   // all, so what it states is that the shutdown left
 						   // nothing keyed beside the credential it deleted.
 						   << "\nDEVICE_FLOW_REFRESH_RETAINED:"
-						   << (refreshRetained ? "true" : "false") << '\n';
+						   << (refreshRetained ? "true" : "false")
+						   // [[BPR-0551]]. The same always-emitted cleanup verdict the
+						   // renewal course prints, inside the identity block for the
+						   // reason the retained flag is: the browser and panel rows
+						   // read the counts below as adjacent lines.
+						   << "\nDEVICE_FLOW_CLEANUP_FAILED:"
+						   << (status.ShutdownCleanupFailed ? "true" : "false")
+						   << '\n';
 				}
 				stream << "DEVICE_FLOW_ENROLLMENTS:"
 					   << static_cast<unsigned long long>(

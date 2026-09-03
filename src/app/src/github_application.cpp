@@ -4396,6 +4396,7 @@ namespace bpr::app {
 				[this](
 					const application::device_authorization_presentation&
 						aPresentation) {
+					observe_device_stage(aPresentation);
 					if (DevicePanel != nullptr) {
 						DevicePanel->apply(aPresentation);
 					}
@@ -4940,6 +4941,29 @@ namespace bpr::app {
 		// only once the host says an entry is there. The guard is exact key
 		// equality against a key we actually acted on, so a republication that
 		// names the same slot does nothing once armed and everything before.
+		// [[BPR-0550]]. The memo `bind_device_refresh_authority` keeps records
+		// which slot this composition already bound the device host to, so a
+		// republication naming the same one costs nothing. A second grant in one
+		// run establishes its own session, and for the same account that session
+		// names the same slot -- the memo would early return, and the material
+		// the new grant parked in the host would never be flushed, because the
+		// host released the previous binding when the new flow began.
+		//
+		// Reaching `authorized` is the moment a grant exists that no binding has
+		// been made for. The memo is dropped there, on the transition rather
+		// than on the level, so the acceptance that follows rebinds exactly once
+		// and a stage that merely stays authorized rebinds nothing.
+		void observe_device_stage(
+			const application::device_authorization_presentation& aPresentation)
+		{
+			const auto authorized = aPresentation.Stage
+				== core::device_authorization_stage::authorized;
+			if (authorized && !DeviceStageAuthorized) {
+				DeviceRefreshAuthority.reset();
+			}
+			DeviceStageAuthorized = authorized;
+		}
+
 		void bind_device_refresh_authority(
 			const application::github_presentation_update& aUpdate)
 		{
@@ -8294,7 +8318,10 @@ namespace bpr::app {
 		// composition did with it. Held so a republication of the same
 		// acceptance cannot bind twice or renew on every update.
 		std::optional<application::github_credential_authority_key>
-					DeviceRefreshAuthority;
+			DeviceRefreshAuthority;
+		// [[BPR-0550]]. Whether the device presentation last seen was
+		// `authorized`, so the memo above is dropped on the transition into it.
+		bool        DeviceStageAuthorized     = false;
 		std::size_t DeviceRefreshBindings     = 0U;
 		std::size_t DeviceRefreshResumes      = 0U;
 		std::size_t DeviceRefreshPublications = 0U;
