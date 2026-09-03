@@ -1,7 +1,7 @@
 ---
 id: BPR-0533
 title: Implement the six comment-workshop operations
-status: In Progress
+status: Done
 rfc: RFC-BPR-0012
 depends_on: [BPR-0503]
 ---
@@ -92,3 +92,52 @@ supplement, pairs the outcome to the press by turn identity, and proves
 press → invocation → proposal in the composed graph. The UX guide, the
 agent boundary document, and the MCP helper's single naming follow at
 close.
+
+## Part two landed — 2026-09-03
+
+At `ce85d5d3`. A press now starts the agent turn that answers it.
+`ask_comment_workshop` admits the operation through
+`workshop_operation_for(workshop_comment, …)`, refuses a press while one is
+outstanding ("A workshop turn is already running for this comment."),
+records `pending_comment_workshop{ Draft, Operation, Session }`, and starts
+one invocation through the existing `dispatch_agent_invocation` — which
+gained the entry point and the operation on `agent_context_observation` —
+so `AgentHost->dispatch(` keeps its single call site. The supplement
+builder refuses whole (`invalid_observation`) when the entry point does not
+admit the named operation. The session sink in
+`composition_agent_invocation_projection::admit`, the one place a session
+identity is allocated, binds the press to the turn it starts; the finding
+outcome spends the operation only when the bound session equals the
+outcome's and the draft still matches, so an unrelated outcome proposes
+with no operation named and the press survives. If the dispatch is refused
+the press is cleared. The six controls close, with the tooltip, until the
+proposal arrives.
+
+`application_agent_finding_workshop_press_contract` (the `workshop-press`
+course) proves press → one invocation → the press bound to that turn and
+unspent at delivery → the converted outcome proposes "Proposed by:
+Clarify" and clears the press, with zero GitHub mutation. Two mutations:
+recording the press but skipping the invocation fails that course and
+`application_agent_chat_composition_contract` (the launch-path count);
+deleting the editor's `WorkshopAsked` fails `qt_review_draft_editor` and
+the course. Both restored byte-exact to the pinned digest.
+
+Reproduced on the merged tree: build clean, 23/23 selectors in 297 s, boundaries, tidy
+and format on the touched sources; both composition pins recomputed
+(`full `bac0b7e5161e…`, manifest `06d72efb51e7…``). The three naming sites now describe the shipped behaviour,
+and the MCP helper names the set once as requests it does not serve.
+
+Left open, carded as [[BPR-0538]]: a turn that starts and finishes without
+a revision leaves the press recorded and the six closed until the draft
+changes, and the two-turn "unrelated outcome" case is proven at the
+pairing's unit level, not end to end.
+
+| Claim | Command | Result | Commit |
+| --- | --- | --- | --- |
+| The typed set exists, is closed, and admits only under its entry point | `ctest --preset dev -R '^(core_agent_chat_scope\|core_agent_context_supplement)$'` | passed, in both parts' runs | this commit |
+| Each operation's request shape reaches the one proposal path, refusals typed | `ctest --preset dev -R '^(application_agent_comment_workshop_host\|application_agent_launch\|qt_review_draft_editor)$'` | passed; the in-flight and no-draft refusals presented, never hidden | this commit |
+| A press starts one turn and its answer names the operation, through the one shipped path | `ctest --preset dev -R '^application_agent_finding_workshop_press_contract$'` | `agent-finding-workshop-press:pass`, `AgentHost->dispatch(` pinned at one call site | this commit |
+| Both halves of the seam are load-bearing | the two mutations above, restored | the course and the composition contract fail on the skipped invocation; the editor test and the course fail on the dropped `WorkshopAsked` | ce85d5d3 |
+| The composed graph, boundaries, manifest, and pins hold | `ctest --preset dev -R` over the part-two set; `check_boundaries`; `test_network_isolation_manifest`; the round-trip contract | 23/23 selectors in 297 s; exit 0; passed; passed after the two-pass repin | this commit |
+| The documents and the tree agree | `python3 scripts/verify_documentation.py --root .` after the three naming edits | `DOCUMENTATION_OK` | this commit |
+| No whitespace damage | `git diff --check` | clean | this commit |

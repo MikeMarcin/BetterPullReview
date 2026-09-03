@@ -24,7 +24,7 @@ Expanding from selected lines to an entire file, PR, or repository requires an e
 
 ## Comment workshop
 
-Operations include clarify, shorten, make actionable, phrase as a question, make more direct, and check whether the premise is supported. Since BPR-0533's first half those six are a typed set in the tree, offered as controls on the proposed-revision surface and carried through the one workshop path with `workshop_comment` as the single entry point; **pressing one does not yet start the agent turn that answers it** — that is the card's second half, and until it lands a press records the request and labels the surface. `docs/architecture/ai-agent-boundary.md` carries the same statement. Results stay in the local editor until the user publishes through normal GitHub review controls.
+Operations include clarify, shorten, make actionable, phrase as a question, make more direct, and check whether the premise is supported. Since BPR-0533 those six are a typed set in the tree, offered as controls on the proposed-revision surface: pressing one starts one agent turn through the single `workshop_comment` entry point, the six close with a tooltip until that turn's proposal arrives, and the proposal names the operation it answered. `docs/architecture/ai-agent-boundary.md` carries the same statement. Results stay in the local editor until the user publishes through normal GitHub review controls.
 
 ## AI findings
 
@@ -130,13 +130,14 @@ send reaches one agent turn through the composed side-chat session host
 ([[BPR-0517]]).
 
 
-- **The six comment-workshop operations above are controls, not yet turns
+- **The six comment-workshop operations above are controls that start turns
   (BPR-0533).** They are one typed set, `core::workshop_operation`, carried
-  through the one shipped path: `application::agent_comment_workshop_host`
-  turns one proposed draft edit into one before/after proposal that names the
-  operation asked for, and `workshop_comment` is a single
-  `core::agent_entry_point`. A press records the request; the agent turn that
-  answers it is the card's second half.
+  through the one shipped path: a press starts one agent turn under the
+  single `core::agent_entry_point` `workshop_comment`, and
+  `application::agent_comment_workshop_host` turns that turn's converted
+  outcome into one before/after proposal that names the operation asked for.
+  A turn that ends without a revision leaves the six closed until the draft
+  changes ([[BPR-0538]]).
 - **The MCP helper's frozen snapshot carries alignment facts, not file bytes.**
   Its `binding` and `alignment` records are written from the same values the
   finding validator uses, and `files/` is created empty, so `list_snapshot_files`

@@ -941,9 +941,12 @@ session (BPR-0500, `application_agent_invocation_host`).
   point, reaches the agent's wire frame in one position, and is named by the
   proposal `application::agent_comment_workshop_host::propose` produces; the
   revision editor offers the six as controls that emit a typed workshop
-  request. There is still one shipped path from a draft to a before/after
-  proposal and one entry point; a control press starting the agent turn that
-  answers it is BPR-0533's second half.
+  request. A press starts one agent turn through the same invocation path
+  every entry point uses, bound to the press by the session identity the
+  composition allocates, and the turn's converted outcome is the proposal
+  that names the operation; an unrelated outcome cannot spend the press.
+  There is still one shipped path from a draft to a before/after proposal
+  and one entry point (BPR-0533).
 - **The Windows backend is not re-proven here.** RFC-BPR-0012 adds no platform
   code; the Windows process lifecycle remains claimed only on the strength of
   BPR-0240's 2026-08-26/27 target-native runs, exactly as the RFC-BPR-0011
