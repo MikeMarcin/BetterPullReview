@@ -2169,15 +2169,15 @@ namespace {
 		{
 			const auto epochPair = [&](const anchor_availability aBase,
 									   const anchor_availability aHead) {
-				auto epoch               = fixture.Epoch;
-				epoch.BaseAvailability   = aBase;
-				epoch.HeadAvailability   = aHead;
-				auto state               = fixture.State;
-				state.AcceptedComparison = comparison_pair{
+				auto epoch                   = fixture.Epoch;
+				epoch.BaseAvailability       = aBase;
+				epoch.HeadAvailability       = aHead;
+				auto pairState               = fixture.State;
+				pairState.AcceptedComparison = comparison_pair{
 					.Left  = anchor(epoch, comparison_anchor_kind::epoch_base),
 					.Right = anchor(epoch, comparison_anchor_kind::epoch_head),
 				};
-				return state;
+				return pairState;
 			};
 			const auto pruneCommand = [](const epoch_state& aState) {
 				return epoch_commands(aState)[2];

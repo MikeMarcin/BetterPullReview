@@ -1520,9 +1520,9 @@ namespace bpr::application {
 #endif
 				control->DecisionTask = [gate        = std::weak_ptr<completion_gate>{ CompletionGate },
 										 weakControl = std::weak_ptr<job_control>{ control }]() mutable {
-					const auto locked  = gate.lock();
-					auto       control = weakControl.lock();
-					if (!locked || !control) {
+					const auto locked        = gate.lock();
+					auto       lockedControl = weakControl.lock();
+					if (!locked || !lockedControl) {
 						return;
 					}
 					const std::lock_guard barrier{ locked->Barrier };
@@ -1530,10 +1530,10 @@ namespace bpr::application {
 					if (host == nullptr) {
 						return;
 					}
-					auto completion = std::move(control->Completion);
+					auto completion = std::move(lockedControl->Completion);
 					host->run_turn(
 						[host,
-						 control    = std::move(control),
+						 control    = std::move(lockedControl),
 						 completion = std::move(completion)]() mutable {
 							const auto reserved = host->retire_job_for_terminal(control);
 							struct reservation_guard final
@@ -5786,14 +5786,14 @@ namespace bpr::application {
 							for (const auto& epoch : aRequest.Context.Epochs) {
 								const auto find = [&](const auto aKind)
 									-> const core::comparison_anchor* {
-									const auto identity = core::comparison_anchor_identity{
+									const auto anchorIdentity = core::comparison_anchor_identity{
 										.Authority   = epoch.Authority,
 										.Incarnation = epoch.Incarnation,
 										.Kind        = aKind,
 										.Epoch       = epoch.Ordinal,
 									};
 									const auto found = std::ranges::find(anchors->Anchors,
-																		 identity,
+																		 anchorIdentity,
 																		 &core::comparison_anchor::Identity);
 									return found == anchors->Anchors.end()
 										? nullptr

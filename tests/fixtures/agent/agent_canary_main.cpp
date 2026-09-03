@@ -439,13 +439,13 @@ auto main(int argc, char** argv) -> int
 		sideEffect.flush();
 	}
 
-	const auto protocol         = selected_protocol(argc, argv);
-	auto       findings_session = argument_after(argc, argv, "--findings-session");
-	if (findings_session.empty()) {
-		findings_session = "41";
+	const auto protocol        = selected_protocol(argc, argv);
+	auto       findingsSession = argument_after(argc, argv, "--findings-session");
+	if (findingsSession.empty()) {
+		findingsSession = "41";
 	}
 	if (has_argument(argc, argv, "--findings-transcript")) {
-		findings_transcript(protocol, findings_session);
+		findings_transcript(protocol, findingsSession);
 		return EXIT_SUCCESS;
 	}
 	const auto input = read_input(
@@ -546,9 +546,9 @@ auto main(int argc, char** argv) -> int
 	const auto cwd = std::filesystem::current_path();
 	emit(protocol, "cwd\t" + cwd.string());
 	const auto readFile = [](const std::filesystem::path& aPath) {
-		auto input = std::ifstream{ aPath, std::ios::binary };
+		auto stream = std::ifstream{ aPath, std::ios::binary };
 		return std::string{
-			std::istreambuf_iterator<char>{ input },
+			std::istreambuf_iterator<char>{ stream },
 			std::istreambuf_iterator<char>{ }
 		};
 	};
@@ -599,7 +599,7 @@ auto main(int argc, char** argv) -> int
 		protocol,
 		terminalStatus,
 		has_argument(argc, argv, "--emit-findings")
-			? findings_payload(findings_session)
+			? findings_payload(findingsSession)
 			: std::string{ });
 	if (executable_mode(argv, "cleanup-retry-wait")) {
 #if defined(_WIN32)
