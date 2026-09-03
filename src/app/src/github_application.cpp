@@ -3134,21 +3134,68 @@ namespace bpr::app {
 	};
 
 #if defined(BPR_BUILD_TESTING)
-	// A one-way step forward, applied at most once. The port requires a
-	// monotonic reading -- a clock that stepped back would let a poll outrun
-	// its interval -- so the offset latches and stays rather than being added
-	// and removed around a call.
+	// How many renewals the refresh course means to drive, which is how many
+	// waits the clock below is allowed to skip. Two, because one rotation
+	// succeeds whether or not the rotation keeps the material it stored, and
+	// only the second says the renewal chain survived the first.
+	constexpr auto device_refresh_course_rotations = std::size_t{ 2U };
+
+	// How far one of those steps moves the clock: the whole wait a renewal is
+	// armed for, less one second. The wait is the fixture grant's eight-hour
+	// access-token lifetime less the host's default five-minute renewal lead,
+	// so a step of that size exactly leaves the renewal due a second from now.
+	//
+	// [[BPR-0547]]. The second is deliberate and is the difference between
+	// testing the lifecycle and timing it. A rotation enrolls its new access
+	// token and arms the next renewal in the same turn, while the enrollment it
+	// just made is still travelling: the profile activates, the old session is
+	// invalidated, and the vault operations that follow decide what is left in
+	// the refresh slot. A renewal made due in that same instant outruns all of
+	// it and reads a slot nothing has had the chance to touch yet, which is a
+	// race the shipped product never runs -- there the next renewal is eight
+	// hours after the supersession has long settled. A second is a thousandfold
+	// margin over the few posts that supersession costs, and it costs the two
+	// rotations this course drives two seconds.
+	//
+	// If either constant it is derived from moves, this becomes an ordinary
+	// step: too large and the renewal is due at once and races again, too small
+	// and the course waits out its budget and says so.
+	constexpr auto device_refresh_course_step = std::chrono::seconds{
+		28'800 - 300 - 1,
+	};
+
+	// A one-way step forward, applied once per renewal the host arms and at
+	// most `Steps` times. The port requires a monotonic reading -- a clock that
+	// stepped back would let a poll outrun its interval -- so each offset
+	// latches and stays rather than being added and removed around a call.
+	//
+	// [[BPR-0547]]. It steps per arming rather than once, because a course that
+	// proves renewal works more than once needs a second wait skipped and the
+	// second one is armed by the host itself rather than by composition. Every
+	// re-arm runs the same three steps in one turn: capture `AuthorizedAt` from
+	// this clock, raise the rotation count, then read this clock again to work
+	// out how much of the new lifetime is already spent. So the armings this
+	// composition can count -- the first bind, and every rotation after it --
+	// each fall strictly inside that window, and the offset that lands there
+	// makes the second read a whole lifetime past the capture beside it: the
+	// renewal is due now. Stepping on every rotation forever would rotate for
+	// as long as the run lasts and no count could be pinned, so the steps are
+	// capped at what the course drives; the arming after the last one keeps its
+	// real eight hours, which is what leaves the run reporting `scheduled`
+	// instead of being read mid-rotation.
 	class composition_device_refresh_clock final
 		: public application::device_authorization_clock_port
 	{
 	public:
 		composition_device_refresh_clock(
 			std::unique_ptr<application::device_authorization_clock_port> aInner,
-			std::function<bool()>                                         aArmed,
-			const std::chrono::milliseconds                               aOffset)
+			std::function<std::size_t()>                                  aArmings,
+			const std::chrono::milliseconds                               aOffset,
+			const std::size_t                                             aSteps)
 			: Inner{ std::move(aInner) }
-			, Armed{ std::move(aArmed) }
+			, Armings{ std::move(aArmings) }
 			, Offset{ aOffset }
+			, Steps{ aSteps }
 		{
 		}
 
@@ -3156,17 +3203,21 @@ namespace bpr::app {
 			-> std::chrono::milliseconds override
 		{
 			const auto observed = Inner->observe_monotonic();
-			if (!Applied && Armed && Armed()) {
-				Applied = true;
+			if (Armings) {
+				// Never fewer steps than are already applied: the reading owes
+				// its monotonicity to this clock, not to what it counts.
+				Applied = std::min(std::max(Applied, Armings()), Steps);
 			}
-			return Applied ? observed + Offset : observed;
+			return observed
+				+ Offset * static_cast<std::chrono::milliseconds::rep>(Applied);
 		}
 
 	private:
 		std::unique_ptr<application::device_authorization_clock_port> Inner;
-		std::function<bool()>                                         Armed;
+		std::function<std::size_t()>                                  Armings;
 		std::chrono::milliseconds                                     Offset{ 0 };
-		bool                                                          Applied = false;
+		std::size_t                                                   Steps   = 0U;
+		std::size_t                                                   Applied = 0U;
 	};
 #endif
 
@@ -4197,18 +4248,37 @@ namespace bpr::app {
 			// wait. Tests-enabled only, and composed only under the refresh
 			// course, so a shipped image has one clock and it is the system's.
 			//
-			// It latches on the binding rather than on the authorized stage.
-			// The host captures `AuthorizedAt` from this same clock at the
-			// moment the stage turns, so an offset that latched there would
-			// move both ends of `elapsed` and change nothing. Composition's
+			// It steps on the binding rather than on the authorized stage. The
+			// host captures `AuthorizedAt` from this same clock at the moment
+			// the stage turns, so an offset that stepped there would move both
+			// ends of `elapsed` and change nothing. Composition's
 			// `bind_refresh_authority` falls strictly between that capture and
 			// the `schedule_refresh` that reads the clock again, which is the
 			// only window where a one-way step shortens the wait to zero.
+			//
+			// [[BPR-0547]]. The host arms every renewal after the first one for
+			// itself, and composition is told about it only once the timer is
+			// already set -- too late to shorten anything. What it can read in
+			// time is the host's own live rotation count, which the re-arm
+			// raises inside that same window, between the capture and the read.
+			// So the armings are the bind plus the rotations, and each one buys
+			// one more step until the course has the rotations it drives.
 			if (DeviceRefreshCourse && Fixture != nullptr) {
 				DeviceClock = std::make_unique<composition_device_refresh_clock>(
 					std::move(DeviceClock),
-					[this]() noexcept { return DeviceRefreshBindings > 0U; },
-					std::chrono::seconds{ 28'800 });
+					[this]() noexcept -> std::size_t {
+						const auto bound = DeviceRefreshBindings > 0U
+							? std::size_t{ 1U }
+							: std::size_t{ 0U };
+						if (DeviceHost == nullptr) {
+							return bound;
+						}
+						return bound
+							+ static_cast<std::size_t>(
+								   DeviceHost->refresh_observation().Rotations);
+					},
+					device_refresh_course_step,
+					device_refresh_course_rotations);
 			}
 #endif
 			// The shipped selection. A registered platform composes the real
@@ -4885,6 +4955,16 @@ namespace bpr::app {
 			if (!authority.has_value()) {
 				return;
 			}
+			// [[BPR-0546]]. The slot's authority and the identity generation
+			// that owns it travel together. The device host's own state carries
+			// the generation this composition seeded the device flow with,
+			// which is zero and stays zero, and every platform vault refuses a
+			// context carrying it -- so before this the composed refresh
+			// lifecycle stored nothing on any platform.
+			const auto generation = Host->accepted_identity_generation();
+			if (generation.value() == 0U) {
+				return;
+			}
 			if (
 				DeviceRefreshAuthority.has_value()
 				&& *DeviceRefreshAuthority == *authority) {
@@ -4895,7 +4975,7 @@ namespace bpr::app {
 				== core::device_authorization_stage::authorized) {
 				DeviceRefreshAuthority = *authority;
 				++DeviceRefreshBindings;
-				DeviceHost->bind_refresh_authority(*authority);
+				DeviceHost->bind_refresh_authority(*authority, generation);
 				return;
 			}
 			// The restart. Nothing about this run says a device flow happened,
@@ -4911,7 +4991,7 @@ namespace bpr::app {
 			}
 			DeviceRefreshAuthority = *authority;
 			++DeviceRefreshResumes;
-			DeviceHost->resume_refresh(*authority);
+			DeviceHost->resume_refresh(*authority, generation);
 		}
 
 		// Renewal, as presentation is told it. The panel is the reader that

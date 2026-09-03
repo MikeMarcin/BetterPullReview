@@ -549,6 +549,15 @@ namespace bpr::application {
 			delete_credential,
 		};
 
+		// [[BPR-0547]]. Whether an occasion's credential delete carries the
+		// refresh slot's erasure with it. Erasing is what [[BPR-0540]]
+		// established and what every occasion asks for but one, so it is the
+		// default and the exception is named where it is known.
+		enum class refresh_disposition : std::uint8_t {
+			erase,
+			retain,
+		};
+
 		enum class credential_lifecycle : std::uint8_t {
 			none,
 			provisional,
@@ -803,10 +812,12 @@ namespace bpr::application {
 			}
 			NextEnrollment.reset();
 			NextEnrollmentProvenance = github_credential_provenance::manual;
+			NextEnrollmentProfile.reset();
 			NextResumeProfile.reset();
 			if (valid(aCredential)) {
 				NextEnrollment.emplace(std::move(aCredential));
 				NextEnrollmentProvenance = aProvenance;
+				NextEnrollmentProfile    = aProfile;
 			}
 			try {
 				dispatch_core(
@@ -814,6 +825,7 @@ namespace bpr::application {
 			} catch (...) {
 				NextEnrollment.reset();
 				NextEnrollmentProvenance = github_credential_provenance::manual;
+				NextEnrollmentProfile.reset();
 				throw;
 			}
 			// A valid activation synchronously moved this material into the
@@ -822,6 +834,7 @@ namespace bpr::application {
 			// enrollment secret.
 			NextEnrollment.reset();
 			NextEnrollmentProvenance = github_credential_provenance::manual;
+			NextEnrollmentProfile.reset();
 		}
 
 		void resume_profile(const core::host_profile_id aProfile)
@@ -1458,7 +1471,8 @@ namespace bpr::application {
 						SessionEnrollmentProvenance = NextEnrollmentProvenance;
 						NextEnrollment.reset();
 						NextEnrollmentProvenance = github_credential_provenance::manual;
-						SessionResumeProfile     = NextResumeProfile;
+						NextEnrollmentProfile.reset();
+						SessionResumeProfile = NextResumeProfile;
 						NextResumeProfile.reset();
 						SessionPublicPreview = NextPublicPreview;
 						NextPublicPreview    = false;
@@ -1480,6 +1494,12 @@ namespace bpr::application {
 			// would let a renewal be armed under a key this host has already
 			// let go of.
 			cancel_refresh_probe();
+			// [[BPR-0549]]. A retention window still open at an invalidate
+			// belongs to a session this invalidate is discarding before it
+			// ever named an authority, so nothing is coming to spend the slot
+			// it holds. The window this invalidate may open for itself is
+			// opened later, when its own credential delete answers.
+			erase_retained_refresh();
 			const auto* resumeBinding          = NextResumeProfile.has_value()
 				? CredentialBindings.find(*NextResumeProfile)
 				: nullptr;
@@ -1487,6 +1507,41 @@ namespace bpr::application {
 				&& CredentialAuthority.has_value()
 				&& CredentialSessionContext.has_value() && resumeBinding != nullptr
 				&& *resumeBinding == *CredentialAuthority;
+			// [[BPR-0547]]. The one occasion whose credential delete must not
+			// carry the refresh slot with it. A renewal ends by storing the
+			// rotated refresh material and then enrolling the rotated access
+			// token through the device-grant enrollment boundary; that
+			// enrollment activates the profile, and this invalidate is the
+			// activation's other half. Erasing here destroys the slot the
+			// rotation filled a moment earlier on this same lane, and the next
+			// renewal answers `refresh_absent` -- renewal works exactly once.
+			//
+			// Retaining is not orphaning, which is the test [[BPR-0540]] set.
+			// The enrollment superseding this session is itself a device grant
+			// for the profile the slot is keyed under, so the session about to
+			// be established binds that same authority and the renewal that
+			// spends the slot is armed on it. Every other occasion still
+			// erases: an orderly shutdown, a sign-out, an enrollment from any
+			// other source, and a grant for another profile all end with
+			// nobody able to spend what the slot holds.
+			//
+			// [[BPR-0549]] narrows that premise, which is only provisional
+			// here: the incoming enrollment's profile is known at this point
+			// and its account is not, so a grant for a different account on
+			// this same profile satisfies every condition below. The slot is
+			// held rather than kept, and the bootstrap `/user` that names the
+			// incoming account either confirms this or erases it then.
+			const auto supersededByItsOwnRenewal = NextEnrollment.has_value()
+				&& NextEnrollmentProvenance
+					== github_credential_provenance::device_grant
+				&& CredentialProvenance
+					== github_credential_provenance::device_grant
+				&& CredentialAuthority.has_value()
+				&& NextEnrollmentProfile.has_value()
+				&& *NextEnrollmentProfile == CredentialAuthority->Profile;
+			const auto invalidationRefresh   = supersededByItsOwnRenewal
+				? refresh_disposition::retain
+				: refresh_disposition::erase;
 			const auto vaultOperationRunning = ActiveVaultOperation == vault_operation::store
 				|| ActiveVaultOperation == vault_operation::retrieve;
 			if (vaultOperationRunning) {
@@ -1498,10 +1553,13 @@ namespace bpr::application {
 				}
 				DeferredInvalidationGeneration          = aRequest.NewGeneration;
 				DeferredInvalidationPreservesCredential = preserveForExactResume;
+				DeferredInvalidationRetainsRefresh
+					= invalidationRefresh == refresh_disposition::retain;
 			} else {
 				cancel_vault();
 				DeferredInvalidationGeneration.reset();
 				DeferredInvalidationPreservesCredential = false;
+				DeferredInvalidationRetainsRefresh      = false;
 			}
 			StagedSession.reset();
 			StagedSnapshot.reset();
@@ -1540,7 +1598,9 @@ namespace bpr::application {
 			if (CredentialAuthority.has_value()
 				&& CredentialSessionContext.has_value()) {
 				if (!vaultOperationRunning && !preserveForExactResume) {
-					start_delete(aRequest.NewGeneration, std::nullopt);
+					start_delete(aRequest.NewGeneration,
+								 std::nullopt,
+								 invalidationRefresh);
 				}
 			}
 		}
@@ -1549,6 +1609,7 @@ namespace bpr::application {
 			const github_credential_authority_key&      aAuthority,
 			const core::github_session_request_context& aContext)
 		{
+			resolve_retained_refresh(aAuthority);
 			CredentialAuthority      = aAuthority;
 			CredentialSessionContext = aContext;
 			CredentialLifecycle      = credential_lifecycle::persistent;
@@ -1968,8 +2029,10 @@ namespace bpr::application {
 						return;
 					}
 					static_cast<void>(merge(RateLimits, success->RateLimits));
-					BootstrapViewer          = success->Viewer;
-					CredentialAuthority      = credential_key(authority, success->Viewer.Account);
+					BootstrapViewer    = success->Viewer;
+					const auto adopted = credential_key(authority, success->Viewer.Account);
+					resolve_retained_refresh(adopted);
+					CredentialAuthority      = adopted;
 					CredentialSessionContext = context;
 					CredentialLifecycle      = credential_lifecycle::provisional;
 					CredentialProvenance     = SessionEnrollmentProvenance;
@@ -2658,13 +2721,19 @@ namespace bpr::application {
 			if (DeferredInvalidationGeneration.has_value()) {
 				const auto generation = *DeferredInvalidationGeneration;
 				DeferredInvalidationGeneration.reset();
-				const auto preserve  = std::exchange(DeferredInvalidationPreservesCredential, false);
+				const auto preserve = std::exchange(DeferredInvalidationPreservesCredential, false);
+				// [[BPR-0547]]. The disposition was decided at the invalidate,
+				// where the incoming enrollment is known; deferring the delete
+				// past a running vault operation must not decide it again.
+				const auto refresh   = std::exchange(DeferredInvalidationRetainsRefresh, false)
+					? refresh_disposition::retain
+					: refresh_disposition::erase;
 				ActiveVaultOperation = vault_operation::none;
 				ActiveVaultContext.reset();
 				if (preserve) {
 					start_deferred_session();
 				} else {
-					start_delete(generation, std::nullopt);
+					start_delete(generation, std::nullopt, refresh);
 				}
 				return;
 			}
@@ -2855,13 +2924,19 @@ namespace bpr::application {
 			if (DeferredInvalidationGeneration.has_value()) {
 				const auto generation = *DeferredInvalidationGeneration;
 				DeferredInvalidationGeneration.reset();
-				const auto preserve  = std::exchange(DeferredInvalidationPreservesCredential, false);
+				const auto preserve = std::exchange(DeferredInvalidationPreservesCredential, false);
+				// [[BPR-0547]]. The disposition was decided at the invalidate,
+				// where the incoming enrollment is known; deferring the delete
+				// past a running vault operation must not decide it again.
+				const auto refresh   = std::exchange(DeferredInvalidationRetainsRefresh, false)
+					? refresh_disposition::retain
+					: refresh_disposition::erase;
 				ActiveVaultOperation = vault_operation::none;
 				ActiveVaultContext.reset();
 				if (preserve) {
 					start_deferred_session();
 				} else {
-					start_delete(generation, std::nullopt);
+					start_delete(generation, std::nullopt, refresh);
 				}
 				return;
 			}
@@ -2956,13 +3031,17 @@ namespace bpr::application {
 					if (host == nullptr) {
 						return;
 					}
-					host->OutstandingRefreshDeletes.fetch_sub(
-						1U, std::memory_order_acq_rel);
-					if (!erasure_left_material(aCompletion, aOperation)) {
-						return;
-					}
+					const auto leftMaterial
+						= erasure_left_material(aCompletion, aOperation);
+					// [[BPR-0545]], residual R1. The count is released on the
+					// decision lane after the terminal has been applied, never
+					// here beside the answer: released here, quiescence could
+					// be observed between the release and the report, so an
+					// orderly shutdown finished believing its cleanup was
+					// exact while the report saying material is still in the
+					// vault was still queued on the lane.
 					try {
-						lane->post([gate, aOperation]() {
+						lane->post([gate, aOperation, leftMaterial]() {
 							const auto locked = gate.lock();
 							if (!locked) {
 								return;
@@ -2971,11 +3050,22 @@ namespace bpr::application {
 								locked->Barrier
 							};
 							auto* const target = locked->Host.load(std::memory_order_acquire);
-							if (target != nullptr) {
+							if (target == nullptr) {
+								return;
+							}
+							if (leftMaterial) {
 								target->report_refresh_erasure_failure(aOperation);
 							}
+							target->OutstandingRefreshDeletes.fetch_sub(
+								1U, std::memory_order_acq_rel);
 						});
 					} catch (...) {
+						// The lane refused the post, so no terminal will ever
+						// be applied. Releasing the count here is what keeps a
+						// shutdown from waiting on an answer that can no
+						// longer arrive.
+						host->OutstandingRefreshDeletes.fetch_sub(
+							1U, std::memory_order_acq_rel);
 					}
 				};
 			try {
@@ -2986,6 +3076,58 @@ namespace bpr::application {
 					.Failure = github_credential_vault_failure::operation_failed,
 				});
 			}
+		}
+
+		// [[BPR-0549]]. The window [[BPR-0547]]'s retention opens, and the
+		// three ways out of it. The retention is decided at the invalidate,
+		// where the incoming enrollment's provenance and profile are known but
+		// its account is not: that arrives with the bootstrap `/user`
+		// observation the enrollment goes on to make. So the slot is held --
+		// with the exact operation context that would have erased it -- only
+		// for as long as the incoming session can still turn out to name the
+		// authority the slot is keyed under.
+		//
+		// Reachability is the whole test, and it is decided by the entire
+		// authority: every platform vault keys the slot by the whole key, so
+		// one that differs anywhere -- another account on this profile above
+		// all -- is a slot the incoming session's own refresh probe cannot
+		// name. Equality is therefore exactly "something may still spend
+		// this", which is the rule [[BPR-0540]] set, and inequality erases
+		// under the outgoing authority rather than the incoming one.
+		void hold_retained_refresh(
+			const github_credential_operation_context& aOperation)
+		{
+			// A shutdown that arrives while the deferred delete is still in
+			// flight has already run its cleanup by the time this answers, so
+			// there is no later occasion to hold the slot for.
+			if (Closing) {
+				start_refresh_delete(aOperation);
+				return;
+			}
+			RetainedRefreshOperation = aOperation;
+		}
+
+		void erase_retained_refresh()
+		{
+			if (!RetainedRefreshOperation.has_value()) {
+				return;
+			}
+			const auto operation = *RetainedRefreshOperation;
+			RetainedRefreshOperation.reset();
+			start_refresh_delete(operation);
+		}
+
+		void resolve_retained_refresh(
+			const github_credential_authority_key& aAdopted)
+		{
+			if (!RetainedRefreshOperation.has_value()) {
+				return;
+			}
+			if (RetainedRefreshOperation->Authority == aAdopted) {
+				RetainedRefreshOperation.reset();
+				return;
+			}
+			erase_retained_refresh();
 		}
 
 		void report_refresh_erasure_failure(
@@ -3006,7 +3148,9 @@ namespace bpr::application {
 		}
 
 		void start_delete(const core::github_identity_generation   aGeneration,
-						  std::optional<deferred_session_terminal> aTerminal)
+						  std::optional<deferred_session_terminal> aTerminal,
+						  const refresh_disposition                aRefresh
+						  = refresh_disposition::erase)
 		{
 			if (!CredentialAuthority.has_value()
 				|| !CredentialSessionContext.has_value()) {
@@ -3032,12 +3176,26 @@ namespace bpr::application {
 			// that stored it. Deleting one and keeping the other is what
 			// orphaned six months of renewal material behind a session the
 			// reviewer had already ended.
-			start_refresh_delete(operation);
+			//
+			// [[BPR-0545]]. It is issued from this delete's own terminal
+			// rather than beside it. Every shipped vault keys its pending
+			// operations by the exact `github_credential_operation_context`
+			// and answers a duplicate `invalid_request` before queuing, so
+			// submitting both halves under one context lost whichever arrived
+			// second -- ordinarily the base credential's own delete, because
+			// the main thread wins the race to the second call. Sequencing
+			// rather than a second context because request identity is the
+			// core's to allocate and this host has no allocator of its own:
+			// inventing one here to tell two halves of one occasion apart
+			// would move identity into the host. What sequencing costs is a
+			// crash between the two, which leaves renewable material behind an
+			// erased credential; nothing can spend it, because the resume
+			// answers only for device-grant provenance ([[BPR-0540]]).
 			const auto  token = ++VaultOperationToken;
 			const auto  gate  = std::weak_ptr<completion_gate>{ CompletionGate };
 			auto* const lane  = &DecisionLane;
 			const auto  callback =
-				[gate, lane, token, operation](
+				[gate, lane, token, operation, aRefresh](
 					github_credential_delete_completion aCompletion) noexcept {
 					const auto callbackTarget = gate.lock();
 					if (!callbackTarget) {
@@ -3051,7 +3209,7 @@ namespace bpr::application {
 						auto payload = std::make_shared<github_credential_delete_completion>(
 							std::move(aCompletion));
 						lane->post(
-							[gate, payload, token, operation]() mutable {
+							[gate, payload, token, operation, aRefresh]() mutable {
 								const auto locked = gate.lock();
 								if (!locked) {
 									return;
@@ -3061,14 +3219,16 @@ namespace bpr::application {
 								};
 								auto* const host = locked->Host.load(std::memory_order_acquire);
 								if (host != nullptr) {
-									host->handle_delete(
-										token, operation, std::move(*payload));
+									host->handle_delete(token,
+														operation,
+														aRefresh,
+														std::move(*payload));
 								}
 							});
 					} catch (...) {
 						try {
 							lane->post(
-								[gate, token, operation]() mutable {
+								[gate, token, operation, aRefresh]() mutable {
 									const auto locked = gate.lock();
 									if (!locked) {
 										return;
@@ -3081,6 +3241,7 @@ namespace bpr::application {
 										host->handle_delete(
 											token,
 											operation,
+											aRefresh,
 											github_credential_delete_error{
 												.Context = operation,
 												.Failure = github_credential_vault_failure::
@@ -3105,27 +3266,48 @@ namespace bpr::application {
 		void
 		handle_delete(const std::uint64_t                        aToken,
 					  const github_credential_operation_context& aExpectedOperation,
+					  const refresh_disposition                  aRefresh,
 					  github_credential_delete_completion        aCompletion)
 		{
 			run_turn(
 				[this,
 				 aToken,
 				 aExpectedOperation,
+				 aRefresh,
 				 completion = std::move(aCompletion)]() mutable {
-					handle_delete_now(
-						aToken, aExpectedOperation, std::move(completion));
+					handle_delete_now(aToken,
+									  aExpectedOperation,
+									  aRefresh,
+									  std::move(completion));
 				});
 		}
 
 		void handle_delete_now(
 			const std::uint64_t                        aToken,
 			const github_credential_operation_context& aExpectedOperation,
+			const refresh_disposition                  aRefresh,
 			github_credential_delete_completion        aCompletion)
 		{
 			if (aToken != VaultOperationToken) {
 				return;
 			}
 			++VaultOperationToken;
+			// [[BPR-0545]]. The occasion's other erasure, under the same
+			// context, now that the credential's delete has left the vault's
+			// pending map. It runs in every branch below, the failing ones
+			// included: a credential delete that failed says nothing about
+			// whether renewal material is still beside it, and the occasion
+			// asked for both to go. The count is raised inside this turn, so
+			// no quiescence window opens between the two operations.
+			//
+			// [[BPR-0547]]. Except on the occasion that decided at its
+			// invalidate that the slot outlives this credential, because the
+			// enrollment replacing it renews from that same slot.
+			if (aRefresh == refresh_disposition::erase) {
+				start_refresh_delete(aExpectedOperation);
+			} else {
+				hold_retained_refresh(aExpectedOperation);
+			}
 			if (Closing) {
 				if (ActiveVaultOperation != vault_operation::delete_credential
 					|| !ActiveVaultContext.has_value()
@@ -3305,6 +3487,14 @@ namespace bpr::application {
 
 		void reset_session_scratch()
 		{
+			// [[BPR-0549]]. The window's failure exit. Every session terminal
+			// and the orderly shutdown pass through here, and each of them
+			// means the session that was going to name an authority never
+			// will -- so a slot held for it can no longer be spent by
+			// anything, and the erasure that was deferred happens now. It is
+			// deliberately not a way to leak material by failing at the right
+			// moment.
+			erase_retained_refresh();
 			PendingProvider = std::monostate{ };
 			StagedSession.reset();
 			CurrentProfile.reset();
@@ -3775,6 +3965,7 @@ namespace bpr::application {
 		std::uint64_t                                       ProviderOperationToken = 0U;
 		std::optional<github_credential_material>           NextEnrollment;
 		github_credential_provenance                        NextEnrollmentProvenance = github_credential_provenance::manual;
+		std::optional<core::host_profile_id>                NextEnrollmentProfile;
 		std::optional<github_credential_material>           SessionEnrollment;
 		github_credential_provenance                        SessionEnrollmentProvenance = github_credential_provenance::manual;
 		std::optional<core::host_profile_id>                NextResumeProfile;
@@ -3820,6 +4011,12 @@ namespace bpr::application {
 		std::optional<core::github_identity_generation>
 			 DeferredInvalidationGeneration;
 		bool DeferredInvalidationPreservesCredential = false;
+		bool DeferredInvalidationRetainsRefresh      = false;
+		// [[BPR-0549]]. The outgoing refresh slot whose erasure the retention
+		// above deferred, carried as the exact context that would have erased
+		// it until the incoming session's authority is known.
+		std::optional<github_credential_operation_context>
+			RetainedRefreshOperation;
 
 		std::optional<session_candidate>                   StagedSession;
 		std::optional<github_pull_request_snapshot>        StagedSnapshot;
@@ -3945,6 +4142,15 @@ namespace bpr::application {
 			return false;
 		}
 		return Implementation->AcceptedCredentialRenewable;
+	}
+
+	auto github_application_host::accepted_identity_generation() const noexcept
+		-> core::github_identity_generation
+	{
+		if (!Implementation->AcceptedSession.has_value()) {
+			return { };
+		}
+		return Implementation->State.IdentityGeneration;
 	}
 
 	auto github_application_host::accepted_review_mutation_transport() const noexcept

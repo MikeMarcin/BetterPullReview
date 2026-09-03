@@ -421,11 +421,24 @@ namespace bpr::application {
 		// which happens after enrollment. Until it arrives the host holds new
 		// refresh material in memory and stores it the moment it can; every
 		// terminal, cancellation, and shutdown erases it instead.
-		void bind_refresh_authority(github_credential_authority_key aAuthority);
+		//
+		// [[BPR-0546]]. The identity generation arrives with the authority
+		// because only the GitHub host knows it. Every platform vault refuses
+		// a context whose generation is zero (`valid()` in
+		// `github_credential_vault.hpp`, checked before anything is queued),
+		// and this host's own `State.IdentityGeneration` is the device flow's
+		// copy of a generation composition seeds before any identity exists --
+		// zero, for the whole run. A zero generation is refused here rather
+		// than minted into a context the vault would refuse later.
+		void bind_refresh_authority(
+			github_credential_authority_key  aAuthority,
+			core::github_identity_generation aIdentityGeneration);
 		// The restart path. Renews from the refresh entry the vault already
 		// holds, without the reviewer authorizing again. Requests
 		// re-enrollment if there is nothing to renew from.
-		void resume_refresh(github_credential_authority_key aAuthority);
+		void resume_refresh(
+			github_credential_authority_key  aAuthority,
+			core::github_identity_generation aIdentityGeneration);
 		// The browser handoff, and the only thing in this host that changes no
 		// core state at all. It validates the retained address against the
 		// compiled authority, invokes the browser capability only if that

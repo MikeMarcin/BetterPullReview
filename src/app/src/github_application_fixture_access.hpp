@@ -207,6 +207,17 @@ namespace bpr::app::detail {
 		bool        RefreshRetained  = false;
 		std::size_t RefreshStores    = 0U;
 		std::size_t RefreshRetrieves = 0U;
+		// [[BPR-0547]]. How many times the slot was erased, which the retained
+		// flag above cannot answer: it reports the state one erasure or three
+		// leave behind. The refresh course's own re-enrollment used to erase
+		// the material its rotation had just stored, and the shutdown's
+		// erasure after it made the end state look correct.
+		std::size_t RefreshDeletes = 0U;
+		// [[BPR-0547]]. The identity of the last material written into the slot,
+		// which is how a course states that the rotation it drove last is the
+		// one whose material the slot held. The retained flag above cannot say
+		// it: the shutdown empties the slot before this evidence is read.
+		std::string RefreshStoredDigest;
 		// The digest of the last credential this fixture handed the connect
 		// path, taken with the same function and the same truncation the
 		// store uses so the two are comparable. A course that connects rather

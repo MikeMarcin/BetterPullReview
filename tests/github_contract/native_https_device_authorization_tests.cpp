@@ -883,7 +883,11 @@ namespace {
 				  projections,
 			  };
 
-		host.resume_refresh(lifecycle_authority());
+		// [[BPR-0546]]. The identity generation comes in with the authority,
+		// as it does from composition: a context carrying zero is refused
+		// by every platform vault.
+		host.resume_refresh(
+			lifecycle_authority(), core::github_identity_generation{ 1U });
 		// The vault answers inline, the adapter's exchange runs when the effect
 		// lane is drained, and the terminal comes back through the decision
 		// lane. Draining both until neither has work is the host reaching

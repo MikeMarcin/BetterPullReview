@@ -1,7 +1,7 @@
 ---
 id: BPR-0546
 title: The device host mints a vault context the platform vaults accept
-status: Ready
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -49,3 +49,26 @@ build contexts with a nonzero generation of their own.
 ## Non-goals
 
 - Changing the vault port's validity contract.
+
+## Landed — 2026-09-03
+
+At `00628518`. `bind_refresh_authority` and `resume_refresh` now take a
+`core::github_identity_generation` and refuse a zero one; the device host
+stamps that generation into every vault context it mints instead of its own
+`State.IdentityGeneration`, which composition never advanced. Composition
+reads it from a new `github_application_host::accepted_identity_generation()`,
+which answers zero unless a session is accepted.
+
+Why carried in rather than seeded: the field is the *GitHub* identity's
+epoch, and the device flow has its own generation beside it, so a constant
+chosen in composition would be a fixed lie the moment an invalidation
+advanced the real one. Carrying it in lets the host refuse a binding it
+could never store under, so the defect cannot return silently. The device
+host's own core contexts keep `State.IdentityGeneration`, because the core
+transition matches contexts against state.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| A composed device host stores under a context the vault accepts | `application_device_authorization_refresh` — new case `test_a_composed_device_host_stores_under_a_context_the_vault_accepts`, on a state built exactly like composition's, against a double enforcing `valid()` | passes; reverting the stamp to `State.IdentityGeneration` fails it by name (`the flow authorizes rather than failing on the store`) | this commit |
+| The composed refresh course reaches the slot | `application_device_authorization_refresh_course` | `ROTATIONS:1`, `REFRESH_STATE:scheduled`, `REFRESH_STORES:2` where the control had `0`/`reenrollment_required`/`0` | this commit |
+| Every device, vault, and public-path row | the 16-row selector set | 16/16 | this commit |

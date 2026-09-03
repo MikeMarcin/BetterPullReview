@@ -786,11 +786,17 @@ namespace bpr::application {
 		{
 			const auto request = core::request_id{ NextHostRequest };
 			++NextHostRequest;
+			// [[BPR-0546]]. The generation is the one the GitHub host bound
+			// this authority under, not `State.IdentityGeneration`. The state's
+			// copy is whatever composition seeded the device flow with -- zero
+			// in the composed product, which is exactly what every platform
+			// vault's `valid()` refuses, so every store and retrieve from this
+			// host came back `invalid_request` and the lifecycle was inert.
 			return github_credential_operation_context{
 				.Request            = request,
 				.ApplicationSession = State.ApplicationSession,
 				.Authority          = *RefreshAuthority,
-				.IdentityGeneration = State.IdentityGeneration,
+				.IdentityGeneration = RefreshIdentityGeneration,
 			};
 		}
 
@@ -1208,6 +1214,7 @@ namespace bpr::application {
 		std::uint32_t                                             ConsecutiveFailures = 0U;
 
 		std::optional<github_credential_authority_key>            RefreshAuthority;
+		core::github_identity_generation                          RefreshIdentityGeneration;
 		std::optional<github_credential_material>                 PendingAccess;
 		std::optional<github_credential_material>                 PendingRefresh;
 		std::optional<core::device_authorization_request_context> AuthorizingContext;
@@ -1282,12 +1289,21 @@ namespace bpr::application {
 	}
 
 	void device_authorization_application_host::bind_refresh_authority(
-		github_credential_authority_key aAuthority)
+		github_credential_authority_key        aAuthority,
+		const core::github_identity_generation aIdentityGeneration)
 	{
-		if (Implementation->Closing || !valid(aAuthority)) {
+		// [[BPR-0546]]. A generation of zero names no identity and every
+		// platform vault refuses a context carrying one, so binding under it
+		// would arm a lifecycle whose every operation is refused. Refusing the
+		// binding leaves the material in memory, which the next terminal
+		// erases, rather than parking it against a slot it can never reach.
+		if (
+			Implementation->Closing || !valid(aAuthority)
+			|| aIdentityGeneration.value() == 0U) {
 			return;
 		}
-		Implementation->RefreshAuthority = std::move(aAuthority);
+		Implementation->RefreshAuthority          = std::move(aAuthority);
+		Implementation->RefreshIdentityGeneration = aIdentityGeneration;
 		if (
 			Implementation->PendingRefresh.has_value()
 			&& !Implementation->AuthorizingContext.has_value()) {
@@ -1297,13 +1313,17 @@ namespace bpr::application {
 	}
 
 	void device_authorization_application_host::resume_refresh(
-		github_credential_authority_key aAuthority)
+		github_credential_authority_key        aAuthority,
+		const core::github_identity_generation aIdentityGeneration)
 	{
-		if (Implementation->Closing || !valid(aAuthority)) {
+		if (
+			Implementation->Closing || !valid(aAuthority)
+			|| aIdentityGeneration.value() == 0U) {
 			return;
 		}
-		Implementation->RefreshAuthority = std::move(aAuthority);
-		Implementation->RefreshDurable   = true;
+		Implementation->RefreshAuthority          = std::move(aAuthority);
+		Implementation->RefreshIdentityGeneration = aIdentityGeneration;
+		Implementation->RefreshDurable            = true;
 		Implementation->begin_refresh();
 		Implementation->deliver_refresh();
 	}
