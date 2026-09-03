@@ -3,7 +3,7 @@ id: BPR-0285
 title: Anchor RFC-BPR-0016 capability-critical verification
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526]
+depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537]
 ---
 
 # Anchor RFC-BPR-0016 capability-critical verification
@@ -353,3 +353,106 @@ registered: the dev-tree device-authorization gate under whatever selection
 the platform ships, denied locally since [[BPR-0515]], with `unavailable`
 being the stage only an unregistered platform reaches. A rename can be its
 own slice after the RFC closes, if anyone still wants it.
+
+## Independent capability-critical review of `28fa0741` — 2026-09-03
+
+Produced by an independent `rfc-critical-reviewer` at max effort over the
+head the three replays ran against, read-only, no network. The record is
+verbatim; the integrator's reproduction and adjudication follow it.
+
+Role: rfc-critical-reviewer | Model: claude-fable-5-1 | Effort: max
+
+###### Scope and head
+
+Head `28fa07418ebee5eb79ecb2a74b2126313dd20093` (clean tree). Read in full: the RFC; `docs/verification/RFC-BPR-0016.md`; the BPR-0285 card; cards BPR-0282, 0284, 0310, 0311, 0317, 0318, 0515, 0526 (0274–0281, 0283, 0516 skimmed head/tail only); core model + transition; host header + implementation; projection; GitHub contract + transport adapters; Qt panel; `system_browser_opener`; composition regions of `github_application.cpp` (1640–1900, 3100–3320, 3985–4140, 4330–4360, 4540–4760, 7340–7470, 8040–8135); `main.cpp` 3200–3320, 4690–4830, 6400–6720, 7095–7170; `workbench_window.cpp` mount/rebind; `native_https_transport` binding, device-route and lease code; `tests/end_to_end/CMakeLists.txt` 1–490; `verify_rfc0016_platform_course.py` in full; the inventory, production-identity verifier and attended runner by structural grep (bodies not read line by line); both security-document sections; the production packet records, course evidence and attended verdict; digest bindings recomputed locally. Two `rfc-utility` children ran the committed-evidence secret scan (clean: no token prefixes, bearer headers, or populated `access_token`/`refresh_token`/`device_code`/`client_secret` fields; fixtures list them under `omitted_transient_fields`) and the `BPR_BUILD_TESTING`/forbidden-set inventory. Not done: no build, no ctest, no network, no browser; Qt scale tests, native hostile fixtures, sanitizer output, and the offline review package internals were not read; the pending platform replays were not assessed.
+
+#### Reproduction commands
+
+All local and read-only.
+
+```sh
+git rev-parse HEAD                                   # 28fa0741…
+# B1: the device begin path compares no profile anywhere
+sed -n '361,392p' src/application/src/device_authorization_application_host.cpp
+sed -n '1768,1776p;3210,3224p;4017,4060p;4609,4628p' src/app/src/github_application.cpp
+sed -n '951,972p;2566,2575p' src/adapters/qt/src/workbench_window.cpp
+sed -n '93,131p' src/core/src/device_authorization_transition.cpp | grep -n Profile
+# B2: refresh lifecycle has no production caller
+grep -rn 'bind_refresh_authority\|resume_refresh\|refresh_observation' src/ --include='*.cpp' --include='*.hpp' | grep -v device_authorization_application_host   # expect: no output
+# V1/V2: ledger vs tree
+grep -n '^status' docs/rfcs/RFC-BPR-0002-github-host-auth-capability-layer.md; sed -n '23p;170,172p;208,209p' docs/verification/RFC-BPR-0016.md
+# V3: stale BPR-0515 posture in delivered documents
+grep -n 'BPR-0515' docs/architecture/security-threat-model.md docs/development/build-and-test.md
+# V4: the marker's meaning
+sed -n '9,11p' tests/end_to_end/CMakeLists.txt; sed -n '8058,8063p' src/app/src/github_application.cpp; sed -n '211,217p' docs/issues/60-done/BPR-0310-verify-linux-device-authorization.md
+# Evidence hygiene and digest bindings
+grep -rnoE '\b(ghu|ghr|gho|ghp|ghs)_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,}|"(access_token|refresh_token|device_code|client_secret)"\s*:\s*"[^"]{4,}"' docs/verification/reviews docs/verification/rfc0016-live-capture-v001 tests/fixtures/github/device-authorization   # expect: no output
+shasum -a 256 scripts/run_rfc0016_production_course_attended.py docs/verification/reviews/rfc0016-production-app-registration-v001/read-only-course/registration.json   # 7a27a176…, f995a880… match course-execution.json
+# R3: Release flag surface vs forbidden set
+sed -n '6583,6604p' src/app/main.cpp; sed -n '163,171p' scripts/verify_rfc0016_test_inventory.py
+```
+
+#### Blocking findings
+
+**B1 — A GHES profile can start the GitHub.com device flow and enroll its token.** Claim falsified: RFC acceptance "Every profile without a registered application identity, including all GHES profiles, returns `device_flow_unavailable` with zero requests sent"; BPR-0285 row 10; ledger platform table line 172; `docs/architecture/github-host-implementation.md:1234-1243`; `docs/development/build-and-test.md:2388-2390`. Evidence: `shipped_device_authorization_capability()` is per build, true on all three platforms (`github_application.cpp:1768-1776`); one device host is composed with `Registered=true` and a wire bound to `Profiles.front()` (`4017-4060`, `4113-4133`); `--ghes-host` is parsed unconditionally (`main.cpp:6410-6413`) and appends profiles 3/4 (`github_application.cpp:3210-3239`); BPR-0526 binds the mounted panel to whatever the picker selects (`workbench_window.cpp:951-958`, `2566-2575`) and its begin dispatches `begin_device_authorization_intent{Profile}` straight to `DeviceHost->dispatch` (`github_application.cpp:4609-4628`); the core copies the profile without checking it (`device_authorization_transition.cpp:113-122`); `perform(begin)` checks only `Capability.Registered` and calls `acquire_device_code` (`host.cpp:361-392`); success calls `Enrollment->enroll(aContext.Profile, token)` → `enroll_profile(3, github.com token)` (`host.cpp:709-714`, `github_application_host.cpp:740-763`). The documented "structural" guarantee (route admission refusing non-GitHub.com contracts) binds the transport's profile, not the intent's. `begin_public_preview_sign_in` is a second route (`4711-4720`; `PublicPreviewProfile` is set before the enterprise refusal at `github_application_host.cpp:831`). No selector drives this: `application_device_authorization_unavailable` uses `select_device_authorization()` = `Profiles.front()` (`4633-4641`). Smallest fix: add `Profile` to `device_authorization_capability`, set it to `Profiles.front().profile()` in composition, and in `perform(begin)` post `device_authorization_unavailable_event` when `aRequest.Context.Profile != Capability.Profile` (before `acquire_device_code`); add a host test "a begin for a profile the capability was not composed for refuses with zero transport calls" (today it reaches the transport) and a composed course with `--ghes-host` pressing the panel bound to profile 3.
+
+**B2 — The refresh lifecycle is never composed; the shipped product neither refreshes nor stores refresh material.** Claim falsified: ledger claim-matrix row 9 / BPR-0285 row 9 ("refreshes before expiry and atomically rotates … under existing vault authority"); RFC "Token handling" (GitHub App must own refresh); `github-host-implementation.md:1200-1221`; `build-and-test.md:2380-2384`; `foundation-security.md:87-90` ("the access and refresh tokens reach the platform vault and nothing else"). Evidence: `bind_refresh_authority`, `resume_refresh` and `refresh_observation()` have no caller outside the host and its tests (grep above); without `RefreshAuthority`, `authorize()` parks the refresh token in `PendingRefresh` (`host.cpp:692-699`), `schedule_refresh()` returns immediately (`843-849`), and nothing resumes at restart. Result in the product: the ~8 h user token expires with no renewal and no typed `reenrollment_required` ever reaches Qt, while the long-lived refresh token stays resident in process memory for the session (excluded from `holds_transient_material()`, `1276-1281`). The ledger's own rule forbids verifying a row "by a linked component"; row 9 is verified only that way. Smallest fix: on the authenticated `/user` observation for the device-enrolled profile, composition calls `DeviceHost->bind_refresh_authority(key)`; on profile resume, `resume_refresh(key)`; surface `refresh_observation()` to the panel; add a composed course. Alternatively, narrow row 9, the three documents, and the RFC disposition explicitly to host-level and card the product gap — but the claims as written are false.
+
+#### Verification failures
+
+- **V1** Ledger eligibility row 23 says "RFC-BPR-0002 Auto-Verified | Pending" while `docs/rfcs/RFC-BPR-0002-github-host-auth-capability-layer.md:4` is `Auto-Verified` and BPR-0035 is Done — the row must be closed before the RFC transitions.
+- **V2** Ledger platform table lines 170–171 still record Linux and Windows as `device_flow_unavailable, zero requests`; the command ledger (208–209) and `github_application.cpp:1771` say enabled. Internally inconsistent.
+- **V3** Documentation ledger rows 222 and 224 claim delivery, but `security-threat-model.md:1094-1103` and `build-and-test.md:661,712` still say BPR-0515 "is open"/"undecided" and that Windows "reaches `cancelled` by actually reaching GitHub"; BPR-0515 closed 2026-09-03 with `--network-denied` and `failed`. The task's "posture is what the ledger now says" holds for the ledger (line 209), not for the documents.
+- **V4** BPR-0310 lines 211–217 ("`DEVICE_FLOW_REQUESTS:0` … the enabled artifact still sent nothing") is wrong: the marker is `UnregisteredDeviceTransport.reached()` (`github_application.cpp:8062-8063`; `CMakeLists.txt:9-11`), and a `cancelled` stage implies GitHub minted a code (BPR-0515 line 76). The Linux enabled course did send a device-code request.
+- **V5** Ledger rows 141–142 say the courses now run "against the composed system opener"; every suite binds `recording_device_authorization_browser` (`github_application.cpp:4091-4096`, `main.cpp:6594-6599`). `system_browser_opener::open` (`cpp:25-46`) has no test at all (`grep -rl system_browser_opener tests/` finds only CMake/pins); its only evidence is the three owner observations on BPR-0516.
+- **V6** The GHES and refresh documentation rows (B1/B2) describe behaviour the composed product lacks.
+
+#### High-risk residuals
+
+- **R1 (defect, latent because of B2)** Cancel during a re-enrollment's refresh store: `perform(cancel)` (`host.cpp:394-413`) leaves `RefreshStoreContext` outstanding; `on_refresh_stored` (`788-821`) then sets `RefreshDurable` and `schedule_refresh()` arms a renewal (`843-867`) that later enrolls a token from a cancelled flow, and a failed store reports `reenrollment_required` after a cancel (`823-841`). No test covers it (host and refresh test lists). Recommend: cancel/forget the store context on cancel and add the course; adjudicate explicitly if deferred.
+- **R2 (accepted traffic)** The final-head replays run the tests-disabled artifact with no denial (`verify_rfc0016_platform_course.py:600-657`), so each enabled platform POSTs `/login/device/code` with the production client and mints a code unattended; `DEVICE_FLOW_REQUESTS` cannot observe it. Recommend recording this as bounded accepted traffic in the replay row, renaming the marker (e.g. `DEVICE_FLOW_REFUSING_TRANSPORT_REACHED`), and noting that `expected=enabled` also accepts `failed` (`653-656`), so an offline station passes without proving the flow reaches GitHub.
+- **R3 (Release surface)** The RFC-0016 forbidden set (`verify_rfc0016_test_inventory.py:163-171`) omits `--network-denied`, `--device-authorization-browser-absent`, `--device-authorization-panel-absent`, `--public-preview-*`, `--test-application-data-root`; only the RFC-0017 inventory forbids `--network-denied`, and the platform course runs only the RFC-0016 scan (`443-456`). All are structurally absent today (`main.cpp:6416-6581`, `6595-6625`, `6637-6685`). Separately, `--device-authorization-registered-course` and `--device-authorization-panel-course` are parsed unconditionally (`6586-6604`): in a Release, the first suppresses the probe's cancel (`4727-4735`) so `--self-test --device-authorization-probe --device-authorization-registered-course` polls GitHub until the budget expires. Recommend gating both like `--device-authorization-browser-probe` and adding the flag strings to the RFC-0016 list.
+- **R4** `application_device_authorization_unavailable` proves registered selection and its `--ghes-host` argument proves nothing about GHES (card already notes the rename); after B1's fix it should become the GHES negative.
+- **R5 (residual uncertainty, unverified)** What `enroll_profile(GHES, github.com token)` leaves behind (partial vault entry vs. clean refusal) was not traced. The dev graph now defines `BPR_NATIVE_HTTPS_TESTING`, so the credential-free binding answers session-matched reads there (`native_https_transport.cpp:3022-3031`); Release returns `false` and the smart surface refuses it (`3228-3231`) — the BPR-0317 authenticated-context requirement (`3137-3160`) is not bypassable by the device or anonymous bindings as read, but I did not execute the contracts. Packet provenance replays by digest (all seven recomputed hashes match the validation record and `course-execution.json`); the private client `Iv23lil08fH3933w9MkW` check depends on `tests/fixtures/github/device-authorization/v1/registration.json` remaining the record.
+
+### Reproduction and adjudication — 2026-09-03
+
+The integrator ran the review's read-only commands at `28fa0741` and each
+reproduced: the capability constant carries no profile and the begin path
+compares none; the refresh lifecycle has no production caller; the ledger's
+eligibility row for RFC-BPR-0002 still reads Pending against an
+Auto-Verified RFC; the platform table still lists Linux and Windows as
+unavailable; the threat model and the build guide still call [[BPR-0515]]
+open; and one course flag is parsed outside `BPR_BUILD_TESTING`.
+
+Adjudicated as follows, and the closure of this card widened to match
+before any closeout claim:
+
+- **B1 is a blocking defect** and becomes [[BPR-0535]]: the capability
+  carries its profile, the host refuses a foreign begin before any
+  transport call on both routes, and a composed GHES course proves it.
+- **B2 is a blocking gap** and becomes [[BPR-0536]], together with residual
+  R1: the refresh lifecycle is composed on the `/user` observation and on
+  resume, `reenrollment_required` reaches the panel, cancel forgets the
+  outstanding store, and a composed course proves rotation.
+- **R2, R3, and the untested opener validation (V5)** become [[BPR-0537]]:
+  every tests-enabled flag gated and forbidden by string, the enabled
+  course requiring `cancelled`, the replay row naming its one bounded
+  request, and a validation test for `system_browser_opener`. The marker's
+  name stays; its meaning is recorded on this card and on the registration.
+- **V1–V4** are corrected in the same commit as this record: the RFC-0002
+  eligibility row, the platform table, the threat model's and build guide's
+  BPR-0515 sentences, and a correction note on [[BPR-0310]].
+- **V5's ledger wording** on rows 141–142 is corrected now to say the suites
+  bind the recording opener and the composed opener is proven by linkage,
+  by the composed-host anchor, and by the owner's three observations.
+- **R5** is answered by B1's fix (a foreign begin never reaches enrollment)
+  and by the reviewer's own reading that the BPR-0317 authenticated-context
+  requirement is not bypassable by the device or anonymous bindings.
+
+Consequence for the closeout: RFC-BPR-0016 stays `Deferred`. The three
+replays recorded above are provenance for `28fa0741`; the immutable final
+head is the one at which [[BPR-0535]], [[BPR-0536]], and [[BPR-0537]] are
+terminal, and the replays, the gates, and a second independent review run
+again there. [[BPR-0515]] is added to this closure explicitly because the
+Windows posture it decided is now part of what the replay proves.

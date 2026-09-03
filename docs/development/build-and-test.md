@@ -658,7 +658,7 @@ Read `DEVICE_FLOW_REQUESTS:0` exactly: it counts submissions that reached the
 held, and is entirely consistent with a real device-code request having gone
 out. On macOS and Linux the isolation makes the two readings coincide; on
 Windows they come apart. Whether an unattended Windows gate may make outbound
-contact at all is adjudicated by [[BPR-0515]], which is open.
+contact at all was adjudicated by [[BPR-0515]] on 2026-09-03: with the tests-enabled `--network-denied` override the dev-tree gate is denied locally on every platform and lands on `failed` with zero connections.
 
 The course enumerates every selector by name rather than counting matches, so
 a name that is not registered on a platform is a refusal by name unless the
@@ -709,7 +709,7 @@ record for both.
   and no suite may launch one. That the action reaches a real browser at a
   real verification address is a target-native observation, and all three
   rows — macOS, Linux, and Windows x64 — are still pending on [[BPR-0516]].
-- **The Windows gate's network posture is undecided.** [[BPR-0515]] is open
+- **The Windows gate's network posture is decided.** [[BPR-0515]] closed on 2026-09-03 with the fixture proxy override; the sentences that follow record the posture it replaced. [[BPR-0515]] was open
   and owns it.
 - **Nothing here is closeout evidence.** Every result above is an ordinary
   run. The immutable final-head replay on each enabled platform, the complete

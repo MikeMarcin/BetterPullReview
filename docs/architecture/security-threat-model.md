@@ -1084,7 +1084,7 @@ namespace, and under both a registered platform's probe reaches `failed`
 without sending anything. On Windows the same selectors carry
 `WINDOWS_UNCONTAINED`, so they run outside the AppContainer for the reasons
 [[BPR-0362]] measured, and the probe reaches `cancelled` by actually reaching
-GitHub. That posture is recorded rather than endorsed: [[BPR-0515]] adjudicates
+GitHub. That posture was recorded rather than endorsed, and [[BPR-0515]] resolved it on 2026-09-03: a tests-enabled `--network-denied` override routes the dev-tree probe through a closed loopback port, so every platform's dev-tree gate lands on `failed` with zero connections and the shipped Release carries no trace of the flag. The following sentence records what [[BPR-0515]] adjudicated
 whether an unattended Windows gate may make outbound contact at all, and it is
 open.
 

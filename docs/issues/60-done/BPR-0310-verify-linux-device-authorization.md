@@ -229,3 +229,16 @@ scripts/verify_documentation.py --root .` reports `DOCUMENTATION_OK` and
 This card is terminal. [[BPR-0285]] owns the idempotent final-head replay of
 the same platform-course interface against the now-enabled Linux selection,
 once every required card is terminal; [[BPR-0311]] still owns Windows.
+
+## Correction — 2026-09-03
+
+The independent review of the RFC-BPR-0016 closeout head (BPR-0285, V4)
+found this card's reading of `DEVICE_FLOW_REQUESTS:0` on the enabled course
+wrong: the marker prints the unregistered refusing transport's `reached()`
+count, which a registered build never references, so it is the negative
+control that no enabled build fell back to refusing and not a request
+count. The enabled course's `cancelled` stage is reachable only after
+GitHub minted a device code, so the Linux enabled course did send one
+device-code request and cancelled it, as every enabled course of this RFC
+does. The course rows above stand; only the sentence that said the enabled
+artifact "still sent nothing" is withdrawn.

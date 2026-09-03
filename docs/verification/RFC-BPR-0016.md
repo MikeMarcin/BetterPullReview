@@ -20,7 +20,7 @@ Final results must be replayed against the immutable closeout head.
 | Distributable production application identity | Validated | BPR-0318 | Recorded 2026-08-27, course-proven 2026-08-29: the separate any-account GitHub App with public client `Iv23liitiYN1WSSbag50`, device flow and expiring tokens on, the exact approved permission set, and no client secret; the owner's attended sitting completed the designated read-only course (`RFC0016_PRODUCTION_COURSE_OK`, ten probes) and the complete admission passes `RFC0016_PRODUCTION_IDENTITY_OK` under `--validate-existing` with the enabled macOS Release artifact selecting the recorded client |
 | Resolved application kind | Validated | BPR-0275 | Accepted GitHub App decision with exact installation, lifetime, refresh, permissions, and rejected OAuth-App rationale |
 | Real sanitized wire contracts | Validated | BPR-0276 | All five courses recaptured 2026-08-24 in one attended sitting under the single repaired runner digest `d00583ab…`; the authorized recovery early poll captured GitHub's `slow_down` with its bounded interval; fixture recorded at `tests/fixtures/github/device-authorization/v1/`, course evidence and attestation at `docs/verification/rfc0016-live-capture-v001/`; complete admission passes `RFC0016_DEVICE_CAPTURE_VALID:attended_human_accepted_capture` against the owner's accepted review `rfc0016-attended-live-capture-v001` |
-| RFC-BPR-0002 Auto-Verified | Pending | BPR-0035/BPR-0036 | Direct real Windows x64 evidence and terminal RFC-BPR-0002 closeout; macOS, mocks, cross-compilation, and hosted workflows do not substitute |
+| RFC-BPR-0002 Auto-Verified | Verified — RFC-BPR-0002 closed Auto-Verified 2026-08-28 at `76d18e60` on the Windows x64 target-native matrix (BPR-0035 and BPR-0036 terminal); corrected 2026-09-03 under BPR-0285's review, V1 | BPR-0035/BPR-0036 | Direct real Windows x64 evidence and terminal RFC-BPR-0002 closeout; macOS, mocks, cross-compilation, and hosted workflows do not substitute |
 
 The accepted
 [`rfc0016-prerequisite-exception-v001`](reviews/rfc0016-prerequisite-exception-v001/operator-packet.md)
@@ -138,8 +138,8 @@ attended permission decision.
 | [ ] | Pending, denied, expired, rate-limited, and disabled outcomes are typed and retain no transient material or partial profile. | BPR-0278, BPR-0279, BPR-0282 | Real-contract adapter replay plus host cleanup cuts |
 | [ ] | Polling honors interval, slow-down, total bound, UI cancellation, and shutdown cleanup. | BPR-0279, BPR-0282 | Controlled-clock/manual-executor host matrix |
 | [ ] | Certificate, unknown-authority redirect, and query redirect fail closed on both endpoints before forwarding. | BPR-0278, BPR-0282 | Native HTTPS hostile loopback matrix for device and token routes |
-| [ ] | Off-authority verification address is refused with zero browser calls. | BPR-0280, BPR-0282, BPR-0516 | Host browser-capability authority cut and Qt projection course, now against the composed system opener rather than a null capability |
-| [ ] | Browser handoff failure leaves the flow live and later authorization can complete elsewhere. | BPR-0279, BPR-0280, BPR-0282, BPR-0516 | Failing-opener application/Qt course followed by authorized terminal, plus the composed handoff and construction-cut courses |
+| [ ] | Off-authority verification address is refused with zero browser calls. | BPR-0280, BPR-0282, BPR-0516 | Host browser-capability authority cut and Qt projection course; the suites bind the recording opener, and the composed system opener is proven by linkage, by the composed-host anchor, and by the owner's three observations on BPR-0516 (BPR-0285 review, V5) |
+| [ ] | Browser handoff failure leaves the flow live and later authorization can complete elsewhere. | BPR-0279, BPR-0280, BPR-0282, BPR-0516 | Failing-opener application/Qt course followed by authorized terminal, plus the composed handoff and construction-cut courses — all against the recording opener; the composed opener's own validation test is BPR-0537's (BPR-0285 review, V5) |
 | [ ] | Manual token enrollment remains functional for every profile. | BPR-0280, BPR-0281, BPR-0282 | Manual-before/device/manual-after public composition courses including GHES |
 | [ ] | A selected GitHub App refreshes before expiry and atomically rotates access/refresh material under existing vault authority. | BPR-0279, BPR-0282 | Controlled clock, native refresh wire, vault rotation/restart, stale/canceled result, cleanup, and typed re-enrollment courses |
 | [ ] | Unregistered and GHES profiles return `device_flow_unavailable` with zero requests. | BPR-0281, BPR-0282 | Tests-disabled capability-selection counters and hostile profile cases |
@@ -167,9 +167,9 @@ BPR-0282 must register and directly run the final names from a clean build.
 | Platform | Initial production selection after BPR-0281 | Enabling evidence |
 |---|---|---|
 | macOS | **Enabled 2026-08-29 by BPR-0318**: registered as `Iv23liitiYN1WSSbag50`, real flow starts and cancels cleanly | BPR-0282 native/security proof passed 2026-08-25; BPR-0318 identity admitted complete, one-time flip, enabled course `RFC0016_PLATFORM_COURSE_OK` with `RFC0016_DEVICE_STAGE:cancelled`, release-binary admission `RFC0016_PRODUCTION_IDENTITY_OK` |
-| Linux | `device_flow_unavailable`, zero requests | BPR-0318 identity plus BPR-0310 target-native Linux closeout |
-| Windows x64 | `device_flow_unavailable`, zero requests | BPR-0318 identity, BPR-0036, and BPR-0311 target-native Windows closeout |
-| GHES on every platform | `device_flow_unavailable`, zero requests | Future instance-specific registration decision outside RFC-BPR-0016 |
+| Linux | Enabled since BPR-0310 (2026-09-02): the registered GitHub.com selection with the recorded distributable identity; corrected 2026-09-03 under BPR-0285's review, V2 | BPR-0318 identity plus BPR-0310 target-native Linux closeout |
+| Windows x64 | Enabled since BPR-0311 (2026-09-02): the registered GitHub.com selection with the recorded distributable identity; corrected 2026-09-03 under BPR-0285's review, V2 | BPR-0318 identity, BPR-0036, and BPR-0311 target-native Windows closeout |
+| GHES on every platform | `device_flow_unavailable`, zero requests — claimed by the RFC and not yet true in the composed product: the review of `28fa0741` found a GHES profile can begin the GitHub.com flow through the mounted panel (BPR-0285, B1); BPR-0535 binds the capability to its profile | Future instance-specific registration decision outside RFC-BPR-0016; BPR-0535 for the refusal |
 
 ## Final command ledger
 
