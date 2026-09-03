@@ -4643,6 +4643,213 @@ namespace {
 			   "and the occasion is the one delete, not a retry of it");
 	}
 
+	// [[BPR-0549]]. Drives a device grant superseding a device-grant session on
+	// the same profile up to the point the retention window is open: the
+	// outgoing credential has been deleted, its refresh slot deliberately has
+	// not, and the incoming session has begun without yet naming an account.
+	// Returns the authority the held slot is keyed under.
+	[[nodiscard]] auto open_retention_window(host_fixture& aFixture)
+		-> application::github_credential_authority_key
+	{
+		aFixture.Vault.RefreshDeleteAnswer
+			= fake_vault::refresh_delete_answer::deleted;
+		static_cast<void>(establish_native_session(
+			aFixture,
+			core::host_profile_id{ 11U },
+			core::github_account_id{ 51U },
+			std::nullopt,
+			application::github_credential_provenance::device_grant));
+		const auto authority = aFixture.Vault.Stores.front().Context.Authority;
+		aFixture.Host.enroll_profile(
+			core::host_profile_id{ 11U },
+			credential(),
+			application::github_credential_provenance::device_grant);
+		expect(aFixture.Vault.Deletes.size() == 1U,
+			   "the supersession deletes the access credential it replaces");
+		const auto superseded = aFixture.Vault.Deletes.front().Context;
+		aFixture.Vault.Deletes.front().Completion(
+			application::github_credential_delete_success{
+				.Context     = superseded,
+				.Disposition = application::
+					github_credential_delete_disposition::deleted,
+			});
+		aFixture.Lane.drain();
+		expect(aFixture.Vault.RefreshDeletes.empty()
+				   && aFixture.Provider.Profiles.size() == 2U,
+			   "the slot is held while the incoming session can still turn out "
+			   "to name the authority it is keyed under");
+		return authority;
+	}
+
+	// Answers the incoming session's profile resolution, which is the last
+	// step before the bootstrap `/user` that names its account.
+	void answer_superseding_profile(host_fixture& aFixture)
+	{
+		const auto request = aFixture.Provider.Profiles.back().Request;
+		aFixture.Provider.Profiles.back().Completion(
+			application::github_profile_success{
+				.Request   = request,
+				.Authority = native_profile(request.Context.Profile),
+			});
+		aFixture.Lane.drain();
+		expect(aFixture.Provider.Viewers.size() == 3U
+				   && aFixture.Vault.RefreshDeletes.empty(),
+			   "a resolved profile does not yet say which account is arriving");
+	}
+
+	void answer_superseding_bootstrap(host_fixture&                 aFixture,
+									  const core::github_account_id aAccount)
+	{
+		const auto request = aFixture.Provider.Viewers.back().Request;
+		aFixture.Provider.Viewers.back().Completion(
+			application::github_viewer_success{
+				.Request    = request,
+				.Viewer     = viewer(aAccount),
+				.RateLimits = rate_limits_for(
+					application::github_rate_limit_resource::core),
+				.AccountTransport = { },
+			});
+		aFixture.Lane.drain();
+	}
+
+	// [[BPR-0549]]. The window closes on a different account, and the slot the
+	// outgoing session filled leaves under the outgoing authority. The
+	// retention [[BPR-0547]] introduced is decided at the invalidate, where the
+	// incoming enrollment's provenance and profile are known and its account is
+	// not; a device grant for another account on the same profile satisfies
+	// every one of those conditions, so before this the slot stayed behind
+	// keyed to an account the new session never names -- the orphan
+	// [[BPR-0540]] closed, reached through a narrower door, and six months of
+	// refresh material left in the platform vault after the reviewer signed in
+	// as somebody else.
+	void test_a_retained_slot_leaves_when_another_account_arrives()
+	{
+		host_fixture fixture;
+		const auto   retained = open_retention_window(fixture);
+		answer_superseding_profile(fixture);
+		answer_superseding_bootstrap(fixture, core::github_account_id{ 77U });
+		expect(fixture.Vault.RefreshDeletes.size() == 1U
+				   && fixture.Vault.RefreshDeletes.front().Authority == retained,
+			   "a grant naming another account erases the outgoing slot under "
+			   "the outgoing authority");
+	}
+
+	// [[BPR-0549]]. The window closes on the same account without erasing, and
+	// the ordinary occasion afterwards is still the only erasure. This is the
+	// retention itself, so it holds before this change as well: it is here to
+	// keep the narrowing from becoming "erase whenever the window closes",
+	// which would put the renewal chain back to working exactly once.
+	void test_a_retained_slot_stays_when_the_same_account_arrives()
+	{
+		host_fixture fixture;
+		const auto   retained = open_retention_window(fixture);
+		answer_superseding_profile(fixture);
+		answer_superseding_bootstrap(fixture, core::github_account_id{ 51U });
+		expect(fixture.Vault.RefreshDeletes.empty()
+				   && fixture.Vault.Stores.size() == 2U
+				   && fixture.Vault.Stores.back().Context.Authority == retained,
+			   "the rotation's own account keeps the slot it just filled");
+
+		const auto storeContext = fixture.Vault.Stores.back().Context;
+		fixture.Vault.Stores.back().Completion(
+			application::github_credential_store_success{
+				.Context     = storeContext,
+				.Disposition = application::
+					github_credential_store_disposition::stored,
+			});
+		fixture.Lane.drain();
+		const auto retrieveContext = fixture.Vault.Retrieves.back().Context;
+		fixture.Vault.Retrieves.back().Completion(
+			application::github_credential_retrieve_success{
+				.Context    = retrieveContext,
+				.Credential = credential(),
+			});
+		fixture.Lane.drain();
+		const auto accountRequest = fixture.Provider.Viewers.back().Request;
+		const auto lease          = std::make_shared<fake_lease>();
+		fixture.Provider.Viewers.back().Completion(
+			application::github_viewer_success{
+				.Request    = accountRequest,
+				.Viewer     = viewer(core::github_account_id{ 51U }),
+				.RateLimits = rate_limits_for(
+					application::github_rate_limit_resource::core),
+				.AccountTransport = lease,
+			});
+		fixture.Lane.drain();
+		const auto capabilityRequest
+			= fixture.Provider.Capabilities.back().Request;
+		fixture.Provider.Capabilities.back().Completion(
+			application::github_capability_success{
+				.Request     = capabilityRequest,
+				.Facts       = capability_facts(),
+				.SchemaFacts = schema_facts(),
+				.RateLimits  = rate_limits_for(
+					application::github_rate_limit_resource::graphql),
+			});
+		fixture.Lane.drain();
+		expect(fixture.Host.accepted_session().has_value()
+				   && fixture.Vault.RefreshDeletes.empty(),
+			   "the renewed session is established over the slot it kept");
+
+		fixture.Host.enroll_profile(
+			core::host_profile_id{ 11U },
+			credential(),
+			application::github_credential_provenance::manual);
+		const auto signedOut = fixture.Vault.Deletes.back().Context;
+		fixture.Vault.Deletes.back().Completion(
+			application::github_credential_delete_success{
+				.Context     = signedOut,
+				.Disposition = application::
+					github_credential_delete_disposition::deleted,
+			});
+		fixture.Lane.drain();
+		expect(fixture.Vault.RefreshDeletes.size() == 1U
+				   && fixture.Vault.RefreshDeletes.front().Authority == retained,
+			   "and the ordinary occasion afterwards is the one erasure");
+	}
+
+	// [[BPR-0549]]. The window is not a way to leak material by failing at the
+	// right moment. A session that never reaches an authority and a shutdown
+	// that arrives first both mean nobody is coming to spend the held slot, so
+	// each erases it -- the shutdown inside its own quiescence accounting,
+	// which the outstanding-erasure count already holds composition open for.
+	void test_a_retained_slot_does_not_survive_a_failure_or_a_shutdown()
+	{
+		{
+			host_fixture fixture;
+			const auto   retained = open_retention_window(fixture);
+			const auto   request  = fixture.Provider.Profiles.back().Request;
+			fixture.Provider.Profiles.back().Completion(
+				application::github_profile_error{
+					.Request = request,
+					.Error   = {
+						.Failure           = application::github_provider_failure::permission,
+						.RetryAfterSeconds = std::nullopt,
+						.RateLimits        = { },
+						.RateLimitCause    = std::nullopt,
+					},
+				});
+			fixture.Lane.drain();
+			expect(fixture.Vault.RefreshDeletes.size() == 1U
+					   && fixture.Vault.RefreshDeletes.front().Authority
+						   == retained,
+				   "a session that fails inside the window erases the slot it "
+				   "was being held for");
+		}
+
+		{
+			host_fixture fixture;
+			const auto   retained = open_retention_window(fixture);
+			fixture.Host.shutdown();
+			fixture.Lane.drain();
+			expect(fixture.Vault.RefreshDeletes.size() == 1U
+					   && fixture.Vault.RefreshDeletes.front().Authority
+						   == retained,
+				   "and a shutdown inside the window erases it rather than "
+				   "leaving it in the vault");
+		}
+	}
+
 	void test_an_occasion_never_has_two_operations_pending_under_one_context()
 	{
 		constexpr auto policy = application::github_credential_shutdown_policy::
@@ -4880,6 +5087,9 @@ auto main() -> int
 	test_refresh_material_shares_the_credential_erasure_path();
 	test_an_occasion_never_has_two_operations_pending_under_one_context();
 	test_a_rotation_keeps_the_material_it_just_stored();
+	test_a_retained_slot_leaves_when_another_account_arrives();
+	test_a_retained_slot_stays_when_the_same_account_arrives();
+	test_a_retained_slot_does_not_survive_a_failure_or_a_shutdown();
 	std::cout << "application github host tests passed\n";
 	return EXIT_SUCCESS;
 }

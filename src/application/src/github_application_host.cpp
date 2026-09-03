@@ -1494,6 +1494,12 @@ namespace bpr::application {
 			// would let a renewal be armed under a key this host has already
 			// let go of.
 			cancel_refresh_probe();
+			// [[BPR-0549]]. A retention window still open at an invalidate
+			// belongs to a session this invalidate is discarding before it
+			// ever named an authority, so nothing is coming to spend the slot
+			// it holds. The window this invalidate may open for itself is
+			// opened later, when its own credential delete answers.
+			erase_retained_refresh();
 			const auto* resumeBinding          = NextResumeProfile.has_value()
 				? CredentialBindings.find(*NextResumeProfile)
 				: nullptr;
@@ -1518,6 +1524,13 @@ namespace bpr::application {
 			// erases: an orderly shutdown, a sign-out, an enrollment from any
 			// other source, and a grant for another profile all end with
 			// nobody able to spend what the slot holds.
+			//
+			// [[BPR-0549]] narrows that premise, which is only provisional
+			// here: the incoming enrollment's profile is known at this point
+			// and its account is not, so a grant for a different account on
+			// this same profile satisfies every condition below. The slot is
+			// held rather than kept, and the bootstrap `/user` that names the
+			// incoming account either confirms this or erases it then.
 			const auto supersededByItsOwnRenewal = NextEnrollment.has_value()
 				&& NextEnrollmentProvenance
 					== github_credential_provenance::device_grant
@@ -1596,6 +1609,7 @@ namespace bpr::application {
 			const github_credential_authority_key&      aAuthority,
 			const core::github_session_request_context& aContext)
 		{
+			resolve_retained_refresh(aAuthority);
 			CredentialAuthority      = aAuthority;
 			CredentialSessionContext = aContext;
 			CredentialLifecycle      = credential_lifecycle::persistent;
@@ -2015,8 +2029,10 @@ namespace bpr::application {
 						return;
 					}
 					static_cast<void>(merge(RateLimits, success->RateLimits));
-					BootstrapViewer          = success->Viewer;
-					CredentialAuthority      = credential_key(authority, success->Viewer.Account);
+					BootstrapViewer    = success->Viewer;
+					const auto adopted = credential_key(authority, success->Viewer.Account);
+					resolve_retained_refresh(adopted);
+					CredentialAuthority      = adopted;
 					CredentialSessionContext = context;
 					CredentialLifecycle      = credential_lifecycle::provisional;
 					CredentialProvenance     = SessionEnrollmentProvenance;
@@ -3062,6 +3078,58 @@ namespace bpr::application {
 			}
 		}
 
+		// [[BPR-0549]]. The window [[BPR-0547]]'s retention opens, and the
+		// three ways out of it. The retention is decided at the invalidate,
+		// where the incoming enrollment's provenance and profile are known but
+		// its account is not: that arrives with the bootstrap `/user`
+		// observation the enrollment goes on to make. So the slot is held --
+		// with the exact operation context that would have erased it -- only
+		// for as long as the incoming session can still turn out to name the
+		// authority the slot is keyed under.
+		//
+		// Reachability is the whole test, and it is decided by the entire
+		// authority: every platform vault keys the slot by the whole key, so
+		// one that differs anywhere -- another account on this profile above
+		// all -- is a slot the incoming session's own refresh probe cannot
+		// name. Equality is therefore exactly "something may still spend
+		// this", which is the rule [[BPR-0540]] set, and inequality erases
+		// under the outgoing authority rather than the incoming one.
+		void hold_retained_refresh(
+			const github_credential_operation_context& aOperation)
+		{
+			// A shutdown that arrives while the deferred delete is still in
+			// flight has already run its cleanup by the time this answers, so
+			// there is no later occasion to hold the slot for.
+			if (Closing) {
+				start_refresh_delete(aOperation);
+				return;
+			}
+			RetainedRefreshOperation = aOperation;
+		}
+
+		void erase_retained_refresh()
+		{
+			if (!RetainedRefreshOperation.has_value()) {
+				return;
+			}
+			const auto operation = *RetainedRefreshOperation;
+			RetainedRefreshOperation.reset();
+			start_refresh_delete(operation);
+		}
+
+		void resolve_retained_refresh(
+			const github_credential_authority_key& aAdopted)
+		{
+			if (!RetainedRefreshOperation.has_value()) {
+				return;
+			}
+			if (RetainedRefreshOperation->Authority == aAdopted) {
+				RetainedRefreshOperation.reset();
+				return;
+			}
+			erase_retained_refresh();
+		}
+
 		void report_refresh_erasure_failure(
 			const github_credential_operation_context& aOperation)
 		{
@@ -3237,6 +3305,8 @@ namespace bpr::application {
 			// enrollment replacing it renews from that same slot.
 			if (aRefresh == refresh_disposition::erase) {
 				start_refresh_delete(aExpectedOperation);
+			} else {
+				hold_retained_refresh(aExpectedOperation);
 			}
 			if (Closing) {
 				if (ActiveVaultOperation != vault_operation::delete_credential
@@ -3417,6 +3487,14 @@ namespace bpr::application {
 
 		void reset_session_scratch()
 		{
+			// [[BPR-0549]]. The window's failure exit. Every session terminal
+			// and the orderly shutdown pass through here, and each of them
+			// means the session that was going to name an authority never
+			// will -- so a slot held for it can no longer be spent by
+			// anything, and the erasure that was deferred happens now. It is
+			// deliberately not a way to leak material by failing at the right
+			// moment.
+			erase_retained_refresh();
 			PendingProvider = std::monostate{ };
 			StagedSession.reset();
 			CurrentProfile.reset();
@@ -3934,6 +4012,11 @@ namespace bpr::application {
 			 DeferredInvalidationGeneration;
 		bool DeferredInvalidationPreservesCredential = false;
 		bool DeferredInvalidationRetainsRefresh      = false;
+		// [[BPR-0549]]. The outgoing refresh slot whose erasure the retention
+		// above deferred, carried as the exact context that would have erased
+		// it until the incoming session's authority is known.
+		std::optional<github_credential_operation_context>
+			RetainedRefreshOperation;
 
 		std::optional<session_candidate>                   StagedSession;
 		std::optional<github_pull_request_snapshot>        StagedSnapshot;
