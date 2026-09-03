@@ -3369,7 +3369,35 @@ namespace {
 					   << "\nPUBLIC_PREVIEW_LIVE_CANDIDATE_PRODUCTION_FACTORIES:"
 					   << (aRun.PublicPreview.ProductionFactories ? "true"
 																  : "false")
-					   << "\nPUBLIC_PREVIEW_WIRE_REQUESTS:"
+					   << '\n';
+				// [[BPR-0316]]. What the count above was spent on: one line
+				// per request the signed-out transport forwarded, in the order
+				// it forwarded them, with the operation's contract name, the
+				// page, how it ended and how long it took. Read from the
+				// transport now rather than from the tick snapshot, so a run
+				// whose budget expired mid-read still reports every request it
+				// had already made -- an expired run is the case this exists
+				// for. Never a body, never a URL, and no header beyond the
+				// rate-limit triple a failure itself carried.
+				const auto wireOperations
+					= aApplication.public_preview_wire_operations();
+				for (const auto& operation : wireOperations) {
+					stream << "PUBLIC_PREVIEW_WIRE_OPERATION:"
+						   << QString::fromStdString(operation.Operation) << ':'
+						   << static_cast<unsigned long long>(operation.Page)
+						   << ':' << QString::fromStdString(operation.Outcome)
+						   << ':'
+						   << static_cast<unsigned long long>(
+								  operation.ElapsedMilliseconds)
+						   << '\n';
+				}
+				// Costs nothing outside the process and says whether the
+				// mechanism that bounds this read to one attempt is in place,
+				// so the isolated dry run proves it and the authorized read
+				// carries the same proof beside its own numbers.
+				const auto singleAttempt
+					= bpr::app::public_preview_single_attempt_self_check();
+				stream << "PUBLIC_PREVIEW_WIRE_REQUESTS:"
 					   << static_cast<unsigned long long>(
 							  aRun.PublicPreview.WireRequests)
 					   << "\nPUBLIC_PREVIEW_WIRE_CAPABILITY_PROBES:"
@@ -3378,6 +3406,8 @@ namespace {
 					   << "\nPUBLIC_PREVIEW_WIRE_CREDENTIALED_REFUSALS:"
 					   << static_cast<unsigned long long>(
 							  aRun.PublicPreview.WireCredentialedRefusals)
+					   << "\nPUBLIC_PREVIEW_WIRE_SINGLE_ATTEMPT:"
+					   << (singleAttempt ? "true" : "false")
 					   << "\nPUBLIC_PREVIEW_BUDGET:"
 					   << static_cast<unsigned long long>(
 							  aRun.PublicPreview.BudgetLimit)
@@ -3396,6 +3426,15 @@ namespace {
 					   << QString::fromStdString(aRun.Expectations.Repository)
 					   << '#' << aRun.Expectations.Number << ' '
 					   << QString::fromStdString(aRun.PublicPreview.HeadOid)
+					   // How long the whole course took. The run bound itself
+					   // is the caller's business -- `--automated-run-budget-ms`
+					   // stays required -- and this is what it was spent on.
+					   << "\nPUBLIC_PREVIEW_LIVE_ELAPSED_MS:"
+					   << static_cast<long long>(
+							  std::chrono::duration_cast<
+								  std::chrono::milliseconds>(
+								  automated_clock::now() - aRun.Started)
+								  .count())
 					   << '\n';
 				// The wiring claim, which a dry run makes on its own: the
 				// signed-out authority was composed from the production
@@ -3403,7 +3442,7 @@ namespace {
 				// neither a header nor the vault was involved. The read claim
 				// is added only when a read was asked for.
 				auto livePassed = status.PublicPreviewComposed
-					&& aRun.PublicPreview.ProductionFactories
+					&& aRun.PublicPreview.ProductionFactories && singleAttempt
 					&& !status.PublicPreviewUnavailable
 					&& !status.PublicPreviewPolicyRefused
 					&& aRun.PublicPreview.WireCredentialedRefusals == 0U

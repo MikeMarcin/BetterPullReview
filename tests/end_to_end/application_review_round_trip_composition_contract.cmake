@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
 	set(bpr_expected_full_application_digest
-		"5ee2d5f6a447da2cf826e0d86a3479b86ca0ae926a71661356e2c802bed9c9e1"
+		"0454c9c376f5c831dda3776639c4a15c8c5690c1df50cbe8e5910300d330eb75"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest

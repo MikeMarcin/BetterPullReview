@@ -587,6 +587,15 @@ bpr_bound_automated_run(
 # turns it false. The row is network-isolated, which is what makes "issued
 # nothing" a fact rather than a promise; the read itself is an authorized
 # operator step and has no selector.
+#
+# [[BPR-0316]] part two. The regex is contiguous, so `WIRE_REQUESTS:0`
+# following `PRODUCTION_FACTORIES:true` asserts that no per-request
+# `PUBLIC_PREVIEW_WIRE_OPERATION` line was printed between them, which is what
+# a run that issued nothing must report. `WIRE_SINGLE_ATTEMPT:true` is the
+# in-process check that the counting transport refuses a second request for a
+# read that already failed -- the mechanism that bounds an authorized read to
+# one provider attempt, proven here rather than against the live service --
+# and `LIVE_ELAPSED_MS` is the whole course's wall time.
 bpr_add_network_isolated_test(
     NAME application_anonymous_public_preview_live_candidate_wiring
     WINDOWS_UNCONTAINED
@@ -606,7 +615,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:0[\r\n]+PUBLIC_PREVIEW_WRITE_REFUSALS:0[\r\n]+PUBLIC_PREVIEW_LIVE_CANDIDATE_PRODUCTION_FACTORIES:true[\r\n]+PUBLIC_PREVIEW_WIRE_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_WIRE_CAPABILITY_PROBES:0[\r\n]+PUBLIC_PREVIEW_WIRE_CREDENTIALED_REFUSALS:0[\r\n]+PUBLIC_PREVIEW_BUDGET:0/0/0[\r\n]+PUBLIC_PREVIEW_SNAPSHOT_MODE:authenticated[\r\n]+PUBLIC_PREVIEW_CANDIDATE:octocat/Hello-World#1 [\r\n]+PUBLIC_PREVIEW_LIVE_CANDIDATE_OK"
+            "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:0[\r\n]+PUBLIC_PREVIEW_WRITE_REFUSALS:0[\r\n]+PUBLIC_PREVIEW_LIVE_CANDIDATE_PRODUCTION_FACTORIES:true[\r\n]+PUBLIC_PREVIEW_WIRE_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_WIRE_CAPABILITY_PROBES:0[\r\n]+PUBLIC_PREVIEW_WIRE_CREDENTIALED_REFUSALS:0[\r\n]+PUBLIC_PREVIEW_WIRE_SINGLE_ATTEMPT:true[\r\n]+PUBLIC_PREVIEW_BUDGET:0/0/0[\r\n]+PUBLIC_PREVIEW_SNAPSHOT_MODE:authenticated[\r\n]+PUBLIC_PREVIEW_CANDIDATE:octocat/Hello-World#1 [\r\n]+PUBLIC_PREVIEW_LIVE_ELAPSED_MS:[0-9]+[\r\n]+PUBLIC_PREVIEW_LIVE_CANDIDATE_OK"
 )
 bpr_bound_automated_run(
     application_anonymous_public_preview_live_candidate_wiring

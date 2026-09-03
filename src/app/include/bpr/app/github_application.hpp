@@ -11,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace bpr::app {
 	namespace detail {
@@ -330,6 +331,38 @@ namespace bpr::app {
 		std::string PublicPreviewSnapshotHeadOid;
 	};
 
+	/// \brief Describes one REST request the signed-out live-candidate
+	/// transport put on the wire, and what came back for it.
+	///
+	/// \details [[BPR-0316]]. The counted total says how much of the shared
+	/// hourly budget a candidate read spent; it does not say which operation
+	/// spent it or which one failed, and a run whose budget expires mid-read
+	/// reports nothing else. One record per forwarded request answers both.
+	/// It carries no body, no URL and no header beyond the rate-limit triple
+	/// a failure named, because this output goes on a card.
+	struct public_preview_wire_operation_record
+	{
+		/// The read operation's contract name, as `operation_name` spells it.
+		std::string   Operation;
+		std::uint32_t Page = 1U;
+		/// `http_<status>` for a response, `error_<failure>` with the
+		/// retry-after and rate-limit triple it carried, or `cancelled`.
+		std::string   Outcome;
+		std::uint64_t ElapsedMilliseconds = 0U;
+	};
+
+	/// \brief Checks in process that the live-candidate transport forwards one
+	/// attempt only.
+	///
+	/// \details [[BPR-0316]]. Drives the counting transport over a stub that
+	/// always fails, and answers whether the second request was refused
+	/// without reaching the stub. Nothing here opens a socket or names a host,
+	/// so the single-attempt claim the live candidate prints is proven by the
+	/// isolated dry run rather than by the authorized read it bounds. False in
+	/// a build without the testing guard, where no such transport exists.
+	[[nodiscard]] auto public_preview_single_attempt_self_check() noexcept
+		-> bool;
+
 	/// \brief Provides the github application contract.
 	class github_application final
 	{
@@ -421,6 +454,17 @@ namespace bpr::app {
 
 		[[nodiscard]] auto window() noexcept -> qt::workbench_window&;
 		[[nodiscard]] auto status() const noexcept -> github_application_status;
+
+		/// \brief Reports what the signed-out live-candidate transport
+		/// forwarded, in the order it forwarded it.
+		///
+		/// \details [[BPR-0316]]. Kept off `status()` because it is a growing
+		/// record rather than a fact of the moment, and the status record is
+		/// copied on every tick of an automated run. Empty in every
+		/// composition that did not build the counting transport, which is
+		/// every shipped one.
+		[[nodiscard]] auto public_preview_wire_operations() const
+			-> std::vector<public_preview_wire_operation_record>;
 
 	private:
 		class implementation;
