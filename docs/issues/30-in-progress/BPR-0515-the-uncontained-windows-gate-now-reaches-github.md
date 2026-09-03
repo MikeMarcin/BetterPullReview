@@ -1,7 +1,7 @@
 ---
 id: BPR-0515
 title: Enabling Windows made the uncontained device-authorization gate reach GitHub on every dev-tree run
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0311]
 ---
@@ -104,3 +104,17 @@ expectation and this cost written down. The integrator's recommendation is
 (a) confined to the tests-enabled fixture profile, so the tests-disabled
 Release carries no proxy override and the RFC-BPR-0017 fixture-seam
 inventory keeps proving its absence.
+
+## Decided — 2026-09-02
+
+The product owner chose the first option, in full: "Fixture proxy override."
+The test gains a per-process proxy override that only the tests-enabled
+fixture profile can set, pointing the connect at a closed loopback port, so
+the Windows dev-tree gate is denied locally and its expectation becomes the
+`failed` macOS and Linux already record; the tests-disabled Release carries
+no override, and the RFC-BPR-0017 fixture-seam inventory keeps proving its
+absence. Claimed by the integrator into `30-in-progress/` and split as the
+board's rule requires: the override, the gate expectation, and the host
+reproduction are generic work done here; the Windows measurement that the
+gate now lands on `failed` with zero connections is `bpr-win`'s, dispatched
+once the code is on main.
