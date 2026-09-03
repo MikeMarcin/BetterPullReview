@@ -146,3 +146,116 @@ proves the registered selection under a selector whose name says
 platforms (Windows answers `cancelled` there, for the reason [[BPR-0515]]
 adjudicates), and [[BPR-0310]] three. The final-head replay should rename
 the selector, or record why the name stays, before it closes.
+
+## Windows final-head replay — 2026-09-03
+
+`main` at `28fa0741` merged into `windows-lane` as **`bc4db3fc`**, which is
+the head this replay ran at. No selection was mutated and no source changed:
+this is RFC-BPR-0016's closeout replay, run idempotently over the head the
+ledger anchors.
+
+### Host and toolchain
+
+```text
+Windows 11 Home 10.0.26200 (x64), the JaegAW host
+Visual Studio 18 Community, MSVC 14.51.36231, x64 Native Tools (vcvars64)
+CMake 4.4.2   Python 3.14.7 (py -3)   Qt 6.10.3 (msvc2022_64)
+```
+
+Under the [[BPR-0493]] procedure — Smart App Control off, every command from
+the MSVC environment, the build root deleted whole rather than trusted to
+`--fresh` — and with Git's `usr/bin` appended to `PATH` for `perl`, per the
+[[BPR-0036]] addendum. Appended, never prepended: that directory also ships a
+`link.exe`, and `check_platform_surfaces` shells `link /MAP`.
+
+### The course
+
+```text
+py -3 scripts/verify_rfc0016_platform_course.py --platform windows
+  --dev-preset windows-dev --release-preset windows-app-release
+  --build-root build/rfc0016-windows-closeout
+  --expected-device-selection enabled --fresh
+```
+
+Exit 0, from a root that did not exist when it started:
+
+```text
+RFC0016_PLATFORM:windows          RFC0016_SELECTION:enabled
+RFC0016_COURSE_SELECTORS:17       RFC0016_DEVICE_STAGE:cancelled
+RFC0016_DEVICE_REQUESTS:0         RFC0016_ELAPSED_SECONDS:1119
+RFC0016_PLATFORM_COURSE_OK
+```
+
+Seventeen selectors, matching macOS and Linux since [[BPR-0523]] added
+`composed_application_hosts` to the focused set.
+
+The artifact it staged:
+
+```text
+C:/code/git/bpr-windows/build/rfc0016-windows-closeout/release/src/app/better_pull_review.exe
+7,757,312 bytes
+sha256 14ac0a472ba8f48842aa2fe096923ff7a6ebe0888303531acbb006753315a4f7
+```
+
+### Against that artifact
+
+```text
+py -3 scripts/verify_rfc0016_production_identity.py
+  --registration-observation docs/verification/reviews/
+    rfc0016-production-app-registration-v001/registration-observation.json
+  --course-evidence-root docs/verification/reviews/
+    rfc0016-production-app-registration-v001/read-only-course
+  --require-complete --validate-existing --release-binary <artifact>
+```
+
+```text
+RFC0016_PRODUCTION_GATE:rfc0016-production-app-registration-v001
+RFC0016_PRODUCTION_RECORD_COMMIT:c82e51c2c933887632fb0bb35db876375a151de9
+RFC0016_PRODUCTION_CLIENT:Iv23liitiYN1WSSbag50
+RFC0016_PRODUCTION_PERMISSIONS:9      RFC0016_PRODUCTION_COURSE_PROBES:10
+RFC0016_PRODUCTION_COURSE:complete    RFC0016_PRODUCTION_EVIDENCE_FILES:11
+RFC0016_PRODUCTION_IDENTITY_OK
+```
+
+```text
+py -3 scripts/verify_rfc0016_test_inventory.py --release-binary <artifact>
+  -> RFC0016_TEST_INVENTORY_OK
+
+py -3 scripts/verify_composed_hosts.py --profile production <artifact>
+  -> COMPOSED_HOSTS_OK: profile=production required=29 forbidden=7
+     inspector=link /MAP | undname
+```
+
+### One request left the host, and that is this course's design
+
+`RFC0016_DEVICE_STAGE:cancelled` means the enabled release probe reached
+GitHub, was answered with a device code, and cancelled from
+`awaiting_authorization` — the same behaviour [[BPR-0311]]'s and
+[[BPR-0516]]'s Windows courses recorded. `RFC0016_DEVICE_REQUESTS:0` is
+consistent with that and not in tension with it: per [[BPR-0515]]'s
+correction, that counter counts submissions reaching the refusing transport,
+never HTTP requests.
+
+[[BPR-0515]]'s `--network-denied` override does not apply here and is not
+expected to. It is registered on the two dev-tree gate rows, which is where
+an unattended run had no business reaching GitHub; this is the release
+course, whose entire purpose is to exercise the enabled capability against
+the real service. No browser was opened and no device flow was completed —
+the code was minted and cancelled inside the probe's budget, unattended.
+
+### Claims
+
+| Claim | Command | Result |
+|---|---|---|
+| The immutable head still selects the enabled device capability target-native, from a root deleted whole | the ledger's exact Windows course command above | exit 0, 1119 s, `RFC0016_PLATFORM_COURSE_OK`, `SELECTION:enabled`, `COURSE_SELECTORS:17`, `DEVICE_STAGE:cancelled`, `DEVICE_REQUESTS:0` |
+| The staged artifact carries the recorded production identity | `verify_rfc0016_production_identity.py … --require-complete --validate-existing` | `RFC0016_PRODUCTION_IDENTITY_OK`; client `Iv23liitiYN1WSSbag50`, 9 permissions, 10 course probes, course `complete`, 11 evidence files, record commit `c82e51c2` |
+| The tests-disabled artifact admits the inventory | `verify_rfc0016_test_inventory.py --release-binary <artifact>` | `RFC0016_TEST_INVENTORY_OK` |
+| The production graph is whole in the shipped artifact | `verify_composed_hosts.py --profile production <artifact>` | `COMPOSED_HOSTS_OK: required=29 forbidden=7` |
+| Isolated fresh Debug and Release inventory, runtime, dependency and PE gates | inside the course, under the launch environment the dev tree declares | passed; no embedded browser engine |
+| No selection mutation, no source change | — | none; the lane's only change is this record |
+
+Windows' side of the final-head replay is complete at `bc4db3fc`. The
+selector-rename question the section above leaves open — whether
+`application_device_authorization_unavailable` keeps a name that says
+`unavailable` while proving the registered selection — is untouched here and
+still belongs to this card.
