@@ -189,15 +189,25 @@ SHARED_REQUIRED = (
         "bpr::adapters::github::detail::make_native_https_anonymous_smart_transport",
     ),
     # BPR-0536: the device-authorization refresh lifecycle is composed in both
-    # profiles. The one composition function that binds and resumes the
-    # refresh authority is the linkage proof that a shipped image renews
-    # rather than only enrolling; an image that lost it would answer the
-    # review's B2 again, silently. The observation reader beside it is not
-    # required: a Release inlines it into its one caller, and the dev-profile
-    # selectors are what prove it, not the image.
+    # profiles, proven by the entry point the composition calls rather than by
+    # the composition function that calls it. The anchor is the device host's
+    # own out-of-line member, defined in the application library and
+    # referenced only from the composition: no compiler inlines it across that
+    # boundary without whole-program optimization, which these presets do not
+    # enable, and a linker that drops unreferenced sections removes it the
+    # moment composition stops binding -- which is the falsification this
+    # anchor exists for.
+    #
+    # BPR-0285 moved it here. The former anchor was the composition's own
+    # private `bind_device_refresh_authority`, which has exactly one call
+    # site: MSVC inlines it, so a Windows Release image cannot exhibit it at
+    # all (0 occurrences in the Release map against 5 in Debug), and on macOS
+    # it survives only as a local symbol, which proves presence rather than
+    # linkage. A private one-caller function is not a linkage anchor on any
+    # compiler; Windows made that visible first.
     function_anchor(
         "device refresh authority binding",
-        "bpr::app::github_application::implementation::bind_device_refresh_authority",
+        "bpr::application::device_authorization_application_host::bind_refresh_authority",
     ),
 )
 
