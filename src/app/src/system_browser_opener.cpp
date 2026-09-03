@@ -47,7 +47,7 @@ namespace bpr::app {
 		// accepted one; there is no human here, only an address the host has
 		// already validated, so anything that does not parse exactly is a
 		// refusal rather than a hint.
-		const auto address = QUrl{
+		auto address = QUrl{
 			QString::fromUtf8(aAddress.data(), static_cast<qsizetype>(aAddress.size())),
 			QUrl::StrictMode
 		};
