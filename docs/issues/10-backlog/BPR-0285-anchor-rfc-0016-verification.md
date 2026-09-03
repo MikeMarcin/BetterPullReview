@@ -146,3 +146,45 @@ proves the registered selection under a selector whose name says
 platforms (Windows answers `cancelled` there, for the reason [[BPR-0515]]
 adjudicates), and [[BPR-0310]] three. The final-head replay should rename
 the selector, or record why the name stays, before it closes.
+
+## macOS final-head replay — 2026-09-03
+
+Run on the integrator host (`bpr-main-mac`, macOS, Apple Clang, Qt 6) at
+main `28fa0741`, which is the head this closeout replays on every platform:
+every RFC-BPR-0016 card is terminal, BPR-0515's dev-tree posture is
+resolved, and the RFC-BPR-0017 work that shares the transport and the
+composition file is in the tree, so the replay proves the device flow
+under the code that now surrounds it. No selection was mutated.
+
+```text
+python3 scripts/verify_rfc0016_platform_course.py --platform macos --dev-preset dev --release-preset app-release --build-root build/rfc0016-macos-closeout --expected-device-selection enabled --fresh
+```
+
+A build root created fresh; exit 0 in 147 s:
+
+```text
+RFC0016_PLATFORM:macos
+RFC0016_SELECTION:enabled
+RFC0016_COURSE_SELECTORS:17
+RFC0016_DEVICE_STAGE:cancelled
+RFC0016_DEVICE_REQUESTS:0
+RFC0016_RELEASE_ARTIFACT:build/rfc0016-macos-closeout/release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview
+RFC0016_ELAPSED_SECONDS:146
+RFC0016_PLATFORM_COURSE_OK
+```
+
+The staged artifact: 10,609,248 bytes, sha256
+`bf9e671611ead6972a3ab9166572a194b5fa72eb2467ad9237d8752614436f1f`. Against
+it, the identity admission with `--require-complete --validate-existing`
+printed `RFC0016_PRODUCTION_GATE:rfc0016-production-app-registration-v001`,
+`RFC0016_PRODUCTION_RECORD_COMMIT:c82e51c2…`,
+`RFC0016_PRODUCTION_CLIENT:Iv23liitiYN1WSSbag50`,
+`RFC0016_PRODUCTION_PERMISSIONS:9`, `RFC0016_PRODUCTION_COURSE_PROBES:10`,
+`RFC0016_PRODUCTION_COURSE:complete`, `RFC0016_PRODUCTION_EVIDENCE_FILES:11`,
+`RFC0016_PRODUCTION_IDENTITY_OK`; the inventory's release scan
+`RFC0016_TEST_INVENTORY_OK`; and the composed-host audit
+`COMPOSED_HOSTS_OK: profile=production required=29 forbidden=7`. As on
+every enabled course of this RFC, the release probe reached GitHub once,
+was answered with a device code, and cancelled — `cancelled` with zero
+counted requests is the recorded expectation, and the dev-tree gate no
+longer does even that since BPR-0515.
