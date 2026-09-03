@@ -43,7 +43,37 @@ namespace bpr::adapters::github {
 			|| scope == linux_secret_service_schema_scope::integration_test;
 	}
 
+	/// @brief Which of the vault's two stores an operation belongs to.
+	///
+	/// The refresh slot is a second Secret Service schema, not a second
+	/// attribute on the credential's. Sharing the schema and distinguishing the
+	/// slots by an attribute would leave one lookup able to answer for the
+	/// other whenever an attribute were dropped or mistyped, and the failure
+	/// would be a refresh token handed out as an access token. Separate schemas
+	/// make that impossible rather than merely incorrect: a query carries its
+	/// schema, so the credential slot cannot see a refresh item at all.
+	enum class linux_secret_service_slot : std::uint8_t {
+		credential,
+		refresh,
+	};
+
+	[[nodiscard]] constexpr auto valid(
+		const linux_secret_service_slot slot) noexcept -> bool
+	{
+		return slot == linux_secret_service_slot::credential
+			|| slot == linux_secret_service_slot::refresh;
+	}
+
 	[[nodiscard]] auto linux_secret_service_schema_identifier(
+		linux_secret_service_schema_scope scope) noexcept -> std::string_view;
+
+	/// @brief The refresh slot's schema identifier for @p scope.
+	///
+	/// Deliberately a separate entry point rather than a slot parameter on the
+	/// one above: that function's two answers are pinned by the contract test
+	/// as the credential schemas, and a caller that wants the refresh schema
+	/// should have to say so.
+	[[nodiscard]] auto linux_secret_service_refresh_schema_identifier(
 		linux_secret_service_schema_scope scope) noexcept -> std::string_view;
 
 	[[nodiscard]] auto encode_linux_secret_service_authority_account(
@@ -117,10 +147,18 @@ namespace bpr::adapters::github {
 		application::effect_executor& effect_lane)
 		-> linux_secret_service_vault_factory_result;
 
+	/// @brief Builds a vault over injected backends.
+	///
+	/// @p refresh_backend may be null, and a vault built that way answers
+	/// `unavailable` to every refresh operation. That is the honest answer for
+	/// a composition that has no second store -- it is not the answer for a
+	/// slot that exists and was never implemented, which is what this adapter
+	/// used to give ([[BPR-0542]]).
 	[[nodiscard]] auto make_linux_secret_service_vault_with_backend(
 		application::effect_executor&                 effect_lane,
-		std::shared_ptr<linux_secret_service_backend> backend) noexcept
-		-> linux_secret_service_vault_factory_result;
+		std::shared_ptr<linux_secret_service_backend> backend,
+		std::shared_ptr<linux_secret_service_backend> refresh_backend
+		= nullptr) noexcept -> linux_secret_service_vault_factory_result;
 }
 
 // NOLINTEND(readability-identifier-naming)

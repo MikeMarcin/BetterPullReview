@@ -375,7 +375,12 @@ def findings_for(aPath: pathlib.Path, aDefined: set[str]) -> list[tuple[int, str
 
         for parameter in parameters:
             bare = parameter[0].lower() + parameter[1:]
-            if declared_in(region, bare):
+            # A bare form the body declares as its own local -- `auto address
+            # = validated(aAddress);` before the chain -- is that local, not a
+            # stale spelling of the parameter, wherever the branch that uses it
+            # sits. Only a bare form nothing in the body or the branch declares
+            # is the rename this check exists for.
+            if bare in declared or declared_in(region, bare):
                 continue
             # Not after `::`, `.`, or `->`, and not before `::`: a namespace
             # qualifier that happens to match a parameter's bare name is not a

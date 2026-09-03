@@ -3,7 +3,7 @@ id: BPR-0285
 title: Anchor RFC-BPR-0016 capability-critical verification
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539, BPR-0540, BPR-0542, BPR-0543]
+depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539, BPR-0540, BPR-0542, BPR-0543, BPR-0544]
 ---
 
 # Anchor RFC-BPR-0016 capability-critical verification
@@ -706,3 +706,43 @@ are added to this closure; the final-head replays run at the head that
 carries them. BPR-0540's erasure rule is corrected in the same slice to
 treat every error as a failure, since after these cards `unavailable`
 means only an unreachable store, exactly as it does for the base slot.
+
+## Both platform slots landed; two findings from the stations — 2026-09-03
+
+[[BPR-0543]] (Windows, `757996f5` on `windows-lane`, merged `db2b1d8f`) and
+[[BPR-0542]] (Linux, `7633f6bd` on `linux-lane`, merged `7f6c1f0c`) make the
+refresh slot a real second store on both platforms, each mirroring the
+macOS shape (a distinct target or schema under the same authority, so one
+slot can never answer the other's query), each with the contract cases the
+macOS vault has and native store/retrieve/absent/delete rows against the
+real store, each with its negative control recorded on the card. On the
+integrator host the merged tree builds clean and `macos_keychain_contract`,
+`application_github_credential_vault`, `application_device_authorization_refresh`,
+`composed_application_hosts`, and `test_network_isolation_manifest` pass;
+`conditional_branch_identifier_contract` passes with the two cases below.
+
+Two findings came back with the lanes:
+
+- **`conditional_branch_identifiers` was red on `main`** (reported by
+  `bpr-linux` from its whole-matrix run, reproduced here at `7f6c1f0c`):
+  `system_browser_opener.cpp:91` — "`address` is used where the declared
+  name is `aAddress`". A false positive of the gate: for a parameter's
+  bare form it looked for a declaration only inside the inactive branch,
+  so the local `auto address = validated_browser_address(aAddress)`
+  declared above the chain read as a stale spelling. It went red when
+  this card's tidy commits (`5f5b1983`, `5580e59f`) dropped the `const`
+  that the older declaration pattern happened to match. Fixed in
+  `scripts/verify_conditional_branches.py` (a bare form the body declares
+  is that local) with a silent case and a still-caught case in
+  `tests/scripts/conditional_branch_identifier_tests.py`; both selectors
+  pass. Closeout gate, so it is recorded here rather than carded.
+- **`application_device_authorization_refresh_course` flakes on Windows**
+  at the pristine merge head (`VAULT_STORES:1` against `2` inside the
+  self-test budget, 8/8 after one pass). Carded as [[BPR-0544]]
+  (`21-ready-win/`, dispatched to `bpr-win`) and added to this closure:
+  the row is one of the 24 the Windows replay runs, so the replay waits
+  for it.
+
+`bpr-linux` also noted that the first `clang-format` on its `PATH` is a
+21.x that the project's format check refuses; Linux envelopes now name
+`/usr/bin/clang-format`.
