@@ -29,6 +29,11 @@ namespace bpr::core {
 	using capability_revision        = strong_id<capability_revision_tag>;
 	using github_identity_generation = strong_id<github_identity_generation_tag>;
 
+	// Declared opaquely here so identity, intent, and state records can
+	// carry the discriminant without this header depending on the
+	// signed-out read policy that defines its enumerators.
+	enum class github_access_mode : std::uint8_t;
+
 	inline constexpr std::uint32_t maximum_pull_request_number = 2'147'483'647U;
 
 	/// \brief Provides the pull request number contract.
@@ -132,6 +137,14 @@ namespace bpr::core {
 		capability_revision            Capabilities;
 		github_identity_generation     IdentityGeneration;
 		request_generation             Generation;
+		// The mode this read was opened in. Last and defaulted so every
+		// context written before the mode existed still means the
+		// authenticated read it meant, and part of the defaulted comparison
+		// so a completion issued in one mode can never be admitted in the
+		// other. Under public preview the account is zero by rule; the
+		// discriminant is what keeps that from reading as a malformed
+		// authenticated context.
+		github_access_mode Mode{ };
 
 		auto operator<=>(const pull_request_request_context&) const = default;
 	};
@@ -140,6 +153,10 @@ namespace bpr::core {
 	struct activate_host_profile_intent
 	{
 		host_profile_id Profile;
+		// Last and defaulted so every activation written before the mode
+		// existed still asks for the authenticated activation it asked for,
+		// and part of the defaulted comparison so no equality can drop it.
+		github_access_mode Mode{ };
 
 		auto operator<=>(const activate_host_profile_intent&) const = default;
 	};
@@ -501,6 +518,10 @@ namespace bpr::core {
 		std::optional<repository_id>                  Repository;
 		std::optional<pull_request_id>                PullRequest;
 		std::optional<provider_snapshot_id>           AcceptedSnapshot;
+		// The mode the active profile was activated in. Cleared back to the
+		// authenticated mode whenever the identity scope is cleared, so a
+		// mode never outlives the profile that asked for it.
+		github_access_mode AccessMode{ };
 
 		auto operator<=>(const github_state&) const = default;
 	};

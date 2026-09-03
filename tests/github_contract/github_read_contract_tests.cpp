@@ -605,6 +605,7 @@ namespace {
 		case read_operation::list_reviews:
 		case read_operation::list_review_threads:
 		case read_operation::list_issue_comments:
+		case read_operation::list_review_comments:
 			request.PullRequestNumber = 17;
 			break;
 		case read_operation::get_viewer_identity:
@@ -965,11 +966,74 @@ namespace {
 		expect(
 			read_operation_catalog.size() == 10U,
 			"catalog has exactly ten reads");
-		for (const auto operation : read_operation_catalog) {
+		// The recorded manifest catalogue and the set of compiled operations
+		// are different things and this is where they are kept apart: the
+		// eleventh operation exists, routes, and names itself, and it is
+		// deliberately outside the ten-interaction recording so the
+		// authenticated wire shape is unchanged by its arrival.
+		expect(
+			all_read_operations.size() == 11U
+				&& std::ranges::find(read_operation_catalog,
+									 read_operation::list_review_comments)
+					== read_operation_catalog.end()
+				&& std::ranges::find(all_read_operations,
+									 read_operation::list_review_comments)
+					!= all_read_operations.end(),
+			"the compiled set holds eleven reads and the recording holds ten");
+		for (const auto operation : all_read_operations) {
 			const auto roundTrip = read_operation_from_name(operation_name(operation));
 			expect(
 				roundTrip.has_value() && *roundTrip == operation,
 				"every read name round-trips");
+		}
+		{
+			auto semanticComments = semantic(read_operation::list_review_comments);
+			semanticComments.Page = 2U;
+			const auto compiled   = compile_read_request(semanticComments);
+			expect(
+				compiled.has_value()
+					&& compiled->Path
+						== "/repos/octo-org/review-repository/pulls/17/comments"
+					&& compiled->Query == "page=2&per_page=100"
+					&& compiled->Method == http_method::get
+					&& compiled->Body.empty(),
+				"the inline review-comment read is a paged REST GET on the "
+				"pull-request comment path");
+			const auto issue = compile_read_request(
+				semantic(read_operation::list_issue_comments));
+			expect(
+				issue.has_value()
+					&& issue->Path
+						== "/repos/octo-org/review-repository/issues/17/comments",
+				"the issue-level conversation keeps its own distinct route");
+		}
+		{
+			const auto anonymous = anonymous_read_admission(
+				application::github_viewer_record{
+					.Account     = core::github_account_id{ 1001U },
+					.Node        = application::github_actor_id{ "U_viewer" },
+					.Login       = "octo-reviewer",
+					.DisplayName = "Octo Reviewer",
+				});
+			expect(
+				anonymous.Operations.size() == 9U
+					&& anonymous.Shape == application::github_read_shape{ }
+					&& anonymous.Viewer.has_value()
+					&& std::ranges::none_of(
+						anonymous.Operations,
+						[](const read_operation aOperation) {
+							return aOperation
+								== read_operation::get_viewer_identity
+								|| aOperation
+								== read_operation::list_review_threads;
+						}),
+				"the signed-out admission is nine operations with an all-false "
+				"shape and no viewer operation");
+			expect(
+				authenticated_read_admission().Operations.size() == 10U
+					&& authenticated_read_admission().Shape.ReviewThreads
+					&& !authenticated_read_admission().Viewer.has_value(),
+				"the default admission is still today's recorded behaviour");
 		}
 		for (const auto mutation :
 			 {

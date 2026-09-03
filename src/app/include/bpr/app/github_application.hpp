@@ -238,6 +238,48 @@ namespace bpr::app {
 		// The construction cut turns exactly this false and leaves every line
 		// above it as it was.
 		bool DeviceAuthorizationPanelComposed = false;
+		// RFC-BPR-0017. Whether composition handed the host a credential-free
+		// read authority at all. False on every shipped platform in this
+		// candidate slice, which is exactly what makes the signed-out mode
+		// answer `public_preview_unavailable` rather than degrade.
+		bool PublicPreviewComposed = false;
+		// The typed answer the last activation produced, as three exclusive
+		// facts rather than one verdict: the composition refusal, the core
+		// policy's refusal, and the mode actually being entered all fail for
+		// different reasons and a single flag would hide which.
+		bool PublicPreviewUnavailable   = false;
+		bool PublicPreviewPolicyRefused = false;
+		bool PublicPreviewSignedOut     = false;
+		// Presentations the host published. Zero would mean the mode's answer
+		// is invisible rather than typed.
+		std::size_t PublicPreviewPublications = 0U;
+		// Credential-free pull-request reads that reached the anonymous
+		// authority. Zero on an unavailable platform: the authority is
+		// composed either way, so this counts the gate being bypassed rather
+		// than requests being sent.
+		std::size_t PublicPreviewRequests = 0U;
+		// Authenticated transports the session selected, and credential
+		// operations that crossed the vault boundary, during the run. Both
+		// must be zero for a signed-out read: an anonymous request carries no
+		// authorization header and consults no vault, and these two counters
+		// are where that stops being an assertion.
+		std::size_t PublicPreviewHeaderEffects = 0U;
+		std::size_t PublicPreviewVaultEffects  = 0U;
+		// Smart-Git leases the anonymous factory issued. Zero unless a
+		// signed-out session materialised a repository.
+		std::size_t PublicPreviewSmartAcquisitions = 0U;
+		// Switch-to-sign-in gestures the host forwarded to composition.
+		std::size_t PublicPreviewSignInRequests = 0U;
+		// Whether the last publication reported an observed inline review
+		// conversation, and how many groups it carried. An unobservable
+		// conversation and an observed empty one are different answers.
+		bool        PublicPreviewReviewCommentsObserved = false;
+		std::size_t PublicPreviewReviewCommentGroups    = 0U;
+		// Write intents the mode refused. Counted rather than asserted,
+		// because the claim is that the refusal happened at all: an intent
+		// that was answered by a request nobody could serve would show up
+		// here as a zero and in the fixture's evidence as a request.
+		std::size_t PublicPreviewWriteRefusals = 0U;
 	};
 
 	/// \brief Provides the github application contract.
@@ -304,6 +346,30 @@ namespace bpr::app {
 		/// flow exactly where it was, so this can be called on a live grant
 		/// without risking it.
 		void open_device_verification_address();
+
+		/// \brief Activates the signed-out preview once, as a reviewer would.
+		///
+		/// \details RFC-BPR-0017's zero-request evidence runs through here. It
+		/// asks the host to enter the mode for one profile and returns without
+		/// waiting; the answer is read from `status()`. Where the shipped
+		/// selection composed no credential-free read authority the host
+		/// refuses `public_preview_unavailable` before the core is asked
+		/// anything, and nothing of any kind is sent.
+		///
+		/// \param aEnterprise Selects the first enterprise profile instead of
+		/// GitHub.com, which is refused by the core policy rather than by the
+		/// composition. Does nothing when no enterprise profile is composed.
+		void activate_public_preview(bool aEnterprise = false);
+
+		/// \brief Offers the mode one mutation and one triage intent.
+		///
+		/// \details Both are refused by the core policy, and the refusal is
+		/// the whole of the answer: nothing is queued, no transport is asked
+		/// for, and no request is built, so a run that offers them and then
+		/// reports zero requests has shown where the refusal happened. Asking
+		/// costs nothing outside the process, which is what makes it safe to
+		/// do in the middle of a read.
+		void attempt_public_preview_writes();
 
 		[[nodiscard]] auto window() noexcept -> qt::workbench_window&;
 		[[nodiscard]] auto status() const noexcept -> github_application_status;

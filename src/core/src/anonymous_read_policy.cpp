@@ -16,6 +16,7 @@ namespace bpr::core {
 			case anonymous_read_intent::read_changed_files:
 			case anonymous_read_intent::read_commits:
 			case anonymous_read_intent::read_reviews:
+			case anonymous_read_intent::read_review_comments:
 			case anonymous_read_intent::read_issue_comments:
 			case anonymous_read_intent::read_checks:
 			case anonymous_read_intent::search_pull_requests:
@@ -62,30 +63,32 @@ namespace bpr::core {
 			return 3U;
 		case anonymous_read_intent::read_reviews:
 			return 4U;
-		case anonymous_read_intent::read_issue_comments:
+		case anonymous_read_intent::read_review_comments:
 			return 5U;
-		case anonymous_read_intent::read_checks:
+		case anonymous_read_intent::read_issue_comments:
 			return 6U;
-		case anonymous_read_intent::search_pull_requests:
+		case anonymous_read_intent::read_checks:
 			return 7U;
-		case anonymous_read_intent::read_review_threads:
+		case anonymous_read_intent::search_pull_requests:
 			return 8U;
-		case anonymous_read_intent::read_viewer_identity:
+		case anonymous_read_intent::read_review_threads:
 			return 9U;
-		case anonymous_read_intent::resolve_review_thread:
+		case anonymous_read_intent::read_viewer_identity:
 			return 10U;
-		case anonymous_read_intent::unresolve_review_thread:
+		case anonymous_read_intent::resolve_review_thread:
 			return 11U;
-		case anonymous_read_intent::set_viewed_file_state:
+		case anonymous_read_intent::unresolve_review_thread:
 			return 12U;
-		case anonymous_read_intent::publish_review_comment:
+		case anonymous_read_intent::set_viewed_file_state:
 			return 13U;
-		case anonymous_read_intent::submit_review:
+		case anonymous_read_intent::publish_review_comment:
 			return 14U;
-		case anonymous_read_intent::read_private_repository:
+		case anonymous_read_intent::submit_review:
 			return 15U;
-		case anonymous_read_intent::select_enterprise_host:
+		case anonymous_read_intent::read_private_repository:
 			return 16U;
+		case anonymous_read_intent::select_enterprise_host:
+			return 17U;
 		}
 		return anonymous_read_intent_count;
 	}

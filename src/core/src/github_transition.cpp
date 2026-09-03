@@ -1,5 +1,7 @@
 #include "bpr/core/github_transition.hpp"
 
+#include "bpr/core/anonymous_read_policy.hpp"
+
 #include <type_traits>
 #include <utility>
 
@@ -155,6 +157,10 @@ namespace bpr::core {
 			aState.Repository.reset();
 			aState.PullRequest.reset();
 			aState.AcceptedSnapshot.reset();
+			// A cleared scope owns no mode. The next activation names the one
+			// it wants, so an abandoned public-preview scope can never leave
+			// the state answering as signed out.
+			aState.AccessMode = github_access_mode::authenticated;
 		}
 
 		[[nodiscard]] auto activate_profile(
@@ -168,6 +174,7 @@ namespace bpr::core {
 			const auto previous = identity_scope(aState);
 			advance_and_clear_identity_scope(aState);
 			aState.ActiveProfile = aIntent.Profile;
+			aState.AccessMode    = aIntent.Mode;
 
 			const github_session_request_context context{
 				.Request            = next_request(aState),
@@ -229,8 +236,17 @@ namespace bpr::core {
 			}
 
 			aState.PendingSession.reset();
+			// The mode the profile was activated in decides what an accepted
+			// session must carry. Public preview has no reader to name, so a
+			// nonzero account is as wrong there as a zero one is under the
+			// authenticated mode: neither session can be mistaken for the
+			// other, and neither is a relaxation of the other's rule.
+			const auto accountAsExpected = aState.AccessMode
+					== github_access_mode::public_preview
+				? aEvent.Account.value() == 0U
+				: aEvent.Account.value() != 0U;
 			if (
-				aEvent.Host.value() == 0U || aEvent.Account.value() == 0U
+				aEvent.Host.value() == 0U || !accountAsExpected
 				|| aEvent.CapabilityRevision.value() == 0U) {
 				auto output    = reject(github_reason_code::completion_identity_mismatch);
 				output.Status  = github_status_delta{ .Status = github_status::session_failed };
@@ -359,6 +375,7 @@ namespace bpr::core {
 				.Capabilities        = aState.CapabilityRevision,
 				.IdentityGeneration  = aState.IdentityGeneration,
 				.Generation          = aState.PullRequestGeneration,
+				.Mode                = aState.AccessMode,
 			};
 			aState.PendingPullRequest = context;
 

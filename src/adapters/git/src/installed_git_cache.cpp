@@ -2,6 +2,11 @@
 
 #include "bpr/adapters/git/installed_git_process.hpp"
 
+// The cache manifest discriminates the access mode, and `epoch_model.hpp`
+// declares that enumeration without its enumerators. This is the header that
+// defines them.
+#include "bpr/core/anonymous_read_policy.hpp"
+
 #include <QByteArray>
 #include <QByteArrayView>
 #include <QCryptographicHash>
@@ -759,6 +764,26 @@ namespace bpr::adapters::git {
 				result.end(),
 				aRequest.Authority.Cache.bytes().begin(),
 				aRequest.Authority.Cache.bytes().end());
+			// These bytes are the manifest that gates reuse of an existing
+			// on-disk repository, so the access mode belongs in them: without
+			// it a signed-out materialization of a repository and a signed-in
+			// one carrying the same cache scope would present the same
+			// authority, and the second would silently adopt the first's
+			// objects and refs. With it, reopening either under the other's
+			// mode is `invalid_manifest` — a typed refusal, not a reuse.
+			//
+			// The byte is appended only for a non-authenticated authority, the
+			// same rule `core::append_authority` uses on the comparison
+			// digest. A manifest already written by an authenticated session
+			// is therefore byte-identical to what this produces, so an
+			// existing cache keeps being reusable across the upgrade instead
+			// of failing closed and forcing a full rematerialization.
+			if (
+				aRequest.Authority.Mode
+				!= core::github_access_mode::authenticated) {
+				result.push_back(
+					static_cast<std::uint8_t>(aRequest.Authority.Mode));
+			}
 			return result;
 		}
 

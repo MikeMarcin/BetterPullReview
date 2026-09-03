@@ -3,6 +3,7 @@
 
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
+#include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
@@ -162,6 +163,7 @@ namespace bpr::qt {
 		  public application::workbench_projection_port,
 		  public application::epoch_projection_port,
 		  public application::github_projection_port,
+		  public application::public_preview_projection_port,
 		  public application::queue_landing_projection_port
 	{
 	public:
@@ -199,6 +201,23 @@ namespace bpr::qt {
 			const application::github_presentation_update& aUpdate) override;
 		void publish(
 			const application::queue_landing_projection& aProjection) override;
+		/// \brief Adopts one public-preview presentation.
+		///
+		/// \details The mode is named in all three places it is named — the
+		/// host picker entry, the window title and the review header — from
+		/// this one publication, so no two of them can disagree. It also
+		/// decides what the mode cannot do: triage, queue role, viewed state,
+		/// resolution and publishing are disabled with an explanation rather
+		/// than hidden, and the inline review conversation is shown read-only
+		/// when it was observed and named unobservable when it was not.
+		void publish(
+			const application::public_preview_presentation& aPresentation)
+			override;
+		/// \brief Adopts the instant public-preview text is measured from.
+		///
+		/// \details The window is given a now; it never reads a clock. A
+		/// presentation that carries the host's own instant overrides this.
+		void set_public_preview_now(std::uint64_t aNowUnixSeconds);
 		void fail(
 			const application::workbench_failure_publication& aFailure) override;
 		/// \brief Adopts the selected file's core-decided private receipt actions.
@@ -345,6 +364,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversation_model() const noexcept
 			-> github_conversation_model*;
 		[[nodiscard]] auto profile_selector() const noexcept -> QComboBox*;
+		/// \brief The public-preview consumed-budget ring in the review header.
+		[[nodiscard]] auto usage_indicator() const noexcept -> usage_ring*;
+		[[nodiscard]] auto public_preview_signed_out() const noexcept -> bool;
+		/// \brief The refusal wording currently shown, empty when none is.
+		[[nodiscard]] auto public_preview_refusal_text() const -> QString;
 
 		/// \brief The appearance surface, composed beside the review it governs.
 		[[nodiscard]] auto appearance_settings() const noexcept
@@ -452,6 +476,11 @@ namespace bpr::qt {
 			const application::github_host_diagnostic_projection& aDiagnostic);
 		void clear_github_pull_request();
 		void update_github_presentation_state();
+		/// \brief Disables what the signed-out mode cannot do, with wording.
+		void apply_public_preview_availability();
+		/// \brief Presents the observed inline conversation, or says it was not.
+		void apply_public_preview_conversation();
+		void update_public_preview_title();
 		void focus_review_threads();
 		void announce_github_presentation_update();
 		void dispatch_navigation(std::size_t aIndex);
@@ -583,6 +612,9 @@ namespace bpr::qt {
 		QAction*                                                   ShowReviewThreadsAction = nullptr;
 		std::vector<application::github_profile_option>            GithubProfiles;
 		application::github_intent_dispatch                        GithubDispatch;
+		application::public_preview_presentation                   PublicPreview;
+		std::uint64_t                                              PublicPreviewNow         = 0;
+		bool                                                       PublicPreviewSignedOut   = false;
 		bool                                                       HasGithubPullRequest     = false;
 		bool                                                       ApplyingQueuePreferences = false;
 		core::workbench_command_delta                              Commands;

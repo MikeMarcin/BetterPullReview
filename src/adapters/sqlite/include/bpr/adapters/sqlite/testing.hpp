@@ -13,6 +13,13 @@ namespace bpr::adapters::sqlite::detail::testing {
 	/// \brief Performs the interrupt next bootstrap before publication operation.
 	void interrupt_next_bootstrap_before_publication() noexcept;
 
+	// Arms one test-only interruption after a complete v1 -> v2 migration has
+	// been staged and checked, and before the commit that would publish it.
+	// What the catalog holds afterwards is exactly what an interrupted
+	// migration leaves behind.
+	/// \brief Performs the interrupt next migration before commit operation.
+	void interrupt_next_migration_before_commit() noexcept;
+
 	// Classifies a SQLite result code without requiring a live connection.
 	/// \brief Computes the classify sqlite result code result.
 	[[nodiscard]] auto classify_sqlite_result_code(int aResultCode) noexcept

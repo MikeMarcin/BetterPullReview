@@ -149,6 +149,31 @@ namespace {
 		};
 	}
 
+	// The signed-out twin of `smart_context()`. Only the reader changes: the
+	// authority names no account and no viewer and carries the public-preview
+	// discriminant, which is what admits the credential-free transport.
+	[[nodiscard]] auto anonymous_smart_context()
+		-> application::git_smart_request_context
+	{
+		auto context              = smart_context();
+		context.Authority.Mode    = core::github_access_mode::public_preview;
+		context.Authority.Account = core::github_account_id{ };
+		context.Authority.Viewer  = core::github_viewer_actor_id{ };
+		return context;
+	}
+
+	[[nodiscard]] auto anonymous_session_context(
+		const validated_github_host_profile& aProfile)
+		-> core::github_session_request_context
+	{
+		return {
+			.Request            = core::request_id{ 101U },
+			.ApplicationSession = core::application_session_id{ 202U },
+			.Profile            = aProfile.profile(),
+			.IdentityGeneration = core::github_identity_generation{ 207U },
+		};
+	}
+
 	[[nodiscard]] auto credential_context(
 		const validated_github_host_profile& aProfile)
 		-> application::github_credential_operation_context
@@ -286,6 +311,25 @@ namespace {
 			.ProxyPort    = 1U,
 			.TotalTimeout = 250ms,
 		};
+		// The enterprise refusal happens before any transport exists, so it is
+		// proved here rather than on the wire: there is no request to observe
+		// because there was never a connection to make one on.
+		const auto ghesAnonymous = make_native_https_anonymous_smart_transport(
+			*profile, anonymous_session_context(*profile));
+		expect(!ghesAnonymous.has_value()
+				   && ghesAnonymous.error()
+					   == native_https_configuration_failure::
+						   anonymous_read_contract_unsupported,
+			   "ghes-anonymous-smart-production");
+		const auto ghesAnonymousForTest
+			= make_native_https_anonymous_smart_transport_for_test(
+				*profile, anonymous_session_context(*profile), configuration);
+		expect(!ghesAnonymousForTest.has_value()
+				   && ghesAnonymousForTest.error()
+					   == native_https_configuration_failure::
+						   anonymous_read_contract_unsupported,
+			   "ghes-anonymous-smart-loopback");
+
 		auto transport = make_transport(*profile, "BPR0043ContractToken", configuration);
 		auto context   = smart_context();
 
@@ -340,12 +384,60 @@ namespace {
 			// proves the configured absolute deadline rather than connect delay.
 			.TotalTimeout = aScenario == "timeout" ? 1500ms : 5s,
 		};
-		auto transport = make_transport(*profile, credential, configuration);
+		const auto anonymous = aScenario.starts_with("anonymous-");
+		// The credential frame is read and destroyed on both courses. On the
+		// anonymous course nothing is ever handed it, so a fixture that
+		// refuses an Authorization header proves the absence rather than a
+		// caller that merely forgot to pass one.
+		auto transport = anonymous
+			? [&] {
+				  auto created = make_native_https_anonymous_smart_transport_for_test(
+					  *profile, anonymous_session_context(*profile), configuration);
+				  expect(created.has_value(), "anonymous-native-transport");
+				  return std::shared_ptr<native_https_transport>{ std::move(*created) };
+			  }()
+			: make_transport(*profile, credential, configuration);
 		std::fill(credential.begin(), credential.end(), '\0');
 		credential.clear();
-		const auto context = smart_context();
+		const auto context = anonymous ? anonymous_smart_context() : smart_context();
 		auto       lease   = make_native_git_smart_transport(transport, context);
 		expect(lease.has_value(), "fixture-lease");
+
+		if (anonymous) {
+			if (aScenario == "anonymous-discovery") {
+				const auto result = (*lease)->discover(
+					application::git_smart_discovery_request{ .Context = context }, { });
+				expect(result.has_value(), "anonymous-discovery-result");
+				expect(result->Body == bytes(discovery_body),
+					   "anonymous-discovery-body");
+				return;
+			}
+			const auto anonymousBody = bytes("0014command=ls-refs\n0000");
+			if (aScenario == "anonymous-ls-refs") {
+				const auto result = (*lease)->ls_refs(
+					application::git_smart_ls_refs_request{
+						.Context = context,
+						.Body    = anonymousBody,
+					},
+					{ });
+				expect(result.has_value(), "anonymous-ls-refs-result");
+				expect(result->Body == bytes(ls_refs_body), "anonymous-ls-refs-body");
+				return;
+			}
+			expect(aScenario == "anonymous-fetch", "anonymous-scenario");
+			recording_consumer consumer{ false };
+			const auto         result = (*lease)->fetch(
+				application::git_smart_fetch_request{
+					.Context              = context,
+					.Body                 = anonymousBody,
+					.MaximumResponseBytes = fetch_body_bytes,
+				},
+				consumer, { });
+			expect(result.has_value(), "anonymous-fetch-result");
+			expect(consumer.Valid && consumer.Total == fetch_body_bytes,
+				   "anonymous-fetch-body");
+			return;
+		}
 
 		if (aScenario == "revoke-isolation") {
 			auto other = make_native_git_smart_transport(transport, context);

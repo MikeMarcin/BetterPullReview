@@ -49,6 +49,8 @@ SHARED_LINES = {
     "agent chat session application host constructor": "0027 T bpr::application::agent_chat_session_host::agent_chat_session_host()",
     "system browser opener constructor": "0028 T bpr::app::system_browser_opener::system_browser_opener()",
     "Qt device authorization panel constructor": "0029 T bpr::qt::device_authorization_panel::device_authorization_panel()",
+    "anonymous read transport factory": "0030 T bpr::adapters::github::detail::make_native_https_anonymous_read_transport(bpr::adapters::github::validated_github_host_profile const&, bpr::core::github_session_request_context)",
+    "anonymous smart transport factory": "0031 T bpr::adapters::github::detail::make_native_https_anonymous_smart_transport(bpr::adapters::github::validated_github_host_profile const&, bpr::core::github_session_request_context)",
 }
 FIXTURE_LINES = {
     "fixture review mutation provider boundary": "0015 T bpr::app::detail::github_public_path_fixture_components::review_mutation_provider()",

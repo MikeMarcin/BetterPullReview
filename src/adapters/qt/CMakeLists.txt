@@ -29,6 +29,7 @@ add_library(
         src/measured_alignment_axis.cpp
         src/sensitive_text_input.cpp
         src/side_chat_panel.cpp
+        src/usage_ring.cpp
         src/workbench_drawer.cpp
         src/workbench_window.cpp
 )

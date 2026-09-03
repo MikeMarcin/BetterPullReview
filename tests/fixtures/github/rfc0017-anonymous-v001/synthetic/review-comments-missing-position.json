@@ -1,0 +1,15 @@
+[
+  {
+    "id": 901,
+    "body": "no anchor fact at all",
+    "path": "README",
+    "line": 2,
+    "original_line": null,
+    "user": {
+      "login": "octocat",
+      "node_id": "MDQ6VXNlcjE=",
+      "id": 1,
+      "type": "User"
+    }
+  }
+]

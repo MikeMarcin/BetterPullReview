@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
 	set(bpr_expected_full_application_digest
-		"590dc82d6c0e535b970a0c50c1edda13b072f05b1fcc4499b5f4c68103bd20e8"
+		"ed8f960a6afb65cae5bc90898655e21049796e798aa0f26564f75f7b1410578c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -146,7 +146,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
-		"6366758192d6f11335b776707a98b0e7530c1f4d966cbb43fdfcd572d867e8ee"
+		"085e3611ae2d215885a0c541a24031acbb223793c357b7613ffcb12b8a0f8b87"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -1,4 +1,5 @@
 #include "bpr/core/epoch_transition.hpp"
+#include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <array>
@@ -90,6 +91,28 @@ namespace bpr::core {
 		{
 			return aValue != 0U;
 		}
+
+		// A mode outside the enumeration is not a third mode to interpret; it
+		// is a corrupt discriminant, and an authority carrying one is invalid.
+		[[nodiscard]] constexpr auto valid_access_mode(
+			const github_access_mode aMode) noexcept -> bool
+		{
+			switch (aMode) {
+			case github_access_mode::authenticated:
+			case github_access_mode::public_preview:
+				return true;
+			}
+			return false;
+		}
+
+		// `pull_request_authority::Mode` is value-initialized because
+		// `epoch_model.hpp` only declares the enumeration. That default is the
+		// authenticated mode, which is what keeps every authority written
+		// before the discriminant existed meaning exactly what it meant. If
+		// the enumeration is ever reordered, this fails here rather than
+		// silently re-reading every existing authority as a public one.
+		static_assert(github_access_mode{ } == github_access_mode::authenticated,
+					  "a value-initialized access mode is the authenticated mode");
 
 		[[nodiscard]] constexpr auto valid_availability(
 			const anchor_availability aAvailability) noexcept -> bool
@@ -2070,12 +2093,24 @@ namespace bpr::core {
 
 	auto valid(const pull_request_authority& aAuthority) noexcept -> bool
 	{
-		return valid_nonzero(aAuthority.Profile.value())
+		if (!valid_access_mode(aAuthority.Mode)) {
+			return false;
+		}
+		// The account and the viewer are the identity the authority carries,
+		// and the mode decides whether there is one. Authenticated keeps
+		// today's rule unchanged: both must be present. Public preview has no
+		// reader to name, so both must be absent, and a nonzero value there is
+		// an anonymous authority wearing an account's identity. That is
+		// refused rather than normalized away, because accepting it would let
+		// a signed-out read share a key with a signed-in one.
+		const bool identityValid = aAuthority.Mode == github_access_mode::authenticated
+			? valid_nonzero(aAuthority.Account.value())
+				&& valid_nonzero(aAuthority.Viewer.value())
+			: aAuthority.Account.value() == 0U && aAuthority.Viewer.value() == 0U;
+		return identityValid && valid_nonzero(aAuthority.Profile.value())
 			&& valid_nonzero(aAuthority.ProfileRevision.value())
 			&& valid_nonzero(aAuthority.Host.value())
 			&& aAuthority.HostAuthority.valid()
-			&& valid_nonzero(aAuthority.Account.value())
-			&& valid_nonzero(aAuthority.Viewer.value())
 			&& valid_nonzero(aAuthority.Repository.value())
 			&& aAuthority.Cache.valid()
 			&& valid_nonzero(aAuthority.PullRequest.value())

@@ -1,7 +1,7 @@
 ---
 id: BPR-0516
 title: Compose a system-browser opener for the device-authorization handoff
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: [BPR-0280, BPR-0318]
 ---
@@ -128,7 +128,7 @@ by each station.
 | Every touched C++ file is formatted | `clang-format --dry-run --Werror` on the six touched files | Exit 0 after reflowing four lines of `github_application.cpp` and one of `main.cpp` | this commit |
 | macOS: the action opens the system browser at the verification address | The owner's attended sitting against the restaged artifact | Observed 2026-09-02 by the owner: the device flow connected end to end — see *macOS — the owner's observation — 2026-09-02* | this commit |
 | Linux: the action opens the system browser at the verification address | The owner's attended sitting on the JaegAW WSLg desktop against the restaged artifact | Observed 2026-09-02 by the owner: the code and web-browser flow works end to end — see *Linux and Windows — the owner's sittings — 2026-09-02* | this commit |
-| Windows x64: the action opens the system browser at the verification address | The owner's attended sitting at the JaegAW desktop | Not yet observable: the staged artifact does not launch from Explorer (`Qt6Gui.dll was not found`) because it is a bare Release build the course runs under its own launch environment — see *Linux and Windows — the owner's sittings — 2026-09-02*. A self-contained copy is requested from `bpr-win` | Pending |
+| Windows x64: the action opens the system browser at the verification address | The owner's attended sitting at the JaegAW desktop against the deployed copy | Observed 2026-09-02 by the owner: the code and browser flow works end to end — see *Windows — the owner's observation — 2026-09-02* | this commit |
 
 ## Integrator reproduction — 2026-09-02
 
@@ -549,7 +549,7 @@ card; here it only decides how the click is made.
 
 | Row | Result |
 |---|---|
-| Windows x64: the action opens the system browser at the verification address | **Pending — the owner's click against the self-contained copy once `bpr-win` stages it** |
+| Windows x64: the action opens the system browser at the verification address | **Observed by the owner on 2026-09-02 against the deployed copy** — see the section below |
 
 ### Deployed for the owner's click — 2026-09-02
 
@@ -630,3 +630,25 @@ hands a double-clicked process, already contains `C:/Program Files/Git/cmd`
 and does not contain the Qt directory, so the click should reach the window.
 
 The observation row stays Pending. The click is the owner's.
+
+## Windows — the owner's observation — 2026-09-02
+
+Against the self-contained copy `bpr-win` staged
+(`C:/code/git/bpr-windows/build/rfc0016-windows-enablement/deployed/better_pull_review.exe`,
+the exact staged image at sha256 `5997e158…feba5` with its Qt runtime
+deployed beside it), the owner reported, in full: "windows code browser flow
+now works." As on macOS and Linux, that is the end-to-end outcome — code,
+browser, device flow — from the tests-disabled artifact, performed by the
+owner at the JaegAW desktop and by no agent.
+
+All three enabled platforms are now observed. The two launch barriers the
+Windows sitting surfaced — the bare Release image needing its Qt runtime on
+`PATH`, and the application needing installed Git on `PATH` — are recorded
+above and in the station's deployment section; neither is the opener, and
+whether a shipped Windows package deploys Qt is a packaging question outside
+this card.
+
+With every row of the required final state met, this card is done.
+[[BPR-0285]]'s final-head replay is the remaining RFC-BPR-0016 work, and
+[[BPR-0515]] is the one open owner decision that could still change the
+tree it replays.

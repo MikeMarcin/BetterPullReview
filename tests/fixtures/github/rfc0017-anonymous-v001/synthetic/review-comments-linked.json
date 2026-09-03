@@ -1,0 +1,60 @@
+[
+  {
+    "id": 101,
+    "body": "root one",
+    "path": "README",
+    "position": 4,
+    "line": 2,
+    "original_line": null,
+    "user": {
+      "login": "octocat",
+      "node_id": "MDQ6VXNlcjE=",
+      "id": 1,
+      "type": "User"
+    }
+  },
+  {
+    "id": 103,
+    "body": "reply to root one",
+    "path": "README",
+    "position": 4,
+    "line": 2,
+    "original_line": null,
+    "user": {
+      "login": "octocat",
+      "node_id": "MDQ6VXNlcjE=",
+      "id": 1,
+      "type": "User"
+    },
+    "in_reply_to_id": 101
+  },
+  {
+    "id": 102,
+    "body": "root two",
+    "path": "README",
+    "position": 4,
+    "line": 3,
+    "original_line": null,
+    "user": {
+      "login": "octocat",
+      "node_id": "MDQ6VXNlcjE=",
+      "id": 1,
+      "type": "User"
+    }
+  },
+  {
+    "id": 104,
+    "body": "another reply to root one",
+    "path": "README",
+    "position": 4,
+    "line": 2,
+    "original_line": null,
+    "user": {
+      "login": "octocat",
+      "node_id": "MDQ6VXNlcjE=",
+      "id": 1,
+      "type": "User"
+    },
+    "in_reply_to_id": 101
+  }
+]

@@ -107,6 +107,16 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "rfc0017_test_inventory": "dos-volume-name",
     "rfc0017_release_absence_negative_control": "dos-volume-name",
     "rfc0016_test_inventory": "dos-volume-name",
+    # BPR-0317: the anonymous Git cache and catalog suites walk the same
+    # data-root ancestor chain as their siblings above.
+    "git_anonymous_public_read": "qprocess-named-pipe",
+    "sqlite_anonymous_epoch_authority": "dos-volume-name",
+    # BPR-0305: the public-preview composition rows walk the application's
+    # data-root ancestor chain like the device-authorization rows above.
+    "application_anonymous_public_preview_unavailable": "dos-volume-name",
+    "application_anonymous_public_preview_release_contract": "dos-volume-name",
+    "application_anonymous_public_preview_ghes_refusal": "dos-volume-name",
+    "application_anonymous_public_preview_public_path": "dos-volume-name",
     "github_device_authorization_refresh_contract": "dos-volume-name",
     "application_device_authorization_release_contract": "dos-volume-name",
     "application_epoch_maintenance_public_path": "dos-volume-name",

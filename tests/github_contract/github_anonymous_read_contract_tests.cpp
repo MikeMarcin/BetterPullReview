@@ -2,13 +2,22 @@
 #include "github_provider.hpp"
 #include "github_read_contract.hpp"
 
+#include <QByteArray>
+#include <QCryptographicHash>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdlib>
 #include <deque>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <span>
@@ -336,7 +345,7 @@ namespace {
 	void test_the_admission_table_is_exhaustive_and_distinct()
 	{
 		auto eligible = std::size_t{ 0U };
-		for (const auto operation : read_operation_catalog) {
+		for (const auto operation : all_read_operations) {
 			const auto onGithub = admit_anonymous_read(
 				operation,
 				application::github_server_contract::github_com_2022_11_28);
@@ -365,7 +374,12 @@ namespace {
 			expect(onGithub.has_value(), "an eligible REST read is admitted");
 			++eligible;
 		}
-		expect(eligible == 8U, "exactly eight REST reads are eligible");
+		expect(eligible == 9U && all_read_operations.size() == 11U,
+			   "exactly nine of eleven REST reads are eligible");
+		expect(anonymous_read_operations.size() == eligible
+				   && std::ranges::all_of(anonymous_read_operations,
+										  anonymous_read_eligible),
+			   "the admitted set and the eligibility verdict are one answer");
 
 		// The two refusals must be distinguishable outward, not merely inward.
 		expect(provider_failure_for(
@@ -382,7 +396,7 @@ namespace {
 
 	void test_no_eligible_read_compiles_an_authorization_header()
 	{
-		for (const auto operation : read_operation_catalog) {
+		for (const auto operation : all_read_operations) {
 			if (!anonymous_read_eligible(operation)) {
 				continue;
 			}
@@ -403,6 +417,7 @@ namespace {
 			case read_operation::list_pull_request_commits:
 			case read_operation::list_reviews:
 			case read_operation::list_issue_comments:
+			case read_operation::list_review_comments:
 				semantic.PullRequestNumber = 17U;
 				break;
 			case read_operation::list_checks:
@@ -415,6 +430,16 @@ namespace {
 			case read_operation::get_repository:
 			case read_operation::list_review_threads:
 				break;
+			}
+			if (operation == read_operation::list_review_comments) {
+				const auto route = compile_read_request(semantic);
+				expect(route.has_value()
+						   && route->Path
+							   == "/repos/octo-org/review-repository/pulls/17/comments"
+						   && route->Method == http_method::get
+						   && route->Body.empty(),
+					   "the inline review-comment read is a REST GET on the "
+					   "pull-request comments path");
 			}
 			const auto wire = compile_read_request(semantic);
 			expect(wire.has_value(), "an eligible read compiles");
@@ -623,6 +648,97 @@ namespace {
 				   && transport->Requests.size() == 1U,
 			   "the default authority is untouched by the anonymous selection");
 	}
+
+	// --- RFC-BPR-0017: promoted captures are bound to the recorded probe ----
+
+	[[nodiscard]] auto read_bytes(const std::filesystem::path& aPath)
+		-> std::string
+	{
+		std::ifstream stream{ aPath, std::ios::binary };
+		expect(stream.good(), "a bound fixture or capture file is readable");
+		return std::string{ std::istreambuf_iterator<char>{ stream },
+							std::istreambuf_iterator<char>{ } };
+	}
+
+	[[nodiscard]] auto digest_of(const std::string& aBytes) -> std::string
+	{
+		const auto hash = QCryptographicHash::hash(
+			QByteArray::fromStdString(aBytes),
+			QCryptographicHash::Sha256);
+		return hash.toHex().toStdString();
+	}
+
+	/// The promoted fixtures are copies of real captures, so their claim to
+	/// be real is only worth what binds them to the capture. Each promoted
+	/// body is bound twice: to the digest the probe review recorded for that
+	/// body, and to the capture file it was taken from, which is itself bound
+	/// by its own file digest. A promoted body edited to make a test pass
+	/// fails here rather than quietly becoming its own authority.
+	void test_promoted_captures_match_their_recorded_digests()
+	{
+		const auto fixtureRoot = std::filesystem::path{
+			BPR_RFC0017_ANONYMOUS_FIXTURE_ROOT
+		};
+		const auto captureRoot = std::filesystem::path{
+			BPR_RFC0017_ANONYMOUS_CAPTURE_ROOT
+		};
+		const auto provenance = QJsonDocument::fromJson(
+									QByteArray::fromStdString(
+										read_bytes(fixtureRoot / "provenance.json")))
+									.object();
+		const auto promoted   = provenance.value("promoted").toArray();
+		expect(promoted.size() == 6,
+			   "every capture the probe review recorded is promoted");
+		auto live = std::size_t{ 0U };
+		for (const auto& value : promoted) {
+			const auto entry         = value.toObject();
+			const auto promotedBytes = read_bytes(
+				fixtureRoot
+				/ entry.value("promoted_file").toString().toStdString());
+			expect(digest_of(promotedBytes)
+					   == entry.value("body_sha256").toString().toStdString(),
+				   "a promoted body hashes to the digest the review recorded");
+
+			const auto captureBytes = read_bytes(
+				captureRoot
+				/ entry.value("capture_relative_file").toString().toStdString());
+			expect(digest_of(captureBytes)
+					   == entry.value("capture_file_sha256").toString().toStdString(),
+				   "the capture the body was promoted from is itself unchanged");
+			const auto capture = QJsonDocument::fromJson(
+									 QByteArray::fromStdString(captureBytes))
+									 .object();
+			expect(capture.value("body").toString().toStdString() == promotedBytes,
+				   "the promoted copy is the capture's body byte for byte");
+			expect(capture.value("schema_name").toString()
+					   == QStringLiteral("bpr.rfc0017.anonymous_capture"),
+				   "the capture is a probe capture rather than an arbitrary file");
+			if (entry.value("source_kind").toString() == QStringLiteral("live")) {
+				++live;
+			}
+		}
+		expect(live == 5U,
+			   "five promoted bodies are live service captures and the sixth "
+			   "says it is derived");
+
+		const auto synthetic = provenance.value("synthetic").toArray();
+		expect(!synthetic.isEmpty(),
+			   "the hostile cases the single-comment capture cannot express "
+			   "are listed");
+		for (const auto& value : synthetic) {
+			const auto entry = value.toObject();
+			expect(entry.value("source_kind").toString()
+					   == QStringLiteral("synthetic"),
+				   "a hand-written fixture is named synthetic, never live");
+			expect(!entry.value("purpose").toString().isEmpty(),
+				   "a synthetic fixture states the case it exists for");
+			expect(digest_of(read_bytes(
+					   fixtureRoot
+					   / entry.value("file").toString().toStdString()))
+					   == entry.value("sha256").toString().toStdString(),
+				   "a synthetic fixture matches its recorded digest");
+		}
+	}
 } // namespace
 
 auto main() -> int
@@ -635,6 +751,7 @@ auto main() -> int
 	test_a_graphql_shape_is_refused_before_construction();
 	test_a_ghes_profile_is_refused_with_zero_requests();
 	test_the_authenticated_provider_is_unchanged();
+	test_promoted_captures_match_their_recorded_digests();
 	std::cout << "github-anonymous-read:contract:pass\n";
 	return EXIT_SUCCESS;
 }

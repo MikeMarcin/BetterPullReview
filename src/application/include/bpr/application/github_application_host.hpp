@@ -1,17 +1,22 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_APPLICATION_HOST_HPP
 
+#include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/application/github_capability_cache.hpp"
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/github_provider_port.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_mutation_port.hpp"
+#include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_transition.hpp"
 
 #include <array>
+#include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 
@@ -22,6 +27,36 @@ namespace bpr::application {
 		retain,
 		delete_retained_on_shutdown,
 	};
+
+	/// Why a public-preview activation or read was refused.
+	enum class github_public_preview_refusal_cause : std::uint8_t {
+		/// No anonymous read authority is composed, so the mode cannot be
+		/// entered at all. This is a composition fact the host reports
+		/// rather than a policy the core decided.
+		public_preview_unavailable,
+		/// The core policy refused. `Policy` carries its typed refusal.
+		policy_refused,
+	};
+
+	/// \brief Describes a refused public-preview activation or read.
+	///
+	/// Sign-in is offered from every refusal, because `core::anonymous_refusal`
+	/// makes that a property of the type rather than a flag a caller sets.
+	struct github_public_preview_refusal
+	{
+		github_public_preview_refusal_cause Cause
+			= github_public_preview_refusal_cause::public_preview_unavailable;
+		std::optional<core::anonymous_refusal> Policy;
+
+		auto operator<=>(const github_public_preview_refusal&) const = default;
+	};
+
+	/// Where a switch-to-sign-in gesture goes. The host does not own the
+	/// device-authorization flow, so it forwards the profile the signed-out
+	/// session was activated for and lets composition begin the flow that
+	/// returns the reviewer to the same pull request.
+	using public_preview_sign_in_sink
+		= std::function<void(core::host_profile_id)>;
 
 	/// \brief Provides the github credential binding catalog contract.
 	class github_credential_binding_catalog final
@@ -75,7 +110,21 @@ namespace bpr::application {
 			decision_executor&                 aDecisionLane,
 			github_projection_port&            aProjections,
 			github_credential_shutdown_policy  aCredentialShutdownPolicy = github_credential_shutdown_policy::retain,
-			github_epoch_handoff_port*         aEpochs                   = nullptr);
+			github_epoch_handoff_port*         aEpochs                   = nullptr,
+			// The credential-free read authority. Null until composition
+			// supplies one, which is what refusing public preview means
+			// today: the mode is unavailable rather than degraded.
+			github_pull_request_port* aAnonymousPullRequests = nullptr,
+			// The credential-free smart-Git authority. Composition owns it and
+			// passes an instance that can carry no credential: it is the only
+			// way a public-preview session reaches a Git repository at all.
+			// Null keeps the signed-out epoch handoff unavailable, which is
+			// what a composition without it means.
+			git_smart_transport_factory_port* aAnonymousSmartGit = nullptr,
+			// The signed-out presentation sink. Null until composition
+			// supplies one, which leaves the mode working but unpresented
+			// rather than silently authenticated.
+			public_preview_projection_port* aPublicPreview = nullptr);
 		~github_application_host();
 
 		github_application_host(const github_application_host&) = delete;
@@ -93,6 +142,13 @@ namespace bpr::application {
 		// account authority. Public account and login values never select vault
 		// entries.
 		void resume_profile(core::host_profile_id aProfile);
+		// Activates the profile signed out. No credential is read, no vault is
+		// consulted, no `/user` request is issued, and no capability is
+		// probed: the mode supports none of them, so nothing may look as
+		// though it asked. The anonymous scope is the profile, its revision,
+		// the host, the mode, and the identity generation; it carries no
+		// account, not even a zero one.
+		void activate_public_preview(core::host_profile_id aProfile);
 		void shutdown();
 
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;
@@ -115,6 +171,33 @@ namespace bpr::application {
 		[[nodiscard]] auto shutdown_cleanup_failed() const noexcept -> bool;
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
 		[[nodiscard]] auto epoch_handoff_delivery_failed() const noexcept -> bool;
+		/// \brief Returns the mode the active profile was activated in.
+		[[nodiscard]] auto access_mode() const noexcept -> core::github_access_mode;
+		/// \brief Returns the refusal that ended the last public-preview
+		/// activation or read, if one did.
+		[[nodiscard]] auto public_preview_refusal() const noexcept
+			-> const std::optional<github_public_preview_refusal>&;
+		/// \brief Decides the intent's legality in the current mode.
+		///
+		/// \details Under public preview this is the core policy's answer, so
+		/// a mutation, triage, queue-role, viewed-state, or resolution intent
+		/// is refused here rather than approximated by a request nobody can
+		/// answer. Under the authenticated mode every intent is legal here and
+		/// the capability rules decide the rest.
+		[[nodiscard]] auto public_preview_legality(
+			core::anonymous_read_intent aIntent) const noexcept
+			-> core::anonymous_intent_legality;
+		/// \brief Adopts the sink a switch-to-sign-in gesture leaves through.
+		void set_public_preview_sign_in(public_preview_sign_in_sink aSignIn);
+		/// \brief Forwards a switch-to-sign-in gesture to that sink.
+		///
+		/// \details Names the profile the signed-out session was activated
+		/// for, so the code the reviewer is about to read aloud belongs to the
+		/// host they are already reading, and sign-in returns them to it.
+		void request_public_preview_sign_in();
+		/// \brief Reports whether the last accepted snapshot handed the epoch
+		/// authority nothing because the mode has no cache or epoch authority.
+		[[nodiscard]] auto epoch_handoff_unavailable() const noexcept -> bool;
 
 	private:
 		struct implementation;

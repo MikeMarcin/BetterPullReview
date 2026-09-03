@@ -141,6 +141,40 @@ namespace bpr::qt {
 		identityLayout->addWidget(ConnectionDetails, 3, 0, 1, 4);
 		panelLayout->addWidget(identityGroup);
 
+		// The mode banner reads above the connection it describes, because a
+		// reviewer has to know which mode they are in before the host, the
+		// account and the limits below mean anything. It is inserted at the
+		// top of the column rather than appended, and it is hidden outright
+		// while signed in: there is no blank mode line to misread.
+		PublicPreviewStrip = new QWidget{ this };
+		PublicPreviewStrip->setObjectName(
+			QStringLiteral("githubPublicPreviewStrip"));
+		PublicPreviewStrip->setAccessibleName(QStringLiteral("Access mode"));
+		auto* const modeLayout = new QVBoxLayout{ PublicPreviewStrip };
+		modeLayout->setContentsMargins(0, 0, 0, 0);
+		auto* const modeRow       = new QWidget{ PublicPreviewStrip };
+		auto* const modeRowLayout = new QHBoxLayout{ modeRow };
+		modeRowLayout->setContentsMargins(0, 0, 0, 0);
+		AccessModeLabel = new QLabel{ modeRow };
+		AccessModeLabel->setObjectName(QStringLiteral("githubAccessMode"));
+		AccessModeLabel->setAccessibleName(QStringLiteral("GitHub access mode"));
+		set_plain_text_label(AccessModeLabel);
+		UsageIndicator = new usage_ring{ modeRow };
+		modeRowLayout->addWidget(AccessModeLabel);
+		modeRowLayout->addWidget(UsageIndicator);
+		modeRowLayout->addStretch(1);
+		RefusalLabel = new QLabel{ PublicPreviewStrip };
+		RefusalLabel->setObjectName(QStringLiteral("githubPublicPreviewRefusal"));
+		RefusalLabel->setAccessibleName(
+			QStringLiteral("Public preview refusal"));
+		RefusalLabel->setWordWrap(true);
+		set_plain_text_label(RefusalLabel);
+		RefusalLabel->hide();
+		modeLayout->addWidget(modeRow);
+		modeLayout->addWidget(RefusalLabel);
+		PublicPreviewStrip->hide();
+		panelLayout->insertWidget(0, PublicPreviewStrip);
+
 		auto* const locatorGroup = new QFrame{ this };
 		locatorGroup->setFrameShape(QFrame::StyledPanel);
 		locatorGroup->setObjectName(QStringLiteral("pullRequestLocatorGroup"));
@@ -556,6 +590,83 @@ namespace bpr::qt {
 	auto github_session_panel::profile_selector() const noexcept -> QComboBox*
 	{
 		return ProfileSelector;
+	}
+
+	auto github_session_panel::usage_indicator() const noexcept -> usage_ring*
+	{
+		return UsageIndicator;
+	}
+
+	auto github_session_panel::access_mode_label() const noexcept -> QLabel*
+	{
+		return AccessModeLabel;
+	}
+
+	auto github_session_panel::refusal_label() const noexcept -> QLabel*
+	{
+		return RefusalLabel;
+	}
+
+	auto github_session_panel::public_preview_signed_out() const noexcept -> bool
+	{
+		return PublicPreviewStrip != nullptr && !PublicPreviewStrip->isHidden();
+	}
+
+	void github_session_panel::set_public_preview_dispatch(
+		application::public_preview_gesture_dispatch aDispatch)
+	{
+		UsageIndicator->set_dispatch(std::move(aDispatch));
+	}
+
+	void github_session_panel::apply_public_preview(
+		const application::public_preview_presentation& aPresentation,
+		const std::uint64_t                             aNowUnixSeconds)
+	{
+		const auto signedOut = aPresentation.Mode
+			== application::public_preview_mode::signed_out;
+		UsageIndicator->apply(aPresentation, aNowUnixSeconds);
+		AccessModeLabel->setText(public_preview_mode_text());
+		PublicPreviewStrip->setVisible(signedOut);
+		if (aPresentation.Refusal.has_value()) {
+			RefusalLabel->setText(public_preview_refusal_text(
+				*aPresentation.Refusal,
+				aPresentation.NowUnixSeconds != 0U
+					? aPresentation.NowUnixSeconds
+					: aNowUnixSeconds));
+		} else {
+			RefusalLabel->clear();
+		}
+		RefusalLabel->setVisible(signedOut && aPresentation.Refusal.has_value());
+
+		// The picker names the mode as well, because the entry a reviewer
+		// reads while choosing a host is the first place the mode can be
+		// mistaken for an account. The profile's own label is remembered so
+		// leaving the mode restores it rather than re-deriving it.
+		const auto index = ProfileSelector->currentIndex();
+		if (signedOut && index >= 0) {
+			if (ReplacedProfileIndex != index) {
+				ReplacedProfileIndex = index;
+				ReplacedProfileLabel = ProfileSelector->itemText(index);
+			}
+			const auto        selected = selected_profile();
+			const auto* const option   = selected.has_value()
+				? profile_option(*selected)
+				: nullptr;
+			const auto        host     = option != nullptr
+				? text(option->Hostname)
+				: QString{ };
+			ProfileSelector->setItemText(
+				index,
+				host.isEmpty()
+					? public_preview_mode_text()
+					: QStringLiteral("%1 · %2")
+						  .arg(public_preview_mode_text(), host));
+		} else if (ReplacedProfileIndex >= 0) {
+			ProfileSelector->setItemText(
+				ReplacedProfileIndex, ReplacedProfileLabel);
+			ReplacedProfileIndex = -1;
+			ReplacedProfileLabel.clear();
+		}
 	}
 
 	auto github_session_panel::owner_editor() const noexcept -> QLineEdit*

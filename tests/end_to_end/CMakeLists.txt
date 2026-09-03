@@ -461,6 +461,79 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# RFC-BPR-0017. The signed-out reading mode's shipped selection, on the same
+# terms as the device triple above: each row drives the shipped binary, and the
+# facts are reported separately because "no authority was composed", "the
+# activation answered with a typed refusal", and "nothing of any kind was sent"
+# fail for different reasons.
+#
+# The whole shipped chain in one expression, in order: the composition
+# withheld the credential-free authority on this platform, the activation
+# answered `unavailable` rather than doing nothing, and no request, no
+# authorization header, and no vault operation happened on the way to that
+# answer. [[BPR-0316]] flips macOS in its own slice; Linux and Windows stay
+# here until a target-native card of their own says otherwise.
+set(bpr_public_preview_unavailable_self_test_expression
+    "PUBLIC_PREVIEW_COMPOSED:false[\r\n]+PUBLIC_PREVIEW_STAGE:unavailable[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_UNAVAILABLE_OK"
+)
+
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_unavailable
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --ghes-host
+        ghe.example.invalid
+        --public-preview-probe
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_unavailable
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:2[\r\n]+${bpr_public_preview_unavailable_self_test_expression}"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_unavailable
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# The tests-disabled-equivalent probe. `--public-preview-probe` is
+# unconditional for exactly this reason: the claim a released binary has to be
+# able to make is that the mode is unavailable and sends nothing, and a flag
+# that existed only in a tests-enabled build could not make it. What this row
+# cannot check is symbol absence, which is the separate closeout scan.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_release_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-probe
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_release_contract
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+${bpr_public_preview_unavailable_self_test_expression}"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_release_contract
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
 
 bpr_add_executable(
     test_better_pull_review_worker_executor_tests
@@ -1363,6 +1436,81 @@ set_tests_properties(
 )
 bpr_bound_automated_run(
     application_github_public_path_ghes_3_18
+    TIMEOUT 60
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# The enterprise host is refused by the core policy rather than by the
+# composition, so it needs a course where the authority *is* composed: a row
+# that withheld it would prove the composition refusal twice and the policy
+# refusal never. Tests-enabled only, because forcing the shipped selection is
+# the one thing a released binary must not be able to do from a command line.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_ghes_refusal
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-probe
+        --public-preview-ghes-course
+        --github-fixture
+        ghes-3.18
+        --automated-run-budget-ms
+        ${bpr_fixture_run_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_ghes_refusal
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PATH_OK[\r\n]+PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:refused[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REFUSED_OK"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_ghes_refusal
+    TIMEOUT 60
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# The signed-out read, end to end against the recorded public path. The fixture
+# replays a second script here -- the nine credential-free operations in the
+# order the anonymous authority issues them -- so what this row proves is not
+# that a recording exists but that the composed host reaches it: the mode is
+# entered, the pull request opens through the credential-free authority, the
+# inline conversation the signed-out REST surface carries is observed, and
+# neither an authorization header nor the vault was involved in any of it.
+# Tests-enabled only, for the same reason the enterprise row above is.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-probe
+        --public-preview-enabled-course
+        --github-fixture
+        github-com
+        --automated-run-budget-ms
+        ${bpr_fixture_run_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_public_path
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        # Every term of the claim, in the order the run prints them. The two
+        # zeroes are the ones a passing read could most easily have bought:
+        # a header the transport attached, or a vault the read touched. The
+        # two refusals are the write and triage intents the mode was offered
+        # while the session was live, and they sit beside a request count of
+        # one, which is where "refused before a request" is legible.
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:1[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:1[\r\n]+PUBLIC_PREVIEW_WRITE_REFUSALS:2[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_public_path
     TIMEOUT 60
     BUDGET_MS ${bpr_fixture_run_budget_ms}
     RUNS 1

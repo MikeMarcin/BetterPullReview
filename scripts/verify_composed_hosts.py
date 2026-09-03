@@ -176,6 +176,18 @@ SHARED_REQUIRED = (
         "system browser opener constructor",
         "bpr::app::system_browser_opener::system_browser_opener",
     ),
+    # BPR-0305: the public-preview candidate is composed in both profiles
+    # with its selection unavailable; the two shipped credential-free
+    # factories it reaches are the linkage proof that the anonymous provider
+    # and the anonymous Git path exist in the image the audit inspects.
+    function_anchor(
+        "anonymous read transport factory",
+        "bpr::adapters::github::detail::make_native_https_anonymous_read_transport",
+    ),
+    function_anchor(
+        "anonymous smart transport factory",
+        "bpr::adapters::github::detail::make_native_https_anonymous_smart_transport",
+    ),
 )
 
 FIXTURE_REQUIRED = (

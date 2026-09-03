@@ -315,6 +315,7 @@ namespace {
 		case read_operation::list_reviews:
 		case read_operation::list_review_threads:
 		case read_operation::list_issue_comments:
+		case read_operation::list_review_comments:
 			request.PullRequestNumber = 17U;
 			break;
 		case read_operation::get_viewer_identity:

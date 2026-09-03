@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_EPOCH_CATALOG_PORT_HPP
 
 #include "bpr/application/git_cache_port.hpp"
+#include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/epoch_transition.hpp"
 
 #include <algorithm>
@@ -73,6 +74,10 @@ namespace bpr::application {
 		core::pull_request_id            PullRequest;
 		core::pull_request_number        Number;
 		core::git_hash_algorithm         ObjectFormat = core::git_hash_algorithm::invalid;
+		// Last and defaulted so every key written before the mode existed
+		// still names the authenticated authority it named, and part of the
+		// defaulted comparison so no derived key can drop the discriminant.
+		core::github_access_mode Mode{ };
 
 		auto operator<=>(const epoch_catalog_authority_key&) const = default;
 	};
@@ -81,10 +86,17 @@ namespace bpr::application {
 	[[nodiscard]] constexpr auto valid(
 		const epoch_catalog_authority_key& aKey) noexcept -> bool
 	{
+		// Two rules, one per mode. Public preview has no reader, so its key
+		// must carry none; the authenticated mode must carry an exact one.
+		// A key can therefore never be valid under both readings.
+		const auto readerAsExpected = aKey.Mode
+				== core::github_access_mode::public_preview
+			? (aKey.Account.value() == 0U && aKey.Viewer.value() == 0U)
+			: (aKey.Account.value() != 0U && aKey.Viewer.value() != 0U);
 		return aKey.Profile.value() != 0U
 			&& aKey.ProfileRevision.value() != 0U
 			&& aKey.Host.value() != 0U && aKey.HostAuthority.valid()
-			&& aKey.Account.value() != 0U && aKey.Viewer.value() != 0U
+			&& readerAsExpected
 			&& aKey.Repository.value() != 0U
 			&& aKey.PullRequest.value() != 0U && aKey.Number.valid()
 			&& (aKey.ObjectFormat == core::git_hash_algorithm::sha1

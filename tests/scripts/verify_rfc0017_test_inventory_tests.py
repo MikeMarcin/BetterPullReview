@@ -47,8 +47,27 @@ CORE = "core_anonymous_public_read"
 CONTRACT = "native_https_anonymous_read_contract"
 FIXTURE = "native_https_anonymous_read_fixture"
 PROVIDER = "github_anonymous_read_contract"
+HOST = "application_anonymous_read_host"
 ANCHOR = "native_https_transport_fixture"
 QT_ANCHOR = "github_read_contract"
+HOST_ANCHOR = "application_github_host"
+GIT = "git_anonymous_public_read"
+GIT_ANCHOR = "git_cache_contract"
+SQLITE = "sqlite_anonymous_epoch_authority"
+SQLITE_ANCHOR = "sqlite_epoch_catalog_storage_contract"
+DIFF = "application_anonymous_diff_authority"
+QT_SCALES = tuple(f"qt_anonymous_public_preview_scale_{scale}" for scale in (100, 125, 200))
+QT_SCALE_ANCHORS = tuple(f"qt_composed_github_scale_{scale}" for scale in (100, 125, 200))
+PREVIEW_ROWS = (
+    ("application_anonymous_public_preview_unavailable",
+     "application_device_authorization_unavailable", ("--public-preview-probe",)),
+    ("application_anonymous_public_preview_release_contract",
+     "application_device_authorization_release_contract", ("--public-preview-probe",)),
+    ("application_anonymous_public_preview_ghes_refusal",
+     "application_github_public_path_ghes_3_18", ("--public-preview-ghes-course",)),
+    ("application_anonymous_public_preview_public_path",
+     "application_github_public_path_github_com", ("--public-preview-enabled-course",)),
+)
 BUILD = pathlib.Path("/nonexistent/build")
 
 # The wire suites: registered only inside the APPLE/Linux wire block.
@@ -61,6 +80,17 @@ DEV_GRAPH = [
     (FIXTURE, ("runner", "--suite", "anonymous_read")),
     (CONTRACT, ("anonymous_read_tests", "--contract")),
     (PROVIDER, ("provider_tests",)),
+    (HOST_ANCHOR, ("host_tests",)),
+    (HOST, ("anonymous_host_tests",)),
+    (DIFF, ("anonymous_diff_tests",)),
+    *((anchor, ("composed_tests",)) for anchor in QT_SCALE_ANCHORS),
+    *((selector, ("preview_tests",)) for selector in QT_SCALES),
+    *((anchor, ("app", "--self-test")) for _, anchor, _ in PREVIEW_ROWS),
+    *((selector, ("app", "--self-test", *arguments)) for selector, _, arguments in PREVIEW_ROWS),
+    (GIT_ANCHOR, ("git_cache_tests",)),
+    (GIT, ("anonymous_git_tests",)),
+    (SQLITE_ANCHOR, ("catalog_storage_tests",)),
+    (SQLITE, ("anonymous_catalog_tests",)),
     (CORE, ("core_tests",)),
     ("unrelated", ("other",)),
 ]
@@ -103,6 +133,15 @@ class InventoryTable(unittest.TestCase):
         self.assertEqual(anchors[FIXTURE], (ANCHOR, True))
         self.assertEqual(anchors[CONTRACT], (QT_ANCHOR, False))
         self.assertEqual(anchors[PROVIDER], (QT_ANCHOR, False))
+        self.assertEqual(anchors[HOST], (HOST_ANCHOR, False))
+        self.assertEqual(anchors[GIT], (GIT_ANCHOR, False))
+        self.assertEqual(anchors[DIFF], (HOST_ANCHOR, False))
+        for selector, anchor in zip(QT_SCALES, QT_SCALE_ANCHORS):
+            self.assertEqual(anchors[selector], (anchor, False))
+        for selector, anchor, arguments in PREVIEW_ROWS:
+            self.assertEqual(anchors[selector], (anchor, False))
+            self.assertEqual(self.module.REQUIRED_ARGUMENTS[selector], arguments)
+        self.assertEqual(anchors[SQLITE], (SQLITE_ANCHOR, False))
         for selector, (anchor, wire_block) in anchors.items():
             if wire_block:
                 self.assertIn(selector, WIRE_SUITES)
@@ -121,11 +160,13 @@ class InventoryTable(unittest.TestCase):
         self.assertIn(f"graph builds {QT_ANCHOR}", failures[0])
 
     def test_the_forbidden_test_factory_is_named_in_both_scans(self) -> None:
-        factory = "make_native_https_anonymous_read_transport_for_test"
-        self.assertIn(factory, self.module.FORBIDDEN_SYMBOLS)
-        self.assertIn(factory, self.module.FORBIDDEN_STRINGS)
-        self.assertIn("make_native_https_anonymous_read_transport",
-                      self.module.KNOWN_PRODUCT_CREDENTIAL_FREE)
+        for factory in ("make_native_https_anonymous_read_transport_for_test",
+                        "make_native_https_anonymous_smart_transport_for_test"):
+            self.assertIn(factory, self.module.FORBIDDEN_SYMBOLS)
+            self.assertIn(factory, self.module.FORBIDDEN_STRINGS)
+        for shipped in ("make_native_https_anonymous_read_transport",
+                        "make_native_https_anonymous_smart_transport"):
+            self.assertIn(shipped, self.module.KNOWN_PRODUCT_CREDENTIAL_FREE)
 
     def test_the_tests_enabled_graph_passes(self) -> None:
         self.assertEqual(self.check(DEV_GRAPH), [])

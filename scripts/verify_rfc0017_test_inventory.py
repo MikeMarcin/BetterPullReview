@@ -34,6 +34,17 @@ SELECTORS: dict[str, int] = {
     "native_https_anonymous_read_contract": 1,
     "native_https_anonymous_read_fixture": 1,
     "github_anonymous_read_contract": 1,
+    "application_anonymous_read_host": 1,
+    "git_anonymous_public_read": 1,
+    "sqlite_anonymous_epoch_authority": 1,
+    "application_anonymous_diff_authority": 1,
+    "qt_anonymous_public_preview_scale_100": 1,
+    "qt_anonymous_public_preview_scale_125": 1,
+    "qt_anonymous_public_preview_scale_200": 1,
+    "application_anonymous_public_preview_unavailable": 1,
+    "application_anonymous_public_preview_release_contract": 1,
+    "application_anonymous_public_preview_ghes_refusal": 1,
+    "application_anonymous_public_preview_public_path": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector also
@@ -44,6 +55,10 @@ REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "rfc0017_credential_free_native_https": ("--suite", "rfc0017"),
     "native_https_anonymous_read_contract": ("--contract",),
     "native_https_anonymous_read_fixture": ("--suite", "anonymous_read"),
+    "application_anonymous_public_preview_unavailable": ("--public-preview-probe",),
+    "application_anonymous_public_preview_release_contract": ("--public-preview-probe",),
+    "application_anonymous_public_preview_ghes_refusal": ("--public-preview-ghes-course",),
+    "application_anonymous_public_preview_public_path": ("--public-preview-enabled-course",),
 }
 
 # Not every configured graph builds every surface — the core-only preset has
@@ -67,6 +82,17 @@ SELECTOR_ANCHORS: dict[str, tuple[str | None, bool]] = {
     "native_https_anonymous_read_contract": ("github_read_contract", False),
     "native_https_anonymous_read_fixture": ("native_https_transport_fixture", True),
     "github_anonymous_read_contract": ("github_read_contract", False),
+    "application_anonymous_read_host": ("application_github_host", False),
+    "git_anonymous_public_read": ("git_cache_contract", False),
+    "sqlite_anonymous_epoch_authority": ("sqlite_epoch_catalog_storage_contract", False),
+    "application_anonymous_diff_authority": ("application_github_host", False),
+    "qt_anonymous_public_preview_scale_100": ("qt_composed_github_scale_100", False),
+    "qt_anonymous_public_preview_scale_125": ("qt_composed_github_scale_125", False),
+    "qt_anonymous_public_preview_scale_200": ("qt_composed_github_scale_200", False),
+    "application_anonymous_public_preview_unavailable": ("application_device_authorization_unavailable", False),
+    "application_anonymous_public_preview_release_contract": ("application_device_authorization_release_contract", False),
+    "application_anonymous_public_preview_ghes_refusal": ("application_github_public_path_ghes_3_18", False),
+    "application_anonymous_public_preview_public_path": ("application_github_public_path_github_com", False),
 }
 
 WIRE_BLOCK_PLATFORMS = frozenset({"darwin", "linux"})
@@ -83,6 +109,7 @@ FORBIDDEN_SYMBOLS: tuple[str, ...] = (
     "make_native_https_credential_free_transport_for_test",
     "make_native_https_bootstrap_transport_for_test",
     "make_native_https_anonymous_read_transport_for_test",
+    "make_native_https_anonymous_smart_transport_for_test",
 )
 
 # Strings that must not appear in a shipped binary for the same reason. Only
@@ -92,6 +119,7 @@ FORBIDDEN_SYMBOLS: tuple[str, ...] = (
 FORBIDDEN_STRINGS: tuple[str, ...] = (
     "make_native_https_credential_free_transport_for_test",
     "make_native_https_anonymous_read_transport_for_test",
+    "make_native_https_anonymous_smart_transport_for_test",
     "credential-free-material-present",
 )
 
@@ -116,6 +144,7 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
 KNOWN_PRODUCT_CREDENTIAL_FREE: dict[str, str] = {
     "make_designated_review_public_observer": "designated-live lane (pre-RFC-BPR-0017)",
     "make_native_https_anonymous_read_transport": "RFC-BPR-0017 anonymous public-preview reads (BPR-0301)",
+    "make_native_https_anonymous_smart_transport": "RFC-BPR-0017 public smart HTTP for the anonymous Git cache (BPR-0317)",
     "make_native_https_credential_free_transport": "RFC-BPR-0016 device authorization",
 }
 

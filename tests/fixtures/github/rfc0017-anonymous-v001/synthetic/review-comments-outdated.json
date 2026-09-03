@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1001,
+    "body": "the anchor left the diff",
+    "path": "README",
+    "position": null,
+    "line": null,
+    "original_line": null,
+    "user": {
+      "login": "octocat",
+      "node_id": "MDQ6VXNlcjE=",
+      "id": 1,
+      "type": "User"
+    }
+  }
+]

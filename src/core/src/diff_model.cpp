@@ -1,5 +1,6 @@
 #include "bpr/core/diff_model.hpp"
 
+#include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/epoch_transition.hpp"
 #include "bpr/core/sha256.hpp"
 
@@ -237,6 +238,21 @@ namespace bpr::core {
 			aEncoder.append_u64(aAuthority.PullRequest.value());
 			aEncoder.append_u32(aAuthority.Number.value());
 			aEncoder.append(aAuthority.Scope.bytes());
+			// The discriminant is appended only when it is not the
+			// authenticated mode, so an authenticated authority encodes
+			// byte-for-byte as it did before the mode existed. That matters
+			// because `file_comparison_digest` is persisted: the review ledger
+			// and the recovery store hold anchors keyed by it, and an
+			// unconditional byte would stop every stored anchor matching on
+			// upgrade. Discrimination needs less than that: it needs only that
+			// no anonymous authority can ever produce an authenticated
+			// digest, and a mode byte no authenticated encoding can contain
+			// gives exactly that. Making the field unconditional is a
+			// re-keying, and it belongs with a domain-string bump and a
+			// migration, which is BPR-0317's to make.
+			if (aAuthority.Mode != github_access_mode::authenticated) {
+				aEncoder.append_u8(static_cast<std::uint8_t>(aAuthority.Mode));
+			}
 		}
 
 		template <std::size_t Capacity>

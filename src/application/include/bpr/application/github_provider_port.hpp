@@ -319,6 +319,11 @@ namespace bpr::application {
 		github_capability_cache_entry      CapabilityEvidence;
 		github_account_transport           AccountTransport;
 		github_provider_attempt            Attempt{ 1U };
+		// The mode the host issued this read in. Last and defaulted so every
+		// request written before the mode existed still means the
+		// authenticated read it meant. A provider bound to one authority
+		// refuses a request naming the other rather than answering it.
+		core::github_access_mode Mode{ };
 
 		auto operator<=>(const github_pull_request_provider_request&) const = default;
 	};

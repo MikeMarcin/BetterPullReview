@@ -291,7 +291,23 @@ namespace bpr::core {
 		explicit_historical_import,
 	};
 
+	// Declared, not included. `bpr/core/anonymous_read_policy.hpp` owns the
+	// definition and includes this header's siblings; naming the type here
+	// with its fixed underlying type keeps the epoch model free of the policy
+	// header while still letting the authority carry the discriminant. The
+	// enumerators are deliberately not visible here, so `Mode` is
+	// value-initialized; `epoch_transition.cpp` static_asserts that the
+	// value-initialized mode is the authenticated one.
+	enum class github_access_mode : std::uint8_t;
+
 	/// \brief Describes the pull request authority record.
+	///
+	/// The record is discriminated by its access mode. An authenticated
+	/// authority names an account and a viewer; a public-preview authority
+	/// names neither, because a signed-out reader has no identity to carry.
+	/// The two are different authorities even when every other field agrees,
+	/// so nothing keyed on this record may reuse an authenticated namespace
+	/// for an anonymous read or the other way round.
 	struct pull_request_authority
 	{
 		host_profile_id                 Profile;
@@ -305,6 +321,11 @@ namespace bpr::core {
 		pull_request_id                 PullRequest;
 		pull_request_number             Number;
 		pull_request_authority_scope_id Scope;
+		// Last and defaulted so every authority written before the mode
+		// existed still means the authenticated authority it meant, and part
+		// of the defaulted comparison so no ordering, equality, or derived key
+		// can drop the discriminant.
+		github_access_mode Mode{ };
 
 		auto operator<=>(const pull_request_authority&) const = default;
 	};

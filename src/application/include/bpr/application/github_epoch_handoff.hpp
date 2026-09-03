@@ -3,6 +3,7 @@
 
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/application/github_host_authority.hpp"
+#include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/epoch_model.hpp"
 
 #include <compare>
@@ -25,6 +26,11 @@ namespace bpr::application {
 		core::repository_locator         Locator;
 		core::github_identity_generation IdentityGeneration;
 		core::git_hash_algorithm         ObjectFormat = core::git_hash_algorithm::invalid;
+		// Last and defaulted so every binding written before the mode existed
+		// still names the authenticated authority it named, and part of the
+		// defaulted comparison so a lease minted for one mode can never agree
+		// with a handoff made in the other.
+		core::github_access_mode Mode{ };
 
 		auto operator<=>(const git_smart_authority_binding&) const = default;
 	};
@@ -32,13 +38,21 @@ namespace bpr::application {
 	[[nodiscard]] inline auto valid(
 		const git_smart_authority_binding& aBinding) noexcept -> bool
 	{
+		// Two rules, one per mode, matching the authority the lease binds:
+		// public preview names no account, the authenticated mode names an
+		// exact one. A credential-free transport can therefore never be
+		// leased under an account's binding.
+		const auto accountAsExpected = aBinding.Mode
+				== core::github_access_mode::public_preview
+			? aBinding.Account.value() == 0U
+			: aBinding.Account.value() != 0U;
 		return aBinding.ApplicationSession.value() != 0U
 			&& aBinding.Profile.value() != 0U
 			&& aBinding.ProfileRevision.value() != 0U
 			&& aBinding.Host.value() != 0U && aBinding.HostAuthority.valid()
 			&& valid_github_authority_hostname(
 				   aBinding.ServerContract, aBinding.Hostname)
-			&& aBinding.Account.value() != 0U
+			&& accountAsExpected
 			&& aBinding.Repository.value() != 0U
 			&& core::valid(aBinding.Locator)
 			&& aBinding.IdentityGeneration.value() != 0U
@@ -78,28 +92,32 @@ namespace bpr::application {
 	/// \brief Describes the accepted pull request handoff record.
 	struct accepted_pull_request_handoff
 	{
-		core::application_session_id                         ApplicationSession;
-		core::host_profile_id                                Profile;
-		core::github_profile_revision                        ProfileRevision;
-		core::git_host_id                                    Host;
-		core::host_authority_fingerprint                     HostAuthority;
-		github_canonical_hostname                            Hostname;
-		github_server_contract                               ServerContract = github_server_contract::github_com_2022_11_28;
-		core::github_account_id                              Account;
-		core::github_viewer_actor_id                         Viewer;
-		core::repository_id                                  Repository;
-		core::repository_locator                             Locator;
-		core::pull_request_id                                PullRequest;
-		core::pull_request_number                            Number;
-		core::provider_snapshot_id                           Snapshot;
-		core::github_identity_generation                     IdentityGeneration;
-		core::request_generation                             PullRequestGeneration;
-		core::pull_request_revision_origin                   Origin       = core::pull_request_revision_origin::live;
-		core::git_hash_algorithm                             ObjectFormat = core::git_hash_algorithm::invalid;
-		core::base_branch_id                                 BaseBranch;
-		git_base_branch_ref                                  BaseRef;
-		core::git_commit_oid                                 Base;
-		core::git_commit_oid                                 Head;
+		core::application_session_id       ApplicationSession;
+		core::host_profile_id              Profile;
+		core::github_profile_revision      ProfileRevision;
+		core::git_host_id                  Host;
+		core::host_authority_fingerprint   HostAuthority;
+		github_canonical_hostname          Hostname;
+		github_server_contract             ServerContract = github_server_contract::github_com_2022_11_28;
+		core::github_account_id            Account;
+		core::github_viewer_actor_id       Viewer;
+		core::repository_id                Repository;
+		core::repository_locator           Locator;
+		core::pull_request_id              PullRequest;
+		core::pull_request_number          Number;
+		core::provider_snapshot_id         Snapshot;
+		core::github_identity_generation   IdentityGeneration;
+		core::request_generation           PullRequestGeneration;
+		core::pull_request_revision_origin Origin       = core::pull_request_revision_origin::live;
+		core::git_hash_algorithm           ObjectFormat = core::git_hash_algorithm::invalid;
+		core::base_branch_id               BaseBranch;
+		git_base_branch_ref                BaseRef;
+		core::git_commit_oid               Base;
+		core::git_commit_oid               Head;
+		// Last of the identity fields and defaulted so every handoff written
+		// before the mode existed still names the authenticated authority it
+		// named. Under public preview Account and Viewer are zero by rule.
+		core::github_access_mode                             Mode{ };
 		std::optional<core::current_viewer_review_candidate> CurrentViewerReview;
 		// A missing lease is a valid authenticated observation with smart Git
 		// unavailable. It never grants an alternate transport.
@@ -162,6 +180,7 @@ namespace bpr::application {
 			.Locator            = aHandoff.Locator,
 			.IdentityGeneration = aHandoff.IdentityGeneration,
 			.ObjectFormat       = aHandoff.ObjectFormat,
+			.Mode               = aHandoff.Mode,
 		};
 	}
 
@@ -180,20 +199,29 @@ namespace bpr::application {
 			&& aBinding.Repository == aHandoff.Repository
 			&& aBinding.Locator == aHandoff.Locator
 			&& aBinding.IdentityGeneration == aHandoff.IdentityGeneration
-			&& aBinding.ObjectFormat == aHandoff.ObjectFormat;
+			&& aBinding.ObjectFormat == aHandoff.ObjectFormat
+			&& aBinding.Mode == aHandoff.Mode;
 	}
 
 	[[nodiscard]] inline auto valid(
 		const accepted_pull_request_handoff& aHandoff) noexcept -> bool
 	{
-		const auto validFacts = aHandoff.ApplicationSession.value() != 0U
+		// Two rules, one per mode, matching `core::pull_request_authority`:
+		// the authenticated handoff names an exact reader, the public-preview
+		// handoff names none. A public-preview handoff also carries no current
+		// viewer review, because there is no viewer who could have left one.
+		const auto readerAsExpected = aHandoff.Mode
+				== core::github_access_mode::public_preview
+			? (aHandoff.Account.value() == 0U && aHandoff.Viewer.value() == 0U
+			   && !aHandoff.CurrentViewerReview)
+			: (aHandoff.Account.value() != 0U && aHandoff.Viewer.value() != 0U);
+		const auto validFacts       = aHandoff.ApplicationSession.value() != 0U
 			&& aHandoff.Profile.value() != 0U
 			&& aHandoff.ProfileRevision.value() != 0U
 			&& aHandoff.Host.value() != 0U && aHandoff.HostAuthority.valid()
 			&& valid_github_authority_hostname(
 									aHandoff.ServerContract, aHandoff.Hostname)
-			&& aHandoff.Account.value() != 0U
-			&& aHandoff.Viewer.value() != 0U
+			&& readerAsExpected
 			&& aHandoff.Repository.value() != 0U
 			&& core::valid(aHandoff.Locator)
 			&& aHandoff.PullRequest.value() != 0U && aHandoff.Number.valid()
@@ -234,6 +262,8 @@ namespace bpr::application {
 		core::repository_id              Repository;
 		core::pull_request_id            PullRequest;
 		core::github_identity_generation IdentityGeneration;
+		// Last and defaulted, matching the handoff this invalidation revokes.
+		core::github_access_mode Mode{ };
 
 		auto operator<=>(const pull_request_authority_invalidation&) const = default;
 	};
@@ -242,13 +272,20 @@ namespace bpr::application {
 	[[nodiscard]] constexpr auto valid(
 		const pull_request_authority_invalidation& aInvalidation) noexcept -> bool
 	{
+		// Two rules, one per mode, matching the authority key: public preview
+		// carries no reader and the authenticated mode carries an exact one.
+		const auto readerAsExpected = aInvalidation.Mode
+				== core::github_access_mode::public_preview
+			? (aInvalidation.Account.value() == 0U
+			   && aInvalidation.Viewer.value() == 0U)
+			: (aInvalidation.Account.value() != 0U
+			   && aInvalidation.Viewer.value() != 0U);
 		return aInvalidation.ApplicationSession.value() != 0U
 			&& aInvalidation.Profile.value() != 0U
 			&& aInvalidation.ProfileRevision.value() != 0U
 			&& aInvalidation.Host.value() != 0U
 			&& aInvalidation.HostAuthority.valid()
-			&& aInvalidation.Account.value() != 0U
-			&& aInvalidation.Viewer.value() != 0U
+			&& readerAsExpected
 			&& aInvalidation.Repository.value() != 0U
 			&& aInvalidation.PullRequest.value() != 0U
 			&& aInvalidation.IdentityGeneration.value() != 0U;

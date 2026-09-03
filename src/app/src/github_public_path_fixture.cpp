@@ -18,6 +18,7 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <filesystem>
@@ -29,6 +30,7 @@
 #include <mutex>
 #include <optional>
 #include <random>
+#include <ranges>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -38,6 +40,7 @@
 
 namespace bpr::app::detail {
 	namespace {
+		using adapters::github::detail::anonymous_read_operations;
 		using adapters::github::detail::capability_probe_response;
 		using adapters::github::detail::github_capability_probe_wire_cancelled;
 		using adapters::github::detail::github_capability_probe_wire_completion;
@@ -440,6 +443,116 @@ namespace bpr::app::detail {
 			return exchanges;
 		}
 
+		/// \brief Builds the recording a signed-out read replays.
+		///
+		/// \details One recording rather than a second fixture. Every REST body
+		/// below is the body the authenticated script already serves, re-ordered
+		/// into the order the anonymous authority issues its operations and cut
+		/// down to the nine it may issue: viewer identity and the GraphQL threads
+		/// are absent because that authority refuses both before a request
+		/// exists, so a recording that carried them could only be reached by a
+		/// read that had stopped being anonymous.
+		///
+		/// The inline review conversation is the one operation the authenticated
+		/// script never records -- an authenticated read has the GraphQL threads
+		/// instead -- so its request is derived from the recorded reviews request,
+		/// which is exactly what the contract compiles for it: the same pull
+		/// request path with its last segment replaced and the same first page.
+		/// Deriving it rather than writing it out is what keeps the two in step;
+		/// a compiled path that ever stopped matching fails the strict transport
+		/// rather than passing against a hand-copied constant.
+		[[nodiscard]] auto load_anonymous_recording(
+			const fixture_descriptor& aDescriptor,
+			const std::string_view    aHead)
+			-> std::vector<recorded_exchange>
+		{
+			const auto authenticated = load_recording(aDescriptor, aHead);
+			const auto recorded      = [&authenticated](
+										   const read_operation aOperation)
+				-> const recorded_exchange& {
+				const auto match = std::ranges::find(
+					authenticated,
+					aOperation,
+					[](const recorded_exchange& aExchange) {
+						return aExchange.Request.Operation;
+					});
+				if (match == authenticated.end()) {
+					throw std::runtime_error{
+						"GitHub anonymous fixture is missing a recorded operation"
+					};
+				}
+				return *match;
+			};
+
+			auto exchanges = std::vector<recorded_exchange>{ };
+			exchanges.reserve(anonymous_read_operations.size());
+			for (const auto operation : anonymous_read_operations) {
+				if (operation != read_operation::list_review_comments) {
+					exchanges.push_back(recorded(operation));
+					continue;
+				}
+				auto comments = recorded(
+					read_operation::list_reviews);
+				constexpr std::string_view reviews = "/reviews";
+				if (!comments.Request.Path.ends_with(reviews)) {
+					throw std::runtime_error{
+						"GitHub anonymous fixture cannot derive its conversation path"
+					};
+				}
+				comments.Request.Path.resize(comments.Request.Path.size()
+											 - reviews.size());
+				comments.Request.Path += "/comments";
+				comments.Request.Operation = read_operation::list_review_comments;
+				// The promoted live body, byte for byte. It carries no placeholder
+				// to substitute because it was captured rather than synthesized.
+				comments.Response.Body = read_all(
+					std::filesystem::path{ BPR_RFC0017_ANONYMOUS_FIXTURE_ROOT }
+					/ "captures" / "pull-request-comments.json");
+				exchanges.push_back(std::move(comments));
+			}
+			// The authenticated script's count check has a mirror here rather than
+			// an exception: a script that grew or lost an operation must fail the
+			// same way on both authorities.
+			if (exchanges.size() != anonymous_read_operations.size()) {
+				throw std::runtime_error{
+					"GitHub anonymous fixture is incomplete"
+				};
+			}
+			return exchanges;
+		}
+
+		/// \brief Reports whether a request carries a credential of any kind.
+		///
+		/// \details The anonymous role refuses one rather than ignoring it. The
+		/// contract validator already rejects these two names on the way out, so
+		/// this is the second of two independent refusals and the only one on the
+		/// serving side: a transport that started attaching a header would be
+		/// answered by the recording it asked for, not by the recording it earned.
+		[[nodiscard]] auto carries_credential(
+			const std::vector<http_header>& aHeaders) -> bool
+		{
+			constexpr auto named = [](const std::string_view aLeft,
+									  const std::string_view aRight) {
+				return std::ranges::equal(
+					aLeft,
+					aRight,
+					[](const char aFirst, const char aSecond) {
+						const auto fold = [](const char aCharacter) {
+							return aCharacter >= 'A' && aCharacter <= 'Z'
+								? static_cast<char>(aCharacter - 'A' + 'a')
+								: aCharacter;
+						};
+						return fold(aFirst) == fold(aSecond);
+					});
+			};
+			return std::ranges::any_of(
+				aHeaders,
+				[named](const http_header& aHeader) {
+					return named(aHeader.Name, "Authorization")
+						|| named(aHeader.Name, "Proxy-Authorization");
+				});
+		}
+
 		[[nodiscard]] auto load_capability_response(
 			const std::string_view aCapabilityDirectory) -> std::string
 		{
@@ -508,6 +621,11 @@ namespace bpr::app::detail {
 					}
 					return result;
 				}() }
+				, AnonymousRecording{ load_anonymous_recording(
+					  Descriptor,
+					  aPhase == github_epoch_fixture_phase::reuse
+						  ? Descriptor.HeadTwoOid
+						  : Descriptor.HeadOneOid) }
 				, CapabilityBody{ load_capability_response(
 					  Descriptor.CapabilityDirectory) }
 			{
@@ -520,24 +638,35 @@ namespace bpr::app::detail {
 			std::shared_ptr<deterministic_git_fixture>      Git;
 			strict_recorded_transport                       BootstrapRecording;
 			strict_recorded_transport                       Recording;
-			std::string                                     CapabilityBody;
-			std::size_t                                     CapabilityCalls       = 0U;
-			std::size_t                                     BootstrapFactoryCalls = 0U;
-			std::size_t                                     AccountFactoryCalls   = 0U;
-			std::size_t                                     AccountReadCalls      = 0U;
-			std::size_t                                     SmartAcquireCalls     = 0U;
-			std::size_t                                     SmartDiscoveryCalls   = 0U;
-			std::size_t                                     SmartLsRefsCalls      = 0U;
-			std::size_t                                     SmartFetchCalls       = 0U;
-			std::optional<core::pull_request_authority>     LastSmartAuthority;
-			int                                             LastReadOperation = -1;
-			int                                             RecordingFailure  = -1;
-			mutable std::mutex                              Mutex;
+			// The signed-out script. A separate cursor as well as a separate
+			// order: the two authorities never share a position, so a course that
+			// ran both would not be able to advance one by driving the other.
+			strict_recorded_transport                   AnonymousRecording;
+			std::string                                 CapabilityBody;
+			std::size_t                                 CapabilityCalls       = 0U;
+			std::size_t                                 BootstrapFactoryCalls = 0U;
+			std::size_t                                 AccountFactoryCalls   = 0U;
+			std::size_t                                 AccountReadCalls      = 0U;
+			std::size_t                                 SmartAcquireCalls     = 0U;
+			std::size_t                                 SmartDiscoveryCalls   = 0U;
+			std::size_t                                 SmartLsRefsCalls      = 0U;
+			std::size_t                                 SmartFetchCalls       = 0U;
+			std::optional<core::pull_request_authority> LastSmartAuthority;
+			int                                         LastReadOperation = -1;
+			int                                         RecordingFailure  = -1;
+			mutable std::mutex                          Mutex;
 		};
 
 		enum class fixture_transport_role {
 			bootstrap,
 			account,
+			// RFC-BPR-0017's credential-free read. It replays the same
+			// recording the account role replays, because the recorded public
+			// pull request is the same pull request either way; what differs
+			// is that nothing selected this transport with a credential and
+			// nothing can, so the authenticated evidence counters stay
+			// untouched by anything it serves.
+			anonymous,
 		};
 
 		[[nodiscard]] auto byte_vector(const std::string_view aValue)
@@ -780,8 +909,19 @@ namespace bpr::app::detail {
 							application::github_provider_failure::malformed_response),
 					};
 				}
+				if (Role == fixture_transport_role::anonymous
+					&& carries_credential(aRequest.Wire.Headers)) {
+					State->RecordingFailure = -3;
+					return github_wire_error{
+						.Correlation = aRequest.Correlation,
+						.Error       = provider_error(
+							application::github_provider_failure::authentication),
+					};
+				}
 				auto& recording = Role == fixture_transport_role::bootstrap
 					? State->BootstrapRecording
+					: Role == fixture_transport_role::anonymous
+					? State->AnonymousRecording
 					: State->Recording;
 				auto  response  = recording.perform(aRequest.Wire);
 				if (!response.has_value()) {
@@ -919,6 +1059,7 @@ namespace bpr::app::detail {
 						State, fixture_transport_role::bootstrap)
 				}
 				, AccountTransport{ std::make_shared<fixture_recorded_wire_transport>(State, fixture_transport_role::account) }
+				, AnonymousTransport{ std::make_shared<fixture_recorded_wire_transport>(State, fixture_transport_role::anonymous) }
 			{
 			}
 
@@ -964,10 +1105,31 @@ namespace bpr::app::detail {
 				return AccountTransport;
 			}
 
+			// RFC-BPR-0017. Deliberately overridden rather than left to the
+			// base's refusal: the shipped factory beside this one composes a
+			// real anonymous transport, so a fixture that refused here would
+			// make the composed graph unreachable under test and prove nothing
+			// about it. There is no credential parameter on this entry, so
+			// nothing the course does can hand one over.
+			[[nodiscard]] auto make_anonymous(
+				const adapters::github::validated_github_host_profile& aProfile,
+				const core::github_session_request_context             aContext) noexcept
+				-> github_wire_transport_factory_result override
+			{
+				const std::scoped_lock lock{ State->Mutex };
+				if (!same_profile(aProfile, State->Profile)
+					|| aContext.Profile != aProfile.profile()) {
+					return std::unexpected{ provider_error(
+						application::github_provider_failure::unavailable) };
+				}
+				return AnonymousTransport;
+			}
+
 		private:
 			std::shared_ptr<fixture_recording_state>         State;
 			std::shared_ptr<fixture_recorded_wire_transport> BootstrapTransport;
 			std::shared_ptr<fixture_recorded_wire_transport> AccountTransport;
+			std::shared_ptr<fixture_recorded_wire_transport> AnonymousTransport;
 		};
 
 		// Replays BPR-0276's recorded device grant through the real wire

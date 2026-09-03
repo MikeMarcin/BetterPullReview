@@ -53,6 +53,12 @@ if(BPR_BUILD_QT)
                 BPR_BUILD_TESTING=1
                 "BPR_GITHUB_CONTRACT_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/contracts/v1\""
                 "BPR_GITHUB_CAPABILITY_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/capabilities/v1\""
+                # RFC-BPR-0017. The promoted signed-out bodies. The recorded
+                # public-path fixture serves the inline review conversation
+                # from the same captures the contract tests read, so the one
+                # operation only a signed-out read issues is replayed from a
+                # promoted live body rather than from a second invention.
+                "BPR_RFC0017_ANONYMOUS_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/rfc0017-anonymous-v001\""
                 "BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/pull-requests\""
                 "BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/device-authorization/v1\""
                 # RFC-BPR-0012. The tests-enabled composition supervises the
