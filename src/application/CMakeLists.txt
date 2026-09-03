@@ -17,6 +17,7 @@ add_library(
         src/agent_finding_host.cpp
         src/agent_launch.cpp
 		src/agent_invocation_host.cpp
+        src/agent_realignment.cpp
         src/agent_workspace.cpp
         src/mcp_context_helper_supervisor.cpp
         src/notification_delivery.cpp
