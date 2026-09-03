@@ -1,7 +1,7 @@
 ---
 id: BPR-0542
 title: The Linux Secret Service vault stores refresh material in a real second slot
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
