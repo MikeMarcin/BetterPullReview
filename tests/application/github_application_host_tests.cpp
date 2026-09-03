@@ -9,6 +9,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <string_view>
@@ -323,6 +324,40 @@ namespace {
 			application::github_credential_delete_completion_handler Completion;
 		};
 
+		// [[BPR-0548]]. The two rules every shipped platform vault enforces on
+		// all six port methods, so a host test cannot pass against a
+		// permissiveness no real vault has: `valid()` on the context or
+		// enrollment plus a callable completion, refused `invalid_request`
+		// before anything is recorded; and one pending operation per
+		// `github_credential_operation_context`, the duplicate refused
+		// `invalid_request` before it is recorded. A recorded call stays
+		// pending until the test runs its completion, which is this double's
+		// stand-in for the platform vault's effect lane.
+		[[nodiscard]] auto claim(
+			const application::github_credential_operation_context& aContext)
+			-> bool
+		{
+			return Pending->insert(aContext).second;
+		}
+
+		void release(
+			const application::github_credential_operation_context& aContext)
+		{
+			Pending->erase(aContext);
+		}
+
+		template <typename Handler>
+		[[nodiscard]] auto releasing(
+			const application::github_credential_operation_context& aContext,
+			Handler                                                 aCompletion) -> Handler
+		{
+			return [pending = Pending, aContext, completion = std::move(aCompletion)](
+					   auto aTerminal) mutable {
+				pending->erase(aContext);
+				completion(std::move(aTerminal));
+			};
+		}
+
 		void store(application::github_credential_enrollment aEnrollment,
 				   application::github_credential_store_completion_handler
 					   aCompletion) override
@@ -330,10 +365,24 @@ namespace {
 			if (ThrowOnStore) {
 				throw std::runtime_error{ "vault store" };
 			}
+			const auto context  = aEnrollment.Context;
+			const auto admitted = application::valid(aEnrollment) && aCompletion
+				&& claim(context);
+			if (!admitted) {
+				aEnrollment.Credential.reset();
+				if (aCompletion) {
+					aCompletion(application::github_credential_store_error{
+						.Context = context,
+						.Failure = application::github_credential_vault_failure::
+							invalid_request,
+					});
+				}
+				return;
+			}
 			StoredCredentialBytes.push_back(aEnrollment.Credential.size());
 			Stores.push_back({
-				.Context    = aEnrollment.Context,
-				.Completion = std::move(aCompletion),
+				.Context    = context,
+				.Completion = releasing(context, std::move(aCompletion)),
 			});
 		}
 
@@ -341,9 +390,20 @@ namespace {
 					  application::github_credential_retrieve_completion_handler
 						  aCompletion) override
 		{
+			if (!application::valid(aContext) || !aCompletion
+				|| !claim(aContext)) {
+				if (aCompletion) {
+					aCompletion(application::github_credential_retrieve_error{
+						.Context = aContext,
+						.Failure = application::github_credential_vault_failure::
+							invalid_request,
+					});
+				}
+				return;
+			}
 			Retrieves.push_back({
 				.Context    = aContext,
-				.Completion = std::move(aCompletion),
+				.Completion = releasing(aContext, std::move(aCompletion)),
 			});
 		}
 
@@ -352,9 +412,20 @@ namespace {
 						  application::github_credential_delete_completion_handler
 							  aCompletion) override
 		{
+			if (!application::valid(aContext) || !aCompletion
+				|| !claim(aContext)) {
+				if (aCompletion) {
+					aCompletion(application::github_credential_delete_error{
+						.Context = aContext,
+						.Failure = application::github_credential_vault_failure::
+							invalid_request,
+					});
+				}
+				return;
+			}
 			Deletes.push_back({
 				.Context    = aContext,
-				.Completion = std::move(aCompletion),
+				.Completion = releasing(aContext, std::move(aCompletion)),
 			});
 		}
 
@@ -389,8 +460,21 @@ namespace {
 			application::github_credential_store_completion_handler aCompletion)
 			override
 		{
-			const auto context = aEnrollment.Context;
+			const auto context  = aEnrollment.Context;
+			const auto admitted = application::valid(aEnrollment) && aCompletion;
 			aEnrollment.Credential.reset();
+			if (!aCompletion) {
+				return;
+			}
+			if (!admitted || !claim(context)) {
+				aCompletion(application::github_credential_store_error{
+					.Context = context,
+					.Failure = application::github_credential_vault_failure::
+						invalid_request,
+				});
+				return;
+			}
+			release(context);
 			aCompletion(application::github_credential_store_error{
 				.Context = context,
 				.Failure = application::github_credential_vault_failure::unavailable,
@@ -402,6 +486,18 @@ namespace {
 			application::github_credential_retrieve_completion_handler
 				aCompletion) override
 		{
+			if (!application::valid(aContext) || !aCompletion
+				|| !claim(aContext)) {
+				if (aCompletion) {
+					aCompletion(application::github_credential_retrieve_error{
+						.Context = aContext,
+						.Failure = application::github_credential_vault_failure::
+							invalid_request,
+					});
+				}
+				return;
+			}
+			release(aContext);
 			RefreshRetrieves.push_back(aContext);
 			switch (RefreshAnswer) {
 			case refresh_answer::present: {
@@ -441,6 +537,18 @@ namespace {
 			application::github_credential_delete_completion_handler aCompletion)
 			override
 		{
+			if (!application::valid(aContext) || !aCompletion
+				|| !claim(aContext)) {
+				if (aCompletion) {
+					aCompletion(application::github_credential_delete_error{
+						.Context = aContext,
+						.Failure = application::github_credential_vault_failure::
+							invalid_request,
+					});
+				}
+				return;
+			}
+			release(aContext);
 			RefreshDeletes.push_back(aContext);
 			if (RefreshDeleteAnswer == refresh_delete_answer::deleted) {
 				aCompletion(application::github_credential_delete_success{
@@ -472,9 +580,16 @@ namespace {
 		std::vector<application::github_credential_operation_context> Cancellations;
 		std::vector<application::github_credential_operation_context> RefreshRetrieves;
 		std::vector<application::github_credential_operation_context> RefreshDeletes;
-		refresh_answer                                                RefreshAnswer       = refresh_answer::unavailable;
-		refresh_delete_answer                                         RefreshDeleteAnswer = refresh_delete_answer::deleted;
-		bool                                                          ThrowOnStore        = false;
+		// The contexts whose operation this double has accepted and not yet
+		// answered. Held indirectly so a harness that moves the double keeps
+		// one queue rather than two.
+		std::shared_ptr<
+			std::set<application::github_credential_operation_context>>
+							  Pending = std::make_shared<
+								  std::set<application::github_credential_operation_context>>();
+		refresh_answer        RefreshAnswer       = refresh_answer::unavailable;
+		refresh_delete_answer RefreshDeleteAnswer = refresh_delete_answer::deleted;
+		bool                  ThrowOnStore        = false;
 	};
 
 	class throwing_once_lane final : public application::decision_executor

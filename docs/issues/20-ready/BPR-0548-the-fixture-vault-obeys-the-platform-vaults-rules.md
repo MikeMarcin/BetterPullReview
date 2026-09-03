@@ -41,3 +41,36 @@ the three instances.
 
 - Making the fixture a second implementation of a platform vault; it stands
   in for one, and only its refusals must match.
+
+## The two rules, and the negative controls they produced — 2026-09-03
+
+Both doubles now enforce, on all six port methods and for both slots, what
+`macos_keychain.cpp`, `linux_secret_service.cpp`, and
+`windows_credential_manager.cpp` enforce: `valid()` on the context or
+enrollment plus a callable completion, refused `invalid_request` before
+anything is queued; and one pending operation per
+`github_credential_operation_context`, the duplicate refused
+`invalid_request` before it is queued. The fixture claims the context
+synchronously and releases it when the queued task begins, which is the
+platform vaults' `queue`/`execute` order; it still publishes every terminal
+on the effect lane, which is its own discipline. The host tests' double
+holds a recorded call pending until the test runs its completion.
+
+Selector run (16 rows, `-j 2`): 15 passed, one red.
+
+- **`application_device_authorization_refresh_course`** — green before this
+  card, red after. Two independent signals in the one row:
+  `DEVICE_FLOW_ROTATIONS:0`, `DEVICE_FLOW_REFRESH_STATE:reenrollment_required`,
+  `DEVICE_FLOW_VAULT_STORES:1`, `DEVICE_FLOW_REFRESH_STORES:0`,
+  `DEVICE_FLOW_REFRESH_FAILED` against a required
+  `ROTATIONS:1 / scheduled / VAULT_STORES:2 / REFRESH_STORES:2 / REFRESH_OK`;
+  and `PUBLIC_PATH_VERDICT: ... cleanup_failed=1`. Disabling only the
+  duplicate rule and rerunning left the `DEVICE_FLOW_*` markers unchanged
+  and turned `cleanup_failed` back to `0`, so the refresh-slot half is the
+  validity rule refusing the device host's identity-generation-zero
+  contexts ([[BPR-0546]]) and the shutdown half is the pending-context rule
+  refusing the second delete under one context ([[BPR-0545]]).
+  [[BPR-0547]] is not demonstrated here: the course never reaches a first
+  renewal, so a second one cannot fail.
+
+`check_boundaries` and `clang-format` are clean on the touched files.

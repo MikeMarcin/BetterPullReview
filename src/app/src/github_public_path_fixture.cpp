@@ -33,6 +33,7 @@
 #include <optional>
 #include <random>
 #include <ranges>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -1519,9 +1520,64 @@ namespace bpr::app::detail {
 			std::optional<application::github_credential_material> Refresh;
 			std::size_t                                            RefreshStores    = 0U;
 			std::size_t                                            RefreshRetrieves = 0U;
-			mutable std::mutex                                     Mutex;
+			// [[BPR-0548]]. The contexts whose operation this vault has
+			// accepted and not yet begun executing, which is what every
+			// platform vault keys its pending map by. Guarded by `Mutex` with
+			// the rest of the slot state.
+			std::set<application::github_credential_operation_context> Pending;
+			mutable std::mutex                                         Mutex;
 		};
 
+		// [[BPR-0548]]. One pending operation per operation context, claimed
+		// before the work is queued and released when it begins, exactly as
+		// `queue`/`execute` do in every platform vault
+		// (`macos_keychain.cpp`, `linux_secret_service.cpp`,
+		// `windows_credential_manager.cpp`).
+		[[nodiscard]] auto claim_pending(
+			const std::shared_ptr<fixture_vault_state>&             aState,
+			const application::github_credential_operation_context& aContext)
+			-> bool
+		{
+			const std::scoped_lock lock{ aState->Mutex };
+			return aState->Pending.insert(aContext).second;
+		}
+
+		void release_pending(
+			const std::shared_ptr<fixture_vault_state>&             aState,
+			const application::github_credential_operation_context& aContext)
+		{
+			const std::scoped_lock lock{ aState->Mutex };
+			aState->Pending.erase(aContext);
+		}
+
+		// [[BPR-0548]]. This vault stands in for a platform vault, so it has
+		// to refuse everything a platform vault refuses -- a fixture more
+		// permissive than the thing it stands in for cannot falsify anything
+		// about it. Two rules are mirrored from
+		// `src/adapters/github/src/macos_keychain.cpp` and its Linux and
+		// Windows siblings, which enforce both on all six port methods:
+		//
+		//  1. `valid()` on the context or enrollment, and a callable
+		//     completion, checked before anything is queued; the refusal is
+		//     `invalid_request`. It is there because a context that names no
+		//     request, no application session, no authority, or identity
+		//     generation zero cannot address a stored secret, and a vault that
+		//     guesses would answer one session's query from another's slot.
+		//     Both slots are checked, because the refresh slot holds material
+		//     of exactly the same kind.
+		//  2. One pending operation per `github_credential_operation_context`,
+		//     a `std::map`/`std::set` keyed by that context with
+		//     `try_emplace`, the duplicate refused `invalid_request` before it
+		//     is queued (pinned as "duplicate store is not queued" in
+		//     `tests/github_contract/macos_keychain_contract_tests.cpp`). It
+		//     is there because the context is the key a completion, a
+		//     cancellation, and the executing task are all routed by: two live
+		//     operations under one context could not be told apart by
+		//     `cancel`, and their terminals could not be attributed.
+		//
+		// What is deliberately *not* mirrored is the platform's storage --
+		// this vault stays the in-memory, authority-keyed stand-in it was.
+		// Only its refusals match.
 		class fixture_credential_vault final
 			: public application::github_credential_vault_port
 		{
@@ -1552,6 +1608,9 @@ namespace bpr::app::detail {
 				application::github_credential_store_completion_handler aCompletion)
 				override
 			{
+				if (!admit_store(aEnrollment, aCompletion)) {
+					return;
+				}
 				auto pending = std::make_shared<
 					application::github_credential_enrollment>(
 					std::move(aEnrollment));
@@ -1559,16 +1618,9 @@ namespace bpr::app::detail {
 					[state             = State,
 					 pendingEnrollment = std::move(pending),
 					 completion        = std::move(aCompletion)]() mutable {
-						if (!application::valid(*pendingEnrollment)) {
-							completion(application::github_credential_store_error{
-								.Context = pendingEnrollment->Context,
-								.Failure = application::
-									github_credential_vault_failure::invalid_request,
-							});
-							return;
-						}
 						const auto context = pendingEnrollment->Context;
-						auto       digest  = credential_digest(
+						release_pending(state, context);
+						auto digest = credential_digest(
 							pendingEnrollment->Credential.bytes());
 						{
 							const std::scoped_lock lock{ state->Mutex };
@@ -1591,11 +1643,15 @@ namespace bpr::app::detail {
 				application::github_credential_retrieve_completion_handler aCompletion)
 				override
 			{
+				if (!admit_retrieve(aContext, aCompletion)) {
+					return;
+				}
 				Effects.post(
 					[state = State,
 					 keyed = AuthorityKeyed,
 					 aContext,
 					 completion = std::move(aCompletion)]() mutable {
+						release_pending(state, aContext);
 						auto material = std::optional<
 							application::github_credential_material>{ };
 						{
@@ -1644,11 +1700,15 @@ namespace bpr::app::detail {
 				application::github_credential_delete_completion_handler aCompletion)
 				override
 			{
+				if (!admit_delete(aContext, aCompletion)) {
+					return;
+				}
 				Effects.post(
 					[state = State,
 					 keyed = AuthorityKeyed,
 					 aContext,
 					 completion = std::move(aCompletion)]() mutable {
+						release_pending(state, aContext);
 						auto disposition  = application::github_credential_delete_disposition::absent;
 						auto exactContext = true;
 						{
@@ -1703,6 +1763,9 @@ namespace bpr::app::detail {
 				application::github_credential_store_completion_handler aCompletion)
 				override
 			{
+				if (!admit_store(aEnrollment, aCompletion)) {
+					return;
+				}
 				auto pending = std::make_shared<
 					application::github_credential_enrollment>(
 					std::move(aEnrollment));
@@ -1712,6 +1775,7 @@ namespace bpr::app::detail {
 					 pendingEnrollment = std::move(pending),
 					 completion        = std::move(aCompletion)]() mutable {
 						const auto context = pendingEnrollment->Context;
+						release_pending(state, context);
 						if (!slot) {
 							pendingEnrollment->Credential.reset();
 							completion(
@@ -1741,11 +1805,15 @@ namespace bpr::app::detail {
 				application::github_credential_retrieve_completion_handler aCompletion)
 				override
 			{
+				if (!admit_retrieve(aContext, aCompletion)) {
+					return;
+				}
 				Effects.post(
 					[state = State,
 					 slot  = RefreshSlot,
 					 aContext,
 					 completion = std::move(aCompletion)]() mutable {
+						release_pending(state, aContext);
 						if (!slot) {
 							completion(
 								application::github_credential_retrieve_error{
@@ -1791,11 +1859,15 @@ namespace bpr::app::detail {
 				application::github_credential_delete_completion_handler aCompletion)
 				override
 			{
+				if (!admit_delete(aContext, aCompletion)) {
+					return;
+				}
 				Effects.post(
 					[state = State,
 					 slot  = RefreshSlot,
 					 aContext,
 					 completion = std::move(aCompletion)]() mutable {
+						release_pending(state, aContext);
 						if (!slot) {
 							completion(
 								application::github_credential_delete_error{
@@ -1831,6 +1903,82 @@ namespace bpr::app::detail {
 			}
 
 		private:
+			// The two mirrored rules, applied before anything is queued and
+			// answered with the platform vaults' typed refusal. A refused
+			// request is never queued, and the refusal is still delivered on
+			// the effect lane, so this vault keeps its own discipline of
+			// exactly one terminal per accepted call, published from the lane.
+			[[nodiscard]] auto admit_store(
+				application::github_credential_enrollment& aEnrollment,
+				application::github_credential_store_completion_handler&
+					aCompletion) -> bool
+			{
+				const auto context = aEnrollment.Context;
+				if (application::valid(aEnrollment) && aCompletion
+					&& claim_pending(State, context)) {
+					return true;
+				}
+				aEnrollment.Credential.reset();
+				if (!aCompletion) {
+					return false;
+				}
+				Effects.post(
+					[context, completion = std::move(aCompletion)]() mutable {
+						completion(application::github_credential_store_error{
+							.Context = context,
+							.Failure = application::
+								github_credential_vault_failure::invalid_request,
+						});
+					});
+				return false;
+			}
+
+			[[nodiscard]] auto admit_retrieve(
+				const application::github_credential_operation_context& aContext,
+				application::github_credential_retrieve_completion_handler&
+					aCompletion) -> bool
+			{
+				if (application::valid(aContext) && aCompletion
+					&& claim_pending(State, aContext)) {
+					return true;
+				}
+				if (!aCompletion) {
+					return false;
+				}
+				Effects.post(
+					[aContext, completion = std::move(aCompletion)]() mutable {
+						completion(application::github_credential_retrieve_error{
+							.Context = aContext,
+							.Failure = application::
+								github_credential_vault_failure::invalid_request,
+						});
+					});
+				return false;
+			}
+
+			[[nodiscard]] auto admit_delete(
+				const application::github_credential_operation_context& aContext,
+				application::github_credential_delete_completion_handler&
+					aCompletion) -> bool
+			{
+				if (application::valid(aContext) && aCompletion
+					&& claim_pending(State, aContext)) {
+					return true;
+				}
+				if (!aCompletion) {
+					return false;
+				}
+				Effects.post(
+					[aContext, completion = std::move(aCompletion)]() mutable {
+						completion(application::github_credential_delete_error{
+							.Context = aContext,
+							.Failure = application::
+								github_credential_vault_failure::invalid_request,
+						});
+					});
+				return false;
+			}
+
 			application::effect_executor&        Effects;
 			std::shared_ptr<fixture_vault_state> State;
 			bool                                 RefreshSlot    = false;
