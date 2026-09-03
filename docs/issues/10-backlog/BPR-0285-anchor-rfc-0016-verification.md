@@ -3,7 +3,7 @@ id: BPR-0285
 title: Anchor RFC-BPR-0016 capability-critical verification
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539, BPR-0540, BPR-0542, BPR-0543, BPR-0544]
+depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539, BPR-0540, BPR-0542, BPR-0543, BPR-0544, BPR-0545, BPR-0546, BPR-0547, BPR-0548, BPR-0549]
 ---
 
 # Anchor RFC-BPR-0016 capability-critical verification
@@ -746,3 +746,111 @@ Two findings came back with the lanes:
 `bpr-linux` also noted that the first `clang-format` on its `PATH` is a
 21.x that the project's format check refuses; Linux envelopes now name
 `/usr/bin/clang-format`.
+
+## Third independent capability-critical review of `0e75c2e0` — 2026-09-03
+
+Run read-only at the head that closed BPR-0540, BPR-0542, BPR-0543,
+BPR-0544, and BPR-0532, with both prior reviews and their adjudications as
+its brief. The review's verdict and findings, condensed to its blocking
+set, verification failures, and residuals; the integrator reproduced every
+read-only command it gives.
+
+**Verdict: RFC-BPR-0016 may not move to Auto-Verified at `0e75c2e0`.**
+
+- **B1** — `start_delete` submits the refresh-slot delete and the
+  base-credential delete under one identical operation context; every
+  shipped platform vault keys its pending queue by that context and
+  refuses the second as `invalid_request`, so the base credential is no
+  longer deleted on orderly shutdown or superseding enrollment. At
+  shutdown that leaves the access token in the vault behind
+  `ShutdownCleanupFailed`; outside shutdown the deferred session fails
+  with `vault`, the binding is not forgotten, and every later
+  re-enrollment repeats the refusal — so a pasted token over an existing
+  session fails on a real vault.
+- **B2** — the composed device host mints every vault context with
+  `IdentityGeneration` zero, which the port's `valid()` rejects, so every
+  platform vault refuses `store_refresh`/`retrieve_refresh` from the
+  device host and a real sign-in ends in
+  `reenrollment_required(storage_failed)`. The composed refresh lifecycle
+  is inert on all three platforms.
+- **B3** — a rotation's re-enrollment supersedes the session and its
+  invalidate erases the refresh material the rotation just stored, so the
+  next renewal reports `refresh_absent`; renewal works exactly once.
+- **Verification failures V1–V7** name the ledger row, the card text, and
+  the three documents that assert an erasure, a stored slot, or an atomic
+  rotation that the shipped product does not exhibit, plus the fixture's
+  divergence from the platform vaults' rules.
+- **Residuals** — R1 the quiescence decrement racing its own failure
+  report; R2 two hosts minting contexts into one context-keyed queue;
+  R3 no evidence row composes either host against a platform vault;
+  R4 sign-out exists only at the host boundary; R5 the orphan course's
+  settle-window terminal.
+
+### Adjudication
+
+The integrator reproduced every read-only command. B1, B2, and B3 each hold
+at this head, and all three are accepted as blocking:
+
+- **B1 becomes [[BPR-0545]]**, and it is a regression this run introduced:
+  [[BPR-0540]]'s erasure submits the refresh delete and the credential
+  delete under one operation context, and every platform vault keys its
+  pending map by that context and refuses the duplicate. The integrator
+  approved that design without reading the platform queues; the macOS
+  contract had pinned the refusal since before this RFC.
+- **B2 becomes [[BPR-0546]]**. The device host's contexts carry identity
+  generation zero, which the port's own `valid()` rejects, so the composed
+  refresh lifecycle is inert on every platform vault. It has been true
+  since [[BPR-0536]]; [[BPR-0542]] and [[BPR-0543]] made the slot real,
+  which is what turned a moot defect into a reachable one, and their
+  closing claims about material reaching the slot are vacuous until this
+  lands.
+- **B3 becomes [[BPR-0547]]**. A rotation's own re-enrollment invalidates
+  the profile, and the invalidate erases the slot the rotation just
+  filled, so renewal works exactly once.
+- **The class behind all three becomes [[BPR-0548]]**: the fixture vault
+  and the host tests' double are more permissive than the vaults they
+  stand in for — no keyed pending queue, no validation of refresh-slot
+  contexts — so no registered row could have failed. That card lands
+  first and its red runs are the negative controls for the other three.
+
+V1 through V7 are corrections the fix slices carry, not separate work:
+each false statement is in a row or paragraph one of the four cards
+rewrites. R1 (the quiescence decrement ordering) is folded into
+BPR-0545. R2, R3, R4, and R5 are recorded as accepted residuals; R3 in
+particular — that no row composes either host against a platform vault —
+is what BPR-0548 answers structurally, and the platform suites' new cases
+answer concretely.
+
+**Consequence for the closeout: RFC-BPR-0016 stays `Deferred`.** The three
+final-head replays at `0e75c2e0` are provenance only. The Linux replay
+passed (25 selectors, `RFC0016_PLATFORM_COURSE_OK`); the Windows replay
+was blocked by an unrelated audit defect (below); the macOS replay failed
+on machine contention, reproduced as such. None of them can be closeout
+evidence for a head these findings falsify. The immutable final head is
+the one at which BPR-0545 through BPR-0548 are terminal, and the replays,
+the gates, and a fourth independent review run again there.
+
+## The composed-host audit required an anchor a Windows Release cannot show — 2026-09-03
+
+The Windows final-head replay at `0e75c2e0` exited 1 before printing any
+marker: `COMPOSED_HOSTS_FAILED: required exact demangled anchor is absent:
+device refresh authority binding`. The station stopped rather than repair
+it, correctly: this is the audit's defect.
+
+[[BPR-0536]] anchored the production profile on
+`bpr::app::github_application::implementation::bind_device_refresh_authority`,
+a private member function with exactly one call site. MSVC inlines it into
+that caller, so the symbol is absent from a Windows Release map (0
+occurrences there, 5 in the Debug map) while the behaviour is intact. The
+same weakness is visible on macOS, where the second review had already
+noted it as R3: `nm` shows the anchor as a local `t` symbol, which proves
+presence rather than linkage.
+
+The anchor moves to
+`bpr::application::device_authorization_application_host::bind_refresh_authority`,
+an external (`T`) out-of-line member defined in the application library and
+referenced only from the composition. It cannot be inlined across the
+library boundary without whole-program optimization, which these presets do
+not enable, and a linker that drops unreferenced sections removes it the
+moment composition stops binding — which is exactly the falsification the
+anchor exists for. That change belongs to the fix set above.
