@@ -21,9 +21,13 @@ namespace bpr::adapters::github {
 		wchar_t,
 		windows_credential_manager_authority_account_chars>;
 
+	// The refresh scopes name a second Credential Manager target under the same
+	// authority account, so one slot can never answer for the other (BPR-0543).
 	enum class windows_credential_manager_target_scope : std::uint8_t {
 		production,
 		integration_test,
+		production_refresh,
+		integration_test_refresh,
 	};
 
 	[[nodiscard]] constexpr auto valid(
@@ -31,7 +35,12 @@ namespace bpr::adapters::github {
 	{
 		return scope == windows_credential_manager_target_scope::production
 			|| scope
-			== windows_credential_manager_target_scope::integration_test;
+			== windows_credential_manager_target_scope::integration_test
+			|| scope
+			== windows_credential_manager_target_scope::production_refresh
+			|| scope
+			== windows_credential_manager_target_scope::
+				integration_test_refresh;
 	}
 
 	[[nodiscard]] auto windows_credential_manager_target_prefix(
@@ -115,10 +124,14 @@ namespace bpr::adapters::github {
 		application::effect_executor& effect_lane)
 		-> windows_credential_manager_vault_factory_result;
 
+	// A vault built without a refresh backend answers every refresh-slot
+	// operation with the typed unavailable failure. That is the useful default
+	// for the existing contract tests, which have no refresh material.
 	[[nodiscard]] auto make_windows_credential_manager_vault_with_backend(
 		application::effect_executor&                       effect_lane,
-		std::shared_ptr<windows_credential_manager_backend> backend) noexcept
-		-> windows_credential_manager_vault_factory_result;
+		std::shared_ptr<windows_credential_manager_backend> backend,
+		std::shared_ptr<windows_credential_manager_backend> aRefreshBackend
+		= nullptr) noexcept -> windows_credential_manager_vault_factory_result;
 }
 
 #endif // BPR_SRC_ADAPTERS_GITHUB_SRC_WINDOWS_CREDENTIAL_MANAGER_HPP
