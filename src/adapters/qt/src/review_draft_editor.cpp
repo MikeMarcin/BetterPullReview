@@ -5,6 +5,8 @@
 #include <QPlainTextEdit>
 #include <QVBoxLayout>
 
+#include <array>
+#include <cstddef>
 #include <utility>
 
 namespace bpr::qt {
@@ -96,6 +98,13 @@ namespace bpr::qt {
 			this,
 			QStringLiteral("reviewWorkshopProposal"),
 			QStringLiteral("Proposed revision"));
+		Members.WorkshopOperation = new QLabel{ this };
+		Members.WorkshopOperation->setObjectName(
+			QStringLiteral("reviewWorkshopOperation"));
+		Members.WorkshopOperation->setAccessibleName(
+			QStringLiteral("Comment workshop operation"));
+		Members.WorkshopOperation->setWordWrap(true);
+		layout->addWidget(Members.WorkshopOperation);
 		layout->addWidget(Members.WorkshopOriginal);
 		layout->addWidget(Members.WorkshopProposal);
 
@@ -117,6 +126,35 @@ namespace bpr::qt {
 			this,
 			tr("Reject revision"),
 			QStringLiteral("reviewRejectRevision"));
+
+		// One control per declared operation, in the enumerator's own order, so
+		// the array index *is* the operation. A seventh operation adds a row
+		// here and fails to compile until it does, which is what keeps the six
+		// controls and the closed set from drifting apart.
+		const auto controls
+			= std::array<std::pair<QString, QString>,
+						 core::workshop_operation_count>{ {
+				{ tr("Clarify"), QStringLiteral("reviewWorkshopClarify") },
+				{ tr("Shorten"), QStringLiteral("reviewWorkshopShorten") },
+				{ tr("Make actionable"),
+				  QStringLiteral("reviewWorkshopMakeActionable") },
+				{ tr("Phrase as a question"),
+				  QStringLiteral("reviewWorkshopPhraseAsAQuestion") },
+				{ tr("Make more direct"),
+				  QStringLiteral("reviewWorkshopMakeMoreDirect") },
+				{ tr("Check the premise"),
+				  QStringLiteral("reviewWorkshopCheckThePremise") },
+			} };
+		for (auto index = std::size_t{ 0U }; index < controls.size(); ++index) {
+			auto* const control
+				= make_action(this, controls[index].first, controls[index].second);
+			Members.WorkshopOperations[index] = control;
+			const auto asked
+				= static_cast<core::workshop_operation>(index);
+			connect(control, &QAction::triggered, this, [this, asked]() {
+				request_workshop(asked);
+			});
+		}
 
 		connect(Members.Publish, &QAction::triggered, this, [this]() {
 			emit_draft(core::review_draft_command_kind::begin_publish);
@@ -220,6 +258,63 @@ namespace bpr::qt {
 		return Members.RejectRevision;
 	}
 
+	auto review_draft_editor::workshop_action(
+		const core::workshop_operation aOperation) const noexcept -> QAction*
+	{
+		if (!core::declared(aOperation)) {
+			return nullptr;
+		}
+		return Members.WorkshopOperations[static_cast<std::size_t>(aOperation)];
+	}
+
+	auto review_draft_editor::clarify_action() const noexcept -> QAction*
+	{
+		return workshop_action(core::workshop_operation::clarify);
+	}
+
+	auto review_draft_editor::shorten_action() const noexcept -> QAction*
+	{
+		return workshop_action(core::workshop_operation::shorten);
+	}
+
+	auto review_draft_editor::make_actionable_action() const noexcept -> QAction*
+	{
+		return workshop_action(core::workshop_operation::make_actionable);
+	}
+
+	auto review_draft_editor::phrase_as_a_question_action() const noexcept
+		-> QAction*
+	{
+		return workshop_action(core::workshop_operation::phrase_as_a_question);
+	}
+
+	auto review_draft_editor::make_more_direct_action() const noexcept -> QAction*
+	{
+		return workshop_action(core::workshop_operation::make_more_direct);
+	}
+
+	auto review_draft_editor::check_the_premise_action() const noexcept -> QAction*
+	{
+		return workshop_action(core::workshop_operation::check_the_premise);
+	}
+
+	auto review_draft_editor::workshop_operation_label() const noexcept -> QLabel*
+	{
+		return Members.WorkshopOperation;
+	}
+
+	auto review_draft_editor::workshop_operation_text() const -> QString
+	{
+		return Members.WorkshopOperation->text();
+	}
+
+	void review_draft_editor::set_workshop_dispatch(
+		comment_workshop_dispatch aDispatch)
+	{
+		Members.WorkshopDispatch = std::move(aDispatch);
+		refresh_enablement();
+	}
+
 	auto review_draft_editor::shown_draft() const noexcept
 		-> const std::optional<core::review_comment_draft>&
 	{
@@ -308,11 +403,37 @@ namespace bpr::qt {
 		refresh_enablement();
 	}
 
+	void review_draft_editor::request_workshop(
+		const core::workshop_operation aOperation)
+	{
+		// The same shape as every other outbound path here: nothing is asked
+		// for without a draft to ask about, and an unwired editor asks nobody.
+		// The draft named is the one on screen, read now rather than resolved
+		// later by whoever answers.
+		const auto* const control = workshop_action(aOperation);
+		if (!Members.ShownDraft || !Members.WorkshopDispatch
+			|| control == nullptr
+			|| Members.ShownDraft->State != core::review_draft_state::drafting) {
+			return;
+		}
+		++Members.Statistics.WorkshopRequests;
+		// Said on screen at once, and said as a question rather than as an
+		// answer: what is shown beside it is still the reviewer's own text
+		// until a proposal arrives. Nothing here proposes anything.
+		Members.WorkshopOperation->setText(
+			tr("Asked for: %1").arg(control->text()));
+		Members.WorkshopDispatch(comment_workshop_request{
+			.Draft     = Members.ShownDraft->Id,
+			.Operation = aOperation,
+		});
+	}
+
 	void review_draft_editor::clear_workshop()
 	{
 		Members.ShownProposal.reset();
 		Members.WorkshopOriginal->clear();
 		Members.WorkshopProposal->clear();
+		Members.WorkshopOperation->clear();
 	}
 
 	void review_draft_editor::present(const core::review_comment_draft& aDraft)
@@ -336,6 +457,19 @@ namespace bpr::qt {
 			QString::fromStdString(aProposal.Original));
 		Members.WorkshopProposal->setPlainText(
 			QString::fromStdString(aProposal.Proposed));
+		// The proposal says which operation produced it, or says nothing at
+		// all: a promoted finding is a revision nobody workshopped, and
+		// labelling it with one of the six would name an operation that never
+		// ran.
+		const auto* const named = aProposal.Operation
+			? workshop_action(*aProposal.Operation)
+			: nullptr;
+		if (named != nullptr) {
+			Members.WorkshopOperation->setText(
+				tr("Proposed by: %1").arg(named->text()));
+		} else {
+			Members.WorkshopOperation->clear();
+		}
 		refresh_enablement();
 	}
 
@@ -458,6 +592,19 @@ namespace bpr::qt {
 		// against, and only while that draft is still the reviewer's to edit.
 		// Rejecting is always available, because dropping a proposal asks
 		// nothing of anybody.
+		// The six operations are offered whenever there is a draft to revise
+		// and refused, visibly, when there is not. Disabled rather than
+		// hidden, with the reason on the control: a workshop whose controls
+		// vanished would read as a workshop that does not exist, which is the
+		// misunderstanding this widget was built to end.
+		for (auto* const control : Members.WorkshopOperations) {
+			control->setEnabled(drafting && Members.WorkshopDispatch != nullptr);
+			control->setToolTip(
+				drafting && Members.WorkshopDispatch != nullptr
+					? tr("Ask the agent to revise your comment.")
+					: tr("Select a draft comment to workshop it."));
+		}
+
 		const auto proposed = Members.ShownProposal.has_value();
 		Members.AcceptRevision->setEnabled(
 			proposed && drafting

@@ -71,6 +71,58 @@ namespace bpr::core {
 	[[nodiscard]] auto acts_on_selection(agent_entry_point aEntryPoint) noexcept
 		-> bool;
 
+	/// \brief Every operation the comment workshop may be asked to perform.
+	///
+	/// \details The six `docs/ux/ai-experience.md` names, in the documented
+	/// order, and nothing else. The set is closed for the reason the entry
+	/// points are: `workshop_comment` is one entry point, so what varies
+	/// between one workshop request and the next is *this* value, and an
+	/// operation nobody enumerated cannot be asked for. A seventh arrives by
+	/// being named here — which fails every switch that omits a `default`
+	/// label and the constant below — rather than by an adapter inventing a
+	/// string the agent is left to interpret.
+	enum class workshop_operation : std::uint8_t {
+		clarify,
+		shorten,
+		make_actionable,
+		phrase_as_a_question,
+		make_more_direct,
+		check_the_premise,
+	};
+
+	/// \brief The number of declared workshop operations.
+	inline constexpr std::size_t workshop_operation_count = 6U;
+
+	static_assert(
+		static_cast<std::size_t>(workshop_operation::check_the_premise) + 1U
+			== workshop_operation_count,
+		"workshop_operation_count must cover every declared operation");
+
+	[[nodiscard]] auto stable_name(workshop_operation aOperation) noexcept
+		-> std::string_view;
+
+	/// \brief Whether the supplied value is one of the declared operations.
+	///
+	/// \details A cast enumerator is not an operation, and is checked at
+	/// runtime for the same reason a cast entry point is: an operation
+	/// arriving from a decoder or a widget is a number until something says
+	/// otherwise.
+	[[nodiscard]] auto declared(workshop_operation aOperation) noexcept -> bool;
+
+	/// \brief The operation one entry point may carry, and nothing else.
+	///
+	/// \details `workshop_comment` is the only entry point an operation means
+	/// anything for, so this is where "carried through the existing entry
+	/// point rather than as six new ones" is decided rather than left to each
+	/// caller to remember. Every other entry point carries no operation, and
+	/// an undeclared one carries none either — a supplement that named an
+	/// operation for "run AI review" would be asking for an action nobody
+	/// enumerated under the name of one that was.
+	[[nodiscard]] auto workshop_operation_for(
+		agent_entry_point                 aEntryPoint,
+		std::optional<workshop_operation> aOperation) noexcept
+		-> std::optional<workshop_operation>;
+
 	/// \brief Something that happened while a review was open.
 	///
 	/// \details These are the four the RFC names as invoking nothing. They are

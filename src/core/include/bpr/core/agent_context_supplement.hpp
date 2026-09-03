@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CONTEXT_SUPPLEMENT_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CONTEXT_SUPPLEMENT_HPP
 
+#include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/core/diff_semantics.hpp"
@@ -133,6 +134,13 @@ namespace bpr::core {
 	///
 	/// `Message` is the reviewer's typed question, engaged only when this
 	/// build is for one chat turn and keyed to the session it was typed into.
+	///
+	/// `Operation` is which of the six comment-workshop operations this build
+	/// is for. Engaged only when the build is a workshop request — which
+	/// `workshop_operation_for` decides from the entry point, so that an
+	/// operation cannot ride along on a review or a chat turn — and absent for
+	/// every other launch. Absent means no operation was asked for, not that
+	/// one was dropped.
 	struct agent_supplement_request
 	{
 		application_session_id                     ApplicationSession;
@@ -146,6 +154,7 @@ namespace bpr::core {
 		std::optional<supplement_semantic_context> Selection;
 		std::vector<supplement_note>               SelectedNotes;
 		std::vector<supplement_draft>              SelectedDrafts;
+		std::optional<workshop_operation>          Operation;
 
 		auto operator<=>(const agent_supplement_request&) const = default;
 	};
@@ -162,6 +171,12 @@ namespace bpr::core {
 	/// names this session. Empty means no question was asked - which is what
 	/// every launch that is not a chat turn carries - rather than a question
 	/// this build dropped.
+	///
+	/// `Operation` is the workshop operation the request named, carried
+	/// through unchanged. A request naming an undeclared operation is refused
+	/// whole rather than carried with the field cleared, because a supplement
+	/// that quietly dropped the operation would ask the agent to revise a
+	/// comment without saying how.
 	struct agent_context_supplement
 	{
 		std::uint32_t SchemaVersion
@@ -177,6 +192,7 @@ namespace bpr::core {
 		std::optional<supplement_semantic_context> Selection;
 		std::vector<supplement_note>               Notes;
 		std::vector<supplement_draft>              Drafts;
+		std::optional<workshop_operation>          Operation;
 
 		auto operator<=>(const agent_context_supplement&) const = default;
 	};

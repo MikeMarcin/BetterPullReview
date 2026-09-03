@@ -26,8 +26,9 @@ namespace bpr::application {
 	}
 
 	auto agent_comment_workshop_host::propose(
-		const core::review_comment_draft& aDraft,
-		const core::review_draft_command& aCommand)
+		const core::review_comment_draft&             aDraft,
+		const core::review_draft_command&             aCommand,
+		const std::optional<core::workshop_operation> aOperation)
 		-> agent_comment_workshop_refusal
 	{
 		// Identity before content. A revision meant for another draft is not
@@ -52,6 +53,12 @@ namespace bpr::application {
 			.Draft    = aDraft.Id,
 			.Original = aDraft.Body,
 			.Proposed = aCommand.Body,
+			// The operation is carried, not consulted: it says why this after
+			// differs from this before, and an undeclared one is dropped here
+			// rather than presented as a name nobody can read.
+			.Operation = aOperation && core::declared(*aOperation)
+				? aOperation
+				: std::nullopt,
 		});
 		return agent_comment_workshop_refusal::none;
 	}

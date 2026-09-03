@@ -180,6 +180,7 @@ namespace bpr::core {
 			|| (aRequest.PreviousUpload && !aRequest.PreviousUpload->valid())
 			|| (aRequest.LastReviewedHead && !aRequest.LastReviewedHead->valid())
 			|| !valid_chat_message(aRequest.Session, aRequest.Message)
+			|| (aRequest.Operation && !declared(*aRequest.Operation))
 			|| (aRequest.Selection && !valid_selection(*aRequest.Selection))) {
 			return std::nullopt;
 		}
@@ -213,6 +214,7 @@ namespace bpr::core {
 			.Selection          = aRequest.Selection,
 			.Notes              = aRequest.SelectedNotes,
 			.Drafts             = aRequest.SelectedDrafts,
+			.Operation          = aRequest.Operation,
 		};
 	}
 

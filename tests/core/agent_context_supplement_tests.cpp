@@ -219,8 +219,8 @@ namespace {
 
 	void test_no_field_can_hold_presentation_or_credential_authority()
 	{
-		using supplement     = core::agent_context_supplement;
-		const auto whole     = supplement{ };
+		using supplement        = core::agent_context_supplement;
+		const auto whole        = supplement{ };
 		const auto& [version,
 					 applicationSession,
 					 run,
@@ -232,7 +232,8 @@ namespace {
 					 defects,
 					 selection,
 					 notes,
-					 drafts] = whole;
+					 drafts,
+					 operation] = whole;
 		static_assert(std::is_same_v<decltype(version), const std::uint32_t>);
 		static_assert(std::is_same_v<
 					  decltype(applicationSession),
@@ -246,12 +247,15 @@ namespace {
 					  decltype(notes), const std::vector<core::supplement_note>>);
 		static_assert(std::is_same_v<
 					  decltype(drafts), const std::vector<core::supplement_draft>>);
+		static_assert(std::is_same_v<
+					  decltype(operation),
+					  const std::optional<core::workshop_operation>>);
 		expect(
 			version == core::agent_supplement_schema_version
 				&& applicationSession.value() == 0U && run.Id.value() == 0U
 				&& url.empty() && message.empty() && !previous && !lastReviewed
 				&& files.empty() && defects.empty() && !selection && notes.empty()
-				&& drafts.empty(),
+				&& drafts.empty() && !operation,
 			"the complete type contains only domain identity, bounded source/prose, "
 			"and explicit absence - no argv, environment, token, Qt index, or coordinate");
 
@@ -425,6 +429,45 @@ namespace {
 			"quietly emptied by an opt-in that happened to be off");
 	}
 
+	/// \brief The asked-for workshop operation travels, or nothing does.
+	void test_a_workshop_operation_travels_and_changes_nothing_else()
+	{
+		expect(
+			!core::build_agent_supplement(minimal_request())
+				 ->Operation.has_value(),
+			"a supplement built outside a workshop request names no "
+			"operation, so absent means none was asked for rather than that "
+			"one was dropped");
+
+		auto request      = private_request();
+		request.Operation = core::workshop_operation::phrase_as_a_question;
+		const auto built  = core::build_agent_supplement(request);
+		expect(
+			built
+				&& built->Operation
+					== std::optional{
+						core::workshop_operation::phrase_as_a_question },
+			"the operation the reviewer asked for travels exactly as asked");
+
+		auto withoutOperation = request;
+		withoutOperation.Operation.reset();
+		auto expected      = *core::build_agent_supplement(withoutOperation);
+		expected.Operation = request.Operation;
+		expect(
+			*built == expected,
+			"and changes nothing else: the same identities, receipts, defect "
+			"history, and semantic selection travel beside it");
+
+		auto undeclared      = request;
+		undeclared.Operation = static_cast<core::workshop_operation>(
+			core::workshop_operation_count);
+		expect(
+			!core::build_agent_supplement(undeclared).has_value(),
+			"an operation nobody declared refuses the whole supplement rather "
+			"than being cleared, which would ask the agent to revise a comment "
+			"without saying how");
+	}
+
 	/// \brief A typed question is admitted for its own session, or not at all.
 	void test_a_chat_message_is_admitted_only_for_its_own_session()
 	{
@@ -575,6 +618,7 @@ auto main() -> int
 	test_no_field_can_hold_presentation_or_credential_authority();
 	test_private_prose_travels_only_where_this_session_opted_in();
 	test_a_chat_message_is_admitted_only_for_its_own_session();
+	test_a_workshop_operation_travels_and_changes_nothing_else();
 	test_invalid_or_oversize_context_is_refused_whole();
 	std::cout << "agent-context-supplement-tests:pass\n";
 	return EXIT_SUCCESS;

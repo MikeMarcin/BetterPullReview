@@ -779,6 +779,106 @@ namespace {
 			"and holds once it names both, so the refusal above is about the "
 			"missing identities");
 	}
+	/// \brief The six operations are six, are named, and are named stably.
+	///
+	/// \details The count, the names, and the round trip are pinned together
+	/// because each one alone is escapable: a seventh operation with no name
+	/// passes a name test, a renamed operation passes a count test, and a name
+	/// that no longer maps back to its operation passes both.
+	void test_the_workshop_offers_exactly_the_six_documented_operations()
+	{
+		constexpr auto expected
+			= std::array<std::string_view, core::workshop_operation_count>{
+				  "clarify",
+				  "shorten",
+				  "make_actionable",
+				  "phrase_as_a_question",
+				  "make_more_direct",
+				  "check_the_premise",
+			  };
+
+		expect(
+			core::workshop_operation_count == 6U,
+			"docs/ux/ai-experience.md promises six comment-workshop "
+			"operations and the tree declares six");
+
+		for (auto index = std::size_t{ 0U }; index < expected.size(); ++index) {
+			const auto operation
+				= static_cast<core::workshop_operation>(index);
+			expect(
+				core::declared(operation),
+				"every value below the count is a declared operation");
+			expect(
+				core::stable_name(operation) == expected[index],
+				"each operation carries the documented name, in the "
+				"documented order");
+			// The round trip: the name maps back to exactly one operation,
+			// and to this one.
+			auto matches = std::size_t{ 0U };
+			auto found   = core::workshop_operation{ };
+			for (auto other = std::size_t{ 0U }; other < expected.size();
+				 ++other) {
+				const auto candidate
+					= static_cast<core::workshop_operation>(other);
+				if (core::stable_name(candidate)
+					== core::stable_name(operation)) {
+					++matches;
+					found = candidate;
+				}
+			}
+			expect(
+				matches == 1U && found == operation,
+				"a stable name names one operation and names it back");
+		}
+
+		expect(
+			!core::declared(static_cast<core::workshop_operation>(
+				core::workshop_operation_count))
+				&& core::stable_name(static_cast<core::workshop_operation>(
+										 core::workshop_operation_count))
+					   .empty(),
+			"a seventh value is not an operation and has no name to be "
+			"mistaken for one");
+	}
+
+	/// \brief An operation rides one entry point and no other.
+	void test_an_operation_is_carried_only_by_the_workshop_entry_point()
+	{
+		constexpr auto asked = core::workshop_operation::make_actionable;
+
+		expect(
+			core::workshop_operation_for(
+				core::agent_entry_point::workshop_comment, asked)
+				== std::optional{ asked },
+			"the workshop entry point carries the operation it was asked "
+			"for");
+		expect(
+			!core::workshop_operation_for(
+				 core::agent_entry_point::workshop_comment, std::nullopt)
+				 .has_value(),
+			"and carries none when none was asked for");
+
+		for (auto index = std::size_t{ 0U };
+			 index < core::agent_entry_point_count;
+			 ++index) {
+			const auto entry = static_cast<core::agent_entry_point>(index);
+			if (entry == core::agent_entry_point::workshop_comment) {
+				continue;
+			}
+			expect(
+				!core::workshop_operation_for(entry, asked).has_value(),
+				"no other entry point carries an operation, so the six are "
+				"not six new entry points wearing one name");
+		}
+
+		expect(
+			!core::workshop_operation_for(
+				 core::agent_entry_point::workshop_comment,
+				 static_cast<core::workshop_operation>(
+					 core::workshop_operation_count))
+				 .has_value(),
+			"and an undeclared operation is carried by nothing");
+	}
 } // namespace
 
 auto main() -> int
@@ -794,6 +894,8 @@ auto main() -> int
 	test_a_refused_widening_changes_nothing();
 	test_a_scope_names_identities_and_never_a_coordinate();
 	test_a_scope_engages_exactly_what_its_kind_means();
+	test_the_workshop_offers_exactly_the_six_documented_operations();
+	test_an_operation_is_carried_only_by_the_workshop_entry_point();
 	std::cout << "agent-chat-scope-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -275,6 +275,10 @@ namespace {
 		// after the pull request URL; an invocation from the launch panel sends
 		// none, so the field is present and empty.
 		fields.emplace("chat_message", std::string{ });
+		// BPR-0533: and the workshop operation in the one position after it.
+		// An invocation from the launch panel is not a workshop request, so
+		// the field is present and empty.
+		fields.emplace("workshop_operation", std::string{ });
 		fields.emplace("base", std::string{ core::canonical_hex(aEvidence.Binding.BaseOid).view() });
 		fields.emplace("head", std::string{ core::canonical_hex(aEvidence.Binding.HeadOid).view() });
 		put_number(fields, "left_epoch", aEvidence.Binding.LeftEpoch.value());

@@ -1,11 +1,13 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_COMMENT_WORKSHOP_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_COMMENT_WORKSHOP_HOST_HPP
 
+#include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -21,11 +23,19 @@ namespace bpr::application {
 	/// `Draft` is the draft the proposal was made against, and it travels with
 	/// the two texts so an acceptance names that draft rather than whichever
 	/// one is on screen when the reviewer gets to it.
+	///
+	/// `Operation` is which of the six comment-workshop operations produced
+	/// the proposal, and is absent when none was asked for — a finding
+	/// promoted to a comment is a proposal nobody workshopped, and naming an
+	/// operation for it would claim an operation ran. Engaged, it is what lets
+	/// the before/after say *why* the after differs, rather than leaving the
+	/// reviewer to infer which of six things was asked for.
 	struct agent_comment_workshop_proposal
 	{
-		core::review_draft_id Draft;
-		std::string           Original;
-		std::string           Proposed;
+		core::review_draft_id                   Draft;
+		std::string                             Original;
+		std::string                             Proposed;
+		std::optional<core::workshop_operation> Operation;
 
 		auto operator<=>(const agent_comment_workshop_proposal&) const = default;
 	};
@@ -126,11 +136,28 @@ namespace bpr::application {
 
 		/// \brief Offers one proposed revision of one exact draft.
 		///
+		/// \details `aOperation` names which of the six comment-workshop
+		/// operations asked for this revision, and is carried into the
+		/// proposal unchanged. It is a parameter rather than a field on the
+		/// command because a `core::review_draft_command` is every draft
+		/// gesture in the tree — publish, discard, edit — and an operation
+		/// there would be a workshop concept riding on gestures that have
+		/// nothing to do with one. It defaults to absent so that the paths
+		/// that revise a comment without being asked for one of the six — the
+		/// promoted finding is the shipped one — keep proposing exactly what
+		/// they proposed before.
+		///
+		/// Nothing about the decision depends on the operation: a refusal is
+		/// refused for the same four reasons whichever operation asked, and an
+		/// undeclared operation cannot make an otherwise good revision
+		/// refusable.
+		///
 		/// \returns `none` when a proposal was presented, and otherwise the
 		/// exact reason none was, which the projection is told either way.
 		[[nodiscard]] auto propose(
-			const core::review_comment_draft& aDraft,
-			const core::review_draft_command& aCommand)
+			const core::review_comment_draft&       aDraft,
+			const core::review_draft_command&       aCommand,
+			std::optional<core::workshop_operation> aOperation = std::nullopt)
 			-> agent_comment_workshop_refusal;
 
 		[[nodiscard]] auto statistics() const noexcept

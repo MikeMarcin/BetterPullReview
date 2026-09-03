@@ -1559,6 +1559,19 @@ namespace bpr::application {
 		// is the supplement's whole wire form: a question placed in the framing
 		// as well would reach the agent twice and it would have been asked once.
 		append_field(result, "chat_message", aSupplement.Message);
+		// BPR-0533: the one position the asked-for comment-workshop operation
+		// occupies. Written unconditionally and empty when the launch is not a
+		// workshop request, for the reason the message above is: a reader must
+		// not have to decide whether a missing line means "no operation" or
+		// "an operation this build dropped". The stable name is written rather
+		// than the enumerator's number, so a reordering of the closed set
+		// cannot silently rename what was asked for.
+		append_field(
+			result,
+			"workshop_operation",
+			aSupplement.Operation
+				? std::string{ core::stable_name(*aSupplement.Operation) }
+				: std::string{ });
 		append_field(
 			result,
 			"base",

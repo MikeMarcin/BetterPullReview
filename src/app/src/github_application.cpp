@@ -3524,6 +3524,17 @@ namespace bpr::app {
 				[this](core::review_draft_command aCommand) {
 					dispatch_review_draft(std::move(aCommand));
 				});
+			// BPR-0533. The six comment-workshop controls reach the composed
+			// workshop host and nothing else: the editor asks for an operation
+			// on one exact draft, and this composition is what decides whether
+			// there is anything to answer with. The widget holds no host, no
+			// agent, and no revision of its own.
+			if (Window->review_editor() != nullptr) {
+				Window->review_editor()->set_workshop_dispatch(
+					[this](qt::comment_workshop_request aRequest) {
+						ask_comment_workshop(aRequest);
+					});
+			}
 			Window->comparison_surface()->set_selection_sink(
 				[this](const std::optional<core::semantic_selection>& aSelection) {
 					observe_review_selection(aSelection);
@@ -3839,9 +3850,10 @@ namespace bpr::app {
 						++CommentWorkshopProposals;
 						Window->review_editor()->present(
 							qt::comment_workshop_proposal{
-								.Draft    = aProposal.Draft,
-								.Original = aProposal.Original,
-								.Proposed = aProposal.Proposed,
+								.Draft     = aProposal.Draft,
+								.Original  = aProposal.Original,
+								.Proposed  = aProposal.Proposed,
+								.Operation = aProposal.Operation,
 							});
 					},
 					[this](
@@ -6540,6 +6552,34 @@ namespace bpr::app {
 				std::string{ aSubject } + " refused: " + std::string{ aReason });
 		}
 
+		/// \brief Records one asked-for comment-workshop operation.
+		///
+		/// \details The reviewer's half of the workshop, and all of it that
+		/// this composition can honour today: the operation is admitted under
+		/// the one entry point it means anything for, held against the draft
+		/// it was asked about, and named on the proposal when the agent's
+		/// revision arrives. Nothing here writes a revision — there is no
+		/// text to write, and inventing one would be this composition
+		/// answering a question it forwarded.
+		void ask_comment_workshop(const qt::comment_workshop_request& aRequest)
+		{
+			const auto admitted = core::workshop_operation_for(
+				core::agent_entry_point::workshop_comment, aRequest.Operation);
+			if (!admitted.has_value()) {
+				present_agent_refusal("comment workshop", "unknown_operation");
+				return;
+			}
+			if (!ReviewDraft.has_value() || ReviewDraft->Id != aRequest.Draft) {
+				present_agent_refusal(
+					"comment workshop",
+					application::name(application::
+										  agent_comment_workshop_refusal::
+											  different_draft));
+				return;
+			}
+			PendingWorkshopOperation = admitted;
+		}
+
 		/// \brief Presents what one asked-for finding action produced.
 		///
 		/// \details A promoted comment becomes a *proposal* rather than a
@@ -6552,8 +6592,13 @@ namespace bpr::app {
 		{
 			if (aOutcome.Draft.has_value() && WorkshopHost != nullptr
 				&& ReviewDraft.has_value()) {
-				static_cast<void>(
-					WorkshopHost->propose(*ReviewDraft, *aOutcome.Draft));
+				// The operation the reviewer asked for, spent here and not
+				// again: a second revision that arrived unasked is not the
+				// answer to the first question.
+				const auto asked = PendingWorkshopOperation;
+				PendingWorkshopOperation.reset();
+				static_cast<void>(WorkshopHost->propose(
+					*ReviewDraft, *aOutcome.Draft, asked));
 				return;
 			}
 			if (aOutcome.Defect.has_value()) {
@@ -7974,18 +8019,22 @@ namespace bpr::app {
 		// rather than a second lifetime for it. They hold no process,
 		// provider, credential, or store of their own; the only way out of
 		// either is an intent this composition answers.
-		qt::side_chat_panel*                                            SideChat     = nullptr;
-		qt::finding_queue_view*                                         FindingQueue = nullptr;
-		std::unique_ptr<composition_agent_finding_projection>           FindingProjections;
-		std::unique_ptr<application::agent_finding_host>                FindingHost;
-		std::unique_ptr<composition_agent_chat_projection>              ChatProjections;
-		std::unique_ptr<application::agent_chat_session_host>           ChatHost;
-		std::unique_ptr<composition_comment_workshop_projection>        WorkshopProjections;
-		std::unique_ptr<application::agent_comment_workshop_host>       WorkshopHost;
-		std::unique_ptr<adapters::agent::agent_process_launcher>        McpProcess;
-		std::unique_ptr<application::mcp_context_helper_supervisor>     McpHelper;
-		std::filesystem::path                                           McpSnapshotRoot;
-		std::size_t                                                     CommentWorkshopProposals = 0U;
+		qt::side_chat_panel*                                        SideChat     = nullptr;
+		qt::finding_queue_view*                                     FindingQueue = nullptr;
+		std::unique_ptr<composition_agent_finding_projection>       FindingProjections;
+		std::unique_ptr<application::agent_finding_host>            FindingHost;
+		std::unique_ptr<composition_agent_chat_projection>          ChatProjections;
+		std::unique_ptr<application::agent_chat_session_host>       ChatHost;
+		std::unique_ptr<composition_comment_workshop_projection>    WorkshopProjections;
+		std::unique_ptr<application::agent_comment_workshop_host>   WorkshopHost;
+		std::unique_ptr<adapters::agent::agent_process_launcher>    McpProcess;
+		std::unique_ptr<application::mcp_context_helper_supervisor> McpHelper;
+		std::filesystem::path                                       McpSnapshotRoot;
+		std::size_t                                                 CommentWorkshopProposals = 0U;
+		/// The operation the reviewer last asked the workshop for, spent by
+		/// the next proposal. Absent is the ordinary state, and it is what
+		/// makes a promoted finding a proposal nobody workshopped.
+		std::optional<core::workshop_operation>                         PendingWorkshopOperation;
 		std::size_t                                                     FindingRefusalsPresented = 0U;
 		std::size_t                                                     SideChatIntents          = 0U;
 		std::size_t                                                     SideChatPresentations    = 0U;
