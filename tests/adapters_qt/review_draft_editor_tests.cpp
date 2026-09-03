@@ -649,6 +649,84 @@ namespace {
 		delete editor;
 	}
 
+	/// \brief One press, one turn: the six close until that turn answers.
+	///
+	/// \details BPR-0533 part two. A press now starts an agent turn, and an
+	/// agent turn takes time. What the reviewer must not be able to do in that
+	/// window is ask again and be answered later, or twice: the controls shut,
+	/// say why on themselves, and reopen when the answer arrives. Refused on
+	/// the surface that asked, because the launch panel deliberately keeps a
+	/// running invocation's own status while it runs.
+	void test_a_press_closes_the_six_until_that_press_is_answered()
+	{
+		auto  log    = intent_log{ };
+		auto* editor = editor_for(log);
+		auto  asked  = std::vector<qt::comment_workshop_request>{ };
+		// A dispatch that starts a turn and does not answer inside it, which is
+		// what a real invocation does.
+		editor->set_workshop_dispatch(
+			[&asked](qt::comment_workshop_request aRequest) {
+				asked.push_back(aRequest);
+			});
+		editor->present(a_draft(original_body));
+
+		editor->shorten_action()->trigger();
+		expect(
+			asked.size() == 1U
+				&& asked.front().Operation == core::workshop_operation::shorten
+				&& editor->statistics().WorkshopRequests == 1U,
+			"the press asks once, for the operation pressed");
+		expect(
+			editor->workshop_operation_text().contains(
+				editor->shorten_action()->text()),
+			"and the surface says what was asked while it waits");
+
+		for (auto index = std::size_t{ 0U };
+			 index < core::workshop_operation_count;
+			 ++index) {
+			auto* const control = editor->workshop_action(
+				static_cast<core::workshop_operation>(index));
+			expect(
+				control->isVisible() && !control->isEnabled()
+					&& control->toolTip().contains(QStringLiteral("already running")),
+				"every operation is shut while that turn is unanswered, and each "
+				"one says why on itself rather than somewhere else");
+			control->trigger();
+		}
+		expect(
+			asked.size() == 1U && editor->statistics().WorkshopRequests == 1U,
+			"and nothing pressed in that window is asked, then or later - a "
+			"second question is refused, never queued");
+
+		// The answer to that turn, through the one path.
+		editor->present(qt::comment_workshop_proposal{
+			.Draft     = editor->shown_draft()->Id,
+			.Original  = original_body,
+			.Proposed  = revision_for(core::workshop_operation::shorten),
+			.Operation = core::workshop_operation::shorten,
+		});
+		expect(
+			editor->clarify_action()->isEnabled()
+				&& editor->shorten_action()->isEnabled()
+				&& editor->workshop_operation_text().contains(
+					editor->shorten_action()->text()),
+			"the answer reopens the offer and names which operation produced it");
+
+		editor->shorten_action()->trigger();
+		expect(
+			asked.size() == 2U,
+			"and the next question may be asked");
+
+		// Rejecting an outstanding proposal is the other way out, and it must
+		// leave the controls open rather than shut on a turn nobody is running.
+		editor->reject_revision_action()->trigger();
+		expect(
+			editor->clarify_action()->isEnabled(),
+			"clearing the workshop reopens it too");
+
+		delete editor;
+	}
+
 	/// \brief Without a draft the six refuse in the open.
 	void test_the_six_operations_refuse_visibly_without_a_draft()
 	{
@@ -721,6 +799,7 @@ namespace {
 	{
 		const auto members       = qt::review_draft_editor_members{ };
 		const auto& [applying,
+					 workshopAsked,
 					 draftDispatch,
 					 receiptDispatch,
 					 workshopDispatch,
@@ -744,6 +823,7 @@ namespace {
 					 statistics] = members;
 
 		static_assert(std::is_same_v<decltype(applying), const bool>);
+		static_assert(std::is_same_v<decltype(workshopAsked), const bool>);
 		static_assert(
 			std::is_same_v<
 				decltype(draftDispatch),
@@ -871,6 +951,7 @@ auto main(int argc, char** argv) -> int
 	test_a_revision_is_accepted_only_onto_the_draft_it_names();
 	test_a_typed_clear_takes_the_proposal_with_it();
 	test_each_operation_drives_one_proposal_through_the_one_path();
+	test_a_press_closes_the_six_until_that_press_is_answered();
 	test_the_six_operations_refuse_visibly_without_a_draft();
 	test_the_editor_holds_no_provider_endpoint_store_or_process();
 

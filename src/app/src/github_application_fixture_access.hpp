@@ -382,8 +382,22 @@ namespace bpr::app::detail {
 		std::string                                    LocalDraftBody;
 		std::string                                    WorkshopOriginalText;
 		std::string                                    WorkshopProposalText;
-		std::string                                    SideChatHeadOidText;
-		std::string                                    AgentPanelStatusText;
+		/// What the editor says about the operation: the question while a
+		/// press is unanswered, the operation that produced the proposal once
+		/// one arrives, and empty for a revision nobody workshopped.
+		std::string WorkshopOperationText;
+		/// The stable name of the operation still waiting for its turn's
+		/// answer, and empty when none is. Reported because "the operation was
+		/// recorded" and "the operation was spent by the turn it was asked in"
+		/// are different claims, and only a value that can be read between the
+		/// two can tell them apart.
+		std::string WorkshopPendingOperation;
+		/// Whether that pending press has learned which agent turn is
+		/// answering it. False between the dispatch and the admission, and
+		/// false is why an outcome arriving in that window names no operation.
+		bool        WorkshopPendingSessionBound = false;
+		std::string SideChatHeadOidText;
+		std::string AgentPanelStatusText;
 	};
 
 	struct agent_invocation_context_evidence

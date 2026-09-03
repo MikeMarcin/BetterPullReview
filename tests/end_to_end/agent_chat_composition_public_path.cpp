@@ -400,9 +400,13 @@ auto main(int argc, char** argv) -> int
 	const auto oneLaunchPath = !source.empty()
 		&& occurrences(source, "AgentHost->dispatch(") == 1U
 		&& occurrences(source, "application::agent_chat_session_host>(") == 1U
-		// One declaration and exactly two call sites: the launch panel's start
-		// gesture and the chat host's turn dispatcher.
-		&& occurrences(source, "dispatch_agent_invocation(") == 3U
+		// One declaration and exactly three call sites: the launch panel's
+		// start gesture, the chat host's turn dispatcher, and BPR-0533's
+		// comment-workshop press. Three gestures, one launch path — which is
+		// what `AgentHost->dispatch(` being pinned at one above already says,
+		// and what this count guards from the other side: a gesture that grew
+		// its own launch would not appear here at all.
+		&& occurrences(source, "dispatch_agent_invocation(") == 4U
 		&& source.find("ChatHost->deliver(") != std::string::npos;
 
 	const auto positive = afterSend.ChatHostComposed

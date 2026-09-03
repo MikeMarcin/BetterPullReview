@@ -3032,6 +3032,28 @@ namespace bpr::app {
 		clear_sink    Cleared;
 	};
 
+	/// \brief One comment-workshop press, and the turn it started.
+	///
+	/// \details BPR-0533. The reviewer's question, held from the press until
+	/// the answer to *that* turn arrives. `Draft` and `Operation` are what was
+	/// asked and about what; `Session` is which agent turn was started to
+	/// answer it, learned from the one place a session identity is allocated
+	/// and absent only in the window between the dispatch and that admission.
+	///
+	/// The session is what makes the pairing explicit. Without it, the next
+	/// revision to arrive from anywhere — a finding a reviewer promoted while
+	/// the workshop turn was still running — would be labelled with an
+	/// operation that never produced it, and the reviewer would read a
+	/// before/after answering a question nobody asked about that text.
+	struct pending_comment_workshop
+	{
+		core::review_draft_id                 Draft;
+		core::workshop_operation              Operation = core::workshop_operation::clarify;
+		std::optional<core::agent_session_id> Session;
+
+		auto operator<=>(const pending_comment_workshop&) const = default;
+	};
+
 	/// \brief Forwards one proposed revision, or the reason there is none.
 	class composition_comment_workshop_projection final
 		: public application::agent_comment_workshop_projection_port
@@ -3671,8 +3693,23 @@ namespace bpr::app {
 						}
 					},
 					[this](const core::agent_session& aSession) {
-						if (!Closing && ChatHost != nullptr) {
+						if (Closing) {
+							return;
+						}
+						if (ChatHost != nullptr) {
 							ChatHost->admitted(aSession);
+						}
+						// The same seam, for the same reason. A workshop press
+						// learns which turn is answering it here rather than
+						// keeping an identity of its own, so the outcome the
+						// operation is spent on is the outcome of the turn the
+						// press actually started. Only a press still waiting
+						// for a turn takes one: a session admitted for the
+						// launch panel or the chat while a workshop turn is
+						// already running belongs to neither.
+						if (PendingWorkshopOperation.has_value()
+							&& !PendingWorkshopOperation->Session.has_value()) {
+							PendingWorkshopOperation->Session = aSession.Id;
 						}
 					});
 			auto agentProfiles = core::built_in_agent_profiles();
@@ -3927,7 +3964,9 @@ namespace bpr::app {
 												   : std::nullopt,
 								false,
 								aTurn.Message,
-								aTurn.Session);
+								aTurn.Session,
+								core::agent_entry_point::ask_about_selection,
+								std::nullopt);
 						},
 						[this]() -> application::agent_chat_private_prose {
 							return current_chat_private_prose();
@@ -6348,6 +6387,8 @@ namespace bpr::app {
 				start.IncludedDraft,
 				start.ExistingCheckoutChosen,
 				std::string_view{ },
+				std::nullopt,
+				core::agent_entry_point::ask_about_selection,
 				std::nullopt));
 		}
 
@@ -6372,6 +6413,15 @@ namespace bpr::app {
 		/// RFC-BPR-0012's `continue_against_old_revision` leaves behind — the
 		/// revision *it* names is the one everything below composes from.
 		///
+		/// `aEntryPoint` is the reviewer gesture this turn is for, and
+		/// `aWorkshopOperation` is which of the six comment-workshop
+		/// operations was pressed. Both are arguments for the same reason
+		/// `aChatMessage` is: the one place a gesture's intent enters an
+		/// invocation is a value passed at a call site a reader can see.
+		/// `build_agent_context_supplement` refuses an operation the entry
+		/// point does not admit, so a workshop operation cannot ride along on
+		/// a start gesture or a chat send.
+		///
 		/// \returns Whether exactly one invocation was dispatched. A refusal is
 		/// already named on the launch panel before this returns `false`.
 		[[nodiscard]] auto dispatch_agent_invocation(
@@ -6380,7 +6430,10 @@ namespace bpr::app {
 			const std::optional<application::agent_draft_choice>& aIncludedDraft,
 			const bool                                            aExistingCheckoutChosen,
 			const std::string_view                                aChatMessage,
-			const std::optional<core::agent_session>&             aTurnSession) -> bool
+			const std::optional<core::agent_session>&             aTurnSession,
+			const core::agent_entry_point                         aEntryPoint,
+			const std::optional<core::workshop_operation>&        aWorkshopOperation)
+			-> bool
 		{
 			if (Closing || AgentHost == nullptr || EpochHost == nullptr
 				|| Window == nullptr) {
@@ -6435,10 +6488,12 @@ namespace bpr::app {
 				.PullRequestUrl     = "https://" + AgentReview->Hostname + "/"
 					+ AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name
 					+ "/pull/" + std::to_string(AgentReview->Number.value()),
-				.Private       = std::move(privateObservation),
-				.IncludedNotes = aIncludedNotes,
-				.IncludedDraft = aIncludedDraft,
-				.ChatMessage   = std::string{ aChatMessage },
+				.Private           = std::move(privateObservation),
+				.IncludedNotes     = aIncludedNotes,
+				.IncludedDraft     = aIncludedDraft,
+				.ChatMessage       = std::string{ aChatMessage },
+				.EntryPoint        = aEntryPoint,
+				.WorkshopOperation = aWorkshopOperation,
 			};
 			observation.CurrentDraft = current_agent_draft_observation();
 			// The receipt and the semantic selection below are read off the
@@ -6561,15 +6616,27 @@ namespace bpr::app {
 				std::string{ aSubject } + " refused: " + std::string{ aReason });
 		}
 
-		/// \brief Records one asked-for comment-workshop operation.
+		/// \brief Starts one agent turn for one asked-for workshop operation.
 		///
-		/// \details The reviewer's half of the workshop, and all of it that
-		/// this composition can honour today: the operation is admitted under
-		/// the one entry point it means anything for, held against the draft
-		/// it was asked about, and named on the proposal when the agent's
-		/// revision arrives. Nothing here writes a revision — there is no
-		/// text to write, and inventing one would be this composition
-		/// answering a question it forwarded.
+		/// \details The reviewer's half of the workshop: the operation is
+		/// admitted under the one entry point it means anything for, held
+		/// against the draft it was asked about, and handed to the same
+		/// `dispatch_agent_invocation` a start gesture and a chat send use.
+		/// There is no second launch path, no workshop agent, and no host of
+		/// this method's own — the turn it starts is the one this application
+		/// already knows how to start, with `workshop_comment` named as the
+		/// gesture and the operation in the supplement.
+		///
+		/// Nothing here writes a revision. The answer arrives as this turn's
+		/// outcome and is proposed by the composed workshop host; inventing
+		/// text here would be this composition answering a question it
+		/// forwarded.
+		///
+		/// One press, one turn. A second press while the first turn is still
+		/// unanswered is refused and named rather than queued: a queued press
+		/// would either start a second turn about a comment the first is
+		/// already revising, or sit silently until the reviewer concluded the
+		/// control did nothing.
 		void ask_comment_workshop(const qt::comment_workshop_request& aRequest)
 		{
 			const auto admitted = core::workshop_operation_for(
@@ -6586,7 +6653,35 @@ namespace bpr::app {
 											  different_draft));
 				return;
 			}
-			PendingWorkshopOperation = admitted;
+			if (PendingWorkshopOperation.has_value()) {
+				present_agent_refusal(
+					"comment workshop", "workshop_turn_in_flight");
+				return;
+			}
+			PendingWorkshopOperation = pending_comment_workshop{
+				.Draft     = aRequest.Draft,
+				.Operation = *admitted,
+			};
+			// The draft's own text and anchor are this turn's context, so the
+			// question the agent is answering is about the comment on screen
+			// and not about whatever the launch panel happened to have
+			// checked. No private notes cross: the reviewer asked how to say
+			// this better, not what else is known.
+			if (!dispatch_agent_invocation(
+					core::codex_jsonl_profile_id,
+					std::vector<application::local_note_id>{ },
+					current_agent_draft_choice(),
+					false,
+					std::string_view{ },
+					std::nullopt,
+					core::agent_entry_point::workshop_comment,
+					admitted)) {
+				// The launch panel has already named why. The operation is
+				// cleared rather than left recorded, because a question no
+				// turn was started for is not waiting for an answer, and a
+				// later unrelated revision must not be labelled with it.
+				PendingWorkshopOperation.reset();
+			}
 		}
 
 		/// \brief Presents what one asked-for finding action produced.
@@ -6601,11 +6696,25 @@ namespace bpr::app {
 		{
 			if (aOutcome.Draft.has_value() && WorkshopHost != nullptr
 				&& ReviewDraft.has_value()) {
-				// The operation the reviewer asked for, spent here and not
-				// again: a second revision that arrived unasked is not the
-				// answer to the first question.
-				const auto asked = PendingWorkshopOperation;
-				PendingWorkshopOperation.reset();
+				// The operation the reviewer asked for, spent by the turn it
+				// was asked in and by no other. The pairing is the session
+				// identity carried from the press: a finding promoted from a
+				// different turn — or from this one before the workshop turn
+				// was admitted — is a revision nobody workshopped, and
+				// labelling it with a pending operation would name a question
+				// that produced none of this text.
+				const auto matched = PendingWorkshopOperation.has_value()
+					&& PendingWorkshopOperation->Session.has_value()
+					&& *PendingWorkshopOperation->Session == aOutcome.Session
+					&& PendingWorkshopOperation->Draft == ReviewDraft->Id;
+				const auto asked = matched
+					? std::optional<core::workshop_operation>{
+						  PendingWorkshopOperation->Operation
+					  }
+					: std::optional<core::workshop_operation>{ };
+				if (matched) {
+					PendingWorkshopOperation.reset();
+				}
 				static_cast<void>(WorkshopHost->propose(
 					*ReviewDraft, *aOutcome.Draft, asked));
 				return;
@@ -8040,10 +8149,11 @@ namespace bpr::app {
 		std::unique_ptr<application::mcp_context_helper_supervisor> McpHelper;
 		std::filesystem::path                                       McpSnapshotRoot;
 		std::size_t                                                 CommentWorkshopProposals = 0U;
-		/// The operation the reviewer last asked the workshop for, spent by
-		/// the next proposal. Absent is the ordinary state, and it is what
-		/// makes a promoted finding a proposal nobody workshopped.
-		std::optional<core::workshop_operation>                         PendingWorkshopOperation;
+		/// The operation the reviewer last asked the workshop for, and the
+		/// turn started to answer it, spent by that turn's outcome and by no
+		/// other. Absent is the ordinary state, and it is what makes a
+		/// promoted finding a proposal nobody workshopped.
+		std::optional<pending_comment_workshop>                         PendingWorkshopOperation;
 		std::size_t                                                     FindingRefusalsPresented = 0U;
 		std::size_t                                                     SideChatIntents          = 0U;
 		std::size_t                                                     SideChatPresentations    = 0U;
@@ -13888,6 +13998,12 @@ namespace bpr::app {
 		if (implementation->ReviewDraft.has_value()) {
 			evidence.LocalDraftBody = implementation->ReviewDraft->Body;
 		}
+		if (implementation->PendingWorkshopOperation.has_value()) {
+			evidence.WorkshopPendingOperation = std::string{ core::stable_name(
+				implementation->PendingWorkshopOperation->Operation) };
+			evidence.WorkshopPendingSessionBound
+				= implementation->PendingWorkshopOperation->Session.has_value();
+		}
 		if (implementation->Window != nullptr) {
 			if (auto* const editor = implementation->Window->review_editor();
 				editor != nullptr) {
@@ -13895,6 +14011,8 @@ namespace bpr::app {
 					= editor->workshop_original_text().toStdString();
 				evidence.WorkshopProposalText
 					= editor->workshop_proposal_text().toStdString();
+				evidence.WorkshopOperationText
+					= editor->workshop_operation_text().toStdString();
 			}
 			if (auto* const panel = implementation->Window->agent_panel();
 				panel != nullptr) {

@@ -1391,6 +1391,19 @@ namespace bpr::application {
 			|| aObservation.ChatMessage.size() > core::maximum_chat_message_bytes) {
 			return std::unexpected(agent_context_failure::invalid_observation);
 		}
+		// BPR-0533. The entry point decides whether an operation may be
+		// carried, and `workshop_operation_for` is the single place that
+		// decision is written. An observation that names an operation the
+		// entry point does not admit — an undeclared one, or one riding on a
+		// review or a chat turn — is refused whole rather than built with the
+		// field cleared: a supplement that silently dropped the operation
+		// would ask the agent to revise a comment without saying how.
+		const auto admittedOperation = core::workshop_operation_for(
+			aObservation.EntryPoint, aObservation.WorkshopOperation);
+		if (aObservation.WorkshopOperation.has_value()
+			&& !admittedOperation.has_value()) {
+			return std::unexpected(agent_context_failure::invalid_observation);
+		}
 		auto request = core::agent_supplement_request{
 			.ApplicationSession = aObservation.ApplicationSession,
 			.Session            = aSession,
@@ -1398,6 +1411,7 @@ namespace bpr::application {
 			.PreviousUpload     = aObservation.PreviousUpload,
 			.LastReviewedHead   = aObservation.Private.LastReviewedHead,
 			.Selection          = aObservation.Selection,
+			.Operation          = admittedOperation,
 		};
 		if (!aObservation.ChatMessage.empty()) {
 			// Bound here, to the session this build is for, because that is

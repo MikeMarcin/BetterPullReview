@@ -417,6 +417,11 @@ namespace bpr::qt {
 			return;
 		}
 		++Members.Statistics.WorkshopRequests;
+		// Asked, and until it is answered no second question may be asked
+		// about this comment. Set before the dispatch, because the answer can
+		// arrive inside it.
+		Members.WorkshopAsked = true;
+		refresh_enablement();
 		// Said on screen at once, and said as a question rather than as an
 		// answer: what is shown beside it is still the reviewer's own text
 		// until a proposal arrives. Nothing here proposes anything.
@@ -431,6 +436,7 @@ namespace bpr::qt {
 	void review_draft_editor::clear_workshop()
 	{
 		Members.ShownProposal.reset();
+		Members.WorkshopAsked = false;
 		Members.WorkshopOriginal->clear();
 		Members.WorkshopProposal->clear();
 		Members.WorkshopOperation->clear();
@@ -452,6 +458,10 @@ namespace bpr::qt {
 		const comment_workshop_proposal& aProposal)
 	{
 		++Members.Statistics.WorkshopPresentations;
+		// Answered. The offer reopens here rather than on a timer or on the
+		// run finishing, because a before/after on screen is the only evidence
+		// this widget has that the question it asked was answered.
+		Members.WorkshopAsked = false;
 		Members.ShownProposal = aProposal;
 		Members.WorkshopOriginal->setPlainText(
 			QString::fromStdString(aProposal.Original));
@@ -597,12 +607,21 @@ namespace bpr::qt {
 		// hidden, with the reason on the control: a workshop whose controls
 		// vanished would read as a workshop that does not exist, which is the
 		// misunderstanding this widget was built to end.
+		// A press already waiting for its answer closes the offer until that
+		// answer arrives. Disabled and saying so, never queued: a second press
+		// would either ask about a comment the first turn is already revising
+		// or sit silently until the reviewer concluded the control was dead.
+		const auto offered = drafting && Members.WorkshopDispatch != nullptr;
 		for (auto* const control : Members.WorkshopOperations) {
-			control->setEnabled(drafting && Members.WorkshopDispatch != nullptr);
+			control->setEnabled(offered && !Members.WorkshopAsked);
+			if (!offered) {
+				control->setToolTip(tr("Select a draft comment to workshop it."));
+				continue;
+			}
 			control->setToolTip(
-				drafting && Members.WorkshopDispatch != nullptr
-					? tr("Ask the agent to revise your comment.")
-					: tr("Select a draft comment to workshop it."));
+				Members.WorkshopAsked
+					? tr("A workshop turn is already running for this comment.")
+					: tr("Ask the agent to revise your comment."));
 		}
 
 		const auto proposed = Members.ShownProposal.has_value();

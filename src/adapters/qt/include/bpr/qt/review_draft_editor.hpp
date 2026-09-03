@@ -117,14 +117,20 @@ namespace bpr::qt {
 	/// `sizeof(review_draft_editor)` to this aggregate so a member added to
 	/// the class outside it fails too.
 	///
-	/// What is here is three dispatch callbacks, the accepted projections,
-	/// seven counters, and the widgets that show them. The only way out is a
-	/// semantic command or a workshop request.
+	/// What is here is two presentation flags, three dispatch callbacks, the
+	/// accepted projections, seven counters, and the widgets that show them.
+	/// The only way out is a semantic command or a workshop request.
 	struct review_draft_editor_members
 	{
 		/// True only while `present` is writing an accepted body into the
 		/// editor, so presenting never looks like the reviewer typing.
 		bool ApplyingPresentation = false;
+
+		/// True from a workshop press until that press is answered, cleared,
+		/// or its draft goes away. One press, one turn: while it is true the
+		/// six controls are disabled and say why, so a second press is refused
+		/// on the surface that asked rather than queued behind the first.
+		bool WorkshopAsked = false;
 
 		review_draft_dispatch DraftDispatch;
 		file_receipt_dispatch ReceiptDispatch;

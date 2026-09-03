@@ -1002,6 +1002,7 @@ foreach(
         positive
         full-agent
         finding-host-construction-cut
+        workshop-press
         workshop-construction-cut
         mcp-construction-cut
         chat-panel-construction-cut

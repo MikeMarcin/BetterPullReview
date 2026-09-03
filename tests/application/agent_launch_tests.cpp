@@ -250,6 +250,57 @@ namespace {
 			"an empty selected draft is refused before session persistence");
 	}
 
+	/// \brief The asked-for operation crosses only under the workshop press.
+	///
+	/// \details BPR-0533. The entry point is what admits the operation, so this
+	/// is the one seam where "a workshop request" and "a launch that happens to
+	/// carry an operation" are told apart. A press carries its exact operation
+	/// into the supplement the agent is framed from; the same operation named
+	/// under any other gesture is refused whole rather than dropped, because a
+	/// supplement built with the field cleared would ask the agent to revise a
+	/// comment without saying how.
+	void test_the_workshop_operation_crosses_only_under_its_entry_point()
+	{
+		auto asked              = observation();
+		asked.EntryPoint        = core::agent_entry_point::workshop_comment;
+		asked.WorkshopOperation = core::workshop_operation::phrase_as_a_question;
+		const auto pressed
+			= application::build_agent_context_supplement(asked, session());
+		expect(
+			pressed.has_value()
+				&& pressed->Operation
+					== core::workshop_operation::phrase_as_a_question,
+			"a workshop press carries its exact operation into the supplement");
+
+		const auto plain
+			= application::build_agent_context_supplement(observation(), session());
+		expect(
+			plain.has_value() && !plain->Operation.has_value(),
+			"every launch that is not a workshop press carries no operation");
+
+		auto smuggled              = observation();
+		smuggled.WorkshopOperation = core::workshop_operation::shorten;
+		const auto smuggledResult
+			= application::build_agent_context_supplement(smuggled, session());
+		expect(
+			!smuggledResult
+				&& smuggledResult.error()
+					== application::agent_context_failure::invalid_observation,
+			"an operation riding on a gesture that is not a workshop press is refused whole");
+
+		auto undeclared              = observation();
+		undeclared.EntryPoint        = core::agent_entry_point::workshop_comment;
+		undeclared.WorkshopOperation = static_cast<core::workshop_operation>(
+			core::workshop_operation_count);
+		const auto undeclaredResult
+			= application::build_agent_context_supplement(undeclared, session());
+		expect(
+			!undeclaredResult
+				&& undeclaredResult.error()
+					== application::agent_context_failure::invalid_observation,
+			"an operation nobody declared is refused before it reaches the wire");
+	}
+
 	void test_the_complete_encoding_preserves_presence_and_exact_identity()
 	{
 		const auto encoded = application::encode_agent_supplement(built_supplement());
@@ -905,6 +956,7 @@ namespace {
 auto main() -> int
 {
 	test_private_ledger_observation_is_an_input_not_an_implicit_store();
+	test_the_workshop_operation_crosses_only_under_its_entry_point();
 	test_the_complete_encoding_preserves_presence_and_exact_identity();
 	test_each_protocol_has_exact_argv_and_distinct_input_framing();
 	test_no_credential_crosses_the_environment_boundary();
