@@ -282,6 +282,9 @@ namespace bpr::application {
 			auto output = core::transition(State, aEvent);
 			execute(output);
 			publish(output);
+			if (output.Status.has_value()) {
+				restore_displaced_renewal();
+			}
 		}
 
 		void execute(const core::device_authorization_transition_output& aOutput)
@@ -401,12 +404,19 @@ namespace bpr::application {
 			PendingAccess.reset();
 			PendingRefresh.reset();
 			AuthorizingContext.reset();
-			// [[BPR-0550]]. Including the slot the previous grant was keyed by.
-			// A second grant in one process may name another account, and a
-			// binding kept across the begin is the one its material would be
-			// written under.
-			release_refresh_binding();
-			ConsecutiveFailures = 0U;
+			// [[BPR-0553]]. The slot the previous grant was keyed by is marked
+			// here, not released. It belongs to whatever session preceded this
+			// flow, and that session stays the live one until this flow
+			// produces a grant of its own: released at the gesture that starts
+			// a flow ([[BPR-0550]]) the armed renewal died the moment a
+			// reviewer pressed *Get a code*, which the panel offers in every
+			// terminal stage, and a flow they then abandoned, denied, or
+			// failed left a working access token with nothing to renew it and
+			// an observation reading `idle`, so nothing was said. The release
+			// belongs at `authorize()`, where this flow's own material is
+			// about to be written under whatever slot is bound.
+			RefreshBindingPrecedesFlow = RefreshAuthority.has_value();
+			ConsecutiveFailures        = 0U;
 
 			Flow = aRequest.Context;
 			if (!Capability.Registered
@@ -744,6 +754,23 @@ namespace bpr::application {
 			// happens, so no later branch can be the one that forgot.
 			erase_flow_transients();
 
+			// [[BPR-0550]], [[BPR-0553]]. This is the point past which a
+			// binding older than this flow must not be used: every branch below
+			// either writes this grant's renewable material down or enrolls its
+			// access token, and both are wrong under the previous session's
+			// slot. The write files a renewal chain under an account that never
+			// authenticated it, and a renewal left armed against the old
+			// material would enroll the old account's token over the one just
+			// granted. Released rather than replaced: the material then parks
+			// in memory until this grant's own authenticated `/user` binds it,
+			// which is the first-grant path both composed courses drive.
+			//
+			// Only a binding this flow inherited. One made while the flow ran
+			// is this grant's own, and it is spent below rather than dropped.
+			if (RefreshBindingPrecedesFlow) {
+				release_refresh_binding();
+			}
+
 			AccessLifetimeSeconds = aGrant.ExpiresInSeconds;
 			PendingAccess.emplace(std::move(aGrant.AccessToken));
 
@@ -935,6 +962,37 @@ namespace bpr::application {
 			}
 			Refresh.State   = device_authorization_refresh_state::scheduled;
 			Refresh.Failure = device_authorization_refresh_failure::none;
+		}
+
+		// [[BPR-0553]]. The host owns one timer and a flow's poll takes it, so
+		// beginning a second flow displaces the renewal armed for the session
+		// still running. Keeping the binding across that flow is only half the
+		// answer: an observation that still reads `scheduled` with no timer
+		// behind it is the same silent drop by another route. A flow that has
+		// just ended without a grant no longer needs the timer, so the renewal
+		// goes back on it, armed from the authorization it was armed from the
+		// first time -- late by however long the flow ran, which
+		// `schedule_refresh` answers with a wait of zero rather than one in the
+		// past.
+		//
+		// Only from a terminal the flow reached without a grant. Called earlier
+		// this would take the timer back from the poll and the flow would never
+		// end; called at `authorized`, `enroll_and_finish` is already arming a
+		// renewal for the grant it just enrolled.
+		void restore_displaced_renewal()
+		{
+			if (
+				!core::terminal(State.Stage)
+				|| State.Stage == core::device_authorization_stage::authorized) {
+				return;
+			}
+			if (
+				TimerArmed
+				|| Refresh.State
+					!= device_authorization_refresh_state::scheduled) {
+				return;
+			}
+			schedule_refresh();
 		}
 
 		void begin_refresh()
@@ -1173,8 +1231,10 @@ namespace bpr::application {
 			RefreshAuthority.reset();
 			RefreshIdentityGeneration = core::github_identity_generation{ };
 			RefreshDurable            = false;
-			Refresh.State             = device_authorization_refresh_state::idle;
-			Refresh.Failure           = device_authorization_refresh_failure::none;
+			// No binding is left, so none of it precedes anything.
+			RefreshBindingPrecedesFlow = false;
+			Refresh.State              = device_authorization_refresh_state::idle;
+			Refresh.Failure            = device_authorization_refresh_failure::none;
 		}
 
 		void erase_flow_transients() noexcept
@@ -1264,7 +1324,12 @@ namespace bpr::application {
 		std::chrono::milliseconds                                 AuthorizedAt{ 0 };
 		std::uint32_t                                             AccessLifetimeSeconds = 0U;
 		bool                                                      RefreshDurable        = false;
-		device_authorization_refresh_observation                  Refresh;
+		// [[BPR-0553]]. Whether the binding above was in place before the
+		// current flow began, which is what makes it the previous session's
+		// rather than this grant's. Recorded at the begin and answered at the
+		// authorization, so a flow that never produces a grant answers nothing.
+		bool                                     RefreshBindingPrecedesFlow = false;
+		device_authorization_refresh_observation Refresh;
 		// What presentation was last told. The host publishes renewal on
 		// change, and the change is measured against what left the host, not
 		// against what the last turn happened to set.
@@ -1359,6 +1424,9 @@ namespace bpr::application {
 		}
 		Implementation->RefreshAuthority          = std::move(aAuthority);
 		Implementation->RefreshIdentityGeneration = aIdentityGeneration;
+		// [[BPR-0553]]. Bound now, so it precedes no flow: a grant answered
+		// after this point ran under this binding and spends it.
+		Implementation->RefreshBindingPrecedesFlow = false;
 		if (
 			Implementation->PendingRefresh.has_value()
 			&& !Implementation->AuthorizingContext.has_value()) {

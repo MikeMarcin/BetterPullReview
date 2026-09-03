@@ -1347,6 +1347,111 @@ namespace {
 				&& *world.Vault.Stored == "refresh-2",
 			"and what the slot holds is the second grant's material");
 	}
+
+	// [[BPR-0553]]. The panel offers *Get a code* in every terminal stage,
+	// `authorized` among them, and the core accepts a begin from there. A
+	// reviewer with a live session who presses it and then abandons, denies, or
+	// fails that flow has changed nothing about the session they still hold:
+	// the renewal armed for it is the only thing between their access token and
+	// an expiry with nothing to renew it, and a flow that produced no grant has
+	// no claim on it. Released at the begin, the press alone dropped it, and
+	// the observation read `idle` rather than `reenrollment_required`, so
+	// nothing was said until the token expired hours later.
+	void test_a_second_flow_that_fails_leaves_the_first_renewal_armed()
+	{
+		harness world;
+		world.authorize_with_bound_authority(3'600U);
+		expect(
+			world.Timer.armed() && world.Timer.last_delay() == 3'300U,
+			"the first session's renewal is armed");
+
+		world.begin();
+		world.Transport.answer_code(
+			application::device_authorization_transport_error{
+				.Context = world.flow_context(),
+				.Failure = application::device_authorization_transport_failure::
+					network,
+			});
+		world.Lane.drain();
+
+		expect(
+			world.Host.state().Stage
+				== core::device_authorization_stage::failed,
+			"the second flow failed");
+		expect(
+			world.Timer.armed() && world.Timer.last_delay() == 3'300U,
+			"and the renewal is the same one, on the same timer");
+		expect(
+			world.Host.refresh_observation().State
+				== application::device_authorization_refresh_state::scheduled,
+			"the observation says so unchanged");
+
+		// A binding that survived on paper is worth nothing. This is the one
+		// that matters: the renewal can still be spent, under the slot the
+		// first session named.
+		world.Clock.advance(world.Timer.last_delay());
+		world.Timer.fire();
+		world.Lane.drain();
+		expect(
+			world.Vault.RetrieveContexts.size() == 1U
+				&& world.Vault.RetrieveContexts.back().Authority == authority(),
+			"and it renews under the authority the first session named");
+	}
+
+	// [[BPR-0553]]. The same abandonment, carried far enough that the flow took
+	// the timer. One timer serves both purposes, so the poll displaces the
+	// renewal for as long as the flow runs; a flow that then ends without a
+	// grant no longer needs it, and an observation still reading `scheduled`
+	// with nothing armed behind it would be the same silent drop by another
+	// route.
+	void test_a_denied_second_flow_gets_the_first_renewal_back_on_the_timer()
+	{
+		harness world;
+		world.authorize_with_bound_authority(3'600U);
+
+		world.reach_awaiting();
+		world.poll_once();
+		world.Transport.answer_token(application::device_token_refused{
+			.Context = world.flow_context(),
+			.Reason  = application::device_token_refusal_reason::access_denied,
+		});
+		world.Lane.drain();
+
+		expect(
+			world.Host.state().Stage
+				== core::device_authorization_stage::denied,
+			"the reviewer denied the second flow");
+		expect(
+			world.Host.refresh_observation().State
+				== application::device_authorization_refresh_state::scheduled,
+			"the first session's renewal is still what the host reports");
+		expect(
+			world.Timer.armed() && world.Timer.last_delay() == 3'295U,
+			"and it is armed again, late by exactly the time the flow ran");
+
+		world.Clock.advance(world.Timer.last_delay());
+		world.Timer.fire();
+		world.Lane.drain();
+		expect(
+			world.Vault.RetrieveContexts.size() == 1U
+				&& world.Vault.RetrieveContexts.back().Authority == authority(),
+			"the renewal reads the slot the first session named");
+
+		world.Transport.answer_refresh(application::device_token_issued{
+			.Context = world.Transport.last_refresh_context(),
+			.Grant   = application::device_token_material{
+				.AccessToken                  = material("access-2"),
+				.RefreshToken                 = material("refresh-2"),
+				.ExpiresInSeconds             = 3'600U,
+				.RefreshTokenExpiresInSeconds = 15'552'000U,
+			},
+		});
+		world.Lane.drain();
+		expect(
+			world.Enrollment.Credentials
+				== std::vector<std::string>{ "access-1", "access-2" },
+			"and the session the reviewer still holds is renewed");
+	}
 } // namespace
 
 auto main() -> int
@@ -1371,6 +1476,8 @@ auto main() -> int
 	test_the_renewal_lifecycle_reaches_presentation();
 	test_a_composed_device_host_stores_under_a_context_the_vault_accepts();
 	test_a_second_grant_stores_under_the_authority_its_own_session_named();
+	test_a_second_flow_that_fails_leaves_the_first_renewal_armed();
+	test_a_denied_second_flow_gets_the_first_renewal_back_on_the_timer();
 
 	std::cout << "device-authorization-refresh-tests:pass\n";
 	return EXIT_SUCCESS;
