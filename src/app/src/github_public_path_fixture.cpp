@@ -1520,6 +1520,13 @@ namespace bpr::app::detail {
 			std::optional<application::github_credential_material> Refresh;
 			std::size_t                                            RefreshStores    = 0U;
 			std::size_t                                            RefreshRetrieves = 0U;
+			// [[BPR-0547]]. How many erasures of the slot this vault accepted.
+			// Retention is not visible in the slot alone: a course that reads
+			// only whether material is there at the end cannot tell one
+			// erasure from two, and the defect this counts for was exactly a
+			// second erasure -- a rotation's own re-enrollment destroying what
+			// the rotation had just stored -- hidden behind the shutdown's.
+			std::size_t RefreshDeletes = 0U;
 			// [[BPR-0548]]. The contexts whose operation this vault has
 			// accepted and not yet begun executing, which is what every
 			// platform vault keys its pending map by. Guarded by `Mutex` with
@@ -1868,6 +1875,10 @@ namespace bpr::app::detail {
 					 aContext,
 					 completion = std::move(aCompletion)]() mutable {
 						release_pending(state, aContext);
+						{
+							const std::lock_guard countGuard{ state->Mutex };
+							++state->RefreshDeletes;
+						}
 						if (!slot) {
 							completion(
 								application::github_credential_delete_error{
@@ -2366,6 +2377,7 @@ namespace bpr::app::detail {
 			result.RefreshRetained     = Implementation->VaultState->Refresh.has_value();
 			result.RefreshStores       = Implementation->VaultState->RefreshStores;
 			result.RefreshRetrieves    = Implementation->VaultState->RefreshRetrieves;
+			result.RefreshDeletes      = Implementation->VaultState->RefreshDeletes;
 			result.LastEnrollmentDigest
 				= Implementation->VaultState->LastEnrollmentDigest;
 		}

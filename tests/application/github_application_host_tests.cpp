@@ -4592,6 +4592,57 @@ namespace {
 	// thread wins the race to the second call. Holding the erasure pending is
 	// what a platform vault does with a queued operation, and it is the window
 	// the refusal lives in; with the two halves sequential there is no window.
+	// [[BPR-0547]]. The one supersession that keeps the slot. A renewal ends
+	// by storing the rotated refresh material under the authority the grant
+	// established and then enrolling the rotated access token through the
+	// device-grant enrollment boundary; the enrollment activates the profile,
+	// and the activation's invalidate deletes the credential the rotation
+	// replaced. Carrying the slot's erasure along with that delete destroys
+	// the material stored a moment earlier and on this same lane, and the next
+	// renewal retrieves an absent slot: renewal works exactly once. The
+	// contrast is the block above -- the same session, superseded by a pasted
+	// credential, still erases -- so what is checked here is the provenance of
+	// the incoming enrollment deciding it, not the occasion being skipped.
+	void test_a_rotation_keeps_the_material_it_just_stored()
+	{
+		host_fixture fixture;
+		fixture.Vault.RefreshDeleteAnswer
+			= fake_vault::refresh_delete_answer::deleted;
+		static_cast<void>(establish_native_session(
+			fixture,
+			core::host_profile_id{ 11U },
+			core::github_account_id{ 51U },
+			std::nullopt,
+			application::github_credential_provenance::device_grant));
+		const auto authority = fixture.Vault.Stores.front().Context.Authority;
+		expect(fixture.Vault.RefreshDeletes.empty(),
+			   "an accepted grant erases nothing");
+
+		fixture.Host.enroll_profile(
+			core::host_profile_id{ 11U },
+			credential(),
+			application::github_credential_provenance::device_grant);
+		expect(fixture.Vault.Deletes.size() == 1U
+				   && fixture.Vault.Deletes.front().Context.Authority
+					   == authority
+				   && fixture.Vault.RefreshDeletes.empty(),
+			   "the rotation's enrollment still deletes the access credential "
+			   "it replaces");
+		const auto superseded = fixture.Vault.Deletes.front().Context;
+		fixture.Vault.Deletes.front().Completion(
+			application::github_credential_delete_success{
+				.Context     = superseded,
+				.Disposition = application::
+					github_credential_delete_disposition::deleted,
+			});
+		fixture.Lane.drain();
+		expect(fixture.Vault.RefreshDeletes.empty(),
+			   "a device grant superseding a device-grant session keeps the "
+			   "refresh slot the rotation just filled");
+		expect(fixture.Vault.Deletes.size() == 1U,
+			   "and the occasion is the one delete, not a retry of it");
+	}
+
 	void test_an_occasion_never_has_two_operations_pending_under_one_context()
 	{
 		constexpr auto policy = application::github_credential_shutdown_policy::
@@ -4828,6 +4879,7 @@ auto main() -> int
 	test_accepted_credential_renewability_is_answered_by_the_vault();
 	test_refresh_material_shares_the_credential_erasure_path();
 	test_an_occasion_never_has_two_operations_pending_under_one_context();
+	test_a_rotation_keeps_the_material_it_just_stored();
 	std::cout << "application github host tests passed\n";
 	return EXIT_SUCCESS;
 }

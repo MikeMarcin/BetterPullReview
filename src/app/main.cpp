@@ -3282,10 +3282,12 @@ namespace {
 		// these lines.
 		auto refreshRetained = false;
 		auto refreshStores   = std::size_t{ 0U };
+		auto refreshDeletes  = std::size_t{ 0U };
 		auto pastedDigest    = std::string{ };
 #if defined(BPR_BUILD_TESTING)
 		refreshRetained = fixtureEvidence.RefreshRetained;
 		refreshStores   = fixtureEvidence.RefreshStores;
+		refreshDeletes  = fixtureEvidence.RefreshDeletes;
 		pastedDigest    = fixtureEvidence.LastEnrollmentDigest;
 #endif
 
@@ -3448,6 +3450,18 @@ namespace {
 					   << (refreshRetained ? "true" : "false")
 					   << "\nDEVICE_FLOW_REFRESH_STORES:"
 					   << static_cast<unsigned long long>(refreshStores)
+					   // [[BPR-0547]]. Which erasure the retained flag above
+					   // is reporting. This course rotates, and a rotation
+					   // ends by enrolling the rotated access token, which
+					   // supersedes the session the grant established: a
+					   // build that carries the slot's erasure along with
+					   // that supersession erases the material its own
+					   // rotation stored a moment earlier, and the shutdown's
+					   // erasure afterwards leaves the same retained flag
+					   // behind. One erasure is the shutdown's; two is the
+					   // renewal chain destroying itself.
+					   << "\nDEVICE_FLOW_REFRESH_DELETES:"
+					   << static_cast<unsigned long long>(refreshDeletes)
 					   << '\n'
 					   << (refreshed ? "DEVICE_FLOW_REFRESH_OK\n"
 									 : "DEVICE_FLOW_REFRESH_FAILED\n");

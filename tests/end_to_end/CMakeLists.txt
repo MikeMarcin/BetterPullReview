@@ -318,6 +318,15 @@ bpr_bound_automated_run(
 # renewal writes goes anywhere but the vault. `WINDOWS_UNCONTAINED` and the
 # isolation keyword are the registered course's, unchanged: this row runs the
 # same graph with one more flag.
+#
+# BPR-0547. `DEVICE_FLOW_REFRESH_DELETES:1` is which erasure the retained flag
+# beside it reports. The rotation ends by enrolling the rotated access token,
+# which supersedes the session the grant established; a build that carries the
+# refresh slot's erasure along with that supersession destroys the material the
+# rotation stored a moment earlier, and the orderly shutdown's own erasure
+# afterwards leaves `RETAINED:false` looking exactly the same. One erasure is
+# the shutdown's. Two is the renewal chain destroying itself, and the next
+# renewal answering `refresh_absent`.
 bpr_add_network_isolated_test(
     NAME application_device_authorization_refresh_course
     WINDOWS_UNCONTAINED
@@ -336,7 +345,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ROTATIONS:1[\r\n]+DEVICE_FLOW_REFRESH_STATE:scheduled[\r\n]+DEVICE_FLOW_VAULT_STORES:2[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_REFRESH_BOUND:true[\r\n]+DEVICE_FLOW_REFRESH_RESUMES:0[\r\n]+DEVICE_FLOW_REFRESH_RETAINED:false[\r\n]+DEVICE_FLOW_REFRESH_STORES:2[\r\n]+DEVICE_FLOW_REFRESH_OK"
+            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ROTATIONS:1[\r\n]+DEVICE_FLOW_REFRESH_STATE:scheduled[\r\n]+DEVICE_FLOW_VAULT_STORES:2[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_REFRESH_BOUND:true[\r\n]+DEVICE_FLOW_REFRESH_RESUMES:0[\r\n]+DEVICE_FLOW_REFRESH_RETAINED:false[\r\n]+DEVICE_FLOW_REFRESH_STORES:2[\r\n]+DEVICE_FLOW_REFRESH_DELETES:1[\r\n]+DEVICE_FLOW_REFRESH_OK"
 )
 bpr_bound_automated_run(
     application_device_authorization_refresh_course
