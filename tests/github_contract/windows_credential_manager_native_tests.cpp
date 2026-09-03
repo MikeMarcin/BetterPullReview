@@ -475,6 +475,107 @@ namespace {
 				|| success->Disposition == *expected);
 	}
 
+	// BPR-0543. The refresh-slot equivalents of the three helpers above. They
+	// drive the same vault against its second Credential Manager target, so a
+	// slot that answered from the base target would be caught by the base
+	// retrieve between them rather than by inspection.
+	[[nodiscard]] auto run_store_refresh(
+		application::github_credential_vault_port& aVault,
+		application::manual_executor&              aLane,
+		const std::uint64_t                        aRequest,
+		const std::span<const std::byte>           aBytes) -> bool
+	{
+		auto material = application::github_credential_material::create(aBytes);
+		if (!material.has_value()) {
+			return false;
+		}
+
+		const auto     operation = native_context(aRequest);
+		store_recorder recorder;
+		aVault.store_refresh(
+			application::github_credential_enrollment{
+				.Context    = operation,
+				.Credential = std::move(*material),
+			},
+			[&recorder](
+				application::github_credential_store_completion terminal) {
+				recorder.record(std::move(terminal));
+			});
+		if (aLane.pending() != 1U) {
+			aVault.cancel(operation);
+			aLane.drain();
+			return false;
+		}
+		aLane.run_next();
+
+		const auto* success = terminal_as<
+			application::github_credential_store_success>(recorder.Terminal);
+		return recorder.Calls == 1U && success != nullptr
+			&& success->Context == operation
+			&& success->Disposition
+			== application::github_credential_store_disposition::stored;
+	}
+
+	[[nodiscard]] auto run_retrieve_refresh(
+		application::github_credential_vault_port& aVault,
+		application::manual_executor&              aLane,
+		const std::uint64_t                        aRequest,
+		const std::span<const std::byte>           aExpected) -> bool
+	{
+		const auto        operation = native_context(aRequest);
+		retrieve_recorder recorder;
+		aVault.retrieve_refresh(
+			operation,
+			[&recorder](
+				application::github_credential_retrieve_completion terminal) {
+				recorder.record(std::move(terminal));
+			});
+		if (aLane.pending() != 1U) {
+			aVault.cancel(operation);
+			aLane.drain();
+			return false;
+		}
+		aLane.run_next();
+
+		const auto* success = terminal_as<
+			application::github_credential_retrieve_success>(
+			recorder.Terminal);
+		return recorder.Calls == 1U && success != nullptr
+			&& success->Context == operation
+			&& same_bytes(success->Credential.bytes(), aExpected);
+	}
+
+	[[nodiscard]] auto run_delete_refresh(
+		application::github_credential_vault_port& aVault,
+		application::manual_executor&              aLane,
+		const std::uint64_t                        aRequest,
+		const std::optional<
+			application::github_credential_delete_disposition> aExpected) -> bool
+	{
+		const auto      operation = native_context(aRequest);
+		delete_recorder recorder;
+		aVault.delete_refresh(
+			operation,
+			[&recorder](
+				application::github_credential_delete_completion terminal) {
+				recorder.record(std::move(terminal));
+			});
+		if (aLane.pending() != 1U) {
+			aVault.cancel(operation);
+			aLane.drain();
+			return false;
+		}
+		aLane.run_next();
+
+		const auto* success = terminal_as<
+			application::github_credential_delete_success>(
+			recorder.Terminal);
+		return recorder.Calls == 1U && success != nullptr
+			&& success->Context == operation
+			&& (!aExpected.has_value()
+				|| success->Disposition == *aExpected);
+	}
+
 	[[nodiscard]] auto make_native_vault(
 		application::manual_executor& lane)
 		-> std::unique_ptr<application::github_credential_vault_port>
@@ -494,7 +595,15 @@ namespace {
 
 		const auto deletion = run_delete(*vault, lane, request_base, std::nullopt);
 		const auto absence  = run_retrieve_absent(*vault, lane, request_base + 1U);
-		return deletion && absence;
+		// BPR-0543. The refresh target is a second entry in the same store, so
+		// setup and cleanup have to clear it too or a failed run leaks refresh
+		// material into the next one.
+		const auto refresh_deletion = run_delete_refresh(
+			*vault,
+			lane,
+			request_base + 2U,
+			std::nullopt);
+		return deletion && absence && refresh_deletion;
 	}
 
 	[[nodiscard]] auto run_native_lifecycle(
@@ -531,6 +640,57 @@ namespace {
 		const auto cleanup              = run_delete(*vault, lane, 109U, std::nullopt);
 		const auto post_cleanup_absence = run_retrieve_absent(*vault, lane, 110U);
 		return ok && cleanup && post_cleanup_absence;
+	}
+
+	// BPR-0543. The refresh slot against the real Credential Manager: a stored
+	// entry is retrievable under its authority, is absent from the base slot,
+	// and is gone after delete_refresh. The last delete proves an absent entry
+	// answers success rather than unavailable, which is what BPR-0540's
+	// orderly-quit erasure relies on.
+	[[nodiscard]] auto run_native_refresh_lifecycle(
+		const std::span<const std::byte> aCanaryA,
+		const std::span<const std::byte> aCanaryB) -> bool
+	{
+		application::manual_executor lane;
+		auto                         vault = make_native_vault(lane);
+		if (vault == nullptr) {
+			return false;
+		}
+
+		auto ok = true;
+		ok      = run_delete_refresh(*vault, lane, 200U, std::nullopt) && ok;
+		ok      = run_delete(*vault, lane, 201U, std::nullopt) && ok;
+
+		ok = run_store_refresh(*vault, lane, 202U, aCanaryA) && ok;
+		ok = run_retrieve_refresh(*vault, lane, 203U, aCanaryA) && ok;
+		// The base slot must not answer for it: the same authority, the other
+		// target, and nothing stored there.
+		ok = run_retrieve_absent(*vault, lane, 204U) && ok;
+
+		// A base credential beside it stays its own, both ways round.
+		ok = run_store(*vault, lane, 205U, aCanaryB) && ok;
+		ok = run_retrieve(*vault, lane, 206U, aCanaryB) && ok;
+		ok = run_retrieve_refresh(*vault, lane, 207U, aCanaryA) && ok;
+
+		ok = run_delete_refresh(
+				 *vault,
+				 lane,
+				 208U,
+				 application::github_credential_delete_disposition::deleted)
+			&& ok;
+		// Deleting the refresh entry leaves the base credential untouched.
+		ok = run_retrieve(*vault, lane, 209U, aCanaryB) && ok;
+		ok = run_delete_refresh(
+				 *vault,
+				 lane,
+				 210U,
+				 application::github_credential_delete_disposition::absent)
+			&& ok;
+
+		const auto cleanup = run_delete(*vault, lane, 211U, std::nullopt)
+			&& run_delete_refresh(*vault, lane, 212U, std::nullopt);
+		const auto absence = run_retrieve_absent(*vault, lane, 213U);
+		return ok && cleanup && absence;
 	}
 
 	[[nodiscard]] auto read_exact(
@@ -690,6 +850,9 @@ namespace {
 			&& printable(canary_b->bytes()) && at_end;
 		const auto passed = input_valid
 			&& run_native_lifecycle(
+								canary_a->bytes(),
+								canary_b->bytes())
+			&& run_native_refresh_lifecycle(
 								canary_a->bytes(),
 								canary_b->bytes());
 		static_cast<void>(write_category(
