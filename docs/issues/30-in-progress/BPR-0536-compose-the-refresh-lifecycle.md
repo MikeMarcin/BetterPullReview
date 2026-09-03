@@ -1,7 +1,7 @@
 ---
 id: BPR-0536
 title: Compose the device-authorization refresh lifecycle
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0450, BPR-0526]
 ---
@@ -50,3 +50,17 @@ cancel. No test covers it.
 ## Non-goals
 
 - Changing the host's refresh contract ([[BPR-0450]]) beyond the cancel fix.
+
+## Lane — 2026-09-03
+
+Claimed straight into `30-in-progress/` by the integrator under the
+transition exception, both dependencies terminal. A scout confirmed the
+review's reading before any edit: the host's lifecycle is complete and
+tested, composition never calls `bind_refresh_authority` or
+`resume_refresh`, the six-field presentation is a closed list so the
+refresh observation needs a second projection method, `perform(cancel)`
+lacks the store-context reset `shutdown()` already has, and the composed
+clock has no testing seam, so a composed rotation needs a short-lived
+documented grant or a clock seam. The slice runs on `bpr-0536-work` in a
+worktree, after [[BPR-0537]] so the two do not edit `main.cpp` at once;
+the three documents and ledger row 9 are the integrator's at close.
