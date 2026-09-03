@@ -168,6 +168,22 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
     # more — it was sanitized before it was committed — but a shipped binary
     # containing a recorded user code would mean a fixture reached the product.
     "WDJB-MJHT",
+    # BPR-0537. Every tests-enabled flag the app parses under BPR_BUILD_TESTING,
+    # forbidden by string so a Release that learned to parse one fails here
+    # rather than in a station's course. The two course flags still parsed
+    # unconditionally (`--device-authorization-registered-course`,
+    # `--device-authorization-panel-course`) join this list when BPR-0537's
+    # second half gates them.
+    "--network-denied",
+    "--device-authorization-browser-absent",
+    "--device-authorization-panel-absent",
+    "--device-authorization-browser-probe",
+    "--public-preview-enabled-course",
+    "--public-preview-ghes-course",
+    "--public-preview-selection-enabled-probe",
+    "--public-preview-live-candidate",
+    "--test-application-data-root",
+    "--github-fixture",
 )
 
 # Secret-shaped patterns. GitHub's token prefixes are documented and stable, so
