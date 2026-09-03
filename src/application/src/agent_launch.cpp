@@ -1006,7 +1006,8 @@ namespace bpr::application {
 					return std::nullopt;
 				}
 				bytes[index / 2U] = static_cast<std::uint8_t>(
-					(*high << 4U) | *low);
+					(static_cast<unsigned>(*high) << 4U)
+					| static_cast<unsigned>(*low));
 			}
 			return bytes;
 		}
