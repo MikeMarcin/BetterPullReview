@@ -26,17 +26,25 @@
 // NOLINTBEGIN(readability-identifier-naming)
 namespace bpr::adapters::github {
 	namespace {
-		constexpr std::string_view production_schema_identifier        = "org.betterpullreview.github-native-credential.secret-service.v2";
-		constexpr std::string_view integration_test_schema_identifier  = "org.betterpullreview.github-native-credential."
-																		 "secret-service.integration-test.v2";
-		constexpr std::string_view authority_attribute                 = "authority";
-		constexpr std::string_view schema_attribute                    = "xdg:schema";
-		constexpr std::string_view binary_content_type                 = "application/octet-stream";
-		constexpr std::string_view gnome_keyring_content_type          = "text/plain";
-		constexpr std::string_view production_label                    = "BetterPullReview GitHub native credential";
-		constexpr std::string_view integration_test_label              = "BetterPullReview GitHub native credential integration test";
-		constexpr std::string_view canonical_service_bus_name          = "org.freedesktop.secrets";
-		constexpr gint             prompt_dismiss_timeout_milliseconds = 1'000;
+		constexpr std::string_view production_schema_identifier       = "org.betterpullreview.github-native-credential.secret-service.v2";
+		constexpr std::string_view integration_test_schema_identifier = "org.betterpullreview.github-native-credential."
+																		"secret-service.integration-test.v2";
+		// [[BPR-0542]] The refresh slot's own schemas. `v1` rather than `v2`
+		// because these identifiers have no history to be compatible with:
+		// nothing has ever written an item under them.
+		constexpr std::string_view production_refresh_schema_identifier       = "org.betterpullreview.github-native-refresh.secret-service.v1";
+		constexpr std::string_view integration_test_refresh_schema_identifier = "org.betterpullreview.github-native-refresh."
+																				"secret-service.integration-test.v1";
+		constexpr std::string_view authority_attribute                        = "authority";
+		constexpr std::string_view schema_attribute                           = "xdg:schema";
+		constexpr std::string_view binary_content_type                        = "application/octet-stream";
+		constexpr std::string_view gnome_keyring_content_type                 = "text/plain";
+		constexpr std::string_view production_label                           = "BetterPullReview GitHub native credential";
+		constexpr std::string_view integration_test_label                     = "BetterPullReview GitHub native credential integration test";
+		constexpr std::string_view production_refresh_label                   = "BetterPullReview GitHub native refresh";
+		constexpr std::string_view integration_test_refresh_label             = "BetterPullReview GitHub native refresh integration test";
+		constexpr std::string_view canonical_service_bus_name                 = "org.freedesktop.secrets";
+		constexpr gint             prompt_dismiss_timeout_milliseconds        = 1'000;
 
 		static_assert(linux_secret_service_authority_account_bytes == 574U);
 
@@ -416,17 +424,26 @@ namespace bpr::adapters::github {
 		}
 
 		[[nodiscard]] auto schema_for(
-			const linux_secret_service_schema_scope scope) noexcept
+			const linux_secret_service_schema_scope scope,
+			const linux_secret_service_slot         slot) noexcept
 			-> const SecretSchema*
 		{
 			static const SecretSchema production       = make_schema(c_str(production_schema_identifier));
 			static const SecretSchema integration_test = make_schema(c_str(integration_test_schema_identifier));
+			static const SecretSchema production_refresh
+				= make_schema(c_str(production_refresh_schema_identifier));
+			static const SecretSchema integration_test_refresh
+				= make_schema(c_str(integration_test_refresh_schema_identifier));
 
+			if (!valid(slot)) {
+				return nullptr;
+			}
+			const auto refresh = slot == linux_secret_service_slot::refresh;
 			switch (scope) {
 			case linux_secret_service_schema_scope::production:
-				return &production;
+				return refresh ? &production_refresh : &production;
 			case linux_secret_service_schema_scope::integration_test:
-				return &integration_test;
+				return refresh ? &integration_test_refresh : &integration_test;
 			}
 			return nullptr;
 		}
@@ -439,11 +456,17 @@ namespace bpr::adapters::github {
 		/// off only by the caller's `valid(Scope)` guard. There is now no such
 		/// value to return.
 		[[nodiscard]] auto label_for(
-			const linux_secret_service_schema_scope scope) noexcept -> const char*
+			const linux_secret_service_schema_scope scope,
+			const linux_secret_service_slot         slot) noexcept -> const char*
 		{
-			return scope == linux_secret_service_schema_scope::integration_test
-				? c_str(integration_test_label)
-				: c_str(production_label);
+			const auto integration
+				= scope == linux_secret_service_schema_scope::integration_test;
+			if (slot == linux_secret_service_slot::refresh) {
+				return integration ? c_str(integration_test_refresh_label)
+								   : c_str(production_refresh_label);
+			}
+			return integration ? c_str(integration_test_label)
+							   : c_str(production_label);
 		}
 
 		using null_terminated_authority_account = std::array<char, linux_secret_service_authority_account_bytes + 1U>;
@@ -569,8 +592,10 @@ namespace bpr::adapters::github {
 		{
 		public:
 			explicit native_linux_secret_service_backend(
-				const linux_secret_service_schema_scope scope) noexcept
+				const linux_secret_service_schema_scope scope,
+				const linux_secret_service_slot         slot) noexcept
 				: Scope{ scope }
+				, Slot{ slot }
 			{
 			}
 
@@ -588,7 +613,7 @@ namespace bpr::adapters::github {
 			{
 				const auto lock = std::scoped_lock{ OperationMutex };
 				if (!application::valid(authority) || !application::valid(credential)
-					|| !valid(Scope)) {
+					|| !valid(Scope) || !valid(Slot)) {
 					return std::unexpected{
 						application::github_credential_vault_failure::invalid_request
 					};
@@ -619,7 +644,7 @@ namespace bpr::adapters::github {
 					};
 				}
 
-				const auto* schema = schema_for(Scope);
+				const auto* schema = schema_for(Scope, Slot);
 				if (schema == nullptr) {
 					return std::unexpected{
 						application::github_credential_vault_failure::invalid_request
@@ -658,7 +683,7 @@ namespace bpr::adapters::github {
 					secret_item_create_sync(collection_owner.get(),
 											schema,
 											attributes.get(),
-											label_for(Scope),
+											label_for(Scope, Slot),
 											secret.get(),
 											SECRET_ITEM_CREATE_REPLACE,
 											nullptr,
@@ -681,7 +706,8 @@ namespace bpr::adapters::github {
 				-> linux_secret_service_backend_retrieve_result override
 			{
 				const auto lock = std::scoped_lock{ OperationMutex };
-				if (!application::valid(authority) || !valid(Scope)) {
+				if (!application::valid(authority) || !valid(Scope)
+					|| !valid(Slot)) {
 					return application::github_credential_vault_failure::
 						invalid_request;
 				}
@@ -709,7 +735,7 @@ namespace bpr::adapters::github {
 					return application::github_credential_vault_failure::locked;
 				}
 
-				const auto* schema = schema_for(Scope);
+				const auto* schema = schema_for(Scope, Slot);
 				if (schema == nullptr) {
 					return application::github_credential_vault_failure::
 						invalid_request;
@@ -776,7 +802,8 @@ namespace bpr::adapters::github {
 				-> linux_secret_service_backend_delete_result override
 			{
 				const auto lock = std::scoped_lock{ OperationMutex };
-				if (!application::valid(authority) || !valid(Scope)) {
+				if (!application::valid(authority) || !valid(Scope)
+					|| !valid(Slot)) {
 					return std::unexpected{
 						application::github_credential_vault_failure::invalid_request
 					};
@@ -807,7 +834,7 @@ namespace bpr::adapters::github {
 					};
 				}
 
-				const auto* schema = schema_for(Scope);
+				const auto* schema = schema_for(Scope, Slot);
 				if (schema == nullptr) {
 					return std::unexpected{
 						application::github_credential_vault_failure::invalid_request
@@ -912,16 +939,18 @@ namespace bpr::adapters::github {
 			}
 
 			linux_secret_service_schema_scope Scope;
+			linux_secret_service_slot         Slot;
 			std::mutex                        OperationMutex;
 			SecretService*                    Service = nullptr;
 		};
 
 		[[nodiscard]] auto make_native_backend(
-			const linux_secret_service_schema_scope scope) noexcept
+			const linux_secret_service_schema_scope scope,
+			const linux_secret_service_slot         slot) noexcept
 			-> std::expected<std::shared_ptr<linux_secret_service_backend>,
 							 application::github_credential_vault_failure>
 		{
-			if (!valid(scope)) {
+			if (!valid(scope) || !valid(slot)) {
 				return std::unexpected{
 					application::github_credential_vault_failure::invalid_request
 				};
@@ -929,7 +958,7 @@ namespace bpr::adapters::github {
 
 			try {
 				return std::shared_ptr<linux_secret_service_backend>{
-					std::make_shared<native_linux_secret_service_backend>(scope)
+					std::make_shared<native_linux_secret_service_backend>(scope, slot)
 				};
 			} catch (const std::bad_alloc&) {
 				return std::unexpected{
@@ -946,21 +975,40 @@ namespace bpr::adapters::github {
 		{
 			application::github_credential_enrollment               Enrollment;
 			application::github_credential_store_completion_handler Completion;
+			linux_secret_service_slot                               Slot
+				= linux_secret_service_slot::credential;
 		};
 
 		struct pending_retrieve
 		{
 			application::github_credential_operation_context           Context;
 			application::github_credential_retrieve_completion_handler Completion;
+			linux_secret_service_slot                                  Slot
+				= linux_secret_service_slot::credential;
 		};
 
 		struct pending_delete
 		{
 			application::github_credential_operation_context         Context;
 			application::github_credential_delete_completion_handler Completion;
+			linux_secret_service_slot                                Slot
+				= linux_secret_service_slot::credential;
 		};
 
-		using pending_operation  = std::variant<pending_store, pending_retrieve, pending_delete>;
+		using pending_operation = std::variant<pending_store, pending_retrieve, pending_delete>;
+
+		/// @brief The slot a queued operation belongs to.
+		///
+		/// Read once, when the operation is dequeued, so the backend it runs
+		/// against is decided by what the caller asked for and never by which
+		/// backend happens to be reachable.
+		[[nodiscard]] auto slot_of(const pending_operation& operation) noexcept
+			-> linux_secret_service_slot
+		{
+			return std::visit(
+				[](const auto& value) noexcept { return value.Slot; },
+				operation);
+		}
 		using pending_operations = std::map<application::github_credential_operation_context,
 											pending_operation>;
 
@@ -1066,23 +1114,28 @@ namespace bpr::adapters::github {
 		private:
 			struct shared_state
 			{
-				explicit shared_state(
-					std::shared_ptr<linux_secret_service_backend> backend) noexcept
+				shared_state(
+					std::shared_ptr<linux_secret_service_backend> backend,
+					std::shared_ptr<linux_secret_service_backend> refresh_backend) noexcept
 					: Backend{ std::move(backend) }
+					, RefreshBackend{ std::move(refresh_backend) }
 				{
 				}
 
 				std::mutex                                    Mutex;
 				pending_operations                            Pending;
 				std::shared_ptr<linux_secret_service_backend> Backend;
+				std::shared_ptr<linux_secret_service_backend> RefreshBackend;
 				bool                                          Closing = false;
 			};
 
 		public:
 			linux_secret_service_vault(application::effect_executor&                 effect_lane,
-									   std::shared_ptr<linux_secret_service_backend> backend)
+									   std::shared_ptr<linux_secret_service_backend> backend,
+									   std::shared_ptr<linux_secret_service_backend> refresh_backend)
 				: EffectLane{ effect_lane }
-				, State{ std::make_shared<shared_state>(std::move(backend)) }
+				, State{ std::make_shared<shared_state>(std::move(backend),
+														std::move(refresh_backend)) }
 			{
 			}
 
@@ -1108,6 +1161,98 @@ namespace bpr::adapters::github {
 					   application::github_credential_store_completion_handler completion)
 				override
 			{
+				submit_store(
+					linux_secret_service_slot::credential,
+					std::move(enrollment),
+					std::move(completion));
+			}
+
+			void retrieve(application::github_credential_operation_context           context,
+						  application::github_credential_retrieve_completion_handler completion)
+				override
+			{
+				submit_retrieve(
+					linux_secret_service_slot::credential,
+					context,
+					std::move(completion));
+			}
+
+			void delete_credential(
+				application::github_credential_operation_context         context,
+				application::github_credential_delete_completion_handler completion)
+				override
+			{
+				submit_delete(
+					linux_secret_service_slot::credential,
+					context,
+					std::move(completion));
+			}
+
+			// [[BPR-0542]] The refresh slot is a real second store, keyed by the
+			// same authority as the base credential under its own schema. It
+			// used to answer `unavailable` from three stubs, which the recorded
+			// registration made a live defect rather than a gap: it issues
+			// expiring user tokens with refresh tokens, so a real Linux sign-in
+			// parked a refresh token, met `unavailable`, and reported
+			// `reenrollment_required` moments after the sign-in succeeded.
+			void store_refresh(
+				application::github_credential_enrollment               aEnrollment,
+				application::github_credential_store_completion_handler aCompletion)
+				override
+			{
+				submit_store(
+					linux_secret_service_slot::refresh,
+					std::move(aEnrollment),
+					std::move(aCompletion));
+			}
+
+			void retrieve_refresh(
+				application::github_credential_operation_context           aContext,
+				application::github_credential_retrieve_completion_handler aCompletion)
+				override
+			{
+				submit_retrieve(
+					linux_secret_service_slot::refresh,
+					aContext,
+					std::move(aCompletion));
+			}
+
+			void delete_refresh(
+				application::github_credential_operation_context         aContext,
+				application::github_credential_delete_completion_handler aCompletion)
+				override
+			{
+				submit_delete(
+					linux_secret_service_slot::refresh,
+					aContext,
+					std::move(aCompletion));
+			}
+
+			void cancel(
+				application::github_credential_operation_context context) override
+			{
+				std::optional<pending_operation> pending;
+				{
+					const auto lock = std::scoped_lock{ State->Mutex };
+					pending         = extract_pending(State->Pending, context);
+				}
+				if (pending.has_value()) {
+					publish_cancelled(*pending);
+				}
+			}
+
+		private:
+			/// @brief Validates one store and queues it against @p slot.
+			///
+			/// The refusal below is the same one both slots always gave: an
+			/// invalid enrollment or a missing completion is `invalid_request`
+			/// before anything is queued, and the credential bytes are reset on
+			/// the way out rather than left in a rejected enrollment.
+			void submit_store(
+				const linux_secret_service_slot                         slot,
+				application::github_credential_enrollment               enrollment,
+				application::github_credential_store_completion_handler completion)
+			{
 				const auto context = enrollment.Context;
 				if (!application::valid(enrollment) || !completion) {
 					enrollment.Credential.reset();
@@ -1125,12 +1270,14 @@ namespace bpr::adapters::github {
 					  pending_store{
 						  .Enrollment = std::move(enrollment),
 						  .Completion = std::move(completion),
+						  .Slot       = slot,
 					  });
 			}
 
-			void retrieve(application::github_credential_operation_context           context,
-						  application::github_credential_retrieve_completion_handler completion)
-				override
+			void submit_retrieve(
+				const linux_secret_service_slot                            slot,
+				application::github_credential_operation_context           context,
+				application::github_credential_retrieve_completion_handler completion)
 			{
 				if (!application::valid(context) || !completion) {
 					if (completion) {
@@ -1147,13 +1294,14 @@ namespace bpr::adapters::github {
 					  pending_retrieve{
 						  .Context    = context,
 						  .Completion = std::move(completion),
+						  .Slot       = slot,
 					  });
 			}
 
-			void delete_credential(
+			void submit_delete(
+				const linux_secret_service_slot                          slot,
 				application::github_credential_operation_context         context,
 				application::github_credential_delete_completion_handler completion)
-				override
 			{
 				if (!application::valid(context) || !completion) {
 					if (completion) {
@@ -1170,83 +1318,10 @@ namespace bpr::adapters::github {
 					  pending_delete{
 						  .Context    = context,
 						  .Completion = std::move(completion),
+						  .Slot       = slot,
 					  });
 			}
 
-			// The refresh slot has no Secret Service schema of its own yet, so it
-			// reports itself unavailable rather than sharing the credential
-			// attributes and letting one slot answer for the other. Enabling it
-			// belongs to BPR-0311.
-			void store_refresh(
-				application::github_credential_enrollment               aEnrollment,
-				application::github_credential_store_completion_handler aCompletion)
-				override
-			{
-				const auto context = aEnrollment.Context;
-				auto       pending
-					= std::make_shared<application::github_credential_enrollment>(
-						std::move(aEnrollment));
-				EffectLane.post(
-					[pending = std::move(pending), context, completion = std::move(aCompletion)]() mutable {
-						pending->Credential.reset();
-						if (completion) {
-							completion(application::github_credential_store_error{
-								.Context = context,
-								.Failure = application::github_credential_vault_failure::
-									unavailable,
-							});
-						}
-					});
-			}
-
-			void retrieve_refresh(
-				application::github_credential_operation_context           aContext,
-				application::github_credential_retrieve_completion_handler aCompletion)
-				override
-			{
-				EffectLane.post(
-					[aContext, completion = std::move(aCompletion)]() mutable {
-						if (completion) {
-							completion(application::github_credential_retrieve_error{
-								.Context = aContext,
-								.Failure = application::github_credential_vault_failure::
-									unavailable,
-							});
-						}
-					});
-			}
-
-			void delete_refresh(
-				application::github_credential_operation_context         aContext,
-				application::github_credential_delete_completion_handler aCompletion)
-				override
-			{
-				EffectLane.post(
-					[aContext, completion = std::move(aCompletion)]() mutable {
-						if (completion) {
-							completion(application::github_credential_delete_error{
-								.Context = aContext,
-								.Failure = application::github_credential_vault_failure::
-									unavailable,
-							});
-						}
-					});
-			}
-
-			void cancel(
-				application::github_credential_operation_context context) override
-			{
-				std::optional<pending_operation> pending;
-				{
-					const auto lock = std::scoped_lock{ State->Mutex };
-					pending         = extract_pending(State->Pending, context);
-				}
-				if (pending.has_value()) {
-					publish_cancelled(*pending);
-				}
-			}
-
-		private:
 			void queue(const application::github_credential_operation_context& context,
 					   pending_operation                                       operation)
 			{
@@ -1323,10 +1398,21 @@ namespace bpr::adapters::github {
 					const auto lock = std::scoped_lock{ state->Mutex };
 					pending         = extract_pending(state->Pending, context);
 					if (pending.has_value()) {
-						backend = state->Backend;
+						backend = slot_of(*pending) == linux_secret_service_slot::refresh
+							? state->RefreshBackend
+							: state->Backend;
 					}
 				}
 				if (!pending.has_value()) {
+					return;
+				}
+				// A composition with no second store answers `unavailable`, and
+				// only that composition does: the slot below is real wherever a
+				// refresh backend was built for it.
+				if (backend == nullptr) {
+					publish_failure(
+						*pending,
+						application::github_credential_vault_failure::unavailable);
 					return;
 				}
 
@@ -1488,7 +1574,8 @@ namespace bpr::adapters::github {
 		};
 
 		[[nodiscard]] auto make_vault(application::effect_executor&                 effect_lane,
-									  std::shared_ptr<linux_secret_service_backend> backend) noexcept
+									  std::shared_ptr<linux_secret_service_backend> backend,
+									  std::shared_ptr<linux_secret_service_backend> refresh_backend) noexcept
 			-> linux_secret_service_vault_factory_result
 		{
 			if (backend == nullptr) {
@@ -1500,7 +1587,9 @@ namespace bpr::adapters::github {
 			try {
 				return std::unique_ptr<application::github_credential_vault_port>{
 					std::make_unique<linux_secret_service_vault>(
-						effect_lane, std::move(backend))
+						effect_lane,
+						std::move(backend),
+						std::move(refresh_backend))
 				};
 			} catch (const std::bad_alloc&) {
 				return std::unexpected{
@@ -1522,6 +1611,18 @@ namespace bpr::adapters::github {
 			return production_schema_identifier;
 		case linux_secret_service_schema_scope::integration_test:
 			return integration_test_schema_identifier;
+		}
+		return { };
+	}
+
+	auto linux_secret_service_refresh_schema_identifier(
+		const linux_secret_service_schema_scope scope) noexcept -> std::string_view
+	{
+		switch (scope) {
+		case linux_secret_service_schema_scope::production:
+			return production_refresh_schema_identifier;
+		case linux_secret_service_schema_scope::integration_test:
+			return integration_test_refresh_schema_identifier;
 		}
 		return { };
 	}
@@ -1665,11 +1766,20 @@ namespace bpr::adapters::github {
 	auto make_linux_secret_service_vault(application::effect_executor& effect_lane)
 		-> linux_secret_service_vault_factory_result
 	{
-		auto backend = make_native_backend(linux_secret_service_schema_scope::production);
+		auto backend = make_native_backend(
+			linux_secret_service_schema_scope::production,
+			linux_secret_service_slot::credential);
 		if (!backend.has_value()) {
 			return std::unexpected{ backend.error() };
 		}
-		return make_vault(effect_lane, std::move(*backend));
+		auto refresh_backend = make_native_backend(
+			linux_secret_service_schema_scope::production,
+			linux_secret_service_slot::refresh);
+		if (!refresh_backend.has_value()) {
+			return std::unexpected{ refresh_backend.error() };
+		}
+		return make_vault(
+			effect_lane, std::move(*backend), std::move(*refresh_backend));
 	}
 
 	auto make_linux_secret_service_integration_test_vault(
@@ -1677,19 +1787,29 @@ namespace bpr::adapters::github {
 		-> linux_secret_service_vault_factory_result
 	{
 		auto backend = make_native_backend(
-			linux_secret_service_schema_scope::integration_test);
+			linux_secret_service_schema_scope::integration_test,
+			linux_secret_service_slot::credential);
 		if (!backend.has_value()) {
 			return std::unexpected{ backend.error() };
 		}
-		return make_vault(effect_lane, std::move(*backend));
+		auto refresh_backend = make_native_backend(
+			linux_secret_service_schema_scope::integration_test,
+			linux_secret_service_slot::refresh);
+		if (!refresh_backend.has_value()) {
+			return std::unexpected{ refresh_backend.error() };
+		}
+		return make_vault(
+			effect_lane, std::move(*backend), std::move(*refresh_backend));
 	}
 
 	auto make_linux_secret_service_vault_with_backend(
 		application::effect_executor&                 effect_lane,
-		std::shared_ptr<linux_secret_service_backend> backend) noexcept
+		std::shared_ptr<linux_secret_service_backend> backend,
+		std::shared_ptr<linux_secret_service_backend> refresh_backend) noexcept
 		-> linux_secret_service_vault_factory_result
 	{
-		return make_vault(effect_lane, std::move(backend));
+		return make_vault(
+			effect_lane, std::move(backend), std::move(refresh_backend));
 	}
 }
 // NOLINTEND(readability-identifier-naming)
