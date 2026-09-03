@@ -1,3 +1,4 @@
+#include "bpr/application/agent_realignment.hpp"
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 
@@ -989,6 +990,230 @@ namespace {
 		expect(projections.Results.empty() && projections.Failures.empty(),
 			   "expired completion gate cannot target destroyed host state");
 	}
+
+	// --- BPR-0532: re-alignment against a kept session's own epoch pair ---
+
+	[[nodiscard]] constexpr auto commit(const std::uint8_t aSeed)
+		-> core::git_commit_oid
+	{
+		std::array<std::uint8_t, 32U> raw{ };
+		for (std::size_t index = 0U; index < 20U; ++index) {
+			raw[index] = static_cast<std::uint8_t>(aSeed + index);
+		}
+		return core::git_commit_oid{ core::git_hash_algorithm::sha1, raw };
+	}
+
+	/// The tree lookup the workbench resolves selected files through, scripted.
+	class fake_selected_files final
+		: public application::workbench_selected_diff_port
+	{
+	public:
+		[[nodiscard]] auto context(
+			const application::workbench_pull_request_authority&) const
+			-> std::optional<application::workbench_selected_diff_context> override
+		{
+			return std::nullopt;
+		}
+
+		[[nodiscard]] auto resolve(
+			const application::workbench_selected_diff_request& aRequest,
+			const std::stop_token)
+			-> application::workbench_selected_diff_observation override
+		{
+			Asked.push_back(aRequest);
+			return application::workbench_selected_diff_observation{
+				.Request   = aRequest,
+				.Status    = Status,
+				.LeftBlob  = Status == application::workbench_selected_diff_status::available
+					? std::optional{ blob(21U) }
+					: std::nullopt,
+				.RightBlob = Status == application::workbench_selected_diff_status::available
+					? std::optional{ blob(51U) }
+					: std::nullopt,
+			};
+		}
+
+		std::vector<application::workbench_selected_diff_request> Asked;
+		application::workbench_selected_diff_status               Status
+			= application::workbench_selected_diff_status::available;
+	};
+
+	[[nodiscard]] auto realignment_request(const std::size_t aFiles = 1U)
+		-> application::agent_realignment_request
+	{
+		const auto key   = comparison_key();
+		auto       entry = application::workbench_file_observation_entry{
+			.File             = key.File,
+			.PresentationPath = "src/kept.txt",
+			.CurrentPath      = std::filesystem::path{ "src/kept.txt" },
+			.Change           = application::workbench_file_change_kind::modified,
+			.ContentKind      = application::workbench_file_content_kind::text,
+		};
+		auto request = application::agent_realignment_request{
+			.Binding = core::agent_revision_binding{
+				.Host        = key.Authority.Host,
+				.Repository  = key.Repository,
+				.PullRequest = key.PullRequest,
+				.BaseOid     = commit(7U),
+				.HeadOid     = commit(9U),
+				.LeftEpoch   = core::epoch_ordinal{ 4 },
+				.RightEpoch  = core::epoch_ordinal{ 5 },
+			},
+			.Context = application::workbench_request_context{
+				.Request    = core::request_id{ 3U },
+				.Session    = core::application_session_id{ 1U },
+				.Generation = core::request_generation{ 2U },
+			},
+			.WorkbenchAuthority = { },
+			.Diff               = application::workbench_selected_diff_context{
+				.ApplicationSession = core::application_session_id{ 1U },
+				.Authority          = key.Authority,
+				.Comparison         = core::comparison_pair{
+					.Left = core::comparison_anchor{
+						.Identity = key.LeftAnchor,
+						.Commit   = commit(1U),
+					},
+					.Right = core::comparison_anchor{
+						.Identity = key.RightAnchor,
+						.Commit   = commit(2U),
+					},
+				},
+				.ComparisonRevision = core::comparison_revision{ 6 },
+				.Options            = core::diff_options{ },
+				.OptionsDigest      = key.Options,
+				.Algorithm          = key.Algorithm,
+			},
+			.Files   = { },
+			.Options = core::diff_options{ },
+			.Limits  = core::diff_compute_limits{ },
+		};
+		for (std::size_t index = 0U; index < aFiles; ++index) {
+			request.Files.push_back(entry);
+		}
+		return request;
+	}
+
+	void realignment_freezes_the_bound_revisions_own_identities()
+	{
+		auto       files     = fake_selected_files{ };
+		auto       blobs     = fake_blobs{ };
+		auto       realigner = application::composed_agent_realignment{ files, blobs };
+		const auto request   = realignment_request();
+		const auto outcome   = realigner.realign(request, std::stop_token{ });
+		expect(
+			outcome.Refusal == application::agent_realignment_refusal::none,
+			"a retained revision re-aligns");
+		expect(outcome.Files.size() == 1U, "one selected file, one frozen file");
+		expect(
+			outcome.Files.front().Path == "src/kept.txt",
+			"the frozen file is the one that was asked about");
+		expect(!outcome.Files.front().Segments.empty(), "identities were frozen");
+
+		// The lookup names the session's pair and nothing of the current one.
+		expect(files.Asked.size() == 1U, "one lookup per file");
+		const auto& asked = files.Asked.front();
+		expect(
+			asked == application::realignment_lookup(request, request.Files.front()),
+			"the lookup is exactly the retargeted request");
+		expect(
+			asked.Diff.Comparison.Left.Commit == request.Binding.BaseOid
+				&& asked.Diff.Comparison.Right.Commit == request.Binding.HeadOid
+				&& asked.Diff.Comparison.Left.Identity.Epoch == request.Binding.LeftEpoch
+				&& asked.Diff.Comparison.Right.Identity.Epoch
+					== request.Binding.RightEpoch,
+			"the bound revision's pair is what was resolved");
+		expect(
+			asked.Diff.Authority == request.Diff.Authority
+				&& asked.Diff.OptionsDigest == request.Diff.OptionsDigest
+				&& asked.Diff.Algorithm == request.Diff.Algorithm,
+			"only the pair is retargeted");
+
+		// The identities are the ones the one alignment computation produces
+		// for that pair - not a second algorithm's answer about it.
+		const auto left       = blobs.LeftBytes;
+		const auto right      = blobs.RightBytes;
+		auto       key        = comparison_key();
+		key.LeftAnchor.Epoch  = request.Binding.LeftEpoch;
+		key.RightAnchor.Epoch = request.Binding.RightEpoch;
+		const auto computed   = core::compute_file_diff(core::diff_compute_input{
+			.Key        = key,
+			.Options    = request.Options,
+			.LeftBytes  = std::optional{ std::span<const std::uint8_t>{ left } },
+			.RightBytes = std::optional{ std::span<const std::uint8_t>{ right } },
+			.Limits     = request.Limits,
+		});
+		expect(computed.Result.has_value(), "the reference alignment computes");
+		expect(
+			outcome.Files.front().Comparison == computed.Result->Alignment.Digest,
+			"the frozen comparison is that pair's own");
+		expect(
+			outcome.Files.front().Segments.size()
+					== computed.Result->Alignment.Segments.size()
+				&& outcome.Files.front().Groups.size()
+					== computed.Result->Alignment.Groups.size(),
+			"the frozen identities are that pair's own");
+	}
+
+	void realignment_refuses_when_the_bound_revisions_objects_are_gone()
+	{
+		auto files     = fake_selected_files{ };
+		auto blobs     = fake_blobs{ };
+		auto realigner = application::composed_agent_realignment{ files, blobs };
+		files.Status   = application::workbench_selected_diff_status::both_missing;
+		auto outcome   = realigner.realign(realignment_request(), std::stop_token{ });
+		expect(
+			outcome.Refusal
+				== application::agent_realignment_refusal::objects_unavailable,
+			"a tree that no longer answers is objects_unavailable");
+		expect(outcome.Files.empty(), "a refused re-alignment freezes nothing");
+		expect(blobs.Requests.empty(), "no blob is read once the tree refused");
+
+		// Resolved, then the object itself is gone from the retained cache.
+		files.Status = application::workbench_selected_diff_status::available;
+		blobs.Status = application::diff_blob_status::missing;
+		outcome      = realigner.realign(realignment_request(), std::stop_token{ });
+		expect(
+			outcome.Refusal
+				== application::agent_realignment_refusal::objects_unavailable,
+			"a missing blob is objects_unavailable");
+		expect(outcome.Files.empty(), "a refused re-alignment freezes nothing");
+		expect(
+			std::string_view{ application::stable_name(outcome.Refusal) }
+				== "objects_unavailable",
+			"the refusal names itself");
+	}
+
+	void realignment_refuses_past_its_bound_rather_than_blocking()
+	{
+		auto       files     = fake_selected_files{ };
+		auto       blobs     = fake_blobs{ };
+		auto       realigner = application::composed_agent_realignment{ files, blobs };
+		const auto over
+			= realigner.realign(
+				realignment_request(application::maximum_agent_realignment_files + 1U),
+				std::stop_token{ });
+		expect(
+			over.Refusal
+				== application::agent_realignment_refusal::file_limit_exceeded,
+			"a request over the file bound refuses");
+		expect(
+			files.Asked.empty() && blobs.Requests.empty(),
+			"the bound is checked before any effect runs");
+
+		// The size bound a fresh alignment already has, on the same request.
+		auto bounded                       = realignment_request();
+		bounded.Limits.MaximumBytesPerSide = 1U;
+		blobs.DeclaredBlobBytes            = 4096U;
+		const auto refused                 = realigner.realign(bounded, std::stop_token{ });
+		expect(
+			refused.Refusal == application::agent_realignment_refusal::compute_limit,
+			"an oversize side refuses at the alignment's own bound");
+		expect(refused.Files.empty(), "a bounded refusal freezes nothing");
+		expect(
+			blobs.RefusedBeforeAllocation,
+			"the bound refuses before the bytes are held");
+	}
+
 } // namespace
 
 int main()
@@ -1007,5 +1232,8 @@ int main()
 	test_projection_reentry_is_deferred();
 	test_persistent_projection_feedback_yields_between_turns();
 	test_pending_effect_is_safe_after_host_destruction();
+	realignment_freezes_the_bound_revisions_own_identities();
+	realignment_refuses_when_the_bound_revisions_objects_are_gone();
+	realignment_refuses_past_its_bound_rather_than_blocking();
 	return EXIT_SUCCESS;
 }

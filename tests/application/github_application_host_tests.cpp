@@ -4,10 +4,12 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <span>
 #include <stdexcept>
 #include <string_view>
 #include <thread>
@@ -220,8 +222,8 @@ namespace {
 				expect(found != Profiles.end(), "cancelled profile call exists");
 				auto        completion = found->Completion;
 				std::thread worker{
-					[completion = std::move(completion), aRequest]() mutable {
-						completion(application::github_profile_cancelled{
+					[workerCompletion = std::move(completion), aRequest]() mutable {
+						workerCompletion(application::github_profile_cancelled{
 							.Request = aRequest,
 						});
 					}
@@ -356,9 +358,19 @@ namespace {
 			});
 		}
 
-		// The GitHub host owns the credential slot only. Nothing it does reaches
-		// the refresh slot, so this fake answers it the way a platform without
-		// one does and the tests below stay about the credential path.
+		// What the refresh slot answers a presence probe with. The default is
+		// the platform that has no second slot at all, which is what every
+		// test below that is about the credential path wants; the two named
+		// answers are the two kinds of material a restart can find.
+		enum class refresh_answer : std::uint8_t {
+			unavailable,
+			absent,
+			present,
+		};
+
+		// The GitHub host owns the credential slot only. Nothing it does writes
+		// the refresh slot, so storing into it still answers the way a platform
+		// without one does; only the presence probe reads it.
 		void store_refresh(
 			application::github_credential_enrollment               aEnrollment,
 			application::github_credential_store_completion_handler aCompletion)
@@ -377,6 +389,29 @@ namespace {
 			application::github_credential_retrieve_completion_handler
 				aCompletion) override
 		{
+			RefreshRetrieves.push_back(aContext);
+			switch (RefreshAnswer) {
+			case refresh_answer::present: {
+				const auto bytes    = std::array{ std::byte{ 'r' }, std::byte{ 't' } };
+				auto       material = application::github_credential_material::create(
+					std::span<const std::byte>{ bytes });
+				if (material.has_value()) {
+					aCompletion(application::github_credential_retrieve_success{
+						.Context    = aContext,
+						.Credential = std::move(*material),
+					});
+					return;
+				}
+				break;
+			}
+			case refresh_answer::absent:
+				aCompletion(application::github_credential_retrieve_absent{
+					.Context = aContext,
+				});
+				return;
+			case refresh_answer::unavailable:
+				break;
+			}
 			aCompletion(application::github_credential_retrieve_error{
 				.Context = aContext,
 				.Failure = application::github_credential_vault_failure::unavailable,
@@ -405,7 +440,9 @@ namespace {
 		std::vector<delete_call>                                      Deletes;
 		std::vector<std::size_t>                                      StoredCredentialBytes;
 		std::vector<application::github_credential_operation_context> Cancellations;
-		bool                                                          ThrowOnStore = false;
+		std::vector<application::github_credential_operation_context> RefreshRetrieves;
+		refresh_answer                                                RefreshAnswer = refresh_answer::unavailable;
+		bool                                                          ThrowOnStore  = false;
 	};
 
 	class throwing_once_lane final : public application::decision_executor
@@ -4230,6 +4267,52 @@ namespace {
 				   "late stored secret retains an exact catalog tombstone");
 		}
 	}
+
+	// The restart signal, at the boundary that owns the vault. The stage a
+	// device flow left behind does not survive a process, so the only thing
+	// that can still say "this credential renews itself" is the entry the
+	// vault kept beside it -- and only a device grant ever writes one. The
+	// probe is issued on acceptance and its answer is published, because a
+	// reader that already saw the acceptance would otherwise never be told.
+	void test_accepted_credential_renewability_is_answered_by_the_vault()
+	{
+		{
+			host_fixture pasted;
+			pasted.Vault.RefreshAnswer = fake_vault::refresh_answer::absent;
+			static_cast<void>(establish_native_session(pasted));
+			expect(pasted.Host.accepted_credential_authority().has_value(),
+				   "an accepted native session names a credential slot");
+			expect(pasted.Vault.RefreshRetrieves.size() == 1U
+					   && pasted.Vault.RefreshRetrieves.front().Authority
+						   == *pasted.Host.accepted_credential_authority(),
+				   "acceptance probes the refresh slot under the exact "
+				   "accepted authority");
+			const auto published = pasted.Projections.session_count();
+			expect(pasted.Lane.pending() == 0U,
+				   "an absent answer costs the decision lane no turn");
+			expect(!pasted.Host.accepted_credential_renewable(),
+				   "material with no refresh entry beside it is not renewable");
+			expect(pasted.Projections.session_count() == published,
+				   "an absent answer republishes nothing");
+		}
+
+		{
+			host_fixture granted;
+			granted.Vault.RefreshAnswer = fake_vault::refresh_answer::present;
+			static_cast<void>(establish_native_session(granted));
+			expect(!granted.Host.accepted_credential_renewable(),
+				   "the answer is not read off lane");
+			const auto published = granted.Projections.session_count();
+			granted.Lane.run_next();
+			expect(granted.Host.accepted_credential_renewable(),
+				   "a refresh entry under the accepted authority is renewable");
+			expect(granted.Projections.session_count() == published + 1U,
+				   "the settled answer republishes the accepted session once");
+			granted.Host.shutdown();
+			expect(!granted.Host.accepted_credential_renewable(),
+				   "a closed host renews nothing");
+		}
+	}
 }
 
 auto main() -> int
@@ -4263,6 +4346,7 @@ auto main() -> int
 	test_shutdown_exact_cleans_every_provisional_phase();
 	test_shutdown_cancel_has_no_completion_gate_lock_inversion();
 	test_destroyed_host_suppresses_late_callbacks_before_posting();
+	test_accepted_credential_renewability_is_answered_by_the_vault();
 	std::cout << "application github host tests passed\n";
 	return EXIT_SUCCESS;
 }

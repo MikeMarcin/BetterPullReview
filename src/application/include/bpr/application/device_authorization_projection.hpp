@@ -103,6 +103,53 @@ namespace bpr::application {
 	using device_authorization_gesture_dispatch
 		= std::function<void(device_authorization_gesture)>;
 
+	enum class device_authorization_refresh_state : std::uint8_t {
+		// No account has authorized material to renew.
+		idle,
+		// A renewal is armed for a moment before the access token expires.
+		scheduled,
+		// A renewal exchange is in flight.
+		refreshing,
+		// Renewal cannot continue. The reviewer has to authorize again, and the
+		// host says so once instead of retrying forever.
+		reenrollment_required,
+	};
+
+	enum class device_authorization_refresh_failure : std::uint8_t {
+		none,
+		// The vault could not be reached or refused the slot.
+		vault_unavailable,
+		// The vault holds no refresh material for this authority.
+		refresh_absent,
+		// The server refused the refresh material it was given.
+		refresh_rejected,
+		// The exchange did not complete.
+		transport_failed,
+		// New material arrived but could not be stored, so rotating would have
+		// left nothing durable behind.
+		storage_failed,
+	};
+
+	/// \brief Describes the device authorization refresh observation record.
+	///
+	/// \details The renewal lifecycle, in the three facts presentation is
+	/// allowed to know: what the renewal is doing, why it stopped if it did,
+	/// and how many times material has rotated. It carries no token, no
+	/// authority, and no schedule, because a surface that can name the moment
+	/// a renewal is due is a surface that can be asked to bring it forward.
+	struct device_authorization_refresh_observation
+	{
+		device_authorization_refresh_state State
+			= device_authorization_refresh_state::idle;
+		device_authorization_refresh_failure Failure
+			= device_authorization_refresh_failure::none;
+		// How many times material has been rotated under this host.
+		std::uint32_t Rotations = 0U;
+
+		auto operator<=>(const device_authorization_refresh_observation&) const
+			= default;
+	};
+
 	/// \brief Provides the device authorization projection port contract.
 	class device_authorization_projection_port
 	{
@@ -114,6 +161,16 @@ namespace bpr::application {
 		// accepted core transition or an enrolled credential.
 		virtual void publish(
 			const device_authorization_presentation& aPresentation) = 0;
+
+		// The renewal lifecycle, published whenever the observation changes.
+		// It is a second method rather than six more fields on the
+		// presentation: the presentation's list is closed to everything the
+		// flow keeps secret, and renewal has its own vocabulary, its own
+		// cadence, and readers that want one without the other. Pure, so a
+		// projection that stopped forwarding renewal fails to compile rather
+		// than silently leaving the reviewer with a token nothing renews.
+		virtual void publish_refresh(
+			const device_authorization_refresh_observation& aObservation) = 0;
 	};
 } // namespace bpr::application
 

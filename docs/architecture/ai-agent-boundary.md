@@ -933,11 +933,20 @@ session (BPR-0500, `application_agent_invocation_host`).
   validator uses, and `files/` is created empty, so `list_snapshot_files`
   answers with an empty list rather than a wrong one. Freezing file content is a
   larger effect than the composition slice owned.
-- **The six comment-workshop operations are specification only.** Clarify,
+- **The six comment-workshop operations are one typed set on one path.**
+  `core::workshop_operation` names them in the UX guide's order — clarify,
   shorten, make actionable, phrase as a question, make more direct, and check
-  the premise appear nowhere in the tree. What exists is one shipped path from a
-  proposed draft edit to a before/after proposal, and `workshop_comment` as a
-  single entry point.
+  the premise — with a pinned count. The operation rides as an optional field
+  of the agent supplement, admitted only under the `workshop_comment` entry
+  point, reaches the agent's wire frame in one position, and is named by the
+  proposal `application::agent_comment_workshop_host::propose` produces; the
+  revision editor offers the six as controls that emit a typed workshop
+  request. A press starts one agent turn through the same invocation path
+  every entry point uses, bound to the press by the session identity the
+  composition allocates, and the turn's converted outcome is the proposal
+  that names the operation; an unrelated outcome cannot spend the press.
+  There is still one shipped path from a draft to a before/after proposal
+  and one entry point (BPR-0533).
 - **The Windows backend is not re-proven here.** RFC-BPR-0012 adds no platform
   code; the Windows process lifecycle remains claimed only on the strength of
   BPR-0240's 2026-08-26/27 target-native runs, exactly as the RFC-BPR-0011

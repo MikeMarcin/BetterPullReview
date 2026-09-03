@@ -222,6 +222,11 @@ bpr_bound_automated_run(
 # pipe namespace that a lowbox token cannot reach. `--network-denied` does not
 # contain the process; it denies at the socket, which is what this row actually
 # needed and the one thing the container could never have given it.
+# The selector's name predates the registered selection: on an unregistered
+# platform its stage is `unavailable`, and on every shipped platform it is now
+# the dev-tree device-authorization gate under local denial (BPR-0515), landing
+# on `failed`. The name stays because six gates bind it by string and the closed
+# cards record it (BPR-0285); read it as "the dev-tree device gate".
 bpr_add_network_isolated_test(
     NAME application_device_authorization_unavailable
     WINDOWS_UNCONTAINED
@@ -258,6 +263,21 @@ bpr_bound_automated_run(
 # distributable one is BPR-0318's - so this course needs the fixture, and it
 # ends at the grant's terminal rather than continuing into the fixture's own
 # pull-request stages.
+#
+# BPR-0539. The count alone did not make that claim. The course connected the
+# fixture account before it began, `github_connect_action` enrolled the
+# fixture's own 32 random bytes, and the one store this row counted was that
+# credential rather than the grant - whose own enrollment then arrived as a
+# second establishment the fixture vault refused. The course now runs the
+# grant as its first session, and the row reads the identity of what was
+# stored rather than only how often: `DEVICE_FLOW_VAULT_STORED_TOKEN` is the
+# leading 16 hex digits of the SHA-256 of the bytes the vault accepted, and
+# the value pinned here is that digest for the recorded grant's own access
+# token - `printf '%s' fixture-access-token-0276 | shasum -a 256` - so the row
+# is anchored to a value outside the process rather than to the fixture's own
+# say-so. `DEVICE_FLOW_STORED_IS_GRANT` is the comparison the fixture makes
+# between the two, and the connect credential is random per run, so it can
+# match neither.
 bpr_add_network_isolated_test(
     NAME application_device_authorization_registered_course
     WINDOWS_UNCONTAINED
@@ -276,10 +296,50 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK"
+            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_VAULT_STORED_TOKEN:f5505a4b89c07e21[\r\n]+DEVICE_FLOW_STORED_IS_GRANT:true[\r\n]+DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK"
 )
 bpr_bound_automated_run(
     application_device_authorization_registered_course
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# BPR-0536. The registered course carried one step past its terminal, and the
+# only place RFC-BPR-0016's claim-matrix row 9 can be observed through the
+# composed graph rather than at the host: the recorded grant enrolls, the
+# composition binds the refresh authority from the accepted session, and the
+# renewal rotates the access and refresh material under that same vault
+# authority before the access token expires. Two vault stores, because the
+# rotation enrolls the rotated access token under the authority the grant
+# established - that is the rotation being durable rather than a second
+# enrollment - and `DEVICE_FLOW_DURABLE_COPIES` stays zero because nothing the
+# renewal writes goes anywhere but the vault. `WINDOWS_UNCONTAINED` and the
+# isolation keyword are the registered course's, unchanged: this row runs the
+# same graph with one more flag.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_refresh_course
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-refresh-course
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_refresh_course
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ROTATIONS:1[\r\n]+DEVICE_FLOW_REFRESH_STATE:scheduled[\r\n]+DEVICE_FLOW_VAULT_STORES:2[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_REFRESH_BOUND:true[\r\n]+DEVICE_FLOW_REFRESH_RESUMES:0[\r\n]+DEVICE_FLOW_REFRESH_OK"
+)
+bpr_bound_automated_run(
+    application_device_authorization_refresh_course
     TIMEOUT 15
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
@@ -427,6 +487,43 @@ set_tests_properties(
 )
 bpr_bound_automated_run(
     application_device_authorization_panel_absent
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# BPR-0535. The enterprise negative the row above could never make: every
+# course beside it begins for the front profile, and the picker is the only
+# thing that can bind the mounted panel to another one. The capability is
+# composed for GitHub.com, so a begin pressed while a GHES profile is selected
+# has to end in the typed refusal with nothing built - on every platform,
+# registered or not, which is why the expression names no platform. The wire is
+# composed under local denial like the gate above, so a run that stopped
+# refusing reaches a closed loopback port rather than github.com.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_ghes_refusal
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --ghes-host
+        ghe.example.invalid
+        --device-authorization-probe
+        --device-authorization-ghes-course
+        --network-denied
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_ghes_refusal
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_STAGE:unavailable[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_GHES_BEGIN_REFUSED:true[\r\n]+DEVICE_FLOW_GHES_REFUSAL_OK"
+)
+bpr_bound_automated_run(
+    application_device_authorization_ghes_refusal
     TIMEOUT 15
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
@@ -704,6 +801,45 @@ set_tests_properties(
         TIMEOUT 15
 )
 
+# BPR-0537. The composed system-browser opener's address validation, asked
+# directly. The three device-authorization courses observe a browser that
+# opened; this asks what the opener refuses, which is the claim, and drives
+# `open` with the platform launch substituted for a counting stand-in so no
+# test ever hands an address to the desktop. Links the composition for the
+# opener itself and needs no window, no event loop, and no network.
+bpr_add_executable(
+    test_better_pull_review_system_browser_opener_tests
+    system_browser_opener_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_system_browser_opener_tests
+    PRIVATE
+        BetterPullReview::Composition
+)
+target_compile_definitions(
+    test_better_pull_review_system_browser_opener_tests
+    PRIVATE
+        BPR_BUILD_TESTING=1
+)
+target_compile_features(
+    test_better_pull_review_system_browser_opener_tests
+    PRIVATE
+        cxx_std_23
+)
+bpr_enable_hardening(test_better_pull_review_system_browser_opener_tests)
+bpr_enable_warnings(test_better_pull_review_system_browser_opener_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_browser_address
+    COMMAND test_better_pull_review_system_browser_opener_tests
+)
+set_tests_properties(
+    application_device_authorization_browser_address
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "system-browser-opener-tests:pass"
+        TIMEOUT 15
+)
+
 set(bpr_application_composition_contract_command
     Python3::Interpreter
     "${CMAKE_CURRENT_SOURCE_DIR}/composition_contract_tests.py"
@@ -921,6 +1057,7 @@ foreach(
         positive
         full-agent
         finding-host-construction-cut
+        workshop-press
         workshop-construction-cut
         mcp-construction-cut
         chat-panel-construction-cut

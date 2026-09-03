@@ -443,8 +443,8 @@ namespace bpr::application {
 
 				auto self = shared_from_this();
 				DecisionLane.post(
-					[self, record, result = std::move(result)]() mutable {
-						self->complete(record, std::move(result));
+					[self, record, mutationSubmission = std::move(result)]() mutable {
+						self->complete(record, std::move(mutationSubmission));
 					});
 			}
 		}

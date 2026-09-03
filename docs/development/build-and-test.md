@@ -658,7 +658,7 @@ Read `DEVICE_FLOW_REQUESTS:0` exactly: it counts submissions that reached the
 held, and is entirely consistent with a real device-code request having gone
 out. On macOS and Linux the isolation makes the two readings coincide; on
 Windows they come apart. Whether an unattended Windows gate may make outbound
-contact at all is adjudicated by [[BPR-0515]], which is open.
+contact at all was adjudicated by [[BPR-0515]] on 2026-09-03: with the tests-enabled `--network-denied` override the dev-tree gate is denied locally on every platform and lands on `failed` with zero connections.
 
 The course enumerates every selector by name rather than counting matches, so
 a name that is not registered on a platform is a refusal by name unless the
@@ -709,7 +709,7 @@ record for both.
   and no suite may launch one. That the action reaches a real browser at a
   real verification address is a target-native observation, and all three
   rows — macOS, Linux, and Windows x64 — are still pending on [[BPR-0516]].
-- **The Windows gate's network posture is undecided.** [[BPR-0515]] is open
+- **The Windows gate's network posture is decided.** [[BPR-0515]] closed on 2026-09-03 with the fixture proxy override; the sentences that follow record the posture it replaced. [[BPR-0515]] was open
   and owns it.
 - **Nothing here is closeout evidence.** Every result above is an ordinary
   run. The immutable final-head replay on each enabled platform, the complete
@@ -762,6 +762,24 @@ tests-disabled product graph therefore has no Python or coding-tool dependency;
 set `-DBPR_ENABLE_CODING_TARGETS=ON` to add the targets deliberately. The tidy
 profile's narrow compatibility exclusions and compilation-database adaptation
 are documented in `_coding-standard/README.md`.
+
+### Warning classes every compiler treats as errors
+
+`cmake/Warnings.cmake` is the one enforcement point: `bpr_enable_warnings`
+gives every first-party target `/W4 /permissive- /WX` on MSVC and
+`-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror` elsewhere.
+Two classes are worth naming because one compiler used to catch them alone.
+A local that hides an earlier local or a parameter is MSVC's C4456, and since
+BPR-0534 the same code fails on clang (`-Wshadow` together with
+`-Wshadow-uncaptured-local`, because `-Wshadow` alone skips a lambda local
+that hides an enclosing local the lambda does not capture, the commonest
+shape in this tree) and on GCC (`-Wshadow=local`, the local-scope form; GCC's
+plain `-Wshadow` would also reject members and globals, which MSVC does not). Narrowing conversions are `-Wconversion` and
+`-Wsign-conversion` on the clang hosts and C4244/C4267 under `/W4`. A slice
+that compiles clean on macOS can still fail the Windows station on a class
+this list does not cover — C4189 (unreferenced local) and C4996 (a deprecated
+CRT name) have both done so — and the fix is the rename or the portable call,
+never a narrower flag.
 
 ### The format gate needs clang-format 22 or newer
 
@@ -2377,18 +2395,27 @@ success claim.
   in and are the minimum the shipped operation catalog justifies; they are not
   operator-editable, because an editable scope set reintroduces the decision
   this path removes.
-- The acquired token expires and renews itself shortly before it does. A
-  renewal that cannot complete says so once and asks for re-enrollment rather
-  than retrying forever; enrol again from the same panel. Refresh material
-  lives in a second slot of the same platform vault, keyed by the same
-  authority, and an orderly shutdown removes only what it retained.
+- The acquired token expires and renews itself shortly before it does, and
+  since BPR-0536 the product does this rather than only the host: the
+  composition binds the renewal to the signed-in profile's vault authority,
+  and a restart with a stored grant resumes renewal without a new code. A
+  renewal that cannot complete says so once, as one line on the sign-in
+  panel, and asks for re-enrollment rather than retrying forever; enrol again
+  from the same panel. Refresh material lives in a second slot of the same
+  platform vault, keyed by the same authority, and an orderly shutdown
+  removes only what it retained. `application_device_authorization_refresh_course`
+  proves one rotation through the composed graph over the fixture.
 - Opening a browser can fail, and that is not an authorization failure. The
   code and the address stay on screen and the flow completes on whatever
   device the reviewer finishes it on. An address that does not sit under the
   compiled authority is refused and no browser is opened for it.
 - GHES profiles report device sign-in as unavailable and keep the token path.
-  An enterprise instance would need its own registered application, which is
-  an enterprise-administration action outside RFC-BPR-0016.
+  The composed capability names the GitHub.com profile it was built for, so a
+  begin for a GHES profile — from the mounted panel or from the public-preview
+  sign-in — is refused before any transport, vault, or enrollment call
+  (BPR-0535; `application_device_authorization_ghes_refusal`). An enterprise
+  instance would need its own registered application, which is an
+  enterprise-administration action outside RFC-BPR-0016.
 - Do not work around an unavailable device path by pasting the client
   identifier, editing an endpoint, or supplying a verification address by
   hand. None of those is an input the application accepts, and the refusals

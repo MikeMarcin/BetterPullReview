@@ -882,10 +882,10 @@ namespace bpr::app {
 					application::github_credential_enrollment>(
 					std::move(aEnrollment));
 				Effects.post(
-					[pending = std::move(pending),
+					[pendingEnrollment = std::move(pending),
 					 context,
 					 completion = std::move(aCompletion)]() mutable {
-						pending->Credential.reset();
+						pendingEnrollment->Credential.reset();
 						completion(application::github_credential_store_error{
 							.Context = context,
 							.Failure = application::github_credential_vault_failure::
@@ -1075,10 +1075,33 @@ namespace bpr::app {
 				}
 			}
 
+			// The renewal lifecycle the host published last. Recorded for the
+			// same reason the presentation is: a composed course has to state
+			// what a reviewer would be told about renewal rather than infer it
+			// from a rotation count nobody surfaced.
+			void publish_refresh(
+				const application::device_authorization_refresh_observation&
+					aObservation) override
+			{
+				LastRefresh = aObservation;
+				++RefreshPublished;
+			}
+
 			[[nodiscard]] auto last() const noexcept
 				-> const application::device_authorization_presentation&
 			{
 				return Last;
+			}
+
+			[[nodiscard]] auto last_refresh() const noexcept
+				-> const application::device_authorization_refresh_observation&
+			{
+				return LastRefresh;
+			}
+
+			[[nodiscard]] auto refresh_published() const noexcept -> std::size_t
+			{
+				return RefreshPublished;
 			}
 
 			[[nodiscard]] auto last_attempt() const noexcept
@@ -1093,10 +1116,12 @@ namespace bpr::app {
 			}
 
 		private:
-			application::device_authorization_presentation Last;
-			application::device_authorization_handoff      LastAttempt
+			application::device_authorization_presentation        Last;
+			application::device_authorization_refresh_observation LastRefresh;
+			application::device_authorization_handoff             LastAttempt
 				= application::device_authorization_handoff::not_attempted;
-			std::size_t Published = 0U;
+			std::size_t Published        = 0U;
+			std::size_t RefreshPublished = 0U;
 		};
 
 		// The device host publishes to exactly one port, and [[BPR-0526]] gave
@@ -1117,12 +1142,16 @@ namespace bpr::app {
 		public:
 			using presented_sink = std::function<void(
 				const application::device_authorization_presentation&)>;
+			using renewed_sink   = std::function<void(
+				const application::device_authorization_refresh_observation&)>;
 
 			composition_device_authorization_projection(
 				application::device_authorization_projection_port& aRecorded,
-				presented_sink                                     aPresented)
+				presented_sink                                     aPresented,
+				renewed_sink                                       aRenewed)
 				: Recorded{ &aRecorded }
 				, Presented{ std::move(aPresented) }
+				, Renewed{ std::move(aRenewed) }
 			{
 			}
 
@@ -1136,9 +1165,58 @@ namespace bpr::app {
 				}
 			}
 
+			// The renewal lifecycle fans out on the same terms and in the same
+			// order: the sink first and unconditionally, then whoever
+			// composition bound to watch renewal. [[BPR-0536]].
+			void publish_refresh(
+				const application::device_authorization_refresh_observation&
+					aObservation) override
+			{
+				Recorded->publish_refresh(aObservation);
+				if (Renewed) {
+					Renewed(aObservation);
+				}
+			}
+
 		private:
 			application::device_authorization_projection_port* Recorded = nullptr;
 			presented_sink                                     Presented;
+			renewed_sink                                       Renewed;
+		};
+
+		// The session projection, with composition listening behind the window.
+		// [[BPR-0536]] needs one fact the window has no use for: that an
+		// authenticated `/user` observation was accepted, which is the first
+		// moment the vault authority a refresh entry is keyed by exists. The
+		// window is told first and unchanged, so every existing reader sees
+		// exactly the sequence it saw before; composition only reads.
+		class composition_github_projection final
+			: public application::github_projection_port
+		{
+		public:
+			using accepted_sink = std::function<void(
+				const application::github_presentation_update&)>;
+
+			composition_github_projection(
+				application::github_projection_port& aPresented,
+				accepted_sink                        aAccepted)
+				: Presented{ &aPresented }
+				, Accepted{ std::move(aAccepted) }
+			{
+			}
+
+			void publish(
+				const application::github_presentation_update& aUpdate) override
+			{
+				Presented->publish(aUpdate);
+				if (Accepted) {
+					Accepted(aUpdate);
+				}
+			}
+
+		private:
+			application::github_projection_port* Presented = nullptr;
+			accepted_sink                        Accepted;
 		};
 
 		// Records what the signed-out presentation was told. The window is the
@@ -2954,6 +3032,28 @@ namespace bpr::app {
 		clear_sink    Cleared;
 	};
 
+	/// \brief One comment-workshop press, and the turn it started.
+	///
+	/// \details BPR-0533. The reviewer's question, held from the press until
+	/// the answer to *that* turn arrives. `Draft` and `Operation` are what was
+	/// asked and about what; `Session` is which agent turn was started to
+	/// answer it, learned from the one place a session identity is allocated
+	/// and absent only in the window between the dispatch and that admission.
+	///
+	/// The session is what makes the pairing explicit. Without it, the next
+	/// revision to arrive from anywhere — a finding a reviewer promoted while
+	/// the workshop turn was still running — would be labelled with an
+	/// operation that never produced it, and the reviewer would read a
+	/// before/after answering a question nobody asked about that text.
+	struct pending_comment_workshop
+	{
+		core::review_draft_id                 Draft;
+		core::workshop_operation              Operation = core::workshop_operation::clarify;
+		std::optional<core::agent_session_id> Session;
+
+		auto operator<=>(const pending_comment_workshop&) const = default;
+	};
+
 	/// \brief Forwards one proposed revision, or the reason there is none.
 	class composition_comment_workshop_projection final
 		: public application::agent_comment_workshop_projection_port
@@ -3031,6 +3131,43 @@ namespace bpr::app {
 		application::diff_projection_port* Target = nullptr;
 		publication_sink                   Publication;
 	};
+
+#if defined(BPR_BUILD_TESTING)
+	// A one-way step forward, applied at most once. The port requires a
+	// monotonic reading -- a clock that stepped back would let a poll outrun
+	// its interval -- so the offset latches and stays rather than being added
+	// and removed around a call.
+	class composition_device_refresh_clock final
+		: public application::device_authorization_clock_port
+	{
+	public:
+		composition_device_refresh_clock(
+			std::unique_ptr<application::device_authorization_clock_port> aInner,
+			std::function<bool()>                                         aArmed,
+			const std::chrono::milliseconds                               aOffset)
+			: Inner{ std::move(aInner) }
+			, Armed{ std::move(aArmed) }
+			, Offset{ aOffset }
+		{
+		}
+
+		[[nodiscard]] auto observe_monotonic() noexcept
+			-> std::chrono::milliseconds override
+		{
+			const auto observed = Inner->observe_monotonic();
+			if (!Applied && Armed && Armed()) {
+				Applied = true;
+			}
+			return Applied ? observed + Offset : observed;
+		}
+
+	private:
+		std::unique_ptr<application::device_authorization_clock_port> Inner;
+		std::function<bool()>                                         Armed;
+		std::chrono::milliseconds                                     Offset{ 0 };
+		bool                                                          Applied = false;
+	};
+#endif
 
 	class github_application::implementation final
 		: public application::github_epoch_handoff_port,
@@ -3152,6 +3289,7 @@ namespace bpr::app {
 					= aFixtureOptions.ExternalAgentExecutable;
 				CodexAgentExecutable   = aFixtureOptions.CodexAgentExecutable;
 				RegisteredDeviceCourse = aFixtureOptions.RegisteredDeviceCourse;
+				DeviceRefreshCourse    = aFixtureOptions.DeviceRefreshCourse;
 				SuppressDeviceBrowser  = aFixtureOptions.SuppressDeviceBrowser;
 				DisableDeviceAuthorizationPanelComposition
 					= aFixtureOptions
@@ -3446,6 +3584,17 @@ namespace bpr::app {
 				[this](core::review_draft_command aCommand) {
 					dispatch_review_draft(std::move(aCommand));
 				});
+			// BPR-0533. The six comment-workshop controls reach the composed
+			// workshop host and nothing else: the editor asks for an operation
+			// on one exact draft, and this composition is what decides whether
+			// there is anything to answer with. The widget holds no host, no
+			// agent, and no revision of its own.
+			if (Window->review_editor() != nullptr) {
+				Window->review_editor()->set_workshop_dispatch(
+					[this](qt::comment_workshop_request aRequest) {
+						ask_comment_workshop(aRequest);
+					});
+			}
 			Window->comparison_surface()->set_selection_sink(
 				[this](const std::optional<core::semantic_selection>& aSelection) {
 					observe_review_selection(aSelection);
@@ -3582,8 +3731,23 @@ namespace bpr::app {
 						}
 					},
 					[this](const core::agent_session& aSession) {
-						if (!Closing && ChatHost != nullptr) {
+						if (Closing) {
+							return;
+						}
+						if (ChatHost != nullptr) {
 							ChatHost->admitted(aSession);
+						}
+						// The same seam, for the same reason. A workshop press
+						// learns which turn is answering it here rather than
+						// keeping an identity of its own, so the outcome the
+						// operation is spent on is the outcome of the turn the
+						// press actually started. Only a press still waiting
+						// for a turn takes one: a session admitted for the
+						// launch panel or the chat while a workshop turn is
+						// already running belongs to neither.
+						if (PendingWorkshopOperation.has_value()
+							&& !PendingWorkshopOperation->Session.has_value()) {
+							PendingWorkshopOperation->Session = aSession.Id;
 						}
 					});
 			auto agentProfiles = core::built_in_agent_profiles();
@@ -3761,9 +3925,10 @@ namespace bpr::app {
 						++CommentWorkshopProposals;
 						Window->review_editor()->present(
 							qt::comment_workshop_proposal{
-								.Draft    = aProposal.Draft,
-								.Original = aProposal.Original,
-								.Proposed = aProposal.Proposed,
+								.Draft     = aProposal.Draft,
+								.Original  = aProposal.Original,
+								.Proposed  = aProposal.Proposed,
+								.Operation = aProposal.Operation,
 							});
 					},
 					[this](
@@ -3837,7 +4002,9 @@ namespace bpr::app {
 												   : std::nullopt,
 								false,
 								aTurn.Message,
-								aTurn.Session);
+								aTurn.Session,
+								core::agent_entry_point::ask_about_selection,
+								std::nullopt);
 						},
 						[this]() -> application::agent_chat_private_prose {
 							return current_chat_private_prose();
@@ -3946,7 +4113,15 @@ namespace bpr::app {
 			}
 #endif
 			PublicPreviewComposed = publicPreview.Available;
-			Host                  = std::make_unique<application::github_application_host>(
+			// The session fan-out. The window keeps its place at the front, and
+			// composition reads acceptances behind it so the device host's
+			// refresh authority can be bound the moment one exists.
+			GithubProjectionFanOut = std::make_unique<composition_github_projection>(
+				*Window,
+				[this](const application::github_presentation_update& aUpdate) {
+					bind_device_refresh_authority(aUpdate);
+				});
+			Host = std::make_unique<application::github_application_host>(
 				initial_github_state(),
 				*Provider,
 				*Provider,
@@ -3955,7 +4130,7 @@ namespace bpr::app {
 				credential_vault(),
 				CredentialBindings,
 				DecisionLane,
-				*Window,
+				*GithubProjectionFanOut,
 				application::github_credential_shutdown_policy::
 					delete_retained_on_shutdown,
 				this,
@@ -4005,6 +4180,28 @@ namespace bpr::app {
 					*DeviceEnrollment);
 #endif
 			DeviceClock = application::make_system_device_authorization_clock();
+#if defined(BPR_BUILD_TESTING)
+			// [[BPR-0536]]. The one input a fixture cannot supply is time.
+			// A renewal is armed a lead before an eight-hour access token
+			// expires, and no course can wait that out; the transport seam
+			// beside this one replaces the network, and this replaces the
+			// wait. Tests-enabled only, and composed only under the refresh
+			// course, so a shipped image has one clock and it is the system's.
+			//
+			// It latches on the binding rather than on the authorized stage.
+			// The host captures `AuthorizedAt` from this same clock at the
+			// moment the stage turns, so an offset that latched there would
+			// move both ends of `elapsed` and change nothing. Composition's
+			// `bind_refresh_authority` falls strictly between that capture and
+			// the `schedule_refresh` that reads the clock again, which is the
+			// only window where a one-way step shortens the wait to zero.
+			if (DeviceRefreshCourse && Fixture != nullptr) {
+				DeviceClock = std::make_unique<composition_device_refresh_clock>(
+					std::move(DeviceClock),
+					[this]() noexcept { return DeviceRefreshBindings > 0U; },
+					std::chrono::seconds{ 28'800 });
+			}
+#endif
 			// The shipped selection. A registered platform composes the real
 			// credential-free wire bound to the recorded distributable client;
 			// an unregistered platform composes the refusing transport whose
@@ -4055,6 +4252,15 @@ namespace bpr::app {
 						deviceTransport     = DeviceWireTransport.get();
 						deviceCapability
 							= shipped_device_authorization_capability();
+						// The identity is registered for one host, and the
+						// wire above is bound to that host's profile. The
+						// capability names the same profile so the host can
+						// refuse a begin for any other one before it builds
+						// a request ([[BPR-0535]]); the picker can bind the
+						// mounted panel to a GHES profile, and this is what
+						// keeps that gesture out of GitHub.com's flow.
+						deviceCapability.Profile
+							= Profiles.front().profile();
 					}
 				}
 			}
@@ -4065,10 +4271,14 @@ namespace bpr::app {
 			// enrollment boundary, and the real vault, which is the only place
 			// "exactly one enrollment, and no settings or SQLite copy" can be
 			// observed rather than argued.
-			if (RegisteredDeviceCourse && Fixture != nullptr) {
+			if (RegisteredDeviceCourse && Fixture != nullptr
+				&& !Profiles.empty()) {
 				deviceTransport  = &Fixture->device_authorization_transport();
 				deviceCapability = application::device_authorization_capability{
-					.Registered = true
+					.Registered = true,
+					// The same profile the course begins for, by the same
+					// rule as the shipped selection above.
+					.Profile = Profiles.front().profile(),
 				};
 			}
 #endif
@@ -4085,14 +4295,15 @@ namespace bpr::app {
 			// profiles, so a build that stopped composing the opener fails
 			// the audit rather than silently going back to answering
 			// `unavailable` forever, which is the defect [[BPR-0516]] found.
-			auto* deviceBrowser
-				= static_cast<application::device_authorization_browser_port*>(
-					&SystemBrowser);
 #if defined(BPR_BUILD_TESTING)
-			deviceBrowser = SuppressDeviceBrowser
+			auto* deviceBrowser = SuppressDeviceBrowser
 				? nullptr
 				: static_cast<application::device_authorization_browser_port*>(
 					  &RecordingBrowser);
+#else
+			auto* deviceBrowser
+				= static_cast<application::device_authorization_browser_port*>(
+					&SystemBrowser);
 #endif
 			DeviceBrowserComposed = deviceBrowser != nullptr;
 			// One port, two readers. The recording sink keeps its place at the
@@ -4109,6 +4320,11 @@ namespace bpr::app {
 					if (DevicePanel != nullptr) {
 						DevicePanel->apply(aPresentation);
 					}
+				},
+				[this](
+					const application::device_authorization_refresh_observation&
+						aObservation) {
+					observe_device_refresh(aObservation);
 				});
 			DeviceHost = std::make_unique<
 				application::device_authorization_application_host>(
@@ -4343,6 +4559,32 @@ namespace bpr::app {
 			}
 #endif
 			return 0U;
+		}
+
+		// [[BPR-0539]]. What that one store holds. The count alone is
+		// satisfied by any enrollment, and before this course stopped
+		// connecting first the enrollment it counted was the fixture's own
+		// connect credential -- so the identity of the stored material is
+		// reported beside the count, and the comparison against the recorded
+		// grant is made where both are known.
+		[[nodiscard]] auto device_vault_stored_digest() const -> std::string
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr && RegisteredDeviceCourse) {
+				return Fixture->evidence().VaultStoredDigest;
+			}
+#endif
+			return { };
+		}
+
+		[[nodiscard]] auto device_vault_stored_is_grant() const -> bool
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr && RegisteredDeviceCourse) {
+				return Fixture->evidence().VaultStoredIsDeviceGrant;
+			}
+#endif
+			return false;
 		}
 
 		// Only the recording opener counts. The shipped opener's evidence is a
@@ -4599,6 +4841,81 @@ namespace bpr::app {
 #else
 			return 0U;
 #endif
+		}
+
+		// [[BPR-0536]]. The one place the device host learns which vault slot
+		// its renewable material belongs to, and the only caller that may name
+		// one: the key is minted inside `github_application_host` when an
+		// authenticated `/user` observation is accepted, and composition reads
+		// it rather than assembling one.
+		//
+		// Bound only after this run's device flow authorized. A profile signed
+		// in with a token the reviewer pasted has no renewable material and no
+		// renewal chain to lose, and telling its panel to renew would end in a
+		// vault that answers `absent` and a reviewer told to authorize again
+		// for no reason.
+		//
+		// An acceptance with no authorized stage behind it is the restart: the
+		// credential was re-established from what the vault already held, so
+		// renewal continues from the entry rather than starting over -- but
+		// only once the host says an entry is there. The guard is exact key
+		// equality against a key we actually acted on, so a republication that
+		// names the same slot does nothing once armed and everything before.
+		void bind_device_refresh_authority(
+			const application::github_presentation_update& aUpdate)
+		{
+			if (
+				Closing || Host == nullptr || DeviceHost == nullptr
+				|| Profiles.empty() || !aUpdate.Session.has_value()) {
+				return;
+			}
+			if (aUpdate.Session->Profile != Profiles.front().profile()) {
+				return;
+			}
+			const auto authority = Host->accepted_credential_authority();
+			if (!authority.has_value()) {
+				return;
+			}
+			if (
+				DeviceRefreshAuthority.has_value()
+				&& *DeviceRefreshAuthority == *authority) {
+				return;
+			}
+			if (
+				DeviceHost->state().Stage
+				== core::device_authorization_stage::authorized) {
+				DeviceRefreshAuthority = *authority;
+				++DeviceRefreshBindings;
+				DeviceHost->bind_refresh_authority(*authority);
+				return;
+			}
+			// The restart. Nothing about this run says a device flow happened,
+			// so the question goes to the host that owns the vault: is there
+			// material beside this credential that renews it? Only a device
+			// grant leaves any, so an affirmative answer is the enrollment
+			// evidence the stage cannot supply after a restart.
+			if (!Host->accepted_credential_renewable()) {
+				// A pasted token, or an answer the vault has not given yet.
+				// Nothing is recorded either way, so the republication that
+				// follows a settled answer is still free to act.
+				return;
+			}
+			DeviceRefreshAuthority = *authority;
+			++DeviceRefreshResumes;
+			DeviceHost->resume_refresh(*authority);
+		}
+
+		// Renewal, as presentation is told it. The panel is the reader that
+		// matters; the counters are what a composed course states.
+		void observe_device_refresh(
+			const application::device_authorization_refresh_observation&
+				aObservation)
+		{
+			DeviceRefreshObservation = aObservation;
+			++DeviceRefreshPublications;
+			if (DevicePanel != nullptr) {
+				DevicePanel->apply_refresh(aObservation);
+			}
 		}
 
 		// The mounted panel's one way out. Beginning and cancelling are core
@@ -6156,6 +6473,8 @@ namespace bpr::app {
 				start.IncludedDraft,
 				start.ExistingCheckoutChosen,
 				std::string_view{ },
+				std::nullopt,
+				core::agent_entry_point::ask_about_selection,
 				std::nullopt));
 		}
 
@@ -6180,6 +6499,15 @@ namespace bpr::app {
 		/// RFC-BPR-0012's `continue_against_old_revision` leaves behind — the
 		/// revision *it* names is the one everything below composes from.
 		///
+		/// `aEntryPoint` is the reviewer gesture this turn is for, and
+		/// `aWorkshopOperation` is which of the six comment-workshop
+		/// operations was pressed. Both are arguments for the same reason
+		/// `aChatMessage` is: the one place a gesture's intent enters an
+		/// invocation is a value passed at a call site a reader can see.
+		/// `build_agent_context_supplement` refuses an operation the entry
+		/// point does not admit, so a workshop operation cannot ride along on
+		/// a start gesture or a chat send.
+		///
 		/// \returns Whether exactly one invocation was dispatched. A refusal is
 		/// already named on the launch panel before this returns `false`.
 		[[nodiscard]] auto dispatch_agent_invocation(
@@ -6188,7 +6516,10 @@ namespace bpr::app {
 			const std::optional<application::agent_draft_choice>& aIncludedDraft,
 			const bool                                            aExistingCheckoutChosen,
 			const std::string_view                                aChatMessage,
-			const std::optional<core::agent_session>&             aTurnSession) -> bool
+			const std::optional<core::agent_session>&             aTurnSession,
+			const core::agent_entry_point                         aEntryPoint,
+			const std::optional<core::workshop_operation>&        aWorkshopOperation)
+			-> bool
 		{
 			if (Closing || AgentHost == nullptr || EpochHost == nullptr
 				|| Window == nullptr) {
@@ -6243,10 +6574,12 @@ namespace bpr::app {
 				.PullRequestUrl     = "https://" + AgentReview->Hostname + "/"
 					+ AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name
 					+ "/pull/" + std::to_string(AgentReview->Number.value()),
-				.Private       = std::move(privateObservation),
-				.IncludedNotes = aIncludedNotes,
-				.IncludedDraft = aIncludedDraft,
-				.ChatMessage   = std::string{ aChatMessage },
+				.Private           = std::move(privateObservation),
+				.IncludedNotes     = aIncludedNotes,
+				.IncludedDraft     = aIncludedDraft,
+				.ChatMessage       = std::string{ aChatMessage },
+				.EntryPoint        = aEntryPoint,
+				.WorkshopOperation = aWorkshopOperation,
 			};
 			observation.CurrentDraft = current_agent_draft_observation();
 			// The receipt and the semantic selection below are read off the
@@ -6369,6 +6702,74 @@ namespace bpr::app {
 				std::string{ aSubject } + " refused: " + std::string{ aReason });
 		}
 
+		/// \brief Starts one agent turn for one asked-for workshop operation.
+		///
+		/// \details The reviewer's half of the workshop: the operation is
+		/// admitted under the one entry point it means anything for, held
+		/// against the draft it was asked about, and handed to the same
+		/// `dispatch_agent_invocation` a start gesture and a chat send use.
+		/// There is no second launch path, no workshop agent, and no host of
+		/// this method's own — the turn it starts is the one this application
+		/// already knows how to start, with `workshop_comment` named as the
+		/// gesture and the operation in the supplement.
+		///
+		/// Nothing here writes a revision. The answer arrives as this turn's
+		/// outcome and is proposed by the composed workshop host; inventing
+		/// text here would be this composition answering a question it
+		/// forwarded.
+		///
+		/// One press, one turn. A second press while the first turn is still
+		/// unanswered is refused and named rather than queued: a queued press
+		/// would either start a second turn about a comment the first is
+		/// already revising, or sit silently until the reviewer concluded the
+		/// control did nothing.
+		void ask_comment_workshop(const qt::comment_workshop_request& aRequest)
+		{
+			const auto admitted = core::workshop_operation_for(
+				core::agent_entry_point::workshop_comment, aRequest.Operation);
+			if (!admitted.has_value()) {
+				present_agent_refusal("comment workshop", "unknown_operation");
+				return;
+			}
+			if (!ReviewDraft.has_value() || ReviewDraft->Id != aRequest.Draft) {
+				present_agent_refusal(
+					"comment workshop",
+					application::name(application::
+										  agent_comment_workshop_refusal::
+											  different_draft));
+				return;
+			}
+			if (PendingWorkshopOperation.has_value()) {
+				present_agent_refusal(
+					"comment workshop", "workshop_turn_in_flight");
+				return;
+			}
+			PendingWorkshopOperation = pending_comment_workshop{
+				.Draft     = aRequest.Draft,
+				.Operation = *admitted,
+			};
+			// The draft's own text and anchor are this turn's context, so the
+			// question the agent is answering is about the comment on screen
+			// and not about whatever the launch panel happened to have
+			// checked. No private notes cross: the reviewer asked how to say
+			// this better, not what else is known.
+			if (!dispatch_agent_invocation(
+					core::codex_jsonl_profile_id,
+					std::vector<application::local_note_id>{ },
+					current_agent_draft_choice(),
+					false,
+					std::string_view{ },
+					std::nullopt,
+					core::agent_entry_point::workshop_comment,
+					admitted)) {
+				// The launch panel has already named why. The operation is
+				// cleared rather than left recorded, because a question no
+				// turn was started for is not waiting for an answer, and a
+				// later unrelated revision must not be labelled with it.
+				PendingWorkshopOperation.reset();
+			}
+		}
+
 		/// \brief Presents what one asked-for finding action produced.
 		///
 		/// \details A promoted comment becomes a *proposal* rather than a
@@ -6381,8 +6782,27 @@ namespace bpr::app {
 		{
 			if (aOutcome.Draft.has_value() && WorkshopHost != nullptr
 				&& ReviewDraft.has_value()) {
-				static_cast<void>(
-					WorkshopHost->propose(*ReviewDraft, *aOutcome.Draft));
+				// The operation the reviewer asked for, spent by the turn it
+				// was asked in and by no other. The pairing is the session
+				// identity carried from the press: a finding promoted from a
+				// different turn — or from this one before the workshop turn
+				// was admitted — is a revision nobody workshopped, and
+				// labelling it with a pending operation would name a question
+				// that produced none of this text.
+				const auto matched = PendingWorkshopOperation.has_value()
+					&& PendingWorkshopOperation->Session.has_value()
+					&& *PendingWorkshopOperation->Session == aOutcome.Session
+					&& PendingWorkshopOperation->Draft == ReviewDraft->Id;
+				const auto asked = matched
+					? std::optional<core::workshop_operation>{
+						  PendingWorkshopOperation->Operation
+					  }
+					: std::optional<core::workshop_operation>{ };
+				if (matched) {
+					PendingWorkshopOperation.reset();
+				}
+				static_cast<void>(WorkshopHost->propose(
+					*ReviewDraft, *aOutcome.Draft, asked));
 				return;
 			}
 			if (aOutcome.Defect.has_value()) {
@@ -6562,17 +6982,17 @@ namespace bpr::app {
 			case application::agent_chat_refusal::session_stale:
 				reason += " (";
 				reason += core::stable_name(aOutcome.Staleness);
-				reason += ")";
+				reason += ')';
 				break;
 			case application::agent_chat_refusal::action_refused:
 				reason += " (";
 				reason += core::stable_name(aOutcome.Action);
-				reason += ")";
+				reason += ')';
 				break;
 			case application::agent_chat_refusal::scope_refused:
 				reason += " (";
 				reason += core::stable_name(aOutcome.Scope);
-				reason += ")";
+				reason += ')';
 				break;
 			case application::agent_chat_refusal::none:
 			case application::agent_chat_refusal::no_session:
@@ -7427,6 +7847,7 @@ namespace bpr::app {
 		bool DeviceCapabilityRegistered = false;
 #if defined(BPR_BUILD_TESTING)
 		bool RegisteredDeviceCourse                     = false;
+		bool DeviceRefreshCourse                        = false;
 		bool SuppressDeviceBrowser                      = false;
 		bool DisableDeviceAuthorizationPanelComposition = false;
 		// [[BPR-0515]]. Whether this run composes its device wire against the
@@ -7458,6 +7879,16 @@ namespace bpr::app {
 		qt::device_authorization_panel* DevicePanel = nullptr;
 		std::unique_ptr<composition_device_authorization_projection>
 			DeviceProjectionFanOut;
+		// The vault slot this run's renewable material belongs to, and what
+		// composition did with it. Held so a republication of the same
+		// acceptance cannot bind twice or renew on every update.
+		std::optional<application::github_credential_authority_key>
+					DeviceRefreshAuthority;
+		std::size_t DeviceRefreshBindings     = 0U;
+		std::size_t DeviceRefreshResumes      = 0U;
+		std::size_t DeviceRefreshPublications = 0U;
+		application::device_authorization_refresh_observation
+			DeviceRefreshObservation;
 		std::unique_ptr<application::device_authorization_clock_port>
 			DeviceClock;
 		std::unique_ptr<application::github_host_device_authorization_enrollment>
@@ -7793,18 +8224,23 @@ namespace bpr::app {
 		// rather than a second lifetime for it. They hold no process,
 		// provider, credential, or store of their own; the only way out of
 		// either is an intent this composition answers.
-		qt::side_chat_panel*                                            SideChat     = nullptr;
-		qt::finding_queue_view*                                         FindingQueue = nullptr;
-		std::unique_ptr<composition_agent_finding_projection>           FindingProjections;
-		std::unique_ptr<application::agent_finding_host>                FindingHost;
-		std::unique_ptr<composition_agent_chat_projection>              ChatProjections;
-		std::unique_ptr<application::agent_chat_session_host>           ChatHost;
-		std::unique_ptr<composition_comment_workshop_projection>        WorkshopProjections;
-		std::unique_ptr<application::agent_comment_workshop_host>       WorkshopHost;
-		std::unique_ptr<adapters::agent::agent_process_launcher>        McpProcess;
-		std::unique_ptr<application::mcp_context_helper_supervisor>     McpHelper;
-		std::filesystem::path                                           McpSnapshotRoot;
-		std::size_t                                                     CommentWorkshopProposals = 0U;
+		qt::side_chat_panel*                                        SideChat     = nullptr;
+		qt::finding_queue_view*                                     FindingQueue = nullptr;
+		std::unique_ptr<composition_agent_finding_projection>       FindingProjections;
+		std::unique_ptr<application::agent_finding_host>            FindingHost;
+		std::unique_ptr<composition_agent_chat_projection>          ChatProjections;
+		std::unique_ptr<application::agent_chat_session_host>       ChatHost;
+		std::unique_ptr<composition_comment_workshop_projection>    WorkshopProjections;
+		std::unique_ptr<application::agent_comment_workshop_host>   WorkshopHost;
+		std::unique_ptr<adapters::agent::agent_process_launcher>    McpProcess;
+		std::unique_ptr<application::mcp_context_helper_supervisor> McpHelper;
+		std::filesystem::path                                       McpSnapshotRoot;
+		std::size_t                                                 CommentWorkshopProposals = 0U;
+		/// The operation the reviewer last asked the workshop for, and the
+		/// turn started to answer it, spent by that turn's outcome and by no
+		/// other. Absent is the ordinary state, and it is what makes a
+		/// promoted finding a proposal nobody workshopped.
+		std::optional<pending_comment_workshop>                         PendingWorkshopOperation;
 		std::size_t                                                     FindingRefusalsPresented = 0U;
 		std::size_t                                                     SideChatIntents          = 0U;
 		std::size_t                                                     SideChatPresentations    = 0U;
@@ -7821,6 +8257,7 @@ namespace bpr::app {
 		std::optional<queue_activity_baseline>                          QueueActivityBaseline;
 		std::optional<queue_activity_fact>                              QueueActivity;
 		std::vector<queue_notification_transition>                      ActiveQueueNotifications;
+		std::unique_ptr<composition_github_projection>                  GithubProjectionFanOut;
 		std::unique_ptr<application::github_application_host>           Host;
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
 		struct agent_review_facts
@@ -8073,10 +8510,22 @@ namespace bpr::app {
 			= Implementation->device_durable_copies(),
 			.DeviceAuthorizationTransportSubmissions
 			= Implementation->device_transport_submissions(),
+			.DeviceAuthorizationVaultStoredDigest
+			= Implementation->device_vault_stored_digest(),
+			.DeviceAuthorizationVaultStoredIsGrant
+			= Implementation->device_vault_stored_is_grant(),
 			.DeviceAuthorizationEnrollments
 			= Implementation->device_enrollments(),
 			.DeviceAuthorizationPanelComposed
 			= Implementation->DevicePanel != nullptr,
+			.DeviceAuthorizationRefreshRotations
+			= Implementation->DeviceRefreshObservation.Rotations,
+			.DeviceAuthorizationRefreshState
+			= Implementation->DeviceRefreshObservation.State,
+			.DeviceAuthorizationRefreshBindings
+			= Implementation->DeviceRefreshBindings,
+			.DeviceAuthorizationRefreshResumes
+			= Implementation->DeviceRefreshResumes,
 			.PublicPreviewComposed = Implementation->PublicPreviewComposed,
 			.PublicPreviewUnavailable
 			= Implementation->public_preview_unavailable(),
@@ -13648,6 +14097,12 @@ namespace bpr::app {
 		if (implementation->ReviewDraft.has_value()) {
 			evidence.LocalDraftBody = implementation->ReviewDraft->Body;
 		}
+		if (implementation->PendingWorkshopOperation.has_value()) {
+			evidence.WorkshopPendingOperation = std::string{ core::stable_name(
+				implementation->PendingWorkshopOperation->Operation) };
+			evidence.WorkshopPendingSessionBound
+				= implementation->PendingWorkshopOperation->Session.has_value();
+		}
 		if (implementation->Window != nullptr) {
 			if (auto* const editor = implementation->Window->review_editor();
 				editor != nullptr) {
@@ -13655,6 +14110,8 @@ namespace bpr::app {
 					= editor->workshop_original_text().toStdString();
 				evidence.WorkshopProposalText
 					= editor->workshop_proposal_text().toStdString();
+				evidence.WorkshopOperationText
+					= editor->workshop_operation_text().toStdString();
 			}
 			if (auto* const panel = implementation->Window->agent_panel();
 				panel != nullptr) {

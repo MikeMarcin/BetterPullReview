@@ -261,7 +261,7 @@ namespace {
 		for (const auto refusedCase : refused_intents) {
 			const auto refusal = refusal_of(core::legality(refusedCase.Intent));
 			expect(
-				refusal.has_value() && refusal->SignInOffered
+				refusal.has_value() && core::anonymous_refusal::SignInOffered
 					&& core::well_formed(*refusal),
 				"a structural refusal offers the sign-in handoff");
 		}
@@ -271,7 +271,7 @@ namespace {
 			state,
 			core::anonymous_rate_limit_fact{ .Limit = 60U, .Reset = 1729U });
 		expect(
-			rate.SignInOffered && core::well_formed(rate),
+			core::anonymous_refusal::SignInOffered && core::well_formed(rate),
 			"the budget refusal offers the sign-in handoff");
 	}
 

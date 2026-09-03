@@ -76,6 +76,25 @@ namespace bpr::application {
 		/// `build_agent_context_supplement` is where the message is bound to
 		/// the session it is actually being sent under.
 		std::string ChatMessage;
+		/// Which reviewer gesture this invocation is for.
+		///
+		/// \details BPR-0533. The launch panel's start and the side chat's
+		/// send are both `ask_about_selection`; a comment-workshop press is
+		/// `workshop_comment`. It is here rather than inferred from the fields
+		/// below because the entry point is what decides whether an operation
+		/// may be carried at all, and a rule that read "an operation is a
+		/// workshop turn because an operation is present" would admit itself.
+		core::agent_entry_point EntryPoint
+			= core::agent_entry_point::ask_about_selection;
+		/// Which of the six comment-workshop operations was asked for.
+		///
+		/// \details Absent for every invocation that is not a workshop press,
+		/// and absent is what the supplement then carries. Present under an
+		/// entry point that does not admit it is refused here rather than
+		/// dropped: an operation quietly removed would ask the agent to revise
+		/// a comment without saying how, and an operation quietly kept under a
+		/// review would be a workshop request nobody made.
+		std::optional<core::workshop_operation> WorkshopOperation;
 
 		auto operator<=>(const agent_context_observation&) const = default;
 	};

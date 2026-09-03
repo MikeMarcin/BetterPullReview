@@ -2266,7 +2266,7 @@ namespace bpr::qt {
 		// Disabled and explained, never hidden and never defaulted. A control
 		// that vanished would leave the reviewer guessing whether the mode
 		// cannot do this or the pull request simply has none of it.
-		const auto refuse_action
+		const auto refuseAction
 			= [](QAction* const aAction, const QString& aName) {
 				  if (aAction == nullptr) {
 					  return;
@@ -2276,7 +2276,7 @@ namespace bpr::qt {
 				  aAction->setToolTip(wording);
 				  aAction->setStatusTip(wording);
 			  };
-		const auto refuse_widget
+		const auto refuseWidget
 			= [](QWidget* const aWidget, const QString& aName) {
 				  if (aWidget == nullptr) {
 					  return;
@@ -2285,17 +2285,17 @@ namespace bpr::qt {
 				  aWidget->setToolTip(public_preview_unavailable_text(aName));
 			  };
 		for (auto* const action : ReceiptActions) {
-			refuse_action(action, QStringLiteral("Private review progress"));
+			refuseAction(action, QStringLiteral("Private review progress"));
 		}
-		refuse_action(
+		refuseAction(
 			ShowReviewThreadsAction,
 			QStringLiteral("Review-thread resolution"));
-		refuse_widget(
+		refuseWidget(
 			ConversationPanel != nullptr ? ConversationPanel->reveal_button()
 										 : nullptr,
 			QStringLiteral("Review-thread resolution"));
-		refuse_widget(QueueRoleFilter, QStringLiteral("Queue role"));
-		refuse_widget(ReviewEditor, QStringLiteral("Publishing a review"));
+		refuseWidget(QueueRoleFilter, QStringLiteral("Queue role"));
+		refuseWidget(ReviewEditor, QStringLiteral("Publishing a review"));
 	}
 
 	void workbench_window::apply_public_preview_conversation()

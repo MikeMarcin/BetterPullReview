@@ -34,6 +34,13 @@ namespace bpr::adapters::mcp {
 	/// a read of the frozen projection. There is no write, no draft, no
 	/// publish, and no note store, not even a disabled one: a mutation is not
 	/// a tool that is turned off here, it is a tool that does not exist.
+	///
+	/// The comment workshop's six operations — `core::workshop_operation`:
+	/// clarify, shorten, make actionable, phrase as a question, make more
+	/// direct, check the premise — are likewise not tools. They are requests
+	/// the reviewer makes of the agent, carried in the agent's supplement
+	/// under the `workshop_comment` entry point and answered by one proposal
+	/// through the one workshop path; nothing here names or serves them.
 	enum class mcp_tool : std::uint8_t {
 		/// The `agent_revision_binding` this helper is pinned to.
 		snapshot_binding,

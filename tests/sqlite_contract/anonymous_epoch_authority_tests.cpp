@@ -163,7 +163,7 @@ namespace {
 			const auto code
 				= ::sqlite3_exec(Handle, text.c_str(), nullptr, nullptr, &message);
 			::sqlite3_free(message);
-			return code & 0xFF;
+			return static_cast<int>(static_cast<unsigned>(code) & 0xFFU);
 		}
 
 		[[nodiscard]] auto integer(const std::string_view aSql) const

@@ -490,14 +490,14 @@ namespace bpr::application {
 			try {
 				Effects.post([job, gate, blobs, lane, computeLimits] {
 					auto completion = perform(job, *blobs, computeLimits);
-					lane->post([gate, completion = std::move(completion)]() mutable {
+					lane->post([gate, stagedCompletion = std::move(completion)]() mutable {
 						const auto locked = gate.lock();
 						if (!locked) {
 							return;
 						}
 						auto* const host = locked->Host.load(std::memory_order_acquire);
 						if (host != nullptr) {
-							host->accept_completion(std::move(completion));
+							host->accept_completion(std::move(stagedCompletion));
 						}
 					});
 				});

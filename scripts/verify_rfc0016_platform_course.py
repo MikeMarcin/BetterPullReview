@@ -647,12 +647,19 @@ def check_device_selection(
             "device-unavailable-verdict-absent",
         )
     else:
-        # An enabled build must NOT answer `unavailable`. What it does answer
-        # depends on whether a reviewer authorizes during the run, so the
-        # course requires only that the refusal is gone and the flow started.
+        # An enabled build must reach GitHub: `cancelled` is the stage only a
+        # minted device code reaches before the run budget cancels it, and
+        # the same probe under local denial lands on `failed`. Accepting any
+        # stage but `unavailable` let an offline station pass without proving
+        # the flow reached the service (BPR-0537, from BPR-0285's review). The
+        # refusing-transport count stays a negative control here too.
         require(
-            markers.get("DEVICE_FLOW_STAGE") != "unavailable",
-            "device-selection-still-unavailable",
+            markers.get("DEVICE_FLOW_STAGE") == "cancelled",
+            f"device-selection-not-reached:{markers.get('DEVICE_FLOW_STAGE')}",
+        )
+        require(
+            markers.get("DEVICE_FLOW_REQUESTS") == "0",
+            f"device-requests-not-zero:{markers.get('DEVICE_FLOW_REQUESTS')}",
         )
     return markers
 

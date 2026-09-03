@@ -2479,9 +2479,9 @@ namespace bpr::adapters::github::detail {
 				};
 			}
 			auto postCreated = std::make_shared<std::atomic_bool>(false);
-			auto witness     = [postCreated, witness = std::move(aWitness)]() mutable {
+			auto witness     = [postCreated, transmissionWitness = std::move(aWitness)]() mutable {
 				postCreated->store(true, std::memory_order_release);
-				return witness && witness();
+				return transmissionWitness && transmissionWitness();
 			};
 			auto result = perform_validated(
 				aRequest, std::move(native), aStop, std::move(witness));

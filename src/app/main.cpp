@@ -741,6 +741,21 @@ namespace {
 			// stopped adopting it, finds nothing and reports so.
 			bool PanelCourse = false;
 			bool PanelBegan  = false;
+			// [[BPR-0535]]. The enterprise negative. Drives the picker onto a
+			// GHES profile, which is what the mounted panel binds its begin
+			// to, and presses the same "Get a code" the course above does.
+			// A capability composed for GitHub.com must refuse it before a
+			// request is built, so this course's terminal is `unavailable`
+			// while the panel course beside it enrolls.
+			bool GhesCourse = false;
+			bool GhesBegan  = false;
+			// [[BPR-0536]]. The registered course carried past its terminal.
+			// Where that one ends when the grant reaches the vault, this one
+			// waits for the renewal the grant armed to rotate the material
+			// under the same authority, which is the only place the claim
+			// "refreshes before expiry under existing vault authority" can be
+			// observed through the composed graph rather than at the host.
+			bool RefreshCourse = false;
 		};
 
 		// RFC-BPR-0017. Activating the signed-out preview once, from the
@@ -2844,6 +2859,35 @@ namespace {
 		return false;
 	}
 
+	// [[BPR-0535]]. The same gesture as above, from the enterprise row of the
+	// picker. The picker names the profile the mounted panel asks a code for,
+	// so selecting the row is the whole of "the reviewer was looking at GHES":
+	// nothing here names a profile identity, reaches a composition accessor, or
+	// knows which profile the capability was composed for. A window with no
+	// enterprise row, or none that mounts the panel, ends here with `false`.
+	[[nodiscard]] auto begin_through_ghes_device_panel(
+		const bpr::qt::workbench_window& aWindow) -> bool
+	{
+		auto* const selector = aWindow.profile_selector();
+		if (selector == nullptr) {
+			return false;
+		}
+		for (auto row = 0; row < selector->count(); ++row) {
+			const auto label = selector->itemText(row);
+			if (
+				!label.startsWith(QStringLiteral("GHES"))
+				|| !label.endsWith(QStringLiteral("Native HTTPS"))) {
+				continue;
+			}
+			selector->setCurrentIndex(row);
+			if (selector->currentIndex() != row) {
+				return false;
+			}
+			return begin_through_device_panel(aWindow);
+		}
+		return false;
+	}
+
 	[[nodiscard]] auto cli_fail_closed_presentation_passed(
 		const bpr::qt::workbench_window& aWindow,
 		const automated_run&             aRun) -> bool
@@ -3021,6 +3065,27 @@ namespace {
 			return "unavailable";
 		}
 		return "not_attempted";
+	}
+
+	// [[BPR-0536]]. Printed by name rather than by number: a course whose
+	// renewal landed in `reenrollment_required` and one that never armed at
+	// all are different failures, and an integer marker would read the same.
+	[[nodiscard]] auto device_refresh_state_name(
+		const bpr::application::device_authorization_refresh_state aState)
+		-> const char*
+	{
+		switch (aState) {
+		case bpr::application::device_authorization_refresh_state::idle:
+			return "idle";
+		case bpr::application::device_authorization_refresh_state::scheduled:
+			return "scheduled";
+		case bpr::application::device_authorization_refresh_state::refreshing:
+			return "refreshing";
+		case bpr::application::device_authorization_refresh_state::
+			reenrollment_required:
+			return "reenrollment_required";
+		}
+		return "idle";
 	}
 
 	void finish_automated_run(
@@ -3253,16 +3318,84 @@ namespace {
 							  status.DeviceAuthorizationHandoff)
 					   << '\n';
 			}
-			if (aRun.Device.Registered) {
+			if (aRun.Device.RefreshCourse) {
+				// [[BPR-0536]]. The registered course's claim, carried one
+				// step further: the grant reached the vault, composition armed
+				// renewal from the accepted session, and the renewal rotated
+				// the material before the access token expired -- through the
+				// real host, the real vault authority and a real timer. The
+				// vault stores count rises to two because a rotation enrolls a
+				// new access token under the same authority, which is the
+				// rotation being durable rather than a second enrollment;
+				// `DEVICE_FLOW_DURABLE_COPIES` stays zero, because nothing the
+				// renewal writes goes anywhere but the vault.
+				const auto rotated
+					= status.DeviceAuthorizationRefreshRotations >= 1U;
+				const auto bound
+					= status.DeviceAuthorizationRefreshBindings >= 1U;
+				const auto refreshed = status.DeviceAuthorizationHostComposed
+					&& status.DeviceAuthorizationStage
+						== bpr::core::device_authorization_stage::authorized
+					&& bound && rotated
+					&& status.DeviceAuthorizationRefreshState
+						== bpr::application::
+							device_authorization_refresh_state::scheduled
+					&& status.DeviceAuthorizationVaultStores >= 2U
+					&& status.DeviceAuthorizationDurableCopies == 0U;
+				stream << "DEVICE_FLOW_ROTATIONS:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationRefreshRotations)
+					   << "\nDEVICE_FLOW_REFRESH_STATE:"
+					   << device_refresh_state_name(
+							  status.DeviceAuthorizationRefreshState)
+					   << "\nDEVICE_FLOW_VAULT_STORES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationVaultStores)
+					   << "\nDEVICE_FLOW_DURABLE_COPIES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationDurableCopies)
+					   << "\nDEVICE_FLOW_REFRESH_BOUND:"
+					   << (bound ? "true" : "false")
+					   << "\nDEVICE_FLOW_REFRESH_RESUMES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationRefreshResumes)
+					   << '\n'
+					   << (refreshed ? "DEVICE_FLOW_REFRESH_OK\n"
+									 : "DEVICE_FLOW_REFRESH_FAILED\n");
+			} else if (aRun.Device.Registered) {
 				// The registered course makes the opposite claim: the grant
 				// must reach the existing vault exactly once, and the token
 				// must exist nowhere else the application wrote.
+				//
+				// [[BPR-0539]]. Which is a claim about identity and not only
+				// about arithmetic: one store counted the fixture's own
+				// connect credential just as readily as the grant, and did,
+				// until the course stopped connecting first. So the identity
+				// of the stored material is reported as its own fact and the
+				// verdict below depends on it. Printed ahead of the counts
+				// rather than beside the verdict because the browser and
+				// panel cuts read this block through the same stream: the
+				// panel rows begin reading at the enrollment count, so a line
+				// above it disturbs nothing they pin, while the browser rows
+				// read the handoff and that count as adjacent -- which is why
+				// a browser probe reports the counts alone, exactly as it did.
+				const auto identityReported = !aRun.Device.BrowserProbe;
+				const auto storedIsGrant
+					= status.DeviceAuthorizationVaultStoredIsGrant;
 				const auto enrolled = status.DeviceAuthorizationHostComposed
 					&& status.DeviceAuthorizationStage
 						== bpr::core::device_authorization_stage::authorized
 					&& status.DeviceAuthorizationEnrollments == 1U
 					&& status.DeviceAuthorizationVaultStores == 1U
-					&& status.DeviceAuthorizationDurableCopies == 0U;
+					&& status.DeviceAuthorizationDurableCopies == 0U
+					&& (!identityReported || storedIsGrant);
+				if (identityReported) {
+					stream << "DEVICE_FLOW_VAULT_STORED_TOKEN:"
+						   << QByteArray::fromStdString(
+								  status.DeviceAuthorizationVaultStoredDigest)
+						   << "\nDEVICE_FLOW_STORED_IS_GRANT:"
+						   << (storedIsGrant ? "true" : "false") << '\n';
+				}
 				stream << "DEVICE_FLOW_ENROLLMENTS:"
 					   << static_cast<unsigned long long>(
 							  status.DeviceAuthorizationEnrollments)
@@ -3278,6 +3411,28 @@ namespace {
 					   << '\n'
 					   << (enrolled ? "DEVICE_FLOW_ENROLLED_OK\n"
 									: "DEVICE_FLOW_ENROLLED_FAILED\n");
+			} else if (aRun.Device.GhesCourse) {
+				// [[BPR-0535]]. The enterprise negative, and the one course
+				// whose claim is about which profile asked. The picker named a
+				// GHES profile, the mounted panel was bound to it, and its
+				// "Get a code" was pressed: the composed capability belongs to
+				// GitHub.com, so the answer must be the typed refusal with
+				// nothing built. Reported as two facts, because "the reviewer
+				// pressed it and was refused" and "every other condition of
+				// the refusal held" fail for different reasons.
+				const auto ghesBeginRefused = aRun.Device.GhesBegan
+					&& status.DeviceAuthorizationStage
+						== bpr::core::device_authorization_stage::unavailable;
+				const auto ghesRefusalPassed = ghesBeginRefused
+					&& status.DeviceAuthorizationHostComposed
+					&& status.DeviceAuthorizationPanelComposed
+					&& status.DeviceAuthorizationPublications > 0U
+					&& status.DeviceAuthorizationTransportReached == 0U;
+				stream << "DEVICE_FLOW_GHES_BEGIN_REFUSED:"
+					   << (ghesBeginRefused ? "true" : "false") << '\n'
+					   << (ghesRefusalPassed
+							   ? "DEVICE_FLOW_GHES_REFUSAL_OK\n"
+							   : "DEVICE_FLOW_GHES_REFUSAL_FAILED\n");
 			} else if (status.DeviceAuthorizationCapabilityRegistered) {
 				// The registered claim is the refusal's mirror: the flow left
 				// `unavailable` behind and the refusing transport was never
@@ -4518,6 +4673,28 @@ namespace {
 								refuse_appearance_gesture(aApplication);
 						QApplication::processEvents();
 					}
+					// [[BPR-0536]], widened by [[BPR-0539]]. No course that
+					// runs the recorded grant connects first, for the same
+					// reason the signed-out courses above do not:
+					// `github_connect_action` enrolls the fixture's own
+					// credential, and that enrollment is a whole session -- it
+					// takes the vault slot, consumes the recorded bootstrap
+					// exchange, and leaves the device grant to arrive as a
+					// second establishment that the strict recording cannot
+					// serve and that the product must first delete its way out
+					// of. The registered course counted that connect
+					// credential as its one vault store and called it the
+					// grant; the renewal course beside it had already stopped
+					// connecting, so the two are one rule here rather than one
+					// each way. The grant is the only session these courses
+					// want, so they go straight to the stage that starts the
+					// flow, and every store, read and probe the run then
+					// observes belongs to the grant.
+					if (aRun->Device.Registered) {
+						advance_fixture_stage(
+							*aRun, automated_run::stage::connect);
+						break;
+					}
 					window.github_connect_action()->trigger();
 					advance_fixture_stage(
 						*aRun, automated_run::stage::connect);
@@ -4743,6 +4920,23 @@ namespace {
 							== 0U) {
 						break;
 					}
+					// [[BPR-0536]]. The renewal is armed on a real timer off
+					// this run's lane, so the course waits for it by the count
+					// exactly as the store above is waited for, and waits past
+					// `refreshing` so the state it reports is a settled one
+					// rather than whichever instant the poll happened to land
+					// on.
+					if (aRun->Device.RefreshCourse
+						&& (aApplication.status()
+									.DeviceAuthorizationRefreshRotations
+								== 0U
+							|| aApplication.status()
+									.DeviceAuthorizationRefreshState
+								== bpr::application::
+									device_authorization_refresh_state::
+										refreshing)) {
+						break;
+					}
 					aRun->PresentationPassed
 						= aRun->Cli.Observed == aRun->Cli.Expected;
 					aRun->RenderSaved
@@ -4808,6 +5002,30 @@ namespace {
 						// the top of this stage.
 						aRun->PublicPreview.Activated = true;
 						aApplication.activate_public_preview(false);
+					} else if (aRun->Device.Enabled && aRun->Device.GhesCourse) {
+						// [[BPR-0535]]. The same "select once, then wait for
+						// the typed answer" as below, begun the way a reviewer
+						// looking at an enterprise host begins it: through the
+						// picker and the mounted panel rather than through
+						// `select_device_authorization`, which always names
+						// the front profile and so could never reach this
+						// case.
+						aRun->Device.GhesBegan
+							= begin_through_ghes_device_panel(window);
+						aRun->Device.Selected = aRun->Device.GhesBegan;
+						if (!aRun->Device.GhesBegan) {
+							// Nothing was pressed, so no answer is coming.
+							// Report the false marker now rather than
+							// spending the budget waiting for a terminal that
+							// cannot arrive.
+							aRun->PresentationPassed
+								= aRun->Cli.Observed == aRun->Cli.Expected;
+							aRun->RenderSaved = save_render_evidence(
+								window,
+								aRun->RenderPath,
+								aRun->RenderCollapsesFilesDrawer);
+							transition_to_shutdown(aApplication, *aRun);
+						}
 					} else if (aRun->Device.Enabled) {
 						// Select once. The refusal is posted to the decision
 						// lane and has to be allowed to land before the run may
@@ -6456,6 +6674,20 @@ auto main(int argc, char** argv) -> int
 			argc,
 			argv,
 			"--device-authorization-registered-course");
+		// [[BPR-0536]]. The renewal course composes the registered grant and
+		// two more seams: a real second vault slot and the documented renewal
+		// answer. Read here for the same reason as the line above it.
+		fixtureOptions.DeviceRefreshCourse = has_argument(
+			argc,
+			argv,
+			"--device-authorization-refresh-course");
+		// The renewal course is the registered course plus a renewal, so it
+		// composes the registered capability rather than a second one. Every
+		// stage up to the vault store is the same graph, which is what makes
+		// the rotation after it evidence about the shipped composition.
+		fixtureOptions.RegisteredDeviceCourse
+			= fixtureOptions.RegisteredDeviceCourse
+			|| fixtureOptions.DeviceRefreshCourse;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
 		// browser capability, which is what every build had before
 		// [[BPR-0516]] composed one.
@@ -6583,8 +6815,32 @@ auto main(int argc, char** argv) -> int
 		const auto selfTest = has_argument(argc, argv, "--self-test");
 		const auto deviceProbe
 			= has_argument(argc, argv, "--device-authorization-probe");
-		const auto registeredDeviceCourse
-			= has_argument(argc, argv, "--device-authorization-registered-course");
+		// [[BPR-0537]]. Tests-enabled only, like the browser probe below.
+		// In a released image this flag suppressed the device probe's own
+		// cancel, so `--self-test --device-authorization-probe
+		// --device-authorization-registered-course` polled GitHub until the
+		// run budget expired. Every registration that passes it is a
+		// tests-enabled row, so gating it costs no course; what it buys is
+		// the string's absence from a tests-disabled image, which is how the
+		// RFC-BPR-0016 inventory scan proves the flag is gone rather than
+		// merely inert.
+		const auto registeredDeviceCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-registered-course");
+#else
+			false;
+#endif
+		// [[BPR-0536]]. Tests-enabled only, exactly like the registered course
+		// it extends: it forces a registered capability against the recorded
+		// fixture, and a released image must not be able to do that from a
+		// command line. Its absence from a tests-disabled binary is what the
+		// RFC-BPR-0016 inventory scan reads.
+		const auto deviceRefreshCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-refresh-course");
+#else
+			false;
+#endif
 		// Tests-enabled only. A shipped binary opens a browser when the
 		// reviewer asks it to and at no other time: the stations run the
 		// release courses unattended, and a command-line flag that could start
@@ -6599,9 +6855,24 @@ auto main(int argc, char** argv) -> int
 #endif
 		// [[BPR-0526]]. Starts the flow through the mounted panel rather than
 		// through `select_device_authorization`, which is the only difference
-		// between this course and the registered one beside it.
-		const auto devicePanelCourse
-			= has_argument(argc, argv, "--device-authorization-panel-course");
+		// between this course and the registered one beside it, and
+		// tests-enabled only for the same reason ([[BPR-0537]]).
+		const auto devicePanelCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-panel-course");
+#else
+			false;
+#endif
+		// [[BPR-0535]]. Tests-enabled only, like the forced courses below.
+		// It drives the picker onto an enterprise profile and presses the
+		// mounted panel's begin, which is a reviewer's gesture; a shipped
+		// binary offers it from the window and from no command line.
+		const auto deviceGhesCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-ghes-course");
+#else
+			false;
+#endif
 		// RFC-BPR-0017. Unconditional, exactly like the device probe beside
 		// it: the claim a shipped binary has to be able to make is that the
 		// signed-out mode is unavailable and sends nothing, and a flag that
@@ -7156,10 +7427,12 @@ auto main(int argc, char** argv) -> int
 							.EnterpriseHostname = std::move(enterpriseHostname),
 						},
 						.Device = automated_run::device_authorization_probe_state{
-							.Enabled      = verifyDeviceAuthorization,
-							.Registered   = registeredDeviceCourse,
-							.BrowserProbe = verifyDeviceAuthorization && deviceBrowserProbe,
-							.PanelCourse  = verifyDeviceAuthorization && devicePanelCourse,
+							.Enabled       = verifyDeviceAuthorization,
+							.Registered    = registeredDeviceCourse || deviceRefreshCourse,
+							.BrowserProbe  = verifyDeviceAuthorization && deviceBrowserProbe,
+							.PanelCourse   = verifyDeviceAuthorization && devicePanelCourse,
+							.GhesCourse    = verifyDeviceAuthorization && deviceGhesCourse,
+							.RefreshCourse = verifyDeviceAuthorization && deviceRefreshCourse,
 						},
 						.PublicPreview = automated_run::public_preview_probe_state{
 							.Enabled         = verifyPublicPreview,

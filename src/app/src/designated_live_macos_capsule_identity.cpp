@@ -204,9 +204,9 @@ namespace bpr::app::designated_live_capsule_identity {
 					if (!child) {
 						return false;
 					}
-					const auto relative = record.Relative;
+					const auto childPrefix = record.Relative;
 					aEntries.push_back(std::move(record));
-					if (!walk(child.get(), relative, aEntries)) {
+					if (!walk(child.get(), childPrefix, aEntries)) {
 						return false;
 					}
 					continue;

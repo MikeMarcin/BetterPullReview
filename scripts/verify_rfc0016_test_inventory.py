@@ -65,6 +65,12 @@ SELECTORS: dict[str, int] = {
     # BPR-0526: the mounted sign-in panel's course and its construction cut.
     "application_device_authorization_panel_course": 1,
     "application_device_authorization_panel_absent": 1,
+    "application_device_authorization_ghes_refusal": 1,
+    # BPR-0537: the system-browser opener's validation, observed without a launch.
+    "application_device_authorization_browser_address": 1,
+    # BPR-0536: one rotation through the composed graph over the fixture's
+    # refresh slot, with a course-only clock offset.
+    "application_device_authorization_refresh_course": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector below
@@ -101,6 +107,17 @@ REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "application_device_authorization_panel_absent": (
         "--device-authorization-probe",
         "--device-authorization-panel-absent",
+    ),
+    # BPR-0535: the GHES negative — the mounted panel's begin for a GHES
+    # profile is refused before any transport call.
+    "application_device_authorization_ghes_refusal": (
+        "--device-authorization-probe",
+        "--device-authorization-ghes-course",
+    ),
+    # BPR-0536: the composed refresh course.
+    "application_device_authorization_refresh_course": (
+        "--device-authorization-probe",
+        "--device-authorization-refresh-course",
     ),
 }
 
@@ -168,6 +185,24 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
     # more — it was sanitized before it was committed — but a shipped binary
     # containing a recorded user code would mean a fixture reached the product.
     "WDJB-MJHT",
+    # BPR-0537. Every tests-enabled flag the app parses under BPR_BUILD_TESTING,
+    # forbidden by string so a Release that learned to parse one fails here
+    # rather than in a station's course. The two course flags joined once the
+    # card's second half gated them.
+    "--network-denied",
+    "--device-authorization-registered-course",
+    "--device-authorization-panel-course",
+    "--device-authorization-refresh-course",
+    "--device-authorization-browser-absent",
+    "--device-authorization-panel-absent",
+    "--device-authorization-browser-probe",
+    "--public-preview-enabled-course",
+    "--public-preview-ghes-course",
+    "--public-preview-selection-enabled-probe",
+    "--public-preview-live-candidate",
+    "--test-application-data-root",
+    "--github-fixture",
+    "--device-authorization-ghes-course",
 )
 
 # Secret-shaped patterns. GitHub's token prefixes are documented and stable, so

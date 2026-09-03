@@ -217,7 +217,36 @@ namespace bpr::application {
 
 		void post(std::function<void()> aTask)
 		{
-			DecisionLane->post(std::move(aTask));
+			// Every renewal state change happens inside one of these turns, and
+			// there are a dozen places that make one. Publishing here rather
+			// than at each of them is what makes "the observation reaches
+			// presentation" a property of the lane instead of a list somebody
+			// has to keep complete; `deliver_refresh` publishes only on a
+			// change, so a turn that renewed nothing costs a comparison.
+			DecisionLane->post(
+				[weak = weak_from_this(), task = std::move(aTask)]() mutable {
+					task();
+					if (const auto self = weak.lock(); self != nullptr) {
+						self->deliver_refresh();
+					}
+				});
+		}
+
+		// Republishes the renewal lifecycle when, and only when, it changed.
+		// Renewal is observational in the same sense the presentation is: a
+		// reader cannot veto a rotation, and an exception on the way out is
+		// contained here rather than allowed to abandon material mid-flight.
+		void deliver_refresh()
+		{
+			if (Closing || Refresh == PublishedRefresh) {
+				return;
+			}
+			PublishedRefresh = Refresh;
+			try {
+				Projections->publish_refresh(PublishedRefresh);
+			} catch (...) {
+				ProjectionDeliveryFailed = true;
+			}
 		}
 
 		// Submissions are counted rather than tracked individually because the
@@ -369,11 +398,24 @@ namespace bpr::application {
 			ConsecutiveFailures = 0U;
 
 			Flow = aRequest.Context;
-			if (!Capability.Registered) {
-				// No registered identity, so no request is built and the
-				// transport is never reached. The refusal is posted rather
-				// than applied inline because this runs inside the transition
-				// that produced the request.
+			if (!Capability.Registered
+				|| aRequest.Context.Profile != Capability.Profile) {
+				// No registered identity, or one registered for a different
+				// profile than the one this begin names: either way no
+				// request is built and the transport is never reached.
+				//
+				// The second condition is the same refusal for the same
+				// reason. The capability is composed for exactly one profile
+				// -- the wire is bound to that host and the client identity
+				// is that host's -- so a begin arriving for another profile,
+				// as one does the moment the mounted panel is bound to
+				// whichever profile the picker names, would run this host's
+				// flow under a foreign authority and then enroll the issued
+				// token under the profile that did not issue it
+				// ([[BPR-0535]]).
+				//
+				// The refusal is posted rather than applied inline because
+				// this runs inside the transition that produced the request.
 				post([self = shared_from_this(), context = aRequest.Context] {
 					if (self->Closing || self->Flow != context) {
 						return;
@@ -397,6 +439,18 @@ namespace bpr::application {
 			cancel_timer();
 			Transport->cancel(context);
 			erase_flow_transients();
+			// The same forgetting `shutdown()` does, for the same reason. A
+			// store left outstanding across a cancel still answers, and the
+			// answer arrives into a flow that no longer exists: a success
+			// would mark material durable and arm a renewal nobody asked
+			// for, and a failure would tell the reviewer to authorize again
+			// after they chose to stop. Cancelling the slot and dropping the
+			// context makes the late answer land on the guard in
+			// `on_refresh_stored` instead.
+			if (RefreshStoreContext.has_value()) {
+				Vault->cancel(*RefreshStoreContext);
+				RefreshStoreContext.reset();
+			}
 			PendingAccess.reset();
 			PendingRefresh.reset();
 			AuthorizingContext.reset();
@@ -1158,6 +1212,10 @@ namespace bpr::application {
 		std::uint32_t                                             AccessLifetimeSeconds = 0U;
 		bool                                                      RefreshDurable        = false;
 		device_authorization_refresh_observation                  Refresh;
+		// What presentation was last told. The host publishes renewal on
+		// change, and the change is measured against what left the host, not
+		// against what the last turn happened to set.
+		device_authorization_refresh_observation PublishedRefresh;
 
 		device_authorization_presentation Presentation;
 		// The last command legality the core published. Held rather than
@@ -1229,6 +1287,7 @@ namespace bpr::application {
 			&& !Implementation->AuthorizingContext.has_value()) {
 			Implementation->submit_refresh_store();
 		}
+		Implementation->deliver_refresh();
 	}
 
 	void device_authorization_application_host::resume_refresh(
@@ -1240,6 +1299,7 @@ namespace bpr::application {
 		Implementation->RefreshAuthority = std::move(aAuthority);
 		Implementation->RefreshDurable   = true;
 		Implementation->begin_refresh();
+		Implementation->deliver_refresh();
 	}
 
 	void device_authorization_application_host::open_verification_address()

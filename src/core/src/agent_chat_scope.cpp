@@ -56,6 +56,43 @@ namespace bpr::core {
 		return false;
 	}
 
+	auto stable_name(const workshop_operation aOperation) noexcept
+		-> std::string_view
+	{
+		switch (aOperation) {
+		case workshop_operation::clarify:
+			return "clarify";
+		case workshop_operation::shorten:
+			return "shorten";
+		case workshop_operation::make_actionable:
+			return "make_actionable";
+		case workshop_operation::phrase_as_a_question:
+			return "phrase_as_a_question";
+		case workshop_operation::make_more_direct:
+			return "make_more_direct";
+		case workshop_operation::check_the_premise:
+			return "check_the_premise";
+		}
+		return { };
+	}
+
+	auto declared(const workshop_operation aOperation) noexcept -> bool
+	{
+		return static_cast<std::size_t>(aOperation) < workshop_operation_count;
+	}
+
+	auto workshop_operation_for(
+		const agent_entry_point                 aEntryPoint,
+		const std::optional<workshop_operation> aOperation) noexcept
+		-> std::optional<workshop_operation>
+	{
+		if (aEntryPoint != agent_entry_point::workshop_comment || !aOperation
+			|| !declared(*aOperation)) {
+			return std::nullopt;
+		}
+		return aOperation;
+	}
+
 	auto stable_name(const agent_observation aObservation) noexcept
 		-> std::string_view
 	{

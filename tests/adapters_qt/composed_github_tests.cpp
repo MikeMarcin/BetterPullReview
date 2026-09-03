@@ -2685,8 +2685,8 @@ namespace {
 		// more than the stacked column asks for, and the difference is small
 		// enough to hide inside the column's own margins at the opening
 		// width while being lost at every narrower one.
-		const auto stacked_under = [](const QWidget* const aAbove,
-									  const QWidget* const aBelow) {
+		const auto stackedUnder = [](const QWidget* const aAbove,
+									 const QWidget* const aBelow) {
 			return aAbove != nullptr && aBelow != nullptr
 				&& aBelow->mapTo(aBelow->window(), QPoint{ 0, 0 }).y()
 				>= aAbove->mapTo(aAbove->window(), QPoint{ 0, 0 }).y()
@@ -2698,13 +2698,13 @@ namespace {
 			availability != nullptr && availability->isVisible(),
 			"the open drawer shows the review-thread availability sentence");
 		expect(
-			stacked_under(availability, offered(QStringLiteral("showReviewThreadsAction"))),
+			stackedUnder(availability, offered(QStringLiteral("showReviewThreadsAction"))),
 			"the reveal action is stacked under the availability sentence rather than beside it: showReviewThreadsAction");
 		expect(
-			stacked_under(
+			stackedUnder(
 				offered(QStringLiteral("agentExistingCheckoutAction")),
 				offered(QStringLiteral("startAgentAction")))
-				&& stacked_under(
+				&& stackedUnder(
 					offered(QStringLiteral("startAgentAction")),
 					offered(QStringLiteral("cancelAgentAction"))),
 			"the agent launcher's run controls are stacked rather than laid in a row: startAgentAction, cancelAgentAction");

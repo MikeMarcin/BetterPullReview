@@ -1211,6 +1211,24 @@ material schedules no rotation at all ([[BPR-0279]], [[BPR-0283]],
 `application_device_authorization_refresh`,
 `github_device_authorization_refresh_contract`).
 
+That lifecycle is composed, not only tested ([[BPR-0536]]). On an accepted
+session for the device-enrolled profile, composition hands the device host
+the session's credential authority key: while the device stage is
+`authorized` in this run it binds (`bind_refresh_authority`, which also
+flushes refresh material parked from the grant), and otherwise, when the
+GitHub host's one-time probe of its own refresh slot finds material — only
+a device grant ever writes that slot, which is how a restart tells a
+persisted grant from a pasted token — it resumes (`resume_refresh`), so a
+process that starts with a stored grant re-arms renewal without a new
+device code. The host publishes its refresh observation on every change
+through the projection port's `publish_refresh`, the sign-in panel renders
+one line for `reenrollment_required` and nothing for the other states, and
+cancelling a flow forgets any outstanding refresh store so a store that
+answers late arms nothing. The composed-host audit requires the binding
+function in both profiles, and `application_device_authorization_refresh_course`
+drives one rotation through the real graph over the fixture's refresh slot
+with a course-only clock offset.
+
 Refresh material is keyed by the same authority as the credential itself and
 kept beside it in a second vault slot, so neither can be retrieved under the
 other's name and deleting one never silently removes the other. The authority
@@ -1240,7 +1258,16 @@ Enterprise Server therefore composes the refusing transport, the capability
 stays unregistered, and selecting device sign-in answers `device_flow_unavailable`
 with zero requests — structurally, before a request is constructed, rather than
 as a count that happens to be zero. Adding a GHES profile beside GitHub.com
-does not change the GitHub.com device path.
+does not change the GitHub.com device path, and since BPR-0535 it cannot
+borrow it either: the composed capability names the profile it was built
+for, and the host refuses a begin for any other profile before it touches the
+transport, the vault, or enrollment — on the mounted panel's route and on the
+public-preview sign-in route alike. The independent review of the closeout
+head had shown that without that check a reviewer who picked a GHES profile
+and pressed "Get a code" started the GitHub.com flow with the GitHub.com
+client and, on authorization, enrolled a GitHub.com token under the GHES
+profile; `application_device_authorization_ghes_refusal` now drives that
+exact press and proves the refusal with zero requests.
 
 An enterprise instance would need an application registered on that instance,
 which is an administration action RFC-BPR-0016 does not own. Until one exists,

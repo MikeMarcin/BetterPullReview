@@ -264,7 +264,7 @@ namespace bpr::core {
 			return refused->Refusal;
 		}
 
-		const auto identity = anonymous_request_identity{
+		auto identity = anonymous_request_identity{
 			.Mode    = aState.Mode,
 			.Context = aContext,
 		};

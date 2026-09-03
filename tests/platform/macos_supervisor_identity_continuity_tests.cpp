@@ -306,8 +306,8 @@ namespace {
 		auto operations      = supervisor_launch::verifier_operations::production();
 		auto productionSpawn = std::move(operations.Spawn);
 		operations.Spawn
-			= [&, productionSpawn = std::move(productionSpawn),
-			   aBeforeProductionSpawn = std::move(aBeforeProductionSpawn)](
+			= [&, delegateSpawn = std::move(productionSpawn),
+			   beforeProductionSpawn = std::move(aBeforeProductionSpawn)](
 				  pid_t*                            aProcess,
 				  const char*                       aExecutable,
 				  const posix_spawn_file_actions_t* aActions,
@@ -316,10 +316,10 @@ namespace {
 				  char* const                       aEnvironment[]) mutable {
 				  ++result.Effects.SpawnAttempts;
 				  result.Effects.Executable = aExecutable;
-				  if (aBeforeProductionSpawn) {
-					  aBeforeProductionSpawn();
+				  if (beforeProductionSpawn) {
+					  beforeProductionSpawn();
 				  }
-				  return productionSpawn(
+				  return delegateSpawn(
 					  aProcess,
 					  aExecutable,
 					  aActions,
@@ -435,7 +435,7 @@ namespace {
 		operations.Barrier   = std::move(aBarrier);
 		auto productionSpawn = std::move(operations.Spawn);
 		operations.Spawn
-			= [&, productionSpawn = std::move(productionSpawn)](
+			= [&, delegateSpawn = std::move(productionSpawn)](
 				  pid_t*                            aProcess,
 				  const char*                       aExecutable,
 				  const posix_spawn_file_actions_t* aActions,
@@ -444,7 +444,7 @@ namespace {
 				  char* const                       aEnvironment[]) mutable {
 				  ++result.Effects.SpawnAttempts;
 				  result.Effects.Executable = aExecutable;
-				  return productionSpawn(
+				  return delegateSpawn(
 					  aProcess,
 					  aExecutable,
 					  aActions,
@@ -454,17 +454,17 @@ namespace {
 			  };
 		auto productionResume = std::move(operations.Resume);
 		operations.Resume
-			= [&, productionResume = std::move(productionResume)](
+			= [&, delegateResume = std::move(productionResume)](
 				  const pid_t aProcess) mutable {
 				  ++result.Effects.ResumeAttempts;
-				  return productionResume(aProcess);
+				  return delegateResume(aProcess);
 			  };
 		auto productionRefuse = std::move(operations.Refuse);
 		operations.Refuse
-			= [&, productionRefuse = std::move(productionRefuse)](
+			= [&, delegateRefuse = std::move(productionRefuse)](
 				  const pid_t aProcess) mutable {
 				  ++result.Effects.Refusals;
-				  productionRefuse(aProcess);
+				  delegateRefuse(aProcess);
 			  };
 		result.Outcome = supervisor_launch::launch(
 			aSession,

@@ -87,6 +87,11 @@ namespace bpr::app::detail {
 		// Only meaningful with a fixture; a shipped build has no identity to
 		// register and this option does not exist there.
 		bool RegisteredDeviceCourse = false;
+		// RFC-BPR-0016 renewal. The same registered grant, plus the two things
+		// a rotation needs that the read-path fixture has no use for: a real
+		// second vault slot and the documented renewal answer on the
+		// transport. Only meaningful with a fixture.
+		bool DeviceRefreshCourse = false;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
 		// browser capability bound at all, which is what every build was
 		// before [[BPR-0516]]. Removes exactly one construction: the flow
@@ -176,6 +181,15 @@ namespace bpr::app::detail {
 		// the claim.
 		std::size_t VaultStores                = 0U;
 		std::size_t DeviceTransportSubmissions = 0U;
+		// [[BPR-0539]]. Which material the vault stored, rather than how many
+		// times it was asked. The digest is a truncated SHA-256 of the bytes
+		// the store accepted, taken at the store and kept afterwards so a
+		// later delete cannot erase the evidence; the flag is that digest
+		// compared against the recorded grant's own access token. A count
+		// alone cannot tell the grant's enrollment from the fixture's connect
+		// credential, and those are exactly the two candidates.
+		std::string VaultStoredDigest;
+		bool        VaultStoredIsDeviceGrant = false;
 	};
 
 	struct github_epoch_maintenance_fixture_evidence
@@ -382,8 +396,22 @@ namespace bpr::app::detail {
 		std::string                                    LocalDraftBody;
 		std::string                                    WorkshopOriginalText;
 		std::string                                    WorkshopProposalText;
-		std::string                                    SideChatHeadOidText;
-		std::string                                    AgentPanelStatusText;
+		/// What the editor says about the operation: the question while a
+		/// press is unanswered, the operation that produced the proposal once
+		/// one arrives, and empty for a revision nobody workshopped.
+		std::string WorkshopOperationText;
+		/// The stable name of the operation still waiting for its turn's
+		/// answer, and empty when none is. Reported because "the operation was
+		/// recorded" and "the operation was spent by the turn it was asked in"
+		/// are different claims, and only a value that can be read between the
+		/// two can tell them apart.
+		std::string WorkshopPendingOperation;
+		/// Whether that pending press has learned which agent turn is
+		/// answering it. False between the dispatch and the admission, and
+		/// false is why an outcome arriving in that window names no operation.
+		bool        WorkshopPendingSessionBound = false;
+		std::string SideChatHeadOidText;
+		std::string AgentPanelStatusText;
 	};
 
 	struct agent_invocation_context_evidence

@@ -1520,9 +1520,9 @@ namespace bpr::application {
 #endif
 				control->DecisionTask = [gate        = std::weak_ptr<completion_gate>{ CompletionGate },
 										 weakControl = std::weak_ptr<job_control>{ control }]() mutable {
-					const auto locked  = gate.lock();
-					auto       control = weakControl.lock();
-					if (!locked || !control) {
+					const auto locked        = gate.lock();
+					auto       lockedControl = weakControl.lock();
+					if (!locked || !lockedControl) {
 						return;
 					}
 					const std::lock_guard barrier{ locked->Barrier };
@@ -1530,12 +1530,12 @@ namespace bpr::application {
 					if (host == nullptr) {
 						return;
 					}
-					auto completion = std::move(control->Completion);
+					auto completion = std::move(lockedControl->Completion);
 					host->run_turn(
 						[host,
-						 control    = std::move(control),
-						 completion = std::move(completion)]() mutable {
-							const auto reserved = host->retire_job_for_terminal(control);
+						 terminalControl    = std::move(lockedControl),
+						 terminalCompletion = std::move(completion)]() mutable {
+							const auto reserved = host->retire_job_for_terminal(terminalControl);
 							struct reservation_guard final
 							{
 								implementation& Host;
@@ -1546,7 +1546,7 @@ namespace bpr::application {
 									Host.release_terminal_reservation(Reserved);
 								}
 							} reservation{ *host, reserved };
-							completion(*host);
+							terminalCompletion(*host);
 						});
 				};
 #if defined(BPR_APPLICATION_TESTING)
@@ -3134,7 +3134,7 @@ namespace bpr::application {
 					actor,
 					[this,
 					 actor,
-					 authorizationGeneration = *authorizationGeneration,
+					 admittedGeneration = *authorizationGeneration,
 					 expected,
 					 aRequest,
 					 aStop,
@@ -3157,7 +3157,7 @@ namespace bpr::application {
 								|| BlobIngressClosing.load(std::memory_order_acquire)) {
 								observation.Status = workbench_selected_diff_status::cancelled;
 							} else if (selected_diff_authorization_generation(actor, aRequest)
-									   != authorizationGeneration) {
+									   != admittedGeneration) {
 								observation.Status = workbench_selected_diff_status::stale;
 							} else if (actor->Cache != nullptr
 									   && actor->Cache->request() == expected) {
@@ -3339,7 +3339,7 @@ namespace bpr::application {
 													   .Diff      = aRequest.Diff,
 												   } }
 											   || actor->BlobAuthorityGeneration
-												   != authorizationGeneration) {
+												   != admittedGeneration) {
 										observation.Status = workbench_selected_diff_status::stale;
 									} else {
 										observation.Status = workbench_selected_diff_status::available;
@@ -3495,7 +3495,7 @@ namespace bpr::application {
 					[this,
 					 actor,
 					 authorization,
-					 authorizationGeneration = *authorizationGeneration,
+					 admittedGeneration = *authorizationGeneration,
 					 expected,
 					 aRequest,
 					 aStop,
@@ -3522,7 +3522,7 @@ namespace bpr::application {
 								observation.Status = diff_blob_status::cancelled;
 							} else if (
 								blob_authorization_generation(actor, authorization)
-								!= authorizationGeneration) {
+								!= admittedGeneration) {
 								observation.Status = diff_blob_status::failure;
 							} else if (
 								actor->Cache != nullptr
@@ -3546,7 +3546,7 @@ namespace bpr::application {
 										actor->BlobAuthority
 											!= std::optional{ authorization }
 										|| actor->BlobAuthorityGeneration
-											!= authorizationGeneration) {
+											!= admittedGeneration) {
 										observation.Status = diff_blob_status::failure;
 									} else {
 										observation.Status = diff_blob_status::available;
@@ -3689,7 +3689,7 @@ namespace bpr::application {
 					[this,
 					 actor,
 					 authorization,
-					 authorizationGeneration = *authorizationGeneration,
+					 admittedGeneration = *authorizationGeneration,
 					 expected,
 					 aRequest,
 					 aStop,
@@ -3716,7 +3716,7 @@ namespace bpr::application {
 								};
 							} else if (
 								blob_authorization_generation(actor, authorization)
-								!= authorizationGeneration) {
+								!= admittedGeneration) {
 								result = std::unexpected{ agent_workspace_failure::stale };
 							} else if (
 								actor->Cache != nullptr
@@ -3733,7 +3733,7 @@ namespace bpr::application {
 										|| actor->BlobAuthority
 											!= std::optional{ authorization }
 										|| actor->BlobAuthorityGeneration
-											!= authorizationGeneration) {
+											!= admittedGeneration) {
 										static_cast<void>(
 											actor->Cache->cleanup_agent_workspace(
 												*materialized,
@@ -4146,7 +4146,7 @@ namespace bpr::application {
 			auto       workerActor = actor;
 			const auto submitted   = submit_effect(
 				[offered,
-				 actor = std::move(workerActor),
+				 effectActor = std::move(workerActor),
 				 catalogs,
 				 caches,
 				 entropy,
@@ -4215,15 +4215,15 @@ namespace bpr::application {
 						.Authority          = initialBinding.Authority,
 						.ObjectFormat       = offered->ObjectFormat,
 					};
-					if (actor->Cache && actor->Cache->request() != expectedCache) {
-						actor->Cache.reset();
+					if (effectActor->Cache && effectActor->Cache->request() != expectedCache) {
+						effectActor->Cache.reset();
 					}
 					const auto recovered = recover_catalog(
 						**opened,
 						*caches,
 						*entropy,
 						*offered,
-						actor->Cache,
+						effectActor->Cache,
 						aStop);
 					if (!recovered) {
 						return diagnostic(core::reason_for(recovered.error()));
@@ -4265,14 +4265,14 @@ namespace bpr::application {
 						binding.Authority,
 						revision,
 						std::move(*opened),
-						std::move(actor));
+						std::move(effectActor));
 					context->Handoff.SmartGit = lease.release();
-					return [context = std::move(context), token, cleanup](
+					return [authorityContext = std::move(context), token, cleanup](
 							   implementation& aHost) {
 						if (aHost.Closing || token != aHost.OfferToken) {
 							aHost.release_pending_cleanup(cleanup);
-							if (context->Handoff.SmartGit) {
-								context->Handoff.SmartGit->revoke();
+							if (authorityContext->Handoff.SmartGit) {
+								authorityContext->Handoff.SmartGit->revoke();
 							}
 							return;
 						}
@@ -4286,29 +4286,29 @@ namespace bpr::application {
 									cleanup->Control)) {
 								cleanup->Control.reset();
 								cleanup->Context.reset();
-								if (context->Handoff.SmartGit) {
-									context->Handoff.SmartGit->revoke();
+								if (authorityContext->Handoff.SmartGit) {
+									authorityContext->Handoff.SmartGit->revoke();
 								}
 								return;
 							}
 							cleanup->Control.reset();
 							cleanup->Context.reset();
 						}
-						aHost.Active  = context;
+						aHost.Active  = authorityContext;
 						bool accepted = false;
 						static_cast<void>(aHost.dispatch_core(
 							core::pull_request_revision_accepted_event{
-								.ApplicationSession = context->Handoff.ApplicationSession,
-								.Authority          = context->Authority,
-								.Revision           = context->Revision,
+								.ApplicationSession = authorityContext->Handoff.ApplicationSession,
+								.Authority          = authorityContext->Authority,
+								.Revision           = authorityContext->Revision,
 							},
 							[&](const core::epoch_transition_output&) {
 								accepted = aHost.State.Authority
 									&& aHost.State.AcceptedRevision
 									&& *aHost.State.Authority
-										== context->Authority
+										== authorityContext->Authority
 									&& *aHost.State.AcceptedRevision
-										== context->Revision;
+										== authorityContext->Revision;
 								if (accepted && previous) {
 									implementation::revoke_blob_authority(
 										previous->Actor,
@@ -4320,7 +4320,7 @@ namespace bpr::application {
 							}));
 						if (accepted) {
 							const auto invalidation = invalidation_identity(
-								context->Handoff);
+								authorityContext->Handoff);
 							const auto invalidationPending = std::ranges::any_of(
 								aHost.DeferredInvalidations,
 								[&](const auto& aPending) {
@@ -4330,8 +4330,8 @@ namespace bpr::application {
 								!aHost.Closing && !aHost.DeferredShutdown
 								&& !invalidationPending) {
 								implementation::authorize_blobs(
-									context->Actor,
-									implementation::blob_authority_for(*context));
+									authorityContext->Actor,
+									implementation::blob_authority_for(*authorityContext));
 							}
 							return;
 						}
@@ -4343,14 +4343,14 @@ namespace bpr::application {
 								== previous->Revision;
 						if (previousStillOwned) {
 							aHost.Active = std::move(previous);
-							if (context->Handoff.SmartGit) {
-								context->Handoff.SmartGit->revoke();
+							if (authorityContext->Handoff.SmartGit) {
+								authorityContext->Handoff.SmartGit->revoke();
 							}
 							return;
 						}
 						aHost.Active.reset();
-						if (context->Handoff.SmartGit) {
-							context->Handoff.SmartGit->revoke();
+						if (authorityContext->Handoff.SmartGit) {
+							authorityContext->Handoff.SmartGit->revoke();
 						}
 						if (previous) {
 							implementation::revoke_blob_authority(
@@ -5786,14 +5786,14 @@ namespace bpr::application {
 							for (const auto& epoch : aRequest.Context.Epochs) {
 								const auto find = [&](const auto aKind)
 									-> const core::comparison_anchor* {
-									const auto identity = core::comparison_anchor_identity{
+									const auto anchorIdentity = core::comparison_anchor_identity{
 										.Authority   = epoch.Authority,
 										.Incarnation = epoch.Incarnation,
 										.Kind        = aKind,
 										.Epoch       = epoch.Ordinal,
 									};
 									const auto found = std::ranges::find(anchors->Anchors,
-																		 identity,
+																		 anchorIdentity,
 																		 &core::comparison_anchor::Identity);
 									return found == anchors->Anchors.end()
 										? nullptr
@@ -6036,11 +6036,11 @@ namespace bpr::application {
 						.Epochs       = std::move(page->Epochs),
 						.Continuation = page->Continuation,
 					};
-					return [aRequest, observation = std::move(observation)](
+					return [aRequest, pageObservation = std::move(observation)](
 							   implementation& aHost) {
 						aHost.dispatch_core(core::epoch_history_page_loaded_event{
 							.Context = aRequest.Context,
-							.Page    = observation,
+							.Page    = pageObservation,
 						});
 					};
 				},
@@ -6288,11 +6288,11 @@ namespace bpr::application {
 					verifyAnchor(candidates.CurrentViewerReview);
 					verifyAnchor(candidates.ExplicitLeft);
 					verifyAnchor(candidates.ExplicitRight);
-					return [aRequest, candidates = std::move(candidates)](
+					return [aRequest, resolvedCandidates = std::move(candidates)](
 							   implementation& aHost) {
 						aHost.dispatch_core(core::comparison_resolved_event{
 							.Context    = aRequest.Context,
-							.Candidates = candidates,
+							.Candidates = resolvedCandidates,
 						});
 					};
 				},

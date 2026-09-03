@@ -495,8 +495,8 @@ namespace bpr::application {
 						.Context = context,
 						.Result  = perform_settings_load(*port, stop),
 					};
-					lane->post([gate, staged = std::move(staged)]() mutable {
-						deliver_terminal(gate, std::move(staged));
+					lane->post([gate, stagedTerminal = std::move(staged)]() mutable {
+						deliver_terminal(gate, std::move(stagedTerminal));
 					});
 				});
 			} catch (...) {
@@ -590,8 +590,8 @@ namespace bpr::application {
 						.Context = context,
 						.Result  = perform_theme_import(*port, path, stop),
 					};
-					lane->post([gate, staged = std::move(staged)]() mutable {
-						deliver_terminal(gate, std::move(staged));
+					lane->post([gate, stagedTerminal = std::move(staged)]() mutable {
+						deliver_terminal(gate, std::move(stagedTerminal));
 					});
 				});
 			} catch (...) {
@@ -661,8 +661,8 @@ namespace bpr::application {
 					auto staged = staged_classification{
 						.Classification = perform_classification(*classifier, request, stop),
 					};
-					lane->post([gate, staged = std::move(staged)]() mutable {
-						deliver_terminal(gate, std::move(staged));
+					lane->post([gate, stagedTerminal = std::move(staged)]() mutable {
+						deliver_terminal(gate, std::move(stagedTerminal));
 					});
 				});
 				++ClassificationSubmissions;

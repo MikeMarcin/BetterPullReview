@@ -164,15 +164,15 @@ namespace bpr::application {
 			.Input            = std::move(aRequest),
 		};
 		Implementation->Effects.post(
-			[implementation = Implementation, request = std::move(request)]() {
-				auto result = implementation->Processes.run(request, 15000);
+			[implementation = Implementation, launchRequest = std::move(request)]() {
+				auto result = implementation->Processes.run(launchRequest, 15000);
 				implementation->DecisionLane.post(
-					[implementation, result = std::move(result)]() {
+					[implementation, runResult = std::move(result)]() {
 						const auto lock
 							= std::scoped_lock{ implementation->Mutex };
 						implementation->Running = false;
 						++implementation->Statistics.Completions;
-						for (const auto& event : result.Events) {
+						for (const auto& event : runResult.Events) {
 							implementation->Answer += event.Text;
 							implementation->Answer += '\n';
 						}

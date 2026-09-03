@@ -300,53 +300,22 @@ namespace bpr::application {
 		github_application_host* Host;
 	};
 
-	enum class device_authorization_refresh_state : std::uint8_t {
-		// No account has authorized material to renew.
-		idle,
-		// A renewal is armed for a moment before the access token expires.
-		scheduled,
-		// A renewal exchange is in flight.
-		refreshing,
-		// Renewal cannot continue. The reviewer has to authorize again, and the
-		// host says so once instead of retrying forever.
-		reenrollment_required,
-	};
-
-	enum class device_authorization_refresh_failure : std::uint8_t {
-		none,
-		// The vault could not be reached or refused the slot.
-		vault_unavailable,
-		// The vault holds no refresh material for this authority.
-		refresh_absent,
-		// The server refused the refresh material it was given.
-		refresh_rejected,
-		// The exchange did not complete.
-		transport_failed,
-		// New material arrived but could not be stored, so rotating would have
-		// left nothing durable behind.
-		storage_failed,
-	};
-
-	/// \brief Describes the device authorization refresh observation record.
-	struct device_authorization_refresh_observation
-	{
-		device_authorization_refresh_state State
-			= device_authorization_refresh_state::idle;
-		device_authorization_refresh_failure Failure
-			= device_authorization_refresh_failure::none;
-		// How many times material has been rotated under this host.
-		std::uint32_t Rotations = 0U;
-
-		auto operator<=>(const device_authorization_refresh_observation&) const
-			= default;
-	};
-
 	/// \brief Describes the device authorization capability record.
 	///
 	/// \details Whether this build has a registered application identity to
-	/// run the flow under, and nothing else. It carries no client identifier,
-	/// because the host does not need the value to know whether one exists and
-	/// a value that never enters the host cannot leak from it.
+	/// run the flow under, and which profile that identity belongs to. It
+	/// carries no client identifier, because the host does not need the value
+	/// to know whether one exists and a value that never enters the host
+	/// cannot leak from it.
+	///
+	/// The profile is here because a registered identity is registered
+	/// somewhere: the composed wire is bound to one host and the client is
+	/// that host's. A begin naming any other profile would run this host's
+	/// flow under a foreign authority and enroll the resulting token under
+	/// the profile that did not issue it, so the host refuses it exactly as
+	/// it refuses an unregistered build ([[BPR-0535]]). It defaults to the
+	/// zero identity, which no composed profile ever has, so an
+	/// unbound capability admits nothing.
 	///
 	/// It defaults to unregistered on purpose. Every shipped build is
 	/// unregistered until [[BPR-0318]] records a distributable identity, and a
@@ -360,6 +329,9 @@ namespace bpr::application {
 	struct device_authorization_capability
 	{
 		bool Registered = false;
+		// The one profile this capability was composed for. Every other
+		// profile is refused before a request is built.
+		core::host_profile_id Profile;
 
 		auto operator<=>(const device_authorization_capability&) const = default;
 	};

@@ -152,7 +152,8 @@ auto main(int argc, char** argv) -> int
 		&& course != "workshop-construction-cut"
 		&& course != "mcp-construction-cut"
 		&& course != "chat-panel-construction-cut"
-		&& course != "queue-construction-cut") {
+		&& course != "queue-construction-cut"
+		&& course != "workshop-press") {
 		return EXIT_FAILURE;
 	}
 	auto data = QTemporaryDir{ };
@@ -277,7 +278,31 @@ auto main(int argc, char** argv) -> int
 		return fail(*application, "codex-profile");
 	}
 	panel->profile_selector()->setCurrentIndex(codexIndex);
-	panel->start_button()->click();
+	// BPR-0533. The workshop course starts its turn from the comment-workshop
+	// control instead of the launch panel, and from nowhere else: the press is
+	// the only gesture it makes, so every process, workspace, and delivery
+	// counted below belongs to it.
+	//
+	// The refusal is read on the surface that asked rather than on the launch
+	// panel: the panel deliberately ignores a refusal while an invocation is
+	// running, so a second press would leave no trace there and "never queued
+	// silently" would be unfalsifiable. On the control it is the control's own
+	// state, which is also where the reviewer would read it.
+	auto pressedRefusal         = std::string{ };
+	auto reofferedAfterProposal = false;
+	if (course == "workshop-press") {
+		auto* const clarify = editor->clarify_action();
+		if (clarify == nullptr || !clarify->isEnabled()) {
+			return fail(*application, "workshop-control");
+		}
+		clarify->trigger();
+		QApplication::processEvents();
+		if (!clarify->isEnabled()) {
+			pressedRefusal = clarify->toolTip().toStdString();
+		}
+	} else {
+		panel->start_button()->click();
+	}
 
 	auto delivered = wait_terms{ };
 	if (!wait_until_reporting(
@@ -333,6 +358,13 @@ auto main(int argc, char** argv) -> int
 		= app::detail::github_application_fixture_access::agent_finding_evidence(
 			*application);
 
+	if (course == "workshop-press" && editor->clarify_action() != nullptr) {
+		// Answered, so the offer is open again. A control that stayed shut
+		// after its own answer arrived would be a workshop good for one
+		// question per comment.
+		reofferedAfterProposal = editor->clarify_action()->isEnabled();
+	}
+
 	// The acceptance gesture, on the shipped editor. This is the one gesture
 	// that emits a local draft command, and it emits exactly one.
 	if (
@@ -380,6 +412,66 @@ auto main(int argc, char** argv) -> int
 		&& evidence.LocalDraftBody == agent_suggested
 		&& evidence.SideChatPresentations != 0U
 		&& exact_helper_launch(evidence, snapshotRoot);
+
+	if (course == "workshop-press") {
+		// BPR-0533. Press → invocation → proposal, in the composed graph and
+		// with no launch-panel gesture anywhere in it. The wait above already
+		// required exactly one process start and one workspace cleanup, so the
+		// run these findings came from is the one the press started.
+		//
+		// The three states of the asked-for operation are read in order, which
+		// is what makes the pairing observable rather than assumed: recorded
+		// and bound to its turn once the run is quiescent, still unspent while
+		// the delivery sits in the queue, and spent — named on the proposal
+		// and gone from the record — only by that turn's own outcome.
+		const auto pressed = evidence.FindingHostComposed
+			&& evidence.CommentWorkshopComposed && noGithubMutation
+			&& afterDelivery.FindingStatistics.Deliveries == 1U
+			&& afterDelivery.QueuedFindings == 1U
+			&& afterDelivery.WorkshopProposals == 0U
+			&& afterDelivery.WorkshopPendingOperation == "clarify"
+			&& afterDelivery.WorkshopPendingSessionBound
+			// Never queued silently. While the turn was unanswered the six
+			// controls were shut and said why, so there was no press to queue.
+			&& pressedRefusal.find("already running") != std::string::npos
+			&& reofferedAfterProposal
+			&& afterConversion.WorkshopProposals == 1U
+			&& afterConversion.WorkshopStatistics.Proposals == 1U
+			&& afterConversion.WorkshopOriginalText == reviewer_original
+			&& afterConversion.WorkshopProposalText == agent_suggested
+			// The before/after says which of the six produced it, and the
+			// question it answered is no longer outstanding.
+			&& afterConversion.WorkshopOperationText == "Proposed by: Clarify"
+			&& afterConversion.WorkshopPendingOperation.empty()
+			&& evidence.LocalDraftBody == agent_suggested;
+		if (!pressed) {
+			std::cerr << "agent-finding-workshop-press-evidence:"
+					  << afterDelivery.FindingStatistics.Deliveries << ':'
+					  << afterDelivery.QueuedFindings << ':'
+					  << afterConversion.WorkshopProposals << ':'
+					  << mutation.Submissions
+					  << "\npending-after-delivery:"
+					  << afterDelivery.WorkshopPendingOperation
+					  << "\npending-bound:"
+					  << (afterDelivery.WorkshopPendingSessionBound ? "yes" : "no")
+					  << "\npress-refusal:" << pressedRefusal
+					  << "\nreoffered:"
+					  << (reofferedAfterProposal ? "yes" : "no")
+					  << "\noperation-text:"
+					  << afterConversion.WorkshopOperationText
+					  << "\npending-after-conversion:"
+					  << afterConversion.WorkshopPendingOperation
+					  << "\nworkshop-proposal:"
+					  << afterConversion.WorkshopProposalText
+					  << "\ndraft-body:" << evidence.LocalDraftBody
+					  << "\npanel-status:" << evidence.AgentPanelStatusText << '\n';
+		}
+		if (!shutdown(*application) || !pressed) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-finding-workshop-press:pass\n";
+		return EXIT_SUCCESS;
+	}
 
 	if (course == "positive" || course == "full-agent") {
 		const auto exact = positiveMarker && noGithubMutation

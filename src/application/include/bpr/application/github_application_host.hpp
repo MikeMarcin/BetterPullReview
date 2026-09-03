@@ -156,6 +156,32 @@ namespace bpr::application {
 			-> const std::optional<github_session_read_model>&;
 		[[nodiscard]] auto accepted_snapshot() const noexcept
 			-> const std::optional<github_pull_request_snapshot>&;
+		/// \brief Returns the vault authority the accepted session is keyed by.
+		///
+		/// \details Absent until an authenticated `/user` observation has been
+		/// accepted under an exact account, which is the first moment the key
+		/// exists at all: it is minted from the profile authority and the
+		/// account the viewer reported, and nothing outside this host may
+		/// assemble one. Absent for every public-preview session, which has no
+		/// account and no vault entry. It names a slot, not a credential; no
+		/// credential byte is reachable through it.
+		[[nodiscard]] auto accepted_credential_authority() const noexcept
+			-> std::optional<github_credential_authority_key>;
+		/// \brief Returns whether the accepted credential can renew itself.
+		///
+		/// \details True once the vault has answered that a refresh entry sits
+		/// beside the accepted credential under the same authority. Only a
+		/// device grant ever stores one, so this is exactly "the material this
+		/// session was restored from came from a device grant and what renews
+		/// it outlived the run that acquired it". False for a credential the
+		/// reviewer pasted, which has nothing to renew from; false for a grant
+		/// this run's device flow is still holding refresh material for, which
+		/// binds rather than resumes; and false until the vault has answered,
+		/// after which the session is published again so the answer is read.
+		/// No refresh byte is reachable through it: the probe destroys the
+		/// material it retrieved on the vault's own callback and carries only
+		/// the answer onto the decision lane.
+		[[nodiscard]] auto accepted_credential_renewable() const noexcept -> bool;
 		/// \brief Returns the opaque transport for the currently accepted account.
 		///
 		/// \details The capability is absent unless the host has accepted an exact

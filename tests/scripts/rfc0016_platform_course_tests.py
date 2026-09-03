@@ -231,5 +231,43 @@ class DirectLaunchStepsTests(unittest.TestCase):
                 self.assertEqual(environment.get(name), value)
 
 
+class EnabledSelectionTests(DirectLaunchStepsTests):
+    """An enabled build must reach the service, not merely stop refusing.
+
+    `cancelled` is the stage only a minted device code reaches before the
+    run budget cancels it; the same probe under local denial lands on
+    `failed`. Accepting any stage but `unavailable` let an offline station
+    pass without proving the reach (BPR-0537, from BPR-0285's review).
+    """
+
+    ENABLED = (
+        "DEVICE_FLOW_HOST_COMPOSED:true\nDEVICE_FLOW_PRESENTED:true\n"
+        "DEVICE_FLOW_STAGE:{stage}\nDEVICE_FLOW_REQUESTS:{requests}\n"
+    )
+
+    def test_a_cancelled_stage_with_the_refusing_transport_untouched_passes(self) -> None:
+        self.capture(self.ENABLED.format(stage="cancelled", requests=0))
+        markers = course.check_device_selection(pathlib.Path("shipped"), "enabled")
+        self.assertEqual(markers["DEVICE_FLOW_STAGE"], "cancelled")
+
+    def test_a_failed_stage_is_not_an_enabled_pass(self) -> None:
+        self.capture(self.ENABLED.format(stage="failed", requests=0))
+        with self.assertRaises(course.CourseFailure) as refused:
+            course.check_device_selection(pathlib.Path("shipped"), "enabled")
+        self.assertEqual(str(refused.exception), "device-selection-not-reached:failed")
+
+    def test_an_unavailable_stage_is_not_an_enabled_pass(self) -> None:
+        self.capture(self.ENABLED.format(stage="unavailable", requests=0))
+        with self.assertRaises(course.CourseFailure) as refused:
+            course.check_device_selection(pathlib.Path("shipped"), "enabled")
+        self.assertEqual(str(refused.exception), "device-selection-not-reached:unavailable")
+
+    def test_the_refusing_transport_stays_a_negative_control_when_enabled(self) -> None:
+        self.capture(self.ENABLED.format(stage="cancelled", requests=1))
+        with self.assertRaises(course.CourseFailure) as refused:
+            course.check_device_selection(pathlib.Path("shipped"), "enabled")
+        self.assertEqual(str(refused.exception), "device-requests-not-zero:1")
+
+
 if __name__ == "__main__":
     unittest.main()

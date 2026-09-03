@@ -1,3 +1,4 @@
+#include "bpr/application/agent_comment_workshop_host.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 
 #include <QAction>
@@ -256,6 +257,12 @@ namespace {
 			editor->exclude_action(),
 			editor->accept_revision_action(),
 			editor->reject_revision_action(),
+			editor->clarify_action(),
+			editor->shorten_action(),
+			editor->make_actionable_action(),
+			editor->phrase_as_a_question_action(),
+			editor->make_more_direct_action(),
+			editor->check_the_premise_action(),
 		};
 
 		for (auto first = std::size_t{ 0U }; first < actions.size(); ++first) {
@@ -513,6 +520,262 @@ namespace {
 		delete editor;
 	}
 
+	/// \brief The one shipped path, unfaked at both ends.
+	///
+	/// \details The editor's control emits a request; the composed
+	/// `application::agent_comment_workshop_host` turns it into a proposal;
+	/// the editor shows it. Nothing here stands in for the host - a stub that
+	/// answered the request itself would prove the button works and leave the
+	/// path it is supposed to drive untested.
+	struct workshop_path
+	{
+		struct recording_projection final
+			: application::agent_comment_workshop_projection_port
+		{
+			qt::review_draft_editor* Editor   = nullptr;
+			std::size_t              Refusals = 0U;
+
+			void present(
+				const application::agent_comment_workshop_proposal& aProposal)
+				override
+			{
+				Editor->present(qt::comment_workshop_proposal{
+					.Draft     = aProposal.Draft,
+					.Original  = aProposal.Original,
+					.Proposed  = aProposal.Proposed,
+					.Operation = aProposal.Operation,
+				});
+			}
+
+			void refuse(application::agent_comment_workshop_refusal) override
+			{
+				++Refusals;
+			}
+		};
+
+		recording_projection                      Projection;
+		application::agent_comment_workshop_host  Host{ Projection };
+		std::vector<qt::comment_workshop_request> Requests;
+	};
+
+	/// The revision the agent would have sent back, made distinct per
+	/// operation so a proposal shown under the wrong one is visible.
+	[[nodiscard]] auto revision_for(const core::workshop_operation aOperation)
+		-> std::string
+	{
+		return "Revised by " + std::string{ core::stable_name(aOperation) };
+	}
+
+	/// \brief Each of the six drives one proposal through the one path.
+	void test_each_operation_drives_one_proposal_through_the_one_path()
+	{
+		auto  log              = intent_log{ };
+		auto* editor           = editor_for(log);
+		auto  path             = workshop_path{ };
+		path.Projection.Editor = editor;
+		editor->set_workshop_dispatch(
+			[&path, editor](qt::comment_workshop_request aRequest) {
+				path.Requests.push_back(aRequest);
+				static_cast<void>(path.Host.propose(
+					*editor->shown_draft(),
+					core::review_draft_command{
+						.Id   = aRequest.Draft,
+						.Kind = core::review_draft_command_kind::edit,
+						.Body = revision_for(aRequest.Operation),
+					},
+					aRequest.Operation));
+			});
+		editor->present(a_draft(original_body));
+
+		const auto controls = std::array{
+			editor->clarify_action(),
+			editor->shorten_action(),
+			editor->make_actionable_action(),
+			editor->phrase_as_a_question_action(),
+			editor->make_more_direct_action(),
+			editor->check_the_premise_action(),
+		};
+		static_assert(controls.size() == core::workshop_operation_count);
+
+		for (auto index = std::size_t{ 0U }; index < controls.size(); ++index) {
+			const auto asked = static_cast<core::workshop_operation>(index);
+			expect(
+				controls[index] == editor->workshop_action(asked)
+					&& controls[index]->isEnabled(),
+				"the control for each declared operation is the one indexed by "
+				"it, and it is offered while there is a draft to revise");
+
+			controls[index]->trigger();
+
+			expect(
+				path.Requests.size() == index + 1U
+					&& path.Requests.back().Operation == asked
+					&& path.Requests.back().Draft == editor->shown_draft()->Id,
+				"pressing it asks for exactly that operation, on the draft the "
+				"editor is showing");
+			expect(
+				editor->shown_proposal().has_value()
+					&& editor->shown_proposal()->Operation
+						== std::optional{ asked }
+					&& editor->workshop_proposal_text().toStdString()
+						== revision_for(asked)
+					&& editor->workshop_original_text().toStdString()
+						== original_body,
+				"and one proposal comes back through the host, naming the "
+				"operation, with the reviewer's own text still beside it");
+			expect(
+				editor->workshop_operation_text().contains(
+					controls[index]->text()),
+				"the surface says which operation produced what is shown");
+			expect(
+				editor->statistics().WorkshopRequests == index + 1U
+					&& editor->statistics().WorkshopPresentations == index + 1U,
+				"one request, one presentation, per press");
+		}
+
+		expect(
+			path.Projection.Refusals == 0U
+				&& path.Host.statistics().Proposals
+					== core::workshop_operation_count,
+			"six presses reached the one host six times");
+		expect(
+			log.Drafts.empty()
+				&& editor->body_editor()->toPlainText().toStdString()
+					== original_body,
+			"and none of the six wrote a comment, published one, or touched "
+			"the reviewer's own text - accepting is still the only gesture "
+			"that emits an edit");
+
+		delete editor;
+	}
+
+	/// \brief One press, one turn: the six close until that turn answers.
+	///
+	/// \details BPR-0533 part two. A press now starts an agent turn, and an
+	/// agent turn takes time. What the reviewer must not be able to do in that
+	/// window is ask again and be answered later, or twice: the controls shut,
+	/// say why on themselves, and reopen when the answer arrives. Refused on
+	/// the surface that asked, because the launch panel deliberately keeps a
+	/// running invocation's own status while it runs.
+	void test_a_press_closes_the_six_until_that_press_is_answered()
+	{
+		auto  log    = intent_log{ };
+		auto* editor = editor_for(log);
+		auto  asked  = std::vector<qt::comment_workshop_request>{ };
+		// A dispatch that starts a turn and does not answer inside it, which is
+		// what a real invocation does.
+		editor->set_workshop_dispatch(
+			[&asked](qt::comment_workshop_request aRequest) {
+				asked.push_back(aRequest);
+			});
+		editor->present(a_draft(original_body));
+
+		editor->shorten_action()->trigger();
+		expect(
+			asked.size() == 1U
+				&& asked.front().Operation == core::workshop_operation::shorten
+				&& editor->statistics().WorkshopRequests == 1U,
+			"the press asks once, for the operation pressed");
+		expect(
+			editor->workshop_operation_text().contains(
+				editor->shorten_action()->text()),
+			"and the surface says what was asked while it waits");
+
+		for (auto index = std::size_t{ 0U };
+			 index < core::workshop_operation_count;
+			 ++index) {
+			auto* const control = editor->workshop_action(
+				static_cast<core::workshop_operation>(index));
+			expect(
+				control->isVisible() && !control->isEnabled()
+					&& control->toolTip().contains(QStringLiteral("already running")),
+				"every operation is shut while that turn is unanswered, and each "
+				"one says why on itself rather than somewhere else");
+			control->trigger();
+		}
+		expect(
+			asked.size() == 1U && editor->statistics().WorkshopRequests == 1U,
+			"and nothing pressed in that window is asked, then or later - a "
+			"second question is refused, never queued");
+
+		// The answer to that turn, through the one path.
+		editor->present(qt::comment_workshop_proposal{
+			.Draft     = editor->shown_draft()->Id,
+			.Original  = original_body,
+			.Proposed  = revision_for(core::workshop_operation::shorten),
+			.Operation = core::workshop_operation::shorten,
+		});
+		expect(
+			editor->clarify_action()->isEnabled()
+				&& editor->shorten_action()->isEnabled()
+				&& editor->workshop_operation_text().contains(
+					editor->shorten_action()->text()),
+			"the answer reopens the offer and names which operation produced it");
+
+		editor->shorten_action()->trigger();
+		expect(
+			asked.size() == 2U,
+			"and the next question may be asked");
+
+		// Rejecting an outstanding proposal is the other way out, and it must
+		// leave the controls open rather than shut on a turn nobody is running.
+		editor->reject_revision_action()->trigger();
+		expect(
+			editor->clarify_action()->isEnabled(),
+			"clearing the workshop reopens it too");
+
+		delete editor;
+	}
+
+	/// \brief Without a draft the six refuse in the open.
+	void test_the_six_operations_refuse_visibly_without_a_draft()
+	{
+		auto  log    = intent_log{ };
+		auto* editor = editor_for(log);
+		auto  asked  = std::vector<qt::comment_workshop_request>{ };
+		editor->set_workshop_dispatch(
+			[&asked](qt::comment_workshop_request aRequest) {
+				asked.push_back(aRequest);
+			});
+
+		for (auto index = std::size_t{ 0U };
+			 index < core::workshop_operation_count;
+			 ++index) {
+			auto* const control = editor->workshop_action(
+				static_cast<core::workshop_operation>(index));
+			expect(
+				control != nullptr && control->isVisible()
+					&& !control->isEnabled() && !control->toolTip().isEmpty(),
+				"with no draft selected every operation is shown, disabled, "
+				"and says why - a control that vanished would read as a "
+				"workshop that does not exist");
+			control->trigger();
+		}
+		expect(
+			asked.empty() && editor->statistics().WorkshopRequests == 0U
+				&& editor->workshop_operation_text().isEmpty(),
+			"and pressing them asks nobody anything");
+
+		// A published comment is not the reviewer's to revise either, and the
+		// refusal is the same one, said the same way.
+		auto published  = a_draft(original_body);
+		published.State = core::review_draft_state::published;
+		editor->present(published);
+		expect(
+			!editor->clarify_action()->isEnabled()
+				&& !editor->check_the_premise_action()->isEnabled(),
+			"a draft that is no longer the reviewer's to edit is not one the "
+			"workshop offers to revise");
+
+		editor->present(a_draft(original_body));
+		expect(
+			editor->clarify_action()->isEnabled()
+				&& !editor->clarify_action()->toolTip().isEmpty(),
+			"and the offer returns with the draft, still saying what it is");
+
+		delete editor;
+	}
+
 	/// \brief What the editor would be if it held exactly its declared members.
 	struct member_set_probe : QWidget
 	{
@@ -536,13 +799,16 @@ namespace {
 	{
 		const auto members       = qt::review_draft_editor_members{ };
 		const auto& [applying,
+					 workshopAsked,
 					 draftDispatch,
 					 receiptDispatch,
+					 workshopDispatch,
 					 body,
 					 targetLabel,
 					 mutationStatus,
 					 workshopOriginal,
 					 workshopProposal,
+					 workshopOperation,
 					 publish,
 					 discard,
 					 markRead,
@@ -550,12 +816,14 @@ namespace {
 					 exclude,
 					 acceptRevision,
 					 rejectRevision,
+					 workshopOperations,
 					 shownDraft,
 					 shownReceipt,
 					 shownProposal,
 					 statistics] = members;
 
 		static_assert(std::is_same_v<decltype(applying), const bool>);
+		static_assert(std::is_same_v<decltype(workshopAsked), const bool>);
 		static_assert(
 			std::is_same_v<
 				decltype(draftDispatch),
@@ -564,6 +832,10 @@ namespace {
 			std::is_same_v<
 				decltype(receiptDispatch),
 				const qt::file_receipt_dispatch>);
+		static_assert(
+			std::is_same_v<
+				decltype(workshopDispatch),
+				const qt::comment_workshop_dispatch>);
 		static_assert(std::is_same_v<decltype(body), QPlainTextEdit* const>);
 		static_assert(std::is_same_v<decltype(targetLabel), QLabel* const>);
 		static_assert(std::is_same_v<decltype(mutationStatus), QLabel* const>);
@@ -571,6 +843,8 @@ namespace {
 			std::is_same_v<decltype(workshopOriginal), QPlainTextEdit* const>);
 		static_assert(
 			std::is_same_v<decltype(workshopProposal), QPlainTextEdit* const>);
+		static_assert(
+			std::is_same_v<decltype(workshopOperation), QLabel* const>);
 		static_assert(std::is_same_v<decltype(publish), QAction* const>);
 		static_assert(std::is_same_v<decltype(discard), QAction* const>);
 		static_assert(std::is_same_v<decltype(markRead), QAction* const>);
@@ -578,6 +852,13 @@ namespace {
 		static_assert(std::is_same_v<decltype(exclude), QAction* const>);
 		static_assert(std::is_same_v<decltype(acceptRevision), QAction* const>);
 		static_assert(std::is_same_v<decltype(rejectRevision), QAction* const>);
+		// One control per declared operation and no more: the array's own type
+		// says there are six, so a seventh operation offered from somewhere
+		// else fails here rather than appearing beside them.
+		static_assert(std::is_same_v<
+					  decltype(workshopOperations),
+					  const std::array<QAction*, core::workshop_operation_count>>);
+		static_assert(core::workshop_operation_count == 6U);
 		static_assert(
 			std::is_same_v<
 				decltype(shownDraft),
@@ -603,13 +884,17 @@ namespace {
 				&& discard == nullptr && markRead == nullptr
 				&& accept == nullptr && exclude == nullptr
 				&& acceptRevision == nullptr && rejectRevision == nullptr
+				&& !workshopDispatch && workshopOperation == nullptr
+				&& std::ranges::all_of(
+					workshopOperations,
+					[](const QAction* aControl) { return aControl == nullptr; })
 				&& !shownDraft.has_value() && !shownReceipt.has_value()
 				&& !shownProposal.has_value()
 				&& statistics == qt::review_draft_editor_statistics{ },
-			"the editor's complete member set is two dispatch callbacks, the "
-			"accepted projections, six counters, and the widgets that show "
-			"them - there is no provider to hold, nowhere to send anything, "
-			"and nothing to write to");
+			"the editor's complete member set is three dispatch callbacks, the "
+			"accepted projections, seven counters, and the widgets that show "
+			"them - there is no provider to hold, no agent to ask, nowhere to "
+			"send anything, and nothing to write to");
 	}
 
 	void test_typed_clear_removes_stale_selection_bound_state()
@@ -665,6 +950,9 @@ auto main(int argc, char** argv) -> int
 	test_rejecting_a_revision_leaves_the_original_byte_identical();
 	test_a_revision_is_accepted_only_onto_the_draft_it_names();
 	test_a_typed_clear_takes_the_proposal_with_it();
+	test_each_operation_drives_one_proposal_through_the_one_path();
+	test_a_press_closes_the_six_until_that_press_is_answered();
+	test_the_six_operations_refuse_visibly_without_a_draft();
 	test_the_editor_holds_no_provider_endpoint_store_or_process();
 
 	std::cout << "review-draft-editor-tests:pass\n";

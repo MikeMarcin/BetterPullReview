@@ -19,6 +19,8 @@ namespace bpr::qt {
 	namespace {
 		using application::device_authorization_handoff;
 		using application::device_authorization_presentation;
+		using application::device_authorization_refresh_observation;
+		using application::device_authorization_refresh_state;
 
 		// Whether the core says this command may be issued right now. The panel
 		// asks; it does not work the answer out from the stage, because the
@@ -96,6 +98,25 @@ namespace bpr::qt {
 			return { };
 		}
 
+		// Three of the four states say nothing. Renewal is a promise the
+		// application keeps on its own, and a panel that narrated it would be
+		// asking the reviewer to supervise a token they are never shown.
+		[[nodiscard]] auto renewal_text(
+			const device_authorization_refresh_state aState) -> QString
+		{
+			switch (aState) {
+			case device_authorization_refresh_state::idle:
+			case device_authorization_refresh_state::scheduled:
+			case device_authorization_refresh_state::refreshing:
+				return { };
+			case device_authorization_refresh_state::reenrollment_required:
+				return QObject::tr(
+					"This sign-in can no longer renew itself. Get a code to "
+					"sign in again.");
+			}
+			return { };
+		}
+
 		[[nodiscard]] auto validity_text(const std::uint32_t aSeconds) -> QString
 		{
 			if (aSeconds == 0U) {
@@ -164,6 +185,12 @@ namespace bpr::qt {
 		HandoffLabel->setAccessibleName(tr("Browser handoff"));
 		HandoffLabel->setWordWrap(true);
 
+		RenewalLabel = new QLabel{ };
+		RenewalLabel->setObjectName(
+			QStringLiteral("bpr-device-authorization-renewal"));
+		RenewalLabel->setAccessibleName(tr("Sign-in renewal"));
+		RenewalLabel->setWordWrap(true);
+
 		BeginButton  = new QPushButton{ tr("Get a code") };
 		CopyButton   = new QPushButton{ tr("Copy code") };
 		OpenButton   = new QPushButton{ tr("Open browser") };
@@ -208,6 +235,7 @@ namespace bpr::qt {
 		layout->addLayout(fields);
 		layout->addWidget(ValidityLabel);
 		layout->addWidget(HandoffLabel);
+		layout->addWidget(RenewalLabel);
 		layout->addLayout(actions);
 
 		// Reading order and tab order agree: code, address, then the actions
@@ -275,6 +303,32 @@ namespace bpr::qt {
 
 		apply_commands();
 		announce(compose_status());
+	}
+
+	void device_authorization_panel::apply_refresh(
+		const device_authorization_refresh_observation& aObservation)
+	{
+		++Statistics.Applications;
+		if (aObservation == Refresh) {
+			return;
+		}
+
+		const auto previous = std::exchange(Refresh, aObservation);
+		if (
+			previous.State == Refresh.State
+			&& previous.Failure == Refresh.Failure) {
+			// A rotation moved the count and nothing else. Renewal working is
+			// not news, and repainting for it would be the panel telling the
+			// reviewer about a token they never see.
+			return;
+		}
+
+		++Statistics.Rebuilds;
+		RenewalLabel->setText(renewal_text(Refresh.State));
+		if (Refresh.State
+			== device_authorization_refresh_state::reenrollment_required) {
+			announce(renewal_text(Refresh.State));
+		}
 	}
 
 	void device_authorization_panel::apply_commands()
@@ -381,6 +435,11 @@ namespace bpr::qt {
 	auto device_authorization_panel::validity_label() const noexcept -> QLabel*
 	{
 		return ValidityLabel;
+	}
+
+	auto device_authorization_panel::renewal_label() const noexcept -> QLabel*
+	{
+		return RenewalLabel;
 	}
 
 	auto device_authorization_panel::handoff_label() const noexcept -> QLabel*

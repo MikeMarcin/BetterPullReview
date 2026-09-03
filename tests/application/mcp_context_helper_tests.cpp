@@ -183,6 +183,9 @@ namespace {
 		command          = "\"" + command + "\"";
 		auto* const pipe = ::_popen(command.c_str(), "r");
 #else
+		// The test's whole job is to drive the shipped helper through a pipe;
+		// the command is the quoted path it computed above, never input.
+		// NOLINTNEXTLINE(bugprone-command-processor)
 		auto* const pipe = ::popen(command.c_str(), "r");
 #endif
 		expect(pipe != nullptr, "the shipped MCP helper starts");
@@ -646,7 +649,7 @@ namespace {
 				   && (trimmed.front() == '\t' || trimmed.front() == ' ')) {
 				trimmed.remove_prefix(1U);
 			}
-			if (trimmed.starts_with("///") || !trimmed.ends_with(",")) {
+			if (trimmed.starts_with("///") || !trimmed.ends_with(',')) {
 				continue;
 			}
 			names.emplace_back(trimmed.substr(0U, trimmed.size() - 1U));

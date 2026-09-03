@@ -1006,7 +1006,8 @@ namespace bpr::application {
 					return std::nullopt;
 				}
 				bytes[index / 2U] = static_cast<std::uint8_t>(
-					(*high << 4U) | *low);
+					(static_cast<unsigned>(*high) << 4U)
+					| static_cast<unsigned>(*low));
 			}
 			return bytes;
 		}
@@ -1390,6 +1391,19 @@ namespace bpr::application {
 			|| aObservation.ChatMessage.size() > core::maximum_chat_message_bytes) {
 			return std::unexpected(agent_context_failure::invalid_observation);
 		}
+		// BPR-0533. The entry point decides whether an operation may be
+		// carried, and `workshop_operation_for` is the single place that
+		// decision is written. An observation that names an operation the
+		// entry point does not admit — an undeclared one, or one riding on a
+		// review or a chat turn — is refused whole rather than built with the
+		// field cleared: a supplement that silently dropped the operation
+		// would ask the agent to revise a comment without saying how.
+		const auto admittedOperation = core::workshop_operation_for(
+			aObservation.EntryPoint, aObservation.WorkshopOperation);
+		if (aObservation.WorkshopOperation.has_value()
+			&& !admittedOperation.has_value()) {
+			return std::unexpected(agent_context_failure::invalid_observation);
+		}
 		auto request = core::agent_supplement_request{
 			.ApplicationSession = aObservation.ApplicationSession,
 			.Session            = aSession,
@@ -1397,6 +1411,7 @@ namespace bpr::application {
 			.PreviousUpload     = aObservation.PreviousUpload,
 			.LastReviewedHead   = aObservation.Private.LastReviewedHead,
 			.Selection          = aObservation.Selection,
+			.Operation          = admittedOperation,
 		};
 		if (!aObservation.ChatMessage.empty()) {
 			// Bound here, to the session this build is for, because that is
@@ -1558,6 +1573,19 @@ namespace bpr::application {
 		// is the supplement's whole wire form: a question placed in the framing
 		// as well would reach the agent twice and it would have been asked once.
 		append_field(result, "chat_message", aSupplement.Message);
+		// BPR-0533: the one position the asked-for comment-workshop operation
+		// occupies. Written unconditionally and empty when the launch is not a
+		// workshop request, for the reason the message above is: a reader must
+		// not have to decide whether a missing line means "no operation" or
+		// "an operation this build dropped". The stable name is written rather
+		// than the enumerator's number, so a reordering of the closed set
+		// cannot silently rename what was asked for.
+		append_field(
+			result,
+			"workshop_operation",
+			aSupplement.Operation
+				? std::string{ core::stable_name(*aSupplement.Operation) }
+				: std::string{ });
 		append_field(
 			result,
 			"base",
