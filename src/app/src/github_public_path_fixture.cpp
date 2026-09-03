@@ -1993,10 +1993,16 @@ namespace bpr::app::detail {
 			Recording->RepeatSessions = aOptions.DeviceRefreshCourse;
 			Factory                   = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState                = std::make_shared<fixture_vault_state>();
-			Vault                     = std::make_unique<fixture_credential_vault>(
+			// Every shipped platform vault has a real second slot since
+			// [[BPR-0542]] and [[BPR-0543]], so the fixture's has one on every
+			// course too: a shutdown that erases the refresh slot beside the
+			// credential ([[BPR-0540]]) must meet a store that answers, not a
+			// stub whose `unavailable` the host now rightly reports as a failed
+			// erasure.
+			Vault = std::make_unique<fixture_credential_vault>(
 				aVaultEffects,
 				VaultState,
-				aOptions.DeviceRefreshCourse,
+				true,
 				aOptions.RegisteredDeviceCourse);
 			if (aOptions.SeedOrphanedRefreshMaterial) {
 				// The shape a grant leaves behind: the documented refresh
