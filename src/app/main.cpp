@@ -3402,7 +3402,7 @@ namespace {
 				// factories, no credentialed transport was even asked for, and
 				// neither a header nor the vault was involved. The read claim
 				// is added only when a read was asked for.
-				auto passed = status.PublicPreviewComposed
+				auto livePassed = status.PublicPreviewComposed
 					&& aRun.PublicPreview.ProductionFactories
 					&& !status.PublicPreviewUnavailable
 					&& !status.PublicPreviewPolicyRefused
@@ -3417,21 +3417,21 @@ namespace {
 					// The wiring claim on its own: the mode was entered over
 					// the production authority and the run stopped there, with
 					// nothing on the wire and no snapshot accepted.
-					passed = passed && signedOut
+					livePassed = livePassed && signedOut
 						&& status.PublicPreviewRequests == 0U
 						&& aRun.PublicPreview.WireRequests == 0U
 						&& !aRun.PublicPreview.SnapshotSignedOut
 						&& aRun.PublicPreview.HeadOid.empty();
 				} else {
-					passed = passed && signedOut
+					livePassed = livePassed && signedOut
 						&& status.PublicPreviewRequests >= 1U
 						&& aRun.PublicPreview.WireRequests >= 1U
 						&& aRun.PublicPreview.SnapshotSignedOut
 						&& aRun.PublicPreview.BudgetObserved
 						&& !aRun.PublicPreview.HeadOid.empty();
 				}
-				stream << (passed ? "PUBLIC_PREVIEW_LIVE_CANDIDATE_OK\n"
-								  : "PUBLIC_PREVIEW_LIVE_CANDIDATE_FAILED\n");
+				stream << (livePassed ? "PUBLIC_PREVIEW_LIVE_CANDIDATE_OK\n"
+									  : "PUBLIC_PREVIEW_LIVE_CANDIDATE_FAILED\n");
 			} else
 #endif
 				if (aRun.PublicPreview.Course) {

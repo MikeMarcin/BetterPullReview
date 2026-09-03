@@ -152,7 +152,6 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_finding_finding_host_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_full_agent_contract": "dos-volume-name",
     "application_agent_finding_mcp_construction_cut_contract": "dos-volume-name",
-    "application_agent_finding_protocol": "dos-volume-name",
     "application_agent_finding_queue_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_workshop_construction_cut_contract": "dos-volume-name",
     "application_agent_invocation_staleness_contract": "dos-volume-name",

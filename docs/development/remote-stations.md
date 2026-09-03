@@ -232,6 +232,15 @@ Recorded under BPR-0493 from the first complete `--fresh` runs of BPR-0311's
 ledger command on the JaegAW host (2026-09-02), so the next Windows station
 learns these from the document rather than from a failed run each.
 
+The RFC-BPR-0017 course adds one requirement to the same procedure: the
+verified-KSyntaxHighlighting nested configure wants `perl`, and the only
+`perl` on the JaegAW host is Git for Windows'. Append Git's `usr/bin` to
+`PATH` — never prepend it — because that directory also ships a `link.exe`,
+and the symbol reader behind the surface checks shells `link /MAP` and must
+find MSVC's first. `bpr-win` found this on 2026-09-02 when the first
+RFC-0017 course died at `configure-failed:windows-dev:missing:
+PERL_EXECUTABLE`; the [[BPR-0036]] PATH addendum is what fixes it.
+
 1. **Smart App Control is off.** That is the supported state, per the section
    above; the course does not detect an enforcing host, it fails at configure
    the way that section describes. A run on an enforcing host is unsupported,
