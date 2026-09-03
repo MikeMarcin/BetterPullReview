@@ -1,7 +1,7 @@
 ---
 id: BPR-0515
 title: Enabling Windows made the uncontained device-authorization gate reach GitHub on every dev-tree run
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: [BPR-0311]
 ---
@@ -271,3 +271,101 @@ present, as it was before, and is not this card's concern.
 **Remaining for this card:** the C4456 break has to clear; then the two rows
 rerun and the measurement lands. Nothing else about the override looks
 wrong from here.
+
+## Measured again under `--network-denied` — 2026-09-03, at `06ac3f0c`
+
+`main` at `f7399241` merged as `06ac3f0c`, which carries the C4456 fix that
+blocked the previous attempt. `build/windows-dev` deleted whole, configured
+and built there (both exit 0), and the image confirmed to carry the flag
+before anything ran:
+
+```text
+C:/code/git/bpr-windows/build/windows-dev/src/app/Debug/better_pull_review.exe
+built 2026-09-03 01:21:33, contains "--network-denied"
+```
+
+### The selectors
+
+```text
+ctest --preset windows-dev -C Debug -R '^(application_device_authorization_(unavailable
+  |release_contract|public_path)|rfc0016_test_inventory|rfc0017_test_inventory)$'
+  --output-on-failure          -> 100% passed, 5 of 5, 11.43 s
+```
+
+| Selector | Result | Time |
+|---|---|---|
+| `rfc0017_test_inventory` | Passed | 0.18 s |
+| `rfc0016_test_inventory` | Passed | 0.19 s |
+| `application_device_authorization_public_path` | Passed | 1.20 s |
+| `application_device_authorization_unavailable` | **Passed** | 4.91 s |
+| `application_device_authorization_release_contract` | **Passed** | 4.91 s |
+
+Both device rows now satisfy `DEVICE_FLOW_STAGE:failed`, the value macOS and
+Linux already produced. The gate is no longer platform-dependent.
+
+### What leaves the host now: nothing
+
+Same method as the 2026-09-02 reading, unelevated — the process's TCP table
+sampled every 20 ms for its whole lifetime via `GetExtendedTcpTable` over
+both IPv4 and IPv6, and the DNS client cache diffed around each run — against
+one run of each row.
+
+| | `_unavailable` | `_release_contract` |
+|---|---|---|
+| Outbound connections | **0** | **0** |
+| TCP rows owned by the process | 2, both `127.0.0.1:1` | 2, both `127.0.0.1:1` |
+| Connection state reached | `SYN_SENT` (3) only | `SYN_SENT` (3) only |
+| `github.com` resolved | **no** | **no** |
+| DNS entries added during the run | 3, all `update.code.visualstudio.com` | 0 |
+| `DEVICE_FLOW_STAGE` | `failed` | `failed` |
+| `DEVICE_FLOW_REQUESTS` | `0` | `0` |
+| `DEVICE_FLOW_REGISTERED_SELECTION_OK` | present | present |
+| Wall time | 4,933 ms | 4,886 ms |
+| TCP samples taken | 148 | 146 |
+
+Every connection the process opened went to the closed loopback port the
+override installs, and none of them left `SYN_SENT` — which is what a refused
+connect to `127.0.0.1:1` looks like from the table. Set against the same
+measurement on 2026-09-02, which found exactly one connection to
+`github.com:443` and a DNS cache that gained `github.com`, the override does
+the whole of what this card asked for.
+
+Two honest notes on the method. The DNS client cache is machine-wide, so the
+three `update.code.visualstudio.com` entries in the first run were another
+process's; what matters is that no `github.com` entry appeared during either.
+And sampling at 20 ms bounds how briefly a connection can exist and still be
+seen — it cannot prove that nothing shorter than one sample happened, only
+that across 294 samples nothing but the loopback attempts ever appeared.
+
+The 4.9 s wall time against 1.2 s for the undenied run is the same "something
+waits before giving up" this card recorded in the 2026-09-02 egress-denied
+reading, now the ordinary cost of the row rather than an anomaly.
+
+### The flag is not in the shipped build
+
+Unchanged from the 2026-09-03 scan recorded above, quoted here as this card's
+evidence rather than rebuilt: `windows-app-release` at the previous merged
+head, `7,757,312` bytes, sha256
+`858ecce34dc322237dc5fa8243b5d1e9ac13aad5c4c7c7bf16a73da64140dbc9`, contains
+no `--network-denied` in any form while still carrying
+`--device-authorization-probe`. The absence is structural — the flag is read
+at `src/app/main.cpp:6400` inside `#if defined(BPR_BUILD_TESTING)`, the
+transport it selects is guarded the same way, and
+`verify_rfc0017_test_inventory.py` lists `--network-denied` in
+`FORBIDDEN_STRINGS` so the release scan fails closed if that changes.
+
+### Closing
+
+The card's required final state took the first of its three options: the test
+gained a Windows containment path — a denial at the socket rather than in the
+token, which is the one thing [[BPR-0362]]'s AppContainer could never have
+given it — and the expectation is now deterministic and identical on all
+three platforms. An offline Windows host lands `failed` and passes, because
+the run no longer depends on reaching GitHub at all.
+
+| Claim | Result |
+|---|---|
+| The dev-tree gate no longer reaches GitHub | zero outbound connections and no `github.com` resolution across both rows |
+| The gate is offline-deterministic | `DEVICE_FLOW_STAGE:failed` on Windows, matching macOS and Linux |
+| The registered selectors pass target-native | 5 of 5, from a dev tree built at the merged head from a deleted root |
+| The override is absent from the shipped build | no `--network-denied` string in the tests-disabled artifact; forbidden by the RFC-0017 inventory |

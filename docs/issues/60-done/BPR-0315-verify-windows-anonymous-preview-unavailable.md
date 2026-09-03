@@ -1,7 +1,7 @@
 ---
 id: BPR-0315
 title: Verify anonymous preview remains unavailable on Windows x64
-status: Ready
+status: Done
 rfc: RFC-BPR-0017
 depends_on: [BPR-0036, BPR-0311, BPR-0306]
 ---
@@ -306,3 +306,53 @@ head and is not evidence either way.
 pin, and the C4456 break that has to clear before any binary-reading row can
 be rerun. The 2026-09-02 platform course stands unaffected — it built its
 own trees from a deleted root before `969dc1a4` existed.
+
+### Both hygiene selectors green — 2026-09-03, at `06ac3f0c`
+
+`main` at `f7399241` merged as `06ac3f0c`: [[BPR-0530]] retires
+`application_agent_finding_protocol` from the pinned uncontained set, and
+[[BPR-0316]]'s inner `passed` is renamed `livePassed`, which clears the
+C4456 break that made the previous rerun's binary-reading rows meaningless.
+`build/windows-dev` was deleted whole and configured and built at this head
+(both exit 0) before anything ran, and the image was confirmed to carry
+`--network-denied` so that a stale binary could not be mistaken for a verdict
+a second time.
+
+```text
+ctest --preset windows-dev -C Debug -R '^(rfc0017_platform_course_launch_contract
+  |test_network_isolation_manifest|rfc0017_test_inventory
+  |rfc0017_test_inventory_contract
+  |application_anonymous_public_preview_(enabled_probe|live_candidate_wiring))$'
+  --output-on-failure          -> 100% passed, 6 of 6, 6.73 s
+```
+
+| Selector | Result | Time |
+|---|---|---|
+| `rfc0017_test_inventory` | Passed | 0.19 s |
+| `rfc0017_test_inventory_contract` | Passed | 0.35 s |
+| `rfc0017_platform_course_launch_contract` | **Passed** | 0.17 s |
+| `test_network_isolation_manifest` | **Passed** | 4.38 s |
+| `application_anonymous_public_preview_enabled_probe` | **Passed** | 0.80 s |
+| `application_anonymous_public_preview_live_candidate_wiring` | **Passed** | 0.80 s |
+
+Both selectors this station found red are green, and the two [[BPR-0316]]
+rows that had only ever run against a pre-merge binary pass against a real
+one. Nothing in this rerun reads a stale image.
+
+### Closing
+
+Every bullet of the required final state has target-native evidence, and none
+of it is an enablement claim — the Windows public-preview selection is
+unavailable and nothing was flipped:
+
+| Required final state | Evidence |
+|---|---|
+| A real Windows 10/11 x64 host builds the tests-disabled Release application and selects typed public-preview unavailability for GitHub.com and GHES | the 2026-09-02 course above: `RFC0017_PLATFORM_COURSE_OK`, `SELECTION:unavailable`, `PREVIEW_STAGE:unavailable`, and the shipped probe answering `unavailable` both plain and with `--ghes-host` |
+| Exact counters prove zero Credential Manager, header, REST/GraphQL, smart-HTTP, browser, mutation, child-process and private-content effects | `REQUESTS`, `HEADER_EFFECTS`, `VAULT_EFFECTS` and `SIGN_IN_REQUESTS` all `0` on both probe runs, with `PUBLIC_PREVIEW_UNAVAILABLE_OK` |
+| PE/runtime/dependency, Qt presentation, fixture-seam absence, documentation and hygiene gates pass target-native | inside the course; plus `COMPOSED_HOSTS_OK required=29 forbidden=7`, `RFC0017_TEST_INVENTORY_OK`, and the six selectors above including both hygiene gates |
+| It consumes BPR-0311's existing `windows-app-release` preset without competing with it or altering its test-seam policy | the course used that preset unchanged; no preset was added and none edited |
+| No enablement claim | none made |
+
+The 2026-09-02 platform course stands as recorded; it built its own trees
+from a deleted root and never depended on `build/windows-dev`. This card is
+done. [[BPR-0309]] reruns the same course at immutable final head.
