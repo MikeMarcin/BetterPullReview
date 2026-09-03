@@ -157,3 +157,42 @@ without a fresh authorization, and the flag first gains what a second
 attempt needs to be diagnostic: a single provider attempt so it costs at
 most nine requests, and a per-operation outcome marker naming the operation
 and its status or failure kind, with no bodies.
+
+## Part two landed — 2026-09-03
+
+Integrated at `df889980`; the pins recomputed on the merged tree. The
+live-candidate course is now diagnostic and bounded, so a second authorized
+read costs at most nine requests and names what fails.
+
+**One attempt on the wire.** The counting transport refuses every request
+after a composition's first `github_wire_error`: it answers `cancelled`
+without forwarding, counting, or recording, so the host's three-attempt
+retry still runs and costs nothing outside the process, and
+`PUBLIC_PREVIEW_WIRE_REQUESTS` means *reached the wire*. An in-process
+self-check drives the real counting transport over a stub that always
+answers `network` and asserts one forward, one record, and a second
+request answered `cancelled`; it prints `PUBLIC_PREVIEW_WIRE_SINGLE_ATTEMPT`
+on every live run and gates the verdict. The worker's mutation deleted the
+short-circuit: the wiring row failed on `SINGLE_ATTEMPT:false`; restored.
+
+**One line per forwarded request.** `PUBLIC_PREVIEW_WIRE_OPERATION:<operation>:<page>:<outcome>:<elapsed_ms>`,
+in order, before `WIRE_REQUESTS`; the outcome is `http_<status>`, or
+`error_<enumerator>` with `.retry_after=<n>` and `.rate=<limit>/<remaining>/<reset>`
+when present, or `cancelled` — no body, no URL, no other header.
+`PUBLIC_PREVIEW_LIVE_ELAPSED_MS` prints before the terminal marker, and the
+records are read from the transport at print time rather than from the
+tick snapshot, so an expired run still reports them: a dry run with a
+1 ms budget printed the whole block and then `_FAILED`. The first attempt's
+24 requests would have printed as 24 such lines.
+
+The merge conflicted with the C4456 rename in the same verdict block; the
+worker's one added conjunct was applied to the renamed variable, and a
+guard confirmed no reference to the outer variable remains inside the live
+block. `application_anonymous_public_preview_live_candidate_wiring` now
+asserts the new markers with zero requests.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The merged graph builds clean and the pins bind it | `cmake --build --preset dev`; the round-trip contract, one repin | exit 0; green | this commit |
+| Every public-preview row including the wiring row, both dev-tree device rows, the composed-host audit, the inventory and manifest gates, and both composition contracts | `ctest --preset dev -R '^(application_anonymous_public_preview_(live_candidate_wiring\|enabled_probe\|public_path\|unavailable\|release_contract\|ghes_refusal)\|application_device_authorization_(unavailable\|release_contract)\|test_network_isolation_manifest\|rfc0017_test_inventory\|rfc0017_test_inventory_contract\|composed_application_hosts\|application_review_round_trip_composition_contract\|application_composition_contract)$' --output-on-failure` | 14/14 passed | this commit |
+| Every touched C++ file is formatted | `clang-format --dry-run --Werror` on `main.cpp` after the conflict resolution; the worker's three files before it | exit 0, no output | this commit |

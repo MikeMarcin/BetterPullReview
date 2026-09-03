@@ -116,6 +116,7 @@
 #include <array>
 #include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <deque>
@@ -1251,6 +1252,143 @@ namespace bpr::app {
 			std::size_t                            Reads = 0U;
 		};
 
+		// [[BPR-0316]]. What the signed-out transport forwarded, in order,
+		// and what came back for each request. The count below answers "how
+		// much of the shared hourly budget did this read cost"; only this
+		// answers "which operation failed, how, and how long it waited",
+		// which is the question the first authorized read could not be asked.
+		// Shared and lock-guarded rather than atomic, because the transport is
+		// driven from a worker while the reporting thread copies the whole
+		// record.
+		class anonymous_wire_operation_log final
+		{
+		public:
+			void record(
+				std::string         aOperation,
+				const std::uint32_t aPage,
+				std::string         aOutcome,
+				const std::uint64_t aElapsedMilliseconds)
+			{
+				const std::scoped_lock lock{ Mutex };
+				Records.push_back(public_preview_wire_operation_record{
+					.Operation           = std::move(aOperation),
+					.Page                = aPage,
+					.Outcome             = std::move(aOutcome),
+					.ElapsedMilliseconds = aElapsedMilliseconds,
+				});
+			}
+
+			// Latched by the first request that came back a failure, and never
+			// cleared. The host retries a `network` or `timeout` provider
+			// failure up to `maximum_github_provider_attempts`, so a candidate
+			// read allowed to fail costs three times what it was authorized
+			// to; the transport answering the retry itself, without
+			// forwarding it, is the whole of the single-attempt mechanism.
+			void latch_failure()
+			{
+				const std::scoped_lock lock{ Mutex };
+				Failed = true;
+			}
+
+			[[nodiscard]] auto failed() const -> bool
+			{
+				const std::scoped_lock lock{ Mutex };
+				return Failed;
+			}
+
+			[[nodiscard]] auto records() const
+				-> std::vector<public_preview_wire_operation_record>
+			{
+				const std::scoped_lock lock{ Mutex };
+				return Records;
+			}
+
+		private:
+			mutable std::mutex                                Mutex;
+			std::vector<public_preview_wire_operation_record> Records;
+			bool                                              Failed = false;
+		};
+
+		// The enumerator's own name, so a failure is reported as the kind the
+		// provider contract calls it rather than as a number a reader has to
+		// look up.
+		[[nodiscard]] auto anonymous_wire_failure_name(
+			const application::github_provider_failure aFailure) noexcept
+			-> std::string_view
+		{
+			using failure = application::github_provider_failure;
+			switch (aFailure) {
+			case failure::authentication:
+				return "authentication";
+			case failure::permission:
+				return "permission";
+			case failure::network:
+				return "network";
+			case failure::api_version:
+				return "api_version";
+			case failure::unsupported_capability:
+				return "unsupported_capability";
+			case failure::rate_limit:
+				return "rate_limit";
+			case failure::certificate:
+				return "certificate";
+			case failure::redirect:
+				return "redirect";
+			case failure::timeout:
+				return "timeout";
+			case failure::process_startup:
+				return "process_startup";
+			case failure::cli_unavailable:
+				return "cli_unavailable";
+			case failure::vault:
+				return "vault";
+			case failure::malformed_response:
+				return "malformed_response";
+			case failure::response_limit:
+				return "response_limit";
+			case failure::unavailable:
+				return "unavailable";
+			}
+			return "unknown";
+		}
+
+		// The whole of what a completion is allowed to say on a card: a status
+		// line, or a failure kind with the two numbers a failed read is
+		// diagnosed from. No body, no URL, no header other than the
+		// rate-limit triple the failure itself named.
+		[[nodiscard]] auto anonymous_wire_outcome_text(
+			const adapters::github::detail::github_wire_completion& aCompletion)
+			-> std::string
+		{
+			if (const auto* const success = std::get_if<
+					adapters::github::detail::github_wire_success>(&aCompletion);
+				success != nullptr) {
+				return "http_" + std::to_string(success->Response.Status);
+			}
+			const auto* const failure
+				= std::get_if<adapters::github::detail::github_wire_error>(
+					&aCompletion);
+			if (failure == nullptr) {
+				return "cancelled";
+			}
+			auto text = std::string{ "error_" };
+			text += anonymous_wire_failure_name(failure->Error.Failure);
+			if (failure->Error.RetryAfterSeconds.has_value()) {
+				text += ".retry_after=";
+				text += std::to_string(*failure->Error.RetryAfterSeconds);
+			}
+			if (failure->Error.RateLimitCause.has_value()) {
+				text += ".rate=";
+				text += std::to_string(failure->Error.RateLimitCause->Limit);
+				text += '/';
+				text += std::to_string(failure->Error.RateLimitCause->Remaining);
+				text += '/';
+				text += std::to_string(
+					failure->Error.RateLimitCause->ResetUnixSeconds);
+			}
+			return text;
+		}
+
 		// [[BPR-0316]]. Counts what the anonymous transport itself put on the
 		// wire. The wrapper above counts pull-request reads offered to the
 		// authority; one such read is several REST operations, and the number
@@ -1264,12 +1402,14 @@ namespace bpr::app {
 			counting_anonymous_wire_transport(
 				std::shared_ptr<
 					adapters::github::detail::github_wire_transport_port>
-														  aInner,
-				std::shared_ptr<std::atomic<std::size_t>> aRequests,
-				std::shared_ptr<std::atomic<std::size_t>> aCapabilityProbes) noexcept
+															  aInner,
+				std::shared_ptr<std::atomic<std::size_t>>     aRequests,
+				std::shared_ptr<std::atomic<std::size_t>>     aCapabilityProbes,
+				std::shared_ptr<anonymous_wire_operation_log> aLog) noexcept
 				: Inner{ std::move(aInner) }
 				, Requests{ std::move(aRequests) }
 				, CapabilityProbes{ std::move(aCapabilityProbes) }
+				, Log{ std::move(aLog) }
 			{
 			}
 
@@ -1278,8 +1418,36 @@ namespace bpr::app {
 				std::stop_token                                      aStop)
 				-> adapters::github::detail::github_wire_completion override
 			{
+				// One attempt. Once a request for this read has come back a
+				// failure, every later one is answered here -- as the
+				// cancellation the host already knows how to end a read on --
+				// rather than forwarded, so the retry costs nothing outside
+				// the process. A refused request is neither counted nor
+				// recorded, because the count is what reached the wire.
+				if (Log->failed()) {
+					return adapters::github::detail::github_wire_cancelled{
+						.Correlation = aRequest.Correlation,
+					};
+				}
 				Requests->fetch_add(1U, std::memory_order_relaxed);
-				return Inner->perform(aRequest, std::move(aStop));
+				const auto started    = std::chrono::steady_clock::now();
+				auto       completion = Inner->perform(aRequest, aStop);
+				const auto elapsed    = std::chrono::duration_cast<
+					std::chrono::milliseconds>(
+					std::chrono::steady_clock::now() - started);
+				Log->record(
+					std::string{ adapters::github::detail::operation_name(
+						aRequest.Correlation.Operation) },
+					aRequest.Correlation.Page,
+					anonymous_wire_outcome_text(completion),
+					static_cast<std::uint64_t>(
+						elapsed.count() < 0 ? 0 : elapsed.count()));
+				if (std::holds_alternative<
+						adapters::github::detail::github_wire_error>(
+						completion)) {
+					Log->latch_failure();
+				}
+				return completion;
 			}
 
 			[[nodiscard]] auto perform_capability_probe(
@@ -1297,9 +1465,10 @@ namespace bpr::app {
 		private:
 			std::shared_ptr<
 				adapters::github::detail::github_wire_transport_port>
-													  Inner;
-			std::shared_ptr<std::atomic<std::size_t>> Requests;
-			std::shared_ptr<std::atomic<std::size_t>> CapabilityProbes;
+														  Inner;
+			std::shared_ptr<std::atomic<std::size_t>>     Requests;
+			std::shared_ptr<std::atomic<std::size_t>>     CapabilityProbes;
+			std::shared_ptr<anonymous_wire_operation_log> Log;
 		};
 
 		// [[BPR-0316]]'s live-candidate REST authority. Every transport it
@@ -1360,7 +1529,8 @@ namespace bpr::app {
 												github_wire_transport_port>{
 								std::move(*transport) },
 							Requests,
-							CapabilityProbes)
+							CapabilityProbes,
+							Log)
 					};
 				} catch (...) {
 					return std::unexpected{ refusal() };
@@ -1383,6 +1553,14 @@ namespace bpr::app {
 				return CredentialedRefusals->load(std::memory_order_relaxed);
 			}
 
+			// What each forwarded request was for and how it ended, in the
+			// order it was forwarded.
+			[[nodiscard]] auto operations() const
+				-> std::vector<public_preview_wire_operation_record>
+			{
+				return Log->records();
+			}
+
 		private:
 			[[nodiscard]] static auto refusal() noexcept
 				-> application::github_provider_error
@@ -1402,6 +1580,8 @@ namespace bpr::app {
 				= std::make_shared<std::atomic<std::size_t>>(0U);
 			std::shared_ptr<std::atomic<std::size_t>> CredentialedRefusals
 				= std::make_shared<std::atomic<std::size_t>>(0U);
+			std::shared_ptr<anonymous_wire_operation_log> Log
+				= std::make_shared<anonymous_wire_operation_log>();
 		};
 
 		// The credential-free Git smart authority. It takes no credential and
@@ -4314,6 +4494,18 @@ namespace bpr::app {
 				: ShippedAnonymousTransports->credentialed_refusals();
 #else
 			return 0U;
+#endif
+		}
+
+		[[nodiscard]] auto public_preview_wire_operations() const
+			-> std::vector<public_preview_wire_operation_record>
+		{
+#if defined(BPR_BUILD_TESTING)
+			return ShippedAnonymousTransports == nullptr
+				? std::vector<public_preview_wire_operation_record>{ }
+				: ShippedAnonymousTransports->operations();
+#else
+			return { };
 #endif
 		}
 
@@ -7964,6 +8156,108 @@ namespace bpr::app {
 	void github_application::attempt_public_preview_writes()
 	{
 		Implementation->attempt_public_preview_writes();
+	}
+
+	auto github_application::public_preview_wire_operations() const
+		-> std::vector<public_preview_wire_operation_record>
+	{
+		return Implementation->public_preview_wire_operations();
+	}
+
+	auto public_preview_single_attempt_self_check() noexcept -> bool
+	{
+#if defined(BPR_BUILD_TESTING)
+		// [[BPR-0316]]. The single-attempt claim, checked where it can be
+		// checked for nothing: over a stub that fails the way the live service
+		// failed the first authorized read, with no socket, no host name and
+		// no proxy anywhere in it. The claim has three parts and all three are
+		// asserted -- the first request reached the inner transport and was
+		// recorded, the second was answered without reaching it, and the count
+		// of what went to the wire did not move for the second.
+		class always_failing_wire_transport final
+			: public adapters::github::detail::github_wire_transport_port
+		{
+		public:
+			[[nodiscard]] auto perform(
+				const adapters::github::detail::github_wire_request& aRequest,
+				std::stop_token                                      aStop)
+				-> adapters::github::detail::github_wire_completion override
+			{
+				static_cast<void>(aStop);
+				++Forwarded;
+				return adapters::github::detail::github_wire_error{
+					.Correlation = aRequest.Correlation,
+					.Error       = application::github_provider_error{
+						.Failure
+						= application::github_provider_failure::network,
+						.RetryAfterSeconds = std::nullopt,
+						.RateLimits        = { },
+						.RateLimitCause    = std::nullopt,
+					},
+				};
+			}
+
+			[[nodiscard]] auto perform_capability_probe(
+				const adapters::github::detail::
+					github_capability_probe_wire_request& aRequest,
+				std::stop_token                           aStop)
+				-> adapters::github::detail::
+					github_capability_probe_wire_completion override
+			{
+				static_cast<void>(aStop);
+				return adapters::github::detail::
+					github_capability_probe_wire_cancelled{
+						.Correlation = aRequest.Correlation,
+					};
+			}
+
+			[[nodiscard]] auto forwarded() const noexcept -> std::size_t
+			{
+				return Forwarded;
+			}
+
+		private:
+			std::size_t Forwarded = 0U;
+		};
+
+		try {
+			auto inner    = std::make_shared<always_failing_wire_transport>();
+			auto requests = std::make_shared<std::atomic<std::size_t>>(0U);
+			auto probes   = std::make_shared<std::atomic<std::size_t>>(0U);
+			auto log      = std::make_shared<anonymous_wire_operation_log>();
+			auto counting = counting_anonymous_wire_transport{ inner,
+															   requests,
+															   probes,
+															   log };
+			auto request  = adapters::github::detail::github_wire_request{ };
+			request.Correlation.Operation
+				= adapters::github::detail::read_operation::get_pull_request;
+			request.Correlation.Page = 1U;
+
+			const auto first = counting.perform(request, std::stop_token{ });
+			const auto forwardedFirst
+				= std::holds_alternative<
+					  adapters::github::detail::github_wire_error>(first)
+				&& inner->forwarded() == 1U
+				&& requests->load(std::memory_order_relaxed) == 1U
+				&& log->records().size() == 1U
+				&& log->records().front().Outcome == "error_network";
+
+			const auto second = counting.perform(request, std::stop_token{ });
+			const auto refusedSecond
+				= std::holds_alternative<
+					  adapters::github::detail::github_wire_cancelled>(second)
+				&& inner->forwarded() == 1U
+				&& requests->load(std::memory_order_relaxed) == 1U
+				&& log->records().size() == 1U;
+
+			return forwardedFirst && refusedSecond;
+		} catch (...) {
+			return false;
+		}
+#else
+		return false;
+#endif
 	}
 
 #if defined(BPR_BUILD_TESTING)
