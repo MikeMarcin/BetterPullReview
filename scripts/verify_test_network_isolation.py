@@ -111,6 +111,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # data-root ancestor chain as their siblings above.
     "git_anonymous_public_read": "qprocess-named-pipe",
     "sqlite_anonymous_epoch_authority": "dos-volume-name",
+    # BPR-0305: the public-preview composition rows walk the application's
+    # data-root ancestor chain like the device-authorization rows above.
+    "application_anonymous_public_preview_unavailable": "dos-volume-name",
+    "application_anonymous_public_preview_release_contract": "dos-volume-name",
+    "application_anonymous_public_preview_ghes_refusal": "dos-volume-name",
     "github_device_authorization_refresh_contract": "dos-volume-name",
     "application_device_authorization_release_contract": "dos-volume-name",
     "application_epoch_maintenance_public_path": "dos-volume-name",

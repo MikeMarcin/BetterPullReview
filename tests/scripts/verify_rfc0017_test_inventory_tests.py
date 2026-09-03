@@ -58,6 +58,14 @@ SQLITE_ANCHOR = "sqlite_epoch_catalog_storage_contract"
 DIFF = "application_anonymous_diff_authority"
 QT_SCALES = tuple(f"qt_anonymous_public_preview_scale_{scale}" for scale in (100, 125, 200))
 QT_SCALE_ANCHORS = tuple(f"qt_composed_github_scale_{scale}" for scale in (100, 125, 200))
+PREVIEW_ROWS = (
+    ("application_anonymous_public_preview_unavailable",
+     "application_device_authorization_unavailable", ("--public-preview-probe",)),
+    ("application_anonymous_public_preview_release_contract",
+     "application_device_authorization_release_contract", ("--public-preview-probe",)),
+    ("application_anonymous_public_preview_ghes_refusal",
+     "application_github_public_path_ghes_3_18", ("--public-preview-ghes-course",)),
+)
 BUILD = pathlib.Path("/nonexistent/build")
 
 # The wire suites: registered only inside the APPLE/Linux wire block.
@@ -75,6 +83,8 @@ DEV_GRAPH = [
     (DIFF, ("anonymous_diff_tests",)),
     *((anchor, ("composed_tests",)) for anchor in QT_SCALE_ANCHORS),
     *((selector, ("preview_tests",)) for selector in QT_SCALES),
+    *((anchor, ("app", "--self-test")) for _, anchor, _ in PREVIEW_ROWS),
+    *((selector, ("app", "--self-test", *arguments)) for selector, _, arguments in PREVIEW_ROWS),
     (GIT_ANCHOR, ("git_cache_tests",)),
     (GIT, ("anonymous_git_tests",)),
     (SQLITE_ANCHOR, ("catalog_storage_tests",)),
@@ -126,6 +136,9 @@ class InventoryTable(unittest.TestCase):
         self.assertEqual(anchors[DIFF], (HOST_ANCHOR, False))
         for selector, anchor in zip(QT_SCALES, QT_SCALE_ANCHORS):
             self.assertEqual(anchors[selector], (anchor, False))
+        for selector, anchor, arguments in PREVIEW_ROWS:
+            self.assertEqual(anchors[selector], (anchor, False))
+            self.assertEqual(self.module.REQUIRED_ARGUMENTS[selector], arguments)
         self.assertEqual(anchors[SQLITE], (SQLITE_ANCHOR, False))
         for selector, (anchor, wire_block) in anchors.items():
             if wire_block:
