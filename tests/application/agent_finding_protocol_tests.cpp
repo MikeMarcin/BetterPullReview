@@ -65,7 +65,10 @@ namespace {
 			if (result.size() > 1U) {
 				result += ',';
 			}
-			result += '"' + name + "\":" + value;
+			result += '"';
+			result += name;
+			result += "\":";
+			result += value;
 		}
 		return result + "}";
 	}
@@ -717,6 +720,9 @@ namespace {
 	#if defined(_WIN32)
 		auto* const pipe = _popen(command.c_str(), "r");
 	#else
+		// The test's whole job is to drive the built canary through a pipe;
+		// the command is the quoted path it computed above, never input.
+		// NOLINTNEXTLINE(bugprone-command-processor)
 		auto* const pipe = ::popen(command.c_str(), "r");
 	#endif
 		expect(pipe != nullptr, "the canary fixture starts");
