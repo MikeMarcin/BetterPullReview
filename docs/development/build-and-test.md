@@ -770,9 +770,11 @@ gives every first-party target `/W4 /permissive- /WX` on MSVC and
 `-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror` elsewhere.
 Two classes are worth naming because one compiler used to catch them alone.
 A local that hides an earlier local or a parameter is MSVC's C4456, and since
-BPR-0534 the same code fails on clang (`-Wshadow`) and GCC (`-Wshadow=local`,
-the local-scope form; GCC's plain `-Wshadow` would also reject members and
-globals, which MSVC does not). Narrowing conversions are `-Wconversion` and
+BPR-0534 the same code fails on clang (`-Wshadow` together with
+`-Wshadow-uncaptured-local`, because `-Wshadow` alone skips a lambda local
+that hides an enclosing local the lambda does not capture, the commonest
+shape in this tree) and on GCC (`-Wshadow=local`, the local-scope form; GCC's
+plain `-Wshadow` would also reject members and globals, which MSVC does not). Narrowing conversions are `-Wconversion` and
 `-Wsign-conversion` on the clang hosts and C4244/C4267 under `/W4`. A slice
 that compiles clean on macOS can still fail the Windows station on a class
 this list does not cover — C4189 (unreferenced local) and C4996 (a deprecated
