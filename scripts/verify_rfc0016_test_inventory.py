@@ -66,6 +66,8 @@ SELECTORS: dict[str, int] = {
     "application_device_authorization_panel_course": 1,
     "application_device_authorization_panel_absent": 1,
     "application_device_authorization_ghes_refusal": 1,
+    # BPR-0537: the system-browser opener's validation, observed without a launch.
+    "application_device_authorization_browser_address": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector below
@@ -177,11 +179,11 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
     "WDJB-MJHT",
     # BPR-0537. Every tests-enabled flag the app parses under BPR_BUILD_TESTING,
     # forbidden by string so a Release that learned to parse one fails here
-    # rather than in a station's course. The two course flags still parsed
-    # unconditionally (`--device-authorization-registered-course`,
-    # `--device-authorization-panel-course`) join this list when BPR-0537's
-    # second half gates them.
+    # rather than in a station's course. The two course flags joined once the
+    # card's second half gated them.
     "--network-denied",
+    "--device-authorization-registered-course",
+    "--device-authorization-panel-course",
     "--device-authorization-browser-absent",
     "--device-authorization-panel-absent",
     "--device-authorization-browser-probe",
