@@ -1251,6 +1251,159 @@ namespace bpr::app {
 			std::size_t                            Reads = 0U;
 		};
 
+		// [[BPR-0316]]. Counts what the anonymous transport itself put on the
+		// wire. The wrapper above counts pull-request reads offered to the
+		// authority; one such read is several REST operations, and the number
+		// a live candidate has to report is the second one. The counters are
+		// shared and atomic because the transport is driven from a worker and
+		// read from the reporting thread.
+		class counting_anonymous_wire_transport final
+			: public adapters::github::detail::github_wire_transport_port
+		{
+		public:
+			counting_anonymous_wire_transport(
+				std::shared_ptr<
+					adapters::github::detail::github_wire_transport_port>
+														  aInner,
+				std::shared_ptr<std::atomic<std::size_t>> aRequests,
+				std::shared_ptr<std::atomic<std::size_t>> aCapabilityProbes) noexcept
+				: Inner{ std::move(aInner) }
+				, Requests{ std::move(aRequests) }
+				, CapabilityProbes{ std::move(aCapabilityProbes) }
+			{
+			}
+
+			[[nodiscard]] auto perform(
+				const adapters::github::detail::github_wire_request& aRequest,
+				std::stop_token                                      aStop)
+				-> adapters::github::detail::github_wire_completion override
+			{
+				Requests->fetch_add(1U, std::memory_order_relaxed);
+				return Inner->perform(aRequest, std::move(aStop));
+			}
+
+			[[nodiscard]] auto perform_capability_probe(
+				const adapters::github::detail::
+					github_capability_probe_wire_request& aRequest,
+				std::stop_token                           aStop)
+				-> adapters::github::detail::
+					github_capability_probe_wire_completion override
+			{
+				CapabilityProbes->fetch_add(1U, std::memory_order_relaxed);
+				return Inner->perform_capability_probe(
+					aRequest, std::move(aStop));
+			}
+
+		private:
+			std::shared_ptr<
+				adapters::github::detail::github_wire_transport_port>
+													  Inner;
+			std::shared_ptr<std::atomic<std::size_t>> Requests;
+			std::shared_ptr<std::atomic<std::size_t>> CapabilityProbes;
+		};
+
+		// [[BPR-0316]]'s live-candidate REST authority. Every transport it
+		// issues comes from `make_native_https_anonymous_read_transport` --
+		// the shipped entry, with system proxy discovery and system trust --
+		// and it has no credentialed form at all: both credentialed entries
+		// refuse and count the attempt, so a composition that reached for an
+		// authorization header shows up as a number rather than as a header
+		// nobody looked for. The GHES refusal is the shipped factory's, made
+		// before a transport exists.
+		class shipped_anonymous_wire_transport_factory final
+			: public github_wire_transport_factory_port
+		{
+		public:
+			[[nodiscard]] auto make_bootstrap(
+				const validated_github_host_profile&    aProfile,
+				core::github_session_request_context    aContext,
+				application::github_credential_material aCredential) noexcept
+				-> adapters::github::detail::
+					github_wire_transport_factory_result override
+			{
+				static_cast<void>(aProfile);
+				static_cast<void>(aContext);
+				static_cast<void>(aCredential);
+				CredentialedRefusals->fetch_add(1U, std::memory_order_relaxed);
+				return std::unexpected{ refusal() };
+			}
+
+			[[nodiscard]] auto make_account(
+				const validated_github_host_profile&            aProfile,
+				application::github_credential_retrieve_success aCredential) noexcept
+				-> adapters::github::detail::
+					github_wire_transport_factory_result override
+			{
+				static_cast<void>(aProfile);
+				static_cast<void>(aCredential);
+				CredentialedRefusals->fetch_add(1U, std::memory_order_relaxed);
+				return std::unexpected{ refusal() };
+			}
+
+			[[nodiscard]] auto make_anonymous(
+				const validated_github_host_profile& aProfile,
+				core::github_session_request_context aContext) noexcept
+				-> adapters::github::detail::
+					github_wire_transport_factory_result override
+			{
+				auto transport = adapters::github::detail::
+					make_native_https_anonymous_read_transport(
+						aProfile, std::move(aContext));
+				if (!transport.has_value()) {
+					return std::unexpected{ refusal() };
+				}
+				try {
+					return std::shared_ptr<adapters::github::detail::
+											   github_wire_transport_port>{
+						std::make_shared<counting_anonymous_wire_transport>(
+							std::shared_ptr<adapters::github::detail::
+												github_wire_transport_port>{
+								std::move(*transport) },
+							Requests,
+							CapabilityProbes)
+					};
+				} catch (...) {
+					return std::unexpected{ refusal() };
+				}
+			}
+
+			[[nodiscard]] auto requests() const noexcept -> std::size_t
+			{
+				return Requests->load(std::memory_order_relaxed);
+			}
+
+			[[nodiscard]] auto capability_probes() const noexcept -> std::size_t
+			{
+				return CapabilityProbes->load(std::memory_order_relaxed);
+			}
+
+			[[nodiscard]] auto credentialed_refusals() const noexcept
+				-> std::size_t
+			{
+				return CredentialedRefusals->load(std::memory_order_relaxed);
+			}
+
+		private:
+			[[nodiscard]] static auto refusal() noexcept
+				-> application::github_provider_error
+			{
+				return application::github_provider_error{
+					.Failure = application::github_provider_failure::
+						unsupported_capability,
+					.RetryAfterSeconds = std::nullopt,
+					.RateLimits        = { },
+					.RateLimitCause    = std::nullopt,
+				};
+			}
+
+			std::shared_ptr<std::atomic<std::size_t>> Requests
+				= std::make_shared<std::atomic<std::size_t>>(0U);
+			std::shared_ptr<std::atomic<std::size_t>> CapabilityProbes
+				= std::make_shared<std::atomic<std::size_t>>(0U);
+			std::shared_ptr<std::atomic<std::size_t>> CredentialedRefusals
+				= std::make_shared<std::atomic<std::size_t>>(0U);
+		};
+
 		// The credential-free Git smart authority. It takes no credential and
 		// has no entry that could accept one: every lease it issues comes from
 		// the shipped anonymous factory, which refuses an authenticated
@@ -2777,6 +2930,13 @@ namespace bpr::app {
 			// the gate this exists for selects no fixture: it drives the
 			// shipped composition and only wants the connect denied.
 			NetworkDenied = aConfig.NetworkDenied;
+			// [[BPR-0316]]. Read outside the fixture branch below, because
+			// this is the one option that means something without a fixture:
+			// it forces the shipped selection available over the production
+			// composition rather than over recorded traffic.
+			PublicPreviewSelectionAvailable
+				= aFixtureOptions.PublicPreviewSelectionAvailable
+				&& !aFixture.has_value();
 			if (aFixture.has_value()) {
 				DisableWorkbenchSelectionWire
 					= aFixtureOptions.DisableWorkbenchSelectionWire;
@@ -2934,11 +3094,28 @@ namespace bpr::app {
 			// the ones whose selection is unavailable. Construction sends
 			// nothing; what the selection below decides is whether the host is
 			// ever given this authority at all.
+			//
+			// [[BPR-0316]]. The live candidate replaces the factory for this
+			// second provider alone, with one that names the shipped
+			// anonymous entry, counts what reaches the wire, and refuses both
+			// credentialed entries. The authenticated provider above keeps the
+			// factory it had, so this changes what the signed-out authority is
+			// built from and nothing else. What the anonymous provider was
+			// actually constructed with is kept below, so the evidence is a
+			// pointer identity rather than a claim about a call site.
+			AnonymousTransportFactory = TransportFactory;
+#if defined(BPR_BUILD_TESTING)
+			if (PublicPreviewSelectionAvailable) {
+				ShippedAnonymousTransports
+					= std::make_shared<shipped_anonymous_wire_transport_factory>();
+				AnonymousTransportFactory = ShippedAnonymousTransports;
+			}
+#endif
 			auto anonymousProvider = make_github_provider(
 				std::span<const validated_github_host_profile* const>{
 					profilePointers },
 				ProviderEffects,
-				TransportFactory,
+				AnonymousTransportFactory,
 				adapters::github::detail::github_provider_read_authority::
 					anonymous_public);
 			if (!anonymousProvider.has_value()) {
@@ -3580,6 +3757,13 @@ namespace bpr::app {
 				&& Fixture != nullptr) {
 				publicPreview = public_preview_capability{ .Available = true };
 			}
+			// [[BPR-0316]]. The same override with no fixture underneath it:
+			// the authority handed to the host is the production one, so a
+			// read issued through it leaves the machine. Nothing here issues
+			// one; the run driving the composition decides that.
+			if (PublicPreviewSelectionAvailable && Fixture == nullptr) {
+				publicPreview = public_preview_capability{ .Available = true };
+			}
 #endif
 			PublicPreviewComposed = publicPreview.Available;
 			Host                  = std::make_unique<application::github_application_host>(
@@ -4075,6 +4259,96 @@ namespace bpr::app {
 			}
 #endif
 			return 0U;
+		}
+
+		// [[BPR-0316]] live-candidate evidence. The claim is about what the
+		// anonymous provider was built from, so it is answered by comparing
+		// what that provider was constructed with against the shipped factory
+		// this composition made. A composition that handed the provider any
+		// other object -- a fixture seam, a loopback twin -- fails the
+		// comparison without anyone having to remember to update a flag.
+		[[nodiscard]] auto public_preview_production_factories() const noexcept
+			-> bool
+		{
+#if defined(BPR_BUILD_TESTING)
+			return ShippedAnonymousTransports != nullptr
+				&& AnonymousTransportFactory.get()
+				== static_cast<github_wire_transport_factory_port*>(
+					   ShippedAnonymousTransports.get())
+				&& AnonymousSmartGit != nullptr && Fixture == nullptr;
+#else
+			return false;
+#endif
+		}
+
+		[[nodiscard]] auto public_preview_wire_requests() const noexcept
+			-> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			return ShippedAnonymousTransports == nullptr
+				? 0U
+				: ShippedAnonymousTransports->requests();
+#else
+			return 0U;
+#endif
+		}
+
+		[[nodiscard]] auto public_preview_wire_capability_probes() const noexcept
+			-> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			return ShippedAnonymousTransports == nullptr
+				? 0U
+				: ShippedAnonymousTransports->capability_probes();
+#else
+			return 0U;
+#endif
+		}
+
+		[[nodiscard]] auto public_preview_wire_credentialed_refusals()
+			const noexcept -> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			return ShippedAnonymousTransports == nullptr
+				? 0U
+				: ShippedAnonymousTransports->credentialed_refusals();
+#else
+			return 0U;
+#endif
+		}
+
+		// The shared hourly core budget, taken from the rate-limit headers the
+		// session carries rather than from any body.
+		[[nodiscard]] auto public_preview_budget() const noexcept
+			-> std::optional<application::github_rate_limit_record>
+		{
+			return Host == nullptr ? std::nullopt : Host->rate_limits().Core;
+		}
+
+		// The accepted snapshot's own discriminant, not the session's: a
+		// snapshot accepted under an authenticated authority answers false
+		// here even where the session says signed out.
+		[[nodiscard]] auto public_preview_snapshot_signed_out() const noexcept
+			-> bool
+		{
+			if (Host == nullptr) {
+				return false;
+			}
+			const auto& snapshot = Host->accepted_snapshot();
+			return snapshot.has_value()
+				&& snapshot->Mode == core::github_access_mode::public_preview;
+		}
+
+		[[nodiscard]] auto public_preview_snapshot_head_oid() const
+			-> std::string
+		{
+			if (Host == nullptr) {
+				return { };
+			}
+			const auto& snapshot = Host->accepted_snapshot();
+			return snapshot.has_value()
+				? std::string{ snapshot->PullRequest.HeadOid.value() }
+				: std::string{ };
 		}
 
 		[[nodiscard]] auto device_transport_submissions() const noexcept
@@ -7225,7 +7499,17 @@ namespace bpr::app {
 #endif
 		std::unique_ptr<application::github_credential_vault_port> OwnedVault;
 		std::shared_ptr<github_wire_transport_factory_port>        TransportFactory;
-		std::unique_ptr<github_provider>                           Provider;
+		// [[BPR-0316]]. What the anonymous provider was constructed with, kept
+		// so the live-candidate evidence can compare it against the shipped
+		// factory this composition built rather than assert a call site.
+		std::shared_ptr<github_wire_transport_factory_port>
+			AnonymousTransportFactory;
+#if defined(BPR_BUILD_TESTING)
+		std::shared_ptr<shipped_anonymous_wire_transport_factory>
+			 ShippedAnonymousTransports;
+		bool PublicPreviewSelectionAvailable = false;
+#endif
+		std::unique_ptr<github_provider> Provider;
 		// RFC-BPR-0017's credential-free authorities. Declared beside the
 		// authenticated provider they are constructed beside, and after it, so
 		// they are destroyed first and the counting wrapper can never outlive
@@ -7628,6 +7912,32 @@ namespace bpr::app {
 				  .ReviewCommentGroups.size(),
 			.PublicPreviewWriteRefusals
 			= Implementation->PublicPreviewWriteRefusals,
+			.PublicPreviewLiveCandidateProductionFactories
+			= Implementation->public_preview_production_factories(),
+			.PublicPreviewWireRequests
+			= Implementation->public_preview_wire_requests(),
+			.PublicPreviewWireCapabilityProbes
+			= Implementation->public_preview_wire_capability_probes(),
+			.PublicPreviewWireCredentialedRefusals
+			= Implementation->public_preview_wire_credentialed_refusals(),
+			.PublicPreviewBudgetObserved
+			= Implementation->public_preview_budget().has_value(),
+			.PublicPreviewBudgetLimit
+			= Implementation->public_preview_budget().has_value()
+				? Implementation->public_preview_budget()->Limit
+				: 0U,
+			.PublicPreviewBudgetRemaining
+			= Implementation->public_preview_budget().has_value()
+				? Implementation->public_preview_budget()->Remaining
+				: 0U,
+			.PublicPreviewBudgetResetUnixSeconds
+			= Implementation->public_preview_budget().has_value()
+				? Implementation->public_preview_budget()->ResetUnixSeconds
+				: 0U,
+			.PublicPreviewSnapshotPublicPreview
+			= Implementation->public_preview_snapshot_signed_out(),
+			.PublicPreviewSnapshotHeadOid
+			= Implementation->public_preview_snapshot_head_oid(),
 		};
 	}
 
@@ -7724,6 +8034,20 @@ namespace bpr::app {
 		return std::unique_ptr<github_application>{ new github_application{
 			std::make_unique<github_application::implementation>(
 				github_application_config{ }, aFixture, std::move(aOptions)) } };
+	}
+
+	auto detail::github_application_fixture_access::
+		make_public_preview_selection_available(
+			github_application_config aConfig)
+			-> std::unique_ptr<github_application>
+	{
+		return std::unique_ptr<github_application>{ new github_application{
+			std::make_unique<github_application::implementation>(
+				std::move(aConfig),
+				std::nullopt,
+				detail::github_public_path_fixture_options{
+					.PublicPreviewSelectionAvailable = true,
+				}) } };
 	}
 
 	auto detail::github_application_fixture_access::evidence(

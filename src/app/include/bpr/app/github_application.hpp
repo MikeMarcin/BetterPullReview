@@ -6,6 +6,7 @@
 #include "bpr/core/device_authorization_model.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -295,6 +296,38 @@ namespace bpr::app {
 		// that was answered by a request nobody could serve would show up
 		// here as a zero and in the fixture's evidence as a request.
 		std::size_t PublicPreviewWriteRefusals = 0U;
+		// [[BPR-0316]] live-candidate evidence. Whether the anonymous read
+		// authority the host was handed is the one this composition built from
+		// the shipped native factory, checked by pointer identity against what
+		// the anonymous provider was actually constructed with rather than by
+		// naming a call site. A composition that routed the signed-out read
+		// through any other factory — a fixture seam, a loopback test twin —
+		// hands the provider a different object and turns this false.
+		bool PublicPreviewLiveCandidateProductionFactories = false;
+		// REST requests the anonymous transport itself issued, counted at the
+		// wire boundary rather than at the pull-request port above it, and
+		// capability probes it was asked for. The second must stay zero: a
+		// signed-out read builds no capability request.
+		std::size_t PublicPreviewWireRequests         = 0U;
+		std::size_t PublicPreviewWireCapabilityProbes = 0U;
+		// Credentialed transports the anonymous factory was asked to build.
+		// It has no such form and refuses both, so this counts a composition
+		// reaching for an authorization header rather than one obtaining it.
+		std::size_t PublicPreviewWireCredentialedRefusals = 0U;
+		// The shared hourly core budget the session projection carries, taken
+		// from the response headers the host observed. Absent until a response
+		// reported one, which is why the observation is a separate fact from
+		// the three numbers.
+		bool          PublicPreviewBudgetObserved         = false;
+		std::uint64_t PublicPreviewBudgetLimit            = 0U;
+		std::uint64_t PublicPreviewBudgetRemaining        = 0U;
+		std::uint64_t PublicPreviewBudgetResetUnixSeconds = 0U;
+		// The mode the accepted snapshot was read in, and the head revision it
+		// named. The mode is the snapshot's own discriminant, not the
+		// session's: a snapshot accepted under an authenticated authority
+		// would report false here even if the session said signed out.
+		bool        PublicPreviewSnapshotPublicPreview = false;
+		std::string PublicPreviewSnapshotHeadOid;
 	};
 
 	/// \brief Provides the github application contract.

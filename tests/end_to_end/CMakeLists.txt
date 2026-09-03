@@ -545,6 +545,77 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# [[BPR-0316]]. The verdict a shipped build whose selection is enabled has to
+# be able to print. An enabled selection activates the mode from the composed
+# authority and reads nothing until a reviewer asks for something, so the
+# passing shape here is the opposite of the fixture course's: the mode entered
+# with zero requests, no authorization header, and no vault operation. The
+# selection is forced from a tests-enabled flag because no platform ships it
+# enabled yet; the markers this asserts are the shipped ones.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_enabled_probe
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-selection-enabled-probe
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_enabled_probe
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_enabled_probe
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# [[BPR-0316]]. The live candidate's wiring, proven without reaching the
+# network. The dry run composes exactly what the live read would compose --
+# the shipped anonymous REST factory, the shipped anonymous smart factory, no
+# fixture -- enters the mode, and stops before opening anything. The
+# production-factories marker is a pointer identity between what the anonymous
+# provider was constructed with and the shipped factory this composition
+# built, so a graph that routed the signed-out read through any other factory
+# turns it false. The row is network-isolated, which is what makes "issued
+# nothing" a fact rather than a promise; the read itself is an authorized
+# operator step and has no selector.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_live_candidate_wiring
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-live-candidate
+        octocat
+        Hello-World
+        1
+        --public-preview-live-candidate-dry-run
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_live_candidate_wiring
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:0[\r\n]+PUBLIC_PREVIEW_WRITE_REFUSALS:0[\r\n]+PUBLIC_PREVIEW_LIVE_CANDIDATE_PRODUCTION_FACTORIES:true[\r\n]+PUBLIC_PREVIEW_WIRE_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_WIRE_CAPABILITY_PROBES:0[\r\n]+PUBLIC_PREVIEW_WIRE_CREDENTIALED_REFUSALS:0[\r\n]+PUBLIC_PREVIEW_BUDGET:0/0/0[\r\n]+PUBLIC_PREVIEW_SNAPSHOT_MODE:authenticated[\r\n]+PUBLIC_PREVIEW_CANDIDATE:octocat/Hello-World#1 [\r\n]+PUBLIC_PREVIEW_LIVE_CANDIDATE_OK"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_live_candidate_wiring
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
 
 bpr_add_executable(
     test_better_pull_review_worker_executor_tests
