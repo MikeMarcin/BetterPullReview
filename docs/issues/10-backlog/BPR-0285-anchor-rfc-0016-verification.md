@@ -3,7 +3,7 @@ id: BPR-0285
 title: Anchor RFC-BPR-0016 capability-critical verification
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539, BPR-0540]
+depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539, BPR-0540, BPR-0542, BPR-0543]
 ---
 
 # Anchor RFC-BPR-0016 capability-critical verification
@@ -680,3 +680,29 @@ A panel rebound to a GHES profile keeps rendering the GitHub.com host's renewal 
   standing `build/app-release` is provenance only.
 - The first review's V1–V6 and R2–R5 are recorded resolved at this head,
   with the citations the review gives.
+
+## Two enabled platforms have no refresh slot — 2026-09-03
+
+Found while reviewing [[BPR-0540]]'s erasure rule, which treats a vault's
+`unavailable` answer to `delete_refresh` as benign because "a platform
+without a second slot answers that". Two shipped platforms do:
+`linux_secret_service.cpp` and `windows_credential_manager.cpp` implement
+`store_refresh`, `retrieve_refresh`, and `delete_refresh` as stubs that
+answer `unavailable` without touching the store (the Windows comment says
+the slot "has no Credential Manager target of its own yet" and defers it
+to [[BPR-0311]], which closed without it). The registration issues
+expiring user tokens with refresh tokens, so a real Linux or Windows
+sign-in parks the refresh token, flushes it on the `/user` binding
+([[BPR-0536]]), meets `unavailable`, and `fail_storage` reports
+`reenrollment_required` (`storage_failed`) right after the sign-in
+succeeded; the token then expires with nothing to renew it. Every enabled
+course stops at `cancelled` before a grant and every composed course runs
+over the fixture vault, which has a real slot, so no row could see it.
+
+Adjudicated as blocking for rows 1 and 9 on those platforms and carded as
+[[BPR-0542]] (Linux, `23-ready-lin/`, dispatched to `bpr-linux`) and
+[[BPR-0543]] (Windows, `21-ready-win/`, dispatched to `bpr-win`). Both
+are added to this closure; the final-head replays run at the head that
+carries them. BPR-0540's erasure rule is corrected in the same slice to
+treat every error as a failure, since after these cards `unavailable`
+means only an unreachable store, exactly as it does for the base slot.
