@@ -68,6 +68,46 @@ class ConditionalBranchIdentifierTests(unittest.TestCase):
         """
         self.assertEqual(self.findings(body, POSIX), [])
 
+    def test_a_local_declared_before_the_chain_is_not_the_parameter(
+        self,
+    ) -> None:
+        # BPR-0285: `system_browser_opener::open` declares `auto address =
+        # validated(aAddress)` above its chain and uses `*address` in the
+        # branch this host does not compile. The bare form of `aAddress` is
+        # that local, and the gate must read the body's declaration rather
+        # than only the branch's.
+        body = """
+        bool open(int aAddress)
+        {
+            auto address = validated(aAddress);
+            if (!address) {
+                return false;
+            }
+        #if defined(_WIN32)
+            return launch(*address);
+        #else
+            return other(*address);
+        #endif
+        }
+        """
+        self.assertEqual(self.findings(body, POSIX), [])
+
+    def test_a_bare_parameter_form_without_a_local_is_still_caught(
+        self,
+    ) -> None:
+        body = """
+        bool open(int aAddress)
+        {
+        #if defined(_WIN32)
+            return launch(address);
+        #else
+            return other(aAddress);
+        #endif
+        }
+        """
+        findings = self.findings(body, POSIX)
+        self.assertIn("address", {entry[1] for entry in findings})
+
     def test_a_platform_alias_call_is_not_a_declaration(self) -> None:
         """`return _read(x)` calls a function; it does not declare one.
 
