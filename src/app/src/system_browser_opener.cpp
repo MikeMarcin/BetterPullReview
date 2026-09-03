@@ -80,7 +80,7 @@ namespace bpr::app {
 
 	auto system_browser_opener::open(const std::string_view aAddress) -> bool
 	{
-		const auto address = validated_browser_address(aAddress);
+		auto address = validated_browser_address(aAddress);
 		if (!address.has_value()) {
 			return false;
 		}
