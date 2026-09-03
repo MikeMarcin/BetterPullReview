@@ -1,7 +1,7 @@
 ---
 id: BPR-0532
 title: Retain epoch history so old-revision continuations can anchor
-status: In Progress
+status: Done
 rfc: RFC-BPR-0012
 depends_on: [BPR-0521]
 ---
@@ -122,3 +122,84 @@ follows its completion, the empty freeze remaining the refusal path; and
 the anchored course waits for the comparison to reach the new pair before
 it sends, so the retarget is real and the frozen identities are checked
 against an independent compute of the old pair.
+
+## Part three landed, and the card closes — 2026-09-03
+
+At `317882df` on `main` (the slice rebased onto the merged platform lanes),
+verified here on the integrator host after the two-pass repin.
+
+**The supersession guard.** `agent_invocation_host.cpp` now tells a moved
+binding from a changed review (`supersession_cause`), and `supersede` leaves
+an invocation that carries a continued session running when only the
+binding moved; a fresh one is superseded exactly as before. The terminal
+judges a continuation against its own session's binding rather than the
+revision on screen, and the delivery still states its staleness against
+what is observed. Two host tests: a continued turn survives the binding
+moving under it (no stop, `success`, delivery `head_moved`, finding
+`anchored`), and a fresh turn under the same change is superseded (one
+cancel, `stale_result`, workspace cleaned).
+
+**The asynchronous seam.** `begin_continuation_realignment` in
+`github_application.cpp` asks the epoch host to mint a re-alignment context
+for the kept binding's pair — `epoch_application_host::realignment_context`
+authorizes it into a second `RealignmentAuthority` slot beside the
+reviewer's own selection, minted by the host and never assembled by a
+caller, scoped to the review's actor and bounded to the same
+host/repository/pull request — posts the recompute to the agent effects
+lane, and dispatches from the completion through the one
+`launch_agent_invocation` site; the gesture returns at once.
+`maximum_agent_realignment_wait` (30 s) is armed on the gesture and
+disarmed by the completion; past it the request is stopped and the turn
+runs with the empty freeze, the reason recorded in
+`LastContinuationRealignment` (`none`, `deadline`, or the refusal's stable
+name). `ContinuationRealignmentsInFlight` joins quiescence.
+
+**The anchored finding.** `agent_realignment_outcome` carries the re-aligned
+old pair's `core::file_alignment` beside each frozen file (same one-file
+bound). The gesture captures only where the reviewer is pointing
+(`continuation_anchor`: file, side, line); the completion builds the
+semantic context from the re-aligned old pair — its comparison digest,
+preferred line, segments, and groups — at `approximate` confidence with no
+segment or group identity claimed, so every identity the turn carries and
+is validated against comes from the one alignment the recompute produced.
+Out of the old revision's range nothing is said. BPR-0521's refusal of the
+*current* revision's identities beneath an older binding stands. The
+observation now sends the file path and review receipt under a
+continuation (they name a file, not a pair of commits) while still refusing
+the current semantic selection.
+
+**The course.** `application_agent_chat_anchored_continuation_contract`
+(the `anchored-continuation` item over `agent_chat_composition_public_path.cpp`)
+drives the refresh, waits until the accepted comparison is the new pair,
+sends the continued turn, and asserts the retarget was real
+(`retargeted=1`), the frozen record byte-equal to an independent
+`core::compute_file_diff` of the old pair, the finding `anchored (none)`,
+and the turn `Finished: success`. The `continued` course keeps passing with
+its truthful invariant. A host test,
+`realignment_context_is_minted_scoped_and_never_assumed`, covers the new
+slot: served for the kept pair, the reviewer's own selection still served
+beside it, another pull request mints nothing, and a caller-assembled
+retarget is `stale` before any cache work.
+
+**Mutation.** With the continuation branch ignoring the re-alignment result
+the anchored course fails at `continued-old-revision-composition`
+(`realignment:none retargeted:1 frozen-files:0 frozen-segments:0
+kept-segments:7`); restored, repinned, green.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The merged graph builds clean and the pins bind it | `cmake --build --preset dev`; the round-trip contract, two repins (`ef8d2fb9…`, `f2d2c4d5…`) | exit 0, zero `error:`/`warning:` lines; pass 3 green | this commit |
+| Core, host, epoch, and every agent composition row including the new anchored course | `ctest --preset dev -j 2 -R '^(core_agent_session\|core_epoch_policy\|application_diff_host\|application_epoch_host\|application_epoch_contract\|application_agent_invocation_host\|application_agent_chat_(positive\|stale\|continued\|anchored_continuation\|construction_cut\|composition)_contract\|application_agent_invocation_(composition\|construction_cut\|gesture_cut)_contract\|application_agent_finding_(composition\|workshop_press)_contract\|composed_application_hosts\|application_composition_contract)$' --output-on-failure` | 18/18 in 181 s | this commit |
+| The architecture boundaries hold | `cmake --build build/dev --target check_boundaries` | exit 0 | this commit |
+| Strict tidy and format on the touched sources | `tidy.py --warnings-as-errors --paths` over the slice's `.cpp` files; `clang-format --dry-run --Werror` over its `.cpp`/`.hpp` | 7 translation units, zero errors, exit 0; exit 0 | this commit |
+| The round-trip contract passes alone at HEAD | `ctest --preset dev -R '^application_review_round_trip_composition_contract$'` | passed (the timeouts seen in the worktrees today reproduced only under concurrent builds and never alone) | this commit |
+
+**Left open, recorded rather than claimed.** The positional crossing can fall
+outside the old revision's range on a file whose head grew; that turn carries
+no selection and is not driven by a course. `Segments`/`Groups` are sent
+without checking the semantic caps, mirroring the fresh path. The 30 s bound
+and the `deadline` reason are not driven by a course. `agent_realignment.cpp`
+has no unit test of its own; the widening is covered through the course. None
+of these is required by this card's final state, and RFC-BPR-0012's closeout
+([[BPR-0507]]) does not depend on this card.
+

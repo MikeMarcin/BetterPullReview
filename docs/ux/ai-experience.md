@@ -101,11 +101,15 @@ two, starts neither, and disables Send until the reviewer answers (BPR-0499,
 `core_agent_session`; BPR-0502, `qt_side_chat_panel`).
 
 Continuing against the old revision runs the turn on that revision's files
-and binding, but its findings arrive unanchored: the comparison the old
-revision was reviewed under is not kept once the head moves, and
-BetterPullReview does not place old findings against the new comparison.
-That is the product behaviour by the owner's decision (BPR-0521); a fresh
-session at the new head anchors as usual.
+and binding, and since BPR-0532 its findings can anchor: the comparison the
+old revision was reviewed under is not kept once the head moves, so the
+application recomputes it — one file, bounded in time — and the turn is
+frozen against, and its findings validated against, that revision's own
+identities. BetterPullReview never places old findings against the new
+comparison. When the recompute is refused or exceeds its bound the turn
+runs with nothing frozen and its findings arrive unanchored, which is the
+behaviour the owner accepted (BPR-0521) and which remains the documented
+fallback; a fresh session at the new head anchors as usual.
 
 ### What surface the workshop actually uses
 
