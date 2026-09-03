@@ -1,7 +1,7 @@
 ---
 id: BPR-0532
 title: Retain epoch history so old-revision continuations can anchor
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0012
 depends_on: [BPR-0521]
 ---
@@ -45,3 +45,22 @@ on it.
 
 - Any change to how a fresh session at the new head anchors — unchanged.
 - Retaining history for sessions that are no longer live.
+
+## Lane — 2026-09-03
+
+Claimed straight into `30-in-progress/` by the integrator under the
+transition exception, its one dependency terminal. The decision the card
+asks for is recorded here: of retained epoch history and re-alignment
+against the kept binding's epoch pair, the slice implements re-alignment.
+The reason: the tree's canonical diff records and per-path identities are
+deterministic by contract, the SQLite epoch table already persists every
+accepted revision's oids per ordinal, and the installed Git cache retains
+history, so recomputing the old pair's alignment reproduces the same
+per-path identities without a new persistent store, a retention bound, or
+an eviction lifecycle; the cost is one recompute per continued turn, bounded
+by the limits a fresh alignment already has. Retained history stays the
+documented alternative. A scout confirmed the continuation path
+(`dispatch_agent_invocation`'s empty freeze under continuation), the
+single-slot overwrite of the accepted comparison, and the contract's
+`foreach` course loop before any edit. The slice runs on `bpr-0532-work`
+in a worktree after [[BPR-0533]], which edited the same dispatch.
