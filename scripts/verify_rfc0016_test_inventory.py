@@ -68,6 +68,9 @@ SELECTORS: dict[str, int] = {
     "application_device_authorization_ghes_refusal": 1,
     # BPR-0537: the system-browser opener's validation, observed without a launch.
     "application_device_authorization_browser_address": 1,
+    # BPR-0536: one rotation through the composed graph over the fixture's
+    # refresh slot, with a course-only clock offset.
+    "application_device_authorization_refresh_course": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector below
@@ -110,6 +113,11 @@ REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "application_device_authorization_ghes_refusal": (
         "--device-authorization-probe",
         "--device-authorization-ghes-course",
+    ),
+    # BPR-0536: the composed refresh course.
+    "application_device_authorization_refresh_course": (
+        "--device-authorization-probe",
+        "--device-authorization-refresh-course",
     ),
 }
 
@@ -184,6 +192,7 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
     "--network-denied",
     "--device-authorization-registered-course",
     "--device-authorization-panel-course",
+    "--device-authorization-refresh-course",
     "--device-authorization-browser-absent",
     "--device-authorization-panel-absent",
     "--device-authorization-browser-probe",

@@ -1,7 +1,7 @@
 ---
 id: BPR-0536
 title: Compose the device-authorization refresh lifecycle
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: [BPR-0450, BPR-0526]
 ---
@@ -140,3 +140,61 @@ the real graph over the fixture's real refresh slot with a course-only
 clock offset, the counters it prints being the only reader of the
 composition's binding, resume, and publication counts; the negative
 mutation that depends on it; and the three documents and ledger row 9.
+
+## Part three landed, and the card closes — 2026-09-03
+
+At `883ab6b4`. `--device-authorization-refresh-course` (tests-enabled,
+implying the registered course) drives the real graph over the fixture:
+the fixture vault serves a real refresh slot, `refresh_access_token`
+answers from `documented-v1/` with a `-renewal-<N>` stand-in so a rotation
+is observable, and a course-only clock (`composition_device_refresh_clock`)
+latches a 28 800 s offset the moment composition binds — not on the
+authorized stage, because the host reads `AuthorizedAt` from the same
+clock and a stage latch would move both ends — so `schedule_refresh`'s
+wait is zero and the real timer fires. The course prints
+`DEVICE_FLOW_ROTATIONS`, `REFRESH_STATE`, `VAULT_STORES`, `DURABLE_COPIES`,
+`REFRESH_BOUND`, `REFRESH_RESUMES`, and a terminal `REFRESH_OK|FAILED`;
+`application_device_authorization_refresh_course` passes on
+`STAGE:authorized`, `REQUESTS:0`, `ROTATIONS:1`, `REFRESH_STATE:scheduled`,
+`VAULT_STORES:2` (one enrollment, one rotation), `DURABLE_COPIES:0`,
+`REFRESH_BOUND:true`, `REFRESH_RESUMES:0`, `REFRESH_OK`.
+
+Getting there took a diagnosis with a temporary trace, all instrumentation
+removed. Three fixture facts stood between the grant and the binding: the
+course connected before the grant, so the grant's `enroll_profile` arrived
+as a second establishment; the fixture vault's delete matched the whole
+operation context (request and identity generation) where a real vault
+matches the authority, so the superseding delete under the new generation
+answered `invalid_request` and the host published `vault_unavailable`;
+and the strict recordings were one-shot. Under the course the delete
+matches by authority, the recordings rewind, the capability probe repeats,
+and the course does not connect first; off the course every guard is
+byte-for-byte what it was. The same trace showed the registered course's
+single store is the fixture's connect credential, not the grant — carded
+as [[BPR-0539]] rather than changed beneath a committed row.
+
+Deleting `DeviceHost->bind_refresh_authority(*authority)` turns the row red
+(`ROTATIONS:0`, `REFRESH_STATE:idle`, `VAULT_STORES:1`); `REFRESH_BOUND`
+stays `true` there because it counts composition's own attempt one line
+above the call, which is why the two markers are independent.
+
+Reproduced on the merged tree: build clean, 31/31 device, GitHub host, public-path, audit, inventory, manifest, and composition rows, boundaries, tidy
+and format on the touched sources, both pins recomputed (`full `8a56faca07c1…`, manifest `8a78e04c78dc…``); a
+fresh Release image carries neither the course flag nor the documented
+fixture root and passes the widened inventory scan and the production
+composed-host audit (0 and 0 occurrences of the flag and the fixture root; `RFC0016_TEST_INVENTORY_OK`; `COMPOSED_HOSTS_OK` with 30 required anchors). The RFC-0016 inventory allocates the
+selector with `--device-authorization-probe` and the course flag, the
+flag joins the forbidden set, and the row is pinned for Windows.
+
+The three documents and ledger row 9 describe the composed behaviour.
+
+| Claim | Command | Result | Commit |
+| --- | --- | --- | --- |
+| Composition binds the refresh authority on the accepted session and resumes a persisted grant after a restart | `ctest --preset dev -R '^(application_device_authorization_(host\|refresh)\|application_github_host)$'` | passed; the renewable probe's accessor tested for both kinds of material | this commit |
+| The refresh observation reaches the panel and cancel forgets the outstanding store | `ctest --preset dev -R '^(application_device_authorization_refresh\|qt_device_authorization_scale_(100\|125\|200))$'` and the R1 mutation (vault cancel kept, context reset deleted) | passed; the mutation fails at "a store that answered after the cancel arms no renewal" | 5fc62071 |
+| One rotation through the real graph under the existing vault authority | `ctest --preset dev -R '^application_device_authorization_refresh_course$'` | `REFRESH_OK` with the markers above | this commit |
+| The binding is load-bearing | the binding call deleted, restored | the row fails with `ROTATIONS:0`; restored, passes with no repin | 883ab6b4 |
+| The tests-disabled Release composes the same binding and carries no course seam | `python3 scripts/verify_composed_hosts.py --profile production <image>`; `strings -a` for the flag and the documented root; `python3 scripts/verify_rfc0016_test_inventory.py --release-binary <image>` | 0 and 0 occurrences of the flag and the fixture root; `RFC0016_TEST_INVENTORY_OK`; `COMPOSED_HOSTS_OK` with 30 required anchors | this commit |
+| The device selectors, the audit, the inventory, the manifest, and the pins hold | the reproduction set on the merged tree | 31/31 device, GitHub host, public-path, audit, inventory, manifest, and composition rows | this commit |
+| The documents and the ledger describe the composed behaviour | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | this commit |
+| No whitespace damage | `git diff --check` | clean | this commit |

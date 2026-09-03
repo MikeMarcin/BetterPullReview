@@ -85,8 +85,12 @@ outbound endpoint instead.
 - **Transient material stays inside the host.** The device code lives for the
   poll window only and is never written to settings, logs, diagnostics,
   SQLite, or evidence; the access and refresh tokens reach the platform vault
-  and nothing else. The core, the projection, and the Qt adapter cannot name
-  any of them ([[BPR-0277]], [[BPR-0282]], `rfc0016_test_inventory`).
+  and nothing else — the refresh token parked by a grant is flushed to the
+  vault the moment composition binds the session's authority, and the
+  restart probe that reads the refresh slot destroys what it read on the
+  vault's own thread and passes only a yes ([[BPR-0536]]). The core, the
+  projection, and the Qt adapter cannot name any of them ([[BPR-0277]],
+  [[BPR-0282]], `rfc0016_test_inventory`).
 - **Redirect and certificate rules are inherited, not restated.** Both device
   routes run on the RFC-BPR-0002 native HTTPS transport under system trust and
   proxy configuration, with no certificate-error bypass, unknown-authority

@@ -1211,6 +1211,24 @@ material schedules no rotation at all ([[BPR-0279]], [[BPR-0283]],
 `application_device_authorization_refresh`,
 `github_device_authorization_refresh_contract`).
 
+That lifecycle is composed, not only tested ([[BPR-0536]]). On an accepted
+session for the device-enrolled profile, composition hands the device host
+the session's credential authority key: while the device stage is
+`authorized` in this run it binds (`bind_refresh_authority`, which also
+flushes refresh material parked from the grant), and otherwise, when the
+GitHub host's one-time probe of its own refresh slot finds material — only
+a device grant ever writes that slot, which is how a restart tells a
+persisted grant from a pasted token — it resumes (`resume_refresh`), so a
+process that starts with a stored grant re-arms renewal without a new
+device code. The host publishes its refresh observation on every change
+through the projection port's `publish_refresh`, the sign-in panel renders
+one line for `reenrollment_required` and nothing for the other states, and
+cancelling a flow forgets any outstanding refresh store so a store that
+answers late arms nothing. The composed-host audit requires the binding
+function in both profiles, and `application_device_authorization_refresh_course`
+drives one rotation through the real graph over the fixture's refresh slot
+with a course-only clock offset.
+
 Refresh material is keyed by the same authority as the credential itself and
 kept beside it in a second vault slot, so neither can be retrieved under the
 other's name and deleting one never silently removes the other. The authority

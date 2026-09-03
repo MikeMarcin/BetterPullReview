@@ -2395,11 +2395,16 @@ success claim.
   in and are the minimum the shipped operation catalog justifies; they are not
   operator-editable, because an editable scope set reintroduces the decision
   this path removes.
-- The acquired token expires and renews itself shortly before it does. A
-  renewal that cannot complete says so once and asks for re-enrollment rather
-  than retrying forever; enrol again from the same panel. Refresh material
-  lives in a second slot of the same platform vault, keyed by the same
-  authority, and an orderly shutdown removes only what it retained.
+- The acquired token expires and renews itself shortly before it does, and
+  since BPR-0536 the product does this rather than only the host: the
+  composition binds the renewal to the signed-in profile's vault authority,
+  and a restart with a stored grant resumes renewal without a new code. A
+  renewal that cannot complete says so once, as one line on the sign-in
+  panel, and asks for re-enrollment rather than retrying forever; enrol again
+  from the same panel. Refresh material lives in a second slot of the same
+  platform vault, keyed by the same authority, and an orderly shutdown
+  removes only what it retained. `application_device_authorization_refresh_course`
+  proves one rotation through the composed graph over the fixture.
 - Opening a browser can fail, and that is not an authorization failure. The
   code and the address stay on screen and the flow completes on whatever
   device the reviewer finishes it on. An address that does not sit under the
