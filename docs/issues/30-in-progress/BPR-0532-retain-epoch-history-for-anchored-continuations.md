@@ -64,3 +64,33 @@ documented alternative. A scout confirmed the continuation path
 single-slot overwrite of the accepted comparison, and the contract's
 `foreach` course loop before any edit. The slice runs on `bpr-0532-work`
 in a worktree after [[BPR-0533]], which edited the same dispatch.
+
+## Part one landed — 2026-09-03
+
+At `96804415`. The re-alignment request exists in the application layer:
+`agent_realignment_request` names the kept binding's epoch pair and oids,
+`agent_realignment_port` serves it, and `composed_agent_realignment`
+resolves and materializes that pair through the workbench's selected-diff
+and blob ports and computes the file diff with the existing core compute,
+so the old revision's own per-path identities are reproduced rather than
+retained. The bound is stated once — `maximum_agent_realignment_files`
+(one file per request) and the request's own `diff_compute_limits` — and
+a request past either is refused before any effect; missing objects refuse
+as `objects_unavailable`. Three tests in `application_diff_host` cover the
+exact retargeted lookup (the frozen digest and identity counts equal an
+independent compute of the same pair), the missing-objects refusal, and
+the bounds; deleting the retargeting assignments fails the first.
+
+Reproduced on the merged tree: build clean, 20/20 selectors in 348 s, boundaries, tidy
+and format on the touched sources; the pins held at their values (the slice adds no `src/app` source and touches no composition file).
+
+Not yet delivered, and why part two exists: the composition half was
+built and worked end to end — the old pair's seven segments frozen from
+the kept binding — and then failed the new course and the previously
+green `application_agent_chat_continued_contract` with `stale_result` on
+the second turn, because the synchronous re-alignment on the gesture path
+let the head's ingress supersede the turn (or delayed the dispatch past
+it; unproven). It was reverted rather than landed red. Part two diagnoses
+that with evidence and composes the re-alignment asynchronously or
+authorizes the continued workspace against the kept generation, whichever
+the evidence names.
