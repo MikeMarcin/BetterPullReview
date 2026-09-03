@@ -1812,6 +1812,164 @@ namespace {
 			"the credential target performed only the one credential query");
 	}
 
+	// [[BPR-0545]]. The case that would have caught B1. `cross_kind_context`
+	// above already pins the refusal across store, retrieve and delete, but
+	// every one of those is the base slot; nothing pinned it across the two
+	// slots, which is the pair [[BPR-0540]]'s erasure actually submitted. The
+	// pending map is keyed by the context alone, not by the context and the
+	// slot, so a refresh operation and a credential operation under one
+	// context are still a duplicate — and the second is refused before it is
+	// queued, whichever slot it belongs to.
+	void test_one_context_cannot_carry_both_slots()
+	{
+		application::manual_executor lane;
+		auto                         observation    = std::make_shared<wipe_observation>();
+		auto                         backend        = std::make_shared<wiping_fake_backend>(observation);
+		auto                         refreshBackend = std::make_shared<wiping_fake_backend>(observation);
+		auto                         vault          = make_test_vault_with_refresh(lane, backend, refreshBackend);
+
+		// The order BPR-0540's `start_delete` used: the refresh erasure first,
+		// then the base credential's own delete under the same context.
+		const auto      erasure = context(authority(), 720U);
+		delete_recorder refreshFirst;
+		delete_recorder credentialSecond;
+		vault->delete_refresh(
+			erasure,
+			[&refreshFirst](
+				application::github_credential_delete_completion terminal) {
+				refreshFirst.record(std::move(terminal));
+			});
+		submit_delete(*vault, erasure, credentialSecond);
+		expect_delete_error(
+			credentialSecond,
+			erasure,
+			vault_failure::invalid_request);
+		expect(
+			lane.pending() == 1U,
+			"only the first of the two slots is queued under one context");
+		lane.run_next();
+		expect(
+			refreshFirst.Calls == 1U,
+			"and the refresh erasure is the one that ran");
+		expect(
+			backend->Calls.empty(),
+			"the base credential was never deleted -- exactly the regression");
+
+		// The mirror image, so the refusal is not an artefact of which slot
+		// went first.
+		const auto      reversed = context(authority(), 721U);
+		delete_recorder credentialFirst;
+		delete_recorder refreshSecond;
+		submit_delete(*vault, reversed, credentialFirst);
+		vault->delete_refresh(
+			reversed,
+			[&refreshSecond](
+				application::github_credential_delete_completion terminal) {
+				refreshSecond.record(std::move(terminal));
+			});
+		expect_delete_error(
+			refreshSecond,
+			reversed,
+			vault_failure::invalid_request);
+		expect(
+			lane.pending() == 1U,
+			"the refusal does not depend on which slot was submitted first");
+		lane.run_next();
+		expect(
+			credentialFirst.Calls == 1U,
+			"and the credential delete is the one that ran");
+	}
+
+	// [[BPR-0545]]. The shape the host now uses: the refresh erasure is issued
+	// from the credential delete's terminal, so the two never share a pending
+	// slot and both reach their own target. This passes against the vault as
+	// it already stands -- it is the fixed ordering, pinned here so a future
+	// slice cannot quietly return to the one that did not work.
+	void test_the_erasure_completes_when_issued_from_the_terminal()
+	{
+		application::manual_executor lane;
+		auto                         observation    = std::make_shared<wipe_observation>();
+		auto                         backend        = std::make_shared<wiping_fake_backend>(observation);
+		auto                         refreshBackend = std::make_shared<wiping_fake_backend>(observation);
+		auto                         vault          = make_test_vault_with_refresh(lane, backend, refreshBackend);
+
+		const auto key        = authority();
+		const auto credential = generated_bytes(31U);
+		const auto refresh    = generated_bytes(37U);
+
+		store_recorder storedCredential;
+		submit_store(*vault, context(key, 730U), credential, storedCredential);
+		lane.run_next();
+		store_recorder storedRefresh;
+		vault->store_refresh(
+			application::github_credential_enrollment{
+				.Context    = context(key, 731U),
+				.Credential = material_from(refresh),
+			},
+			[&storedRefresh](
+				application::github_credential_store_completion terminal) {
+				storedRefresh.record(std::move(terminal));
+			});
+		lane.run_next();
+		expect(
+			backend->matches(key, credential)
+				&& refreshBackend->matches(key, refresh),
+			"both slots hold their own material before the erasure");
+
+		const auto      occasion = context(key, 732U);
+		delete_recorder credentialDelete;
+		delete_recorder refreshDelete;
+		auto            refreshIssued = false;
+		submit_delete(*vault, occasion, credentialDelete);
+		lane.run_next();
+		expect(
+			credentialDelete.Calls == 1U,
+			"the credential delete reaches its terminal first");
+		// Issued from that terminal, under the same context, as the host does.
+		if (terminal_as<application::github_credential_delete_success>(
+				credentialDelete.Terminal)
+			!= nullptr) {
+			refreshIssued = true;
+			vault->delete_refresh(
+				occasion,
+				[&refreshDelete](
+					application::github_credential_delete_completion terminal) {
+					refreshDelete.record(std::move(terminal));
+				});
+			lane.run_next();
+		}
+		expect(refreshIssued, "the credential delete succeeded, so the erasure ran");
+		expect(
+			refreshDelete.Calls == 1U
+				&& terminal_as<application::github_credential_delete_success>(
+					   refreshDelete.Terminal)
+					!= nullptr,
+			"the refresh erasure completes under the same context, once it is free");
+
+		retrieve_recorder credentialGone;
+		submit_retrieve(*vault, context(key, 733U), credentialGone);
+		lane.run_next();
+		expect(
+			terminal_as<application::github_credential_retrieve_absent>(
+				credentialGone.Terminal)
+				!= nullptr,
+			"the base target is absent afterwards");
+
+		retrieve_recorder refreshGone;
+		vault->retrieve_refresh(
+			context(key, 734U),
+			[&refreshGone](
+				application::github_credential_retrieve_completion terminal) {
+				refreshGone.record(std::move(terminal));
+			});
+		lane.run_next();
+		expect(
+			terminal_as<application::github_credential_retrieve_absent>(
+				refreshGone.Terminal)
+				!= nullptr,
+			"and so is the refresh target, with neither answering for the other");
+	}
+
 	void test_a_vault_without_a_refresh_target_reports_unavailable()
 	{
 		application::manual_executor lane;
@@ -1854,6 +2012,8 @@ auto main() -> int
 	test_teardown_atomically_claims_all_queued_work();
 	test_fake_backend_wipes_on_replacement_delete_and_teardown();
 	test_the_refresh_slot_reaches_only_its_own_target();
+	test_one_context_cannot_carry_both_slots();
+	test_the_erasure_completes_when_issued_from_the_terminal();
 	test_a_vault_without_a_refresh_target_reports_unavailable();
 	return EXIT_SUCCESS;
 }
