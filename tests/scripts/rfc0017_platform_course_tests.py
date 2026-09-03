@@ -161,10 +161,18 @@ class SelectorSetTests(unittest.TestCase):
         )
         self.assertEqual(
             sorted(course.COURSE_ONLY_SELECTORS),
-            ["application_anonymous_public_preview_public_path",
-             "composed_application_hosts"],
+            ["composed_application_hosts"],
         )
         self.assertNotIn("composed_application_hosts", inventory.SELECTORS)
+        # The composed public path is owned by the inventory like its
+        # siblings and reaches the course through the owed set, not twice.
+        self.assertIn(
+            "application_anonymous_public_preview_public_path",
+            inventory.SELECTORS,
+        )
+        self.assertIn(
+            "application_anonymous_public_preview_public_path", names
+        )
 
     def test_a_windows_graph_owes_neither_wire_selector(self) -> None:
         as_windows(self)

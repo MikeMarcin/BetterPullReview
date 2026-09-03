@@ -65,6 +65,8 @@ PREVIEW_ROWS = (
      "application_device_authorization_release_contract", ("--public-preview-probe",)),
     ("application_anonymous_public_preview_ghes_refusal",
      "application_github_public_path_ghes_3_18", ("--public-preview-ghes-course",)),
+    ("application_anonymous_public_preview_public_path",
+     "application_github_public_path_github_com", ("--public-preview-enabled-course",)),
 )
 BUILD = pathlib.Path("/nonexistent/build")
 

@@ -1,4 +1,7 @@
+#include "github_anonymous_read_admission.hpp"
 #include "github_paged_read.hpp"
+
+#include "bpr/core/anonymous_read_policy.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -2318,34 +2321,39 @@ namespace {
 
 	/// Builds the request a signed-out profile presents.
 	///
-	/// Every capability fact is unsupported, so the projected read shape is
-	/// all-false and the projection helper stops before a GraphQL body
-	/// exists. No account transport is attached, because an anonymous
-	/// authority holds no lease to present.
+	/// The identity `signed_out_read_identity` admits, term by term: the
+	/// public-preview mode on the request and its context, an anonymous
+	/// viewer, a zero account everywhere, every capability unsupported so
+	/// the read shape is all-false and the projection helper stops before a
+	/// GraphQL body exists, and evidence that was never probed — both
+	/// freshness epochs zero — because a signed-out session synthesises its
+	/// entry rather than observing one. No account transport is attached,
+	/// because an anonymous authority holds no lease to present.
 	[[nodiscard]] auto anonymous_provider_request()
 		-> application::github_pull_request_provider_request
 	{
-		auto request = provider_request();
-		for (auto& fact : request.CapabilityEvidence.Facts) {
+		auto request               = provider_request();
+		request.Mode               = core::github_access_mode::public_preview;
+		request.Context.Mode       = core::github_access_mode::public_preview;
+		request.Context.Account    = core::github_account_id{ };
+		request.Viewer             = application::github_viewer_record{ };
+		request.AccountTransport   = nullptr;
+		auto& evidence             = request.CapabilityEvidence;
+		evidence.Authority.Account = core::github_account_id{ };
+		for (auto& fact : evidence.Facts) {
 			fact.State = core::github_capability_state::unsupported;
 		}
-		for (auto& fact : request.CapabilityEvidence.SchemaFacts) {
+		for (auto& fact : evidence.SchemaFacts) {
 			fact.State = core::github_capability_state::unsupported;
 		}
-		const auto observation = application::github_capability_probe_observation{
-			.Authority   = request.CapabilityEvidence.Authority,
-			.ObservedAt  = request.CapabilityEvidence.ObservedAt,
-			.Facts       = request.CapabilityEvidence.Facts,
-			.SchemaFacts = request.CapabilityEvidence.SchemaFacts,
-		};
-		request.CapabilityEvidence.Capabilities
-			= application::projected_capabilities(observation);
-		request.CapabilityEvidence.ReadShape
-			= application::projected_read_shape(observation);
-		request.AccountTransport = nullptr;
-		expect(request.CapabilityEvidence.ReadShape
-				   == application::github_read_shape{ },
-			   "a signed-out profile carries an all-false read shape");
+		evidence.Capabilities  = core::anonymous_capabilities();
+		evidence.ReadShape     = application::github_read_shape{ };
+		evidence.ObservedAt    = application::github_freshness_epoch{ };
+		evidence.ExpiresBefore = application::github_freshness_epoch{ };
+		expect(application::anonymous(request.Viewer)
+				   && application::reads_nothing(evidence.ReadShape)
+				   && signed_out_read_identity(request),
+			   "a signed-out profile presents the signed-out identity");
 		return request;
 	}
 

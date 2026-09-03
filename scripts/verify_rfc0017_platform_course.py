@@ -75,13 +75,9 @@ SELECTIONS = rfc0016.SELECTIONS
 # `verify_rfc0017_test_inventory.SELECTORS`, so the two cannot disagree about
 # what this RFC's evidence is.
 COURSE_ONLY_SELECTORS: dict[str, str] = {
-    # BPR-0305's composed public path: the anonymous preview reached through
-    # the real application graph rather than through a host constructed for
-    # the test. The inventory guards the demonstration seam's absence from a
-    # shipped build; this one is a composition fact, so it lives here.
-    "application_anonymous_public_preview_public_path": (
-        "BPR-0305's composed public-path course"
-    ),
+    # BPR-0305's composed public path was a course-only name until its
+    # registration landed; the inventory owns it now like its siblings, so it
+    # arrives through the owed set rather than being listed twice.
     # BPR-0523: the composed-host audit of the tests-enabled binary, so a
     # platform whose dev graph lost a required constructor fails here rather
     # than in the artifact audit further down.

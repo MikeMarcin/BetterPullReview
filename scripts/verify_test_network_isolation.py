@@ -116,6 +116,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_anonymous_public_preview_unavailable": "dos-volume-name",
     "application_anonymous_public_preview_release_contract": "dos-volume-name",
     "application_anonymous_public_preview_ghes_refusal": "dos-volume-name",
+    "application_anonymous_public_preview_public_path": "dos-volume-name",
     "github_device_authorization_refresh_contract": "dos-volume-name",
     "application_device_authorization_release_contract": "dos-volume-name",
     "application_epoch_maintenance_public_path": "dos-volume-name",

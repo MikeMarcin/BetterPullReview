@@ -44,6 +44,7 @@ SELECTORS: dict[str, int] = {
     "application_anonymous_public_preview_unavailable": 1,
     "application_anonymous_public_preview_release_contract": 1,
     "application_anonymous_public_preview_ghes_refusal": 1,
+    "application_anonymous_public_preview_public_path": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector also
@@ -57,6 +58,7 @@ REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "application_anonymous_public_preview_unavailable": ("--public-preview-probe",),
     "application_anonymous_public_preview_release_contract": ("--public-preview-probe",),
     "application_anonymous_public_preview_ghes_refusal": ("--public-preview-ghes-course",),
+    "application_anonymous_public_preview_public_path": ("--public-preview-enabled-course",),
 }
 
 # Not every configured graph builds every surface — the core-only preset has
@@ -90,6 +92,7 @@ SELECTOR_ANCHORS: dict[str, tuple[str | None, bool]] = {
     "application_anonymous_public_preview_unavailable": ("application_device_authorization_unavailable", False),
     "application_anonymous_public_preview_release_contract": ("application_device_authorization_release_contract", False),
     "application_anonymous_public_preview_ghes_refusal": ("application_github_public_path_ghes_3_18", False),
+    "application_anonymous_public_preview_public_path": ("application_github_public_path_github_com", False),
 }
 
 WIRE_BLOCK_PLATFORMS = frozenset({"darwin", "linux"})

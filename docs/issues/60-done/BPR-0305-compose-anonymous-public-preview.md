@@ -1,7 +1,7 @@
 ---
 id: BPR-0305
 title: Compose the production anonymous public preview
-status: In Progress
+status: Done
 rfc: RFC-BPR-0017
 depends_on: [BPR-0303, BPR-0304, BPR-0317]
 ---
@@ -125,3 +125,77 @@ registered selector.
 | Every touched C++ file is formatted | `clang-format --dry-run --Werror` over the touched files | exit 0, no output | this commit |
 | The shipped image carries both anonymous factories and no test twin, and answers the probe unavailable with zero requests | `cmake --build --preset app-release`; `python3 scripts/verify_rfc0017_test_inventory.py --build-dir build/dev --all --release-binary <artifact>`; `nm -C`; `<artifact> --self-test --ghes-host ghe.example.invalid --public-preview-probe --automated-run-budget-ms 20000` | `RFC0017_TEST_INVENTORY_OK`; read and smart factories present, `_for_test` absent; `PUBLIC_PREVIEW_COMPOSED:false`, `STAGE:unavailable`, `REQUESTS:0`, `PUBLIC_PREVIEW_UNAVAILABLE_OK` | this commit |
 | The composed-host audit's, the manifest gate's, and the inventory's own contracts | `python3 tests/scripts/verify_composed_hosts_tests.py`; `…/verify_test_network_isolation_tests.py`; `…/verify_rfc0017_test_inventory_tests.py` | OK; OK; OK | this commit |
+
+## Part two landed — 2026-09-02
+
+Integrated at `f888e868`. With it the card's required final state is met and
+it closes.
+
+**The anonymous script is derived, not recorded twice.** The public-path
+fixture builds a nine-exchange signed-out script from the authenticated
+ten in C++ — no fixture file added, the authenticated `manifest.json` byte
+for byte unchanged (its security suite 16/16). The order is
+`anonymous_read_operations`: repository, pull request, files, commits,
+reviews, review comments, issue comments, checks, search; eight bodies are
+the authenticated recording's REST responses and the ninth,
+`ListReviewComments`, is the promoted live body from
+`tests/fixtures/github/rfc0017-anonymous-v001/captures/pull-request-comments.json`
+byte-exact, its request derived from the recorded reviews exchange the way
+`compile_read_request` emits it. Viewer identity and review threads are
+absent. The anonymous role refuses any `Authorization` or
+`Proxy-Authorization` header, and an exact-count check mirrors the
+authenticated one.
+
+**The real blocker was the adapter's guards, not the recording.**
+`valid_read_correlation` demanded structurally valid capability evidence
+and `provider_request_valid` demanded a valid observation with a nonzero
+viewer account, so the host's synthesised, never-probed entry could not
+pass and `make_anonymous` was never reached. `signed_out_read_identity` in
+`github_anonymous_read_admission.hpp` now admits exactly one shape at both
+call sites: mode `public_preview`, an anonymous viewer, zero account
+everywhere, `anonymous_capabilities()`, a shape reading nothing, and both
+freshness epochs zero — a probe always sets them, so observed evidence
+cannot enter through this branch, which is the load-bearing term the
+integrator reviewed. Probe-derived evidence still passes unchanged. A
+second fix in `main.cpp`: the stage is reported from the observation the
+run made while the session was live, because `access_mode()` read after
+shutdown had already been cleared.
+
+**The enabled course.** Under `--public-preview-enabled-course
+--github-fixture github-com` the pull request opens through the anonymous
+provider: `COMPOSED:true`, `STAGE:enabled`, `REQUESTS:1` (anonymous
+pull-request reads, not wire exchanges — part one's semantics),
+`HEADER_EFFECTS:0`, `VAULT_EFFECTS:0`, `SIGN_IN_REQUESTS:0`,
+`REVIEW_COMMENT_GROUPS:1`, and two write attempts offered through the
+host's legality query and refused before any request —
+`WRITE_REFUSALS:2` — then `PUBLIC_PREVIEW_ENABLED_OK`.
+`application_anonymous_public_preview_public_path` pins that whole marker
+sequence, registered like its siblings, pinned in the manifest, and
+allocated in the inventory with its course flag; the platform course now
+takes it from the inventory rather than as a course-only name. Pins moved
+in two passes: `dc448811…3d56fc` → `ed8f960a…10578c`,
+`9638be22…a5593` → `085e3611…f8b87`.
+
+**One test caught up with the rule.** `github_paged_read`'s signed-out
+request still started from the authenticated one — a real viewer and
+probe-derived evidence with its capability facts flipped — which the pager
+now rightly refuses to treat as signed out, so the integrator's first
+reproduction failed it on "a signed-out read normalizes". The test now
+builds the identity `signed_out_read_identity` admits, term by term, and
+asserts it before reading; the suite and every adapter sibling pass.
+
+**Recorded for [[BPR-0316]].** The probe's `PUBLIC_PREVIEW_ENABLED_OK`
+verdict requires at least one read, so a flipped shipped selection — which
+activates with zero requests — would take the `UNAVAILABLE_FAILED` branch
+under the plain probe; the macOS flip owes a probe-verdict or course change.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The dev graph builds clean | `cmake --build --preset dev` | exit 0, zero `error:` or `warning:` lines | this commit |
+| The four composition selectors, the three public-path fixtures, the device public path, both anonymous host suites, the adapter's anonymous contract and pager and provider suites, the read contract, the transport tables, the composed-host audit, the manifest, inventory, and course-contract gates, and both composition contracts | `ctest --preset dev -R '^(application_anonymous_public_preview_(public_path\|unavailable\|release_contract\|ghes_refusal)\|application_github_public_path_(github_com\|uiforetw_74\|ghes_3_18)\|application_device_authorization_public_path\|application_anonymous_read_host\|application_anonymous_diff_authority\|github_anonymous_read_contract\|github_paged_read\|github_provider\|github_read_contract\|native_https_anonymous_read_(contract\|fixture)\|composed_application_hosts\|test_network_isolation_manifest\|rfc0017_test_inventory\|rfc0017_test_inventory_contract\|rfc0017_platform_course_launch_contract\|application_review_round_trip_composition_contract\|application_composition_contract)$' --output-on-failure` | 23/23 passed | this commit |
+| The architecture boundaries hold | `cmake --build build/dev --target check_boundaries` | exit 0 | this commit |
+| Every touched C++ file is formatted | `clang-format --dry-run --Werror` over the touched files | exit 0, no output | this commit |
+| The shipped image still answers the probe unavailable with zero requests and carries no test seam | `cmake --build --preset app-release`; the inventory's `--all --release-binary` scan; the shipped probe with `--ghes-host` | `RFC0017_TEST_INVENTORY_OK`; `STAGE:unavailable`, `REQUESTS:0`, `PUBLIC_PREVIEW_UNAVAILABLE_OK` | this commit |
+| Composing the authenticated authority instead is caught | The worker composed the anonymous provider with `github_provider_read_authority::authenticated`, rebuilt, ran the public path; restored, repinned | `REQUESTS:3`, `GROUPS:0`, `WRITE_REFUSALS:0`, `PUBLIC_PREVIEW_ENABLED_FAILED`; restored, passes with no pin drift | this commit |
+| The tree's documentation and issue-graph contracts hold | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | this commit |
+| No whitespace damage | `git diff --check` | clean | this commit |
