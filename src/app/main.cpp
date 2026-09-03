@@ -6145,6 +6145,21 @@ auto main(int argc, char** argv) -> int
 						   : "APPLICATION_NETWORK_ISOLATION_NOT_DENIED\n");
 			return denied ? EXIT_SUCCESS : EXIT_FAILURE;
 		}
+		// [[BPR-0515]]. Tests-enabled only, and deliberately so: this is the
+		// one flag that changes where the shipped device-authorization wire
+		// dials, and a released binary must not carry a way to redirect its
+		// own egress from a command line. The string exists nowhere else, so
+		// the RFC-BPR-0017 fixture-seam scan can prove its absence from a
+		// tests-disabled Release by looking for it.
+		//
+		// What it buys is one gate's determinism.
+		// `application_device_authorization_unavailable` is exempt from the
+		// Windows AppContainer ([[BPR-0362]]), so on Windows nothing denied
+		// the connect and the gate's expectation depended on reaching
+		// github.com. With this the denial is the application's own, on every
+		// platform, and the expectation is the local `failed` macOS and Linux
+		// already recorded.
+		config.NetworkDenied               = has_argument(argc, argv, "--network-denied");
 		const auto testApplicationDataRoot = argument_value(
 			argc, argv, "--test-application-data-root");
 		if (testApplicationDataRoot.has_value()) {

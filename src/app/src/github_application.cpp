@@ -1442,6 +1442,33 @@ namespace bpr::app {
 #endif
 		}
 
+#if defined(BPR_BUILD_TESTING)
+		// [[BPR-0515]]. The one local denial the dev-tree gate composes.
+		//
+		// `application_device_authorization_unavailable` drives the shipped
+		// device selection and needs the connect to fail on the host, not at
+		// GitHub. macOS and Linux got that from the harness - sandbox-exec and
+		// a loopback-only network namespace - but [[BPR-0362]] exempts this
+		// test from the Windows AppContainer, so on Windows nothing stood in
+		// front of the network and the real flow reached `awaiting_authorization`
+		// against github.com once per run. Denying at the socket sidesteps the
+		// token the container could not grant: the wire is composed against a
+		// closed loopback port instead of the discovered system proxy, the
+		// connect is refused immediately, and all three platforms land on the
+		// same `failed` terminal without the expectation depending on what the
+		// host can reach.
+		//
+		// Port 1 is the denial. It is reserved, never bound by anything this
+		// application would talk to, and `proxy_candidates` under this policy
+		// offers it alone - no direct candidate and no fallback port - so there
+		// is no route by which a request could still leave the machine.
+		[[nodiscard]] auto denied_loopback_network() noexcept
+			-> adapters::github::detail::native_https_test_configuration
+		{
+			return { .ProxyHost = "127.0.0.1", .ProxyPort = 1U };
+		}
+#endif
+
 		/// \brief Describes whether this build offers the signed-out preview.
 		struct public_preview_capability
 		{
@@ -2746,6 +2773,10 @@ namespace bpr::app {
 				}
 			}
 #if defined(BPR_BUILD_TESTING)
+			// [[BPR-0515]]. Adopted outside the fixture branch below, because
+			// the gate this exists for selects no fixture: it drives the
+			// shipped composition and only wants the connect denied.
+			NetworkDenied = aConfig.NetworkDenied;
 			if (aFixture.has_value()) {
 				DisableWorkbenchSelectionWire
 					= aFixtureOptions.DisableWorkbenchSelectionWire;
@@ -3623,16 +3654,30 @@ namespace bpr::app {
 				= application::device_authorization_capability{ .Registered
 																= false };
 			if constexpr (shipped_device_authorization_capability().Registered) {
-				auto deviceWire = adapters::github::detail::
-					make_native_https_credential_free_transport(
-						Profiles.front(),
-						core::github_session_request_context{
-							.Request            = core::request_id{ 907U },
-							.ApplicationSession = core::application_session_id{
-								908U },
-							.Profile            = Profiles.front().profile(),
-							.IdentityGeneration = core::github_identity_generation{ 909U },
-						});
+				const auto deviceContext = core::github_session_request_context{
+					.Request            = core::request_id{ 907U },
+					.ApplicationSession = core::application_session_id{ 908U },
+					.Profile            = Profiles.front().profile(),
+					.IdentityGeneration = core::github_identity_generation{ 909U },
+				};
+				auto deviceWire = [this, &deviceContext]() {
+#if defined(BPR_BUILD_TESTING)
+					// [[BPR-0515]]. The same binding, the same credential-free
+					// request, the same headers - only the proxy policy differs,
+					// and it differs into a closed port. Selected by nothing but
+					// `--network-denied`, which exists only here.
+					if (NetworkDenied) {
+						return adapters::github::detail::
+							make_native_https_credential_free_transport_for_test(
+								Profiles.front(),
+								deviceContext,
+								denied_loopback_network());
+					}
+#endif
+					return adapters::github::detail::
+						make_native_https_credential_free_transport(
+							Profiles.front(), deviceContext);
+				}();
 				if (deviceWire.has_value()) {
 					auto deviceAdapter = adapters::github::detail::
 						make_github_device_authorization_transport(
@@ -6918,6 +6963,9 @@ namespace bpr::app {
 		bool RegisteredDeviceCourse                     = false;
 		bool SuppressDeviceBrowser                      = false;
 		bool DisableDeviceAuthorizationPanelComposition = false;
+		// [[BPR-0515]]. Whether this run composes its device wire against the
+		// closed loopback port rather than the discovered system proxy.
+		bool NetworkDenied = false;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		// RFC-BPR-0017 courses. The first forces the shipped selection

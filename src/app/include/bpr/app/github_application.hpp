@@ -33,6 +33,21 @@ namespace bpr::app {
 		std::string AttendedInventorySha256;
 		std::string BuildConfiguration;
 		bool        BuildTesting = true;
+		/// [[BPR-0515]]. Denies this process's own outbound HTTPS locally.
+		///
+		/// \details The device-authorization wire is composed against a closed
+		/// loopback proxy instead of the discovered system proxy, so the connect
+		/// is refused on the host and the dev-tree gate reaches `failed` without
+		/// anything leaving the machine. Only a tests-enabled build reads this:
+		/// the composition branch that honours it, the fixture factory it
+		/// selects, and the `--network-denied` flag that sets it are all behind
+		/// the tests-enabled build guard, so a shipped binary has no way to set
+		/// it and no code that would notice if it were set. The field itself
+		/// stays outside that guard for one reason only - this header is
+		/// included by a target that links the composition without defining
+		/// the guard, and a conditionally-sized record passed by value across
+		/// that seam would disagree about its own layout.
+		bool NetworkDenied = false;
 	};
 
 	/// \brief Initializes or deliberately resets the designated-live replay
