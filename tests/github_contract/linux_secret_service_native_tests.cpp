@@ -577,6 +577,69 @@ namespace {
 		aAggregate = aResult && aAggregate;
 	}
 
+	/// [[BPR-0545]] Both erasures under one occasion, sequenced, against the
+	/// real collection.
+	///
+	/// This is the shape [[BPR-0540]] should have had and the fix now has: the
+	/// refresh erasure is issued from the credential delete's *terminal*, not
+	/// beside it. Submitted that way the shared context is harmless, because
+	/// the first operation has left the vault's pending map by the time the
+	/// second arrives -- which is exactly the difference between this and the
+	/// contract case that pins the refusal.
+	///
+	/// It is written against the real Secret Service rather than a fake because
+	/// the property is about two stores: what has to be true afterwards is that
+	/// the base slot is empty, the refresh slot is empty, and neither answered
+	/// for the other while they were being emptied.
+	[[nodiscard]] auto run_shared_occasion_erasure(
+		application::github_credential_vault_port& aVault,
+		application::manual_executor&              aLane,
+		const std::span<const std::byte>           aBase,
+		const std::span<const std::byte>           aRefresh) -> bool
+	{
+		auto ok = true;
+		record_lifecycle_result(
+			run_store(aVault, aLane, 140U, aBase),
+			"linux-secret-service-occasion:base-store\n",
+			ok);
+		record_lifecycle_result(
+			run_store(aVault, aLane, 141U, aRefresh, vault_slot::refresh),
+			"linux-secret-service-occasion:refresh-store\n",
+			ok);
+
+		// One request number, so both deletes carry the identical context the
+		// host used to submit at once.
+		constexpr std::uint64_t occasion = 142U;
+		record_lifecycle_result(
+			run_delete(
+				aVault,
+				aLane,
+				occasion,
+				application::github_credential_delete_disposition::deleted),
+			"linux-secret-service-occasion:credential-delete\n",
+			ok);
+		// Only after the first has terminated.
+		record_lifecycle_result(
+			run_delete(
+				aVault,
+				aLane,
+				occasion,
+				application::github_credential_delete_disposition::deleted,
+				vault_slot::refresh),
+			"linux-secret-service-occasion:refresh-delete\n",
+			ok);
+
+		record_lifecycle_result(
+			run_retrieve_absent(aVault, aLane, 143U),
+			"linux-secret-service-occasion:base-absent\n",
+			ok);
+		record_lifecycle_result(
+			run_retrieve_absent(aVault, aLane, 144U, vault_slot::refresh),
+			"linux-secret-service-occasion:refresh-absent\n",
+			ok);
+		return ok;
+	}
+
 	[[nodiscard]] auto run_native_lifecycle(
 		const std::span<const std::byte> aCanaryA,
 		const std::span<const std::byte> aCanaryB) -> bool
@@ -696,6 +759,11 @@ namespace {
 		record_lifecycle_result(
 			run_delete(*vault, lane, 129U, std::nullopt),
 			"linux-secret-service-refresh:base-cleanup\n",
+			ok);
+
+		record_lifecycle_result(
+			run_shared_occasion_erasure(*vault, lane, aCanaryA, aCanaryB),
+			"linux-secret-service-occasion:sequence\n",
 			ok);
 
 		const auto cleanup            = run_delete(*vault, lane, 109U, std::nullopt);
@@ -1594,6 +1662,19 @@ namespace {
 				 std::string_view{
 					 "linux-secret-service-refresh:base-cleanup\n" },
 				 std::string_view{ "linux-secret-service-refresh:cleanup\n" },
+				 std::string_view{
+					 "linux-secret-service-occasion:base-store\n" },
+				 std::string_view{
+					 "linux-secret-service-occasion:refresh-store\n" },
+				 std::string_view{
+					 "linux-secret-service-occasion:credential-delete\n" },
+				 std::string_view{
+					 "linux-secret-service-occasion:refresh-delete\n" },
+				 std::string_view{
+					 "linux-secret-service-occasion:base-absent\n" },
+				 std::string_view{
+					 "linux-secret-service-occasion:refresh-absent\n" },
+				 std::string_view{ "linux-secret-service-occasion:sequence\n" },
 				 std::string_view{
 					 "linux-secret-service-retrieve:terminal-count\n" },
 				 std::string_view{
