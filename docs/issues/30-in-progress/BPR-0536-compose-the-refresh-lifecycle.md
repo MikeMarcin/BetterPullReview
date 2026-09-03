@@ -103,3 +103,40 @@ grant from a pasted token. Part two adds the renewable signal from the
 GitHub host, the resume on it, the `--device-authorization-refresh-course`
 with a course-only clock offset over the fixture's real refresh slot, and
 the composed-host anchors.
+
+## Part two landed — 2026-09-03
+
+At `2e8594ab`. The restart half of the review's B2: the GitHub host now
+probes its own refresh slot once on every session acceptance that
+carries a credential authority (`start_refresh_probe()` issuing
+`retrieve_refresh` under the accepted authority) and answers
+`accepted_credential_renewable()`. Presence is the whole answer, because
+only a device grant ever writes that slot, and the device stage cannot
+say so after a restart. Nothing is retained: the completion destroys the
+retrieved material on the vault's own thread and only a bool-equivalent
+crosses to the decision lane; only an affirmative answer posts, so every
+existing turn ordering is byte-identical; the probe has its own context,
+so the single-active-vault-context invariant holds. The accepted session
+is republished once the answer arrives, and composition's rule is now:
+stage `authorized` this run → bind; renewable persisted session → resume;
+anything else → nothing, so a pasted token never earns a false "get a
+code" line. The old "later different key" heuristic is gone.
+
+The composed-host audit now requires the one composition function that
+binds and resumes (`bpr::app::github_application::implementation::bind_device_refresh_authority`)
+in both profiles, so an image that lost it fails the audit rather than
+answering B2 again silently; it survives the Release image as a local
+text symbol, and the production audit reports 30 required anchors. The
+observation reader beside it is inlined into its one caller in Release
+and is not required — the dev-profile selectors prove it.
+
+Reproduced on the merged tree: build clean, 27/27 device, GitHub host, and composition rows in 264 s, boundaries, tidy
+and format on the touched sources; both composition pins recomputed
+(`full `29935feca0b3…`, manifest `c3c0f8fa316a…``).
+
+Still owed, and why a third part exists: the composed course
+(`--device-authorization-refresh-course`) that proves a rotation through
+the real graph over the fixture's real refresh slot with a course-only
+clock offset, the counters it prints being the only reader of the
+composition's binding, resume, and publication counts; the negative
+mutation that depends on it; and the three documents and ledger row 9.

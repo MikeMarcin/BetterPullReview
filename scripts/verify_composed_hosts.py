@@ -188,6 +188,17 @@ SHARED_REQUIRED = (
         "anonymous smart transport factory",
         "bpr::adapters::github::detail::make_native_https_anonymous_smart_transport",
     ),
+    # BPR-0536: the device-authorization refresh lifecycle is composed in both
+    # profiles. The one composition function that binds and resumes the
+    # refresh authority is the linkage proof that a shipped image renews
+    # rather than only enrolling; an image that lost it would answer the
+    # review's B2 again, silently. The observation reader beside it is not
+    # required: a Release inlines it into its one caller, and the dev-profile
+    # selectors are what prove it, not the image.
+    function_anchor(
+        "device refresh authority binding",
+        "bpr::app::github_application::implementation::bind_device_refresh_authority",
+    ),
 )
 
 FIXTURE_REQUIRED = (

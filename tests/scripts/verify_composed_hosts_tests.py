@@ -51,6 +51,7 @@ SHARED_LINES = {
     "Qt device authorization panel constructor": "0029 T bpr::qt::device_authorization_panel::device_authorization_panel()",
     "anonymous read transport factory": "0030 T bpr::adapters::github::detail::make_native_https_anonymous_read_transport(bpr::adapters::github::validated_github_host_profile const&, bpr::core::github_session_request_context)",
     "anonymous smart transport factory": "0031 T bpr::adapters::github::detail::make_native_https_anonymous_smart_transport(bpr::adapters::github::validated_github_host_profile const&, bpr::core::github_session_request_context)",
+    "device refresh authority binding": "0032 T bpr::app::github_application::implementation::bind_device_refresh_authority(bpr::application::github_session_update const&)",
 }
 FIXTURE_LINES = {
     "fixture review mutation provider boundary": "0015 T bpr::app::detail::github_public_path_fixture_components::review_mutation_provider()",
