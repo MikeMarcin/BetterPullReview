@@ -3,7 +3,7 @@ id: BPR-0285
 title: Anchor RFC-BPR-0016 capability-critical verification
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537]
+depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539]
 ---
 
 # Anchor RFC-BPR-0016 capability-critical verification
@@ -568,3 +568,22 @@ selector-rename question the section above leaves open — whether
 `application_device_authorization_unavailable` keeps a name that says
 `unavailable` while proving the registered selection — is untouched here and
 still belongs to this card.
+
+## The review's blocking findings are closed; one more evidence defect found — 2026-09-03
+
+[[BPR-0535]] (B1: a GHES profile can no longer begin a GitHub.com device
+flow), [[BPR-0537]] (the Release flag surface, the `cancelled` expectation,
+and the opener's observed refusals), and [[BPR-0536]] (B2 and R1: the
+refresh lifecycle composed, resumed after a restart, proven by one rotation
+through the real graph) are done, and [[BPR-0534]] made shadowing an error
+on every compiler after the C4456 that only the Windows station caught.
+Strict tidy is clean over `src/` and `tests/` at this head.
+
+The trace that composed the refresh course found that the ledger's
+registered-contract vault course counts the fixture's own connect
+credential as its one store, and that the grant's enrollment aborts on a
+delete the fixture refuses where a real vault would not; that row's claim
+holds by coincidence. [[BPR-0539]] corrects the course and the row before
+the final-head replays run, so this anchor now depends on it. The replays
+on macOS, Linux, and Windows, the second independent review, and this
+card's closeout all wait for that head.
