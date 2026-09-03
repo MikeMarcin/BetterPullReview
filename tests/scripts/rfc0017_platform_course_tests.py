@@ -118,6 +118,27 @@ WIRE_SELECTORS = tuple(
 )
 
 
+def setUpModule() -> None:
+    """Judge every case from inside the wire block, whatever the host is.
+
+    `selector_expected` reads the real `sys.platform`; the cases below
+    describe macOS and Linux listings and use `as_windows` for Windows, so
+    on a Windows host the un-narrowed cases inherited the host's answer and
+    the wire selectors read as extras (found by BPR-0315's station). Pinning
+    the platform here makes the module hermetic on every host.
+    """
+    global _module_platform
+    _module_platform = sys.platform
+    sys.platform = "darwin"
+
+
+def tearDownModule() -> None:
+    sys.platform = _module_platform
+
+
+_module_platform = sys.platform
+
+
 def as_windows(case: unittest.TestCase) -> None:
     """Answer `selector_expected` the way it answers on Windows.
 

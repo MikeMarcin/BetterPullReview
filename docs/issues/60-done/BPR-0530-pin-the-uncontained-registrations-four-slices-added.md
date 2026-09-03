@@ -52,3 +52,19 @@ contract beside it. Nothing about any registration changed.
 The per-name check on the Windows station is the only place a wrong cause
 string would be observed as a wrong label, and that is [[BPR-0285]]'s
 final-head replay to confirm.
+
+## Correction — 2026-09-03
+
+[[BPR-0315]]'s station ran the manifest gate on Windows, where the per-name
+label check exists, and found the pinned set drifted in both directions:
+`rfc0017_release_absence_negative_control` was pinned but is registered
+contained (this card's scan had matched the keyword in the block below it),
+and thirteen registrations use the label without being pinned —
+`native_https_device_authorization_fixture`'s Windows mirror and the twelve
+`application_agent_chat_*` and `application_agent_finding_*` courses that
+`foreach` generates in `tests/end_to_end/CMakeLists.txt`, whose names this
+card's scan could not read from the source. The pin now retires the first
+and carries the thirteen, taken from the configured tree's own `ctest -N`
+listing rather than from the CMake text. The count bound still passes on
+macOS and Linux; the Windows run under BPR-0315's follow-up is the
+observation that the set is exact.

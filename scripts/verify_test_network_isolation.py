@@ -105,7 +105,6 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_device_authorization_panel_absent": "dos-volume-name",
     "application_mcp_context_helper": "dos-volume-name",
     "rfc0017_test_inventory": "dos-volume-name",
-    "rfc0017_release_absence_negative_control": "dos-volume-name",
     "rfc0016_test_inventory": "dos-volume-name",
     # BPR-0317: the anonymous Git cache and catalog suites walk the same
     # data-root ancestor chain as their siblings above.
@@ -117,6 +116,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_anonymous_public_preview_release_contract": "dos-volume-name",
     "application_anonymous_public_preview_ghes_refusal": "dos-volume-name",
     "application_anonymous_public_preview_public_path": "dos-volume-name",
+    "application_anonymous_public_preview_enabled_probe": "dos-volume-name",
+    "application_anonymous_public_preview_live_candidate_wiring": "dos-volume-name",
     "github_device_authorization_refresh_contract": "dos-volume-name",
     "application_device_authorization_release_contract": "dos-volume-name",
     "application_epoch_maintenance_public_path": "dos-volume-name",
@@ -126,6 +127,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_render": "dos-volume-name",
     "gh_cli_transport": "dos-volume-name",
     "native_https_transport_fixture": "dos-volume-name",
+    # BPR-0452's device-authorization loopback fixture, mirrored onto Windows
+    # beside the transport fixture above and uncontained for the same reason.
+    "native_https_device_authorization_fixture": "dos-volume-name",
     "epoch_history_fixture_contract": "dos-volume-name",
     "epoch_maintenance_integration": "dos-volume-name",
     "git_process_contract": "qprocess-named-pipe",
@@ -136,6 +140,21 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_invocation_launcher_construction_cut_contract": "dos-volume-name",
     "application_agent_invocation_gesture_cut_contract": "dos-volume-name",
     "application_agent_invocation_cancellation_contract": "dos-volume-name",
+    # BPR-0514 and BPR-0503's chat and finding composition courses, generated
+    # by foreach in tests/end_to_end/CMakeLists.txt and uncontained for the
+    # same data-root reason as the invocation courses beside them.
+    "application_agent_chat_composition_contract": "dos-volume-name",
+    "application_agent_chat_construction_cut_contract": "dos-volume-name",
+    "application_agent_chat_continued_contract": "dos-volume-name",
+    "application_agent_chat_stale_contract": "dos-volume-name",
+    "application_agent_finding_chat_panel_construction_cut_contract": "dos-volume-name",
+    "application_agent_finding_composition_contract": "dos-volume-name",
+    "application_agent_finding_finding_host_construction_cut_contract": "dos-volume-name",
+    "application_agent_finding_full_agent_contract": "dos-volume-name",
+    "application_agent_finding_mcp_construction_cut_contract": "dos-volume-name",
+    "application_agent_finding_protocol": "dos-volume-name",
+    "application_agent_finding_queue_construction_cut_contract": "dos-volume-name",
+    "application_agent_finding_workshop_construction_cut_contract": "dos-volume-name",
     "application_agent_invocation_staleness_contract": "dos-volume-name",
     "application_agent_invocation_cleanup_retry_contract": "dos-volume-name",
     "application_agent_invocation_workspace_diagnostic_contract": "dos-volume-name",

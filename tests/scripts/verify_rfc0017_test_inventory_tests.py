@@ -67,6 +67,10 @@ PREVIEW_ROWS = (
      "application_github_public_path_ghes_3_18", ("--public-preview-ghes-course",)),
     ("application_anonymous_public_preview_public_path",
      "application_github_public_path_github_com", ("--public-preview-enabled-course",)),
+    ("application_anonymous_public_preview_enabled_probe",
+     "application_device_authorization_unavailable", ("--public-preview-selection-enabled-probe",)),
+    ("application_anonymous_public_preview_live_candidate_wiring",
+     "application_device_authorization_unavailable", ("--public-preview-live-candidate-dry-run",)),
 )
 BUILD = pathlib.Path("/nonexistent/build")
 
