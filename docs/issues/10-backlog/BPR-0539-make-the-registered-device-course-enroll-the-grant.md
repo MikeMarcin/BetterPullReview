@@ -1,7 +1,7 @@
 ---
 id: BPR-0539
 title: Make the registered device course enroll the grant, not the connect credential
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0016
 depends_on: [BPR-0536]
 ---
@@ -44,13 +44,3 @@ committed course's regex and semantics did not change beneath it.
 
 - Changing the refresh course, which already enrolls the grant as its first
   session under its own flag.
-
-## Lane — 2026-09-03
-
-Claimed straight into `30-in-progress/` by the integrator under the
-transition exception; [[BPR-0536]]'s remaining work at claim time is its
-documents and card. The slice runs on `bpr-0539-work` in a worktree and
-follows the refresh course's own pattern — no connect before the grant,
-delete by authority — extended to the registered course, with a marker
-that proves the stored material is the grant and a negative control that
-fails the row when the grant's enrollment is skipped.
