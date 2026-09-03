@@ -51,3 +51,27 @@ the platform course's `cancelled` expectation with their contracts — is the
 integrator's and lands first; the flag gating in `main.cpp` and the opener
 validation test follow [[BPR-0535]] so the two slices do not edit the same
 composition file at once.
+
+## Part one landed — 2026-09-03
+
+The script half, at `a31aee2d` and this commit. `scripts/verify_rfc0016_test_inventory.py`
+now forbids by string the ten tests-enabled flags that are already absent
+from a Release — `--network-denied`, the browser and panel `-absent` and
+`-probe` flags, the four `--public-preview-*` flags, `--test-application-data-root`,
+and `--github-fixture` — proven both ways on the integrator host: the
+release image at the closeout head still passes (`RFC0016_TEST_INVENTORY_OK`)
+and the tests-enabled image fails on eleven strings. The two course flags a
+Release still parses, `--device-authorization-registered-course` and
+`--device-authorization-panel-course`, were confirmed present in the
+release image by `strings` and join the list when the second half gates
+them.
+
+`scripts/verify_rfc0016_platform_course.py`'s `enabled` expectation now
+requires `DEVICE_FLOW_STAGE:cancelled` — the stage only a minted device code
+reaches before the run budget cancels it — and keeps `DEVICE_FLOW_REQUESTS:0`
+as the refusing-transport negative control, refusing `failed` and
+`unavailable` by name (`device-selection-not-reached:<stage>`). The
+contract gained four cases for it. Every enabled course this RFC has
+recorded — macOS, Linux, and Windows, before and after BPR-0515 — landed on
+`cancelled`, so no recorded run changes verdict; an offline station now
+cannot pass the enabled course, which is the point.
