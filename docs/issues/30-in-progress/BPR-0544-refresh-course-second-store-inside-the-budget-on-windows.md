@@ -1,7 +1,7 @@
 ---
 id: BPR-0544
 title: The composed refresh course lands its second store inside the budget on Windows
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
