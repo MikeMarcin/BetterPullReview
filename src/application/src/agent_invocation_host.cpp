@@ -487,10 +487,10 @@ namespace bpr::application {
 						try {
 							self->Effects.post(
 								[weak,
-								 request    = std::move(request),
-								 profile    = std::move(profile),
-								 supplement = std::move(supplement),
-								 existing   = std::move(existing),
+								 runRequest    = std::move(request),
+								 runProfile    = std::move(profile),
+								 runSupplement = std::move(supplement),
+								 runExisting   = std::move(existing),
 								 aInvocation]() mutable {
 									auto effectOwner = weak.lock();
 									if (!effectOwner || !effectOwner->enter_callback()) {
@@ -498,10 +498,10 @@ namespace bpr::application {
 									}
 									auto effectGuard = callback_guard{ effectOwner };
 									effectOwner->run(
-										std::move(request),
-										std::move(profile),
-										std::move(supplement),
-										std::move(existing),
+										std::move(runRequest),
+										std::move(runProfile),
+										std::move(runSupplement),
+										std::move(runExisting),
 										aInvocation);
 								});
 						} catch (...) {

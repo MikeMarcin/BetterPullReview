@@ -882,10 +882,10 @@ namespace bpr::app {
 					application::github_credential_enrollment>(
 					std::move(aEnrollment));
 				Effects.post(
-					[pending = std::move(pending),
+					[pendingEnrollment = std::move(pending),
 					 context,
 					 completion = std::move(aCompletion)]() mutable {
-						pending->Credential.reset();
+						pendingEnrollment->Credential.reset();
 						completion(application::github_credential_store_error{
 							.Context = context,
 							.Failure = application::github_credential_vault_failure::

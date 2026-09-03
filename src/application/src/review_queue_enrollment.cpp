@@ -336,9 +336,9 @@ namespace bpr::application {
 				Effects.post([this, gate, id, stop] {
 					auto result = Store.load(stop);
 					DecisionLane.post(
-						[gate, id, result = std::move(result)]() mutable {
+						[gate, id, loadResult = std::move(result)]() mutable {
 							if (auto* const host = locked_host(gate); host != nullptr) {
-								host->finish_load(id, std::move(result));
+								host->finish_load(id, std::move(loadResult));
 							}
 						});
 				});
@@ -402,13 +402,13 @@ namespace bpr::application {
 					DecisionLane.post(
 						[gate,
 						 id,
-						 preferences = std::move(preferences),
-						 result      = std::move(result)]() mutable {
+						 storedPreferences = std::move(preferences),
+						 storeResult       = std::move(result)]() mutable {
 							if (auto* const host = locked_host(gate); host != nullptr) {
 								host->finish_preferences(
 									id,
-									std::move(preferences),
-									std::move(result));
+									std::move(storedPreferences),
+									std::move(storeResult));
 							}
 						});
 				});
@@ -497,23 +497,23 @@ namespace bpr::application {
 							  gate,
 							  id,
 							  stop,
-							  intent          = std::move(aIntent),
-							  changed         = std::move(changed),
-							  nextRules       = std::move(nextRules),
-							  nextEnrollments = std::move(nextEnrollments)]() mutable {
-					auto result = Store.apply_rule_change(intent, changed, stop);
+							  intent             = std::move(aIntent),
+							  changedRecords     = std::move(changed),
+							  pendingRules       = std::move(nextRules),
+							  pendingEnrollments = std::move(nextEnrollments)]() mutable {
+					auto result = Store.apply_rule_change(intent, changedRecords, stop);
 					DecisionLane.post(
 						[gate,
 						 id,
-						 nextRules       = std::move(nextRules),
-						 nextEnrollments = std::move(nextEnrollments),
-						 result          = std::move(result)]() mutable {
+						 publishedRules       = std::move(pendingRules),
+						 publishedEnrollments = std::move(pendingEnrollments),
+						 applyResult          = std::move(result)]() mutable {
 							if (auto* const host = locked_host(gate); host != nullptr) {
 								host->finish_rule(
 									id,
-									std::move(nextRules),
-									std::move(nextEnrollments),
-									std::move(result));
+									std::move(publishedRules),
+									std::move(publishedEnrollments),
+									std::move(applyResult));
 							}
 						});
 				});
@@ -611,17 +611,17 @@ namespace bpr::application {
 					 gate,
 					 id,
 					 stop,
-					 activity = aActivity,
-					 request  = std::move(providerRequest)]() mutable {
-						auto completion = Refresh.refresh(request, stop);
+					 activity       = aActivity,
+					 refreshRequest = std::move(providerRequest)]() mutable {
+						auto completion = Refresh.refresh(refreshRequest, stop);
 						DecisionLane.post(
 							[gate,
 							 id,
 							 activity,
-							 completion = std::move(completion)]() mutable {
+							 refreshCompletion = std::move(completion)]() mutable {
 								if (auto* const host = locked_host(gate); host != nullptr) {
 									host->finish_refresh(
-										id, activity, std::move(completion));
+										id, activity, std::move(refreshCompletion));
 								}
 							});
 					});
@@ -731,13 +731,13 @@ namespace bpr::application {
 			const auto rollback = std::make_shared<queue_enrollment_register>(
 				std::move(aPrior));
 			try {
-				Effects.post([this, gate, id, stop, record = *record, rollback] {
-					auto result = Store.store_enrollment(record, stop);
+				Effects.post([this, gate, id, stop, enrollmentRecord = *record, rollback] {
+					auto result = Store.store_enrollment(enrollmentRecord, stop);
 					DecisionLane.post(
-						[gate, id, rollback, result = std::move(result)]() mutable {
+						[gate, id, rollback, storeResult = std::move(result)]() mutable {
 							if (auto* const host = locked_host(gate); host != nullptr) {
 								host->finish_store_enrollment(
-									id, rollback, std::move(result));
+									id, rollback, std::move(storeResult));
 							}
 						});
 				});

@@ -971,7 +971,7 @@ namespace bpr::adapters::github::detail {
 				 job,
 				 profile,
 				 request,
-				 authentication = std::move(authentication),
+				 viewerAuthentication = std::move(authentication),
 				 delivery]() mutable {
 					const auto cancelled = [&] {
 						finish_job(state, job);
@@ -997,7 +997,7 @@ namespace bpr::adapters::github::detail {
 							cancelled();
 							return;
 						}
-						if (authentication->valueless_by_exception()) {
+						if (viewerAuthentication->valueless_by_exception()) {
 							failed(provider_error(
 								application::github_provider_failure::
 									malformed_response));
@@ -1011,7 +1011,7 @@ namespace bpr::adapters::github::detail {
 							application::github_provider_failure::unavailable) };
 						if (auto* bootstrap = std::get_if<
 								application::github_bootstrap_credential>(
-								authentication.get());
+								viewerAuthentication.get());
 							bootstrap != nullptr) {
 							if (!application::valid(bootstrap->Credential)) {
 								failed(provider_error(
@@ -1026,7 +1026,7 @@ namespace bpr::adapters::github::detail {
 						} else if (auto* account = std::get_if<
 									   application::
 										   github_credential_retrieve_success>(
-									   authentication.get());
+									   viewerAuthentication.get());
 								   account != nullptr) {
 							if (!application::valid(*account)
 								|| account->Context.Request

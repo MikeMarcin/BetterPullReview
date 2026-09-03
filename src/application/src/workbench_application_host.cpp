@@ -540,8 +540,8 @@ namespace bpr::application {
 					auto staged = staged_observation{
 						.Observation = perform_observation(*observations, request, stop),
 					};
-					lane->post([gate, staged = std::move(staged)]() mutable {
-						deliver_terminal(gate, std::move(staged));
+					lane->post([gate, stagedTerminal = std::move(staged)]() mutable {
+						deliver_terminal(gate, std::move(stagedTerminal));
 					});
 				});
 			} catch (...) {
@@ -608,8 +608,8 @@ namespace bpr::application {
 					auto staged = staged_selected_diff{
 						.Observation = perform_selected_diff(*resolver, request, stop),
 					};
-					lane->post([gate, staged = std::move(staged)]() mutable {
-						deliver_terminal(gate, std::move(staged));
+					lane->post([gate, stagedTerminal = std::move(staged)]() mutable {
+						deliver_terminal(gate, std::move(stagedTerminal));
 					});
 				});
 			} catch (...) {
@@ -681,8 +681,8 @@ namespace bpr::application {
 						.Context = context,
 						.Result  = perform_settings_load(*settings, stop),
 					};
-					lane->post([gate, staged = std::move(staged)]() mutable {
-						deliver_terminal(gate, std::move(staged));
+					lane->post([gate, stagedTerminal = std::move(staged)]() mutable {
+						deliver_terminal(gate, std::move(stagedTerminal));
 					});
 				});
 			} catch (...) {

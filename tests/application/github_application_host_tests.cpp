@@ -220,8 +220,8 @@ namespace {
 				expect(found != Profiles.end(), "cancelled profile call exists");
 				auto        completion = found->Completion;
 				std::thread worker{
-					[completion = std::move(completion), aRequest]() mutable {
-						completion(application::github_profile_cancelled{
+					[workerCompletion = std::move(completion), aRequest]() mutable {
+						workerCompletion(application::github_profile_cancelled{
 							.Request = aRequest,
 						});
 					}

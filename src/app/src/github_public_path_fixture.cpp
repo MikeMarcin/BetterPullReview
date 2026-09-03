@@ -1394,22 +1394,22 @@ namespace bpr::app::detail {
 					application::github_credential_enrollment>(
 					std::move(aEnrollment));
 				Effects.post(
-					[state      = State,
-					 pending    = std::move(pending),
-					 completion = std::move(aCompletion)]() mutable {
-						if (!application::valid(*pending)) {
+					[state             = State,
+					 pendingEnrollment = std::move(pending),
+					 completion        = std::move(aCompletion)]() mutable {
+						if (!application::valid(*pendingEnrollment)) {
 							completion(application::github_credential_store_error{
-								.Context = pending->Context,
+								.Context = pendingEnrollment->Context,
 								.Failure = application::
 									github_credential_vault_failure::invalid_request,
 							});
 							return;
 						}
-						const auto context = pending->Context;
+						const auto context = pendingEnrollment->Context;
 						{
 							const std::scoped_lock lock{ state->Mutex };
 							state->Context    = context;
-							state->Credential = std::move(pending->Credential);
+							state->Credential = std::move(pendingEnrollment->Credential);
 							state->Stored     = true;
 							++state->Stores;
 						}
@@ -1508,10 +1508,10 @@ namespace bpr::app::detail {
 					application::github_credential_enrollment>(
 					std::move(aEnrollment));
 				Effects.post(
-					[pending    = std::move(pending),
-					 completion = std::move(aCompletion)]() mutable {
-						const auto context = pending->Context;
-						pending->Credential.reset();
+					[pendingEnrollment = std::move(pending),
+					 completion        = std::move(aCompletion)]() mutable {
+						const auto context = pendingEnrollment->Context;
+						pendingEnrollment->Credential.reset();
 						completion(application::github_credential_store_error{
 							.Context = context,
 							.Failure = application::
