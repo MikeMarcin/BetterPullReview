@@ -709,6 +709,17 @@ namespace {
 			std::string                ExpectedActiveHostText;
 		};
 
+		// [[BPR-0540]]. Ticks the orphan course keeps running after the host's
+		// refresh probe has been answered, at the 10 ms poll the automated run
+		// already uses. The course's claim is a negative, so its terminal has
+		// to be a moment by which the positive would have happened: the
+		// vault's callback, the decision lane's turn, the republication and
+		// composition's read of it. Its adequacy is not argued -- reverting
+		// the provenance gate makes this course report a resume inside it.
+#if defined(BPR_BUILD_TESTING)
+		static constexpr std::size_t orphan_course_settle_ticks = 20U;
+#endif
+
 		// RFC-BPR-0016. Selecting the device path once, from the shipped
 		// composition, and reporting what came back. An unregistered platform
 		// answers with a typed refusal and nothing sent; a registered platform
@@ -756,6 +767,15 @@ namespace {
 			// "refreshes before expiry under existing vault authority" can be
 			// observed through the composed graph rather than at the host.
 			bool RefreshCourse = false;
+			// [[BPR-0540]]. The renewal course's composition driven the other
+			// way round: the refresh slot already holds a past grant's
+			// material, and the session this run establishes is the reviewer's
+			// own pasted credential. Nothing here may renew, because nothing
+			// here was granted -- so the course connects rather than selecting
+			// the device path, and reports the counters that would move if the
+			// orphan were spent.
+			bool        OrphanCourse      = false;
+			std::size_t OrphanSettleTicks = 0U;
 		};
 
 		// RFC-BPR-0017. Activating the signed-out preview once, from the
@@ -3141,8 +3161,11 @@ namespace {
 		// The public-preview courses run against the fixture without opening
 		// it the way the pull-request course does, so the pull-request
 		// expectations below are not theirs to satisfy.
+		// [[BPR-0540]]. The orphan course ends at its accepted session for the
+		// same reason: it never opens the fixture's pull request, so the
+		// pull-request expectations are not its to satisfy.
 		const auto fixtureCourseRan = aRun.Fixture && !aRun.Device.Registered
-			&& !aRun.PublicPreview.Enabled;
+			&& !aRun.Device.OrphanCourse && !aRun.PublicPreview.Enabled;
 		if (fixtureCourseRan) {
 			const auto expectedSmartCalls = aRun.MaintenanceProbe
 					== automated_run::epoch_maintenance_probe::verify_deleted
@@ -3252,6 +3275,20 @@ namespace {
 		}
 #endif
 
+		// [[BPR-0540]]. Lifted out of the tests-enabled block above so the
+		// device rows below can report the refresh slot inside the one stream
+		// chain they already build. A tests-disabled build composes no
+		// fixture, has no second slot, and runs none of the courses that read
+		// these lines.
+		auto refreshRetained = false;
+		auto refreshStores   = std::size_t{ 0U };
+		auto pastedDigest    = std::string{ };
+#if defined(BPR_BUILD_TESTING)
+		refreshRetained = fixtureEvidence.RefreshRetained;
+		refreshStores   = fixtureEvidence.RefreshStores;
+		pastedDigest    = fixtureEvidence.LastEnrollmentDigest;
+#endif
+
 		QTextStream stream{ stdout };
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Fixture) {
@@ -3318,7 +3355,49 @@ namespace {
 							  status.DeviceAuthorizationHandoff)
 					   << '\n';
 			}
-			if (aRun.Device.RefreshCourse) {
+			if (aRun.Device.OrphanCourse) {
+				// [[BPR-0540]]. The renewal course's composition with the
+				// grant taken out of it: the refresh slot was seeded before
+				// the run began, and the session this run has is the one the
+				// reviewer pasted. Every counter a spent orphan would move is
+				// reported rather than a single verdict, because "the resume
+				// did not happen", "no rotation followed one" and "the vault
+				// holds what the reviewer pasted" fail for different reasons.
+				// The identity is the load-bearing one: a run that resumed
+				// would supersede the pasted session with the grant's, and
+				// only the digest can tell those apart.
+				const auto& orphanStoredDigest
+					= status.DeviceAuthorizationVaultStoredDigest;
+				const auto storedIsPasted = !orphanStoredDigest.empty()
+					&& !pastedDigest.empty()
+					&& orphanStoredDigest == pastedDigest;
+				const auto orphanIntact
+					= status.DeviceAuthorizationRefreshResumes == 0U
+					&& status.DeviceAuthorizationRefreshRotations == 0U
+					&& status.DeviceAuthorizationVaultStores == 1U
+					&& storedIsPasted;
+				stream << "DEVICE_FLOW_REFRESH_RESUMES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationRefreshResumes)
+					   << "\nDEVICE_FLOW_ROTATIONS:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationRefreshRotations)
+					   << "\nDEVICE_FLOW_VAULT_STORES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationVaultStores)
+					   << "\nDEVICE_FLOW_REFRESH_STORES:"
+					   << static_cast<unsigned long long>(refreshStores)
+					   << "\nDEVICE_FLOW_REFRESH_RETAINED:"
+					   << (refreshRetained ? "true" : "false")
+					   << "\nDEVICE_FLOW_VAULT_STORED_TOKEN:"
+					   << QByteArray::fromStdString(orphanStoredDigest)
+					   << "\nDEVICE_FLOW_PASTED_TOKEN:"
+					   << QByteArray::fromStdString(pastedDigest)
+					   << "\nDEVICE_FLOW_STORED_IS_PASTED:"
+					   << (storedIsPasted ? "true" : "false") << '\n'
+					   << (orphanIntact ? "DEVICE_FLOW_ORPHAN_OK\n"
+										: "DEVICE_FLOW_ORPHAN_FAILED\n");
+			} else if (aRun.Device.RefreshCourse) {
 				// [[BPR-0536]]. The registered course's claim, carried one
 				// step further: the grant reached the vault, composition armed
 				// renewal from the accepted session, and the renewal rotated
@@ -3359,6 +3438,16 @@ namespace {
 					   << "\nDEVICE_FLOW_REFRESH_RESUMES:"
 					   << static_cast<unsigned long long>(
 							  status.DeviceAuthorizationRefreshResumes)
+					   // [[BPR-0540]]. What the vault holds after the orderly
+					   // shutdown, and how often the slot was written. The
+					   // course deleted the access token on the way out and
+					   // left the material keyed beside it behind, which no
+					   // row could see: the retained flag beside the base
+					   // one's is where that shows.
+					   << "\nDEVICE_FLOW_REFRESH_RETAINED:"
+					   << (refreshRetained ? "true" : "false")
+					   << "\nDEVICE_FLOW_REFRESH_STORES:"
+					   << static_cast<unsigned long long>(refreshStores)
 					   << '\n'
 					   << (refreshed ? "DEVICE_FLOW_REFRESH_OK\n"
 									 : "DEVICE_FLOW_REFRESH_FAILED\n");
@@ -3394,7 +3483,15 @@ namespace {
 						   << QByteArray::fromStdString(
 								  status.DeviceAuthorizationVaultStoredDigest)
 						   << "\nDEVICE_FLOW_STORED_IS_GRANT:"
-						   << (storedIsGrant ? "true" : "false") << '\n';
+						   << (storedIsGrant ? "true" : "false")
+						   // [[BPR-0540]]. Reported inside the identity block
+						   // rather than beside the counts, because the browser
+						   // and panel rows read those counts as adjacent
+						   // lines; this course composes no refresh slot at
+						   // all, so what it states is that the shutdown left
+						   // nothing keyed beside the credential it deleted.
+						   << "\nDEVICE_FLOW_REFRESH_RETAINED:"
+						   << (refreshRetained ? "true" : "false") << '\n';
 				}
 				stream << "DEVICE_FLOW_ENROLLMENTS:"
 					   << static_cast<unsigned long long>(
@@ -4997,6 +5094,42 @@ namespace {
 				}
 
 #if defined(BPR_BUILD_TESTING)
+				// [[BPR-0540]]. The orphan course's session is the connect
+				// above -- the reviewer's pasted credential -- and its claim
+				// is about what the host did *not* do with the material
+				// already sitting beside it. The acceptance starts the host's
+				// one-time refresh probe, and the fixture's retrieve count is
+				// that probe's own record of having asked, so the run waits
+				// for the question before reporting the answer. It then keeps
+				// ticking, because the answer still has two lane hops and a
+				// republication to travel before composition could resume: a
+				// course that stopped at the retrieve would report zero
+				// resumes for a build that resumes.
+				if (aRun->Device.Enabled && aRun->Device.OrphanCourse) {
+					if (window.github_status_text()
+						!= "GitHub account connected.") {
+						break;
+					}
+					const auto orphanEvidence = bpr::app::detail::
+						github_application_fixture_access::evidence(
+							aApplication);
+					if (orphanEvidence.RefreshRetrieves == 0U) {
+						break;
+					}
+					if (aRun->Device.OrphanSettleTicks
+						< automated_run::orphan_course_settle_ticks) {
+						++aRun->Device.OrphanSettleTicks;
+						break;
+					}
+					aRun->PresentationPassed
+						= aRun->Cli.Observed == aRun->Cli.Expected;
+					aRun->RenderSaved = save_render_evidence(
+						window,
+						aRun->RenderPath,
+						aRun->RenderCollapsesFilesDrawer);
+					transition_to_shutdown(aApplication, *aRun);
+					break;
+				}
 				if (aRun->Fixture) {
 					if (window.github_status_text() != "GitHub account connected."
 						|| !window.github_open_action()->isEnabled()) {
@@ -6712,6 +6845,17 @@ auto main(int argc, char** argv) -> int
 			argc,
 			argv,
 			"--device-authorization-refresh-course");
+		// [[BPR-0540]]. The orphan course composes the renewal course's graph
+		// -- the registered capability and the second vault slot -- and adds
+		// the one thing no run of this process could produce: material already
+		// in that slot when the run starts. Read here with the two above it
+		// because the fixture options are assembled before the run flags.
+		fixtureOptions.SeedOrphanedRefreshMaterial = has_argument(
+			argc,
+			argv,
+			"--device-authorization-orphan-course");
+		fixtureOptions.DeviceRefreshCourse = fixtureOptions.DeviceRefreshCourse
+			|| fixtureOptions.SeedOrphanedRefreshMaterial;
 		// The renewal course is the registered course plus a renewal, so it
 		// composes the registered capability rather than a second one. Every
 		// stage up to the vault store is the same graph, which is what makes
@@ -6869,6 +7013,18 @@ auto main(int argc, char** argv) -> int
 		const auto deviceRefreshCourse =
 #if defined(BPR_BUILD_TESTING)
 			has_argument(argc, argv, "--device-authorization-refresh-course");
+#else
+			false;
+#endif
+		// [[BPR-0540]]. Tests-enabled only, exactly like the renewal course
+		// whose composition it borrows: it forces a registered capability and
+		// seeds a vault slot against the recorded fixture, and a released
+		// image must not be able to do either from a command line. Its
+		// absence from a tests-disabled binary is what the RFC-BPR-0016
+		// inventory scan reads.
+		const auto deviceOrphanCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-orphan-course");
 #else
 			false;
 #endif
@@ -7464,6 +7620,7 @@ auto main(int argc, char** argv) -> int
 							.PanelCourse   = verifyDeviceAuthorization && devicePanelCourse,
 							.GhesCourse    = verifyDeviceAuthorization && deviceGhesCourse,
 							.RefreshCourse = verifyDeviceAuthorization && deviceRefreshCourse,
+							.OrphanCourse  = verifyDeviceAuthorization && deviceOrphanCourse,
 						},
 						.PublicPreview = automated_run::public_preview_probe_state{
 							.Enabled         = verifyPublicPreview,

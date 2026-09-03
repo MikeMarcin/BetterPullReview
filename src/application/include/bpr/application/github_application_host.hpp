@@ -28,6 +28,26 @@ namespace bpr::application {
 		delete_retained_on_shutdown,
 	};
 
+	/// \brief Names where the material behind an accepted credential came from.
+	///
+	/// \details Presence of a refresh entry beside a credential is not by
+	/// itself evidence that the credential renews itself: the vault keys both
+	/// slots by the same authority, so a token the reviewer pasted for an
+	/// account a past device grant once enrolled lands on the very slot that
+	/// grant's material sits beside. Spending that material would replace the
+	/// pasted session with a device one the reviewer never asked for. So the
+	/// host carries what it knows about the material's origin and answers the
+	/// renewability question with both facts rather than with presence alone.
+	/// `manual` is the default everywhere, because a caller that does not say
+	/// where its material came from has not established that it came from a
+	/// grant.
+	enum class github_credential_provenance : std::uint8_t {
+		/// A token the reviewer supplied. Nothing renews it.
+		manual,
+		/// A device grant this host enrolled, or a binding restored from one.
+		device_grant,
+	};
+
 	/// Why a public-preview activation or read was refused.
 	enum class github_public_preview_refusal_cause : std::uint8_t {
 		/// No anonymous read authority is composed, so the mode cannot be
@@ -78,13 +98,26 @@ namespace bpr::application {
 	private:
 		[[nodiscard]] auto find(core::host_profile_id aProfile) const noexcept
 			-> const github_credential_authority_key*;
+		/// \brief Returns where the material behind a remembered binding came
+		/// from, or `manual` when nothing is remembered for the profile.
+		[[nodiscard]] auto provenance(core::host_profile_id aProfile) const noexcept
+			-> github_credential_provenance;
 		[[nodiscard]] auto
-			 remember(github_credential_authority_key aAuthority) noexcept -> bool;
+			 remember(github_credential_authority_key aAuthority,
+					  github_credential_provenance    aProvenance) noexcept -> bool;
 		void forget(const github_credential_authority_key& aAuthority) noexcept;
 
 		std::array<std::optional<github_credential_authority_key>,
 				   maximum_github_credential_bindings>
 			Entries{ };
+		// Kept beside the key rather than inside it, because the key names a
+		// vault slot and two different origins can name the same slot. A
+		// resume inside this process reads it back, which is what lets a
+		// device grant this host enrolled still renew after the session was
+		// re-established from the vault.
+		std::array<github_credential_provenance,
+				   maximum_github_credential_bindings>
+			Provenances{ };
 
 		friend class github_application_host;
 	};
@@ -135,8 +168,15 @@ namespace bpr::application {
 			-> github_application_host& = delete;
 
 		void dispatch(const core::github_event& aEvent);
-		void enroll_profile(core::host_profile_id      aProfile,
-							github_credential_material aCredential);
+		// The provenance is the caller's statement about where the material
+		// came from, and only the device-authorization enrollment boundary
+		// says `device_grant`. It decides nothing about the session: it
+		// decides whether the vault's answer about a refresh entry beside
+		// this credential may be believed later.
+		void enroll_profile(core::host_profile_id        aProfile,
+							github_credential_material   aCredential,
+							github_credential_provenance aProvenance
+							= github_credential_provenance::manual);
 		// Resume asks only for a profile. The host-owned trusted binding catalog,
 		// populated from prior accepted /user observations, selects the exact
 		// account authority. Public account and login values never select vault
@@ -170,11 +210,14 @@ namespace bpr::application {
 		/// \brief Returns whether the accepted credential can renew itself.
 		///
 		/// \details True once the vault has answered that a refresh entry sits
-		/// beside the accepted credential under the same authority. Only a
-		/// device grant ever stores one, so this is exactly "the material this
-		/// session was restored from came from a device grant and what renews
-		/// it outlived the run that acquired it". False for a credential the
-		/// reviewer pasted, which has nothing to renew from; false for a grant
+		/// beside the accepted credential under the same authority *and* the
+		/// accepted credential's own provenance is a device grant this host
+		/// enrolled or resumed. Presence alone is not the answer: both slots
+		/// are keyed by the same authority, so a pasted token for an account
+		/// a past grant enrolled reaches the slot that grant's material sits
+		/// beside, and spending it would silently replace the reviewer's
+		/// session. False for a credential the reviewer pasted, whatever the
+		/// vault holds beside it; false for a grant
 		/// this run's device flow is still holding refresh material for, which
 		/// binds rather than resumes; and false until the vault has answered,
 		/// after which the session is published again so the answer is read.

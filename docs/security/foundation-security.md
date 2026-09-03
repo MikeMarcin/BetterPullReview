@@ -88,10 +88,13 @@ outbound endpoint instead.
   and nothing else — the refresh token parked by a grant is flushed to the
   vault the moment composition binds the session's authority, and the
   probe that reads the refresh slot destroys what it read on the vault's
-  own thread and passes only a yes ([[BPR-0536]]). Until [[BPR-0540]]
-  lands, an orderly shutdown deletes the access token but not the refresh
-  material, and the probe's yes can be an orphan's; BPR-0540 gives both
-  slots one erasure path and gates the resume on provenance. The core, the
+  own thread and passes only a yes ([[BPR-0536]]). Both slots share one
+  erasure path — an orderly shutdown, a sign-out, or a superseding
+  enrollment deletes the refresh material with the access token under the
+  same authority — and the probe's yes renews a credential only when that
+  credential's own provenance is a device grant, so a pasted token is
+  never silently replaced by a session minted from an orphaned refresh
+  token ([[BPR-0540]]). The core, the
   projection, and the Qt adapter cannot name any of them ([[BPR-0277]],
   [[BPR-0282]], `rfc0016_test_inventory`).
 - **Redirect and certificate rules are inherited, not restated.** Both device

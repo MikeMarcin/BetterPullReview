@@ -1507,6 +1507,11 @@ namespace bpr::app::detail {
 			// the slot before a course reads its evidence, so what the store
 			// counted has to be recorded at the store.
 			std::string LastStoredDigest;
+			// [[BPR-0540]]. The identity of the last credential the fixture
+			// handed out for a connect, recorded where the store's own digest
+			// is so a course can ask whether the material that reached the
+			// vault is the one the reviewer pasted.
+			std::string LastEnrollmentDigest;
 			// The refresh slot, kept beside the credential rather than in
 			// place of it, exactly as the port's contract describes. It exists
 			// only under the refresh course; every other fixture run leaves it
@@ -1988,11 +1993,34 @@ namespace bpr::app::detail {
 			Recording->RepeatSessions = aOptions.DeviceRefreshCourse;
 			Factory                   = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState                = std::make_shared<fixture_vault_state>();
-			Vault                     = std::make_unique<fixture_credential_vault>(
+			// Every shipped platform vault has a real second slot since
+			// [[BPR-0542]] and [[BPR-0543]], so the fixture's has one on every
+			// course too: a shutdown that erases the refresh slot beside the
+			// credential ([[BPR-0540]]) must meet a store that answers, not a
+			// stub whose `unavailable` the host now rightly reports as a failed
+			// erasure.
+			Vault = std::make_unique<fixture_credential_vault>(
 				aVaultEffects,
 				VaultState,
-				aOptions.DeviceRefreshCourse,
+				true,
 				aOptions.RegisteredDeviceCourse);
+			if (aOptions.SeedOrphanedRefreshMaterial) {
+				// The shape a grant leaves behind: the documented refresh
+				// token this fixture's own recorded exchange answers with.
+				// Written straight into the slot rather than through the
+				// port, because no session in this process put it there and
+				// none could -- the run that did has exited.
+				const std::string orphaned{ "fixture-refresh-token-0276" };
+				auto              seeded = application::github_credential_material::create(
+					std::as_bytes(std::span{ orphaned }));
+				if (!seeded.has_value()) {
+					throw std::runtime_error{
+						"GitHub public-path fixture orphaned refresh seed failed"
+					};
+				}
+				const std::lock_guard seedGuard{ VaultState->Mutex };
+				VaultState->Refresh = std::move(*seeded);
+			}
 			DeviceTransport
 				= std::make_unique<recorded_device_authorization_transport>(
 					std::filesystem::path{
@@ -2102,7 +2130,18 @@ namespace bpr::app::detail {
 	auto github_public_path_fixture_components::take_enrollment_credential()
 		-> application::github_credential_material
 	{
-		return make_fixture_credential();
+		// [[BPR-0540]]. Digested on the way out rather than at the store,
+		// because the question a connecting course asks is whether what the
+		// vault accepted is what the fixture handed the connect path, and
+		// only this end knows the second half. Each call mints new random
+		// bytes, so the digest is recorded per hand-out and not per fixture.
+		auto material = make_fixture_credential();
+		{
+			const std::scoped_lock enrollmentLock{ Implementation->VaultState->Mutex };
+			Implementation->VaultState->LastEnrollmentDigest
+				= credential_digest(material.bytes());
+		}
+		return material;
 	}
 
 	auto github_public_path_fixture_components::device_authorization_transport() noexcept
@@ -2176,6 +2215,11 @@ namespace bpr::app::detail {
 			result.CredentialRetrieved = Implementation->VaultState->Retrieved;
 			result.CredentialDeleted   = Implementation->VaultState->Deleted;
 			result.SecretRetained      = Implementation->VaultState->Credential.has_value();
+			result.RefreshRetained     = Implementation->VaultState->Refresh.has_value();
+			result.RefreshStores       = Implementation->VaultState->RefreshStores;
+			result.RefreshRetrieves    = Implementation->VaultState->RefreshRetrieves;
+			result.LastEnrollmentDigest
+				= Implementation->VaultState->LastEnrollmentDigest;
 		}
 		return result;
 	}

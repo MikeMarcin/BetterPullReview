@@ -8,6 +8,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_model.hpp"
 
+#include <chrono>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -27,6 +28,20 @@ namespace bpr::application {
 	/// is refused rather than served, and nothing here retains anything past
 	/// the call.
 	inline constexpr std::size_t maximum_agent_realignment_files = 1U;
+
+	/// \brief How long one continuation re-alignment may take, stated once.
+	///
+	/// \details The other half of the same bound. A recompute resolves and
+	/// materializes through the ports the review's own epoch work is already
+	/// using, so it can queue behind that work for seconds; a reviewer waiting
+	/// on an answer cannot be made to wait behind it indefinitely. Past this
+	/// the request is stopped and the turn is sent with nothing frozen, which
+	/// is the documented answer when the old revision cannot be aligned again.
+	/// Refused past the bound rather than held: a gesture that blocked would
+	/// be the failure this bound exists to prevent.
+	inline constexpr std::chrono::milliseconds maximum_agent_realignment_wait{
+		30'000
+	};
 
 	/// \brief Why a re-alignment produced no identities.
 	///
@@ -88,10 +103,25 @@ namespace bpr::application {
 		-> workbench_selected_diff_request;
 
 	/// \brief What one re-alignment produced.
+	///
+	/// \details Two views of one answer. `Files` is what the turn is frozen
+	/// and validated against — the per-path identities, in the shape the
+	/// snapshot on disk carries them. `Alignments` is the alignment those
+	/// identities were read off, one entry per entry in `Files` and in the
+	/// same order, kept because a continued turn has to say *where* in the
+	/// old revision the reviewer is pointing and the digest, segments, and
+	/// groups it says that with are this revision's and not the one on
+	/// screen. Both are empty on every refusal: a re-alignment that did not
+	/// answer produced no identities to state.
+	///
+	/// Bounded by `maximum_agent_realignment_files` like everything else
+	/// here, so this is one alignment of one file and not a cache of a
+	/// revision.
 	struct agent_realignment_outcome
 	{
 		agent_realignment_refusal                      Refusal = agent_realignment_refusal::none;
 		std::vector<core::agent_finding_snapshot_file> Files;
+		std::vector<core::file_alignment>              Alignments;
 
 		auto operator<=>(const agent_realignment_outcome&) const = default;
 	};

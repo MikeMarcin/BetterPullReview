@@ -296,7 +296,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_VAULT_STORED_TOKEN:f5505a4b89c07e21[\r\n]+DEVICE_FLOW_STORED_IS_GRANT:true[\r\n]+DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK"
+            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_VAULT_STORED_TOKEN:f5505a4b89c07e21[\r\n]+DEVICE_FLOW_STORED_IS_GRANT:true[\r\n]+DEVICE_FLOW_REFRESH_RETAINED:false[\r\n]+DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK"
 )
 bpr_bound_automated_run(
     application_device_authorization_registered_course
@@ -336,10 +336,55 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ROTATIONS:1[\r\n]+DEVICE_FLOW_REFRESH_STATE:scheduled[\r\n]+DEVICE_FLOW_VAULT_STORES:2[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_REFRESH_BOUND:true[\r\n]+DEVICE_FLOW_REFRESH_RESUMES:0[\r\n]+DEVICE_FLOW_REFRESH_OK"
+            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ROTATIONS:1[\r\n]+DEVICE_FLOW_REFRESH_STATE:scheduled[\r\n]+DEVICE_FLOW_VAULT_STORES:2[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_REFRESH_BOUND:true[\r\n]+DEVICE_FLOW_REFRESH_RESUMES:0[\r\n]+DEVICE_FLOW_REFRESH_RETAINED:false[\r\n]+DEVICE_FLOW_REFRESH_STORES:2[\r\n]+DEVICE_FLOW_REFRESH_OK"
 )
 bpr_bound_automated_run(
     application_device_authorization_refresh_course
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# BPR-0540. The renewal course's composition driven the other way round, and
+# the only place the review's finding can be observed rather than argued: the
+# refresh slot already holds a past grant's material when the run starts - the
+# state an orderly shutdown used to leave behind, keyed by authority and
+# outliving the process that earned it - and the session this run establishes
+# is the credential the reviewer pasted. Presence of that material is not
+# permission to spend it. A build that answers renewability from the slot
+# alone resumes here, rotates, and supersedes the pasted session with a device
+# one nobody asked for; the pinned counters are each half of that sequence
+# refusing to start, and `DEVICE_FLOW_STORED_IS_PASTED` is the load-bearing
+# one, because only the digest can tell the two candidate sessions apart. The
+# digests are random per run - the connect credential is 32 fresh bytes - so
+# the row pins their equality rather than their value. `REFRESH_RETAINED:false`
+# is the other half of the same slice: the orphan is erased at shutdown rather
+# than merely left unspent. `WINDOWS_UNCONTAINED` and the isolation keyword are
+# the renewal course's, unchanged: this row runs the same graph, seeded, with
+# one flag more.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_orphan_course
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-orphan-course
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_orphan_course
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_REFRESH_RESUMES:0[\r\n]+DEVICE_FLOW_ROTATIONS:0[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_REFRESH_STORES:0[\r\n]+DEVICE_FLOW_REFRESH_RETAINED:false[\r\n]+DEVICE_FLOW_VAULT_STORED_TOKEN:[0-9a-f]+[\r\n]+DEVICE_FLOW_PASTED_TOKEN:[0-9a-f]+[\r\n]+DEVICE_FLOW_STORED_IS_PASTED:true[\r\n]+DEVICE_FLOW_ORPHAN_OK"
+)
+bpr_bound_automated_run(
+    application_device_authorization_orphan_course
     TIMEOUT 15
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
@@ -1024,6 +1069,7 @@ foreach(
         positive
         stale
         continued
+        anchored-continuation
         construction-cut
 )
     if(course STREQUAL "positive")

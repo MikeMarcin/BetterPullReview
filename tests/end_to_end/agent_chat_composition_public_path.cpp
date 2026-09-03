@@ -21,7 +21,12 @@
 /// moved away from, and composed from that revision: the binding the MCP
 /// helper is pinned to, the binding record the frozen snapshot carries on
 /// disk, and the kept session's own binding are one value, and it is not the
-/// head the reviewer moved to. **construction-cut**: with the chat host's construction
+/// head the reviewer moved to. **anchored-continuation**: the same turn, sent
+/// only once the accepted comparison has moved to the new pair, so the
+/// re-alignment the continued turn asks for is a real retarget - and what it
+/// freezes is byte-for-byte the alignment the shipped diff path independently
+/// computed for that same revision before the review left it.
+/// **construction-cut**: with the chat host's construction
 /// removed, the same send gesture is still made and still observed, its turn
 /// count is zero, and the positive marker is false.
 
@@ -53,6 +58,7 @@
 #include <iterator>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -151,6 +157,58 @@ namespace {
 		return line;
 	}
 
+	/// \brief The per-path identities the frozen snapshot carries on disk.
+	///
+	/// \details The `alignment` file beside the binding record, in the
+	/// `name<TAB>value` shape `freeze_mcp_snapshot` wrote and the MCP helper
+	/// serves. Read from disk for the same reason the binding record is: the
+	/// question is what a reader of the snapshot would find there, not what
+	/// the composition believes it wrote.
+	struct frozen_alignment_record
+	{
+		std::size_t              Files = 0U;
+		std::string              Path;
+		std::string              Comparison;
+		std::string              LeftLineCount;
+		std::string              RightLineCount;
+		std::vector<std::string> Segments;
+		std::vector<std::string> Groups;
+		std::vector<std::string> Moves;
+	};
+
+	[[nodiscard]] auto snapshot_alignment_record(
+		const std::filesystem::path& aSnapshotRoot) -> frozen_alignment_record
+	{
+		auto record = frozen_alignment_record{ };
+		auto file   = std::ifstream{ aSnapshotRoot / "alignment", std::ios::binary };
+		auto line   = std::string{ };
+		while (std::getline(file, line)) {
+			const auto tab = line.find('\t');
+			if (tab == std::string::npos) {
+				continue;
+			}
+			const auto name  = line.substr(0U, tab);
+			auto       value = line.substr(tab + 1U);
+			if (name == "file") {
+				++record.Files;
+				record.Path = std::move(value);
+			} else if (name == "comparison") {
+				record.Comparison = std::move(value);
+			} else if (name == "left_line_count") {
+				record.LeftLineCount = std::move(value);
+			} else if (name == "right_line_count") {
+				record.RightLineCount = std::move(value);
+			} else if (name == "segment") {
+				record.Segments.push_back(std::move(value));
+			} else if (name == "group") {
+				record.Groups.push_back(std::move(value));
+			} else if (name == "move") {
+				record.Moves.push_back(std::move(value));
+			}
+		}
+		return record;
+	}
+
 	/// \brief Counts one exact token in the composition source.
 	[[nodiscard]] auto occurrences(
 		const std::string& aSource, const std::string_view aToken) -> std::size_t
@@ -175,10 +233,15 @@ auto main(int argc, char** argv) -> int
 	const auto course = std::string_view{ argv[1] };
 	if (
 		course != "positive" && course != "stale" && course != "continued"
-		&& course != "construction-cut") {
+		&& course != "anchored-continuation" && course != "construction-cut") {
 		return EXIT_FAILURE;
 	}
-	auto data = QTemporaryDir{ };
+	// The two courses that take `continue_against_old_revision` to a further
+	// turn. They differ in when that turn is sent, and in nothing else.
+	const auto continuing
+		= course == "continued" || course == "anchored-continuation";
+	const auto anchored = course == "anchored-continuation";
+	auto       data     = QTemporaryDir{ };
 	if (!data.isValid()) {
 		return EXIT_FAILURE;
 	}
@@ -191,7 +254,7 @@ auto main(int argc, char** argv) -> int
 			// revision to be preparable, because it goes on to ask a further
 			// question; the refresh recording is the only fixture path that
 			// serves a second head's material.
-			.EpochPhase                        = course == "continued"
+			.EpochPhase                        = continuing
 				? app::detail::github_epoch_fixture_phase::seed
 				: app::detail::github_epoch_fixture_phase::single,
 			.DisableChatSessionHostComposition = course == "construction-cut",
@@ -466,7 +529,15 @@ auto main(int argc, char** argv) -> int
 	// way to move a head and leaves the new revision unprepared; `continued`
 	// moves it with the shipped refresh gesture against the seeded recording,
 	// so the revision the reviewer is now looking at is a real one.
-	if (course == "continued") {
+	// The old pair's own identities, as the shipped alignment path produced
+	// them for the turn that just ran against it. Read off disk before the
+	// head moves, because after the move nothing on screen belongs to this
+	// revision any more. The anchored course compares what a re-alignment
+	// recomputes against exactly these bytes.
+	const auto keptFrozen = snapshot_alignment_record(std::filesystem::path{
+		finding.McpLaunch.has_value() ? finding.McpLaunch->WorkingDirectory
+									  : std::string{ } });
+	if (continuing) {
 		window.github_refresh_action()->trigger();
 	} else if (!app::detail::github_application_fixture_access::
 				   reaccept_fixture_revision(*application, true)) {
@@ -526,7 +597,7 @@ auto main(int argc, char** argv) -> int
 	// The other continuation, driven to a turn. Choosing to keep talking to a
 	// session about the revision it was asked about is the half BPR-0514
 	// implemented and never drove, so this is what it does when it is used.
-	if (course == "continued") {
+	if (continuing) {
 		const auto beforeContinue = app::detail::
 			github_application_fixture_access::agent_chat_evidence(*application);
 		const auto beforeContinueInvocation = app::detail::
@@ -572,6 +643,58 @@ auto main(int argc, char** argv) -> int
 			&& chat->send_action()->isEnabled();
 		const auto keptSessionId = afterContinue.Session->Id;
 		const auto keptBinding   = afterContinue.Session->Binding;
+
+		// The anchored course sends only once the accepted comparison is the
+		// new pair. Until then the pair the kept session names is the pair on
+		// screen — only the head has moved — so a re-alignment would ask for
+		// what is already resolved, and a course that sent here would prove
+		// nothing about re-alignment. The acceptance arrives on its own,
+		// behind the refresh's own epoch work.
+		if (anchored) {
+			auto movedComparison = wait_terms{ };
+			if (!wait_until_reporting(
+					movedComparison,
+					[&application, &keptBinding](wait_terms& aTerms) {
+						QApplication::processEvents();
+						const auto now = app::detail::
+							github_application_fixture_access::agent_chat_evidence(
+								*application);
+						return aTerms.require(
+							"comparison-moved",
+							now.Observed.has_value()
+								&& (now.Observed->LeftEpoch != keptBinding.LeftEpoch
+									|| now.Observed->RightEpoch
+										!= keptBinding.RightEpoch));
+					},
+					extended_agent_budget)) {
+				return fail(
+					*application, "anchored-comparison", movedComparison.render());
+			}
+			// A comparison the reviewer has not answered for disables Send
+			// again, and the answer is the same one they already gave: keep
+			// talking to the session about the revision it was asked about.
+			auto anchoredReady = wait_terms{ };
+			if (!wait_until_reporting(
+					anchoredReady,
+					[&application, chat](wait_terms& aTerms) {
+						QApplication::processEvents();
+						const auto now = app::detail::
+							github_application_fixture_access::agent_chat_evidence(
+								*application);
+						if (now.Projection.has_value()
+							&& now.Projection->Continuations.Required
+							&& chat->continue_old_revision_action() != nullptr
+							&& chat->continue_old_revision_action()->isEnabled()) {
+							chat->continue_old_revision_action()->trigger();
+						}
+						return aTerms.require(
+							"send-enabled", chat->send_action()->isEnabled());
+					},
+					extended_agent_budget)) {
+				return fail(
+					*application, "anchored-ready", anchoredReady.render());
+			}
+		}
 
 		// The head moving cleared the workbench selection with the comparison
 		// it belonged to, so the reviewer points at something again before
@@ -629,13 +752,32 @@ auto main(int argc, char** argv) -> int
 		chat->send_action()->trigger();
 		QApplication::processEvents();
 
-		// The composition half, checked before the run rather than after it.
-		// One revision said three times - the binding the MCP helper is pinned
-		// to, the binding record the frozen snapshot carries on disk, and the
-		// session the reviewer kept - and it is not the head on screen. The
-		// launch path composes, freezes, and pins synchronously inside the
-		// gesture above, so a turn framed from the current revision fails here
-		// by name instead of as an answer that never arrived.
+		// The composition half, checked before the answer rather than after
+		// it. One revision said three times - the binding the MCP helper is
+		// pinned to, the binding record the frozen snapshot carries on disk,
+		// and the session the reviewer kept - and it is not the head on
+		// screen. BPR-0532 moved the freeze off the gesture: a continued turn
+		// asks for its own revision's alignment first and is dispatched when
+		// that answers or is refused, so this waits for the freeze the
+		// dispatch writes instead of reading it out of the send.
+		auto continuedFreeze = wait_terms{ };
+		if (!wait_until_reporting(
+				continuedFreeze,
+				[&application, &beforeContinuedSend](wait_terms& aTerms) {
+					QApplication::processEvents();
+					const auto now = app::detail::
+						github_application_fixture_access::agent_finding_evidence(
+							*application);
+					aTerms.note_identifier(
+						"realignment", now.LastContinuationRealignment);
+					return aTerms.require(
+						"frozen-written",
+						now.FrozenSnapshotWrites
+							== beforeContinuedSend.FrozenSnapshotWrites + 1U);
+				},
+				extended_agent_budget)) {
+			return fail(*application, "continued-freeze", continuedFreeze.render());
+		}
 		const auto composed = app::detail::
 			github_application_fixture_access::agent_finding_evidence(
 				*application);
@@ -657,12 +799,66 @@ auto main(int argc, char** argv) -> int
 			&& recordedBinding == keptEncoded
 			&& composed.FrozenSnapshotWrites
 				== beforeContinuedSend.FrozenSnapshotWrites + 1U;
-		if (!oldRevisionComposed) {
+		// What the turn was actually dispatched with, and why. The two are one
+		// claim: a re-alignment that answered froze this revision's own
+		// identities, and any other reason froze nothing at all. The fixture
+		// retains both revisions, so which of the two this course takes is the
+		// composition's answer and not the fixture's.
+		const auto continuedFrozen = snapshot_alignment_record(
+			std::filesystem::path{ composed.McpLaunch.has_value()
+									   ? composed.McpLaunch->WorkingDirectory
+									   : std::string{ } });
+		// What a re-alignment that answered must have produced: the old
+		// revision's own identities, byte for byte, as the shipped diff path
+		// independently computed them for that same revision before the review
+		// left it. `keptFrozen` was read off disk then, from the turn that ran
+		// against it, so this compares a recompute against an independent
+		// compute rather than against itself.
+		const auto realignedIdentities = continuedFrozen.Files == 1U
+			&& keptFrozen.Files == 1U && !keptFrozen.Comparison.empty()
+			&& continuedFrozen.Path == keptFrozen.Path
+			&& continuedFrozen.Comparison == keptFrozen.Comparison
+			&& continuedFrozen.LeftLineCount == keptFrozen.LeftLineCount
+			&& continuedFrozen.RightLineCount == keptFrozen.RightLineCount
+			&& continuedFrozen.Segments == keptFrozen.Segments
+			&& continuedFrozen.Groups == keptFrozen.Groups
+			&& continuedFrozen.Moves == keptFrozen.Moves;
+		// The reason and the record are one claim. `none` means the old
+		// revision was aligned again and its identities are what this turn
+		// froze; any other reason means the documented fallback - nothing
+		// frozen, every finding unanchored - and a turn that recorded one and
+		// did the other would be lying about which revision it was answered
+		// against.
+		const auto realignmentStated
+			= composed.LastContinuationRealignment == "none"
+			? realignedIdentities
+			: continuedFrozen.Files == 0U;
+		// The anchored course requires all three, because the invariant above
+		// is satisfied by a turn that froze nothing for a stated reason and
+		// that is the behaviour this card exists to replace. The retarget must
+		// be real - it sent only after the accepted comparison became the new
+		// pair, so the pair the kept session names is not the pair on screen
+		// and the request asks for something the current selection cannot
+		// supply; the re-alignment must have answered rather than refused; and
+		// what it produced must be the old revision's own identities.
+		const auto anchoredFreeze = !anchored
+			|| (composed.LastContinuationRealignmentRetargeted
+				&& composed.LastContinuationRealignment == "none"
+				&& realignedIdentities);
+		if (!oldRevisionComposed || !realignmentStated || !anchoredFreeze) {
 			std::cerr << "agent-chat-continued-composition:"
 					  << "\npinned:" << pinnedBinding
 					  << "\nrecorded:" << recordedBinding
 					  << "\nkept:" << keptEncoded
 					  << "\nobserved:" << observedEncoded
+					  << "\nrealignment:" << composed.LastContinuationRealignment
+					  << "\nretargeted:"
+					  << composed.LastContinuationRealignmentRetargeted
+					  << "\nfrozen-files:" << continuedFrozen.Files
+					  << "\nfrozen-comparison:" << continuedFrozen.Comparison
+					  << "\nkept-comparison:" << keptFrozen.Comparison
+					  << "\nfrozen-segments:" << continuedFrozen.Segments.size()
+					  << "\nkept-segments:" << keptFrozen.Segments.size()
 					  << "\nfreezes:" << beforeContinuedSend.FrozenSnapshotWrites
 					  << "->" << composed.FrozenSnapshotWrites << '\n';
 			return fail(*application, "continued-old-revision-composition");
@@ -734,20 +930,39 @@ auto main(int argc, char** argv) -> int
 				   exactly_once_echo(continued_message))
 				!= std::string::npos
 			&& continuedFinding.FindingStatistics.Deliveries == 2U;
+		// The turn completed. A binding change during a continued turn used to
+		// supersede it, which arrived as `stale_result` and an answer the
+		// reviewer asked for and never got; the panel names the outcome, so
+		// the panel is where this is read.
+		const auto continuedCompleted
+			= afterTurn.AgentPanelStatusText.find("Finished: success")
+			!= std::string::npos;
+		// The finding the continued turn returned, validated against what that
+		// turn froze. Frozen identities that no finding is checked against
+		// would be a file on disk and nothing more; this is the queue's own
+		// verdict on the answer the reviewer will read, and it can only say
+		// `anchored` because the old revision's identities were there to
+		// validate against.
+		const auto anchoredFinding
+			= !anchored || continuedFinding.QueuedAnchorState == "anchored (none)";
 		const auto continuedNoMutation = continuedMutation.Submissions == 0U
 			&& continuedMutation.TargetObservations == 0U
 			&& continuedMutation.StoredComments == 0U;
 		const auto continuedPassed = positive && staleRefused && keptSession
-			&& oldRevisionComposed && continuedTurn && continuedNoMutation;
+			&& oldRevisionComposed && anchoredFreeze && realignmentStated
+			&& anchoredFinding && continuedTurn && continuedCompleted
+			&& continuedNoMutation;
 		if (!continuedPassed) {
 			std::cerr << "agent-chat-continued-evidence:" << positive << ':'
 					  << staleRefused << ':' << keptSession << ':'
 					  << oldRevisionComposed << ':' << continuedTurn << ':'
+					  << continuedCompleted << ':' << anchoredFinding << ':'
 					  << continuedNoMutation << ':'
 					  << afterTurn.Statistics.Turns << ':'
 					  << afterTurn.Statistics.SessionsStarted << ':'
 					  << afterTurn.Statistics.Continuations
 					  << "\nqueued-claim:" << continuedFinding.QueuedClaim
+					  << "\nanchor-state:" << continuedFinding.QueuedAnchorState
 					  << "\nsession-state:" << afterTurn.SessionStateText
 					  << "\npanel-status:" << afterTurn.AgentPanelStatusText
 					  << '\n';
@@ -755,7 +970,8 @@ auto main(int argc, char** argv) -> int
 		if (!shutdown(*application) || !continuedPassed) {
 			return EXIT_FAILURE;
 		}
-		std::cout << "agent-chat-continued:pass\n";
+		std::cout << (anchored ? "agent-chat-anchored-continuation:pass\n"
+							   : "agent-chat-continued:pass\n");
 		return EXIT_SUCCESS;
 	}
 

@@ -1306,6 +1306,103 @@ namespace {
 			"one refused anchor does not refuse the finding beside it");
 	}
 
+	/// \brief The continued session one turn is dispatched under.
+	///
+	/// \details Bound to the revision the reviewer kept, which is the same
+	/// revision `request` names, because the host refuses a turn whose two
+	/// answers about one revision differ.
+	[[nodiscard]] auto continued_request(const core::git_host_id aHost)
+		-> application::agent_invocation_request
+	{
+		auto built             = finding_request(aHost, { });
+		built.ContinuedSession = core::agent_session{
+			.Id      = core::agent_session_id{ 41U },
+			.Profile = core::external_terminal_profile_id,
+			.Binding = binding(aHost),
+		};
+		return built;
+	}
+
+	void test_a_continued_turn_survives_the_binding_moving_under_it()
+	{
+		auto       test            = harness{ };
+		const auto activeAuthority = authority(core::git_host_id{ 1U });
+		test.Processes.Payload     = payload_of({ returned_finding("src/canary.cpp") });
+		test.Host.observe(
+			core::application_session_id{ 1U },
+			activeAuthority,
+			binding(core::git_host_id{ 1U }));
+		// The revision under review moves while the turn is running, which is
+		// what an epoch acceptance arriving behind a refresh does. The process
+		// spy re-reads its stop token after this, so a superseded turn comes
+		// back cancelled and a surviving one comes back with its answer.
+		test.Processes.AfterStart = [&test, activeAuthority] {
+			auto moved    = binding(core::git_host_id{ 1U });
+			moved.HeadOid = commit(9U);
+			test.Host.observe(
+				core::application_session_id{ 1U }, activeAuthority, moved);
+		};
+		test.Host.dispatch(continued_request(core::git_host_id{ 1U }));
+		test.settle();
+		expect(
+			test.Processes.Starts == 1U && !test.Processes.LastStopRequested
+				&& test.Processes.Cancels == 0U,
+			"a binding change does not stop a turn asked about the older revision");
+		expect(
+			test.Projection.Finished.size() == 1U
+				&& test.Projection.Finished.front().Outcome
+					== application::agent_run_outcome::success
+				&& !test.Projection.Finished.front().Events.empty(),
+			"the continued turn completes and keeps the answer it produced");
+		expect(
+			test.Sessions.AdmissionAttempts == 0U
+				&& test.Workspaces.Cleanups == 1U && test.Host.is_quiescent(),
+			"continuing admits no session and still cleans the workspace it owned");
+		expect(
+			test.Projection.Deliveries.size() == 1U
+				&& test.Projection.Deliveries.front().Staleness
+					== core::agent_session_staleness::head_moved
+				&& test.Projection.Deliveries.front().Findings.size() == 1U
+				&& test.Projection.Deliveries.front().Findings.front().Verdict.State
+					== core::agent_finding_anchor_state::anchored,
+			"the delivery still states how far the review moved and anchors against the frozen snapshot");
+		expect_binding_field_for_field(
+			test.Projection.Deliveries.front().Binding,
+			binding(core::git_host_id{ 1U }));
+	}
+
+	void test_a_fresh_turn_under_the_same_binding_change_is_superseded()
+	{
+		auto       test            = harness{ };
+		const auto activeAuthority = authority(core::git_host_id{ 1U });
+		test.Processes.Payload     = payload_of({ returned_finding("src/canary.cpp") });
+		test.Host.observe(
+			core::application_session_id{ 1U },
+			activeAuthority,
+			binding(core::git_host_id{ 1U }));
+		test.Processes.AfterStart = [&test, activeAuthority] {
+			auto moved    = binding(core::git_host_id{ 1U });
+			moved.HeadOid = commit(9U);
+			test.Host.observe(
+				core::application_session_id{ 1U }, activeAuthority, moved);
+		};
+		// The same movement, under a turn asked about the revision that moved.
+		// Nothing here is continued, so the guard does not apply and this is
+		// the behaviour every fresh turn has always had.
+		test.Host.dispatch(finding_request(core::git_host_id{ 1U }, { }));
+		test.settle();
+		expect(
+			test.Processes.LastStopRequested && test.Processes.Cancels == 1U,
+			"a fresh turn is stopped when the revision it was asked about moves");
+		expect(
+			test.Projection.Finished.size() == 1U
+				&& test.Projection.Finished.front().Outcome
+					== application::agent_run_outcome::stale_result
+				&& test.Projection.Finished.front().Events.empty()
+				&& test.Workspaces.Cleanups == 1U && test.Host.is_quiescent(),
+			"the superseded fresh turn reports stale and leaks no workspace");
+	}
+
 	void test_a_payload_after_an_accepted_head_move_arrives_stale()
 	{
 		auto       test            = harness{ };
@@ -1437,6 +1534,8 @@ auto main() -> int
 	test_findings_reenter_once_with_the_sessions_own_binding();
 	test_an_invalid_anchor_reenters_unanchored_rather_than_dropped();
 	test_a_payload_after_an_accepted_head_move_arrives_stale();
+	test_a_continued_turn_survives_the_binding_moving_under_it();
+	test_a_fresh_turn_under_the_same_binding_change_is_superseded();
 	test_a_promoted_finding_reaches_only_the_note_authority();
 	std::cout << "agent-invocation-host-tests:pass\n";
 	return EXIT_SUCCESS;

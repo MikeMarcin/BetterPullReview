@@ -144,7 +144,13 @@ namespace bpr::application {
 		const core::host_profile_id aProfile,
 		github_credential_material  aCredential)
 	{
-		Host->enroll_profile(aProfile, std::move(aCredential));
+		// [[BPR-0540]]. The one boundary that may say a credential came from
+		// a device grant. Everything else that enrolls is a token the reviewer
+		// supplied, and only this origin lets the host believe a refresh entry
+		// under the same authority belongs to the credential beside it.
+		Host->enroll_profile(aProfile,
+							 std::move(aCredential),
+							 github_credential_provenance::device_grant);
 	}
 
 	auto make_system_device_authorization_clock()

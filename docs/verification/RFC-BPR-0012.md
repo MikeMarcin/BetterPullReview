@@ -497,6 +497,25 @@ Named rather than left for a reader to infer from silence:
   retained and no re-alignment request exists. Retained epoch history, so
   such turns could anchor, is BPR-0532 in backlog, outside RFC-BPR-0012's
   closeout by that decision.
+  **Landed 2026-09-03 by BPR-0532, still outside this closeout.** The
+  alternative the decision left open exists now, as re-alignment rather
+  than retained history: a continued turn asks the epoch host to mint a
+  re-alignment context for the kept binding's pair (a second authority slot
+  beside the reviewer's own selection, minted by the host and never
+  assembled by a caller), the old pair's diff is recomputed off the gesture
+  through the composed re-alignment with a one-file and 30 s bound, and the
+  turn freezes that revision's own per-path identities and sends a semantic
+  selection built from the re-aligned old pair — its comparison digest,
+  segments, and groups, at `approximate` confidence with no identity claimed
+  for the reviewer's line. A binding change no longer supersedes a continued
+  invocation (a fresh one is superseded exactly as before). The empty freeze
+  stays the documented answer when re-alignment is refused or exceeds its
+  bound, so the paragraph above still describes that path.
+  `application_agent_chat_anchored_continuation_contract` proves the
+  anchored turn against an independent compute of the old pair;
+  `application_agent_chat_continued_contract` keeps proving the refusal
+  path's invariant. The claim rows above are unchanged: they describe
+  staleness and the offered choice, not the anchoring of the continued turn.
 - **`application_agent_invocation_composition_contract` does not pass at
   HEAD.** BPR-0517 added the `chat_message` field to `encode_agent_supplement`
   and did not add it to this course's `expected_context_fields` builder, so the

@@ -2399,14 +2399,22 @@ success claim.
   since BPR-0536 the product does this rather than only the host: the
   composition binds the renewal to the signed-in profile's vault authority
   for the session that enrolled the grant (a session does not survive a
-  restart today; BPR-0541 persists the binding, and BPR-0540 makes the
-  refresh material share the credential's erasure). A
+  restart today; BPR-0541 persists the binding), and only for a credential
+  whose provenance is a device grant — a pasted token is never renewed
+  from refresh material a past grant left beside it (BPR-0540). A
   renewal that cannot complete says so once, as one line on the sign-in
   panel, and asks for re-enrollment rather than retrying forever; enrol again
   from the same panel. Refresh material lives in a second slot of the same
-  platform vault, keyed by the same authority, and an orderly shutdown
-  removes only what it retained. `application_device_authorization_refresh_course`
-  proves one rotation through the composed graph over the fixture.
+  platform vault, keyed by the same authority (real on macOS; BPR-0542 and
+  BPR-0543 make it real on Linux and Windows, whose vaults answered
+  `unavailable` for the slot), and every exact delete of the base
+  credential — orderly shutdown, sign-out, a superseding enrollment —
+  deletes the refresh slot under the same authority too (BPR-0540).
+  `application_device_authorization_refresh_course` proves one rotation
+  through the composed graph over the fixture and pins
+  `DEVICE_FLOW_REFRESH_RETAINED:false` after its orderly shutdown;
+  `application_device_authorization_orphan_course` proves a pasted token
+  never resumes from a pre-seeded slot.
 - Opening a browser can fail, and that is not an authorization failure. The
   code and the address stay on screen and the flow completes on whatever
   device the reviewer finishes it on. An address that does not sit under the
