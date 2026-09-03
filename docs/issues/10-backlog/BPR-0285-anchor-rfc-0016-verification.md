@@ -217,9 +217,14 @@ printed `RFC0016_PRODUCTION_GATE:rfc0016-production-app-registration-v001`,
 `RFC0016_TEST_INVENTORY_OK`; and the composed-host audit
 `COMPOSED_HOSTS_OK: profile=production required=29 forbidden=7`. As on
 every enabled course of this RFC, the release probe reached GitHub once,
-was answered with a device code, and cancelled — `cancelled` with zero
-counted requests is the recorded expectation, and the dev-tree gate no
-longer does even that since BPR-0515.
+was answered with a device code, and cancelled. The proof of that reach is
+the stage: `cancelled` is reachable only after acquisition succeeded and
+the flow advanced past `requested`, and the same probe under local denial
+lands on `failed`. `RFC0016_DEVICE_REQUESTS:0` beside it is not a request
+count — it prints the unregistered refusing transport's `reached()`, which
+a registered build never references, so it is the negative control that no
+enabled build fell back to refusing, exactly as `bpr-linux` read it. The
+dev-tree gate no longer reaches GitHub at all since BPR-0515.
 RFC0016_RELEASE_ARTIFACT:build/rfc0016-linux-closeout/release/src/app/better_pull_review
 RFC0016_ELAPSED_SECONDS:255
 RFC0016_PLATFORM_COURSE_OK
@@ -327,3 +332,24 @@ so the replay's green is not mistaken for having settled it.
 | The enabled probe started the flow rather than refusing it | the course's shipped-artifact probe | `DEVICE_STAGE:cancelled`, not `unavailable` | this commit |
 | The tree's documentation and issue-graph contracts hold | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | this commit |
 | No whitespace damage | `git diff --check` | clean | this commit |
+
+## The `unavailable` selector keeps its name — 2026-09-03
+
+This card's 2026-09-02 section asked the final-head replay either to rename
+`application_device_authorization_unavailable`, which now proves the
+registered selection under a name that says `unavailable`, or to record
+why the name stays. Decided: it stays, and the reason is on the
+registration itself. The name is a registration identity that six gates
+bind by string — RFC-BPR-0016's test inventory (`SELECTORS`,
+`REQUIRED_ARGUMENTS`), its platform course (`COURSE_SELECTOR_NAMES`),
+RFC-BPR-0017's inventory (three selectors anchored on it), the
+network-isolation manifest's pinned set, and both RFCs' ledger `-R`
+patterns — plus the closed cards that recorded it. Renaming it at closeout
+would move every one of those pins for a cosmetic gain and make the closed
+cards' recorded commands stop matching the tree, which is the kind of
+drift [[BPR-0524]] and [[BPR-0525]] spent three station round trips
+repairing. What the name now means is documented where the selector is
+registered: the dev-tree device-authorization gate under whatever selection
+the platform ships, denied locally since [[BPR-0515]], with `unavailable`
+being the stage only an unregistered platform reaches. A rename can be its
+own slice after the RFC closes, if anyone still wants it.

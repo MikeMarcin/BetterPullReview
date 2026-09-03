@@ -222,6 +222,11 @@ bpr_bound_automated_run(
 # pipe namespace that a lowbox token cannot reach. `--network-denied` does not
 # contain the process; it denies at the socket, which is what this row actually
 # needed and the one thing the container could never have given it.
+# The selector's name predates the registered selection: on an unregistered
+# platform its stage is `unavailable`, and on every shipped platform it is now
+# the dev-tree device-authorization gate under local denial (BPR-0515), landing
+# on `failed`. The name stays because six gates bind it by string and the closed
+# cards record it (BPR-0285); read it as "the dev-tree device gate".
 bpr_add_network_isolated_test(
     NAME application_device_authorization_unavailable
     WINDOWS_UNCONTAINED
