@@ -1140,6 +1140,174 @@ namespace bpr::app {
 			presented_sink                                     Presented;
 		};
 
+		// Records what the signed-out presentation was told. The window is the
+		// reader [[BPR-0304]] built and tests at the adapter boundary; what
+		// composition needs is the same published record, so the public
+		// self-test can state the mode and the typed refusal a reviewer would
+		// see rather than infer them from a picture.
+		class public_preview_projection_sink final
+			: public application::public_preview_projection_port
+		{
+		public:
+			void publish(
+				const application::public_preview_presentation& aPresentation)
+				override
+			{
+				Last = aPresentation;
+				++Published;
+			}
+
+			[[nodiscard]] auto last() const noexcept
+				-> const application::public_preview_presentation&
+			{
+				return Last;
+			}
+
+			[[nodiscard]] auto published() const noexcept -> std::size_t
+			{
+				return Published;
+			}
+
+		private:
+			application::public_preview_presentation Last;
+			std::size_t                              Published = 0U;
+		};
+
+		// The same fan-out the device projection above uses, for the same
+		// reason: the host publishes to exactly one port, the self-test
+		// contracts read the recording sink, and the window is a second reader
+		// that must not reorder, delay, or veto what the first one sees. The
+		// sink is told first and unconditionally.
+		class composition_public_preview_projection final
+			: public application::public_preview_projection_port
+		{
+		public:
+			using presented_sink = std::function<void(
+				const application::public_preview_presentation&)>;
+
+			composition_public_preview_projection(
+				application::public_preview_projection_port& aRecorded,
+				presented_sink                               aPresented)
+				: Recorded{ &aRecorded }
+				, Presented{ std::move(aPresented) }
+			{
+			}
+
+			void publish(
+				const application::public_preview_presentation& aPresentation)
+				override
+			{
+				Recorded->publish(aPresentation);
+				if (Presented) {
+					Presented(aPresentation);
+				}
+			}
+
+		private:
+			application::public_preview_projection_port* Recorded = nullptr;
+			presented_sink                               Presented;
+		};
+
+		// Counts every credential-free pull-request read that reached the
+		// anonymous authority. Composed whether or not the selection hands
+		// that authority to the host, so an unavailable build reports a number
+		// rather than an absence: zero is the claim that the mode's gate
+		// refused before a request was built, and any other value is the gate
+		// being bypassed.
+		class counting_anonymous_pull_requests final
+			: public application::github_pull_request_port
+		{
+		public:
+			explicit counting_anonymous_pull_requests(
+				application::github_pull_request_port& aInner) noexcept
+				: Inner{ &aInner }
+			{
+			}
+
+			void fetch_pull_request(
+				application::github_pull_request_provider_request aRequest,
+				application::github_pull_request_completion_handler
+					aCompletion) override
+			{
+				++Reads;
+				Inner->fetch_pull_request(
+					std::move(aRequest), std::move(aCompletion));
+			}
+
+			void cancel_pull_request(
+				application::github_pull_request_provider_request aRequest)
+				override
+			{
+				Inner->cancel_pull_request(std::move(aRequest));
+			}
+
+			[[nodiscard]] auto reads() const noexcept -> std::size_t
+			{
+				return Reads;
+			}
+
+		private:
+			application::github_pull_request_port* Inner = nullptr;
+			std::size_t                            Reads = 0U;
+		};
+
+		// The credential-free Git smart authority. It takes no credential and
+		// has no entry that could accept one: every lease it issues comes from
+		// the shipped anonymous factory, which refuses an authenticated
+		// authority and refuses an enterprise profile before a request exists.
+		// Constructed in both profiles, so a shipped graph reaches the
+		// production factory by construction rather than through a fixture.
+		class anonymous_git_smart_transport_factory final
+			: public application::git_smart_transport_factory_port
+		{
+		public:
+			explicit anonymous_git_smart_transport_factory(
+				const validated_github_host_profile& aProfile) noexcept
+				: Profile{ &aProfile }
+			{
+			}
+
+			[[nodiscard]] auto acquire(
+				const application::git_smart_request_context& aContext)
+				-> application::git_smart_transport_result<
+					application::git_smart_transport> override
+			{
+				++Acquisitions;
+				auto wire = adapters::github::detail::
+					make_native_https_anonymous_smart_transport(
+						*Profile,
+						core::github_session_request_context{
+							.Request            = core::request_id{ 917U },
+							.ApplicationSession = aContext.ApplicationSession,
+							.Profile            = Profile->profile(),
+							.IdentityGeneration
+							= core::github_identity_generation{ 918U },
+						});
+				if (!wire.has_value()) {
+					return std::unexpected{
+						application::git_smart_transport_error{
+							.Failure = application::
+								git_smart_transport_failure::unavailable,
+						}
+					};
+				}
+				return adapters::github::detail::make_native_git_smart_transport(
+					std::shared_ptr<
+						adapters::github::detail::native_https_transport>{
+						std::move(*wire) },
+					aContext);
+			}
+
+			[[nodiscard]] auto acquisitions() const noexcept -> std::size_t
+			{
+				return Acquisitions;
+			}
+
+		private:
+			const validated_github_host_profile* Profile      = nullptr;
+			std::size_t                          Acquisitions = 0U;
+		};
+
 #if defined(BPR_BUILD_TESTING)
 		// The fixture profile's opener. A tests-enabled graph never binds the
 		// real one: `system_browser_opener` hands the address to the desktop,
@@ -1271,6 +1439,35 @@ namespace bpr::app {
 			return { .Registered = true };
 #else
 			return { .Registered = false };
+#endif
+		}
+
+		/// \brief Describes whether this build offers the signed-out preview.
+		struct public_preview_capability
+		{
+			bool Available = false;
+		};
+
+		// RFC-BPR-0017's shipped selection, and the only thing that enables the
+		// signed-out reading mode. It is false on every platform in this
+		// candidate slice: [[BPR-0316]] flips macOS in its own slice once
+		// [[BPR-0306]] passes, and Linux and Windows stay unavailable until a
+		// target-native card of their own says otherwise ([[BPR-0314]],
+		// [[BPR-0315]]). The three branches are written out rather than
+		// collapsed so flipping one platform is one line and cannot flip
+		// another. Moving a card between folders does not enable a capability,
+		// and neither does building on a different operating system.
+		[[nodiscard]] constexpr auto shipped_public_preview_capability() noexcept
+			-> public_preview_capability
+		{
+#if defined(__APPLE__)
+			return { .Available = false };
+#elif defined(__linux__)
+			return { .Available = false };
+#elif defined(_WIN32)
+			return { .Available = false };
+#else
+			return { .Available = false };
 #endif
 		}
 
@@ -2588,7 +2785,10 @@ namespace bpr::app {
 				DisableDeviceAuthorizationPanelComposition
 					= aFixtureOptions
 						  .DisableDeviceAuthorizationPanelComposition;
-				const auto host = fixture_host(*aFixture);
+				PublicPreviewEnabledCourse
+					= aFixtureOptions.PublicPreviewEnabledCourse;
+				PublicPreviewGhesCourse = aFixtureOptions.PublicPreviewGhesCourse;
+				const auto host         = fixture_host(*aFixture);
 				append_profile(
 					Profiles,
 					ProfileOptions,
@@ -2691,6 +2891,40 @@ namespace bpr::app {
 				throw std::runtime_error{ "GitHub provider composition failed" };
 			}
 			Provider = std::move(*provider);
+
+			// RFC-BPR-0017's credential-free read authority, over the same
+			// profiles and the same transport factory. A second provider
+			// rather than a mode on the first one: the authority is fixed at
+			// construction, so no request can decay from authenticated into
+			// anonymous or back, and the GHES, viewer-identity, GraphQL and
+			// mutation refusals happen inside it before a request is built.
+			//
+			// Constructed in both profiles and on every platform, including
+			// the ones whose selection is unavailable. Construction sends
+			// nothing; what the selection below decides is whether the host is
+			// ever given this authority at all.
+			auto anonymousProvider = make_github_provider(
+				std::span<const validated_github_host_profile* const>{
+					profilePointers },
+				ProviderEffects,
+				TransportFactory,
+				adapters::github::detail::github_provider_read_authority::
+					anonymous_public);
+			if (!anonymousProvider.has_value()) {
+				throw std::runtime_error{
+					"Anonymous GitHub provider composition failed"
+				};
+			}
+			AnonymousProvider = std::move(*anonymousProvider);
+			CountedAnonymousPullRequests
+				= std::make_unique<counting_anonymous_pull_requests>(
+					*AnonymousProvider);
+			// One profile carries the signed-out mode, and it is the
+			// GitHub.com one: `make_native_https_anonymous_smart_transport`
+			// refuses every other server contract before a transport exists.
+			AnonymousSmartGit
+				= std::make_unique<anonymous_git_smart_transport_factory>(
+					Profiles.front());
 
 #if defined(BPR_BUILD_TESTING)
 			if (Fixture == nullptr)
@@ -3279,7 +3513,45 @@ namespace bpr::app {
 					};
 				});
 
-			Host = std::make_unique<application::github_application_host>(
+			// One port, two readers, exactly as the device projection below:
+			// the recording sink is told first and unconditionally, so every
+			// self-test marker reads what it read before a window was in the
+			// picture, and the window is told the same thing afterwards.
+			//
+			// Composed on every platform, registered or not. The signed-out
+			// mode being unavailable is a typed answer a reviewer must see,
+			// not a silence, so the projection is bound even where the
+			// authorities below are withheld.
+			PublicPreviewProjectionFanOut = std::make_unique<
+				composition_public_preview_projection>(
+				PublicPreviewProjections,
+				[this](const application::public_preview_presentation&
+						   aPresentation) {
+					if (Window == nullptr) {
+						return;
+					}
+					Window->set_public_preview_now(public_preview_now());
+					Window->publish(aPresentation);
+				});
+			// The shipped selection. Unavailable on every platform in this
+			// slice, which is what makes `activate_public_preview` answer
+			// `public_preview_unavailable` before the core is asked anything:
+			// a null authority is the composition fact the host reports.
+			auto publicPreview = shipped_public_preview_capability();
+#if defined(BPR_BUILD_TESTING)
+			// The forced courses. A tests-enabled build with the recorded
+			// fixture overrides the shipped selection so the composed
+			// anonymous authority runs through the real host, the real
+			// provider and the real anonymous admission rules, which is the
+			// only place "no header, no vault, and a public snapshot" can be
+			// observed rather than argued.
+			if ((PublicPreviewEnabledCourse || PublicPreviewGhesCourse)
+				&& Fixture != nullptr) {
+				publicPreview = public_preview_capability{ .Available = true };
+			}
+#endif
+			PublicPreviewComposed = publicPreview.Available;
+			Host                  = std::make_unique<application::github_application_host>(
 				initial_github_state(),
 				*Provider,
 				*Provider,
@@ -3291,7 +3563,32 @@ namespace bpr::app {
 				*Window,
 				application::github_credential_shutdown_policy::
 					delete_retained_on_shutdown,
-				this);
+				this,
+				PublicPreviewComposed
+					? static_cast<application::github_pull_request_port*>(
+						  CountedAnonymousPullRequests.get())
+					: nullptr,
+				PublicPreviewComposed
+					? static_cast<application::git_smart_transport_factory_port*>(
+						  AnonymousSmartGit.get())
+					: nullptr,
+				PublicPreviewProjectionFanOut.get());
+			// The switch-to-sign-in gesture, end to end. The ring in the
+			// review header dispatches it, the host names the profile the
+			// signed-out session was activated for, and the device flow for
+			// that same profile begins -- so sign-in returns the reviewer to
+			// the pull request they were reading rather than to a picker.
+			Host->set_public_preview_sign_in(
+				[this](const core::host_profile_id aProfile) {
+					begin_public_preview_sign_in(aProfile);
+				});
+			if (Window->session_panel() != nullptr) {
+				Window->session_panel()->set_public_preview_dispatch(
+					[this](application::public_preview_gesture aGesture) {
+						static_cast<void>(aGesture);
+						Host->request_public_preview_sign_in();
+					});
+			}
 
 			// The device-authorization path. It is composed on every platform,
 			// registered or not, because the visible choice and its typed
@@ -3661,6 +3958,80 @@ namespace bpr::app {
 			return 0U;
 		}
 
+		// RFC-BPR-0017 evidence. Three exclusive answers, read from the host
+		// rather than inferred from the presentation: the composition refusal,
+		// the core policy's refusal, and the mode actually entered.
+		[[nodiscard]] auto public_preview_unavailable() const noexcept -> bool
+		{
+			if (Host == nullptr) {
+				return true;
+			}
+			const auto& refusal = Host->public_preview_refusal();
+			return refusal.has_value()
+				&& refusal->Cause
+				== application::github_public_preview_refusal_cause::
+					public_preview_unavailable;
+		}
+
+		[[nodiscard]] auto public_preview_policy_refused() const noexcept -> bool
+		{
+			if (Host == nullptr) {
+				return false;
+			}
+			const auto& refusal = Host->public_preview_refusal();
+			return refusal.has_value()
+				&& refusal->Cause
+				== application::github_public_preview_refusal_cause::
+					policy_refused;
+		}
+
+		[[nodiscard]] auto public_preview_signed_out() const noexcept -> bool
+		{
+			return Host != nullptr
+				&& Host->access_mode()
+				== core::github_access_mode::public_preview;
+		}
+
+		[[nodiscard]] auto public_preview_requests() const noexcept -> std::size_t
+		{
+			return CountedAnonymousPullRequests == nullptr
+				? 0U
+				: CountedAnonymousPullRequests->reads();
+		}
+
+		// Authenticated transports the session selected during the run. A
+		// signed-out read builds neither, so any non-zero value here is an
+		// authorization header this mode is not allowed to have sent.
+		[[nodiscard]] auto public_preview_header_effects() const noexcept
+			-> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr) {
+				const auto evidence = Fixture->evidence();
+				return (evidence.BootstrapTransportSelected ? 1U : 0U)
+					+ (evidence.AccountTransportSelected ? 1U : 0U);
+			}
+#endif
+			return 0U;
+		}
+
+		// Credential operations that crossed the vault boundary during the
+		// run. A signed-out read consults no vault, so this is zero or the
+		// mode reached for a credential it must not have.
+		[[nodiscard]] auto public_preview_vault_effects() const noexcept
+			-> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr) {
+				const auto evidence = Fixture->evidence();
+				return evidence.VaultStores
+					+ (evidence.CredentialRetrieved ? 1U : 0U)
+					+ (evidence.CredentialDeleted ? 1U : 0U);
+			}
+#endif
+			return 0U;
+		}
+
 		[[nodiscard]] auto device_transport_submissions() const noexcept
 			-> std::size_t
 		{
@@ -3755,6 +4126,63 @@ namespace bpr::app {
 			}
 			DeviceHost->dispatch(core::begin_device_authorization_intent{
 				.Profile = Profiles.front().profile(),
+			});
+		}
+
+		// One activation, from the composed graph, naming one profile. The
+		// enterprise selection is a different claim from the GitHub.com one --
+		// the core policy refuses it rather than the composition -- so it is
+		// asked for by name rather than inferred from a hostname.
+		void activate_public_preview(const bool aEnterprise)
+		{
+			if (Closing || Host == nullptr || Profiles.empty()) {
+				return;
+			}
+			const auto* selected = &Profiles.front();
+			if (aEnterprise) {
+				selected = nullptr;
+				for (const auto& profile : Profiles) {
+					if (profile.server_contract()
+						!= application::github_server_contract::
+							github_com_2022_11_28) {
+						selected = &profile;
+						break;
+					}
+				}
+			}
+			if (selected == nullptr) {
+				return;
+			}
+			Host->activate_public_preview(selected->profile());
+		}
+
+		// The instant the signed-out presentation is measured from. The window
+		// reads no clock of its own, so composition hands it one on every
+		// publication; a presentation that carries the host's own instant
+		// overrides it. Seconds since the epoch, because that is what the
+		// budget's reset is expressed in.
+		[[nodiscard]] static auto public_preview_now() noexcept -> std::uint64_t
+		{
+			const auto now = std::chrono::duration_cast<std::chrono::seconds>(
+								 std::chrono::system_clock::now()
+									 .time_since_epoch())
+								 .count();
+			return now <= 0 ? 0U : static_cast<std::uint64_t>(now);
+		}
+
+		// Where the switch-to-sign-in gesture lands. The host names the
+		// profile the signed-out session was activated for, so the flow that
+		// begins is the one that returns the reviewer to the pull request they
+		// were already reading. It is the same typed intent the device panel
+		// dispatches; nothing here knows how the flow works.
+		void begin_public_preview_sign_in(const core::host_profile_id aProfile)
+		{
+			++PublicPreviewSignInRequests;
+			if (Closing || DeviceHost == nullptr || aProfile.value() == 0U) {
+				return;
+			}
+			DeviceHost->dispatch(core::begin_device_authorization_intent{
+				.Profile = aProfile,
 			});
 		}
 
@@ -6469,6 +6897,15 @@ namespace bpr::app {
 		bool SuppressDeviceBrowser                      = false;
 		bool DisableDeviceAuthorizationPanelComposition = false;
 #endif
+#if defined(BPR_BUILD_TESTING)
+		// RFC-BPR-0017 courses. The first forces the shipped selection
+		// available against the recorded fixture so the composed anonymous
+		// authority can be driven end to end; the second does the same and
+		// then activates an enterprise profile, where the refusal is the
+		// core policy's rather than the composition's.
+		bool PublicPreviewEnabledCourse = false;
+		bool PublicPreviewGhesCourse    = false;
+#endif
 		// Whether a browser capability was bound at all, which is the fact the
 		// handoff's `unavailable` answer reports and the construction cut
 		// removes.
@@ -6716,9 +7153,26 @@ namespace bpr::app {
 		bool                                 ReviewLedgerRoundTripPassed       = false;
 		bool                                 FixtureReviewMutationHostComposed = false;
 #endif
-		std::unique_ptr<application::github_credential_vault_port>   OwnedVault;
-		std::shared_ptr<github_wire_transport_factory_port>          TransportFactory;
-		std::unique_ptr<github_provider>                             Provider;
+		std::unique_ptr<application::github_credential_vault_port> OwnedVault;
+		std::shared_ptr<github_wire_transport_factory_port>        TransportFactory;
+		std::unique_ptr<github_provider>                           Provider;
+		// RFC-BPR-0017's credential-free authorities. Declared beside the
+		// authenticated provider they are constructed beside, and after it, so
+		// they are destroyed first and the counting wrapper can never outlive
+		// the provider it forwards to.
+		std::unique_ptr<github_provider>                       AnonymousProvider;
+		std::unique_ptr<counting_anonymous_pull_requests>      CountedAnonymousPullRequests;
+		std::unique_ptr<anonymous_git_smart_transport_factory> AnonymousSmartGit;
+		// Whether the selection handed those authorities to the host. False on
+		// every shipped platform in this slice, which is what makes the mode
+		// answer `public_preview_unavailable` with nothing sent.
+		bool PublicPreviewComposed = false;
+		// Sign-in gestures the host forwarded. Evidence that the refusal
+		// leaves the reviewer somewhere to go rather than nowhere.
+		std::size_t                    PublicPreviewSignInRequests = 0U;
+		public_preview_projection_sink PublicPreviewProjections;
+		std::unique_ptr<composition_public_preview_projection>
+																	 PublicPreviewProjectionFanOut;
 		qt::event_loop_executor                                      DecisionLane;
 		std::unique_ptr<qt::workbench_window>                        Window;
 		application::github_credential_binding_catalog               CredentialBindings;
@@ -7076,6 +7530,31 @@ namespace bpr::app {
 			= Implementation->device_enrollments(),
 			.DeviceAuthorizationPanelComposed
 			= Implementation->DevicePanel != nullptr,
+			.PublicPreviewComposed = Implementation->PublicPreviewComposed,
+			.PublicPreviewUnavailable
+			= Implementation->public_preview_unavailable(),
+			.PublicPreviewPolicyRefused
+			= Implementation->public_preview_policy_refused(),
+			.PublicPreviewSignedOut = Implementation->public_preview_signed_out(),
+			.PublicPreviewPublications
+			= Implementation->PublicPreviewProjections.published(),
+			.PublicPreviewRequests = Implementation->public_preview_requests(),
+			.PublicPreviewHeaderEffects
+			= Implementation->public_preview_header_effects(),
+			.PublicPreviewVaultEffects
+			= Implementation->public_preview_vault_effects(),
+			.PublicPreviewSmartAcquisitions
+			= Implementation->AnonymousSmartGit == nullptr
+				? 0U
+				: Implementation->AnonymousSmartGit->acquisitions(),
+			.PublicPreviewSignInRequests
+			= Implementation->PublicPreviewSignInRequests,
+			.PublicPreviewReviewCommentsObserved
+			= Implementation->PublicPreviewProjections.last().ReviewComments
+				== application::public_preview_observation::observed,
+			.PublicPreviewReviewCommentGroups
+			= Implementation->PublicPreviewProjections.last()
+				  .ReviewCommentGroups.size(),
 		};
 	}
 
@@ -7092,6 +7571,11 @@ namespace bpr::app {
 	void github_application::open_device_verification_address()
 	{
 		Implementation->open_device_verification_address();
+	}
+
+	void github_application::activate_public_preview(const bool aEnterprise)
+	{
+		Implementation->activate_public_preview(aEnterprise);
 	}
 
 #if defined(BPR_BUILD_TESTING)

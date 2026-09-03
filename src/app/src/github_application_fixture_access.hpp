@@ -101,6 +101,16 @@ namespace bpr::app::detail {
 		// and the flow stays reachable through the self-test, so a graph that
 		// silently stopped composing the panel cannot pass for one that did.
 		bool DisableDeviceAuthorizationPanelComposition = false;
+		// RFC-BPR-0017. Forces the shipped public-preview selection available
+		// against the recorded fixture, so the composed credential-free
+		// authority can be driven through the real host and the real
+		// admission rules. Only meaningful with a fixture; a shipped build has
+		// no such override and this option does not exist there.
+		bool PublicPreviewEnabledCourse = false;
+		// The same override, activated on the enterprise profile instead. The
+		// refusal there is the core policy's rather than the composition's,
+		// which is a different claim and needs a different course.
+		bool PublicPreviewGhesCourse = false;
 	};
 
 	struct queue_notification_fixture_evidence

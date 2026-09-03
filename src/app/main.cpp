@@ -711,6 +711,25 @@ namespace {
 			bool PanelBegan  = false;
 		};
 
+		// RFC-BPR-0017. Activating the signed-out preview once, from the
+		// shipped composition, and reporting what came back. A platform whose
+		// selection composed no credential-free read authority answers with a
+		// typed refusal and nothing sent; the tests-enabled courses force the
+		// selection available so the composed authority can be driven.
+		struct public_preview_probe_state
+		{
+			bool Enabled = false;
+			// The fixture course that forces the selection available and opens
+			// the recorded public pull request through the anonymous
+			// authority.
+			bool Course = false;
+			// The same override activated on an enterprise profile, where the
+			// core policy refuses rather than the composition.
+			bool Enterprise = false;
+			bool Activated  = false;
+			bool Opened     = false;
+		};
+
 		stage Stage = stage::start;
 		// Ticks spent in the current stage. Not the bound — the bound is
 		// `Budget` below — but reported alongside it, because a run that
@@ -743,6 +762,7 @@ namespace {
 		int                                       FailedStage                        = -1;
 		cli_unavailable_probe_state               Cli;
 		device_authorization_probe_state          Device;
+		public_preview_probe_state                PublicPreview;
 #if defined(BPR_BUILD_TESTING)
 		struct native_appearance_probe_state
 		{
@@ -2994,7 +3014,11 @@ namespace {
 		// pull-request course deliberately never runs. Judging it on evidence
 		// it was never asked to produce would report a failure that is a
 		// description of the run rather than a defect in it.
-		const auto fixtureCourseRan = aRun.Fixture && !aRun.Device.Registered;
+		// The public-preview courses run against the fixture without opening
+		// it the way the pull-request course does, so the pull-request
+		// expectations below are not theirs to satisfy.
+		const auto fixtureCourseRan = aRun.Fixture && !aRun.Device.Registered
+			&& !aRun.PublicPreview.Enabled;
 		if (fixtureCourseRan) {
 			const auto expectedSmartCalls = aRun.MaintenanceProbe
 					== automated_run::epoch_maintenance_probe::verify_deleted
@@ -3234,6 +3258,79 @@ namespace {
 				   << (status.DeviceAuthorizationPanelComposed ? "true"
 															   : "false")
 				   << '\n';
+		}
+		if (aRun.PublicPreview.Enabled) {
+			// Separate facts again, and for the same reason: "the authority
+			// was composed", "which answer the activation produced", and
+			// "nothing was sent, no header was built, no vault was touched"
+			// fail independently, and one verdict would hide which.
+			const auto stageText = status.PublicPreviewSignedOut
+				? "enabled"
+				: (status.PublicPreviewPolicyRefused ? "refused"
+													 : "unavailable");
+			stream << "PUBLIC_PREVIEW_COMPOSED:"
+				   << (status.PublicPreviewComposed ? "true" : "false")
+				   << "\nPUBLIC_PREVIEW_STAGE:" << stageText
+				   << "\nPUBLIC_PREVIEW_REQUESTS:"
+				   << static_cast<unsigned long long>(
+						  status.PublicPreviewRequests)
+				   << "\nPUBLIC_PREVIEW_HEADER_EFFECTS:"
+				   << static_cast<unsigned long long>(
+						  status.PublicPreviewHeaderEffects)
+				   << "\nPUBLIC_PREVIEW_VAULT_EFFECTS:"
+				   << static_cast<unsigned long long>(
+						  status.PublicPreviewVaultEffects)
+				   << "\nPUBLIC_PREVIEW_SIGN_IN_REQUESTS:"
+				   << static_cast<unsigned long long>(
+						  status.PublicPreviewSignInRequests)
+				   << '\n';
+			if (aRun.PublicPreview.Course) {
+				// The enabled claim: the mode was entered, the read went
+				// through the credential-free authority, the inline
+				// conversation was observed, and neither an authorization
+				// header nor the vault was involved in any of it.
+				const auto enabled = status.PublicPreviewComposed
+					&& status.PublicPreviewSignedOut
+					&& !status.PublicPreviewUnavailable
+					&& status.PublicPreviewRequests >= 1U
+					&& status.PublicPreviewHeaderEffects == 0U
+					&& status.PublicPreviewVaultEffects == 0U
+					&& status.PublicPreviewReviewCommentsObserved
+					&& status.PublicPreviewPublications > 0U;
+				stream << "PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:"
+					   << static_cast<unsigned long long>(
+							  status.PublicPreviewReviewCommentGroups)
+					   << '\n'
+					   << (enabled ? "PUBLIC_PREVIEW_ENABLED_OK\n"
+								   : "PUBLIC_PREVIEW_ENABLED_FAILED\n");
+			} else if (aRun.PublicPreview.Enterprise) {
+				// The enterprise claim is the composition refusal's mirror:
+				// the authority was composed and the core policy still refused
+				// the mode, before a request was built.
+				const auto refused = status.PublicPreviewComposed
+					&& status.PublicPreviewPolicyRefused
+					&& !status.PublicPreviewSignedOut
+					&& status.PublicPreviewRequests == 0U
+					&& status.PublicPreviewHeaderEffects == 0U
+					&& status.PublicPreviewVaultEffects == 0U
+					&& status.PublicPreviewPublications > 0U;
+				stream << (refused ? "PUBLIC_PREVIEW_REFUSED_OK\n"
+								   : "PUBLIC_PREVIEW_REFUSED_FAILED\n");
+			} else {
+				// The shipped selection. Composed nothing, answered
+				// `public_preview_unavailable`, said so where a reviewer can
+				// see it, and sent nothing of any kind.
+				const auto unavailable = !status.PublicPreviewComposed
+					&& status.PublicPreviewUnavailable
+					&& !status.PublicPreviewSignedOut
+					&& status.PublicPreviewRequests == 0U
+					&& status.PublicPreviewHeaderEffects == 0U
+					&& status.PublicPreviewVaultEffects == 0U
+					&& status.PublicPreviewSmartAcquisitions == 0U
+					&& status.PublicPreviewPublications > 0U;
+				stream << (unavailable ? "PUBLIC_PREVIEW_UNAVAILABLE_OK\n"
+									   : "PUBLIC_PREVIEW_UNAVAILABLE_FAILED\n");
+			}
 		}
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Fixture && !aRun.ReviewLedgerCompositionProbe.has_value()
@@ -4169,6 +4266,21 @@ namespace {
 			case automated_run::stage::start:
 #if defined(BPR_BUILD_TESTING)
 				if (aRun->Fixture) {
+					// RFC-BPR-0017. The signed-out courses take the fixture
+					// without the account: connecting one would enroll a
+					// credential and select an authenticated transport, which
+					// is exactly what these courses claim did not happen. So
+					// they activate the mode here and go straight to the
+					// stage that reads its answer.
+					if (aRun->PublicPreview.Course
+						|| aRun->PublicPreview.Enterprise) {
+						aRun->PublicPreview.Activated = true;
+						aApplication.activate_public_preview(
+							aRun->PublicPreview.Enterprise);
+						advance_fixture_stage(
+							*aRun, automated_run::stage::connect);
+						break;
+					}
 					if (aRun->AppearanceGestureProbe) {
 						// Here rather than in a later stage because this is the
 						// one point every fixture path passes through, seed and
@@ -4238,6 +4350,55 @@ namespace {
 				// before the CLI presentation below, because that check counts
 				// the profiles it passes and would count them again on every
 				// tick spent waiting here.
+				if (aRun->PublicPreview.Enabled
+					&& aRun->PublicPreview.Activated) {
+#if defined(BPR_BUILD_TESTING)
+					if (aRun->PublicPreview.Course) {
+						// The mode first, the pull request second. Opening
+						// before the session is signed out would read it on
+						// whatever authority the host had, which is the one
+						// thing this course must not do.
+						if (!aRun->PublicPreview.Opened) {
+							if (!aApplication.status().PublicPreviewSignedOut) {
+								break;
+							}
+							aRun->PublicPreview.Opened = true;
+							window.session_panel()->owner_editor()->setText(
+								QString::fromStdString(
+									aRun->Expectations.Owner));
+							window.session_panel()
+								->repository_editor()
+								->setText(QString::fromStdString(
+									aRun->Expectations.Repository));
+							window.session_panel()
+								->pull_request_editor()
+								->setValue(aRun->Expectations.Number);
+							window.github_open_action()->trigger();
+							break;
+						}
+						if (aApplication.status().PublicPreviewRequests == 0U
+							|| !aApplication.status()
+									.PublicPreviewReviewCommentsObserved) {
+							break;
+						}
+					}
+#endif
+					// The refusal is posted to the decision lane, and the
+					// presentation it produces is the answer this probe
+					// reports; shutdown closes that lane, so the run waits for
+					// the publication rather than racing it.
+					if (aApplication.status().PublicPreviewPublications == 0U) {
+						break;
+					}
+					aRun->PresentationPassed
+						= aRun->Cli.Observed == aRun->Cli.Expected;
+					aRun->RenderSaved = save_render_evidence(
+						window,
+						aRun->RenderPath,
+						aRun->RenderCollapsesFilesDrawer);
+					transition_to_shutdown(aApplication, *aRun);
+					break;
+				}
 				if (aRun->Device.Enabled && aRun->Device.Selected) {
 					if (!bpr::core::terminal(
 							aApplication.status()
@@ -4340,6 +4501,13 @@ namespace {
 								window, *aRun, nextCliProfile)) {
 							fail_automated_run(aApplication, *aRun);
 						}
+					} else if (aRun->PublicPreview.Enabled) {
+						// Activate once. The typed answer is posted to the
+						// decision lane and has to be allowed to land before
+						// the run may transition to shutdown; the wait is at
+						// the top of this stage.
+						aRun->PublicPreview.Activated = true;
+						aApplication.activate_public_preview(false);
 					} else if (aRun->Device.Enabled) {
 						// Select once. The refusal is posted to the decision
 						// lane and has to be allowed to land before the run may
@@ -5976,6 +6144,10 @@ auto main(int argc, char** argv) -> int
 		// RFC-BPR-0016 construction cut. Composes the device host with no
 		// browser capability, which is what every build had before
 		// [[BPR-0516]] composed one.
+		fixtureOptions.PublicPreviewEnabledCourse
+			= has_argument(argc, argv, "--public-preview-enabled-course");
+		fixtureOptions.PublicPreviewGhesCourse
+			= has_argument(argc, argv, "--public-preview-ghes-course");
 		fixtureOptions.SuppressDeviceBrowser = has_argument(
 			argc,
 			argv,
@@ -6115,6 +6287,27 @@ auto main(int argc, char** argv) -> int
 		// between this course and the registered one beside it.
 		const auto devicePanelCourse
 			= has_argument(argc, argv, "--device-authorization-panel-course");
+		// RFC-BPR-0017. Unconditional, exactly like the device probe beside
+		// it: the claim a shipped binary has to be able to make is that the
+		// signed-out mode is unavailable and sends nothing, and a flag that
+		// existed only in a tests-enabled build could not make it.
+		const auto publicPreviewProbe
+			= has_argument(argc, argv, "--public-preview-probe");
+		// The two forced courses are tests-enabled only. They override the
+		// shipped selection, which is the one thing a released binary must
+		// never be able to do from a command line.
+		const auto publicPreviewEnabledCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--public-preview-enabled-course");
+#else
+			false;
+#endif
+		const auto publicPreviewGhesCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--public-preview-ghes-course");
+#else
+			false;
+#endif
 		const auto renderPath                 = argument_value(argc, argv, "--render-evidence");
 		const auto renderCollapsesFilesDrawer = has_argument(
 			argc, argv, "--render-evidence-collapse-files");
@@ -6520,6 +6713,7 @@ auto main(int argc, char** argv) -> int
 		auto       verifyNativePlatformVault = selfTest;
 		auto       verifyCliUnavailable      = selfTest;
 		const auto verifyDeviceAuthorization = selfTest && deviceProbe;
+		const auto verifyPublicPreview       = selfTest && publicPreviewProbe;
 #if defined(BPR_BUILD_TESTING)
 		verifyNativePlatformVault = verifyNativePlatformVault && fixtureName.empty();
 		verifyCliUnavailable      = verifyCliUnavailable && fixtureName.empty();
@@ -6579,6 +6773,11 @@ auto main(int argc, char** argv) -> int
 							.Registered   = registeredDeviceCourse,
 							.BrowserProbe = verifyDeviceAuthorization && deviceBrowserProbe,
 							.PanelCourse  = verifyDeviceAuthorization && devicePanelCourse,
+						},
+						.PublicPreview = automated_run::public_preview_probe_state{
+							.Enabled    = verifyPublicPreview,
+							.Course     = verifyPublicPreview && publicPreviewEnabledCourse,
+							.Enterprise = verifyPublicPreview && publicPreviewGhesCourse,
 						},
 #if defined(BPR_BUILD_TESTING)
 						.Fixture                         = !fixtureName.empty(),

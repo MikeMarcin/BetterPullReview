@@ -538,6 +538,13 @@ namespace bpr::app::detail {
 		enum class fixture_transport_role {
 			bootstrap,
 			account,
+			// RFC-BPR-0017's credential-free read. It replays the same
+			// recording the account role replays, because the recorded public
+			// pull request is the same pull request either way; what differs
+			// is that nothing selected this transport with a credential and
+			// nothing can, so the authenticated evidence counters stay
+			// untouched by anything it serves.
+			anonymous,
 		};
 
 		[[nodiscard]] auto byte_vector(const std::string_view aValue)
@@ -919,6 +926,7 @@ namespace bpr::app::detail {
 						State, fixture_transport_role::bootstrap)
 				}
 				, AccountTransport{ std::make_shared<fixture_recorded_wire_transport>(State, fixture_transport_role::account) }
+				, AnonymousTransport{ std::make_shared<fixture_recorded_wire_transport>(State, fixture_transport_role::anonymous) }
 			{
 			}
 
@@ -964,10 +972,31 @@ namespace bpr::app::detail {
 				return AccountTransport;
 			}
 
+			// RFC-BPR-0017. Deliberately overridden rather than left to the
+			// base's refusal: the shipped factory beside this one composes a
+			// real anonymous transport, so a fixture that refused here would
+			// make the composed graph unreachable under test and prove nothing
+			// about it. There is no credential parameter on this entry, so
+			// nothing the course does can hand one over.
+			[[nodiscard]] auto make_anonymous(
+				const adapters::github::validated_github_host_profile& aProfile,
+				const core::github_session_request_context             aContext) noexcept
+				-> github_wire_transport_factory_result override
+			{
+				const std::scoped_lock lock{ State->Mutex };
+				if (!same_profile(aProfile, State->Profile)
+					|| aContext.Profile != aProfile.profile()) {
+					return std::unexpected{ provider_error(
+						application::github_provider_failure::unavailable) };
+				}
+				return AnonymousTransport;
+			}
+
 		private:
 			std::shared_ptr<fixture_recording_state>         State;
 			std::shared_ptr<fixture_recorded_wire_transport> BootstrapTransport;
 			std::shared_ptr<fixture_recorded_wire_transport> AccountTransport;
+			std::shared_ptr<fixture_recorded_wire_transport> AnonymousTransport;
 		};
 
 		// Replays BPR-0276's recorded device grant through the real wire
