@@ -79,6 +79,17 @@ namespace {
 		};
 	}
 
+	// [[BPR-0550]]. The same profile, a different account. That is the whole
+	// distance between a second grant that rekeys nothing and one whose renewal
+	// chain is filed under an account it never authenticated as.
+	[[nodiscard]] auto second_account_authority()
+		-> application::github_credential_authority_key
+	{
+		auto key    = authority();
+		key.Account = core::github_account_id{ 11U };
+		return key;
+	}
+
 	// [[BPR-0546]]. The generation the GitHub host's accepted session runs
 	// under. Composition reads it from that host and carries it in with the
 	// authority, because the device host has no way to know it.
@@ -605,13 +616,20 @@ namespace {
 		}
 
 		// Runs a whole device flow to the authorized terminal with the refresh
-		// authority already bound, which is the re-authorization shape.
+		// authority bound before the grant is answered, which is the shape a
+		// reviewer whose session is already established authorizes in: the slot
+		// exists while the flow runs, so the material is durable before the
+		// access token is enrolled.
+		//
+		// [[BPR-0550]]. Bound inside the flow rather than ahead of it. A binding
+		// made before `begin` belongs to whatever session preceded this flow, and
+		// the host releases it there; only one this flow ran under is spent.
 		void authorize_with_bound_authority(
 			const std::uint32_t aLifetime = 3'600U)
 		{
-			Host.bind_refresh_authority(authority(), accepted_generation());
 			reach_awaiting();
 			poll_once();
+			Host.bind_refresh_authority(authority(), accepted_generation());
 			Transport.answer_token(issued(aLifetime));
 			Lane.drain();
 		}
@@ -1104,9 +1122,12 @@ namespace {
 	void test_an_answer_with_no_refresh_material_schedules_no_renewal()
 	{
 		harness world;
-		world.Host.bind_refresh_authority(authority(), accepted_generation());
 		world.reach_awaiting();
 		world.poll_once();
+		// [[BPR-0550]]. Bound inside the flow. A binding made before `begin`
+		// belongs to whatever session preceded it, and the host releases it
+		// there rather than storing this grant's material under it.
+		world.Host.bind_refresh_authority(authority(), accepted_generation());
 		world.Transport.answer_token(
 			world.issued(3'600U, "access-only", std::nullopt));
 		world.Lane.drain();
@@ -1135,9 +1156,12 @@ namespace {
 	{
 		harness world;
 		world.Vault.HoldStore = true;
-		world.Host.bind_refresh_authority(authority(), accepted_generation());
 		world.reach_awaiting();
 		world.poll_once();
+		// [[BPR-0550]]. Bound inside the flow. A binding made before `begin`
+		// belongs to whatever session preceded it, and the host releases it
+		// there rather than storing this grant's material under it.
+		world.Host.bind_refresh_authority(authority(), accepted_generation());
 		world.Transport.answer_token(world.issued());
 		world.Lane.drain();
 		expect(
@@ -1181,9 +1205,12 @@ namespace {
 	{
 		harness world;
 		world.Vault.HoldStore = true;
-		world.Host.bind_refresh_authority(authority(), accepted_generation());
 		world.reach_awaiting();
 		world.poll_once();
+		// [[BPR-0550]]. Bound inside the flow. A binding made before `begin`
+		// belongs to whatever session preceded it, and the host releases it
+		// there rather than storing this grant's material under it.
+		world.Host.bind_refresh_authority(authority(), accepted_generation());
 		world.Transport.answer_token(world.issued());
 		world.Lane.drain();
 
@@ -1273,6 +1300,53 @@ namespace {
 			world.Projections.Refreshes.size() == published,
 			"and an unchanged observation publishes nothing");
 	}
+	// [[BPR-0550]]. A binding belongs to the session that named it. A second
+	// grant in one process authenticates as whoever authorized it, which need
+	// not be the account the first one bound. Material stored under the stale
+	// key is what the incoming session's mismatch window erases ([[BPR-0549]]),
+	// and by then the host has called it durable and armed a renewal against
+	// it: the panel reads `scheduled` for a chain nobody can spend, and at the
+	// lead time the retrieve answers absent and the reviewer is told to enroll
+	// again while the token they hold still works.
+	void test_a_second_grant_stores_under_the_authority_its_own_session_named()
+	{
+		harness world;
+		world.authorize_with_bound_authority();
+		expect(
+			world.Vault.StoreContexts.size() == 1U
+				&& world.Vault.StoreContexts.back().Authority == authority(),
+			"the first grant stored under the authority its own session named");
+
+		world.reach_awaiting();
+		world.poll_once();
+		world.Transport.answer_token(
+			world.issued(3'600U, "access-2", "refresh-2"));
+		world.Lane.drain();
+
+		expect(
+			world.Host.holds_pending_refresh_material(),
+			"the second grant's material waits for its own authority");
+		expect(
+			world.Vault.StoreContexts.size() == 1U,
+			"and nothing was written under the previous session's");
+
+		world.Host.bind_refresh_authority(
+			second_account_authority(),
+			accepted_generation());
+		world.Lane.drain();
+
+		expect(
+			world.Vault.StoreContexts.size() == 2U,
+			"the new session's binding is what stores it");
+		expect(
+			world.Vault.StoreContexts.back().Authority
+				== second_account_authority(),
+			"under the authority the second session named, not the first");
+		expect(
+			world.Vault.Stored.has_value()
+				&& *world.Vault.Stored == "refresh-2",
+			"and what the slot holds is the second grant's material");
+	}
 } // namespace
 
 auto main() -> int
@@ -1296,6 +1370,7 @@ auto main() -> int
 	test_a_refused_store_after_a_cancel_asks_for_nothing();
 	test_the_renewal_lifecycle_reaches_presentation();
 	test_a_composed_device_host_stores_under_a_context_the_vault_accepts();
+	test_a_second_grant_stores_under_the_authority_its_own_session_named();
 
 	std::cout << "device-authorization-refresh-tests:pass\n";
 	return EXIT_SUCCESS;
