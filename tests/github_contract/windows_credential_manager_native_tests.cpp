@@ -545,6 +545,33 @@ namespace {
 			&& same_bytes(success->Credential.bytes(), aExpected);
 	}
 
+	[[nodiscard]] auto run_retrieve_refresh_absent(
+		application::github_credential_vault_port& aVault,
+		application::manual_executor&              aLane,
+		const std::uint64_t                        aRequest) -> bool
+	{
+		const auto        operation = native_context(aRequest);
+		retrieve_recorder recorder;
+		aVault.retrieve_refresh(
+			operation,
+			[&recorder](
+				application::github_credential_retrieve_completion terminal) {
+				recorder.record(std::move(terminal));
+			});
+		if (aLane.pending() != 1U) {
+			aVault.cancel(operation);
+			aLane.drain();
+			return false;
+		}
+		aLane.run_next();
+
+		const auto* absent = terminal_as<
+			application::github_credential_retrieve_absent>(
+			recorder.Terminal);
+		return recorder.Calls == 1U && absent != nullptr
+			&& absent->Context == operation;
+	}
+
 	[[nodiscard]] auto run_delete_refresh(
 		application::github_credential_vault_port& aVault,
 		application::manual_executor&              aLane,
@@ -647,6 +674,57 @@ namespace {
 	// and is gone after delete_refresh. The last delete proves an absent entry
 	// answers success rather than unavailable, which is what BPR-0540's
 	// orderly-quit erasure relies on.
+	// [[BPR-0545]]. The erasure occasion against the real Credential Manager:
+	// the credential delete first, then the refresh erasure issued from its
+	// terminal under the same context, which is what the host does now. Both
+	// complete on their own targets and both targets are absent afterwards.
+	// The pair submitted together under one context is refused before it is
+	// queued -- the contract suite pins that -- so this row is the other half:
+	// that the fixed ordering actually reaches both targets on a real vault.
+	[[nodiscard]] auto run_native_erasure_occasion(
+		const std::span<const std::byte> aCredential,
+		const std::span<const std::byte> aRefresh) -> bool
+	{
+		application::manual_executor lane;
+		auto                         vault = make_native_vault(lane);
+		if (vault == nullptr) {
+			return false;
+		}
+
+		auto ok = true;
+		ok      = run_delete(*vault, lane, 300U, std::nullopt) && ok;
+		ok      = run_delete_refresh(*vault, lane, 301U, std::nullopt) && ok;
+
+		ok = run_store(*vault, lane, 302U, aCredential) && ok;
+		ok = run_store_refresh(*vault, lane, 303U, aRefresh) && ok;
+		ok = run_retrieve(*vault, lane, 304U, aCredential) && ok;
+		ok = run_retrieve_refresh(*vault, lane, 305U, aRefresh) && ok;
+
+		// The occasion. One context number for both halves, the second issued
+		// only after the first has terminated, exactly as the host sequences
+		// it; a vault that queued them together would refuse the second.
+		const auto occasion = 306U;
+		ok                  = run_delete(
+								  *vault,
+								  lane,
+								  occasion,
+								  application::github_credential_delete_disposition::deleted)
+			&& ok;
+		ok = run_delete_refresh(
+				 *vault,
+				 lane,
+				 occasion,
+				 application::github_credential_delete_disposition::deleted)
+			&& ok;
+
+		ok = run_retrieve_absent(*vault, lane, 307U) && ok;
+		ok = run_retrieve_refresh_absent(*vault, lane, 308U) && ok;
+
+		const auto cleanup = run_delete(*vault, lane, 309U, std::nullopt)
+			&& run_delete_refresh(*vault, lane, 310U, std::nullopt);
+		return ok && cleanup;
+	}
+
 	[[nodiscard]] auto run_native_refresh_lifecycle(
 		const std::span<const std::byte> aCanaryA,
 		const std::span<const std::byte> aCanaryB) -> bool
@@ -853,6 +931,9 @@ namespace {
 								canary_a->bytes(),
 								canary_b->bytes())
 			&& run_native_refresh_lifecycle(
+								canary_a->bytes(),
+								canary_b->bytes())
+			&& run_native_erasure_occasion(
 								canary_a->bytes(),
 								canary_b->bytes());
 		static_cast<void>(write_category(
