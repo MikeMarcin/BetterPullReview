@@ -64,3 +64,42 @@ clock has no testing seam, so a composed rotation needs a short-lived
 documented grant or a clock seam. The slice runs on `bpr-0536-work` in a
 worktree, after [[BPR-0537]] so the two do not edit `main.cpp` at once;
 the three documents and ledger row 9 are the integrator's at close.
+
+## Part one landed — 2026-09-03
+
+At `5fc62071`. The three refresh observation types moved from the host
+header to `device_authorization_projection.hpp`, and the projection port
+gained a pure `publish_refresh(const device_authorization_refresh_observation&)`;
+five implementers were updated, so a projection that drops renewal no
+longer compiles. The host publishes on change from every lane turn
+(`deliver_refresh()` wraps `post()`), including from `bind_refresh_authority`
+and `resume_refresh`. `perform(cancel)` now cancels and forgets the
+outstanding refresh-store context exactly as `shutdown()` does; three
+refresh tests cover cancel-then-late-store through a held-store seam on
+the vault double, and the sharper mutation — keeping the vault cancel and
+deleting only the context reset, the exact R1 defect — fails at "a store
+that answered after the cancel arms no renewal".
+
+`github_application_host::accepted_credential_authority()` exposes the
+accepted session's credential authority key, gated on the accepted
+session so a key from a session that later failed is never handed out.
+Composition binds it to the device host for `Profiles.front()` on an
+accepted session while the device stage is `authorized` this run, and
+resumes on a later different key for that profile; a self-test sink
+counts bindings, resumes, and publications. The sign-in panel renders one
+line (`bpr-device-authorization-renewal`) for `reenrollment_required` and
+nothing for the other states.
+
+Reproduced on the merged tree: build clean, 23/23 device selectors in 253 s, boundaries, the
+touched files tidy and format clean; both composition pins held at the
+worker's values.
+
+Not yet delivered, and why part two exists: no composed course can see
+the binding (removing it leaves every selector green), and after a
+process restart the device stage is not `authorized`, so a persisted
+device-grant session never resumes renewal — the composed app calls
+`resume_profile` nowhere, and the stage rule alone cannot tell a persisted
+grant from a pasted token. Part two adds the renewable signal from the
+GitHub host, the resume on it, the `--device-authorization-refresh-course`
+with a course-only clock offset over the fixture's real refresh slot, and
+the composed-host anchors.
