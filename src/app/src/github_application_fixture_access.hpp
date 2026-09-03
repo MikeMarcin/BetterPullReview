@@ -213,6 +213,11 @@ namespace bpr::app::detail {
 		// the material its rotation had just stored, and the shutdown's
 		// erasure after it made the end state look correct.
 		std::size_t RefreshDeletes = 0U;
+		// [[BPR-0547]]. The identity of the last material written into the slot,
+		// which is how a course states that the rotation it drove last is the
+		// one whose material the slot held. The retained flag above cannot say
+		// it: the shutdown empties the slot before this evidence is read.
+		std::string RefreshStoredDigest;
 		// The digest of the last credential this fixture handed the connect
 		// path, taken with the same function and the same truncation the
 		// store uses so the two are comparable. A course that connects rather

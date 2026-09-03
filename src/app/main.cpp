@@ -3284,11 +3284,13 @@ namespace {
 		auto refreshStores   = std::size_t{ 0U };
 		auto refreshDeletes  = std::size_t{ 0U };
 		auto pastedDigest    = std::string{ };
+		auto refreshDigest   = std::string{ };
 #if defined(BPR_BUILD_TESTING)
 		refreshRetained = fixtureEvidence.RefreshRetained;
 		refreshStores   = fixtureEvidence.RefreshStores;
 		refreshDeletes  = fixtureEvidence.RefreshDeletes;
 		pastedDigest    = fixtureEvidence.LastEnrollmentDigest;
+		refreshDigest   = fixtureEvidence.RefreshStoredDigest;
 #endif
 
 		QTextStream stream{ stdout };
@@ -3410,8 +3412,12 @@ namespace {
 				// rotation being durable rather than a second enrollment;
 				// `DEVICE_FLOW_DURABLE_COPIES` stays zero, because nothing the
 				// renewal writes goes anywhere but the vault.
+				// [[BPR-0547]]. Two, because the first rotation is not the claim.
+				// A rotation that erased the material it had just stored still
+				// reports one rotation and `scheduled`; only the renewal that
+				// follows has to spend what the first one wrote.
 				const auto rotated
-					= status.DeviceAuthorizationRefreshRotations >= 1U;
+					= status.DeviceAuthorizationRefreshRotations >= 2U;
 				const auto bound
 					= status.DeviceAuthorizationRefreshBindings >= 1U;
 				const auto refreshed = status.DeviceAuthorizationHostComposed
@@ -3421,7 +3427,7 @@ namespace {
 					&& status.DeviceAuthorizationRefreshState
 						== bpr::application::
 							device_authorization_refresh_state::scheduled
-					&& status.DeviceAuthorizationVaultStores >= 2U
+					&& status.DeviceAuthorizationVaultStores >= 3U
 					&& status.DeviceAuthorizationDurableCopies == 0U;
 				stream << "DEVICE_FLOW_ROTATIONS:"
 					   << static_cast<unsigned long long>(
@@ -3462,6 +3468,14 @@ namespace {
 					   // renewal chain destroying itself.
 					   << "\nDEVICE_FLOW_REFRESH_DELETES:"
 					   << static_cast<unsigned long long>(refreshDeletes)
+					   // [[BPR-0547]]. Which rotation's material the slot last held.
+					   // The fixture's renewal answers carry the renewal's number in
+					   // them, so this digest names the rotation that wrote the slot
+					   // rather than merely counting that something did; read beside
+					   // the single erasure above, it is the second rotation's
+					   // material being durable until the orderly shutdown took it.
+					   << "\nDEVICE_FLOW_REFRESH_STORED_TOKEN:"
+					   << QByteArray::fromStdString(refreshDigest)
 					   << '\n'
 					   << (refreshed ? "DEVICE_FLOW_REFRESH_OK\n"
 									 : "DEVICE_FLOW_REFRESH_FAILED\n");
@@ -5060,24 +5074,36 @@ namespace {
 					// that answered a failure takes the host down that path --
 					// so a broken store is still reported rather than waited
 					// out to the budget.
-					if (aRun->Device.RefreshCourse
-						&& (aApplication.status()
-									.DeviceAuthorizationRefreshRotations
-								== 0U
-							|| aApplication.status()
-									.DeviceAuthorizationRefreshState
-								== bpr::application::
-									device_authorization_refresh_state::
-										refreshing
-							|| (aApplication.status()
-										.DeviceAuthorizationVaultStores
-									< 2U
-								&& aApplication.status()
-										.DeviceAuthorizationRefreshState
-									!= bpr::application::
-										device_authorization_refresh_state::
-											reenrollment_required))) {
-						break;
+					//
+					// [[BPR-0547]]. Two rotations, not one. One rotation succeeds
+					// whether or not it keeps the material it just stored, because
+					// nothing has had to spend that material yet; the renewal after
+					// it is the one that reads the slot the first rotation wrote.
+					// So the run waits for the second rotation and for the second
+					// rotation's own access-token store to land, by the same count
+					// and for the same off-lane reason as the first.
+					//
+					// `reenrollment_required` ends the wait wherever it is reached,
+					// not only at the store: a chain that broke after the first
+					// rotation reports the count it got to and fails the row on it,
+					// rather than being waited out to the budget and failing as a
+					// timeout that names nothing.
+					if (aRun->Device.RefreshCourse) {
+						const auto refreshStatus = aApplication.status();
+						const auto refreshBroken
+							= refreshStatus.DeviceAuthorizationRefreshState
+							== bpr::application::
+								device_authorization_refresh_state::
+									reenrollment_required;
+						const auto refreshSettled
+							= refreshStatus.DeviceAuthorizationRefreshRotations >= 2U
+							&& refreshStatus.DeviceAuthorizationRefreshState
+								!= bpr::application::
+									device_authorization_refresh_state::refreshing
+							&& refreshStatus.DeviceAuthorizationVaultStores >= 3U;
+						if (!refreshBroken && !refreshSettled) {
+							break;
+						}
 					}
 					aRun->PresentationPassed
 						= aRun->Cli.Observed == aRun->Cli.Expected;

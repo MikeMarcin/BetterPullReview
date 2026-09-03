@@ -1527,6 +1527,14 @@ namespace bpr::app::detail {
 			// second erasure -- a rotation's own re-enrollment destroying what
 			// the rotation had just stored -- hidden behind the shutdown's.
 			std::size_t RefreshDeletes = 0U;
+			// [[BPR-0547]]. The identity of the last material written into the
+			// slot, recorded at the store for the reason the credential's own
+			// digest above is: the orderly shutdown empties the slot before a
+			// course reads its evidence, so what is still there at the end cannot
+			// answer which rotation wrote it. A course that rotates twice needs
+			// exactly that answer -- the second rotation's material, not the
+			// first's, and no erasure between the two.
+			std::string LastRefreshDigest;
 			// [[BPR-0548]]. The contexts whose operation this vault has
 			// accepted and not yet begun executing, which is what every
 			// platform vault keys its pending map by. Guarded by `Mutex` with
@@ -1798,6 +1806,10 @@ namespace bpr::app::detail {
 							const std::lock_guard guard{ state->Mutex };
 							state->Refresh = std::move(pendingEnrollment->Credential);
 							++state->RefreshStores;
+							if (state->Refresh.has_value()) {
+								state->LastRefreshDigest
+									= credential_digest(state->Refresh->bytes());
+							}
 						}
 						completion(application::github_credential_store_success{
 							.Context     = context,
@@ -2378,6 +2390,8 @@ namespace bpr::app::detail {
 			result.RefreshStores       = Implementation->VaultState->RefreshStores;
 			result.RefreshRetrieves    = Implementation->VaultState->RefreshRetrieves;
 			result.RefreshDeletes      = Implementation->VaultState->RefreshDeletes;
+			result.RefreshStoredDigest
+				= Implementation->VaultState->LastRefreshDigest;
 			result.LastEnrollmentDigest
 				= Implementation->VaultState->LastEnrollmentDigest;
 		}

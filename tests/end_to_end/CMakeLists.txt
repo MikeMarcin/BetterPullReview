@@ -327,6 +327,35 @@ bpr_bound_automated_run(
 # afterwards leaves `RETAINED:false` looking exactly the same. One erasure is
 # the shutdown's. Two is the renewal chain destroying itself, and the next
 # renewal answering `refresh_absent`.
+#
+# BPR-0547. And `DEVICE_FLOW_ROTATIONS:2`, because one rotation is satisfied by
+# a chain that has already destroyed itself: nothing has had to spend the
+# material the first rotation wrote. The second renewal is the one that reads
+# the slot the first filled, so the row now drives it -- the composed clock
+# steps once per renewal the host arms rather than once, which is the only
+# input a course cannot otherwise supply. Every count moves with it: a third
+# vault store for the second rotation's access token, a third refresh store for
+# its renewable material, and `DEVICE_FLOW_REFRESH_STORED_TOKEN` naming which
+# rotation last wrote the slot, since the fixture's renewal answers carry the
+# renewal's number. Read beside the single erasure, that digest is the second
+# rotation's material being durable until the orderly shutdown took it. The
+# erasure count does not move: retention is what makes the second rotation
+# possible, so the shutdown is still the only occasion that erases.
+#
+# The bounds are raised, and for a measured reason. Each of the two renewals is
+# made due one second from the moment it is armed rather than at once: a
+# rotation arms the next renewal in the same turn that enrolls its new access
+# token, while that enrollment is still travelling through the profile
+# activation and the vault operations that decide what the refresh slot holds.
+# A renewal due in that same instant outruns them and reads a slot nothing has
+# touched yet, which is a race the shipped product never runs -- there the next
+# renewal is eight hours after the supersession settled. So the row costs two
+# seconds of deliberate waiting it did not cost before, and it is measured
+# rather than assumed: 8.5 s beside one other test and 10.1 s alone on a
+# JaegAW macOS station with another build running, against 5.6 s when both
+# renewals were due the instant they were armed. The two seconds are a fixed
+# cost rather than variance, which is why the budget moves with them.
+set(bpr_refresh_course_budget_ms 12000)
 bpr_add_network_isolated_test(
     NAME application_device_authorization_refresh_course
     WINDOWS_UNCONTAINED
@@ -338,19 +367,19 @@ bpr_add_network_isolated_test(
         --device-authorization-probe
         --device-authorization-refresh-course
         --automated-run-budget-ms
-        ${bpr_self_test_budget_ms}
+        ${bpr_refresh_course_budget_ms}
 )
 set_tests_properties(
     application_device_authorization_refresh_course
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ROTATIONS:1[\r\n]+DEVICE_FLOW_REFRESH_STATE:scheduled[\r\n]+DEVICE_FLOW_VAULT_STORES:2[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_REFRESH_BOUND:true[\r\n]+DEVICE_FLOW_REFRESH_RESUMES:0[\r\n]+DEVICE_FLOW_REFRESH_RETAINED:false[\r\n]+DEVICE_FLOW_REFRESH_STORES:2[\r\n]+DEVICE_FLOW_REFRESH_DELETES:1[\r\n]+DEVICE_FLOW_REFRESH_OK"
+            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ROTATIONS:2[\r\n]+DEVICE_FLOW_REFRESH_STATE:scheduled[\r\n]+DEVICE_FLOW_VAULT_STORES:3[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_REFRESH_BOUND:true[\r\n]+DEVICE_FLOW_REFRESH_RESUMES:0[\r\n]+DEVICE_FLOW_REFRESH_RETAINED:false[\r\n]+DEVICE_FLOW_REFRESH_STORES:3[\r\n]+DEVICE_FLOW_REFRESH_DELETES:1[\r\n]+DEVICE_FLOW_REFRESH_STORED_TOKEN:e2e8c030e3a107e9[\r\n]+DEVICE_FLOW_REFRESH_OK"
 )
 bpr_bound_automated_run(
     application_device_authorization_refresh_course
-    TIMEOUT 15
-    BUDGET_MS ${bpr_self_test_budget_ms}
+    TIMEOUT 25
+    BUDGET_MS ${bpr_refresh_course_budget_ms}
     RUNS 1
     RESERVE_MS 2000
 )
