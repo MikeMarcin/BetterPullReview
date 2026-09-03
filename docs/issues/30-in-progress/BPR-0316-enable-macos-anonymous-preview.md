@@ -98,3 +98,62 @@ passes.
 | The architecture boundaries hold | `cmake --build build/dev --target check_boundaries` | exit 0 | this commit |
 | Every touched C++ file is formatted | `clang-format --dry-run --Werror` over the touched files | exit 0, no output | this commit |
 | The shipped image knows no live-candidate flag and still answers unavailable | `cmake --build --preset app-release`; the inventory's `--all --release-binary` scan; `strings`; the shipped probe | `RFC0017_TEST_INVENTORY_OK`; 0 occurrences; `COMPOSED:false`, `STAGE:unavailable`, `REQUESTS:0`, `PUBLIC_PREVIEW_UNAVAILABLE_OK` | this commit |
+
+## The authorized read, first attempt — 2026-09-03
+
+Performed once by the integrator on the macOS host, from the tests-enabled
+dev artifact at `7e0776b6`, offscreen:
+
+```text
+better_pull_review --self-test --public-preview-live-candidate octocat Hello-World 1 --automated-run-budget-ms 30000
+```
+
+What it printed, in full for the public-preview markers:
+
+```text
+PUBLIC_PREVIEW_COMPOSED:true
+PUBLIC_PREVIEW_STAGE:enabled
+PUBLIC_PREVIEW_REQUESTS:1
+PUBLIC_PREVIEW_HEADER_EFFECTS:0
+PUBLIC_PREVIEW_VAULT_EFFECTS:0
+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0
+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:0
+PUBLIC_PREVIEW_WRITE_REFUSALS:0
+PUBLIC_PREVIEW_LIVE_CANDIDATE_PRODUCTION_FACTORIES:true
+PUBLIC_PREVIEW_WIRE_REQUESTS:24
+PUBLIC_PREVIEW_WIRE_CAPABILITY_PROBES:0
+PUBLIC_PREVIEW_WIRE_CREDENTIALED_REFUSALS:0
+PUBLIC_PREVIEW_BUDGET:0/0/0
+PUBLIC_PREVIEW_SNAPSHOT_MODE:authenticated
+PUBLIC_PREVIEW_CANDIDATE:octocat/Hello-World#1
+PUBLIC_PREVIEW_LIVE_CANDIDATE_FAILED
+PUBLIC_PATH_BUDGET:expired=1 budget_ms=30000 elapsed_ms=30014
+PUBLIC_PATH_STATUS:Loading the pull request.
+```
+
+**What it establishes.** The production factories were composed
+(`PRODUCTION_FACTORIES:true`), the session was activated signed out
+(`STAGE:enabled`), no credentialed transport was built and no header or
+vault effect occurred, and the shipped anonymous transport issued
+twenty-four REST requests to the live service with no `Authorization` —
+the wire-level facts this card's candidate proof exists for.
+
+**What it did not establish.** No snapshot was accepted: the run's budget
+expired while the pull request was still loading, the snapshot mode is the
+default, no head is reported, and the session's rate-limit projection was
+never populated (`BUDGET:0/0/0`), which means no provider read completed.
+Twenty-four wire requests for one provider read is not the nine the
+operation set implies; the only mechanism in the tree that repeats requests
+is the host's retry of a `network` or `timeout` failure, up to three
+attempts, so the reading consistent with the counts is three attempts of
+eight requests each, one operation failing each time in a way the markers
+do not name. Nothing in this output says which, and the flag prints no
+per-operation outcome — an omission of the flag, not of the transport.
+
+**Cost.** The owner authorized one read; this attempt spent twenty-four
+unauthenticated core requests of the shared hourly budget of sixty, none of
+them a GraphQL, viewer, or mutation request. No second attempt is made
+without a fresh authorization, and the flag first gains what a second
+attempt needs to be diagnostic: a single provider attempt so it costs at
+most nine requests, and a per-operation outcome marker naming the operation
+and its status or failure kind, with no bodies.
