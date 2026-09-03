@@ -41,48 +41,77 @@ import time
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
+if str(REPOSITORY_ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
+
+import verify_rfc0016_test_inventory as rfc0016_inventory  # noqa: E402
+
 PLATFORMS = ("macos", "linux", "windows")
 SELECTIONS = ("unavailable", "enabled")
 
-# The focused selector set the RFC-BPR-0016 ledger replays. Written as one
-# anchored alternation so a name that is not registered cannot be quietly
-# skipped by a looser pattern.
-COURSE_SELECTOR_PATTERN = (
-    "^("
-    "core_device_authorization"
-    "|application_device_authorization_(host|refresh|public_path|unavailable"
-    "|release_contract|registered_course)"
-    "|application_github_credential_vault"
-    "|github_device_authorization_(contract|refresh_contract)"
-    "|native_https_device_authorization_(contract|fixture)"
-    "|qt_device_authorization_scale_(100|125|200)"
-    "|rfc0016_test_inventory"
+# What this course runs is derived, not hand-listed. The hand-maintained
+# tuple that lived here audited 17 names while the inventory grew to 26, and
+# nothing could refuse the reverse of a missing registration — a registered
+# evidence selector nobody added to the tuple — so seven device rows went
+# unaudited by three platforms' final-head replays until the count was read
+# twice (BPR-0285, 2026-09-04). The shape below is RFC-BPR-0017's: the owed
+# set is the inventory's, the exceptions are written down with their reasons
+# and refused when stale, and an unlisted family name is refused.
+COURSE_ONLY_SELECTORS: dict[str, str] = {
+    # The inventory guard's own registration, run first so a graph that lost
+    # an evidence selector fails before any test.
+    "rfc0016_test_inventory": "the inventory guard's own registration",
     # BPR-0523: the composed-host audit of the tests-enabled binary, so a
     # platform whose dev graph lost a required constructor fails here.
-    "|composed_application_hosts"
-    ")$"
+    "composed_application_hosts": "the composed-host audit of the dev graph",
+}
+
+# Registered names that look like this RFC's and are deliberately not course
+# selectors, each with its reason. The course refuses an unlisted one
+# (`course-selector-extra`) and refuses an entry that turns out to be owed
+# after all (`course-exception-stale`), so the table cannot outlive what it
+# excuses.
+FAMILY_EXCEPTIONS: dict[str, str] = {
+    "rfc0016_device_capture_security": (
+        "capture tooling; the ledger runs it under its isolated "
+        "capture-tooling row, not in the platform course"
+    ),
+    "rfc0016_device_live_runner_security": (
+        "capture tooling; the ledger runs it under its isolated "
+        "capture-tooling row, not in the platform course"
+    ),
+    "rfc0016_production_identity_security": (
+        "the distributable-identity audit; the ledger runs it isolated and "
+        "the course runs verify_rfc0016_production_identity.py directly"
+    ),
+    "rfc0016_production_course_security": (
+        "the production course's own audit; the ledger runs it isolated "
+        "beside the identity audit"
+    ),
+    "rfc0016_platform_course_launch_contract": (
+        "this course's own hermetic contract"
+    ),
+}
+
+# What "looks like this RFC's" means to CTest: the net that catches a device
+# selector the inventory has not been told about. A search, not an anchor.
+FAMILY_PATTERN = (
+    "rfc0016_|device_authorization|application_github_credential_vault"
 )
 
 # The same set, enumerated, so the course can say which name is missing on a
 # platform rather than passing on "more than zero matched" (BPR-0524).
-COURSE_SELECTOR_NAMES = (
-    "core_device_authorization",
-    "application_device_authorization_host",
-    "application_device_authorization_refresh",
-    "application_device_authorization_public_path",
-    "application_device_authorization_unavailable",
-    "application_device_authorization_release_contract",
-    "application_device_authorization_registered_course",
-    "application_github_credential_vault",
-    "github_device_authorization_contract",
-    "github_device_authorization_refresh_contract",
-    "native_https_device_authorization_contract",
-    "native_https_device_authorization_fixture",
-    "qt_device_authorization_scale_100",
-    "qt_device_authorization_scale_125",
-    "qt_device_authorization_scale_200",
-    "rfc0016_test_inventory",
-    "composed_application_hosts",
+COURSE_SELECTOR_NAMES: tuple[str, ...] = tuple(
+    sorted(
+        (set(rfc0016_inventory.SELECTORS) - set(FAMILY_EXCEPTIONS))
+        | set(COURSE_ONLY_SELECTORS)
+    )
+)
+
+# One anchored alternation over the enumeration, so a looser pattern cannot
+# quietly skip a name.
+COURSE_SELECTOR_PATTERN = (
+    "^(" + "|".join(re.escape(name) for name in COURSE_SELECTOR_NAMES) + ")$"
 )
 
 # The only way a platform audits fewer names than the pattern enumerates.
@@ -138,6 +167,20 @@ def check_course_registration(
                 name in exclusions,
                 f"course-selector-missing:{platform_name}:{name}",
             )
+    for name, reason in FAMILY_EXCEPTIONS.items():
+        require(
+            name not in COURSE_SELECTOR_NAMES,
+            f"course-exception-stale:{platform_name}:{name}",
+        )
+        require(bool(reason.strip()), f"course-exception-unreasoned:{name}")
+    family = re.compile(FAMILY_PATTERN)
+    for name in sorted(set(registered)):
+        if not family.search(name):
+            continue
+        require(
+            name in COURSE_SELECTOR_NAMES or name in FAMILY_EXCEPTIONS,
+            f"course-selector-extra:{platform_name}:{name}",
+        )
 
 # The platform credential store each host must select, and the symbol that
 # proves the shipped artifact actually contains it. A build that linked the

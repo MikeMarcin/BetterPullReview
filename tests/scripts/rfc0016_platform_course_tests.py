@@ -163,6 +163,42 @@ class CourseRegistrationTests(unittest.TestCase):
             self.assertIsNotNone(pattern.match(name), name)
         self.assertEqual(len(set(course.COURSE_SELECTOR_NAMES)), len(course.COURSE_SELECTOR_NAMES))
 
+    def test_the_owed_set_is_the_inventory_minus_the_reasoned_exceptions(self) -> None:
+        import verify_rfc0016_test_inventory as inventory
+
+        owed = set(course.COURSE_SELECTOR_NAMES)
+        self.assertEqual(
+            owed,
+            (set(inventory.SELECTORS) - set(course.FAMILY_EXCEPTIONS))
+            | set(course.COURSE_ONLY_SELECTORS),
+        )
+        for name, reason in course.FAMILY_EXCEPTIONS.items():
+            self.assertNotIn(name, owed)
+            self.assertTrue(reason.strip())
+
+    def test_an_unlisted_family_name_is_refused_as_extra(self) -> None:
+        registered = set(course.COURSE_SELECTOR_NAMES) | {
+            "application_device_authorization_never_told_the_inventory"
+        }
+        with self.assertRaises(course.CourseFailure) as caught:
+            course.check_course_registration(registered, "macos")
+        self.assertIn("course-selector-extra:macos:", str(caught.exception))
+
+    def test_a_registered_exception_is_still_not_owed(self) -> None:
+        registered = set(course.COURSE_SELECTOR_NAMES) | set(course.FAMILY_EXCEPTIONS)
+        course.check_course_registration(registered, "linux")
+
+    def test_a_stale_exception_is_refused(self) -> None:
+        original = dict(course.FAMILY_EXCEPTIONS)
+        try:
+            course.FAMILY_EXCEPTIONS[course.COURSE_SELECTOR_NAMES[0]] = "stale"
+            with self.assertRaises(course.CourseFailure) as caught:
+                course.check_course_registration(set(course.COURSE_SELECTOR_NAMES), "macos")
+            self.assertIn("course-exception-stale:", str(caught.exception))
+        finally:
+            course.FAMILY_EXCEPTIONS.clear()
+            course.FAMILY_EXCEPTIONS.update(original)
+
     def test_every_exclusion_names_an_enumerated_selector_with_a_reason(self) -> None:
         for platform_name, table in course.PLATFORM_SELECTOR_EXCLUSIONS.items():
             self.assertIn(platform_name, course.PLATFORMS)

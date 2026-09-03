@@ -587,3 +587,31 @@ holds by coincidence. [[BPR-0539]] corrects the course and the row before
 the final-head replays run, so this anchor now depends on it. The replays
 on macOS, Linux, and Windows, the second independent review, and this
 card's closeout all wait for that head.
+
+## The platform course's own table had drifted — 2026-09-04
+
+The first final-head macOS replay at `0bd39349` passed with
+`RFC0016_COURSE_SELECTORS:17` — the same count as at `28fa0741` — while
+the inventory it required had grown to 26. `scripts/verify_rfc0016_platform_course.py`
+hand-listed its selectors, and its registration check (BPR-0524) could
+refuse a listed name missing from the tree but never a registered
+evidence selector nobody had added to the list; seven device rows
+([[BPR-0516]]'s browser handoff and cut, [[BPR-0526]]'s panel course and
+cut, [[BPR-0535]]'s GHES refusal, [[BPR-0536]]'s refresh course, and
+[[BPR-0537]]'s opener test) were therefore unaudited by every platform's
+replay. The Linux station measured the same gap independently before
+reporting, and named the four capture-tooling security rows as the part a
+naive sync would have swept in.
+
+The course now derives its owed set from the inventory the way
+RFC-BPR-0017's does: owed is the inventory minus five reasoned
+`FAMILY_EXCEPTIONS` (the four `rfc0016_*_security` rows the ledger runs
+under its isolated capture-tooling row, and the course's own hermetic
+contract) plus the two course-only names; a registered family name that
+is neither is refused as `course-selector-extra`, and a stale exception is
+refused. The enumeration and the anchored pattern are computed from that
+set (24 on every platform), and four hermetic cases pin the derivation, the
+extra refusal, the registered-but-not-owed exception, and the stale
+exception. Both stations' first replays were held and discarded as claims;
+the immutable final-head replays below ran at the head that carries the
+derived table.
