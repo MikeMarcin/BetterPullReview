@@ -9,6 +9,8 @@
 
 #include "bpr/application/git_smart_transport_port.hpp"
 
+#include <QByteArrayView>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -1474,6 +1476,21 @@ namespace bpr::app::detail {
 			std::string           AccessToken;
 		};
 
+		// [[BPR-0539]]. The identity of credential material, short enough to
+		// print beside a course's other facts and one-way, so the evidence a
+		// course prints is not the secret it is about. Tests-enabled only,
+		// like everything else in this file, and used on a fixture credential
+		// whose plaintext this process already scans the disk for.
+		[[nodiscard]] auto credential_digest(
+			const std::span<const std::byte> aBytes) -> std::string
+		{
+			auto hash = QCryptographicHash{ QCryptographicHash::Sha256 };
+			hash.addData(QByteArrayView{
+				reinterpret_cast<const char*>(aBytes.data()),
+				static_cast<qsizetype>(aBytes.size()) });
+			return hash.result().toHex().left(16).toStdString();
+		}
+
 		struct fixture_vault_state
 		{
 			std::optional<application::github_credential_operation_context> Context;
@@ -1485,6 +1502,11 @@ namespace bpr::app::detail {
 			// and "the credential reached the vault exactly once" are
 			// different claims, and RFC-BPR-0016 makes the second one.
 			std::size_t Stores = 0U;
+			// [[BPR-0539]]. The identity of the last material this vault
+			// accepted, kept beside the count. A superseding delete may empty
+			// the slot before a course reads its evidence, so what the store
+			// counted has to be recorded at the store.
+			std::string LastStoredDigest;
 			// The refresh slot, kept beside the credential rather than in
 			// place of it, exactly as the port's contract describes. It exists
 			// only under the refresh course; every other fixture run leaves it
@@ -1499,13 +1521,24 @@ namespace bpr::app::detail {
 			: public application::github_credential_vault_port
 		{
 		public:
+			// Two flags rather than one, because they answer different
+			// questions. `aRefreshSlot` is whether this vault has a second
+			// slot to rotate material through at all, which only the renewal
+			// course needs. `aAuthorityKeyed` is which key the slot it
+			// already has is matched on, and that is a property of every
+			// course whose credential arrives from the device grant --
+			// [[BPR-0539]] made the registered course one of them, so the two
+			// courses match the way the product's vault does rather than one
+			// each way.
 			fixture_credential_vault(
 				application::effect_executor&        aEffects,
 				std::shared_ptr<fixture_vault_state> aState,
-				const bool                           aRefreshSlot)
+				const bool                           aRefreshSlot,
+				const bool                           aAuthorityKeyed)
 				: Effects{ aEffects }
 				, State{ std::move(aState) }
 				, RefreshSlot{ aRefreshSlot }
+				, AuthorityKeyed{ aAuthorityKeyed }
 			{
 			}
 
@@ -1530,11 +1563,14 @@ namespace bpr::app::detail {
 							return;
 						}
 						const auto context = pendingEnrollment->Context;
+						auto       digest  = credential_digest(
+							pendingEnrollment->Credential.bytes());
 						{
 							const std::scoped_lock lock{ state->Mutex };
-							state->Context    = context;
-							state->Credential = std::move(pendingEnrollment->Credential);
-							state->Stored     = true;
+							state->Context          = context;
+							state->Credential       = std::move(pendingEnrollment->Credential);
+							state->Stored           = true;
+							state->LastStoredDigest = std::move(digest);
 							++state->Stores;
 						}
 						completion(application::github_credential_store_success{
@@ -1552,25 +1588,25 @@ namespace bpr::app::detail {
 			{
 				Effects.post(
 					[state = State,
-					 slot  = RefreshSlot,
+					 keyed = AuthorityKeyed,
 					 aContext,
 					 completion = std::move(aCompletion)]() mutable {
 						auto material = std::optional<
 							application::github_credential_material>{ };
 						{
 							const std::scoped_lock lock{ state->Mutex };
-							// Off the refresh course the match is the exact
+							// Off the device courses the match is the exact
 							// operation context, which is what the fixture's
 							// own enrollment produces and what keeps this slot
 							// from answering for a session it never stored.
-							// Under the course the credential arrives from the
+							// Under them the credential arrives from the
 							// device grant instead, and the retrieve that
 							// re-establishes it is a different operation under
 							// the same authority -- which is the key the slot
 							// is defined by, and the one the product's vault
 							// matches on.
 							const auto matched = state->Context.has_value()
-								&& (slot
+								&& (keyed
 										? state->Context->Authority
 											== aContext.Authority
 										: *state->Context == aContext);
@@ -1605,7 +1641,7 @@ namespace bpr::app::detail {
 			{
 				Effects.post(
 					[state = State,
-					 slot  = RefreshSlot,
+					 keyed = AuthorityKeyed,
 					 aContext,
 					 completion = std::move(aCompletion)]() mutable {
 						auto disposition  = application::github_credential_delete_disposition::absent;
@@ -1620,9 +1656,9 @@ namespace bpr::app::detail {
 							// generation -- so an exact-context match refuses
 							// the one delete every re-enrollment performs.
 							const auto matched = !state->Context.has_value()
-								|| (slot ? state->Context->Authority
+								|| (keyed ? state->Context->Authority
 											== aContext.Authority
-										 : *state->Context == aContext);
+										  : *state->Context == aContext);
 							if (!matched) {
 								exactContext = false;
 							} else {
@@ -1792,7 +1828,8 @@ namespace bpr::app::detail {
 		private:
 			application::effect_executor&        Effects;
 			std::shared_ptr<fixture_vault_state> State;
-			bool                                 RefreshSlot = false;
+			bool                                 RefreshSlot    = false;
+			bool                                 AuthorityKeyed = false;
 		};
 
 		[[nodiscard]] auto make_fixture_credential()
@@ -1952,7 +1989,10 @@ namespace bpr::app::detail {
 			Factory                   = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState                = std::make_shared<fixture_vault_state>();
 			Vault                     = std::make_unique<fixture_credential_vault>(
-				aVaultEffects, VaultState, aOptions.DeviceRefreshCourse);
+				aVaultEffects,
+				VaultState,
+				aOptions.DeviceRefreshCourse,
+				aOptions.RegisteredDeviceCourse);
 			DeviceTransport
 				= std::make_unique<recorded_device_authorization_transport>(
 					std::filesystem::path{
@@ -2104,10 +2144,24 @@ namespace bpr::app::detail {
 				const std::scoped_lock vaultLock{
 					Implementation->VaultState->Mutex
 				};
-				result.VaultStores = Implementation->VaultState->Stores;
+				result.VaultStores       = Implementation->VaultState->Stores;
+				result.VaultStoredDigest = Implementation->VaultState->LastStoredDigest;
 			}
 			result.DeviceTransportSubmissions
 				= Implementation->DeviceTransport->submissions();
+			// [[BPR-0539]]. The comparison the store itself cannot make: the
+			// grant's access token is known only once the recorded exchange
+			// has answered, so the identity of what was stored is settled
+			// here, against the token the transport issued. Both sides are
+			// digests of the same bytes -- the enrolled material is the
+			// token's own octets -- so equality is the claim that the one
+			// store this course counts is the grant and not the 32 random
+			// bytes a fixture connect would have enrolled.
+			const auto grantToken           = Implementation->DeviceTransport->access_token();
+			result.VaultStoredIsDeviceGrant = !grantToken.empty()
+				&& !result.VaultStoredDigest.empty()
+				&& result.VaultStoredDigest
+					== credential_digest(std::as_bytes(std::span{ grantToken }));
 			const auto& fixture   = Implementation->Recording->Descriptor;
 			result.BaseOid        = fixture.BaseOid;
 			result.HeadOneOid     = fixture.HeadOneOid;

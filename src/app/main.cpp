@@ -3366,12 +3366,36 @@ namespace {
 				// The registered course makes the opposite claim: the grant
 				// must reach the existing vault exactly once, and the token
 				// must exist nowhere else the application wrote.
+				//
+				// [[BPR-0539]]. Which is a claim about identity and not only
+				// about arithmetic: one store counted the fixture's own
+				// connect credential just as readily as the grant, and did,
+				// until the course stopped connecting first. So the identity
+				// of the stored material is reported as its own fact and the
+				// verdict below depends on it. Printed ahead of the counts
+				// rather than beside the verdict because the browser and
+				// panel cuts read this block through the same stream: the
+				// panel rows begin reading at the enrollment count, so a line
+				// above it disturbs nothing they pin, while the browser rows
+				// read the handoff and that count as adjacent -- which is why
+				// a browser probe reports the counts alone, exactly as it did.
+				const auto identityReported = !aRun.Device.BrowserProbe;
+				const auto storedIsGrant
+					= status.DeviceAuthorizationVaultStoredIsGrant;
 				const auto enrolled = status.DeviceAuthorizationHostComposed
 					&& status.DeviceAuthorizationStage
 						== bpr::core::device_authorization_stage::authorized
 					&& status.DeviceAuthorizationEnrollments == 1U
 					&& status.DeviceAuthorizationVaultStores == 1U
-					&& status.DeviceAuthorizationDurableCopies == 0U;
+					&& status.DeviceAuthorizationDurableCopies == 0U
+					&& (!identityReported || storedIsGrant);
+				if (identityReported) {
+					stream << "DEVICE_FLOW_VAULT_STORED_TOKEN:"
+						   << QByteArray::fromStdString(
+								  status.DeviceAuthorizationVaultStoredDigest)
+						   << "\nDEVICE_FLOW_STORED_IS_GRANT:"
+						   << (storedIsGrant ? "true" : "false") << '\n';
+				}
 				stream << "DEVICE_FLOW_ENROLLMENTS:"
 					   << static_cast<unsigned long long>(
 							  status.DeviceAuthorizationEnrollments)
@@ -4649,19 +4673,24 @@ namespace {
 								refuse_appearance_gesture(aApplication);
 						QApplication::processEvents();
 					}
-					// [[BPR-0536]]. The renewal course does not connect
-					// first, for the same reason the signed-out courses above
-					// do not: `github_connect_action` enrolls the fixture's own
+					// [[BPR-0536]], widened by [[BPR-0539]]. No course that
+					// runs the recorded grant connects first, for the same
+					// reason the signed-out courses above do not:
+					// `github_connect_action` enrolls the fixture's own
 					// credential, and that enrollment is a whole session -- it
 					// takes the vault slot, consumes the recorded bootstrap
 					// exchange, and leaves the device grant to arrive as a
 					// second establishment that the strict recording cannot
 					// serve and that the product must first delete its way out
-					// of. The grant is the only session this course wants, so
-					// it goes straight to the stage that starts the flow, and
-					// every store, read and probe the run then observes belongs
-					// to the grant.
-					if (aRun->Device.RefreshCourse) {
+					// of. The registered course counted that connect
+					// credential as its one vault store and called it the
+					// grant; the renewal course beside it had already stopped
+					// connecting, so the two are one rule here rather than one
+					// each way. The grant is the only session these courses
+					// want, so they go straight to the stage that starts the
+					// flow, and every store, read and probe the run then
+					// observes belongs to the grant.
+					if (aRun->Device.Registered) {
 						advance_fixture_stage(
 							*aRun, automated_run::stage::connect);
 						break;

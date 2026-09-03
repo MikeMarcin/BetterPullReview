@@ -4561,6 +4561,32 @@ namespace bpr::app {
 			return 0U;
 		}
 
+		// [[BPR-0539]]. What that one store holds. The count alone is
+		// satisfied by any enrollment, and before this course stopped
+		// connecting first the enrollment it counted was the fixture's own
+		// connect credential -- so the identity of the stored material is
+		// reported beside the count, and the comparison against the recorded
+		// grant is made where both are known.
+		[[nodiscard]] auto device_vault_stored_digest() const -> std::string
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr && RegisteredDeviceCourse) {
+				return Fixture->evidence().VaultStoredDigest;
+			}
+#endif
+			return { };
+		}
+
+		[[nodiscard]] auto device_vault_stored_is_grant() const -> bool
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr && RegisteredDeviceCourse) {
+				return Fixture->evidence().VaultStoredIsDeviceGrant;
+			}
+#endif
+			return false;
+		}
+
 		// Only the recording opener counts. The shipped opener's evidence is a
 		// browser window a person sees on a station, which this process has no
 		// way to observe and must not claim to.
@@ -8484,6 +8510,10 @@ namespace bpr::app {
 			= Implementation->device_durable_copies(),
 			.DeviceAuthorizationTransportSubmissions
 			= Implementation->device_transport_submissions(),
+			.DeviceAuthorizationVaultStoredDigest
+			= Implementation->device_vault_stored_digest(),
+			.DeviceAuthorizationVaultStoredIsGrant
+			= Implementation->device_vault_stored_is_grant(),
 			.DeviceAuthorizationEnrollments
 			= Implementation->device_enrollments(),
 			.DeviceAuthorizationPanelComposed

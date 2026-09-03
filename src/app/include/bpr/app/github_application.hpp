@@ -243,6 +243,15 @@ namespace bpr::app {
 		std::size_t DeviceAuthorizationVaultStores          = 0U;
 		std::size_t DeviceAuthorizationDurableCopies        = 0U;
 		std::size_t DeviceAuthorizationTransportSubmissions = 0U;
+		// [[BPR-0539]]. Which material the one counted store holds, rather
+		// than how many stores happened. The digest is a truncated SHA-256 of
+		// the bytes the vault accepted; the flag is that digest compared
+		// against the recorded grant's own access token, which is a
+		// comparison only the fixture can make and only after the exchange
+		// has answered. Empty and false in a shipped build, which has no
+		// recorded grant to compare against.
+		std::string DeviceAuthorizationVaultStoredDigest;
+		bool        DeviceAuthorizationVaultStoredIsGrant = false;
 		// Credentials that crossed the enrollment boundary. Counted there
 		// rather than at the vault, because the GitHub host collapses a
 		// repeated enrollment for the same profile before the vault sees it —

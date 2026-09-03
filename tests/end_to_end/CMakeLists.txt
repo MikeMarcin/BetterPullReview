@@ -263,6 +263,21 @@ bpr_bound_automated_run(
 # distributable one is BPR-0318's - so this course needs the fixture, and it
 # ends at the grant's terminal rather than continuing into the fixture's own
 # pull-request stages.
+#
+# BPR-0539. The count alone did not make that claim. The course connected the
+# fixture account before it began, `github_connect_action` enrolled the
+# fixture's own 32 random bytes, and the one store this row counted was that
+# credential rather than the grant - whose own enrollment then arrived as a
+# second establishment the fixture vault refused. The course now runs the
+# grant as its first session, and the row reads the identity of what was
+# stored rather than only how often: `DEVICE_FLOW_VAULT_STORED_TOKEN` is the
+# leading 16 hex digits of the SHA-256 of the bytes the vault accepted, and
+# the value pinned here is that digest for the recorded grant's own access
+# token - `printf '%s' fixture-access-token-0276 | shasum -a 256` - so the row
+# is anchored to a value outside the process rather than to the fixture's own
+# say-so. `DEVICE_FLOW_STORED_IS_GRANT` is the comparison the fixture makes
+# between the two, and the connect credential is random per run, so it can
+# match neither.
 bpr_add_network_isolated_test(
     NAME application_device_authorization_registered_course
     WINDOWS_UNCONTAINED
@@ -281,7 +296,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK"
+            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_VAULT_STORED_TOKEN:f5505a4b89c07e21[\r\n]+DEVICE_FLOW_STORED_IS_GRANT:true[\r\n]+DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK"
 )
 bpr_bound_automated_run(
     application_device_authorization_registered_course

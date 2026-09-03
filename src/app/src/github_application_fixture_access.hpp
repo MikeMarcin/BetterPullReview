@@ -181,6 +181,15 @@ namespace bpr::app::detail {
 		// the claim.
 		std::size_t VaultStores                = 0U;
 		std::size_t DeviceTransportSubmissions = 0U;
+		// [[BPR-0539]]. Which material the vault stored, rather than how many
+		// times it was asked. The digest is a truncated SHA-256 of the bytes
+		// the store accepted, taken at the store and kept afterwards so a
+		// later delete cannot erase the evidence; the flag is that digest
+		// compared against the recorded grant's own access token. A count
+		// alone cannot tell the grant's enrollment from the fixture's connect
+		// credential, and those are exactly the two candidates.
+		std::string VaultStoredDigest;
+		bool        VaultStoredIsDeviceGrant = false;
 	};
 
 	struct github_epoch_maintenance_fixture_evidence
