@@ -501,6 +501,25 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_platform_course_tests.py"
 )
 
+# BPR-0306. The RFC-BPR-0017 courses take an hour and a target-native host, so
+# every refusal they make — a selector missing, doubled, or unknown to the
+# inventory; a preview stage, request, header, or vault effect that is not what
+# the platform promised; a sanitizer diagnostic under a green CTest run — is
+# driven here against fabricated listings and fabricated output instead.
+bpr_add_network_isolated_test(
+    NAME rfc0017_platform_course_launch_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0017_platform_course_tests.py"
+)
+
+bpr_add_network_isolated_test(
+    NAME rfc0017_sanitizer_course_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0017_sanitizer_course_tests.py"
+)
+
 bpr_add_network_isolated_test(
     NAME test_network_isolation_structure_contract
     WINDOWS_UNCONTAINED
