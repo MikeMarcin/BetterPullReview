@@ -1,7 +1,7 @@
 ---
 id: BPR-0535
 title: Bind the device-authorization capability to the profile it was composed for
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0526]
 ---
@@ -50,3 +50,11 @@ into the same host. No selector drives the case: the dev-tree gate's
 
 - Renaming the `unavailable` selector — decided on [[BPR-0285]].
 - Any change to enrollment for the profile the capability was composed for.
+
+## Lane — 2026-09-03
+
+Claimed straight into `30-in-progress/` by the integrator under the
+transition exception, its one dependency terminal; a worker starts in a
+worktree at `f39b6243`. It runs first among the three closure cards because
+it is the security defect: until it lands, the mounted panel can begin the
+GitHub.com flow for a GHES profile.

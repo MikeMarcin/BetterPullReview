@@ -1,7 +1,7 @@
 ---
 id: BPR-0537
 title: Close the Release flag surface and tighten the enabled course
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0515]
 ---
@@ -41,3 +41,13 @@ acceptance:
 - A unit test drives `system_browser_opener`'s validation: an absolute
   `https` address with a host and no userinfo is the only shape it
   forwards, and nothing else reaches the launch service.
+
+## Lane — 2026-09-03
+
+Claimed straight into `30-in-progress/` by the integrator under the
+transition exception, its one dependency terminal. Split as the board's
+rule allows: the script half — the RFC-0016 inventory's forbidden set and
+the platform course's `cancelled` expectation with their contracts — is the
+integrator's and lands first; the flag gating in `main.cpp` and the opener
+validation test follow [[BPR-0535]] so the two slices do not edit the same
+composition file at once.
