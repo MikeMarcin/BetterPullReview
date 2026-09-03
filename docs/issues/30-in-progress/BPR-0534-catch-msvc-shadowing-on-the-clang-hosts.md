@@ -1,7 +1,7 @@
 ---
 id: BPR-0534
 title: Catch MSVC's shadowing error on the clang hosts
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: []
 ---
@@ -34,3 +34,13 @@ quoting and CRLF under [[BPR-0522]], and this).
 
 - Enabling every MSVC-only diagnostic on clang; only the shadowing class this
   card names.
+
+## Lane — 2026-09-03
+
+Claimed straight into `30-in-progress/` by the integrator under the
+transition exception; the card has no dependencies. The C4456 that
+motivated it was a nested `auto passed` in [[BPR-0316]]'s live-candidate
+verdict, invisible to clang until the Windows station built it. The
+integrator first surveys the tree in a scratch build with `-Wshadow`
+demoted to a warning, records the count, then enables the flag as an
+error and renames every site it names.
