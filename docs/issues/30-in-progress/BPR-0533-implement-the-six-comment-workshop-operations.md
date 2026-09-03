@@ -1,7 +1,7 @@
 ---
 id: BPR-0533
 title: Implement the six comment-workshop operations
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0012
 depends_on: [BPR-0503]
 ---
@@ -37,3 +37,16 @@ make depend on it.
 
 - A second entry point, agent, or workshop surface.
 - Any change to finding anchoring or the side chat.
+
+## Lane — 2026-09-03
+
+Claimed straight into `30-in-progress/` by the integrator under the
+transition exception, its one dependency terminal. A scout confirmed the
+shape before any edit: `workshop_comment` is an `agent_entry_point`
+enumerator with no live dispatch of its own, the shipped proposal path is
+`agent_comment_workshop_host::propose` called from the finding-promotion
+outcome, no type enumerates the six operations anywhere, the revision
+editor offers only accept and reject, and the MCP helper names no
+workshop concept. The slice runs on `bpr-0533-work` in a worktree; the
+UX guide, the agent boundary document, and the helper's single naming are
+the integrator's at close.
