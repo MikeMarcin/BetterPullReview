@@ -164,6 +164,38 @@ A build root created fresh; exit 0 in 147 s:
 
 ```text
 RFC0016_PLATFORM:macos
+## Linux final-head replay — 2026-09-03
+
+The RFC's `Immutable final-head platform replay` row, run target-native on the
+Linux station against `main` at **`28fa0741`** — the exact merged head this
+lane fast-forwarded to before running, and the head these numbers describe.
+Nothing was mutated: no selection flip, no source change, no card move. This is
+RFC-BPR-0016's closeout replay, not RFC-BPR-0017's course.
+
+Host: Ubuntu 26.04 LTS, `Linux 6.18.33.2-microsoft-standard-WSL2 x86_64`.
+Toolchain: GCC 15.2.0 (Ubuntu 15.2.0-16ubuntu1), CMake 4.4.2, Ninja 1.13.2,
+Qt 6.10.3, Python 3.13.15.
+
+Precondition, read before anything else: the Secret Service `login` collection's
+`Locked` property read `(<false>,)` at 2026-09-03T08:35:41Z. Recorded because a
+locked collection makes the vault-touching selectors skip rather than fail, and
+a skipped selector reports the same green as a passing one.
+
+**The replay**, from a build root deleted whole rather than trusted to
+`--fresh`:
+
+```
+rm -rf build/rfc0016-linux-closeout
+python3 scripts/verify_rfc0016_platform_course.py --platform linux \
+    --dev-preset dev --release-preset app-release \
+    --build-root build/rfc0016-linux-closeout \
+    --expected-device-selection enabled --fresh
+```
+
+Exit 0. Every marker:
+
+```
+RFC0016_PLATFORM:linux
 RFC0016_SELECTION:enabled
 RFC0016_COURSE_SELECTORS:17
 RFC0016_DEVICE_STAGE:cancelled
@@ -188,3 +220,110 @@ every enabled course of this RFC, the release probe reached GitHub once,
 was answered with a device code, and cancelled — `cancelled` with zero
 counted requests is the recorded expectation, and the dev-tree gate no
 longer does even that since BPR-0515.
+RFC0016_RELEASE_ARTIFACT:build/rfc0016-linux-closeout/release/src/app/better_pull_review
+RFC0016_ELAPSED_SECONDS:255
+RFC0016_PLATFORM_COURSE_OK
+```
+
+The artifact it built and interrogated:
+
+```
+build/rfc0016-linux-closeout/release/src/app/better_pull_review
+size    11,537,792 bytes
+sha256  500d6c00d2f3f80d0329c600079fa44bc49527fc879baa452eaeaa16e093d138
+ELF     64-bit LSB pie executable, x86-64, dynamically linked, for GNU/Linux 3.2.0
+```
+
+The seventeen course selectors, listed from this tree rather than assumed:
+`rfc0016_test_inventory`, `core_device_authorization`,
+`application_github_credential_vault`, `application_device_authorization_host`,
+`application_device_authorization_refresh`,
+`qt_device_authorization_scale_(100|125|200)`,
+`native_https_device_authorization_(contract|fixture)`,
+`github_device_authorization_(contract|refresh_contract)`,
+`application_device_authorization_public_path`,
+`application_device_authorization_unavailable`,
+`application_device_authorization_registered_course`,
+`application_device_authorization_release_contract`,
+`composed_application_hosts`.
+
+### Identity and inventory admissions against the staged artifact
+
+```
+python3 scripts/verify_rfc0016_production_identity.py \
+    --registration-observation docs/verification/reviews/rfc0016-production-app-registration-v001/registration-observation.json \
+    --course-evidence-root docs/verification/reviews/rfc0016-production-app-registration-v001/read-only-course \
+    --require-complete --validate-existing --release-binary <artifact>
+```
+
+```
+RFC0016_PRODUCTION_GATE:rfc0016-production-app-registration-v001
+RFC0016_PRODUCTION_RECORD_COMMIT:c82e51c2c933887632fb0bb35db876375a151de9
+RFC0016_PRODUCTION_CLIENT:Iv23liitiYN1WSSbag50
+RFC0016_PRODUCTION_PERMISSIONS:9
+RFC0016_PRODUCTION_COURSE_PROBES:10
+RFC0016_PRODUCTION_COURSE:complete
+RFC0016_PRODUCTION_EVIDENCE_FILES:11
+RFC0016_PRODUCTION_IDENTITY_OK
+```
+
+```
+python3 scripts/verify_rfc0016_test_inventory.py --release-binary <artifact>
+RFC0016_TEST_INVENTORY_OK
+
+python3 scripts/verify_composed_hosts.py --profile production <artifact>
+COMPOSED_HOSTS_OK: profile=production required=29 forbidden=7 inspector=nm | c++filt
+```
+
+The artifact authenticates as the recorded distributable identity
+`Iv23liitiYN1WSSbag50`, not the private owner-only verification client, and the
+course's own `check_no_private_identity` reads that prohibition from the
+committed registration record rather than carrying a copy of it.
+
+### `DEVICE_REQUESTS:0` does not mean no request was sent
+
+This is the one line in the block above that a closeout reader will misread, so
+it is written down rather than left to the marker's name.
+
+`DEVICE_FLOW_REQUESTS` prints `UnregisteredDeviceTransport.reached()`. On an
+unregistered platform that transport *is* the composed device transport and
+every submission increments it, so zero proves the capability gate held. Linux
+has been registered since [[BPR-0310]], so the composition swaps in the real
+credential-free wire and the unregistered transport is never referenced at all
+— its count is zero **by construction**, and would be zero no matter how much
+traffic the real wire carried. It remains a meaningful negative control (a
+non-zero value would mean an enabled build fell back to the refusing
+transport), but it is not a request count, and no closeout claim of "zero
+requests on Linux" may rest on it.
+
+What the enabled probe actually did is `RFC0016_DEVICE_STAGE:cancelled`, and
+that stage is the evidence: `cancelled` is reachable only after acquisition
+succeeded and the flow advanced past `requested`. The same shipped probe under
+the course's network isolation lands on `failed` instead — that is the measured
+value [[BPR-0310]] pinned into the dev-tree selector gate for this platform.
+So the enabled course reached GitHub once, minted a real device code, and
+cancelled it at the run budget without anyone authorizing. That is the course's
+own design, it is what every enabled course of this RFC has done, and it is
+expected here.
+
+### Left open by this replay
+
+The section above this one asks the final-head replay to rename
+`application_device_authorization_unavailable` — which proves the *registered*
+selection under a name that says `unavailable` — or record why the name stays.
+This replay does neither: it is a no-mutation idempotent rerun, and renaming a
+registered selector is a source change outside its authority. The question is
+unresolved and still belongs to this card before it closes; it is recorded here
+so the replay's green is not mistaken for having settled it.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| Immutable final-head Linux replay, fresh closeout root, selection enabled and unmutated | the course command above | exit 0 in 255 s; the eight markers above | this commit |
+| The head replayed is the one the ledger names | `git merge --ff-only origin/main` then `git rev-parse HEAD` | `28fa0741` | this commit |
+| The keyring precondition was unlocked, so no vault selector skipped | `gdbus call … /org/freedesktop/secrets/collection/login … Locked` | `(<false>,)` | this commit |
+| The artifact authenticates as the recorded distributable identity, course complete | `verify_rfc0016_production_identity.py --require-complete --validate-existing --release-binary` | `RFC0016_PRODUCTION_IDENTITY_OK`, client `Iv23liitiYN1WSSbag50`, 11 evidence files | this commit |
+| No evidence selector or fixture seam survived into the shipped artifact | `verify_rfc0016_test_inventory.py --release-binary` | `RFC0016_TEST_INVENTORY_OK` | this commit |
+| The artifact composes every production host and no forbidden one | `verify_composed_hosts.py --profile production` | `required=29 forbidden=7` | this commit |
+| The enabled probe started the flow rather than refusing it | the course's shipped-artifact probe | `DEVICE_STAGE:cancelled`, not `unavailable` | this commit |
+| The tree's documentation and issue-graph contracts hold | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` | this commit |
+| No whitespace damage | `git diff --check` | clean | this commit |
