@@ -652,7 +652,7 @@ namespace bpr::adapters::mcp {
 			if (filesystemError) {
 				return std::unexpected{ mcp_refusal::snapshot_unavailable };
 			}
-			const auto resolved = std::filesystem::weakly_canonical(
+			auto resolved = std::filesystem::weakly_canonical(
 				root / std::filesystem::path{ aPath }, filesystemError);
 			if (filesystemError) {
 				return std::unexpected{ mcp_refusal::path_outside_snapshot };
@@ -835,20 +835,19 @@ namespace bpr::adapters::mcp {
 				if (!identity) {
 					return std::nullopt;
 				}
-				current.Segments.push_back(
-					core::alignment_segment_id{ *identity });
+				current.Segments.emplace_back(*identity);
 			} else if (field == "group") {
 				const auto identity = decode_identity(value);
 				if (!identity) {
 					return std::nullopt;
 				}
-				current.Groups.push_back(core::change_group_id{ *identity });
+				current.Groups.emplace_back(*identity);
 			} else if (field == "move") {
 				const auto identity = decode_identity(value);
 				if (!identity) {
 					return std::nullopt;
 				}
-				current.Moves.push_back(core::move_relation_id{ *identity });
+				current.Moves.emplace_back(*identity);
 			} else {
 				return std::nullopt;
 			}

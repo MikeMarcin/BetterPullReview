@@ -4098,14 +4098,15 @@ namespace bpr::app {
 			// profiles, so a build that stopped composing the opener fails
 			// the audit rather than silently going back to answering
 			// `unavailable` forever, which is the defect [[BPR-0516]] found.
-			auto* deviceBrowser
-				= static_cast<application::device_authorization_browser_port*>(
-					&SystemBrowser);
 #if defined(BPR_BUILD_TESTING)
-			deviceBrowser = SuppressDeviceBrowser
+			auto* deviceBrowser = SuppressDeviceBrowser
 				? nullptr
 				: static_cast<application::device_authorization_browser_port*>(
 					  &RecordingBrowser);
+#else
+			auto* deviceBrowser
+				= static_cast<application::device_authorization_browser_port*>(
+					&SystemBrowser);
 #endif
 			DeviceBrowserComposed = deviceBrowser != nullptr;
 			// One port, two readers. The recording sink keeps its place at the
@@ -6575,17 +6576,17 @@ namespace bpr::app {
 			case application::agent_chat_refusal::session_stale:
 				reason += " (";
 				reason += core::stable_name(aOutcome.Staleness);
-				reason += ")";
+				reason += ')';
 				break;
 			case application::agent_chat_refusal::action_refused:
 				reason += " (";
 				reason += core::stable_name(aOutcome.Action);
-				reason += ")";
+				reason += ')';
 				break;
 			case application::agent_chat_refusal::scope_refused:
 				reason += " (";
 				reason += core::stable_name(aOutcome.Scope);
-				reason += ")";
+				reason += ')';
 				break;
 			case application::agent_chat_refusal::none:
 			case application::agent_chat_refusal::no_session:
