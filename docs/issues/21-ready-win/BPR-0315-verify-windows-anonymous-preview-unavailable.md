@@ -223,3 +223,86 @@ required final state names, so it is recorded, not waived.
 Nothing was flipped, no browser was opened, no device flow was started, and
 the course sends no request for public preview. The two failures above are
 the card's remainder.
+
+### Rerun after the integrator's fixes — 2026-09-03, at `88b33efc`
+
+`main` at `7e0776b6` merged into the lane as `88b33efc`; `windows-dev`
+reconfigured (exit 0) and rebuilt there under the [[BPR-0493]] procedure.
+One of the two hygiene selectors is fixed, the other is not, and the rebuild
+uncovered a Windows build break that invalidates every row in this rerun
+that needs the application binary. **The card stays Ready.**
+
+```text
+ctest --preset windows-dev -C Debug -R '^(rfc0017_platform_course_launch_contract
+  |test_network_isolation_manifest|rfc0017_test_inventory
+  |rfc0017_test_inventory_contract
+  |application_anonymous_public_preview_(enabled_probe|live_candidate_wiring))$'
+  --output-on-failure                            -> 3/6, 7.65 s
+```
+
+| Selector | Result | Time | Reads the app binary |
+|---|---|---|---|
+| `rfc0017_test_inventory` | Passed | 0.19 s | no |
+| `rfc0017_test_inventory_contract` | Passed | 0.73 s | no |
+| `rfc0017_platform_course_launch_contract` | **Passed** | 0.17 s | no |
+| `test_network_isolation_manifest` | **Failed** | 4.33 s | no |
+| `application_anonymous_public_preview_enabled_probe` | Failed | 1.47 s | yes — stale |
+| `application_anonymous_public_preview_live_candidate_wiring` | Failed | 0.72 s | yes — stale |
+
+**`rfc0017_platform_course_launch_contract` is fixed.** [[BPR-0306]]'s
+correction pins `sys.platform` to the wire block in `setUpModule`, and all
+47 cases pass on this host in 0.17 s. The hermeticity hole this station
+found on 2026-09-02 is closed.
+
+**`test_network_isolation_manifest` is still red**, though far smaller: 39
+complaint lines over thirteen registrations became three lines over one.
+[[BPR-0530]]'s correction retired `rfc0017_release_absence_negative_control`
+and added `native_https_device_authorization_fixture` and the twelve agent
+chat and finding courses; one pin was missed.
+
+```text
+TEST_NETWORK_ISOLATION_FAILED:application_agent_finding_protocol is pinned as
+  bpr_windows_uncontained but is registered contained; retire it from the pinned set
+TEST_NETWORK_ISOLATION_FAILED:application_agent_finding_protocol lacks the
+  bpr_windows_uncontained label
+TEST_NETWORK_ISOLATION_FAILED:application_agent_finding_protocol carries
+  bpr_network_isolated while running uncontained
+```
+
+It is the same shape as the entry that was retired: a name in
+`WINDOWS_UNCONTAINED_TESTS` that the tree registers contained. Windows-only,
+so it does not reproduce on the integrator's host.
+
+### The application does not build on Windows at this head
+
+The two `application_anonymous_public_preview_*` rows above failed because
+they ran a **pre-merge binary**: `build/windows-dev/src/app/Debug/better_pull_review.exe`
+is dated 2026-09-02 23:09 and contains no `--network-denied` string. The
+build step reported `build-exit=1`, and building the target alone reproduces
+it exactly:
+
+```text
+cmake --build build/windows-dev --config Debug --target app_better_pull_review
+src/app/main.cpp(3405,10): error C2220: the following warning is treated as an error
+src/app/main.cpp(3405,10): warning C4456: declaration of 'passed' hides previous
+                           local declaration
+      src/app/main.cpp(3037,8): see declaration of 'passed'
+```
+
+`969dc1a4` ([[BPR-0316]] part one) introduced the inner
+`auto passed = status.PublicPreviewComposed …` inside the enabled-probe
+verdict; the outer `auto passed = aRun.PresentationPassed …` at 3037 is the
+one it hides. MSVC raises C4456 and this tree builds warnings as errors, so
+the Windows app target fails to link while the same source compiles on the
+integrator's host. Renaming the inner one is the whole fix, but it is
+[[BPR-0316]]'s code and this station made no change to it.
+
+Everything above that does not read the binary is sound: all five script
+selectors ran against the registration this head configured. Everything that
+does read it — including the two new [[BPR-0316]] rows — is untested at this
+head and is not evidence either way.
+
+**Remaining for this card:** the one `application_agent_finding_protocol`
+pin, and the C4456 break that has to clear before any binary-reading row can
+be rerun. The 2026-09-02 platform course stands unaffected — it built its
+own trees from a deleted root before `969dc1a4` existed.
