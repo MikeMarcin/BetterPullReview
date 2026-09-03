@@ -3,7 +3,7 @@ id: BPR-0285
 title: Anchor RFC-BPR-0016 capability-critical verification
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539, BPR-0540, BPR-0542, BPR-0543, BPR-0544, BPR-0545, BPR-0546, BPR-0547, BPR-0548, BPR-0549, BPR-0550, BPR-0551]
+depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539, BPR-0540, BPR-0542, BPR-0543, BPR-0544, BPR-0545, BPR-0546, BPR-0547, BPR-0548, BPR-0549, BPR-0550, BPR-0551, BPR-0553]
 ---
 
 # Anchor RFC-BPR-0016 capability-critical verification
@@ -946,4 +946,58 @@ which is still not the Keychain, the Secret Service, or the Credential
 Manager. That gap is the third review's R3, and it is what let its three
 blocking findings reach a head with two green platform replays. It is
 accepted as a limitation of this closeout, not claimed as covered.
+
+## Fifth independent capability-critical review of `1bec6179` — 2026-09-03
+
+Run read-only at the head that closed [[BPR-0550]] and [[BPR-0551]], with the
+four prior reviews as its brief.
+
+**It found no blocking defect.** It confirmed, by source reading, that
+`release_refresh_binding` cancels the renewal timer by purpose so a live poll
+is untouched and resets the in-flight contexts before any late completion can
+dereference the released authority; that the harness change moving three
+tests' binds inside the flow was *required* for them to keep proving what
+they proved, and that the store-before-enroll order assertion still holds;
+that the composition memo's edge trigger is coherent and necessary, since a
+level test would resume twice; and that BPR-0551's marker is sourced from
+`ShutdownCleanupFailed` and emitted outside the failure-only block, so the
+re-regression control on that card describes this exact code.
+
+It also judged the [[BPR-0552]] exclusion and upheld it, with the reasoning
+recorded rather than assumed: no acceptance row of this RFC rests on an
+unfailable field. The device rows pin `DEVICE_FLOW_*` markers, which are
+emitted unconditionally, and cleanup is now among them; the fields still
+unguarded carry the review surface's and the epoch host's claims. Row 4's
+quiescence and row 3's zero-retained-material rest on host unit tests and on
+`REFRESH_RETAINED:false` and `DURABLE_COPIES:0`, all failable.
+
+Three things hold the closeout, and the first is the integrator's own defect:
+
+- **H1, accepted and carded as [[BPR-0553]].** BPR-0550 released the refresh
+  binding at `perform(begin)`, but the panel offers *Get a code* from
+  `authorized` and the core accepts it there, so a reviewer who starts a
+  second sign-in and abandons it loses the first session's renewal silently —
+  state `idle`, no prompt, and the token expires unrenewed about eight hours
+  later. Before BPR-0550 a failed second begin left the renewal armed.
+  Nothing leaks and nothing is mis-stored, so the review left the call to the
+  integrator; the call is that acceptance row 9 says refresh precedes expiry
+  and after an abandoned re-authorization it does not, so it is blocking and
+  the release moves to the authorization rather than the gesture.
+- **V1, corrected in the same commit as this record.** Ledger row 9's proof
+  condition had been rewritten for the two-rotation course while its Result
+  cell still cited a one-rotation run at `883ab6b4`. The cell now says what
+  it is: provenance predating the course it no longer describes, pending
+  re-run at the closeout head.
+- **V2, which this run is answering.** The mandatory three-platform replays
+  and the gate suite did not exist at `1bec6179` when the review read it.
+  macOS and Linux have since replayed green there and Windows is running,
+  but BPR-0553 supersedes that head, so those three become provenance too
+  and the replays run once more at the head that closes it. The gate suite
+  was started at `1bec6179` and deliberately stopped when this review landed,
+  rather than spend an hour proving a head that was about to move.
+
+Residuals unchanged: R1 (the probe and the shutdown delete can still mint one
+context) is latent and uncarded, R2 did not become reachable, the mid-flow
+bind window stands as recorded on BPR-0550, and nothing composes the real
+host against the real platform vault.
 
