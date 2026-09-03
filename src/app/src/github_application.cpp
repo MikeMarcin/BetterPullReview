@@ -4885,6 +4885,16 @@ namespace bpr::app {
 			if (!authority.has_value()) {
 				return;
 			}
+			// [[BPR-0546]]. The slot's authority and the identity generation
+			// that owns it travel together. The device host's own state carries
+			// the generation this composition seeded the device flow with,
+			// which is zero and stays zero, and every platform vault refuses a
+			// context carrying it -- so before this the composed refresh
+			// lifecycle stored nothing on any platform.
+			const auto generation = Host->accepted_identity_generation();
+			if (generation.value() == 0U) {
+				return;
+			}
 			if (
 				DeviceRefreshAuthority.has_value()
 				&& *DeviceRefreshAuthority == *authority) {
@@ -4895,7 +4905,7 @@ namespace bpr::app {
 				== core::device_authorization_stage::authorized) {
 				DeviceRefreshAuthority = *authority;
 				++DeviceRefreshBindings;
-				DeviceHost->bind_refresh_authority(*authority);
+				DeviceHost->bind_refresh_authority(*authority, generation);
 				return;
 			}
 			// The restart. Nothing about this run says a device flow happened,
@@ -4911,7 +4921,7 @@ namespace bpr::app {
 			}
 			DeviceRefreshAuthority = *authority;
 			++DeviceRefreshResumes;
-			DeviceHost->resume_refresh(*authority);
+			DeviceHost->resume_refresh(*authority, generation);
 		}
 
 		// Renewal, as presentation is told it. The panel is the reader that

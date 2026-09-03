@@ -79,6 +79,27 @@ namespace {
 		};
 	}
 
+	// [[BPR-0546]]. The generation the GitHub host's accepted session runs
+	// under. Composition reads it from that host and carries it in with the
+	// authority, because the device host has no way to know it.
+	[[nodiscard]] auto accepted_generation() -> core::github_identity_generation
+	{
+		return core::github_identity_generation{ 3U };
+	}
+
+	// Exactly what `initial_device_authorization_state()` in the composition
+	// seeds: an application session, a first request, and an identity
+	// generation of zero, because no identity exists when the device host is
+	// constructed and nothing ever advances this copy of it.
+	[[nodiscard]] auto composed_initial_state()
+		-> core::device_authorization_state
+	{
+		return core::device_authorization_state{
+			.ApplicationSession = core::application_session_id{ 1U },
+			.NextRequest        = core::request_id{ 1U },
+		};
+	}
+
 	[[nodiscard]] auto initial_state() -> core::device_authorization_state
 	{
 		return core::device_authorization_state{
@@ -326,6 +347,23 @@ namespace {
 			application::github_credential_store_completion_handler aCompletion)
 			override
 		{
+			// [[BPR-0546]], on [[BPR-0548]]'s rule. Every platform vault checks
+			// `valid()` on the enrollment before it queues anything and
+			// answers `invalid_request` otherwise, so a double that skips the
+			// check passes for contexts no shipped vault would accept -- which
+			// is exactly how a device host minting identity generation zero
+			// stayed green here while the composed product stored nothing.
+			if (!application::valid(aEnrollment)) {
+				const auto refused = aEnrollment.Context;
+				aEnrollment.Credential.reset();
+				Order->emplace_back("refuse-store-refresh");
+				aCompletion(application::github_credential_store_error{
+					.Context = refused,
+					.Failure = application::github_credential_vault_failure::
+						invalid_request,
+				});
+				return;
+			}
 			Order->emplace_back("store-refresh");
 			const auto context = aEnrollment.Context;
 			StoreContexts.push_back(context);
@@ -364,6 +402,15 @@ namespace {
 			application::github_credential_retrieve_completion_handler aCompletion)
 			override
 		{
+			if (!application::valid(aContext)) {
+				Order->emplace_back("refuse-retrieve-refresh");
+				aCompletion(application::github_credential_retrieve_error{
+					.Context = aContext,
+					.Failure = application::github_credential_vault_failure::
+						invalid_request,
+				});
+				return;
+			}
 			Order->emplace_back("retrieve-refresh");
 			RetrieveContexts.push_back(aContext);
 			if (RefuseRetrieve) {
@@ -396,6 +443,15 @@ namespace {
 			application::github_credential_delete_completion_handler aCompletion)
 			override
 		{
+			if (!application::valid(aContext)) {
+				Order->emplace_back("refuse-delete-refresh");
+				aCompletion(application::github_credential_delete_error{
+					.Context = aContext,
+					.Failure = application::github_credential_vault_failure::
+						invalid_request,
+				});
+				return;
+			}
 			const auto erased = Stored.has_value();
 			Stored.reset();
 			aCompletion(application::github_credential_delete_success{
@@ -473,11 +529,12 @@ namespace {
 
 	struct harness
 	{
-		harness()
+		explicit harness(
+			core::device_authorization_state aState = initial_state())
 			: Transport{ Order }
 			, Vault{ Order }
 			, Enrollment{ Order }
-			, Host{ initial_state(), Transport, Vault, Enrollment,
+			, Host{ std::move(aState), Transport, Vault, Enrollment,
 					Clock, Timer, Lane, Projections,
 					application::device_authorization_host_limits{ },
 					application::device_authorization_browser_handoff{ },
@@ -552,7 +609,7 @@ namespace {
 		void authorize_with_bound_authority(
 			const std::uint32_t aLifetime = 3'600U)
 		{
-			Host.bind_refresh_authority(authority());
+			Host.bind_refresh_authority(authority(), accepted_generation());
 			reach_awaiting();
 			poll_once();
 			Transport.answer_token(issued(aLifetime));
@@ -850,7 +907,7 @@ namespace {
 		harness world;
 		world.Vault.Stored = "refresh-kept";
 
-		world.Host.resume_refresh(authority());
+		world.Host.resume_refresh(authority(), accepted_generation());
 		world.Lane.drain();
 		expect(
 			world.Transport.RefreshMaterial
@@ -892,7 +949,7 @@ namespace {
 	{
 		harness world;
 
-		world.Host.resume_refresh(authority());
+		world.Host.resume_refresh(authority(), accepted_generation());
 		world.Lane.drain();
 
 		expect(
@@ -930,7 +987,7 @@ namespace {
 		expect(!world.Vault.Stored.has_value(), "nothing was stored yet");
 		expect(!world.Timer.armed(), "and no renewal is armed yet");
 
-		world.Host.bind_refresh_authority(authority());
+		world.Host.bind_refresh_authority(authority(), accepted_generation());
 		world.Lane.drain();
 
 		expect(
@@ -958,7 +1015,7 @@ namespace {
 			!world.Host.holds_pending_refresh_material(),
 			"shutdown erases material that never found a slot");
 
-		world.Host.bind_refresh_authority(authority());
+		world.Host.bind_refresh_authority(authority(), accepted_generation());
 		world.Lane.drain();
 		expect(
 			!world.Vault.Stored.has_value(),
@@ -1047,7 +1104,7 @@ namespace {
 	void test_an_answer_with_no_refresh_material_schedules_no_renewal()
 	{
 		harness world;
-		world.Host.bind_refresh_authority(authority());
+		world.Host.bind_refresh_authority(authority(), accepted_generation());
 		world.reach_awaiting();
 		world.poll_once();
 		world.Transport.answer_token(
@@ -1078,7 +1135,7 @@ namespace {
 	{
 		harness world;
 		world.Vault.HoldStore = true;
-		world.Host.bind_refresh_authority(authority());
+		world.Host.bind_refresh_authority(authority(), accepted_generation());
 		world.reach_awaiting();
 		world.poll_once();
 		world.Transport.answer_token(world.issued());
@@ -1124,7 +1181,7 @@ namespace {
 	{
 		harness world;
 		world.Vault.HoldStore = true;
-		world.Host.bind_refresh_authority(authority());
+		world.Host.bind_refresh_authority(authority(), accepted_generation());
 		world.reach_awaiting();
 		world.poll_once();
 		world.Transport.answer_token(world.issued());
@@ -1152,6 +1209,47 @@ namespace {
 
 	// The lifecycle has to leave the host to be worth anything: every state a
 	// reviewer could act on is one presentation was told about.
+	// [[BPR-0546]]. The composed device host is constructed from
+	// `initial_device_authorization_state()`, whose identity generation is zero
+	// -- no identity exists when it is built -- and nothing ever advances it.
+	// Before the fix every vault context this host minted carried that zero,
+	// which `valid()` refuses, so `store_refresh` came back `invalid_request`,
+	// `on_refresh_stored` mapped it to `fail_storage`, and a real sign-in ended
+	// in `reenrollment_required(storage_failed)` moments after it succeeded.
+	// The generation the binding carries is what makes the slot reachable.
+	void test_a_composed_device_host_stores_under_a_context_the_vault_accepts()
+	{
+		harness world{ composed_initial_state() };
+		world.authorize_with_bound_authority();
+
+		expect(
+			world.Host.state().Stage
+				== core::device_authorization_stage::authorized,
+			"the flow authorizes rather than failing on the store");
+		expect(
+			world.Host.state().IdentityGeneration.value() == 0U,
+			"with the device flow's own generation still the seeded zero");
+		expect(
+			world.Vault.StoreContexts.size() == 1U,
+			"one store reached the vault");
+		expect(
+			application::valid(world.Vault.StoreContexts.front()),
+			"under a context every platform vault accepts");
+		expect(
+			world.Vault.StoreContexts.front().IdentityGeneration
+				== accepted_generation(),
+			"carrying the accepted session's identity generation");
+		expect(
+			world.Vault.Stored.has_value() && *world.Vault.Stored == "refresh-1",
+			"and the refresh material is in the slot");
+		const auto expected = order_log{ "store-refresh", "enroll" };
+		expect(world.Order == expected, "with nothing refused on the way");
+		expect(
+			world.Host.refresh_observation().State
+				== application::device_authorization_refresh_state::scheduled,
+			"and renewal is armed rather than asking for re-enrollment");
+	}
+
 	void test_the_renewal_lifecycle_reaches_presentation()
 	{
 		harness world;
@@ -1169,7 +1267,7 @@ namespace {
 			"a renewal armed is a renewal presentation knows about");
 
 		const auto published = world.Projections.Refreshes.size();
-		world.Host.bind_refresh_authority(authority());
+		world.Host.bind_refresh_authority(authority(), accepted_generation());
 		world.Lane.drain();
 		expect(
 			world.Projections.Refreshes.size() == published,
@@ -1197,6 +1295,7 @@ auto main() -> int
 	test_a_store_that_answers_after_a_cancel_arms_no_renewal();
 	test_a_refused_store_after_a_cancel_asks_for_nothing();
 	test_the_renewal_lifecycle_reaches_presentation();
+	test_a_composed_device_host_stores_under_a_context_the_vault_accepts();
 
 	std::cout << "device-authorization-refresh-tests:pass\n";
 	return EXIT_SUCCESS;

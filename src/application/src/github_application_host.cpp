@@ -2956,13 +2956,17 @@ namespace bpr::application {
 					if (host == nullptr) {
 						return;
 					}
-					host->OutstandingRefreshDeletes.fetch_sub(
-						1U, std::memory_order_acq_rel);
-					if (!erasure_left_material(aCompletion, aOperation)) {
-						return;
-					}
+					const auto leftMaterial
+						= erasure_left_material(aCompletion, aOperation);
+					// [[BPR-0545]], residual R1. The count is released on the
+					// decision lane after the terminal has been applied, never
+					// here beside the answer: released here, quiescence could
+					// be observed between the release and the report, so an
+					// orderly shutdown finished believing its cleanup was
+					// exact while the report saying material is still in the
+					// vault was still queued on the lane.
 					try {
-						lane->post([gate, aOperation]() {
+						lane->post([gate, aOperation, leftMaterial]() {
 							const auto locked = gate.lock();
 							if (!locked) {
 								return;
@@ -2971,11 +2975,22 @@ namespace bpr::application {
 								locked->Barrier
 							};
 							auto* const target = locked->Host.load(std::memory_order_acquire);
-							if (target != nullptr) {
+							if (target == nullptr) {
+								return;
+							}
+							if (leftMaterial) {
 								target->report_refresh_erasure_failure(aOperation);
 							}
+							target->OutstandingRefreshDeletes.fetch_sub(
+								1U, std::memory_order_acq_rel);
 						});
 					} catch (...) {
+						// The lane refused the post, so no terminal will ever
+						// be applied. Releasing the count here is what keeps a
+						// shutdown from waiting on an answer that can no
+						// longer arrive.
+						host->OutstandingRefreshDeletes.fetch_sub(
+							1U, std::memory_order_acq_rel);
 					}
 				};
 			try {
@@ -3032,7 +3047,21 @@ namespace bpr::application {
 			// that stored it. Deleting one and keeping the other is what
 			// orphaned six months of renewal material behind a session the
 			// reviewer had already ended.
-			start_refresh_delete(operation);
+			//
+			// [[BPR-0545]]. It is issued from this delete's own terminal
+			// rather than beside it. Every shipped vault keys its pending
+			// operations by the exact `github_credential_operation_context`
+			// and answers a duplicate `invalid_request` before queuing, so
+			// submitting both halves under one context lost whichever arrived
+			// second -- ordinarily the base credential's own delete, because
+			// the main thread wins the race to the second call. Sequencing
+			// rather than a second context because request identity is the
+			// core's to allocate and this host has no allocator of its own:
+			// inventing one here to tell two halves of one occasion apart
+			// would move identity into the host. What sequencing costs is a
+			// crash between the two, which leaves renewable material behind an
+			// erased credential; nothing can spend it, because the resume
+			// answers only for device-grant provenance ([[BPR-0540]]).
 			const auto  token = ++VaultOperationToken;
 			const auto  gate  = std::weak_ptr<completion_gate>{ CompletionGate };
 			auto* const lane  = &DecisionLane;
@@ -3126,6 +3155,14 @@ namespace bpr::application {
 				return;
 			}
 			++VaultOperationToken;
+			// [[BPR-0545]]. The occasion's other erasure, under the same
+			// context, now that the credential's delete has left the vault's
+			// pending map. It runs in every branch below, the failing ones
+			// included: a credential delete that failed says nothing about
+			// whether renewal material is still beside it, and the occasion
+			// asked for both to go. The count is raised inside this turn, so
+			// no quiescence window opens between the two operations.
+			start_refresh_delete(aExpectedOperation);
 			if (Closing) {
 				if (ActiveVaultOperation != vault_operation::delete_credential
 					|| !ActiveVaultContext.has_value()
@@ -3945,6 +3982,15 @@ namespace bpr::application {
 			return false;
 		}
 		return Implementation->AcceptedCredentialRenewable;
+	}
+
+	auto github_application_host::accepted_identity_generation() const noexcept
+		-> core::github_identity_generation
+	{
+		if (!Implementation->AcceptedSession.has_value()) {
+			return { };
+		}
+		return Implementation->State.IdentityGeneration;
 	}
 
 	auto github_application_host::accepted_review_mutation_transport() const noexcept

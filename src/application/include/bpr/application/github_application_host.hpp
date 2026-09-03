@@ -225,6 +225,16 @@ namespace bpr::application {
 		/// material it retrieved on the vault's own callback and carries only
 		/// the answer onto the decision lane.
 		[[nodiscard]] auto accepted_credential_renewable() const noexcept -> bool;
+		/// \brief Returns the identity generation the accepted session runs under.
+		///
+		/// \details Zero when no session has been accepted, and nonzero for
+		/// every accepted one: the generation advances on each identity
+		/// activation. It is the generation this host stamps on its own vault
+		/// operations for the same authority, so a second host storing beside
+		/// this credential names the same identity rather than an epoch of its
+		/// own ([[BPR-0546]]). It identifies an epoch, not a secret.
+		[[nodiscard]] auto accepted_identity_generation() const noexcept
+			-> core::github_identity_generation;
 		/// \brief Returns the opaque transport for the currently accepted account.
 		///
 		/// \details The capability is absent unless the host has accepted an exact

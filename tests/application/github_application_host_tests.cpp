@@ -548,8 +548,18 @@ namespace {
 				}
 				return;
 			}
-			release(aContext);
 			RefreshDeletes.push_back(aContext);
+			if (HoldRefreshDelete) {
+				// [[BPR-0545]]. The platform vault's queue: the operation is
+				// accepted and stays pending under its context until the
+				// worker thread dequeues it, and that window is exactly when a
+				// second submission under the same context is refused. The
+				// main thread ordinarily wins the race into it.
+				HeldRefreshDelete        = releasing(aContext, std::move(aCompletion));
+				HeldRefreshDeleteContext = aContext;
+				return;
+			}
+			release(aContext);
 			if (RefreshDeleteAnswer == refresh_delete_answer::deleted) {
 				aCompletion(application::github_credential_delete_success{
 					.Context     = aContext,
@@ -573,6 +583,21 @@ namespace {
 			Cancellations.push_back(aContext);
 		}
 
+		// Answers a held refresh erasure, releasing its context the way the
+		// `releasing` wrapper does for every other recorded operation.
+		void answer_held_refresh_delete()
+		{
+			auto held = std::exchange(
+				HeldRefreshDelete,
+				application::github_credential_delete_completion_handler{ });
+			expect(held != nullptr, "a refresh erasure was held");
+			held(application::github_credential_delete_success{
+				.Context     = HeldRefreshDeleteContext,
+				.Disposition = application::
+					github_credential_delete_disposition::deleted,
+			});
+		}
+
 		std::vector<store_call>                                       Stores;
 		std::vector<retrieve_call>                                    Retrieves;
 		std::vector<delete_call>                                      Deletes;
@@ -580,6 +605,9 @@ namespace {
 		std::vector<application::github_credential_operation_context> Cancellations;
 		std::vector<application::github_credential_operation_context> RefreshRetrieves;
 		std::vector<application::github_credential_operation_context> RefreshDeletes;
+		application::github_credential_delete_completion_handler      HeldRefreshDelete;
+		application::github_credential_operation_context              HeldRefreshDeleteContext;
+		bool                                                          HoldRefreshDelete = false;
 		// The contexts whose operation this double has accepted and not yet
 		// answered. Held indirectly so a harness that moves the double keeps
 		// one queue rather than two.
@@ -3314,6 +3342,9 @@ namespace {
 		const auto request         = fixture.Provider.Profiles.front().Request;
 		const auto projectionCount = fixture.Projections.transition_count();
 		fixture.Host.shutdown();
+		// [[BPR-0545]]. The occasion's refresh erasure answers on this
+		// lane too, and quiescence waits for its terminal.
+		fixture.Lane.drain();
 		expect(fixture.Host.is_closing() && fixture.Host.is_quiescent()
 				   && fixture.Provider.CancelledProfiles == std::vector{ request }
 				   && !fixture.Host.state().ActiveProfile.has_value(),
@@ -3344,6 +3375,9 @@ namespace {
 		expect(bindings.size() == 1U,
 			   "exact /user acceptance records one host-owned binding");
 		fixture.Host.shutdown();
+		// [[BPR-0545]]. The occasion's refresh erasure answers on this
+		// lane too, and quiescence waits for its terminal.
+		fixture.Lane.drain();
 		expect(fixture.Vault.Deletes.empty() && fixture.Host.is_quiescent()
 				   && bindings.size() == 1U,
 			   "ordinary shutdown preserves accepted persistent credentials");
@@ -3383,6 +3417,18 @@ namespace {
 				   "delete completion cannot clear authority off the decision "
 				   "lane");
 			fixture.Lane.run_next();
+			// [[BPR-0545]]. The occasion's refresh erasure is issued from this
+			// terminal, so the cleanup is not finished until its own answer has
+			// been applied, and that is what holds quiescence here.
+			expect(!fixture.Host.is_quiescent()
+					   && !fixture.Host.shutdown_cleanup_failed()
+					   && fixture.Bindings.size() == 0U,
+				   "the credential's terminal clears its binding and hands the "
+				   "occasion to the slot's erasure");
+			fixture.Lane.run_next();
+			// [[BPR-0545]]. The occasion's refresh erasure answers on this
+			// lane too, and quiescence waits for its terminal.
+			fixture.Lane.drain();
 			expect(fixture.Host.is_quiescent()
 					   && !fixture.Host.shutdown_cleanup_failed()
 					   && fixture.Bindings.size() == 0U
@@ -3397,6 +3443,9 @@ namespace {
 						operation_failed,
 				});
 			fixture.Lane.run_next();
+			// [[BPR-0545]]. The occasion's refresh erasure answers on this
+			// lane too, and quiescence waits for its terminal.
+			fixture.Lane.drain();
 			expect(fixture.Host.is_quiescent()
 					   && !fixture.Host.shutdown_cleanup_failed()
 					   && fixture.Bindings.size() == 0U,
@@ -3418,6 +3467,12 @@ namespace {
 					.Disposition = application::github_credential_delete_disposition::deleted,
 				});
 			fixture.Lane.run_next();
+			// The second turn is the refresh erasure's own terminal, which the
+			// first one issued ([[BPR-0545]]).
+			fixture.Lane.run_next();
+			// [[BPR-0545]]. The occasion's refresh erasure answers on this
+			// lane too, and quiescence waits for its terminal.
+			fixture.Lane.drain();
 			expect(
 				fixture.Host.is_quiescent()
 					&& fixture.Host.shutdown_cleanup_failed()
@@ -3726,6 +3781,10 @@ namespace {
 					   && switchProfile.Provider.Profiles.size() == 2U,
 				   "successful predecessor cleanup starts the staged retained "
 				   "profile");
+			// [[BPR-0545]]. The predecessor's refresh erasure is issued from
+			// that delete's terminal and answers on the lane; its turn is
+			// taken here so the staged profile's own terminal is next.
+			switchProfile.Lane.run_next();
 
 			const auto failedB = switchProfile.Provider.Profiles.back().Request;
 			switchProfile.Provider.Profiles.back().Completion(
@@ -3989,6 +4048,9 @@ namespace {
 				break;
 			}
 			fixture.Lane.run_next();
+			// [[BPR-0545]]. The occasion's refresh erasure answers on this
+			// lane too, and quiescence waits for its terminal.
+			fixture.Lane.drain();
 			expect(fixture.Vault.Deletes.empty() && fixture.Host.is_quiescent()
 					   && bindings.size() == 1U,
 				   "every persistent retrieval terminal preserves the trusted "
@@ -4076,6 +4138,12 @@ namespace {
 					.Disposition = application::github_credential_delete_disposition::deleted,
 				});
 			fixture.Lane.run_next();
+			// [[BPR-0545]]. That terminal issues the occasion's refresh
+			// erasure, and quiescence waits for its answer too.
+			fixture.Lane.run_next();
+			// [[BPR-0545]]. The occasion's refresh erasure answers on this
+			// lane too, and quiescence waits for its terminal.
+			fixture.Lane.drain();
 			expect(fixture.Host.is_quiescent()
 					   && !fixture.Host.shutdown_cleanup_failed()
 					   && bindings.size() == 0U,
@@ -4150,6 +4218,12 @@ namespace {
 					.Disposition = application::github_credential_delete_disposition::deleted,
 				});
 			fixture.Lane.run_next();
+			// [[BPR-0545]]. That terminal issues the occasion's refresh
+			// erasure, and quiescence waits for its answer too.
+			fixture.Lane.run_next();
+			// [[BPR-0545]]. The occasion's refresh erasure answers on this
+			// lane too, and quiescence waits for its terminal.
+			fixture.Lane.drain();
 			expect(fixture.Host.is_quiescent()
 					   && fixture.Provider.Profiles.size() == 1U
 					   && fixture.Projections.transition_count() == projectionCount,
@@ -4212,6 +4286,9 @@ namespace {
 					.Disposition = application::github_credential_delete_disposition::deleted,
 				});
 			fixture.Lane.run_next();
+			// [[BPR-0545]]. The occasion's refresh erasure answers on this
+			// lane too, and quiescence waits for its terminal.
+			fixture.Lane.drain();
 			expect(fixture.Host.is_quiescent()
 					   && !fixture.Host.shutdown_cleanup_failed(),
 				   "retrieve shutdown cleanup succeeds before quiescence");
@@ -4279,6 +4356,9 @@ namespace {
 					.Disposition = application::github_credential_delete_disposition::deleted,
 				});
 			fixture.Lane.run_next();
+			// [[BPR-0545]]. The occasion's refresh erasure answers on this
+			// lane too, and quiescence waits for its terminal.
+			fixture.Lane.drain();
 			expect(fixture.Host.is_quiescent()
 					   && fixture.Host.shutdown_cleanup_failed()
 					   && fixture.Bindings.size() == 1U,
@@ -4290,6 +4370,9 @@ namespace {
 					.Disposition = application::github_credential_delete_disposition::deleted,
 				});
 			fixture.Lane.run_next();
+			// [[BPR-0545]]. The occasion's refresh erasure answers on this
+			// lane too, and quiescence waits for its terminal.
+			fixture.Lane.drain();
 			expect(fixture.Host.is_quiescent()
 					   && fixture.Host.shutdown_cleanup_failed(),
 				   "a second terminal cannot rewrite failed shutdown cleanup");
@@ -4314,6 +4397,9 @@ namespace {
 						operation_failed,
 				});
 			fixture.Lane.run_next();
+			// [[BPR-0545]]. The occasion's refresh erasure answers on this
+			// lane too, and quiescence waits for its terminal.
+			fixture.Lane.drain();
 			expect(
 				fixture.Host.is_quiescent()
 					&& fixture.Host.shutdown_cleanup_failed()
@@ -4497,6 +4583,63 @@ namespace {
 	// superseding the session that stored the material -- are covered by the
 	// one submission this checks for, under the same authority and through the
 	// same port.
+	// [[BPR-0545]]. The regression this card exists for. Every shipped vault
+	// keys its pending operations by the exact
+	// `github_credential_operation_context` and answers a duplicate
+	// `invalid_request` before queuing, so an occasion that submitted the
+	// slot's erasure and the credential's delete under one context lost the
+	// second -- ordinarily the credential's own delete, because the main
+	// thread wins the race to the second call. Holding the erasure pending is
+	// what a platform vault does with a queued operation, and it is the window
+	// the refusal lives in; with the two halves sequential there is no window.
+	void test_an_occasion_never_has_two_operations_pending_under_one_context()
+	{
+		constexpr auto policy = application::github_credential_shutdown_policy::
+			delete_retained_on_shutdown;
+		host_fixture fixture{ policy };
+		fixture.Vault.HoldRefreshDelete = true;
+		fixture.Vault.RefreshDeleteAnswer
+			= fake_vault::refresh_delete_answer::deleted;
+		static_cast<void>(establish_native_session(
+			fixture,
+			core::host_profile_id{ 11U },
+			core::github_account_id{ 51U },
+			std::nullopt,
+			application::github_credential_provenance::device_grant));
+
+		fixture.Host.shutdown();
+		expect(fixture.Vault.Deletes.size() == 1U
+				   && fixture.Vault.RefreshDeletes.empty(),
+			   "the credential's own delete is the occasion's first operation, "
+			   "and no duplicate context refuses it");
+		const auto occasion = fixture.Vault.Deletes.front().Context;
+		fixture.Vault.Deletes.front().Completion(
+			application::github_credential_delete_success{
+				.Context     = occasion,
+				.Disposition = application::
+					github_credential_delete_disposition::deleted,
+			});
+		fixture.Lane.run_next();
+		expect(fixture.Vault.RefreshDeletes.size() == 1U
+				   && fixture.Vault.RefreshDeletes.front() == occasion
+				   && !fixture.Host.is_quiescent(),
+			   "the slot's erasure follows under the same context, which the "
+			   "vault released when it began the first");
+		fixture.Vault.answer_held_refresh_delete();
+		expect(!fixture.Host.is_quiescent(),
+			   "the count it holds is released on the lane, not beside the "
+			   "vault's answer");
+		fixture.Lane.run_next();
+		// [[BPR-0545]]. The occasion's refresh erasure answers on this
+		// lane too, and quiescence waits for its terminal.
+		fixture.Lane.drain();
+		expect(fixture.Host.is_quiescent()
+				   && !fixture.Host.shutdown_cleanup_failed()
+				   && fixture.Bindings.size() == 0U,
+			   "an orderly shutdown deletes both slots and reports no cleanup "
+			   "failure");
+	}
+
 	void test_refresh_material_shares_the_credential_erasure_path()
 	{
 		constexpr auto policy = application::github_credential_shutdown_policy::
@@ -4514,16 +4657,29 @@ namespace {
 			const auto authority = fixture.Vault.Stores.front().Context.Authority;
 			fixture.Host.shutdown();
 			expect(fixture.Vault.Deletes.size() == 1U
-					   && fixture.Vault.RefreshDeletes.size() == 1U
+					   && fixture.Vault.RefreshDeletes.empty(),
+				   "the occasion opens with the credential's own delete, alone "
+				   "under its context ([[BPR-0545]])");
+			const auto cleanup = fixture.Vault.Deletes.front().Context;
+			fixture.Vault.Deletes.front().Completion(
+				application::github_credential_delete_success{
+					.Context     = cleanup,
+					.Disposition = application::
+						github_credential_delete_disposition::deleted,
+				});
+			fixture.Lane.run_next();
+			expect(fixture.Vault.RefreshDeletes.size() == 1U
 					   && fixture.Vault.RefreshDeletes.front().Authority
 						   == authority
-					   && fixture.Vault.RefreshDeletes.front()
-						   == fixture.Vault.Deletes.front().Context,
+					   && fixture.Vault.RefreshDeletes.front() == cleanup,
 				   "shutdown after a grant erases both slots under one "
 				   "authority");
+			fixture.Lane.run_next();
 			expect(!fixture.Host.shutdown_cleanup_failed()
+					   && fixture.Host.is_quiescent()
 					   && fixture.Lane.pending() == 0U,
-				   "an answered erasure reports nothing and costs no turn");
+				   "an answered erasure reports nothing and leaves the cleanup "
+				   "exact");
 		}
 
 		// The superseding enrollment. A second sign-in for a profile the host
@@ -4545,10 +4701,21 @@ namespace {
 				   "an accepted session erases nothing");
 			fixture.Host.enroll_profile(core::host_profile_id{ 11U },
 										credential());
+			expect(fixture.Vault.Deletes.size() == 1U
+					   && fixture.Vault.RefreshDeletes.empty(),
+				   "the superseding enrollment deletes the credential first");
+			const auto superseded = fixture.Vault.Deletes.front().Context;
+			fixture.Vault.Deletes.front().Completion(
+				application::github_credential_delete_success{
+					.Context     = superseded,
+					.Disposition = application::
+						github_credential_delete_disposition::deleted,
+				});
+			fixture.Lane.drain();
 			expect(fixture.Vault.RefreshDeletes.size() == 1U
 					   && fixture.Vault.RefreshDeletes.front().Authority
 						   == authority
-					   && fixture.Vault.Deletes.size() == 1U,
+					   && fixture.Vault.RefreshDeletes.front() == superseded,
 				   "a superseding enrollment erases the refresh slot it "
 				   "supersedes");
 		}
@@ -4569,13 +4736,30 @@ namespace {
 				application::github_credential_provenance::device_grant));
 			const auto diagnostics = fixture.Projections.host_diagnostic_count();
 			fixture.Host.shutdown();
-			expect(fixture.Vault.RefreshDeletes.size() == 1U
-					   && fixture.Lane.pending() == 1U,
-				   "a failed erasure carries its one answer onto the lane");
+			const auto ending = fixture.Vault.Deletes.front().Context;
+			fixture.Vault.Deletes.front().Completion(
+				application::github_credential_delete_success{
+					.Context     = ending,
+					.Disposition = application::
+						github_credential_delete_disposition::deleted,
+				});
 			fixture.Lane.run_next();
+			expect(fixture.Vault.RefreshDeletes.size() == 1U
+					   && fixture.Lane.pending() == 1U
+					   && !fixture.Host.is_quiescent()
+					   && !fixture.Host.shutdown_cleanup_failed(),
+				   "a failed erasure carries its one answer onto the lane, and "
+				   "the count it holds keeps quiescence from being observed "
+				   "before the report ([[BPR-0545]] R1)");
+			fixture.Lane.run_next();
+			// [[BPR-0545]]. The occasion's refresh erasure answers on this
+			// lane too, and quiescence waits for its terminal.
+			fixture.Lane.drain();
 			expect(fixture.Host.shutdown_cleanup_failed()
-					   && fixture.Projections.host_diagnostic_count() > diagnostics,
-				   "refresh material left in the vault fails shutdown cleanup");
+					   && fixture.Projections.host_diagnostic_count() > diagnostics
+					   && fixture.Host.is_quiescent(),
+				   "refresh material left in the vault fails shutdown cleanup, "
+				   "and quiescence follows the report rather than racing it");
 		}
 
 		// The store that could not be reached. Every shipped platform has a
@@ -4588,11 +4772,23 @@ namespace {
 				= fake_vault::refresh_delete_answer::unavailable;
 			static_cast<void>(establish_native_session(fixture));
 			fixture.Host.shutdown();
+			const auto unreachable = fixture.Vault.Deletes.front().Context;
+			fixture.Vault.Deletes.front().Completion(
+				application::github_credential_delete_success{
+					.Context     = unreachable,
+					.Disposition = application::
+						github_credential_delete_disposition::deleted,
+				});
+			fixture.Lane.run_next();
 			expect(fixture.Vault.RefreshDeletes.size() == 1U
 					   && fixture.Lane.pending() == 1U,
 				   "an unreachable refresh store carries its answer onto the lane");
 			fixture.Lane.run_next();
-			expect(fixture.Host.shutdown_cleanup_failed(),
+			// [[BPR-0545]]. The occasion's refresh erasure answers on this
+			// lane too, and quiescence waits for its terminal.
+			fixture.Lane.drain();
+			expect(fixture.Host.shutdown_cleanup_failed()
+					   && fixture.Host.is_quiescent(),
 				   "an unreachable refresh store fails shutdown cleanup");
 		}
 	}
@@ -4631,6 +4827,7 @@ auto main() -> int
 	test_destroyed_host_suppresses_late_callbacks_before_posting();
 	test_accepted_credential_renewability_is_answered_by_the_vault();
 	test_refresh_material_shares_the_credential_erasure_path();
+	test_an_occasion_never_has_two_operations_pending_under_one_context();
 	std::cout << "application github host tests passed\n";
 	return EXIT_SUCCESS;
 }
