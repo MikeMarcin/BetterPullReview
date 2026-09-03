@@ -52,8 +52,13 @@ namespace {
 	using native_factory_signature = auto (*)(
 		application::effect_executor&)
 		-> linux_secret_service_vault_factory_result;
+	// [[BPR-0542]] The injected factory takes both stores. The second is
+	// defaulted so every existing single-slot caller still reads the same, and
+	// pinning the signature here is what stops the refresh backend from being
+	// quietly dropped from it again.
 	using injected_factory_signature = auto (*)(
 		application::effect_executor&,
+		std::shared_ptr<linux_secret_service_backend>,
 		std::shared_ptr<linux_secret_service_backend>) noexcept
 		-> linux_secret_service_vault_factory_result;
 	static_assert(std::is_same_v<
@@ -392,6 +397,39 @@ namespace {
 		return std::move(*result);
 	}
 
+	[[nodiscard]] auto make_test_vault_with_refresh(
+		application::manual_executor&               aLane,
+		const std::shared_ptr<wiping_fake_backend>& aBackend,
+		const std::shared_ptr<wiping_fake_backend>& aRefreshBackend)
+		-> std::unique_ptr<application::github_credential_vault_port>
+	{
+		auto result = make_linux_secret_service_vault_with_backend(
+			aLane,
+			aBackend,
+			aRefreshBackend);
+		expect(
+			result.has_value(),
+			"injected two-slot Secret Service vault is created");
+		return std::move(*result);
+	}
+
+	void submit_store_refresh(
+		application::github_credential_vault_port& aVault,
+		const operation_context&                   aOperation,
+		const std::span<const std::byte>           aBytes,
+		store_recorder&                            aRecorder)
+	{
+		aVault.store_refresh(
+			application::github_credential_enrollment{
+				.Context    = aOperation,
+				.Credential = material_from(aBytes),
+			},
+			[&aRecorder](
+				application::github_credential_store_completion aTerminal) {
+				aRecorder.record(std::move(aTerminal));
+			});
+	}
+
 	void submit_store(
 		application::github_credential_vault_port& aVault,
 		const operation_context&                   aOperation,
@@ -616,6 +654,36 @@ namespace {
 				static_cast<linux_secret_service_schema_scope>(255U))
 				.empty(),
 			"malformed schema scope has no identifier");
+
+		// [[BPR-0542]] The refresh slot's schemas, pinned beside the
+		// credential's. The property that matters is not the spelling but that
+		// no refresh identifier equals a credential identifier: two slots that
+		// shared one schema would let either lookup answer for the other.
+		constexpr std::string_view productionRefreshSchema  = "org.betterpullreview.github-native-refresh."
+															  "secret-service.v1";
+		constexpr std::string_view integrationRefreshSchema = "org.betterpullreview.github-native-refresh."
+															  "secret-service.integration-test.v1";
+		expect(
+			linux_secret_service_refresh_schema_identifier(
+				linux_secret_service_schema_scope::production)
+				== productionRefreshSchema,
+			"production refresh schema is exact and stable");
+		expect(
+			linux_secret_service_refresh_schema_identifier(
+				linux_secret_service_schema_scope::integration_test)
+				== integrationRefreshSchema,
+			"integration refresh schema is isolated from production");
+		expect(
+			linux_secret_service_refresh_schema_identifier(
+				static_cast<linux_secret_service_schema_scope>(255U))
+				.empty(),
+			"malformed refresh schema scope has no identifier");
+		expect(
+			productionRefreshSchema != productionSchema
+				&& integrationRefreshSchema != integrationSchema
+				&& productionRefreshSchema != integrationSchema
+				&& integrationRefreshSchema != productionSchema,
+			"no refresh schema collides with a credential schema");
 
 		const auto base    = authority();
 		const auto encoded = encode_linux_secret_service_authority_account(base);
@@ -1444,6 +1512,152 @@ namespace {
 					== first.size() + second.size() + first.size(),
 			"backend teardown overwrites remaining fake material");
 	}
+	/// [[BPR-0542]] The refresh slot is its own store, and the credential slot
+	/// cannot see it. This is the cut that matters: the old adapter answered
+	/// `unavailable` from a stub, and the tempting cheap fix -- one schema, two
+	/// attribute values -- would let a mistyped attribute hand a refresh token
+	/// to a caller asking for an access token. Two backends behind two schemas
+	/// make the confusion unrepresentable, and this proves the wiring.
+	void test_the_refresh_slot_reaches_only_its_own_service()
+	{
+		application::manual_executor lane;
+		auto                         observation    = std::make_shared<wipe_observation>();
+		auto                         backend        = std::make_shared<wiping_fake_backend>(observation);
+		auto                         refreshBackend = std::make_shared<wiping_fake_backend>(observation);
+		auto                         vault          = make_test_vault_with_refresh(lane, backend, refreshBackend);
+
+		const auto operation = context(authority(), 700U);
+		const auto refresh   = generated_bytes(23U);
+
+		store_recorder stored;
+		submit_store_refresh(*vault, operation, refresh, stored);
+		lane.run_next();
+		expect(stored.Calls == 1U, "the refresh store terminates once");
+		expect(
+			terminal_as<application::github_credential_store_success>(
+				stored.Terminal)
+				!= nullptr,
+			"the refresh store succeeds against its own backend");
+		expect(
+			refreshBackend->Calls.size() == 1U,
+			"the refresh backend performed the work");
+		expect(
+			backend->Calls.empty(),
+			"and the credential backend never saw the refresh material");
+		expect(
+			refreshBackend->matches(operation.Authority, refresh),
+			"the refresh store holds the exact bytes");
+		expect(
+			!backend->contains(operation.Authority),
+			"the credential slot holds nothing under that authority");
+
+		retrieve_recorder credential;
+		submit_retrieve(*vault, context(authority(), 701U), credential);
+		lane.run_next();
+		expect(
+			terminal_as<application::github_credential_retrieve_absent>(
+				credential.Terminal)
+				!= nullptr,
+			"a credential query is not answered by the refresh store");
+
+		retrieve_recorder read;
+		vault->retrieve_refresh(
+			context(authority(), 702U),
+			[&read](
+				application::github_credential_retrieve_completion aTerminal) {
+				read.record(std::move(aTerminal));
+			});
+		lane.run_next();
+		const auto* readBack = terminal_as<
+			application::github_credential_retrieve_success>(read.Terminal);
+		expect(readBack != nullptr, "the refresh slot answers its own query");
+		expect(
+			readBack != nullptr
+				&& same_bytes(readBack->Credential.bytes(), refresh),
+			"with the exact refresh bytes");
+
+		delete_recorder removed;
+		vault->delete_refresh(
+			context(authority(), 703U),
+			[&removed](
+				application::github_credential_delete_completion aTerminal) {
+				removed.record(std::move(aTerminal));
+			});
+		lane.run_next();
+		const auto* deleted = terminal_as<
+			application::github_credential_delete_success>(removed.Terminal);
+		expect(deleted != nullptr, "the refresh delete succeeds");
+		expect(
+			deleted != nullptr
+				&& deleted->Disposition
+					== application::github_credential_delete_disposition::deleted,
+			"and reports the entry as removed");
+		expect(
+			refreshBackend->Calls.size() == 3U,
+			"the refresh store performed all three refresh operations");
+		expect(
+			backend->Calls.size() == 1U
+				&& backend->Calls.front().Operation == backend_operation::retrieve,
+			"the credential store performed only the one credential query");
+	}
+
+	/// A composition that built no second store still says `unavailable` --
+	/// and that is now the *only* thing `unavailable` means on this slot.
+	void test_a_vault_without_a_refresh_service_reports_unavailable()
+	{
+		application::manual_executor lane;
+		auto                         observation = std::make_shared<wipe_observation>();
+		auto                         backend     = std::make_shared<wiping_fake_backend>(observation);
+		auto                         vault       = make_test_vault(lane, backend);
+
+		store_recorder stored;
+		submit_store_refresh(
+			*vault,
+			context(authority(), 710U),
+			generated_bytes(29U),
+			stored);
+		lane.run_next();
+		const auto* storeFailure = terminal_as<
+			application::github_credential_store_error>(stored.Terminal);
+		expect(storeFailure != nullptr, "the refresh store fails");
+		expect(
+			storeFailure != nullptr
+				&& storeFailure->Failure == vault_failure::unavailable,
+			"with unavailable, because there is no second store to reach");
+
+		retrieve_recorder read;
+		vault->retrieve_refresh(
+			context(authority(), 711U),
+			[&read](
+				application::github_credential_retrieve_completion aTerminal) {
+				read.record(std::move(aTerminal));
+			});
+		lane.run_next();
+		const auto* readFailure = terminal_as<
+			application::github_credential_retrieve_error>(read.Terminal);
+		expect(
+			readFailure != nullptr
+				&& readFailure->Failure == vault_failure::unavailable,
+			"the refresh read is unavailable too");
+
+		delete_recorder removed;
+		vault->delete_refresh(
+			context(authority(), 712U),
+			[&removed](
+				application::github_credential_delete_completion aTerminal) {
+				removed.record(std::move(aTerminal));
+			});
+		lane.run_next();
+		const auto* deleteFailure = terminal_as<
+			application::github_credential_delete_error>(removed.Terminal);
+		expect(
+			deleteFailure != nullptr
+				&& deleteFailure->Failure == vault_failure::unavailable,
+			"and so is the refresh delete");
+		expect(
+			backend->Calls.empty(),
+			"none of the three reached the credential store");
+	}
 }
 
 auto main() -> int
@@ -1457,5 +1671,7 @@ auto main() -> int
 	test_cancellation_reentrancy_and_teardown();
 	test_teardown_atomically_claims_queued_work();
 	test_fake_backend_wipes();
+	test_the_refresh_slot_reaches_only_its_own_service();
+	test_a_vault_without_a_refresh_service_reports_unavailable();
 	return EXIT_SUCCESS;
 }
