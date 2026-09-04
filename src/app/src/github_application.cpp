@@ -1503,12 +1503,13 @@ namespace bpr::app {
 				// rather than forwarded, so the retry costs nothing outside
 				// the process. A refused request is neither counted nor
 				// recorded, because the count is what reached the wire.
-				if (Log->failed()) {
+				// Pagination is part of the same budget: nine operations can
+				// otherwise issue arbitrarily many successful page requests.
+				if (Log->failed() || !reserve_request()) {
 					return adapters::github::detail::github_wire_cancelled{
 						.Correlation = aRequest.Correlation,
 					};
 				}
-				Requests->fetch_add(1U, std::memory_order_relaxed);
 				const auto started    = std::chrono::steady_clock::now();
 				auto       completion = Inner->perform(aRequest, aStop);
 				const auto elapsed    = std::chrono::duration_cast<
@@ -1542,6 +1543,18 @@ namespace bpr::app {
 			}
 
 		private:
+			[[nodiscard]] auto reserve_request() noexcept -> bool
+			{
+				auto count = Requests->load(std::memory_order_relaxed);
+				while (count < 9U) {
+					if (Requests->compare_exchange_weak(
+							count, count + 1U, std::memory_order_relaxed)) {
+						return true;
+					}
+				}
+				return false;
+			}
+
 			std::shared_ptr<
 				adapters::github::detail::github_wire_transport_port>
 														  Inner;
@@ -9206,17 +9219,17 @@ namespace bpr::app {
 	auto public_preview_single_attempt_self_check() noexcept -> bool
 	{
 #if defined(BPR_BUILD_TESTING)
-		// [[BPR-0316]]. The single-attempt claim, checked where it can be
-		// checked for nothing: over a stub that fails the way the live service
-		// failed the first authorized read, with no socket, no host name and
-		// no proxy anywhere in it. The claim has three parts and all three are
-		// asserted -- the first request reached the inner transport and was
-		// recorded, the second was answered without reaching it, and the count
-		// of what went to the wire did not move for the second.
-		class always_failing_wire_transport final
+		// [[BPR-0316]]. Exercise the real wrapper without a network: a typed
+		// failure stops retries, and successful pages share one request cap.
+		class stub_wire_transport final
 			: public adapters::github::detail::github_wire_transport_port
 		{
 		public:
+			explicit stub_wire_transport(const bool aFail) noexcept
+				: Fail{ aFail }
+			{
+			}
+
 			[[nodiscard]] auto perform(
 				const adapters::github::detail::github_wire_request& aRequest,
 				std::stop_token                                      aStop)
@@ -9224,6 +9237,12 @@ namespace bpr::app {
 			{
 				static_cast<void>(aStop);
 				++Forwarded;
+				if (!Fail) {
+					return adapters::github::detail::github_wire_success{
+						.Correlation = aRequest.Correlation,
+						.Response    = { .Status = 200 },
+					};
+				}
 				return adapters::github::detail::github_wire_error{
 					.Correlation = aRequest.Correlation,
 					.Error       = application::github_provider_error{
@@ -9256,11 +9275,12 @@ namespace bpr::app {
 			}
 
 		private:
+			bool        Fail;
 			std::size_t Forwarded = 0U;
 		};
 
 		try {
-			auto inner    = std::make_shared<always_failing_wire_transport>();
+			auto inner    = std::make_shared<stub_wire_transport>(true);
 			auto requests = std::make_shared<std::atomic<std::size_t>>(0U);
 			auto probes   = std::make_shared<std::atomic<std::size_t>>(0U);
 			auto log      = std::make_shared<anonymous_wire_operation_log>();
@@ -9290,7 +9310,33 @@ namespace bpr::app {
 				&& requests->load(std::memory_order_relaxed) == 1U
 				&& log->records().size() == 1U;
 
-			return forwardedFirst && refusedSecond;
+			// An all-successful page stream must stop after nine forwards,
+			// even if the factory creates another wrapper over the same budget.
+			auto successful   = std::make_shared<stub_wire_transport>(false);
+			auto pageRequests = std::make_shared<std::atomic<std::size_t>>(0U);
+			auto pageLog      = std::make_shared<anonymous_wire_operation_log>();
+			auto pages        = counting_anonymous_wire_transport{
+				successful, pageRequests, probes, pageLog
+			};
+			for (auto page = std::uint32_t{ 1 }; page <= 9U; ++page) {
+				request.Correlation.Page = page;
+				if (!std::holds_alternative<adapters::github::detail::github_wire_success>(
+						pages.perform(request, std::stop_token{ }))) {
+					return false;
+				}
+			}
+			auto replacement = counting_anonymous_wire_transport{
+				successful, pageRequests, probes, pageLog
+			};
+			request.Correlation.Page = 10U;
+			const auto refusedPage   = replacement.perform(request, std::stop_token{ });
+			const auto refusedRetry  = pages.perform(request, std::stop_token{ });
+			return forwardedFirst && refusedSecond
+				&& std::holds_alternative<adapters::github::detail::github_wire_cancelled>(refusedPage)
+				&& std::holds_alternative<adapters::github::detail::github_wire_cancelled>(refusedRetry)
+				&& successful->forwarded() == 9U
+				&& pageRequests->load(std::memory_order_relaxed) == 9U
+				&& pageLog->records().size() == 9U;
 		} catch (...) {
 			return false;
 		}

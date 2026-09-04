@@ -228,3 +228,49 @@ No further live read is part of that repair. The public target has already
 proved too large for this bounded course; an attended successor must name a
 small target or explicitly bind a different request budget before another
 read. macOS selection remains unavailable until a candidate proof passes.
+
+## Enforced cap and successful small-target read — 2026-09-04
+
+The counting transport now reserves one of nine shared request slots before
+forwarding, including successful pagination and replacement transports. The
+atomic compare/exchange leaves the observed count at nine when a tenth
+request is refused. The isolated self-check exercises both a typed failure
+followed by retry and nine successful pages followed by two refused attempts
+through distinct wrappers. Increasing the cap to ten made
+`application_anonymous_public_preview_live_candidate_wiring` fail on
+`PUBLIC_PREVIEW_WIRE_SINGLE_ATTEMPT:false`; restoring nine passed.
+This is a live-candidate bound, not a new production paging limit.
+
+The owner explicitly selected the smaller existing disposable public target:
+"Use MikeMarcin/BPR-Test#1". One read of that target through the restored
+candidate passed in 4,104 ms. Each of the nine operations returned HTTP 200
+on page 1: repository, pull request, files, commits, reviews, review comments,
+issue comments, checks, and search. The terminal facts were:
+
+```text
+PUBLIC_PATH_OK
+PUBLIC_PREVIEW_WIRE_REQUESTS:9
+PUBLIC_PREVIEW_WIRE_CAPABILITY_PROBES:0
+PUBLIC_PREVIEW_WIRE_CREDENTIALED_REFUSALS:0
+PUBLIC_PREVIEW_WIRE_SINGLE_ATTEMPT:true
+PUBLIC_PREVIEW_HEADER_EFFECTS:0
+PUBLIC_PREVIEW_VAULT_EFFECTS:0
+PUBLIC_PREVIEW_BUDGET:60/46/1788568328
+PUBLIC_PREVIEW_SNAPSHOT_MODE:public_preview
+PUBLIC_PREVIEW_CANDIDATE:MikeMarcin/BPR-Test#1 17990ba0c2fb50338141f35c0717f0f99639c7ba
+PUBLIC_PREVIEW_LIVE_CANDIDATE_OK
+```
+
+The 14-selector matrix recorded above passed 13/14 in 170.98 seconds; its
+sole failure was the pre-existing manifest conflict repaired by [[BPR-0557]].
+The repaired manifest then passed directly; all other inputs are unchanged
+and their passing evidence is retained, including both composition contracts
+and the real public fixture path. The touched C++ formatting and diff checks
+pass. The source manifests were recomputed after inspection, and the
+code-simplifier pass found no further change required. This implementation
+commit records the source used for the successful live read.
+
+Next: run the current-source isolated macOS course with selection unavailable,
+flip only macOS, and run its enabled tests-disabled Release course. No further
+public-service read is needed for that work. Transient logs under
+`/tmp/bpr-0316-*` were consumed and are removed after this record.

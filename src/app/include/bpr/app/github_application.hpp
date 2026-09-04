@@ -376,11 +376,13 @@ namespace bpr::app {
 	};
 
 	/// \brief Checks in process that the live-candidate transport forwards one
-	/// attempt only.
+	/// attempt only and caps successful pagination at nine requests.
 	///
 	/// \details [[BPR-0316]]. Drives the counting transport over a stub that
 	/// always fails, and answers whether the second request was refused
-	/// without reaching the stub. Nothing here opens a socket or names a host,
+	/// without reaching the stub. A successful paginated stub also proves the
+	/// tenth page is refused across replacement transports sharing the budget.
+	/// Nothing here opens a socket or names a host,
 	/// so the single-attempt claim the live candidate prints is proven by the
 	/// isolated dry run rather than by the authorized read it bounds. False in
 	/// a build without the testing guard, where no such transport exists.
