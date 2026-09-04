@@ -1,0 +1,106 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/2ae811784b1f4aba21e7e09e",
+  "downstream_claims": {
+    "credential_operation_authorized": false,
+    "live_mutation_authorized": false,
+    "persistent_sign_in_implemented": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "",
+  "review_gate": "device_session_retention_policy",
+  "review_scope": "owner_product_policy_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "selection_groups": [
+    {
+      "group_id": "retention",
+      "max_accept": 1,
+      "min_accept": 1,
+      "note": "",
+      "title": "Choose the device-session policy"
+    }
+  ],
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Device grants persist in the platform vault after quit; pasted tokens remain session-only.",
+        "Visible Sign out deletes access token, refresh token, and binding.",
+        "Restart verifies provenance and lifetime before resume; refresh retries stay within token validity."
+      ],
+      "audit_verdict": {
+        "note": "Current shutdown policy and process-local catalog inspected; this review chooses a policy, not implementation acceptance.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Keep device-authorized sessions across restarts, with explicit Sign out and exact authority validation.",
+      "detail_sections": [
+        {
+          "heading": "Decision scope",
+          "items": [
+            "Approval selects the product policy for implementation and focused verification.",
+            "No credential operation or network request is performed by this review.",
+            "The existing application currently deletes credentials on orderly shutdown."
+          ],
+          "kind": "list"
+        }
+      ],
+      "display_name": "Remember device sign-in",
+      "identity_files": [
+        {
+          "label": "Exact policy proposal",
+          "media_kind": "file",
+          "path": "subjects/001-remember-device-sign-in/identity/01-exact-policy-proposal.md",
+          "sha256": "sha256:c92808c6f354693ea237a5fda1556df416c43335c95458cd3f3002309a6e21d5"
+        }
+      ],
+      "known_concerns": [],
+      "media_groups": [],
+      "selection_group": "retention",
+      "subject_digest": "sha256:2012027ee8171a129441f007b187109de8870ebf8f5bbd4853d07a6a5898ba63",
+      "subject_id": "policy:/betterpullreview/device-session/remember-device-sign-in",
+      "subject_key": "remember-device-sign-in"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Orderly quit continues to delete access and refresh tokens.",
+        "BPR-0541 persistence is declined as a product choice; documentation makes that explicit."
+      ],
+      "audit_verdict": {
+        "note": "Current shutdown policy and process-local catalog inspected; this review chooses a policy, not implementation acceptance.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Require device sign-in on each new launch and leave persistent-session behavior unimplemented.",
+      "detail_sections": [
+        {
+          "heading": "Decision scope",
+          "items": [
+            "Approval selects the product policy for implementation and focused verification.",
+            "No credential operation or network request is performed by this review.",
+            "The existing application currently deletes credentials on orderly shutdown."
+          ],
+          "kind": "list"
+        }
+      ],
+      "display_name": "Keep sign-in session-only",
+      "identity_files": [
+        {
+          "label": "Exact policy proposal",
+          "media_kind": "file",
+          "path": "subjects/002-session-only-sign-in/identity/01-exact-policy-proposal.md",
+          "sha256": "sha256:c92808c6f354693ea237a5fda1556df416c43335c95458cd3f3002309a6e21d5"
+        }
+      ],
+      "known_concerns": [],
+      "media_groups": [],
+      "selection_group": "retention",
+      "subject_digest": "sha256:6bfdbd19ab2a4f9691ad64b65e34f7bc00d9af832cd853d8bbae909efc713991",
+      "subject_id": "policy:/betterpullreview/device-session/session-only-sign-in",
+      "subject_key": "session-only-sign-in"
+    }
+  ],
+  "title": "Should device sign-in survive quitting?"
+}

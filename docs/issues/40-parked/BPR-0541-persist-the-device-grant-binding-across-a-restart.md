@@ -1,7 +1,8 @@
 ---
 id: BPR-0541
 title: Persist the device-grant binding across a restart and defer the first refresh
-status: In Progress
+status: Parked
+parked_on: awaiting-product-decision
 rfc: RFC-BPR-0016
 depends_on: [BPR-0540]
 ---
@@ -43,3 +44,19 @@ selects `delete_retained_on_shutdown`, and BPR-0540 requires both access and
 refresh slots to share that erasure path. Persistent bindings alone cannot
 make a session resume when its tokens were intentionally deleted. A concrete
 attended policy decision is prepared before changing that credential lifecycle.
+
+## Decision prepared — 2026-09-04
+
+The [offline policy review](../../verification/reviews/device-session-retention-policy-v001/offline-package/index.html)
+binds two alternatives: remember device grants with a visible Sign out action
+and exact restart validation, or retain session-only sign-in. Its exact
+[policy proposal](../../verification/reviews/device-session-retention-policy-v001/policy.md)
+names the affected shutdown, manual-token replacement, expiry, vault, and
+restart-course behavior. The batch is
+`bpr:/attended-review/betterpullreview/2ae811784b1f4aba21e7e09e`.
+
+No verdict exists. No implementation, credential access, or network operation
+was performed for this card. Once the owner exports a complete verdict, validate
+it against `offline-package/attended-review-manifest.json` using the attended
+review builder, record the response immutably, and apply only the chosen policy.
+The card parks on this product decision; all its dependencies are terminal.
