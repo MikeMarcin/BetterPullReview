@@ -100,6 +100,26 @@ namespace bpr::qt {
 		auto operator<=>(const comment_workshop_request&) const = default;
 	};
 
+	/// \brief One asked-for turn, ended.
+	///
+	/// \details BPR-0538. The counterpart of `comment_workshop_proposal`: the
+	/// turn a press started is over, so the six controls are open again
+	/// whether or not it produced anything. `Reason` is why it produced
+	/// nothing, and is empty when it produced an answer that is still waiting
+	/// for the reviewer's conversion gesture — the editor says "no revision"
+	/// only when there is none coming.
+	///
+	/// The draft is named for the reason the request names it: a settlement
+	/// that arrived after the reviewer moved to another comment must not
+	/// reopen controls, or write a reason, over a draft it was never about.
+	struct comment_workshop_settlement
+	{
+		core::review_draft_id Draft;
+		std::string           Reason;
+
+		auto operator<=>(const comment_workshop_settlement&) const = default;
+	};
+
 	using review_draft_dispatch = std::function<void(core::review_draft_command)>;
 	using file_receipt_dispatch = std::function<void(core::file_receipt_command)>;
 	using comment_workshop_dispatch
@@ -215,6 +235,16 @@ namespace bpr::qt {
 		/// exactly as the reviewer left it, which is what makes rejection a
 		/// no-op rather than an undo.
 		void present(const comment_workshop_proposal& aProposal);
+		/// \brief Reopens the six after the turn one press started has ended.
+		///
+		/// \details BPR-0538. A press shuts the six and says a turn is
+		/// running; when that turn ends the statement stops being true, so the
+		/// controls reopen here rather than waiting for a proposal that may
+		/// never arrive. A turn that produced nothing says so where a proposal
+		/// would have said which operation produced it — a reviewer shown
+		/// nothing cannot tell a turn that answered nothing from one still
+		/// thinking.
+		void present(const comment_workshop_settlement& aSettlement);
 		/// \brief Presents the provider's exact supported degradation.
 		void present(application::review_provider_capabilities aCapabilities);
 		/// \brief Presents one typed mutation refusal.

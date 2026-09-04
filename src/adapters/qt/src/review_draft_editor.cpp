@@ -484,6 +484,31 @@ namespace bpr::qt {
 	}
 
 	void review_draft_editor::present(
+		const comment_workshop_settlement& aSettlement)
+	{
+		// About this comment or about none. A settlement for a draft the
+		// reviewer has already navigated away from reopens nothing here: the
+		// controls it would reopen belong to the comment on screen now.
+		if (!Members.ShownDraft || Members.ShownDraft->Id != aSettlement.Draft) {
+			return;
+		}
+		// The turn is over, so "a workshop turn is already running for this
+		// comment" is over with it. The six reopen on the turn ending rather
+		// than on an answer arriving, because a turn that answered nothing
+		// still ended.
+		Members.WorkshopAsked = false;
+		if (!aSettlement.Reason.empty()) {
+			// Said where "Proposed by: …" would have been said, and only when
+			// there is no proposal coming. A reason written beside a shown
+			// before/after would contradict it.
+			Members.WorkshopOperation->setText(
+				tr("No revision: %1")
+					.arg(QString::fromStdString(aSettlement.Reason)));
+		}
+		refresh_enablement();
+	}
+
+	void review_draft_editor::present(
 		const application::review_provider_capabilities aCapabilities)
 	{
 		++Members.Statistics.MutationUpdates;

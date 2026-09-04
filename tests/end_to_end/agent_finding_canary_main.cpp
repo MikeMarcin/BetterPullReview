@@ -129,7 +129,23 @@ auto main() -> int
 	// says what that had to be.
 	const auto message = field(fields, "chat_message", "");
 	const auto echoed  = std::to_string(occurrences(payload, message));
-	auto       endLine = std::string{ "1" };
+	// BPR-0538. One of the six is this fixture's silent operation: asked to
+	// shorten, it completes its turn and proposes nothing. A real agent does
+	// this whenever it has nothing to say about the comment, and it is the
+	// only way a course can drive a turn that ends without a revision through
+	// the shipped path rather than by cutting the path.
+	if (field(fields, "workshop_operation", "") == "shorten") {
+		std::cout
+			<< "{\"type\":\"thread.started\",\"thread_id\":\"finding-canary\"}\n"
+			   "{\"type\":\"turn.started\"}\n"
+			   "{\"type\":\"item.completed\",\"item\":{\"id\":\"item-1\","
+			   "\"type\":\"agent_message\",\"text\":\"finding-canary-silent\"}}\n"
+			   "{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":1,"
+			   "\"cached_input_tokens\":0,\"output_tokens\":1}}\n";
+		std::cout.flush();
+		return EXIT_SUCCESS;
+	}
+	auto endLine = std::string{ "1" };
 	try {
 		endLine = std::to_string(std::stoull(lineValue) + 1U);
 	} catch (...) {

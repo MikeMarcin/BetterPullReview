@@ -328,6 +328,39 @@ auto main(int argc, char** argv) -> int
 	}
 	QApplication::processEvents();
 
+	// BPR-0538. The same terminal the first turn was waited on, for every turn
+	// after it: quiescent, with exactly as many processes started and
+	// workspaces cleaned up as turns asked for. A stage that read its evidence
+	// before its turn ended would be reading the previous turn's.
+	const auto awaitTurn = [&application](const std::size_t aTurns) {
+		auto       terms   = wait_terms{ };
+		const auto settled = wait_until_reporting(
+			terms,
+			[&application, aTurns](wait_terms& aTerms) {
+				const auto invocation = app::detail::
+					github_application_fixture_access::agent_invocation_evidence(
+						*application);
+				aTerms.note(
+					"process",
+					static_cast<std::uint64_t>(
+						invocation.Statistics.ProcessStarts));
+				return aTerms.require(
+						   "run-quiescent",
+						   invocation.Quiescent
+							   && invocation.Statistics.ProcessStarts == aTurns)
+					&& aTerms.require(
+						"cleanups-match",
+						invocation.Statistics.WorkspaceCleanups == aTurns);
+			},
+			extended_agent_budget);
+		if (!settled) {
+			std::cerr << "agent-finding-workshop-press-turn:" << aTurns << ':'
+					  << terms.render() << '\n';
+		}
+		QApplication::processEvents();
+		return settled;
+	};
+
 	const auto snapshotRoot = dataRoot / "mcp-snapshot";
 
 	// Detailing the delivered finding is a Qt-local navigation and emits
@@ -374,6 +407,112 @@ auto main(int argc, char** argv) -> int
 		editor->accept_revision_action()->trigger();
 		QApplication::processEvents();
 	}
+	// BPR-0538. Two more stages, on the press course only, and both driven
+	// through the same composed graph: the turn that answers nothing, and the
+	// turn that belongs to somebody else.
+	auto silentReason       = std::string{ "unread" };
+	auto silentPending      = std::string{ "unread" };
+	auto silentReoffered    = false;
+	auto boundPending       = std::string{ };
+	auto boundSession       = false;
+	auto unrelatedOperation = std::string{ "unread" };
+	auto unrelatedPending   = std::string{ };
+	auto unrelatedSession   = false;
+	auto unrelatedProposals = std::size_t{ 0U };
+	auto acceptedDraftBody  = std::string{ };
+	if (course == "workshop-press") {
+		acceptedDraftBody = app::detail::github_application_fixture_access::
+								agent_finding_evidence(*application)
+									.LocalDraftBody;
+		// The reviewer's own words again, typed on the shipped editor. The
+		// accepted revision above left the draft byte-identical to what this
+		// fixture proposes, and a workshop asked to revise text into itself
+		// refuses "unchanged" - which would make the stages below prove that
+		// refusal instead of what they are about.
+		editor->body_editor()->setPlainText(QString::fromUtf8(
+			reviewer_original.data(),
+			static_cast<qsizetype>(reviewer_original.size())));
+		QApplication::processEvents();
+		const auto reopened = [&editor]() {
+			const auto six = std::array<QAction*, 6U>{
+				editor->clarify_action(),
+				editor->shorten_action(),
+				editor->make_actionable_action(),
+				editor->phrase_as_a_question_action(),
+				editor->make_more_direct_action(),
+				editor->check_the_premise_action(),
+			};
+			return std::ranges::all_of(six, [](const QAction* aControl) {
+				return aControl != nullptr && aControl->isEnabled();
+			});
+		};
+		// Stage two: the fixture answers `shorten` with a completed turn and
+		// no findings, which is what an agent with nothing to say does. The
+		// press must not survive it: nothing is coming, so the six reopen and
+		// the surface says so where the before/after would have been.
+		auto* const shorten = editor->shorten_action();
+		if (shorten == nullptr || !shorten->isEnabled()) {
+			return fail(*application, "workshop-shorten-control");
+		}
+		shorten->trigger();
+		QApplication::processEvents();
+		if (!awaitTurn(2U)) {
+			return fail(*application, "workshop-silent-turn");
+		}
+		const auto afterSilent = app::detail::
+			github_application_fixture_access::agent_finding_evidence(
+				*application);
+		silentReason    = afterSilent.WorkshopOperationText;
+		silentPending   = afterSilent.WorkshopPendingOperation;
+		silentReoffered = reopened();
+
+		// Stage three: a press that is answered, left unconverted, and so
+		// still bound to its own turn when the next one runs.
+		auto* const clarify = editor->clarify_action();
+		if (clarify == nullptr || !clarify->isEnabled()) {
+			return fail(*application, "workshop-second-clarify-control");
+		}
+		clarify->trigger();
+		QApplication::processEvents();
+		if (!awaitTurn(3U)) {
+			return fail(*application, "workshop-bound-turn");
+		}
+		const auto afterBound = app::detail::
+			github_application_fixture_access::agent_finding_evidence(
+				*application);
+		boundPending = afterBound.WorkshopPendingOperation;
+		boundSession = afterBound.WorkshopPendingSessionBound;
+
+		// Stage four: a second, unrelated turn — started from the launch
+		// panel, so it is nobody's press — runs, delivers, and is converted.
+		// Neither its ending nor its outcome may consume the press stage three
+		// left bound: a revision nobody workshopped is proposed with no
+		// operation named, and the question stays outstanding.
+		panel->start_button()->click();
+		QApplication::processEvents();
+		if (!awaitTurn(4U)) {
+			return fail(*application, "workshop-unrelated-turn");
+		}
+		if (queue != nullptr && queue->finding_count() != 0U) {
+			queue->select(0U);
+			QApplication::processEvents();
+			auto* const convert
+				= queue->action(qt::finding_queue_action::convert_to_draft_comment);
+			if (convert == nullptr) {
+				return fail(*application, "workshop-unrelated-convert");
+			}
+			convert->trigger();
+			QApplication::processEvents();
+		}
+		const auto afterUnrelated = app::detail::
+			github_application_fixture_access::agent_finding_evidence(
+				*application);
+		unrelatedOperation = afterUnrelated.WorkshopOperationText;
+		unrelatedPending   = afterUnrelated.WorkshopPendingOperation;
+		unrelatedSession   = afterUnrelated.WorkshopPendingSessionBound;
+		unrelatedProposals = afterUnrelated.WorkshopStatistics.Proposals;
+	}
+
 	const auto helperRefusal
 		= app::detail::github_application_fixture_access::start_mcp_context_helper(
 			*application,
@@ -443,7 +582,20 @@ auto main(int argc, char** argv) -> int
 			// question it answered is no longer outstanding.
 			&& afterConversion.WorkshopOperationText == "Proposed by: Clarify"
 			&& afterConversion.WorkshopPendingOperation.empty()
-			&& evidence.LocalDraftBody == agent_suggested;
+			&& acceptedDraftBody == agent_suggested
+			&& evidence.LocalDraftBody == reviewer_original
+			// BPR-0538. The turn that ended without a revision took its press
+			// with it: nothing is pending, the six are open, and the reason is
+			// stated where the proposal would have been.
+			&& silentPending.empty()
+			&& silentReason == "No revision: the turn proposed no revision"
+			&& silentReoffered
+			// And the press that is waiting on its own turn survives a second,
+			// unrelated turn — its ending and its converted outcome both. The
+			// revision nobody workshopped is proposed with no operation named.
+			&& boundPending == "clarify" && boundSession
+			&& unrelatedPending == "clarify" && unrelatedSession
+			&& unrelatedOperation.empty() && unrelatedProposals == 2U;
 		if (!pressed) {
 			std::cerr << "agent-finding-workshop-press-evidence:"
 					  << afterDelivery.FindingStatistics.Deliveries << ':'
@@ -464,6 +616,16 @@ auto main(int argc, char** argv) -> int
 					  << "\nworkshop-proposal:"
 					  << afterConversion.WorkshopProposalText
 					  << "\ndraft-body:" << evidence.LocalDraftBody
+					  << "\naccepted-draft-body:" << acceptedDraftBody
+					  << "\nsilent-reason:" << silentReason
+					  << "\nsilent-pending:" << silentPending
+					  << "\nsilent-reoffered:" << (silentReoffered ? "yes" : "no")
+					  << "\nbound-pending:" << boundPending << ':'
+					  << (boundSession ? "bound" : "unbound")
+					  << "\nunrelated-pending:" << unrelatedPending << ':'
+					  << (unrelatedSession ? "bound" : "unbound")
+					  << "\nunrelated-operation:" << unrelatedOperation
+					  << "\nunrelated-proposals:" << unrelatedProposals
 					  << "\npanel-status:" << evidence.AgentPanelStatusText << '\n';
 		}
 		if (!shutdown(*application) || !pressed) {

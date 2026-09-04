@@ -727,6 +727,85 @@ namespace {
 		delete editor;
 	}
 
+	/// \brief A turn that ends without a revision reopens the six.
+	///
+	/// \details BPR-0538. The press shuts the six and says a turn is running.
+	/// When that turn ends having proposed nothing, the statement stops being
+	/// true, and until this settlement existed the six stayed shut behind it
+	/// until the reviewer edited the draft. The reason is read where the
+	/// proposal would have been read, because that is where the reviewer is
+	/// looking after pressing.
+	void test_a_turn_that_ends_without_a_revision_reopens_the_six()
+	{
+		auto  log    = intent_log{ };
+		auto* editor = editor_for(log);
+		auto  asked  = std::vector<qt::comment_workshop_request>{ };
+		editor->set_workshop_dispatch(
+			[&asked](qt::comment_workshop_request aRequest) {
+				asked.push_back(aRequest);
+			});
+		editor->present(a_draft(original_body));
+
+		editor->clarify_action()->trigger();
+		for (auto index = std::size_t{ 0U };
+			 index < core::workshop_operation_count;
+			 ++index) {
+			expect(
+				!editor->workshop_action(
+						   static_cast<core::workshop_operation>(index))
+					 ->isEnabled(),
+				"the press shuts all six while its turn runs");
+		}
+
+		// The turn ended, and it produced nothing.
+		editor->present(qt::comment_workshop_settlement{
+			.Draft  = editor->shown_draft()->Id,
+			.Reason = "the turn proposed no revision",
+		});
+		for (auto index = std::size_t{ 0U };
+			 index < core::workshop_operation_count;
+			 ++index) {
+			auto* const control = editor->workshop_action(
+				static_cast<core::workshop_operation>(index));
+			expect(
+				control->isEnabled() && control->isVisible(),
+				"and all six reopen when it ends, without waiting for a "
+				"proposal that is not coming");
+		}
+		expect(
+			editor->workshop_operation_text().toStdString()
+					== "No revision: the turn proposed no revision"
+				&& !editor->shown_proposal().has_value()
+				&& editor->workshop_proposal_text().isEmpty(),
+			"the surface says why there is nothing to read, where the "
+			"before/after would have been, and proposes nothing");
+
+		editor->clarify_action()->trigger();
+		expect(
+			asked.size() == 2U,
+			"and the next question may be asked");
+
+		// A settlement for a comment the reviewer has moved away from is not
+		// this comment's, and must not reopen or overwrite anything here.
+		editor->present(qt::comment_workshop_proposal{
+			.Draft     = editor->shown_draft()->Id,
+			.Original  = original_body,
+			.Proposed  = revision_for(core::workshop_operation::clarify),
+			.Operation = core::workshop_operation::clarify,
+		});
+		editor->present(qt::comment_workshop_settlement{
+			.Draft  = core::review_draft_id{ editor->shown_draft()->Id.value() + 1U },
+			.Reason = "another comment's turn ended",
+		});
+		expect(
+			editor->workshop_operation_text().contains(
+				editor->clarify_action()->text())
+				&& editor->shown_proposal().has_value(),
+			"a settlement naming another draft says nothing here");
+
+		delete editor;
+	}
+
 	/// \brief Without a draft the six refuse in the open.
 	void test_the_six_operations_refuse_visibly_without_a_draft()
 	{
@@ -952,6 +1031,7 @@ auto main(int argc, char** argv) -> int
 	test_a_typed_clear_takes_the_proposal_with_it();
 	test_each_operation_drives_one_proposal_through_the_one_path();
 	test_a_press_closes_the_six_until_that_press_is_answered();
+	test_a_turn_that_ends_without_a_revision_reopens_the_six();
 	test_the_six_operations_refuse_visibly_without_a_draft();
 	test_the_editor_holds_no_provider_endpoint_store_or_process();
 

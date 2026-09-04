@@ -2857,14 +2857,25 @@ namespace bpr::app {
 			const application::agent_invocation_projection_identity&,
 			const application::agent_finding_delivery&)>;
 		using session_sink = std::function<void(const core::agent_session&)>;
+		/// \brief BPR-0538. One turn, ended, with how it ended.
+		///
+		/// \details The third sink, and the last one this projection needs: a
+		/// press learns that its turn is over from the turn itself. A poll
+		/// would have to decide how often to ask and would still be wrong
+		/// between two asks.
+		using run_sink = std::function<void(
+			const application::agent_invocation_projection_identity&,
+			const application::agent_run_result&)>;
 
 		composition_agent_invocation_projection(
 			application::agent_invocation_projection_port& aPanel,
 			finding_sink                                   aFindings,
-			session_sink                                   aSessions)
+			session_sink                                   aSessions,
+			run_sink                                       aRuns)
 			: Panel{ aPanel }
 			, Findings{ std::move(aFindings) }
 			, Sessions{ std::move(aSessions) }
+			, Runs{ std::move(aRuns) }
 		{
 		}
 
@@ -2911,6 +2922,12 @@ namespace bpr::app {
 			const application::agent_run_result&                     aResult) override
 		{
 			Panel.finish(aIdentity, aResult);
+			// The one place a turn is known to be over. A press taken out on
+			// this turn is answered by now or is never going to be, and either
+			// way the turn it was waiting for has stopped running.
+			if (Runs) {
+				Runs(aIdentity, aResult);
+			}
 		}
 
 		void deliver_findings(
@@ -2934,6 +2951,7 @@ namespace bpr::app {
 		application::agent_invocation_projection_port& Panel;
 		finding_sink                                   Findings;
 		session_sink                                   Sessions;
+		run_sink                                       Runs;
 	};
 
 	/// \brief Forwards chat state and chat outcomes to their surfaces.
@@ -3051,6 +3069,19 @@ namespace bpr::app {
 		core::review_draft_id                 Draft;
 		core::workshop_operation              Operation = core::workshop_operation::clarify;
 		std::optional<core::agent_session_id> Session;
+
+		/// BPR-0538. True while the turn this press started is still running.
+		/// It is what shuts the six controls, and it stops being true when
+		/// that turn ends — not when its answer is converted, which may never
+		/// happen. A record that outlives its turn still names which operation
+		/// the outcome came from; it no longer claims a turn is running.
+		bool Running = true;
+
+		/// True once that turn has delivered a finding of its own: something
+		/// the reviewer can still convert into the revision this press asked
+		/// for. A turn that ends without one has produced no revision and none
+		/// is coming, which is the whole of what this flag decides.
+		bool Delivered = false;
 
 		auto operator<=>(const pending_comment_workshop&) const = default;
 	};
@@ -3781,6 +3812,17 @@ namespace bpr::app {
 						if (ChatHost != nullptr) {
 							ChatHost->deliver(aDelivery);
 						}
+						// BPR-0538. Whether the turn a press is waiting on has
+						// produced anything the reviewer could still convert.
+						// Recorded from the delivery rather than inferred at
+						// the terminal, because by then the payload is gone.
+						if (PendingWorkshopOperation.has_value()
+							&& PendingWorkshopOperation->Session.has_value()
+							&& *PendingWorkshopOperation->Session
+								== aDelivery.Session
+							&& !aDelivery.Findings.empty()) {
+							PendingWorkshopOperation->Delivered = true;
+						}
 					},
 					[this](const core::agent_session& aSession) {
 						if (Closing) {
@@ -3801,6 +3843,22 @@ namespace bpr::app {
 							&& !PendingWorkshopOperation->Session.has_value()) {
 							PendingWorkshopOperation->Session = aSession.Id;
 						}
+					},
+					// BPR-0538. The third sink, and the one this composition
+					// was missing: the turn a press started has ended. Until
+					// it existed the six controls stayed shut behind "a
+					// workshop turn is already running" long after the turn
+					// stopped running, and only an unrelated draft edit
+					// reopened them.
+					[this](
+						const application::agent_invocation_projection_identity&
+															 aIdentity,
+						const application::agent_run_result& aResult) {
+						if (Closing) {
+							return;
+						}
+						settle_comment_workshop(
+							aIdentity.Session.Id, aResult.Outcome);
 					});
 			auto agentProfiles = core::built_in_agent_profiles();
 			// Stated once and given to both hosts. The chat host asks
@@ -7164,7 +7222,12 @@ namespace bpr::app {
 											  different_draft));
 				return;
 			}
-			if (PendingWorkshopOperation.has_value()) {
+			// One press, one *running* turn. A record left over from a turn
+			// that has already ended is not a turn in flight: it is only the
+			// name of the operation the next outcome may still be labelled
+			// with, and asking again replaces it below.
+			if (PendingWorkshopOperation.has_value()
+				&& PendingWorkshopOperation->Running) {
 				present_agent_refusal(
 					"comment workshop", "workshop_turn_in_flight");
 				return;
@@ -7192,7 +7255,75 @@ namespace bpr::app {
 				// turn was started for is not waiting for an answer, and a
 				// later unrelated revision must not be labelled with it.
 				PendingWorkshopOperation.reset();
+				// BPR-0538. And said on the surface that asked. The panel
+				// names the refusal for the operator; the reviewer is looking
+				// at the six controls that just shut, and they reopen here
+				// with the reason where the answer would have been.
+				present_comment_workshop_settlement(
+					aRequest.Draft, "the turn was refused before it started");
 			}
+		}
+
+		/// \brief Ends the press whose turn has just ended.
+		///
+		/// \details BPR-0538. The third sink's whole decision, in one place.
+		/// Three questions in order, and all three are about *this* turn:
+		///
+		/// - Is this the turn the press is waiting on? A press bound to
+		///   another session is untouched, so a second, unrelated turn
+		///   finishing — a launch-panel start, a chat send — neither reopens
+		///   the six nor consumes the operation the press is holding.
+		/// - Whatever it produced, it is over, so the six reopen. The tooltip
+		///   they carried said a turn was running; it is not.
+		/// - Did it produce anything the reviewer could still convert into the
+		///   revision that was asked for? If it did, the record stays so that
+		///   conversion is still labelled with the operation that produced it.
+		///   If it did not — no finding delivered, a failed run, a session the
+		///   review moved out from under — nothing is coming, so the record
+		///   goes and the surface says why.
+		///
+		/// Nothing here retries and nothing here proposes: a turn that
+		/// answered nothing is reported as having answered nothing.
+		void settle_comment_workshop(
+			const core::agent_session_id         aSession,
+			const application::agent_run_outcome aOutcome)
+		{
+			if (!PendingWorkshopOperation.has_value()
+				|| !PendingWorkshopOperation->Session.has_value()
+				|| *PendingWorkshopOperation->Session != aSession) {
+				return;
+			}
+			PendingWorkshopOperation->Running = false;
+			const auto draft                  = PendingWorkshopOperation->Draft;
+			const auto answered               = PendingWorkshopOperation->Delivered
+				&& aOutcome == application::agent_run_outcome::success;
+			auto reason = std::string{ };
+			if (!answered) {
+				reason = aOutcome == application::agent_run_outcome::success
+					? std::string{ "the turn proposed no revision" }
+					: "the turn ended "
+						+ std::string{ application::name(aOutcome) };
+				PendingWorkshopOperation.reset();
+			}
+			present_comment_workshop_settlement(draft, reason);
+		}
+
+		/// \brief Reopens the six controls, and says why if nothing is coming.
+		///
+		/// \details Presented on the workshop surface rather than on the
+		/// launch panel: the reviewer pressed a control beside their own text
+		/// and is watching the space the before/after would fill. A reason
+		/// delivered to the invocation panel is a reason they are not reading.
+		void present_comment_workshop_settlement(
+			const core::review_draft_id aDraft, const std::string& aReason)
+		{
+			if (Window == nullptr || Window->review_editor() == nullptr) {
+				return;
+			}
+			Window->review_editor()->present(qt::comment_workshop_settlement{
+				.Draft  = aDraft,
+				.Reason = aReason,
+			});
 		}
 
 		/// \brief Presents what one asked-for finding action produced.
