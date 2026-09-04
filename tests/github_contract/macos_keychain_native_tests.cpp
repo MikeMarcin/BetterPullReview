@@ -3,6 +3,7 @@
 
 #include "bpr/application/manual_executor.hpp"
 
+#include <AvailabilityMacros.h>
 #include <Security/SecRandom.h>
 
 #include <array>
@@ -37,6 +38,21 @@ namespace {
 	inline constexpr std::uint64_t native_session             = 0x4250522200000001ULL;
 	inline constexpr std::uint64_t native_generation          = 0x4250522200000002ULL;
 	inline constexpr std::size_t   maximum_audited_file_bytes = 128U * 1024U * 1024U;
+
+	[[nodiscard]] auto add_child_directory_action(
+		posix_spawn_file_actions_t& aActions, const char* aPath) -> int
+	{
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000
+		if (__builtin_available(macOS 26.0, *)) {
+			return posix_spawn_file_actions_addchdir(&aActions, aPath);
+		}
+#endif
+		// Keep the fixture usable on macOS versions preceding the standard API.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+		return posix_spawn_file_actions_addchdir_np(&aActions, aPath);
+#pragma clang diagnostic pop
+	}
 
 	class secure_bytes final
 	{
@@ -797,8 +813,8 @@ namespace {
 						   parentInput.get())
 				== 0
 			&& actionsValid;
-		actionsValid = posix_spawn_file_actions_addchdir_np(
-						   &actions,
+		actionsValid = add_child_directory_action(
+						   actions,
 						   directory->path().c_str())
 				== 0
 			&& actionsValid;

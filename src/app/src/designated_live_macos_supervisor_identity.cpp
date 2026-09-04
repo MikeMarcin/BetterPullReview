@@ -2,6 +2,7 @@
 
 #if defined(__APPLE__)
 
+	#include <AvailabilityMacros.h>
 	#include <CommonCrypto/CommonDigest.h>
 	#include <fcntl.h>
 	#include <sys/socket.h>
@@ -18,6 +19,21 @@
 
 namespace bpr::app::designated_live_supervisor_identity {
 	namespace {
+		[[nodiscard]] auto add_retained_directory_action(
+			posix_spawn_file_actions_t& aActions, const int aDescriptor) -> int
+		{
+	#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 260000
+			if (__builtin_available(macOS 26.0, *)) {
+				return posix_spawn_file_actions_addfchdir(&aActions, aDescriptor);
+			}
+	#endif
+			// Older deployment targets still need the descriptor-based extension.
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+			return posix_spawn_file_actions_addfchdir_np(&aActions, aDescriptor);
+	#pragma clang diagnostic pop
+		}
+
 		constexpr auto maximum_inventory_bytes = std::size_t{ 16U * 1024U * 1024U };
 		constexpr auto maximum_verifier_bytes  = std::size_t{ 4U * 1024U * 1024U };
 		constexpr auto read_chunk_bytes        = std::size_t{ 64U * 1024U };
@@ -492,7 +508,7 @@ namespace bpr::app::designated_live_supervisor_identity {
 			|| ::fcntl(transport.ChildVerifierDescriptor, F_SETFD, FD_CLOEXEC) != 0
 			|| ::fcntl(transport.ParentInventoryDescriptor, F_SETFD, FD_CLOEXEC) != 0
 			|| ::fcntl(transport.ChildInventoryDescriptor, F_SETFD, FD_CLOEXEC) != 0
-			|| posix_spawn_file_actions_addfchdir_np(&aActions, RootDescriptor) != 0
+			|| add_retained_directory_action(aActions, RootDescriptor) != 0
 			|| posix_spawn_file_actions_adddup2(
 				   &aActions,
 				   transport.ChildVerifierDescriptor,
@@ -541,7 +557,7 @@ namespace bpr::app::designated_live_supervisor_identity {
 		posix_spawn_file_actions_t& aActions) const -> bool
 	{
 		return RootDescriptor >= 0
-			&& posix_spawn_file_actions_addfchdir_np(&aActions, RootDescriptor) == 0;
+			&& add_retained_directory_action(aActions, RootDescriptor) == 0;
 	}
 
 	void session::close_all() noexcept

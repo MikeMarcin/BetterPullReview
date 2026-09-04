@@ -2179,7 +2179,9 @@ if(EXISTS "${app_designated_live_supervisor_identity_file}")
             [=[InventoryParentDescriptor,]=]
             [=[InventoryName,]=]
             [=[InventoryIdentity]=]
-            [=[posix_spawn_file_actions_addfchdir_np(&aActions, RootDescriptor)]=]
+            [=[add_retained_directory_action(aActions, RootDescriptor)]=]
+            [=[posix_spawn_file_actions_addfchdir(&aActions, aDescriptor)]=]
+            [=[posix_spawn_file_actions_addfchdir_np(&aActions, aDescriptor)]=]
             [=[::socketpair(]=]
             [=[SO_NOSIGPIPE]=]
             [=[posix_spawn_file_actions_adddup2(]=]
@@ -2203,7 +2205,7 @@ if(EXISTS "${app_designated_live_supervisor_identity_file}")
     endforeach()
     string(
         REGEX MATCHALL
-        "posix_spawn_file_actions_addfchdir_np[(]&aActions, RootDescriptor[)]"
+        "add_retained_directory_action[(]aActions, RootDescriptor[)]"
         designated_live_supervisor_retained_root_actions
         "${app_designated_live_supervisor_identity_contents}"
     )

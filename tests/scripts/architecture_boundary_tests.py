@@ -4044,7 +4044,9 @@ auto finish_background_reap(
         )
 
         for required_identity_fragment in (
-            "posix_spawn_file_actions_addfchdir_np(&aActions, RootDescriptor)",
+            "add_retained_directory_action(aActions, RootDescriptor)",
+            "posix_spawn_file_actions_addfchdir(&aActions, aDescriptor)",
+            "posix_spawn_file_actions_addfchdir_np(&aActions, aDescriptor)",
             "open_verifier(result.RootDescriptor)",
             "result.VerifierSha256 != aTrustedVerifierSha256",
             "sha256_hex(result.InventoryBytes)",
