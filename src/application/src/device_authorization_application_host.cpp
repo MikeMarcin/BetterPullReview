@@ -283,7 +283,7 @@ namespace bpr::application {
 			execute(output);
 			publish(output);
 			if (output.Status.has_value()) {
-				restore_displaced_renewal();
+				release_flow_deadline();
 			}
 		}
 
@@ -457,7 +457,11 @@ namespace bpr::application {
 		void perform(const core::cancel_device_authorization_request& aRequest)
 		{
 			const auto context = aRequest.Context;
-			cancel_timer();
+			// [[BPR-0554]]. The flow's deadline, not the timer. A renewal
+			// queued behind this poll belongs to the session the reviewer
+			// still holds, and stopping a flow they started by mistake is not
+			// a reason to stop renewing it.
+			drop_deadline(timer_purpose::poll);
 			Transport->cancel(context);
 			erase_flow_transients();
 			// The same forgetting `shutdown()` does, for the same reason. A
@@ -749,7 +753,10 @@ namespace bpr::application {
 			const core::device_authorization_request_context& aContext,
 			device_token_material&&                           aGrant)
 		{
-			cancel_timer();
+			// The poll is over. Anything queued behind it takes the timer,
+			// and the release below decides whether a renewal is still one of
+			// those things.
+			drop_deadline(timer_purpose::poll);
 			// The device code has done its work. It goes before anything else
 			// happens, so no later branch can be the one that forgot.
 			erase_flow_transients();
@@ -964,35 +971,22 @@ namespace bpr::application {
 			Refresh.Failure = device_authorization_refresh_failure::none;
 		}
 
-		// [[BPR-0553]]. The host owns one timer and a flow's poll takes it, so
-		// beginning a second flow displaces the renewal armed for the session
-		// still running. Keeping the binding across that flow is only half the
-		// answer: an observation that still reads `scheduled` with no timer
-		// behind it is the same silent drop by another route. A flow that has
-		// just ended without a grant no longer needs the timer, so the renewal
-		// goes back on it, armed from the authorization it was armed from the
-		// first time -- late by however long the flow ran, which
-		// `schedule_refresh` answers with a wait of zero rather than one in the
-		// past.
+		// [[BPR-0553]], [[BPR-0554]]. A flow that has reached a terminal owes no
+		// more polls, so its deadline goes and a renewal waiting behind it
+		// takes the timer for whatever it has left.
 		//
-		// Only from a terminal the flow reached without a grant. Called earlier
-		// this would take the timer back from the poll and the flow would never
-		// end; called at `authorized`, `enroll_and_finish` is already arming a
-		// renewal for the grant it just enrolled.
-		void restore_displaced_renewal()
+		// BPR-0553 re-armed the renewal here instead, from `AuthorizedAt`, and
+		// that was the whole of the repair: it came back late by however long
+		// the flow had run, and read `scheduled` with nothing behind it in
+		// between. It no longer needs re-arming, because it was never
+		// displaced -- only queued behind an earlier deadline, and only while
+		// the poll's was in fact the earlier one.
+		void release_flow_deadline()
 		{
-			if (
-				!core::terminal(State.Stage)
-				|| State.Stage == core::device_authorization_stage::authorized) {
+			if (!core::terminal(State.Stage)) {
 				return;
 			}
-			if (
-				TimerArmed
-				|| Refresh.State
-					!= device_authorization_refresh_state::scheduled) {
-				return;
-			}
-			schedule_refresh();
+			drop_deadline(timer_purpose::poll);
 		}
 
 		void begin_refresh()
@@ -1132,10 +1126,22 @@ namespace bpr::application {
 			schedule_refresh();
 		}
 
+		// [[BPR-0554]]. The renewal's deadline only. A flow polling alongside a
+		// renewal chain that just failed keeps its own: what broke is the
+		// chain, not the flow, and taking the flow's timer would leave it with
+		// nothing to end it.
 		void request_reenrollment(
 			const device_authorization_refresh_failure aFailure)
 		{
-			cancel_timer();
+			report_reenrollment(aFailure);
+			drop_deadline(timer_purpose::refresh);
+		}
+
+		// The state half, with no timer work at all, so the arming path can
+		// reach it without arming again from inside itself.
+		void report_reenrollment(
+			const device_authorization_refresh_failure aFailure)
+		{
 			PendingAccess.reset();
 			PendingRefresh.reset();
 			RefreshDurable = false;
@@ -1146,16 +1152,82 @@ namespace bpr::application {
 
 		// -- timer ---------------------------------------------------------
 
-		[[nodiscard]] auto schedule_timer(
-			const timer_purpose aPurpose,
-			const std::uint32_t aSeconds) -> bool
+		// [[BPR-0554]]. The host holds both deadlines and the port holds the
+		// earlier one. The port's contract is unchanged -- one pending expiry,
+		// scheduling replaces it -- because a second port would need a second
+		// timer composed, adapted, and shut down on every platform to answer a
+		// question the host can answer itself, and re-arming the renewal
+		// immediately would simply take the timer back from the poll and hand
+		// the same contention to the flow instead.
+		//
+		// A deadline is an absolute monotonic instant rather than a remaining
+		// count, so a deadline that waits behind another is re-armed for the
+		// time it has left rather than for the time it was first given.
+		[[nodiscard]] auto deadline_of(const timer_purpose aPurpose) noexcept
+			-> std::optional<std::chrono::milliseconds>&
 		{
+			// Only the two purposes that name a deadline reach here; `none`
+			// is filtered by every caller that can hold it.
+			return aPurpose == timer_purpose::poll ? PollDueAt : RefreshDueAt;
+		}
+
+		[[nodiscard]] auto seconds_until(
+			const std::chrono::milliseconds aDeadline) noexcept -> std::uint32_t
+		{
+			const auto current = now();
+			if (aDeadline <= current) {
+				return 0U;
+			}
+			// Rounded up. Truncation would arm a poll fractionally inside the
+			// server's interval, which is the one direction the interval is
+			// there to prevent.
+			return static_cast<std::uint32_t>(
+				std::chrono::ceil<std::chrono::seconds>(aDeadline - current)
+					.count());
+		}
+
+		[[nodiscard]] auto earliest_deadline() noexcept -> timer_purpose
+		{
+			if (!PollDueAt.has_value()) {
+				return RefreshDueAt.has_value() ? timer_purpose::refresh
+												: timer_purpose::none;
+			}
+			if (!RefreshDueAt.has_value()) {
+				return timer_purpose::poll;
+			}
+			// A tie goes to the renewal. The poll has an interval to spare and
+			// the renewal has a token expiring behind it.
+			return *RefreshDueAt <= *PollDueAt ? timer_purpose::refresh
+											   : timer_purpose::poll;
+		}
+
+		// False means the port refused. The deadlines are left as they were, so
+		// the caller that owns the one that could not be armed can answer for
+		// it rather than leaving an observation nothing stands behind.
+		[[nodiscard]] auto arm_earliest_deadline() -> bool
+		{
+			const auto purpose = earliest_deadline();
+			if (purpose == timer_purpose::none) {
+				Timer->cancel();
+				TimerArmed = false;
+				Purpose    = timer_purpose::none;
+				return true;
+			}
+
+			const auto due = *deadline_of(purpose);
+			if (TimerArmed && Purpose == purpose && ArmedDueAt == due) {
+				// Already holding exactly this instant. Re-arming would only
+				// re-round the wait and churn the port.
+				return true;
+			}
+
 			Timer->cancel();
 			TimerArmed = false;
-			Purpose    = aPurpose;
+			Purpose    = purpose;
+			ArmedDueAt = due;
 
 			const auto weak = weak_from_this();
-			if (!Timer->schedule_after(aSeconds, [weak] {
+			if (!Timer->schedule_after(seconds_until(due), [weak] {
 					const auto self = weak.lock();
 					if (self == nullptr) {
 						return;
@@ -1172,8 +1244,69 @@ namespace bpr::application {
 			return true;
 		}
 
+		// A port that refuses is saying the expiry will never arrive, so the
+		// deadline it refused is dropped and whoever was owed it hears about
+		// it -- an observation with nothing behind it is precisely what this
+		// card removes. `aReported` names the one purpose whose refusal the
+		// caller answers for itself, so no refusal is answered twice. The loop
+		// runs at most twice: each turn drops a deadline.
+		void arm_or_answer(const timer_purpose aReported = timer_purpose::none)
+		{
+			while (!arm_earliest_deadline()) {
+				const auto refused = earliest_deadline();
+				deadline_of(refused).reset();
+				if (refused == aReported) {
+					continue;
+				}
+				if (refused == timer_purpose::refresh) {
+					report_reenrollment(
+						device_authorization_refresh_failure::transport_failed);
+					continue;
+				}
+				// Without a timer the total bound cannot be enforced, and a
+				// flow nobody will ever end is worse than one that fails.
+				fail_unbounded_flow();
+			}
+		}
+
+		[[nodiscard]] auto schedule_timer(
+			const timer_purpose aPurpose,
+			const std::uint32_t aSeconds) -> bool
+		{
+			deadline_of(aPurpose) = now() + std::chrono::seconds{ aSeconds };
+			arm_or_answer(aPurpose);
+			// The caller's deadline is still there unless the port refused it,
+			// which is the answer both call sites already have one for.
+			return deadline_of(aPurpose).has_value();
+		}
+
+		// A deadline that is no longer owed. Whatever is left takes the timer,
+		// which is the whole of what this card fixes: a flow that ends, is
+		// cancelled, or authorizes hands the timer straight back to a renewal
+		// that was waiting behind it.
+		void drop_deadline(const timer_purpose aPurpose)
+		{
+			deadline_of(aPurpose).reset();
+			arm_or_answer();
+		}
+
+		void fail_unbounded_flow()
+		{
+			if (!Flow.has_value()) {
+				return;
+			}
+			const auto context = *Flow;
+			erase_flow_transients();
+			apply(core::device_authorization_failed_event{
+				.Context = context,
+				.Failure = core::device_authorization_failure::timeout,
+			});
+		}
+
 		void cancel_timer() noexcept
 		{
+			PollDueAt.reset();
+			RefreshDueAt.reset();
 			Timer->cancel();
 			TimerArmed = false;
 			Purpose    = timer_purpose::none;
@@ -1183,19 +1316,28 @@ namespace bpr::application {
 		{
 			TimerArmed         = false;
 			const auto purpose = std::exchange(Purpose, timer_purpose::none);
+			if (purpose != timer_purpose::none) {
+				// Spent. Only the deadline that just arrived is cleared; the
+				// other one is still owed.
+				deadline_of(purpose).reset();
+			}
 			if (Closing) {
 				return;
 			}
 			switch (purpose) {
 			case timer_purpose::poll:
 				arm();
-				return;
+				break;
 			case timer_purpose::refresh:
 				begin_refresh();
-				return;
+				break;
 			case timer_purpose::none:
-				return;
+				break;
 			}
+			// The deadline that waited behind this one takes the timer now.
+			// This is where a renewal armed behind a poll gets it back, and
+			// where a poll goes back on behind a renewal that just fired.
+			arm_or_answer();
 		}
 
 		// -- erasure and lifecycle -----------------------------------------
@@ -1213,9 +1355,9 @@ namespace bpr::application {
 		// behind or find no authority to name one with at all.
 		void release_refresh_binding()
 		{
-			if (Purpose == timer_purpose::refresh) {
-				cancel_timer();
-			}
+			// [[BPR-0554]]. The renewal's deadline goes with the binding it
+			// was armed under; a poll waiting behind it does not.
+			drop_deadline(timer_purpose::refresh);
 			if (RefreshContext.has_value()) {
 				Transport->cancel(*RefreshContext);
 				RefreshContext.reset();
@@ -1349,6 +1491,14 @@ namespace bpr::application {
 		bool          TimerArmed               = false;
 		bool          Closing                  = false;
 		bool          ProjectionDeliveryFailed = false;
+
+		// [[BPR-0554]]. Both deadlines the host owes, as absolute monotonic
+		// instants. The port holds the earlier one; `Purpose` says which, and
+		// `ArmedDueAt` the instant it was armed for, so a deadline that moves
+		// while it is armed is re-armed rather than left on the old expiry.
+		std::optional<std::chrono::milliseconds> PollDueAt;
+		std::optional<std::chrono::milliseconds> RefreshDueAt;
+		std::chrono::milliseconds                ArmedDueAt{ 0 };
 	};
 
 	device_authorization_application_host::device_authorization_application_host(

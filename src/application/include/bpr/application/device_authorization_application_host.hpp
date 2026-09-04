@@ -202,11 +202,17 @@ namespace bpr::application {
 
 	/// \brief Provides the device authorization timer port contract.
 	///
-	/// \details One pending expiry at a time, which is all the flow needs: the
-	/// poll schedule and the renewal schedule never overlap. Scheduling again
-	/// replaces the pending expiry, and `cancel` withdraws it. The expiry may
-	/// run on any thread; the host wraps it so the work lands on its decision
-	/// lane.
+	/// \details One pending expiry at a time. Scheduling again replaces the
+	/// pending expiry, and `cancel` withdraws it. The expiry may run on any
+	/// thread; the host wraps it so the work lands on its decision lane.
+	///
+	/// [[BPR-0554]]. A poll and a renewal do overlap -- a reviewer with a live
+	/// session can start a second flow, and a device code outlives the renewal
+	/// lead -- but that is the host's to resolve, not this port's. The host
+	/// holds both deadlines and gives this port the earlier one, so a second
+	/// timer would be a second thing for every platform to compose, adapt, and
+	/// shut down in order to answer a question one deadline comparison already
+	/// answers.
 	class device_authorization_timer_port
 	{
 	public:

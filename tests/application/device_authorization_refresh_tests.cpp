@@ -1452,6 +1452,106 @@ namespace {
 				== std::vector<std::string>{ "access-1", "access-2" },
 			"and the session the reviewer still holds is renewed");
 	}
+	// [[BPR-0554]]. The half [[BPR-0553]] left behind. A device code lives 900
+	// seconds and a renewal is armed 300 seconds before the access token
+	// expires, so a renewal falling due while a second flow polls is the
+	// ordinary case rather than a corner. Restored at the flow's terminal it
+	// came back late by however long the flow ran, and the token it was there
+	// to protect could expire first. The host holds both deadlines now, and the
+	// timer holds whichever is earlier: a renewal due before the next poll is
+	// not queued behind it.
+	void test_a_renewal_due_during_a_second_flow_fires_on_time()
+	{
+		harness world;
+		world.authorize_with_bound_authority(3'600U);
+		expect(
+			world.Timer.armed() && world.Timer.last_delay() == 3'300U,
+			"the first session's renewal is armed");
+
+		// To within two seconds of it, and then the reviewer presses *Get a
+		// code* again, which the panel offers in every terminal stage.
+		world.Clock.advance(3'298U);
+		world.reach_awaiting();
+
+		expect(
+			world.Host.state().Stage
+				== core::device_authorization_stage::awaiting_authorization,
+			"a second flow is polling");
+		expect(
+			world.Timer.armed() && world.Timer.last_delay() == 3'300U,
+			"the timer holds the renewal, not the poll behind it");
+
+		world.Clock.advance(2U);
+		world.Timer.fire();
+		world.Lane.drain();
+
+		expect(
+			world.Vault.RetrieveContexts.size() == 1U
+				&& world.Vault.RetrieveContexts.back().Authority == authority(),
+			"the renewal happens at the second it was due");
+		expect(
+			world.Host.state().Stage
+				== core::device_authorization_stage::awaiting_authorization,
+			"and the flow it ran alongside is untouched");
+		expect(
+			world.Timer.armed() && world.Timer.last_delay() == 3U,
+			"with the poll back on for its last three seconds");
+
+		world.Transport.answer_refresh(application::device_token_issued{
+			.Context = world.Transport.last_refresh_context(),
+			.Grant   = application::device_token_material{
+				.AccessToken                  = material("access-2"),
+				.RefreshToken                 = material("refresh-2"),
+				.ExpiresInSeconds             = 3'600U,
+				.RefreshTokenExpiresInSeconds = 15'552'000U,
+			},
+		});
+		world.Lane.drain();
+		expect(
+			world.Enrollment.Credentials
+				== std::vector<std::string>{ "access-1", "access-2" },
+			"and the token it was racing is renewed in time");
+	}
+
+	// [[BPR-0554]]. The transient dishonesty the same single timer produced.
+	// The poll spends the timer the moment it fires, and for as long as the
+	// request it sent is outstanding the observation reads `scheduled` with
+	// nothing behind it at all -- an answer presentation shows the reviewer,
+	// and one no reviewer can act on, because there is nothing to act on. The
+	// renewal's deadline is not the timer's to spend, so it is armed the
+	// instant the poll's is spent.
+	void test_the_observation_never_says_scheduled_with_nothing_armed()
+	{
+		harness world;
+		world.authorize_with_bound_authority(3'600U);
+		expect(
+			world.Host.refresh_observation().State
+					== application::device_authorization_refresh_state::scheduled
+				&& world.Timer.armed(),
+			"the session renews and the timer says so");
+
+		world.reach_awaiting();
+		world.poll_once();
+
+		expect(
+			world.Host.refresh_observation().State
+				== application::device_authorization_refresh_state::scheduled,
+			"the observation still calls the renewal scheduled");
+		expect(
+			world.Timer.armed(),
+			"and one it calls scheduled is one the timer holds");
+		expect(
+			world.Timer.last_delay() == 3'295U,
+			"for exactly what is left of the deadline it named");
+
+		world.Clock.advance(world.Timer.last_delay());
+		world.Timer.fire();
+		world.Lane.drain();
+		expect(
+			world.Vault.RetrieveContexts.size() == 1U
+				&& world.Vault.RetrieveContexts.back().Authority == authority(),
+			"and firing it renews under the first session's slot");
+	}
 } // namespace
 
 auto main() -> int
@@ -1478,6 +1578,8 @@ auto main() -> int
 	test_a_second_grant_stores_under_the_authority_its_own_session_named();
 	test_a_second_flow_that_fails_leaves_the_first_renewal_armed();
 	test_a_denied_second_flow_gets_the_first_renewal_back_on_the_timer();
+	test_a_renewal_due_during_a_second_flow_fires_on_time();
+	test_the_observation_never_says_scheduled_with_nothing_armed();
 
 	std::cout << "device-authorization-refresh-tests:pass\n";
 	return EXIT_SUCCESS;
