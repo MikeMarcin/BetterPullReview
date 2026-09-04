@@ -32,8 +32,17 @@ function(run_phase label)
         TIMEOUT ${bpr_phase_timeout}
     )
     if(NOT phase_result EQUAL 0)
+        # [[BPR-0555]]. The child dumps its whole marker block below, and
+        # `RUN_BUDGET_EXPIRED` is in it, but a reader sees the headline. A run
+        # that merely ran out of time on a busy host said "label process
+        # failed" and read as a defect in the phase; say which it was.
+        set(bpr_budget_headline "")
+        if(phase_output MATCHES "RUN_BUDGET_EXPIRED:[^\n]*")
+            set(bpr_budget_headline "${CMAKE_MATCH_0}\n")
+        endif()
         message(FATAL_ERROR
             "${label} process failed (${phase_result})\n"
+            "${bpr_budget_headline}"
             "stdout:\n${phase_output}\n"
             "stderr:\n${phase_error}")
     endif()
