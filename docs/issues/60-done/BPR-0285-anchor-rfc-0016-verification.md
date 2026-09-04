@@ -1,7 +1,7 @@
 ---
 id: BPR-0285
 title: Anchor RFC-BPR-0016 capability-critical verification
-status: Backlog
+status: Done
 rfc: RFC-BPR-0016
 depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318, BPR-0516, BPR-0526, BPR-0515, BPR-0535, BPR-0536, BPR-0537, BPR-0539, BPR-0540, BPR-0542, BPR-0543, BPR-0544, BPR-0545, BPR-0546, BPR-0547, BPR-0548, BPR-0549, BPR-0550, BPR-0551, BPR-0553]
 ---
@@ -24,17 +24,17 @@ immutable closeout head and an independent capability-critical review.
 
 | State | Acceptance criterion | Direct verification surface | Expected result | Gate |
 |---|---|---|---|---|
-| [ ] | GitHub.com device enrollment reaches the existing vault with no settings/SQLite copy. | Tests-disabled public composition plus vault/settings/SQLite inspection against recorded contracts | Exactly one existing-vault enrollment; no alternate copy or partial profile | external-contract + automated |
-| [ ] | Core, Qt, and projection contain no client identifier, service endpoint, secret device code, or token material; the host display projection contains only user code, validated verification URI, and expiry. | Compile-time boundary tests plus source/symbol/type inventory | Forbidden facts cannot cross; exact allowed display fields reach Qt | automated |
-| [ ] | Pending, denied, expired, rate-limited, and disabled outcomes are typed and clean. | Host replay of every sanitized real-service fixture | Distinct terminal/continuation behavior; zero retained transient material | automated |
-| [ ] | Polling honors interval, backoff, total bound, cancellation, and shutdown. | Controlled-clock/manual-executor host tests | No early/late/extra poll; deterministic erasure and quiescence | automated |
-| [ ] | Certificates and redirects fail closed on both endpoints. | Native HTTPS hostile loopback contracts | Zero forwarded credential/body on certificate, unknown-authority, or query redirect | automated |
-| [ ] | Off-authority verification addresses never open. | Address-validation and browser-capability cut test | Typed refusal and zero browser calls | automated |
-| [ ] | Browser-open failure leaves authorization live and completable elsewhere. | Qt/host failing-opener public course | Code/address remain; later authorization succeeds | automated |
-| [ ] | Manual token enrollment remains functional for every profile. | Public composition manual-before/device/manual-after courses | Existing vault path remains first-class and unchanged | automated |
-| [ ] | A selected GitHub App refreshes and rotates vault material safely. | Controlled-clock host, native HTTPS refresh, and vault rotation/restart contracts | Refresh precedes expiry; stale/canceled results cannot rotate; failure becomes typed re-enrollment with no leaked prior material | automated |
-| [ ] | Unregistered and GHES profiles refuse with zero requests. | Tests-disabled public counters and hostile capability selection | Exact `device_flow_unavailable`; zero constructed/sent requests | automated |
-| [ ] | Evidence is local/target-native and secret-free. | Clean matrices, Release/runtime/dependency scans, evidence audit | No GitHub Actions evidence and no secret/transient material | automated + target-native |
+| [x] | GitHub.com device enrollment reaches the existing vault with no settings/SQLite copy. | Tests-disabled public composition plus vault/settings/SQLite inspection against recorded contracts | Exactly one existing-vault enrollment; no alternate copy or partial profile | external-contract + automated |
+| [x] | Core, Qt, and projection contain no client identifier, service endpoint, secret device code, or token material; the host display projection contains only user code, validated verification URI, and expiry. | Compile-time boundary tests plus source/symbol/type inventory | Forbidden facts cannot cross; exact allowed display fields reach Qt | automated |
+| [x] | Pending, denied, expired, rate-limited, and disabled outcomes are typed and clean. | Host replay of every sanitized real-service fixture | Distinct terminal/continuation behavior; zero retained transient material | automated |
+| [x] | Polling honors interval, backoff, total bound, cancellation, and shutdown. | Controlled-clock/manual-executor host tests | No early/late/extra poll; deterministic erasure and quiescence | automated |
+| [x] | Certificates and redirects fail closed on both endpoints. | Native HTTPS hostile loopback contracts | Zero forwarded credential/body on certificate, unknown-authority, or query redirect | automated |
+| [x] | Off-authority verification addresses never open. | Address-validation and browser-capability cut test | Typed refusal and zero browser calls | automated |
+| [x] | Browser-open failure leaves authorization live and completable elsewhere. | Qt/host failing-opener public course | Code/address remain; later authorization succeeds | automated |
+| [x] | Manual token enrollment remains functional for every profile. | Public composition manual-before/device/manual-after courses | Existing vault path remains first-class and unchanged | automated |
+| [x] | A selected GitHub App refreshes and rotates vault material safely. | Controlled-clock host, native HTTPS refresh, and vault rotation/restart contracts | Refresh precedes expiry; stale/canceled results cannot rotate; failure becomes typed re-enrollment with no leaked prior material | automated |
+| [x] | Unregistered and GHES profiles refuse with zero requests. | Tests-disabled public counters and hostile capability selection | Exact `device_flow_unavailable`; zero constructed/sent requests | automated |
+| [x] | Evidence is local/target-native and secret-free. | Clean matrices, Release/runtime/dependency scans, evidence audit | No GitHub Actions evidence and no secret/transient material | automated + target-native |
 
 Every completed row records its exact command or attended interaction, result,
 commit, and durable evidence in `docs/verification/RFC-BPR-0016.md`. Registered
@@ -60,47 +60,47 @@ and remains BPR-0318's to enable and this card's to replay.
 
 ## Phase checklist
 
-- [ ] The immutable planning snapshot, complete live issue graph, verification
+- [x] The immutable planning snapshot, complete live issue graph, verification
       ledger, and attended packets are committed and revalidated at closeout.
-- [ ] Eligibility decisions and external contracts are committed and every RFC
+- [x] Eligibility decisions and external contracts are committed and every RFC
       gate is satisfied or narrowed by an exact accepted exception.
-- [ ] Core, GitHub adapter, host, Qt, and production composition slices are
+- [x] Core, GitHub adapter, host, Qt, and production composition slices are
       terminal in dependency order.
-- [ ] Security/hostile/public/Release and every claimed supported-platform
+- [x] Security/hostile/public/Release and every claimed supported-platform
       target-native matrix is terminal; unavailable platforms remain explicit.
-- [ ] BPR-0318 records a distributable production identity before any platform
+- [x] BPR-0318 records a distributable production identity before any platform
       becomes available; the private owner-only verification identity is never
       treated as distribution authority.
-- [ ] Simplification is terminal before the final documentation impact review.
-- [ ] Every documentation-ledger row in
+- [x] Simplification is terminal before the final documentation impact review.
+- [x] Every documentation-ledger row in
       `docs/verification/RFC-BPR-0016.md` is updated or has an exact no-impact
       disposition.
-- [ ] Final clean replay and independent capability-critical review accept the
+- [x] Final clean replay and independent capability-critical review accept the
       immutable closeout head.
-- [ ] The idempotent `verify_rfc0016_platform_course.py` final-head course passes
+- [x] The idempotent `verify_rfc0016_platform_course.py` final-head course passes
       with `--expected-device-selection enabled --fresh` on macOS, Linux, and
       Windows after BPR-0318 and every implementation, simplification,
       documentation, and platform card is terminal; one-time flip records are
       provenance only.
-- [ ] Only after every row is satisfied, the RFC status, index, verification
+- [x] Only after every row is satisfied, the RFC status, index, verification
       ledger, and issue board transition atomically to `Auto-Verified`/terminal.
 
 ## Closeout checklist
 
-- [ ] BPR-0035 records RFC-BPR-0002 Auto-Verified after BPR-0036's real Windows
+- [x] BPR-0035 records RFC-BPR-0002 Auto-Verified after BPR-0036's real Windows
       x64 evidence; no available-platform substitute is counted.
-- [ ] BPR-0275 through BPR-0284 and BPR-0318 are terminal and the documentation
+- [x] BPR-0275 through BPR-0284 and BPR-0318 are terminal and the documentation
       impact ledger is resolved against the immutable base.
-- [ ] Clean `dev`, `core-only`, sanitizer, tests-disabled Release, focused native
+- [x] Clean `dev`, `core-only`, sanitizer, tests-disabled Release, focused native
       HTTPS/Qt/application, format, strict tidy, documentation, dependency,
       runtime, secret-scan, and diff gates pass at the closeout head.
-- [ ] The verification ledger records exact commands, interactions, results,
+- [x] The verification ledger records exact commands, interactions, results,
       artifact paths, and commits for every acceptance row and claimed
       supported platform; macOS alone does not prove Windows or Linux.
-- [ ] An independent `rfc-critical-reviewer` falsifies the exact claim matrix,
+- [x] An independent `rfc-critical-reviewer` falsifies the exact claim matrix,
       application-selection path, packet provenance, and negative controls with
       no unresolved blocker.
-- [ ] RFC status, verification ledger, issue board, and all claimed commits and
+- [x] RFC status, verification ledger, issue board, and all claimed commits and
       artifacts agree before the RFC is marked `Auto-Verified`.
 
 ## BPR-0311 dispatched to bpr-win-jaegaw — 2026-08-29
@@ -1000,4 +1000,155 @@ Residuals unchanged: R1 (the probe and the shutdown delete can still mint one
 context) is latent and uncarded, R2 did not become reachable, the mid-flow
 bind window stands as recorded on BPR-0550, and nothing composes the real
 host against the real platform vault.
+
+## Closed from backlog — 2026-09-04
+
+Worked from backlog, as the board's rule for a closeout anchor requires: an
+in-progress card may not depend on an in-progress card, and this one depended
+on every card of the run. Every dependency is terminal, every acceptance row
+above is ticked against the evidence its ledger row records, and the
+immutable closeout head is **`0d19c990`**.
+
+### What this run actually was
+
+It began as a replay-and-close of a head three cards from done and became a
+four-review, thirteen-card repair of the refresh lifecycle. Each independent
+review found something the one before it could not, and the reason they could
+is worth stating once: the fixture vault every composed course runs against
+was more permissive than the three platform vaults it stands in for. It kept
+no keyed pending queue and validated no refresh-slot context, so three
+blocking defects sat behind green rows on two platforms.
+
+The order the run went in: [[BPR-0542]] and [[BPR-0543]] gave Linux and
+Windows a real second vault slot, which had been three stubs answering
+`unavailable`; [[BPR-0548]] aligned the fixture and the host-test double with
+what the real vaults refuse, which turned the hidden defects red; then
+[[BPR-0545]] (the erasure had been displacing the credential delete under one
+context), [[BPR-0546]] (the device host minted contexts with identity
+generation zero, so the composed refresh lifecycle was inert on every
+platform), [[BPR-0547]] (a rotation erased the material it had just stored),
+[[BPR-0549]], [[BPR-0550]], [[BPR-0551]], and [[BPR-0553]] each closed what
+the next review found, twice in the integrator's own fixes.
+
+### The three final-head replays at `0d19c990`
+
+Each from a build root deleted whole, 25 course selectors derived from the
+inventory, selection unmutated, `required=30 forbidden=7`.
+
+| Platform | Host and toolchain | Course | Artifact |
+|---|---|---|---|
+| macOS | integrator, Apple Clang, Qt 6.10.3 | exit 0 in 572 s, `SELECTION:enabled`, `DEVICE_STAGE:cancelled`, `DEVICE_REQUESTS:0` | 10,770,080 bytes, sha256 `97e66f91…` |
+| Linux | `bpr-linux`, Ubuntu 26.04 WSL2, GCC 15.2.0, Qt 6.10.3 | exit 0 in 288 s, same markers; login collection `Locked (<false>,)` recorded first | 11,651,608 bytes, sha256 `bbd42d85…` |
+| Windows x64 | `bpr-win`, MSVC 14.51.36231, Qt 6.10.3 msvc2022_64 | exit 0 in 1171 s, same markers | 7,815,680 bytes, sha256 `16433dfa…` |
+
+Each artifact admitted `RFC0016_PRODUCTION_IDENTITY_OK` against the recorded
+distributable client `Iv23liitiYN1WSSbag50` with the course complete and 11
+evidence files, `RFC0016_TEST_INVENTORY_OK`, and `COMPOSED_HOSTS_OK`.
+`composed_host_verifier_contract` passes on all three.
+
+`DEVICE_STAGE:cancelled` is the evidence that each enabled build reached
+GitHub: the stage is reachable only after a device code was minted, and each
+replay therefore mints exactly one and cancels it inside the run budget,
+unattended and unauthorized. `DEVICE_REQUESTS:0` beside it is the
+unregistered refusing transport's counter, a negative control that no
+registered build fell back to it, and is not a request count.
+
+### The gates at the closeout head
+
+| Gate | Result |
+|---|---|
+| Fresh `dev` matrix | configure and clean build exit 0 with zero `error:`/`warning:` lines; `RFC0016_TEST_INVENTORY_OK`; 275 rows, 267 green in one pass |
+| The eight that were not | one was real and is fixed (`composed_host_verifier_contract`, below); the other seven are app-launch courses that missed their budgets while another project saturated this machine, and all seven pass individually on a quiet host |
+| Fresh `core-only` matrix | 118/118 |
+| Sanitizer (ASan + UBSan, Qt off) | 4/4, zero diagnostics |
+| Strict tidy, partitioned | 21 chunks, **279 translation units**, zero errors |
+| Format, documentation, diff | `coding-format-check` exit 0; `DOCUMENTATION_OK`; `git diff --check` clean |
+
+**The one real matrix failure.** Moving the composed-host anchor (below) left
+the verifier's own contract tests carrying the old name in their synthetic
+symbol table, and no focused selector covers that file, so it rode through
+two heads unseen. The full matrix is what caught it; it is fixed and 52/52.
+That is the argument for running the matrix at a closeout head rather than
+trusting the focused sets, and it is recorded here rather than smoothed away.
+
+**The seven that were not.** `application_epoch_persistence_github-com`,
+`application_epoch_maintenance_public_path`,
+`application_appearance_gesture_contract`,
+`application_appearance_store_fallback_contract`,
+`application_native_appearance_probe_contract`,
+`application_diff_workbench_shutdown_public_path`, and
+`application_github_public_path_ghes_3_18` all failed on budget, most naming
+`EPOCH_FIXTURE_SEED_FAILED`. Reproduced at **`d6249844`**, the head this
+session started from, in a separate worktree built from scratch: the same
+rows fail identically there, before any change this run made. They pass
+individually here on a quiet machine. So they belong to no card of this run;
+the marginal budget is carded as [[BPR-0555]].
+
+### The composed-host anchor, and what three platforms said about it
+
+[[BPR-0536]] anchored the production profile on the composition's private
+`bind_device_refresh_authority`, a function with exactly one call site. The
+Windows replay refused to run because MSVC inlines it away — zero occurrences
+in the Release map against five in Debug. The anchor moved to
+`bpr::application::device_authorization_application_host::bind_refresh_authority`,
+the device host's own out-of-line member in the application library,
+referenced only from composition: no compiler inlines it across that boundary
+without whole-program optimization, which these presets do not enable, and a
+linker that drops unreferenced sections removes it the moment composition
+stops binding.
+
+`bpr-linux` then supplied the half that completes the argument. The *old*
+anchor is still in the Linux image — as `W`, a weak symbol. On macOS it
+survived as a local `t`. On Windows it vanished. Three platforms, three fates
+for one symbol, and only one of them failed loudly. A weak symbol satisfying a
+presence check was never linkage evidence; the Windows failure only made
+visible what was already true everywhere. The station also noted that the
+anchor matches by name rather than signature, so if full-signature matching
+ever arrives the synthetic fixture will stop resembling any real symbol table.
+
+### Recorded limitations, not claimed as covered
+
+- **Nothing composes the real host against the real platform vault.** Both
+  stations said so independently. Their native rows exercise the vault port
+  and sequence operations themselves; the composed courses run over the
+  fixture, which [[BPR-0548]] has aligned to the platform vaults' refusals but
+  which is still not the Keychain, the Secret Service, or the Credential
+  Manager. This is the third review's R3, and it is what let three blocking
+  findings reach a head with two green replays. Accepted as a limitation of
+  this closeout.
+- **Follow-up work outside this closure**, each judged against this RFC's
+  acceptance claims and excluded with the reason on its own card:
+  [[BPR-0541]] (a session does not survive a restart; the documents were
+  reworded to say so, and no acceptance row claims otherwise — it is a
+  product-rule change for the owner, since the composition deliberately
+  deletes its retained credential on every orderly shutdown), [[BPR-0552]]
+  (the wider unfailable-verdict class; no row of this RFC rests on those
+  fields, upheld by two reviews), [[BPR-0554]] (a renewal falling due during
+  a second flow still fires late; bounded and self-healing, and strictly
+  better than the state [[BPR-0553]] replaced), and [[BPR-0555]].
+- **Residuals from the reviews, adjudicated and unfixed**: the refresh probe
+  and the shutdown delete can still mint one identical operation context (R1,
+  unreachable by a person, deterministic in a test); both hosts seed their
+  request counters at 1 (R2); a mid-flow bind is still trusted; `sign-out`
+  exists only at the host boundary.
+
+### The lesson this run cost the most to learn
+
+Three times a green row proved nothing. A stale `build/dev` listed a course
+that did not exist in it and reported four passes where there were five rows.
+`cleanup_failed` was printed only after a run had already failed, so the
+field a card cited could never have failed the row that cited it. And a
+hermetic suite passing in 0.00 s is equally consistent with two new cases
+passing and with neither being compiled in — `bpr-linux` refused that
+ambiguity and proved the cases present by symbol address and assertion string
+before accepting its own green. A fixture more permissive than the thing it
+stands in for is the same failure in another costume, and it is the one that
+hid three blocking defects.
+
+### Independent review
+
+Six independent capability-critical reviews are recorded above with their
+adjudications. The sixth, at the head this closeout replays, found no blocking
+defect and cleared the RFC for `Auto-Verified` conditional on exactly the
+three replays and the gate suite recorded here.
 
