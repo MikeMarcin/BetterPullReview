@@ -537,7 +537,7 @@ function(bpr_add_network_isolated_test)
     cmake_parse_arguments(
         PARSE_ARGV 0
         bpr_test
-        "COMMAND_EXPAND_LISTS;UNRELATED_ENDPOINT_PROBE;WINDOWS_UNCONTAINED"
+        "COMMAND_EXPAND_LISTS;UNRELATED_ENDPOINT_PROBE;WINDOWS_UNCONTAINED;EXPECTS_FAILED_RUN"
         "NAME;WORKING_DIRECTORY;LOOPBACK_PORT_COUNT"
         "COMMAND;CONFIGURATIONS"
     )
@@ -638,6 +638,60 @@ function(bpr_add_network_isolated_test)
         APPEND
         PROPERTY LABELS "${bpr_isolation_label}"
     )
+
+    # BPR-0552. Every row registered here fails on the run's own verdict,
+    # whatever else it pins.
+    #
+    # `report_verdict` in `src/app/main.cpp` prints `PUBLIC_PATH_OK` or
+    # `PUBLIC_PATH_FAILED` unconditionally, from the same `passed` conjunction
+    # that decides the process exit code. `PUBLIC_PATH_FAILED` is therefore the
+    # negation of every field `PUBLIC_PATH_VERDICT` reports - presentation,
+    # shutdown, cleanup, epoch projection delivery and epoch handoff delivery.
+    # That verdict block itself prints only inside `if (!passed)`, so no row
+    # could pin it even in principle, and only ten of the fifty rows carrying a
+    # `PASS_REGULAR_EXPRESSION` pinned `PUBLIC_PATH_OK`. For the other forty a
+    # regression in any of those five fields left the row green.
+    #
+    # Of the three ways to close that, this is the only one CTest can express
+    # once, for every row, in one place:
+    #
+    # - Adding `PUBLIC_PATH_OK` to a row's pass list does nothing. CTest passes
+    #   a test when *any* required expression matches, so the row's own weaker
+    #   expression still carries it.
+    # - Failing on the child's exit code is not reachable while a pass
+    #   expression exists. `cmCTestRunTest` computes success as
+    #   `!forceFail && (retVal == 0 || !RequiredRegularExpressions.empty())`, so
+    #   a non-zero exit is ignored outright on any row that has a
+    #   `PASS_REGULAR_EXPRESSION`; measured on CMake 4.4.3, a test that prints
+    #   its marker and exits 1 passes. Reaching the exit code would mean
+    #   deleting the marker pinning from forty rows, which is the evidence they
+    #   exist for. `scripts/run_network_isolated_test.py` already returns the
+    #   child's code unchanged; nothing downstream was looking at it.
+    # - An error expression is evaluated independently of the pass list and
+    #   forces the failure regardless of it, which is the behaviour needed.
+    #
+    # Set here rather than row by row because this function is the single
+    # registration seam for every isolated test on all three platforms, so a
+    # row added later inherits it and the guarantee cannot drift. A row whose
+    # driver script captures the child's output - the `cmake -P` contracts -
+    # never shows the marker to CTest and is decided instead by that script's
+    # own check of the child's result code, which those scripts already make.
+    if(bpr_test_EXPECTS_FAILED_RUN)
+        # One row asks what a *failed* run reports, so the marker it must not
+        # be failed by is the marker it exists to observe. Stating that here
+        # keeps the default fail-closed: an exemption is written down at the
+        # row, not inferred from the absence of a property.
+        set_property(
+            TEST "${bpr_test_NAME}"
+            APPEND
+            PROPERTY LABELS "bpr_expects_failed_run"
+        )
+    else()
+        set_property(
+            TEST "${bpr_test_NAME}"
+            PROPERTY FAIL_REGULAR_EXPRESSION "PUBLIC_PATH_FAILED"
+        )
+    endif()
     set_property(
         TEST "${bpr_test_NAME}"
         APPEND

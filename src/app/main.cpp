@@ -3311,6 +3311,29 @@ namespace {
 		}
 #endif
 		stream << (passed ? "PUBLIC_PATH_OK\n" : "PUBLIC_PATH_FAILED\n");
+		// BPR-0555. A run that ran out of clock says so as a clock, before
+		// anything attributes the failure to whatever it happened to be doing.
+		// Four rows of the RFC-BPR-0016 closeout matrix reported only
+		// `EPOCH_FIXTURE_SEED_FAILED` on a host that was reindexing, which reads
+		// as a defect in the epoch path; the elapsed time against the bound was
+		// present, but in the verdict block, which prints after the marker that
+		// had already named the wrong thing.
+		if (aRun.BudgetExpired) {
+			const auto elapsedMs = static_cast<long long>(
+				std::chrono::duration_cast<std::chrono::milliseconds>(
+					automated_clock::now() - aRun.Started)
+					.count());
+			const auto budgetMs = static_cast<long long>(aRun.Budget.count());
+			stream << "RUN_BUDGET_EXPIRED:"
+				   << "elapsed_ms=" << elapsedMs << " budget_ms=" << budgetMs
+				   << " over_ms=" << (elapsedMs - budgetMs) << " stage="
+				   << (aRun.FailedStage >= 0 ? aRun.FailedStage
+											 : static_cast<int>(aRun.Stage))
+				   << " status=\""
+				   << QString::fromStdString(
+						  aApplication.window().github_status_text())
+				   << "\"\n";
+		}
 		if (aRun.VerifyNativePlatformVault) {
 			stream << "NATIVE_PLATFORM_VAULT_SELECTED:"
 				   << (status.NativePlatformVaultSelected ? "true" : "false")

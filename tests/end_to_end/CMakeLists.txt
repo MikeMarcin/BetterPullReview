@@ -116,14 +116,32 @@ endfunction()
 #   self test                       0.5 s   budget 8 s     16x
 #   fixture render and workbench   12-13 s  budget 40 s     3x
 #   native appearance probe        ~11 s    budget 30 s   2.7x
-#   epoch phase                     25 s    budget 60 s   2.4x
+#   epoch phase                     25 s    budget 120 s  4.8x
 #
 # A budget is not a target. It is the point past which waiting has stopped
 # being useful and the run should say what it was waiting for.
+#
+# The epoch phase is the one whose headroom was measured against a host doing
+# something else, because that is where it kept running out (BPR-0555). Four
+# rows failed the RFC-BPR-0016 closeout matrix on 2026-09-03 at 60 s, and were
+# reproduced failing at the head that session started from, so the seed was not
+# slow by construction; the host was reindexing. Re-measured on 2026-09-03 on
+# macOS 15.7.7 arm64, Qt 6.11.1, three consecutive seed phases driven directly:
+#
+#   quiet host, previously recorded            25.0 s
+#   load average 5.1 (browser, an Android      34.7 s, 33.3 s, 33.4 s
+#     emulator, WindowServer)
+#   the hosts that failed, from their own      60.0 s to 68.6 s
+#     PUBLIC_PATH_BUDGET lines
+#
+# 120 s is 4.8x the quiet measurement, 3.5x the loaded one, and 1.75x the worst
+# a real host has actually taken. The seed itself was left alone: its cost is
+# writing a Git object cache and a SQLite catalog for real, which is the point
+# of the fixture, and making it cheaper means changing what these rows drive.
 set(bpr_self_test_budget_ms 8000)
 set(bpr_fixture_run_budget_ms 40000)
 set(bpr_native_appearance_budget_ms 30000)
-set(bpr_epoch_phase_budget_ms 60000)
+set(bpr_epoch_phase_budget_ms 120000)
 set(bpr_stall_budget_ms 5000)
 
 set(bpr_test_qt_root "")
@@ -1697,9 +1715,14 @@ bpr_bound_automated_run(
 # that failed to bound itself would be killed by the harness at 30 s, print
 # nothing, and fail this test; there is no arrangement of the numbers under
 # which a missing bound still passes.
+# The one row whose subject is a failed run, so the one row `PUBLIC_PATH_FAILED`
+# must not fail: it asserts the stall probe's verdict block, which prints only
+# after `passed` is false. BPR-0552 makes that marker an error expression for
+# every other row registered through `bpr_add_network_isolated_test`.
 bpr_add_network_isolated_test(
     NAME application_automated_run_budget
     WINDOWS_UNCONTAINED
+    EXPECTS_FAILED_RUN
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --github-fixture
@@ -1862,7 +1885,7 @@ foreach(
     # Two budgeted runs: the seed phase and the reuse phase.
     bpr_bound_automated_run(
         application_epoch_persistence_${fixture_test_name}
-        TIMEOUT 240
+        TIMEOUT 340
         BUDGET_MS ${bpr_epoch_phase_budget_ms}
         RUNS 2
         RESERVE_MS 4000
@@ -1889,7 +1912,7 @@ set_tests_properties(
 # Four budgeted runs: seed, prune, verify-pruned-delete, verify-deleted.
 bpr_bound_automated_run(
     application_epoch_maintenance_public_path
-    TIMEOUT 360
+    TIMEOUT 660
     BUDGET_MS ${bpr_epoch_phase_budget_ms}
     RUNS 4
     RESERVE_MS 8000
@@ -1915,7 +1938,7 @@ set_tests_properties(
 # Three budgeted runs: the fresh composition, the gesture, and the restart.
 bpr_bound_automated_run(
     application_appearance_gesture_contract
-    TIMEOUT 300
+    TIMEOUT 500
     BUDGET_MS ${bpr_epoch_phase_budget_ms}
     RUNS 3
     RESERVE_MS 6000
@@ -1928,7 +1951,12 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/appearance-store-fallback-contract"
-        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        # An epoch fixture seed, not a fixture render: this row drives
+        # `--epoch-fixture-phase` and was one of the four BPR-0555 named. Under
+        # the render budget it had 40 s for work measured at 33-35 s on a
+        # loaded host, which is the thinnest margin in the file and was read as
+        # a seed defect every time it ran out.
+        "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/appearance_store_fallback_contract.cmake"
 )
@@ -1942,8 +1970,8 @@ set_tests_properties(
 # then a restart against the same obstructed appearance-store path.
 bpr_bound_automated_run(
     application_appearance_store_fallback_contract
-    TIMEOUT 120
-    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    TIMEOUT 340
+    BUDGET_MS ${bpr_epoch_phase_budget_ms}
     RUNS 2
     RESERVE_MS 4000
 )
