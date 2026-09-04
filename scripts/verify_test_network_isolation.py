@@ -364,10 +364,18 @@ def property_value(test: dict[str, Any], name: str) -> Any | None:
 
 
 def exit_verdict_failures(test: dict[str, Any], name: str) -> list[str]:
+    # The ordinary registration seam adds this exact failure-only guard.
+    # It cannot turn a failed process into a pass; the live lane still accepts
+    # no verdict property because its reviewed command has a separate owner.
     present = sorted(
         candidate.get("name")
         for candidate in test.get("properties", [])
         if candidate.get("name") in FORBIDDEN_EXIT_VERDICT_PROPERTIES
+        and not (
+            name != LIVE_TEST_NAME
+            and candidate.get("name") == "FAIL_REGULAR_EXPRESSION"
+            and candidate.get("value") == ["PUBLIC_PATH_FAILED"]
+        )
     )
     return (
         [f"{name} must use process exit as its only verdict; found {present!r}"]

@@ -32,6 +32,7 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     WINDOWS_UNCONTAINED_TESTS,
     configured_failures,
     environment_injection_failures,
+    exit_verdict_failures,
     live_image_failures,
     live_stage_zero_command,
     manifest_command,
@@ -471,6 +472,31 @@ class ConfiguredManifestTests(unittest.TestCase):
         )
         self.assertTrue(any("1800-second timeout" in value for value in failures))
         self.assertTrue(any("process exit" in value for value in failures))
+
+    def test_exact_inherited_failure_marker_is_ordinary_only(self) -> None:
+        test = {
+            "properties": [
+                {"name": "FAIL_REGULAR_EXPRESSION", "value": ["PUBLIC_PATH_FAILED"]}
+            ]
+        }
+        for name in sorted(EXIT_VERDICT_TESTS):
+            with self.subTest(name=name):
+                self.assertEqual(
+                    bool(exit_verdict_failures(test, name)), name == LIVE_TEST_NAME
+                )
+
+    def test_failure_marker_exception_rejects_altered_values(self) -> None:
+        for value in (
+            [], [".*"], ["PUBLIC_PATH_FAILED", "OK"],
+            "PUBLIC_PATH_FAILED", ["PUBLIC_PATH_FAILED|OK"],
+        ):
+            with self.subTest(value=value):
+                self.assertTrue(exit_verdict_failures(
+                    {"properties": [
+                        {"name": "FAIL_REGULAR_EXPRESSION", "value": value}
+                    ]},
+                    "test_network_isolation_manifest",
+                ))
 
     def test_all_verdict_override_properties_are_rejected(self) -> None:
         expected_live_command = live_command()
