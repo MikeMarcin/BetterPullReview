@@ -1,0 +1,27 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/2ae811784b1f4aba21e7e09e",
+  "review_gate": "device_session_retention_policy",
+  "review_scope": "owner_product_policy_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "policy:/betterpullreview/device-session/remember-device-sign-in",
+      "subject_digest": "sha256:2012027ee8171a129441f007b187109de8870ebf8f5bbd4853d07a6a5898ba63"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {},
+  "downstream_claims": {
+    "credential_operation_authorized": false,
+    "live_mutation_authorized": false,
+    "persistent_sign_in_implemented": false,
+    "rfc_closeout_claimed": false
+  },
+  "not_chosen_subjects": [
+    {
+      "subject_id": "policy:/betterpullreview/device-session/session-only-sign-in",
+      "subject_digest": "sha256:6bfdbd19ab2a4f9691ad64b65e34f7bc00d9af832cd853d8bbae909efc713991"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "recorded_at": "2026-09-04T23:54:33.569574+00:00",
+  "manifest": {
+    "path": "docs/verification/reviews/device-session-retention-policy-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:85b680c7ba461036d3afe89dba025243984674379f7026f76e02b0313e9bd184",
+    "byte_length": 4315
+  },
+  "verdict": {
+    "path": "docs/verification/reviews/device-session-retention-policy-v001/human-verdict.json",
+    "sha256": "sha256:7a16a76294813ca0a322a551c6e1d950e74a3aede8096dd967ed48cf2ae515e7",
+    "byte_length": 962
+  },
+  "received_response": {
+    "path": "docs/verification/reviews/device-session-retention-policy-v001/human-response.txt",
+    "sha256": "sha256:1a4e1b16c4b6045af0f2447f3d85bee95f41dc9229605d704f161e8e6976777f",
+    "byte_length": 1121
+  },
+  "official_validator": {
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:a7c6887dcde15b54e0d29d6a7a43847355e8c9dac38093fcd29b6abb603013ce",
+    "byte_length": 45951
+  },
+  "transport_normalization": "The received message escaped spaces as HTML &#x20; and underscores as Markdown \\_. Decode those transport escapes only; preserve the received response separately. No decisions or values changed.",
+  "command": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/device-session-retention-policy-v001/offline-package/attended-review-manifest.json --verdict docs/verification/reviews/device-session-retention-policy-v001/human-verdict.json",
+  "result": "valid complete verdict for bpr:/attended-review/betterpullreview/2ae811784b1f4aba21e7e09e",
+  "claims": {
+    "remember_device_sign_in_policy_selected": true,
+    "credential_operation_authorized": false,
+    "live_mutation_authorized": false,
+    "persistent_sign_in_implemented": false,
+    "rfc_closeout_claimed": false
+  }
+}

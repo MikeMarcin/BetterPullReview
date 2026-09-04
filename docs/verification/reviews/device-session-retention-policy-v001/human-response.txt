@@ -1,0 +1,27 @@
+{
+&#x20; "schema\_name": "bpr.attended\_review\_verdict",
+&#x20; "schema\_version": 1,
+&#x20; "batch\_id": "bpr:/attended-review/betterpullreview/2ae811784b1f4aba21e7e09e",
+&#x20; "review\_gate": "device\_session\_retention\_policy",
+&#x20; "review\_scope": "owner\_product\_policy\_only",
+&#x20; "accepted\_subjects": [
+&#x20;   {
+&#x20;     "subject\_id": "policy:/betterpullreview/device-session/remember-device-sign-in",
+&#x20;     "subject\_digest": "sha256:2012027ee8171a129441f007b187109de8870ebf8f5bbd4853d07a6a5898ba63"
+&#x20;   }
+&#x20; ],
+&#x20; "rejected\_subjects": [],
+&#x20; "notes\_by\_subject\_identity": {},
+&#x20; "downstream\_claims": {
+&#x20;   "credential\_operation\_authorized": false,
+&#x20;   "live\_mutation\_authorized": false,
+&#x20;   "persistent\_sign\_in\_implemented": false,
+&#x20;   "rfc\_closeout\_claimed": false
+&#x20; },
+&#x20; "not\_chosen\_subjects": [
+&#x20;   {
+&#x20;     "subject\_id": "policy:/betterpullreview/device-session/session-only-sign-in",
+&#x20;     "subject\_digest": "sha256:6bfdbd19ab2a4f9691ad64b65e34f7bc00d9af832cd853d8bbae909efc713991"
+&#x20;   }
+&#x20; ]
+}

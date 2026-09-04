@@ -372,3 +372,12 @@ silently move the other.
   justify an enabled generally distributed production artifact.
 - BPR-0035/BPR-0036, documentation, simplification, clean final replay, or
   independent capability-critical review remains open.
+
+### BPR-0541 owner policy decision — 2026-09-04
+
+The owner selected Remember device sign-in in the complete
+[validated verdict](reviews/device-session-retention-policy-v001/verdict-validation.json).
+This authorizes the subsequent persistent-device-session implementation in
+[[BPR-0541]]; it does not change the evidence or terminal status of the earlier
+RFC closeout, and does not claim credential operations or implemented restart
+behavior. Manual-token sessions remain session-only under the chosen policy.

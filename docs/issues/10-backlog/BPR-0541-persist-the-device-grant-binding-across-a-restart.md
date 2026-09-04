@@ -1,8 +1,7 @@
 ---
 id: BPR-0541
 title: Persist the device-grant binding across a restart and defer the first refresh
-status: Parked
-parked_on: awaiting-product-decision
+status: Backlog
 rfc: RFC-BPR-0016
 depends_on: [BPR-0540]
 ---
@@ -60,3 +59,19 @@ was performed for this card. Once the owner exports a complete verdict, validate
 it against `offline-package/attended-review-manifest.json` using the attended
 review builder, record the response immutably, and apply only the chosen policy.
 The card parks on this product decision; all its dependencies are terminal.
+
+## Owner decision validated — 2026-09-04
+
+The owner selected **Remember device sign-in** and left the session-only
+alternative not chosen. The complete exported verdict validates against batch
+`bpr:/attended-review/betterpullreview/2ae811784b1f4aba21e7e09e`; the
+[immutable validation record](../../verification/reviews/device-session-retention-policy-v001/verdict-validation.json)
+binds the manifest, received response, decoded JSON, and official validator.
+Only HTML space entities and Markdown underscore escapes introduced in message
+transport were decoded. No decision value changed.
+
+The chosen policy is now authorized for implementation, including a visible
+Sign out action and manual-token replacement erasure. Credential operations,
+live mutations, implementation completion, and RFC closeout remain unclaimed.
+The product-decision blocker is removed; this card returns to the dependency-
+ready backlog while the integrator finishes the claimed BPR-0316 slice.
