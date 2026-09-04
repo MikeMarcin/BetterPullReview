@@ -33,7 +33,7 @@ by these names and no others:
   station branch only. It consumes reserved IDs and never allocates them.
 
 Station-local subagents (`rfc-utility`, `rfc-scout`, `rfc-worker`,
-`rfc-verifier`, reviewers) keep their existing contracts from
+`rfc-test-runner`, reviewers) keep their existing contracts from
 `references/delegated-execution.md`; they gain no station authority.
 
 ## Session naming

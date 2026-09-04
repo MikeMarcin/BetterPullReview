@@ -1,4 +1,7 @@
+import argparse
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -7,8 +10,10 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "codex_lane.py"
+
 PROJECT = json.loads(
     (Path(__file__).resolve().parent.parent / "config" / "project.json").read_text(encoding="utf-8")
 )
@@ -85,59 +90,114 @@ class CodexLaneTest(unittest.TestCase):
             return []
         return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
 
-    def test_routed_launch_composes_prompt_and_logs(self) -> None:
-        result = self._launch(
-            "--role", "rfc-scout", "--lane-name", "rfc_scout_sync_path", "--task", "Trace the sync path."
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        payload = json.loads(result.stdout)
-        args = payload["args"]
-        self.assertEqual(args[0], "task")
-        self.assertIn("--model", args)
-        model = args[args.index("--model") + 1]
-        self.assertTrue(model, "route model must be forwarded")
-        self.assertNotIn("--write", args)
-        self.assertIn("Role: rfc-scout", payload["prompt"])
-        self.assertIn("Session name: rfc_scout_sync_path", payload["prompt"])
-        self.assertIn("Trace the sync path.", payload["prompt"])
-
-        records = self._lane_log()
-        self.assertEqual(len(records), 1)
-        self.assertEqual(records[0]["role"], "rfc-scout")
-        self.assertEqual(records[0]["lane_name"], "rfc_scout_sync_path")
-        self.assertFalse(records[0]["write"])
+    def test_all_routes_are_forwarded_with_role_instructions_and_identity(self) -> None:
+        module = _load_codex_lane()
+        expected = {
+            "rfc-utility": ("gpt-5.6-luna", "xhigh"),
+            "rfc-test-runner": ("gpt-5.6-luna", "xhigh"),
+            "rfc-scout": ("gpt-5.6-sol", "low"),
+            "rfc-worker-routine": ("gpt-5.6-sol", "high"),
+            "rfc-worker": ("gpt-6-astra", "high"),
+            "rfc-reviewer": ("gpt-6-astra", "high"),
+            "rfc-critical-reviewer": ("gpt-6-astra", "xhigh"),
+        }
+        for name, (model, effort) in expected.items():
+            with self.subTest(role=name):
+                lane_name = name.replace("-", "_") + "_focused_check"
+                result = self._launch(
+                    "--role", name, "--lane-name", lane_name,
+                    "--task", "Bounded assignment.",
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertNotIn("downgrade", result.stderr)
+                payload = json.loads(result.stdout)
+                args = payload["args"]
+                self.assertEqual(args[0], "task")
+                self.assertEqual(args[args.index("--model") + 1], model)
+                self.assertEqual(args[args.index("--effort") + 1], effort)
+                self.assertNotIn("--write", args)
+                role, route = module.load_role_route(name)
+                self.assertIn(module.renderer.startup_banner(name, route), payload["prompt"])
+                for instruction in module.renderer.project_instructions(role, PROJECT):
+                    self.assertIn(instruction, payload["prompt"])
+                addenda_roles = ("rfc-worker", name) if name == "rfc-worker-routine" else (name,)
+                for addenda_role in addenda_roles:
+                    for addendum in PROJECT["role_addenda"].get(addenda_role, []):
+                        self.assertIn(addendum, payload["prompt"])
+                self.assertIn(f"Session name: {lane_name}", payload["prompt"])
+                self.assertIn("Bounded assignment.", payload["prompt"])
+                record = self._lane_log()[-1]
+                self.assertEqual(record["role"], name)
+                self.assertEqual(record["lane_name"], lane_name)
+                self.assertEqual(record["model"], model)
+                self.assertEqual(record["effort_requested"], effort)
+                self.assertEqual(record["effort"], effort)
+                self.assertFalse(record["write"])
+        self.assertEqual(len(self._lane_log()), len(expected))
 
     def test_effort_max_downgrades_to_xhigh(self) -> None:
-        result = self._launch("--role", "rfc-utility", "--task", "Inventory changed files.")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        payload = json.loads(result.stdout)
-        args = payload["args"]
-        self.assertIn("--effort", args)
-        self.assertEqual(args[args.index("--effort") + 1], "xhigh")
-        self.assertIn("downgrade", result.stderr)
-        records = self._lane_log()
-        self.assertEqual(records[0]["effort_requested"], "max")
-        self.assertEqual(records[0]["effort"], "xhigh")
+        # Compatibility fallback is exercised without keeping a live route at max.
+        module = _load_codex_lane()
+        role, route = module.load_role_route("rfc-utility")
+        route = {**route, "effort": "max"}
+        args = argparse.Namespace(
+            role="rfc-utility", task_file=None, task="Inventory changed files.",
+            lane_name=None, write=False, allow_shared_write=False,
+            cwd=str(self.repo), repo_root=self.repo, background=False,
+        )
+        stderr = io.StringIO()
+
+        def capture_prompt(command):
+            prompt_path = Path(command[command.index("--prompt-file") + 1])
+            self.assertIn("Effort: xhigh", prompt_path.read_text())
+            return subprocess.CompletedProcess(command, 0)
+
+        with (
+            mock.patch.object(module, "load_role_route", return_value=(role, route)),
+            mock.patch.object(module, "find_companion", return_value=self.companion),
+            mock.patch.object(module.subprocess, "run", side_effect=capture_prompt) as run,
+            mock.patch.object(module, "record_launch") as record,
+            contextlib.redirect_stderr(stderr),
+        ):
+            self.assertEqual(module.cmd_launch(args), 0)
+        command = run.call_args.args[0]
+        self.assertEqual(command[command.index("--effort") + 1], "xhigh")
+        self.assertIn("downgrade", stderr.getvalue())
+        self.assertEqual(record.call_args.args[1]["effort_requested"], "max")
+        self.assertEqual(record.call_args.args[1]["effort"], "xhigh")
+        self.assertFalse(Path(command[command.index("--prompt-file") + 1]).exists())
+
+    def test_obsolete_role_is_rejected(self) -> None:
+        result = self._launch("--role", "rfc-verifier", "--task", "Run tests.")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unknown role", result.stderr)
+        self.assertEqual(self._lane_log(), [])
 
     def test_write_refused_in_shared_checkout(self) -> None:
-        result = self._launch("--role", "rfc-worker", "--task", "Edit things.", "--write")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("own worktree", result.stderr)
-        self.assertEqual(self._lane_log(), [])
+        for role in ("rfc-worker", "rfc-worker-routine", "rfc-test-runner"):
+            with self.subTest(role=role):
+                result = self._launch("--role", role, "--task", "Execute assignment.", "--write")
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("own worktree", result.stderr)
+                self.assertEqual(self._lane_log(), [])
 
     def test_write_allowed_in_lane_worktree(self) -> None:
         worktree = self.root / "wt-a"
         _git(self.repo, "worktree", "add", "-b", "lane/a", str(worktree), "HEAD")
-        result = self._launch(
-            "--role", "rfc-worker", "--lane-name", "rfc_worker_a",
-            "--task", "Edit things.", "--write", "--cwd", str(worktree),
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        payload = json.loads(result.stdout)
-        self.assertIn("--write", payload["args"])
-        self.assertIn("--cwd", payload["args"])
-        records = self._lane_log()
-        self.assertTrue(records[0]["write"])
+        for role in ("rfc-worker", "rfc-worker-routine", "rfc-test-runner"):
+            with self.subTest(role=role):
+                result = self._launch(
+                    "--role", role, "--task", "Execute the bounded assignment.",
+                    "--write", "--cwd", str(worktree),
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                payload = json.loads(result.stdout)
+                self.assertIn("--write", payload["args"])
+                self.assertIn("--cwd", payload["args"])
+                self.assertTrue(self._lane_log()[-1]["write"])
+                if role == "rfc-test-runner":
+                    self.assertIn("Do not edit source", payload["prompt"])
+                    self.assertIn("Do not spawn another agent", payload["prompt"])
 
     def test_write_refused_for_read_only_role(self) -> None:
         result = self._launch("--role", "rfc-reviewer", "--task", "Review.", "--write")
@@ -196,9 +256,7 @@ class ComposePromptNamingTests(unittest.TestCase):
         role, route = _load_codex_lane().load_role_route("rfc-reviewer")
         prompt = _load_codex_lane().compose_prompt("rfc-reviewer", role, route, "rfc_reviewer_x", "task")
         self.assertIn("emit exactly this startup line", prompt)
-        self.assertLess(
-            prompt.index(f"{PROJECT['display_name']} lane"), prompt.index("emit exactly this startup line")
-        )
+        self.assertLess(prompt.index(f"{PROJECT['display_name']} lane"), prompt.index("emit exactly this startup line"))
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import project_config  # noqa: E402
 
 ROLE_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-MODEL_CLASSES = {"mechanical", "balanced", "deep", "deep-max"}
+MODEL_CLASSES = {"mechanical", "balanced", "standard", "deep", "critical"}
 MUTATIONS = {"read-only", "build-write", "workspace-write"}
 PLACEHOLDER_RE = re.compile(r"^<[^>]+>$|\$\{")
 ROLES_SCHEMA = "implement-rfc.roles.v1"
@@ -164,6 +164,9 @@ def rendered_role_instructions(
     name: str, role: dict[str, Any], route: dict[str, Any], project: dict[str, Any]
 ) -> list[str]:
     banner = startup_banner(name, route)
+    # Routine implementation retains every project-specific worker boundary.
+    addenda_roles = ("rfc-worker", name) if name == "rfc-worker-routine" else (name,)
+    addenda = [line for role_name in addenda_roles for line in project["role_addenda"].get(role_name, [])]
     instructions = [
         "Before any analysis or tool call, emit exactly this startup line: "
         f"`{banner}`. If the runtime exposes an effective model or effort that differs "
@@ -172,7 +175,7 @@ def rendered_role_instructions(
         "section in your final report; some runtimes return only the final report to "
         "the launching agent, so the repetition is what the launcher verifies.",
         *project_instructions(role, project),
-        *project["role_addenda"].get(name, []),
+        *addenda,
     ]
     if role.get("may_spawn_utility", False):
         instructions.append(

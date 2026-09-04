@@ -117,7 +117,7 @@ For each dependency-ready card:
    A separable noncritical improvement becomes follow-up work rather than an
    expanded current card.
 
-When a slice is delegated to `rfc-worker`, give it the card, the relevant
+When a slice is delegated to `rfc-worker` or `rfc-worker-routine`, give it the card, the relevant
 acceptance criteria, the applicable instructions, an explicit exclusive list
 of allowed paths, explicit non-goals, and the focused verification. Do not
 edit while it runs. Afterwards inspect the complete diff, reject out-of-scope
@@ -192,21 +192,22 @@ They are also appropriate when the user explicitly requests them. Use at most
 the isolation needed for the selected check, and remove task-created
 worktrees/build roots as soon as their result is consumed.
 
-When review is selected, prefer independence across model families where the
-driver can launch it: an ordinary review of a Claude-authored implementation
-prefers the Codex route, and a critical review runs the critical reviewer on
-both provider routes and reconciles the findings — a driver that cannot
-launch the other family runs its native reviewer and records the omitted
-lane. Read [references/codex-lanes.md](references/codex-lanes.md) before
-launching any Codex lane, and record each review's runtime on the closeout
-card as `Closeout review runtime: <runtime> (<model>, <effort>)`.
+When review is selected, use one reviewer and prefer the opposite model family
+from the implementation where the driver can launch it. Use the critical role
+instead of the ordinary role for a named material risk. A second review requires
+an unresolved material concern or an explicit request, including when the same
+role runs on another provider. If the other family is unavailable, use the native
+reviewer and record that limitation. Read
+[references/codex-lanes.md](references/codex-lanes.md) before launching any Codex
+lane, and record each review's runtime on the closeout card as
+`Closeout review runtime: <runtime> (<model>, <effort>)`.
 
 A reviewer may block closeout only with an evidence-backed failure of an
 existing acceptance criterion or a critical regression in the changed surface.
 Unsupported suspicions, broader hardening ideas, and new requirements are
 non-blocking. Read
 [references/delegated-execution.md](references/delegated-execution.md) when
-delegation, a verifier, or an independent reviewer will materially help.
+delegation, a test runner, or an independent reviewer will materially help.
 
 ## Documentation
 
@@ -244,7 +245,7 @@ removed, and remaining follow-ups or decisions.
 
 ## Temporary Resources
 
-Ordinary RFC work creates no verifier worktree. If this task creates a
+Ordinary RFC work creates no separate test-runner worktree. If this task creates a
 temporary worktree, build root, log root, or generated review root:
 
 1. record its exact path and consumer;

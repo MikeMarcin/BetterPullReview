@@ -12,14 +12,12 @@ gap is known and deliberately left open.
 
 ## When A Codex Lane Is The Better Choice
 
-- **Cross-family independent review.** A reviewer from a different model
-  family is more genuinely independent than any fresh-context same-family
-  agent. When independent review is selected and the implementation was
-  written by Claude, prefer the Codex route for an ordinary `rfc-reviewer`;
-  for a critical review, run `rfc-critical-reviewer` on both families and
-  reconcile (see Lane Runtime Selection in
-  [model-routing.md](model-routing.md)).
-- **Mechanical bulk.** Offloading bulk `rfc-utility` and `rfc-verifier`
+- **Cross-family independent review.** When review is useful, prefer the Codex
+  route for a Claude-authored implementation. Select either `rfc-reviewer` or
+  `rfc-critical-reviewer` according to the named risk. Run a second review only
+  for an unresolved material concern or an explicit request; see
+  [model-routing.md](model-routing.md).
+- **Mechanical bulk.** Offloading bulk `rfc-utility` and `rfc-test-runner`
   token volume to Codex preserves the primary integrator's budget, the run's
   scarcest resource, when the allowance economics favor it.
 - **Second opinion when stuck.** That is `codex:codex-rescue`'s job; it
@@ -44,6 +42,12 @@ role prompt — including the startup identity line — to the assignment, and
 appends a launch record to the checkout's Codex lane log
 (`<git-common-dir>/<project>-codex-lanes.jsonl`, named from `config/project.json`).
 
+Native adapters and plugin launches use the same routing source for all seven
+roles, including `rfc-test-runner` and `rfc-worker-routine`. Model and effort are
+passed explicitly, so plugin defaults do not select a different route. The test
+runner remains limited to assigned disposable outputs even when `--write` is
+used; that flag grants a workspace sandbox, not permission to change source.
+
 It also prepends a one-line banner naming the lane and role, because the
 companion labels a job by shortening the prompt's first line — without the
 banner every lane in the operator's task list reads identically.
@@ -59,7 +63,7 @@ Lane rules:
    refuses `--write` for them. Inspect `git status --short` after the lane
    anyway — an unexpected source write invalidates the result.
 4. The proven uses are read-only: reviewers, utility, scout, and
-   verifier commands whose outputs live outside the source tree. The
+   test-runner commands that require no writes. The
    launcher's `--write` path exists with its worktree guard (a write lane
    must run in its own worktree under the lane commit authority in
    [pack-lifecycle.md](pack-lifecycle.md)), but it is not an established
@@ -78,11 +82,11 @@ Lane rules:
   cancel abandoned lanes with `codex_lane.py cancel` rather than leaving
   them running.
 - The companion runtime caps reasoning effort at `xhigh`. When a route names
-  `max` (the mechanical and deep-max routes), the launcher downgrades to
+  `max` in a future routing configuration, the launcher downgrades to
   `xhigh` and reports it; record the downgrade in the closeout card per the
   standard fallback rule. Review scope and acceptance gates never narrow
   because of the downgrade. The native `.codex/agents` adapters are
-  unaffected.
+  unaffected. All checked-in routes fit the cap and require no downgrade.
 
 ## Result Handling
 
@@ -105,12 +109,13 @@ Whenever an independent review runs, record one line per review on the
 closeout card:
 
 ```text
-Closeout review runtime: codex (gpt-5.6-sol, xhigh)
-Closeout review runtime: claude (claude-fable-5-1, max)
-Closeout review runtime: claude (claude-opus-5, xhigh) — waived: <reason cross-family was skipped>
+Closeout review runtime: codex (gpt-6-astra, high)
+Closeout review runtime: claude (claude-fable-5-1, xhigh)
+Closeout review runtime: claude (claude-fable-5-1, high) — waived: <reason cross-family was skipped>
 ```
 
-A dual-family critical review records both lines. The line exists because
+These are alternative examples, not a required set of reviews. When a second
+review is warranted, record each review separately. The line exists because
 the cross-family preference has silently drifted before: in an earlier
 mixed-runtime trial, two consecutive closeouts slipped back to same-family
 review with no decision behind it, and nothing on the board made the

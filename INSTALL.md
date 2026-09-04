@@ -21,4 +21,4 @@ This archive is a repository-root overlay for BetterPullReview.
 
 The canonical skill remains `.agents/skills/implement-rfc/SKILL.md`. The `.claude/skills/implement-rfc/SKILL.md` file is a generated entrypoint, not a second maintained copy.
 
-The checked-in quality profile routes mechanically checkable utility work to the lowest-cost model family, semantic scouting to the balanced family, implementation and ordinary review to the deep family, and only capability-critical review to the deep-max family. The primary agent remains the sole BetterPullReview RFC integrator and tracker/commit/status authority.
+The checked-in quality profile routes utility work and prescribed test execution to `mechanical`, semantic scouting to `balanced`, routine implementation to `standard`, difficult implementation and ordinary review to `deep`, and deeper review of a named material risk to `critical`. The primary agent remains the sole BetterPullReview RFC integrator and tracker/commit/status authority.

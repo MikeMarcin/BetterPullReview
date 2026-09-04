@@ -47,100 +47,69 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
         return f"Role: {role} | Model: {route['model']} | Effort: {effort}"
 
     def test_renders_deterministic_native_agents_from_shared_assignments(self) -> None:
+        # Approved role assignments are an independent expectation, not derived
+        # from the routing file whose accidental edits this test should catch.
+        expected = {
+            "rfc-utility": ("gpt-5.6-luna", "xhigh", "claude-haiku-4-5", None, "read-only", False),
+            "rfc-test-runner": ("gpt-5.6-luna", "xhigh", "claude-haiku-4-5", None, "build-write", False),
+            "rfc-scout": ("gpt-5.6-sol", "low", "claude-opus-5", "low", "read-only", True),
+            "rfc-worker-routine": ("gpt-5.6-sol", "high", "claude-opus-5", "high", "workspace-write", True),
+            "rfc-worker": ("gpt-6-astra", "high", "claude-fable-5-1", "high", "workspace-write", True),
+            "rfc-reviewer": ("gpt-6-astra", "high", "claude-fable-5-1", "high", "read-only", True),
+            "rfc-critical-reviewer": ("gpt-6-astra", "xhigh", "claude-fable-5-1", "xhigh", "read-only", True),
+        }
+        self.assertEqual(set(ROUTING["assignments"]), set(expected))
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             first = self.run_renderer(root)
             self.assertEqual(first.returncode, 0, first.stderr)
+            self.assertIn("rendered 17 files", first.stdout)
 
-            utility_route = self.expected_route("rfc-utility", "codex")
-            utility = tomllib.loads((root / ".codex/agents/rfc-utility.toml").read_text())
-            self.assertEqual(utility["model"], utility_route["model"])
-            self.assertEqual(utility["model_reasoning_effort"], utility_route["effort"])
-            self.assertEqual(utility["sandbox_mode"], "read-only")
-            self.assertFalse(utility["agents"]["enabled"])
+            for role, (model, effort, claude_model, claude_effort, mutation, nested) in expected.items():
+                with self.subTest(role=role):
+                    codex = tomllib.loads((root / f".codex/agents/{role}.toml").read_text())
+                    self.assertEqual(codex["name"], role)
+                    self.assertEqual(codex["model"], model)
+                    self.assertEqual(codex["model_reasoning_effort"], effort)
+                    sandbox = "read-only" if mutation == "read-only" else "workspace-write"
+                    self.assertEqual(codex["sandbox_mode"], sandbox)
+                    self.assertEqual(codex["agents"]["enabled"], nested)
+                    instructions = codex["developer_instructions"]
+                    self.assertTrue(instructions.startswith("Before any analysis or tool call"))
+                    self.assertIn(self.expected_banner(role, "codex"), instructions)
+                    self.assertEqual("rfc_utility_<purpose>" in instructions, nested)
 
-            scout_route = self.expected_route("rfc-scout", "codex")
-            scout = tomllib.loads((root / ".codex/agents/rfc-scout.toml").read_text())
-            self.assertEqual(scout["model"], scout_route["model"])
-            self.assertEqual(scout["model_reasoning_effort"], scout_route["effort"])
-            self.assertTrue(scout["agents"]["enabled"])
+                    claude = (root / f".claude/agents/{role}.md").read_text()
+                    frontmatter = claude.split("---", 2)[1].strip().splitlines()
+                    header = dict(line.split(": ", 1) for line in frontmatter)
+                    self.assertEqual(header["name"], role)
+                    self.assertEqual(json.loads(header["model"]), claude_model)
+                    self.assertEqual(header.get("effort"), claude_effort)
+                    permission = "plan" if mutation == "read-only" else "acceptEdits"
+                    self.assertEqual(header["permissionMode"], permission)
+                    tools = set(header["tools"].split(", "))
+                    expected_tools = {"Read", "Grep", "Glob", "Bash"}
+                    if mutation == "workspace-write":
+                        expected_tools.update({"Edit", "Write", "Skill"})
+                    if nested:
+                        expected_tools.add("Agent(rfc-utility)")
+                    self.assertEqual(tools, expected_tools)
+                    body = claude.split(f"# {role}\n\n", 1)[1]
+                    self.assertTrue(body.startswith("- Before any analysis or tool call"))
+                    self.assertIn(self.expected_banner(role, "claude"), body)
 
-            worker_route = self.expected_route("rfc-worker", "codex")
-            worker = tomllib.loads((root / ".codex/agents/rfc-worker.toml").read_text())
-            self.assertEqual(worker["model"], worker_route["model"])
-            self.assertEqual(worker["model_reasoning_effort"], "xhigh")
-            self.assertEqual(worker["sandbox_mode"], "workspace-write")
-            self.assertTrue(worker["agents"]["enabled"])
-
-            verifier_route = self.expected_route("rfc-verifier", "codex")
-            verifier = tomllib.loads((root / ".codex/agents/rfc-verifier.toml").read_text())
-            self.assertEqual(verifier["model"], verifier_route["model"])
-            self.assertEqual(verifier["sandbox_mode"], "workspace-write")
-            self.assertIn("Do not edit source", verifier["developer_instructions"])
-            self.assertTrue(verifier["agents"]["enabled"])
-
-            reviewer_route = self.expected_route("rfc-reviewer", "codex")
-            reviewer = tomllib.loads((root / ".codex/agents/rfc-reviewer.toml").read_text())
-            self.assertEqual(reviewer["model"], reviewer_route["model"])
-            self.assertEqual(reviewer["model_reasoning_effort"], "xhigh")
-            self.assertTrue(reviewer["agents"]["enabled"])
-
-            critical_route = self.expected_route("rfc-critical-reviewer", "codex")
-            critical = tomllib.loads(
-                (root / ".codex/agents/rfc-critical-reviewer.toml").read_text()
-            )
-            self.assertEqual(critical["model"], critical_route["model"])
-            self.assertEqual(critical["model_reasoning_effort"], "max")
-            self.assertTrue(critical["agents"]["enabled"])
-
-            for role in ROUTING["assignments"]:
-                codex = tomllib.loads((root / f".codex/agents/{role}.toml").read_text())
-                self.assertTrue(
-                    codex["developer_instructions"].startswith(
-                        "Before any analysis or tool call"
-                    )
-                )
-                self.assertIn(self.expected_banner(role, "codex"), codex["developer_instructions"])
-
-                claude = (root / f".claude/agents/{role}.md").read_text()
-                body = claude.split(f"# {role}\n\n", 1)[1]
-                self.assertTrue(body.startswith("- Before any analysis or tool call"))
-                self.assertIn(self.expected_banner(role, "claude"), body)
-
-            self.assertIn("rfc_utility_<purpose>", scout["developer_instructions"])
-            self.assertNotIn("rfc_utility_<purpose>", utility["developer_instructions"])
-
-            claude_utility_route = self.expected_route("rfc-utility", "claude")
-            claude_utility = (root / ".claude/agents/rfc-utility.md").read_text()
-            self.assertIn(f'model: "{claude_utility_route["model"]}"', claude_utility)
-            self.assertIn("permissionMode: plan", claude_utility)
-            self.assertNotIn("tools: Agent", claude_utility)
-            self.assertNotIn("\neffort:", claude_utility)
-
-            claude_scout = (root / ".claude/agents/rfc-scout.md").read_text()
-            self.assertIn("tools: Read, Grep, Glob, Bash, Agent(rfc-utility)", claude_scout)
-
-            claude_verifier = (root / ".claude/agents/rfc-verifier.md").read_text()
-            self.assertIn("permissionMode: acceptEdits", claude_verifier)
-            self.assertIn("Agent(rfc-utility)", claude_verifier)
-            self.assertNotIn("tools: Read, Grep, Glob, Bash, Edit", claude_verifier)
-
-            claude_critical_route = self.expected_route("rfc-critical-reviewer", "claude")
-            claude_critical = (root / ".claude/agents/rfc-critical-reviewer.md").read_text()
-            self.assertIn(f'model: "{claude_critical_route["model"]}"', claude_critical)
-            self.assertIn("effort: max", claude_critical)
+            for provider, extension in (("codex", "toml"), ("claude", "md")):
+                for output_root in (root, SKILL_DIR.parents[2]):
+                    self.assertFalse((output_root / f".{provider}/agents/rfc-verifier.{extension}").exists())
 
             shim = (root / ".claude/skills/implement-rfc/SKILL.md").read_text()
             self.assertIn(".agents/skills/implement-rfc/SKILL.md", shim)
-
-            manifest = json.loads(
-                (root / ".agents/skills/implement-rfc/generated/runtime-adapters.json").read_text(
-                    encoding="utf-8"
-                )
-            )
+            manifest_path = root / ".agents/skills/implement-rfc/generated/runtime-adapters.json"
+            manifest = json.loads(manifest_path.read_text())
             self.assertEqual(manifest["schema"], "implement-rfc.runtime-adapters.v1")
-            self.assertEqual(manifest["project"], PROJECT["project"])
             self.assertEqual(manifest["assignments"], ROUTING["assignments"])
+            self.assertEqual(len(manifest["files"]), 15)
+            self.assertEqual(manifest["project"], PROJECT["project"])
 
             portable = json.loads(
                 (root / ".agents/skills/implement-rfc/generated/portable-manifest.json").read_text(
@@ -156,16 +125,20 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
             self.assertNotIn("references/project.md", portable_paths)
             self.assertFalse(any(path.startswith("generated/") for path in portable_paths))
 
-            claude_worker = (root / ".claude/agents/rfc-worker.md").read_text()
-            for addendum in PROJECT["role_addenda"].get("rfc-worker", []):
-                self.assertIn(addendum, claude_worker)
-            attended = PROJECT["attended_review_skill"]
-            if attended is None:
-                self.assertIn("record the pending checkpoint and its exact ask", claude_worker)
-                self.assertNotIn("{attended_review_skill}", claude_worker)
-            else:
-                self.assertIn(f".agents/skills/{attended}/SKILL.md", claude_worker)
-            self.assertNotIn("{attended_review_skill}", claude_worker)
+            for worker in ("rfc-worker", "rfc-worker-routine"):
+                claude_worker = (root / f".claude/agents/{worker}.md").read_text()
+                codex_worker = tomllib.loads((root / f".codex/agents/{worker}.toml").read_text())
+                for content in (claude_worker, codex_worker["developer_instructions"]):
+                    for addendum in PROJECT["role_addenda"].get("rfc-worker", []):
+                        self.assertIn(addendum, content)
+                    for addendum in PROJECT["role_addenda"].get(worker, []):
+                        self.assertIn(addendum, content)
+                    attended = PROJECT["attended_review_skill"]
+                    if attended is None:
+                        self.assertIn("record the pending checkpoint and its exact ask", content)
+                    else:
+                        self.assertIn(f".agents/skills/{attended}/SKILL.md", content)
+                    self.assertNotIn("{attended_review_skill}", content)
 
             check = self.run_renderer(root, "--check")
             self.assertEqual(check.returncode, 0, check.stderr)
@@ -190,13 +163,13 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
             scout = tomllib.loads((root / ".codex/agents/rfc-scout.toml").read_text())
             self.assertEqual(scout["model"], "candidate-codex")
             self.assertIn(
-                "Role: rfc-scout | Model: candidate-codex | Effort: high",
+                "Role: rfc-scout | Model: candidate-codex | Effort: low",
                 scout["developer_instructions"],
             )
             claude_scout = (root / ".claude/agents/rfc-scout.md").read_text()
             self.assertIn('model: "claude-candidate"', claude_scout)
             self.assertIn(
-                "Role: rfc-scout | Model: claude-candidate | Effort: high",
+                "Role: rfc-scout | Model: claude-candidate | Effort: low",
                 claude_scout,
             )
             self.assertIn("Do not edit files", claude_scout)

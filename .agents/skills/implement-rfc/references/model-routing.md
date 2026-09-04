@@ -2,83 +2,108 @@
 
 `config/routing.json` is the single checked-in source for role-to-model assignment. The canonical `SKILL.md` and shared role definitions name semantic roles and capability classes, never vendor models.
 
-## Capability Classes
+## Capability Classes And Assignments
 
-- `mechanical`: exact, bounded, mechanically checkable work such as locating files and symbols, inventory, prescribed read-only command execution, schema or generated-file drift checks, and compact log condensation.
-- `balanced`: semantic repository analysis, ownership tracing, build-selection analysis, and verification-surface discovery.
-- `deep`: production implementation and ordinary independent closeout review where difficult multi-step reasoning and code judgment are expected.
-- `deep-max`: optional exceptional review where maximum depth matters more than latency or token use.
+| Role | Class | Codex | Claude |
+|---|---|---|---|
+| `rfc-utility` | `mechanical` | GPT-5.6 Luna, xhigh | Claude Haiku 4.5, effort unsupported |
+| `rfc-test-runner` | `mechanical` | GPT-5.6 Luna, xhigh | Claude Haiku 4.5, effort unsupported |
+| `rfc-scout` | `balanced` | GPT-5.6 Sol, low | Claude Opus 5, low |
+| `rfc-worker-routine` | `standard` | GPT-5.6 Sol, high | Claude Opus 5, high |
+| `rfc-worker` | `deep` | GPT-6 Astra, high | Claude Fable 5.1, high |
+| `rfc-reviewer` | `deep` | GPT-6 Astra, high | Claude Fable 5.1, high |
+| `rfc-critical-reviewer` | `critical` | GPT-6 Astra, xhigh | Claude Fable 5.1, xhigh |
 
-## Current Checked-In Assignments
+- `mechanical`: exact locating, inventories, prescribed command execution,
+  schema/drift checks, and log condensation with directly checkable outputs.
+- `balanced`: bounded semantic repository analysis, ownership and execution-path
+  tracing, verification-surface discovery, and failure investigation.
+- `standard`: implementation using an established approach, an existing pattern,
+  exclusive ownership, and direct verification. Sensitive protocol, persistence,
+  authority, concurrency, lifetime, and destructive-migration changes use `deep`.
+- `deep`: implementation and independent review requiring substantial code and
+  contract judgment.
+- `critical`: deeper counterexample analysis focused on a named material risk.
 
-- `rfc-utility` -> `mechanical`;
-- `rfc-scout` -> `balanced`;
-- `rfc-worker` -> `deep`;
-- `rfc-verifier` -> `deep`;
-- `rfc-reviewer` -> `deep`;
-- `rfc-critical-reviewer` -> `deep-max`.
+The primary integrator is not a generated child role. Recommend the `deep`
+route (Astra high or Fable 5.1 high) when choosing a primary model, but preserve
+user-selected active session settings. These are defaults, not permanent
+architectural decisions. No default uses `max`. Haiku's omitted effort field
+means effort is unsupported; it does not establish that thinking is disabled.
 
-The primary RFC integrator is not a generated child role; when the runtime exposes model choice, run it at the `deep` tier or stronger. The implementation worker and verifier are intentionally routed at the same deep tier as the ordinary reviewer. Issue-card slices and verification commands are bounded, but they commonly involve public contracts, ownership and lifetime, build or package selection, cross-module seams, or runtime behavior; bounded does not imply routine.
+## Routing Decision And Evidence
 
-When independent review is selected, use `rfc-critical-reviewer` instead of `rfc-reviewer` when the changed risk warrants maximum-depth counterexample search. Do not run the ordinary and critical roles together by default; a second *role* is warranted only when the first review exposes a material unresolved disagreement or the user explicitly requests redundant review. A dual-family critical review — the same critical role on both provider routes, per Lane Runtime Selection below — is one review, not a redundant second one.
+Research and owner approval: **2026-09-04**. `verified_as_of` records this routing
+review date, not a successful local model-quality evaluation. This update is an
+owner-approved promotion informed by public measurements and experience; no
+project task bakeoff was performed.
 
-## Current Checked-In Routes
+- **Flagships and effort:** use Astra/Fable high for difficult implementation and
+  review, and xhigh for critical review. Public measurements support examining
+  cost per completed task rather than always selecting maximum effort; they do
+  not establish the best effort on every project slice. See
+  [Astra evaluation](https://artificialanalysis.ai/articles/benchmarking-gpt-6-astra),
+  [Fable 5.1 evaluation](https://artificialanalysis.ai/articles/claude-fable-5-1), and
+  [Anthropic's cost/intelligence guidance](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence).
+- **Scouts:** the researched Artificial Analysis Codex-agent results gave Sol low
+  and Terra high the same coding index (55), with Sol low taking 3.5 versus 6.0
+  minutes at $1.29 versus $1.14 per task. CursorBench 3.2 gave Opus 5 low 62.8%
+  versus Sonnet 5 high 56.9%, at $2.55 versus $2.13 per task and 37 versus 57
+  steps. These support our speed/capability tradeoff; steps are not elapsed time
+  and the two harnesses must not be combined into one ranking. Sources:
+  [Artificial Analysis coding agents](https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex),
+  [CursorBench](https://cursor.com/evals).
+- **Routine workers:** Sol high and Opus high retain capable implementation
+  routes for known approaches. The owner reports Fable often completes difficult
+  work in one attempt where Opus needs repeated turns; this is user experience,
+  not a controlled benchmark or a claim that Opus loses on every task.
+- **Mechanical roles:** Luna xhigh reflects the owner's preference to spend its
+  inexpensive reasoning budget on diligence. Haiku remains appropriate only for
+  prescribed, checkable work. Its $1/$5 input/output price per million tokens is
+  half Sonnet 5's $2/$10; that is API pricing, not subscription allowance or
+  guaranteed cost per completed task. See
+  [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) and
+  [Haiku capabilities](https://platform.claude.com/docs/en/models/haiku-4-5/overview).
 
-The routes were verified on 2026-08-02:
-
-| Class | Codex | Claude |
-|---|---|---|
-| `mechanical` | GPT-5.6 Luna, max | Claude Haiku 4.5; no effort field because this model does not support effort |
-| `balanced` | GPT-5.6 Terra, high | Claude Sonnet 5, high |
-| `deep` | GPT-5.6 Sol, xhigh | Claude Opus 5, xhigh |
-| `deep-max` | GPT-5.6 Sol, max | Claude Fable 5, max |
-
-These are configuration defaults, not permanent architectural decisions.
+Public results are dated, harness-dependent evidence. The role boundaries and
+selected defaults are engineering judgments. Watch actual rework, accepted
+findings, false positives, elapsed time, and usage when revisiting them.
 
 ## Lane Runtime Selection
 
-The routes table gives every capability class both a Codex and a Claude
-route. In a Claude Code primary session, native Claude agents are the
-default lane mechanism; `scripts/codex_lane.py` launches a lane on the
-Codex route instead (read [codex-lanes.md](codex-lanes.md) first). Choose
-per lane, not per run:
+Each class has both a Codex and a Claude route. In a Claude Code primary
+session, native Claude agents are the default lane mechanism;
+`scripts/codex_lane.py` selects the same canonical role's Codex route instead
+(read [codex-lanes.md](codex-lanes.md) first). Choose per lane:
 
-- Prefer the Codex route for an *ordinary* closeout reviewer when the
-  implementation was produced by Claude: cross-family review is more
-  independent than any same-family fresh context.
-- For a *critical* review from a Claude driver, run
-  `rfc-critical-reviewer` on both deep-max routes — Claude Fable 5 at max
-  natively, and GPT-5.6 Sol via the launcher (downgraded to xhigh by the
-  companion cap) — then reconcile as the integrator: union the findings,
-  reproduce every blocking finding directly, and resolve disagreements by
-  evidence, not by vote. A Codex driver cannot launch Claude lanes; it runs
-  its native critical reviewer alone and records the omitted cross-family
-  lane per the standard fallback rule.
-- Prefer the Codex route for mechanical `rfc-utility` bulk when allowance
-  economics favor it; bulk token volume off the Claude budget preserves the
-  integrator's context and quota.
-- The primary integrator never runs through the launcher; it launches lanes
-  only.
+- Use one independent reviewer when useful, preferring the opposite model family
+  from the implementation when the driver can launch it. Different families can
+  add diversity; that is not a guarantee of independent errors.
+- Use the critical role instead of the ordinary reviewer for a named material
+  risk. A second review, including another provider running the same role,
+  requires an unresolved material concern or an explicit request. Reconcile
+  findings using direct evidence, not a vote.
+- Prefer Codex for mechanical bulk when allowance economics favor it.
+- The primary integrator never runs through the launcher; it launches lanes only.
 
-Record every independent review's runtime on the closeout card per the
-Recording The Review Runtime section of
-[codex-lanes.md](codex-lanes.md).
+A driver unable to launch the other family uses its native reviewer and records
+that limitation. Record each review's runtime per [codex-lanes.md](codex-lanes.md).
+If the runtime exposes a fallback model or effort, report its effective value
+in the startup banner. Bedrock availability remains environment-specific; confirm
+approved inference profiles before relying on those routes there.
 
-The Claude `deep-max` route was promoted to Claude Fable 5 on 2026-08-02 by owner decision, ahead of the establish-first evaluation below: the primary integrator runs on Opus 5, so a Fable critical reviewer is both a stronger and a different model than the implementation it audits. Two Fable-specific caveats: requests its safety classifiers flag (chiefly cybersecurity and biology domains) trigger automatic model fallback, which the reviewer's startup banner must surface as an effective-model change; and Fable availability on Bedrock is unverified, so confirm an approved inference profile exists there before trusting this route in that environment.
+## Mechanical Work Boundaries
 
-## Why Luna-Max Exists
+Utility handles read-only mechanical work. The test runner can also write
+assigned disposable build/test outputs, but has no acceptance authority.
+Neither chooses architecture, implementation strategy, root cause, or
+verification sufficiency. Run trivial deterministic commands directly rather
+than spawning an agent. Workers normally run their own focused checks; a
+separate test runner is optional when it materially helps execution.
 
-Luna is reserved for work whose correctness is directly observable and whose output contract is narrow. Max effort is affordable enough under the current Codex allowance structure to improve diligence on mechanical work without spending Sol-class budget. The role must remain bounded: Luna must not decide architecture, implementation strategy, root cause, verification sufficiency, or RFC closeout.
-
-Examples:
-
-- locate exact files, symbols, presets, aliases, or instruction documents;
-- inventory changed files, issue state, or generated adapter drift;
-- run an exact read-only command list and report exit status and first failure;
-- validate schemas or manifests;
-- reduce a large log to failing command, test name, diagnostic location, and artifact path.
-
-When a utility task becomes semantic—for example, deciding why a failure occurred or whether a public path proves an RFC claim—promote it to `rfc-scout` rather than stretching the Luna role.
+Send failure diagnosis to a scout. Send questions about whether tests can pass
+while an RFC claim remains false to a reviewer or the primary. The primary
+selects sufficient verification and adjudicates all acceptance decisions.
 
 ## Critical Review Selection
 
@@ -145,7 +170,7 @@ When a new model or effort level appears:
    - bounded implementation with direct tests;
    - independent review of known overclaim or missing-verification cases.
 5. Compare accepted findings, false positives, rework, elapsed time, and token cost against the incumbent.
-6. Promote by changing only `config/routing.json`, update `verified_as_of`, render, validate, and commit the source and generated outputs together.
+6. Promote through `config/routing.json`; update role contracts and schemas too when responsibilities or classes change. Update `verified_as_of`, render, validate, and commit the source and generated outputs together.
 7. Retain the previous routing revision in version control for immediate rollback.
 
-Do not promote a newly released model first into `rfc-worker`, `rfc-reviewer`, or `rfc-critical-reviewer`. Establish it on utility, scout, or shadow-review work before giving it implementation or closeout-critical responsibility.
+Absent an explicit owner-directed promotion, establish a newly released model on representative utility, scout, or shadow-review work before assigning implementation or closeout-critical responsibility. An owner-directed promotion can proceed on documented public evidence and judgment; state which local evaluations were not performed.

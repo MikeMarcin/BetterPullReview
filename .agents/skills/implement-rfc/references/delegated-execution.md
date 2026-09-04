@@ -9,7 +9,7 @@ quality metric.
 
 The primary RFC integrator alone owns:
 
-- interpretation of the live RFC and acceptance criteria;
+- interpretation of the live RFC, architecture decisions, and acceptance criteria;
 - `RFC_BASE_SHA`, issue allocation, board transitions, and RFC ordering;
 - staging, commits, pushes, and integration;
 - verification sufficiency, documentation impact, and RFC status.
@@ -39,21 +39,35 @@ criteria, and focused verification are clear. Give an exclusive file/path
 scope. Only one agent writes a shared checkout at a time. The worker does not
 commit or mutate tracker/RFC state.
 
-### `rfc-verifier`
+### `rfc-worker-routine`
+
+Use the worker contract above when the assignment supplies an established
+approach, an existing repository pattern, exclusive ownership, and direct
+verification. Exclude new or changed sensitive protocol, persistence, authority,
+concurrency, lifetime, and destructive-migration behavior. If the assignment
+exceeds these boundaries, return current progress and the reason for reassignment
+to the primary; do not stretch the routine role or repeatedly retry it.
+
+### `rfc-test-runner`
 
 Use when an exact selected command set benefits from separate execution or a
 writable build root. Isolation is optional unless the user explicitly requires
 it or a concrete collision/source-integrity risk makes it useful.
 
-The verifier:
+The test runner:
 
-- runs only the supplied candidate, commands, and claims;
-- does not edit source, agent documentation, trackers, RFCs, or generated
-  repository files;
-- returns concise commands, exit statuses, first material diagnostics, relevant
-  artifact paths, and uncertainties;
-- does not create seals, hash-bound evidence packages, replay records, or
-  manifests.
+- executes only supplied commands against the named candidate and output roots;
+- may write disposable build/test outputs, but never source, agent documentation,
+  trackers, RFCs, manifests, or generated repository files;
+- reports each command's outcome, failures, skipped tests, incomplete runs,
+  unexpected conditions, relevant diagnostics, artifacts, and uncertainties;
+- never diagnoses root cause, chooses extra tests, classifies acceptance blockers,
+  modifies commands to obtain a pass, or suppresses apparently unrelated failures;
+- returns unsupplied decisions to the primary and does not spawn other agents or
+  create seals, hash-bound evidence packages, or replay records.
+
+The primary selects verification and judges acceptance. Scouts investigate
+failures; reviewers examine whether recorded evidence can miss a broken claim.
 
 The primary consumes the result and reruns only a check affected by a later
 correction. It does not repeat unchanged passing commands.
@@ -70,11 +84,11 @@ Give the reviewer the live acceptance criteria, final bounded diff, commands
 already run, and concise result locations. Do not preload the implementation
 transcript or ask it to ratify the implementation narrative.
 
-On a Claude driver, prefer the Codex route for an ordinary reviewer of a
-Claude-authored implementation, and run a critical review on both provider
-routes and reconcile; see Lane Runtime Selection in
-[model-routing.md](model-routing.md) and the lane mechanics in
-[codex-lanes.md](codex-lanes.md).
+Use one reviewer by default, preferring the opposite model family from the
+implementation when available. The critical role replaces the ordinary role for
+a named material risk. A second review requires an unresolved material concern
+or an explicit request; see [model-routing.md](model-routing.md) and the lane
+mechanics in [codex-lanes.md](codex-lanes.md).
 
 A blocking finding must be an evidence-backed failure of an existing acceptance
 criterion or a critical regression in the changed surface. Unsupported
@@ -87,12 +101,16 @@ narrow changed-surface recheck; it never starts a whole-candidate review loop.
 | Work shape | Default |
 |---|---|
 | Small, directly verifiable change | Primary agent |
-| Mechanical read-only inventory or command | Optional `rfc-utility` |
-| Broad semantic read-only question | Optional `rfc-scout` |
-| Clear bounded implementation slice | Optional single `rfc-worker` |
-| Exact separate test/build command set | Optional `rfc-verifier` |
+| Substantial mechanical read-only inventory or commands | Optional `rfc-utility` |
+| Bounded semantic repository investigation | Optional `rfc-scout` |
+| Established approach and pattern with direct verification | Optional `rfc-worker-routine` |
+| Other bounded implementation slice | Optional `rfc-worker` |
+| Exact separate test/build command set | Optional `rfc-test-runner` |
 | Named high-risk trigger or explicit request | Consider one reviewer |
 | Missing safe runtime capability | Execute serially in the primary agent |
+
+Run trivial deterministic commands directly. Workers normally run their own
+focused checks; there is no mandatory scout/worker/test-runner/reviewer pipeline.
 
 Parallel read-only agents must own different questions. Do not request duplicate
 same-prompt scans merely to obtain a vote. Stop delegation after it has answered
@@ -121,7 +139,7 @@ mistakes are visible. Role-to-model assignment and its rationale live in
 [model-routing.md](model-routing.md) and `config/routing.json`.
 
 For workers, state that they must not commit, move cards, allocate IDs, or
-change RFC status. For verifiers, name the candidate, command/claim set, writable
+change RFC status. For test runners, name the candidate, exact commands, writable
 output root if any, and expected concise result.
 
 ## Result Contract
@@ -134,7 +152,7 @@ should:
 - distinguish fact, uncertainty, and unsearched surfaces;
 - avoid raw logs, copied RFC prose, and broad repository summaries.
 
-Unexpected source writes invalidate a read-only or verifier result. Preserve
+Unexpected source writes invalidate a read-only or test-runner result. Preserve
 unrelated user changes and inspect Git state after delegated work.
 
 ## Runtime Fallback

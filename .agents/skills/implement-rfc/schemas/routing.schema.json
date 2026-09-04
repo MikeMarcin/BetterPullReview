@@ -37,8 +37,9 @@
           "required": [
             "mechanical",
             "balanced",
+            "standard",
             "deep",
-            "deep-max"
+            "critical"
           ],
           "properties": {
             "mechanical": {
@@ -47,10 +48,13 @@
             "balanced": {
               "$ref": "#/$defs/modelRoute"
             },
+            "standard": {
+              "$ref": "#/$defs/modelRoute"
+            },
             "deep": {
               "$ref": "#/$defs/modelRoute"
             },
-            "deep-max": {
+            "critical": {
               "$ref": "#/$defs/modelRoute"
             }
           },
@@ -82,8 +86,9 @@
         "enum": [
           "mechanical",
           "balanced",
+          "standard",
           "deep",
-          "deep-max"
+          "critical"
         ]
       }
     },

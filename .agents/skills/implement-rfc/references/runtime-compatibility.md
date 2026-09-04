@@ -13,9 +13,9 @@ Current local Codex releases support project custom agents in `.codex/agents/*.t
 Generated Codex agents:
 
 - use `sandbox_mode = "read-only"` for utility, scout, and reviewer roles;
-- use `sandbox_mode = "workspace-write"` for the bounded worker and source-immutable verifier because their configure/build/test/package roots must be writable;
-- enable nested sessions only for scouts, workers, verifiers, and reviewers, whose role instructions permit `rfc-utility` children and forbid every other nested role;
-- keep `[agents] enabled = false` for `rfc-utility` so nesting terminates after one level;
+- use `sandbox_mode = "workspace-write"` for bounded workers and the source-immutable test runner because their configure/build/test/package roots must be writable;
+- enable nested sessions only for scouts, workers, and reviewers, whose role instructions permit `rfc-utility` children and forbid every other nested role;
+- keep `[agents] enabled = false` for `rfc-utility` and `rfc-test-runner` so nesting terminates after one level;
 - select models from `config/routing.json`.
 
 Important limitation: live parent permission and sandbox overrides can be reapplied to children. Do not rely on a generated read-only sandbox while running the parent with an override that widens it. Inspect `git status --short` after read-only work and reject unexpected writes.
@@ -114,16 +114,16 @@ Current Claude Code supports custom agents in `.claude/agents/*.md`, per-agent m
 Generated Claude agents:
 
 - use `permissionMode: plan` plus a read-focused tool allowlist for utility, scout, and reviewer roles;
-- use `permissionMode: acceptEdits` for the bounded worker and source-immutable verifier, whose role instructions prohibit repository-source edits;
-- list `Agent(rfc-utility)` for scouts, workers, verifiers, and reviewers; the parenthesized type restriction is honored when one of those definitions runs as the main thread, but current Claude Code ignores the type list inside a delegated subagent, so the utility-only nesting boundary is enforced by role instructions there, exactly as on Codex;
-- omit the `Agent` tool from `rfc-utility` so nesting terminates after one level;
-- rely on Claude Code's support for nested subagents: a delegated scout, worker, verifier, or reviewer may launch its own `rfc-utility` children within the runtime depth limit, and the primary agent launches utility lanes directly only when depth or capability is unavailable;
+- use `permissionMode: acceptEdits` for bounded workers and the test runner; the test runner has no Edit/Write tools and its instructions prohibit repository-source edits, including through Bash;
+- list `Agent(rfc-utility)` for scouts, workers, and reviewers; the parenthesized type restriction is honored when one of those definitions runs as the main thread, but current Claude Code ignores the type list inside a delegated subagent, so the utility-only nesting boundary is enforced by role instructions there, exactly as on Codex;
+- omit the `Agent` tool from `rfc-utility` and `rfc-test-runner` so nesting terminates after one level;
+- rely on Claude Code's support for nested subagents: a delegated scout, worker, or reviewer may launch its own `rfc-utility` children within the runtime depth limit, and the primary agent launches utility lanes directly only when depth or capability is unavailable;
 - leave foreground/background selection to the primary agent so independent utility lanes can run concurrently within the configured cap;
 - select stable Anthropic model IDs from `config/routing.json`.
 
-Parent permission modes can take precedence over a subagent's `permissionMode`. Before relying on read-only scouting or review, keep the parent in a permission mode that does not widen the child, and inspect `git status --short` after the run. The read-focused agents retain Bash for Git inspection and read-only verification commands, but `permissionMode: plan` denies mutating commands: configure, build, or test runs that write artifacts stay with the primary agent, bounded worker, or verifier. Unexpected repository-source writes from a verifier invalidate the result.
+Parent permission modes can take precedence over a subagent's `permissionMode`. Before relying on read-only scouting or review, keep the parent in a permission mode that does not widen the child, and inspect `git status --short` after the run. The read-focused agents retain Bash for Git inspection and read-only verification commands, but `permissionMode: plan` denies mutating commands: configure, build, or test runs that write artifacts stay with the primary agent, bounded worker, or test runner. Unexpected repository-source writes from a test runner invalidate the result.
 
-The checked-in route requires Claude Code 2.1.219 or later, the floor established for Claude Opus 5. Unverified as of 2026-09-01: whether Claude Fable 5.1, which the `deep-max` route selects, raises that floor. Worktree-isolated subagents received important main-checkout safety fixes by 2.1.210, but the default portable policy still does not enable static worktree isolation: a custom worktree subagent may branch from the repository's default branch rather than the primary session's current `HEAD`. Use worktree writers only after explicitly proving the desired base and integration behavior.
+The checked-in route requires Claude Code 2.1.219 or later, the floor established for Claude Opus 5. Unverified as of 2026-09-04: whether Claude Fable 5.1, selected by the `deep` and `critical` routes, raises that floor. Configuration validation is not a live model-availability test. Worktree-isolated subagents received important main-checkout safety fixes by 2.1.210, but the default portable policy still does not enable static worktree isolation: a custom worktree subagent may branch from the repository's default branch rather than the primary session's current `HEAD`. Use worktree writers only after explicitly proving the desired base and integration behavior.
 
 Claude Code keeps its default concurrency limit of 10. The portable skill uses
 only bounded lanes that materially help the current task.
@@ -190,9 +190,9 @@ For Bedrock, keep the generated agent definitions unchanged and use `modelOverri
 
 The skill remains correct when an adapter is unavailable:
 
-- execute utility, scout, verifier, or review work serially in the primary agent;
+- execute utility, scout, test-runner, or review work serially in the primary agent;
 - when a selected model does not support `max`, use the strongest supported effort, report the downgrade, and do not narrow the requested critical-review scope;
-- keep all writes in the primary agent if a bounded worker or verifier cannot be controlled safely, and record the serial fallback;
+- keep all writes in the primary agent if a bounded worker or test runner cannot be controlled safely, and record the serial fallback;
 - preserve the same direct verification and closeout requirements;
 - report the omitted delegation lane in the final summary.
 

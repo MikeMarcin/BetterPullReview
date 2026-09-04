@@ -58,6 +58,15 @@ class FakeRemoteClient:
 
 class LauncherTests(unittest.TestCase):
     def setUp(self) -> None:
+        # Station scenarios need explicit fixtures, not the host project's lanes.
+        workstreams = {
+            "main": {"branch": "main"},
+            "win": {"branch": "windows-lane", "platform": "win"},
+            "linux": {"branch": "linux-lane", "platform": "linux"},
+        }
+        project = {**launcher.PROJECT, "workstreams": workstreams}
+        self.enterContext(mock.patch.object(launcher, "PROJECT", project))
+        self.enterContext(mock.patch.object(launcher, "WORKSTREAMS", workstreams))
         self._temporary = tempfile.TemporaryDirectory()
         root = Path(self._temporary.name).resolve()
         self.context = launcher.StationContext(
@@ -444,6 +453,23 @@ class LauncherTests(unittest.TestCase):
         self.assertIsNone(parsed.workstream)
         parsed = launcher.parse_arguments(["linux"])
         self.assertEqual(parsed.workstream, "linux")
+
+    def test_main_only_project_does_not_require_platform_workstreams(self) -> None:
+        workstreams = {"main": {"branch": "main"}}
+        project = {**launcher.PROJECT, "workstreams": workstreams}
+        with (
+            mock.patch.object(launcher, "PROJECT", project),
+            mock.patch.object(launcher, "WORKSTREAMS", workstreams),
+        ):
+            self.assertIsNone(launcher.parse_arguments([]).workstream)
+            self.assertEqual(launcher.parse_arguments(["main"]).workstream, "main")
+            self.assertEqual(
+                launcher.infer_workstream(self.context.station_file, "main"), "main"
+            )
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                launcher.parse_arguments(["linux"])
+            with self.assertRaisesRegex(launcher.LaunchRefusal, "cannot infer a workstream"):
+                launcher.infer_workstream(self.context.station_file, "linux-lane")
 
     def test_supervisor_migrates_v1_and_preserves_station_id(self) -> None:
         self.context.station_file.write_text(

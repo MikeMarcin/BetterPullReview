@@ -41,6 +41,9 @@ Exactly two files:
   first, the side-effect boundary, what counts as a direct surface, the
   closeout-card contract, attended checkpoints, platform lanes.
 
+The routine worker inherits the `rfc-worker` project addenda, followed by any
+`rfc-worker-routine` addenda. Its cheaper route does not relax project boundaries.
+
 Everything else is the portable set. `generated/portable-manifest.json`
 records its files and digests, and
 `scripts/validate_portable_agents.py --compare <other-checkout-skill-dir>`
@@ -49,7 +52,7 @@ fails when two projects have drifted.
 ## Maintained Sources
 
 - `SKILL.md`: authoritative workflow and finish condition.
-- `config/roles.json`: portable role semantics (six roles).
+- `config/roles.json`: portable role semantics (seven roles).
 - `config/routing.json`: capability-class routing for Codex and Claude.
 - `references/pack-lifecycle.md`: pack import, lane authority, milestone
   integration, renumbering, handoff, and cleanup.
@@ -92,8 +95,8 @@ single canonical skill rather than duplicating it.
 
 Generated files:
 
-- `.codex/agents/rfc-{utility,scout,worker,verifier,reviewer,critical-reviewer}.toml`
-- `.claude/agents/rfc-{utility,scout,worker,verifier,reviewer,critical-reviewer}.md`
+- `.codex/agents/rfc-{utility,test-runner,scout,worker-routine,worker,reviewer,critical-reviewer}.toml`
+- `.claude/agents/rfc-{utility,test-runner,scout,worker-routine,worker,reviewer,critical-reviewer}.md`
 - `.claude/skills/implement-rfc/SKILL.md`
 - `generated/runtime-adapters.json`, `generated/portable-manifest.json`
 
