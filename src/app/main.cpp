@@ -3815,7 +3815,7 @@ namespace {
 					   << '\n'
 					   << (enabled ? "PUBLIC_PREVIEW_ENABLED_OK\n"
 								   : "PUBLIC_PREVIEW_ENABLED_FAILED\n");
-			} else if (aRun.PublicPreview.Enterprise) {
+			} else if (aRun.PublicPreview.Enterprise && status.PublicPreviewComposed) {
 				// The enterprise claim is the composition refusal's mirror:
 				// the authority was composed and the core policy still refused
 				// the mode, before a request was built.
@@ -5245,7 +5245,8 @@ namespace {
 						// the run may transition to shutdown; the wait is at
 						// the top of this stage.
 						aRun->PublicPreview.Activated = true;
-						aApplication.activate_public_preview(false);
+						aApplication.activate_public_preview(
+							aRun->PublicPreview.Enterprise);
 					} else if (aRun->Device.Enabled && aRun->Device.GhesCourse) {
 						// [[BPR-0535]]. The same "select once, then wait for
 						// the typed answer" as below, begun the way a reviewer
@@ -7141,8 +7142,8 @@ auto main(int argc, char** argv) -> int
 			false;
 #endif
 		// RFC-BPR-0017. Unconditional, exactly like the device probe beside
-		// it: the claim a shipped binary has to be able to make is that the
-		// signed-out mode is unavailable and sends nothing, and a flag that
+		// it: a shipped binary reports its selected signed-out mode and sends
+		// nothing merely by activating it. A flag that
 		// existed only in a tests-enabled build could not make it.
 		const auto publicPreviewProbe
 			= has_argument(argc, argv, "--public-preview-probe");
@@ -7639,6 +7640,8 @@ auto main(int argc, char** argv) -> int
 		const auto verifyDeviceAuthorization = selfTest && deviceProbe;
 		const auto verifyPublicPreview       = selfTest
 			&& (publicPreviewProbe || publicPreviewSelectionForced);
+		const auto previewEnterprise = publicPreviewGhesCourse
+			|| (publicPreviewProbe && enterpriseHostname.has_value());
 #if defined(BPR_BUILD_TESTING)
 		verifyNativePlatformVault = verifyNativePlatformVault && fixtureName.empty();
 		verifyCliUnavailable      = verifyCliUnavailable && fixtureName.empty();
@@ -7705,7 +7708,7 @@ auto main(int argc, char** argv) -> int
 						.PublicPreview = automated_run::public_preview_probe_state{
 							.Enabled         = verifyPublicPreview,
 							.Course          = verifyPublicPreview && publicPreviewEnabledCourse,
-							.Enterprise      = verifyPublicPreview && publicPreviewGhesCourse,
+							.Enterprise      = verifyPublicPreview && previewEnterprise,
 							.SelectionForced = publicPreviewSelectionForced,
 							.LiveCandidate   = publicPreviewLiveCandidate,
 							.DryRun          = publicPreviewLiveDryRun,

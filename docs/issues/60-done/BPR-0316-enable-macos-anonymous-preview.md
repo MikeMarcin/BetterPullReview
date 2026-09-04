@@ -1,7 +1,7 @@
 ---
 id: BPR-0316
 title: Enable anonymous public preview on target-native macOS
-status: In Progress
+status: Done
 rfc: RFC-BPR-0017
 depends_on: [BPR-0306]
 ---
@@ -274,3 +274,48 @@ Next: run the current-source isolated macOS course with selection unavailable,
 flip only macOS, and run its enabled tests-disabled Release course. No further
 public-service read is needed for that work. Transient logs under
 `/tmp/bpr-0316-*` were consumed and are removed after this record.
+
+## macOS enablement and selected artifact — 2026-09-04
+
+The unavailable candidate at `9fd5cf1e` passed the current native course:
+
+```sh
+python3 scripts/verify_rfc0017_platform_course.py --platform macos --dev-preset dev --release-preset app-release --build-root build/bpr0316-macos-20260904 --expected-preview-selection unavailable --fresh
+```
+
+Result: `RFC0017_PLATFORM_COURSE_OK`, 19 selectors, stage unavailable, zero
+activation requests, 168 seconds. The intervening policy-record commits changed
+no product source. This slice changes only macOS's shipped capability to enabled;
+Linux and Windows remain unavailable.
+
+The first enabled course found a real probe defect: the plain non-fixture
+`--public-preview-probe --ghes-host ghe.example.invalid` activated GitHub.com
+instead of the requested enterprise profile. Its marker incorrectly reported
+enabled with zero requests. The probe now carries the requested enterprise
+selection through activation and judges policy refusal only when composed;
+unavailable platforms retain the unavailable verdict. The independent CTest
+expectations name macOS enabled, macOS GHES refused, and other platforms
+unavailable. The historical unavailable selector now passes (1/1, 0.53 s).
+
+The complete enabled course then passed with the same command and
+`--expected-preview-selection enabled`, using an incremental rebuild of the
+isolated trees after the correction. No unchanged clean build was repeated.
+Result: `RFC0017_PLATFORM_COURSE_OK`, 19/19 selectors, stage enabled, zero
+activation requests, 47 seconds. The tests-disabled Release artifact at
+`build/bpr0316-macos-20260904/release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview`
+also passed the GHES refusal, fixture/test-seam absence, composed-host inventory,
+runtime/dependency, and platform-surface gates within that command. macOS was
+26.6.2 arm64 with Qt 6.10.3. This proves the selected Mac surface, not native
+Windows or Linux enablement. No further live-service read was performed.
+
+Final selected checks: `ctest --test-dir build/bpr0316-macos-20260904/debug
+-R '^(application_review_round_trip_composition_contract|application_composition_contract|test_network_isolation_manifest)$'
+--output-on-failure` passed 3/3 in 166.78 s. Scoped strict tidy on `main.cpp`
+and `github_application.cpp` passed, as did clang-format, `git diff --check`,
+`verify_documentation.py`, and all 54 documentation contract tests. Both source
+pins were recomputed after inspecting the complete diff.
+
+The isolated build root is transferred directly to BPR-0307's simplifier
+verification consumer, then must be removed. The temporary BPR-0316 logs and
+BPR-0541 response files are removed after their facts are recorded. No separate
+worktree was created. This commit contains the macOS flip and enabled evidence.

@@ -670,21 +670,23 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
-# RFC-BPR-0017. The signed-out reading mode's shipped selection, on the same
-# terms as the device triple above: each row drives the shipped binary, and the
-# facts are reported separately because "no authority was composed", "the
-# activation answered with a typed refusal", and "nothing of any kind was sent"
-# fail for different reasons.
-#
-# The whole shipped chain in one expression, in order: the composition
-# withheld the credential-free authority on this platform, the activation
-# answered `unavailable` rather than doing nothing, and no request, no
-# authorization header, and no vault operation happened on the way to that
-# answer. [[BPR-0316]] flips macOS in its own slice; Linux and Windows stay
-# here until a target-native card of their own says otherwise.
-set(bpr_public_preview_unavailable_self_test_expression
+# RFC-BPR-0017's independent expected platform selection. Activating a mode
+# sends nothing. The historical unavailable row explicitly names GHES, which
+# remains refused on enabled macOS and unavailable on the other platforms.
+set(bpr_public_preview_selection_self_test_expression
     "PUBLIC_PREVIEW_COMPOSED:false[\r\n]+PUBLIC_PREVIEW_STAGE:unavailable[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_UNAVAILABLE_OK"
 )
+set(bpr_public_preview_enterprise_self_test_expression
+    "${bpr_public_preview_selection_self_test_expression}"
+)
+if(APPLE)
+    set(bpr_public_preview_selection_self_test_expression
+        "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
+    )
+    set(bpr_public_preview_enterprise_self_test_expression
+        "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:refused[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REFUSED_OK"
+    )
+endif()
 
 bpr_add_network_isolated_test(
     NAME application_anonymous_public_preview_unavailable
@@ -703,7 +705,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:2[\r\n]+${bpr_public_preview_unavailable_self_test_expression}"
+            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:2[\r\n]+${bpr_public_preview_enterprise_self_test_expression}"
 )
 bpr_bound_automated_run(
     application_anonymous_public_preview_unavailable
@@ -715,7 +717,7 @@ bpr_bound_automated_run(
 
 # The tests-disabled-equivalent probe. `--public-preview-probe` is
 # unconditional for exactly this reason: the claim a released binary has to be
-# able to make is that the mode is unavailable and sends nothing, and a flag
+# able to make is its selected mode and zero-request activation, and a flag
 # that existed only in a tests-enabled build could not make it. What this row
 # cannot check is symbol absence, which is the separate closeout scan.
 bpr_add_network_isolated_test(
@@ -733,7 +735,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+${bpr_public_preview_unavailable_self_test_expression}"
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+${bpr_public_preview_selection_self_test_expression}"
 )
 bpr_bound_automated_run(
     application_anonymous_public_preview_release_contract

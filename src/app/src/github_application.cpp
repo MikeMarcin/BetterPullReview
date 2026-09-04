@@ -1900,20 +1900,14 @@ namespace bpr::app {
 			bool Available = false;
 		};
 
-		// RFC-BPR-0017's shipped selection, and the only thing that enables the
-		// signed-out reading mode. It is false on every platform in this
-		// candidate slice: [[BPR-0316]] flips macOS in its own slice once
-		// [[BPR-0306]] passes, and Linux and Windows stay unavailable until a
-		// target-native card of their own says otherwise ([[BPR-0314]],
-		// [[BPR-0315]]). The three branches are written out rather than
-		// collapsed so flipping one platform is one line and cannot flip
-		// another. Moving a card between folders does not enable a capability,
-		// and neither does building on a different operating system.
+		// BPR-0316 enables macOS after its native candidate proof. Linux and
+		// Windows retain their verified unavailable selection; enabling either
+		// requires its own target-native acceptance slice.
 		[[nodiscard]] constexpr auto shipped_public_preview_capability() noexcept
 			-> public_preview_capability
 		{
 #if defined(__APPLE__)
-			return { .Available = false };
+			return { .Available = true };
 #elif defined(__linux__)
 			return { .Available = false };
 #elif defined(_WIN32)
@@ -4219,10 +4213,8 @@ namespace bpr::app {
 					Window->set_public_preview_now(public_preview_now());
 					Window->publish(aPresentation);
 				});
-			// The shipped selection. Unavailable on every platform in this
-			// slice, which is what makes `activate_public_preview` answer
-			// `public_preview_unavailable` before the core is asked anything:
-			// a null authority is the composition fact the host reports.
+			// A platform whose shipped selection is unavailable supplies no
+			// anonymous authority, so the host refuses before any request.
 			auto publicPreview = shipped_public_preview_capability();
 #if defined(BPR_BUILD_TESTING)
 			// The forced courses. A tests-enabled build with the recorded
