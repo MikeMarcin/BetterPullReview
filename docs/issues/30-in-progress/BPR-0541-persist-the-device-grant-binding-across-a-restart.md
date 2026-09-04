@@ -1,7 +1,7 @@
 ---
 id: BPR-0541
 title: Persist the device-grant binding across a restart and defer the first refresh
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0540]
 ---
@@ -34,3 +34,12 @@ the access token still works.
 ## Non-goals
 
 - Persisting a pasted-token session.
+
+## Owner-policy checkpoint — 2026-09-04
+
+Claimed for the remaining-issues run. The RFC-BPR-0016 closeout explicitly
+classifies this as a product-rule change for the owner: composition currently
+selects `delete_retained_on_shutdown`, and BPR-0540 requires both access and
+refresh slots to share that erasure path. Persistent bindings alone cannot
+make a session resume when its tokens were intentionally deleted. A concrete
+attended policy decision is prepared before changing that credential lifecycle.
