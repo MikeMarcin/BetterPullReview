@@ -196,3 +196,35 @@ asserts the new markers with zero requests.
 | The merged graph builds clean and the pins bind it | `cmake --build --preset dev`; the round-trip contract, one repin | exit 0; green | this commit |
 | Every public-preview row including the wiring row, both dev-tree device rows, the composed-host audit, the inventory and manifest gates, and both composition contracts | `ctest --preset dev -R '^(application_anonymous_public_preview_(live_candidate_wiring\|enabled_probe\|public_path\|unavailable\|release_contract\|ghes_refusal)\|application_device_authorization_(unavailable\|release_contract)\|test_network_isolation_manifest\|rfc0017_test_inventory\|rfc0017_test_inventory_contract\|composed_application_hosts\|application_review_round_trip_composition_contract\|application_composition_contract)$' --output-on-failure` | 14/14 passed | this commit |
 | Every touched C++ file is formatted | `clang-format --dry-run --Werror` on `main.cpp` after the conflict resolution; the worker's three files before it | exit 0, no output | this commit |
+
+## Diagnostic live read — 2026-09-04
+
+The owner asked this task to implement the remaining work and perform the
+attended work available on this Mac. After rebuilding at `e6d47155` with the
+BPR-0556 SDK compatibility repair, the integrator ran the same named public
+target once with the same 30,000 ms run budget. This was an unauthenticated
+read; no publication or credential was involved.
+
+The result disproves this card's claimed nine-request upper bound. One provider
+attempt still paginates. The transport forwarded 29 requests: repository,
+pull request, files, and commits each returned HTTP 200; reviews returned
+HTTP 200 for pages 1 through 14; review comments page 1 returned HTTP 200;
+issue comments pages 1 through 9 returned HTTP 200; issue comments page 10
+was cancelled when the run expired. Elapsed time was 30,016 ms.
+`WIRE_SINGLE_ATTEMPT:true` therefore proves retry suppression only. It does
+not bound successful pagination or authorize a claim that nine operations
+cost nine HTTP requests. The earlier inference that the first 24 requests
+represented three retries is not established and must not be reused.
+
+The final facts were `WIRE_REQUESTS:29`, `WIRE_CAPABILITY_PROBES:0`,
+`WIRE_CREDENTIALED_REFUSALS:0`, `HEADER_EFFECTS:0`, `VAULT_EFFECTS:0`,
+`BUDGET:0/0/0`, no accepted head, and `PUBLIC_PREVIEW_LIVE_CANDIDATE_FAILED`.
+The budget and snapshot mode remain uninitialized presentation values, not
+observations of the remote quota or an authenticated session.
+
+Next: enforce the nine-forwarded-request limit across all pages/transports
+and prove it against an always-successful paginated stub under isolation.
+No further live read is part of that repair. The public target has already
+proved too large for this bounded course; an attended successor must name a
+small target or explicitly bind a different request budget before another
+read. macOS selection remains unavailable until a candidate proof passes.
