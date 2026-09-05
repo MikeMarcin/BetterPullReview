@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0622"
+  ],
+  "reserve_for": "interrupted-agent-workspace-reclamation",
+  "purpose": "",
+  "created": "2026-09-05T23:36:03.955945+00:00",
+  "base": "d04ee0d9239cc560834f0b9139987d35ca3bf2ac"
+}
