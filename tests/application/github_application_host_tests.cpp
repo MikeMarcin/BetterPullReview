@@ -1205,7 +1205,7 @@ namespace {
 		}
 
 		explicit host_fixture(
-			const application::github_credential_shutdown_policy aShutdownPolicy)
+			const application::github_credential_shutdown_policy aShutdownPolicy, const bool aEnablePreview = false)
 			: Bindings{ OwnedBindings }
 			, Host{ initial_state(),
 					Provider,
@@ -1216,7 +1216,7 @@ namespace {
 					Bindings,
 					Lane,
 					Projections,
-					aShutdownPolicy }
+					aShutdownPolicy, nullptr, aEnablePreview ? &Provider : nullptr }
 		{
 		}
 
@@ -1294,10 +1294,11 @@ namespace {
 		const std::optional<application::github_profile_authority>&
 														aResolvedProfile = std::nullopt,
 		const application::github_credential_provenance aProvenance
-		= application::github_credential_provenance::manual)
+		= application::github_credential_provenance::manual,
+		std::optional<application::device_binding_lifetime> aLifetime = std::nullopt)
 		-> std::shared_ptr<fake_lease>
 	{
-		aFixture.Host.enroll_profile(aProfile, credential(), aProvenance);
+		aFixture.Host.enroll_profile(aProfile, credential(), aProvenance, aLifetime);
 		expect(aFixture.Provider.Profiles.size() == 1U,
 			   "activation synchronously submits only profile resolution");
 		const auto profileRequest = aFixture.Provider.Profiles.front().Request;
@@ -5050,10 +5051,432 @@ namespace {
 				   "an unreachable refresh store fails shutdown cleanup");
 		}
 	}
+
+	class binding_store final : public application::device_binding_store_port
+	{
+	public:
+		std::vector<application::device_binding_record> Rows;
+		std::vector<std::string>                        Operations;
+		bool                                            RefuseStore = false;
+		bool                                            RefuseErase = false;
+		bool                                            RefuseLoad  = false;
+		auto                                            load(std::stop_token aStop) -> application::device_binding_load_result override
+		{
+			Operations.emplace_back("load");
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::device_binding_failure::cancelled);
+			}
+			if (RefuseLoad) {
+				return std::unexpected(application::device_binding_failure::unavailable);
+			}
+			return Rows;
+		}
+		auto store(const application::device_binding_record& aRecord, std::stop_token aStop) -> application::device_binding_result override
+		{
+			Operations.emplace_back("store");
+			if (RefuseStore || aStop.stop_requested()) {
+				return std::unexpected(application::device_binding_failure::unavailable);
+			}
+			Rows = { aRecord };
+			return { };
+		}
+		auto erase(const application::github_credential_authority_key& aAuthority, std::stop_token) -> application::device_binding_result override
+		{
+			Operations.emplace_back("erase");
+			if (RefuseErase) {
+				return std::unexpected(application::device_binding_failure::unavailable);
+			}
+			for (auto& row : Rows) {
+				if (row.Authority == aAuthority) {
+					row.Tombstone = true;
+				}
+			}
+			return { };
+		}
+	};
+	auto binding_lifetime() -> application::device_binding_lifetime { return { .IssuedAt = 1000, .AccessExpiresAt = 4600, .RefreshExpiresAt = 10000 }; }
+	void settle_grant(host_fixture& aFixture)
+	{
+		establish_native_session(aFixture, core::host_profile_id{ 11U }, core::github_account_id{ 51U }, std::nullopt, application::github_credential_provenance::device_grant, binding_lifetime());
+		aFixture.Host.settle_device_binding(*aFixture.Host.accepted_credential_authority(), aFixture.Host.accepted_identity_generation(), binding_lifetime());
+	}
+	void test_device_binding_persistence_barriers()
+	{
+		{
+			host_fixture                            fixture{ application::github_credential_shutdown_policy::retain_accepted_device_grants };
+			binding_store                           store;
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+			settle_grant(fixture);
+			expect(store.Operations.empty() && !fixture.Host.accepted_device_binding_durable(), "metadata waits for effect lane and cannot advertise uncommitted grant");
+			effects.drain();
+			expect(!fixture.Host.accepted_device_binding_durable(), "effect terminal cannot mutate decision state");
+			fixture.Lane.drain();
+			expect(fixture.Host.accepted_device_binding_durable(), "settled exact pair becomes durable after decision terminal");
+			fixture.Host.shutdown();
+			fixture.Lane.drain();
+			expect(fixture.Vault.Deletes.empty() && fixture.Host.is_quiescent(), "new shutdown policy retains accepted durable device grant");
+		}
+		{
+			host_fixture                            fixture;
+			binding_store                           store;
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+			settle_grant(fixture);
+			effects.drain();
+			fixture.Lane.drain();
+			fixture.Host.enroll_profile(core::host_profile_id{ 11U }, credential());
+			expect(fixture.Vault.Deletes.empty(), "manual replacement waits for durable tombstone before erasing access");
+			effects.drain();
+			expect(store.Rows.front().Tombstone && fixture.Vault.Deletes.empty(), "tombstone commits before vault work and marshals terminal");
+			fixture.Lane.drain();
+			expect(fixture.Vault.Deletes.size() == 1U, "successful tombstone releases ordered access erasure");
+			fixture.Host.shutdown();
+			const auto deletion = fixture.Vault.Deletes.front();
+			deletion.Completion(application::github_credential_delete_success{ .Context = deletion.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+			fixture.Lane.drain();
+			expect(fixture.Host.is_quiescent(), "shutdown drains outstanding replacement cleanup");
+		}
+		{
+			host_fixture                            fixture;
+			binding_store                           store;
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+			settle_grant(fixture);
+			effects.drain();
+			fixture.Lane.drain();
+			store.RefuseErase = true;
+			fixture.Host.enroll_profile(core::host_profile_id{ 11U }, credential());
+			effects.drain();
+			fixture.Lane.drain();
+			expect(fixture.Vault.Deletes.empty() && fixture.Provider.Profiles.size() == 1U, "failed tombstone prevents replacement of either slot");
+			fixture.Host.shutdown();
+			effects.drain();
+			fixture.Lane.drain();
+		}
+		{
+			host_fixture                            fixture{ application::github_credential_shutdown_policy::retain_accepted_device_grants };
+			binding_store                           store;
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+			settle_grant(fixture);
+			fixture.Host.shutdown();
+			expect(!fixture.Host.is_quiescent(), "pending metadata prevents shutdown quiescence");
+			effects.drain();
+			fixture.Lane.drain();
+			effects.drain();
+			fixture.Lane.drain();
+			expect(!fixture.Host.accepted_device_binding_durable() && fixture.Vault.Deletes.size() == 1U, "cancelled save cannot retain or advertise a device grant");
+			const auto deletion = fixture.Vault.Deletes.front();
+			deletion.Completion(application::github_credential_delete_success{ .Context = deletion.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+			fixture.Lane.drain();
+			expect(fixture.Host.is_quiescent(), "cancelled save and protected tombstone fully drain");
+		}
+	}
+	void test_restored_binding_is_validated_before_resume()
+	{
+		const auto                               profile = native_profile(core::host_profile_id{ 11U });
+		const application::device_binding_record record{ .Authority = { .Profile = profile.Profile, .ProfileRevision = profile.ProfileRevision, .Host = profile.Host, .Hostname = profile.Hostname, .Account = core::github_account_id{ 51U }, .ServerContract = profile.ServerContract }, .Lifetime = binding_lifetime() };
+		for (const auto invalidTime : { std::int64_t{ 999 }, std::int64_t{ 4600 } }) {
+			host_fixture  fixture;
+			binding_store store;
+			store.Rows = { record };
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [invalidTime] { return invalidTime; });
+			fixture.Host.restore_device_profile(profile);
+			effects.drain();
+			fixture.Lane.drain();
+			effects.drain();
+			fixture.Lane.drain();
+			expect(fixture.Provider.Profiles.empty() && store.Rows.front().Tombstone, "backward or expired stored grant is tombstoned before vault or provider access");
+			fixture.Host.shutdown();
+		}
+		{
+			host_fixture  fixture;
+			binding_store store;
+			store.Rows = { record, record };
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+			fixture.Host.restore_device_profile(profile);
+			effects.drain();
+			fixture.Lane.drain();
+			expect(fixture.Provider.Profiles.empty(), "duplicate stored selector is refused whole");
+			fixture.Host.shutdown();
+		}
+		{
+			host_fixture  fixture;
+			binding_store store;
+			store.Rows = { record };
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+			fixture.Host.restore_device_profile(profile);
+			effects.drain();
+			fixture.Lane.drain();
+			expect(fixture.Provider.Profiles.size() == 1U && fixture.Vault.Retrieves.empty(), "restored selector first resolves exact compiled profile");
+			const auto request = fixture.Provider.Profiles.front().Request;
+			fixture.Provider.Profiles.front().Completion(application::github_profile_success{ .Request = request, .Authority = profile });
+			fixture.Lane.drain();
+			expect(fixture.Vault.Retrieves.size() == 1U && fixture.Vault.Retrieves.front().Context.Authority == record.Authority, "only the exact stored account selects access material");
+			const auto retrieve = fixture.Vault.Retrieves.front();
+			retrieve.Completion(application::github_credential_retrieve_absent{ .Context = retrieve.Context });
+			fixture.Lane.drain();
+			expect(fixture.Vault.RefreshRetrieves.empty(), "missing access cannot spend orphan refresh");
+			effects.drain();
+			fixture.Lane.drain();
+			expect(store.Rows.front().Tombstone && fixture.Vault.Deletes.size() == 1U, "missing access tombstones binding before erasing remaining slots");
+			fixture.Host.shutdown();
+			const auto deletion = fixture.Vault.Deletes.front();
+			deletion.Completion(application::github_credential_delete_success{ .Context = deletion.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+			fixture.Lane.drain();
+			expect(fixture.Host.is_quiescent(), "missing access cleanup drains");
+		}
+	}
+
+	void test_sign_out_during_binding_load_erases_the_loaded_authority()
+	{
+		const auto                               profile = native_profile(core::host_profile_id{ 11U });
+		const application::device_binding_record record{ .Authority = { .Profile = profile.Profile, .ProfileRevision = profile.ProfileRevision, .Host = profile.Host, .Hostname = profile.Hostname, .Account = core::github_account_id{ 51U }, .ServerContract = profile.ServerContract }, .Lifetime = binding_lifetime() };
+		for (const auto action : { 0U, 1U, 2U }) {
+			const auto    signOut = action != 0U;
+			host_fixture  fixture{ application::github_credential_shutdown_policy::retain_accepted_device_grants };
+			binding_store store;
+			store.Rows = { record };
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+			fixture.Host.restore_device_profile(profile);
+			if (signOut) {
+				fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
+				if (action == 2U) {
+					fixture.Host.shutdown();
+				}
+			} else {
+				fixture.Host.shutdown();
+			}
+			effects.drain();
+			fixture.Lane.drain();
+			effects.drain();
+			fixture.Lane.drain();
+			expect(fixture.Provider.Profiles.empty(), "retired startup load cannot activate a profile");
+			if (!signOut) {
+				expect(!store.Rows.front().Tombstone && fixture.Vault.Deletes.empty() && fixture.Host.is_quiescent(), "ordinary shutdown during startup load preserves remembered grant");
+				continue;
+			}
+			expect(store.Rows.front().Tombstone && store.Rows.front().Authority == record.Authority,
+				   "Sign out during startup load must tombstone the exact remembered binding");
+			expect(fixture.Vault.Deletes.size() == 1U && fixture.Vault.Deletes.front().Context.Authority == record.Authority,
+				   "Sign out during startup load starts exact access cleanup");
+			const auto deletion = fixture.Vault.Deletes.front();
+			deletion.Completion(application::github_credential_delete_success{ .Context = deletion.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+			fixture.Lane.drain();
+			expect(fixture.Vault.RefreshDeletes.size() == 1U && fixture.Vault.RefreshDeletes.front().Authority == record.Authority,
+				   "Sign out during startup load also erases exact refresh slot");
+			fixture.Host.shutdown();
+			fixture.Lane.drain();
+			expect(fixture.Host.is_quiescent(), "startup Sign out cleanup quiesces");
+		}
+	}
+
+	void test_startup_cleanup_refuses_a_mismatched_compiled_profile()
+	{
+		host_fixture  fixture;
+		const auto    profile = native_profile(core::host_profile_id{ 11U });
+		binding_store store;
+		store.Rows = { application::device_binding_record{ .Authority = { .Profile = profile.Profile, .ProfileRevision = application::github_profile_revision{ profile.ProfileRevision.value() + 1U }, .Host = profile.Host, .Hostname = profile.Hostname, .Account = core::github_account_id{ 51U }, .ServerContract = profile.ServerContract }, .Lifetime = binding_lifetime() } };
+		application::manual_executor            effects;
+		application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+		fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+		fixture.Host.restore_device_profile(profile);
+		fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
+		effects.drain();
+		fixture.Lane.drain();
+		expect(!store.Rows.front().Tombstone && fixture.Vault.Deletes.empty() && fixture.Vault.RefreshDeletes.empty() && fixture.Provider.Viewers.empty(),
+			   "startup cleanup cannot target vault authority from a different compiled profile revision");
+		fixture.Host.shutdown();
+		expect(fixture.Host.is_quiescent(), "mismatched startup cleanup fails closed and quiesces");
+	}
+
+	void test_failed_startup_load_keeps_repeated_replacement_blocked()
+	{
+		host_fixture                             fixture;
+		const auto                               profile = native_profile(core::host_profile_id{ 11U });
+		const application::device_binding_record record{ .Authority = { .Profile = profile.Profile, .ProfileRevision = profile.ProfileRevision, .Host = profile.Host, .Hostname = profile.Hostname, .Account = core::github_account_id{ 51U }, .ServerContract = profile.ServerContract }, .Lifetime = binding_lifetime() };
+		binding_store                            store;
+		store.Rows       = { record };
+		store.RefuseLoad = true;
+		application::manual_executor            effects;
+		application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+		fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+		fixture.Host.restore_device_profile(profile);
+		fixture.Host.enroll_profile(profile.Profile, credential());
+		effects.drain();
+		fixture.Lane.drain();
+		expect(!store.Rows.front().Tombstone && fixture.Vault.Deletes.empty() && fixture.Vault.RefreshDeletes.empty(),
+			   "unavailable startup load leaves the previous durable binding and pair untouched");
+		for (std::size_t attempt = 0; attempt < 2U; ++attempt) {
+			const auto profilesBefore    = fixture.Provider.Profiles.size();
+			const auto viewersBefore     = fixture.Provider.Viewers.size();
+			const auto diagnosticsBefore = fixture.Projections.host_diagnostic_count();
+			fixture.Host.enroll_profile(profile.Profile, credential());
+			effects.drain();
+			fixture.Lane.drain();
+			// If replacement reaches local profile or bootstrap /user, answer it
+			// normally. The security assertion concerns the eventual vault write.
+			if (fixture.Provider.Profiles.size() > profilesBefore) {
+				const auto request = fixture.Provider.Profiles.back().Request;
+				fixture.Provider.Profiles.back().Completion(application::github_profile_success{ .Request = request, .Authority = profile });
+				fixture.Lane.drain();
+			}
+			if (fixture.Provider.Viewers.size() > viewersBefore) {
+				const auto request = fixture.Provider.Viewers.back().Request;
+				fixture.Provider.Viewers.back().Completion(application::github_viewer_success{ .Request = request, .Viewer = viewer(record.Authority.Account), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = { } });
+				fixture.Lane.drain();
+			}
+			expect(fixture.Projections.host_diagnostic_count() > diagnosticsBefore, "each unresolved replacement refusal is visible");
+			expect(fixture.Vault.Stores.empty() && !store.Rows.front().Tombstone && fixture.Vault.RefreshDeletes.empty(),
+				   "repeated manual enrollment after uncertain startup load must not overwrite access beneath live device metadata");
+		}
+		fixture.Host.shutdown();
+		effects.drain();
+		fixture.Lane.drain();
+		expect(fixture.Host.is_quiescent(), "uncertain startup load blocks replacement without stranding shutdown");
+	}
+
+	void test_replacement_during_binding_load_waits_for_exact_cleanup()
+	{
+		const auto                               profile = native_profile(core::host_profile_id{ 11U });
+		const application::device_binding_record record{ .Authority = { .Profile = profile.Profile, .ProfileRevision = profile.ProfileRevision, .Host = profile.Host, .Hostname = profile.Hostname, .Account = core::github_account_id{ 51U }, .ServerContract = profile.ServerContract }, .Lifetime = binding_lifetime() };
+		for (const bool preview : { false, true }) {
+			host_fixture  fixture{ application::github_credential_shutdown_policy::retain, true };
+			binding_store store;
+			store.Rows = { record };
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+			fixture.Vault.HoldRefreshDelete = true;
+			fixture.Host.restore_device_profile(profile);
+			if (preview) {
+				fixture.Host.activate_public_preview(profile.Profile);
+			} else {
+				fixture.Host.enroll_profile(profile.Profile, credential());
+			}
+			expect(fixture.Provider.Profiles.empty() && fixture.Vault.Stores.empty() && fixture.Vault.Deletes.empty(),
+				   "startup replacement cannot touch either slot before the remembered binding loads");
+			effects.drain();
+			fixture.Lane.drain();
+			expect(!store.Rows.front().Tombstone && fixture.Vault.Deletes.empty() && fixture.Provider.Profiles.empty(),
+				   "startup replacement waits for durable tombstone before session effects");
+			effects.drain();
+			fixture.Lane.drain();
+			expect(store.Rows.front().Tombstone && fixture.Vault.Deletes.size() == 1U
+					   && fixture.Vault.Deletes.front().Context.Authority == record.Authority && fixture.Provider.Profiles.empty(),
+				   "startup replacement tombstones the exact old binding before access cleanup");
+			const auto deletion = fixture.Vault.Deletes.front();
+			deletion.Completion(application::github_credential_delete_success{ .Context = deletion.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+			fixture.Lane.drain();
+			expect(fixture.Vault.RefreshDeletes.size() == 1U && fixture.Provider.Profiles.empty() && fixture.Vault.Stores.empty(),
+				   "replacement effects wait for the old refresh delete to release the shared core request context");
+			fixture.Vault.answer_held_refresh_delete();
+			fixture.Lane.drain();
+			expect(fixture.Vault.RefreshDeletes.size() == 1U && fixture.Vault.RefreshDeletes.front().Authority == record.Authority
+					   && fixture.Provider.Profiles.size() == 1U && fixture.Provider.Viewers.empty() && fixture.Vault.Stores.empty(),
+				   "only after ordered pair cleanup may the replacement resolve its own profile");
+			expect(!fixture.Host.accepted_session(), "startup cleanup never accepts the retired device session");
+			fixture.Host.shutdown();
+			fixture.Lane.drain();
+			expect(fixture.Host.is_quiescent(), "startup replacement cleanup drains");
+		}
+	}
+
+	void test_renewal_failure_invalidates_only_its_accepted_grant()
+	{
+		{
+			host_fixture current;
+			settle_grant(current);
+			const auto authority = *current.Host.accepted_credential_authority();
+			current.Host.invalidate_device_grant(authority, current.Host.accepted_identity_generation());
+			expect(!current.Host.accepted_session() && current.Vault.Deletes.size() == 1U
+					   && current.Vault.Deletes.front().Context.Authority == authority,
+				   "terminal failure of the current exact device grant deactivates and cleans it up");
+			current.Host.shutdown();
+			const auto deletion = current.Vault.Deletes.front();
+			deletion.Completion(application::github_credential_delete_success{ .Context = deletion.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+			current.Lane.drain();
+			expect(current.Host.is_quiescent(), "current grant failure cleanup drains");
+		}
+		host_fixture fixture{ application::github_credential_shutdown_policy::retain, true };
+		settle_grant(fixture);
+		const auto authority  = *fixture.Host.accepted_credential_authority();
+		const auto generation = fixture.Host.accepted_identity_generation();
+		auto       foreign    = authority;
+		foreign.Account       = core::github_account_id{ authority.Account.value() + 1U };
+		fixture.Host.invalidate_device_grant(foreign, generation);
+		fixture.Host.invalidate_device_grant(authority, core::github_identity_generation{ generation.value() + 1U });
+		expect(fixture.Host.accepted_session().has_value() && fixture.Vault.Deletes.empty(),
+			   "foreign account or stale generation renewal failure cannot deactivate accepted grant");
+		fixture.Projections.OnNextOutput = [&fixture, authority, generation] {
+			fixture.Host.invalidate_device_grant(authority, generation);
+		};
+		fixture.Host.activate_public_preview(authority.Profile);
+		fixture.Lane.drain();
+		expect(fixture.Host.state().ActiveProfile == authority.Profile && fixture.Host.state().AccessMode == core::github_access_mode::public_preview,
+			   "a renewal failure deferred during replacement cannot deactivate the replacement identity");
+		fixture.Host.shutdown();
+		const auto deletion = fixture.Vault.Deletes.front();
+		deletion.Completion(application::github_credential_delete_success{ .Context = deletion.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+		fixture.Lane.drain();
+		expect(fixture.Host.is_quiescent(), "retired renewal cleanup drains");
+	}
+
+	void test_binding_load_cancellation_and_stale_terminal()
+	{
+		binding_store                           store;
+		application::manual_executor            effects;
+		application::manual_executor            lane;
+		application::device_binding_persistence persistence{ store, effects, lane };
+		std::size_t                             callbacks = 0;
+		for (std::size_t index = 0; index < 65U; ++index) {
+			persistence.load([&callbacks](application::device_binding_load_result) { ++callbacks; });
+		}
+		expect(!persistence.is_quiescent(), "saturation refusal remains counted until callback");
+		persistence.cancel_pending();
+		while (!persistence.is_quiescent()) {
+			effects.drain();
+			lane.drain();
+		}
+		expect(callbacks == 65U, "every accepted and refused load has exactly one terminal");
+		{
+			auto                                    fixture = std::make_unique<host_fixture>();
+			application::device_binding_persistence hostPersistence{ store, effects, fixture->Lane };
+			fixture->Host.configure_device_persistence(hostPersistence, [] { return std::int64_t{ 1000 }; });
+			fixture->Host.restore_device_profile(native_profile(core::host_profile_id{ 11U }));
+			fixture->Host.shutdown();
+			expect(!fixture->Host.is_quiescent(), "load is part of host shutdown quiescence");
+			effects.drain();
+			fixture->Lane.drain();
+			expect(fixture->Host.is_quiescent() && fixture->Provider.Profiles.empty(), "cancelled startup load cannot activate profile");
+		}
+	}
+
 }
 
 auto main() -> int
 {
+	test_failed_startup_load_keeps_repeated_replacement_blocked();
+	test_sign_out_during_binding_load_erases_the_loaded_authority();
+	test_replacement_during_binding_load_waits_for_exact_cleanup();
+	test_startup_cleanup_refuses_a_mismatched_compiled_profile();
+	test_renewal_failure_invalidates_only_its_accepted_grant();
+	test_restored_binding_is_validated_before_resume();
+	test_device_binding_persistence_barriers();
+	test_binding_load_cancellation_and_stale_terminal();
 	test_enrollment_acceptance_snapshot_and_exact_delete();
 	test_retained_mutation_lease_is_revoked_on_shutdown();
 	test_accepted_snapshot_handoff_and_exact_invalidation();

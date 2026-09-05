@@ -1,0 +1,241 @@
+#include "bpr/adapters/sqlite/device_binding_store.hpp"
+
+#include "sqlite_connection.hpp"
+#include "state_directory.hpp"
+
+#include <algorithm>
+#include <charconv>
+#include <optional>
+#include <sqlite3.h>
+#include <string>
+#include <utility>
+
+namespace bpr::adapters::sqlite {
+	namespace {
+		using application::device_binding_failure;
+		using application::device_binding_result;
+		constexpr std::string_view Schema        = "CREATE TABLE device_binding(profile TEXT PRIMARY KEY,revision TEXT NOT NULL,host TEXT NOT NULL,hostname TEXT NOT NULL,account TEXT NOT NULL,server INTEGER NOT NULL CHECK(server BETWEEN 0 AND 1),provenance INTEGER NOT NULL CHECK(provenance=1),issued INTEGER NOT NULL CHECK(issued>0),access_expiry INTEGER NOT NULL CHECK(access_expiry>issued),refresh_expiry INTEGER NOT NULL CHECK(refresh_expiry>issued),tombstone INTEGER NOT NULL CHECK(tombstone IN(0,1))) STRICT";
+		constexpr std::int64_t     ApplicationId = 0x42505242;
+		constexpr auto             corrupt() { return std::unexpected(device_binding_failure::corrupt); }
+		auto                       text_of(sqlite3_stmt* aStatement, int aColumn) -> std::string_view
+		{
+			if (sqlite3_column_type(aStatement, aColumn) != SQLITE_TEXT) {
+				return { };
+			}
+			const auto* bytes = reinterpret_cast<const char*>(sqlite3_column_text(aStatement, aColumn));
+			return bytes == nullptr ? std::string_view{ } : std::string_view{ bytes, static_cast<std::size_t>(sqlite3_column_bytes(aStatement, aColumn)) };
+		}
+		auto id_of(sqlite3_stmt* aStatement, int aColumn) -> std::uint64_t
+		{
+			const auto    text  = text_of(aStatement, aColumn);
+			std::uint64_t value = 0;
+			if (text.empty() || text.size() > 20 || text.front() == '0') {
+				return 0;
+			}
+			const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+			return parsed.ec == std::errc{ } && parsed.ptr == text.data() + text.size() ? value : 0;
+		}
+		auto bind_text(sqlite3_stmt* aStatement, int aColumn, std::string_view aValue) -> bool
+		{
+			return sqlite3_bind_text(aStatement, aColumn, aValue.data(), static_cast<int>(aValue.size()), SQLITE_TRANSIENT) == SQLITE_OK;
+		}
+		auto bind_authority(sqlite3_stmt* aStatement, const application::github_credential_authority_key& aAuthority) -> bool
+		{
+			return bind_text(aStatement, 1, std::to_string(aAuthority.Profile.value()))
+				&& bind_text(aStatement, 2, std::to_string(aAuthority.ProfileRevision.value()))
+				&& bind_text(aStatement, 3, std::to_string(aAuthority.Host.value()))
+				&& bind_text(aStatement, 4, aAuthority.Hostname.value())
+				&& bind_text(aStatement, 5, std::to_string(aAuthority.Account.value()))
+				&& sqlite3_bind_int(aStatement, 6, static_cast<int>(aAuthority.ServerContract)) == SQLITE_OK;
+		}
+
+		class sqlite_device_binding_store final : public application::device_binding_store_port
+		{
+		public:
+			explicit sqlite_device_binding_store(std::filesystem::path aRoot)
+				: Root{ std::move(aRoot) }
+			{ }
+			~sqlite_device_binding_store() override
+			{
+				if (Database != nullptr) {
+					sqlite3_close_v2(Database);
+				}
+			}
+			auto load(std::stop_token aStop) -> application::device_binding_load_result override
+			{
+				if (auto ready = ensure_open(aStop); !ready) {
+					return std::unexpected(ready.error());
+				}
+				return read_rows(aStop);
+			}
+			auto store(const application::device_binding_record& aRecord, std::stop_token aStop) -> device_binding_result override
+			{
+				if (!application::valid(aRecord) || aRecord.Tombstone) {
+					return corrupt();
+				}
+				if (auto ready = ensure_open(aStop); !ready) {
+					return ready;
+				}
+				if (!detail::execute(Database, "BEGIN IMMEDIATE", aStop)) {
+					return std::unexpected(device_binding_failure::unavailable);
+				}
+				auto result = write_record(aRecord, aStop);
+				if (result && !detail::execute(Database, "COMMIT", aStop)) {
+					result = std::unexpected(device_binding_failure::unavailable);
+				}
+				if (!result) {
+					static_cast<void>(detail::execute(Database, "ROLLBACK"));
+				}
+				return result;
+			}
+			auto erase(const application::github_credential_authority_key& aAuthority, std::stop_token aStop) -> device_binding_result override
+			{
+				if (!application::valid(aAuthority)) {
+					return corrupt();
+				}
+				if (auto ready = ensure_open(aStop); !ready) {
+					return ready;
+				}
+				auto statement = detail::prepare(Database, "UPDATE device_binding SET tombstone=1 WHERE profile=?1 AND revision=?2 AND host=?3 AND hostname=?4 AND account=?5 AND server=?6");
+				if (!statement || !bind_authority(statement->Value, aAuthority) || sqlite3_step(statement->Value) != SQLITE_DONE) {
+					return std::unexpected(device_binding_failure::unavailable);
+				}
+				return { };
+			}
+
+		private:
+			auto read_rows(std::stop_token aStop) -> application::device_binding_load_result
+			{
+				auto statement = detail::prepare(Database, "SELECT profile,revision,host,hostname,account,server,provenance,issued,access_expiry,refresh_expiry,tombstone FROM device_binding LIMIT 65");
+				if (!statement) {
+					return corrupt();
+				}
+				std::vector<application::device_binding_record> rows;
+				for (;;) {
+					if (aStop.stop_requested()) {
+						return std::unexpected(device_binding_failure::cancelled);
+					}
+					const auto step = sqlite3_step(statement->Value);
+					if (step == SQLITE_DONE) {
+						return rows;
+					}
+					if (step != SQLITE_ROW || rows.size() >= application::maximum_device_bindings) {
+						return corrupt();
+					}
+					const auto server    = sqlite3_column_int64(statement->Value, 5);
+					const auto tombstone = sqlite3_column_int64(statement->Value, 10);
+					if (server < 0 || server > 1 || tombstone < 0 || tombstone > 1 || sqlite3_column_int64(statement->Value, 6) != 1) {
+						return corrupt();
+					}
+					application::device_binding_record record{
+						.Authority = { .Profile = core::host_profile_id{ id_of(statement->Value, 0) }, .ProfileRevision = application::github_profile_revision{ id_of(statement->Value, 1) }, .Host = core::git_host_id{ id_of(statement->Value, 2) }, .Hostname = application::github_canonical_hostname{ text_of(statement->Value, 3) }, .Account = core::github_account_id{ id_of(statement->Value, 4) }, .ServerContract = static_cast<application::github_server_contract>(server) },
+						.Lifetime  = { .IssuedAt = sqlite3_column_int64(statement->Value, 7), .AccessExpiresAt = sqlite3_column_int64(statement->Value, 8), .RefreshExpiresAt = sqlite3_column_int64(statement->Value, 9) },
+						.Tombstone = tombstone == 1
+					};
+					if (!application::valid(record) || std::ranges::any_of(rows, [&record](const auto& aRow) { return aRow.Authority.Profile == record.Authority.Profile; })) {
+						return corrupt();
+					}
+					rows.push_back(record);
+				}
+			}
+			auto write_record(const application::device_binding_record& aRecord, std::stop_token aStop) -> device_binding_result
+			{
+				auto rows = read_rows(aStop);
+				if (!rows) {
+					return std::unexpected(rows.error());
+				}
+				const auto existing = std::ranges::find_if(*rows, [&aRecord](const auto& aRow) { return aRow.Authority.Profile == aRecord.Authority.Profile; });
+				if (existing == rows->end() && rows->size() >= application::maximum_device_bindings) {
+					return std::unexpected(device_binding_failure::capacity);
+				}
+				if (existing != rows->end() && !existing->Tombstone && existing->Authority != aRecord.Authority) {
+					return corrupt();
+				}
+				auto statement = detail::prepare(Database, "INSERT INTO device_binding VALUES(?1,?2,?3,?4,?5,?6,1,?7,?8,?9,0) ON CONFLICT(profile) DO UPDATE SET revision=excluded.revision,host=excluded.host,hostname=excluded.hostname,account=excluded.account,server=excluded.server,issued=excluded.issued,access_expiry=excluded.access_expiry,refresh_expiry=excluded.refresh_expiry,tombstone=0");
+				if (!statement || !bind_authority(statement->Value, aRecord.Authority)
+					|| sqlite3_bind_int64(statement->Value, 7, aRecord.Lifetime.IssuedAt) != SQLITE_OK
+					|| sqlite3_bind_int64(statement->Value, 8, aRecord.Lifetime.AccessExpiresAt) != SQLITE_OK
+					|| sqlite3_bind_int64(statement->Value, 9, aRecord.Lifetime.RefreshExpiresAt) != SQLITE_OK
+					|| sqlite3_step(statement->Value) != SQLITE_DONE) {
+					return std::unexpected(device_binding_failure::unavailable);
+				}
+				return { };
+			}
+			auto ensure_open(std::stop_token aStop) -> device_binding_result
+			{
+				if (aStop.stop_requested()) {
+					return std::unexpected(device_binding_failure::cancelled);
+				}
+				if (Failed) {
+					return corrupt();
+				}
+				if (Database != nullptr) {
+					return { };
+				}
+				auto directory = detail::open_state_directory(Root);
+				if (!directory || !detail::sqlite_runtime_ready()) {
+					return std::unexpected(device_binding_failure::unavailable);
+				}
+				Directory.emplace(std::move(*directory));
+				const auto      path = Directory->path() / "device-bindings.sqlite3";
+				std::error_code error;
+				const auto      status = std::filesystem::symlink_status(path, error);
+				if (std::filesystem::exists(status) && (!std::filesystem::is_regular_file(status) || (status.permissions() & (std::filesystem::perms::group_all | std::filesystem::perms::others_all)) != std::filesystem::perms::none)) {
+					return std::unexpected(device_binding_failure::unavailable);
+				}
+				if (sqlite3_open_v2(path.string().c_str(), &Database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_NOFOLLOW, nullptr) != SQLITE_OK) {
+					Failed = true;
+					return std::unexpected(device_binding_failure::unavailable);
+				}
+				std::filesystem::permissions(path, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace, error);
+				if (error) {
+					Failed = true;
+					return std::unexpected(device_binding_failure::unavailable);
+				}
+				auto established = establish(aStop);
+				Failed           = !established.has_value();
+				return established;
+			}
+			auto establish(std::stop_token aStop) -> device_binding_result
+			{
+				auto version  = detail::scalar_integer(Database, "PRAGMA user_version");
+				auto identity = detail::scalar_integer(Database, "PRAGMA application_id");
+				auto count    = detail::scalar_integer(Database, "SELECT count(*) FROM sqlite_schema");
+				if (!version || !identity || !count) {
+					return corrupt();
+				}
+				const auto fresh = *version == 0 && *identity == 0 && *count == 0;
+				if (!fresh && (*version != 1 || *identity != ApplicationId)) {
+					return corrupt();
+				}
+				if (!detail::configure_connection(Database)) {
+					return std::unexpected(device_binding_failure::unavailable);
+				}
+				if (fresh) {
+					if (!detail::execute(Database, "BEGIN IMMEDIATE", aStop) || !detail::execute(Database, Schema, aStop)
+						|| !detail::execute(Database, "PRAGMA application_id=1112560194", aStop)
+						|| !detail::execute(Database, "PRAGMA user_version=1", aStop) || !detail::execute(Database, "COMMIT", aStop)) {
+						static_cast<void>(detail::execute(Database, "ROLLBACK"));
+						return corrupt();
+					}
+				}
+				auto schema    = detail::scalar_text(Database, "SELECT sql FROM sqlite_schema WHERE name='device_binding' AND type='table'");
+				auto objects   = detail::scalar_integer(Database, "SELECT count(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'");
+				auto integrity = detail::scalar_text(Database, "PRAGMA quick_check");
+				if (!schema || *schema != Schema || !objects || *objects != 1 || !integrity || *integrity != "ok") {
+					return corrupt();
+				}
+				auto rows = read_rows(aStop);
+				return rows ? device_binding_result{ } : device_binding_result{ std::unexpected(rows.error()) };
+			}
+			std::filesystem::path                  Root;
+			std::optional<detail::state_directory> Directory;
+			sqlite3*                               Database = nullptr;
+			bool                                   Failed   = false;
+		};
+	}
+	auto make_device_binding_store(std::filesystem::path aStorageRoot) -> std::unique_ptr<application::device_binding_store_port>
+	{
+		return std::make_unique<sqlite_device_binding_store>(std::move(aStorageRoot));
+	}
+}

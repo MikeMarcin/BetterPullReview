@@ -72,6 +72,8 @@ namespace {
 			"identity invalidation precedes session establishment");
 		const auto* request = std::get_if<establish_github_session_request>(&aOutput.Requests[1]);
 		expect(request != nullptr, "activation emits a typed session request");
+		expect(std::get<invalidate_github_identity_request>(aOutput.Requests[0]).Request == request->Context.Request,
+			   "activation cleanup reuses its core-owned session request identity");
 		return request->Context;
 	}
 
@@ -283,7 +285,11 @@ namespace {
 	{
 		auto       state              = loaded_state();
 		const auto previousGeneration = state.IdentityGeneration;
+		const auto nextRequest        = state.NextRequest;
 		const auto output             = transition(state, deactivate_github_identity_intent{ });
+		expect(std::get<invalidate_github_identity_request>(output.Requests.front()).Request == nextRequest
+				   && state.NextRequest.value() == nextRequest.value() + 1U,
+			   "deactivation allocates a cleanup request without establishing a session");
 
 		expect(
 			state.IdentityGeneration

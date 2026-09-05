@@ -1490,15 +1490,14 @@ documentation and source-pack validators, architecture boundaries, platform
 configuration, workflow-absence scan, tests-disabled Release symbol/dependency
 inspection, and `git diff --check`.
 
-The host-owned credential binding catalog supports same-process host
-recreation only. The public application selects exact deletion on orderly
-shutdown; its delete terminal is part of host quiescence, and composition
-closes and joins provider/vault workers only afterward. There is no durable
-binding rehydration, enumeration, v1 fallback, or crash recovery. An abrupt
-process or host crash can therefore leave a vault item that the next process
-cannot discover. Query-bearing REST redirects continue to fail closed under
-the completed BPR-0038 design decision. Any future relaxation requires new
-direct public-contract evidence and separately scoped work.
+The host-owned catalog now rehydrates exact device-grant bindings through the
+BPR-0541 private metadata store. The production policy retains only settled
+device grants; manual sessions still exact-delete on orderly shutdown. Metadata
+and delete terminals count through quiescence before composition joins their
+workers. Startup validates the current profile, vault material, authenticated
+account and stored lifetime. No enumeration, v1 fallback, or broad crash
+recovery scan is available. Query-bearing REST redirects continue to fail
+closed under the completed BPR-0038 decision.
 
 For the BPR-0028 provider-free Qt projection and presentation, build the host
 and Qt targets and run the atomic projection, architecture-boundary, and three
@@ -2358,18 +2357,19 @@ success claim.
   to make a fixture pass.
 - A locked, denied, unavailable, or failed native vault operation fails
   closed. There is no plaintext, settings, SQLite, environment, or CLI
-  fallback. An orderly shutdown exact-deletes only the retained credential
-  binding; it never enumerates or broadly deletes credentials.
+  fallback for token bytes. Sign out exact-deletes the current access and
+  refresh slots and disables the remembered binding. Orderly shutdown retains
+  a settled device grant and deletes manual sessions; it never enumerates or
+  broadly deletes credentials.
 - Prefer the recorded public fixtures and loopback native-transport fixtures
   for operator-safe verification. They do not contact or mutate GitHub: the
   recorded paths substitute transport and vault state, while loopback cases
   exercise bounded read-only REST `GET` and GraphQL `query` admission.
-- An abrupt crash can leave an unenumerable native-vault item because the
-  application has no durable selector or recovery scan. Current macOS/Linux
-  native lifecycle and shared fixture-lifecycle evidence prove exact cleanup
-  after an orderly lifecycle, not crash recovery; Windows target-native
-  cleanup remains BPR-0036. Do not compensate with a broad credential
-  deletion.
+- An abrupt crash during an incomplete grant can leave an unresumable vault
+  item. BPR-0541 records settled device bindings, but adds no recovery scan or
+  broad credential deletion. Its composed restart evidence uses a runtime-only
+  fake vault and reopened SQLite; separate-process evidence covers metadata
+  only. It does not establish native-vault continuity across OS processes.
 
 ### Signing in with a device code
 
@@ -2395,33 +2395,25 @@ success claim.
   in and are the minimum the shipped operation catalog justifies; they are not
   operator-editable, because an editable scope set reintroduces the decision
   this path removes.
-- The acquired token expires and renews itself shortly before it does, and
-  since BPR-0536 the product does this rather than only the host: the
-  composition binds the renewal to the signed-in profile's vault authority
-  for the session that enrolled the grant (a session does not survive a
-  restart today; BPR-0541 persists the binding), and only for a credential
-  whose provenance is a device grant — a pasted token is never renewed
-  from refresh material a past grant left beside it (BPR-0540). A
-  renewal that cannot complete says so once, as one line on the sign-in
-  panel, and asks for re-enrollment rather than retrying forever; enrol again
-  from the same panel. Refresh material lives in a second slot of the same
-  platform vault, keyed by the same authority (real on macOS; BPR-0542 and
-  BPR-0543 make it real on Linux and Windows, whose vaults answered
-  `unavailable` for the slot), and every exact delete of the base
-  credential — orderly shutdown, sign-out, a superseding enrollment —
-  deletes the refresh slot under the same authority too (BPR-0540), issued
-  from that delete's own terminal rather than beside it, since a platform
-  vault refuses two operations under one context (BPR-0545). The one
-  exception is a rotation superseding its own session, which would
-  otherwise destroy the material it just stored: there the erasure is held
-  until the incoming session names its authority, and released the moment
-  that authority differs (BPR-0547, BPR-0549).
-  `application_device_authorization_refresh_course` proves two rotations
-  through the composed graph over the fixture and pins
-  `DEVICE_FLOW_REFRESH_RETAINED:false` after its orderly shutdown, one
-  erasure, and the second rotation's material in the slot;
-  `application_device_authorization_orphan_course` proves a pasted token
-  never resumes from a pre-seeded slot.
+- Device sign-in is remembered across orderly quits. Access and refresh tokens
+  remain in the platform vault; only exact binding/provenance/lifetime metadata
+  is written to the private state database. Startup revalidates the profile and
+  authenticated account, then schedules renewal from the remaining lifetime.
+  Missing, mismatched, backward or expired material requires sign-in. Transient
+  renewal failures retry only within valid lifetime and a bounded failure count;
+  terminal failure asks for re-enrollment on the sign-in panel (BPR-0541).
+- **Sign out** removes both token slots and disables the remembered binding.
+  A manual token replaces and erases the prior device grant, stays session-only,
+  and cannot renew from an orphan refresh slot. Metadata is tombstoned before
+  replacement and becomes resumable only after the new pair settles. Exact
+  access deletion precedes refresh deletion and both terminals count through
+  shutdown; cleanup failure is reported, never treated as success.
+- For direct regression evidence, run
+  `ctest --preset dev --output-on-failure -R '^(application_github_host|application_device_authorization_refresh|sqlite_device_binding_storage|application_device_binding_restart|application_device_authorization_refresh_course|application_device_authorization_orphan_course)$'`.
+  The restart course reconstructs the application, defers a renewal, clicks
+  Sign out, waits for the next startup load to finish, and checks manual-token
+  replacement. The older two-rotation/orphan courses deliberately keep their
+  session-only fixture policy and its final erasure expectations.
 - Opening a browser can fail, and that is not an authorization failure. The
   code and the address stay on screen and the flow completes on whatever
   device the reviewer finishes it on. An address that does not sit under the

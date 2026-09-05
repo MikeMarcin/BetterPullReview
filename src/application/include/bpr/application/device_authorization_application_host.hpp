@@ -183,10 +183,9 @@ namespace bpr::application {
 
 	/// \brief Provides the device authorization clock port contract.
 	///
-	/// \details Monotonic, and deliberately not the UTC clock the epoch host
-	/// observes. The poll interval and the total bound are safety limits: a wall
-	/// clock that steps backwards would let a poll outrun its interval, and one
-	/// that steps forward would end a live flow early.
+	/// \details Active deadlines use monotonic time so wall-clock changes cannot
+	/// alter polling or renewal intervals. UTC is observed separately to record
+	/// bounded grant lifetimes that can be validated after a restart.
 	class device_authorization_clock_port
 	{
 	public:
@@ -194,6 +193,8 @@ namespace bpr::application {
 
 		[[nodiscard]] virtual auto observe_monotonic() noexcept
 			-> std::chrono::milliseconds = 0;
+		/// \brief UTC epoch seconds for durable lifetime facts; zero means unavailable.
+		[[nodiscard]] virtual auto observe_wall_seconds() noexcept -> std::int64_t { return 0; }
 	};
 
 	/// \brief Creates the system device authorization clock.
@@ -288,6 +289,14 @@ namespace bpr::application {
 		virtual void enroll(
 			core::host_profile_id      aProfile,
 			github_credential_material aCredential) = 0;
+		/// \brief Carries issued lifetime facts alongside the existing enrollment.
+		virtual void enroll_grant(core::host_profile_id aProfile, github_credential_material aCredential, device_binding_lifetime, bool) { enroll(aProfile, std::move(aCredential)); }
+		/// \brief Confirms a stored refresh slot for the exact accepted access grant.
+		virtual void settle_binding(github_credential_authority_key, core::github_identity_generation, device_binding_lifetime) { }
+		/// \brief Invalidates durable metadata before spending refresh material.
+		virtual void prepare_refresh(github_credential_authority_key, core::github_identity_generation, std::function<void(bool)> aCompletion) { aCompletion(true); }
+		/// \brief Ends the accepted grant when renewal becomes terminal.
+		virtual void invalidate_grant(github_credential_authority_key, core::github_identity_generation) { }
 	};
 
 	/// \brief Enrolls through the exact GitHub host vault boundary.
@@ -301,6 +310,10 @@ namespace bpr::application {
 		void enroll(
 			core::host_profile_id      aProfile,
 			github_credential_material aCredential) override;
+		void enroll_grant(core::host_profile_id aProfile, github_credential_material aCredential, device_binding_lifetime aLifetime, bool aRefreshSettled) override;
+		void settle_binding(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, device_binding_lifetime aLifetime) override;
+		void prepare_refresh(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, std::function<void(bool)> aCompletion) override;
+		void invalidate_grant(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration) override;
 
 	private:
 		github_application_host* Host;
@@ -439,12 +452,14 @@ namespace bpr::application {
 		void bind_refresh_authority(
 			github_credential_authority_key  aAuthority,
 			core::github_identity_generation aIdentityGeneration);
-		// The restart path. Renews from the refresh entry the vault already
-		// holds, without the reviewer authorizing again. Requests
-		// re-enrollment if there is nothing to renew from.
+		// The restart path schedules renewal from the validated remaining lifetime.
+		// Missing or expired lifetime facts require re-enrollment.
 		void resume_refresh(
-			github_credential_authority_key  aAuthority,
-			core::github_identity_generation aIdentityGeneration);
+			github_credential_authority_key        aAuthority,
+			core::github_identity_generation       aIdentityGeneration,
+			std::optional<device_binding_lifetime> aLifetime = std::nullopt);
+		/// \brief Cancels renewal when the selected accepted session is signed out or replaced manually.
+		void release_refresh_authority();
 		// The browser handoff, and the only thing in this host that changes no
 		// core state at all. It validates the retained address against the
 		// compiled authority, invokes the browser capability only if that

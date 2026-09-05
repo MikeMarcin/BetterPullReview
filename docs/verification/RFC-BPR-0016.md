@@ -381,3 +381,26 @@ This authorizes the subsequent persistent-device-session implementation in
 [[BPR-0541]]; it does not change the evidence or terminal status of the earlier
 RFC closeout, and does not claim credential operations or implemented restart
 behavior. Manual-token sessions remain session-only under the chosen policy.
+
+### BPR-0541 approved retention implementation — 2026-09-04
+
+The prior closeout's session-only and process-local statements above describe
+its immutable source. The owner subsequently approved remembering device
+sign-in. BPR-0541 implements private metadata persistence, exact startup
+validation, deferred renewal, device-only retention, and visible Sign out.
+Manual replacement remains session-only. An unresolved startup load refuses
+further sign-in for that application lifetime; a fresh launch retries loading.
+
+Focused storage and separate-process metadata tests passed; the integrator's
+final host, renewal and composed restart replay passed 3/3 in 26.86 seconds.
+The composed course uses a runtime-only fake vault across application lifetimes
+and real SQLite reopen; it proves deferred resume/rotation, Sign out cleanup,
+manual replacement, and preservation of the replacement public-preview session.
+Independent review's three initial and two related follow-up counterexamples
+were reproduced, repaired and narrowly rechecked clean. Dev/Release builds,
+scoped strict tidy, format, composition pins, fixture exclusion, boundary and
+documentation gates passed as recorded on the terminal BPR-0541 card.
+
+This adds evidence for the approved policy without rewriting the historical
+RFC closeout. Native-vault continuity across OS processes and native
+Windows/Linux execution of this later change remain unclaimed.

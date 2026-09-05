@@ -95,11 +95,13 @@ contract is outside milestone-one product scope, so selecting one returns the
 fixed typed `cli_unavailable` result with zero CLI executable/configuration
 discovery or CLI process launch. Positive CLI enablement is deferred to
 [RFC-BPR-0015](docs/rfcs/future/RFC-BPR-0015-github-cli-production-enablement.md).
-Native credentials are entered through a Qt-owned password input, stored under
-a hostname-bound authority, and exact-deleted before an orderly
-public-application shutdown completes. There is no durable credential
-selector; a crash can leave an item that BetterPullReview cannot enumerate or
-recover. The Git history path retains only revisions BetterPullReview actually
+Manual credentials use a Qt-owned password input and remain session-only.
+Device sign-in is remembered across orderly quits: tokens stay in the platform
+vault, while a private metadata store retains the exact binding and lifetime.
+Startup revalidates the binding, token and account before accepting a session;
+expired or mismatched material requires sign-in. **Sign out** removes both
+token slots and disables the stored binding. Replacing a device grant with a
+manual token removes the prior grant. The Git history path retains only revisions BetterPullReview actually
 observed. Private refs keep an observed old head comparable after a force-push
 while that epoch remains retained rather than explicitly pruned or
 cache-deleted, but never-observed history cannot be reconstructed. Cache and

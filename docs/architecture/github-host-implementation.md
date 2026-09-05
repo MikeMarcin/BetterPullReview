@@ -1199,80 +1199,60 @@ shutdown, and cancellation retains no device code ([[BPR-0279]],
 
 #### Refresh
 
-The selected registration is a GitHub App, so the access token expires and
-refresh material accompanies it. Renewal is armed 300 s before expiry, or at
-the midpoint of a lifetime shorter than twice that lead, and reuses the token
-endpoint with the stored refresh material. Rotation is atomic: new material
-that cannot be stored is not adopted, because rotating would otherwise leave
-nothing durable behind. A stale or canceled renewal cannot rotate anything,
-and an exhausted one reports `reenrollment_required` once rather than retrying
-forever — the reviewer authorizes again. A registration that issues no refresh
-material schedules no rotation at all ([[BPR-0279]], [[BPR-0283]],
-`application_device_authorization_refresh`,
-`github_device_authorization_refresh_contract`).
+The selected registration is a GitHub App, so access and refresh material have
+bounded lifetimes. Renewal is armed 300 seconds before access expiry, or at the
+midpoint of a lifetime shorter than twice that lead. Active deadlines are
+monotonic. Transient transport failures retry at most the configured failure
+bound, with waits no longer than five seconds and never beyond the remaining
+access lifetime. Terminal failure reports `reenrollment_required`; it cannot
+retry forever ([[BPR-0279]], [[BPR-0541]],
+`application_device_authorization_refresh`).
 
-That lifecycle is composed, not only tested ([[BPR-0536]]). On an accepted
-session for the device-enrolled profile, composition hands the device host
-the session's credential authority key: while the device stage is
-`authorized` in this run it binds (`bind_refresh_authority`, which also
-flushes refresh material parked from the grant); the resume branch
-(`resume_refresh`) exists for a persisted binding, which no session has
-today — the catalog is process-local and no session survives a restart
-([[BPR-0541]]). Since [[BPR-0540]] the resume cannot be reached by slot
-presence alone: the GitHub host carries a provenance
-(`github_credential_provenance`, `manual` or `device_grant`) on every
-enrollment, only the device-authorization enrollment boundary says
-`device_grant`, the catalog remembers it beside the authority, and
-`accepted_credential_renewable()` is true only when the vault's refresh
-entry sits beside a credential whose provenance is a device grant — a
-pasted token for an account a past grant enrolled is never renewed from
-that grant's material. And the refresh slot shares the credential's
-erasure. Every exact delete of the base credential under an authority
-(`delete_retained_on_shutdown` at orderly shutdown, sign-out, a
-superseding enrollment) issues `delete_refresh` under the same authority
-through the same vault port — from that credential delete's own terminal,
-never beside it, because the platform vaults key their pending operations
-by the operation context and refuse a second under one key
-([[BPR-0545]]) — counted into quiescence, with only a failure reported as
-a `vault_unavailable` diagnostic (and `shutdown_cleanup_failed` when
-closing).
+On enrollment, the GitHub host records `device_grant` provenance and the device
+host binds the accepted credential authority before storing the refresh slot.
+A pasted token remains `manual` and cannot renew from an orphan refresh slot
+([[BPR-0540]]). A settled device pair supplies exact profile/revision/host/
+hostname/account/server authority and issuance/access-expiry/refresh-expiry
+facts to `device_binding_persistence`. Its bounded serialized effect lane
+writes `state/v1/device-bindings.sqlite3` through the lazy SQLite adapter. This
+store contains no token bytes. Schema, record and capacity validation refuse
+unknown or malformed data.
 
-One occasion withholds that erasure, because renewal would otherwise
-destroy its own chain: a rotation enrolls its new access token, and that
-enrollment supersedes the session it renewed. When the incoming enrollment
-is a device grant for the same profile as the outgoing authority, the
-erasure is *held* rather than issued ([[BPR-0547]]) — held as the exact
-context that would have run it, and released only when the incoming
-session names an authority key. Equal key means the material may still be
-spent and the slot stays; any other key, a session that fails, a later
-invalidation, or a shutdown inside that window erases it under the
-outgoing authority ([[BPR-0549]]). Material is erased exactly when nothing
-may spend it again, and never while something still can.
-`application_device_authorization_orphan_course` pre-seeds
-the fixture's refresh slot, connects with a pasted credential, and pins
-`REFRESH_RESUMES:0` with the pasted session intact.
-The host publishes its refresh observation on every change
-through the projection port's `publish_refresh`, the sign-in panel renders
-one line for `reenrollment_required` and nothing for the other states, and
-cancelling a flow forgets any outstanding refresh store so a store that
-answers late arms nothing. The composed-host audit requires the binding
-function in both profiles, and `application_device_authorization_refresh_course`
-drives two rotations through the real graph over the fixture's refresh
-slot with a course-only clock that steps once per armed renewal. Two
-rather than one is the point: one rotation succeeds whether or not the
-supersession keeps its material, and only the second shows the chain
-surviving. The row pins the second rotation's material in the slot and
-exactly one erasure, which is what tells the rotation's withheld erasure
-apart from the shutdown's.
+Startup loads only the compiled native GitHub.com device profile after both
+hosts exist. `resume_profile` validates its current profile contract, retrieves
+the exact vault item and checks authenticated `/user` identity before accepting
+the session. The refresh-slot probe must also succeed. Missing or mismatched
+material cannot restore a device session, and issuance/expiry facts that are
+backward or expired cannot extend validity. `resume_refresh` schedules from
+the remaining lifetime instead of exchanging a token immediately.
 
-Refresh material is keyed by the same authority as the credential itself and
-kept beside it in a second vault slot, so neither can be retrieved under the
-other's name and deleting one never silently removes the other. The authority
-a refresh entry is keyed by is only knowable once an authenticated `/user`
-observation has bound the profile to an account, which happens after
-enrollment; until it arrives the host holds new refresh material in memory and
-stores it the moment it can, and every terminal, cancellation, and shutdown
-erases it instead.
+Vault slots and SQLite do not form one transaction. Before replacement or
+rotation, the existing binding is durably tombstoned. A new resumable record is
+written only after both vault slots and the accepted session settle. A newly
+issued refresh token cannot inherit a missing expiry from its predecessor;
+only an explicitly retained refresh slot preserves its existing expiry. Stale
+completions cannot make an invalidated binding resumable.
+
+The production `retain_accepted_device_grants` shutdown policy retains only a
+durably settled device pair. Manual sessions and incomplete grants retain exact
+cleanup. Sign out and manual replacement invalidate the binding, then issue
+access deletion followed by refresh deletion under the same authority. Each
+delete starts from its predecessor's terminal because native vault operations
+share an exact context ([[BPR-0545]]). Same-authority rotation preserves the
+pair it just renewed; a changed or failed replacement releases the prior pair
+([[BPR-0547]], [[BPR-0549]]). Metadata work, refusals, callbacks and cleanup
+remain counted through quiescence; failures produce diagnostics rather than a
+successful cleanup claim.
+
+`application_device_binding_restart` reconstructs application hosts over a
+reopened database, observes `REFRESH_RESUMES:1`, defers one rotation, clicks the
+ordinary Sign out control, and proves a third startup cannot resume. It also
+checks manual replacement and non-retention. Only a test-local in-memory vault
+survives those application lifetimes. `sqlite_device_binding_storage` separately
+uses child processes on macOS to prove metadata reopening; neither test claims
+native-vault continuity across OS processes. The older two-rotation and orphan
+courses remain regression evidence under their explicit session-only fixture
+policy, including their expected final refresh-slot erasure.
 
 #### The vault join point
 
@@ -1389,23 +1369,20 @@ syntactically valid capability facts are not observations. Only the exact
 authenticated provider probe can stage an entry; the core's accepted-session
 delta precedes cache commit.
 
-Native credential resume accepts only an opaque profile identity. A
-noncopyable host-owned binding catalog selects the complete
-profile/profile-revision/host/hostname/account/server authority previously
-established by strict credential-authenticated `/user`. Login text, profile
-text, settings, SQLite, and caller-provided account values cannot select a
-vault item. Switching identity exact-deletes the prior retained authority
-before the next session begins; authoritative absence forgets the stale
-binding; failed cleanup retains an exact catalog tombstone for remediation.
+Native credential resume accepts only an opaque profile identity. The host-owned
+catalog selects the exact profile/revision/host/hostname/account/server authority
+established by strict credential-authenticated `/user`. BPR-0541 rehydrates
+only device-grant metadata through the validated private store described above;
+login text or caller-provided account values cannot select a vault item. The
+current profile and authenticated account must match the stored authority.
+There is no enumeration, v1 credential fallback, or recovery scan.
 
-This catalog is process-local. Sharing it across host instances proves
-same-process recreation only. The public composition selects
-`delete_retained_on_shutdown`; its exact vault delete terminal is part of host
-quiescence, and provider/vault workers are not drained until that terminal has
-returned. A delete failure is reported and leaves the exact catalog tombstone.
-There is no serialized or integrity-backed selector, enumeration, v1 fallback,
-or process-restart recovery. An abrupt process or host crash can therefore
-leave a native-vault item that BetterPullReview cannot discover or resume.
+Manual sessions are still deleted on orderly quit. Remembered device grants
+survive only with a durable settled binding. Exact deletion terminals and
+metadata effects remain part of quiescence, and provider/vault/store workers
+are drained only afterward. A failed cleanup reports its exact diagnostic and
+retains the tombstone for remediation. An interrupted initial grant can leave
+unresumable vault material; persistence does not imply broad crash recovery.
 
 ## Application projection and Qt rules
 
@@ -1757,3 +1734,15 @@ cache session, and command projections cannot survive under the next authority.
 Anonymous smart HTTP carries a revocable public authority instead of an account
 credential. The native read and rendered-diff course is recorded in
 [the RFC-0017 ledger](../verification/RFC-BPR-0017.md).
+
+Startup metadata loading also owns the cleanup barrier for early Sign out or
+replacement sign-in. The core supplies the invalidation request identity;
+the host validates the loaded authority against the compiled native profile,
+tombstones that binding, and waits for both exact vault deletions before
+starting replacement session effects. Sign out followed by quit drains that
+cleanup; ordinary quit during loading retains the remembered grant.
+An unresolved metadata-load error refuses later session establishment for the
+same application lifetime, before profile or vault effects. Restarting the
+application retries the load. A restored grant that arrives during a pending
+device flow remains the preceding session's binding until that flow validates
+its own account.

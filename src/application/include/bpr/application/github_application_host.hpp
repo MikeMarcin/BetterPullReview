@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_APPLICATION_HOST_HPP
 
+#include "bpr/application/device_binding_store.hpp"
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/application/github_capability_cache.hpp"
 #include "bpr/application/github_credential_vault.hpp"
@@ -26,6 +27,7 @@ namespace bpr::application {
 	enum class github_credential_shutdown_policy {
 		retain,
 		delete_retained_on_shutdown,
+		retain_accepted_device_grants,
 	};
 
 	/// \brief Names where the material behind an accepted credential came from.
@@ -176,12 +178,27 @@ namespace bpr::application {
 		void enroll_profile(core::host_profile_id        aProfile,
 							github_credential_material   aCredential,
 							github_credential_provenance aProvenance
-							= github_credential_provenance::manual);
+							= github_credential_provenance::manual,
+							std::optional<device_binding_lifetime> aLifetime       = std::nullopt,
+							bool                                   aRefreshSettled = false);
 		// Resume asks only for a profile. The host-owned trusted binding catalog,
 		// populated from prior accepted /user observations, selects the exact
 		// account authority. Public account and login values never select vault
 		// entries.
 		void resume_profile(core::host_profile_id aProfile);
+		/// \brief Configures metadata persistence before any enrollment or startup restore.
+		void configure_device_persistence(device_binding_persistence& aPersistence, std::function<std::int64_t()> aWallClock);
+		/// \brief Loads the trusted device binding for a compiled native profile, then resumes normally.
+		void restore_device_profile(github_profile_authority aCompiledProfile);
+		/// \brief Deactivates only the accepted device grant that owns a renewal failure.
+		void invalidate_device_grant(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration);
+		/// \brief Records the exact refresh slot's successful store after access acceptance.
+		void settle_device_binding(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, device_binding_lifetime aLifetime);
+		/// \brief Tombstones the exact accepted grant before either rotated slot can change.
+		void               prepare_device_rotation(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, std::function<void(bool)> aCompletion);
+		[[nodiscard]] auto accepted_device_lifetime() const noexcept -> std::optional<device_binding_lifetime>;
+		[[nodiscard]] auto accepted_device_binding_durable() const noexcept -> bool;
+
 		// Activates the profile signed out. No credential is read, no vault is
 		// consulted, no `/user` request is issued, and no capability is
 		// probed: the mode supports none of them, so nothing may look as

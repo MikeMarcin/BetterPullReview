@@ -899,9 +899,13 @@ owns the device-code request, the poll schedule under the server's interval
 and its requested `slow_down` backoff, the total wall-clock bound and the
 maximum poll count, cancellation from the UI and at shutdown, renewal before
 expiry, and the erasure that follows every terminal including the successful
-one. It reads a monotonic clock rather than the epoch host's UTC clock,
-because a wall clock that steps backwards would let a poll outrun its interval
-and one that steps forward would end a live flow early ([[BPR-0279]],
+one. Active polling and renewal deadlines use a monotonic clock, because a wall
+clock step must not extend polling or shorten a live interval. BPR-0541 adds
+wall-clock issuance and expiry facts only to bridge application lifetimes;
+backward or expired facts refuse restart. A lazy SQLite adapter persists exact
+device-binding metadata through a serialized effect lane, and the GitHub host
+revalidates the vault-backed account before composition arms deferred renewal.
+No token enters SQLite ([[BPR-0279]], [[BPR-0541]],
 `application_device_authorization_host`,
 `application_device_authorization_refresh`).
 

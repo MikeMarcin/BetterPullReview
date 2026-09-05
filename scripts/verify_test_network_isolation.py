@@ -66,6 +66,8 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # to move when the truth does. The value names the cause so the next reader
 # does not have to re-measure it.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
+    "sqlite_device_binding_storage": "dos-volume-name",
+    "application_device_binding_restart": "dos-volume-name",
     "sqlite_epoch_catalog_storage_contract": "dos-volume-name",
     "sqlite_epoch_catalog_behavior_contract": "dos-volume-name",
     "sqlite_review_mutation_recovery_storage": "dos-volume-name",

@@ -384,3 +384,10 @@ set_tests_properties(
             "sqlite-anonymous-epoch-authority-tests:pass"
         TIMEOUT 60
 )
+
+bpr_add_executable(test_device_binding_storage device_binding_storage_tests.cpp)
+target_link_libraries(test_device_binding_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
+bpr_enable_hardening(test_device_binding_storage)
+bpr_enable_warnings(test_device_binding_storage)
+bpr_add_network_isolated_test(NAME sqlite_device_binding_storage WINDOWS_UNCONTAINED COMMAND test_device_binding_storage)
+set_tests_properties(sqlite_device_binding_storage PROPERTIES TIMEOUT 30 PASS_REGULAR_EXPRESSION "device-binding-storage-tests:pass")

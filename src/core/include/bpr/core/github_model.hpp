@@ -283,6 +283,8 @@ namespace bpr::core {
 	/// \brief Describes the invalidate github identity request record.
 	struct invalidate_github_identity_request
 	{
+		/// Core-owned identity for cleanup even when no session was established.
+		request_id                 Request;
 		application_session_id     ApplicationSession;
 		github_identity_generation NewGeneration;
 		github_identity_scope      Previous;

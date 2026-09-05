@@ -53,6 +53,10 @@ namespace bpr::app::detail {
 		reuse,
 	};
 
+	struct github_fixture_vault_state;
+	/// \brief Owns runtime-only fake vault material across fully reconstructed applications.
+	[[nodiscard]] auto make_shared_github_fixture_vault() -> std::shared_ptr<github_fixture_vault_state>;
+
 	struct github_public_path_fixture_options
 	{
 		std::optional<std::filesystem::path> ApplicationDataRoot;
@@ -91,7 +95,10 @@ namespace bpr::app::detail {
 		// a rotation needs that the read-path fixture has no use for: a real
 		// second vault slot and the documented renewal answer on the
 		// transport. Only meaningful with a fixture.
-		bool DeviceRefreshCourse = false;
+		bool                                        DeviceRefreshCourse     = false;
+		bool                                        PersistDeviceBindings   = false;
+		std::int64_t                                DeviceWallOffsetSeconds = 0;
+		std::shared_ptr<github_fixture_vault_state> SharedDeviceVault;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
 		// browser capability bound at all, which is what every build was
 		// before [[BPR-0516]]. Removes exactly one construction: the flow
@@ -575,6 +582,8 @@ namespace bpr::app::detail {
 	class github_application_fixture_access final
 	{
 	public:
+		[[nodiscard]] static auto device_binding_store_idle(const github_application& aApplication) noexcept -> bool;
+		[[nodiscard]] static auto device_binding_durable(const github_application& aApplication) noexcept -> bool;
 		/// \brief Attempts one native HTTPS read through the shipped adapter.
 		///
 		/// \details The endpoint returns an ordinary HTTP response outside the

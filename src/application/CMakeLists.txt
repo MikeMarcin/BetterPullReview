@@ -25,6 +25,7 @@ add_library(
         src/workbench_snapshot_observation.cpp
         src/diff_application_host.cpp
         src/device_authorization_application_host.cpp
+        src/device_binding_store.cpp
         src/device_authorization_schedule.cpp
         src/github_capability_cache.cpp
         src/epoch_application_host.cpp

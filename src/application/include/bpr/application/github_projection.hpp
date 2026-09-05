@@ -37,6 +37,7 @@ namespace bpr::application {
 	};
 
 	using github_intent = std::variant<
+		core::deactivate_github_identity_intent,
 		core::activate_host_profile_intent,
 		core::open_pull_request_intent,
 		core::refresh_pull_request_intent>;

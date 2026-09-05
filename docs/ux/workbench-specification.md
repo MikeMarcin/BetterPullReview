@@ -126,6 +126,13 @@ the token field stays. `qt::device_authorization_panel` is the surface:
   as the rest of this window, and the panel is rendered at 1.0x, 1.25x, and
   2.0x in the Qt harness.
 
+The session chrome offers **Sign out** beside Connect. Device grants are
+remembered across orderly quits; manual tokens remain session-only. Sign out
+removes both device-token slots and disables the stored binding. Startup
+restores only an exactly validated session and reports unusable retained
+material through the existing diagnostic surface. These effects belong to the
+application host, not the button or panel ([[BPR-0541]]).
+
 The panel receives a projection and never a token, a refresh token, a device
 code, a client identifier, or an endpoint; those fields do not exist on the
 type it is handed.

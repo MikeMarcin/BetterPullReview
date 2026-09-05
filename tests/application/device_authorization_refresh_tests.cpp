@@ -128,6 +128,7 @@ namespace {
 	class fake_clock final : public application::device_authorization_clock_port
 	{
 	public:
+		[[nodiscard]] auto observe_wall_seconds() noexcept -> std::int64_t override { return 1000 + Now.count() / 1000; }
 		[[nodiscard]] auto observe_monotonic() noexcept
 			-> std::chrono::milliseconds override
 		{
@@ -307,9 +308,18 @@ namespace {
 			Credentials.push_back(text_of(aCredential.bytes()));
 		}
 
-		order_log*                         Order;
-		std::vector<core::host_profile_id> Profiles;
-		std::vector<std::string>           Credentials;
+		void enroll_grant(const core::host_profile_id aProfile, github_credential_material aCredential, const application::device_binding_lifetime aLifetime, const bool aRefreshSettled) override
+		{
+			Lifetimes.push_back(aLifetime);
+			RefreshSettled.push_back(aRefreshSettled);
+			enroll(aProfile, std::move(aCredential));
+		}
+
+		std::vector<bool>                                 RefreshSettled;
+		std::vector<application::device_binding_lifetime> Lifetimes;
+		order_log*                                        Order;
+		std::vector<core::host_profile_id>                Profiles;
+		std::vector<std::string>                          Credentials;
 	};
 
 	class recording_projections final
@@ -775,6 +785,8 @@ namespace {
 		expect(
 			*world.Vault.Stored == "refresh-1",
 			"the existing refresh entry survives");
+		expect(world.Enrollment.Lifetimes.back().RefreshExpiresAt == world.Enrollment.Lifetimes.front().RefreshExpiresAt,
+			   "a retained refresh slot retains its original expiry");
 		expect(
 			world.Enrollment.Credentials.back() == "access-2",
 			"and the new access token is still enrolled");
@@ -873,7 +885,7 @@ namespace {
 				application::device_authorization_transport_error{
 					.Context = world.Transport.last_refresh_context(),
 					.Failure = application::device_authorization_transport_failure::
-						network,
+						malformed_response,
 				});
 			world.Lane.drain();
 			expect(
@@ -925,7 +937,10 @@ namespace {
 		harness world;
 		world.Vault.Stored = "refresh-kept";
 
-		world.Host.resume_refresh(authority(), accepted_generation());
+		world.Host.resume_refresh(authority(), accepted_generation(), application::device_binding_lifetime{ .IssuedAt = 1000, .AccessExpiresAt = 4600, .RefreshExpiresAt = 10000 });
+		expect(world.Transport.RefreshMaterial.empty() && world.Timer.last_delay() == 3300U, "resume defers refresh using remaining lifetime");
+		world.Clock.advance(world.Timer.last_delay());
+		world.Timer.fire();
 		world.Lane.drain();
 		expect(
 			world.Transport.RefreshMaterial
@@ -967,7 +982,10 @@ namespace {
 	{
 		harness world;
 
-		world.Host.resume_refresh(authority(), accepted_generation());
+		world.Host.resume_refresh(authority(), accepted_generation(), application::device_binding_lifetime{ .IssuedAt = 1000, .AccessExpiresAt = 4600, .RefreshExpiresAt = 10000 });
+		expect(world.Transport.RefreshMaterial.empty() && world.Timer.last_delay() == 3300U, "resume defers refresh using remaining lifetime");
+		world.Clock.advance(world.Timer.last_delay());
+		world.Timer.fire();
 		world.Lane.drain();
 
 		expect(
@@ -1066,6 +1084,8 @@ namespace {
 		world.Lane.drain();
 		const auto enrolled  = world.Enrollment.Credentials.size();
 		const auto rotations = world.Host.refresh_observation().Rotations;
+		expect(!application::valid(world.Enrollment.Lifetimes.back()),
+			   "a new refresh token without expiry cannot inherit durable lifetime from the old token");
 
 		world.Transport.answer_refresh(application::device_token_issued{
 			.Context = context,
@@ -1460,6 +1480,27 @@ namespace {
 	// to protect could expire first. The host holds both deadlines now, and the
 	// timer holds whichever is earlier: a renewal due before the next poll is
 	// not queued behind it.
+	void test_startup_restore_during_device_flow_does_not_bind_the_new_grant()
+	{
+		harness world;
+		world.Vault.Stored = "refresh-account-a";
+		world.reach_awaiting();
+		world.Host.resume_refresh(authority(), accepted_generation(), application::device_binding_lifetime{ .IssuedAt = 1000, .AccessExpiresAt = 4600, .RefreshExpiresAt = 10000 });
+		world.Lane.drain();
+		expect(world.Host.state().Stage == core::device_authorization_stage::awaiting_authorization, "startup restore leaves the already pending device flow awaiting authorization");
+		world.poll_once();
+		world.Transport.answer_token(world.issued(3'600U, "access-account-b", "refresh-account-b"));
+		world.Lane.drain();
+		expect(world.Enrollment.Credentials.back() == "access-account-b", "new grant reaches independent account validation");
+		expect(world.Vault.StoreContexts.empty() && world.Vault.Stored == "refresh-account-a" && !world.Enrollment.RefreshSettled.back(),
+			   "startup restore during pending flow must not store B refresh under A or mark B settled");
+		expect(world.Host.holds_pending_refresh_material(), "B refresh waits for its authenticated account binding");
+		world.Host.bind_refresh_authority(second_account_authority(), core::github_identity_generation{ accepted_generation().value() + 1U });
+		world.Lane.drain();
+		expect(world.Vault.StoreContexts.size() == 1U && world.Vault.StoreContexts.back().Authority == second_account_authority(),
+			   "B refresh is stored only after B account binding arrives");
+	}
+
 	void test_a_renewal_due_during_a_second_flow_fires_on_time()
 	{
 		harness world;
@@ -1511,6 +1552,23 @@ namespace {
 			world.Enrollment.Credentials
 				== std::vector<std::string>{ "access-1", "access-2" },
 			"and the token it was racing is renewed in time");
+
+		// Composition rebinds the renewed A session's accepted generation while
+		// the second flow still awaits its independently authenticated account.
+		world.Host.bind_refresh_authority(authority(), core::github_identity_generation{ accepted_generation().value() + 1U });
+		world.Lane.drain();
+		const auto storedBeforeSecondGrant = world.Vault.StoreContexts.size();
+		world.poll_once();
+		world.Transport.answer_token(world.issued(3'600U, "access-account-b", "refresh-account-b"));
+		world.Lane.drain();
+		expect(world.Enrollment.Credentials.back() == "access-account-b", "second grant reaches access enrollment for independent account validation");
+		expect(world.Vault.StoreContexts.size() == storedBeforeSecondGrant && !world.Enrollment.RefreshSettled.back(),
+			   "second grant must neither store refresh under A nor claim refresh settled before B is authenticated");
+		expect(world.Host.holds_pending_refresh_material(), "second grant refresh waits for its own account binding");
+		world.Host.bind_refresh_authority(second_account_authority(), core::github_identity_generation{ accepted_generation().value() + 2U });
+		world.Lane.drain();
+		expect(world.Vault.StoreContexts.size() == storedBeforeSecondGrant + 1U && world.Vault.StoreContexts.back().Authority == second_account_authority(),
+			   "second grant refresh is stored exactly once under authenticated B");
 	}
 
 	// [[BPR-0554]]. The transient dishonesty the same single timer produced.
@@ -1552,10 +1610,53 @@ namespace {
 				&& world.Vault.RetrieveContexts.back().Authority == authority(),
 			"and firing it renews under the first session's slot");
 	}
+
+	void test_restart_expiry_and_transient_retry()
+	{
+		for (const auto lifetime : { application::device_binding_lifetime{ .IssuedAt = 1001, .AccessExpiresAt = 2000, .RefreshExpiresAt = 3000 }, application::device_binding_lifetime{ .IssuedAt = 1, .AccessExpiresAt = 1000, .RefreshExpiresAt = 3000 }, application::device_binding_lifetime{ .IssuedAt = 1, .AccessExpiresAt = 2000, .RefreshExpiresAt = 1000 } }) {
+			harness world;
+			world.Vault.Stored = "retained-refresh";
+			world.Host.resume_refresh(authority(), accepted_generation(), lifetime);
+			expect(!world.Timer.armed() && world.Transport.RefreshMaterial.empty(), "backward or expired wall facts never spend refresh");
+			expect(world.Host.refresh_observation().State == application::device_authorization_refresh_state::reenrollment_required, "invalid lifetime requires sign-in");
+		}
+		{
+			harness world;
+			world.Vault.Stored = "retained-refresh";
+			world.Host.resume_refresh(authority(), accepted_generation(), application::device_binding_lifetime{ .IssuedAt = 1000, .AccessExpiresAt = 1010, .RefreshExpiresAt = 2000 });
+			world.Clock.advance(world.Timer.last_delay());
+			world.Timer.fire();
+			world.Lane.drain();
+			world.Transport.answer_refresh(application::device_authorization_transport_error{ .Context = world.Transport.last_refresh_context(), .Failure = application::device_authorization_transport_failure::timeout });
+			world.Lane.drain();
+			expect(world.Timer.armed() && world.Host.refresh_observation().State == application::device_authorization_refresh_state::scheduled, "transient failure preserves access until bounded retry");
+			expect(world.Timer.last_delay() == 5U, "retry stays inside remaining validity");
+			world.Clock.advance(5U);
+			world.Timer.fire();
+			world.Lane.drain();
+			expect(world.Host.refresh_observation().State == application::device_authorization_refresh_state::reenrollment_required && world.Transport.RefreshMaterial.size() == 1U, "expiry ends retry without spending orphan refresh");
+		}
+		{
+			harness world;
+			world.Vault.Stored = "retained-refresh";
+			world.Host.resume_refresh(authority(), accepted_generation(), application::device_binding_lifetime{ .IssuedAt = 1000, .AccessExpiresAt = 4600, .RefreshExpiresAt = 10000 });
+			for (std::size_t attempt = 0; attempt < 4U; ++attempt) {
+				world.Clock.advance(world.Timer.last_delay());
+				world.Timer.fire();
+				world.Lane.drain();
+				world.Transport.answer_refresh(application::device_authorization_transport_error{ .Context = world.Transport.last_refresh_context(), .Failure = application::device_authorization_transport_failure::network });
+				world.Lane.drain();
+			}
+			expect(!world.Timer.armed() && world.Host.refresh_observation().State == application::device_authorization_refresh_state::reenrollment_required, "transient retry count is bounded");
+		}
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_startup_restore_during_device_flow_does_not_bind_the_new_grant();
+	test_restart_expiry_and_transient_retry();
 	test_the_refresh_entry_is_written_before_the_access_token_is_enrolled();
 	test_renewal_is_armed_before_the_access_token_expires();
 	test_a_short_lifetime_renews_at_its_midpoint();

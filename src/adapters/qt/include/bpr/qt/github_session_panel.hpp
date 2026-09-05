@@ -173,6 +173,7 @@ namespace bpr::qt {
 		std::vector<application::github_profile_option> Profiles;
 		github_session_environment                      Environment;
 
+		QToolButton* SignOutButton           = nullptr;
 		QAction*     ConnectAction           = nullptr;
 		QAction*     PublicPreviewAction     = nullptr;
 		QAction*     OpenAction              = nullptr;

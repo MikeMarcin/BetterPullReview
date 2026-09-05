@@ -2045,3 +2045,11 @@ bpr_bound_automated_run(
     RUNS 1
     RESERVE_MS 2000
 )
+
+bpr_add_executable(test_device_binding_restart device_binding_restart_tests.cpp)
+target_link_libraries(test_device_binding_restart PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_device_binding_restart PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_device_binding_restart)
+bpr_enable_warnings(test_device_binding_restart)
+bpr_add_network_isolated_test(NAME application_device_binding_restart WINDOWS_UNCONTAINED COMMAND test_device_binding_restart)
+set_tests_properties(application_device_binding_restart PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 60 PASS_REGULAR_EXPRESSION "device-binding-restart-tests:pass")

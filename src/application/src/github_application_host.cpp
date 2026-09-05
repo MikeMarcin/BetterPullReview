@@ -593,6 +593,13 @@ namespace bpr::application {
 			github_credential_material   Credential;
 			github_credential_provenance Provenance
 				= github_credential_provenance::manual;
+			std::optional<device_binding_lifetime> Lifetime;
+			bool                                   RefreshSettled = false;
+		};
+		struct deferred_grant_invalidation
+		{
+			github_credential_authority_key  Authority;
+			core::github_identity_generation Generation;
 		};
 
 		struct deferred_resume
@@ -610,6 +617,7 @@ namespace bpr::application {
 		};
 
 		using deferred_ingress = std::variant<deferred_dispatch,
+											  deferred_grant_invalidation,
 											  deferred_enrollment,
 											  deferred_resume,
 											  deferred_public_preview,
@@ -684,11 +692,13 @@ namespace bpr::application {
 							if constexpr (std::is_same_v<ingress_type,
 														 deferred_dispatch>) {
 								dispatch_now(aIngress.Event);
+							} else if constexpr (std::is_same_v<ingress_type, deferred_grant_invalidation>) {
+								invalidate_device_grant_now(aIngress.Authority, aIngress.Generation);
 							} else if constexpr (std::is_same_v<ingress_type,
 																deferred_enrollment>) {
 								enroll_profile_now(aIngress.Profile,
 												   std::move(aIngress.Credential),
-												   aIngress.Provenance);
+												   aIngress.Provenance, aIngress.Lifetime, aIngress.RefreshSettled);
 							} else if constexpr (std::is_same_v<ingress_type,
 																deferred_resume>) {
 								resume_profile_now(aIngress.Profile);
@@ -756,6 +766,15 @@ namespace bpr::application {
 			run_turn([this, &aEvent] { dispatch_now(aEvent); });
 		}
 
+		void invalidate_device_grant_now(const github_credential_authority_key& aAuthority, const core::github_identity_generation aGeneration)
+		{
+			if (!Closing && AcceptedSession && CredentialAuthority == aAuthority && CredentialSessionContext
+				&& CredentialSessionContext->IdentityGeneration == aGeneration
+				&& CredentialProvenance == github_credential_provenance::device_grant) {
+				dispatch_now(core::deactivate_github_identity_intent{ });
+			}
+		}
+
 		void dispatch_now(const core::github_event& aEvent)
 		{
 			if (Closing) {
@@ -776,36 +795,44 @@ namespace bpr::application {
 			dispatch_core(aEvent);
 		}
 
-		void enroll_profile(const core::host_profile_id        aProfile,
-							github_credential_material         aCredential,
-							const github_credential_provenance aProvenance)
+		void enroll_profile(const core::host_profile_id                  aProfile,
+							github_credential_material                   aCredential,
+							const github_credential_provenance           aProvenance,
+							const std::optional<device_binding_lifetime> aLifetime,
+							const bool                                   aRefreshSettled)
 		{
 			if (Closing) {
 				return;
 			}
 			if (TurnActive) {
 				DeferredIngress.emplace_back(deferred_enrollment{
-					.Profile    = aProfile,
-					.Credential = std::move(aCredential),
-					.Provenance = aProvenance,
+					.Profile        = aProfile,
+					.Credential     = std::move(aCredential),
+					.Provenance     = aProvenance,
+					.Lifetime       = aLifetime,
+					.RefreshSettled = aRefreshSettled,
 				});
 				return;
 			}
 			if (DeferredIngressScheduled || !DeferredIngress.empty()) {
 				DeferredIngress.emplace_back(deferred_enrollment{
-					.Profile    = aProfile,
-					.Credential = std::move(aCredential),
-					.Provenance = aProvenance,
+					.Profile        = aProfile,
+					.Credential     = std::move(aCredential),
+					.Provenance     = aProvenance,
+					.Lifetime       = aLifetime,
+					.RefreshSettled = aRefreshSettled,
 				});
 				schedule_deferred_ingress();
 				return;
 			}
-			run_turn([this, aProfile, aProvenance, credential = std::move(aCredential)]() mutable { enroll_profile_now(aProfile, std::move(credential), aProvenance); });
+			run_turn([this, aProfile, aProvenance, aLifetime, aRefreshSettled, credential = std::move(aCredential)]() mutable { enroll_profile_now(aProfile, std::move(credential), aProvenance, aLifetime, aRefreshSettled); });
 		}
 
-		void enroll_profile_now(const core::host_profile_id        aProfile,
-								github_credential_material         aCredential,
-								const github_credential_provenance aProvenance)
+		void enroll_profile_now(const core::host_profile_id                  aProfile,
+								github_credential_material                   aCredential,
+								const github_credential_provenance           aProvenance,
+								const std::optional<device_binding_lifetime> aLifetime,
+								const bool                                   aRefreshSettled)
 		{
 			if (Closing) {
 				return;
@@ -818,6 +845,8 @@ namespace bpr::application {
 				NextEnrollment.emplace(std::move(aCredential));
 				NextEnrollmentProvenance = aProvenance;
 				NextEnrollmentProfile    = aProfile;
+				NextDeviceLifetime       = aLifetime;
+				NextRefreshSettled       = aRefreshSettled;
 			}
 			try {
 				dispatch_core(
@@ -1450,7 +1479,8 @@ namespace bpr::application {
 			return CredentialLifecycle == credential_lifecycle::provisional
 				|| CredentialShutdownPolicy
 				== github_credential_shutdown_policy::
-					delete_retained_on_shutdown;
+					delete_retained_on_shutdown
+				|| (CredentialShutdownPolicy == github_credential_shutdown_policy::retain_accepted_device_grants && !DeviceBindingDurable);
 		}
 
 		void execute(const core::github_host_request& aRequest)
@@ -1467,11 +1497,20 @@ namespace bpr::application {
 											 core::establish_github_session_request>) {
 						DeferredSession             = aTypedRequest.Context;
 						SessionEnrollment           = std::move(NextEnrollment);
+						DeviceLifetime              = std::exchange(NextDeviceLifetime, std::nullopt);
+						DeviceRefreshSettled        = std::exchange(NextRefreshSettled, false);
 						SessionEnrollmentProvenance = NextEnrollmentProvenance;
 						NextEnrollment.reset();
 						NextEnrollmentProvenance = github_credential_provenance::manual;
 						NextEnrollmentProfile.reset();
 						SessionResumeProfile = NextResumeProfile;
+						if (PendingDeviceRestore && SessionResumeProfile == PendingDeviceRestore->Authority.Profile) {
+							DeviceLifetime        = PendingDeviceRestore->Lifetime;
+							DeviceRefreshSettled  = true;
+							DeviceBindingDurable  = true;
+							RestoredDeviceBinding = true;
+						}
+						PendingDeviceRestore.reset();
 						NextResumeProfile.reset();
 						SessionPublicPreview = NextPublicPreview;
 						NextPublicPreview    = false;
@@ -1487,6 +1526,12 @@ namespace bpr::application {
 
 		void invalidate(const core::invalidate_github_identity_request& aRequest)
 		{
+			if (BindingLoadPending) {
+				PendingRestoreCleanup = aRequest;
+			}
+			++BindingGeneration;
+			DeviceBindingDurable  = false;
+			RestoredDeviceBinding = false;
 			invalidate_epoch_authority();
 			cancel_provider();
 			// The answer described the identity being invalidated. Keeping it
@@ -1623,12 +1668,19 @@ namespace bpr::application {
 		void start_deferred_session()
 		{
 			if (Closing || !DeferredSession.has_value()
-				|| ActiveVaultOperation != vault_operation::none) {
+				|| ActiveVaultOperation != vault_operation::none || BindingErasePending || BindingLoadPending || StartupCleanupOperation) {
 				return;
 			}
 
 			const auto context = *DeferredSession;
 			DeferredSession.reset();
+			if (BindingLoadUnresolved) {
+				// An unread binding may still describe retained vault material.
+				// Refuse replacement for this lifetime instead of overwriting it.
+				binding_failure();
+				fail_session(context, core::github_failure::vault);
+				return;
+			}
 			if (SessionResumeProfile.has_value()) {
 				if (const auto* retained = CredentialBindings.find(*SessionResumeProfile);
 					retained != nullptr) {
@@ -2364,19 +2416,17 @@ namespace bpr::application {
 			const auto  gate    = std::weak_ptr<completion_gate>{ CompletionGate };
 			auto* const lane    = &DecisionLane;
 			const auto  callback =
-				[gate, lane, token, probe](
+				[gate, lane, token, probe, reportAbsent = RestoredDeviceBinding](
 					github_credential_retrieve_completion aCompletion) noexcept {
 					auto* const retrieved = std::get_if<
 						github_credential_retrieve_success>(&aCompletion);
-					if (retrieved == nullptr) {
-						// Absent, unavailable, refused, cancelled: all of them
-						// mean "nothing renews this credential", which is what
-						// the host already believes. Nothing is posted, so a
-						// negative answer costs the decision lane no turn and
-						// changes no order anything else observes.
+					const auto present = retrieved != nullptr && valid(aCompletion) && completion_context(aCompletion) == probe;
+					if (retrieved == nullptr && !reportAbsent) {
 						return;
 					}
-					retrieved->Credential.reset();
+					if (retrieved != nullptr) {
+						retrieved->Credential.reset();
+					}
 					const auto callbackTarget = gate.lock();
 					if (!callbackTarget) {
 						return;
@@ -2386,7 +2436,7 @@ namespace bpr::application {
 						return;
 					}
 					try {
-						lane->post([gate, token, probe]() {
+						lane->post([gate, token, probe, present]() {
 							const auto locked = gate.lock();
 							if (!locked) {
 								return;
@@ -2396,7 +2446,7 @@ namespace bpr::application {
 							};
 							auto* const host = locked->Host.load(std::memory_order_acquire);
 							if (host != nullptr) {
-								host->handle_refresh_probe(token, probe);
+								host->handle_refresh_probe(token, probe, present);
 							}
 						});
 					} catch (...) {
@@ -2411,16 +2461,16 @@ namespace bpr::application {
 
 		void handle_refresh_probe(
 			const std::uint64_t                        aToken,
-			const github_credential_operation_context& aExpectedProbe)
+			const github_credential_operation_context& aExpectedProbe, const bool aPresent)
 		{
-			run_turn([this, aToken, aExpectedProbe]() {
-				handle_refresh_probe_now(aToken, aExpectedProbe);
+			run_turn([this, aToken, aExpectedProbe, aPresent]() {
+				handle_refresh_probe_now(aToken, aExpectedProbe, aPresent);
 			});
 		}
 
 		void handle_refresh_probe_now(
 			const std::uint64_t                        aToken,
-			const github_credential_operation_context& aExpectedProbe)
+			const github_credential_operation_context& aExpectedProbe, const bool aPresent)
 		{
 			if (aToken != RefreshProbeToken || !RefreshProbeContext.has_value()
 				|| *RefreshProbeContext != aExpectedProbe) {
@@ -2444,6 +2494,13 @@ namespace bpr::application {
 			// entry renews *this* credential only when this credential itself
 			// came from a grant.
 			if (CredentialProvenance != github_credential_provenance::device_grant) {
+				return;
+			}
+			if (!aPresent) {
+				if (RestoredDeviceBinding) {
+					binding_failure();
+					dispatch(core::deactivate_github_identity_intent{ });
+				}
 				return;
 			}
 			AcceptedCredentialRenewable = true;
@@ -2568,6 +2625,7 @@ namespace bpr::application {
 			if (CredentialAuthority.has_value()) {
 				CredentialLifecycle = credential_lifecycle::persistent;
 			}
+			persist_settled_device_binding();
 			publish_transition(output, &*AcceptedSession);
 			// Asked on every acceptance that has a slot, rather than only on
 			// the ones a restart produced. The host cannot tell a credential
@@ -2980,6 +3038,12 @@ namespace bpr::application {
 					std::move(*success));
 				return;
 			}
+			if (RestoredDeviceBinding) {
+				// A stored selector cannot leave orphan refresh material resumable
+				// after its access slot failed validation or disappeared.
+				fail_session(context, core::github_failure::vault, true);
+				return;
+			}
 			if (std::holds_alternative<github_credential_retrieve_absent>(
 					aCompletion)) {
 				if (CredentialBindingRemembered) {
@@ -3057,6 +3121,12 @@ namespace bpr::application {
 							}
 							target->OutstandingRefreshDeletes.fetch_sub(
 								1U, std::memory_order_acq_rel);
+							if (target->StartupCleanupOperation == aOperation) {
+								target->run_turn([target] {
+									target->StartupCleanupOperation.reset();
+									target->start_deferred_session();
+								});
+							}
 						});
 					} catch (...) {
 						// The lane refused the post, so no terminal will ever
@@ -3146,10 +3216,10 @@ namespace bpr::application {
 			});
 		}
 
-		void start_delete(const core::github_identity_generation   aGeneration,
-						  std::optional<deferred_session_terminal> aTerminal,
-						  const refresh_disposition                aRefresh
-						  = refresh_disposition::erase)
+		void start_delete_unblocked(const core::github_identity_generation   aGeneration,
+									std::optional<deferred_session_terminal> aTerminal,
+									const refresh_disposition                aRefresh
+									= refresh_disposition::erase)
 		{
 			if (!CredentialAuthority.has_value()
 				|| !CredentialSessionContext.has_value()) {
@@ -3166,6 +3236,11 @@ namespace bpr::application {
 				.Authority          = *CredentialAuthority,
 				.IdentityGeneration = aGeneration,
 			};
+			if (StartupCleanupOperation && StartupCleanupOperation->Authority == operation.Authority) {
+				// A newer invalidation may have superseded the generation while the
+				// tombstone was queued. Wait for the operation actually submitted.
+				StartupCleanupOperation = operation;
+			}
 			ActiveVaultOperation = vault_operation::delete_credential;
 			ActiveVaultContext   = operation;
 			// [[BPR-0540]]. The refresh slot leaves with the credential it
@@ -3429,7 +3504,7 @@ namespace bpr::application {
 				&& !AcceptedSession.has_value()
 				&& ActiveVaultOperation == vault_operation::none
 				&& (CredentialLifecycle == credential_lifecycle::provisional
-					|| aDeletePersistentCredential)) {
+					|| aDeletePersistentCredential || RestoredDeviceBinding)) {
 				start_delete(aContext.IdentityGeneration,
 							 deferred_session_terminal{
 								 .Context = aContext,
@@ -3887,6 +3962,10 @@ namespace bpr::application {
 				Closing = true;
 			}
 
+			if (Persistence != nullptr && !(BindingLoadPending && PendingRestoreCleanup)) {
+				Persistence->cancel_pending();
+			}
+
 			// Wipe raw host-owned material before an external cancellation can
 			// block or re-enter. PendingProvider remains intact until its exact
 			// cancellation has been submitted.
@@ -3909,10 +3988,10 @@ namespace bpr::application {
 					Credentials.cancel(*ActiveVaultContext);
 				} catch (...) {
 				}
-			} else if (ActiveVaultOperation == vault_operation::delete_credential
-					   && ActiveVaultContext.has_value()) {
-				// An exact cleanup is already in flight. Its terminal remains the
-				// only authority for shutdown quiescence.
+			} else if (BindingErasePending
+					   || (ActiveVaultOperation == vault_operation::delete_credential && ActiveVaultContext.has_value())) {
+				// The durable barrier or exact vault cleanup already owns the
+				// terminal required for shutdown quiescence.
 			} else if (requires_shutdown_credential_cleanup()) {
 				start_delete(CredentialSessionContext->IdentityGeneration,
 							 std::nullopt);
@@ -3929,6 +4008,115 @@ namespace bpr::application {
 			AcceptedProfileAuthority.reset();
 			AcceptedCapabilityEvidence.reset();
 		}
+
+		template <typename TCallback>
+		auto binding_callback(TCallback aCallback)
+		{
+			return [gate = std::weak_ptr<completion_gate>{ CompletionGate }, callback = std::move(aCallback)](auto aResult) mutable {
+				const auto locked = gate.lock();
+				if (!locked || locked->Host.load(std::memory_order_acquire) == nullptr) {
+					return;
+				}
+				auto* host = locked->Host.load(std::memory_order_acquire);
+				host->run_turn([&callback, &aResult] { callback(std::move(aResult)); });
+			};
+		}
+
+		void binding_failure()
+		{
+			DeviceBindingDurable = false;
+			publish_diagnostic(github_host_diagnostic{ .Reason = core::github_reason_code::vault_unavailable, .RetryAfterSeconds = std::nullopt, .RateLimits = { }, .RateLimitCause = std::nullopt });
+		}
+
+		void persist_settled_device_binding()
+		{
+			if (Closing || Persistence == nullptr || !DeviceRefreshSettled || !DeviceLifetime || !CredentialAuthority || !CredentialSessionContext || !AcceptedSession || CredentialProvenance != github_credential_provenance::device_grant || DeviceBindingDurable || BindingStorePending) {
+				return;
+			}
+			if (remaining_access_lifetime(*DeviceLifetime, WallClock()) == 0U) {
+				binding_failure();
+				return;
+			}
+			const auto record     = device_binding_record{ .Authority = *CredentialAuthority, .Lifetime = *DeviceLifetime };
+			const auto generation = BindingGeneration;
+			BindingStorePending   = true;
+			++OutstandingBindings;
+			Persistence->store(record, binding_callback([this, record, generation](device_binding_result aResult) {
+								   --OutstandingBindings;
+								   BindingStorePending = false;
+								   if (Closing || generation != BindingGeneration || CredentialAuthority != record.Authority || DeviceLifetime != record.Lifetime) {
+									   return;
+								   }
+								   if (!aResult || remaining_access_lifetime(record.Lifetime, WallClock()) == 0U) {
+									   binding_failure();
+									   return;
+								   }
+								   DeviceBindingDurable = true;
+							   }));
+		}
+
+		void start_delete(const core::github_identity_generation   aGeneration,
+						  std::optional<deferred_session_terminal> aTerminal,
+						  const refresh_disposition                aRefresh = refresh_disposition::erase)
+		{
+			if (Persistence == nullptr || !CredentialAuthority || !CredentialSessionContext) {
+				start_delete_unblocked(aGeneration, std::move(aTerminal), aRefresh);
+				return;
+			}
+			DeviceBindingDurable = false;
+			++BindingGeneration;
+			BindingDeleteGeneration = aGeneration;
+			BindingDeleteTerminal   = std::move(aTerminal);
+			BindingDeleteRefresh    = aRefresh;
+			if (BindingErasePending) {
+				return;
+			}
+			BindingErasePending  = true;
+			const auto authority = *CredentialAuthority;
+			++OutstandingBindings;
+			Persistence->erase(authority, binding_callback([this, authority](device_binding_result aResult) {
+								   --OutstandingBindings;
+								   BindingErasePending = false;
+								   if (CredentialAuthority != authority) {
+									   binding_failure();
+									   return;
+								   }
+								   if (!aResult) {
+									   ShutdownCleanupFailed = Closing;
+									   if (Closing || !DeferredSession) {
+										   binding_failure();
+										   start_delete_unblocked(BindingDeleteGeneration, std::move(BindingDeleteTerminal), BindingDeleteRefresh);
+										   return;
+									   }
+									   StartupCleanupOperation.reset();
+									   DeferredTerminal = std::move(BindingDeleteTerminal);
+									   fail_delete_operation();
+									   return;
+								   }
+								   start_delete_unblocked(BindingDeleteGeneration, std::move(BindingDeleteTerminal), BindingDeleteRefresh);
+							   }));
+		}
+
+		device_binding_persistence*                             Persistence = nullptr;
+		std::function<std::int64_t()>                           WallClock;
+		std::optional<device_binding_record>                    PendingDeviceRestore;
+		std::optional<device_binding_lifetime>                  NextDeviceLifetime;
+		std::optional<device_binding_lifetime>                  DeviceLifetime;
+		bool                                                    NextRefreshSettled    = false;
+		bool                                                    DeviceRefreshSettled  = false;
+		bool                                                    DeviceBindingDurable  = false;
+		bool                                                    BindingStorePending   = false;
+		bool                                                    BindingLoadPending    = false;
+		bool                                                    BindingLoadUnresolved = false;
+		std::optional<core::invalidate_github_identity_request> PendingRestoreCleanup;
+		std::optional<github_credential_operation_context>      StartupCleanupOperation;
+		bool                                                    BindingErasePending   = false;
+		bool                                                    RestoredDeviceBinding = false;
+		std::uint64_t                                           BindingGeneration     = 0;
+		std::size_t                                             OutstandingBindings   = 0;
+		core::github_identity_generation                        BindingDeleteGeneration;
+		std::optional<deferred_session_terminal>                BindingDeleteTerminal;
+		refresh_disposition                                     BindingDeleteRefresh = refresh_disposition::erase;
 
 		core::github_state                 State;
 		github_profile_port&               Profiles;
@@ -4078,18 +4266,171 @@ namespace bpr::application {
 	}
 
 	void github_application_host::enroll_profile(
-		const core::host_profile_id        aProfile,
-		github_credential_material         aCredential,
-		const github_credential_provenance aProvenance)
+		const core::host_profile_id                  aProfile,
+		github_credential_material                   aCredential,
+		const github_credential_provenance           aProvenance,
+		const std::optional<device_binding_lifetime> aLifetime,
+		const bool                                   aRefreshSettled)
 	{
 		Implementation->enroll_profile(
-			aProfile, std::move(aCredential), aProvenance);
+			aProfile, std::move(aCredential), aProvenance, aLifetime, aRefreshSettled);
 	}
 
 	void github_application_host::resume_profile(
 		const core::host_profile_id aProfile)
 	{
 		Implementation->resume_profile(aProfile);
+	}
+
+	void github_application_host::configure_device_persistence(device_binding_persistence& aPersistence, std::function<std::int64_t()> aWallClock)
+	{
+		Implementation->Persistence = &aPersistence;
+		Implementation->WallClock   = std::move(aWallClock);
+	}
+
+	void github_application_host::restore_device_profile(const github_profile_authority aCompiledProfile)
+	{
+		auto& initialHost = *Implementation;
+		if (initialHost.Closing || initialHost.BindingLoadUnresolved || initialHost.Persistence == nullptr || !initialHost.WallClock || initialHost.State.ActiveProfile || initialHost.OutstandingBindings != 0U
+			|| !valid(aCompiledProfile) || aCompiledProfile.Authentication != github_authentication_transport::native_https
+			|| aCompiledProfile.ServerContract != github_server_contract::github_com_2022_11_28) {
+			return;
+		}
+		initialHost.BindingLoadPending = true;
+		++initialHost.OutstandingBindings;
+		initialHost.Persistence->load(initialHost.binding_callback([this, aCompiledProfile](device_binding_load_result aResult) {
+			auto& host = *Implementation;
+			--host.OutstandingBindings;
+			host.BindingLoadPending = false;
+			const auto cleanup      = std::exchange(host.PendingRestoreCleanup, std::nullopt);
+			if (host.Closing && !cleanup) {
+				return;
+			}
+			const auto fail = [&host, &cleanup] {
+				host.BindingLoadUnresolved = true;
+				host.binding_failure();
+				if (host.Closing && cleanup) {
+					host.ShutdownCleanupFailed = true;
+				}
+				if (host.DeferredSession) {
+					const auto context = *host.DeferredSession;
+					host.DeferredSession.reset();
+					host.fail_session(context, core::github_failure::vault);
+				}
+			};
+			if (!aResult || aResult->size() > maximum_device_bindings) {
+				fail();
+				return;
+			}
+			std::optional<device_binding_record> selected;
+			for (const auto& record : *aResult) {
+				if (!valid(record)) {
+					fail();
+					return;
+				}
+				if (record.Authority.Profile == aCompiledProfile.Profile) {
+					if (selected) {
+						fail();
+						return;
+					}
+					selected = record;
+				}
+			}
+			if (!selected) {
+				host.start_deferred_session();
+				return;
+			}
+			const auto& authority = selected->Authority;
+			if (authority.ProfileRevision != aCompiledProfile.ProfileRevision || authority.Host != aCompiledProfile.Host
+				|| authority.Hostname != aCompiledProfile.Hostname || authority.ServerContract != aCompiledProfile.ServerContract) {
+				fail();
+				return;
+			}
+			if (cleanup) {
+				// No session is established. The compiled profile validates the loaded
+				// authority; the core's invalidation owns this exact cleanup request.
+				host.CredentialAuthority      = authority;
+				host.CredentialSessionContext = core::github_session_request_context{
+					.Request = cleanup->Request, .ApplicationSession = cleanup->ApplicationSession, .Profile = authority.Profile, .IdentityGeneration = cleanup->NewGeneration
+				};
+				host.CredentialLifecycle     = implementation::credential_lifecycle::persistent;
+				host.CredentialProvenance    = github_credential_provenance::device_grant;
+				host.StartupCleanupOperation = github_credential_operation_context{
+					.Request = cleanup->Request, .ApplicationSession = cleanup->ApplicationSession, .Authority = authority, .IdentityGeneration = cleanup->NewGeneration
+				};
+				host.start_delete(cleanup->NewGeneration, std::nullopt);
+				return;
+			}
+			if (selected->Tombstone) {
+				return;
+			}
+			if (remaining_access_lifetime(selected->Lifetime, host.WallClock()) == 0U) {
+				host.binding_failure();
+				++host.OutstandingBindings;
+				host.Persistence->erase(authority, host.binding_callback([&host](device_binding_result) { --host.OutstandingBindings; }));
+				return;
+			}
+			if (!host.CredentialBindings.remember(authority, github_credential_provenance::device_grant)) {
+				fail();
+				return;
+			}
+			host.PendingDeviceRestore = selected;
+			host.resume_profile(aCompiledProfile.Profile);
+		}));
+	}
+
+	void github_application_host::invalidate_device_grant(github_credential_authority_key aAuthority, const core::github_identity_generation aGeneration)
+	{
+		auto& host = *Implementation;
+		if (host.Closing) {
+			return;
+		}
+		if (host.TurnActive || host.DeferredIngressScheduled || !host.DeferredIngress.empty()) {
+			host.DeferredIngress.emplace_back(implementation::deferred_grant_invalidation{ std::move(aAuthority), aGeneration });
+			host.schedule_deferred_ingress();
+			return;
+		}
+		host.run_turn([&host, &aAuthority, aGeneration] { host.invalidate_device_grant_now(aAuthority, aGeneration); });
+	}
+
+	void github_application_host::settle_device_binding(github_credential_authority_key aAuthority, const core::github_identity_generation aGeneration, const device_binding_lifetime aLifetime)
+	{
+		auto& host = *Implementation;
+		if (host.Closing || !host.AcceptedSession || host.CredentialAuthority != aAuthority || !host.CredentialSessionContext || host.CredentialSessionContext->IdentityGeneration != aGeneration || host.CredentialProvenance != github_credential_provenance::device_grant || host.DeviceLifetime != aLifetime) {
+			return;
+		}
+		host.DeviceRefreshSettled = true;
+		host.persist_settled_device_binding();
+	}
+
+	void github_application_host::prepare_device_rotation(github_credential_authority_key aAuthority, const core::github_identity_generation aGeneration, std::function<void(bool)> aCompletion)
+	{
+		auto&      host    = *Implementation;
+		const auto matches = !host.Closing && host.AcceptedSession && host.CredentialAuthority == aAuthority && host.CredentialSessionContext && host.CredentialSessionContext->IdentityGeneration == aGeneration && host.CredentialProvenance == github_credential_provenance::device_grant;
+		if (!matches || host.Persistence == nullptr) {
+			aCompletion(matches);
+			return;
+		}
+		host.DeviceBindingDurable = false;
+		const auto generation     = ++host.BindingGeneration;
+		++host.OutstandingBindings;
+		host.Persistence->erase(aAuthority, host.binding_callback([&host, aAuthority, aGeneration, generation, completion = std::move(aCompletion)](device_binding_result aResult) {
+			--host.OutstandingBindings;
+			const auto current = !host.Closing && host.BindingGeneration == generation && host.CredentialAuthority == aAuthority && host.CredentialSessionContext && host.CredentialSessionContext->IdentityGeneration == aGeneration;
+			if (!aResult && current) {
+				host.binding_failure();
+			}
+			completion(aResult.has_value() && current);
+		}));
+	}
+
+	auto github_application_host::accepted_device_lifetime() const noexcept -> std::optional<device_binding_lifetime>
+	{
+		return Implementation->AcceptedSession && Implementation->CredentialProvenance == github_credential_provenance::device_grant ? Implementation->DeviceLifetime : std::nullopt;
+	}
+	auto github_application_host::accepted_device_binding_durable() const noexcept -> bool
+	{
+		return Implementation->AcceptedSession.has_value() && Implementation->DeviceBindingDurable;
 	}
 
 	void github_application_host::activate_public_preview(
@@ -4201,6 +4542,8 @@ namespace bpr::application {
 	auto github_application_host::is_quiescent() const noexcept -> bool
 	{
 		return Implementation->Closing
+			&& Implementation->OutstandingBindings == 0U
+			&& !Implementation->BindingErasePending
 			&& std::holds_alternative<std::monostate>(
 				   Implementation->PendingProvider)
 			&& Implementation->ActiveVaultOperation

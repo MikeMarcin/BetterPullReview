@@ -53,6 +53,14 @@ credential vault under the same authority key.
   token, and move no secret through a clipboard; the requested permissions are
   compiled in and are the minimum the shipped operation catalog justifies.
 
+Successful device sign-in is remembered across orderly quits; manual-token
+sessions remain session-only. Tokens stay in the platform vault. Only exact
+binding, device-grant provenance, and lifetime metadata persist in the private
+state store. Startup validates the stored authority and authenticated account
+before restoring a session, and schedules renewal from the remaining lifetime.
+Expired or mismatched material requires sign-in. Sign out removes both token
+slots and the resumable binding; manual replacement removes the prior grant.
+
 Selecting the device path always produces a typed answer rather than silence.
 The reviewer-visible terminals are authorized, denied, expired, disabled,
 unavailable, cancelled, and failed ([[BPR-0277]],

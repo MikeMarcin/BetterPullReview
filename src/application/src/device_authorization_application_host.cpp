@@ -118,6 +118,10 @@ namespace bpr::application {
 			: public device_authorization_clock_port
 		{
 		public:
+			[[nodiscard]] auto observe_wall_seconds() noexcept -> std::int64_t override
+			{
+				return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			}
 			[[nodiscard]] auto observe_monotonic() noexcept
 				-> std::chrono::milliseconds override
 			{
@@ -151,6 +155,23 @@ namespace bpr::application {
 		Host->enroll_profile(aProfile,
 							 std::move(aCredential),
 							 github_credential_provenance::device_grant);
+	}
+
+	void github_host_device_authorization_enrollment::enroll_grant(core::host_profile_id aProfile, github_credential_material aCredential, device_binding_lifetime aLifetime, bool aRefreshSettled)
+	{
+		Host->enroll_profile(aProfile, std::move(aCredential), github_credential_provenance::device_grant, aLifetime, aRefreshSettled);
+	}
+	void github_host_device_authorization_enrollment::settle_binding(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, device_binding_lifetime aLifetime)
+	{
+		Host->settle_device_binding(std::move(aAuthority), aGeneration, aLifetime);
+	}
+	void github_host_device_authorization_enrollment::prepare_refresh(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, std::function<void(bool)> aCompletion)
+	{
+		Host->prepare_device_rotation(std::move(aAuthority), aGeneration, std::move(aCompletion));
+	}
+	void github_host_device_authorization_enrollment::invalidate_grant(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration)
+	{
+		Host->invalidate_device_grant(std::move(aAuthority), aGeneration);
 	}
 
 	auto make_system_device_authorization_clock()
@@ -779,6 +800,7 @@ namespace bpr::application {
 			}
 
 			AccessLifetimeSeconds = aGrant.ExpiresInSeconds;
+			observe_lifetime(aGrant);
 			PendingAccess.emplace(std::move(aGrant.AccessToken));
 
 			const auto rotates = aGrant.RefreshToken.has_value()
@@ -810,8 +832,7 @@ namespace bpr::application {
 		{
 			auto access = std::move(*PendingAccess);
 			PendingAccess.reset();
-			Enrollment->enroll(aContext.Profile, std::move(access));
-			AuthorizedAt = now();
+			Enrollment->enroll_grant(aContext.Profile, std::move(access), Lifetime, RefreshDurable);
 
 			apply(core::device_authorization_authorized_event{
 				.Context = aContext,
@@ -908,6 +929,9 @@ namespace bpr::application {
 			}
 
 			RefreshDurable = true;
+			if (!PendingAccess && RefreshAuthority) {
+				Enrollment->settle_binding(*RefreshAuthority, RefreshIdentityGeneration, Lifetime);
+			}
 			if (AuthorizingContext.has_value()) {
 				const auto authorizing = *AuthorizingContext;
 				AuthorizingContext.reset();
@@ -918,8 +942,7 @@ namespace bpr::application {
 			if (PendingAccess.has_value()) {
 				auto access = std::move(*PendingAccess);
 				PendingAccess.reset();
-				Enrollment->enroll(RefreshAuthority->Profile, std::move(access));
-				AuthorizedAt = now();
+				Enrollment->enroll_grant(RefreshAuthority->Profile, std::move(access), Lifetime, true);
 				++Refresh.Rotations;
 			}
 			schedule_refresh();
@@ -989,12 +1012,53 @@ namespace bpr::application {
 			drop_deadline(timer_purpose::poll);
 		}
 
+		void observe_lifetime(const device_token_material& aGrant)
+		{
+			const auto observed         = Clock->observe_wall_seconds();
+			const auto issued           = observed > 0 && observed <= std::numeric_limits<std::int64_t>::max() - std::numeric_limits<std::uint32_t>::max() ? observed : 0;
+			const auto oldRefreshExpiry = Lifetime.RefreshExpiresAt;
+			Lifetime                    = { .IssuedAt = issued, .AccessExpiresAt = issued + aGrant.ExpiresInSeconds, .RefreshExpiresAt = aGrant.RefreshToken ? issued + aGrant.RefreshTokenExpiresInSeconds : oldRefreshExpiry };
+			AuthorizedAt                = now();
+			RefreshFailures             = 0U;
+		}
+
 		void begin_refresh()
+		{
+			if (Closing || !RefreshAuthority) {
+				return;
+			}
+			if (elapsed_seconds_between(AuthorizedAt, now()) >= AccessLifetimeSeconds) {
+				request_reenrollment(device_authorization_refresh_failure::refresh_rejected);
+				return;
+			}
+			const auto authority  = *RefreshAuthority;
+			const auto generation = RefreshIdentityGeneration;
+			++Outstanding;
+			Enrollment->prepare_refresh(authority, generation, [self = shared_from_this(), authority, generation](const bool aReady) {
+				self->post([self, authority, generation, aReady] {
+					self->release();
+					if (self->Closing || self->RefreshAuthority != authority || self->RefreshIdentityGeneration != generation) {
+						return;
+					}
+					if (!aReady) {
+						self->request_reenrollment(device_authorization_refresh_failure::storage_failed);
+						return;
+					}
+					self->retrieve_refresh();
+				});
+			});
+		}
+
+		void retrieve_refresh()
 		{
 			if (Closing || !RefreshAuthority.has_value()) {
 				return;
 			}
 
+			if (elapsed_seconds_between(AuthorizedAt, now()) >= AccessLifetimeSeconds) {
+				request_reenrollment(device_authorization_refresh_failure::refresh_rejected);
+				return;
+			}
 			Refresh.State   = device_authorization_refresh_state::refreshing;
 			Refresh.Failure = device_authorization_refresh_failure::none;
 
@@ -1052,6 +1116,10 @@ namespace bpr::application {
 				return;
 			}
 
+			if (elapsed_seconds_between(AuthorizedAt, now()) >= AccessLifetimeSeconds) {
+				request_reenrollment(device_authorization_refresh_failure::refresh_rejected);
+				return;
+			}
 			const auto refreshContext = mint_refresh_context();
 			RefreshContext            = refreshContext;
 			++Outstanding;
@@ -1097,6 +1165,17 @@ namespace bpr::application {
 				Refresh.State = device_authorization_refresh_state::idle;
 				return;
 			}
+			if (const auto* error = std::get_if<device_authorization_transport_error>(&aCompletion); error != nullptr && retryable(error->Failure)) {
+				const auto elapsed = elapsed_seconds_between(AuthorizedAt, now());
+				if (++RefreshFailures <= Limits.MaximumPollFailures && elapsed < AccessLifetimeSeconds) {
+					const auto wait = std::min(std::uint32_t{ 5U }, AccessLifetimeSeconds - elapsed);
+					if (schedule_timer(timer_purpose::refresh, wait)) {
+						Refresh.State   = device_authorization_refresh_state::scheduled;
+						Refresh.Failure = device_authorization_refresh_failure::transport_failed;
+						return;
+					}
+				}
+			}
 			auto* issued = std::get_if<device_token_issued>(&aCompletion);
 			if (issued == nullptr) {
 				request_reenrollment(
@@ -1107,6 +1186,7 @@ namespace bpr::application {
 			}
 
 			AccessLifetimeSeconds = issued->Grant.ExpiresInSeconds;
+			observe_lifetime(issued->Grant);
 			PendingAccess.emplace(std::move(issued->Grant.AccessToken));
 			if (
 				issued->Grant.RefreshToken.has_value()
@@ -1120,8 +1200,7 @@ namespace bpr::application {
 			// nothing new to write down and the order question does not arise.
 			auto access = std::move(*PendingAccess);
 			PendingAccess.reset();
-			Enrollment->enroll(RefreshAuthority->Profile, std::move(access));
-			AuthorizedAt = now();
+			Enrollment->enroll_grant(RefreshAuthority->Profile, std::move(access), Lifetime, true);
 			++Refresh.Rotations;
 			schedule_refresh();
 		}
@@ -1133,8 +1212,13 @@ namespace bpr::application {
 		void request_reenrollment(
 			const device_authorization_refresh_failure aFailure)
 		{
+			const auto authority  = RefreshAuthority;
+			const auto generation = RefreshIdentityGeneration;
 			report_reenrollment(aFailure);
 			drop_deadline(timer_purpose::refresh);
+			if (authority) {
+				Enrollment->invalidate_grant(*authority, generation);
+			}
 		}
 
 		// The state half, with no timer work at all, so the arming path can
@@ -1466,6 +1550,8 @@ namespace bpr::application {
 		std::chrono::milliseconds                                 AuthorizedAt{ 0 };
 		std::uint32_t                                             AccessLifetimeSeconds = 0U;
 		bool                                                      RefreshDurable        = false;
+		device_binding_lifetime                                   Lifetime;
+		std::uint32_t                                             RefreshFailures = 0U;
 		// [[BPR-0553]]. Whether the binding above was in place before the
 		// current flow began, which is what makes it the previous session's
 		// rather than this grant's. Recorded at the begin and answered at the
@@ -1567,27 +1653,29 @@ namespace bpr::application {
 		// reviewer holding a working credential to enroll again.
 		if (
 			Implementation->RefreshAuthority.has_value()
-			&& (!(*Implementation->RefreshAuthority == aAuthority)
-				|| Implementation->RefreshIdentityGeneration.value()
-					!= aIdentityGeneration.value())) {
+			&& !(*Implementation->RefreshAuthority == aAuthority)) {
 			Implementation->release_refresh_binding();
 		}
 		Implementation->RefreshAuthority          = std::move(aAuthority);
 		Implementation->RefreshIdentityGeneration = aIdentityGeneration;
-		// [[BPR-0553]]. Bound now, so it precedes no flow: a grant answered
-		// after this point ran under this binding and spends it.
-		Implementation->RefreshBindingPrecedesFlow = false;
+		// A same-chain generation rebind may be the older grant's renewal while
+		// another device flow is pending. It does not authenticate that flow.
+		// A different authority already cleared this marker above.
 		if (
 			Implementation->PendingRefresh.has_value()
 			&& !Implementation->AuthorizingContext.has_value()) {
 			Implementation->submit_refresh_store();
 		}
+		if (Implementation->RefreshDurable) {
+			Implementation->Enrollment->settle_binding(*Implementation->RefreshAuthority, aIdentityGeneration, Implementation->Lifetime);
+		}
 		Implementation->deliver_refresh();
 	}
 
 	void device_authorization_application_host::resume_refresh(
-		github_credential_authority_key        aAuthority,
-		const core::github_identity_generation aIdentityGeneration)
+		github_credential_authority_key              aAuthority,
+		const core::github_identity_generation       aIdentityGeneration,
+		const std::optional<device_binding_lifetime> aLifetime)
 	{
 		if (
 			Implementation->Closing || !valid(aAuthority)
@@ -1597,7 +1685,26 @@ namespace bpr::application {
 		Implementation->RefreshAuthority          = std::move(aAuthority);
 		Implementation->RefreshIdentityGeneration = aIdentityGeneration;
 		Implementation->RefreshDurable            = true;
-		Implementation->begin_refresh();
+		// A restored grant belongs to the earlier session, even when its
+		// startup validation completes after another device flow has begun.
+		Implementation->RefreshBindingPrecedesFlow = Implementation->Flow.has_value() && !core::terminal(Implementation->State.Stage);
+		const auto remaining                       = aLifetime ? remaining_access_lifetime(*aLifetime, Implementation->Clock->observe_wall_seconds()) : 0U;
+		if (remaining == 0U) {
+			Implementation->request_reenrollment(device_authorization_refresh_failure::refresh_rejected);
+		} else {
+			Implementation->Lifetime              = *aLifetime;
+			Implementation->AccessLifetimeSeconds = remaining;
+			Implementation->AuthorizedAt          = Implementation->now();
+			Implementation->schedule_refresh();
+		}
+		Implementation->deliver_refresh();
+	}
+
+	void device_authorization_application_host::release_refresh_authority()
+	{
+		Implementation->release_refresh_binding();
+		Implementation->PendingAccess.reset();
+		Implementation->PendingRefresh.reset();
 		Implementation->deliver_refresh();
 	}
 

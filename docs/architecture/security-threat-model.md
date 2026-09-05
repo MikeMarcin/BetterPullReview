@@ -46,20 +46,31 @@ The BPR-0027 host never accepts an account or login as resume authority.
 Credential-authenticated strict `/user` establishes the numeric account, and
 a noncopyable host-owned catalog retains the resulting exact
 profile/profile-revision/host/hostname/account/server key. The catalog has no
-raw seed, enumeration, copy, move, serialization, settings, or SQLite
-surface. Profile, hostname, account, and authentication-transport replacement
+raw seed, enumeration, copy, move, or caller-provided account surface.
+BPR-0541 adds an application-owned metadata store for exact device-grant
+bindings, while the in-memory catalog remains noncopyable. Profile, hostname,
+account, and authentication-transport replacement
 exact-delete the prior authority before proceeding; authoritative absence
 forgets it; failed cleanup retains an exact tombstone.
 
-That selector provenance is process-local. Sharing one catalog across host
-instances proves same-process recreation, not restart recovery. The public
-composition chooses exact deletion instead of durable rehydration: an exact
-delete terminal for the retained authority is part of host quiescence, and
-composition keeps the decision lane, vault, catalog, and workers alive until
-it returns. A failed delete is reported and retains the exact tombstone.
-There is no enumeration or durable selector, so an abrupt process or host
-crash can leave a vault item that a later BetterPullReview process cannot
-discover or resume.
+The owner-approved device policy retains a settled vault pair across orderly
+quit and records only its exact authority, provenance and issuance/expiry facts
+in `state/v1/device-bindings.sqlite3`. Startup selects the compiled native
+GitHub.com profile and passes its stored authority through the existing strict
+profile/revision/hostname and authenticated `/user` account checks. Invalid
+schema, duplicate identities, backward or expired lifetime facts, missing
+material and mismatches cannot establish a remembered session. No enumeration
+or arbitrary account selector is introduced.
+
+Before replacement or erasure, the stored binding is durably tombstoned. Only
+a settled replacement pair can become resumable. Sign out and manual-token
+replacement exact-delete access and refresh slots; manual sessions are deleted
+on orderly quit. Cleanup failures remain visible, and completion/metadata
+effects count through quiescence while their ports and decision lane stay alive.
+A crash during an incomplete grant can still leave unresumable vault material;
+there is no broad discovery or deletion scan. The composed restart course uses
+a runtime-only fake vault and reopened SQLite; it does not claim native vault
+continuity across operating-system processes.
 
 Qt owns the native-HTTPS credential prompt. It uses password echo, bounds both
 characters and UTF-8 bytes, returns a move-only sensitive byte owner, and

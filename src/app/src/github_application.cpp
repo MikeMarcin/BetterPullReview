@@ -35,6 +35,7 @@
 #include "bpr/adapters/git/installed_git_process.hpp"
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
+#include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
@@ -1037,6 +1038,21 @@ namespace bpr::app {
 				++Enrollments;
 				Inner->enroll(aProfile, std::move(aCredential));
 			}
+
+			void enroll_grant(core::host_profile_id aProfile, application::github_credential_material aCredential, application::device_binding_lifetime aLifetime, bool aSettled) override
+			{
+				++Enrollments;
+				Inner->enroll_grant(aProfile, std::move(aCredential), aLifetime, aSettled);
+			}
+			void settle_binding(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, application::device_binding_lifetime aLifetime) override
+			{
+				Inner->settle_binding(std::move(aAuthority), aGeneration, aLifetime);
+			}
+			void prepare_refresh(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, std::function<void(bool)> aCompletion) override
+			{
+				Inner->prepare_refresh(std::move(aAuthority), aGeneration, std::move(aCompletion));
+			}
+			void invalidate_grant(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration) override { Inner->invalidate_grant(std::move(aAuthority), aGeneration); }
 
 			[[nodiscard]] auto enrollments() const noexcept -> std::size_t
 			{
@@ -3238,6 +3254,7 @@ namespace bpr::app {
 		{
 		}
 
+		[[nodiscard]] auto observe_wall_seconds() noexcept -> std::int64_t override { return Inner->observe_wall_seconds(); }
 		[[nodiscard]] auto observe_monotonic() noexcept
 			-> std::chrono::milliseconds override
 		{
@@ -3258,6 +3275,21 @@ namespace bpr::app {
 		std::size_t                                                   Steps   = 0U;
 		std::size_t                                                   Applied = 0U;
 	};
+	class composition_device_wall_clock final : public application::device_authorization_clock_port
+	{
+	public:
+		composition_device_wall_clock(std::unique_ptr<application::device_authorization_clock_port> aInner, std::int64_t aOffset)
+			: Inner{ std::move(aInner) }
+			, Offset{ aOffset }
+		{ }
+		[[nodiscard]] auto observe_monotonic() noexcept -> std::chrono::milliseconds override { return Inner->observe_monotonic(); }
+		[[nodiscard]] auto observe_wall_seconds() noexcept -> std::int64_t override { return Inner->observe_wall_seconds() + Offset; }
+
+	private:
+		std::unique_ptr<application::device_authorization_clock_port> Inner;
+		std::int64_t                                                  Offset;
+	};
+
 #endif
 
 	class github_application::implementation final
@@ -3378,10 +3410,12 @@ namespace bpr::app {
 					= aFixtureOptions.DisableFindingQueueComposition;
 				ExternalAgentExecutable
 					= aFixtureOptions.ExternalAgentExecutable;
-				CodexAgentExecutable   = aFixtureOptions.CodexAgentExecutable;
-				RegisteredDeviceCourse = aFixtureOptions.RegisteredDeviceCourse;
-				DeviceRefreshCourse    = aFixtureOptions.DeviceRefreshCourse;
-				SuppressDeviceBrowser  = aFixtureOptions.SuppressDeviceBrowser;
+				CodexAgentExecutable    = aFixtureOptions.CodexAgentExecutable;
+				RegisteredDeviceCourse  = aFixtureOptions.RegisteredDeviceCourse;
+				DeviceRefreshCourse     = aFixtureOptions.DeviceRefreshCourse;
+				RememberDeviceSignIn    = aFixtureOptions.PersistDeviceBindings;
+				DeviceWallOffsetSeconds = aFixtureOptions.DeviceWallOffsetSeconds;
+				SuppressDeviceBrowser   = aFixtureOptions.SuppressDeviceBrowser;
 				DisableDeviceAuthorizationPanelComposition
 					= aFixtureOptions
 						  .DisableDeviceAuthorizationPanelComposition;
@@ -4255,8 +4289,7 @@ namespace bpr::app {
 				CredentialBindings,
 				DecisionLane,
 				*GithubProjectionFanOut,
-				application::github_credential_shutdown_policy::
-					delete_retained_on_shutdown,
+				RememberDeviceSignIn ? application::github_credential_shutdown_policy::retain_accepted_device_grants : application::github_credential_shutdown_policy::delete_retained_on_shutdown,
 				this,
 				PublicPreviewComposed
 					? static_cast<application::github_pull_request_port*>(
@@ -4304,6 +4337,12 @@ namespace bpr::app {
 					*DeviceEnrollment);
 #endif
 			DeviceClock = application::make_system_device_authorization_clock();
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr && RememberDeviceSignIn) {
+				DeviceClock = std::make_unique<composition_device_wall_clock>(std::move(DeviceClock), DeviceWallOffsetSeconds);
+			}
+#endif
+
 #if defined(BPR_BUILD_TESTING)
 			// [[BPR-0536]]. The one input a fixture cannot supply is time.
 			// A renewal is armed a lead before an eight-hour access token
@@ -4491,6 +4530,14 @@ namespace bpr::app {
 						application::default_device_verification_authority },
 				},
 				deviceCapability);
+			if (RememberDeviceSignIn) {
+				DeviceBindingStore = adapters::sqlite::make_device_binding_store(applicationDataRoot);
+				DevicePersistence  = std::make_unique<application::device_binding_persistence>(*DeviceBindingStore, DeviceBindingEffects, DecisionLane);
+				Host->configure_device_persistence(*DevicePersistence, [this] { return DeviceClock->observe_wall_seconds(); });
+				const auto& profile = Profiles.front();
+				Host->restore_device_profile(application::github_profile_authority{
+					.Profile = profile.profile(), .ProfileRevision = profile.revision(), .Host = profile.host(), .Hostname = application::github_canonical_hostname{ profile.hostname() }, .ServerContract = profile.server_contract(), .Authentication = profile.authentication_transport(), .ProbeContractRevision = application::github_probe_contract_revision{ 1U } });
+			}
 
 			// Composed last, because its observation supplier receives accepted
 			// snapshots from `Host`. The settings port is always present: either
@@ -5055,13 +5102,26 @@ namespace bpr::app {
 			}
 			if (
 				DeviceRefreshAuthority.has_value()
-				&& *DeviceRefreshAuthority == *authority) {
+				&& *DeviceRefreshAuthority == *authority && DeviceRefreshGeneration == generation) {
+				return;
+			}
+			if (DeviceRefreshAuthority == authority && Host->accepted_device_lifetime()) {
+				// A rotation established a new access session for this same chain.
+				// Rebind its generation; this is not another startup resume.
+				DeviceRefreshGeneration = generation;
+				DeviceHost->bind_refresh_authority(*authority, generation);
+				return;
+			}
+			if (!Host->accepted_device_lifetime()) {
+				DeviceRefreshAuthority.reset();
+				DeviceHost->release_refresh_authority();
 				return;
 			}
 			if (
 				DeviceHost->state().Stage
 				== core::device_authorization_stage::authorized) {
-				DeviceRefreshAuthority = *authority;
+				DeviceRefreshAuthority  = *authority;
+				DeviceRefreshGeneration = generation;
 				++DeviceRefreshBindings;
 				DeviceHost->bind_refresh_authority(*authority, generation);
 				return;
@@ -5077,9 +5137,10 @@ namespace bpr::app {
 				// follows a settled answer is still free to act.
 				return;
 			}
-			DeviceRefreshAuthority = *authority;
+			DeviceRefreshAuthority  = *authority;
+			DeviceRefreshGeneration = generation;
 			++DeviceRefreshResumes;
-			DeviceHost->resume_refresh(*authority, generation);
+			DeviceHost->resume_refresh(*authority, generation, Host->accepted_device_lifetime());
 		}
 
 		// Renewal, as presentation is told it. The panel is the reader that
@@ -6416,12 +6477,16 @@ namespace bpr::app {
 								github_cli) {
 							// CLI selection retains its unavailable path and cannot
 							// acquire an anonymous mode through this control.
+							DeviceHost->release_refresh_authority();
+							DeviceRefreshAuthority.reset();
 							Host->dispatch(core::github_event{
 								core::activate_host_profile_intent{ .Profile = aValue.Profile },
 							});
 							return;
 						}
 						if (aValue.Mode == core::github_access_mode::public_preview) {
+							DeviceHost->release_refresh_authority();
+							DeviceRefreshAuthority.reset();
 							Host->activate_public_preview(aValue.Profile);
 							return;
 						}
@@ -6438,10 +6503,16 @@ namespace bpr::app {
 							credential = prompt_for_credential(Window.get());
 						}
 						if (credential.has_value()) {
+							DeviceHost->release_refresh_authority();
+							DeviceRefreshAuthority.reset();
 							Host->enroll_profile(
 								aValue.Profile, std::move(*credential));
 						}
 					} else {
+						if constexpr (std::is_same_v<intent_type, core::deactivate_github_identity_intent>) {
+							DeviceHost->release_refresh_authority();
+							DeviceRefreshAuthority.reset();
+						}
 						Host->dispatch(core::github_event{ std::move(aValue) });
 					}
 				},
@@ -8385,6 +8456,7 @@ namespace bpr::app {
 					   std::memory_order_acquire)
 					!= 0U
 				|| (DeviceHost && !DeviceHost->is_quiescent())
+				|| (DevicePersistence && !DevicePersistence->is_quiescent())
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
 				|| (QueueHost && !QueueHost->is_quiescent())
 				|| (AppearanceHost && !AppearanceHost->is_quiescent())
@@ -8411,10 +8483,19 @@ namespace bpr::app {
 			ProviderEffects.close_and_drain();
 			VaultEffects.close_and_drain();
 			DeviceTransportEffects.close_and_drain();
+			DeviceBindingEffects.close_and_drain();
 			ShutdownComplete = true;
 		}
 
-		unregistered_device_authorization_transport UnregisteredDeviceTransport;
+		bool RememberDeviceSignIn = true;
+#if defined(BPR_BUILD_TESTING)
+		std::int64_t DeviceWallOffsetSeconds = 0;
+#endif
+		worker_executor                                          DeviceBindingEffects;
+		std::unique_ptr<application::device_binding_store_port>  DeviceBindingStore;
+		std::unique_ptr<application::device_binding_persistence> DevicePersistence;
+		core::github_identity_generation                         DeviceRefreshGeneration;
+		unregistered_device_authorization_transport              UnregisteredDeviceTransport;
 		// The registered platforms' real wire, and the executor its background
 		// work runs on. Declared executor-first so the transport can never
 		// outlive the lanes it posts to. Both stay empty on unregistered
@@ -9430,6 +9511,16 @@ namespace bpr::app {
 				detail::github_public_path_fixture_options{
 					.PublicPreviewSelectionAvailable = true,
 				}) } };
+	}
+
+	auto detail::github_application_fixture_access::device_binding_store_idle(const github_application& aApplication) noexcept -> bool
+	{
+		return aApplication.Implementation->DevicePersistence && aApplication.Implementation->DevicePersistence->is_quiescent();
+	}
+
+	auto detail::github_application_fixture_access::device_binding_durable(const github_application& aApplication) noexcept -> bool
+	{
+		return aApplication.Implementation->Host->accepted_device_binding_durable();
 	}
 
 	auto detail::github_application_fixture_access::evidence(

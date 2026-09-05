@@ -190,6 +190,7 @@ namespace bpr::core {
 				| github_changed_domain::pull_request
 				| github_changed_domain::status;
 			output.Requests.emplace_back(invalidate_github_identity_request{
+				.Request            = context.Request,
 				.ApplicationSession = aState.ApplicationSession,
 				.NewGeneration      = aState.IdentityGeneration,
 				.Previous           = previous,
@@ -215,6 +216,7 @@ namespace bpr::core {
 				| github_changed_domain::pull_request
 				| github_changed_domain::status;
 			output.Requests.emplace_back(invalidate_github_identity_request{
+				.Request            = next_request(aState),
 				.ApplicationSession = aState.ApplicationSession,
 				.NewGeneration      = aState.IdentityGeneration,
 				.Previous           = previous,

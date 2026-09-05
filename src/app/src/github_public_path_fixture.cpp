@@ -1492,64 +1492,69 @@ namespace bpr::app::detail {
 			return hash.result().toHex().left(16).toStdString();
 		}
 
-		struct fixture_vault_state
-		{
-			std::optional<application::github_credential_operation_context> Context;
-			std::optional<application::github_credential_material>          Credential;
-			bool                                                            Stored    = false;
-			bool                                                            Retrieved = false;
-			bool                                                            Deleted   = false;
-			// Counted, not just flagged. "The credential reached the vault"
-			// and "the credential reached the vault exactly once" are
-			// different claims, and RFC-BPR-0016 makes the second one.
-			std::size_t Stores = 0U;
-			// [[BPR-0539]]. The identity of the last material this vault
-			// accepted, kept beside the count. A superseding delete may empty
-			// the slot before a course reads its evidence, so what the store
-			// counted has to be recorded at the store.
-			std::string LastStoredDigest;
-			// [[BPR-0540]]. The identity of the last credential the fixture
-			// handed out for a connect, recorded where the store's own digest
-			// is so a course can ask whether the material that reached the
-			// vault is the one the reviewer pasted.
-			std::string LastEnrollmentDigest;
-			// The refresh slot, kept beside the credential rather than in
-			// place of it, exactly as the port's contract describes. It exists
-			// only under the refresh course; every other fixture run leaves it
-			// composed-out and the slot answers `unavailable` as before.
-			std::optional<application::github_credential_material> Refresh;
-			std::size_t                                            RefreshStores    = 0U;
-			std::size_t                                            RefreshRetrieves = 0U;
-			// [[BPR-0547]]. How many erasures of the slot this vault accepted.
-			// Retention is not visible in the slot alone: a course that reads
-			// only whether material is there at the end cannot tell one
-			// erasure from two, and the defect this counts for was exactly a
-			// second erasure -- a rotation's own re-enrollment destroying what
-			// the rotation had just stored -- hidden behind the shutdown's.
-			std::size_t RefreshDeletes = 0U;
-			// [[BPR-0547]]. The identity of the last material written into the
-			// slot, recorded at the store for the reason the credential's own
-			// digest above is: the orderly shutdown empties the slot before a
-			// course reads its evidence, so what is still there at the end cannot
-			// answer which rotation wrote it. A course that rotates twice needs
-			// exactly that answer -- the second rotation's material, not the
-			// first's, and no erasure between the two.
-			std::string LastRefreshDigest;
-			// [[BPR-0548]]. The contexts whose operation this vault has
-			// accepted and not yet begun executing, which is what every
-			// platform vault keys its pending map by. Guarded by `Mutex` with
-			// the rest of the slot state.
-			std::set<application::github_credential_operation_context> Pending;
-			mutable std::mutex                                         Mutex;
-		};
+	} // namespace
 
+	struct github_fixture_vault_state
+	{
+		std::optional<application::github_credential_operation_context> Context;
+		std::optional<application::github_credential_material>          Credential;
+		bool                                                            Stored    = false;
+		bool                                                            Retrieved = false;
+		bool                                                            Deleted   = false;
+		// Counted, not just flagged. "The credential reached the vault"
+		// and "the credential reached the vault exactly once" are
+		// different claims, and RFC-BPR-0016 makes the second one.
+		std::size_t Stores = 0U;
+		// [[BPR-0539]]. The identity of the last material this vault
+		// accepted, kept beside the count. A superseding delete may empty
+		// the slot before a course reads its evidence, so what the store
+		// counted has to be recorded at the store.
+		std::string LastStoredDigest;
+		// [[BPR-0540]]. The identity of the last credential the fixture
+		// handed out for a connect, recorded where the store's own digest
+		// is so a course can ask whether the material that reached the
+		// vault is the one the reviewer pasted.
+		std::string LastEnrollmentDigest;
+		// The refresh slot, kept beside the credential rather than in
+		// place of it, exactly as the port's contract describes. It exists
+		// only under the refresh course; every other fixture run leaves it
+		// composed-out and the slot answers `unavailable` as before.
+		std::optional<application::github_credential_material> Refresh;
+		std::size_t                                            RefreshStores    = 0U;
+		std::size_t                                            RefreshRetrieves = 0U;
+		// [[BPR-0547]]. How many erasures of the slot this vault accepted.
+		// Retention is not visible in the slot alone: a course that reads
+		// only whether material is there at the end cannot tell one
+		// erasure from two, and the defect this counts for was exactly a
+		// second erasure -- a rotation's own re-enrollment destroying what
+		// the rotation had just stored -- hidden behind the shutdown's.
+		std::size_t RefreshDeletes = 0U;
+		// [[BPR-0547]]. The identity of the last material written into the
+		// slot, recorded at the store for the reason the credential's own
+		// digest above is: the orderly shutdown empties the slot before a
+		// course reads its evidence, so what is still there at the end cannot
+		// answer which rotation wrote it. A course that rotates twice needs
+		// exactly that answer -- the second rotation's material, not the
+		// first's, and no erasure between the two.
+		std::string LastRefreshDigest;
+		// [[BPR-0548]]. The contexts whose operation this vault has
+		// accepted and not yet begun executing, which is what every
+		// platform vault keys its pending map by. Guarded by `Mutex` with
+		// the rest of the slot state.
+		std::set<application::github_credential_operation_context> Pending;
+		mutable std::mutex                                         Mutex;
+	};
+
+	auto make_shared_github_fixture_vault() -> std::shared_ptr<github_fixture_vault_state> { return std::make_shared<github_fixture_vault_state>(); }
+
+	namespace {
 		// [[BPR-0548]]. One pending operation per operation context, claimed
 		// before the work is queued and released when it begins, exactly as
 		// `queue`/`execute` do in every platform vault
 		// (`macos_keychain.cpp`, `linux_secret_service.cpp`,
 		// `windows_credential_manager.cpp`).
 		[[nodiscard]] auto claim_pending(
-			const std::shared_ptr<fixture_vault_state>&             aState,
+			const std::shared_ptr<github_fixture_vault_state>&      aState,
 			const application::github_credential_operation_context& aContext)
 			-> bool
 		{
@@ -1558,7 +1563,7 @@ namespace bpr::app::detail {
 		}
 
 		void release_pending(
-			const std::shared_ptr<fixture_vault_state>&             aState,
+			const std::shared_ptr<github_fixture_vault_state>&      aState,
 			const application::github_credential_operation_context& aContext)
 		{
 			const std::scoped_lock lock{ aState->Mutex };
@@ -1607,10 +1612,10 @@ namespace bpr::app::detail {
 			// courses match the way the product's vault does rather than one
 			// each way.
 			fixture_credential_vault(
-				application::effect_executor&        aEffects,
-				std::shared_ptr<fixture_vault_state> aState,
-				const bool                           aRefreshSlot,
-				const bool                           aAuthorityKeyed)
+				application::effect_executor&               aEffects,
+				std::shared_ptr<github_fixture_vault_state> aState,
+				const bool                                  aRefreshSlot,
+				const bool                                  aAuthorityKeyed)
 				: Effects{ aEffects }
 				, State{ std::move(aState) }
 				, RefreshSlot{ aRefreshSlot }
@@ -2002,10 +2007,10 @@ namespace bpr::app::detail {
 				return false;
 			}
 
-			application::effect_executor&        Effects;
-			std::shared_ptr<fixture_vault_state> State;
-			bool                                 RefreshSlot    = false;
-			bool                                 AuthorityKeyed = false;
+			application::effect_executor&               Effects;
+			std::shared_ptr<github_fixture_vault_state> State;
+			bool                                        RefreshSlot    = false;
+			bool                                        AuthorityKeyed = false;
 		};
 
 		[[nodiscard]] auto make_fixture_credential()
@@ -2161,9 +2166,9 @@ namespace bpr::app::detail {
 			Git               = make_git_fixture(served.Packs);
 			Recording         = std::make_shared<fixture_recording_state>(
 				served, aProfile, Git, aOptions.EpochPhase);
-			Recording->RepeatSessions = aOptions.DeviceRefreshCourse;
+			Recording->RepeatSessions = aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings;
 			Factory                   = std::make_shared<fixture_transport_factory>(Recording);
-			VaultState                = std::make_shared<fixture_vault_state>();
+			VaultState                = aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault();
 			// Every shipped platform vault has a real second slot since
 			// [[BPR-0542]] and [[BPR-0543]], so the fixture's has one on every
 			// course too: a shutdown that erases the refresh slot beside the
@@ -2198,7 +2203,7 @@ namespace bpr::app::detail {
 						BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT },
 					std::filesystem::path{
 						BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT },
-					aOptions.DeviceRefreshCourse);
+					aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings);
 			Mutation = std::make_unique<fixture_review_mutation_provider>(
 				aOptions.LoseFirstReviewMutationResult);
 
@@ -2263,7 +2268,7 @@ namespace bpr::app::detail {
 		std::shared_ptr<fixture_recording_state>                 Recording;
 		std::shared_ptr<deterministic_git_fixture>               Git;
 		std::shared_ptr<fixture_transport_factory>               Factory;
-		std::shared_ptr<fixture_vault_state>                     VaultState;
+		std::shared_ptr<github_fixture_vault_state>              VaultState;
 		std::unique_ptr<fixture_credential_vault>                Vault;
 		std::unique_ptr<recorded_device_authorization_transport> DeviceTransport;
 		std::unique_ptr<fixture_review_mutation_provider>        Mutation;

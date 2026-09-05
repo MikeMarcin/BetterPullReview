@@ -143,6 +143,18 @@ namespace bpr::qt {
 		auto* const connectionActionLayout = new QHBoxLayout{ ConnectionActions };
 		connectionActionLayout->setContentsMargins(0, 0, 0, 0);
 		connectionActionLayout->addWidget(ConnectButton);
+		SignOutButton = new QToolButton{ ConnectionActions };
+		SignOutButton->setObjectName(QStringLiteral("signOutGithubButton"));
+		SignOutButton->setText(QStringLiteral("Sign out"));
+		SignOutButton->setAccessibleName(QStringLiteral("Sign out of GitHub"));
+		SignOutButton->setToolTip(QStringLiteral("Remove remembered sign-in from this device"));
+		SignOutButton->setFocusPolicy(Qt::StrongFocus);
+		connectionActionLayout->addWidget(SignOutButton);
+		connect(SignOutButton, &QToolButton::clicked, this, [this] {
+			if (Dispatch) {
+				Dispatch(core::deactivate_github_identity_intent{ });
+			}
+		});
 		connectionActionLayout->addWidget(PublicPreviewButton);
 		connectionActionLayout->addWidget(ConnectionDetailsButton);
 		connectionActionLayout->addStretch(1);
