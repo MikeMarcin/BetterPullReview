@@ -26,10 +26,11 @@ def run(executable: Path, phase: str, root: Path, *, timeout: float = 15) -> str
 
 
 def kill_at_checkpoint(
-    executable: Path, phase: str, root: Path, *, kill_process_group: bool = False
+    executable: Path, phase: str, root: Path, *, kill_process_group: bool = False,
+    arguments: tuple[str, ...] = (), checkpoint_timeout: float = 15
 ) -> None:
     with subprocess.Popen(
-        [str(executable), phase, str(root)],
+        [str(executable), phase, *arguments, str(root)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -37,7 +38,7 @@ def kill_at_checkpoint(
         start_new_session=kill_process_group,
     ) as process:
         try:
-            deadline = time.monotonic() + 15
+            deadline = time.monotonic() + checkpoint_timeout
             marker = root / "kill-ready"
             while not marker.exists() or marker.read_text() != phase:
                 if process.poll() is not None:

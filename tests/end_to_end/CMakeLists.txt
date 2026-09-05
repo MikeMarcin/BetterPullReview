@@ -1047,6 +1047,20 @@ bpr_enable_warnings(
     test_better_pull_review_agent_invocation_composition_public_path
 )
 
+if(UNIX)
+    bpr_add_network_isolated_test(
+        NAME application_agent_crash_recovery
+        COMMAND Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/agent_composition_kill_recovery_tests.py"
+            --executable "$<TARGET_FILE:test_better_pull_review_agent_invocation_composition_public_path>"
+            --canary "$<TARGET_FILE:test_better_pull_review_agent_canary>"
+            --git "$<TARGET_FILE:Git::Git>"
+    )
+    set_tests_properties(application_agent_crash_recovery PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        TIMEOUT 360)
+endif()
+
 # RFC-BPR-0012. A fixture agent that anchors its finding at the identity the
 # composed context disclosed, rather than at a fixed repeated hex digit. The
 # existing canary proves an unanchored answer still reaches the reviewer; this

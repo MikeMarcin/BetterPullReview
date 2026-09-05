@@ -541,6 +541,9 @@ auto main(int argc, char** argv) -> int
 #endif
 								 )))
 						 .string();
+			if (executable_mode(argv, "crash-descendant-wait")) {
+				marker = (std::filesystem::current_path() / ".bpr-crash-heartbeat").string();
+			}
 			emit(protocol, "descendant-marker\t" + marker);
 		}
 		long childId = 0;
@@ -548,7 +551,8 @@ auto main(int argc, char** argv) -> int
 			return 31;
 		}
 		emit(protocol, "descendant-started");
-		if (has_argument(argc, argv, "--report-process-id")) {
+		if (has_argument(argc, argv, "--report-process-id")
+			|| executable_mode(argv, "crash-descendant-wait")) {
 			emit(protocol, "descendant-id\t" + std::to_string(childId));
 		}
 	}
@@ -636,7 +640,8 @@ auto main(int argc, char** argv) -> int
 		}
 	} else if (has_argument(argc, argv, "--wait-forever")
 			   || executable_mode(argv, "wait")) {
-		if (has_argument(argc, argv, "--report-process-id")) {
+		if (has_argument(argc, argv, "--report-process-id")
+			|| executable_mode(argv, "crash-descendant-wait")) {
 #if defined(_WIN32)
 			emit(protocol, "process-id\t" + std::to_string(::_getpid()));
 #else

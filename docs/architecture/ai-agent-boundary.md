@@ -190,6 +190,13 @@ If terminal cleanup refuses a changed workspace identity, the host retains the
 original capability and shutdown polling may request one de-duplicated retry
 on the effects actor after terminal completion; polling never performs Git or
 filesystem work itself.
+The Mac `application_agent_crash_recovery` course force-kills the real
+composition during a running local canary session, checks child termination,
+Git fsck/exact refs and SQLite integrity/session identity, then reopens twice
+without replay and explicitly starts the next session. Normal cleanup removes
+that new workspace. The interrupted workspace currently survives unchanged:
+its cleanup capability was only in memory. BPR-0622 tracks durable exact
+ownership and reclamation; preservation is not complete resource recovery.
 The composed-path contract observes the portable process launcher through a
 test-only delegating probe: the real panel gesture must produce one launcher
 `run`, one host process start, and the real child canary. A distinct launcher
@@ -360,11 +367,12 @@ so rather than pick the reassuring answer.
 | Partial stdout and pressured stderr make progress together | `qt_agent_launch_canary` |
 | Every terminal condition is distinct and failed runs publish nothing | `qt_agent_launch_canary` |
 | A timeout terminates a live descendant heartbeat, POSIX and Windows alike | `qt_agent_launch_canary` |
-| Forced Unix application death stops a stubborn agent and its live descendant, and a fresh launch succeeds | `agent_parent_death` (Mac execution; complete agent-host workspace restart remains separate) |
+| Forced Unix application death stops a stubborn agent and its live descendant, and a fresh launch succeeds | `agent_parent_death` (Mac execution; composed state recovery is checked separately below) |
 | The supervised agent receives neither an unrelated high descriptor nor the lifetime channel | `qt_agent_launch_canary` (Unix descriptor probes) |
 | The composed portable launcher is constructed and invoked once by the real panel gesture | `application_agent_invocation_composition_contract`, `application_agent_invocation_launcher_construction_cut_contract` |
 | Removing the host or disconnecting the gesture cannot satisfy the public canary | `application_agent_invocation_construction_cut_contract`, `application_agent_invocation_gesture_cut_contract` |
 | A Windows child whose Job Object assignment fails never runs its first statement, and teardown stops a spawned grandchild's heartbeat | `qt_agent_launch_canary` (Windows-conditional: `test_windows_assignment_failure_has_no_pre_assignment_side_effect`, `test_timeout_terminates_the_descendant_process_tree`), target-native 2026-08-27 |
+| Composed agent-session SIGKILL preserves Git/SQLite state without replay, and the next explicit session succeeds | `application_agent_crash_recovery` (Mac; interrupted workspace reclamation remains BPR-0622) |
 | Existing-checkout mode needs a choice | `application_agent_workspace` |
 | Dirty state is reported, unknown stays unknown | `application_agent_workspace` |
 | The launch surface only emits intents | `qt_agent_launch_panel` |

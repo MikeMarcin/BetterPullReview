@@ -498,6 +498,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	if (course != "positive" && course != "positive-seed"
+		&& course != "crash-running" && course != "crash-reinvoke"
 		&& course != "positive-reopen" && course != "construction-cut"
 		&& course != "launcher-construction-cut"
 		&& course != "gesture-cut" && course != "cancellation"
@@ -574,8 +575,9 @@ auto main(int argc, char** argv) -> int
 	auto externalExecutable = std::filesystem::path{ argv[2] };
 	if (
 		course == "cancellation" || course == "staleness"
-		|| course == "cleanup-retry") {
-		const auto mode = course == "cancellation"
+		|| course == "cleanup-retry" || course == "crash-running") {
+		const auto mode = course == "crash-running" ? "crash-descendant-wait"
+			: course == "cancellation"
 			? "descendant-wait"
 			: course == "staleness" ? "stale-wait"
 									: "cleanup-retry-wait";
@@ -710,10 +712,19 @@ auto main(int argc, char** argv) -> int
 			&& catalog->Catalog.Latest->Binding.RightEpoch
 				== core::epoch_ordinal{ 1U }
 			&& catalog->Statistics.SessionAdmissions == 0U
+			&& app::detail::github_application_fixture_access::
+					agent_invocation_evidence(*application)
+						.AgentProcessLauncherInvocations
+				== 0U
+			&& app::detail::github_application_fixture_access::
+					review_mutation_evidence(*application)
+						.Submissions
+				== 0U
 			&& panel->session_catalog_text().contains("Latest session #1")
 			&& panel->session_catalog_text().contains("current")
 			&& panel->session_catalog_text().contains("next #2");
-		if (!shutdown(*application) || !exact) {
+		if (!shutdown(*application) || !exact
+			|| app::detail::github_application_fixture_access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations != 0U) {
 			return EXIT_FAILURE;
 		}
 		std::cout << "agent-invocation-composition-reopen:pass\n";
@@ -761,7 +772,11 @@ auto main(int argc, char** argv) -> int
 		if (!window.read_action()->isEnabled()) {
 			return fail(*application, "receipt-action");
 		}
-		window.read_action()->trigger();
+		// Reinvocation must retain the receipt persisted by the killed run.
+		// Triggering this toggle again would undo that receipt.
+		if (course != "crash-reinvoke") {
+			window.read_action()->trigger();
+		}
 		auto receipt = wait_terms{ };
 		if (!wait_until_reporting(receipt, [&window](wait_terms& aTerms) {
 				return aTerms.require(
@@ -876,6 +891,58 @@ auto main(int argc, char** argv) -> int
 		}
 	}
 	panel->start_button()->click();
+	if (course == "crash-running") {
+		auto running = wait_terms{ };
+		if (!wait_until_reporting(running, [panel](wait_terms& aTerms) {
+				const auto output = panel->output_text().toStdString();
+				return aTerms.require("agent-and-descendant-running",
+									  output.find("process-id\t") != std::string::npos
+										  && output.find("descendant-id\t") != std::string::npos);
+			})) {
+			return fail(*application, "crash-running", running.render());
+		}
+		const auto output   = panel->output_text().toStdString();
+		const auto evidence = app::detail::github_application_fixture_access::
+			agent_invocation_evidence(*application);
+		const auto fixture    = app::detail::github_application_fixture_access::evidence(*application);
+		const auto cwd        = line_value(output, "cwd\t");
+		const auto agent      = line_value(output, "process-id\t");
+		const auto descendant = line_value(output, "descendant-id\t");
+		const auto marker     = line_value(output, "descendant-marker\t");
+		if (!cwd || !agent || !descendant || !marker
+			|| !exact_agent_process_launcher_path(evidence, panel->statistics().StartIntents == 1U)
+			|| evidence.Statistics.SessionAdmissions != 1U
+			|| evidence.Statistics.ProcessStarts != 1U
+			|| output.find("head\t" + fixture.HeadOneOid) == std::string::npos
+			|| !std::filesystem::exists(*cwd)) {
+			return fail(*application, "crash-identity");
+		}
+		for (const auto& [name, value] : std::array{
+				 std::pair{ "agent.pid", *agent }, std::pair{ "descendant.pid", *descendant },
+				 std::pair{ "heartbeat-path", *marker }, std::pair{ "workspace-path", *cwd },
+				 std::pair{ "workspace-parent", evidence.WorkspaceRoot.string() },
+				 std::pair{ "base-oid", fixture.BaseOid }, std::pair{ "head-oid", fixture.HeadOneOid } }) {
+			auto file = std::ofstream{ dataRoot / name };
+			file << value;
+			file.close();
+			if (!file) {
+				return fail(*application, "crash-checkpoint-write");
+			}
+		}
+		{
+			auto file = std::ofstream{ dataRoot / "kill-ready" };
+			file << "crash-running";
+			file.close();
+			if (!file) {
+				return fail(*application, "crash-ready-write");
+			}
+		}
+		// The runner force-kills this process; no application destructor or
+		// shutdown timer can contribute recovery evidence.
+		for (;;) {
+			QThread::msleep(100);
+		}
+	}
 	if (course == "gesture-cut") {
 		QThread::msleep(100);
 		QApplication::processEvents();
@@ -1266,6 +1333,40 @@ auto main(int argc, char** argv) -> int
 	const auto cwd     = line_value(output, "cwd\t");
 	const auto fixture = app::detail::github_application_fixture_access::evidence(
 		*application);
+	if (course == "crash-reinvoke") {
+		const auto catalog = app::detail::github_application_fixture_access::agent_session_catalog(*application);
+		const auto passed  = exact_agent_process_launcher_path(evidence, panel->statistics().StartIntents == 1U)
+			&& evidence.Quiescent && evidence.Statistics.SessionAdmissions == 1U
+			&& evidence.Statistics.ProcessStarts == 1U && evidence.Statistics.WorkspaceCleanups == 1U
+			&& cwd.has_value() && !std::filesystem::exists(*cwd)
+			&& catalog.has_value() && catalog->Catalog.Latest.has_value()
+			&& catalog->Catalog.Latest->Id == core::agent_session_id{ 2U }
+			&& catalog->Catalog.Next == core::agent_session_id{ 3U }
+			&& core::canonical_hex(catalog->Catalog.Latest->Binding.HeadOid).view() == fixture.HeadOneOid
+			&& output.find("head\t" + fixture.HeadOneOid) != std::string::npos
+			&& app::detail::github_application_fixture_access::review_mutation_evidence(*application).Submissions == 0U;
+		const auto stopped = shutdown(*application);
+		if (!passed || !stopped || std::filesystem::exists(evidence.WorkspaceRoot)
+			|| application->status().AgentWorkspaceCleanupFailed) {
+			auto terms = wait_terms{ };
+			terms.note("path-exact", exact_agent_process_launcher_path(evidence, panel->statistics().StartIntents == 1U));
+			terms.note("quiescent", evidence.Quiescent);
+			terms.note("admissions", evidence.Statistics.SessionAdmissions);
+			terms.note("processes", evidence.Statistics.ProcessStarts);
+			terms.note("cleanups", evidence.Statistics.WorkspaceCleanups);
+			terms.note("cwd-present", cwd.has_value());
+			terms.note("cwd-removed", cwd.has_value() && !std::filesystem::exists(*cwd));
+			terms.note("latest", catalog && catalog->Catalog.Latest ? catalog->Catalog.Latest->Id.value() : 0U);
+			terms.note("next", catalog && catalog->Catalog.Next ? catalog->Catalog.Next->value() : 0U);
+			terms.note("head-output", output.find("head\t" + fixture.HeadOneOid) != std::string::npos);
+			terms.note("shutdown", stopped);
+			terms.note("root-removed", !std::filesystem::exists(evidence.WorkspaceRoot));
+			report("crash-reinvoke", terms.render());
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-invocation-crash-reinvoke:pass\n";
+		return EXIT_SUCCESS;
+	}
 	const auto                 stdinHex     = line_value(output, "stdin-hex\t");
 	const auto                 decodedInput = stdinHex.has_value()
 		? decode_hex(*stdinHex)
