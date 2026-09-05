@@ -1,7 +1,7 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449]
 ---
@@ -1017,3 +1017,27 @@ lifted. The sequencing rule above still applies: RFC-BPR-0017's
 implementation is in progress and its composition card ([[BPR-0305]]) will
 change bound `src/app` sources, so the v007 regeneration is scheduled after
 that lands rather than binding a digest it would move.
+
+## v007 regeneration claim — 2026-09-04
+
+All known source-changing portable work is committed at `d9006237`, including
+ordinary Public preview entry and the owner-approved persistent device-session
+policy. BPR-0309's read-only final review is running; the v007 producer may build
+these frozen bytes while that review finishes. Any required source correction
+invalidates the candidate and requires rebuilding before an operator decision.
+
+Prepare a fresh tests-disabled Release capsule and stored image, a new approval
+ID in the existing replay namespace, the canonical approval subject, and the
+successor exact operator packet. The packet must use production browser/device
+sign-in and explicit Sign out cleanup, not the rejected manual-token flow or
+an assumption that quitting erases an accepted device grant. The v006 approval
+remains spent and non-retryable; never reset its namespace. Inspect only the
+static opt-in graph with an invalid private placeholder, run focused authority
+checks and the production-shaped mounted probe, then obtain fresh critical
+review of the exact final artifacts and packet. This preparation creates no
+approval and authorizes no live launch, credential operation or mutation.
+
+Task-created producer root: `build/bpr0256-v007-release`, retained only while
+building/reviewing the capsule and while the exact attended packet consumes
+its stored artifacts. Static graph and helper/log roots are disposable after
+inspection. The final packet will bind an owner-private empty mount parent.
