@@ -1,6 +1,6 @@
 # Mixed-client edit, deletion and thread-state check
 
-Status: prepared; these additional remote operations are not yet authorized.
+Status: **prepared; these additional remote operations are not yet authorized**.
 
 The previous source-line comment and reply round trip are complete and the
 owner accepted their web appearance. This checkpoint tests remaining
