@@ -224,3 +224,5 @@ logs remain. The portable and Mac ready lanes contain no other startable card.
 ## Exact v003 approval received
 
 The owner supplied the exact [v003 operator response](../../verification/reviews/device-session-bootstrap-diagnostic-v003/operator-response.md). Packet and executable digests and length match. Native inventory showed no existing instance. The integrator resumes this single sign-in-only diagnostic run, followed by explicit Sign out and quit. No PR or publication is authorized.
+
+The approved v003 executable was launched once with no arguments after a second packet/binary digest check, removing the specified 24 variables from the child environment and discarding child output. PID 67244 is the active diagnostic process. Native UI showed the GitHub.com Native HTTPS profile, no connected host and empty code fields. A subsequent Raise action reported that the user changed the app; foreground activation is therefore not claimed. Continue this existing run only. Operator authorization and its terminal result are pending, followed by explicit Sign out and quit.
