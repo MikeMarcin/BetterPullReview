@@ -4,7 +4,7 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621"]
 closeout_for: ["RFC-BPR-0013"]
 ---
 
@@ -79,3 +79,5 @@ failure before expanding production changes. The SQLite session admission
 transaction commits the session and sequence together; the next proof must
 check retained identity and absence of automatic agent replay, not just a
 successful new application start.
+
+BPR-0621 now owns the composed AI-session kill/reopen proof described above.
