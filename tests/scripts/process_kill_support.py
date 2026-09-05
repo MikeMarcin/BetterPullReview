@@ -25,13 +25,16 @@ def run(executable: Path, phase: str, root: Path, *, timeout: float = 15) -> str
     return completed.stdout
 
 
-def kill_at_checkpoint(executable: Path, phase: str, root: Path) -> None:
+def kill_at_checkpoint(
+    executable: Path, phase: str, root: Path, *, kill_process_group: bool = False
+) -> None:
     with subprocess.Popen(
         [str(executable), phase, str(root)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        start_new_session=kill_process_group,
     ) as process:
         try:
             deadline = time.monotonic() + 15
@@ -50,7 +53,12 @@ def kill_at_checkpoint(executable: Path, phase: str, root: Path) -> None:
                 raise RuntimeError(f"{phase} exited instead of waiting to be killed")
             # kill() uses SIGKILL on POSIX and TerminateProcess on Windows;
             # stdin remains open until after death, so the C++ scope cannot exit.
-            process.kill()
+            if kill_process_group:
+                if os.getpgid(process.pid) != process.pid:
+                    raise RuntimeError("fixture lost its isolated process group")
+                os.killpg(process.pid, signal.SIGKILL)
+            else:
+                process.kill()
             process.wait(timeout=5)
             stdout, stderr = process.communicate(timeout=5)
             expected = -signal.SIGKILL if os.name == "posix" else 1

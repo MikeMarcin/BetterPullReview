@@ -2,6 +2,7 @@
 /// \brief Hostile local agent fixture for protocol and process-lifecycle tests.
 
 #include <algorithm>
+#include <cerrno>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -26,6 +27,7 @@
 // import linkage, so the fixture takes the header's spelling instead.
 	#define BPR_ENVIRON _environ
 #else
+	#include <fcntl.h>
 	#include <sys/types.h>
 	#include <unistd.h>
 extern "C" char** environ;
@@ -441,8 +443,17 @@ auto main(int argc, char** argv) -> int
 		sideEffect.flush();
 	}
 
-	const auto protocol        = selected_protocol(argc, argv);
-	auto       findingsSession = argument_after(argc, argv, "--findings-session");
+	const auto protocol = selected_protocol(argc, argv);
+#if !defined(_WIN32)
+	if (const auto descriptor = argument_after(argc, argv, "--probe-inherited-fd"); !descriptor.empty()) {
+		const auto value = std::stoi(descriptor);
+		emit(protocol, ::fcntl(value, F_GETFD) < 0 && errno == EBADF ? "inherited-fd-closed" : "inherited-fd-open");
+	}
+	if (has_argument(argc, argv, "--probe-owner-channel")) {
+		emit(protocol, ::fcntl(3, F_GETFD) < 0 && errno == EBADF ? "owner-channel-closed" : "owner-channel-open");
+	}
+#endif
+	auto findingsSession = argument_after(argc, argv, "--findings-session");
 	if (findingsSession.empty()) {
 		findingsSession = "41";
 	}

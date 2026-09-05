@@ -111,6 +111,10 @@ set(
     "src/adapters/agent/src/agent_process_launcher.cpp"
 )
 set(
+    agent_unix_supervisor_relative
+    "src/adapters/agent/src/unix_agent_supervisor.cpp"
+)
+set(
     agent_protocol_loop_relative
     "src/adapters/agent/src/agent_protocol_loop.cpp"
 )
@@ -186,6 +190,7 @@ if(NOT agent_cmake_contents STREQUAL "")
             "add_library\\([ \t\r\n]*better_pull_review_adapter_agent([ \t\r\n]|\\))"
             "src/agent_process_launcher\\.cpp"
             "src/agent_protocol_loop\\.cpp"
+            "bpr_add_executable\\([ \t\r\n]*tool_better_pull_review_agent_supervisor[ \t\r\n]+src/unix_agent_supervisor\\.cpp[ \t\r\n]*\\)"
             "if\\(WIN32\\)"
             "src/windows_agent_process\\.cpp"
             "Kernel32"
@@ -205,6 +210,7 @@ if(NOT agent_cmake_contents STREQUAL "")
             "${agent_process_runner_relative}"
             "${agent_protocol_loop_relative}"
             "${agent_windows_process_relative}"
+            "${agent_unix_supervisor_relative}"
     )
         if(NOT EXISTS "${BPR_ROOT}/${required_agent_source}")
             message(
@@ -4812,6 +4818,13 @@ set(
 )
 foreach(source_file IN LISTS source_files)
     file(READ "${source_file}" contents)
+    file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source_file}")
+    if(relative_file STREQUAL agent_unix_supervisor_relative)
+        # This bundled owner may fork one direct child and execute the exact
+        # argv supplied by the application. Other process/shell APIs stay banned.
+        string(REPLACE "::fork()" "" contents "${contents}")
+        string(REPLACE "::execv(argv[1], argv + 1)" "" contents "${contents}")
+    endif()
     foreach(alternate_process_pattern IN LISTS alternate_process_patterns)
         if(contents MATCHES "${alternate_process_pattern}")
             file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source_file}")

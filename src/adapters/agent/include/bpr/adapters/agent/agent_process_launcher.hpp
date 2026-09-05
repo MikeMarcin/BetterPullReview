@@ -13,8 +13,9 @@ namespace bpr::adapters::agent {
 	/// \details The child environment is constructed empty and receives only
 	/// request pairs. Context is written only to stdin. Stdout is decoded a
 	/// partial read at a time while stderr is drained independently, with fixed
-	/// byte/frame ceilings. On POSIX, cancellation and timeout terminate the
-	/// process group, not only the immediate child. Windows uses a suspended
+	/// byte/frame ceilings. On POSIX, a bundled supervisor owns the child group
+	/// and terminates it on cancellation, timeout or application lifetime-channel
+	/// closure, including forced application death. Windows uses a suspended
 	/// native launch assigned to a kill-on-close Job Object before first resume.
 	class agent_process_launcher final
 		: public QObject,

@@ -1389,6 +1389,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     AGENT_PROTOCOL_LOOP_SOURCE,
                 "src/adapters/agent/src/windows_agent_process.cpp":
                     AGENT_WINDOWS_PROCESS_SOURCE,
+                "src/adapters/agent/src/unix_agent_supervisor.cpp":
+                    (REPOSITORY_ROOT / "src/adapters/agent/src/unix_agent_supervisor.cpp").read_text(),
             }
             if not omit_process_interface:
                 files[
@@ -3740,6 +3742,27 @@ auto finish_background_reap(
                             GITHUB_CLI_PROCESS_RUNNER_SOURCE
                             + hostile_surface
                     },
+                )
+
+    def test_unix_agent_supervisor_target_is_required(self) -> None:
+        self.assert_failure(
+            "Agent process adapter target contract is incomplete",
+            agent_target=AGENT_TARGET.replace("tool_better_pull_review_agent_supervisor", "other_helper"),
+        )
+
+    def test_unix_agent_supervisor_process_authority_is_exact(self) -> None:
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, hostile in (
+            ("unix_agent_supervisor.cpp", "::execvp(program, arguments);"),
+            ("unix_agent_supervisor.cpp", 'system("gh api");'),
+            ("other.cpp", "::fork();"),
+            ("other.cpp", "::execv(argv[1], argv + 1);"),
+        ):
+            with self.subTest(path=path, hostile=hostile):
+                self.assert_failure(
+                    "Alternate process or shell API is forbidden",
+                    {f"src/adapters/agent/src/{path}": hostile},
                 )
 
     def test_alternate_process_apis_are_rejected_everywhere(self) -> None:

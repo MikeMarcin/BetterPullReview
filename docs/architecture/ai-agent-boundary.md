@@ -147,8 +147,23 @@ The terminal result distinguishes failed start, nonzero exit, protocol
 failure, explicit cancellation, timeout, stale result, and success. Failed,
 cancelled, timed-out, and stale results expose no final event collection.
 Cancellation and deadlines are observed in bounded polling slices on the
-QProcess-owning thread. POSIX children start in their own process group, so
-teardown targets the descendant tree and not only the immediate process.
+QProcess-owning thread. On Unix, a bundled, Qt-free
+`better_pull_review_agent_supervisor` starts the selected agent in its own
+process group. The supervisor itself has a separate group so a signal to
+the application’s process group does not interrupt child cleanup. A dedicated local socket carries only launch errno and the
+application's lifetime; context and protocol traffic retain their ordinary
+stdin/stdout/stderr paths. Closing the application end requests teardown even
+when the application was forcibly killed. Qt closes inherited descriptors
+above the dedicated channel before helper execution, and the helper closes
+that channel before agent execution. Agent argv and the profile environment
+remain unchanged. The helper holds the direct child unreaped until its group
+has been signaled, preventing PID reuse during cleanup, then forwards its
+normal exit status or terminating signal. It performs no provider, credential,
+repository or network work. Descendants that remain in the assigned process
+group are covered; this is not a sandbox for a program deliberately escaping
+that group. The helper resolves beside the installed application executable;
+the tests-enabled adapter selects the same helper from the build tree. Its
+bundle copy depends on the helper binary so helper-only rebuilds refresh it.
 `QProcess` cannot assign a Windows Job Object before the child begins running,
 and post-start assignment leaves a descendant-escape race, so Windows does not
 launch through `QProcess` at all. The adapter dispatches into a private WIN32
@@ -345,6 +360,8 @@ so rather than pick the reassuring answer.
 | Partial stdout and pressured stderr make progress together | `qt_agent_launch_canary` |
 | Every terminal condition is distinct and failed runs publish nothing | `qt_agent_launch_canary` |
 | A timeout terminates a live descendant heartbeat, POSIX and Windows alike | `qt_agent_launch_canary` |
+| Forced Unix application death stops a stubborn agent and its live descendant, and a fresh launch succeeds | `agent_parent_death` (Mac execution; complete agent-host workspace restart remains separate) |
+| The supervised agent receives neither an unrelated high descriptor nor the lifetime channel | `qt_agent_launch_canary` (Unix descriptor probes) |
 | The composed portable launcher is constructed and invoked once by the real panel gesture | `application_agent_invocation_composition_contract`, `application_agent_invocation_launcher_construction_cut_contract` |
 | Removing the host or disconnecting the gesture cannot satisfy the public canary | `application_agent_invocation_construction_cut_contract`, `application_agent_invocation_gesture_cut_contract` |
 | A Windows child whose Job Object assignment fails never runs its first statement, and teardown stops a spawned grandchild's heartbeat | `qt_agent_launch_canary` (Windows-conditional: `test_windows_assignment_failure_has_no_pre_assignment_side_effect`, `test_timeout_terminates_the_descendant_process_tree`), target-native 2026-08-27 |

@@ -12,6 +12,17 @@ add_library(
         src/agent_process_launcher.cpp
         src/agent_protocol_loop.cpp
 )
+if(UNIX)
+    bpr_add_executable(tool_better_pull_review_agent_supervisor src/unix_agent_supervisor.cpp)
+    target_compile_features(tool_better_pull_review_agent_supervisor PRIVATE cxx_std_23)
+    bpr_enable_hardening(tool_better_pull_review_agent_supervisor)
+    bpr_enable_warnings(tool_better_pull_review_agent_supervisor)
+    add_dependencies(better_pull_review_adapter_agent tool_better_pull_review_agent_supervisor)
+    if(BUILD_TESTING)
+        target_compile_definitions(better_pull_review_adapter_agent PRIVATE
+            "BPR_AGENT_SUPERVISOR_EXECUTABLE=\"$<TARGET_FILE:tool_better_pull_review_agent_supervisor>\"")
+    endif()
+endif()
 if(WIN32)
     target_sources(
         better_pull_review_adapter_agent

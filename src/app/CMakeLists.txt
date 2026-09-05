@@ -92,6 +92,16 @@ if(BPR_BUILD_QT)
         app_better_pull_review
         main.cpp
     )
+    if(UNIX)
+        add_dependencies(app_better_pull_review tool_better_pull_review_agent_supervisor)
+        set_property(TARGET app_better_pull_review APPEND PROPERTY LINK_DEPENDS
+            "$<TARGET_FILE:tool_better_pull_review_agent_supervisor>")
+        add_custom_command(TARGET app_better_pull_review POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "$<TARGET_FILE:tool_better_pull_review_agent_supervisor>"
+                "$<TARGET_FILE_DIR:app_better_pull_review>/$<TARGET_FILE_NAME:tool_better_pull_review_agent_supervisor>"
+            VERBATIM)
+    endif()
 
     if(APPLE)
         # BPR-0351. The application authenticates its stage-one supervisor

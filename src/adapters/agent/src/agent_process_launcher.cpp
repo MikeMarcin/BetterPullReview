@@ -6,6 +6,7 @@
 	#include "windows_agent_process.hpp"
 #else
 	#include <QByteArray>
+	#include <QCoreApplication>
 	#include <QElapsedTimer>
 	#include <QProcess>
 	#include <QProcessEnvironment>
@@ -14,8 +15,10 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cerrno>
+#include <cstring>
 #include <filesystem>
 #include <functional>
 #include <span>
@@ -23,6 +26,9 @@
 
 #if defined(Q_OS_UNIX)
 	#include <csignal>
+	#include <fcntl.h>
+	#include <poll.h>
+	#include <sys/socket.h>
 	#include <sys/types.h>
 	#include <unistd.h>
 #endif
@@ -40,7 +46,24 @@ namespace bpr::adapters::agent {
 		{
 			QProcess Process{ nullptr };
 	#if defined(Q_OS_UNIX)
-			qint64 ProcessGroup = 0;
+			std::array<int, 2> Lifetime{ -1, -1 };
+			void               close_owner() noexcept
+			{
+				if (Lifetime[0] >= 0) {
+					static_cast<void>(::close(Lifetime[0]));
+					Lifetime[0] = -1;
+				}
+			}
+			~process_state()
+			{
+				close_owner();
+				if (Lifetime[1] >= 0) {
+					static_cast<void>(::close(Lifetime[1]));
+				}
+				if (Process.state() != QProcess::NotRunning) {
+					static_cast<void>(Process.waitForFinished(5'000));
+				}
+			}
 	#endif
 		};
 
@@ -53,19 +76,23 @@ namespace bpr::adapters::agent {
 		}
 
 		template <typename State>
-		void end_process_tree(State& aState)
+		auto end_process_tree(State& aState) -> bool
 		{
 	#if defined(Q_OS_UNIX)
-			if (aState.ProcessGroup > 0) {
-				static_cast<void>(::kill(
-					-static_cast<pid_t>(aState.ProcessGroup), SIGKILL));
-				aState.ProcessGroup = 0;
+			aState.close_owner();
+			if (aState.Process.state() == QProcess::NotRunning || aState.Process.waitForFinished(5'000)) {
+				return true;
 			}
-	#endif
+			aState.Process.kill();
+			static_cast<void>(aState.Process.waitForFinished(5'000));
+			return false;
+	#else
 			if (aState.Process.state() != QProcess::NotRunning) {
 				aState.Process.kill();
 				static_cast<void>(aState.Process.waitForFinished(5'000));
 			}
+			return aState.Process.state() == QProcess::NotRunning;
+	#endif
 		}
 
 		class qt_agent_protocol_transport final
@@ -141,8 +168,7 @@ namespace bpr::adapters::agent {
 
 			[[nodiscard]] auto terminate() noexcept -> bool override
 			{
-				end_process_tree(State);
-				return true;
+				return end_process_tree(State);
 			}
 
 		private:
@@ -264,11 +290,28 @@ namespace bpr::adapters::agent {
 			QString::fromStdString(aRequest.WorkingDirectory));
 		state.Process.setProcessChannelMode(QProcess::SeparateChannels);
 	#if defined(Q_OS_UNIX)
+		if (::socketpair(AF_UNIX, SOCK_STREAM, 0, state.Lifetime.data()) != 0
+			|| ::fcntl(state.Lifetime[0], F_SETFD, FD_CLOEXEC) != 0
+			|| ::fcntl(state.Lifetime[1], F_SETFD, FD_CLOEXEC) != 0) {
+			result.Outcome       = application::agent_run_outcome::failed_to_start;
+			result.StandardError = "agent lifetime channel could not be created";
+			return result;
+		}
 		auto* const process = &state.Process;
-		state.Process.setChildProcessModifier([process] {
+		const auto  channel = state.Lifetime[1];
+		state.Process.setChildProcessModifier([process, channel] {
+			// A terminal/session group signal aimed at the application must not
+			// kill its lifetime supervisor before it can clean up the agent group.
 			if (::setpgid(0, 0) != 0) {
-				process->failChildProcessModifier("setpgid", errno);
+				process->failChildProcessModifier("agent supervisor process group", errno);
 			}
+			if (::dup2(channel, 3) < 0 || ::fcntl(3, F_SETFD, 0) != 0) {
+				process->failChildProcessModifier("agent lifetime channel", errno);
+			}
+		});
+		state.Process.setUnixProcessParameters({
+			.flags                       = QProcess::UnixProcessFlag::CloseFileDescriptors | QProcess::UnixProcessFlag::ResetSignalHandlers,
+			.lowestFileDescriptorToClose = 4,
 		});
 	#endif
 
@@ -278,7 +321,19 @@ namespace bpr::adapters::agent {
 		}
 		auto elapsed = QElapsedTimer{ };
 		elapsed.start();
+	#if defined(Q_OS_UNIX)
+		arguments.prepend(QString::fromStdString(aRequest.Executable));
+		#ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
+		const auto supervisor = QString::fromUtf8(BPR_AGENT_SUPERVISOR_EXECUTABLE);
+		#else
+		const auto supervisor = QCoreApplication::applicationDirPath() + "/better_pull_review_agent_supervisor";
+		#endif
+		state.Process.start(supervisor, arguments);
+		static_cast<void>(::close(state.Lifetime[1]));
+		state.Lifetime[1] = -1;
+	#else
 		state.Process.start(QString::fromStdString(aRequest.Executable), arguments);
+	#endif
 		while (state.Process.state() == QProcess::Starting) {
 			if (cancelled()) {
 				end_process_tree(state);
@@ -293,13 +348,45 @@ namespace bpr::adapters::agent {
 			static_cast<void>(state.Process.waitForStarted(
 				wait_slice(elapsed, aTimeoutMilliseconds)));
 		}
-		if (state.Process.state() == QProcess::NotRunning) {
+		if (state.Process.state() == QProcess::NotRunning
+	#if defined(Q_OS_UNIX)
+			&& state.Process.error() == QProcess::FailedToStart
+	#endif
+		) {
 			result.Outcome       = application::agent_run_outcome::failed_to_start;
 			result.StandardError = state.Process.errorString().toStdString();
 			return result;
 		}
 	#if defined(Q_OS_UNIX)
-		state.ProcessGroup = state.Process.processId();
+		std::int32_t launchError = 0;
+		std::size_t  received    = 0U;
+		while (received < sizeof(launchError)) {
+			if (cancelled() || elapsed.elapsed() >= aTimeoutMilliseconds) {
+				static_cast<void>(end_process_tree(state));
+				result.Outcome = cancelled() ? application::agent_run_outcome::cancelled : application::agent_run_outcome::timeout;
+				return result;
+			}
+			pollfd     descriptor{ state.Lifetime[0], POLLIN, 0 };
+			const auto polled = ::poll(&descriptor, 1, wait_slice(elapsed, aTimeoutMilliseconds));
+			if ((polled < 0 && errno == EINTR) || polled == 0) {
+				continue;
+			}
+			const auto count = polled > 0 ? ::read(state.Lifetime[0], reinterpret_cast<char*>(&launchError) + received, sizeof(launchError) - received) : -1;
+			if (count < 0 && errno == EINTR) {
+				continue;
+			}
+			if (count <= 0) {
+				launchError = EIO;
+				break;
+			}
+			received += static_cast<std::size_t>(count);
+		}
+		if (launchError != 0) {
+			static_cast<void>(end_process_tree(state));
+			result.Outcome       = application::agent_run_outcome::failed_to_start;
+			result.StandardError = std::strerror(launchError);
+			return result;
+		}
 	#endif
 
 		const auto cancellationProbe = std::function<bool()>{ cancelled };

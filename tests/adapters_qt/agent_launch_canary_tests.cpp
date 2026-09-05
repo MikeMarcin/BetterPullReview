@@ -22,6 +22,11 @@
 #include <thread>
 #include <vector>
 
+#if defined(Q_OS_UNIX)
+	#include <fcntl.h>
+	#include <unistd.h>
+#endif
+
 namespace {
 	using namespace bpr;
 
@@ -653,6 +658,28 @@ namespace {
 		expect(false, "owner must be forcibly killed while its agent is running");
 	}
 
+#if defined(Q_OS_UNIX)
+	void test_supervisor_closes_unrelated_descriptors()
+	{
+		int channel[2]{ -1, -1 };
+		expect(::pipe(channel) == 0, "create unrelated inherited descriptor fixture");
+		const auto descriptor = ::fcntl(channel[0], F_DUPFD, 128);
+		expect(descriptor >= 128, "create a non-close-on-exec high descriptor");
+		auto launched = request(core::agent_protocol::external_terminal);
+		launched.Arguments.insert(launched.Arguments.end(), { "--probe-inherited-fd", std::to_string(descriptor), "--probe-owner-channel" });
+		auto       launcher = adapters::agent::agent_process_launcher{ };
+		const auto result   = launcher.run(launched, 20'000);
+		static_cast<void>(::close(descriptor));
+		static_cast<void>(::close(channel[0]));
+		static_cast<void>(::close(channel[1]));
+		expect(result.Outcome == application::agent_run_outcome::success
+				   && std::ranges::any_of(result.Events, [](const auto& aEvent) { return aEvent.Text == "inherited-fd-closed"; })
+				   && std::ranges::none_of(result.Events, [](const auto& aEvent) { return aEvent.Text == "inherited-fd-open" || aEvent.Text == "owner-channel-open"; })
+				   && std::ranges::any_of(result.Events, [](const auto& aEvent) { return aEvent.Text == "owner-channel-closed"; }),
+			   "supervised agent cannot inherit an unrelated application descriptor");
+	}
+#endif
+
 #if defined(Q_OS_WIN) && defined(BPR_BUILD_TESTING)
 	void test_windows_assignment_failure_has_no_pre_assignment_side_effect()
 	{
@@ -702,6 +729,9 @@ auto main(int argc, char** argv) -> int
 	test_independent_agent_identity_alone_controls_canary_authority();
 	test_every_terminal_condition_is_typed_and_failed_runs_publish_no_result();
 	test_timeout_terminates_the_descendant_process_tree();
+#if defined(Q_OS_UNIX)
+	test_supervisor_closes_unrelated_descriptors();
+#endif
 #if defined(Q_OS_WIN) && defined(BPR_BUILD_TESTING)
 	test_windows_assignment_failure_has_no_pre_assignment_side_effect();
 #endif

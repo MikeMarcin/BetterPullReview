@@ -540,8 +540,11 @@ if(UNIX)
             Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/tests/scripts/agent_parent_death_tests.py"
             --executable "$<TARGET_FILE:test_better_pull_review_qt_agent_launch_canary_tests>"
+            --supervisor "$<TARGET_FILE:tool_better_pull_review_agent_supervisor>"
+            --canary "$<TARGET_FILE:test_better_pull_review_agent_canary>"
     )
-    set_tests_properties(agent_parent_death PROPERTIES TIMEOUT 60)
+    # Two separately bounded owner-PID and owner-process-group kill courses.
+    set_tests_properties(agent_parent_death PROPERTIES TIMEOUT 120)
 endif()
 
 # Linked against both adapters on purpose. Each is proven on its own elsewhere;
