@@ -3,7 +3,7 @@ id: BPR-0256
 title: Build the attended one-shot live application lane
 status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560, BPR-0606]
+depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560, BPR-0606, BPR-0607]
 ---
 
 # Build the attended one-shot live application lane
@@ -1299,3 +1299,12 @@ The reviewer accepted packet SHA-256 `1f057d41abb1332eccfc85af4372ff25f9a7fa0dca
 The [v009 result](../../verification/reviews/designated-live-review-publication-v009/attended-result.md) records the single approved mounted run: sign-in as MikeMarcin and all nine capability checks succeeded, and the correct designated PR opened. Selecting its sole file failed before source loading with a changed-file refusal and unavailable exact comparison history. No body was entered or Publish action taken. Explicit Sign out, quit and detach completed; CTest exit 0 in 321.64 seconds proves cleanup only. Device-field emissions are disclosed in the result; clean capture compliance is not claimed. The new approval is spent. Next: diagnose and repair the file/history path with fixtures before preparing another candidate. All live publication acceptance rows remain incomplete.
 
 Consumed v009 resources removed after process/attachment/handle checks: the v009 static graph, retained v008 producer and image, empty v009 mount and approval parents, and three temporary configure/isolation/run-state files. No extra worktree was created. The owner log and replay namespace remain untouched. Existing dev, core-only and ordinary app-release trees remain available for offline repair work.
+
+## Read-only diagnostic checkpoint prepared — 2026-09-05
+
+BPR-0606 repaired the missing stage/error diagnostics. BPR-0607 now owns one
+prepared ordinary Release sign-in/PR-read diagnostic to identify the history
+failure before regenerating another publication capsule. The next publication
+candidate depends on that observation and any proven repair. No changed binary
+was launched and no new response or acceptance is invented. Prior v009 remains
+consumed; the deferred advanced logging/schema work is untouched.

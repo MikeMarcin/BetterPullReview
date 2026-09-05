@@ -30,9 +30,9 @@ Historical evidence is provenance only; every row requires final replay at the f
 
 RFC base remains `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`. BPR-0606 repaired
 the missing epoch-preparation diagnostics after v009 sign-in and PR open
-succeeded but history preparation refused. Next: BPR-0256 prepares a new
-candidate from the diagnostic source and records the first causal history
-failure before any publication claim. Its v009 approval is consumed. The live
+succeeded but history preparation refused. Next: BPR-0607 owns the prepared read-only diagnostic checkpoint, which
+records the first causal history failure or exact comparison success before
+BPR-0256 prepares a new publication candidate. Its v009 approval is consumed. The live
 rows above and the whole requested RFC goal remain incomplete.
 
 ## v008 preparation complete; attended decision pending — 2026-09-05
@@ -85,3 +85,10 @@ Dev/Release, six changed-TU tidy and scoped format pass. The live root cause is
 still unknown. BPR-0256 is the next candidate/attended slice; no RFC closeout
 or successful publication is claimed. All consumed v009 producer/image,
 static/mount/approval and temporary inspection resources were removed.
+
+Current frontier: [[BPR-0607]] is parked with its concrete
+[epoch diagnostic packet](../../verification/reviews/epoch-preparation-diagnostic-v001/operator-packet.md).
+It accepts a plain instruction to run, as requested by the owner, and does not
+require another pasted digest block. No returned instruction, live result or
+publication is fabricated. The persistent goal remains active for the complete
+RFC set; all currently available unattended work in this slice is committed.
