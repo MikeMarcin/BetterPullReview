@@ -226,3 +226,25 @@ BPR-0613 is the current independent implementation slice: separate whole-review
 core draft/attempt policy and application contracts with no fabricated anchor.
 BPR-0144 is backlogged behind it. Provider/recovery and public UI work follows;
 Glaze wire-contract success alone does not establish any shipped review action.
+
+## Contracts complete; provider/recovery next — 2026-09-05
+
+BPR-0613 is Done at `c4ffecbf`: deterministic whole-review draft/disposition
+policy, exact attempts, and separate application request/receipt contracts.
+Six focused core/application/architecture checks passed; the two affected checks
+passed again after the stale-refusal correction (2/2, 0.66 seconds). Independent
+review has no remaining blocker. Closeout review runtime: native collaboration
+(gpt-6-astra, high). This contract slice does not claim a shipped review action.
+
+Planned next card: [BPR-0614](../20-ready/BPR-0614-execute-whole-reviews-with-durable-recovery.md),
+provider execution together with durable indeterminate recovery. Follow it with
+async host and public UI/composition work before BPR-0144's live review checks.
+BPR-0612's broad Qt JSON migration and BPR-0603/0604 remain backlogged/deferred.
+
+BPR-0143's four exact mixed-client operations are now owner-approved; the
+[decision/result record](../../verification/reviews/mixed-client-thread-state-v001/validation-record.json)
+records that Computer Use stopped before execution because the current browser
+URL was disallowed. No operation ran, no alternate route was attempted, and no
+live acceptance is claimed. Its parked reason is awaiting-live-github, not a
+missing owner decision. The approved packet remains unchanged. RFC0008 and the
+whole requested-set goal remain unfinished.

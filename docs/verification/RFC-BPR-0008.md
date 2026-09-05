@@ -381,3 +381,19 @@ whole-review parser; old source-line production selection is unchanged.
 This is wire-contract evidence only. BPR-0144 still needs application policy,
 recovery, production selection, UI and real-account observations, so no review
 submission or RFC closeout criterion is promoted by this slice.
+
+## Whole-review core contract and mixed-client approval — 2026-09-05
+
+BPR-0613 (`c4ffecbf`) adds anchor-free whole-review drafts, exact submission
+attempts, disposition/body policy and distinct application review receipts.
+Six focused core/application/architecture checks passed; after correcting stale
+refusal copying, both affected tests passed again (0.66 seconds). Independent
+review accepted that correction. BPR-0614 owns provider execution and durable
+recovery next; host/UI selection and real-account review evidence remain open.
+
+The owner approved BPR-0143's four exact mixed-client operations. The
+[decision and execution result](reviews/mixed-client-thread-state-v001/validation-record.json)
+record that Computer Use stopped before any operation because its current
+browser URL was disallowed. No mixed-client acceptance row is promoted. The
+approval remains valid for the unchanged packet and remembered sign-in remains
+untouched.

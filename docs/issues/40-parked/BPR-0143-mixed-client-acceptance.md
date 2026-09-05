@@ -4,7 +4,7 @@ title: Mixed-client acceptance against a designated repository
 status: Parked
 rfc: RFC-BPR-0008
 depends_on: [BPR-0142]
-parked_on: awaiting-owner-verdict
+parked_on: awaiting-live-github
 ---
 
 # Mixed-client acceptance against a designated repository
@@ -53,3 +53,13 @@ also remains separately unproved; do not substitute restart recovery tests.
 Park this live checkpoint while continuing the independent BPR-0144 production
 review workflow. Receive a plain owner instruction for the prepared remote
 sequence, then revalidate the exact target and observe each actual result.
+
+## Four actions approved; live execution unavailable — 2026-09-05
+
+The owner answered “Approve the four test actions”. The
+[recorded response and result](../../verification/reviews/mixed-client-thread-state-v001/validation-record.json)
+bind the unchanged packet. Computer Use stopped when selecting Google Chrome
+because its current URL was disallowed. No action ran and no alternate route
+was attempted. Approval is complete; this card now parks on live execution.
+Revalidate the exact identities when a permitted course becomes available.
+Continue independent whole-review implementation meanwhile.

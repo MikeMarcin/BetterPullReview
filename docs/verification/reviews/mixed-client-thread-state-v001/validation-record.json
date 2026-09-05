@@ -1,0 +1,23 @@
+{
+  "gate": "mixed-client-thread-state-v001",
+  "status": "owner authorized; Computer Use stopped before execution; no live acceptance",
+  "validated_commit": "8e72b00ec8b90d67a32902a551d66250f6025077",
+  "recorded_at": "2026-09-05T19:01:34.697701+00:00",
+  "validation_scope": "Actual owner approval of four exact operations in the unchanged packet; no execution or RFC closeout claim.",
+  "validation_command": "python3 scripts/verify_documentation.py --root .",
+  "reviewed_packet": {
+    "path": "docs/verification/reviews/mixed-client-thread-state-v001/operator-packet.md",
+    "sha256": "sha256:505eb68028689396e51533ba41d4234ac0b109ee987c9b53be7c79eeecc3e5e6",
+    "byte_length": 3414
+  },
+  "operator_response": {
+    "path": "docs/verification/reviews/mixed-client-thread-state-v001/operator-response.md",
+    "sha256": "sha256:2c0920a2fce0bd89f1466f1af4abd133d6c468c03347d08fcf04b8ff21df3120",
+    "byte_length": 701
+  },
+  "attended_result": {
+    "path": "docs/verification/reviews/mixed-client-thread-state-v001/attended-result.md",
+    "sha256": "sha256:22b5402291e0e181417acb4c75bcdcbd17c26d86633814eff78147bcbd03ccfa",
+    "byte_length": 1344
+  }
+}

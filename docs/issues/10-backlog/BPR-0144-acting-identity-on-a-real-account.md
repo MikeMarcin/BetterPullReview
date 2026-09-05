@@ -3,7 +3,7 @@ id: BPR-0144
 title: Confirm review identity on a real account
 status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0142, BPR-0610, BPR-0613]
+depends_on: [BPR-0142, BPR-0610, BPR-0613, BPR-0614]
 ---
 
 # Confirm review identity on a real account
@@ -18,10 +18,11 @@ show it.
 
 Production currently hardcodes Comment and creates a source-line comment.
 The core disposition enum alone does not prove whole-review submission.
-BPR-0610 owns the initial adapter wire contract; subsequent bounded work must
-add review-specific policy, receipts and indeterminate recovery, select it in
-the provider and composition, and expose whole-review controls before this
-card can run its attended checks.
+BPR-0610 completed the adapter wire contract; BPR-0613 completed separate core
+policy and application requests/receipts. BPR-0614 now owns provider execution
+with durable indeterminate recovery. Subsequent work must connect the async
+host, composition and whole-review controls before this card can run its
+attended checks.
 
 GitHub does not allow authors to approve their own pull requests. The current
 MikeMarcin account authored BPR-Test#1, so an authorized different reviewer
