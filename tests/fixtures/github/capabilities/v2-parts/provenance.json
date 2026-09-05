@@ -1,0 +1,50 @@
+{
+  "derivation": "Deterministic alias projections of the existing v1 recorded selected responses; not recaptured or newly generated from an upstream schema.",
+  "parts": [
+    [
+      "schemaRoot",
+      "markInput",
+      "unmarkInput",
+      "threadSubject",
+      "diffSide",
+      "reviewThreadInterfaces",
+      "actorPossibleTypes",
+      "nodePossibleTypes"
+    ],
+    [
+      "repository",
+      "pullRequest",
+      "resolveInput",
+      "unresolveInput",
+      "fileViewedState"
+    ],
+    [
+      "threadConnection",
+      "reviewThread"
+    ],
+    [
+      "commentConnection",
+      "reviewComment"
+    ],
+    [
+      "changedFileConnection",
+      "changedFile"
+    ],
+    [
+      "pageInfo",
+      "actor"
+    ],
+    [
+      "node",
+      "markPayload"
+    ],
+    [
+      "unmarkPayload",
+      "resolvePayload"
+    ],
+    [
+      "unresolvePayload"
+    ]
+  ],
+  "original_query_sha256": "62ae9a45c13abe671bf7329ed43260d659afd52f93e4ddd62809bf73e500e184"
+}

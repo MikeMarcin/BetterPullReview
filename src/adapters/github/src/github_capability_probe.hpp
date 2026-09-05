@@ -139,8 +139,11 @@ namespace bpr::adapters::github::detail {
 		auto operator==(const capability_probe_header&) const -> bool = default;
 	};
 
+	inline constexpr std::uint8_t capability_probe_part_count = 9U;
+
 	struct capability_probe_request
 	{
+		std::uint8_t                           Part = 0U;
 		core::host_profile_id                  Profile;
 		core::git_host_id                      Host;
 		application::github_profile_revision   ProfileRevision;
@@ -195,16 +198,33 @@ namespace bpr::adapters::github::detail {
 		capability_probe_request,
 		capability_probe_unavailability>;
 
-	[[nodiscard]] auto capability_probe_graphql_document() noexcept
+	[[nodiscard]] auto capability_probe_graphql_document(std::uint8_t aPart = 0U) noexcept
 		-> std::string_view;
+
+	[[nodiscard]] auto capability_probe_part_aliases(std::uint8_t aPart) noexcept -> std::span<const std::string_view>;
 
 	[[nodiscard]] auto capability_probe_document_is_query_only(
 		std::string_view aDocument) noexcept -> bool;
 
 	[[nodiscard]] auto compile_capability_probe_request(
 		const validated_github_host_profile& aProfile,
-		const capability_probe_limits&       aLimits = { })
+		const capability_probe_limits& aLimits = { }, std::uint8_t aPart = 0U)
 		-> capability_probe_request_result;
+
+	/// \brief Request-local, bounded assembly; only the complete plan produces capabilities.
+	class capability_probe_batch
+	{
+	public:
+		[[nodiscard]] auto append(const capability_probe_response& aResponse, std::uint8_t aPart) noexcept -> std::expected<void, capability_probe_observation>;
+		[[nodiscard]] auto finish() const noexcept -> capability_probe_observation;
+
+	private:
+		capability_probe_response Response;
+		std::size_t               Bytes  = 0U;
+		std::size_t               Values = 0U;
+		std::uint8_t              Parts  = 0U;
+		bool                      Failed = false;
+	};
 
 	/// \brief Extracts only error prose while the caller owns the active credential.
 	[[nodiscard]] auto sanitize_capability_error(std::string_view aBody, std::span<const std::byte> aCredential) noexcept -> application::diagnostic_summary;

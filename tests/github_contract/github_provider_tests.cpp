@@ -1,4 +1,6 @@
 #include "github_provider.hpp"
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <algorithm>
 #include <array>
@@ -428,6 +430,23 @@ namespace {
 		}
 		auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
 	};
+	auto capability_part_response(capability_probe_response aResponse, std::uint8_t aPart) -> capability_probe_response
+	{
+		auto envelope = QJsonDocument::fromJson(QByteArray::fromStdString(aResponse.Body)).object();
+		if (!envelope.contains("errors") && envelope.value("data").isObject()) {
+			const auto  all = envelope.value("data").toObject();
+			QJsonObject selected;
+			for (const auto alias : capability_probe_part_aliases(aPart)) {
+				const auto key = QString::fromUtf8(alias.data(), static_cast<qsizetype>(alias.size()));
+				if (all.contains(key)) {
+					selected.insert(key, all.value(key));
+				}
+			}
+			envelope.insert("data", selected);
+			aResponse.Body = QJsonDocument{ envelope }.toJson(QJsonDocument::Compact).toStdString();
+		}
+		return aResponse;
+	}
 	struct provider_fixture
 	{
 		explicit provider_fixture(
@@ -772,7 +791,7 @@ namespace {
 				std::stop_token) {
 				return github_capability_probe_wire_success{
 					.Correlation = aWire.Correlation,
-					.Response    = capabilityResponse,
+					.Response    = [&] { auto part = capability_part_response(capabilityResponse, aWire.Correlation.Part); if (aWire.Correlation.Part != 0U) { part.RateLimitHeaderCount = 0U; part.RateLimitHeaders = {}; } return part; }(),
 				};
 			};
 		const auto capabilityRequest     = capability_request_for(enterprise, enterpriseLease);
@@ -786,10 +805,12 @@ namespace {
 		const auto& capabilitySuccess = require_one<application::github_capability_success>(
 			capabilityCompletions,
 			"enterprise capability route succeeds once");
-		const auto expectedCapability = compile_capability_probe_request(enterprise);
+		const auto expectedCapability = compile_capability_probe_request(enterprise, { }, capability_probe_part_count - 1U);
 		expect(
 			expectedCapability.has_value()
 				&& capabilitySuccess.Request == capabilityRequest
+				&& capabilitySuccess.RateLimits.Graphql.has_value()
+				&& capabilitySuccess.RateLimits.Graphql->Remaining == 4999U
 				&& transport->CapabilityRequests.back().Wire
 					== *expectedCapability
 				&& transport->CapabilityRequests.back().Correlation.Host
@@ -1172,7 +1193,7 @@ namespace {
 					   std::stop_token) {
 				return github_capability_probe_wire_success{
 					.Correlation = aWire.Correlation,
-					.Response    = response,
+					.Response    = capability_part_response(response, aWire.Correlation.Part),
 				};
 			};
 		auto        completion = run_capability(aFixture, aRequest);
@@ -1195,9 +1216,9 @@ namespace {
 							   == core::github_capability_state::supported;
 					   }),
 			   "exact capability success projects observed fixture evidence");
-		expect(aFixture.Transport->CapabilityRequests.size() == 1U
+		expect(aFixture.Transport->CapabilityRequests.size() == capability_probe_part_count
 				   && !aFixture.Transport->CapabilityStopRequested.front(),
-			   "capability success performs one transport call");
+			   "capability success performs nine serial transport calls");
 		const auto expected = compile_capability_probe_request(aFixture.Profile);
 		expect(expected.has_value(), "canonical provider probe compiles");
 		expect(aFixture.Transport->CapabilityRequests.front() == github_capability_probe_wire_request{
@@ -1496,6 +1517,64 @@ namespace {
 		verify_no_internal_retry(fixture, request);
 	}
 
+	void test_capability_batch_failure_boundaries()
+	{
+		enum class failure { envelope,
+							 part,
+							 correlation,
+							 cancelled,
+							 exhausted,
+							 retry_after };
+		for (const auto mode : { failure::envelope, failure::part, failure::correlation, failure::cancelled, failure::exhausted, failure::retry_after }) {
+			for (const auto stopPart : std::array<std::uint8_t, 3>{ 0U, 4U, 8U }) {
+				provider_fixture fixture{ application::github_authentication_transport::native_https };
+				const auto       request             = capability_request_for(fixture, account_lease(fixture));
+				std::uint8_t     next                = 0U;
+				fixture.Transport->CapabilityHandler = [&](const github_capability_probe_wire_request& aWire, std::stop_token) {
+					expect(aWire.Correlation.Part == next && aWire.Wire.Part == next && aWire.Correlation.Session == request.Context, "parts remain ordered in the exact logical request");
+					++next;
+					auto response    = capability_part_response(supported_capability_response(), aWire.Correlation.Part);
+					auto correlation = aWire.Correlation;
+					if (aWire.Correlation.Part == stopPart) {
+						switch (mode) {
+						case failure::envelope:    response.Body = R"({"errors":[{"type":"FORBIDDEN"}]})"; break;
+						case failure::part:        response = capability_part_response(supported_capability_response(), static_cast<std::uint8_t>((stopPart + 1U) % 9U)); break;
+						case failure::correlation: correlation.Part = static_cast<std::uint8_t>((stopPart + 1U) % 9U); break;
+						case failure::cancelled:   fixture.Provider->cancel_capabilities(request); break;
+						case failure::exhausted:   response.RateLimitHeaders[1].Value = "0"; break;
+						case failure::retry_after:
+							response.RateLimitHeaders[4]  = { .Name = "Retry-After", .Value = "7" };
+							response.RateLimitHeaderCount = 5U;
+							break;
+						}
+					}
+					return github_capability_probe_wire_success{ .Correlation = correlation, .Response = std::move(response) };
+				};
+				const auto result = run_capability(fixture, request);
+				expect(next == stopPart + 1U, "first refused or cancelled part stops additional physical requests");
+				if (mode == failure::cancelled) {
+					expect(std::holds_alternative<application::github_capability_cancelled>(result), "mid-batch cancellation has one terminal without partial facts");
+				} else if (mode == failure::exhausted && stopPart == 8U) {
+					expect(std::holds_alternative<application::github_capability_success>(result), "last-part exhaustion permits already complete facts");
+				} else {
+					const auto* error = std::get_if<application::github_capability_error>(&result);
+					expect(error != nullptr, "refused partial batch never promotes facts");
+					if (mode == failure::exhausted) {
+						expect(error->Error.Failure == application::github_provider_failure::rate_limit, "exhaustion uses existing rate-limit policy");
+					}
+				}
+				next                                 = 0U;
+				fixture.Transport->CapabilityHandler = [&](const github_capability_probe_wire_request& aWire, std::stop_token) {
+					expect(aWire.Correlation.Part == next++, "fresh attempt restarts canonical plan without stale partials");
+					return github_capability_probe_wire_success{ .Correlation = aWire.Correlation, .Response = capability_part_response(supported_capability_response(), aWire.Correlation.Part) };
+				};
+				auto retry    = request;
+				retry.Attempt = application::github_provider_attempt{ static_cast<std::uint8_t>(request.Attempt.value() + 1U) };
+				expect(std::holds_alternative<application::github_capability_success>(run_capability(fixture, retry)) && next == 9U, "fresh full attempt succeeds after refusal");
+			}
+		}
+	}
+
 	void test_cancellation_finality()
 	{
 		provider_fixture fixture{
@@ -1712,6 +1791,7 @@ int main()
 	test_viewer_terminal_correlation();
 	test_account_capability_cache_and_retry_contracts();
 	test_capability_refusal_detail_propagation();
+	test_capability_batch_failure_boundaries();
 	test_cancellation_finality();
 	test_exception_containment_is_exactly_once();
 	test_cli_is_categorically_unavailable();

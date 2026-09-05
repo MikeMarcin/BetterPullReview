@@ -2924,7 +2924,7 @@ namespace {
 			== cli.DiagnosticUpdatesBeforeConnect + 1U
 			&& aWindow.github_status_text() == "The GitHub connection failed."
 			&& aWindow.github_diagnostic_text()
-			== "The selected GitHub CLI connection is unavailable."
+			== "Account identity observation: The selected GitHub CLI connection is unavailable."
 			&& aWindow.active_account_text() == "Not authenticated"
 			&& !aWindow.public_preview_signed_out()
 			&& !aWindow.github_open_action()->isEnabled()

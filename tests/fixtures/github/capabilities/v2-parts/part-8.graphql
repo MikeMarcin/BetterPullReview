@@ -1,0 +1,1 @@
+query BetterPullReviewCapabilityProbeV1Part8{unresolvePayload:__type(name:"UnresolveReviewThreadPayload"){...FieldType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}

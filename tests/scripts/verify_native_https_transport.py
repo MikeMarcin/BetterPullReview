@@ -35,12 +35,8 @@ ANONYMOUS_REST_PATH = "/repos/octo-org/review-repository"
 REST_PATH = "/api/v3/user"
 REDIRECTED_REST_PATH = "/api/v3/user/redirected"
 GRAPHQL_PATH = "/api/graphql"
-# Same canonical query digest as the capability compiler contract/fixture manifest.
-CAPABILITY_QUERY_SHA256 = "62ae9a45c13abe671bf7329ed43260d659afd52f93e4ddd62809bf73e500e184"
-CAPABILITY_RESPONSE = (
-    Path(__file__).resolve().parents[1]
-    / "fixtures/github/capabilities/v1/github-com/supported.json"
-)
+CAPABILITY_PART_ROOT = Path(__file__).resolve().parents[1] / "fixtures/github/capabilities/v2-parts"
+CAPABILITY_QUERIES = tuple((CAPABILITY_PART_ROOT / f"part-{part}.graphql").read_text() for part in range(9))
 MUTATION_PATH = "/api/v3/repos/octo-org/review-repository/pulls/17/comments"
 
 CONNECT_HEADER_LIMIT = 16 * 1024
@@ -270,6 +266,7 @@ class OriginRequest:
     headers: dict[str, list[bytes]]
     body_size: int
     exact_capability_body: bool
+    capability_part: int | None
 
 
 def executable_path(value: str | None, fallback: str | None) -> Path:
@@ -489,20 +486,16 @@ def one_header(
     return values[0]
 
 
-def exact_capability_body(body: bytearray) -> bool:
+def capability_body_part(body: bytearray) -> int | None:
     try:
         payload = json.loads(body)
-        return (
-            isinstance(payload, dict)
-            and set(payload) == {"query"}
-            and isinstance(payload["query"], str)
-            and hashlib.sha256(payload["query"].encode("utf-8")).hexdigest()
-            == CAPABILITY_QUERY_SHA256
-            and json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-            == body
-        )
+        if (isinstance(payload, dict) and set(payload) == {"query"}
+            and payload["query"] in CAPABILITY_QUERIES
+            and json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8") == body):
+            return CAPABILITY_QUERIES.index(payload["query"])
     except (ValueError, UnicodeError):
-        return False
+        pass
+    return None
 
 
 def read_origin_request(
@@ -556,7 +549,7 @@ def read_origin_request(
             raise ProbeFailure("origin-body-truncated")
         received_body.extend(block)
     body_size = len(received_body)
-    capability_body_matches = exact_capability_body(received_body)
+    capability_part = capability_body_part(received_body)
     wipe_mutable_bytes(received_body)
 
     return OriginRequest(
@@ -564,7 +557,8 @@ def read_origin_request(
         target=target,
         headers=headers,
         body_size=body_size,
-        exact_capability_body=capability_body_matches,
+        exact_capability_body=capability_part is not None,
+        capability_part=capability_part,
     )
 
 
@@ -781,6 +775,8 @@ class LoopbackConnectTlsFixture:
                 self.observation.next_request += 1
                 self.observation.origin_requests += 1
                 self.observation.request_targets.append(request.target)
+            if self.scenario == "capability-success" and request.capability_part != sequence:
+                self.observation.violate("capability-part-order")
             self._inspect_origin_request(request)
             self._serve_origin_response(connection, sequence)
         except ProbeFailure as error:
@@ -1197,7 +1193,7 @@ class LoopbackConnectTlsFixture:
                 response_bytes(
                     200,
                     "OK",
-                    CAPABILITY_RESPONSE.read_bytes()
+                    (CAPABILITY_PART_ROOT / "github-com" / f"supported-{sequence}.json").read_bytes()
                     if self.scenario == "capability-success" else (
                         '{"errors":[{"message":"Unknown schema field newField. '
                         + ''.join('\\u%04x' % value for value in self.token)
@@ -1338,7 +1334,7 @@ class LoopbackConnectTlsFixture:
                 raise ProbeFailure("credential-free-observation")
             return
 
-        expected_requests = 2 if self.scenario == "same-redirect" else 1
+        expected_requests = 9 if self.scenario == "capability-success" else (2 if self.scenario == "same-redirect" else 1)
         if (
             accepts != expected_requests
             or connects != expected_requests
@@ -1367,7 +1363,7 @@ class LoopbackConnectTlsFixture:
             "capability-403-rate",
             "capability-429",
         }:
-            if targets != (("/graphql" if self.host == GITHUB_HOST else GRAPHQL_PATH),):
+            if targets != (("/graphql" if self.host == GITHUB_HOST else GRAPHQL_PATH),) * expected_requests:
                 raise ProbeFailure("graphql-redirect-target")
         elif targets != (REST_PATH,):
             raise ProbeFailure(f"{self.scenario}-target")

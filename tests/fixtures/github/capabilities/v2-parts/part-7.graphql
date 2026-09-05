@@ -1,0 +1,1 @@
+query BetterPullReviewCapabilityProbeV1Part7{unmarkPayload:__type(name:"UnmarkFileAsViewedPayload"){...FieldType}resolvePayload:__type(name:"ResolveReviewThreadPayload"){...FieldType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}

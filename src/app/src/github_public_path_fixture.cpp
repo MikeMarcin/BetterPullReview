@@ -556,12 +556,13 @@ namespace bpr::app::detail {
 				});
 		}
 
-		[[nodiscard]] auto load_capability_response(
-			const std::string_view aCapabilityDirectory) -> std::string
+		[[nodiscard]] auto load_capability_response(const std::string_view aCapabilityDirectory) -> std::array<std::string, adapters::github::detail::capability_probe_part_count>
 		{
-			return read_all(
-				std::filesystem::path{ BPR_GITHUB_CAPABILITY_FIXTURE_ROOT }
-				/ aCapabilityDirectory / "supported.json");
+			std::array<std::string, adapters::github::detail::capability_probe_part_count> bodies;
+			for (std::size_t part = 0U; part < bodies.size(); ++part) {
+				bodies[part] = read_all(std::filesystem::path{ BPR_GITHUB_CAPABILITY_FIXTURE_ROOT }.parent_path() / "v2-parts" / aCapabilityDirectory / ("supported-" + std::to_string(part) + ".json"));
+			}
+			return bodies;
 		}
 
 		[[nodiscard]] auto same_profile(
@@ -644,11 +645,11 @@ namespace bpr::app::detail {
 			// The signed-out script. A separate cursor as well as a separate
 			// order: the two authorities never share a position, so a course that
 			// ran both would not be able to advance one by driving the other.
-			strict_recorded_transport AnonymousRecording;
-			std::string               CapabilityBody;
-			std::size_t               CapabilityCalls       = 0U;
-			std::size_t               BootstrapFactoryCalls = 0U;
-			std::size_t               AccountFactoryCalls   = 0U;
+			strict_recorded_transport                                                      AnonymousRecording;
+			std::array<std::string, adapters::github::detail::capability_probe_part_count> CapabilityBody;
+			std::size_t                                                                    CapabilityCalls       = 0U;
+			std::size_t                                                                    BootstrapFactoryCalls = 0U;
+			std::size_t                                                                    AccountFactoryCalls   = 0U;
 			// [[BPR-0536]]. Both factories are once-only, which is what makes
 			// "the transport was selected exactly once" a claim the other
 			// courses can make. The refresh course establishes a session more
@@ -967,7 +968,7 @@ namespace bpr::app::detail {
 				}
 				const std::scoped_lock lock{ State->Mutex };
 				const auto             expected = adapters::github::detail::compile_capability_probe_request(
-					State->Profile);
+					State->Profile, { }, aRequest.Correlation.Part);
 				if (!expected.has_value() || aRequest.Wire != *expected
 					|| aRequest.Correlation.ProfileRevision
 						!= State->Profile.revision()
@@ -979,7 +980,8 @@ namespace bpr::app::detail {
 					// above, and for the same session: the host invalidates
 					// the identity's cached capabilities when the generation
 					// advances, so a second establishment probes again.
-					|| (!State->RepeatSessions && State->CapabilityCalls != 0U)) {
+					|| aRequest.Correlation.Part != State->CapabilityCalls % adapters::github::detail::capability_probe_part_count
+					|| (!State->RepeatSessions && State->CapabilityCalls >= adapters::github::detail::capability_probe_part_count)) {
 					return github_capability_probe_wire_error{
 						.Correlation = aRequest.Correlation,
 						.Error       = provider_error(
@@ -991,7 +993,7 @@ namespace bpr::app::detail {
 					.Status               = 200,
 					.Authenticated        = true,
 					.ContentType          = "application/json",
-					.Body                 = State->CapabilityBody,
+					.Body                 = State->CapabilityBody[aRequest.Correlation.Part],
 					.RateLimitHeaders     = { },
 					.RateLimitHeaderCount = 4U,
 				};
@@ -2340,7 +2342,7 @@ namespace bpr::app::detail {
 			const std::scoped_lock lock{ Implementation->Recording->Mutex };
 			result.RecordingConsumed = Implementation->Recording->BootstrapRecording.consumed_all()
 				&& Implementation->Recording->Recording.consumed_all();
-			result.CapabilityProbeConsumed    = Implementation->Recording->CapabilityCalls == 1U;
+			result.CapabilityProbeConsumed    = Implementation->Recording->CapabilityCalls == adapters::github::detail::capability_probe_part_count;
 			result.BootstrapTransportSelected = Implementation->Recording->BootstrapFactoryCalls == 1U;
 			result.AccountTransportSelected   = Implementation->Recording->AccountFactoryCalls == 1U;
 			result.RecordingFailure           = Implementation->Recording->RecordingFailure;

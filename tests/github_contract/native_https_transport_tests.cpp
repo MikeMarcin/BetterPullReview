@@ -215,13 +215,14 @@ namespace {
 	[[nodiscard]] auto
 	capability_request_for(const validated_github_host_profile&        aProfile,
 						   const core::github_session_request_context& aSession,
-						   const core::github_account_id               aObservedAccount)
+						   const core::github_account_id aObservedAccount, const std::uint8_t aPart = 0U)
 		-> github_capability_probe_wire_request
 	{
-		const auto wire = compile_capability_probe_request(aProfile);
+		const auto wire = compile_capability_probe_request(aProfile, { }, aPart);
 		expect(wire.has_value(), "canonical-capability-request");
 		return {
 			.Correlation = github_capability_probe_wire_correlation{
+				.Part            = aPart,
 				.Session         = aSession,
 				.ProfileRevision = aProfile.revision(),
 				.Host            = aProfile.host(),
@@ -765,6 +766,22 @@ namespace {
 		expect(validate_github_capability_probe_wire_request(*native, capability)
 				   .has_value(),
 			   "capability-wire-validation");
+
+		for (const auto drift : { 0U, 1U, 2U }) {
+			auto wrongPart = capability;
+			if (drift == 0U) {
+				wrongPart.Correlation.Part = 1U;
+			}
+			if (drift == 1U) {
+				wrongPart.Wire.Part = 1U;
+			}
+			if (drift == 2U) {
+				wrongPart.Correlation.Part = 9U;
+				wrongPart.Wire.Part        = 9U;
+			}
+			expect(!validate_github_capability_probe_wire_request(*native, wrongPart), "noncanonical indexed part refused by pure wire validator");
+			expect_capability_error((*account)->perform_capability_probe(wrongPart, std::stop_token{ }), wrongPart.Correlation, application::github_provider_failure::unavailable, std::nullopt, "capability-part-drift-preflight");
+		}
 
 		auto mutation                 = capability;
 		mutation.Wire.Body            = R"({"query":"mutation { __typename }"})";
@@ -1700,8 +1717,11 @@ namespace {
 		expect(
 			success != nullptr && success->Correlation == aCorrelation && success->Response.Status == 200 && success->Response.Authenticated && success->Response.ContentType == "Application/JSON; Charset=UTF-8" && !success->Response.Body.empty() && success->Response.RateLimitHeaderCount == 4U && success->Response.RateLimitHeaders == expectedRateLimitHeaders,
 			"capability-fixture-success");
-		const auto observation = normalize_capability_probe(
-			capability_probe_transport_result{ success->Response });
+	}
+
+	void expect_complete_capability_batch(const capability_probe_batch& aBatch)
+	{
+		const auto observation = aBatch.finish();
 		expect(observation.Complete
 				   && observation.Unavailability == capability_probe_unavailability::none
 				   && valid(observation)
@@ -1855,9 +1875,21 @@ namespace {
 											   configuration);
 			wipe(framedCredential);
 			expect(transport.has_value(), "capability-fixture-transport");
-			const auto completion = (*transport)->perform_capability_probe(request, std::stop_token{ });
-			expect_capability_fixture_completion(completion, request.Correlation,
-												 aScenario);
+			capability_probe_batch batch;
+			const auto             parts = aScenario == fixture_scenario::capability_success ? capability_probe_part_count : std::uint8_t{ 1U };
+			for (std::uint8_t part = 0U; part < parts; ++part) {
+				const auto partRequest = capability_request_for(*profile, request.Correlation.Session, request.Correlation.ObservedAccount, part);
+				const auto completion  = (*transport)->perform_capability_probe(partRequest, std::stop_token{ });
+				expect_capability_fixture_completion(completion, partRequest.Correlation, aScenario);
+				if (aScenario == fixture_scenario::capability_success) {
+					const auto& response = std::get<github_capability_probe_wire_success>(completion).Response;
+					expect(batch.append(response, part).has_value(), "native canonical part assembles");
+				}
+			}
+			if (aScenario == fixture_scenario::capability_success) {
+				expect_complete_capability_batch(batch);
+			}
+
 			return;
 		}
 		if (aScenario == fixture_scenario::mutation_witness

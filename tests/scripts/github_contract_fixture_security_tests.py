@@ -569,6 +569,93 @@ def decoded_security_violations(value: object) -> list[str]:
     return violations
 
 
+class CapabilityDocument:
+    """Parse the canonical subset, then expand fragments using introspection types."""
+
+    CHILD_TYPES = {
+        ("Query", "__schema"): "__Schema", ("Query", "__type"): "__Type",
+        ("__Schema", "queryType"): "__Type", ("__Schema", "mutationType"): "__Type",
+        ("__Type", "fields"): "__Field", ("__Type", "inputFields"): "__InputValue",
+        ("__Type", "enumValues"): "__EnumValue", ("__Type", "interfaces"): "__Type",
+        ("__Type", "possibleTypes"): "__Type", ("__Type", "ofType"): "__Type",
+        ("__Field", "args"): "__InputValue", ("__Field", "type"): "__Type",
+        ("__InputValue", "type"): "__Type",
+    }
+    LIMITED = {("__Type", field) for field in
+               ("fields", "inputFields", "enumValues", "interfaces", "possibleTypes")} | {
+                   ("__Field", "args")}
+
+    def __init__(self, text: str):
+        self.tokens = re.findall(r'"(?:[^"\\]|\\.)*"|\.\.\.|[A-Za-z_][A-Za-z_0-9]*|[{}():]', text)
+        self.at = 0
+        self.take("query")
+        self.take()
+        self.root = self.selection()
+        self.fragments = {}
+        while self.at < len(self.tokens):
+            self.take("fragment")
+            name = self.take()
+            self.take("on")
+            kind = self.take()
+            if name in self.fragments:
+                raise ValueError("duplicate fragment")
+            self.fragments[name] = (kind, self.selection())
+
+    def take(self, expected=None):
+        value = self.tokens[self.at]
+        self.at += 1
+        if expected is not None and value != expected:
+            raise ValueError(f"expected {expected}, got {value}")
+        return value
+
+    def selection(self):
+        self.take("{")
+        result = []
+        while self.tokens[self.at] != "}":
+            name = self.take()
+            if name == "...":
+                result.append((None, self.take(), []))
+                continue
+            alias = name
+            if self.tokens[self.at] == ":":
+                self.take(":")
+                name = self.take()
+            if self.tokens[self.at] == "(":
+                self.take("(")
+                while self.tokens[self.at] != ")":
+                    self.take()
+                self.take(")")
+            nested = self.selection() if self.tokens[self.at] == "{" else []
+            result.append((alias, name, nested))
+        self.take("}")
+        return result
+
+    def counts(self):
+        counts = dict.fromkeys(self.LIMITED, 0)
+        reached = set()
+
+        def visit(selection, kind, active):
+            for alias, name, nested in selection:
+                if alias is None:
+                    if name in active:
+                        raise ValueError("fragment cycle")
+                    target, fields = self.fragments[name]
+                    if target != kind:
+                        raise ValueError("fragment type mismatch")
+                    reached.add(name)
+                    visit(fields, kind, active | {name})
+                else:
+                    key = (kind, name)
+                    if key in counts:
+                        counts[key] += 1
+                    if nested:
+                        visit(nested, self.CHILD_TYPES[key], active)
+        visit(self.root, "Query", set())
+        if reached != set(self.fragments):
+            raise ValueError("unused fragment")
+        return counts
+
+
 class GitHubContractFixtureSecurityTests(unittest.TestCase):
     def load_json(self, path: Path) -> object:
         value = json.loads(
@@ -641,6 +728,36 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                     target = (path.parent / reference).resolve()
                     self.assertTrue(target.is_relative_to(root))
                     self.assertTrue(target.is_file())
+
+    def test_capability_parts_expand_under_collection_limits(self) -> None:
+        root = CAPABILITY_FIXTURE_ROOT.parent / "v2-parts"
+        provenance = self.load_json(root / "provenance.json")
+        original = (root / "original-v1-query.graphql").read_bytes()
+        self.assertEqual(hashlib.sha256(original).hexdigest(), provenance["original_query_sha256"])
+        counts = CapabilityDocument(original.decode()).counts()
+        for key, count in {("__Type", "fields"): 17, ("__Field", "args"): 17,
+                           ("__Type", "enumValues"): 3, ("__Type", "inputFields"): 4}.items():
+            self.assertEqual(counts[key], count)
+        aliases = []
+        expected_files = {"provenance.json", "original-v1-query.graphql"}
+        for part in range(9):
+            name = f"part-{part}.graphql"
+            expected_files.add(name)
+            document = CapabilityDocument((root / name).read_text())
+            self.assertTrue(all(count <= 2 for count in document.counts().values()))
+            selected = [alias for alias, _, _ in document.root]
+            self.assertEqual(selected, provenance["parts"][part])
+            aliases.extend(selected)
+            for host in ("github-com", "ghes-3.18"):
+                filename = f"{host}/supported-{part}.json"
+                expected_files.add(filename)
+                original_response = self.load_json(CAPABILITY_FIXTURE_ROOT / host / "supported.json")
+                self.assertEqual(self.load_json(root / filename),
+                                 {"data": {alias: original_response["data"][alias] for alias in selected}})
+        self.assertEqual(len(aliases), 26)
+        self.assertEqual(len(set(aliases)), 26)
+        self.assertEqual(set(aliases), set(original_response["data"]))
+        self.assertEqual({path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()}, expected_files)
 
     def test_capability_manifests_pin_independent_official_schemas(
         self,

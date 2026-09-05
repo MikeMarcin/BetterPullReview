@@ -207,17 +207,6 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
-		[[nodiscard]] auto rate_limit_state(
-			const std::optional<application::github_rate_limit_record>& aRecord) noexcept
-			-> application::github_rate_limit_state
-		{
-			auto state = application::github_rate_limit_state{ };
-			if (aRecord.has_value()) {
-				static_cast<void>(application::observe(state, *aRecord));
-			}
-			return state;
-		}
-
 		[[nodiscard]] constexpr auto rate_limits_are_empty_or_exact(
 			const application::github_rate_limit_state&   aState,
 			const application::github_rate_limit_resource aExpected) noexcept -> bool
@@ -1295,7 +1284,9 @@ namespace bpr::adapters::github::detail {
 				 accountTransport,
 				 aRequest,
 				 delivery]() mutable {
-					const auto cancelled = [&] {
+					application::github_rate_limit_state rateLimits;
+					capability_probe_batch               batch;
+					const auto                           cancelled = [&] {
 						finish_job(state, job);
 						delivery->deliver(application::github_capability_cancelled{
 							.Request = aRequest,
@@ -1304,6 +1295,9 @@ namespace bpr::adapters::github::detail {
 					const auto failed =
 						[&](application::github_provider_error              aError,
 							const application::github_capability_diagnostic aDetail = application::github_capability_diagnostic::unavailable_detail) {
+							if (!aError.RateLimits.Graphql.has_value() && rateLimits.Graphql.has_value()) {
+								aError.RateLimits = rateLimits;
+							}
 							if (finish_job(state, job)) {
 								delivery->deliver(
 									application::github_capability_cancelled{
@@ -1318,180 +1312,197 @@ namespace bpr::adapters::github::detail {
 							});
 						};
 					try {
-						if (job->Stop.stop_requested()) {
-							cancelled();
-							return;
-						}
-						const auto compiled = compile_capability_probe_request(*profile);
-						if (!compiled.has_value()) {
-							failed(
-								provider_error(provider_failure(compiled.error())), application::github_capability_diagnostic::provider_request_compilation);
-							return;
-						}
-						const github_capability_probe_wire_request wire{
-							.Correlation = github_capability_probe_wire_correlation{
-								.Session         = aRequest.Context,
-								.ProfileRevision = aRequest.ProfileAuthority.ProfileRevision,
-								.Host            = aRequest.ProfileAuthority.Host,
-								.ObservedAccount = aRequest.Viewer.Account,
-							},
-							.Wire = *compiled,
-						};
-						const auto terminal = accountTransport->Transport->perform_capability_probe(
-							wire, job->Stop.get_token());
-						if (terminal.valueless_by_exception()) {
-							failed(provider_error(
-									   application::github_provider_failure::
-										   malformed_response),
-								   application::github_capability_diagnostic::provider_correlation);
-							return;
-						}
-						if (const auto* wireCancelled = std::get_if<github_capability_probe_wire_cancelled>(
-								&terminal);
-							wireCancelled != nullptr) {
-							if (wireCancelled->Correlation != wire.Correlation) {
+						for (std::uint8_t part = 0U; part < capability_probe_part_count; ++part) {
+							if (job->Stop.stop_requested()) {
+								cancelled();
+								return;
+							}
+							const auto compiled = compile_capability_probe_request(*profile, { }, part);
+							if (!compiled.has_value()) {
+								failed(
+									provider_error(provider_failure(compiled.error())), application::github_capability_diagnostic::provider_request_compilation);
+								return;
+							}
+							const github_capability_probe_wire_request wire{
+								.Correlation = github_capability_probe_wire_correlation{
+									.Part            = part,
+									.Session         = aRequest.Context,
+									.ProfileRevision = aRequest.ProfileAuthority.ProfileRevision,
+									.Host            = aRequest.ProfileAuthority.Host,
+									.ObservedAccount = aRequest.Viewer.Account,
+								},
+								.Wire = *compiled,
+							};
+							const auto terminal = accountTransport->Transport->perform_capability_probe(
+								wire, job->Stop.get_token());
+							if (terminal.valueless_by_exception()) {
 								failed(provider_error(
 										   application::github_provider_failure::
 											   malformed_response),
 									   application::github_capability_diagnostic::provider_correlation);
-							} else {
-								cancelled();
+								return;
 							}
-							return;
-						}
-						if (const auto* error = std::get_if<github_capability_probe_wire_error>(
-								&terminal);
-							error != nullptr) {
-							if (error->Correlation != wire.Correlation
-								|| !application::valid(error->Error)
-								|| !rate_limits_are_empty_or_exact(
-									error->Error.RateLimits,
-									application::github_rate_limit_resource::
-										graphql)) {
-								failed(provider_error(
-										   application::github_provider_failure::
-											   malformed_response),
-									   error->Correlation != wire.Correlation ? application::github_capability_diagnostic::provider_correlation : application::github_capability_diagnostic::provider_metadata);
-							} else {
-								failed(error->Error, error->CapabilityDetail);
-							}
-							return;
-						}
-						const auto* success = std::get_if<github_capability_probe_wire_success>(
-							&terminal);
-						if (success == nullptr
-							|| success->Correlation != wire.Correlation
-							|| success->Response.RateLimitHeaderCount
-								> success->Response.RateLimitHeaders.size()) {
-							failed(provider_error(
-									   application::github_provider_failure::
-										   malformed_response),
-								   success != nullptr && success->Correlation == wire.Correlation
-									   ? application::github_capability_diagnostic::provider_metadata
-									   : application::github_capability_diagnostic::provider_correlation);
-							return;
-						}
-
-						if (state->Log) {
-							static_cast<void>(state->Log->record({
-								.Operation  = application::diagnostic_operation::capability,
-								.Outcome    = application::diagnostic_outcome::response_received,
-								.Request    = aRequest.Context.Request.value(),
-								.HttpStatus = static_cast<std::uint16_t>(success->Response.Status),
-								.Summary    = success->Summary,
-							}));
-						}
-
-						wire_response metadataResponse{
-							.Status  = success->Response.Status,
-							.Headers = {
-								http_header{
-									.Name  = "Content-Type",
-									.Value = success->Response.ContentType,
-								},
-							},
-							.Body         = { },
-							.Completeness = page_completeness::complete,
-						};
-						metadataResponse.Headers.reserve(
-							success->Response.RateLimitHeaderCount + 1U);
-						for (std::size_t index = 0U;
-							 index < success->Response.RateLimitHeaderCount;
-							 ++index) {
-							const auto& header = success->Response.RateLimitHeaders[index];
-							metadataResponse.Headers.push_back(http_header{
-								.Name  = header.Name,
-								.Value = header.Value,
-							});
-						}
-						const auto metadata = parse_github_response_metadata(metadataResponse);
-						const auto server   = expected_server(*profile);
-						if (!metadata.has_value()) {
-							failed(metadata.error(), application::github_capability_diagnostic::provider_metadata);
-							return;
-						}
-						if (!server.has_value()
-							|| (!metadata->RateLimit.has_value()
-								&& *server == server_contract::github_com)
-							|| (metadata->RateLimit.has_value()
-								&& metadata->RateLimit->Resource
-									!= application::github_rate_limit_resource::
-										graphql)) {
-							failed(provider_error(
-									   application::github_provider_failure::
-										   malformed_response),
-								   application::github_capability_diagnostic::provider_rate_tuple);
-							return;
-						}
-						auto       rateLimits  = rate_limit_state(metadata->RateLimit);
-						const auto observation = normalize_capability_probe(
-							capability_probe_transport_result{ success->Response });
-						if (!observation.Complete || !valid(observation)) {
-							auto failure = provider_error(
-								valid(observation)
-									? provider_failure(observation.Unavailability)
-									: application::github_provider_failure::
-										  malformed_response);
-							failure.RateLimits = rateLimits;
-							if (failure.Failure
-								== application::github_provider_failure::rate_limit) {
-								if (!metadata->RateLimit.has_value()) {
+							if (const auto* wireCancelled = std::get_if<github_capability_probe_wire_cancelled>(
+									&terminal);
+								wireCancelled != nullptr) {
+								if (wireCancelled->Correlation != wire.Correlation) {
 									failed(provider_error(
 											   application::github_provider_failure::
 												   malformed_response),
-										   application::github_capability_diagnostic::provider_rate_tuple);
+										   application::github_capability_diagnostic::provider_correlation);
+								} else {
+									cancelled();
+								}
+								return;
+							}
+							if (const auto* error = std::get_if<github_capability_probe_wire_error>(
+									&terminal);
+								error != nullptr) {
+								if (error->Correlation != wire.Correlation
+									|| !application::valid(error->Error)
+									|| !rate_limits_are_empty_or_exact(
+										error->Error.RateLimits,
+										application::github_rate_limit_resource::
+											graphql)) {
+									failed(provider_error(
+											   application::github_provider_failure::
+												   malformed_response),
+										   error->Correlation != wire.Correlation ? application::github_capability_diagnostic::provider_correlation : application::github_capability_diagnostic::provider_metadata);
+								} else {
+									failed(error->Error, error->CapabilityDetail);
+								}
+								return;
+							}
+							const auto* success = std::get_if<github_capability_probe_wire_success>(
+								&terminal);
+							if (success == nullptr
+								|| success->Correlation != wire.Correlation
+								|| success->Response.RateLimitHeaderCount
+									> success->Response.RateLimitHeaders.size()) {
+								failed(provider_error(
+										   application::github_provider_failure::
+											   malformed_response),
+									   success != nullptr && success->Correlation == wire.Correlation
+										   ? application::github_capability_diagnostic::provider_metadata
+										   : application::github_capability_diagnostic::provider_correlation);
+								return;
+							}
+
+							if (state->Log) {
+								static_cast<void>(state->Log->record({
+									.Operation  = application::diagnostic_operation::capability,
+									.Outcome    = application::diagnostic_outcome::response_received,
+									.Request    = aRequest.Context.Request.value(),
+									.HttpStatus = static_cast<std::uint16_t>(success->Response.Status),
+									.Summary    = success->Summary,
+								}));
+							}
+
+							wire_response metadataResponse{
+								.Status  = success->Response.Status,
+								.Headers = {
+									http_header{
+										.Name  = "Content-Type",
+										.Value = success->Response.ContentType,
+									},
+								},
+								.Body         = { },
+								.Completeness = page_completeness::complete,
+							};
+							metadataResponse.Headers.reserve(
+								success->Response.RateLimitHeaderCount + 1U);
+							for (std::size_t index = 0U;
+								 index < success->Response.RateLimitHeaderCount;
+								 ++index) {
+								const auto& header = success->Response.RateLimitHeaders[index];
+								metadataResponse.Headers.push_back(http_header{
+									.Name  = header.Name,
+									.Value = header.Value,
+								});
+							}
+							const auto metadata = parse_github_response_metadata(metadataResponse);
+							const auto server   = expected_server(*profile);
+							if (!metadata.has_value()) {
+								failed(metadata.error(), application::github_capability_diagnostic::provider_metadata);
+								return;
+							}
+							if (!server.has_value()
+								|| (!metadata->RateLimit.has_value()
+									&& *server == server_contract::github_com)
+								|| (metadata->RateLimit.has_value()
+									&& metadata->RateLimit->Resource
+										!= application::github_rate_limit_resource::
+											graphql)) {
+								failed(provider_error(
+										   application::github_provider_failure::
+											   malformed_response),
+									   application::github_capability_diagnostic::provider_rate_tuple);
+								return;
+							}
+							if (metadata->RateLimit.has_value()) {
+								static_cast<void>(application::observe(rateLimits, *metadata->RateLimit));
+							}
+							const auto appended = batch.append(success->Response, part);
+							if (!appended) {
+								const auto& observation = appended.error();
+								auto        failure     = provider_error(
+									valid(observation)
+										? provider_failure(observation.Unavailability)
+										: application::github_provider_failure::
+											  malformed_response);
+								failure.RateLimits = rateLimits;
+								if (failure.Failure
+									== application::github_provider_failure::rate_limit) {
+									if (!metadata->RateLimit.has_value()) {
+										failed(provider_error(
+												   application::github_provider_failure::
+													   malformed_response),
+											   application::github_capability_diagnostic::provider_rate_tuple);
+										return;
+									}
+									auto cause             = *metadata->RateLimit;
+									cause.SecondaryLimited = cause.Remaining != 0U;
+									static_cast<void>(application::observe(
+										failure.RateLimits, cause));
+									failure.RateLimitCause    = cause;
+									failure.RetryAfterSeconds = metadata->RetryAfterSeconds.has_value()
+										? metadata->RetryAfterSeconds
+										: (cause.SecondaryLimited
+											   ? std::optional<std::uint32_t>{ 60U }
+											   : std::nullopt);
+								} else if (metadata->RetryAfterSeconds.has_value()) {
+									failed(provider_error(
+											   application::github_provider_failure::
+												   malformed_response),
+										   application::github_capability_diagnostic::provider_retry_metadata);
 									return;
 								}
-								auto cause             = *metadata->RateLimit;
-								cause.SecondaryLimited = cause.Remaining != 0U;
-								static_cast<void>(application::observe(
-									failure.RateLimits, cause));
-								failure.RateLimitCause    = cause;
-								failure.RetryAfterSeconds = metadata->RetryAfterSeconds.has_value()
-									? metadata->RetryAfterSeconds
-									: (cause.SecondaryLimited
-										   ? std::optional<std::uint32_t>{ 60U }
-										   : std::nullopt);
-							} else if (metadata->RetryAfterSeconds.has_value()) {
+								failed(application::valid(failure)
+										   ? failure
+										   : provider_error(
+												 application::github_provider_failure::
+													 malformed_response),
+									   valid(observation) ? observation.CapabilityDetail : application::github_capability_diagnostic::provider_observation);
+								return;
+							}
+							if (metadata->RetryAfterSeconds.has_value()) {
 								failed(provider_error(
 										   application::github_provider_failure::
 											   malformed_response),
 									   application::github_capability_diagnostic::provider_retry_metadata);
 								return;
 							}
-							failed(application::valid(failure)
-									   ? failure
-									   : provider_error(
-											 application::github_provider_failure::
-												 malformed_response),
-								   valid(observation) ? observation.CapabilityDetail : application::github_capability_diagnostic::provider_observation);
-							return;
+							if (part + 1U < capability_probe_part_count && rateLimits.Graphql.has_value() && rateLimits.Graphql->Remaining == 0U) {
+								auto failure           = provider_error(application::github_provider_failure::rate_limit);
+								failure.RateLimits     = rateLimits;
+								failure.RateLimitCause = rateLimits.Graphql;
+								failed(failure);
+								return;
+							}
 						}
-						if (metadata->RetryAfterSeconds.has_value()) {
-							failed(provider_error(
-									   application::github_provider_failure::
-										   malformed_response),
-								   application::github_capability_diagnostic::provider_retry_metadata);
+						const auto observation = batch.finish();
+						if (!observation.Complete || !valid(observation)) {
+							failed(provider_error(provider_failure(observation.Unavailability)), observation.CapabilityDetail);
 							return;
 						}
 						auto facts    = capability_facts(observation.Capabilities);

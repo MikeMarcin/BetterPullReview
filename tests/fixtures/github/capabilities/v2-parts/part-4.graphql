@@ -1,0 +1,1 @@
+query BetterPullReviewCapabilityProbeV1Part4{changedFileConnection:__type(name:"PullRequestChangedFileConnection"){...FieldType}changedFile:__type(name:"PullRequestChangedFile"){...FieldType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}

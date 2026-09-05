@@ -62,6 +62,7 @@ namespace bpr::adapters::github::detail {
 
 	struct github_capability_probe_wire_correlation
 	{
+		std::uint8_t                         Part = 0U;
 		core::github_session_request_context Session;
 		application::github_profile_revision ProfileRevision;
 		core::git_host_id                    Host;

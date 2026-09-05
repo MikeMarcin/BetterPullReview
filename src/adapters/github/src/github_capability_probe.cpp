@@ -23,61 +23,31 @@
 
 namespace bpr::adapters::github::detail {
 	namespace {
-		constexpr std::string_view graphql_document = "query BetterPullReviewCapabilityProbeV1{"
-													  "schemaRoot:__schema{queryType{...FieldType}"
-													  "mutationType{...FieldType}}"
-													  "repository:__type(name:\"Repository\"){...FieldType}"
-													  "pullRequest:__type(name:\"PullRequest\"){...FieldType}"
-													  "threadConnection:__type(name:\"PullRequestReviewThreadConnection\")"
-													  "{...FieldType}"
-													  "reviewThread:__type(name:\"PullRequestReviewThread\"){...FieldType}"
-													  "commentConnection:__type(name:\"PullRequestReviewCommentConnection\")"
-													  "{...FieldType}"
-													  "reviewComment:__type(name:\"PullRequestReviewComment\"){...FieldType}"
-													  "changedFileConnection:__type(name:\"PullRequestChangedFileConnection\")"
-													  "{...FieldType}"
-													  "changedFile:__type(name:\"PullRequestChangedFile\"){...FieldType}"
-													  "pageInfo:__type(name:\"PageInfo\"){...FieldType}"
-													  "actor:__type(name:\"Actor\"){...FieldType}"
-													  "node:__type(name:\"Node\"){...FieldType}"
-													  "reviewThreadInterfaces:__type(name:\"PullRequestReviewThread\")"
-													  "{...InterfaceType}"
-													  "actorPossibleTypes:__type(name:\"Actor\"){...PossibleType}"
-													  "nodePossibleTypes:__type(name:\"Node\"){...PossibleType}"
-													  "threadSubject:__type(name:\"PullRequestReviewThreadSubjectType\")"
-													  "{...EnumType}"
-													  "diffSide:__type(name:\"DiffSide\"){...EnumType}"
-													  "fileViewedState:__type(name:\"FileViewedState\"){...EnumType}"
-													  "markInput:__type(name:\"MarkFileAsViewedInput\"){...InputType}"
-													  "markPayload:__type(name:\"MarkFileAsViewedPayload\"){...FieldType}"
-													  "unmarkInput:__type(name:\"UnmarkFileAsViewedInput\"){...InputType}"
-													  "unmarkPayload:__type(name:\"UnmarkFileAsViewedPayload\")"
-													  "{...FieldType}"
-													  "resolveInput:__type(name:\"ResolveReviewThreadInput\")"
-													  "{...InputType}"
-													  "resolvePayload:__type(name:\"ResolveReviewThreadPayload\")"
-													  "{...FieldType}"
-													  "unresolveInput:__type(name:\"UnresolveReviewThreadInput\")"
-													  "{...InputType}"
-													  "unresolvePayload:__type(name:\"UnresolveReviewThreadPayload\")"
-													  "{...FieldType}"
-													  "}"
-													  "fragment TypeRef on __Type{kind name ofType{kind name}}"
-													  "fragment FieldType on __Type{kind name "
-													  "fields(includeDeprecated:true){name args{name defaultValue "
-													  "type{...TypeRef}} type{...TypeRef}}}"
-													  "fragment InputType on __Type{kind name inputFields{name defaultValue "
-													  "type{...TypeRef}}}"
-													  "fragment EnumType on __Type{kind name "
-													  "enumValues(includeDeprecated:true){name}}"
-													  "fragment InterfaceType on __Type{kind name interfaces{kind name}}"
-													  "fragment PossibleType on __Type{kind name possibleTypes{kind name}}";
+		constexpr std::array<std::string_view, capability_probe_part_count> graphql_documents{
+			"query BetterPullReviewCapabilityProbeV1Part0{schemaRoot:__schema{queryType{...FieldType}mutationType{...FieldType}}markInput:__type(name:\"MarkFileAsViewedInput\"){...InputType}unmarkInput:__type(name:\"UnmarkFileAsViewedInput\"){...InputType}threadSubject:__type(name:\"PullRequestReviewThreadSubjectType\"){...EnumType}diffSide:__type(name:\"DiffSide\"){...EnumType}reviewThreadInterfaces:__type(name:\"PullRequestReviewThread\"){...InterfaceType}actorPossibleTypes:__type(name:\"Actor\"){...PossibleType}nodePossibleTypes:__type(name:\"Node\"){...PossibleType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}fragment InputType on __Type{kind name inputFields{name defaultValue type{...TypeRef}}}fragment EnumType on __Type{kind name enumValues(includeDeprecated:true){name}}fragment InterfaceType on __Type{kind name interfaces{kind name}}fragment PossibleType on __Type{kind name possibleTypes{kind name}}",
+			"query BetterPullReviewCapabilityProbeV1Part1{repository:__type(name:\"Repository\"){...FieldType}pullRequest:__type(name:\"PullRequest\"){...FieldType}resolveInput:__type(name:\"ResolveReviewThreadInput\"){...InputType}unresolveInput:__type(name:\"UnresolveReviewThreadInput\"){...InputType}fileViewedState:__type(name:\"FileViewedState\"){...EnumType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}fragment InputType on __Type{kind name inputFields{name defaultValue type{...TypeRef}}}fragment EnumType on __Type{kind name enumValues(includeDeprecated:true){name}}",
+			"query BetterPullReviewCapabilityProbeV1Part2{threadConnection:__type(name:\"PullRequestReviewThreadConnection\"){...FieldType}reviewThread:__type(name:\"PullRequestReviewThread\"){...FieldType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}",
+			"query BetterPullReviewCapabilityProbeV1Part3{commentConnection:__type(name:\"PullRequestReviewCommentConnection\"){...FieldType}reviewComment:__type(name:\"PullRequestReviewComment\"){...FieldType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}",
+			"query BetterPullReviewCapabilityProbeV1Part4{changedFileConnection:__type(name:\"PullRequestChangedFileConnection\"){...FieldType}changedFile:__type(name:\"PullRequestChangedFile\"){...FieldType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}",
+			"query BetterPullReviewCapabilityProbeV1Part5{pageInfo:__type(name:\"PageInfo\"){...FieldType}actor:__type(name:\"Actor\"){...FieldType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}",
+			"query BetterPullReviewCapabilityProbeV1Part6{node:__type(name:\"Node\"){...FieldType}markPayload:__type(name:\"MarkFileAsViewedPayload\"){...FieldType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}",
+			"query BetterPullReviewCapabilityProbeV1Part7{unmarkPayload:__type(name:\"UnmarkFileAsViewedPayload\"){...FieldType}resolvePayload:__type(name:\"ResolveReviewThreadPayload\"){...FieldType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}",
+			"query BetterPullReviewCapabilityProbeV1Part8{unresolvePayload:__type(name:\"UnresolveReviewThreadPayload\"){...FieldType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}",
+		};
+
+		constexpr std::array<std::array<std::string_view, 8>, capability_probe_part_count> part_aliases{ {
+			{ { "schemaRoot", "markInput", "unmarkInput", "threadSubject", "diffSide", "reviewThreadInterfaces", "actorPossibleTypes", "nodePossibleTypes" } },
+			{ { "repository", "pullRequest", "resolveInput", "unresolveInput", "fileViewedState" } },
+			{ { "threadConnection", "reviewThread" } },
+			{ { "commentConnection", "reviewComment" } },
+			{ { "changedFileConnection", "changedFile" } },
+			{ { "pageInfo", "actor" } },
+			{ { "node", "markPayload" } },
+			{ { "unmarkPayload", "resolvePayload" } },
+			{ { "unresolvePayload" } },
+		} };
 
 		constexpr capability_probe_limits hard_limits{ };
-
-		static_assert(
-			inspect_graphql_operation_policy(graphql_document)
-			== graphql_operation_policy_result::query_only);
 
 		constexpr std::array<std::string_view, 26> response_aliases{
 			"schemaRoot",
@@ -138,6 +108,9 @@ namespace bpr::adapters::github::detail {
 					? json_preflight_result::valid
 					: json_preflight_result::malformed;
 			}
+
+		public:
+			[[nodiscard]] auto value_count() const noexcept -> std::size_t { return Values; }
 
 		private:
 			[[nodiscard]] auto value(const std::size_t aDepth) noexcept
@@ -2261,9 +2234,18 @@ namespace bpr::adapters::github::detail {
 			   };
 	}
 
-	auto capability_probe_graphql_document() noexcept -> std::string_view
+	auto capability_probe_graphql_document(const std::uint8_t aPart) noexcept -> std::string_view
 	{
-		return graphql_document;
+		return aPart < graphql_documents.size() ? graphql_documents[aPart] : std::string_view{ };
+	}
+
+	auto capability_probe_part_aliases(const std::uint8_t aPart) noexcept -> std::span<const std::string_view>
+	{
+		if (aPart >= part_aliases.size()) {
+			return { };
+		}
+		const auto& aliases = part_aliases[aPart];
+		return { aliases.begin(), std::find(aliases.begin(), aliases.end(), std::string_view{ }) };
 	}
 
 	auto capability_probe_document_is_query_only(
@@ -2275,10 +2257,14 @@ namespace bpr::adapters::github::detail {
 
 	auto compile_capability_probe_request(
 		const validated_github_host_profile& aProfile,
-		const capability_probe_limits&       aLimits)
+		const capability_probe_limits& aLimits, const std::uint8_t aPart)
 		-> capability_probe_request_result
 	{
-		const auto contract = aProfile.server_contract();
+		const auto contract        = aProfile.server_contract();
+		const auto graphqlDocument = capability_probe_graphql_document(aPart);
+		if (graphqlDocument.empty()) {
+			return std::unexpected{ capability_probe_unavailability::invalid_contract };
+		}
 		if (!application::valid(contract)) {
 			return std::unexpected{
 				capability_probe_unavailability::invalid_contract
@@ -2295,8 +2281,8 @@ namespace bpr::adapters::github::detail {
 				{
 					QStringLiteral("query"),
 					QString::fromUtf8(
-						graphql_document.data(),
-						static_cast<qsizetype>(graphql_document.size())),
+						graphqlDocument.data(),
+						static_cast<qsizetype>(graphqlDocument.size())),
 				},
 			};
 			const auto bytes = QJsonDocument{ payload }.toJson(QJsonDocument::Compact);
@@ -2310,6 +2296,7 @@ namespace bpr::adapters::github::detail {
 			}
 
 			return capability_probe_request{
+				.Part            = aPart,
 				.Profile         = aProfile.profile(),
 				.Host            = aProfile.host(),
 				.ProfileRevision = aProfile.revision(),
@@ -2442,110 +2429,127 @@ namespace bpr::adapters::github::detail {
 		}
 	}
 
-	auto normalize_capability_probe(
-		const capability_probe_transport_result& aResponse,
-		const capability_probe_limits&           aLimits) noexcept
-		-> capability_probe_observation
+	namespace {
+		auto data_unavailable(capability_probe_unavailability aReason, application::github_capability_diagnostic aDetail) -> std::expected<QJsonObject, capability_probe_observation> { return std::unexpected{ unavailable(aReason, aDetail) }; }
+		auto checked_capability_data(const capability_probe_transport_result& aResponse, const capability_probe_limits& aLimits) -> std::expected<QJsonObject, capability_probe_observation>
+		{
+			if (!valid_limits(aLimits)) {
+				return data_unavailable(
+					capability_probe_unavailability::invalid_limits, application::github_capability_diagnostic::normalizer_invalid_limits);
+			}
+			if (!aResponse.has_value()) {
+				const auto reason = aResponse.error();
+				return data_unavailable(
+					!valid(reason)
+							|| reason == capability_probe_unavailability::none
+						? capability_probe_unavailability::malformed_response
+						: reason,
+					application::github_capability_diagnostic::normalizer_transport_unavailable);
+			}
+
+			const auto& value = *aResponse;
+			if (!value.Authenticated) {
+				return data_unavailable(
+					capability_probe_unavailability::authentication, application::github_capability_diagnostic::normalizer_transport_unavailable);
+			}
+			const auto rateLimit = parse_rate_limit_response_facts(value);
+			if (!rateLimit.has_value()) {
+				return data_unavailable(
+					capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::normalizer_rate_metadata);
+			}
+			if (value.Body.size() > aLimits.MaximumResponseBytes) {
+				return data_unavailable(capability_probe_unavailability::response_limit, application::github_capability_diagnostic::normalizer_body_limit);
+			}
+			if (value.Status != 200) {
+				if (value.Status == 403
+					&& (rateLimit->signals_throttling()
+						|| graphql_error_body_rate_limited(value, aLimits))) {
+					return data_unavailable(capability_probe_unavailability::rate_limit, application::github_capability_diagnostic::normalizer_transport_unavailable);
+				}
+				return data_unavailable(status_failure(value.Status), application::github_capability_diagnostic::normalizer_transport_unavailable);
+			}
+			if (!json_content_type(value.ContentType)) {
+				return data_unavailable(
+					capability_probe_unavailability::invalid_content_type, application::github_capability_diagnostic::transport_invalid_content_type);
+			}
+			if (value.Body.empty()) {
+				return data_unavailable(capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::json_shape);
+			}
+
+			try {
+				const auto preflight = json_structural_preflight{ value.Body, aLimits }.run();
+				if (preflight != json_preflight_result::valid) {
+					return data_unavailable(
+						preflight == json_preflight_result::structural_limit
+							? capability_probe_unavailability::response_limit
+							: capability_probe_unavailability::
+								  malformed_response,
+						preflight == json_preflight_result::structural_limit ? application::github_capability_diagnostic::json_limits : application::github_capability_diagnostic::json_shape);
+				}
+
+				QJsonParseError error;
+				const auto      document = QJsonDocument::fromJson(
+					QByteArray{
+						value.Body.data(),
+						static_cast<qsizetype>(value.Body.size()),
+					},
+					&error);
+				if (
+					error.error != QJsonParseError::NoError
+					|| !document.isObject()) {
+					return data_unavailable(
+						capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::json_shape);
+				}
+				const auto envelope = document.object();
+				if (envelope.contains("errors")) {
+					if (
+						rateLimit->signals_throttling()
+						|| graphql_error_rate_limited(
+							envelope.value("errors"))) {
+						return data_unavailable(
+							capability_probe_unavailability::rate_limit, application::github_capability_diagnostic::graphql_errors);
+					}
+					return data_unavailable(
+						capability_probe_unavailability::partial_response, graphql_error_detail(envelope.value("errors")));
+				}
+				if (
+					!envelope.contains("data")
+					|| !envelope.value("data").isObject()) {
+					return data_unavailable(
+						capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_data);
+				}
+				for (auto iterator = envelope.begin();
+					 iterator != envelope.end();
+					 ++iterator) {
+					if (
+						iterator.key() != QStringLiteral("data")
+						&& iterator.key() != QStringLiteral("extensions")) {
+						return data_unavailable(
+							capability_probe_unavailability::
+								malformed_response,
+							application::github_capability_diagnostic::json_shape);
+					}
+				}
+
+				return envelope.value("data").toObject();
+			} catch (const std::bad_alloc&) {
+				return data_unavailable(
+					capability_probe_unavailability::allocation_failure, application::github_capability_diagnostic::normalization_allocation);
+			} catch (...) {
+				return data_unavailable(
+					capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::normalization_unexpected);
+			}
+		}
+	}
+	auto normalize_capability_probe(const capability_probe_transport_result& aResponse, const capability_probe_limits& aLimits) noexcept -> capability_probe_observation
 	{
-		if (!valid_limits(aLimits)) {
-			return unavailable(
-				capability_probe_unavailability::invalid_limits, application::github_capability_diagnostic::normalizer_invalid_limits);
-		}
-		if (!aResponse.has_value()) {
-			const auto reason = aResponse.error();
-			return unavailable(
-				!valid(reason)
-						|| reason == capability_probe_unavailability::none
-					? capability_probe_unavailability::malformed_response
-					: reason,
-				application::github_capability_diagnostic::normalizer_transport_unavailable);
-		}
-
-		const auto& value = *aResponse;
-		if (!value.Authenticated) {
-			return unavailable(
-				capability_probe_unavailability::authentication, application::github_capability_diagnostic::normalizer_transport_unavailable);
-		}
-		const auto rateLimit = parse_rate_limit_response_facts(value);
-		if (!rateLimit.has_value()) {
-			return unavailable(
-				capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::normalizer_rate_metadata);
-		}
-		if (value.Body.size() > aLimits.MaximumResponseBytes) {
-			return unavailable(capability_probe_unavailability::response_limit, application::github_capability_diagnostic::normalizer_body_limit);
-		}
-		if (value.Status != 200) {
-			if (value.Status == 403
-				&& (rateLimit->signals_throttling()
-					|| graphql_error_body_rate_limited(value, aLimits))) {
-				return unavailable(capability_probe_unavailability::rate_limit, application::github_capability_diagnostic::normalizer_transport_unavailable);
-			}
-			return unavailable(status_failure(value.Status), application::github_capability_diagnostic::normalizer_transport_unavailable);
-		}
-		if (!json_content_type(value.ContentType)) {
-			return unavailable(
-				capability_probe_unavailability::invalid_content_type, application::github_capability_diagnostic::transport_invalid_content_type);
-		}
-		if (value.Body.empty()) {
-			return unavailable(capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::json_shape);
-		}
-
 		try {
-			const auto preflight = json_structural_preflight{ value.Body, aLimits }.run();
-			if (preflight != json_preflight_result::valid) {
-				return unavailable(
-					preflight == json_preflight_result::structural_limit
-						? capability_probe_unavailability::response_limit
-						: capability_probe_unavailability::
-							  malformed_response,
-					preflight == json_preflight_result::structural_limit ? application::github_capability_diagnostic::json_limits : application::github_capability_diagnostic::json_shape);
+			const auto checked = checked_capability_data(aResponse, aLimits);
+			if (!checked) {
+				return checked.error();
 			}
+			const auto& data = *checked;
 
-			QJsonParseError error;
-			const auto      document = QJsonDocument::fromJson(
-				QByteArray{
-					value.Body.data(),
-					static_cast<qsizetype>(value.Body.size()),
-				},
-				&error);
-			if (
-				error.error != QJsonParseError::NoError
-				|| !document.isObject()) {
-				return unavailable(
-					capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::json_shape);
-			}
-			const auto envelope = document.object();
-			if (envelope.contains("errors")) {
-				if (
-					rateLimit->signals_throttling()
-					|| graphql_error_rate_limited(
-						envelope.value("errors"))) {
-					return unavailable(
-						capability_probe_unavailability::rate_limit, application::github_capability_diagnostic::graphql_errors);
-				}
-				return unavailable(
-					capability_probe_unavailability::partial_response, graphql_error_detail(envelope.value("errors")));
-			}
-			if (
-				!envelope.contains("data")
-				|| !envelope.value("data").isObject()) {
-				return unavailable(
-					capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_data);
-			}
-			for (auto iterator = envelope.begin();
-				 iterator != envelope.end();
-				 ++iterator) {
-				if (
-					iterator.key() != QStringLiteral("data")
-					&& iterator.key() != QStringLiteral("extensions")) {
-					return unavailable(
-						capability_probe_unavailability::
-							malformed_response,
-						application::github_capability_diagnostic::json_shape);
-				}
-			}
-
-			const auto data = envelope.value("data").toObject();
 			if (!response_has_exact_aliases(data)) {
 				return unavailable(
 					capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_aliases);
@@ -2571,4 +2575,67 @@ namespace bpr::adapters::github::detail {
 				capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::normalization_unexpected);
 		}
 	}
-} // namespace bpr::adapters::github::detail
+	auto capability_probe_batch::append(const capability_probe_response& aResponse, const std::uint8_t aPart) noexcept -> std::expected<void, capability_probe_observation>
+	{
+		const auto refuse = [](capability_probe_unavailability aReason, application::github_capability_diagnostic aDetail) -> std::expected<void, capability_probe_observation> { return std::unexpected{ unavailable(aReason, aDetail) }; };
+		if (Failed || aPart != Parts || Parts >= capability_probe_part_count) {
+			Failed = true;
+			return refuse(capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::provider_correlation);
+		}
+		Failed = true;
+		try {
+			const capability_probe_limits limits;
+			if (aResponse.Body.size() > limits.MaximumResponseBytes - Bytes) {
+				return refuse(capability_probe_unavailability::response_limit, application::github_capability_diagnostic::normalizer_body_limit);
+			}
+			const auto data = checked_capability_data(aResponse, limits);
+			if (!data) {
+				return std::unexpected{ data.error() };
+			}
+			const auto aliases = capability_probe_part_aliases(aPart);
+			if (static_cast<std::size_t>(data->size()) != aliases.size()) {
+				return refuse(capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_aliases);
+			}
+			for (const auto alias : aliases) {
+				if (!data->contains(QString::fromUtf8(alias.data(), static_cast<qsizetype>(alias.size())))) {
+					return refuse(capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_aliases);
+				}
+			}
+			auto preflight = json_structural_preflight{ aResponse.Body, limits };
+			if (preflight.run() != json_preflight_result::valid || preflight.value_count() > limits.MaximumTotalValues - Values) {
+				return refuse(capability_probe_unavailability::response_limit, application::github_capability_diagnostic::json_limits);
+			}
+			auto merged = Parts == 0U ? QJsonObject{ } : QJsonDocument::fromJson(QByteArray::fromStdString(Response.Body)).object().value("data").toObject();
+			for (auto entry = data->begin(); entry != data->end(); ++entry) {
+				if (merged.contains(entry.key())) {
+					return refuse(capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_aliases);
+				}
+				merged.insert(entry.key(), entry.value());
+			}
+			const auto bytes = QJsonDocument{ QJsonObject{ { "data", merged } } }.toJson(QJsonDocument::Compact);
+			if (static_cast<std::size_t>(bytes.size()) > limits.MaximumResponseBytes) {
+				return refuse(capability_probe_unavailability::response_limit, application::github_capability_diagnostic::normalizer_body_limit);
+			}
+			Response      = aResponse;
+			Response.Body = bytes.toStdString();
+			Bytes += aResponse.Body.size();
+			Values += preflight.value_count();
+			++Parts;
+			Failed = false;
+			return { };
+		} catch (...) {
+			return refuse(capability_probe_unavailability::allocation_failure, application::github_capability_diagnostic::normalization_allocation);
+		}
+	}
+	auto capability_probe_batch::finish() const noexcept -> capability_probe_observation
+	{
+		if (Failed || Parts != capability_probe_part_count) {
+			return unavailable(capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_aliases);
+		}
+		try {
+			return normalize_capability_probe(Response);
+		} catch (...) {
+			return unavailable(capability_probe_unavailability::allocation_failure, application::github_capability_diagnostic::normalization_allocation);
+		}
+	}
+}

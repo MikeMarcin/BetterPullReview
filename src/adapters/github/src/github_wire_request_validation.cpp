@@ -111,6 +111,8 @@ namespace bpr::adapters::github::detail {
 			|| correlation.Session.Profile != aProfile.profile()
 			|| correlation.ProfileRevision != aProfile.revision()
 			|| correlation.Host != aProfile.host()
+			|| correlation.Part != aRequest.Wire.Part
+			|| correlation.Part >= capability_probe_part_count
 			|| correlation.ObservedAccount.value() == 0U
 			|| aRequest.Wire.Profile != correlation.Session.Profile
 			|| aRequest.Wire.ProfileRevision != correlation.ProfileRevision
@@ -128,12 +130,12 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
-		const auto canonical = compile_capability_probe_request(aProfile);
+		const auto canonical = compile_capability_probe_request(aProfile, { }, correlation.Part);
 		if (
 			!canonical.has_value()
 			|| aRequest.Wire != *canonical
 			|| !capability_probe_document_is_query_only(
-				capability_probe_graphql_document())) {
+				capability_probe_graphql_document(correlation.Part))) {
 			return std::unexpected{
 				github_wire_request_validation_failure::
 					invalid_wire_request

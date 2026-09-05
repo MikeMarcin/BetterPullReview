@@ -198,7 +198,7 @@ namespace {
 					   == aExpectedPullRequestFields,
 			   "manifest field counts match its independent response");
 		expect(projection.value("query_sha256").toString()
-					   == sha256(capability_probe_graphql_document())
+					   == sha256(read_file(fixture_root().parent_path() / "v2-parts/original-v1-query.graphql"))
 				   && projection.value("response_sha256").toString()
 					   == sha256(body),
 			   "manifest hashes bind the exact query and response bytes");
@@ -467,11 +467,7 @@ namespace {
 			   "probe operation uses the stable query name");
 		expect(capability_probe_document_is_query_only(query),
 			   "probe operation is a query and never a mutation document");
-		expect(
-			sha256(query)
-				== QStringLiteral("62ae9a45c13abe671bf7329ed43260d6"
-								  "59afd52f93e4ddd62809bf73e500e184"),
-			"probe query digest binds the exact diff-side and head-revision selection");
+		expect(query == read_file(fixture_root().parent_path() / "v2-parts/part-0.graphql"), "compiled first part binds the deterministic query fixture");
 		expect(
 			capability_probe_document_is_query_only(
 				R"(query Safe{mutationType{name} probe(value:"mutation"){name}} fragment MutationFields on __Type{name})")
@@ -1884,11 +1880,87 @@ namespace {
 		const auto        selective         = sanitize_capability_error(R"({"errors":[{"message":"Unknown schema field newField abcd%2Befgh%2Fijkl"}]})", std::as_bytes(std::span{ punctuationSecret }));
 		expect(selective.State == application::diagnostic_summary_state::sanitized && selective.text().find("newField") != std::string_view::npos && selective.text().find("abcd") == std::string_view::npos, "selective percent-encoded active credential is removed");
 	}
+	void test_capability_batch_aggregate_bounds()
+	{
+		for (const bool valueLimit : { false, true }) {
+			capability_probe_batch batch;
+			bool                   refused = false;
+			for (std::uint8_t part = 0U; part < 9U; ++part) {
+				auto response = capability_probe_response{ .Status = 200, .Authenticated = true, .ContentType = "application/json", .Body = read_file(fixture_root().parent_path() / "v2-parts" / "github-com" / ("supported-" + std::to_string(part) + ".json")) };
+				if (valueLimit) {
+					auto       envelope = QJsonDocument::fromJson(QByteArray::fromStdString(response.Body)).object();
+					QJsonArray values;
+					for (unsigned index = 0U; index < 900U; ++index) {
+						values.append(0);
+					}
+					QJsonArray groups;
+					for (unsigned index = 0U; index < 10U; ++index) {
+						groups.append(values);
+					}
+					envelope.insert("extensions", groups);
+					response.Body = QJsonDocument{ envelope }.toJson(QJsonDocument::Compact).toStdString();
+				} else {
+					response.Body.append(180000U, ' ');
+				}
+				expect(normalize_capability_probe(response).Unavailability != capability_probe_unavailability::response_limit, "each selected response independently fits existing limits");
+				const auto appended = batch.append(response, part);
+				if (!appended) {
+					expect(appended.error().Unavailability == capability_probe_unavailability::response_limit, "cumulative byte or value budget refuses before promotion");
+					refused = true;
+					break;
+				}
+			}
+			expect(refused && !batch.finish().Complete, "cumulative limits prevent a complete capability result");
+		}
+		auto response = capability_probe_response{ .Status = 200, .Authenticated = true, .ContentType = "application/json", .Body = read_file(fixture_root().parent_path() / "v2-parts" / "github-com" / "supported-0.json") };
+		for (const auto key : { "missing", "unexpected" }) {
+			auto changed  = response;
+			auto envelope = QJsonDocument::fromJson(QByteArray::fromStdString(changed.Body)).object();
+			auto data     = envelope.value("data").toObject();
+			if (std::string_view{ key } == "missing") {
+				data.remove("schemaRoot");
+			} else {
+				data.insert("unexpected", QJsonObject{ });
+			}
+			envelope.insert("data", data);
+			changed.Body = QJsonDocument{ envelope }.toJson(QJsonDocument::Compact).toStdString();
+			capability_probe_batch batch;
+			expect(!batch.append(changed, 0U) && !batch.finish().Complete, "missing or unexpected part aliases refuse without partial facts");
+		}
+	}
+
+	void test_nine_part_capability_plan()
+	{
+		for (const auto host : { "github-com", "ghes-3.18" }) {
+			capability_probe_batch batch;
+			auto                   full     = capability_probe_response{ .Status = 200, .Authenticated = true, .ContentType = "application/json", .Body = read_file(fixture_root() / host / "supported.json") };
+			const auto             expected = normalize_capability_probe(full);
+			std::size_t            aliases  = 0U;
+			for (std::uint8_t part = 0U; part < capability_probe_part_count; ++part) {
+				const auto document = capability_probe_graphql_document(part);
+				expect(capability_probe_document_is_query_only(document), "every canonical part is query-only");
+				expect(document == read_file(fixture_root().parent_path() / "v2-parts" / ("part-" + std::to_string(part) + ".graphql")), "canonical indexed document matches fixture");
+				aliases += capability_probe_part_aliases(part).size();
+				auto response = full;
+				response.Body = read_file(fixture_root().parent_path() / "v2-parts" / host / ("supported-" + std::to_string(part) + ".json"));
+				expect(batch.append(response, part).has_value(), "ordered part merges under unchanged bounds");
+				if (part + 1U < capability_probe_part_count) {
+					expect(!batch.finish().Complete, "partial plan cannot promote capability facts");
+				}
+			}
+			expect(aliases == 26U && batch.finish() == expected && expected.Complete, "merged GitHub/GHES facts equal original selected response");
+			expect(!batch.append(full, 0U), "duplicate or restarted part invalidates batch");
+			expect(!batch.finish().Complete, "failed batch cannot later promote partials");
+		}
+		expect(capability_probe_graphql_document(9U).empty() && capability_probe_part_aliases(9U).empty(), "unknown part has no canonical document");
+	}
 
 } // namespace
 
 int main()
 {
+	test_capability_batch_aggregate_bounds();
+	test_nine_part_capability_plan();
 	test_safe_capability_error_logging();
 	test_closed_capability_refusal_details();
 	test_graphql_error_code_details_do_not_change_refusal();
