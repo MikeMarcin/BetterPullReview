@@ -46,3 +46,7 @@ build for this pending consumer and preserve the owner's existing local log.
 ## Exact v005 approval received
 
 The owner supplied the exact [operator response](../../verification/reviews/device-session-bootstrap-diagnostic-v005/operator-response.md). Packet and executable identities match and no app instance was running. Resume this one approved launch, then collect its sanitized terminal result and explicitly Sign out and quit. No PR or publication is authorized.
+
+## Approved run launched once
+
+After immediate packet/executable revalidation and zero-process checks, the exact approved executable launched at 2026-09-05T09:43:41.983192Z, PID 20562, with no arguments, the specified 24 environment variables removed and stdout/stderr discarded. The existing local log baseline is 4,350 bytes; only subsequent records belong to this observation. The agent will monitor those records for terminal completion, so the operator need not signal completion manually. Continue this existing process only, then explicitly Sign out and quit.
