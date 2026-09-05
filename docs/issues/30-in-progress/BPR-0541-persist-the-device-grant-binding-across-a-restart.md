@@ -1,7 +1,7 @@
 ---
 id: BPR-0541
 title: Persist the device-grant binding across a restart and defer the first refresh
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0540]
 ---
@@ -75,3 +75,35 @@ Sign out action and manual-token replacement erasure. Credential operations,
 live mutations, implementation completion, and RFC closeout remain unclaimed.
 The product-decision blocker is removed; this card returns to the dependency-
 ready backlog while the integrator finishes the claimed BPR-0316 slice.
+
+## Implementation claim and design — 2026-09-04
+
+The validated owner decision is applied after BPR-0558 and BPR-0308 at
+`0b522fb1`. Device grants gain durable exact binding/provenance/lifetime metadata
+in a dedicated SQLite store; token bytes remain solely in the vault. Reuse
+the lazy queue-store pattern and perform load/write/delete on the effect lane,
+with typed serialized completions, cancellation and quiescence. Do not add
+filesystem or SQLite work to core, Qt, or the host decision lane.
+
+Startup restores only the compiled native GitHub.com device profile after
+both GitHub and device hosts exist, then uses `resume_profile` and the existing
+exact `/user` account validation. Missing/corrupt/mismatched/expired stored
+material fails visibly. Stored issuance/expiry facts bridge process lifetimes;
+active deadlines remain monotonic, and backward or expired wall-clock facts
+cannot extend a token. First refresh is deferred from the remaining lifetime;
+only transient failures retry, with a bounded delay inside access validity.
+
+A distinct production shutdown selection retains only accepted device grants.
+Manual enrollment remains session-only, replacing a device grant exact-deletes
+the prior pair/binding, and a visible Sign out dispatches core deactivation
+through the existing ordered access/refresh erasure path. Store/vault failures
+leave a non-resumable diagnostic/tombstone rather than a successful false grant.
+
+Verification will separate durable metadata reopening from fixture vault
+continuity: the composed course must destroy and reconstruct application hosts
+and reopen the store, with runtime-only fake-vault material kept outside disk.
+A separate-process metadata test proves no process-local catalog supplies the
+restart selector. Native-vault cross-process evidence is reported separately;
+no ordinary operator credential or live service is used by this implementation
+slice. A capability-critical review will assess persistence, expiry and erasure
+boundaries after the focused tests pass.
