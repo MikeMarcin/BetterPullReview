@@ -1,0 +1,33 @@
+{
+  "gate": "designated-live-review-publication-v008",
+  "status": "answered; all recorded launch authority consumed; procedure failed",
+  "validated_commit": "ca27082e084324933570a891112d1f502dd983d1",
+  "recorded_at": "2026-09-05T10:36:04.824706+00:00",
+  "validation_scope": "Exact operator-response comparison after Markdown presentation normalization; frozen artifact identities and direct run/cleanup observations. No clean one-launch, approved-build sign-in or publication success is claimed.",
+  "validation_command": "python3 scripts/verify_documentation.py --root .",
+  "reviewed_packet": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v008/operator-packet.md",
+    "sha256": "sha256:2bc3e8699cf3674b25e1c5b0e933e3e59605d0abecc130dfafde99cfec77cdfd",
+    "byte_length": 17237
+  },
+  "operator_response": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v008/operator-response.md",
+    "sha256": "sha256:fdd2ac18d3ddab1970aacaf9238384e8ec11bc1c8550f24688dfe8795fd405e6",
+    "byte_length": 1205
+  },
+  "approval_subject": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v008/approval-subject.txt",
+    "sha256": "sha256:13325d1d31608ec424c6551238bd74241385d2c4b73b20a31026afad233ec981",
+    "byte_length": 1496
+  },
+  "source_manifest": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v008/source-manifest.txt",
+    "sha256": "sha256:7256057388474bc59e3cad76611cf6223684c05fd7b006cfea96539e9fd08b94",
+    "byte_length": 4301
+  },
+  "attended_result": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v008/attended-result.md",
+    "sha256": "sha256:fbfeff782ee70531c95b057ef8d4a1dd583e1bf288491f022c18db3a74c76dbe",
+    "byte_length": 5185
+  }
+}

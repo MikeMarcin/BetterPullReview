@@ -295,3 +295,7 @@ Clean exact critical review is recorded on BPR-0256. The packet now awaits
 its own exact owner response. v006 and v007 stay consumed and
 immutable. No v008 approval, live run, publication or GitHub web observation
 exists; this card's outstanding acceptance remains unchanged.
+
+## v008 consumed; agent UI-targeting failure — 2026-09-05
+
+The [frozen v008 result](../../verification/reviews/designated-live-review-publication-v008/attended-result.md) records an aborted attempt: name-based UI selection launched/controlled an ordinary build alongside the approved mounted app. Device-flow interaction and an in-session device-panel screenshot occurred in that wrong instance; neither is compliant approved-build evidence. No PR was opened or comment submitted. Explicit Sign out and quit completed for both instances; CTest exited 0 in 892.24 seconds and the image detached. This is cleanup success, not publication or one-launch success. The approval is spent and cannot be replayed. Operating instructions now require full mounted-path selection, immediate PID/executable checks before and after binding, prompt device-flow initiation and filtered non-secret observations. No product source defect was established. BPR-0256 will prepare a fresh subject/packet using unchanged artifact evidence and this corrected procedure before any new approval request.

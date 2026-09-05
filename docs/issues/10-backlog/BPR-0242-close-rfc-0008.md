@@ -63,3 +63,7 @@ persistent goal stays active across this checkpoint; the issue board remains
 authoritative. No portable/Mac ready card remains. Next: receive the exact v008
 response, then revalidate and run its single bounded attended course; BPR-0142's
 reply-return, BPR-0143 and BPR-0144 require separate authority and evidence.
+
+## v008 execution disposition — 2026-09-05
+
+The [v008 result](../../verification/reviews/designated-live-review-publication-v008/attended-result.md) records an agent UI-targeting failure: name-based selection launched/controlled an ordinary build alongside the approved mounted app. Wrong-build device-flow interaction and a device-panel capture violated the procedure; no PR or publication occurred. Both instances were explicitly signed out and closed; CTest returned 0 in 892.24 seconds and the image detached. No live acceptance row is discharged. The exact approval is consumed. The static graph, empty approval/mount parents and three temporary run files are removed; the unchanged final producer/image is retained for immediate v009 subject/packet preparation with full-path and PID binding. BPR-0256 remains the next slice; no new product-source repair or repeated fixture matrix is warranted by this execution mistake.

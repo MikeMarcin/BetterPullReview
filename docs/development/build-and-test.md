@@ -2546,6 +2546,24 @@ fields are cleared, then explicitly Sign out. After quitting, verify process
 absence and the shutdown record without calling an app UI handle or getter:
 those inspection calls can relaunch the app, as the BPR-0605 course demonstrated.
 
+Before selecting an attended app UI, identify the launched PID and its exact
+executable path under the approved mount. Select its full `.app` path, never
+its display name or a previously cached ordinary-build handle. Immediately
+check that the same PID/path is still the sole BetterPullReview instance before
+requesting a device code or performing any other action. BPR-0256 v008 showed
+that a name-based getter can launch an ordinary build even while the approved
+mounted build is already running, separating UI observations from the log being
+monitored. A second instance or identity mismatch aborts the course before
+sign-in; explicitly Sign out and close any unintended instance during recovery.
+
+Start the ordinary device-code/browser controls promptly after verified UI
+selection, leaving only browser authorization to the operator. While device
+fields may contain a code, use accessibility observations with emission disabled
+and return only non-secret control/status lines. Do not screenshot that panel.
+Confirm terminal cleared fields and the intended account on the same verified
+instance before proceeding. An apparently connected UI without matching log
+progress calls for process/path correlation, not another sign-in or launch.
+
 The file contains UTC timestamps, application startup/shutdown, GitHub viewer
 and capability outcomes, local request numbers, capability HTTP status and a
 sanitized error summary. Unknown capability error message/type/code prose stays
