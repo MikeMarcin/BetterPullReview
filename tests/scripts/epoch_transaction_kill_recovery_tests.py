@@ -75,12 +75,22 @@ def main() -> int:
                 kill_at_checkpoint(args.executable, f"--kill-transaction-{name}", course)
                 inspect_rollback(course, boundary, with_history)
                 print(f"epoch-transaction-kill:{name}:rollback-pass", flush=True)
+                unowned = list((course / "git").rglob("*.pack.receiving")) if boundary == "receiving" else []
+                preserved = {path: (path.stat().st_dev, path.stat().st_ino) for path in unowned}
+
+                def inspect() -> str:
+                    for path, identity in preserved.items():
+                        current = path.stat()
+                        if (current.st_dev, current.st_ino) != identity:
+                            raise RuntimeError("recovery replaced an unowned receiving file")
+                    return inspect_recovered_state(args.git, course, preserved_empty_spools=frozenset(preserved))
+
                 if "--recover-epoch:pass" not in run(args.executable, "--recover-epoch", course, timeout=30):
                     raise RuntimeError("missing recovered host result")
-                first = inspect_recovered_state(args.git, course)
+                first = inspect()
                 if "--recover-epoch:pass" not in run(args.executable, "--recover-epoch", course, timeout=30):
                     raise RuntimeError("missing repeated recovery result")
-                if inspect_recovered_state(args.git, course) != first:
+                if inspect() != first:
                     raise RuntimeError("another restart changed retained refs")
                 print(f"epoch-transaction-kill:{name}:pass", flush=True)
             except (OSError, RuntimeError, sqlite3.Error, subprocess.SubprocessError) as error:

@@ -1609,6 +1609,28 @@ namespace bpr::adapters::git {
 				return inventory(aStop, aEnforceLimits);
 			}
 
+			[[nodiscard]] auto admit_incoming_file(const std::stop_token aStop) const -> application::git_cache_result<void>
+			{
+				// Includes preserved unowned empties and unrelated entries. Do not
+				// recurse or delete anything to make room; stop at the fixed admission
+				// limit even if the directory is larger than the cache expects.
+				std::error_code error;
+				auto            entry = std::filesystem::directory_iterator(StorageRoot / "incoming" / "v1", error);
+				std::uint32_t   count = 0U;
+				for (; !error && entry != std::filesystem::directory_iterator{ }; entry.increment(error)) {
+					if (aStop.stop_requested()) {
+						return std::unexpected{ application::git_cache_failure::cancelled };
+					}
+					if (++count >= application::maximum_git_cache_pack_count) {
+						return std::unexpected{ application::git_cache_failure::quota_exceeded };
+					}
+				}
+				if (error) {
+					return std::unexpected{ application::git_cache_failure::invalid_repository };
+				}
+				return { };
+			}
+
 			[[nodiscard]] auto process_failure(
 				const application::git_process_error& aError)
 				-> application::git_cache_error
@@ -3054,6 +3076,9 @@ namespace bpr::adapters::git {
 					return std::unexpected{
 						application::git_cache_failure::spool_failure
 					};
+				}
+				if (const auto admitted = State->admit_incoming_file(aStop); !admitted) {
+					return std::unexpected{ admitted.error() };
 				}
 				sink = std::make_unique<pack_sink>(
 					State,
@@ -4736,21 +4761,29 @@ namespace bpr::adapters::git {
 				if (!observed.has_value()) {
 					return std::unexpected{ observed.error() };
 				}
+				const auto preserveUnownedEmpty = observed->Spool == application::git_recovery_match::unowned_empty
+					&& !aRequest.Receiving && !aRequest.Spool && !aRequest.Install
+					&& observed->Refs == application::git_recovery_ref_topology::absent;
 				const auto spoolSafe = observed->Spool == application::git_recovery_match::absent
-					|| observed->Spool == application::git_recovery_match::exact;
+					|| observed->Spool == application::git_recovery_match::exact || preserveUnownedEmpty;
 				const auto stagingSafe = observed->Staging == application::git_recovery_match::absent
 					|| observed->Staging == application::git_recovery_match::exact;
 				const auto expectedPackPreexisting = aRequest.Spool
 					&& aRequest.Spool->ExpectedPackPreexisting;
+				const auto retainUnrecordedInstall = !aRequest.Install && aRequest.Spool
+					&& !expectedPackPreexisting
+					&& observed->Installed == application::git_recovery_match::inventory_only
+					&& observed->Refs == application::git_recovery_ref_topology::absent;
 				const auto installSafe     = aRequest.Install
 					? observed->Installed
 						== application::git_recovery_match::exact
 					: expectedPackPreexisting
 					? observed->Installed
 						== application::git_recovery_match::exact
-					: observed->Installed
-						== application::git_recovery_match::absent;
+					: observed->Installed == application::git_recovery_match::absent
+						|| retainUnrecordedInstall;
 				const auto requiresObjects = observed->Installed == application::git_recovery_match::exact
+					|| retainUnrecordedInstall
 					|| observed->Staging == application::git_recovery_match::exact;
 				const auto objectsSafe = requiresObjects
 					? observed->Objects
@@ -4799,8 +4832,8 @@ namespace bpr::adapters::git {
 				const auto reconciled = inspect_operation_recovery_locked(aRequest, aStop);
 				if (
 					!reconciled.has_value()
-					|| reconciled->Spool
-						!= application::git_recovery_match::absent
+					|| (reconciled->Spool != application::git_recovery_match::absent
+						&& !(preserveUnownedEmpty && reconciled->Spool == application::git_recovery_match::unowned_empty))
 					|| reconciled->Staging
 						!= application::git_recovery_match::absent
 					|| reconciled->Final
@@ -4939,6 +4972,11 @@ namespace bpr::adapters::git {
 					completedSpool.Kind == recovery_file_kind::absent
 					&& receivingSpool.Kind == recovery_file_kind::absent) {
 					result.Spool = git_recovery_match::absent;
+				} else if (!aRequest.Receiving && !aRequest.Spool && !aRequest.Install
+						   && completedSpool.Kind == recovery_file_kind::absent
+						   && receivingSpool.Kind == recovery_file_kind::private_regular
+						   && receivingSpool.Bytes == 0U) {
+					result.Spool = git_recovery_match::unowned_empty;
 				} else if (aRequest.Receiving && !aRequest.Spool) {
 					const auto identity = exact_identity(aRequest.Receiving->Identity);
 					const auto owned    = [&](const recovery_file_observation& aFile) {
@@ -5081,10 +5119,11 @@ namespace bpr::adapters::git {
 										!= inventory->Packs.end();
 								});
 							result.Installed = priorUnchanged
+									&& entry->PackBytes == aRequest.Spool->CompletedSpool.Bytes
 									&& inventory->Packs.size()
 										== aRequest.Spool->PreimportPacks.size()
 											+ 1U
-								? git_recovery_match::ambiguous
+								? git_recovery_match::inventory_only
 								: git_recovery_match::mismatch;
 						}
 					}
@@ -5134,6 +5173,7 @@ namespace bpr::adapters::git {
 					result.Final);
 
 				const auto checkObjects = result.Installed == git_recovery_match::exact
+					|| result.Installed == git_recovery_match::inventory_only
 					|| result.Staging == git_recovery_match::exact
 					|| result.Final == git_recovery_match::exact;
 				if (checkObjects) {

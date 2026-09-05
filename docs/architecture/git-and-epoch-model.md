@@ -838,8 +838,28 @@ cleanup remove the receiving fact with the other recovery inputs.
 When death occurs after receiving ownership is recorded but before a completed
 receipt is journaled, recovery may exact-delete the receiving or completed file
 under that ownership and size limit. It does not import the unrecorded pack.
-A substituted file, an unknown legacy spool, or an empty file left by death
-before ownership persistence remains ambiguous and is not deleted by filename.
+A substituted file or an unknown spool containing payload remains ambiguous
+and is not deleted by filename. An empty, private, regular receiving file with
+no committed receiving/spool/install fact is `unowned_empty`. With no staging
+or final refs, abort leaves that file untouched and abandons the operation;
+it cannot claim ownership, reuse the filename or read payload from it. This
+also preserves an unrelated empty replacement at that name. New spool
+admission scans at most 4096 entries in the shared incoming directory and
+refuses at that count without deleting anything to make space. Every entry
+counts, including unowned leftovers and unrelated entries. This bounds
+admission work and prevents repeated single-writer crashes from accumulating
+unlimited empty files. The normal repository byte/pack/ref limits still apply.
+
+If an installation transaction rolls back, the committed spool receipt may
+still describe a complete preimport inventory plus exactly one newly installed
+pack/index pair. Recovery labels that observation `inventory_only`, distinct
+from journaled file ownership. With no staging or final refs, matching spool
+size, unchanged prior inventory and independently verified accepted object
+closure, operation abort can leave the pack/index intact and exact-clean its
+owned spool. It neither deletes installed files nor publishes an epoch from
+this observation. A subsequent ordinary import accounts for the retained pack
+in its inventory and quotas. Missing pairs, unexpected inventory and a
+substitution against an existing installation identity still refuse recovery.
 
 1. Under the exact cache writer lock, `BEGIN IMMEDIATE` verifies the authority,
    catalog incarnation/revision, and quota; reserves a never-reused ordinal;

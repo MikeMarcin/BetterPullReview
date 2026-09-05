@@ -458,6 +458,15 @@ namespace bpr::application {
 		exact,
 		mismatch,
 		ambiguous,
+		// Installed pack/index only: the durable receipt and complete inventory
+		// agree, but no installed file identities committed. This permits retaining
+		// the pack during an abort with no refs; it is never deletion or publication
+		// authority and still requires independent object-closure validation.
+		inventory_only,
+		// Spool only: an empty private receiving file with no committed ownership
+		// or payload receipt. Abort may preserve it when no operation refs exist.
+		// It must never be opened for payload, reused or deleted as owned residue.
+		unowned_empty,
 	};
 
 	enum class git_recovery_object_match : std::uint8_t {

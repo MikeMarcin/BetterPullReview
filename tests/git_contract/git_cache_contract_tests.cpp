@@ -1146,6 +1146,41 @@ namespace {
 						&& !std::filesystem::exists(spool)
 						&& (*opened)->abort_recovered_operation(recovery, { }).has_value(),
 					"restored exact ownership permits idempotent cleanup after reopen");
+			if (!completed) {
+				auto unowned = recovery;
+				unowned.Receiving.reset();
+				write_file(spool, "");
+				const auto empty = (*opened)->inspect_operation_recovery(unowned, { });
+				require(empty && empty->Spool == application::git_recovery_match::unowned_empty
+							&& (*opened)->abort_recovered_operation(unowned, { })
+							&& (*opened)->abort_recovered_operation(unowned, { })
+							&& std::filesystem::exists(spool) && std::filesystem::file_size(spool) == 0U
+							&& !(*opened)->create_pack_sink(operation, sha1_pack.size(), { }),
+						"unowned empty receiving file is preserved on abort and cannot be reused");
+				require(!(*opened)->abort_recovered_operation(recovery, { }) && std::filesystem::exists(spool),
+						"an empty substitute does not override committed ownership");
+				write_file(spool, "unowned payload");
+				require(!(*opened)->abort_recovered_operation(unowned, { })
+							&& std::filesystem::file_size(spool) == std::string_view{ "unowned payload" }.size(),
+						"unowned receiving payload remains ambiguous and untouched");
+				std::filesystem::remove(spool);
+
+				const auto incoming = aRoot / "incoming" / "v1";
+				for (std::uint32_t index = 0U; index < application::maximum_git_cache_pack_count; ++index) {
+					write_file(incoming / ("quota-canary-" + std::to_string(index)), "");
+				}
+				const auto limitedOperation = identity<core::epoch_operation_id>(0xefU);
+				const auto limited          = (*opened)->create_pack_sink(limitedOperation, sha1_pack.size(), { });
+				require(!limited && limited.error() == application::git_cache_failure::quota_exceeded,
+						"incoming entry budget refuses admission without deleting unknown files");
+				for (std::uint32_t index = 0U; index < application::maximum_git_cache_pack_count; ++index) {
+					const auto canary = incoming / ("quota-canary-" + std::to_string(index));
+					require(std::filesystem::file_size(canary) == 0U && std::filesystem::remove(canary), "quota refusal preserves each unrelated entry");
+				}
+				auto admitted = (*opened)->create_pack_sink(limitedOperation, sha1_pack.size(), { });
+				require(admitted.has_value(), "admission recovers after fixture removes its own quota canaries");
+				admitted->reset();
+			}
 			opened->reset();
 			const auto deletion = application::git_cache_delete_authorization{
 				.ApplicationSession = cacheRequest.ApplicationSession,
@@ -2807,6 +2842,15 @@ namespace {
 				&& liveRecovery->Refs
 					== application::git_recovery_ref_topology::staging,
 			"live recovery inspection agrees with exact staged durable facts");
+		auto unrecordedStaging = recoveryRequest;
+		unrecordedStaging.Install.reset();
+		const auto unrecordedStagingObservation = (*primary)->inspect_operation_recovery(unrecordedStaging, { });
+		const auto unrecordedStagingAbort       = (*primary)->abort_recovered_operation(unrecordedStaging, { });
+		require(unrecordedStagingObservation
+					&& unrecordedStagingObservation->Installed == application::git_recovery_match::inventory_only
+					&& !unrecordedStagingAbort
+					&& unrecordedStagingAbort.error() == application::git_cache_failure::repair_required,
+				"inventory-only installation cannot authorize removal of staged refs");
 		auto recoveryCancel = std::stop_source{ };
 		recoveryCancel.request_stop();
 		const auto cancelledRecovery = (*primary)->inspect_operation_recovery(
@@ -3523,6 +3567,30 @@ namespace {
 		primary->reset();
 		primary = (*cache)->open(primaryRequest, { });
 		require(primary.has_value(), "reopen for exact durable spool abort");
+		// Model an installation whose identity transaction rolled back. Its
+		// durable preimport inventory excludes the expected pack, while the real
+		// cache contains that pack plus every prior entry. Abort may retain it,
+		// but must not promote inventory agreement into file deletion authority.
+		auto unrecordedInstall                           = abandonedRecovery;
+		unrecordedInstall.Spool->ExpectedPackPreexisting = false;
+		std::erase_if(unrecordedInstall.Spool->PreimportPacks, [&](const auto& aPack) {
+			return aPack.Pack == unrecordedInstall.Spool->ExpectedPack;
+		});
+		const auto unrecordedObservation = (*primary)->inspect_operation_recovery(unrecordedInstall, { });
+		require(application::valid(unrecordedInstall) && unrecordedObservation
+					&& unrecordedObservation->Installed == application::git_recovery_match::inventory_only
+					&& unrecordedObservation->Objects == application::git_recovery_object_match::exact,
+				"unjournaled installed pack has inventory evidence without exact ownership");
+		auto unrelatedInventory = unrecordedInstall;
+		unrelatedInventory.Spool->PreimportPacks.clear();
+		require(!(*primary)->abort_recovered_operation(unrelatedInventory, { })
+					&& std::filesystem::exists(abandonedPath),
+				"an unrelated installed pack still prevents inventory-only abort");
+		const auto retainedIndexBytes = read_file(installedIndexPath);
+		require((*primary)->abort_recovered_operation(unrecordedInstall, { })
+					&& (*primary)->abort_recovered_operation(unrecordedInstall, { })
+					&& read_file(installedIndexPath) == retainedIndexBytes,
+				"inventory-only abort exact-cleans the spool and preserves installed files on replay");
 		const auto aborted = (*primary)->abort_recovered_operation(
 			abandonedRecovery,
 			{ });

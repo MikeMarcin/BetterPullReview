@@ -18,7 +18,7 @@ from process_kill_support import kill_at_checkpoint, run  # noqa: E402
 COMMIT = "826bb464b84352d60b3d7c56481a599a838d998d"
 
 
-def inspect_recovered_state(git: Path, root: Path) -> str:
+def inspect_recovered_state(git: Path, root: Path, *, preserved_empty_spools: frozenset[Path] = frozenset()) -> str:
     repositories = list((root / "git/repositories/v1").glob("*.git"))
     if len(repositories) != 1:
         raise RuntimeError("recovery did not retain one Git repository")
@@ -43,7 +43,10 @@ def inspect_recovered_state(git: Path, root: Path) -> str:
     rows = refs.splitlines()
     if len(rows) != 2 or any(not row.endswith(f" {COMMIT}") for row in rows):
         raise RuntimeError("recovery refs do not contain one exact base/head pair")
-    if any(path.is_file() and (path.name.endswith(".pack.receiving") or
+    for path in preserved_empty_spools:
+        if not path.is_file() or path.stat().st_size != 0:
+            raise RuntimeError("recovery changed a preserved unowned empty spool")
+    if any(path not in preserved_empty_spools and path.is_file() and (path.name.endswith(".pack.receiving") or
                               path.name.endswith(".pack.part"))
            for path in (root / "git").rglob("*")):
         raise RuntimeError("recovery left an unfinished pack spool")
