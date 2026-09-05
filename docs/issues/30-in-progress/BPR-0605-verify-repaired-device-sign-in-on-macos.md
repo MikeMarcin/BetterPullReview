@@ -1,10 +1,9 @@
 ---
 id: BPR-0605
 title: Verify repaired device sign-in on macOS
-status: Parked
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0559]
-parked_on: awaiting-owner-verdict
 ---
 
 # Verify repaired device sign-in on macOS
@@ -43,3 +42,7 @@ Reuse BPR-0559's passing source/fixture/build evidence: inputs have not changed.
 Documentation structure and its 62 tests pass; diff hygiene passes. No new
 worktree, build root or inspection log was created. Retain the ordinary Release
 build for this pending consumer and preserve the owner's existing local log.
+
+## Exact v005 approval received
+
+The owner supplied the exact [operator response](../../verification/reviews/device-session-bootstrap-diagnostic-v005/operator-response.md). Packet and executable identities match and no app instance was running. Resume this one approved launch, then collect its sanitized terminal result and explicitly Sign out and quit. No PR or publication is authorized.
