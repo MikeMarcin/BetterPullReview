@@ -4,7 +4,9 @@ from __future__ import annotations
 import argparse
 import base64
 from dataclasses import dataclass, field
+import hashlib
 import hmac
+import json
 import os
 from pathlib import Path
 import secrets
@@ -24,15 +26,21 @@ from scripts.contained_temporary_support import contained_temporary_directory  #
 
 AUTHORITY = "ghe.bpr.invalid:443"
 HOST = "ghe.bpr.invalid"
-# RFC-BPR-0017 admits anonymous reads on GitHub.com alone, so its courses run
-# against that authority rather than the GHES one every other course uses. One
-# disposable leaf certificate covers both names.
+# Anonymous reads and the supported capability normalization course use the
+# GitHub.com authority. The other courses use GHES. One disposable leaf
+# certificate covers both names.
 GITHUB_AUTHORITY = "api.github.com:443"
 GITHUB_HOST = "api.github.com"
 ANONYMOUS_REST_PATH = "/repos/octo-org/review-repository"
 REST_PATH = "/api/v3/user"
 REDIRECTED_REST_PATH = "/api/v3/user/redirected"
 GRAPHQL_PATH = "/api/graphql"
+# Same canonical query digest as the capability compiler contract/fixture manifest.
+CAPABILITY_QUERY_SHA256 = "62ae9a45c13abe671bf7329ed43260d659afd52f93e4ddd62809bf73e500e184"
+CAPABILITY_RESPONSE = (
+    Path(__file__).resolve().parents[1]
+    / "fixtures/github/capabilities/v1/github-com/supported.json"
+)
 MUTATION_PATH = "/api/v3/repos/octo-org/review-repository/pulls/17/comments"
 
 CONNECT_HEADER_LIMIT = 16 * 1024
@@ -77,6 +85,7 @@ SCENARIOS = (
     "invalid-link",
     "graphql-link",
     "capability-success",
+    "capability-metadata",
     "capability-redirect",
     "capability-403-rate",
     "capability-429",
@@ -110,7 +119,7 @@ SUITE_LABELS = {
 def scenario_host(scenario: str) -> str:
     return (
         GITHUB_HOST
-        if scenario in ANONYMOUS_READ_SCENARIOS
+        if scenario in ANONYMOUS_READ_SCENARIOS or scenario == "capability-success"
         else HOST
     )
 
@@ -118,7 +127,7 @@ def scenario_host(scenario: str) -> str:
 def scenario_authority(scenario: str) -> str:
     return (
         GITHUB_AUTHORITY
-        if scenario in ANONYMOUS_READ_SCENARIOS
+        if scenario in ANONYMOUS_READ_SCENARIOS or scenario == "capability-success"
         else AUTHORITY
     )
 
@@ -251,6 +260,7 @@ class OriginRequest:
     target: str
     headers: dict[str, list[bytes]]
     body_size: int
+    exact_capability_body: bool
 
 
 def executable_path(value: str | None, fallback: str | None) -> Path:
@@ -470,6 +480,22 @@ def one_header(
     return values[0]
 
 
+def exact_capability_body(body: bytearray) -> bool:
+    try:
+        payload = json.loads(body)
+        return (
+            isinstance(payload, dict)
+            and set(payload) == {"query"}
+            and isinstance(payload["query"], str)
+            and hashlib.sha256(payload["query"].encode("utf-8")).hexdigest()
+            == CAPABILITY_QUERY_SHA256
+            and json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+            == body
+        )
+    except (ValueError, UnicodeError):
+        return False
+
+
 def read_origin_request(
     connection: ssl.SSLSocket,
 ) -> OriginRequest:
@@ -521,6 +547,7 @@ def read_origin_request(
             raise ProbeFailure("origin-body-truncated")
         received_body.extend(block)
     body_size = len(received_body)
+    capability_body_matches = exact_capability_body(received_body)
     wipe_mutable_bytes(received_body)
 
     return OriginRequest(
@@ -528,6 +555,7 @@ def read_origin_request(
         target=target,
         headers=headers,
         body_size=body_size,
+        exact_capability_body=capability_body_matches,
     )
 
 
@@ -813,13 +841,14 @@ class LoopbackConnectTlsFixture:
             "graphql-link",
             "graphql-403-rate",
             "capability-success",
+            "capability-metadata",
             "capability-redirect",
             "capability-403-rate",
             "capability-429",
         }:
             if (
                 request.method != "POST"
-                or request.target != GRAPHQL_PATH
+                or request.target != ("/graphql" if self.scenario == "capability-success" else GRAPHQL_PATH)
                 or request.body_size == 0
             ):
                 self.observation.violate("graphql-request")
@@ -828,6 +857,11 @@ class LoopbackConnectTlsFixture:
                 != b"application/json"
             ):
                 self.observation.violate("graphql-content-type")
+            if self.scenario == "capability-success" and (
+                not request.exact_capability_body
+                or one_header(request.headers, "content-encoding") is not None
+            ):
+                self.observation.violate("capability-exact-request-body")
         else:
             allowed_targets = {REST_PATH}
             if self.scenario == "same-redirect":
@@ -1124,19 +1158,19 @@ class LoopbackConnectTlsFixture:
                 )
             )
             return
-        if self.scenario == "capability-success":
+        if self.scenario in {"capability-success", "capability-metadata"}:
             connection.sendall(
                 response_bytes(
                     200,
                     "OK",
-                    b"{}",
+                    CAPABILITY_RESPONSE.read_bytes()
+                    if self.scenario == "capability-success" else b"{}",
                     (
                         ("X-RateLimit-Limit", "60"),
                         ("X-RateLimit-Remaining", "42"),
                         ("X-RateLimit-Reset", "1999999999"),
                         ("X-RateLimit-Resource", "graphql"),
-                        ("Retry-After", "7"),
-                    ),
+                    ) + (() if self.scenario == "capability-success" else (("Retry-After", "7"),)),
                     content_type="Application/JSON; Charset=UTF-8",
                 )
             )
@@ -1289,11 +1323,12 @@ class LoopbackConnectTlsFixture:
             "graphql-link",
             "graphql-403-rate",
             "capability-success",
+            "capability-metadata",
             "capability-redirect",
             "capability-403-rate",
             "capability-429",
         }:
-            if targets != (GRAPHQL_PATH,):
+            if targets != (("/graphql" if self.scenario == "capability-success" else GRAPHQL_PATH),):
                 raise ProbeFailure("graphql-redirect-target")
         elif targets != (REST_PATH,):
             raise ProbeFailure(f"{self.scenario}-target")

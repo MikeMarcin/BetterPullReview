@@ -89,3 +89,11 @@ The owner reported no visible app. The process exited with code 0 and native app
 ## Capability discovery failure observed and cleaned up
 
 The owner authorized one reopen with “try again”. The [retry result](../../verification/reviews/device-session-bootstrap-diagnostic-v001/retry-authorization-and-result.md) records matching owner/UI evidence that capability discovery failed. Copy message and explicit Sign out were exercised; terminal disconnected UI and normal exit 0 were observed. No PR opened or publication attempted. This card resumes bounded offline diagnosis of capability transport/normalization; the precise refusing contract remains unknown.
+
+## Native transport plus schema normalization discriminator
+
+The existing HTTPS fixture previously returned only `{}` and Retry-After metadata for capability success; it did not normalize a usable schema. The new capability-success course sends the exact compiled query to a credential-free TLS loopback GitHub.com authority, validates canonical query/body and request headers, returns the existing supported public-schema fixture with the complete GraphQL rate tuple, and passes the native reply into production normalization. All four capabilities are supported and all schema facts match. The prior five-header passthrough case remains as capability-metadata.
+
+The existing native target build, changed-TU strict tidy, formatting, Python compilation and diff hygiene pass. Worker selected checks passed 3/3 in 13.67 seconds; integrator reproduction of `ctest --test-dir build/dev --output-on-failure -R '^(native_https_transport_contract|native_https_transport_fixture|github_capability_probe)$'` passed 3/3 in 13.14 seconds. Full final two-file diff and code simplification were reviewed. Loopback certificates/proxies were cleaned by the fixture; consumed native-check temporary logs were removed. Existing build roots remain reused.
+
+This closes an offline coverage gap; it does not reproduce the live refusal or prove provider/session acceptance. Next bounded work must expose the fixed refusal category within capability discovery (transport metadata, GraphQL envelope/schema, provider correlation, or host cache/acceptance) without raw provider text, secret logging, relaxed validation, changed retry behavior or another live launch. The root-repair acceptance remains open.

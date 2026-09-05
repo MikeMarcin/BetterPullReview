@@ -917,6 +917,7 @@ namespace {
 		invalid_link,
 		graphql_link,
 		capability_success,
+		capability_metadata,
 		capability_redirect,
 		capability_403_rate,
 		capability_429,
@@ -1030,6 +1031,9 @@ namespace {
 		if (aValue == "graphql-link") {
 			return fixture_scenario::graphql_link;
 		}
+		if (aValue == "capability-metadata") {
+			return fixture_scenario::capability_metadata;
+		}
 		if (aValue == "capability-success") {
 			return fixture_scenario::capability_success;
 		}
@@ -1117,6 +1121,8 @@ namespace {
 			return "invalid-link";
 		case fixture_scenario::graphql_link:
 			return "graphql-link";
+		case fixture_scenario::capability_metadata:
+			return "capability-metadata";
 		case fixture_scenario::capability_success:
 			return "capability-success";
 		case fixture_scenario::capability_redirect:
@@ -1499,6 +1505,7 @@ namespace {
 						 application::github_provider_failure::malformed_response);
 			return;
 		case fixture_scenario::capability_success:
+		case fixture_scenario::capability_metadata:
 		case fixture_scenario::capability_redirect:
 		case fixture_scenario::capability_403_rate:
 		case fixture_scenario::capability_429:
@@ -1538,7 +1545,7 @@ namespace {
 		}
 
 		const auto* success                  = std::get_if<github_capability_probe_wire_success>(&aCompletion);
-		const auto  expectedRateLimitHeaders = std::array<capability_probe_header, 5U>{
+		auto        expectedRateLimitHeaders = std::array<capability_probe_header, 5U>{
 			capability_probe_header{
 				.Name  = "X-RateLimit-Limit",
 				.Value = "60",
@@ -1555,14 +1562,40 @@ namespace {
 				.Name  = "X-RateLimit-Resource",
 				.Value = "graphql",
 			},
-			capability_probe_header{
-				.Name  = "Retry-After",
-				.Value = "7",
-			},
+			capability_probe_header{ },
 		};
+		if (aScenario == fixture_scenario::capability_metadata) {
+			expectedRateLimitHeaders.back() = capability_probe_header{
+				.Name = "Retry-After", .Value = "7"
+			};
+			expect(success != nullptr && success->Correlation == aCorrelation
+					   && success->Response.Status == 200 && success->Response.Authenticated
+					   && success->Response.ContentType == "Application/JSON; Charset=UTF-8"
+					   && success->Response.Body == "{}"
+					   && success->Response.RateLimitHeaderCount == 5U
+					   && success->Response.RateLimitHeaders == expectedRateLimitHeaders,
+				   "capability-fixture-five-header-metadata");
+			return;
+		}
 		expect(
-			success != nullptr && success->Correlation == aCorrelation && success->Response.Status == 200 && success->Response.Authenticated && success->Response.ContentType == "Application/JSON; Charset=UTF-8" && success->Response.Body == "{}" && success->Response.RateLimitHeaderCount == 5U && success->Response.RateLimitHeaders == expectedRateLimitHeaders,
+			success != nullptr && success->Correlation == aCorrelation && success->Response.Status == 200 && success->Response.Authenticated && success->Response.ContentType == "Application/JSON; Charset=UTF-8" && !success->Response.Body.empty() && success->Response.RateLimitHeaderCount == 4U && success->Response.RateLimitHeaders == expectedRateLimitHeaders,
 			"capability-fixture-success");
+		const auto observation = normalize_capability_probe(
+			capability_probe_transport_result{ success->Response });
+		expect(observation.Complete
+				   && observation.Unavailability == capability_probe_unavailability::none
+				   && valid(observation)
+				   && observation.Capabilities == core::github_capabilities{
+						  .ReviewThreads       = core::github_capability_state::supported,
+						  .ViewedFileMutations = core::github_capability_state::supported,
+						  .ResolveThread       = core::github_capability_state::supported,
+						  .UnresolveThread     = core::github_capability_state::supported,
+					  },
+			   "capability-native-response-normalizes-supported-schema");
+		expect(std::ranges::all_of(observation.Facts, [](const auto aFact) {
+				   return aFact == capability_schema_fact_state::matched;
+			   }),
+			   "capability-native-response-matches-all-schema-facts");
 	}
 
 	void run_fixture(const fixture_scenario aScenario,
@@ -1585,8 +1618,10 @@ namespace {
 		}
 		expect(!authorityCertificate.empty(), "fixture-authority-empty");
 
-		const auto profile = validate_github_host_profile(profile_candidate(
-			application::github_authentication_transport::native_https));
+		const auto profile = validate_github_host_profile(
+			aScenario == fixture_scenario::capability_success
+				? github_com_profile_candidate()
+				: profile_candidate(application::github_authentication_transport::native_https));
 		expect(profile.has_value(), "fixture-profile");
 
 		auto configuration = native_https_test_configuration{
@@ -1690,6 +1725,7 @@ namespace {
 			return;
 		}
 		if (aScenario == fixture_scenario::capability_success
+			|| aScenario == fixture_scenario::capability_metadata
 			|| aScenario == fixture_scenario::capability_redirect
 			|| aScenario == fixture_scenario::capability_403_rate
 			|| aScenario == fixture_scenario::capability_429) {
