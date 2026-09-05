@@ -281,3 +281,8 @@ passed in 49.56 seconds and live remembered-sign-in, exact history and rendered
 source diff succeeded. Current next slice is BPR-0256's fresh publication capsule
 under standing owner authority, preserving sign-in on quit. Publication itself
 remains unobserved; the live acceptance rows remain incomplete.
+
+Current next slice: [[BPR-0609]], exposing Publish/Discard as real controls.
+The source action existed without a user-accessible button/menu, discovered
+before v010 was materialized or launched. BPR-0256 is queued behind this repair;
+no further user approval is requested for equivalent continuation.

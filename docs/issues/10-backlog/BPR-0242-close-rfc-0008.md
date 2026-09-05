@@ -113,3 +113,8 @@ a fresh rebuilt one-use candidate after the proven BPR-0608 history fix.
 Standing owner authorization supplies continuation without another question;
 remembered sign-in is preserved on quit. Exact prelaunch review remains pending;
 no publication result or human acceptance is claimed. Earlier packets stay frozen.
+
+Current next slice: [[BPR-0609]], exposing Publish/Discard as real controls.
+The source action existed without a user-accessible button/menu, discovered
+before v010 was materialized or launched. BPR-0256 is queued behind this repair;
+no further user approval is requested for equivalent continuation.
