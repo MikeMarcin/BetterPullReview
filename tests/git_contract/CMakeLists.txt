@@ -157,6 +157,17 @@ set_tests_properties(
         TIMEOUT 90
 )
 
+bpr_add_network_isolated_test(
+    NAME epoch_kill_recovery
+    WINDOWS_UNCONTAINED
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/epoch_kill_recovery_tests.py"
+        --executable "$<TARGET_FILE:test_better_pull_review_epoch_maintenance_integration_tests>"
+        --git "$<TARGET_FILE:Git::Git>"
+)
+set_tests_properties(epoch_kill_recovery PROPERTIES TIMEOUT 180)
+
 if(WIN32)
     # Both contracts launch this executable again as their fake Git, through
     # the adapter's own environment, whose PATH is the executable's directory

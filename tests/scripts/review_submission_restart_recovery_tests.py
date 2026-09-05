@@ -5,72 +5,15 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-import os
-import signal
 import sqlite3
-import subprocess
 import sys
-import time
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
-def run(executable: Path, phase: str, root: Path) -> str:
-    completed = subprocess.run(
-        [str(executable), phase, str(root)],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=15,
-    )
-    if completed.returncode != 0:
-        raise RuntimeError(
-            f"{phase} failed ({completed.returncode}):\n"
-            f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
-        )
-    return completed.stdout
-
-
-def kill_at_checkpoint(executable: Path, phase: str, root: Path) -> None:
-    with subprocess.Popen(
-        [str(executable), phase, str(root)],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    ) as process:
-        try:
-            deadline = time.monotonic() + 15
-            marker = root / "kill-ready"
-            while not marker.exists() or marker.read_text() != phase:
-                if process.poll() is not None:
-                    stdout, stderr = process.communicate(timeout=5)
-                    raise RuntimeError(
-                        f"{phase} exited before checkpoint ({process.returncode}):\n"
-                        f"{stdout}\n{stderr}"
-                    )
-                if time.monotonic() >= deadline:
-                    raise RuntimeError(f"{phase} did not reach checkpoint")
-                time.sleep(0.01)
-            if process.poll() is not None:
-                raise RuntimeError(f"{phase} exited instead of waiting to be killed")
-            # kill() uses SIGKILL on POSIX and TerminateProcess on Windows;
-            # stdin remains open until after death, so the C++ scope cannot exit.
-            process.kill()
-            process.wait(timeout=5)
-            stdout, stderr = process.communicate(timeout=5)
-            expected = -signal.SIGKILL if os.name == "posix" else 1
-            if process.returncode != expected:
-                raise RuntimeError(
-                    f"{phase} was not forcibly killed ({process.returncode}):\n"
-                    f"{stdout}\n{stderr}"
-                )
-        finally:
-            if process.poll() is None:
-                process.kill()
-                process.wait(timeout=5)
+from process_kill_support import kill_at_checkpoint, run  # noqa: E402
 
 
 def verify_killed_recovery(executable: Path, root: Path) -> None:

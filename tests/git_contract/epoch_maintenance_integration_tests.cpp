@@ -1,6 +1,7 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "windows_system_root.hpp"
 
@@ -14,6 +15,7 @@
 #include <cstdlib>
 #include <deque>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -338,8 +340,9 @@ namespace {
 	class fixture_transport final : public application::git_smart_transport_port
 	{
 	public:
-		explicit fixture_transport(application::git_smart_request_context aContext)
+		explicit fixture_transport(application::git_smart_request_context aContext, std::function<void()> aDuringFetch = { })
 			: Context{ std::move(aContext) }
+			, DuringFetch{ std::move(aDuringFetch) }
 		{
 		}
 
@@ -404,6 +407,17 @@ namespace {
 					.Failure = application::git_smart_transport_failure::cancelled,
 				} };
 			}
+			if (DuringFetch) {
+				auto                   partial = packet("packfile\n");
+				std::vector<std::byte> chunk{ static_cast<std::byte>(1U) };
+				for (std::size_t index = 0; index < pack_bytes.size() / 2U; ++index) {
+					chunk.push_back(static_cast<std::byte>(pack_bytes[index]));
+				}
+				append(partial, packet(chunk));
+				require(aConsumer.consume(partial), "partial pack reaches production spool consumer");
+				DuringFetch();
+				require(false, "partial-fetch checkpoint must kill the process");
+			}
 			std::vector<std::byte> payload;
 			payload.reserve(pack_bytes.size() + 1U);
 			payload.push_back(static_cast<std::byte>(1U));
@@ -423,14 +437,16 @@ namespace {
 
 	private:
 		application::git_smart_request_context Context;
+		std::function<void()>                  DuringFetch;
 		bool                                   Revoked = false;
 	};
 
 	class fixture_authority final : public application::git_smart_authority_lease
 	{
 	public:
-		explicit fixture_authority(application::git_smart_authority_binding aBinding)
+		explicit fixture_authority(application::git_smart_authority_binding aBinding, std::function<void()> aDuringFetch = { })
 			: Binding{ std::move(aBinding) }
+			, DuringFetch{ std::move(aDuringFetch) }
 		{
 		}
 
@@ -450,7 +466,7 @@ namespace {
 					.Failure = application::git_smart_transport_failure::cancelled,
 				} };
 			}
-			return std::make_shared<fixture_transport>(aContext);
+			return std::make_shared<fixture_transport>(aContext, DuringFetch);
 		}
 
 		void revoke() noexcept override { Revoked = true; }
@@ -462,6 +478,7 @@ namespace {
 
 	private:
 		application::git_smart_authority_binding Binding;
+		std::function<void()>                    DuringFetch;
 		bool                                     Revoked = false;
 	};
 
@@ -523,21 +540,22 @@ namespace {
 		void publish(const application::epoch_presentation_update& aUpdate) override
 		{
 			Updates.push_back(aUpdate);
+			if (AfterPublish) {
+				AfterPublish(aUpdate);
+			}
 		}
 
-		std::vector<application::epoch_presentation_update> Updates;
+		std::vector<application::epoch_presentation_update>                Updates;
+		std::function<void(const application::epoch_presentation_update&)> AfterPublish;
 	};
 
 	class temporary_root final
 	{
 	public:
-		explicit temporary_root(const std::string_view aLabel)
+		explicit temporary_root(const std::string_view aLabel, std::optional<std::filesystem::path> aExisting = { })
+			: Owned{ !aExisting }
 		{
-			Path = std::filesystem::temp_directory_path()
-				/ (std::string{ "bpr-maintenance-" } + std::string{ aLabel } + "-"
-				   + std::to_string(std::chrono::steady_clock::now()
-										.time_since_epoch()
-										.count()));
+			Path = aExisting ? *aExisting : std::filesystem::temp_directory_path() / (std::string{ "bpr-maintenance-" } + std::string{ aLabel } + "-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 			std::filesystem::create_directories(Path / "git");
 			std::filesystem::create_directories(Path / "catalog");
 			std::filesystem::permissions(Path,
@@ -559,16 +577,19 @@ namespace {
 		~temporary_root()
 		{
 			std::error_code error;
-			std::filesystem::remove_all(Path, error);
+			if (Owned) {
+				std::filesystem::remove_all(Path, error);
+			}
 		}
 
 		temporary_root(const temporary_root&)                    = delete;
 		auto operator=(const temporary_root&) -> temporary_root& = delete;
 
 		std::filesystem::path Path;
+		bool                  Owned;
 	};
 
-	[[nodiscard]] auto make_handoff() -> application::accepted_pull_request_handoff
+	[[nodiscard]] auto make_handoff(std::function<void()> aDuringFetch = { }) -> application::accepted_pull_request_handoff
 	{
 		const auto commit  = core::parse_git_commit_oid(commit_hex);
 		const auto baseRef = application::parse_git_base_branch_ref("refs/heads/main");
@@ -598,7 +619,7 @@ namespace {
 			.Head                  = *commit,
 		};
 		handoff.SmartGit = std::make_unique<fixture_authority>(
-			application::authority_binding(handoff));
+			application::authority_binding(handoff), std::move(aDuringFetch));
 		require(application::valid(handoff), "fixture handoff is valid");
 		return handoff;
 	}
@@ -621,8 +642,8 @@ namespace {
 
 	struct real_fixture final
 	{
-		explicit real_fixture(const std::string_view aLabel)
-			: Root{ aLabel }
+		explicit real_fixture(const std::string_view aLabel, std::optional<std::filesystem::path> aExisting = { }, std::shared_ptr<application::diagnostic_log_port> aDiagnostics = { })
+			: Root{ aLabel, std::move(aExisting) }
 		{
 			auto madeCache   = git_adapter::make_installed_git_cache({
 				.GitExecutable     = std::filesystem::canonical(BPR_TEST_GIT_EXECUTABLE),
@@ -646,7 +667,7 @@ namespace {
 				Clock,
 				Effects,
 				Decisions,
-				Projection);
+				Projection, application::epoch_host_limits{ }, std::move(aDiagnostics));
 		}
 
 		void drain()
@@ -663,9 +684,9 @@ namespace {
 			}
 		}
 
-		void start()
+		void start(std::function<void()> aDuringFetch = { })
 		{
-			Host->accept(make_handoff());
+			Host->accept(make_handoff(std::move(aDuringFetch)));
 			drain();
 			require(Host->state().Catalog.has_value()
 						&& Host->state().AcceptedComparison.has_value()
@@ -737,6 +758,93 @@ namespace {
 		return *result;
 	}
 
+	[[nodiscard]] auto epoch_identity(const core::review_epoch_id& aEpoch) -> std::string
+	{
+		return lower_hex(aEpoch.Authority.bytes()) + "/" + lower_hex(aEpoch.Incarnation.bytes()) + "/" + std::to_string(aEpoch.Ordinal.value());
+	}
+	void kill_checkpoint(const std::filesystem::path& aRoot, std::string_view aPhase)
+	{
+		std::ofstream marker{ aRoot / "kill-ready", std::ios::binary };
+		marker << aPhase;
+		marker.close();
+		require(marker.good(), "kill readiness published");
+		static_cast<void>(std::cin.get());
+		require(false, "kill checkpoint never resumes or unwinds");
+	}
+	class checkpoint_diagnostics final : public application::diagnostic_log_port
+	{
+	public:
+		std::function<void(const application::diagnostic_event&)> Observe;
+		auto                                                      record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			if (Observe) {
+				Observe(aEvent);
+			}
+			return application::diagnostic_log_status::available;
+		}
+		auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+	};
+	void kill_epoch(std::string_view aPhase, const std::filesystem::path& aRoot)
+	{
+		require(aPhase == "--kill-fetch" || aPhase == "--kill-spool" || aPhase == "--kill-prepared" || aPhase == "--kill-visible", "known epoch kill course");
+		auto diagnostics     = std::make_shared<checkpoint_diagnostics>();
+		diagnostics->Observe = [&](const application::diagnostic_event& aEvent) {
+			if (aEvent.Outcome == application::diagnostic_outcome::succeeded && ((aPhase == "--kill-spool" && aEvent.EpochStage == application::diagnostic_epoch_stage::protocol_acquire) || (aPhase == "--kill-prepared" && aEvent.EpochStage == application::diagnostic_epoch_stage::revision_prepare))) {
+				kill_checkpoint(aRoot, aPhase);
+			}
+		};
+		real_fixture value{ "kill", aRoot, diagnostics };
+		if (aPhase == "--kill-visible") {
+			value.Projection.AfterPublish = [&](const application::epoch_presentation_update& aUpdate) {
+				if (!aUpdate.Catalog) {
+					return;
+				}
+				for (const auto& change : aUpdate.Catalog->Changes) {
+					if (change.Kind == application::epoch_row_change_kind::insert) {
+						std::ofstream expected{ aRoot / "expected-visible", std::ios::binary };
+						expected << epoch_identity(change.Id);
+						expected.close();
+						require(expected.good(), "visible epoch identity recorded before kill");
+						kill_checkpoint(aRoot, aPhase);
+					}
+				}
+			};
+		}
+		std::function<void()> duringFetch;
+		if (aPhase == "--kill-fetch") {
+			duringFetch = [&] { kill_checkpoint(aRoot, aPhase); };
+		}
+		value.start(std::move(duringFetch));
+		require(false, "epoch must reach selected kill checkpoint");
+	}
+	void recover_epoch(const std::filesystem::path& aRoot)
+	{
+		real_fixture value{ "recover", aRoot };
+		value.start();
+		const auto authority = *value.Host->state().Authority;
+		value.close_host();
+		auto catalog = value.Catalogs->open({ .ApplicationSession = core::application_session_id{ 91U }, .Authority = catalog_key() }, { });
+		require(catalog && *catalog, "production catalog reopens after killed-host recovery");
+		const auto snapshot       = (*catalog)->snapshot({ });
+		const auto expectedCommit = core::parse_git_commit_oid(commit_hex);
+		require(expectedCommit && snapshot && snapshot->LatestLive && snapshot->LatestLive->Base == *expectedCommit && snapshot->LatestLive->Head == *expectedCommit, "recovery retains exact fixture commits");
+		if (std::filesystem::exists(aRoot / "expected-visible")) {
+			std::ifstream input{ aRoot / "expected-visible", std::ios::binary };
+			std::string   expected;
+			std::getline(input, expected);
+			require(expected == epoch_identity(snapshot->LatestLive->Id), "visible epoch identity survives abrupt death without replacement");
+		}
+
+		const auto history = (*catalog)->history({ .Catalog = (*catalog)->binding().Catalog }, { });
+		require(history && history->Epochs.size() == 1U && !history->Continuation && history->Epochs.front() == *snapshot->LatestLive, "restart retains exactly one visible epoch");
+		const auto operations = (*catalog)->recovery_page({ }, application::maximum_epoch_recovery_page_size, { });
+		require(operations && operations->Operations.empty() && !operations->Continuation, "normal host recovery leaves no unfinished operation");
+		auto cache = value.Caches->open({ .ApplicationSession = core::application_session_id{ 91U }, .Authority = authority, .ObjectFormat = core::git_hash_algorithm::sha1 }, { });
+		require(cache && *cache, "production cache reopens without stale lock");
+		const auto retained = (*cache)->inspect_retained(snapshot->LatestLive->Id.Ordinal, { });
+		require(retained && retained->Base == snapshot->LatestLive->Base && retained->Head == snapshot->LatestLive->Head, "retained Git ref pair matches the visible epoch");
+		std::cout << "--recover-epoch:pass\n";
+	}
 	auto verify_real_prune() -> void
 	{
 		real_fixture value{ "prune" };
@@ -841,6 +949,16 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QCoreApplication application{ argc, argv };
+	if (argc == 3) {
+		const auto phase = std::string_view{ argv[1] };
+		if (phase.starts_with("--kill-")) {
+			kill_epoch(phase, argv[2]);
+		} else {
+			require(phase == "--recover-epoch", "known epoch recovery course");
+			recover_epoch(argv[2]);
+		}
+		return EXIT_SUCCESS;
+	}
 	verify_real_prune();
 	verify_real_cache_delete();
 	std::cout << "Epoch maintenance integration passed\n";
