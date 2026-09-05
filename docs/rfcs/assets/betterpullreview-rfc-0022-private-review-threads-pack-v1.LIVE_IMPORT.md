@@ -27,7 +27,7 @@ changes documentation only and includes none of those edits as its own work.
 
 | Source | Live destination |
 |---|---|
-| Original RFC-BPR-0022 | [RFC-BPR-0023-private-review-threads-provenance-comment-composition.md](../future/RFC-BPR-0023-private-review-threads-provenance-comment-composition.md) |
+| Original RFC-BPR-0022 | [RFC-BPR-0023-private-review-threads-provenance-comment-composition.md](../RFC-BPR-0023-private-review-threads-provenance-comment-composition.md) |
 | Issue plan | [RFC-BPR-0023-issue-plan.md](../plans/RFC-BPR-0023-issue-plan.md) |
 | Verification plan / acceptance traceability | [RFC-BPR-0023.md](../../verification/RFC-BPR-0023.md) |
 

@@ -73,7 +73,7 @@ Positive CLI enablement is neither an RFC-BPR-0002 acceptance criterion nor a
 closeout blocker.
 
 Production CLI enablement is deferred to
-[RFC-BPR-0015](future/RFC-BPR-0015-github-cli-production-enablement.md),
+[RFC-BPR-0015](RFC-BPR-0015-github-cli-production-enablement.md),
 which is outside the canonical fourteen-RFC pack and depends on missing
 upstream guarantees. Until that RFC is eligible and Auto-Verified, the
 zero-launch result is permanent rather than a best-effort fallback. A future

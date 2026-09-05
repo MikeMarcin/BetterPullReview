@@ -15,6 +15,19 @@ pack_version: post-v2
 This is a deferred post-pack RFC. It does not alter the canonical fourteen-RFC
 sequence and blocks no pack-v2 implementation or closeout.
 
+**Design accepted; registration only; implementation requires a later request.**
+The product owner's 2026-09-04 daily-workbench amendment adds direct sign-in,
+remembered server management, and one Settings window per BPR profile. The
+requested sequence is RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025, RFC-BPR-0026.
+Registration waives no existing eligibility or canonical closeout requirement.
+Registration baseline: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
+Entry: [[BPR-0592]]. Closeout: [[BPR-0593]]. Both are unstarted backlog cards.
+
+This RFC first composes Settings in the existing default environment.
+RFC-BPR-0024 later supplies multiple independent BPR profiles and windows;
+Settings accepts their profile binding without a reverse RFC dependency.
+An application BPR profile is distinct from a configured GitHub host profile.
+
 The product owner selected the AllTheThings settings window as the interaction
 and visual-quality reference: one native, persistent settings window with a
 stable sidebar; scrollable pages; grouped cards; concise labels and explanatory
@@ -53,10 +66,12 @@ costs:
 
 ## Product contract
 
-BetterPullReview provides one singleton, modeless **Settings** window. The
+BetterPullReview provides one singleton, modeless **Settings** window per BPR
+profile, initially the existing default environment. The profile being edited
+is identified in the window. The
 native application menu and `Command+,` on macOS, and the platform-appropriate
-menu action plus `Ctrl+,` elsewhere, raise the same existing window rather than
-creating duplicates. Escape closes the window only when doing so does not steal
+menu action plus `Ctrl+,` elsewhere, raise that profile's existing window rather
+than creating duplicates. Escape closes the window only when doing so does not steal
 an active recorder, picker, or confirmation interaction.
 
 The window uses a stable sidebar and scrollable content pages. A page contains
@@ -72,6 +87,44 @@ no untyped dictionary commit. A control reflects accepted host state, not its
 own optimistic value. Rejected or unavailable changes restore the authoritative
 value and explain why. Destructive reset, credential removal, cache purge, and
 privacy operations require explicit confirmation and report their exact scope.
+
+## Direct sign-in and remembered servers
+
+First launch exposes **Sign in to GitHub** and **Add enterprise server** without
+opening Settings, expanding Details, choosing a transport, or scrolling a small
+pane. The same actions are available from Accounts & Hosts and from a direct
+reconnect affordance when an accepted session expires or fails.
+
+On supported device-authorization profiles, Sign in immediately begins the
+existing RFC-BPR-0016 flow and presents its user code, copy action, and browser
+action in a dedicated, reachable surface. There is no second Get code button.
+Waiting, cancellation, expiry, refusal, and browser-handoff failure remain
+visible through the existing typed host projection. The manual-token path
+remains available, including GHES servers whose current device flow is
+unsupported. This redesign changes entry and presentation, not authentication
+capabilities or browser-opening authority.
+
+Accounts & Hosts provides explicit add/edit server configuration, one account
+per server, concise connection status, and reconnect/sign-out actions. Remember
+validated user-configured servers and their account selections across launches;
+do not require repeated command-line GHES configuration. Reuse existing device
+binding metadata and platform-vault persistence for supported remembered grants.
+Manual tokens retain their existing session-only behavior and are labeled so;
+this RFC does not silently make every credential durable.
+
+Server changes go through typed configuration intents and accepted host state.
+Changing authority invalidates affected work and never reuses old credentials
+for another host. RFC-BPR-0024 partitions those records by BPR profile and
+propagates sign-out across its windows. This RFC introduces the default-scope
+server configuration record and ports; it does not preempt profile identity.
+
+RFC-BPR-0026 may hand setup an exact pending PR destination. Successful accepted
+authentication returns that destination to its owner; cancellation leaves the
+existing review usable. Until that RFC is composed, no URL-opening capability
+is claimed. Transport, capability, rate, and diagnostic details belong in
+Settings disclosures. Ordinary review chrome retains only compact status and
+direct recovery actions. Appearance, agent configuration, and storage management
+also move to Settings; the existing diff and tuned colors are preserved.
 
 ## Information architecture
 
@@ -146,7 +199,7 @@ switches.
 | Application hosts | Load/save sequencing, migrations, capability observation, credential/cache/notification effects, cancellation, serialized acceptance, failures, and projections. Each host retains authority for its own domain |
 | Persistence adapters | Versioned, bounded records and atomic domain transactions. Existing domain stores remain separate; there is no universal key/value settings database |
 | Qt adapter | Settings window, sidebar/pages/cards, focus and accessibility, event-to-intent translation, live previews, confirmations, and incremental projection by stable setting identity. No direct store, GitHub, Git, vault, filesystem, notification, or agent effect |
-| Composition root | Supplies the exact domain capabilities, routes typed intents to their owning hosts, aggregates projections, and owns singleton window lifetime and native menu integration |
+| Composition root | Supplies the exact profile-bound domain capabilities, routes typed intents to their owning hosts, aggregates projections, and owns one Settings window per profile plus native menu integration |
 
 The settings center is an aggregator of capabilities, not a service locator.
 Each page receives the smallest typed presenter/intent ports it needs. A
@@ -169,8 +222,9 @@ cancels previews and UI-only observations but does not cancel an already
 accepted durable commit or destructive operation; those finish through their
 own bounded lifecycle and publish the result.
 
-Changes made by another composed surface are projected into the open settings
-window. The settings window does not poll stores or treat control state as
+Changes made by another composed surface of the same profile are projected into
+its open settings window. Other profiles are unaffected. The settings window
+does not poll stores or treat control state as
 authority. Routine changes update only the affected rows/cards and do not reset
 the sidebar, rebuild every page, or discard focus and selection.
 
@@ -212,7 +266,8 @@ the sidebar, rebuild every page, or discard focus and selection.
 
 ## Performance and resource limits
 
-- At most one settings window and one materialized page per category are live.
+- At most one settings window per BPR profile and one materialized page per
+  category in that window are live.
   Pages may be created lazily, but their stable identities and focus restoration
   must be deterministic.
 - The catalog and every page have fixed admitted-setting and row limits. A
@@ -245,43 +300,52 @@ the sidebar, rebuild every page, or discard focus and selection.
 
 ## Acceptance criteria
 
-- The shipped application exposes one native Settings action and singleton,
-  modeless window through platform-appropriate menus and shortcuts.
-- All seven initial categories are present when their capabilities are composed,
+- AC-01: The shipped application exposes a native Settings action and one singleton,
+  modeless window per available BPR profile through platform-appropriate menus
+  and shortcuts, with the edited profile visibly identified.
+- AC-02: All seven initial categories are present when their capabilities are composed,
   with stable sidebar/page/row identities and truthful unavailable states.
-- Appearance is migrated from the embedded workbench surface to the settings
+- AC-03: Appearance is migrated from the embedded workbench surface to the settings
   center with no duplicate authority; existing mode, typography, palette,
   import/preview/commit/cancel/reset, and persistence behavior remains intact.
-- Every setting gesture becomes one typed domain intent, reaches only its owning
+- AC-04: Every setting gesture becomes one typed domain intent, reaches only its owning
   host, and updates the control only from an accepted authoritative projection.
-- Existing domain stores migrate and reopen from prior schemas; future,
+- AC-05: Existing domain stores migrate and reopen from prior schemas; future,
   malformed, interrupted, and unavailable cases fail at their exact scope
   without corrupting another domain.
-- Credential, privacy, cache, notification, and agent actions retain their
+- AC-06: Credential, privacy, cache, notification, and agent actions retain their
   existing capability and secrecy boundaries.
-- Keyboard-only and screen-reader courses reach every sidebar item, row control,
+- AC-07: Keyboard-only and screen-reader courses reach every sidebar item, row control,
   reset, confirmation, status, and close action in a natural order.
-- Layout and rendered evidence pass at 100%, 125%, 150%, and 200% scale in
+- AC-08: Layout and rendered evidence pass at 100%, 125%, 150%, and 200% scale in
   Light, Dark, High-contrast Light, and High-contrast Dark, including long text
   and minimum window size.
-- One-setting updates preserve sidebar selection, page scroll position, focus,
+- AC-09: One-setting updates preserve sidebar selection, page scroll position, focus,
   unaffected persistent indexes, and all unrelated projections without routine
   resets.
-- Hostile catalog, profile, rule, and row floods stop at declared limits with
+- AC-10: Hostile catalog, profile, rule, and row floods stop at declared limits with
   typed refusal; one window materializes at most one page per category; rapid
   previews coalesce; cancelled or superseded loads publish nothing late; and
   instrumentation observes zero database, vault, filesystem, network, process,
   or blocking-wait work on the Qt thread.
-- Tests-disabled packaged applications on macOS, Windows, and Linux expose the
+- AC-11: Tests-disabled packaged applications on macOS, Windows, and Linux expose the
   same setting inventory except for explicitly documented platform capability
   rows.
-
+- AC-12: Sign in starts supported device authorization directly and shows its code and
+  browser action without Details, another Get code gesture, or pane scrolling;
+  cancellation, expiry, and supported manual-token alternatives remain reachable.
+- AC-13: User-configured servers and account selections survive restart through typed
+  host persistence, while remembered grants reuse the existing vault path and
+  session-only manual credentials are never presented as durable.
+- AC-14: Configuration leaves the primary review surface compact, preserves tuned
+  diff/appearance behavior, and exposes direct reconnect plus an exact pending
+  destination handoff without changing credential or provider authority.
 ## Verification matrix
 
 | Claim | Direct surface | Proof |
 |---|---|---|
 | State remains domain-owned | Core/host architecture contracts | Inventory every setting type, intent, projection, store, and effect; reject generic maps, service locators, and Qt effect access |
-| One truthful settings window | Shipped application composition | Invoke menu and shortcut repeatedly, require one window identity, exact category inventory, and no fixture-only construction |
+| One truthful settings window per profile | Shipped application composition | Invoke menu and shortcut from windows in the same available profile, require one Settings identity, exact category inventory, and no fixture-only construction; RFC-BPR-0024 completes concurrent distinct-profile evidence |
 | Persistence is exact and isolated | Domain stores plus two-process tests | Change one setting, reopen, migrate prior schemas, inject failure, and prove unrelated domains and rows are byte/semantically unchanged |
 | Appearance has one authority | Appearance host, workbench, and settings center | Drive every existing appearance course through the new page and prove the old embedded editor is absent while workbench adoption remains exact |
 | Controls follow host acceptance | Host/Qt cut tests | Reject candidates, reorder completions, close during preview, and require authoritative rollback with stale generations ignored |
@@ -290,6 +354,9 @@ the sidebar, rebuild every page, or discard focus and selection.
 | Resource use stays bounded | Hostile catalog/list fixtures, manual executor, Qt instrumentation, and preview course | Overflow every admitted catalog/list limit and require typed refusal; assert one page instance per category and bounded widget/model/signal counts; cancel and supersede loads; burst preview changes; require coalesced accepted work, zero late projection, and zero effect or blocking-wait instrumentation on the Qt thread |
 | Secrets never enter presentation | Type/source/runtime audits | Prove forbidden material has no projection field and canaries do not appear in UI trees, clipboard, diagnostics, screenshots, or exports |
 | Platform behavior is honest | Target-native packaged apps | Verify native menus/shortcuts/window lifetime, permission states, font/style inheritance, and documented platform-only rows on macOS, Windows, and Linux |
+| Direct sign-in and recovery | Public onboarding and Settings gestures with recording device/vault/browser ports | One Sign in gesture reaches visible code/browser controls with zero disclosure or scroll; exercise cancel, expiry, unavailable device flow, manual entry, and reconnect |
+| Remembered server configuration | Typed server host/store and public restart | Add a fixture GHES server, reopen, verify the exact configured authority/account, replace authority, and inject persistence failure without borrowing credentials |
+| Compact review and navigation handoff | Shipped review window and setup completion port | Prove configuration is absent from primary review chrome, diff geometry/colors remain correct, and success/cancellation/stale completion returns only the exact owning pending request |
 
 ## Eligibility gates
 
@@ -303,15 +370,17 @@ evidence.
 
 ## Suggested implementation decomposition
 
-These are planning slices, not live issue IDs. Live cards are allocated from
-`docs/issues/NEXT_ID` only after the eligibility gate above is satisfied and an
-immutable RFC base plus canonical closeout anchor can be recorded.
+The 2026-09-04 registration creates only the backlog entry [[BPR-0592]] and
+canonical closeout anchor [[BPR-0593]], with an immutable base and all product
+evidence not run. The descriptions below guide the later bounded-slice planning
+pass; additional live IDs are allocated only when implementation needs them.
+Creating these two cards does not satisfy the eligibility gate above.
 
 1. Inventory every existing user-adjustable value, authority, store, migration,
    reset, generation, failure, and privacy class.
 2. Model stable typed projections, domain intents, accepted/refused outcomes,
    and incremental aggregation without generic settings state.
-3. Build the accessible singleton Qt shell, native menu/shortcut integration,
+3. Build the accessible Qt shell with one instance per available profile, native menu/shortcut integration,
    sidebar, cards, compact mode, focus, and scale behavior.
 4. Compose all seven pages and migrate the embedded appearance editor without
    duplicating authority.
@@ -326,6 +395,6 @@ The settings guide must explain every category, default, durability state,
 reset, platform difference, unavailable state, destructive operation, and
 privacy consequence. Architecture documentation must identify domain
 ownership, typed intent/projection paths, persistence schemas, generations,
-singleton window lifetime, incremental update rules, and prohibited generic
+profile-bound singleton window lifetime, incremental update rules, and prohibited generic
 settings mechanisms. Packaging and security documentation must inventory the
 exact tests-disabled setting surface and its platform-specific capabilities.

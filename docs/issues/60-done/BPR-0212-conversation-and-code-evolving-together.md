@@ -191,7 +191,7 @@ unauthenticated remains unchecked, and the RFC has to answer it.
 This card existed to keep an idea and its measurement alive while it had no RFC:
 "it is not an issue slice and should not be worked as one." [[BPR-0415]] has now
 written that RFC, and
-`docs/rfcs/future/RFC-BPR-0021-conversation-revision-identity.md` carries
+`docs/rfcs/RFC-BPR-0021-conversation-revision-identity.md` carries
 everything this card was holding — the owner's complaint verbatim, the two axes
 that already exist, the datum that does not, and the warning against adding a
 revision field as a side effect of a presentation card, which is now a

@@ -69,7 +69,7 @@ authentication transport. GitHub CLI choices remain visible, but selection
 returns the stable `cli_unavailable` diagnostic before any CLI executable or
 configuration discovery, CLI process creation, or descendant creation.
 Positive CLI enablement is outside RFC-BPR-0002 and is deferred to
-[RFC-BPR-0015](../../rfcs/future/RFC-BPR-0015-github-cli-production-enablement.md).
+[RFC-BPR-0015](../../rfcs/RFC-BPR-0015-github-cli-production-enablement.md).
 The fixed gate is therefore the completed milestone-one result rather than an
 RFC-BPR-0002 closeout blocker.
 

@@ -4,6 +4,11 @@ The RFCs normally begin and always close in the order below. A dependent RFC
 does not become `Auto-Verified` before every listed dependency is
 `Auto-Verified`.
 
+All live RFCs reside directly in `docs/rfcs/`, regardless of status or milestone.
+There is no `future/` status folder. RFC front matter and this index carry RFC
+status; issue-card lanes carry implementation backlog and progress. `plans/`
+and imported `assets/` remain source/reference material, not alternate live RFCs.
+
 Product-owner exception: real Windows x64 evidence retained by BPR-0036 is
 temporarily unavailable. RFC-BPR-0002 therefore remains the closure frontier,
 but that hardware-only gate does not block implementation, tests,
@@ -49,23 +54,49 @@ before every listed dependency is `Auto-Verified`.
 The imported files in [plans](plans/README.md) are immutable planning source.
 Live work is tracked on the [issue board](../issues/README.md).
 
-## Deferred post-pack work
+## Additional RFCs
 
 The table above is the complete fourteen-RFC pack-v2 sequence. The following
-RFCs are outside that canonical pack, cannot block its implementation or
-closeout, and remain deferred until their eligibility gates exist:
+live RFCs are outside that original pack and cannot block its implementation or
+closeout. Their status and eligibility are explicit below; unstarted work is
+tracked on the issue board's backlog, in the same way as other RFC work.
 
 | RFC | Title | Status | Eligibility |
 |---|---|---|---|
-| [RFC-BPR-0015](future/RFC-BPR-0015-github-cli-production-enablement.md) | GitHub CLI Production Enablement | Deferred | RFC-BPR-0014 closed and official `gh` supplies the required safety contract |
-| [RFC-BPR-0016](future/RFC-BPR-0016-github-device-authorization-flow.md) | GitHub Device Authorization Flow | Auto-Verified | Closed 2026-09-04 at `0d19c990` by [BPR-0285](../issues/60-done/BPR-0285-anchor-rfc-0016-verification.md): RFC-BPR-0002 was Auto-Verified first, the recorded distributable identity is admitted, and the final-head course replayed green target-native on macOS, Linux, and Windows x64 |
-| [RFC-BPR-0017](future/RFC-BPR-0017-unauthenticated-public-review-read.md) | Unauthenticated Public Review Read | Auto-Verified | Closed 2026-09-04 by BPR-0309 after RFC-BPR-0002 eligibility, validated owner build decision, focused macOS evidence and clean review of `d9006237`; macOS enabled, Linux/Windows unavailable |
-| [RFC-BPR-0018](future/RFC-BPR-0018-robust-settings-center.md) | Robust Settings Center and Preference Ownership | Deferred | RFC-BPR-0014 closed or an explicit post-pack frontier exception, plus a complete existing-setting authority and persistence inventory |
-| [RFC-BPR-0019](future/RFC-BPR-0019-dif-visual-identity-sprite-assets.md) | Dif Visual Identity, Sprite Assets, and Animation Contract | Deferred | RFC-BPR-0006 and RFC-BPR-0013 closed, RFC-BPR-0014 closed or an explicit post-pack frontier exception, and confirmed asset ownership/provenance |
-| [RFC-BPR-0020](future/RFC-BPR-0020-animated-dif-mascot-qt-composition.md) | Animated Dif Mascot Qt Presentation and Workbench Composition | Deferred | RFC-BPR-0019 closed, its live appearance/workbench/resource paths inventoried, and RFC-BPR-0014 closed or an explicit post-pack frontier exception |
-| [RFC-BPR-0021](future/RFC-BPR-0021-conversation-revision-identity.md) | Conversation Revision Identity and the Comment-Code History Join | Deferred | RFC-BPR-0002 and RFC-BPR-0003 closed, and recorded probe evidence that a real service returns a per-comment commit — including unauthenticated and on GHES 3.18 |
-| [RFC-BPR-0022](future/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md) | Semantic Source-Line Comments and Off-Hunk Publication Compatibility | Deferred | Later explicit implementation request; dependency-ordered closeout and exact native/fallback evidence |
-| [RFC-BPR-0023](future/RFC-BPR-0023-private-review-threads-provenance-comment-composition.md) | Private Review Threads, Provenance, and Comment Composition | Deferred | Later explicit implementation request; RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0011, and RFC-BPR-0012; shared publication integration follows RFC-BPR-0022 cards |
+| [RFC-BPR-0015](RFC-BPR-0015-github-cli-production-enablement.md) | GitHub CLI Production Enablement | Deferred | RFC-BPR-0014 closed and official `gh` supplies the required safety contract |
+| [RFC-BPR-0016](RFC-BPR-0016-github-device-authorization-flow.md) | GitHub Device Authorization Flow | Auto-Verified | Closed 2026-09-04 at `0d19c990` by [BPR-0285](../issues/60-done/BPR-0285-anchor-rfc-0016-verification.md): RFC-BPR-0002 was Auto-Verified first, the recorded distributable identity is admitted, and the final-head course replayed green target-native on macOS, Linux, and Windows x64 |
+| [RFC-BPR-0017](RFC-BPR-0017-unauthenticated-public-review-read.md) | Unauthenticated Public Review Read | Auto-Verified | Closed 2026-09-04 by BPR-0309 after RFC-BPR-0002 eligibility, validated owner build decision, focused macOS evidence and clean review of `d9006237`; macOS enabled, Linux/Windows unavailable |
+| [RFC-BPR-0018](RFC-BPR-0018-robust-settings-center.md) | Robust Settings Center and Preference Ownership | Deferred | RFC-BPR-0014 closed or an explicit post-pack frontier exception, plus a complete existing-setting authority and persistence inventory |
+| [RFC-BPR-0019](RFC-BPR-0019-dif-visual-identity-sprite-assets.md) | Dif Visual Identity, Sprite Assets, and Animation Contract | Deferred | RFC-BPR-0006 and RFC-BPR-0013 closed, RFC-BPR-0014 closed or an explicit post-pack frontier exception, and confirmed asset ownership/provenance |
+| [RFC-BPR-0020](RFC-BPR-0020-animated-dif-mascot-qt-composition.md) | Animated Dif Mascot Qt Presentation and Workbench Composition | Deferred | RFC-BPR-0019 closed, its live appearance/workbench/resource paths inventoried, and RFC-BPR-0014 closed or an explicit post-pack frontier exception |
+| [RFC-BPR-0021](RFC-BPR-0021-conversation-revision-identity.md) | Conversation Revision Identity and the Comment-Code History Join | Deferred | RFC-BPR-0002 and RFC-BPR-0003 closed, and recorded probe evidence that a real service returns a per-comment commit — including unauthenticated and on GHES 3.18 |
+| [RFC-BPR-0022](RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md) | Semantic Source-Line Comments and Off-Hunk Publication Compatibility | Deferred | Later explicit implementation request; dependency-ordered closeout and exact native/fallback evidence |
+| [RFC-BPR-0023](RFC-BPR-0023-private-review-threads-provenance-comment-composition.md) | Private Review Threads, Provenance, and Comment Composition | Deferred | Later explicit implementation request; RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0011, and RFC-BPR-0012; shared publication integration follows RFC-BPR-0022 cards |
+| [RFC-BPR-0024](RFC-BPR-0024-bpr-profiles-multiple-windows.md) | BPR Profiles and Multiple Windows | Deferred | Design accepted; later implementation request; RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007, RFC-BPR-0008, and RFC-BPR-0018 |
+| [RFC-BPR-0025](RFC-BPR-0025-review-workspace-navigation-browser-tabs.md) | Review Workspace Navigation and Browser-Style Tabs | Deferred | Design accepted; later implementation request; RFC-BPR-0003, RFC-BPR-0004, RFC-BPR-0005, RFC-BPR-0006, and RFC-BPR-0024 |
+| [RFC-BPR-0026](RFC-BPR-0026-personal-review-home-pr-url-navigation.md) | Personal Review Home and PR URL Navigation | Deferred | Design accepted; later implementation request; RFC-BPR-0002, RFC-BPR-0007, RFC-BPR-0010, RFC-BPR-0016, RFC-BPR-0018, RFC-BPR-0024, and RFC-BPR-0025 |
+
+The 2026-09-04 daily-workbench registration accepts the design in RFC-BPR-0018
+and RFC-BPR-0024 through RFC-BPR-0026, with implementation explicitly deferred.
+The requested workstream order is **0018 → 0024 → 0025 → 0026** within the
+canonical order above; it does not authorize bypassing earlier eligibility or
+closeout gates. Start later with `$implement-rfc` for that exact sequence.
+[[BPR-0592]] through [[BPR-0599]] are the unstarted entry/closeout pairs; the
+later planning pass allocates additional bounded implementation cards as needed.
+
+The ownership split is Settings/direct sign-in/server management (0018), BPR
+profile and window isolation/restoration (0024), independent browser-style
+review tabs and fuzzy-filtered drawers (0025), and personal discovery/Home/URL
+opening (0026). RFC-0018 initially binds the default environment; RFC-0024
+extends it to one Settings window per BPR profile without a circular dependency.
+The registration baseline and per-criterion not-run evidence are in each
+closeout card. Accepted screenshots were design references, not runtime evidence.
+
+The same registration moves the former `future/` RFCs into this directory.
+Historical captured paths in immutable imported packs and answered review
+evidence describe their original commits and are preserved as provenance;
+live links and import destinations use the current paths. Moving a document
+does not change its status or invalidate otherwise unchanged product evidence.
 
 RFC-BPR-0016 and RFC-BPR-0017 address the same operator complaint by opposite
 routes and are alternatives rather than companions. RFC-BPR-0017 records why

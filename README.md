@@ -94,7 +94,7 @@ GitHub CLI choices remain visible but deliberately unavailable: their trust
 contract is outside milestone-one product scope, so selecting one returns the
 fixed typed `cli_unavailable` result with zero CLI executable/configuration
 discovery or CLI process launch. Positive CLI enablement is deferred to
-[RFC-BPR-0015](docs/rfcs/future/RFC-BPR-0015-github-cli-production-enablement.md).
+[RFC-BPR-0015](docs/rfcs/RFC-BPR-0015-github-cli-production-enablement.md).
 Manual credentials use a Qt-owned password input and remain session-only.
 Device sign-in is remembered across orderly quits: tokens stay in the platform
 vault, while a private metadata store retains the exact binding and lifetime.

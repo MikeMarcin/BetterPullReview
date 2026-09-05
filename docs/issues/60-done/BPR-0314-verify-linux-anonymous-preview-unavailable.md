@@ -55,7 +55,7 @@ never run against a Linux Release binary before, because there was none.
 - [[BPR-0306]], this card's declared dependency, is in `10-backlog/` behind a
   chain rooting at [[BPR-0298]] (`awaiting-live-github`) and at [[BPR-0035]] →
   [[BPR-0036]] (target-native Windows).
-- `docs/rfcs/future/RFC-BPR-0017-unauthenticated-public-review-read.md` gates
+- `docs/rfcs/RFC-BPR-0017-unauthenticated-public-review-read.md` gates
   implementation on "RFC-BPR-0002 Auto-Verified" and carries no early-
   implementation carve-out, unlike RFC-BPR-0016. Starting the missing work here
   would breach that gate.

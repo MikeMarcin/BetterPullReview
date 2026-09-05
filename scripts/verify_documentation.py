@@ -167,23 +167,35 @@ def require_files(root: Path) -> None:
 
 
 def verify_rfc_index(root: Path) -> None:
-    index = (root / "docs/rfcs/README.md").read_text(encoding="utf-8")
-    rfc_files = sorted((root / "docs/rfcs").glob("RFC-BPR-*.md"))
-    if len(rfc_files) != 14:
-        fail(f"expected 14 canonical RFCs, found {len(rfc_files)}")
+    rfc_root = root / "docs/rfcs"
+    if (rfc_root / "future").exists():
+        fail("live RFCs belong directly in docs/rfcs; remove the future folder")
+    index = (rfc_root / "README.md").read_text(encoding="utf-8")
+    rfc_files = sorted(rfc_root.glob("RFC-BPR-*.md"))
+    # The original pack remains required; later live RFCs use the same folder
+    # and index instead of encoding their status in a separate directory.
+    required_pack = {f"RFC-BPR-{number:04d}" for number in range(1, 15)}
+    seen: set[str] = set()
 
     for path in rfc_files:
         metadata = front_matter(path)
         rfc_id = metadata.get("id")
         status = metadata.get("status")
-        if not rfc_id or not status:
+        if not rfc_id or not re.fullmatch(r"RFC-BPR-\d{4}", rfc_id) or not status:
             fail(f"RFC id/status missing: {path}")
+        if not path.name.startswith(f"{rfc_id}-"):
+            fail(f"RFC filename/id mismatch: {path} -> {rfc_id}")
+        if rfc_id in seen:
+            fail(f"duplicate canonical RFC id: {rfc_id}")
+        seen.add(rfc_id)
         row = re.compile(
-            rf"\| \[{re.escape(rfc_id)}\]\([^)]+\) \|[^\n]*\| "
+            rf"\| \[{re.escape(rfc_id)}\]\({re.escape(path.name)}\) \|[^\n]*\| "
             rf"{re.escape(status)} \|"
         )
         if not row.search(index):
             fail(f"RFC index status mismatch: {rfc_id} -> {status}")
+    if missing := required_pack - seen:
+        fail(f"missing original-pack RFCs: {', '.join(sorted(missing))}")
 
 
 def verify_issue_board(root: Path) -> None:

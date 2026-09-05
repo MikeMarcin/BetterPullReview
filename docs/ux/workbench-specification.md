@@ -1,5 +1,17 @@
 # Workbench Specification
 
+## Accepted redesign awaiting implementation
+
+The daily-workbench design is accepted and registered, but not implemented by
+the registration. Its live contracts are
+[Settings and direct sign-in](../rfcs/RFC-BPR-0018-robust-settings-center.md),
+[BPR profiles and independent windows](../rfcs/RFC-BPR-0024-bpr-profiles-multiple-windows.md),
+[review drawers and browser-style tabs](../rfcs/RFC-BPR-0025-review-workspace-navigation-browser-tabs.md),
+and [personal Home and PR URL navigation](../rfcs/RFC-BPR-0026-personal-review-home-pr-url-navigation.md).
+Backlog entry/closeout cards are [[BPR-0592]] through [[BPR-0599]]. The sections
+below retain their existing scope; this cross-reference does not claim that
+profiles, multiple windows, tabs, or personal discovery are already shipped.
+
 ## Architectural interaction contract
 
 - Navigation, epoch selection, current file/change, command legality, and review semantics are functional-core state and policy.

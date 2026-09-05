@@ -68,7 +68,7 @@ python3 tests/scripts/verify_documentation_tests.py
 
 ## Done — 2026-08-22
 
-`docs/rfcs/future/RFC-BPR-0021-conversation-revision-identity.md` exists and is
+`docs/rfcs/RFC-BPR-0021-conversation-revision-identity.md` exists and is
 registered in `docs/rfcs/README.md`.
 
 ### This card's own instruction was wrong about where it goes

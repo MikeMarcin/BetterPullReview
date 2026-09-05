@@ -23,8 +23,8 @@ provider/pager/normalizer. Public preview admits nine REST operation kinds,
 refuses GraphQL and viewer identity, and uses explicit anonymous native HTTPS
 and public Git/cache/epoch/diff authority. Thread resolution, viewed state,
 account-relative associations, triage, and publishing remain unavailable.
-See [the product contract](../../architecture/product-contract.md#public-preview)
-and [verification ledger](../../verification/RFC-BPR-0017.md) for current behavior
+See [the product contract](../architecture/product-contract.md#public-preview)
+and [verification ledger](../verification/RFC-BPR-0017.md) for current behavior
 and exact evidence.
 
 The findings below describe the immutable pre-implementation base
@@ -37,9 +37,9 @@ composition are historical motivation; they are not claims about today's tree.
 The source locations in this historical analysis refer to that base.
 
 **Exactly one read operation uses GraphQL.** The route selection in
-[github_read_contract.cpp:1780](../../../src/adapters/github/src/github_read_contract.cpp#L1780)
+[github_read_contract.cpp:1780](../../src/adapters/github/src/github_read_contract.cpp#L1780)
 and again at
-[github_read_contract.cpp:1891](../../../src/adapters/github/src/github_read_contract.cpp#L1891)
+[github_read_contract.cpp:1891](../../src/adapters/github/src/github_read_contract.cpp#L1891)
 reduces to a single comparison against `read_operation::list_review_threads`,
 and the route switch gives that operation alone a `/graphql` path with a query
 body. The other nine operations in `read_operation_catalog` — viewer identity,
@@ -49,30 +49,30 @@ search — each build a REST path, seven of them from `repository_path` or
 
 **The read catalog has no REST review-comment operation.**
 `read_operation_catalog` in
-[github_read_contract.hpp:35](../../../src/adapters/github/src/github_read_contract.hpp#L35)
+[github_read_contract.hpp:35](../../src/adapters/github/src/github_read_contract.hpp#L35)
 holds exactly ten entries, and the one named for comments,
 `list_issue_comments`, builds `/repos/{owner}/{repo}/issues/{n}/comments`
-([github_read_contract.cpp:1838](../../../src/adapters/github/src/github_read_contract.cpp#L1838)).
+([github_read_contract.cpp:1838](../../src/adapters/github/src/github_read_contract.cpp#L1838)).
 That is the issue-level conversation, not the inline review comments anchored
 to source lines. The read contract builds no `/pulls/{n}/comments` path at all.
 
 That path does exist in the tree, but only under the mutation authority, and
 the distinction matters enough to state precisely.
 `compile_review_comment_request` builds it as a `POST`
-([github_mutation_contract.cpp:646](../../../src/adapters/github/src/github_mutation_contract.cpp#L646)),
+([github_mutation_contract.cpp:646](../../src/adapters/github/src/github_mutation_contract.cpp#L646)),
 and `compile_review_comment_observation_request` reuses the same path as a
 `GET` for post-submit reconciliation
-([github_mutation_contract.cpp:652](../../../src/adapters/github/src/github_mutation_contract.cpp#L652)),
+([github_mutation_contract.cpp:652](../../src/adapters/github/src/github_mutation_contract.cpp#L652)),
 whose response `parse_review_comment_observations` already normalizes into
 `application::review_comment_projection`
-([github_mutation_contract.cpp:852](../../../src/adapters/github/src/github_mutation_contract.cpp#L852)).
+([github_mutation_contract.cpp:852](../../src/adapters/github/src/github_mutation_contract.cpp#L852)).
 So the repository can already read inline review comments over REST,
 authenticated — but only from the private `review_mutation_session::reconcile`
-([github_mutation_contract.cpp:1025](../../../src/adapters/github/src/github_mutation_contract.cpp#L1025))
+([github_mutation_contract.cpp:1025](../../src/adapters/github/src/github_mutation_contract.cpp#L1025))
 inside a submit-and-reconcile sequence, as a pre-write baseline
-([github_mutation_contract.cpp:1184](../../../src/adapters/github/src/github_mutation_contract.cpp#L1184))
+([github_mutation_contract.cpp:1184](../../src/adapters/github/src/github_mutation_contract.cpp#L1184))
 and again after transmission
-([github_mutation_contract.cpp:1250](../../../src/adapters/github/src/github_mutation_contract.cpp#L1250)).
+([github_mutation_contract.cpp:1250](../../src/adapters/github/src/github_mutation_contract.cpp#L1250)).
 Neither the read catalog nor `perform_paged_github_read` can select it.
 
 On the read path, therefore, GraphQL is presently the only source of inline
@@ -85,7 +85,7 @@ operation is wired to it. The parsing work is partly done; the read-path
 operation, its fixtures, and its anonymous behavior are not.
 
 **Degraded capability is already a first-class type.** `github_read_shape` in
-[github_host_authority.hpp](../../../src/application/include/bpr/application/github_host_authority.hpp)
+[github_host_authority.hpp](../../src/application/include/bpr/application/github_host_authority.hpp)
 carries four booleans — `ReviewThreads`, `ViewedFileState`,
 `ResolvePermission`, `UnresolvePermission` — and the GraphQL query body in
 `paged_review_body` is assembled from them. The mechanism for expressing "this
@@ -95,22 +95,22 @@ condition the system models rather than a new kind of condition.
 
 **The selected path already skips GraphQL for an all-false shape; the helper
 that does not is tests-only.** `perform_graphql_projection` in
-[github_paged_read.cpp:2612](../../../src/adapters/github/src/github_paged_read.cpp#L2612)
+[github_paged_read.cpp:2612](../../src/adapters/github/src/github_paged_read.cpp#L2612)
 marks review threads unavailable and returns before constructing a request
 when `ViewedFileState` and `ReviewThreads` are both false, so no GraphQL body
 is built and none is sent. This is the production path:
 `perform_paged_github_read` has exactly one non-test call site, in
-[github_provider.cpp:1438](../../../src/adapters/github/src/github_provider.cpp#L1438).
+[github_provider.cpp:1438](../../src/adapters/github/src/github_provider.cpp#L1438).
 
 `perform_normalized_github_read`
-([github_read_normalizer.cpp:867](../../../src/adapters/github/src/github_read_normalizer.cpp#L867))
+([github_read_normalizer.cpp:867](../../src/adapters/github/src/github_read_normalizer.cpp#L867))
 behaves differently and must not be read as evidence about the selected path.
 It iterates the whole catalog unconditionally, issuing all ten operations
 including `list_review_threads`, and hardcodes the GraphQL shape to all-true
 regardless of capability state
-([github_read_normalizer.cpp:420](../../../src/adapters/github/src/github_read_normalizer.cpp#L420)).
+([github_read_normalizer.cpp:420](../../src/adapters/github/src/github_read_normalizer.cpp#L420)).
 Its only call site is
-[github_read_contract_tests.cpp:493](../../../tests/github_contract/github_read_contract_tests.cpp#L493),
+[github_read_contract_tests.cpp:493](../../tests/github_contract/github_read_contract_tests.cpp#L493),
 whose fixture format requires a manifest of exactly ten interactions. It is a
 recorded-contract helper for asserting wire shape, not a read path a profile
 selects.
@@ -118,14 +118,14 @@ selects.
 **Credential-mandatory native HTTPS is implementation work, not
 configuration.** Both production factories take a credential as a required
 parameter and refuse invalid or empty material before a transport exists
-([native_https_transport.cpp:3812](../../../src/adapters/github/src/native_https_transport.cpp#L3812)
+([native_https_transport.cpp:3812](../../src/adapters/github/src/native_https_transport.cpp#L3812)
 and
-[native_https_transport.cpp:3841](../../../src/adapters/github/src/native_https_transport.cpp#L3841)),
+[native_https_transport.cpp:3841](../../src/adapters/github/src/native_https_transport.cpp#L3841)),
 and once a transport exists every request carries an `Authorization` header —
 `Bearer` on the REST surface
-([native_https_transport.cpp:2966](../../../src/adapters/github/src/native_https_transport.cpp#L2966))
+([native_https_transport.cpp:2966](../../src/adapters/github/src/native_https_transport.cpp#L2966))
 and `Basic` on the Git smart-HTTP surface
-([native_https_transport.cpp:3036](../../../src/adapters/github/src/native_https_transport.cpp#L3036))
+([native_https_transport.cpp:3036](../../src/adapters/github/src/native_https_transport.cpp#L3036))
 — with no branch that omits it. There is no existing code path through that
 class that issues an unauthenticated request. Omitting the header as a
 deliberate typed state is new work in the transport, not a parameter that
@@ -135,15 +135,15 @@ already exists.
 strictest gate is in the session read model itself:
 `validate(github_session_read_model, …)` returns `missing_identity` when
 `Viewer.Account.value() == 0U`
-([github_read_model.hpp:1509](../../../src/application/include/bpr/application/github_read_model.hpp#L1509)),
+([github_read_model.hpp:1509](../../src/application/include/bpr/application/github_read_model.hpp#L1509)),
 and the live host enforces it when accepting a session, failing the session
 outright when validation does not hold
-([github_application_host.cpp:1869](../../../src/application/src/github_application_host.cpp#L1869)).
+([github_application_host.cpp:1869](../../src/application/src/github_application_host.cpp#L1869)).
 A profile with no authenticated account cannot form a valid session read model
 at all. Below that, `valid(github_credential_authority_key)`
-([github_credential_vault.hpp:94](../../../src/application/include/bpr/application/github_credential_vault.hpp#L94))
+([github_credential_vault.hpp:94](../../src/application/include/bpr/application/github_credential_vault.hpp#L94))
 and `valid(github_capability_authority_key)`
-([github_capability_cache.hpp:149](../../../src/application/include/bpr/application/github_capability_cache.hpp#L149))
+([github_capability_cache.hpp:149](../../src/application/include/bpr/application/github_capability_cache.hpp#L149))
 both require `Account.value() != 0U`, and both keys are constructed from the
 authenticated `/user` response as `src/application/AGENTS.md` requires.
 Anonymous mode therefore needs typed state that routes around these
@@ -157,49 +157,49 @@ transport.** They must be distinguished, because one is a verification-only
 probe and the other is compiled product code.
 
 The first is
-[designated_live_public_observer.cpp](../../../src/adapters/github/src/designated_live_public_observer.cpp).
+[designated_live_public_observer.cpp](../../src/adapters/github/src/designated_live_public_observer.cpp).
 It observes a public pull request with no credential and matches its
 repository, pull request, base, and head fields. It is not reusable evidence:
 it spawns `/usr/bin/curl` through `posix_spawn`, compiles in a single fixed
 path and origin, and is built only when `BPR_BUILD_QT AND APPLE AND
 (BUILD_TESTING OR BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE)`
-([CMakeLists.txt:2](../../../src/adapters/github/CMakeLists.txt#L2), nested
+([CMakeLists.txt:2](../../src/adapters/github/CMakeLists.txt#L2), nested
 inside the `BPR_BUILD_QT` guard at
-[CMakeLists.txt:1](../../../src/adapters/github/CMakeLists.txt#L1)). It is a
+[CMakeLists.txt:1](../../src/adapters/github/CMakeLists.txt#L1)). It is a
 probe, not product code.
 
 The second is `native_designated_review_public_observer`
-([native_https_transport.cpp:4027](../../../src/adapters/github/src/native_https_transport.cpp#L4027)),
+([native_https_transport.cpp:4027](../../src/adapters/github/src/native_https_transport.cpp#L4027)),
 returned by `make_designated_review_public_observer`. This one is product
 code: it lives in `native_https_transport.cpp`, which is compiled into
 `better_pull_review_adapter_github` whenever `BPR_BUILD_QT` is on, with no
 platform or `BUILD_TESTING` guard. It issues a genuine credential-free
 `QNetworkAccessManager::get`, refusing `Authorization`, `Cookie`, and
 `Proxy-Authorization` headers outright rather than merely omitting them
-([native_https_transport.cpp:4092](../../../src/adapters/github/src/native_https_transport.cpp#L4092)).
+([native_https_transport.cpp:4092](../../src/adapters/github/src/native_https_transport.cpp#L4092)).
 
 It is still not the evidence this RFC's gate requires, and the reason is
 narrower than "it ignores the rules". It duplicates them instead of exercising
 them. Its TLS block
-([native_https_transport.cpp:4104](../../../src/adapters/github/src/native_https_transport.cpp#L4104))
+([native_https_transport.cpp:4104](../../src/adapters/github/src/native_https_transport.cpp#L4104))
 is an inline copy of the transport's own `ssl_configuration`
-([native_https_transport.cpp:2880](../../../src/adapters/github/src/native_https_transport.cpp#L2880))
+([native_https_transport.cpp:2880](../../src/adapters/github/src/native_https_transport.cpp#L2880))
 — same system CA set, cleared local chain and key, ALPN, `VerifyPeer`, depth
 zero, TLS 1.2 or later, same option disables — and its redirect handling is
 stricter than the transport's, refusing every redirect outright
-([native_https_transport.cpp:4083](../../../src/adapters/github/src/native_https_transport.cpp#L4083)
+([native_https_transport.cpp:4083](../../src/adapters/github/src/native_https_transport.cpp#L4083)
 and
-[native_https_transport.cpp:4207](../../../src/adapters/github/src/native_https_transport.cpp#L4207))
+[native_https_transport.cpp:4207](../../src/adapters/github/src/native_https_transport.cpp#L4207))
 where the transport follows bounded validated ones. What genuinely differs is
 proxy handling: the observer sets `NoProxy`
-([native_https_transport.cpp:4062](../../../src/adapters/github/src/native_https_transport.cpp#L4062))
+([native_https_transport.cpp:4062](../../src/adapters/github/src/native_https_transport.cpp#L4062))
 where the transport performs system-proxy discovery
-([native_https_transport.cpp:714](../../../src/adapters/github/src/native_https_transport.cpp#L714)),
+([native_https_transport.cpp:714](../../src/adapters/github/src/native_https_transport.cpp#L714)),
 and it runs on a local manager rather than the transport's shared worker.
 
 Its reachability is narrow by construction: production composition creates it
 only inside the attended designated-live approval branch
-([github_application.cpp:1736](../../../src/app/src/github_application.cpp#L1736)),
+([github_application.cpp:1736](../../src/app/src/github_application.cpp#L1736)),
 and that branch throws in a tests-enabled build. So the tree does contain a
 credential-free GET against `api.github.com` compiled into a shipped build.
 That narrows the open question without closing it. A duplicated policy proves
@@ -311,17 +311,17 @@ Implementation may begin only after all of the following exist:
 
 - Recorded probe evidence resolving every claim in the second findings section
   against the real service, captured as sanitized fixtures. This is
-  [BPR-0298](../../issues/60-done/BPR-0298-record-anonymous-github-contracts.md).
+  [BPR-0298](../issues/60-done/BPR-0298-record-anonymous-github-contracts.md).
 - A demonstration that the native HTTPS transport issues a credential-free
   request with all RFC-BPR-0002 redirect, certificate, and proxy rules intact,
   and that omitting the authorization header is a deliberate typed state rather
   than an absent credential. This is
-  [BPR-0313](../../issues/60-done/BPR-0313-demonstrate-credential-free-native-https.md),
+  [BPR-0313](../issues/60-done/BPR-0313-demonstrate-credential-free-native-https.md),
   and it comes before the product decision, not after it.
 - A product decision that a read-only, triage-less, rate-limited preview of
   public GitHub.com pull requests is a mode the product wants, recorded with
   its intended presentation of those limits. This is
-  [BPR-0299](../../issues/60-done/BPR-0299-decide-anonymous-public-preview.md),
+  [BPR-0299](../issues/60-done/BPR-0299-decide-anonymous-public-preview.md),
   which depends on both of the above.
 - RFC-BPR-0002 Auto-Verified, since this mode reuses its transport and
   normalization guarantees rather than restating them.

@@ -27,7 +27,7 @@ changes documentation only and includes none of those edits as its own work.
 
 | Source | Live destination |
 |---|---|
-| Original RFC-BPR-0022 | [RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md](../future/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md) |
+| Original RFC-BPR-0022 | [RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md](../RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md) |
 | Issue plan | [RFC-BPR-0022-issue-plan.md](../plans/RFC-BPR-0022-issue-plan.md) |
 | Verification plan / acceptance traceability | [RFC-BPR-0022.md](../../verification/RFC-BPR-0022.md) |
 

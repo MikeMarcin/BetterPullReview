@@ -40,8 +40,88 @@ from scripts.verify_documentation import (  # noqa: E402
     verify_issue_board,
     verify_operator_packet_records,
     verify_pending_packet_manifests,
+    verify_rfc_index,
     verify_terminal_closeout_cards,
 )
+
+
+class RfcIndexTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = ContainedTemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.rfc_root = self.root / "docs/rfcs"
+        self.rfc_root.mkdir(parents=True)
+        self.rows: list[str] = []
+        for number in range(1, 15):
+            self.write_rfc(number, "Auto-Verified")
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def write_rfc(self, number: int, status: str) -> Path:
+        rfc_id = f"RFC-BPR-{number:04d}"
+        path = self.rfc_root / f"{rfc_id}-fixture.md"
+        path.write_text(f"---\nid: {rfc_id}\nstatus: {status}\n---\n")
+        self.rows.append(f"| [{rfc_id}]({path.name}) | Fixture | {status} | — |")
+        return path
+
+    def verify(self) -> None:
+        (self.rfc_root / "README.md").write_text("\n".join(self.rows) + "\n")
+        verify_rfc_index(self.root)
+
+    def test_accepts_original_pack_and_additional_statuses_together(self) -> None:
+        self.write_rfc(18, "Deferred")
+        self.write_rfc(24, "Proposed")
+        self.write_rfc(25, "Auto-Verified")
+        self.verify()
+
+    def test_rejects_missing_original_rfc_even_with_fourteen_files(self) -> None:
+        (self.rfc_root / "RFC-BPR-0007-fixture.md").unlink()
+        self.write_rfc(24, "Deferred")
+        with self.assertRaises(SystemExit):
+            self.verify()
+
+    def test_rejects_duplicate_id(self) -> None:
+        path = self.write_rfc(24, "Deferred")
+        path.with_name("RFC-BPR-0024-duplicate.md").write_text(path.read_text())
+        self.rows.append(
+            "| [RFC-BPR-0024](RFC-BPR-0024-duplicate.md) | Duplicate | Deferred | — |"
+        )
+        errors = StringIO()
+        with redirect_stderr(errors), self.assertRaises(SystemExit):
+            self.verify()
+        self.assertIn("duplicate canonical RFC id", errors.getvalue())
+
+    def test_rejects_additional_rfc_missing_from_index(self) -> None:
+        self.write_rfc(24, "Deferred")
+        self.rows.pop()
+        with self.assertRaises(SystemExit):
+            self.verify()
+
+    def test_rejects_additional_rfc_status_mismatch(self) -> None:
+        self.write_rfc(24, "Deferred")
+        self.rows[-1] = self.rows[-1].replace("Deferred", "Auto-Verified")
+        with self.assertRaises(SystemExit):
+            self.verify()
+
+    def test_rejects_index_link_to_a_different_rfc(self) -> None:
+        self.write_rfc(24, "Deferred")
+        self.rows[-1] = self.rows[-1].replace(
+            "(RFC-BPR-0024-fixture.md)", "(RFC-BPR-0001-fixture.md)"
+        )
+        with self.assertRaises(SystemExit):
+            self.verify()
+
+    def test_rejects_filename_id_mismatch(self) -> None:
+        path = self.write_rfc(24, "Deferred")
+        path.rename(self.rfc_root / "RFC-BPR-0025-fixture.md")
+        with self.assertRaises(SystemExit):
+            self.verify()
+
+    def test_rejects_reintroduced_future_folder(self) -> None:
+        (self.rfc_root / "future").mkdir()
+        with self.assertRaises(SystemExit):
+            self.verify()
 
 
 class IssueGraphTests(unittest.TestCase):

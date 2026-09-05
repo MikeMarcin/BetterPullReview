@@ -1,0 +1,212 @@
+---
+id: RFC-BPR-0026
+title: Personal Review Home and PR URL Navigation
+status: Deferred
+area: BPR
+milestone: Post-Pack v2
+depends_on: [RFC-BPR-0002, RFC-BPR-0007, RFC-BPR-0010, RFC-BPR-0016, RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025]
+pack_version: post-v2
+---
+
+# RFC-BPR-0026: Personal Review Home and PR URL Navigation
+
+## Status and scope
+
+**Design accepted; registration only; implementation requires a later request.**
+The product owner approved the daily-review Home and URL workflow on
+2026-09-04. This deferred post-pack RFC is last in the requested sequence
+RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025, RFC-BPR-0026. It changes no existing
+eligibility, dependency-order, platform, credential, or mutation requirement.
+
+Registration baseline: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
+Entry: [[BPR-0598]]. Closeout: [[BPR-0599]]. These cards remain in backlog.
+
+## Problem and outcome
+
+Repositories with thousands of in-flight PRs cannot be a useful default review
+list. Reviewers usually return to a small saved set, work on their own PRs or
+direct review requests, and open occasional links from Slack, Jira, or a browser.
+They need to discover relevant work without first loading an arbitrary PR or
+reentering owner/repository/number fields.
+
+At the registration baseline, `github_paged_read.cpp` performs a repository
+search with `SearchTerms = "is:open"` as part of a loaded PR snapshot. This RFC
+separates personal discovery from that path rather than merely filtering a
+downloaded list of all open PRs. Re-audit the live provider before implementation.
+
+## Home and attention
+
+Home is always reachable within a window. On profile opening, its last-focused
+window shows Home with a prominent **Resume review** action bound to the exact
+retained PR/tab destination from RFC-BPR-0024. Other restored windows keep their
+views; new windows open Home. Home selection never destroys those retained tabs.
+
+Lead with **Needs your attention**, then **Waiting on others**, then collapsible
+quiet items. Offer **My PRs**, **Requested**, and **Following** filters. Each PR
+appears once, with repository, number, title, state, and a concrete reason such
+as review requested, changed since your review, unseen discussion, or fixes
+awaiting verification. State and reason do not depend on color alone.
+
+Extend RFC-BPR-0010's core-owned attention projection to separate action by the
+current user from waiting on another person. A PR the user authored that only
+awaits another reviewer belongs in Waiting on others and contributes no
+Needs your attention count. Preserve existing exact ledger observations and
+stable core ordering within those sections; Qt does not invent urgency from
+timestamps or unread-looking badges. Initial discovery alone does not prove
+new commits or unseen comments. Unknown detail is labeled, not treated as quiet.
+
+An open review and a queue item are distinct. Clearing attention does not close
+the PR; closing its view does not delete its queue membership. Closed/merged
+PRs leave active discovery with a reason while already-open windows retain
+their stateful views until explicitly closed. Access loss, withdrawal, and
+temporary refresh failure remain distinct, following the existing queue domain.
+
+## Saved repositories and discovery
+
+Saved repositories belong to the BPR profile and survive restart. Their identity
+includes the configured server and accepted account authority. Display host
+context where repository names collide. Adding/removing a saved repository
+changes local discovery only, never GitHub watch/subscription or assignment.
+
+Automatically search only the saved repositories for open authored PRs and
+direct review requests, using the authenticated viewer on each configured
+server. Union results by exact PR identity; preserve why the PR was discovered.
+Retain already-reviewed enrollments for later activity even after the direct
+request disappears. Failed or incomplete searches cannot establish removal.
+Opening an external PR records a recent entry without silently saving its repo;
+offer **Save repository** and explicit local **Follow** for continued tracking.
+
+GitHub documents author and direct-review-request search qualifiers and a
+paginated search API. Use the server contract's supported equivalents with the
+resolved viewer identity. Validate GitHub.com and supported GHES contracts
+through fixtures; do not assume a newer web-only qualifier exists on GHES.
+Author results must be normalized against actual author identity so search
+expansions do not silently relabel another actor as the current user.
+
+- [GitHub issue and PR search qualifiers](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests)
+- [GitHub filtering and direct review requests](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/filtering-and-searching-issues-and-pull-requests)
+- [GitHub REST search limits and incomplete results](https://docs.github.com/en/rest/search/search)
+
+The discovery interface returns bounded metadata, reason, continuation, and
+completion/availability facts independently of full PR snapshots. Opening a PR
+does not require broad discovery to succeed. Discovery never fetches every
+candidate's full diff, history, conversations, or changed-file bodies. Obtain
+only bounded additional facts needed to resolve displayed attention, through
+existing provider/ledger paths; defer heavy review material until requested.
+
+One scheduler per profile shares discovery among its windows, partitions work
+by server/account, refreshes on activation subject to freshness/backoff, and
+provides an explicit Refresh action. Use existing conditional requests where
+supported and honor rate limits, cancellation, offline state, and bounded
+pagination. Show last successful refresh and partial/stale/error status per
+affected scope, preserving cached rows. Offer continuation or narrowing when
+limits are reached; never claim a partial list is complete. Loading or changing
+an active file/tab must not restart profile-wide polling.
+
+## URL opening and onboarding
+
+Provide an always-reachable **Open PR** action with a pasteable URL field and
+keyboard access. No owner/repository/number entry is needed for a valid PR URL.
+Pasted text is explicit navigation input; this feature does not monitor the
+clipboard or integrate Slack/Jira accounts.
+
+Resolve a supported HTTPS PR URL into server, owner/repository, PR number, and
+an optional location. Recognize the canonical PR, `/files`, `/commits`, a PR
+commit subpage, and supported comment/file fragments. Unrelated query parameters
+do not become provider request or credential-routing instructions. A repository
+commit URL with no PR identity must not guess a PR.
+
+Navigation always uses the receiving window's BPR profile. Activate the PR if
+already open there, otherwise open it there using RFC-BPR-0025's tab/session
+intents. Without a location, preserve the PR's retained active view. An exact
+location navigates within its active tab through the same file/comparison
+authority as an ordinary gesture; it creates the initial tab when necessary.
+
+Map a file/commit/comment location only when accepted provider and retained
+revision facts establish its exact target. If the PR resolves but its specific
+location cannot, open the PR with a clear location-unavailable explanation;
+never silently pick a nearby line or a different revision. Do not promise
+historical comment mapping that depends on unimplemented RFC-BPR-0021. Preserve
+the unresolved requested location as context for the explanation.
+
+For an unconfigured enterprise server, show the parsed hostname with **Add
+server and continue**. No unknown authority receives credentials or becomes
+configured merely because a URL was parsed. This explicit action hands the
+pending target to RFC-BPR-0018's server flow. A configured but signed-out server
+offers direct sign-in and resumes the exact pending target only after accepted
+authentication. Cancellation keeps the existing review usable. Account/profile
+changes invalidate obsolete pending navigation rather than retargeting it.
+
+GitHub.com onboarding exposes direct device sign-in through RFC-BPR-0016;
+unsupported device flows, including the current GHES contract, retain the
+supported manual-token path. Existing public-preview availability remains
+explicit; a failed authenticated request never falls back to anonymous access.
+Without viewer identity, personal discovery is unavailable with a sign-in action.
+
+## Architecture, persistence, and interfaces
+
+Core owns personal membership/attention decisions and typed navigation targets,
+legality, and acceptance. Application hosts own URL normalization/validation,
+discovery scheduling, provider observations, pending navigation, persistence,
+and serialization. Provider URL construction remains in the narrow adapter;
+Qt accepts text and presents results, never acquiring `QUrl`, a provider, vault,
+network, or browser-opening effect.
+
+Extend existing queue membership/storage with explicit discovery/follow reasons
+without treating a saved repo as a watch-all observer rule. Store saved repos,
+recents, and enrollment facts under RFC-BPR-0024's profile authority. Migrate
+existing queue preferences and observer memberships intact. Window filters and
+Resume destinations retain their window ownership; do not persist a derived
+filtered queue as canonical truth.
+
+Tag work by profile, server/account generation, query/page, and navigation
+request identity. A stale result cannot reopen another window or revive a
+removed repository. Storage failure reports precisely which updates are
+session-only or unavailable; it never falls back to another profile's cache.
+
+## Non-goals
+
+Repository-wide all-PR dashboards, automatic mention or team-request discovery,
+automatic discovery outside saved repositories, Slack/Jira integrations,
+OS-wide URL-scheme registration, clipboard monitoring, cloud sync, new desktop
+notification behavior, new publishing permissions, and guessed historical
+anchors are outside this initial scope. The settings, profiles, and tab RFCs
+retain their own ownership; this RFC composes their existing interfaces.
+
+## Acceptance criteria
+
+- AC-01: Home is reachable and opens according to the profile/window startup contract, with Resume restoring the exact retained review/tab without destroying other sessions.
+- AC-02: Home deduplicates PRs and explains attention, waiting, and quiet states; authored PRs merely awaiting another reviewer do not inflate the user's attention count, and unknown detail is not presented as quiet.
+- AC-03: Authored and directly requested PRs are discovered in saved repositories without prior PR opening, while previously reviewed and explicitly followed PRs retain meaningful membership across request changes and restart.
+- AC-04: Saved repositories, recents, follow membership, and window filters preserve their separate ownership, and external PR opening does not silently enroll its repository or mutate GitHub subscriptions.
+- AC-05: Discovery is independent of PR loading, paginated, bounded, and shared across profile windows; a fixture with thousands of unrelated open PRs requires no broad all-PR fetch or full-review hydration.
+- AC-06: Rate limits, incomplete pages, offline state, auth failures, removed repositories, and stale completions preserve honest availability and cached results without cross-profile/account publication or false membership removal.
+- AC-07: Canonical PR URLs and supported PR subpages resolve in the receiving profile/window, reuse an existing PR there, and navigate exact supported locations without manual owner/repository/number entry.
+- AC-08: Unsupported or unavailable sublocations open the resolved PR with an explanation, while malformed or non-PR targets never guess a review, line, or revision.
+- AC-09: Unknown-server and signed-out navigation preserve the pending destination through explicit server setup and supported sign-in, cancel safely, and send no credentials to unaccepted authorities.
+- AC-10: The composed Home, filtering, Refresh, Resume, Open PR, and onboarding flows preserve keyboard/accessibility and responsive layout behavior without adding Qt effects or weakening existing review/preview authority.
+
+## Direct verification scenarios
+
+| Criteria | Direct surface and discriminating check |
+|---|---|
+| AC-01, AC-10 | Public application with retained windows: open profile, Resume, return Home, create another window, and traverse all primary actions by keyboard at narrow sizes and 100–200% scale. |
+| AC-02, AC-03 | Deterministic queue fixtures: author waiting, first review request, changed reviewed head, unseen discussion, duplicate roles, missing detail, request disappearance, and closed/merged/access-lost transitions. Inspect both decided sections and rendered reasons/counts. |
+| AC-04 | Saved-repository/follow gestures through profile store and restart: open a one-off external PR, save/remove its repo, follow/unfollow it, change one window's filter, and assert other windows' state plus zero subscription mutations. |
+| AC-05 | Recording provider facade with thousands of unrelated PRs: verify personal query scope, bounded pages and detail requests, independent PR loading under discovery failure, and no duplicate scheduler work for two windows. |
+| AC-06 | Manual executor and persisted cached rows: inject primary/secondary limits, partial search, page failure, offline, sign-out, repo removal, and out-of-order completions; verify truthful retained rows and exact generation rejection. |
+| AC-07, AC-08 | Table-driven URL normalization plus real Open PR gestures: canonical, files, commits, PR commit, comment/file fragments, duplicate PR, extra query parameters, unavailable anchor, malformed URL, and non-PR commit URL. Assert exact selected target or explicit refusal/fallback. |
+| AC-09 | Recording transport/vault and composed setup: paste unknown enterprise host, accept or cancel setup, sign in or cancel, change profile/account mid-flow, and verify destination retention plus zero wrong-authority requests. |
+
+Record exact focused selectors and producing commits in the closeout card when
+implemented. All product evidence is not run at registration. A rendered
+application course and existing attended-review workflow cover subjective UX;
+live authentication or GitHub mutations require their existing separate authority.
+
+## Implementation entry and documentation impact
+
+[[BPR-0598]] inventories provider search, queue attention/enrollment, server
+capabilities, and URL-to-workspace routing before allocating bounded slices.
+[[BPR-0599]] anchors acceptance. Later implementation updates the queue, startup,
+URL-opening, and onboarding guides and revises only the affected architecture
+contracts. Until then, the UX specification links this document as future design.
