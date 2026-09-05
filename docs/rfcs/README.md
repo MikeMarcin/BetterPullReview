@@ -75,6 +75,7 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0024](RFC-BPR-0024-bpr-profiles-multiple-windows.md) | BPR Profiles and Multiple Windows | Deferred | Design accepted; later implementation request; RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007, RFC-BPR-0008, and RFC-BPR-0018 |
 | [RFC-BPR-0025](RFC-BPR-0025-review-workspace-navigation-browser-tabs.md) | Review Workspace Navigation and Browser-Style Tabs | Deferred | Design accepted; later implementation request; RFC-BPR-0003, RFC-BPR-0004, RFC-BPR-0005, RFC-BPR-0006, and RFC-BPR-0024 |
 | [RFC-BPR-0026](RFC-BPR-0026-personal-review-home-pr-url-navigation.md) | Personal Review Home and PR URL Navigation | Deferred | Design accepted; later implementation request; RFC-BPR-0002, RFC-BPR-0007, RFC-BPR-0010, RFC-BPR-0016, RFC-BPR-0018, RFC-BPR-0024, and RFC-BPR-0025 |
+| [RFC-BPR-0027](RFC-BPR-0027-structured-diagnostic-logging-verbosity-privacy.md) | Structured Diagnostic Logging, Verbosity, and Privacy | Deferred | RFC-BPR-0001 and RFC-BPR-0002; later explicit implementation request; independent foundation with later Settings/profile integration |
 
 The 2026-09-04 daily-workbench registration accepts the design in RFC-BPR-0018
 and RFC-BPR-0024 through RFC-BPR-0026, with implementation explicitly deferred.
@@ -133,3 +134,10 @@ publication cards consume one logical receipt and distinguish approved prose
 from the permalink-prefixed public body. RFC-BPR-0021 keeps the general
 historical comment/revision join. The imported pack prompts and earlier
 frontier language authorize no implementation of these two deferred RFCs.
+
+RFC-BPR-0027 records the owner's request for useful local diagnostic logging,
+Standard/Verbose detail and privacy/export controls inspired by AllTheThings.
+Quill is the proposed C++ backend. Registration adds no dependency or live-run
+authority and does not implement logging. [[BPR-0600]] and [[BPR-0601]] are its
+unstarted entry/closeout pair. The foundation does not wait for RFC-BPR-0018 or
+RFC-BPR-0024; those RFCs later compose the same diagnostic controls and scope.

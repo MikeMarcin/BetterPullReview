@@ -238,3 +238,12 @@ criterion is met. Do not add another speculative code list or ask for a blind
 retry. Next bounded task: design a useful safely redacted observation of the
 actual server error, consistent with the provider/presentation boundary,
 before preparing any additional live checkpoint. No new packet is pending.
+
+## Logging design registered
+
+The owner requested a logging RFC with AllTheThings-style verbosity and privacy
+options. [RFC-BPR-0027](../../rfcs/RFC-BPR-0027-structured-diagnostic-logging-verbosity-privacy.md)
+and its backlog entry/closeout cards now specify that work, including a useful
+sanitized unfamiliar GraphQL error fixture. This is design registration only;
+no logger is implemented, no further live run is authorized and BPR-0559's
+root-repair criteria remain open.

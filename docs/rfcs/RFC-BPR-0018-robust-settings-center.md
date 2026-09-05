@@ -158,6 +158,10 @@ The initial sidebar is ordered by reviewer task, not implementation module:
    global purge; diagnostic detail; previewable diagnostic export; and a plain
    inventory of what remains after uninstall.
 
+RFC-BPR-0027 owns the diagnostic logging, verbosity, privacy and export
+contracts exposed here. This Settings RFC presents those typed controls when
+available; logging can first ship through Help without depending on this window.
+
 Sections may be absent only when the corresponding capability is structurally
 unavailable in that build. A temporarily unavailable setting remains visible,
 disabled, and explained so failure is not mistaken for product omission.
