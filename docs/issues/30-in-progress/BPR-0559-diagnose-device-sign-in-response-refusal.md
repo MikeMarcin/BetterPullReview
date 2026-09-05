@@ -226,3 +226,15 @@ logs remain. The portable and Mac ready lanes contain no other startable card.
 The owner supplied the exact [v003 operator response](../../verification/reviews/device-session-bootstrap-diagnostic-v003/operator-response.md). Packet and executable digests and length match. Native inventory showed no existing instance. The integrator resumes this single sign-in-only diagnostic run, followed by explicit Sign out and quit. No PR or publication is authorized.
 
 The approved v003 executable was launched once with no arguments after a second packet/binary digest check, removing the specified 24 variables from the child environment and discarding child output. PID 67244 is the active diagnostic process. Native UI showed the GitHub.com Native HTTPS profile, no connected host and empty code fields. A subsequent Raise action reported that the user changed the app; foreground activation is therefore not claimed. Continue this existing run only. Operator authorization and its terminal result are pending, followed by explicit Sign out and quit.
+
+## v003 completed with generic GraphQL error
+
+The [v003 result](../../verification/reviews/device-session-bootstrap-diagnostic-v003/attended-result.md)
+records the generic GraphQL-error envelope again. No recognized code was
+reported. Copy message, explicit Sign out, terminal disconnected UI and normal
+exit 0 completed. The exact authority is consumed; no PR or publication ran.
+The actual error text/code remains unavailable, so no root-repair acceptance
+criterion is met. Do not add another speculative code list or ask for a blind
+retry. Next bounded task: design a useful safely redacted observation of the
+actual server error, consistent with the provider/presentation boundary,
+before preparing any additional live checkpoint. No new packet is pending.
