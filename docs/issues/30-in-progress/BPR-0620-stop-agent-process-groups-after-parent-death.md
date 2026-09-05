@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0620"
 title: "Stop agent process groups after application death"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0619"]
 ---
