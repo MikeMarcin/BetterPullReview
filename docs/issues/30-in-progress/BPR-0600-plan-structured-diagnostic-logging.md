@@ -1,7 +1,7 @@
 ---
 id: BPR-0600
 title: Inventory diagnostic boundaries and plan RFC-BPR-0027
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0027
 milestone: Post-Pack v2
 depends_on: []
@@ -43,3 +43,9 @@ Registration verification: `python3 scripts/verify_documentation.py --root .`
 passed; `python3 tests/scripts/verify_documentation_tests.py` passed all 62 tests;
 `git diff --check` passed. These are documentation checks only. AllTheThings was
 read without edits; no temporary worktree, source copy or runtime log was created.
+
+## Foundation authorized
+
+The owner requested implementation of basic Quill logging now and deferred
+rotation, anonymization and Settings controls. The integrator is planning that
+bounded phase within RFC-BPR-0027; the full RFC remains open.
