@@ -1,8 +1,9 @@
 ---
 id: BPR-0142
 title: Verify a published comment in the GitHub web UI
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0008
+parked_on: awaiting-owner-verdict
 depends_on: [BPR-0139, BPR-0221, BPR-0229, BPR-0235, BPR-0256, BPR-0318]
 ---
 
@@ -205,3 +206,16 @@ BPR-0144 Comment/Approve/Request Changes evidence remain open. The single commen
 course is spent, so no additional remote mutation follows from it. RFC-BPR-0008
 and the complete requested RFC goal remain unfinished. Advanced logging BPR-0603
 and schema-method BPR-0604 remain explicitly deferred.
+
+## Current frontier after v011 — 2026-09-05
+
+All dependencies are Done, including the default-deny isolation card BPR-0235.
+This card parks for its remaining attended scope. The exact existing comment
+and full text are linked above; publication, correct author and unadorned web
+rendering are direct agent observations. Remaining work is a separately scoped
+web reply to that comment, its returned workbench projection, and the owner's
+subjective ordinary-comment acceptance. No further sign-in diagnostic or repeat
+publication is needed. The remembered MikeMarcin session remains available.
+The one-comment course explicitly excluded replies and is spent; preserving
+sign-in and autonomous diagnosis do not manufacture an additional message or
+subjective human verdict. No new approval question was issued in this run.

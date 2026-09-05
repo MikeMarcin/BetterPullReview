@@ -1,7 +1,7 @@
 ---
 id: BPR-0235
 title: Enforce default-deny network isolation for live mutation tests
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0221, BPR-0347, BPR-0350]
 ---
@@ -327,3 +327,32 @@ The exact [result](../../verification/reviews/designated-live-review-publication
 now supplies the sole remaining criterion recorded on 2026-08-27. Claim this
 card to reconcile its already-passing Mac/Linux/Windows boundary evidence and
 this live result; no new live action or full matrix is required.
+
+## Completed — 2026-09-05
+
+The native macOS v011 course supplies the last live criterion: the one exact
+opt-in tests-disabled shipped-app lane validated the designated PR before GUI
+creation, published its one comment and exited/detached cleanly. BPR-0256's
+result is committed at `f4978aae`, with exact production source `a35eccaa` and
+execution at `901ba10a`; its CTest lane passed in 679.73 seconds. This is native
+Mac publication evidence, not a claim that Windows publication is implemented.
+
+Final focused check at `f4978aae`:
+
+```sh
+ctest --test-dir build/dev --output-on-failure -R '^(test_network_isolation_manifest|test_network_isolation_application|live_mutation_isolation|live_mutation_isolation_contract)$'
+```
+
+Passed 4/4 in 35.59 seconds: configured default manifest, real production-app
+network denial, source/binary mutation isolation and its hostile contract.
+Unchanged direct/descendant/fixture controls are reused from this card's prior
+Mac evidence, Linux's 2026-08-17 native run, and Windows matrix-10 at `8e952928`
+recorded on BPR-0036. The Windows claim remains the measured boundary with the
+exact verifier-pinned `WINDOWS_UNCONTAINED` exceptions, not universal containment.
+The 2026-08-27 record already discharged that native replay; no additional
+platform run or full matrix was needed for this documentation reconciliation.
+
+All of this card's final criteria now have direct evidence. Documentation
+structure and diff hygiene pass; no implementation changed in this completion
+slice. BPR-0142 becomes the frontier for the separate web reply-return and
+subjective review; BPR-0143/0144 and RFC-BPR-0008 remain incomplete.
