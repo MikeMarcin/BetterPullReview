@@ -2531,6 +2531,14 @@ these events:
 tail -n 100 "$HOME/Library/Application Support/BetterPullReview/BetterPullReview/logs/diagnostics.log"
 ```
 
+The BPR-0559 attended log identified `INTROSPECTION_LIMIT_EXCEEDED` after
+successful viewer observation. Capability discovery now uses nine canonical
+serial requests per uncached discovery, retaining one logical request identity.
+Several capability response records with that identity are expected. The
+`github_contract_fixture_security`, `github_capability_probe`, `github_provider`,
+`native_https_transport_fixture`, and `application_logging` selectors cover the
+repetition-limit repair from document expansion through composed session startup.
+
 The file contains UTC timestamps, application startup/shutdown, GitHub viewer
 and capability outcomes, local request numbers, capability HTTP status and a
 sanitized error summary. Unknown capability error message/type/code prose stays

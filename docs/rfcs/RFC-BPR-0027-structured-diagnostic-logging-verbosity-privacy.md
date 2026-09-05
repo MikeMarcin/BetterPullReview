@@ -68,8 +68,11 @@ application checks pass on macOS. Development and tests-disabled Release builds
 pass; the core-only graph omits Quill. See [[BPR-0602]] for exact evidence and
 [local logging instructions](../development/build-and-test.md#basic-local-diagnostics).
 Windows file logging is explicitly unavailable; Linux native evidence, advanced
-controls and full RFC closeout remain deferred. No new live sign-in ran, and
-BPR-0559's live refusal root cause remains unknown.
+controls and full RFC closeout remain deferred. No new live sign-in ran during
+that foundation slice. The subsequent approved BPR-0559 observation used this
+log to identify GitHub's introspection repetition limit; `b14a69d0` repairs the
+query plan with focused offline evidence. Changed-build live acceptance remains
+unverified.
 
 ## Problem and intended outcome
 

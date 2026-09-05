@@ -1,7 +1,7 @@
 ---
 id: BPR-0559
 title: Diagnose device sign-in response refusal after browser authorization
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -19,7 +19,16 @@ Reproduce and repair the response-handling failure observed in the v007 attended
 
 Observed source: `2a043335`; [v007 attended result](../../verification/reviews/designated-live-review-publication-v007/attended-result.md).
 
-## Current source-backed finding
+## Resolution — 2026-09-05
+
+Fixed in `b14a69d0`: the logged live failure was GitHub's introspection
+repetition limit. Nine bounded canonical queries now gather the same capability
+facts, with exact part correlation, aggregate limits and complete-only session
+acceptance. Direct offline and composed checks pass; see the final verification
+record below. The changed executable has not been verified against live GitHub.
+The historical entries below retain the earlier observations and uncertainty.
+
+## Initial source-backed finding
 
 Read-only scouting traces the captured title to GitHub `session_failed` and
 the body to `malformed_response`. Token-exchange parsing alone does not set
@@ -282,7 +291,7 @@ The exact approved v004 executable launched once at 2026-09-05T08:51:41Z, PID 37
 ## v004 identifies the concrete query-policy failure
 
 The [logged result](../../verification/reviews/device-session-bootstrap-diagnostic-v004/attended-result.md)
-identifies `INTROSPECTION_LIMIT_EXCEEDED`. GitHub allows each introspection field
+identifies `INTROSPECTION_LIMIT_EXCEEDED`. GitHub allows each limited introspection collection field
 twice per query; our document repeats fields/args 17 times, enumValues three and
 inputFields four. Viewer succeeds and capability HTTP 200 fails before schema
 acceptance. Explicit Sign out, disconnected UI, normal exit 0 and logged shutdown
@@ -293,7 +302,7 @@ validation or add another speculative diagnostic enum.
 ## Bounded repair plan
 
 Replace the singleton introspection request with exactly nine canonical serial
-query parts, each expanding every introspection field no more than twice.
+query parts, each expanding every limited introspection collection field no more than twice.
 Keep the existing selected schema facts, 1 MiB response/aggregate ceiling and
 50,000-value final bound; do not download the unrelated complete schema or
 increase limits. Carry exact part identity through request validation and
@@ -309,3 +318,55 @@ Regression evidence must fail the old query's 17/17/3/4 repetitions and accept
 the new fixed plan, then cover provider stopping/correlation/bounds and the
 native-to-composed session path. Historical answered review artifacts remain
 immutable. Additional live verification requires its own exact changed build.
+
+## Repair verification and closeout
+
+Producing source commit: `b14a69d0`. Both development and tests-disabled Release
+incremental builds pass. The original selected schema predicates and semantic
+probe revision remain unchanged. Per-part metadata and rate handling preserve
+earlier GHES observations when a later response omits its whole rate tuple.
+No partial assembly survives an error, cancellation, or new logical attempt.
+
+| Acceptance | Direct evidence | Result |
+|---|---|---|
+| Discriminate the cause | `github_contract_fixture_security` expands the exact original document to the observed 17/17/3/4 counts and verifies each replacement limited field is at most two, with reachable fragments and the same 26 aliases | Pass at `b14a69d0` |
+| Valid session; malformed and authority mismatch refuse | `github_capability_probe` compares complete GitHub.com/GHES facts to the original fixtures and enforces aggregate bytes/values; `github_provider` covers exact parts, metadata, refusal/cancellation at first/middle/final parts, rate exhaustion and fresh attempts; `application_logging` reaches composed session startup | Pass at `b14a69d0` |
+| Focused adapter/host plus composed path | Native contract and HTTPS loopback consume the nine exact request bodies; composed logging and application contracts exercise the provider-to-session path | Pass at `b14a69d0` |
+| Honest uncertainty and safe scope | v004 records the sanitized cause, explicit Sign out, disconnected UI and exit 0; no additional live launch or publication occurred | Complete; changed-build live success unverified |
+
+Integrator reproduction:
+
+```sh
+ctest --test-dir build/dev --output-on-failure -R '^(github_capability_probe|github_provider|native_https_transport_contract|native_https_transport_fixture|github_contract_fixture_security|application_logging)$'
+ctest --test-dir build/dev --output-on-failure -R '^application_public_path_ghes_cli_unavailable$'
+```
+
+Passed 6/6 in 31.02 seconds and 1/1 in 0.73 seconds. The worker's broader
+ten-selector run initially passed 9/10: `application_composition_contract`
+exposed a stale CLI refusal assertion from the earlier stage-prefix change.
+Correcting that exact expected string, without weakening equality, and updating
+the inspected production-source pin produced 2/2 passing composition contracts
+in 176.64 seconds. Earlier passing architecture boundary checks are reused;
+the assertion-only delta does not change ownership or dependencies.
+
+Scoped strict tidy passes for the seven batching TUs plus `main.cpp`; scoped
+formatting, Python compilation, full diff inspection, code-simplifier review,
+documentation gates and diff hygiene pass. No broad matrix ran.
+
+Closeout review runtime: native collaboration (gpt-6-astra, xhigh).
+One bounded independent critical review plus its contained delta found no
+remaining blocker. Opposite-family review was unavailable. It found an
+allocating response conversion in `finish() noexcept`; the conversion is now
+inside the exception boundary. This finding and repair are source-reviewed,
+not allocator-fault-injection evidence.
+
+The new fixtures are deterministic projections of the unchanged v1 recordings,
+not recaptured schemas. Live cost and latency of the changed plan are unmeasured;
+native Windows/Linux acceptance was not run. The owner accepts nine requests
+for now; optional schema-method evaluation is deferred in [[BPR-0604]]. This
+card's acceptance is complete; RFC-BPR-0016 and live publication closeout are
+not claimed. Prior exact live approvals remain consumed.
+
+Consumed batch/CLI-prefix temporary logs and helpers are removed after review.
+No task worktree or new build root was created. Existing dev/Release roots and
+the owner's local diagnostic log remain; the complete live log is not committed.

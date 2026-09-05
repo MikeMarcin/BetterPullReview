@@ -129,7 +129,7 @@ selected `2022-11-28` server contract are admitted. Provider content cannot
 create a profile, GraphQL redirects are forbidden, and REST redirects remain
 query-free on the validated authority and inside its API namespace.
 
-One static, bounded GraphQL introspection query observes the exact
+The original static, bounded GraphQL introspection query observed the exact
 review-thread, viewed-state, mark/unmark, and resolve/unresolve schema
 contracts without executing a mutation. Complete compatible evidence yields
 `Supported`; complete missing or incompatible evidence yields `Unsupported`;
@@ -138,6 +138,16 @@ explicitly unavailable with all four capability states `Unknown`. The
 application cache admits only complete recorded or observed facts and keys
 them by exact profile revision, host, authenticated account, server contract,
 and probe-contract revision with bounded logical freshness and capacity.
+
+[[BPR-0559]] supersedes the singleton request in `b14a69d0`. The sanitized live
+diagnostic identified `INTROSPECTION_LIMIT_EXCEEDED`; independent fragment
+expansion reproduces the original 17/17/3/4 collection-field repetitions. Nine
+canonical serial parts keep every limited field at two uses or fewer and merge
+the same 26 aliases under unchanged size and semantic limits. Original schema
+fixtures remain intact; the new partials are deterministic projections, not a
+fresh upstream capture. Focused probe/provider, native HTTPS loopback, fixture
+security, and composed application checks pass. This later offline repair does
+not retroactively establish live success for the historical singleton query.
 
 The fully supported selected read contract also normalizes per-file viewed
 state and per-thread resolve/unresolve target flags. Those facts remain

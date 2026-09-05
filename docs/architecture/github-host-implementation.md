@@ -178,8 +178,18 @@ is keyed by profile revision, host, authenticated account, product/server
 facts, and probe-contract revision. The core receives the compact tri-state
 set plus `capability_revision`; the host retains detailed probe evidence.
 
-The adapter sends one statically selected, bounded GraphQL introspection
-`query` to the exact validated GraphQL root. It inspects the mutation root and
+The adapter sends a fixed plan of nine serial, bounded GraphQL introspection
+queries to the exact validated GraphQL root. Each limited collection field
+expands no more than twice per document, satisfying the GitHub repetition limit
+observed in [[BPR-0559]]. Exact canonical request and completion correlation
+include the part index. Every response is validated, with a 1 MiB aggregate
+body ceiling and 50,000-value aggregate bound; only the complete merged result
+can establish capabilities. Cancellation, invalid metadata, errors, and rate
+exhaustion stop further parts. A later GHES response omitting the whole rate
+tuple does not discard an earlier observation. This adds connection round trips;
+[[BPR-0604]] defers evaluation of schema-based alternatives.
+
+The plan inspects the mutation root and
 the pull-request, changed-file, review-thread, viewed-state enum, and four
 mutation input/payload contracts without executing a mutation. Names and type
 signatures are case-sensitive and order-independent; duplicate names,
