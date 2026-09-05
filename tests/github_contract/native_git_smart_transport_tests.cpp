@@ -1,3 +1,5 @@
+#include "bpr/application/git_protocol_v2.hpp"
+
 #include "github_host_profile.hpp"
 #include "native_https_transport.hpp"
 
@@ -30,7 +32,7 @@ namespace {
 	using namespace bpr::adapters::github::detail;
 	using namespace std::chrono_literals;
 
-	constexpr std::string_view discovery_body   = "001eversion 2\n0000";
+	constexpr std::string_view discovery_body   = "001e# service=git-upload-pack\n0000000eversion 2\n000cls-refs\n000afetch\n0017object-format=sha1\n0000";
 	constexpr std::string_view ls_refs_body     = "0008NAK\n0000";
 	constexpr std::size_t      fetch_body_bytes = 200'000U;
 
@@ -524,6 +526,10 @@ namespace {
 			if (aScenario == "discovery" || aScenario == "direct-fallback") {
 				expect(result.has_value(), "discovery-result");
 				expect(result->Body == bytes(discovery_body), "discovery-body");
+				expect(application::detail::parse_git_protocol_v2_advertisement(
+						   result->Body, core::git_hash_algorithm::sha1)
+						   .has_value(),
+					   "native-discovery-parses-as-v2");
 				return;
 			}
 			expect(!result.has_value(), "discovery-failure");

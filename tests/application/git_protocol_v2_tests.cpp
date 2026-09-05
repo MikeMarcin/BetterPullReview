@@ -424,6 +424,45 @@ namespace {
 			"zero application session invalidates context");
 	}
 
+	auto test_http_advertisement_preamble() -> void
+	{
+		const auto preamble = packet("# service=git-upload-pack\n") + "0000";
+		for (const auto format : { core::git_hash_algorithm::sha1,
+								   core::git_hash_algorithm::sha256 }) {
+			const auto body    = advertisement(format);
+			const auto wrapped = bytes(preamble + text(body));
+			const auto direct  = application::detail::parse_git_protocol_v2_advertisement(body, format);
+			const auto parsed  = application::detail::parse_git_protocol_v2_advertisement(wrapped, format);
+			expect(direct.has_value() && parsed.has_value()
+					   && parsed->ObjectFormat == direct->ObjectFormat
+					   && parsed->LsRefs == direct->LsRefs && parsed->Fetch == direct->Fetch,
+				   "HTTP preamble preserves required v2 capabilities and object format");
+		}
+		const auto body = text(advertisement(core::git_hash_algorithm::sha1));
+		for (const auto& invalid : {
+				 packet("# service=git-receive-pack\n") + "0000" + body,
+				 packet("# service=git-upload-pack\n") + body,
+				 packet("# service=git-upload-pack\n") + "0001" + body,
+				 packet("# service=git-upload-pack\r\n") + "0000" + body,
+				 preamble + preamble + body,
+				 preamble,
+				 preamble + packet("version 1\n") + "0000",
+				 preamble + packet("version 2\n") + "0000",
+				 preamble + body + "0000",
+				 std::string{ "001f# service=git-upload-pack\n0000" } + body,
+			 }) {
+			expect(!application::detail::parse_git_protocol_v2_advertisement(
+						bytes(invalid), core::git_hash_algorithm::sha1)
+						.has_value(),
+				   "invalid HTTP framing cannot bypass strict v2 admission");
+		}
+		const auto mismatched = bytes(preamble + text(advertisement(core::git_hash_algorithm::sha256)));
+		expect(!application::detail::parse_git_protocol_v2_advertisement(
+					mismatched, core::git_hash_algorithm::sha1)
+					.has_value(),
+			   "HTTP framing cannot bypass object-format matching");
+	}
+
 	auto test_advertisement_and_requests() -> void
 	{
 		for (const auto format : {
@@ -1393,6 +1432,7 @@ namespace {
 int main()
 {
 	test_base_ref_and_context_validation();
+	test_http_advertisement_preamble();
 	test_advertisement_and_requests();
 	test_ls_refs_strict_identity();
 	test_incremental_fetch_parser();

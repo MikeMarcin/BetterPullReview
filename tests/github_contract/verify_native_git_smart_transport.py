@@ -27,7 +27,7 @@ DISCOVERY_TARGET = (
 )
 UPLOAD_TARGET = "/octo-org/review-repository.git/git-upload-pack"
 REQUEST_BODY = b"0014command=ls-refs\n0000"
-DISCOVERY_BODY = b"001eversion 2\n0000"
+DISCOVERY_BODY = b"001e# service=git-upload-pack\n0000000eversion 2\n000cls-refs\n000afetch\n0017object-format=sha1\n0000"
 LS_REFS_BODY = b"0008NAK\n0000"
 FETCH_BODY_BYTES = 200_000
 HEADER_LIMIT = 32 * 1024

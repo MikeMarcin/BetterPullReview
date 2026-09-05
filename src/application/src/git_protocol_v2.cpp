@@ -483,10 +483,24 @@ namespace bpr::application {
 			if (!decoded.has_value()) {
 				return std::unexpected(decoded.error());
 			}
+			// Smart HTTP may prepend its service announcement to the v2 stream.
+			// Consume exactly that preamble; the version and capabilities still
+			// pass through the same strict parser and aggregate packet bounds.
+			std::size_t versionIndex = 0U;
+			if (decoded->Count >= 2U
+				&& decoded->Packets[0U].Kind == packet_kind::data
+				&& text_line_content(decoded->Packets[0U].Payload)
+					== std::optional<std::string_view>{ "# service=git-upload-pack" }) {
+				if (decoded->Packets[1U].Kind != packet_kind::flush) {
+					return std::unexpected(
+						protocol_error(git_protocol_v2_failure::unexpected_section));
+				}
+				versionIndex = 2U;
+			}
 			if (
-				decoded->Count < 2U
-				|| decoded->Packets[0U].Kind != packet_kind::data
-				|| text_line_content(decoded->Packets[0U].Payload)
+				decoded->Count < versionIndex + 2U
+				|| decoded->Packets[versionIndex].Kind != packet_kind::data
+				|| text_line_content(decoded->Packets[versionIndex].Payload)
 					!= std::optional<std::string_view>{ "version 2" }) {
 				return std::unexpected(
 					protocol_error(git_protocol_v2_failure::unsupported_version));
@@ -497,7 +511,7 @@ namespace bpr::application {
 						seenKeys{ };
 			std::size_t seenCount = 0U;
 			bool        terminal  = false;
-			for (std::size_t index = 1U; index < decoded->Count; ++index) {
+			for (std::size_t index = versionIndex + 1U; index < decoded->Count; ++index) {
 				const auto& packet = decoded->Packets[index];
 				if (packet.Kind == packet_kind::flush) {
 					if (index + 1U != decoded->Count) {

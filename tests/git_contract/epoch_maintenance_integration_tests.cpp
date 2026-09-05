@@ -361,7 +361,9 @@ namespace {
 					.Failure = application::git_smart_transport_failure::cancelled,
 				} };
 			}
-			auto body = packet("version 2\n");
+			auto body = packet("# service=git-upload-pack\n");
+			append(body, bytes("0000"));
+			append(body, packet("version 2\n"));
 			append(body, packet("ls-refs=unborn\n"));
 			append(body, packet("fetch=shallow wait-for-done\n"));
 			append(body, packet("object-format=sha1\n"));

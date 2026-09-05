@@ -33,3 +33,14 @@ Run `application_git_protocol_v2`, `native_git_smart_transport_contract`,
 building their targets. Run scoped format, documentation gate and diff check.
 The official Git [HTTP protocol](https://git-scm.com/docs/http-protocol) and
 [v2 protocol](https://git-scm.com/docs/protocol-v2) describe the framing layers.
+
+## Implementation checkpoint
+
+The parser consumes at most one exact upload-pack announcement plus flush,
+then applies unchanged v2/capability/object-format checks. Ten malformed or
+unsupported wrapper cases and both object formats are covered. The native
+HTTPS fixture now serves a valid wrapped advertisement and feeds received bytes
+into the production parser; the real epoch/cache integration uses the wrapper.
+All four planned selectors passed (49.56 seconds). Dev targets and Release app
+built; scoped format, code-simplifier inspection and documentation gate pass.
+Live remembered-sign-in/history observation remains in progress.
