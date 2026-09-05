@@ -1,9 +1,9 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560]
+depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560, BPR-0606]
 ---
 
 # Build the attended one-shot live application lane
@@ -1293,3 +1293,7 @@ At `824360af`, all eight artifact hashes/lengths and all 37 selected current/com
 Closeout review runtime: native collaboration (gpt-6-astra, xhigh).
 
 The reviewer accepted packet SHA-256 `1f057d41abb1332eccfc85af4372ff25f9a7fa0dca61afec86de867af3a2fa64`, 18,673 bytes, with no blocking or non-blocking findings. The subject changes only the approval ID; the namespace has the three expected spent IDs and the fresh ID is absent. Current show-only enumeration matches the inspected 281-test/one-live graph, unchanged image/launcher/source and new mount/placeholder paths, timeout, environment removals and no overrides. Full mounted-path/sole-PID binding, abort-before-sign-in on a second instance and filtered observations address the prior procedure failure. The actual owner words are preserved and no digest statement is invented. Unchanged artifact acceptance reuses the v008 review; opposite-family review was unavailable. No live or credential operation occurred in review. The direct owner instruction now proceeds to materialization, final command inspection and this single course.
+
+## v009 consumed; selected-file refusal — 2026-09-05
+
+The [v009 result](../../verification/reviews/designated-live-review-publication-v009/attended-result.md) records the single approved mounted run: sign-in as MikeMarcin and all nine capability checks succeeded, and the correct designated PR opened. Selecting its sole file failed before source loading with a changed-file refusal and unavailable exact comparison history. No body was entered or Publish action taken. Explicit Sign out, quit and detach completed; CTest exit 0 in 321.64 seconds proves cleanup only. Device-field emissions are disclosed in the result; clean capture compliance is not claimed. The new approval is spent. Next: diagnose and repair the file/history path with fixtures before preparing another candidate. All live publication acceptance rows remain incomplete.

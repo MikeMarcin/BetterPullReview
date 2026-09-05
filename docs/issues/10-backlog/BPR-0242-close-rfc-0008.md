@@ -71,3 +71,9 @@ The [v008 result](../../verification/reviews/designated-live-review-publication-
 ## v009 preparation and direct authorization — 2026-09-05
 
 BPR-0256 prepares the [v009 packet](../../verification/reviews/designated-live-review-publication-v009/operator-packet.md) from the unchanged retained capsule. The owner directly authorized the same bounded successor and asked not to repeat the verbatim approval ceremony. Record that actual instruction and bounded interpretation; do not invent a digest quotation or reuse spent v008 authority. Exact review, static inspection and full mounted-path/PID UI binding precede the fresh one-use run. All earlier live-acceptance rows remain incomplete.
+
+## v009 consumed; selected-file refusal — 2026-09-05
+
+The [v009 result](../../verification/reviews/designated-live-review-publication-v009/attended-result.md) records the single approved mounted run: sign-in as MikeMarcin and all nine capability checks succeeded, and the correct designated PR opened. Selecting its sole file failed before source loading with a changed-file refusal and unavailable exact comparison history. No body was entered or Publish action taken. Explicit Sign out, quit and detach completed; CTest exit 0 in 321.64 seconds proves cleanup only. Device-field emissions are disclosed in the result; clean capture compliance is not claimed. The new approval is spent. Next: diagnose and repair the file/history path with fixtures before preparing another candidate. All live publication acceptance rows remain incomplete.
+
+Current next slice: [[BPR-0606]] adds the missing epoch preparation diagnostics and investigates the upstream refusal. BPR-0256 returns to backlog behind it. Existing v009 authority is consumed; no successor or changed binary is launched in this repair slice.

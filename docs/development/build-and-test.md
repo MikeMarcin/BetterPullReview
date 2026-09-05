@@ -2560,8 +2560,12 @@ Start the ordinary device-code/browser controls promptly after verified UI
 selection, leaving only browser authorization to the operator. While device
 fields may contain a code, use accessibility observations with emission disabled
 and return only non-secret control/status lines. Do not screenshot that panel.
-Confirm terminal cleared fields and the intended account on the same verified
-instance before proceeding. An apparently connected UI without matching log
+A missing accessibility Value does not establish that a rendered device field
+is empty: v009 retained visible code text after terminal sign-in. Hide the
+device panel or frame only the account region before taking an account
+screenshot. The initial app getter itself emits accessibility state, so bind
+before starting device authorization. Confirm the intended account on the same
+verified instance before proceeding. An apparently connected UI without matching log
 progress calls for process/path correlation, not another sign-in or launch.
 
 The file contains UTC timestamps, application startup/shutdown, GitHub viewer
