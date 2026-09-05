@@ -364,9 +364,10 @@ namespace {
 	}
 
 	[[nodiscard]] auto spawn_descendant(
-		const std::string& aExecutable, const std::string& aMarker) -> bool
+		const std::string& aExecutable, const std::string& aMarker, long& aChildId) -> bool
 	{
 #if defined(_WIN32)
+		static_cast<void>(aChildId);
 		return ::_spawnl(
 				   _P_NOWAIT,
 				   aExecutable.c_str(),
@@ -386,6 +387,7 @@ namespace {
 				nullptr);
 			std::_Exit(EXIT_FAILURE);
 		}
+		aChildId = child;
 		return child > 0;
 #endif
 	}
@@ -530,10 +532,14 @@ auto main(int argc, char** argv) -> int
 						 .string();
 			emit(protocol, "descendant-marker\t" + marker);
 		}
-		if (marker.empty() || !spawn_descendant(argv[0], marker)) {
+		long childId = 0;
+		if (marker.empty() || !spawn_descendant(argv[0], marker, childId)) {
 			return 31;
 		}
 		emit(protocol, "descendant-started");
+		if (has_argument(argc, argv, "--report-process-id")) {
+			emit(protocol, "descendant-id\t" + std::to_string(childId));
+		}
 	}
 
 	for (auto index = 0; index < argc; ++index) {
@@ -619,6 +625,13 @@ auto main(int argc, char** argv) -> int
 		}
 	} else if (has_argument(argc, argv, "--wait-forever")
 			   || executable_mode(argv, "wait")) {
+		if (has_argument(argc, argv, "--report-process-id")) {
+#if defined(_WIN32)
+			emit(protocol, "process-id\t" + std::to_string(::_getpid()));
+#else
+			emit(protocol, "process-id\t" + std::to_string(::getpid()));
+#endif
+		}
 		while (true) {
 			std::this_thread::sleep_for(std::chrono::hours{ 1 });
 		}

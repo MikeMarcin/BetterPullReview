@@ -48,3 +48,24 @@ This card covers child lifetime across forced application death. Complete
 Git/SQLite/workspace restart during a real agent-host session remains a
 separate RFC-0013 requirement to scope next, along with target-native evidence
 outside this Mac. Do not close the parent RFC on this card's evidence.
+
+## Reproduction
+
+At `eaae8586` plus the regression fixture, `agent_parent_death` fails in
+10.41 seconds: the concrete Unix launcher's owner is forcibly killed after a
+stubborn agent and its heartbeat descendant start; at least one remains alive
+after the five-second termination window. Cleanup then kills the exact two
+fixture-reported PIDs and verifies their absence. An earlier harness attempt
+used `ps`, which the test sandbox denies; its exact leaked descendant was
+identified and killed, and the retained runner now uses direct process checks.
+The failure is no longer an observation-tool failure. Network isolation
+manifest passed in 3.58 seconds. No live agent, credential or service was used.
+
+The repair will need a small bundled Unix supervisor with a parent-owned
+lifetime channel. Forking a permanent watchdog from the full application would
+retain its address space and inherited descriptors, so it is unsuitable for
+this resource-limits slice. A bundled helper can start with only the selected
+agent environment and protocol descriptors, keep the child PID unreaped until
+group cleanup, and preserve the agent's launch/error/exit semantics. This is
+part of the application package, not a separately acquired dependency. Include
+its CMake/bundle placement and tests-off compile in this card's owned scope.

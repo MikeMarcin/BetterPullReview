@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <optional>
 #include <stdexcept>
@@ -617,6 +618,41 @@ namespace {
 		std::filesystem::remove(marker, ignored);
 	}
 
+	void run_parent_death_course(const std::string_view aPhase, const std::filesystem::path& aRoot)
+	{
+		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
+		auto launched             = request(core::agent_protocol::external_terminal);
+		launched.WorkingDirectory = aRoot.string();
+		auto launcher             = adapters::agent::agent_process_launcher{ };
+		if (aPhase == "--recover-agent-parent") {
+			const auto recovered = launcher.run(launched, 20'000);
+			expect(recovered.Outcome == application::agent_run_outcome::success, "fresh launcher succeeds after abrupt owner death");
+			std::cout << "agent-parent-recovery:pass\n";
+			return;
+		}
+		expect(aPhase == "--kill-agent-parent", "known parent-death course");
+		launched.Arguments.insert(launched.Arguments.end(), { "--spawn-descendant", (aRoot / "heartbeat").string(), "--report-process-id", "--wait-forever" });
+		static_cast<void>(launcher.run(launched, 60'000, [&](const application::agent_stream_event& aEvent) {
+			if (aEvent.Text.starts_with("descendant-id\t")) {
+				std::ofstream descendant{ aRoot / "descendant.pid" };
+				descendant << aEvent.Text.substr(std::string_view{ "descendant-id\t" }.size());
+				descendant.close();
+				expect(descendant.good(), "publish descendant PID");
+			}
+			if (aEvent.Text.starts_with("process-id\t")) {
+				std::ofstream pid{ aRoot / "agent.pid" };
+				pid << aEvent.Text.substr(std::string_view{ "process-id\t" }.size());
+				pid.close();
+				expect(pid.good(), "publish fixture agent PID");
+				std::ofstream ready{ aRoot / "kill-ready" };
+				ready << aPhase;
+				ready.close();
+				expect(ready.good(), "publish live agent kill checkpoint");
+			}
+		}));
+		expect(false, "owner must be forcibly killed while its agent is running");
+	}
+
 #if defined(Q_OS_WIN) && defined(BPR_BUILD_TESTING)
 	void test_windows_assignment_failure_has_no_pre_assignment_side_effect()
 	{
@@ -657,6 +693,10 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QCoreApplication application{ argc, argv };
+	if (argc == 3) {
+		run_parent_death_course(argv[1], std::filesystem::canonical(argv[2]));
+		return EXIT_SUCCESS;
+	}
 	test_all_four_protocols_stream_partial_frames_under_stderr_pressure();
 	test_real_child_receives_no_parent_credential_or_context_in_argv();
 	test_independent_agent_identity_alone_controls_canary_authority();

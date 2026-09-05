@@ -533,6 +533,17 @@ set_tests_properties(
         TIMEOUT 120
 )
 
+if(UNIX)
+    bpr_add_network_isolated_test(
+        NAME agent_parent_death
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/agent_parent_death_tests.py"
+            --executable "$<TARGET_FILE:test_better_pull_review_qt_agent_launch_canary_tests>"
+    )
+    set_tests_properties(agent_parent_death PROPERTIES TIMEOUT 60)
+endif()
+
 # Linked against both adapters on purpose. Each is proven on its own elsewhere;
 # only a target that carries the two together can show the classifier's answer
 # arriving in the pane's rendered formats.
