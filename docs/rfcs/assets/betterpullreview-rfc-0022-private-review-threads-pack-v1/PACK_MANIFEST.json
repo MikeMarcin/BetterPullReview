@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "pack_id": "betterpullreview-rfc-0022-private-review-threads-pack-v1",
+  "title": "Private Review Threads, Provenance, and Comment Composition",
+  "created_at": "2026-09-04T16:50:50-07:00",
+  "project": "BetterPullReview",
+  "source_baseline": {
+    "file": "better_pull_review_project_source.md",
+    "sha256": "0c73fc6d9b0c19e89ef43d728ef5d7a3bdc86ddf8cc6e2828ae7abf6a0d257d2",
+    "generated_at": "2026-09-04T11:47:19-07:00",
+    "review_ledger_schema_version": 5,
+    "highest_rfc_seen": "RFC-BPR-0021"
+  },
+  "product_direction": {
+    "date": "2026-09-04",
+    "summary": "Create an implementation pack for durable local review notes/conversations, user/AI provenance including model and effort when known, and non-destructive squash/promotion into ordinary PR comments."
+  },
+  "architecture_rule": "The core decides. The host performs. Qt presents.",
+  "rfc": {
+    "id": "RFC-BPR-0022",
+    "status": "Proposed",
+    "milestone": "Post-Pack v2",
+    "depends_on": [
+      "RFC-BPR-0007",
+      "RFC-BPR-0008",
+      "RFC-BPR-0011",
+      "RFC-BPR-0012"
+    ],
+    "path": "repository-overlay/docs/rfcs/future/RFC-BPR-0022-private-review-threads-provenance-comment-composition.md",
+    "issue_plan": "repository-overlay/docs/rfcs/plans/RFC-BPR-0022-issue-plan.md"
+  },
+  "provisional_issue_cards": [
+    {
+      "provisional_id": "PACK-BPR-0022-01",
+      "title": "Import RFC-BPR-0022, re-audit the live tree, and bind the evidence plan",
+      "depends_on": [],
+      "path": "issue-templates/PACK-BPR-0022-01-import-reconcile-and-plan.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-02",
+      "title": "Allocate RFC-BPR-0022 across core, host, adapters, Qt, and composition root",
+      "depends_on": [
+        "PACK-BPR-0022-01"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-02-architecture-allocation-and-live-contract.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-03",
+      "title": "Implement the Qt-free private thread, subject, turn, revision, actor, and lifecycle model",
+      "depends_on": [
+        "PACK-BPR-0022-02"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-03-core-private-thread-model.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-04",
+      "title": "Implement Qt-free agent-run provenance, lineage, finding identity, and composition policy",
+      "depends_on": [
+        "PACK-BPR-0022-03"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-04-core-provenance-lineage-and-composition.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-05",
+      "title": "Implement the next ledger schema, legacy-note migration, durable IDs, and paged private stores",
+      "depends_on": [
+        "PACK-BPR-0022-03",
+        "PACK-BPR-0022-04"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-05-sqlite-schema-migration-and-paged-store.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-06",
+      "title": "Capture requested and protocol-reported runtime provenance for each agent run",
+      "depends_on": [
+        "PACK-BPR-0022-04"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-06-agent-runtime-provenance-capture.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-07",
+      "title": "Implement the private thread application host and durable side-chat/finding ingestion",
+      "depends_on": [
+        "PACK-BPR-0022-05",
+        "PACK-BPR-0022-06"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-07-private-thread-application-host.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-08",
+      "title": "Implement composition workspaces and non-destructive Squash to Draft",
+      "depends_on": [
+        "PACK-BPR-0022-05",
+        "PACK-BPR-0022-07"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-08-squash-to-draft-host-and-durable-draft.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-09",
+      "title": "Correlate separate RFC-BPR-0008 publication with local composition and server identity",
+      "depends_on": [
+        "PACK-BPR-0022-05",
+        "PACK-BPR-0022-08"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-09-publication-lineage-correlation.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-10",
+      "title": "Implement coherent private/shared conversation navigation and incremental private transcript presentation",
+      "depends_on": [
+        "PACK-BPR-0022-03",
+        "PACK-BPR-0022-04",
+        "PACK-BPR-0022-05",
+        "PACK-BPR-0022-07"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-10-qt-private-shared-conversation-model.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-11",
+      "title": "Implement exact source selection, composition workspace, and separate draft/publish controls in Qt",
+      "depends_on": [
+        "PACK-BPR-0022-08",
+        "PACK-BPR-0022-09",
+        "PACK-BPR-0022-10"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-11-qt-composition-and-provenance-workflow.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-12",
+      "title": "Wire RFC-BPR-0022 through the real BetterPullReview composition root and public executable",
+      "depends_on": [
+        "PACK-BPR-0022-07",
+        "PACK-BPR-0022-08",
+        "PACK-BPR-0022-09",
+        "PACK-BPR-0022-10",
+        "PACK-BPR-0022-11"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-12-composition-root-public-path.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-13",
+      "title": "Complete focused correctness, security, migration, crash, quota, and performance evidence",
+      "depends_on": [
+        "PACK-BPR-0022-05",
+        "PACK-BPR-0022-06",
+        "PACK-BPR-0022-07",
+        "PACK-BPR-0022-08",
+        "PACK-BPR-0022-09",
+        "PACK-BPR-0022-10",
+        "PACK-BPR-0022-11",
+        "PACK-BPR-0022-12"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-13-focused-security-migration-crash-and-performance-evidence.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-14",
+      "title": "Verify rendered private-thread and composition UX across scale, theme, keyboard, and accessibility modes",
+      "depends_on": [
+        "PACK-BPR-0022-10",
+        "PACK-BPR-0022-11",
+        "PACK-BPR-0022-12"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-14-rendered-ux-accessibility-and-scale-evidence.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-15",
+      "title": "Update product/architecture/operator documentation and simplify the implementation",
+      "depends_on": [
+        "PACK-BPR-0022-13",
+        "PACK-BPR-0022-14"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-15-documentation-and-simplification.md"
+    },
+    {
+      "provisional_id": "PACK-BPR-0022-16",
+      "title": "Independently review RFC-BPR-0022 authority boundaries and close when ordered evidence permits",
+      "depends_on": [
+        "PACK-BPR-0022-15"
+      ],
+      "path": "issue-templates/PACK-BPR-0022-16-independent-review-and-closeout.md"
+    }
+  ],
+  "supporting_files": [
+    "README.md",
+    "IMPLEMENTATION_ORDER.md",
+    "IMPLEMENTATION_PROMPT.md",
+    "supporting/CURRENT_STATE_SOURCE_AUDIT.md",
+    "supporting/ARCHITECTURE_AND_DATA_MODEL.md",
+    "supporting/ACCEPTANCE_TRACEABILITY.md",
+    "supporting/INDEX_INSERTION.md"
+  ],
+  "import_requirements": [
+    "Reconcile live RFC/schema/issue IDs before copying.",
+    "Retain immutable pack and create LIVE_IMPORT mapping.",
+    "Do not copy implementation order as mutable tracker.",
+    "Allocate issue IDs from docs/issues/NEXT_ID.",
+    "Run structure and documentation gates on import.",
+    "Keep Auto-Verified closeout dependency ordered."
+  ]
+}

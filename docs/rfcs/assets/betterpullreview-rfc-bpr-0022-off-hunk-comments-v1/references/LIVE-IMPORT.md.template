@@ -1,0 +1,50 @@
+# RFC-BPR-0022 pack live import
+
+- Pack: `betterpullreview-rfc-bpr-0022-off-hunk-comments-v1`
+- Imported pack SHA-256: `SET-AFTER-RETAINING-EXACT-PACK`
+- Source snapshot SHA-256: `0c73fc6d9b0c19e89ef43d728ef5d7a3bdc86ddf8cc6e2828ae7abf6a0d257d2`
+- Live import commit: `SET-AFTER-COMMIT`
+- RFC base SHA: `SET-TO-FULL-IMPORT-COMMIT`
+
+## Live destinations
+
+| Pack path | Live path | Notes |
+|---|---|---|
+| `docs/rfcs/future/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md` | `SET` | new post-pack RFC |
+| `docs/rfcs/plans/RFC-BPR-0022-issue-plan.md` | `SET` | immutable planning snapshot |
+| `docs/verification/RFC-BPR-0022-verification-plan.md` | `SET` | renamed to live verification ledger as appropriate |
+| `cards/PACK-BPR-0022-*.md` | `SET PER CARD` | all provisional IDs rewritten |
+
+## ID mapping
+
+| Provisional | Live |
+|---|---|
+| PACK-BPR-0022-01 | SET |
+| PACK-BPR-0022-02 | SET |
+| PACK-BPR-0022-03 | SET |
+| PACK-BPR-0022-04 | SET |
+| PACK-BPR-0022-05 | SET |
+| PACK-BPR-0022-06 | SET |
+| PACK-BPR-0022-07 | SET |
+| PACK-BPR-0022-08 | SET |
+| PACK-BPR-0022-09 | SET |
+| PACK-BPR-0022-10 | SET |
+| PACK-BPR-0022-11 | SET |
+| PACK-BPR-0022-12 | SET |
+| PACK-BPR-0022-13 | SET |
+| PACK-BPR-0022-14 | SET |
+| PACK-BPR-0022-15 | SET |
+
+## Deliberate exclusions
+
+- `IMPLEMENTATION-ORDER.md` is pack-only and is not copied as a tracker.
+- Pack manifest, validator, prompts, and source notes are retained only inside
+  the immutable pack asset unless the live implementation makes one a real
+  product document.
+- No live issue ID or status from the source snapshot was treated as
+  authoritative without reconciliation.
+
+## Reconciliation notes
+
+Record source-path moves, renamed CTest selectors, issue/RFC status changes,
+API contract changes, and any deliberately narrowed or expanded scope here.

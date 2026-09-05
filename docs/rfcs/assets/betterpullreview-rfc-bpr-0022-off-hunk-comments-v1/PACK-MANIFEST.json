@@ -1,0 +1,164 @@
+{
+  "generated_at": "2026-09-04",
+  "import_contract": {
+    "allocate_live_issue_ids": true,
+    "canonical_pack_v2_sequence_changed": false,
+    "modifies_rfc_bpr_0008": false,
+    "provisional_card_count": 15,
+    "retain_pack_as_provenance": true
+  },
+  "pack_id": "betterpullreview-rfc-bpr-0022-off-hunk-comments-v1",
+  "payload": [
+    {
+      "bytes": 1552,
+      "path": "IMPLEMENTATION-ORDER.md",
+      "sha256": "eb522fff13cc9302b1c17b65921a56c4cc0727438d4789a744d638bf325ae789"
+    },
+    {
+      "bytes": 4340,
+      "path": "README.md",
+      "sha256": "8e1eaaf1071b350b318e0fab3106944b103c32892fd8871a24a2152ed07d4a81"
+    },
+    {
+      "bytes": 709,
+      "path": "SOURCE-BASELINE.md",
+      "sha256": "5127eb31c0e3abb24c8a31271c50c597126cd88642f89d4c5d4774d037a58512"
+    },
+    {
+      "bytes": 1188,
+      "path": "cards/PACK-BPR-0022-01-plan-import-and-architecture.md",
+      "sha256": "443b93ccc80c112c9619c361c7a78cacf19251d08fd42f52343649efde533ebb"
+    },
+    {
+      "bytes": 1214,
+      "path": "cards/PACK-BPR-0022-02-core-publication-placement-policy.md",
+      "sha256": "456c4abe5aa6d25ddde2003eeb80ea1a85049b91c43dcd6626032051883d2aba"
+    },
+    {
+      "bytes": 1217,
+      "path": "cards/PACK-BPR-0022-03-exact-anchor-and-placement-observations.md",
+      "sha256": "fac89042f0e1dbc434c7cf22603a8367cbec0d8a2ed9ae861ed29e9c63b827c3"
+    },
+    {
+      "bytes": 1302,
+      "path": "cards/PACK-BPR-0022-04-canonical-permalink-contract.md",
+      "sha256": "901e70a5867e705846f4b75770bc696fd3017a68d8298c6e4c9bdab15d991ca1"
+    },
+    {
+      "bytes": 1245,
+      "path": "cards/PACK-BPR-0022-05-github-wire-and-unsupported-classifier.md",
+      "sha256": "29c36f177664f91b9d23ca95166a3fc0b87146eff27ae89bc69e0fcf5f7a4219"
+    },
+    {
+      "bytes": 1201,
+      "path": "cards/PACK-BPR-0022-06-publication-capability-evidence.md",
+      "sha256": "3aa0956f978e7b04ffc7750aeb19c73010e4b8e43fba85432a9515cef37f637a"
+    },
+    {
+      "bytes": 1253,
+      "path": "cards/PACK-BPR-0022-07-logical-publication-recovery.md",
+      "sha256": "b9ccbaee4c31fa60fd000a37a8c45fc993e9f7851144fd56e80131233b7c382d"
+    },
+    {
+      "bytes": 1213,
+      "path": "cards/PACK-BPR-0022-08-native-fallback-negotiation.md",
+      "sha256": "dbf3863d47ac50afbcf4f275b7c362bb3149b2130c1af967071caf9ee7ab4f1c"
+    },
+    {
+      "bytes": 1303,
+      "path": "cards/PACK-BPR-0022-09-fallback-normalization-thread-map.md",
+      "sha256": "68e9f24c820026955010576084b0236cfc57476eeef93d5c8feb18776e033957"
+    },
+    {
+      "bytes": 1275,
+      "path": "cards/PACK-BPR-0022-10-qt-comment-anywhere-ux.md",
+      "sha256": "56be4acfa5374866758cf02c6c87aacbdc9caf9e36fa2500f14489558e449ecd"
+    },
+    {
+      "bytes": 1278,
+      "path": "cards/PACK-BPR-0022-11-compose-public-path.md",
+      "sha256": "6c5cdd3ac95a581f892109e03d337fdf683846da7732895a73837ee4fe4690f6"
+    },
+    {
+      "bytes": 1262,
+      "path": "cards/PACK-BPR-0022-12-automated-security-recovery-verification.md",
+      "sha256": "c258dd0bc556ee9447680ceb6f450ab8e439be20ddbb5725dce80ccd9d7ff9ad"
+    },
+    {
+      "bytes": 1545,
+      "path": "cards/PACK-BPR-0022-13-designated-live-native-fallback-evidence.md",
+      "sha256": "afda39c45a47993cae7b6293ab4fb003c52edcb4da43f8af3eeb976ac9372da0"
+    },
+    {
+      "bytes": 1361,
+      "path": "cards/PACK-BPR-0022-14-documentation-and-simplification.md",
+      "sha256": "91701bdeca9e2d9668badca726f60485e22f173c55f4f2ed9c562ccfad448098"
+    },
+    {
+      "bytes": 1402,
+      "path": "cards/PACK-BPR-0022-15-close-rfc-0022.md",
+      "sha256": "a0621b0503b4ab4c7140366a802706d5b7c9565a1f953a0ee87018e59d89c56a"
+    },
+    {
+      "bytes": 35340,
+      "path": "docs/rfcs/future/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md",
+      "sha256": "106024bd4e8892dc4a82151ce16ddc7caa88369ecc6c4be38aa25258fcc0cde5"
+    },
+    {
+      "bytes": 12114,
+      "path": "docs/rfcs/plans/RFC-BPR-0022-issue-plan.md",
+      "sha256": "2cf353b8705d4bbe8fdf48fe2d5b5b80cf87fee266298647d150dea9039e7799"
+    },
+    {
+      "bytes": 8102,
+      "path": "docs/verification/RFC-BPR-0022-verification-plan.md",
+      "sha256": "1e536cd23b970a90f57438637d34ac32bd9a703af48580bece5135e098188312"
+    },
+    {
+      "bytes": 1878,
+      "path": "prompts/IMPLEMENT-RFC.md",
+      "sha256": "39fb828c71214317790601cf1beecc204294719f9beb2b0201ca25d18aab4968"
+    },
+    {
+      "bytes": 5945,
+      "path": "references/CURRENT-SOURCE-ALLOCATION.md",
+      "sha256": "eed85aee69502236bdbdc7dc47a33cb60ae72f7f8755d54d1ae2868c42d7cd8b"
+    },
+    {
+      "bytes": 3708,
+      "path": "references/DECISION-LOG.md",
+      "sha256": "6ccd3a11a837af1d8c6d93aebe41f7a0776f383efc40e33dd79a68f9b6e890dc"
+    },
+    {
+      "bytes": 3041,
+      "path": "references/EXTERNAL-AUTHORITY.md",
+      "sha256": "34d804b96f7812596c4f3155eade91cb58606207b561c2455765e7d8cf87893b"
+    },
+    {
+      "bytes": 1063,
+      "path": "references/INDEX-ENTRY.md",
+      "sha256": "97a51684574e3b9792609f04993d6e06cbb15ba18db5e1309920df3b75ec6a1d"
+    },
+    {
+      "bytes": 1822,
+      "path": "references/LIVE-IMPORT.md.template",
+      "sha256": "4dfa3514111f17070070f5c295955fc862d209f61ee62aedd902ff570a504d9c"
+    },
+    {
+      "bytes": 6103,
+      "path": "scripts/validate_pack.py",
+      "sha256": "115269d5b58828c217b7349c3a227af2d8335856db55026fe5222f2ebfc2ffb4"
+    }
+  ],
+  "project": "BetterPullReview",
+  "rfc": "RFC-BPR-0022",
+  "schema_name": "bpr.rfc_source_pack",
+  "schema_version": 1,
+  "source_snapshot": {
+    "bytes": 26288803,
+    "filename": "better_pull_review_project_source.md",
+    "generated_at": "2026-09-04",
+    "sha256": "0c73fc6d9b0c19e89ef43d728ef5d7a3bdc86ddf8cc6e2828ae7abf6a0d257d2"
+  },
+  "title": "Semantic Source-Line Comments and Off-Hunk Publication Compatibility"
+}

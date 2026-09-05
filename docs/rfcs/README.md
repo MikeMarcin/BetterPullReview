@@ -64,6 +64,8 @@ closeout, and remain deferred until their eligibility gates exist:
 | [RFC-BPR-0019](future/RFC-BPR-0019-dif-visual-identity-sprite-assets.md) | Dif Visual Identity, Sprite Assets, and Animation Contract | Deferred | RFC-BPR-0006 and RFC-BPR-0013 closed, RFC-BPR-0014 closed or an explicit post-pack frontier exception, and confirmed asset ownership/provenance |
 | [RFC-BPR-0020](future/RFC-BPR-0020-animated-dif-mascot-qt-composition.md) | Animated Dif Mascot Qt Presentation and Workbench Composition | Deferred | RFC-BPR-0019 closed, its live appearance/workbench/resource paths inventoried, and RFC-BPR-0014 closed or an explicit post-pack frontier exception |
 | [RFC-BPR-0021](future/RFC-BPR-0021-conversation-revision-identity.md) | Conversation Revision Identity and the Comment-Code History Join | Deferred | RFC-BPR-0002 and RFC-BPR-0003 closed, and recorded probe evidence that a real service returns a per-comment commit — including unauthenticated and on GHES 3.18 |
+| [RFC-BPR-0022](future/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md) | Semantic Source-Line Comments and Off-Hunk Publication Compatibility | Deferred | Later explicit implementation request; dependency-ordered closeout and exact native/fallback evidence |
+| [RFC-BPR-0023](future/RFC-BPR-0023-private-review-threads-provenance-comment-composition.md) | Private Review Threads, Provenance, and Comment Composition | Deferred | Later explicit implementation request; RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0011, and RFC-BPR-0012; shared publication integration follows RFC-BPR-0022 cards |
 
 RFC-BPR-0016 and RFC-BPR-0017 address the same operator complaint by opposite
 routes and are alternatives rather than companions. RFC-BPR-0017 records why
@@ -89,3 +91,14 @@ RFC-BPR-0020 alone may compose those reviewed assets into the Qt workbench and
 real application. The product owner's Nib bootstrap contributes process
 guidance only. Neither RFC authorizes importing Nib, Mel, AllTheThings art or
 code, foreign animation architecture, or mascot-authored review conclusions.
+
+RFC-BPR-0022 and RFC-BPR-0023 were reconciled and imported together on
+2026-09-04 with implementation explicitly deferred. The off-hunk pack retains
+0022; the private-thread pack was renumbered to 0023. RFC-BPR-0022 owns semantic
+line publication and native/file-permalink compatibility through RFC-BPR-0008.
+RFC-BPR-0023 owns private turns, honest provenance, composition, and local
+lineage; Squash to Draft stays local and Publish stays separate. Their shared
+publication cards consume one logical receipt and distinguish approved prose
+from the permalink-prefixed public body. RFC-BPR-0021 keeps the general
+historical comment/revision join. The imported pack prompts and earlier
+frontier language authorize no implementation of these two deferred RFCs.
