@@ -1,7 +1,8 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: In Progress
+status: Parked
+parked_on: awaiting-owner-verdict
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449]
 ---
@@ -34,10 +35,11 @@ one exact request in a tests-disabled shipped application.
   `MikeMarcin/BPR-Test#1` repository/PR/base/head field. Failure, substitution,
   replay, timeout, malformed response, or identity drift leaves no grant.
 - Approval and credential authority remain separate. The approval contains no
-  token and grants only permission for one exact publication attempt. Any
-  write-scoped credential is entered through the existing sensitive Qt prompt
-  after launch; it never enters CTest configuration, argv, environment, the
-  approval artifact, IPC, fixtures, diagnostics, or logs.
+  token and grants only permission for one exact publication attempt. The
+  operator authorizes the production browser/device sign-in after launch;
+  credential secrets never enter CTest configuration, argv, environment, the
+  approval artifact, IPC, fixtures, diagnostics, or logs. The v007 course
+  explicitly Signs out before quit to remove its retained device grant.
 - The bootstrap carrier is retained privately until the async mutation host has
   validated the exact application session, workbench generation, designated
   target, authenticated acting identity, comparison, file, right-side semantic
@@ -1103,3 +1105,48 @@ Signs out before quit because the separately approved device policy retains
 accepted grants on ordinary shutdown. This is pending exact critical review;
 no owner response may yet activate it. No live observation, credential,
 attended launch or mutation occurred during regeneration.
+
+## Exact v007 review and attended handoff — 2026-09-04
+
+Closeout review runtime: native agent (gpt-6-astra, xhigh).
+The opposite model family was unavailable through this driver. The bounded
+critical review accepted candidate `ee159dba`, production source `2a043335`,
+and packet SHA-256
+`565043fb548ee9896a1b6242b1a745ea0dad60ad70d4eaf08391e11aa2a65539`.
+No packet bytes changed after review.
+
+- Blocking findings: none. No existing acceptance regression was found.
+- Non-blocking findings: none. The retained manual-token sentence in this
+  card's required final state was reconciled to the current device flow.
+- Verification failures: none unresolved. The initial compiler shadow and
+  three signed-mask tidy failures were repaired; final build, mounted capsule
+  preflight, complete-TU tidy and 2/2 recheck pass. Earlier 6/6 focused results
+  remain valid.
+- Independent evidence: all eight artifact hashes, all 37 committed source
+  entries, both embedded source identities and all 95 inventory entries
+  match. Fresh CTest show-only enumeration confirms default 277/zero live and
+  static 278/exactly one live with matching command/properties. The new replay
+  ID is unspent; the placeholder is absent; the mount parent is empty, 0700.
+- Material limitations: this review performed only reads, hashing and static
+  enumeration. The packet's four disclosed runtime limits still apply. No
+  live observation, credential operation, approval, mutation, attended cleanup
+  or new Windows/Linux result is claimed.
+
+The exact packet is now active for the owner's decision. BPR-0256 parks as
+`awaiting-owner-verdict`; its dependencies are done and its unattended work is
+complete. No owner response or private approval artifact exists for v007.
+Actual browser/device login, the single publication, web inspection, explicit
+Sign out, normal exit and detach remain attended evidence. The v006 response
+and the device-retention policy decision cannot authorize this new publication.
+
+After the reviewer consumed the results, the static-only graph
+`build/bpr0256-v007-live-manifest` and all nineteen `/tmp/bpr0256-v007-*`
+inspection logs, metadata, manifest and formatter helper files were removed.
+The final `build/bpr0256-v007-release` producer/capsule/image and empty
+`build/bpr0256-v007-live-mount-parent` remain because the exact attended packet
+still consumes them. Recreate and inspect the static graph with the real
+private approval only after the exact owner response. No task-created
+worktree remains; `git worktree list` contains only the original main checkout.
+The Mac and portable ready lanes are empty. BPR-0295 remains ineligible until
+RFC-BPR-0013 closes; other remaining cards depend on attended/live evidence or
+another platform. No full matrix or new target-native platform run is claimed.

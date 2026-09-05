@@ -135,3 +135,12 @@ ledger. All RFC-0017 required cards are terminal; RFC-0002 eligibility is alread
 Auto-Verified. The status/index/board transition to Auto-Verified/Done is atomic
 in this completion commit. Later BPR-0256 packet work is independently owned and
 cannot authorize new public-preview behavior or weaken this boundary.
+
+## Consumed temporary resources — 2026-09-04
+
+After independent review consumed the results, the five task logs
+`/tmp/bpr0309-dev-build.log`, `/tmp/bpr0309-macos-focused.log`,
+`/tmp/bpr0309-release-build.log`, `/tmp/bpr0309-release-checks.log` and
+`/tmp/bpr0309-tidy.log` were removed. The recorded initial failure and passing
+repair remain in this card. No temporary worktree or separate build root was
+created for this closeout; the existing dev and Release roots are reused.
