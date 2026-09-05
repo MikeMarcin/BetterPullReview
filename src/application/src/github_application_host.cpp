@@ -979,9 +979,8 @@ namespace bpr::application {
 		{
 			if (aAuthority.ServerContract
 				!= github_server_contract::github_com_2022_11_28) {
-				// An enterprise host publishes nothing signed out. Refuse the
-				// mode rather than asking it a question whose answer would be
-				// a sign-in page dressed as a read.
+				// Public preview is limited to the GitHub.com contract. Refuse
+				// GHES before constructing an anonymous request.
 				PublicPreviewRefusal = github_public_preview_refusal{
 					.Cause  = github_public_preview_refusal_cause::policy_refused,
 					.Policy = core::refuse(

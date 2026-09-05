@@ -36,7 +36,7 @@ namespace bpr::application {
 		/// The repository is private, or it does not exist. Signed out these
 		/// two are one answer and the wording says so rather than guessing.
 		private_or_missing,
-		/// An enterprise host publishes nothing signed out.
+		/// Product policy does not enable anonymous GHES reads.
 		enterprise_host_unavailable,
 		/// The review threads and their resolution need a reader.
 		review_threads_unavailable,
