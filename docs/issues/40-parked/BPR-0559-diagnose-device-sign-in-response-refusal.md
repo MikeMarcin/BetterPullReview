@@ -1,7 +1,8 @@
 ---
 id: BPR-0559
 title: Diagnose device sign-in response refusal after browser authorization
-status: In Progress
+status: Parked
+parked_on: awaiting-owner-verdict
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -81,3 +82,7 @@ The [diagnostic checkpoint](../../verification/reviews/device-session-bootstrap-
 The owner supplied the exact [one-run approval](../../verification/reviews/device-session-bootstrap-diagnostic-v001/operator-response.md). Packet and binary hashes match. The integrator resumes this card for the sign-in-only observation and cleanup; no PR or publication is authorized.
 
 The approved ordinary executable was launched once with no arguments after a second digest check, with all 24 specified environment variables removed from its child environment and child output discarded. Native UI showed the expected GitHub.com Native HTTPS profile and no connected host. Operator browser authorization is pending; do not launch again. The active run must finish by collecting its safe terminal result, explicitly selecting Sign out and quitting. Documentation gate passed after approval recording.
+
+## Diagnostic process closed before observed result
+
+The owner reported no visible app. The process exited with code 0 and native app inventory confirmed no remaining instance. See the [recorded outcome](../../verification/reviews/device-session-bootstrap-diagnostic-v001/attended-result.md). No connection result or explicit Sign out was observed. The exact one-launch authority is consumed; no retry was made. Root diagnosis remains pending authorization to reopen the same build.
