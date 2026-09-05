@@ -1,9 +1,10 @@
 ---
-id: BPR-0277
-title: Implement deterministic device-authorization policy
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0276]
+schema: "implement-rfc.card.v1"
+id: "BPR-0277"
+title: "Implement deterministic device-authorization policy"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0276"]
 ---
 
 # Implement deterministic device-authorization policy

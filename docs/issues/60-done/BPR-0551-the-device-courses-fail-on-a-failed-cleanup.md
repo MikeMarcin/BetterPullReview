@@ -1,8 +1,9 @@
 ---
-id: BPR-0551
-title: The device courses fail on a failed shutdown cleanup
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0551"
+title: "The device courses fail on a failed shutdown cleanup"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

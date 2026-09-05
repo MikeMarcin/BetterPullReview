@@ -1,9 +1,10 @@
 ---
-id: BPR-0102
-title: Move change-navigation enablement into the core projection
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0092, BPR-0094]
+schema: "implement-rfc.card.v1"
+id: "BPR-0102"
+title: "Move change-navigation enablement into the core projection"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0092","BPR-0094"]
 ---
 
 # Move change-navigation enablement into the core projection

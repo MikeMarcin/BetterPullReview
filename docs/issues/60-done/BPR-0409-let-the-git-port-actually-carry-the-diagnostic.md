@@ -1,8 +1,9 @@
 ---
-id: BPR-0409
-title: Let the Git port actually carry the diagnostic
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0409"
+title: "Let the Git port actually carry the diagnostic"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

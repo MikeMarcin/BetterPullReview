@@ -1,10 +1,11 @@
 ---
-id: BPR-0064
-title: Make protocol-v2 parser bounds explicit in GCC Release
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0043, BPR-0057]
-completed: 2026-08-01
+schema: "implement-rfc.card.v1"
+id: "BPR-0064"
+title: "Make protocol-v2 parser bounds explicit in GCC Release"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0043","BPR-0057"]
+completed: "2026-08-01"
 ---
 
 # Make protocol-v2 parser bounds explicit in GCC Release

@@ -1,9 +1,10 @@
 ---
-id: BPR-0246
-title: Make focused diff review legible and regenerate UIforETW evidence
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0227]
+schema: "implement-rfc.card.v1"
+id: "BPR-0246"
+title: "Make focused diff review legible and regenerate UIforETW evidence"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0227"]
 ---
 
 # Make focused diff review legible and regenerate UIforETW evidence

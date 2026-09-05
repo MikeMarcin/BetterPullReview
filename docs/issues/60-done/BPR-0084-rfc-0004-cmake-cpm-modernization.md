@@ -1,9 +1,10 @@
 ---
-id: BPR-0084
-title: Modernize CMake, CPM dependencies, and SQLite acquisition
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0075]
+schema: "implement-rfc.card.v1"
+id: "BPR-0084"
+title: "Modernize CMake, CPM dependencies, and SQLite acquisition"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0075"]
 ---
 
 # Modernize CMake, CPM dependencies, and SQLite acquisition

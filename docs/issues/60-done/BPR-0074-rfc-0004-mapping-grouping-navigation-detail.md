@@ -1,9 +1,10 @@
 ---
-id: BPR-0074
-title: Implement mapping grouping navigation and detail semantics
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0073]
+schema: "implement-rfc.card.v1"
+id: "BPR-0074"
+title: "Implement mapping grouping navigation and detail semantics"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0073"]
 ---
 
 # Implement mapping grouping navigation and detail semantics

@@ -1,9 +1,10 @@
 ---
-id: BPR-0247
-title: Compose portable agent invocation and a real pinned workspace
-status: Done
-rfc: RFC-BPR-0011
-depends_on: [BPR-0226, BPR-0228, BPR-0229, BPR-0230]
+schema: "implement-rfc.card.v1"
+id: "BPR-0247"
+title: "Compose portable agent invocation and a real pinned workspace"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
+depends_on: ["BPR-0226","BPR-0228","BPR-0229","BPR-0230"]
 ---
 
 # Compose portable agent invocation and a real pinned workspace

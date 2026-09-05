@@ -1,9 +1,10 @@
 ---
-id: BPR-0129
-title: Documentation for schema, migrations, identity, privacy, retention, purge
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0128]
+schema: "implement-rfc.card.v1"
+id: "BPR-0129"
+title: "Documentation for schema, migrations, identity, privacy, retention, purge"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0128"]
 ---
 
 # Documentation for schema, migrations, identity, privacy, retention, purge

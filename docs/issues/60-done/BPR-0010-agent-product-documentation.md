@@ -1,10 +1,11 @@
 ---
-id: BPR-0010
-title: Complete RFC-BPR-0001 agent and product documentation gate
-status: Done
-rfc: RFC-BPR-0001
-depends_on: [BPR-0006, BPR-0007, BPR-0009]
-completed: 2026-07-29
+schema: "implement-rfc.card.v1"
+id: "BPR-0010"
+title: "Complete RFC-BPR-0001 agent and product documentation gate"
+status: "Done"
+rfcs: ["RFC-BPR-0001"]
+depends_on: ["BPR-0006","BPR-0007","BPR-0009"]
+completed: "2026-07-29"
 ---
 
 # Complete RFC-BPR-0001 agent and product documentation gate

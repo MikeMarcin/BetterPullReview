@@ -1,9 +1,10 @@
 ---
-id: BPR-0093
-title: Implement collapsible resizable file and conversation drawers
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0092]
+schema: "implement-rfc.card.v1"
+id: "BPR-0093"
+title: "Implement collapsible resizable file and conversation drawers"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0092"]
 ---
 
 # Implement collapsible resizable file and conversation drawers

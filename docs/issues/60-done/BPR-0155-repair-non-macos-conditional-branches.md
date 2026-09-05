@@ -1,8 +1,9 @@
 ---
-id: BPR-0155
-title: Repair the Windows and Linux conditional branches
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0155"
+title: "Repair the Windows and Linux conditional branches"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

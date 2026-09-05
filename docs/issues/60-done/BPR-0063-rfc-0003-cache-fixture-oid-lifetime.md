@@ -1,10 +1,11 @@
 ---
-id: BPR-0063
-title: Retain cache-fixture commit hex across Git invocation
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0043]
-completed: 2026-08-01
+schema: "implement-rfc.card.v1"
+id: "BPR-0063"
+title: "Retain cache-fixture commit hex across Git invocation"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0043"]
+completed: "2026-08-01"
 ---
 
 # Retain cache-fixture commit hex across Git invocation

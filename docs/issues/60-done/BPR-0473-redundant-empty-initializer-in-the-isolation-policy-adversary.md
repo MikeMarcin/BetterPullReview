@@ -1,8 +1,9 @@
 ---
-id: BPR-0473
-title: Remove the redundant empty initializer the tidy partition surfaced
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0473"
+title: "Remove the redundant empty initializer the tidy partition surfaced"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0610
-title: Compile and validate whole-review submission wire contracts
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0142]
+schema: "implement-rfc.card.v1"
+id: "BPR-0610"
+title: "Compile and validate whole-review submission wire contracts"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0142"]
 ---
 
 # Compile and validate whole-review submission wire contracts

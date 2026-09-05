@@ -1,9 +1,10 @@
 ---
-id: BPR-0228
-title: Compose review-ledger actionability into the shipped workbench
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0226, BPR-0238]
+schema: "implement-rfc.card.v1"
+id: "BPR-0228"
+title: "Compose review-ledger actionability into the shipped workbench"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0226","BPR-0238"]
 ---
 
 # Compose review-ledger actionability into the shipped workbench

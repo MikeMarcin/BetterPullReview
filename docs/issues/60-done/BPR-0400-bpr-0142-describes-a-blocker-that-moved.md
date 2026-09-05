@@ -1,8 +1,9 @@
 ---
-id: BPR-0400
-title: BPR-0142 describes a blocker that moved twice
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0400"
+title: "BPR-0142 describes a blocker that moved twice"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

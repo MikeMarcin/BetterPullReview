@@ -431,6 +431,14 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_device_capture_tests.py"
 )
 
+# Retained RFC-0016 authority remains valid after shared-skill cutover.
+bpr_add_network_isolated_test(
+    NAME rfc0016_relocated_operator_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_relocated_operator_contract_tests.py"
+)
+
 # BPR-0312. The gate standing between "the owner approved building public
 # preview" and "these four definitions are what gets built". It reaches no
 # network and writes only inside a scratch repository it creates.

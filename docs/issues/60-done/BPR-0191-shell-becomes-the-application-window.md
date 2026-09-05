@@ -1,9 +1,10 @@
 ---
-id: BPR-0191
-title: The workbench shell becomes the application's window
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0190, BPR-0195]
+schema: "implement-rfc.card.v1"
+id: "BPR-0191"
+title: "The workbench shell becomes the application's window"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0190","BPR-0195"]
 ---
 
 # The workbench shell becomes the application's window

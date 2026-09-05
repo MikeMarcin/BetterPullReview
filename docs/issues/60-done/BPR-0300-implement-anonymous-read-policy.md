@@ -1,9 +1,10 @@
 ---
-id: BPR-0300
-title: Implement deterministic anonymous-read policy
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0035, BPR-0312]
+schema: "implement-rfc.card.v1"
+id: "BPR-0300"
+title: "Implement deterministic anonymous-read policy"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0035","BPR-0312"]
 ---
 
 # Implement deterministic anonymous-read policy

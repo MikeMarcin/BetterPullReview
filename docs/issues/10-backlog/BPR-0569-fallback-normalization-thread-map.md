@@ -1,9 +1,10 @@
 ---
-id: BPR-0569
-title: Normalize compatibility comments to semantic source anchors
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0564, BPR-0565, BPR-0568]
+schema: "implement-rfc.card.v1"
+id: "BPR-0569"
+title: "Normalize compatibility comments to semantic source anchors"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0564","BPR-0565","BPR-0568"]
 ---
 
 # Normalize compatibility comments to semantic source anchors

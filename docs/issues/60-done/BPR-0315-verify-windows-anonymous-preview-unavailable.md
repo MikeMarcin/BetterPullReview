@@ -1,9 +1,10 @@
 ---
-id: BPR-0315
-title: Verify anonymous preview remains unavailable on Windows x64
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0036, BPR-0311, BPR-0306]
+schema: "implement-rfc.card.v1"
+id: "BPR-0315"
+title: "Verify anonymous preview remains unavailable on Windows x64"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0036","BPR-0311","BPR-0306"]
 ---
 
 # Verify anonymous preview remains unavailable on Windows x64

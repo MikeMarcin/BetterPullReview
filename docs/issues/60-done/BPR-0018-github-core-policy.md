@@ -1,10 +1,11 @@
 ---
-id: BPR-0018
-title: Implement deterministic GitHub identity and capability policy
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0017]
-completed: 2026-07-29
+schema: "implement-rfc.card.v1"
+id: "BPR-0018"
+title: "Implement deterministic GitHub identity and capability policy"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0017"]
+completed: "2026-07-29"
 ---
 
 # Implement deterministic GitHub identity and capability policy

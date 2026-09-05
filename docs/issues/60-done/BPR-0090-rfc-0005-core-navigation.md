@@ -1,9 +1,10 @@
 ---
-id: BPR-0090
-title: Implement core workbench navigation and command projections
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0089]
+schema: "implement-rfc.card.v1"
+id: "BPR-0090"
+title: "Implement core workbench navigation and command projections"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0089"]
 ---
 
 # Implement core workbench navigation and command projections

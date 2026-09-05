@@ -1,8 +1,9 @@
 ---
-id: BPR-0611
-title: Portable issue-board validation and bookkeeping
-status: Done
-rfc: none
+schema: "implement-rfc.card.v1"
+id: "BPR-0611"
+title: "Portable issue-board validation and bookkeeping"
+status: "Done"
+rfcs: []
 depends_on: []
 ---
 

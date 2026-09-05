@@ -1,9 +1,10 @@
 ---
-id: BPR-0299
-title: Decide whether to build anonymous public preview
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0298, BPR-0313]
+schema: "implement-rfc.card.v1"
+id: "BPR-0299"
+title: "Decide whether to build anonymous public preview"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0298","BPR-0313"]
 ---
 
 # Decide whether to build anonymous public preview

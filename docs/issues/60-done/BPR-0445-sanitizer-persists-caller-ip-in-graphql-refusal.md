@@ -1,8 +1,9 @@
 ---
-id: BPR-0445
-title: The sanitizer persists the caller's IP in the anonymous GraphQL refusal
-status: Done
-rfc: RFC-BPR-0017
+schema: "implement-rfc.card.v1"
+id: "BPR-0445"
+title: "The sanitizer persists the caller's IP in the anonymous GraphQL refusal"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
 depends_on: []
 ---
 

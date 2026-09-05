@@ -1,9 +1,10 @@
 ---
-id: BPR-0348
-title: Keep the git subprocess error text that failures currently discard
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0409]
+schema: "implement-rfc.card.v1"
+id: "BPR-0348"
+title: "Keep the git subprocess error text that failures currently discard"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0409"]
 ---
 
 # Keep the git subprocess error text that failures currently discard

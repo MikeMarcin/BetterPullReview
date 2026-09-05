@@ -1,9 +1,10 @@
 ---
-id: BPR-0092
-title: Implement the native main window and primary toolbar
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0091]
+schema: "implement-rfc.card.v1"
+id: "BPR-0092"
+title: "Implement the native main window and primary toolbar"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0091"]
 ---
 
 # Implement the native main window and primary toolbar

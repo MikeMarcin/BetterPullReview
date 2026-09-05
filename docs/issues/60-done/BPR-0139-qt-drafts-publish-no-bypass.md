@@ -1,9 +1,10 @@
 ---
-id: BPR-0139
-title: Qt draft editors, publish confirmation, and the no-bypass proof
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0138]
+schema: "implement-rfc.card.v1"
+id: "BPR-0139"
+title: "Qt draft editors, publish confirmation, and the no-bypass proof"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0138"]
 ---
 
 # Qt draft editors, publish confirmation, and the no-bypass proof

@@ -1,9 +1,10 @@
 ---
-id: BPR-0175
+schema: "implement-rfc.card.v1"
+id: "BPR-0175"
 title: "Host: process launch, environment allowlist, and the credential boundary"
-status: Done
-rfc: RFC-BPR-0011
-depends_on: [BPR-0171]
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
+depends_on: ["BPR-0171"]
 ---
 
 # Host: process launch, environment allowlist, and the credential boundary

@@ -1,9 +1,10 @@
 ---
-id: BPR-0257
-title: Compact focused-review navigation into one icon row
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0246]
+schema: "implement-rfc.card.v1"
+id: "BPR-0257"
+title: "Compact focused-review navigation into one icon row"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0246"]
 ---
 
 # Compact focused-review navigation into one icon row

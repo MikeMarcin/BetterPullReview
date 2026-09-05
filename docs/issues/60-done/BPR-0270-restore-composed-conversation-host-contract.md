@@ -1,9 +1,10 @@
 ---
-id: BPR-0270
-title: Restore the composed conversation-host contract
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0191]
+schema: "implement-rfc.card.v1"
+id: "BPR-0270"
+title: "Restore the composed conversation-host contract"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0191"]
 ---
 
 # Restore the composed conversation-host contract

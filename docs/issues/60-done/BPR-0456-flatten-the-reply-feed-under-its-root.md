@@ -1,8 +1,9 @@
 ---
-id: BPR-0456
-title: Flatten the reply feed under its root instead of indenting it
-status: Done
-rfc: RFC-BPR-0005
+schema: "implement-rfc.card.v1"
+id: "BPR-0456"
+title: "Flatten the reply feed under its root instead of indenting it"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
 depends_on: []
 ---
 

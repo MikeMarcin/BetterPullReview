@@ -1,8 +1,9 @@
 ---
-id: BPR-0358
-title: Return the Windows cards to executable lanes
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0358"
+title: "Return the Windows cards to executable lanes"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

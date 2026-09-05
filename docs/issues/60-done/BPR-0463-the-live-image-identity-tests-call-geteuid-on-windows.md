@@ -1,8 +1,9 @@
 ---
-id: BPR-0463
-title: The live-image identity tests call os.geteuid on Windows
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0463"
+title: "The live-image identity tests call os.geteuid on Windows"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
 ---
 

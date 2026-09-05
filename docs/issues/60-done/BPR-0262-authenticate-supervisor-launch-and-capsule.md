@@ -1,10 +1,11 @@
 ---
-id: BPR-0262
-title: Authenticate supervisor launch and retain capsule identity
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0357, BPR-0351, BPR-0352, BPR-0353, BPR-0354]
-completed: 2026-08-18
+schema: "implement-rfc.card.v1"
+id: "BPR-0262"
+title: "Authenticate supervisor launch and retain capsule identity"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0357","BPR-0351","BPR-0352","BPR-0353","BPR-0354"]
+completed: "2026-08-18"
 ---
 
 # Authenticate supervisor launch and retain capsule identity

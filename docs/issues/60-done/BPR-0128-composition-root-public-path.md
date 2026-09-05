@@ -1,9 +1,10 @@
 ---
-id: BPR-0128
-title: Composition-root wiring and public-path evidence
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0127, BPR-0126]
+schema: "implement-rfc.card.v1"
+id: "BPR-0128"
+title: "Composition-root wiring and public-path evidence"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0127","BPR-0126"]
 ---
 
 # Composition-root wiring and public-path evidence

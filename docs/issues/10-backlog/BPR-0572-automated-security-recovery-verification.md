@@ -1,9 +1,10 @@
 ---
-id: BPR-0572
-title: Prove RFC-BPR-0022 automated recovery and security invariants
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0571]
+schema: "implement-rfc.card.v1"
+id: "BPR-0572"
+title: "Prove RFC-BPR-0022 automated recovery and security invariants"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0571"]
 ---
 
 # Prove RFC-BPR-0022 automated recovery and security invariants

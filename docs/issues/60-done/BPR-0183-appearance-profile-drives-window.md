@@ -1,9 +1,10 @@
 ---
-id: BPR-0183
+schema: "implement-rfc.card.v1"
+id: "BPR-0183"
 title: "Qt: the appearance profile drives the composed window"
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0182]
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0182"]
 ---
 
 # Qt: the appearance profile drives the composed window

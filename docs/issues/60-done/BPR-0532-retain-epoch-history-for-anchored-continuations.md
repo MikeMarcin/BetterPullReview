@@ -1,9 +1,10 @@
 ---
-id: BPR-0532
-title: Retain epoch history so old-revision continuations can anchor
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0521]
+schema: "implement-rfc.card.v1"
+id: "BPR-0532"
+title: "Retain epoch history so old-revision continuations can anchor"
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0521"]
 ---
 
 # Retain epoch history so old-revision continuations can anchor

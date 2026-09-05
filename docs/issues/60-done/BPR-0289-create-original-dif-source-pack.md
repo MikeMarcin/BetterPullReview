@@ -1,9 +1,10 @@
 ---
-id: BPR-0289
-title: Create the original Dif source frame pack
-status: Done
-rfc: RFC-BPR-0019
-depends_on: [BPR-0287, BPR-0288]
+schema: "implement-rfc.card.v1"
+id: "BPR-0289"
+title: "Create the original Dif source frame pack"
+status: "Done"
+rfcs: ["RFC-BPR-0019"]
+depends_on: ["BPR-0287","BPR-0288"]
 ---
 
 # Create the original Dif source frame pack

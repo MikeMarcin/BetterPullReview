@@ -1,8 +1,9 @@
 ---
-id: BPR-0203
-title: An A/B/C choice is not three pass/fail questions
-status: Done
-rfc: RFC-BPR-0006
+schema: "implement-rfc.card.v1"
+id: "BPR-0203"
+title: "An A/B/C choice is not three pass/fail questions"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
 depends_on: []
 ---
 

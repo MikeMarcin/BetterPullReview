@@ -1,9 +1,10 @@
 ---
-id: BPR-0075
-title: Implement host diff execution cache and stale rejection
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0074]
+schema: "implement-rfc.card.v1"
+id: "BPR-0075"
+title: "Implement host diff execution cache and stale rejection"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0074"]
 ---
 
 # Implement host diff execution cache and stale rejection

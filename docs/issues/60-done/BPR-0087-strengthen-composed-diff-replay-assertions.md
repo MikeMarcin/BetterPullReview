@@ -1,9 +1,10 @@
 ---
-id: BPR-0087
-title: Strengthen composed diff-replay input and selection assertions
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0082]
+schema: "implement-rfc.card.v1"
+id: "BPR-0087"
+title: "Strengthen composed diff-replay input and selection assertions"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0082"]
 ---
 
 # Strengthen composed diff-replay input and selection assertions

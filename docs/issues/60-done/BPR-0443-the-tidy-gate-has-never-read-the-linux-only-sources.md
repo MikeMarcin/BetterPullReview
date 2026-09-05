@@ -1,10 +1,11 @@
 ---
-id: BPR-0443
-title: The tidy gate has never read the Linux-only sources
-status: Done
-rfc: RFC-BPR-0002
+schema: "implement-rfc.card.v1"
+id: "BPR-0443"
+title: "The tidy gate has never read the Linux-only sources"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
 depends_on: []
-completed: 2026-08-22
+completed: "2026-08-22"
 ---
 
 # The tidy gate has never read the Linux-only sources

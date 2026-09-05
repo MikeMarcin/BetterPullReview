@@ -1,9 +1,10 @@
 ---
-id: BPR-0504
+schema: "implement-rfc.card.v1"
+id: "BPR-0504"
 title: "Composition: wire findings, chat, workshop, and MCP into the shipped workbench"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0500, BPR-0501, BPR-0502, BPR-0503]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0500","BPR-0501","BPR-0502","BPR-0503"]
 ---
 
 # Composition: wire findings, chat, workshop, and MCP into the shipped workbench

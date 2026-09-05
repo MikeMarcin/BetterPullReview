@@ -1,9 +1,10 @@
 ---
-id: BPR-0180
-title: Reconcile RFC-BPR-0006's ledger with what the application composes
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0117]
+schema: "implement-rfc.card.v1"
+id: "BPR-0180"
+title: "Reconcile RFC-BPR-0006's ledger with what the application composes"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0117"]
 ---
 
 # Reconcile RFC-BPR-0006's ledger with what the application composes

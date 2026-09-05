@@ -1,9 +1,10 @@
 ---
-id: BPR-0308
-title: Document anonymous public-preview behavior and boundaries
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0305, BPR-0306, BPR-0307, BPR-0558]
+schema: "implement-rfc.card.v1"
+id: "BPR-0308"
+title: "Document anonymous public-preview behavior and boundaries"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0305","BPR-0306","BPR-0307","BPR-0558"]
 ---
 
 # Document anonymous public-preview behavior and boundaries

@@ -1,9 +1,10 @@
 ---
-id: BPR-0474
-title: Run RFC-BPR-0004 Windows x64 target-native high-DPI verification
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0053]
+schema: "implement-rfc.card.v1"
+id: "BPR-0474"
+title: "Run RFC-BPR-0004 Windows x64 target-native high-DPI verification"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0053"]
 ---
 
 # Run RFC-BPR-0004 Windows x64 target-native high-DPI verification

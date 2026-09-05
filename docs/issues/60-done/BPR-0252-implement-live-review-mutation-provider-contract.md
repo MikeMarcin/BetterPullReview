@@ -1,9 +1,10 @@
 ---
-id: BPR-0252
-title: Implement the live review mutation provider contract
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0229]
+schema: "implement-rfc.card.v1"
+id: "BPR-0252"
+title: "Implement the live review mutation provider contract"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0229"]
 ---
 
 # Implement the live review mutation provider contract

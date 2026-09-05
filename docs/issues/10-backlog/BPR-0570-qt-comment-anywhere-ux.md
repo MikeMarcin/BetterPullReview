@@ -1,9 +1,10 @@
 ---
-id: BPR-0570
-title: Present one representation-blind comment-anywhere UX
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0562, BPR-0563, BPR-0569]
+schema: "implement-rfc.card.v1"
+id: "BPR-0570"
+title: "Present one representation-blind comment-anywhere UX"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0562","BPR-0563","BPR-0569"]
 ---
 
 # Present one representation-blind comment-anywhere UX

@@ -1,8 +1,9 @@
 ---
-id: BPR-0334
-title: Extract the shared agent protocol loop out of the Windows-only translation unit
-status: Done
-rfc: RFC-BPR-0011
+schema: "implement-rfc.card.v1"
+id: "BPR-0334"
+title: "Extract the shared agent protocol loop out of the Windows-only translation unit"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
 depends_on: []
 ---
 

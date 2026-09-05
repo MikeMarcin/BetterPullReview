@@ -1,9 +1,10 @@
 ---
-id: BPR-0312
-title: Validate the positive anonymous-preview build decision
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0299]
+schema: "implement-rfc.card.v1"
+id: "BPR-0312"
+title: "Validate the positive anonymous-preview build decision"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0299"]
 ---
 
 # Validate the positive anonymous-preview build decision

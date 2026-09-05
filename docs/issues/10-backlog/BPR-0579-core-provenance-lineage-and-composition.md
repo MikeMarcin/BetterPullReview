@@ -1,10 +1,11 @@
 ---
-id: BPR-0579
-title: Implement Qt-free agent-run provenance, lineage, finding identity, and composition policy
-status: Backlog
-rfc: RFC-BPR-0023
-milestone: Post-Pack v2
-depends_on: [BPR-0578]
+schema: "implement-rfc.card.v1"
+id: "BPR-0579"
+title: "Implement Qt-free agent-run provenance, lineage, finding identity, and composition policy"
+status: "Backlog"
+rfcs: ["RFC-BPR-0023"]
+depends_on: ["BPR-0578"]
+milestone: "Post-Pack v2"
 ---
 
 # Implement Qt-free agent-run provenance, lineage, finding identity, and composition policy

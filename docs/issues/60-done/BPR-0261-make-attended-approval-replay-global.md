@@ -1,9 +1,10 @@
 ---
-id: BPR-0261
-title: Make attended approval replay global and path-safe
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0255]
+schema: "implement-rfc.card.v1"
+id: "BPR-0261"
+title: "Make attended approval replay global and path-safe"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0255"]
 ---
 
 # Make attended approval replay global and path-safe

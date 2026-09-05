@@ -1,8 +1,9 @@
 ---
-id: BPR-0421
-title: The core-only graph stopped compiling under MSVC on a misplaced designator
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0421"
+title: "The core-only graph stopped compiling under MSVC on a misplaced designator"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
 ---
 

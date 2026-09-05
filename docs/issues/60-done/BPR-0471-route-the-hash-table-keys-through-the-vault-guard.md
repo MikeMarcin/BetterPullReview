@@ -1,10 +1,11 @@
 ---
-id: BPR-0471
-title: Route the vault's hash-table keys through the null-termination guard
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0471"
+title: "Route the vault's hash-table keys through the null-termination guard"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
-completed: 2026-08-27
+completed: "2026-08-27"
 ---
 
 # Route the vault's hash-table keys through the null-termination guard

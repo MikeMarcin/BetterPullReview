@@ -1,10 +1,11 @@
 ---
-id: BPR-0600
-title: Inventory diagnostic boundaries and plan RFC-BPR-0027
-status: Done
-rfc: RFC-BPR-0027
-milestone: Post-Pack v2
+schema: "implement-rfc.card.v1"
+id: "BPR-0600"
+title: "Inventory diagnostic boundaries and plan RFC-BPR-0027"
+status: "Done"
+rfcs: ["RFC-BPR-0027"]
 depends_on: []
+milestone: "Post-Pack v2"
 ---
 
 # Inventory diagnostic boundaries and plan RFC-BPR-0027

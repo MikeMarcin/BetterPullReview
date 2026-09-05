@@ -1,9 +1,10 @@
 ---
-id: BPR-0088
-title: Advance the implementation frontier past RFC-BPR-0004
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0082]
+schema: "implement-rfc.card.v1"
+id: "BPR-0088"
+title: "Advance the implementation frontier past RFC-BPR-0004"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0082"]
 ---
 
 # Advance the implementation frontier past RFC-BPR-0004

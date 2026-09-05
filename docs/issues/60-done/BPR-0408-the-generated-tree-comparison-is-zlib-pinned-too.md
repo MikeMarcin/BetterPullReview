@@ -1,8 +1,9 @@
 ---
-id: BPR-0408
-title: The generated-tree comparison is zlib-pinned too
-status: Done
-rfc: RFC-BPR-0019
+schema: "implement-rfc.card.v1"
+id: "BPR-0408"
+title: "The generated-tree comparison is zlib-pinned too"
+status: "Done"
+rfcs: ["RFC-BPR-0019"]
 depends_on: []
 ---
 

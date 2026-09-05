@@ -1,9 +1,10 @@
 ---
-id: BPR-0268
-title: Restore the Cocoa notification activation course
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0251]
+schema: "implement-rfc.card.v1"
+id: "BPR-0268"
+title: "Restore the Cocoa notification activation course"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0251"]
 ---
 
 # Restore the Cocoa notification activation course

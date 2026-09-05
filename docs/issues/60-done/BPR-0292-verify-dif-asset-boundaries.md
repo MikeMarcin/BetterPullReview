@@ -1,9 +1,10 @@
 ---
-id: BPR-0292
-title: Verify Dif asset isolation and security boundaries
-status: Done
-rfc: RFC-BPR-0019
-depends_on: [BPR-0290]
+schema: "implement-rfc.card.v1"
+id: "BPR-0292"
+title: "Verify Dif asset isolation and security boundaries"
+status: "Done"
+rfcs: ["RFC-BPR-0019"]
+depends_on: ["BPR-0290"]
 ---
 
 # Verify Dif asset isolation and security boundaries

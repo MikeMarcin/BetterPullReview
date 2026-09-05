@@ -1,9 +1,10 @@
 ---
-id: BPR-0412
-title: Run the Qt graph under the AppContainer boundary
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0347]
+schema: "implement-rfc.card.v1"
+id: "BPR-0412"
+title: "Run the Qt graph under the AppContainer boundary"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0347"]
 ---
 
 # Run the Qt graph under the AppContainer boundary

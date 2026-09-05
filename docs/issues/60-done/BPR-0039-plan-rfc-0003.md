@@ -1,10 +1,11 @@
 ---
-id: BPR-0039
-title: Plan RFC-BPR-0003 implementation and verification
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0034]
-completed: 2026-07-30
+schema: "implement-rfc.card.v1"
+id: "BPR-0039"
+title: "Plan RFC-BPR-0003 implementation and verification"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0034"]
+completed: "2026-07-30"
 ---
 
 # Plan RFC-BPR-0003 implementation and verification

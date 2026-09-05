@@ -1,9 +1,10 @@
 ---
-id: BPR-0517
+schema: "implement-rfc.card.v1"
+id: "BPR-0517"
 title: "Host: carry the side-chat message in the agent's input frame"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0500, BPR-0514]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0500","BPR-0514"]
 ---
 
 # Host: carry the side-chat message in the agent's input frame

@@ -55,7 +55,7 @@ GATE = "rfc0016-production-app-registration-v001"
 APPROVED_CLAIM = "rfc0016_production_app_registration_v001_approved"
 
 OFFICIAL_VALIDATOR = pathlib.PurePosixPath(
-    ".agents/skills/bpr-attended-review/scripts/validate_operator_packet.py"
+    "scripts/verification/rfc0016_attended_contract/revalidate_operator_record.py"
 )
 
 # The tool whose bytes an admitted course must name. Reading the digest off the

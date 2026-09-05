@@ -1,9 +1,10 @@
 ---
-id: BPR-0606
-title: Diagnose the live epoch-preparation refusal
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0602, BPR-0559]
+schema: "implement-rfc.card.v1"
+id: "BPR-0606"
+title: "Diagnose the live epoch-preparation refusal"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0602","BPR-0559"]
 ---
 
 # Diagnose the live epoch-preparation refusal

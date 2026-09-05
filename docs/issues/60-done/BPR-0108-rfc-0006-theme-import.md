@@ -1,9 +1,10 @@
 ---
-id: BPR-0108
-title: Implement safe theme import and export
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0107]
+schema: "implement-rfc.card.v1"
+id: "BPR-0108"
+title: "Implement safe theme import and export"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0107"]
 ---
 
 # Implement safe theme import and export

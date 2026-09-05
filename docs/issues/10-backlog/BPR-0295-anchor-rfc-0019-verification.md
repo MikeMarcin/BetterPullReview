@@ -1,9 +1,10 @@
 ---
-id: BPR-0295
-title: Anchor RFC-BPR-0019 ordinary verification
-status: Backlog
-rfc: RFC-BPR-0019
-depends_on: [BPR-0115, BPR-0287, BPR-0288, BPR-0289, BPR-0290, BPR-0291, BPR-0292, BPR-0293, BPR-0294]
+schema: "implement-rfc.card.v1"
+id: "BPR-0295"
+title: "Anchor RFC-BPR-0019 ordinary verification"
+status: "Backlog"
+rfcs: ["RFC-BPR-0019"]
+depends_on: ["BPR-0115","BPR-0287","BPR-0288","BPR-0289","BPR-0290","BPR-0291","BPR-0292","BPR-0293","BPR-0294"]
 ---
 
 # Anchor RFC-BPR-0019 ordinary verification

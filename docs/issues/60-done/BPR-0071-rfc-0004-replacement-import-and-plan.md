@@ -1,9 +1,10 @@
 ---
-id: BPR-0071
-title: Import and reconcile the RFC-BPR-0004 replacement
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0067]
+schema: "implement-rfc.card.v1"
+id: "BPR-0071"
+title: "Import and reconcile the RFC-BPR-0004 replacement"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0067"]
 ---
 
 # Import and reconcile the RFC-BPR-0004 replacement

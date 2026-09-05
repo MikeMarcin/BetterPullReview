@@ -1,10 +1,11 @@
 ---
-id: BPR-0385
-title: A fresh configure leaks to a system Qt and fails KSyntaxHighlighting
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0385"
+title: "A fresh configure leaks to a system Qt and fails KSyntaxHighlighting"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
-completed: 2026-08-18
+completed: "2026-08-18"
 ---
 
 # A fresh configure leaks to a system Qt and fails KSyntaxHighlighting

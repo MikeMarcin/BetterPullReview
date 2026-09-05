@@ -1,8 +1,9 @@
 ---
-id: BPR-0427
-title: The epoch catalog hangs inside an AppContainer instead of failing
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0427"
+title: "The epoch catalog hangs inside an AppContainer instead of failing"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

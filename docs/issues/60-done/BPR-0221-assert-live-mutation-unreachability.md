@@ -1,8 +1,9 @@
 ---
-id: BPR-0221
-title: Assert live-mutation unreachability before the live provider exists
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0221"
+title: "Assert live-mutation unreachability before the live provider exists"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
 ---
 

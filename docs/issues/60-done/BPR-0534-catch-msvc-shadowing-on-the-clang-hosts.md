@@ -1,8 +1,9 @@
 ---
-id: BPR-0534
-title: Catch MSVC's shadowing error on the clang hosts
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0534"
+title: "Catch MSVC's shadowing error on the clang hosts"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
 ---
 

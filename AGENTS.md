@@ -36,7 +36,10 @@ network, or process effects.
 
 - RFCs close sequentially in the canonical index order.
 - Issue folder placement is status. `60-done/` is terminal.
-- Allocate issue IDs from `docs/issues/NEXT_ID`.
+- Use MASK-managed implement-rfc with `.mask/skill-config/implement-rfc/` context.
+- Allocate issue IDs with `python3 scripts/allocate_issue_id.py`; commit returned counter and receipt paths.
+- Cards use `implement-rfc.card.v1`; platform eligibility is metadata.
+- Shared attended-review and wizard support partial sessions and local HTML.
 - Commit each completed issue slice intentionally.
 - Use fixtures or designated safe test repositories for remote mutations.
 - Never commit credentials, private repository content, transient inspection
@@ -64,7 +67,4 @@ On macOS `/usr/bin/python3` is older than that, so `python3` must resolve to a
 newer interpreter. Run a gate without a pipe: `| tail` reports the pipe's exit
 status, not the gate's.
 
-Before RFC closeout, run the documentation gate, the focused check each
-acceptance criterion names plus one direct public-path lane, and
-`git diff --check`. The full matrices and `coding-tidy` run only on an
-explicit request or when a change plausibly reaches beyond its slice.
+Before RFC closeout, run the documentation gate and focused acceptance/public-path checks. At pack or milestone integration, normally run one integration-focused pass; full relevant tests and critical review are appropriate when scope warrants them. Application-wide builds, exhaustive matrices, hermetic replay, repeated reviews and manual approvals are not defaults. Reuse unchanged passing evidence.

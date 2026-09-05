@@ -1,9 +1,10 @@
 ---
-id: BPR-0127
-title: Qt badges, filters, explanations, and queue projection
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0123, BPR-0125]
+schema: "implement-rfc.card.v1"
+id: "BPR-0127"
+title: "Qt badges, filters, explanations, and queue projection"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0123","BPR-0125"]
 ---
 
 # Qt badges, filters, explanations, and queue projection

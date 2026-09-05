@@ -1,9 +1,10 @@
 ---
-id: BPR-0052
-title: Simplify the RFC-BPR-0003 change set
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0048, BPR-0049, BPR-0050, BPR-0051, BPR-0066]
+schema: "implement-rfc.card.v1"
+id: "BPR-0052"
+title: "Simplify the RFC-BPR-0003 change set"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0048","BPR-0049","BPR-0050","BPR-0051","BPR-0066"]
 ---
 
 # Simplify the RFC-BPR-0003 change set

@@ -1,9 +1,10 @@
 ---
-id: BPR-0069
-title: Reconcile final RFC-BPR-0003 evidence and documentation
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0051, BPR-0059, BPR-0067, BPR-0068]
+schema: "implement-rfc.card.v1"
+id: "BPR-0069"
+title: "Reconcile final RFC-BPR-0003 evidence and documentation"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0051","BPR-0059","BPR-0067","BPR-0068"]
 ---
 
 # Reconcile final RFC-BPR-0003 evidence and documentation

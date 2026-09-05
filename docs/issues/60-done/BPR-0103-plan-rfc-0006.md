@@ -1,9 +1,10 @@
 ---
-id: BPR-0103
-title: Plan RFC-BPR-0006 and decide syntax dependency acquisition
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0099]
+schema: "implement-rfc.card.v1"
+id: "BPR-0103"
+title: "Plan RFC-BPR-0006 and decide syntax dependency acquisition"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0099"]
 ---
 
 # Plan RFC-BPR-0006 and decide syntax dependency acquisition

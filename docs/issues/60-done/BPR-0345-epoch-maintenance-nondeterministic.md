@@ -1,10 +1,11 @@
 ---
-id: BPR-0345
-title: Resolve the nondeterministic epoch maintenance verify-deleted failure
-status: Done
-rfc: RFC-BPR-0003
-completed: 2026-08-18
+schema: "implement-rfc.card.v1"
+id: "BPR-0345"
+title: "Resolve the nondeterministic epoch maintenance verify-deleted failure"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
+completed: "2026-08-18"
 ---
 
 # Resolve the nondeterministic epoch maintenance verify-deleted failure

@@ -1,9 +1,10 @@
 ---
-id: BPR-0080
-title: Prove RFC-BPR-0004 scale and high-frequency interaction
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0079]
+schema: "implement-rfc.card.v1"
+id: "BPR-0080"
+title: "Prove RFC-BPR-0004 scale and high-frequency interaction"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0079"]
 ---
 
 # Prove RFC-BPR-0004 scale and high-frequency interaction

@@ -1,9 +1,10 @@
 ---
-id: BPR-0240
-title: Complete agent context and process lifecycle semantics
-status: Done
-rfc: RFC-BPR-0011
-depends_on: [BPR-0238]
+schema: "implement-rfc.card.v1"
+id: "BPR-0240"
+title: "Complete agent context and process lifecycle semantics"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
+depends_on: ["BPR-0238"]
 ---
 
 # Complete agent context and process lifecycle semantics

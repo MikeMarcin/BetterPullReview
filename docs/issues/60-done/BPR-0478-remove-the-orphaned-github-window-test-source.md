@@ -1,10 +1,11 @@
 ---
-id: BPR-0478
-title: Remove the orphaned github_window test source
-status: Done
-rfc: RFC-BPR-0005
+schema: "implement-rfc.card.v1"
+id: "BPR-0478"
+title: "Remove the orphaned github_window test source"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
 depends_on: []
-completed: 2026-08-28
+completed: "2026-08-28"
 ---
 
 # Remove the orphaned github_window test source

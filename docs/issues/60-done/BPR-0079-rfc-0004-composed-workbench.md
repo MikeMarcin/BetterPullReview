@@ -1,9 +1,10 @@
 ---
-id: BPR-0079
-title: Integrate the composed RFC-BPR-0004 workbench path
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0075, BPR-0077, BPR-0078]
+schema: "implement-rfc.card.v1"
+id: "BPR-0079"
+title: "Integrate the composed RFC-BPR-0004 workbench path"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0075","BPR-0077","BPR-0078"]
 ---
 
 # Integrate the composed RFC-BPR-0004 workbench path

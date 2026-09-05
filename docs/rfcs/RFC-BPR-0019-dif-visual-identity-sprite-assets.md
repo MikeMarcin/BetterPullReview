@@ -1,11 +1,11 @@
 ---
-id: RFC-BPR-0019
-title: Dif Visual Identity, Sprite Assets, and Animation Contract
-status: Deferred
-area: BPR
-milestone: Post-Pack v2
-depends_on: [RFC-BPR-0006, RFC-BPR-0013]
-pack_version: post-v2
+id: "RFC-BPR-0019"
+title: "Dif Visual Identity, Sprite Assets, and Animation Contract"
+status: "Deferred"
+area: "BPR"
+milestone: "Post-Pack v2"
+depends_on: ["RFC-BPR-0006","RFC-BPR-0013"]
+pack_version: "post-v2"
 ---
 
 # RFC-BPR-0019: Dif Visual Identity, Sprite Assets, and Animation Contract

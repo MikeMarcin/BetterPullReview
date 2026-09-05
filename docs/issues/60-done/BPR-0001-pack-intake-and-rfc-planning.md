@@ -1,10 +1,11 @@
 ---
-id: BPR-0001
-title: Import full-design pack and plan RFC-BPR-0001
-status: Done
-rfc: RFC-BPR-0001
+schema: "implement-rfc.card.v1"
+id: "BPR-0001"
+title: "Import full-design pack and plan RFC-BPR-0001"
+status: "Done"
+rfcs: ["RFC-BPR-0001"]
 depends_on: []
-completed: 2026-07-29
+completed: "2026-07-29"
 ---
 
 # Import full-design pack and plan RFC-BPR-0001

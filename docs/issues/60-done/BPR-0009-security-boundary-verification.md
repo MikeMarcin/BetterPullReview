@@ -1,10 +1,11 @@
 ---
-id: BPR-0009
-title: Verify RFC-BPR-0001 security and dependency boundaries
-status: Done
-rfc: RFC-BPR-0001
-depends_on: [BPR-0006, BPR-0007]
-completed: 2026-07-29
+schema: "implement-rfc.card.v1"
+id: "BPR-0009"
+title: "Verify RFC-BPR-0001 security and dependency boundaries"
+status: "Done"
+rfcs: ["RFC-BPR-0001"]
+depends_on: ["BPR-0006","BPR-0007"]
+completed: "2026-07-29"
 ---
 
 # Verify RFC-BPR-0001 security and dependency boundaries

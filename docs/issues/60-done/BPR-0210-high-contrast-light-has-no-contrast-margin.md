@@ -1,9 +1,10 @@
 ---
-id: BPR-0210
-title: High-contrast light sits exactly on its minimum with no margin
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0206, BPR-0214]
+schema: "implement-rfc.card.v1"
+id: "BPR-0210"
+title: "High-contrast light sits exactly on its minimum with no margin"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0206","BPR-0214"]
 ---
 
 # High-contrast light sits exactly on its minimum with no margin

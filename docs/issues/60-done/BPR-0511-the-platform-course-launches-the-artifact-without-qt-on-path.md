@@ -1,8 +1,9 @@
 ---
-id: BPR-0511
-title: The platform course launches the shipped artifact without the Qt runtime directory on Windows
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0511"
+title: "The platform course launches the shipped artifact without the Qt runtime directory on Windows"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

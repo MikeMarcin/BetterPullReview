@@ -1,8 +1,9 @@
 ---
-id: BPR-0373
-title: The dependency contract asserts a Qt policy that was replaced
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0373"
+title: "The dependency contract asserts a Qt policy that was replaced"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

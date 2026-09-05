@@ -1,8 +1,9 @@
 ---
-id: BPR-0253
-title: Adopt the BetterPullReview application icon
-status: Done
-rfc: RFC-BPR-0014
+schema: "implement-rfc.card.v1"
+id: "BPR-0253"
+title: "Adopt the BetterPullReview application icon"
+status: "Done"
+rfcs: ["RFC-BPR-0014"]
 depends_on: []
 ---
 

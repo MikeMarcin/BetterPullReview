@@ -1,9 +1,10 @@
 ---
-id: BPR-0146
-title: Core defect classification and the lifecycle state machine
-status: Done
-rfc: RFC-BPR-0009
-depends_on: [BPR-0145]
+schema: "implement-rfc.card.v1"
+id: "BPR-0146"
+title: "Core defect classification and the lifecycle state machine"
+status: "Done"
+rfcs: ["RFC-BPR-0009"]
+depends_on: ["BPR-0145"]
 ---
 
 # Core defect classification and the lifecycle state machine

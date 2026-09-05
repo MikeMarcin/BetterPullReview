@@ -1,9 +1,10 @@
 ---
-id: BPR-0136
-title: Core target and head revalidation and the stale-head refusal
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0135]
+schema: "implement-rfc.card.v1"
+id: "BPR-0136"
+title: "Core target and head revalidation and the stale-head refusal"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0135"]
 ---
 
 # Core target and head revalidation and the stale-head refusal

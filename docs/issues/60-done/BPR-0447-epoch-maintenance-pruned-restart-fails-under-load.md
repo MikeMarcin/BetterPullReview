@@ -1,8 +1,9 @@
 ---
-id: BPR-0447
-title: The epoch-maintenance pruned-restart run fails under parallel load
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0447"
+title: "The epoch-maintenance pruned-restart run fails under parallel load"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

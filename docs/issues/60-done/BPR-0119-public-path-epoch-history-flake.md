@@ -1,8 +1,9 @@
 ---
-id: BPR-0119
-title: application_diff_workbench_public_path fails intermittently in diff evidence
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0119"
+title: "application_diff_workbench_public_path fails intermittently in diff evidence"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

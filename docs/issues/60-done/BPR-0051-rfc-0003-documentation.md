@@ -1,9 +1,10 @@
 ---
-id: BPR-0051
-title: Document RFC-BPR-0003 cache and epoch behavior
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0047, BPR-0049, BPR-0050, BPR-0055, BPR-0065]
+schema: "implement-rfc.card.v1"
+id: "BPR-0051"
+title: "Document RFC-BPR-0003 cache and epoch behavior"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0047","BPR-0049","BPR-0050","BPR-0055","BPR-0065"]
 ---
 
 # Document RFC-BPR-0003 cache and epoch behavior

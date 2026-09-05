@@ -1,9 +1,10 @@
 ---
-id: BPR-0547
-title: A rotation must not erase the refresh material it just stored
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0545]
+schema: "implement-rfc.card.v1"
+id: "BPR-0547"
+title: "A rotation must not erase the refresh material it just stored"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0545"]
 ---
 
 # A rotation must not erase the refresh material it just stored

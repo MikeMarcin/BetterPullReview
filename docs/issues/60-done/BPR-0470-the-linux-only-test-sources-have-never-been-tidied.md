@@ -1,10 +1,11 @@
 ---
-id: BPR-0470
-title: The Linux-only test sources have never been read by the tidy gate
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0444]
-completed: 2026-08-27
+schema: "implement-rfc.card.v1"
+id: "BPR-0470"
+title: "The Linux-only test sources have never been read by the tidy gate"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0444"]
+completed: "2026-08-27"
 ---
 
 # The Linux-only test sources have never been read by the tidy gate

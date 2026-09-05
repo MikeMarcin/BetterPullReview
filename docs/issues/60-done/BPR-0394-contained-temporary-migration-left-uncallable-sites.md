@@ -1,8 +1,9 @@
 ---
-id: BPR-0394
-title: The contained-temporary migration left call sites that cannot execute
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0394"
+title: "The contained-temporary migration left call sites that cannot execute"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

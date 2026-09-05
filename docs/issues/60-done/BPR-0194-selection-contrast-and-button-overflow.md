@@ -1,9 +1,10 @@
 ---
-id: BPR-0194
-title: The selected line is invisible in Light, and a menu indicator escapes its button
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0183, BPR-0196]
+schema: "implement-rfc.card.v1"
+id: "BPR-0194"
+title: "The selected line is invisible in Light, and a menu indicator escapes its button"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0183","BPR-0196"]
 ---
 
 # The selected line is invisible in Light, and a menu indicator escapes its button

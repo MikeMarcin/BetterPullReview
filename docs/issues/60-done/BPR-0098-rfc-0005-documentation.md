@@ -1,9 +1,10 @@
 ---
-id: BPR-0098
-title: Reconcile RFC-BPR-0005 documentation impact
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0097]
+schema: "implement-rfc.card.v1"
+id: "BPR-0098"
+title: "Reconcile RFC-BPR-0005 documentation impact"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0097"]
 ---
 
 # Reconcile RFC-BPR-0005 documentation impact

@@ -1,9 +1,10 @@
 ---
-id: BPR-0306
-title: Verify anonymous preview security and public behavior
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0305]
+schema: "implement-rfc.card.v1"
+id: "BPR-0306"
+title: "Verify anonymous preview security and public behavior"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0305"]
 ---
 
 # Verify anonymous preview security and public behavior

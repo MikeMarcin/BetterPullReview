@@ -1,9 +1,10 @@
 ---
-id: BPR-0066
-title: Bound the Qt epoch-history working set
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0046, BPR-0047, BPR-0056]
+schema: "implement-rfc.card.v1"
+id: "BPR-0066"
+title: "Bound the Qt epoch-history working set"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0046","BPR-0047","BPR-0056"]
 ---
 
 # Bound the Qt epoch-history working set

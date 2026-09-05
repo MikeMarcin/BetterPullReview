@@ -1,10 +1,11 @@
 ---
-id: BPR-0382
-title: Restore the format gate at HEAD again
-status: Done
-rfc: RFC-BPR-0011
+schema: "implement-rfc.card.v1"
+id: "BPR-0382"
+title: "Restore the format gate at HEAD again"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
 depends_on: []
-completed: 2026-08-18
+completed: "2026-08-18"
 ---
 
 # Restore the format gate at HEAD again

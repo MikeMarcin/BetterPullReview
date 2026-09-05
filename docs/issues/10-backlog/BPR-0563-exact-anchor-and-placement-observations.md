@@ -1,9 +1,10 @@
 ---
-id: BPR-0563
-title: Bind exact off-hunk anchor eligibility and placement observations
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0561, BPR-0562]
+schema: "implement-rfc.card.v1"
+id: "BPR-0563"
+title: "Bind exact off-hunk anchor eligibility and placement observations"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0561","BPR-0562"]
 ---
 
 # Bind exact off-hunk anchor eligibility and placement observations

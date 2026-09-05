@@ -1,9 +1,10 @@
 ---
-id: BPR-0215
-title: Command-Q segfaults during shutdown
-status: Done
-rfc: RFC-BPR-0013
-depends_on: [BPR-0186]
+schema: "implement-rfc.card.v1"
+id: "BPR-0215"
+title: "Command-Q segfaults during shutdown"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
+depends_on: ["BPR-0186"]
 ---
 
 # Command-Q segfaults during shutdown

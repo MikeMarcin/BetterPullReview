@@ -1,9 +1,10 @@
 ---
-id: BPR-0081
-title: Complete RFC-BPR-0004 documentation and conformance
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0080]
+schema: "implement-rfc.card.v1"
+id: "BPR-0081"
+title: "Complete RFC-BPR-0004 documentation and conformance"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0080"]
 ---
 
 # Complete RFC-BPR-0004 documentation and conformance

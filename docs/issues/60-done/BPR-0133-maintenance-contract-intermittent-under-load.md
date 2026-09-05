@@ -1,8 +1,9 @@
 ---
-id: BPR-0133
-title: application_epoch_maintenance_public_path fails intermittently under suite load
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0133"
+title: "application_epoch_maintenance_public_path fails intermittently under suite load"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

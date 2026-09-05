@@ -1,9 +1,10 @@
 ---
-id: BPR-0313
-title: Demonstrate deliberate credential-free native HTTPS
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0297]
+schema: "implement-rfc.card.v1"
+id: "BPR-0313"
+title: "Demonstrate deliberate credential-free native HTTPS"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0297"]
 ---
 
 # Demonstrate deliberate credential-free native HTTPS

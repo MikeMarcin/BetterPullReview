@@ -1,9 +1,10 @@
 ---
-id: BPR-0043
-title: Implement app-owned bare caches and retained private refs
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0042]
+schema: "implement-rfc.card.v1"
+id: "BPR-0043"
+title: "Implement app-owned bare caches and retained private refs"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0042"]
 ---
 
 # Implement app-owned bare caches and retained private refs

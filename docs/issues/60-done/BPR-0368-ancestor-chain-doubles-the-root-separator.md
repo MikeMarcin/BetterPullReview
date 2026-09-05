@@ -1,8 +1,9 @@
 ---
-id: BPR-0368
-title: The retained ancestor chain doubles the root separator and can never match
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0368"
+title: "The retained ancestor chain doubles the root separator and can never match"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

@@ -1,9 +1,11 @@
 ---
-id: BPR-0617
-title: Verify and close RFC-BPR-0013
-status: Backlog
-rfc: RFC-BPR-0013
-depends_on: [BPR-0507, BPR-0616, BPR-0618, BPR-0619]
+schema: "implement-rfc.card.v1"
+id: "BPR-0617"
+title: "Verify and close RFC-BPR-0013"
+status: "Backlog"
+rfcs: ["RFC-BPR-0013"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619"]
+closeout_for: ["RFC-BPR-0013"]
 ---
 
 # Verify and close RFC-BPR-0013

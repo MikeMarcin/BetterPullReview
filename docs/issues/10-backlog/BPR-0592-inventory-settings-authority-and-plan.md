@@ -1,10 +1,11 @@
 ---
-id: BPR-0592
-title: Inventory settings authority and plan RFC-BPR-0018
-status: Backlog
-rfc: RFC-BPR-0018
-milestone: Post-Pack v2
+schema: "implement-rfc.card.v1"
+id: "BPR-0592"
+title: "Inventory settings authority and plan RFC-BPR-0018"
+status: "Backlog"
+rfcs: ["RFC-BPR-0018"]
 depends_on: []
+milestone: "Post-Pack v2"
 ---
 
 # Inventory settings authority and plan RFC-BPR-0018

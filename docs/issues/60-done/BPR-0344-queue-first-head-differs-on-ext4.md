@@ -1,10 +1,11 @@
 ---
-id: BPR-0344
-title: Resolve the queue composition first head differing by filesystem
-status: Done
-rfc: RFC-BPR-0010
-completed: 2026-08-18
+schema: "implement-rfc.card.v1"
+id: "BPR-0344"
+title: "Resolve the queue composition first head differing by filesystem"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
 depends_on: []
+completed: "2026-08-18"
 ---
 
 # Resolve the queue composition first head differing by filesystem

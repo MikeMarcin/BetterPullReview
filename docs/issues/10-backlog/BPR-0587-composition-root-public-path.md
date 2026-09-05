@@ -1,10 +1,11 @@
 ---
-id: BPR-0587
-title: Wire RFC-BPR-0023 through the real BetterPullReview composition root and public executable
-status: Backlog
-rfc: RFC-BPR-0023
-milestone: Post-Pack v2
-depends_on: [BPR-0582, BPR-0583, BPR-0584, BPR-0585, BPR-0586, BPR-0571]
+schema: "implement-rfc.card.v1"
+id: "BPR-0587"
+title: "Wire RFC-BPR-0023 through the real BetterPullReview composition root and public executable"
+status: "Backlog"
+rfcs: ["RFC-BPR-0023"]
+depends_on: ["BPR-0582","BPR-0583","BPR-0584","BPR-0585","BPR-0586","BPR-0571"]
+milestone: "Post-Pack v2"
 ---
 
 # Wire RFC-BPR-0023 through the real BetterPullReview composition root and public executable

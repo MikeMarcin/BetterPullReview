@@ -1,9 +1,10 @@
 ---
-id: BPR-0230
-title: Compose defect correlation and defect cards into the shipped workbench
-status: Done
-rfc: RFC-BPR-0009
-depends_on: [BPR-0229, BPR-0238]
+schema: "implement-rfc.card.v1"
+id: "BPR-0230"
+title: "Compose defect correlation and defect cards into the shipped workbench"
+status: "Done"
+rfcs: ["RFC-BPR-0009"]
+depends_on: ["BPR-0229","BPR-0238"]
 ---
 
 # Compose defect correlation and defect cards into the shipped workbench

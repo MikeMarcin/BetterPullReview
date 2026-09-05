@@ -1,9 +1,10 @@
 ---
-id: BPR-0541
-title: Persist the device-grant binding across a restart and defer the first refresh
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0540]
+schema: "implement-rfc.card.v1"
+id: "BPR-0541"
+title: "Persist the device-grant binding across a restart and defer the first refresh"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0540"]
 ---
 
 # Persist the device-grant binding across a restart and defer the first refresh

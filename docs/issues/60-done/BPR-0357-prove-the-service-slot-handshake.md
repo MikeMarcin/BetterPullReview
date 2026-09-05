@@ -1,8 +1,9 @@
 ---
-id: BPR-0357
-title: Prove the SERVICE_SLOT handshake mechanism before anything is built on it
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0357"
+title: "Prove the SERVICE_SLOT handshake mechanism before anything is built on it"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
 ---
 

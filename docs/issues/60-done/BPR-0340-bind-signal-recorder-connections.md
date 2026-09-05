@@ -1,10 +1,11 @@
 ---
-id: BPR-0340
-title: Bind the landing-model signal recorder's connections to its lifetime
-status: Done
-rfc: RFC-BPR-0010
+schema: "implement-rfc.card.v1"
+id: "BPR-0340"
+title: "Bind the landing-model signal recorder's connections to its lifetime"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
 depends_on: []
-completed: 2026-08-17
+completed: "2026-08-17"
 ---
 
 # Bind the landing-model signal recorder's connections to its lifetime

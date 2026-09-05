@@ -1,9 +1,10 @@
 ---
-id: BPR-0520
+schema: "implement-rfc.card.v1"
+id: "BPR-0520"
 title: "Qt: the defect action row clips in the conversations drawer at 100 %"
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0513]
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0513"]
 ---
 
 # Qt: the defect action row clips in the conversations drawer at 100 %

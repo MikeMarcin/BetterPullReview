@@ -1,9 +1,10 @@
 ---
-id: BPR-0212
-title: Show conversation and code evolving together across revisions
-status: Done
-rfc: none
-depends_on: [BPR-0191, BPR-0413, BPR-0415]
+schema: "implement-rfc.card.v1"
+id: "BPR-0212"
+title: "Show conversation and code evolving together across revisions"
+status: "Done"
+rfcs: []
+depends_on: ["BPR-0191","BPR-0413","BPR-0415"]
 ---
 
 # Show conversation and code evolving together across revisions

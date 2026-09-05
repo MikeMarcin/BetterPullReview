@@ -1,8 +1,9 @@
 ---
-id: BPR-0403
-title: State the dev-binary hold on the board, not just inside three cards
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0403"
+title: "State the dev-binary hold on the board, not just inside three cards"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

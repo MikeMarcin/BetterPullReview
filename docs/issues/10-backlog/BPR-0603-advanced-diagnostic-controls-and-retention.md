@@ -1,9 +1,10 @@
 ---
-id: BPR-0603
-title: Add advanced diagnostic retention privacy and controls
-status: Backlog
-rfc: RFC-BPR-0027
-depends_on: [BPR-0602]
+schema: "implement-rfc.card.v1"
+id: "BPR-0603"
+title: "Add advanced diagnostic retention privacy and controls"
+status: "Backlog"
+rfcs: ["RFC-BPR-0027"]
+depends_on: ["BPR-0602"]
 ---
 
 # Add advanced diagnostic retention privacy and controls

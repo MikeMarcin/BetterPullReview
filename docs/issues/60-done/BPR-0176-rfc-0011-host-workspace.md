@@ -1,9 +1,10 @@
 ---
-id: BPR-0176
+schema: "implement-rfc.card.v1"
+id: "BPR-0176"
 title: "Host: workspace preparation, pinned and dirty"
-status: Done
-rfc: RFC-BPR-0011
-depends_on: [BPR-0171]
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
+depends_on: ["BPR-0171"]
 ---
 
 # Host: workspace preparation, pinned and dirty

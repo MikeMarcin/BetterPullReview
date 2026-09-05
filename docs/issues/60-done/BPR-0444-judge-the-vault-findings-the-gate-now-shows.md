@@ -1,10 +1,11 @@
 ---
-id: BPR-0444
-title: Judge the nine vault findings the working tidy gate now shows
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0443]
-completed: 2026-08-27
+schema: "implement-rfc.card.v1"
+id: "BPR-0444"
+title: "Judge the nine vault findings the working tidy gate now shows"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0443"]
+completed: "2026-08-27"
 ---
 
 # Judge the nine vault findings the working tidy gate now shows

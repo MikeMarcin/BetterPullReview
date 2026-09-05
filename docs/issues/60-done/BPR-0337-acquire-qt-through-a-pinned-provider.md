@@ -1,9 +1,10 @@
 ---
-id: BPR-0337
-title: Acquire Qt through a pinned provider
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0336]
+schema: "implement-rfc.card.v1"
+id: "BPR-0337"
+title: "Acquire Qt through a pinned provider"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0336"]
 ---
 
 # Acquire Qt through a pinned provider

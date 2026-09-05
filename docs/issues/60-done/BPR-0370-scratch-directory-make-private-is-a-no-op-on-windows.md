@@ -1,8 +1,9 @@
 ---
-id: BPR-0370
-title: The ledger tests' make_private is a silent no-op on Windows
-status: Done
-rfc: RFC-BPR-0007
+schema: "implement-rfc.card.v1"
+id: "BPR-0370"
+title: "The ledger tests' make_private is a silent no-op on Windows"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
 depends_on: []
 ---
 

@@ -1,10 +1,11 @@
 ---
-id: BPR-0586
-title: Implement exact source selection, composition workspace, and separate draft/publish controls in Qt
-status: Backlog
-rfc: RFC-BPR-0023
-milestone: Post-Pack v2
-depends_on: [BPR-0583, BPR-0584, BPR-0585]
+schema: "implement-rfc.card.v1"
+id: "BPR-0586"
+title: "Implement exact source selection, composition workspace, and separate draft/publish controls in Qt"
+status: "Backlog"
+rfcs: ["RFC-BPR-0023"]
+depends_on: ["BPR-0583","BPR-0584","BPR-0585"]
+milestone: "Post-Pack v2"
 ---
 
 # Implement exact source selection, composition workspace, and separate draft/publish controls in Qt

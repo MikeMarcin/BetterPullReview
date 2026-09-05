@@ -46,7 +46,7 @@ from scripts.contained_temporary_support import ContainedTemporaryDirectory  # n
 
 BUILDER = (
     REPOSITORY_ROOT
-    / ".agents/skills/bpr-attended-review/scripts/build_attended_review.py")
+    / "scripts/verification/rfc0016_attended_contract/scripts/build_attended_review.py")
 GIT_AVAILABLE = shutil.which("git") is not None
 BUILDER_AVAILABLE = BUILDER.is_file()
 

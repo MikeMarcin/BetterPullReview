@@ -1,9 +1,10 @@
 ---
-id: BPR-0307
-title: Simplify the anonymous public-preview implementation
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0314, BPR-0315, BPR-0316]
+schema: "implement-rfc.card.v1"
+id: "BPR-0307"
+title: "Simplify the anonymous public-preview implementation"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0314","BPR-0315","BPR-0316"]
 ---
 
 # Simplify the anonymous public-preview implementation

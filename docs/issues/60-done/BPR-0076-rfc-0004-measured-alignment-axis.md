@@ -1,9 +1,10 @@
 ---
-id: BPR-0076
-title: Implement Qt measured alignment axis
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0074]
+schema: "implement-rfc.card.v1"
+id: "BPR-0076"
+title: "Implement Qt measured alignment axis"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0074"]
 ---
 
 # Implement Qt measured alignment axis

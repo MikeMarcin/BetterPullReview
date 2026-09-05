@@ -1,9 +1,10 @@
 ---
-id: BPR-0415
-title: Author the conversation-revision RFC
-status: Done
-rfc: none
-depends_on: [BPR-0413]
+schema: "implement-rfc.card.v1"
+id: "BPR-0415"
+title: "Author the conversation-revision RFC"
+status: "Done"
+rfcs: []
+depends_on: ["BPR-0413"]
 ---
 
 # Author the conversation-revision RFC

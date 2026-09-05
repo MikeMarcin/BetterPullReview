@@ -1,9 +1,10 @@
 ---
-id: BPR-0131
-title: Bring the automated stage budget inside the harness timeout
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0119]
+schema: "implement-rfc.card.v1"
+id: "BPR-0131"
+title: "Bring the automated stage budget inside the harness timeout"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0119"]
 ---
 
 # Bring the automated stage budget inside the harness timeout

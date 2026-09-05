@@ -1,9 +1,10 @@
 ---
-id: BPR-0118
-title: Apply the code line height, or retire the setting
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0116]
+schema: "implement-rfc.card.v1"
+id: "BPR-0118"
+title: "Apply the code line height, or retire the setting"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0116"]
 ---
 
 # Apply the code line height, or retire the setting

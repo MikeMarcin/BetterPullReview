@@ -1,9 +1,10 @@
 ---
-id: BPR-0078
-title: Implement the DiffLinkMap divider
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0074, BPR-0076, BPR-0077]
+schema: "implement-rfc.card.v1"
+id: "BPR-0078"
+title: "Implement the DiffLinkMap divider"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0074","BPR-0076","BPR-0077"]
 ---
 
 # Implement the DiffLinkMap divider

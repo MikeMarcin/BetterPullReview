@@ -1,8 +1,9 @@
 ---
-id: BPR-0320
-title: Make intraline emphasis visible on both sides in every profile
-status: Done
-rfc: RFC-BPR-0006
+schema: "implement-rfc.card.v1"
+id: "BPR-0320"
+title: "Make intraline emphasis visible on both sides in every profile"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
 depends_on: []
 ---
 

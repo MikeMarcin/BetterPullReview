@@ -1,9 +1,10 @@
 ---
-id: BPR-0229
-title: Compose review synchronization and the mutation coordinator
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0228]
+schema: "implement-rfc.card.v1"
+id: "BPR-0229"
+title: "Compose review synchronization and the mutation coordinator"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0228"]
 ---
 
 # Compose review synchronization and the mutation coordinator

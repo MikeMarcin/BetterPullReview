@@ -1,8 +1,9 @@
 ---
-id: BPR-0441
-title: The real epoch composition does not reach ready on Windows
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0441"
+title: "The real epoch composition does not reach ready on Windows"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

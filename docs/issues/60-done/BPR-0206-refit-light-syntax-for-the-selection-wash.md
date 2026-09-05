@@ -1,9 +1,10 @@
 ---
-id: BPR-0206
-title: Refit the light syntax palette so a visible selection wash is legible
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0196]
+schema: "implement-rfc.card.v1"
+id: "BPR-0206"
+title: "Refit the light syntax palette so a visible selection wash is legible"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0196"]
 ---
 
 # Refit the light syntax palette so a visible selection wash is legible

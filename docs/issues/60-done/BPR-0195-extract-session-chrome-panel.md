@@ -1,9 +1,10 @@
 ---
-id: BPR-0195
+schema: "implement-rfc.card.v1"
+id: "BPR-0195"
 title: "Qt: extract the session chrome into a composable panel"
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0190]
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0190"]
 ---
 
 # Qt: extract the session chrome into a composable panel

@@ -1,9 +1,10 @@
 ---
-id: BPR-0163
+schema: "implement-rfc.card.v1"
+id: "BPR-0163"
 title: "Qt: landing model, ordered by the core, incremental by identity"
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0158]
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0158"]
 ---
 
 # Qt: queue model, filters, sorting, and empty states

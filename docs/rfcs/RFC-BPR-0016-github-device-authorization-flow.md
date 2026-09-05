@@ -1,11 +1,11 @@
 ---
-id: RFC-BPR-0016
-title: GitHub Device Authorization Flow
-status: Auto-Verified
-area: BPR
-milestone: Post-Pack v2
-depends_on: [RFC-BPR-0002]
-pack_version: post-v2
+id: "RFC-BPR-0016"
+title: "GitHub Device Authorization Flow"
+status: "Auto-Verified"
+area: "BPR"
+milestone: "Post-Pack v2"
+depends_on: ["RFC-BPR-0002"]
+pack_version: "post-v2"
 ---
 
 # RFC-BPR-0016: GitHub Device Authorization Flow

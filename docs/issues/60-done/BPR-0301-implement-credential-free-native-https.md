@@ -1,9 +1,10 @@
 ---
-id: BPR-0301
-title: Implement typed credential-free native HTTPS reads
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0035, BPR-0312]
+schema: "implement-rfc.card.v1"
+id: "BPR-0301"
+title: "Implement typed credential-free native HTTPS reads"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0035","BPR-0312"]
 ---
 
 # Implement typed credential-free native HTTPS reads

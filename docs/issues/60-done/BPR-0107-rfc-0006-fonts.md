@@ -1,9 +1,10 @@
 ---
-id: BPR-0107
-title: Implement UI and code font settings
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0106]
+schema: "implement-rfc.card.v1"
+id: "BPR-0107"
+title: "Implement UI and code font settings"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0106"]
 ---
 
 # Implement UI and code font settings

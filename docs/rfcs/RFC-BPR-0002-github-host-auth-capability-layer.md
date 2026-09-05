@@ -1,10 +1,10 @@
 ---
-id: RFC-BPR-0002
-title: GitHub Host, Authentication, and Capability Layer
-status: Auto-Verified
-area: BPR
-milestone: M1 Native Read-Only Workbench
-depends_on: [RFC-BPR-0001]
+id: "RFC-BPR-0002"
+title: "GitHub Host, Authentication, and Capability Layer"
+status: "Auto-Verified"
+area: "BPR"
+milestone: "M1 Native Read-Only Workbench"
+depends_on: ["RFC-BPR-0001"]
 pack_version: 2
 ---
 

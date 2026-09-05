@@ -1,10 +1,10 @@
 ---
-id: RFC-BPR-0003
-title: Local Git Cache, Pull Request Identity, and Review Epochs
-status: Auto-Verified
-area: BPR
-milestone: M1 Native Read-Only Workbench
-depends_on: [RFC-BPR-0001, RFC-BPR-0002]
+id: "RFC-BPR-0003"
+title: "Local Git Cache, Pull Request Identity, and Review Epochs"
+status: "Auto-Verified"
+area: "BPR"
+milestone: "M1 Native Read-Only Workbench"
+depends_on: ["RFC-BPR-0001","RFC-BPR-0002"]
 pack_version: 2
 ---
 

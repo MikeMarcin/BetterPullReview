@@ -1,9 +1,10 @@
 ---
-id: BPR-0126
-title: Crash recovery and database-loss behaviour
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0125]
+schema: "implement-rfc.card.v1"
+id: "BPR-0126"
+title: "Crash recovery and database-loss behaviour"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0125"]
 ---
 
 # Crash recovery and database-loss behaviour

@@ -1,9 +1,10 @@
 ---
-id: BPR-0540
-title: Refresh material shares the base credential's erasure path, and the resume never spends an orphan
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0536]
+schema: "implement-rfc.card.v1"
+id: "BPR-0540"
+title: "Refresh material shares the base credential's erasure path, and the resume never spends an orphan"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0536"]
 ---
 
 # Refresh material shares the base credential's erasure path, and the resume never spends an orphan

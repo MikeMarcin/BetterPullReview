@@ -1,9 +1,10 @@
 ---
-id: BPR-0499
+schema: "implement-rfc.card.v1"
+id: "BPR-0499"
 title: "Core: explicit AI actions, side-chat scope, and stale continuation"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0496]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0496"]
 ---
 
 # Core: explicit AI actions, side-chat scope, and stale continuation

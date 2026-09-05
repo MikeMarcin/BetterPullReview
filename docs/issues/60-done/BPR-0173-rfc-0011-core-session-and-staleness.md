@@ -1,9 +1,10 @@
 ---
-id: BPR-0173
+schema: "implement-rfc.card.v1"
+id: "BPR-0173"
 title: "Core: session identity, revision binding, and staleness"
-status: Done
-rfc: RFC-BPR-0011
-depends_on: [BPR-0171]
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
+depends_on: ["BPR-0171"]
 ---
 
 # Core: session identity, revision binding, and staleness

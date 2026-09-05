@@ -1,8 +1,9 @@
 ---
-id: BPR-0397
-title: Bound the three sibling actor waits that BPR-0390 left unbounded
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0397"
+title: "Bound the three sibling actor waits that BPR-0390 left unbounded"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

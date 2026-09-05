@@ -1,8 +1,9 @@
 ---
-id: BPR-0465
-title: The cleanup-retry course cannot stage its substitute on Windows
-status: Done
-rfc: RFC-BPR-0011
+schema: "implement-rfc.card.v1"
+id: "BPR-0465"
+title: "The cleanup-retry course cannot stage its substitute on Windows"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
 depends_on: []
 ---
 

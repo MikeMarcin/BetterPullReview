@@ -1,9 +1,10 @@
 ---
-id: BPR-0360
-title: Owner-private catalog objects are unusable inside an AppContainer
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0362]
+schema: "implement-rfc.card.v1"
+id: "BPR-0360"
+title: "Owner-private catalog objects are unusable inside an AppContainer"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0362"]
 ---
 
 # Owner-private catalog objects are unusable inside an AppContainer

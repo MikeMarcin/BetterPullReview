@@ -1,9 +1,10 @@
 ---
-id: BPR-0612
-title: Replace all remaining Qt JSON parsing and serialization with Glaze
-status: Backlog
-rfc: RFC-BPR-0002
-depends_on: [BPR-0610]
+schema: "implement-rfc.card.v1"
+id: "BPR-0612"
+title: "Replace all remaining Qt JSON parsing and serialization with Glaze"
+status: "Backlog"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0610"]
 ---
 
 # Replace all remaining Qt JSON parsing and serialization with Glaze

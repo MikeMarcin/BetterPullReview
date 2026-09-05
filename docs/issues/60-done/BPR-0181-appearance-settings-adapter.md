@@ -1,9 +1,10 @@
 ---
-id: BPR-0181
+schema: "implement-rfc.card.v1"
+id: "BPR-0181"
 title: "Adapter: durable appearance settings behind appearance_settings_port"
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0180]
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0180"]
 ---
 
 # Adapter: durable appearance settings behind `appearance_settings_port`

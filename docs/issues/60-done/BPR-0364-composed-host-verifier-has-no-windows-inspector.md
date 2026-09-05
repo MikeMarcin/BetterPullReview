@@ -1,9 +1,10 @@
 ---
-id: BPR-0364
-title: The composed-host verifier has no Windows symbol inspector
-status: Done
-rfc: RFC-BPR-0013
-depends_on: [BPR-0412]
+schema: "implement-rfc.card.v1"
+id: "BPR-0364"
+title: "The composed-host verifier has no Windows symbol inspector"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
+depends_on: ["BPR-0412"]
 ---
 
 # The composed-host verifier has no Windows symbol inspector

@@ -1,10 +1,11 @@
 ---
-id: BPR-0007
-title: Complete RFC-BPR-0001 focused tests and fixtures
-status: Done
-rfc: RFC-BPR-0001
-depends_on: [BPR-0006]
-completed: 2026-07-29
+schema: "implement-rfc.card.v1"
+id: "BPR-0007"
+title: "Complete RFC-BPR-0001 focused tests and fixtures"
+status: "Done"
+rfcs: ["RFC-BPR-0001"]
+depends_on: ["BPR-0006"]
+completed: "2026-07-29"
 ---
 
 # Complete RFC-BPR-0001 focused tests and fixtures

@@ -1,10 +1,11 @@
 ---
-id: BPR-0353
-title: Mount the capsule from a digest-bound read-only image
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0357]
-completed: 2026-08-18
+schema: "implement-rfc.card.v1"
+id: "BPR-0353"
+title: "Mount the capsule from a digest-bound read-only image"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0357"]
+completed: "2026-08-18"
 ---
 
 # Mount the capsule from a digest-bound read-only image

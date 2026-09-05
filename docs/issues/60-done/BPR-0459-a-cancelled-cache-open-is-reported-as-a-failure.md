@@ -1,8 +1,9 @@
 ---
-id: BPR-0459
-title: A cancelled cache open is reported to the core as a failure
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0459"
+title: "A cancelled cache open is reported to the core as a failure"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

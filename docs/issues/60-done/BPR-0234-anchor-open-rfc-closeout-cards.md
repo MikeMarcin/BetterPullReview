@@ -1,8 +1,9 @@
 ---
-id: BPR-0234
-title: Anchor open RFC closeout cards to immutable bases and checklists
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0234"
+title: "Anchor open RFC closeout cards to immutable bases and checklists"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0420
-title: Prove the agent process launcher is constructed and invoked
-status: Done
-rfc: RFC-BPR-0011
-depends_on: [BPR-0335]
+schema: "implement-rfc.card.v1"
+id: "BPR-0420"
+title: "Prove the agent process launcher is constructed and invoked"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
+depends_on: ["BPR-0335"]
 ---
 
 # Prove the agent process launcher is constructed and invoked

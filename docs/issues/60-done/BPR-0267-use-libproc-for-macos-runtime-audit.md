@@ -1,9 +1,10 @@
 ---
-id: BPR-0267
-title: Use libproc for the sandboxed macOS runtime audit
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0264]
+schema: "implement-rfc.card.v1"
+id: "BPR-0267"
+title: "Use libproc for the sandboxed macOS runtime audit"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0264"]
 ---
 
 # Use libproc for the sandboxed macOS runtime audit

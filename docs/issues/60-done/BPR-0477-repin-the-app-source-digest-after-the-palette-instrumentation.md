@@ -1,10 +1,11 @@
 ---
-id: BPR-0477
-title: Repin the app source digest the palette instrumentation drifted
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0477"
+title: "Repin the app source digest the palette instrumentation drifted"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
-completed: 2026-08-28
+completed: "2026-08-28"
 ---
 
 # Repin the app source digest the palette instrumentation drifted

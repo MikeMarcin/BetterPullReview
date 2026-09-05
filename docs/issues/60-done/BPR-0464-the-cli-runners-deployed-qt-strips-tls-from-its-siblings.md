@@ -1,8 +1,9 @@
 ---
-id: BPR-0464
-title: The CLI runner's deployed Qt strips TLS from every sibling
-status: Done
-rfc: RFC-BPR-0002
+schema: "implement-rfc.card.v1"
+id: "BPR-0464"
+title: "The CLI runner's deployed Qt strips TLS from every sibling"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
 depends_on: []
 ---
 

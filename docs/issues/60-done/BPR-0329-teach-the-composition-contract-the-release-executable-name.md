@@ -1,9 +1,10 @@
 ---
-id: BPR-0329
-title: Teach the composition contract the renamed release executable
-status: Done
-rfc: RFC-BPR-0013
-depends_on: [BPR-0328]
+schema: "implement-rfc.card.v1"
+id: "BPR-0329"
+title: "Teach the composition contract the renamed release executable"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
+depends_on: ["BPR-0328"]
 ---
 
 # Teach the composition contract the renamed release executable

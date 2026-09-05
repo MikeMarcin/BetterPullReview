@@ -1,8 +1,9 @@
 ---
-id: BPR-0395
-title: The asset boundary verifier cannot find the renamed release binary
-status: Done
-rfc: RFC-BPR-0019
+schema: "implement-rfc.card.v1"
+id: "BPR-0395"
+title: "The asset boundary verifier cannot find the renamed release binary"
+status: "Done"
+rfcs: ["RFC-BPR-0019"]
 depends_on: []
 ---
 

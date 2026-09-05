@@ -1,9 +1,10 @@
 ---
-id: BPR-0077
-title: Implement shared comparison scroll controller
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0074, BPR-0076]
+schema: "implement-rfc.card.v1"
+id: "BPR-0077"
+title: "Implement shared comparison scroll controller"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0074","BPR-0076"]
 ---
 
 # Implement shared comparison scroll controller

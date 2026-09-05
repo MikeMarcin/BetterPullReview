@@ -1,8 +1,9 @@
 ---
-id: BPR-0556
-title: Support macOS 26 retained-directory spawn without dropping older targets
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0556"
+title: "Support macOS 26 retained-directory spawn without dropping older targets"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
 ---
 

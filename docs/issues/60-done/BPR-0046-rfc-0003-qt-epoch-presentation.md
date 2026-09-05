@@ -1,9 +1,10 @@
 ---
-id: BPR-0046
-title: Implement exact epoch comparison controls in Qt
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0041, BPR-0045, BPR-0056]
+schema: "implement-rfc.card.v1"
+id: "BPR-0046"
+title: "Implement exact epoch comparison controls in Qt"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0041","BPR-0045","BPR-0056"]
 ---
 
 # Implement exact epoch comparison controls in Qt

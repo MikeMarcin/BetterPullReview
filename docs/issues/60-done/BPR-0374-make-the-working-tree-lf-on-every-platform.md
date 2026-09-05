@@ -1,8 +1,9 @@
 ---
-id: BPR-0374
-title: Make the working tree LF on every platform
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0374"
+title: "Make the working tree LF on every platform"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

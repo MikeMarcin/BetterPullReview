@@ -1,8 +1,9 @@
 ---
-id: BPR-0197
-title: The review fixture reads as code, not as a list
-status: Done
-rfc: RFC-BPR-0005
+schema: "implement-rfc.card.v1"
+id: "BPR-0197"
+title: "The review fixture reads as code, not as a list"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
 depends_on: []
 ---
 

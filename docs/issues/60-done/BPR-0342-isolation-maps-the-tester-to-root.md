@@ -1,10 +1,11 @@
 ---
-id: BPR-0342
-title: Stop the Linux test isolation presenting every test as root
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0342"
+title: "Stop the Linux test isolation presenting every test as root"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
-completed: 2026-08-17
+completed: "2026-08-17"
 ---
 
 # Stop the Linux test isolation presenting every test as root

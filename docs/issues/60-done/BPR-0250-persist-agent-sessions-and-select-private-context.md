@@ -1,9 +1,10 @@
 ---
-id: BPR-0250
-title: Persist agent sessions and select private context explicitly
-status: Done
-rfc: RFC-BPR-0011
-depends_on: [BPR-0229, BPR-0238, BPR-0247]
+schema: "implement-rfc.card.v1"
+id: "BPR-0250"
+title: "Persist agent sessions and select private context explicitly"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
+depends_on: ["BPR-0229","BPR-0238","BPR-0247"]
 ---
 
 # Persist agent sessions and select private context explicitly

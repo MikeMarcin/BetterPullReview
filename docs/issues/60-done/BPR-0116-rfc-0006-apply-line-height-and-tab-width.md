@@ -1,9 +1,10 @@
 ---
-id: BPR-0116
-title: Apply code line height and invalidate on a tab-width-only change
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0107]
+schema: "implement-rfc.card.v1"
+id: "BPR-0116"
+title: "Apply code line height and invalidate on a tab-width-only change"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0107"]
 ---
 
 # Apply code line height and invalidate on a tab-width-only change

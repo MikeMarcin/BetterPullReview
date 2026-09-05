@@ -1,9 +1,10 @@
 ---
-id: BPR-0330
-title: Land the accepted dark intraline fill and the format gate it was missing
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0323]
+schema: "implement-rfc.card.v1"
+id: "BPR-0330"
+title: "Land the accepted dark intraline fill and the format gate it was missing"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0323"]
 ---
 
 # Land the accepted dark intraline fill and the format gate it was missing

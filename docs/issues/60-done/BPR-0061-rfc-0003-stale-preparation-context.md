@@ -1,10 +1,11 @@
 ---
-id: BPR-0061
-title: Reject stale preparation terminals before forming catalog context
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0045, BPR-0060]
-completed: 2026-08-01
+schema: "implement-rfc.card.v1"
+id: "BPR-0061"
+title: "Reject stale preparation terminals before forming catalog context"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0045","BPR-0060"]
+completed: "2026-08-01"
 ---
 
 # Reject stale preparation terminals before forming catalog context

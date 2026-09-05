@@ -1,9 +1,10 @@
 ---
-id: BPR-0148
-title: Host correlation of threads, replies, and epochs with defect records
-status: Done
-rfc: RFC-BPR-0009
-depends_on: [BPR-0147]
+schema: "implement-rfc.card.v1"
+id: "BPR-0148"
+title: "Host correlation of threads, replies, and epochs with defect records"
+status: "Done"
+rfcs: ["RFC-BPR-0009"]
+depends_on: ["BPR-0147"]
 ---
 
 # Host correlation of threads, replies, and epochs with defect records

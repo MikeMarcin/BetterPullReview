@@ -1,8 +1,9 @@
 ---
-id: BPR-0428
-title: The syntax provider splits a forwarded list on the round after it
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0428"
+title: "The syntax provider splits a forwarded list on the round after it"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

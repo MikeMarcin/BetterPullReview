@@ -1,8 +1,9 @@
 ---
-id: BPR-0529
-title: The composed-host verifier's own contract sat red at HEAD for a day
-status: Done
-rfc: none
+schema: "implement-rfc.card.v1"
+id: "BPR-0529"
+title: "The composed-host verifier's own contract sat red at HEAD for a day"
+status: "Done"
+rfcs: []
 depends_on: []
 ---
 

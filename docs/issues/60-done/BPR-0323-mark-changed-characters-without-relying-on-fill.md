@@ -1,9 +1,10 @@
 ---
-id: BPR-0323
-title: Mark changed characters without relying on fill colour alone
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0320]
+schema: "implement-rfc.card.v1"
+id: "BPR-0323"
+title: "Mark changed characters without relying on fill colour alone"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0320"]
 ---
 
 # Mark changed characters without relying on fill colour alone

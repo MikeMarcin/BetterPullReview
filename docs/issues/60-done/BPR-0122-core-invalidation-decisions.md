@@ -1,9 +1,10 @@
 ---
-id: BPR-0122
-title: Core invalidation decisions from bounded material observations
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0121]
+schema: "implement-rfc.card.v1"
+id: "BPR-0122"
+title: "Core invalidation decisions from bounded material observations"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0121"]
 ---
 
 # Core invalidation decisions from bounded material observations

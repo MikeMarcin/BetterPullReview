@@ -1,9 +1,10 @@
 ---
-id: BPR-0202
-title: Draw the change-group boundary as a rule on the edge, not a fill on a line
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0198]
+schema: "implement-rfc.card.v1"
+id: "BPR-0202"
+title: "Draw the change-group boundary as a rule on the edge, not a fill on a line"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0198"]
 ---
 
 # Draw the change-group boundary as a rule on the edge, not a fill on a line

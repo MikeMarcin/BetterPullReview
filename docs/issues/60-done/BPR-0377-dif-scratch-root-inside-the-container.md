@@ -1,8 +1,9 @@
 ---
-id: BPR-0377
-title: The Dif tool's scratch root is unusable when contained
-status: Done
-rfc: RFC-BPR-0019
+schema: "implement-rfc.card.v1"
+id: "BPR-0377"
+title: "The Dif tool's scratch root is unusable when contained"
+status: "Done"
+rfcs: ["RFC-BPR-0019"]
 depends_on: []
 ---
 

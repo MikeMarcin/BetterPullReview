@@ -1,8 +1,9 @@
 ---
-id: BPR-0362
-title: The container cannot read the ancestors every path check walks
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0362"
+title: "The container cannot read the ancestors every path check walks"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
 ---
 

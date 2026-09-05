@@ -1,9 +1,10 @@
 ---
-id: BPR-0557
-title: Admit the exact inherited failure marker in the isolation verifier
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0552]
+schema: "implement-rfc.card.v1"
+id: "BPR-0557"
+title: "Admit the exact inherited failure marker in the isolation verifier"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0552"]
 ---
 
 # Admit the exact inherited failure marker in the isolation verifier

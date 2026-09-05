@@ -1,11 +1,11 @@
 ---
-id: RFC-BPR-0015
-title: GitHub CLI Production Enablement
-status: Deferred
-area: BPR
-milestone: Post-Pack v2
-depends_on: [RFC-BPR-0014]
-pack_version: post-v2
+id: "RFC-BPR-0015"
+title: "GitHub CLI Production Enablement"
+status: "Deferred"
+area: "BPR"
+milestone: "Post-Pack v2"
+depends_on: ["RFC-BPR-0014"]
+pack_version: "post-v2"
 ---
 
 # RFC-BPR-0015: GitHub CLI Production Enablement

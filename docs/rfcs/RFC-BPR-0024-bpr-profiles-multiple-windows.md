@@ -1,11 +1,11 @@
 ---
-id: RFC-BPR-0024
-title: BPR Profiles and Multiple Windows
-status: Deferred
-area: BPR
-milestone: Post-Pack v2
-depends_on: [RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0018]
-pack_version: post-v2
+id: "RFC-BPR-0024"
+title: "BPR Profiles and Multiple Windows"
+status: "Deferred"
+area: "BPR"
+milestone: "Post-Pack v2"
+depends_on: ["RFC-BPR-0002","RFC-BPR-0003","RFC-BPR-0007","RFC-BPR-0008","RFC-BPR-0018"]
+pack_version: "post-v2"
 ---
 
 # RFC-BPR-0024: BPR Profiles and Multiple Windows

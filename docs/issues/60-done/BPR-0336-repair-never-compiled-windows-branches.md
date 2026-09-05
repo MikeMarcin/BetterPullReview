@@ -1,8 +1,9 @@
 ---
-id: BPR-0336
-title: Repair the never-compiled Windows branches and MSVC portability defects
-status: Done
-rfc: RFC-BPR-0002
+schema: "implement-rfc.card.v1"
+id: "BPR-0336"
+title: "Repair the never-compiled Windows branches and MSVC portability defects"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
 depends_on: []
 ---
 

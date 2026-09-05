@@ -1,9 +1,10 @@
 ---
-id: BPR-0065
-title: Preserve SQLite provenance through immutable-base diff hygiene
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0039]
+schema: "implement-rfc.card.v1"
+id: "BPR-0065"
+title: "Preserve SQLite provenance through immutable-base diff hygiene"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0039"]
 ---
 
 # Preserve SQLite provenance through immutable-base diff hygiene

@@ -17,3 +17,17 @@ CMakeUserPresets.json
 __pycache__/
 /bpr-public-path-*/
 .remote-station.json
+
+# MASK shared workflow deployment and local sessions
+/.agents/skills/implement-rfc
+/.claude/skills/implement-rfc
+/.agents/skills/attended-review
+/.claude/skills/attended-review
+/.agents/skills/wizard
+/.claude/skills/wizard
+/.claude/agents/rfc-*.md
+/.codex/agents/rfc-*.toml
+/.mask/bootstrap-retired/
+/.mask/generated/
+/.mask/attended-review/
+/.mask/sessions/

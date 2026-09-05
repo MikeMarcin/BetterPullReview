@@ -1,9 +1,10 @@
 ---
-id: BPR-0187
-title: Record a real public pull request as a replayable fixture
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0186]
+schema: "implement-rfc.card.v1"
+id: "BPR-0187"
+title: "Record a real public pull request as a replayable fixture"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0186"]
 ---
 
 # Record a real public pull request as a replayable fixture

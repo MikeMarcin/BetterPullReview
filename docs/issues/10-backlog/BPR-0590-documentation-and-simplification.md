@@ -1,10 +1,11 @@
 ---
-id: BPR-0590
-title: Update product/architecture/operator documentation and simplify the implementation
-status: Backlog
-rfc: RFC-BPR-0023
-milestone: Post-Pack v2
-depends_on: [BPR-0588, BPR-0589]
+schema: "implement-rfc.card.v1"
+id: "BPR-0590"
+title: "Update product/architecture/operator documentation and simplify the implementation"
+status: "Backlog"
+rfcs: ["RFC-BPR-0023"]
+depends_on: ["BPR-0588","BPR-0589"]
+milestone: "Post-Pack v2"
 ---
 
 # Update product/architecture/operator documentation and simplify the implementation

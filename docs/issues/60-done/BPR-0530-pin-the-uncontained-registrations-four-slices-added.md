@@ -1,8 +1,9 @@
 ---
-id: BPR-0530
-title: Pin the uncontained registrations four slices added
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0530"
+title: "Pin the uncontained registrations four slices added"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
 ---
 

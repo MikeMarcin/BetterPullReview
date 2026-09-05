@@ -1,8 +1,9 @@
 ---
-id: BPR-0559
-title: Diagnose device sign-in response refusal after browser authorization
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0559"
+title: "Diagnose device sign-in response refusal after browser authorization"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

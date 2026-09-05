@@ -1,10 +1,11 @@
 ---
-id: BPR-0041
-title: Implement deterministic review-epoch core policy
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0040]
-completed: 2026-07-30
+schema: "implement-rfc.card.v1"
+id: "BPR-0041"
+title: "Implement deterministic review-epoch core policy"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0040"]
+completed: "2026-07-30"
 ---
 
 # Implement deterministic review-epoch core policy

@@ -1,9 +1,10 @@
 ---
-id: BPR-0276
-title: Register the device client and capture real wire contracts
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0275]
+schema: "implement-rfc.card.v1"
+id: "BPR-0276"
+title: "Register the device client and capture real wire contracts"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0275"]
 ---
 
 # Register the device client and capture real wire contracts

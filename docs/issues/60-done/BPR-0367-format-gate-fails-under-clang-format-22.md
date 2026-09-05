@@ -1,8 +1,9 @@
 ---
-id: BPR-0367
-title: The format gate fails on this host, on a file nothing recently changed
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0367"
+title: "The format gate fails on this host, on a file nothing recently changed"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

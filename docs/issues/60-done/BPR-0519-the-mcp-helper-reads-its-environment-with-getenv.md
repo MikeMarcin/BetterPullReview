@@ -1,9 +1,10 @@
 ---
-id: BPR-0519
-title: The MCP helper reads its environment with getenv, which MSVC refuses
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0501]
+schema: "implement-rfc.card.v1"
+id: "BPR-0519"
+title: "The MCP helper reads its environment with getenv, which MSVC refuses"
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0501"]
 ---
 
 # The MCP helper reads its environment with `getenv`, which MSVC refuses

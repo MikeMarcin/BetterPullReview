@@ -1,10 +1,11 @@
 ---
-id: BPR-0343
-title: Make the tests-disabled Release graph build and verify under GCC
-status: Done
-rfc: RFC-BPR-0013
-completed: 2026-08-18
+schema: "implement-rfc.card.v1"
+id: "BPR-0343"
+title: "Make the tests-disabled Release graph build and verify under GCC"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
+completed: "2026-08-18"
 ---
 
 # Make the tests-disabled Release graph build and verify under GCC

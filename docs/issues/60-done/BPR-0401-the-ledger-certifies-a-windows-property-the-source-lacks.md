@@ -1,8 +1,9 @@
 ---
-id: BPR-0401
-title: The RFC-BPR-0011 ledger certifies a Windows property the source does not have
-status: Done
-rfc: RFC-BPR-0011
+schema: "implement-rfc.card.v1"
+id: "BPR-0401"
+title: "The RFC-BPR-0011 ledger certifies a Windows property the source does not have"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
 depends_on: []
 ---
 

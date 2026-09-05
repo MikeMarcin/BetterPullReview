@@ -1,8 +1,9 @@
 ---
-id: BPR-0436
-title: Windows never narrows the state root the catalog demands
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0436"
+title: "Windows never narrows the state root the catalog demands"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

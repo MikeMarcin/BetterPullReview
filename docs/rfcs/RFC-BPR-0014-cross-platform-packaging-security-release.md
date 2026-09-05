@@ -1,10 +1,10 @@
 ---
-id: RFC-BPR-0014
-title: Cross-Platform Packaging, Signing, Security Hardening, and Release Readiness
-status: Proposed
-area: BPR
-milestone: M6 Production Readiness
-depends_on: [RFC-BPR-0013]
+id: "RFC-BPR-0014"
+title: "Cross-Platform Packaging, Signing, Security Hardening, and Release Readiness"
+status: "Proposed"
+area: "BPR"
+milestone: "M6 Production Readiness"
+depends_on: ["RFC-BPR-0013"]
 pack_version: 2
 ---
 

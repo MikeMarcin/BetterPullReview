@@ -1,10 +1,11 @@
 ---
-id: BPR-0156
-title: Re-establish Linux build and runtime verification
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0155]
-completed: 2026-08-17
+schema: "implement-rfc.card.v1"
+id: "BPR-0156"
+title: "Re-establish Linux build and runtime verification"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0155"]
+completed: "2026-08-17"
 ---
 
 # Re-establish Linux build and runtime verification

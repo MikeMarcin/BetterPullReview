@@ -1,10 +1,10 @@
 ---
-id: RFC-BPR-0009
-title: Defect Classification, Fix Claims, and Verification
-status: Proposed
-area: BPR
-milestone: M3 Collaborative Round Trip
-depends_on: [RFC-BPR-0008]
+id: "RFC-BPR-0009"
+title: "Defect Classification, Fix Claims, and Verification"
+status: "Proposed"
+area: "BPR"
+milestone: "M3 Collaborative Round Trip"
+depends_on: ["RFC-BPR-0008"]
 pack_version: 2
 ---
 

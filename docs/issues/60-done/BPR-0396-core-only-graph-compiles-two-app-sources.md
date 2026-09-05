@@ -1,8 +1,9 @@
 ---
-id: BPR-0396
-title: The core-only graph compiles two app sources, and its boundary check says so
-status: Done
-rfc: RFC-BPR-0019
+schema: "implement-rfc.card.v1"
+id: "BPR-0396"
+title: "The core-only graph compiles two app sources, and its boundary check says so"
+status: "Done"
+rfcs: ["RFC-BPR-0019"]
 depends_on: []
 ---
 

@@ -1,10 +1,11 @@
 ---
-id: BPR-0582
-title: Implement the private thread application host and durable side-chat/finding ingestion
-status: Backlog
-rfc: RFC-BPR-0023
-milestone: Post-Pack v2
-depends_on: [BPR-0580, BPR-0581]
+schema: "implement-rfc.card.v1"
+id: "BPR-0582"
+title: "Implement the private thread application host and durable side-chat/finding ingestion"
+status: "Backlog"
+rfcs: ["RFC-BPR-0023"]
+depends_on: ["BPR-0580","BPR-0581"]
+milestone: "Post-Pack v2"
 ---
 
 # Implement the private thread application host and durable side-chat/finding ingestion

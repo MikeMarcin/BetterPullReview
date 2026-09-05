@@ -1,9 +1,10 @@
 ---
-id: BPR-0310
-title: Verify device authorization on target-native Linux
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0282, BPR-0318]
+schema: "implement-rfc.card.v1"
+id: "BPR-0310"
+title: "Verify device authorization on target-native Linux"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0282","BPR-0318"]
 ---
 
 # Verify device authorization on target-native Linux

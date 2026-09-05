@@ -1,9 +1,10 @@
 ---
-id: BPR-0124
-title: Ledger schema, strong identity scoping, and forward-only migrations
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0120]
+schema: "implement-rfc.card.v1"
+id: "BPR-0124"
+title: "Ledger schema, strong identity scoping, and forward-only migrations"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0120"]
 ---
 
 # Ledger schema, strong identity scoping, and forward-only migrations

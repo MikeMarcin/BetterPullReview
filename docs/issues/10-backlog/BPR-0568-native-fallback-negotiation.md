@@ -1,9 +1,10 @@
 ---
-id: BPR-0568
-title: Implement native-first off-hunk negotiation and fallback
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0566, BPR-0567]
+schema: "implement-rfc.card.v1"
+id: "BPR-0568"
+title: "Implement native-first off-hunk negotiation and fallback"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0566","BPR-0567"]
 ---
 
 # Implement native-first off-hunk negotiation and fallback

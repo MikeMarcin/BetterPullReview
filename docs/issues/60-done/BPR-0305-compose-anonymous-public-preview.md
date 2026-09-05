@@ -1,9 +1,10 @@
 ---
-id: BPR-0305
-title: Compose the production anonymous public preview
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0303, BPR-0304, BPR-0317]
+schema: "implement-rfc.card.v1"
+id: "BPR-0305"
+title: "Compose the production anonymous public preview"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0303","BPR-0304","BPR-0317"]
 ---
 
 # Compose the production anonymous public preview

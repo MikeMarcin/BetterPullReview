@@ -1,10 +1,11 @@
 ---
-id: BPR-0017
-title: Establish RFC-BPR-0002 architecture allocation
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0016]
-completed: 2026-07-29
+schema: "implement-rfc.card.v1"
+id: "BPR-0017"
+title: "Establish RFC-BPR-0002 architecture allocation"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0016"]
+completed: "2026-07-29"
 ---
 
 # Establish RFC-BPR-0002 architecture allocation

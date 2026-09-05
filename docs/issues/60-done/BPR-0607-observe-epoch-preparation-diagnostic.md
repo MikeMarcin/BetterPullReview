@@ -1,9 +1,10 @@
 ---
-id: BPR-0607
-title: Observe the epoch-preparation diagnostic on macOS
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0606]
+schema: "implement-rfc.card.v1"
+id: "BPR-0607"
+title: "Observe the epoch-preparation diagnostic on macOS"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0606"]
 ---
 
 # Observe the epoch-preparation diagnostic on macOS

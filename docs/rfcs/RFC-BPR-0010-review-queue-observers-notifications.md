@@ -1,10 +1,10 @@
 ---
-id: RFC-BPR-0010
-title: Review Queue, Observer Rules, and Local Notifications
-status: Proposed
-area: BPR
-milestone: M4 Review Discovery
-depends_on: [RFC-BPR-0007, RFC-BPR-0008]
+id: "RFC-BPR-0010"
+title: "Review Queue, Observer Rules, and Local Notifications"
+status: "Proposed"
+area: "BPR"
+milestone: "M4 Review Discovery"
+depends_on: ["RFC-BPR-0007","RFC-BPR-0008"]
 pack_version: 2
 ---
 

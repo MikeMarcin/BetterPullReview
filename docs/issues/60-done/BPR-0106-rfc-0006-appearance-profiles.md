@@ -1,9 +1,10 @@
 ---
-id: BPR-0106
-title: Implement selectable appearance profiles with immediate preview
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0105]
+schema: "implement-rfc.card.v1"
+id: "BPR-0106"
+title: "Implement selectable appearance profiles with immediate preview"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0105"]
 ---
 
 # Implement selectable appearance profiles with immediate preview

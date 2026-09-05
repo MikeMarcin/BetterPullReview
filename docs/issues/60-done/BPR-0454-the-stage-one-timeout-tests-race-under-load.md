@@ -1,8 +1,9 @@
 ---
-id: BPR-0454
-title: The stage-one timeout tests race their own helper under matrix load
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0454"
+title: "The stage-one timeout tests race their own helper under matrix load"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

@@ -1,10 +1,11 @@
 ---
-id: BPR-0031
-title: Verify RFC-BPR-0002 rendered UX and accessibility
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0028, BPR-0029, BPR-0030]
-completed: 2026-07-30
+schema: "implement-rfc.card.v1"
+id: "BPR-0031"
+title: "Verify RFC-BPR-0002 rendered UX and accessibility"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0028","BPR-0029","BPR-0030"]
+completed: "2026-07-30"
 ---
 
 # Verify RFC-BPR-0002 rendered UX and accessibility

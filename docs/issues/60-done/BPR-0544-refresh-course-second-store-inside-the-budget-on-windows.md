@@ -1,8 +1,9 @@
 ---
-id: BPR-0544
-title: The composed refresh course lands its second store inside the budget on Windows
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0544"
+title: "The composed refresh course lands its second store inside the budget on Windows"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0184
+schema: "implement-rfc.card.v1"
+id: "BPR-0184"
 title: "Qt: the appearance settings gesture"
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0183]
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0183"]
 ---
 
 # Qt: the appearance settings gesture

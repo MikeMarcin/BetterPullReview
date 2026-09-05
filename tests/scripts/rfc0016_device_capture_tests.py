@@ -576,9 +576,9 @@ def build_attestation_review(
         asset.write_bytes(
             (
                 REPOSITORY_ROOT
-                / ".agents"
-                / "skills"
-                / "bpr-attended-review"
+                / "scripts"
+                / "verification"
+                / "rfc0016_attended_contract"
                 / "assets"
                 / asset_name
             ).read_bytes()

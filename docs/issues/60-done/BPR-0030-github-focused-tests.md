@@ -1,10 +1,11 @@
 ---
-id: BPR-0030
-title: Add RFC-BPR-0002 focused tests and hostile fixtures
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0027, BPR-0029]
-completed: 2026-07-30
+schema: "implement-rfc.card.v1"
+id: "BPR-0030"
+title: "Add RFC-BPR-0002 focused tests and hostile fixtures"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0027","BPR-0029"]
+completed: "2026-07-30"
 ---
 
 # Add RFC-BPR-0002 focused tests and hostile fixtures

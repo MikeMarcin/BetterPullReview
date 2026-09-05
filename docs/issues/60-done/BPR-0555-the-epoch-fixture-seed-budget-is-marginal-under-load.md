@@ -1,8 +1,9 @@
 ---
-id: BPR-0555
-title: The epoch fixture seed's budget is marginal on a busy machine
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0555"
+title: "The epoch fixture seed's budget is marginal on a busy machine"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0147
+schema: "implement-rfc.card.v1"
+id: "BPR-0147"
 title: "Core verification evidence: what it may and may not conclude"
-status: Done
-rfc: RFC-BPR-0009
-depends_on: [BPR-0146]
+status: "Done"
+rfcs: ["RFC-BPR-0009"]
+depends_on: ["BPR-0146"]
 ---
 
 # Core verification evidence: what it may and may not conclude

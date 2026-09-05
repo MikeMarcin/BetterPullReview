@@ -1,8 +1,9 @@
 ---
-id: BPR-0424
-title: Smart App Control refuses a freshly linked test executable for a while
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0424"
+title: "Smart App Control refuses a freshly linked test executable for a while"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

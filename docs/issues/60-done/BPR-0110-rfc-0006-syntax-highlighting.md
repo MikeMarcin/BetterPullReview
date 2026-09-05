@@ -1,9 +1,10 @@
 ---
-id: BPR-0110
-title: Implement complete-blob syntax classification
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0109]
+schema: "implement-rfc.card.v1"
+id: "BPR-0110"
+title: "Implement complete-blob syntax classification"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0109"]
 ---
 
 # Implement complete-blob syntax classification

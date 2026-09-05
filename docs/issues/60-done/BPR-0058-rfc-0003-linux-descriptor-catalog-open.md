@@ -1,10 +1,11 @@
 ---
-id: BPR-0058
-title: Open the Linux epoch catalog through its retained directory
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0044, BPR-0047, BPR-0057]
-completed: 2026-08-01
+schema: "implement-rfc.card.v1"
+id: "BPR-0058"
+title: "Open the Linux epoch catalog through its retained directory"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0044","BPR-0047","BPR-0057"]
+completed: "2026-08-01"
 ---
 
 # Open the Linux epoch catalog through its retained directory

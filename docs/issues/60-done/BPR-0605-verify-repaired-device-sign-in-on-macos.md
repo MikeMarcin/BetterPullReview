@@ -1,9 +1,10 @@
 ---
-id: BPR-0605
-title: Verify repaired device sign-in on macOS
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0559]
+schema: "implement-rfc.card.v1"
+id: "BPR-0605"
+title: "Verify repaired device sign-in on macOS"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0559"]
 ---
 
 # Verify repaired device sign-in on macOS

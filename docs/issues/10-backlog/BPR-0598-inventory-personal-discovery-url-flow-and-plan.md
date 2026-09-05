@@ -1,10 +1,11 @@
 ---
-id: BPR-0598
-title: Inventory personal discovery and URL flow and plan RFC-BPR-0026
-status: Backlog
-rfc: RFC-BPR-0026
-milestone: Post-Pack v2
-depends_on: [BPR-0597, BPR-0244]
+schema: "implement-rfc.card.v1"
+id: "BPR-0598"
+title: "Inventory personal discovery and URL flow and plan RFC-BPR-0026"
+status: "Backlog"
+rfcs: ["RFC-BPR-0026"]
+depends_on: ["BPR-0597","BPR-0244"]
+milestone: "Post-Pack v2"
 ---
 
 # Inventory personal discovery and URL flow and plan RFC-BPR-0026

@@ -1,9 +1,10 @@
 ---
-id: BPR-0416
-title: Carry the reply edge into the conversation tree
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0413]
+schema: "implement-rfc.card.v1"
+id: "BPR-0416"
+title: "Carry the reply edge into the conversation tree"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0413"]
 ---
 
 # Carry the reply edge into the conversation tree

@@ -1,9 +1,10 @@
 ---
-id: BPR-0123
-title: Core actionability policy, deterministic ordering, and explanation
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0122]
+schema: "implement-rfc.card.v1"
+id: "BPR-0123"
+title: "Core actionability policy, deterministic ordering, and explanation"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0122"]
 ---
 
 # Core actionability policy, deterministic ordering, and explanation

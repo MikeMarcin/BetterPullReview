@@ -1,8 +1,9 @@
 ---
-id: BPR-0393
-title: The workbench public path's marker regex outran BPR-0368's instrumentation
-status: Done
-rfc: RFC-BPR-0006
+schema: "implement-rfc.card.v1"
+id: "BPR-0393"
+title: "The workbench public path's marker regex outran BPR-0368's instrumentation"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
 depends_on: []
 ---
 

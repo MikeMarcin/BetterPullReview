@@ -1,9 +1,10 @@
 ---
-id: BPR-0575
-title: Anchor RFC-BPR-0022 verification and closeout
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0573, BPR-0574, BPR-0242]
+schema: "implement-rfc.card.v1"
+id: "BPR-0575"
+title: "Anchor RFC-BPR-0022 verification and closeout"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0573","BPR-0574","BPR-0242"]
 ---
 
 # Anchor RFC-BPR-0022 verification and closeout

@@ -1,8 +1,9 @@
 ---
-id: BPR-0468
-status: Done
+schema: "implement-rfc.card.v1"
+id: "BPR-0468"
 title: "The native HTTPS verifier grew three scenarios and \"current\" stayed put"
-rfc: RFC-BPR-0002
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
 depends_on: []
 ---
 

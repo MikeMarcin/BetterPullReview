@@ -1,9 +1,11 @@
 ---
-id: BPR-0130
-title: Simplification and closeout preparation for RFC-BPR-0007
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0129]
+schema: "implement-rfc.card.v1"
+id: "BPR-0130"
+title: "Simplification and closeout preparation for RFC-BPR-0007"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0129"]
+closeout_for: ["RFC-BPR-0007"]
 ---
 
 # Simplification and closeout preparation for RFC-BPR-0007

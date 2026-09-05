@@ -1,9 +1,10 @@
 ---
-id: BPR-0121
-title: Core receipt and acceptance transitions against material identity
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0120]
+schema: "implement-rfc.card.v1"
+id: "BPR-0121"
+title: "Core receipt and acceptance transitions against material identity"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0120"]
 ---
 
 # Core receipt and acceptance transitions against material identity

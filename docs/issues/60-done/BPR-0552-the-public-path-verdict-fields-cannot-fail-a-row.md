@@ -1,8 +1,9 @@
 ---
-id: BPR-0552
-title: The public-path verdict fields cannot fail a row that does not pin PUBLIC_PATH_OK
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0552"
+title: "The public-path verdict fields cannot fail a row that does not pin PUBLIC_PATH_OK"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

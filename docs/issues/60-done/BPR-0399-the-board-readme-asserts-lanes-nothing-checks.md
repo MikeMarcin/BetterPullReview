@@ -1,8 +1,9 @@
 ---
-id: BPR-0399
-title: The board README asserts lanes that nothing checks
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0399"
+title: "The board README asserts lanes that nothing checks"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

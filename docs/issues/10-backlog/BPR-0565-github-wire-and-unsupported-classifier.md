@@ -1,9 +1,10 @@
 ---
-id: BPR-0565
-title: Add native and file-subject GitHub wire contracts
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0563, BPR-0564]
+schema: "implement-rfc.card.v1"
+id: "BPR-0565"
+title: "Add native and file-subject GitHub wire contracts"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0563","BPR-0564"]
 ---
 
 # Add native and file-subject GitHub wire contracts

@@ -1,10 +1,11 @@
 ---
-id: BPR-0062
-title: Preserve review database identity in the read contract
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0040, BPR-0045]
-completed: 2026-08-01
+schema: "implement-rfc.card.v1"
+id: "BPR-0062"
+title: "Preserve review database identity in the read contract"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0040","BPR-0045"]
+completed: "2026-08-01"
 ---
 
 # Preserve review database identity in the read contract

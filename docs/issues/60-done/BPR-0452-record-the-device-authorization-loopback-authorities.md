@@ -1,8 +1,9 @@
 ---
-id: BPR-0452
-title: The loopback authority table never learned about the device-flow fixtures
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0452"
+title: "The loopback authority table never learned about the device-flow fixtures"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0055
-title: Implement core-authorized epoch retention maintenance
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0041, BPR-0043, BPR-0044, BPR-0045]
+schema: "implement-rfc.card.v1"
+id: "BPR-0055"
+title: "Implement core-authorized epoch retention maintenance"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0041","BPR-0043","BPR-0044","BPR-0045"]
 ---
 
 # Implement core-authorized epoch retention maintenance

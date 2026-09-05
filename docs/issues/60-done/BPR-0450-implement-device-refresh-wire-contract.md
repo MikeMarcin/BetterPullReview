@@ -1,9 +1,10 @@
 ---
-id: BPR-0450
-title: Implement the device refresh wire contract and production adapter
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0279]
+schema: "implement-rfc.card.v1"
+id: "BPR-0450"
+title: "Implement the device refresh wire contract and production adapter"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0279"]
 ---
 
 # Implement the device refresh wire contract and production adapter

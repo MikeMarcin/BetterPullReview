@@ -1,10 +1,11 @@
 ---
-id: BPR-0469
-title: The Linux dev build fails on a dead line-number accessor
-status: Done
-rfc: RFC-BPR-0005
+schema: "implement-rfc.card.v1"
+id: "BPR-0469"
+title: "The Linux dev build fails on a dead line-number accessor"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
 depends_on: []
-completed: 2026-08-27
+completed: "2026-08-27"
 ---
 
 # The Linux dev build fails on a dead line-number accessor

@@ -1,10 +1,11 @@
 ---
-id: BPR-0354
-title: Close the nested resource check/use window
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0353]
-completed: 2026-08-18
+schema: "implement-rfc.card.v1"
+id: "BPR-0354"
+title: "Close the nested resource check/use window"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0353"]
+completed: "2026-08-18"
 ---
 
 # Close the nested resource check/use window

@@ -1,9 +1,10 @@
 ---
-id: BPR-0198
-title: Moved code, hunk headers, and intraline evidence against the model
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0196]
+schema: "implement-rfc.card.v1"
+id: "BPR-0198"
+title: "Moved code, hunk headers, and intraline evidence against the model"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0196"]
 ---
 
 # Moved code, hunk headers, and intraline evidence against the model

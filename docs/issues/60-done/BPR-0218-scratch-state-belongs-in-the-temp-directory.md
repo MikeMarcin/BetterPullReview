@@ -1,8 +1,9 @@
 ---
-id: BPR-0218
-title: Scratch state belongs in the temp directory, not the repository
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0218"
+title: "Scratch state belongs in the temp directory, not the repository"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

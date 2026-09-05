@@ -1,9 +1,10 @@
 ---
-id: BPR-0500
+schema: "implement-rfc.card.v1"
+id: "BPR-0500"
 title: "Host: structured-finding decode, limits, and typed revision-bound re-entry"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0497, BPR-0499]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0497","BPR-0499"]
 ---
 
 # Host: structured-finding decode, limits, and typed revision-bound re-entry

@@ -1,9 +1,10 @@
 ---
-id: BPR-0265
-title: Restore the diff-interaction public path after compact navigation
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0264]
+schema: "implement-rfc.card.v1"
+id: "BPR-0265"
+title: "Restore the diff-interaction public path after compact navigation"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0264"]
 ---
 
 # Restore the diff-interaction public path after compact navigation

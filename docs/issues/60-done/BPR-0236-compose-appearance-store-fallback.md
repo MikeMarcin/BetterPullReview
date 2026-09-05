@@ -1,8 +1,9 @@
 ---
-id: BPR-0236
-title: Keep appearance and syntax composed when settings storage fails
-status: Done
-rfc: RFC-BPR-0006
+schema: "implement-rfc.card.v1"
+id: "BPR-0236"
+title: "Keep appearance and syntax composed when settings storage fails"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
 depends_on: []
 ---
 

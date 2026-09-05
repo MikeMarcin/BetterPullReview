@@ -1,9 +1,10 @@
 ---
-id: BPR-0326
-title: Refine the application icon framing
-status: Done
-rfc: RFC-BPR-0014
-depends_on: [BPR-0324]
+schema: "implement-rfc.card.v1"
+id: "BPR-0326"
+title: "Refine the application icon framing"
+status: "Done"
+rfcs: ["RFC-BPR-0014"]
+depends_on: ["BPR-0324"]
 ---
 
 # Refine the application icon framing

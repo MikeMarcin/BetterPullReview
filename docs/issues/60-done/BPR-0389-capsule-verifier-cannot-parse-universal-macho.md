@@ -1,8 +1,9 @@
 ---
-id: BPR-0389
-title: The capsule verifier cannot parse universal Mach-O framing
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0389"
+title: "The capsule verifier cannot parse universal Mach-O framing"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
 ---
 

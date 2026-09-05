@@ -1,10 +1,11 @@
 ---
-id: BPR-0004
-title: Implement the application host and manual executor
-status: Done
-rfc: RFC-BPR-0001
-depends_on: [BPR-0003]
-completed: 2026-07-29
+schema: "implement-rfc.card.v1"
+id: "BPR-0004"
+title: "Implement the application host and manual executor"
+status: "Done"
+rfcs: ["RFC-BPR-0001"]
+depends_on: ["BPR-0003"]
+completed: "2026-07-29"
 ---
 
 # Implement the application host and manual executor

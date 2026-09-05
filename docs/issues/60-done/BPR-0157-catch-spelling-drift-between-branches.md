@@ -1,9 +1,10 @@
 ---
-id: BPR-0157
-title: Catch spelling drift between conditional branches
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0155]
+schema: "implement-rfc.card.v1"
+id: "BPR-0157"
+title: "Catch spelling drift between conditional branches"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0155"]
 ---
 
 # Catch spelling drift between conditional branches

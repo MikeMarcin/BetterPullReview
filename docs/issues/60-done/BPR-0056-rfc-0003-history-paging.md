@@ -1,10 +1,11 @@
 ---
-id: BPR-0056
-title: Implement bounded epoch history paging
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0041, BPR-0044, BPR-0045]
-completed: 2026-08-01
+schema: "implement-rfc.card.v1"
+id: "BPR-0056"
+title: "Implement bounded epoch history paging"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0041","BPR-0044","BPR-0045"]
+completed: "2026-08-01"
 ---
 
 # Implement bounded epoch history paging

@@ -1,9 +1,10 @@
 ---
-id: BPR-0260
-title: Restore compact-navigation source formatting
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0259]
+schema: "implement-rfc.card.v1"
+id: "BPR-0260"
+title: "Restore compact-navigation source formatting"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0259"]
 ---
 
 # Restore compact-navigation source formatting

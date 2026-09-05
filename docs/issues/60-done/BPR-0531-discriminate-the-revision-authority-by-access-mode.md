@@ -1,9 +1,10 @@
 ---
-id: BPR-0531
-title: Discriminate the revision authority by access mode in core
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0300]
+schema: "implement-rfc.card.v1"
+id: "BPR-0531"
+title: "Discriminate the revision authority by access mode in core"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0300"]
 ---
 
 # Discriminate the revision authority by access mode in core

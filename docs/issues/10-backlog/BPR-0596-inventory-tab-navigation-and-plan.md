@@ -1,10 +1,11 @@
 ---
-id: BPR-0596
-title: Inventory tab navigation and plan RFC-BPR-0025
-status: Backlog
-rfc: RFC-BPR-0025
-milestone: Post-Pack v2
-depends_on: [BPR-0595]
+schema: "implement-rfc.card.v1"
+id: "BPR-0596"
+title: "Inventory tab navigation and plan RFC-BPR-0025"
+status: "Backlog"
+rfcs: ["RFC-BPR-0025"]
+depends_on: ["BPR-0595"]
+milestone: "Post-Pack v2"
 ---
 
 # Inventory tab navigation and plan RFC-BPR-0025

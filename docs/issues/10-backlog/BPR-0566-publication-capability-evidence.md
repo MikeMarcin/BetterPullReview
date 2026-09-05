@@ -1,9 +1,10 @@
 ---
-id: BPR-0566
-title: Add repository-scoped off-hunk write capability evidence
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0565]
+schema: "implement-rfc.card.v1"
+id: "BPR-0566"
+title: "Add repository-scoped off-hunk write capability evidence"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0565"]
 ---
 
 # Add repository-scoped off-hunk write capability evidence

@@ -1,8 +1,9 @@
 ---
-id: BPR-0363
-title: The Windows preset contract names a Visual Studio the preset does not use
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0363"
+title: "The Windows preset contract names a Visual Studio the preset does not use"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

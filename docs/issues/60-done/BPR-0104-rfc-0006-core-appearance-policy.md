@@ -1,9 +1,10 @@
 ---
-id: BPR-0104
-title: Implement core appearance and typography policy
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0103]
+schema: "implement-rfc.card.v1"
+id: "BPR-0104"
+title: "Implement core appearance and typography policy"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0103"]
 ---
 
 # Implement core appearance and typography policy

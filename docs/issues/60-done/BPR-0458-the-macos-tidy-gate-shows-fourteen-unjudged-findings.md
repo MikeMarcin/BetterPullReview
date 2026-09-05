@@ -1,8 +1,9 @@
 ---
-id: BPR-0458
-title: The macOS coding-tidy gate shows fourteen findings nothing has judged
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0458"
+title: "The macOS coding-tidy gate shows fourteen findings nothing has judged"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

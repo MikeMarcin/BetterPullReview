@@ -1,9 +1,10 @@
 ---
-id: BPR-0350
-title: Owner-private temporary roots are unusable inside an AppContainer
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0347, BPR-0360]
+schema: "implement-rfc.card.v1"
+id: "BPR-0350"
+title: "Owner-private temporary roots are unusable inside an AppContainer"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0347","BPR-0360"]
 ---
 
 # Owner-private temporary roots are unusable inside an AppContainer

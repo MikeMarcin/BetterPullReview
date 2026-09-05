@@ -1,9 +1,10 @@
 ---
-id: BPR-0167
-title: Prepare RFC-BPR-0010 closeout
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0158]
+schema: "implement-rfc.card.v1"
+id: "BPR-0167"
+title: "Prepare RFC-BPR-0010 closeout"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0158"]
 ---
 
 # Prepare RFC-BPR-0010 closeout

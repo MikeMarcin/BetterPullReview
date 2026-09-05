@@ -1,8 +1,9 @@
 ---
-id: BPR-0387
-title: Pair queue activity observations by ref instead of position
-status: Done
-rfc: RFC-BPR-0010
+schema: "implement-rfc.card.v1"
+id: "BPR-0387"
+title: "Pair queue activity observations by ref instead of position"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
 depends_on: []
 ---
 

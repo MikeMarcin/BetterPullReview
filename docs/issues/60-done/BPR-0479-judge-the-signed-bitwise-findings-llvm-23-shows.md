@@ -1,8 +1,9 @@
 ---
-id: BPR-0479
-title: Judge the signed-bitwise findings the LLVM 23 tidy gate shows
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0479"
+title: "Judge the signed-bitwise findings the LLVM 23 tidy gate shows"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

@@ -1,8 +1,9 @@
 ---
-id: BPR-0431
-title: The live-mutation guard reads dumpbin's file header as a symbol
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0431"
+title: "The live-mutation guard reads dumpbin's file header as a symbol"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

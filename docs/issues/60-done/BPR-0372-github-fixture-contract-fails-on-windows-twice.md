@@ -1,8 +1,9 @@
 ---
-id: BPR-0372
-title: The GitHub fixture contract fails on Windows for two separate reasons
-status: Done
-rfc: RFC-BPR-0002
+schema: "implement-rfc.card.v1"
+id: "BPR-0372"
+title: "The GitHub fixture contract fails on Windows for two separate reasons"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
 depends_on: []
 ---
 

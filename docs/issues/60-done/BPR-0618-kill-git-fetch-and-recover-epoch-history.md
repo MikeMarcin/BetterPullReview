@@ -1,9 +1,10 @@
 ---
-id: BPR-0618
-title: Kill Git fetch and recover durable epoch history
-status: Done
-rfc: RFC-BPR-0013
-depends_on: [BPR-0616]
+schema: "implement-rfc.card.v1"
+id: "BPR-0618"
+title: "Kill Git fetch and recover durable epoch history"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
+depends_on: ["BPR-0616"]
 ---
 
 # Kill Git fetch and recover durable epoch history

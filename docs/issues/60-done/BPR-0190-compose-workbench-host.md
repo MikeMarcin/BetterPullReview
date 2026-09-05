@@ -1,9 +1,10 @@
 ---
-id: BPR-0190
-title: Compose the workbench application host into the application
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0189, BPR-0192]
+schema: "implement-rfc.card.v1"
+id: "BPR-0190"
+title: "Compose the workbench application host into the application"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0189","BPR-0192"]
 ---
 
 # Compose the workbench application host into the application

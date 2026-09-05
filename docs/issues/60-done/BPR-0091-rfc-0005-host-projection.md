@@ -1,9 +1,10 @@
 ---
-id: BPR-0091
-title: Implement host observation assembly and settings persistence
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0090]
+schema: "implement-rfc.card.v1"
+id: "BPR-0091"
+title: "Implement host observation assembly and settings persistence"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0090"]
 ---
 
 # Implement host observation assembly and settings persistence

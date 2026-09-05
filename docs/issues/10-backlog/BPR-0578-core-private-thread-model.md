@@ -1,10 +1,11 @@
 ---
-id: BPR-0578
-title: Implement the Qt-free private thread, subject, turn, revision, actor, and lifecycle model
-status: Backlog
-rfc: RFC-BPR-0023
-milestone: Post-Pack v2
-depends_on: [BPR-0577]
+schema: "implement-rfc.card.v1"
+id: "BPR-0578"
+title: "Implement the Qt-free private thread, subject, turn, revision, actor, and lifecycle model"
+status: "Backlog"
+rfcs: ["RFC-BPR-0023"]
+depends_on: ["BPR-0577"]
+milestone: "Post-Pack v2"
 ---
 
 # Implement the Qt-free private thread, subject, turn, revision, actor, and lifecycle model

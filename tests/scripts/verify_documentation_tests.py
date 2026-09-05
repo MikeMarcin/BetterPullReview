@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+import subprocess
 import unittest
 from contextlib import redirect_stderr
 from io import StringIO
@@ -129,14 +130,19 @@ class IssueGraphTests(unittest.TestCase):
         self.temporary = ContainedTemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.issue_root = self.root / "docs/issues"
+        subprocess.run(["git", "init", "--quiet", str(self.root)], check=True)
+        context = self.root / ".mask/skill-config/implement-rfc"
+        context.mkdir(parents=True)
+        (context / "project.json").write_bytes(
+            (REPOSITORY_ROOT / ".mask/skill-config/implement-rfc/project.json").read_bytes()
+        )
+        (context / "project.md").write_text("Fixture board context.\n", encoding="utf-8")
         lanes = (
             "10-backlog",
             "50-blocked",
             "40-parked",
             "20-ready",
-            "21-ready-win",
-            "22-ready-mac",
-            "23-ready-lin",
+            "00-inbox",
             "30-in-progress",
             "60-done",
         )
@@ -162,8 +168,9 @@ class IssueGraphTests(unittest.TestCase):
             f"id: {issue_id}\n"
             "title: Fixture\n"
             f"status: {status}\n"
-            "rfc: none\n"
-            f"depends_on: [{dependencies}]\n"
+            "schema: implement-rfc.card.v1\n"
+            "rfcs: []\n"
+            f"depends_on: {json.dumps(dependencies.split(', ') if dependencies else [])}\n"
             f"{blocked_line}"
             f"{parked_line}"
             "---\n",
@@ -222,20 +229,17 @@ class IssueGraphTests(unittest.TestCase):
 
         self.verify("BPR-0003")
 
-    def test_accepts_platform_ready_card_with_open_dependency(self) -> None:
-        """A platform lane defers exactly as the blocked lane it replaced did.
+    def test_platform_eligibility_does_not_waive_open_dependencies(self) -> None:
+        self.write_card("BPR-0001", "20-ready", "Ready", "")
+        self.write_card("BPR-0002", "20-ready", "Ready", "BPR-0001")
+        path = self.issue_root / "20-ready/BPR-0002-fixture.md"
+        path.write_text(path.read_text().replace("rfcs: []", 'rfcs: []\nplatforms: ["win"]'))
+        with self.assertRaises(SystemExit):
+            self.verify("BPR-0003")
 
-        The platform is why the card is not in `20-ready/`; its dependency
-        graph is a separate question and stays in `depends_on`.
-        """
+    def test_rejects_platform_ready_folder(self) -> None:
+        (self.issue_root / "21-ready-win").mkdir()
         self.write_card("BPR-0001", "21-ready-win", "Ready", "")
-        self.write_card("BPR-0002", "21-ready-win", "Ready", "BPR-0001")
-
-        self.verify("BPR-0003")
-
-    def test_rejects_platform_ready_card_with_wrong_status(self) -> None:
-        self.write_card("BPR-0001", "23-ready-lin", "Blocked", "")
-
         with self.assertRaises(SystemExit):
             self.verify("BPR-0002")
 
@@ -334,7 +338,7 @@ class IssueGraphTests(unittest.TestCase):
             "40-parked",
             "Parked",
             "BPR-0001",
-            parked_on="awaiting-product-decision",
+            parked_on="human-review",
         )
 
         self.verify("BPR-0003")
@@ -477,7 +481,9 @@ class CloseoutContractTests(unittest.TestCase):
             "id: BPR-0999\n"
             "title: Verify and close RFC-BPR-0999\n"
             "status: Backlog\n"
-            "rfc: RFC-BPR-0999\n"
+            'schema: implement-rfc.card.v1\n'
+            'rfcs: ["RFC-BPR-0999"]\n'
+            'closeout_for: ["RFC-BPR-0999"]\n'
             "depends_on: []\n"
             "---\n\n"
             "# Verify and close RFC-BPR-0999\n\n"
@@ -576,7 +582,9 @@ class CloseoutContractTests(unittest.TestCase):
             "id: BPR-0999\n"
             "title: Close RFC-BPR-0999\n"
             "status: Backlog\n"
-            "rfc: RFC-BPR-0999\n"
+            'schema: implement-rfc.card.v1\n'
+            'rfcs: ["RFC-BPR-0999"]\n'
+            'closeout_for: ["RFC-BPR-0999"]\n'
             "depends_on: []\n"
             "---\n\nNo terminal schema.\n",
             encoding="utf-8",
@@ -595,8 +603,8 @@ class CloseoutContractTests(unittest.TestCase):
     def test_rejects_closeout_rfc_metadata_mismatch(self) -> None:
         self.card_path.write_text(
             self.card_path.read_text(encoding="utf-8").replace(
-                "rfc: RFC-BPR-0999",
-                "rfc: RFC-BPR-0001",
+                'rfcs: ["RFC-BPR-0999"]',
+                'rfcs: ["RFC-BPR-0001"]',
             ),
             encoding="utf-8",
         )
@@ -617,9 +625,7 @@ class OperatorPacketRecordTests(unittest.TestCase):
             "50-blocked",
             "40-parked",
             "20-ready",
-            "21-ready-win",
-            "22-ready-mac",
-            "23-ready-lin",
+            "00-inbox",
             "30-in-progress",
         ):
             (self.root / "docs/issues" / lane).mkdir(parents=True)
@@ -643,7 +649,8 @@ class OperatorPacketRecordTests(unittest.TestCase):
             f"id: {issue_id}\n"
             "title: Fixture\n"
             "status: Parked\n"
-            "rfc: none\n"
+            "schema: implement-rfc.card.v1\n"
+            "rfcs: []\n"
             "depends_on: []\n"
             f"---\n\n{body}\n",
             encoding="utf-8",
@@ -853,7 +860,7 @@ class FrontMatterQuotingTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            front_matter(path)["title"], '"Core: buckets and reasons"'
+            front_matter(path)["title"], "Core: buckets and reasons"
         )
 
     def test_accepts_an_ordinary_value(self) -> None:
@@ -862,10 +869,10 @@ class FrontMatterQuotingTests(unittest.TestCase):
         self.assertEqual(front_matter(path)["title"], "Buckets and reasons")
 
     def test_accepts_a_flow_sequence(self) -> None:
-        path = self.write("id: BPR-0001\ndepends_on: [BPR-0002, BPR-0003]\n")
+        path = self.write('id: BPR-0001\ndepends_on: ["BPR-0002", "BPR-0003"]\n')
 
         self.assertEqual(
-            front_matter(path)["depends_on"], "[BPR-0002, BPR-0003]"
+            front_matter(path)["depends_on"], ["BPR-0002", "BPR-0003"]
         )
 
     def test_accepts_a_colon_without_following_space(self) -> None:

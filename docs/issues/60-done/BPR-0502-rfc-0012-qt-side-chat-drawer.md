@@ -1,9 +1,10 @@
 ---
-id: BPR-0502
+schema: "implement-rfc.card.v1"
+id: "BPR-0502"
 title: "Qt: side-chat drawer with context chips and stale state"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0499, BPR-0500]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0499","BPR-0500"]
 ---
 
 # Qt: side-chat drawer with context chips and stale state

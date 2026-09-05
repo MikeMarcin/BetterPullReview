@@ -1,9 +1,10 @@
 ---
-id: BPR-0339
-title: Make the windows-dev multi-config preset generate
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0338]
+schema: "implement-rfc.card.v1"
+id: "BPR-0339"
+title: "Make the windows-dev multi-config preset generate"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0338"]
 ---
 
 # Make the windows-dev multi-config preset generate

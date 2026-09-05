@@ -1,10 +1,11 @@
 ---
-id: BPR-0019
-title: Implement normalized GitHub read contracts
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0018]
-completed: 2026-07-29
+schema: "implement-rfc.card.v1"
+id: "BPR-0019"
+title: "Implement normalized GitHub read contracts"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0018"]
+completed: "2026-07-29"
 ---
 
 # Implement normalized GitHub read contracts

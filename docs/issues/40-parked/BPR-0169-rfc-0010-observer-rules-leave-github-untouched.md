@@ -1,10 +1,11 @@
 ---
-id: BPR-0169
-title: Confirm observer enrollment leaves GitHub's reviewer state untouched
-status: Parked
-rfc: RFC-BPR-0010
-depends_on: [BPR-0142]
-parked_on: awaiting-live-github
+schema: "implement-rfc.card.v1"
+id: "BPR-0169"
+title: "Confirm observer enrollment leaves GitHub's reviewer state untouched"
+status: "Parked"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0142"]
+parked_on: "awaiting-live-github"
 ---
 
 # Confirm observer enrollment leaves GitHub's reviewer state untouched

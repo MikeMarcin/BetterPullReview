@@ -1,9 +1,10 @@
 ---
-id: BPR-0278
-title: Implement device authorization wire and native HTTPS contracts
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0276]
+schema: "implement-rfc.card.v1"
+id: "BPR-0278"
+title: "Implement device authorization wire and native HTTPS contracts"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0276"]
 ---
 
 # Implement device authorization wire and native HTTPS contracts

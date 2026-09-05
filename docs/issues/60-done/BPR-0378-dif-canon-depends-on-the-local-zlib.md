@@ -1,9 +1,10 @@
 ---
-id: BPR-0378
-title: The Dif asset canon depends on which zlib the interpreter was built with
-status: Done
-rfc: RFC-BPR-0019
-depends_on: [BPR-0408]
+schema: "implement-rfc.card.v1"
+id: "BPR-0378"
+title: "The Dif asset canon depends on which zlib the interpreter was built with"
+status: "Done"
+rfcs: ["RFC-BPR-0019"]
+depends_on: ["BPR-0408"]
 ---
 
 # The Dif asset canon depends on which zlib the interpreter was built with

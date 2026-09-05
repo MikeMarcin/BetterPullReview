@@ -1,9 +1,10 @@
 ---
-id: BPR-0205
-title: A one-line selection cannot show whether the change tint survives it
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0196]
+schema: "implement-rfc.card.v1"
+id: "BPR-0205"
+title: "A one-line selection cannot show whether the change tint survives it"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0196"]
 ---
 
 # A one-line selection cannot show whether the change tint survives it

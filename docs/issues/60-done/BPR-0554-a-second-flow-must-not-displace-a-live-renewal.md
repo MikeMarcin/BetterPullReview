@@ -1,9 +1,10 @@
 ---
-id: BPR-0554
-title: A second flow must not displace a live renewal at all
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0553]
+schema: "implement-rfc.card.v1"
+id: "BPR-0554"
+title: "A second flow must not displace a live renewal at all"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0553"]
 ---
 
 # A second flow must not displace a live renewal at all

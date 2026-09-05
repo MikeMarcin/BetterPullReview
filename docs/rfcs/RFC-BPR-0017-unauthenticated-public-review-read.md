@@ -1,11 +1,11 @@
 ---
-id: RFC-BPR-0017
-title: Unauthenticated Public Review Read
-status: Auto-Verified
-area: BPR
-milestone: Post-Pack v2
-depends_on: [RFC-BPR-0002]
-pack_version: post-v2
+id: "RFC-BPR-0017"
+title: "Unauthenticated Public Review Read"
+status: "Auto-Verified"
+area: "BPR"
+milestone: "Post-Pack v2"
+depends_on: ["RFC-BPR-0002"]
+pack_version: "post-v2"
 ---
 
 # RFC-BPR-0017: Unauthenticated Public Review Read

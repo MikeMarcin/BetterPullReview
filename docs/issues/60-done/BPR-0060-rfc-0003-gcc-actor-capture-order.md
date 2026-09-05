@@ -1,10 +1,11 @@
 ---
-id: BPR-0060
-title: Fix GCC epoch-host actor capture ordering
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0045]
-completed: 2026-08-01
+schema: "implement-rfc.card.v1"
+id: "BPR-0060"
+title: "Fix GCC epoch-host actor capture ordering"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0045"]
+completed: "2026-08-01"
 ---
 
 # Fix GCC epoch-host actor capture ordering

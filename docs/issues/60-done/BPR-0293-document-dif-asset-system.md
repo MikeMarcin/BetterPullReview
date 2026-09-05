@@ -1,9 +1,10 @@
 ---
-id: BPR-0293
-title: Document the Dif asset system
-status: Done
-rfc: RFC-BPR-0019
-depends_on: [BPR-0287, BPR-0290, BPR-0291, BPR-0292]
+schema: "implement-rfc.card.v1"
+id: "BPR-0293"
+title: "Document the Dif asset system"
+status: "Done"
+rfcs: ["RFC-BPR-0019"]
+depends_on: ["BPR-0287","BPR-0290","BPR-0291","BPR-0292"]
 ---
 
 # Document the Dif asset system

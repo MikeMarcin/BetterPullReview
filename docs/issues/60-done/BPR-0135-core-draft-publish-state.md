@@ -1,9 +1,10 @@
 ---
-id: BPR-0135
-title: Core draft, edit, discard, and publish state
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0134]
+schema: "implement-rfc.card.v1"
+id: "BPR-0135"
+title: "Core draft, edit, discard, and publish state"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0134"]
 ---
 
 # Core draft, edit, discard, and publish state

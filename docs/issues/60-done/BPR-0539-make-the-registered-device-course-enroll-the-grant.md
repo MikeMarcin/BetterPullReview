@@ -1,9 +1,10 @@
 ---
-id: BPR-0539
-title: Make the registered device course enroll the grant, not the connect credential
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0536]
+schema: "implement-rfc.card.v1"
+id: "BPR-0539"
+title: "Make the registered device course enroll the grant, not the connect credential"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0536"]
 ---
 
 # Make the registered device course enroll the grant, not the connect credential

@@ -1,9 +1,10 @@
 ---
-id: BPR-0521
+schema: "implement-rfc.card.v1"
+id: "BPR-0521"
 title: "Host: continuing against the old revision composes the old revision's context"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0517]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0517"]
 ---
 
 # Host: continuing against the old revision composes the old revision's context

@@ -1,10 +1,11 @@
 ---
-id: BPR-0025
-title: Implement hardened GitHub CLI broker transport
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0019, BPR-0020]
-completed: 2026-07-30
+schema: "implement-rfc.card.v1"
+id: "BPR-0025"
+title: "Implement hardened GitHub CLI broker transport"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0019","BPR-0020"]
+completed: "2026-07-30"
 ---
 
 # Implement hardened GitHub CLI broker transport

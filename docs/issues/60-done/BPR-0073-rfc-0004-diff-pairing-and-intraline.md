@@ -1,9 +1,10 @@
 ---
-id: BPR-0073
-title: Implement deterministic diff pairing and intraline ranges
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0072]
+schema: "implement-rfc.card.v1"
+id: "BPR-0073"
+title: "Implement deterministic diff pairing and intraline ranges"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0072"]
 ---
 
 # Implement deterministic diff pairing and intraline ranges

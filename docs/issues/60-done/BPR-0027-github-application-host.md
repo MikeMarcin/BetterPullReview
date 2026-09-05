@@ -1,10 +1,11 @@
 ---
-id: BPR-0027
-title: Implement GitHub application-host orchestration
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0018, BPR-0019, BPR-0020, BPR-0021, BPR-0022, BPR-0023, BPR-0024, BPR-0025, BPR-0026]
-completed: 2026-07-30
+schema: "implement-rfc.card.v1"
+id: "BPR-0027"
+title: "Implement GitHub application-host orchestration"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0018","BPR-0019","BPR-0020","BPR-0021","BPR-0022","BPR-0023","BPR-0024","BPR-0025","BPR-0026"]
+completed: "2026-07-30"
 ---
 
 # Implement GitHub application-host orchestration

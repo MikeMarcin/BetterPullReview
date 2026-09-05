@@ -1,9 +1,10 @@
 ---
-id: BPR-0059
-title: Run owner-activated macOS epoch focus-transition verification
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0049]
+schema: "implement-rfc.card.v1"
+id: "BPR-0059"
+title: "Run owner-activated macOS epoch focus-transition verification"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0049"]
 ---
 
 # Run owner-activated macOS epoch focus-transition verification

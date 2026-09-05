@@ -1,9 +1,10 @@
 ---
-id: BPR-0207
-title: The comparison scrollbars stay light in the dark scheme
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0183]
+schema: "implement-rfc.card.v1"
+id: "BPR-0207"
+title: "The comparison scrollbars stay light in the dark scheme"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0183"]
 ---
 
 # The comparison scrollbars stay light in the dark scheme

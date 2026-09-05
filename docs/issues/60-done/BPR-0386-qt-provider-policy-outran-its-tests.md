@@ -1,10 +1,11 @@
 ---
-id: BPR-0386
-title: The Qt provider policy outran its own tests
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0386"
+title: "The Qt provider policy outran its own tests"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
-completed: 2026-08-18
+completed: "2026-08-18"
 ---
 
 # The Qt provider policy outran its own tests

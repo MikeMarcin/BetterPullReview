@@ -1,8 +1,9 @@
 ---
-id: BPR-0376
-title: The attended live runner's macOS-only cases ran on Windows
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0376"
+title: "The attended live runner's macOS-only cases ran on Windows"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

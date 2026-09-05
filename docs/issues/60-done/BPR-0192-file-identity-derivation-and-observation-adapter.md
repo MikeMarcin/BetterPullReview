@@ -1,9 +1,10 @@
 ---
-id: BPR-0192
-title: File identity derivation and the workbench observation adapter
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0188]
+schema: "implement-rfc.card.v1"
+id: "BPR-0192"
+title: "File identity derivation and the workbench observation adapter"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0188"]
 ---
 
 # File identity derivation and the workbench observation adapter

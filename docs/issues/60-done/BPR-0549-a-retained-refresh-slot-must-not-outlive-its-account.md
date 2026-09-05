@@ -1,9 +1,10 @@
 ---
-id: BPR-0549
-title: A retained refresh slot must not outlive the account it renews
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0547]
+schema: "implement-rfc.card.v1"
+id: "BPR-0549"
+title: "A retained refresh slot must not outlive the account it renews"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0547"]
 ---
 
 # A retained refresh slot must not outlive the account it renews

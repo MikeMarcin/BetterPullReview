@@ -1,9 +1,10 @@
 ---
-id: BPR-0096
-title: Virtualize code rows for large files and high DPI
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0095]
+schema: "implement-rfc.card.v1"
+id: "BPR-0096"
+title: "Virtualize code rows for large files and high DPI"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0095"]
 ---
 
 # Virtualize code rows for large files and high DPI

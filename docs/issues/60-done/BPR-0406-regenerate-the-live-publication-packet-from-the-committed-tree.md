@@ -1,8 +1,9 @@
 ---
-id: BPR-0406
-title: Regenerate the live publication packet from the committed tree
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0406"
+title: "Regenerate the live publication packet from the committed tree"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
 ---
 

@@ -1,8 +1,9 @@
 ---
-id: BPR-0524
-title: The Windows platform course audits two fewer selectors than macOS and Linux, and nothing says which
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0524"
+title: "The Windows platform course audits two fewer selectors than macOS and Linux, and nothing says which"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

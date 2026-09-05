@@ -1,8 +1,9 @@
 ---
-id: BPR-0356
-title: Stop the trailing decode restating an exact protocol cause as the generic one
-status: Done
-rfc: RFC-BPR-0011
+schema: "implement-rfc.card.v1"
+id: "BPR-0356"
+title: "Stop the trailing decode restating an exact protocol cause as the generic one"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
 depends_on: []
 ---
 

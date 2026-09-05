@@ -1,8 +1,9 @@
 ---
-id: BPR-0548
-title: The fixture vault obeys the platform vaults' rules
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0548"
+title: "The fixture vault obeys the platform vaults' rules"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

@@ -1,8 +1,9 @@
 ---
-id: BPR-0365
-title: The Dif asset canon compares bytes a CRLF checkout has already changed
-status: Done
-rfc: RFC-BPR-0019
+schema: "implement-rfc.card.v1"
+id: "BPR-0365"
+title: "The Dif asset canon compares bytes a CRLF checkout has already changed"
+status: "Done"
+rfcs: ["RFC-BPR-0019"]
 depends_on: []
 ---
 

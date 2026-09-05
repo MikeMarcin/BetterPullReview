@@ -1,8 +1,9 @@
 ---
-id: BPR-0388
-title: The capsule surface still pins the pre-BPR-0328 executable name
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0388"
+title: "The capsule surface still pins the pre-BPR-0328 executable name"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
 ---
 

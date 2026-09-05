@@ -1,11 +1,11 @@
 ---
-id: RFC-BPR-0022
-title: Semantic Source-Line Comments and Off-Hunk Publication Compatibility
-status: Deferred
-area: BPR
-milestone: Post-Pack v2
-depends_on: [RFC-BPR-0004, RFC-BPR-0005, RFC-BPR-0008]
-pack_version: post-v2
+id: "RFC-BPR-0022"
+title: "Semantic Source-Line Comments and Off-Hunk Publication Compatibility"
+status: "Deferred"
+area: "BPR"
+milestone: "Post-Pack v2"
+depends_on: ["RFC-BPR-0004","RFC-BPR-0005","RFC-BPR-0008"]
+pack_version: "post-v2"
 ---
 
 # RFC-BPR-0022: Semantic Source-Line Comments and Off-Hunk Publication Compatibility

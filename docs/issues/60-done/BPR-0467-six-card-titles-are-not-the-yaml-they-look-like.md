@@ -1,8 +1,9 @@
 ---
-id: BPR-0467
-status: Done
+schema: "implement-rfc.card.v1"
+id: "BPR-0467"
 title: "Six card titles are not the YAML they look like"
-rfc: RFC-BPR-0013
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

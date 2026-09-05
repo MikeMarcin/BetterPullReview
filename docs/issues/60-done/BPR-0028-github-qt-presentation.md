@@ -1,10 +1,11 @@
 ---
-id: BPR-0028
-title: Implement GitHub host and pull-request Qt presentation
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0018, BPR-0027]
-completed: 2026-07-30
+schema: "implement-rfc.card.v1"
+id: "BPR-0028"
+title: "Implement GitHub host and pull-request Qt presentation"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0018","BPR-0027"]
+completed: "2026-07-30"
 ---
 
 # Implement GitHub host and pull-request Qt presentation

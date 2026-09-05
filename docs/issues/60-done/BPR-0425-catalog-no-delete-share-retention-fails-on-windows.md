@@ -1,8 +1,9 @@
 ---
-id: BPR-0425
-title: The live catalog's no-delete-share retention fails uncontained on Windows
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0425"
+title: "The live catalog's no-delete-share retention fails uncontained on Windows"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0166
-title: Simplification pass for RFC-BPR-0010
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0158]
+schema: "implement-rfc.card.v1"
+id: "BPR-0166"
+title: "Simplification pass for RFC-BPR-0010"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0158"]
 ---
 
 # Simplification pass for RFC-BPR-0010

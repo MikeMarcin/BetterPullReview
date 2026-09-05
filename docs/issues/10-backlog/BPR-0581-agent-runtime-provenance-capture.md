@@ -1,10 +1,11 @@
 ---
-id: BPR-0581
-title: Capture requested and protocol-reported runtime provenance for each agent run
-status: Backlog
-rfc: RFC-BPR-0023
-milestone: Post-Pack v2
-depends_on: [BPR-0579]
+schema: "implement-rfc.card.v1"
+id: "BPR-0581"
+title: "Capture requested and protocol-reported runtime provenance for each agent run"
+status: "Backlog"
+rfcs: ["RFC-BPR-0023"]
+depends_on: ["BPR-0579"]
+milestone: "Post-Pack v2"
 ---
 
 # Capture requested and protocol-reported runtime provenance for each agent run

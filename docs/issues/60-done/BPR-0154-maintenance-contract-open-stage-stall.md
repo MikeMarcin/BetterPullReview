@@ -1,9 +1,10 @@
 ---
-id: BPR-0154
-title: Attribute the epoch-maintenance open-stage stall if it recurs
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0131]
+schema: "implement-rfc.card.v1"
+id: "BPR-0154"
+title: "Attribute the epoch-maintenance open-stage stall if it recurs"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0131"]
 ---
 
 # Attribute the epoch-maintenance open-stage stall if it recurs

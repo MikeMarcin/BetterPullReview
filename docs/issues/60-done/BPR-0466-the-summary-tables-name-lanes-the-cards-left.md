@@ -1,8 +1,9 @@
 ---
-id: BPR-0466
-status: Done
-title: The summary tables name lanes that twenty-three cards have left
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0466"
+title: "The summary tables name lanes that twenty-three cards have left"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

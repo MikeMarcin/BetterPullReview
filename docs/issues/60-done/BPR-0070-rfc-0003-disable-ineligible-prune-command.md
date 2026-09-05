@@ -1,9 +1,10 @@
 ---
-id: BPR-0070
-title: Disable prune for ineligible selected epoch availability
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0067]
+schema: "implement-rfc.card.v1"
+id: "BPR-0070"
+title: "Disable prune for ineligible selected epoch availability"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0067"]
 ---
 
 # Disable prune for ineligible selected epoch availability

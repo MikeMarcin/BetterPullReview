@@ -1,8 +1,9 @@
 ---
-id: BPR-0472
-title: The review-ledger composition's epoch handoff never completes on WSL2
-status: Done
-rfc: RFC-BPR-0007
+schema: "implement-rfc.card.v1"
+id: "BPR-0472"
+title: "The review-ledger composition's epoch handoff never completes on WSL2"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
 depends_on: []
 ---
 

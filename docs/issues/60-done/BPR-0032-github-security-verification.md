@@ -1,10 +1,11 @@
 ---
-id: BPR-0032
-title: Verify RFC-BPR-0002 security and authority boundaries
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0021, BPR-0022, BPR-0023, BPR-0024, BPR-0025, BPR-0026, BPR-0027, BPR-0029, BPR-0030, BPR-0031, BPR-0037, BPR-0038]
-completed: 2026-07-30
+schema: "implement-rfc.card.v1"
+id: "BPR-0032"
+title: "Verify RFC-BPR-0002 security and authority boundaries"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0021","BPR-0022","BPR-0023","BPR-0024","BPR-0025","BPR-0026","BPR-0027","BPR-0029","BPR-0030","BPR-0031","BPR-0037","BPR-0038"]
+completed: "2026-07-30"
 ---
 
 # Verify RFC-BPR-0002 security and authority boundaries

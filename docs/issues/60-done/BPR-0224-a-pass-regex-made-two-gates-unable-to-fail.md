@@ -1,8 +1,9 @@
 ---
-id: BPR-0224
-title: A pass regex made two gates unable to fail, and hid a broken Release seam
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0224"
+title: "A pass regex made two gates unable to fail, and hid a broken Release seam"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

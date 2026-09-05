@@ -1,8 +1,9 @@
 ---
-id: BPR-0509
-title: A station cannot relaunch without retyping --machine, and cannot start over
-status: Done
-rfc: none
+schema: "implement-rfc.card.v1"
+id: "BPR-0509"
+title: "A station cannot relaunch without retyping --machine, and cannot start over"
+status: "Done"
+rfcs: []
 depends_on: []
 ---
 

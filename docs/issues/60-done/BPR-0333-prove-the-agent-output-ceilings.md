@@ -1,8 +1,9 @@
 ---
-id: BPR-0333
-title: Prove the agent output ceilings instead of asserting them
-status: Done
-rfc: RFC-BPR-0011
+schema: "implement-rfc.card.v1"
+id: "BPR-0333"
+title: "Prove the agent output ceilings instead of asserting them"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0085
-title: Adopt and apply the portable C++ coding standard
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0084]
+schema: "implement-rfc.card.v1"
+id: "BPR-0085"
+title: "Adopt and apply the portable C++ coding standard"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0084"]
 ---
 
 # Adopt and apply the portable C++ coding standard

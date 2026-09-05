@@ -1,10 +1,10 @@
 ---
-id: RFC-BPR-0006
-title: Syntax Highlighting, Themes, Fonts, and Appearance Profiles
-status: Auto-Verified
-area: BPR
-milestone: M1 Native Read-Only Workbench
-depends_on: [RFC-BPR-0005]
+id: "RFC-BPR-0006"
+title: "Syntax Highlighting, Themes, Fonts, and Appearance Profiles"
+status: "Auto-Verified"
+area: "BPR"
+milestone: "M1 Native Read-Only Workbench"
+depends_on: ["RFC-BPR-0005"]
 pack_version: 2
 ---
 

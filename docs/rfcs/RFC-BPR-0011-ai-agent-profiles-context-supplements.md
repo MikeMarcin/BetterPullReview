@@ -1,10 +1,10 @@
 ---
-id: RFC-BPR-0011
-title: AI Agent Profiles, Launch, Authentication Isolation, and Context Supplements
-status: Proposed
-area: BPR
-milestone: M5 Explicit AI Assistance
-depends_on: [RFC-BPR-0002, RFC-BPR-0003, RFC-BPR-0007]
+id: "RFC-BPR-0011"
+title: "AI Agent Profiles, Launch, Authentication Isolation, and Context Supplements"
+status: "Proposed"
+area: "BPR"
+milestone: "M5 Explicit AI Assistance"
+depends_on: ["RFC-BPR-0002","RFC-BPR-0003","RFC-BPR-0007"]
 pack_version: 2
 ---
 

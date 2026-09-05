@@ -1,9 +1,10 @@
 ---
-id: BPR-0288
-title: Implement deterministic Dif asset tooling
-status: Done
-rfc: RFC-BPR-0019
-depends_on: [BPR-0286]
+schema: "implement-rfc.card.v1"
+id: "BPR-0288"
+title: "Implement deterministic Dif asset tooling"
+status: "Done"
+rfcs: ["RFC-BPR-0019"]
+depends_on: ["BPR-0286"]
 ---
 
 # Implement deterministic Dif asset tooling

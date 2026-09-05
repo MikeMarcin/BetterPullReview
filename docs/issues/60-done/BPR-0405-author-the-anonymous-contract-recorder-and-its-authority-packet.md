@@ -1,9 +1,10 @@
 ---
-id: BPR-0405
-title: Author the anonymous contract recorder and its authority packet
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0297]
+schema: "implement-rfc.card.v1"
+id: "BPR-0405"
+title: "Author the anonymous contract recorder and its authority packet"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0297"]
 ---
 
 # Author the anonymous contract recorder and its authority packet

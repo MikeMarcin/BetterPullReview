@@ -1,10 +1,11 @@
 ---
-id: BPR-0594
-title: Inventory profile and window authority and plan RFC-BPR-0024
-status: Backlog
-rfc: RFC-BPR-0024
-milestone: Post-Pack v2
-depends_on: [BPR-0593, BPR-0242]
+schema: "implement-rfc.card.v1"
+id: "BPR-0594"
+title: "Inventory profile and window authority and plan RFC-BPR-0024"
+status: "Backlog"
+rfcs: ["RFC-BPR-0024"]
+depends_on: ["BPR-0593","BPR-0242"]
+milestone: "Post-Pack v2"
 ---
 
 # Inventory profile and window authority and plan RFC-BPR-0024

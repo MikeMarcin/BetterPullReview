@@ -1,8 +1,9 @@
 ---
-id: BPR-0437
-title: The Git contract fixtures construct the adapter without the Windows system root
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0437"
+title: "The Git contract fixtures construct the adapter without the Windows system root"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

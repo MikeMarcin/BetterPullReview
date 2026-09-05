@@ -1,9 +1,10 @@
 ---
-id: BPR-0117
-title: Audit the built-in profiles against the contrast checks
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0111]
+schema: "implement-rfc.card.v1"
+id: "BPR-0117"
+title: "Audit the built-in profiles against the contrast checks"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0111"]
 ---
 
 # Audit the built-in profiles against the contrast checks

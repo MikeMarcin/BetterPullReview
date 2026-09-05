@@ -1,8 +1,9 @@
 ---
-id: BPR-0390
-title: Cache-served comparisons render without syntax classification
-status: Done
-rfc: RFC-BPR-0006
+schema: "implement-rfc.card.v1"
+id: "BPR-0390"
+title: "Cache-served comparisons render without syntax classification"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
 depends_on: []
 ---
 

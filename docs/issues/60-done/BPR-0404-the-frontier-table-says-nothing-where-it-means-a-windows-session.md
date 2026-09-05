@@ -1,8 +1,9 @@
 ---
-id: BPR-0404
-title: The frontier table says "Nothing" where it means "a Windows session"
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0404"
+title: "The frontier table says \"Nothing\" where it means \"a Windows session\""
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

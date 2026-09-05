@@ -1,9 +1,11 @@
 ---
-id: BPR-0241
-title: Verify and close RFC-BPR-0007
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0115, BPR-0228, BPR-0234, BPR-0238]
+schema: "implement-rfc.card.v1"
+id: "BPR-0241"
+title: "Verify and close RFC-BPR-0007"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0115","BPR-0228","BPR-0234","BPR-0238"]
+closeout_for: ["RFC-BPR-0007"]
 ---
 
 # Verify and close RFC-BPR-0007

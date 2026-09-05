@@ -1,9 +1,9 @@
 ---
-id: RFC-BPR-0001
-title: Product Contract, Native Architecture, and Repository Foundation
-status: Auto-Verified
-area: BPR
-milestone: M1 Native Read-Only Workbench
+id: "RFC-BPR-0001"
+title: "Product Contract, Native Architecture, and Repository Foundation"
+status: "Auto-Verified"
+area: "BPR"
+milestone: "M1 Native Read-Only Workbench"
 depends_on: []
 pack_version: 2
 ---

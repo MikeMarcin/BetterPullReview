@@ -1,9 +1,10 @@
 ---
-id: BPR-0263
-title: Baseline indeterminate comment recovery
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0255]
+schema: "implement-rfc.card.v1"
+id: "BPR-0263"
+title: "Baseline indeterminate comment recovery"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0255"]
 ---
 
 # Baseline indeterminate comment recovery

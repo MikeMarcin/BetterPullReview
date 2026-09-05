@@ -1,11 +1,11 @@
 ---
-id: RFC-BPR-0027
-title: Structured Diagnostic Logging, Verbosity, and Privacy
-status: Deferred
-area: BPR
-milestone: Post-Pack v2
-depends_on: [RFC-BPR-0001, RFC-BPR-0002]
-pack_version: post-v2
+id: "RFC-BPR-0027"
+title: "Structured Diagnostic Logging, Verbosity, and Privacy"
+status: "Deferred"
+area: "BPR"
+milestone: "Post-Pack v2"
+depends_on: ["RFC-BPR-0001","RFC-BPR-0002"]
+pack_version: "post-v2"
 ---
 
 # RFC-BPR-0027: Structured Diagnostic Logging, Verbosity, and Privacy

@@ -1,9 +1,10 @@
 ---
-id: BPR-0505
+schema: "implement-rfc.card.v1"
+id: "BPR-0505"
 title: "Documentation: extend the AI boundary, UX, fixture catalog, and matrix"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0504]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0504"]
 ---
 
 # Documentation: extend the AI boundary, UX, fixture catalog, and matrix

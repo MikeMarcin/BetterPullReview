@@ -1,11 +1,11 @@
 ---
-id: RFC-BPR-0026
-title: Personal Review Home and PR URL Navigation
-status: Deferred
-area: BPR
-milestone: Post-Pack v2
-depends_on: [RFC-BPR-0002, RFC-BPR-0007, RFC-BPR-0010, RFC-BPR-0016, RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025]
-pack_version: post-v2
+id: "RFC-BPR-0026"
+title: "Personal Review Home and PR URL Navigation"
+status: "Deferred"
+area: "BPR"
+milestone: "Post-Pack v2"
+depends_on: ["RFC-BPR-0002","RFC-BPR-0007","RFC-BPR-0010","RFC-BPR-0016","RFC-BPR-0018","RFC-BPR-0024","RFC-BPR-0025"]
+pack_version: "post-v2"
 ---
 
 # RFC-BPR-0026: Personal Review Home and PR URL Navigation

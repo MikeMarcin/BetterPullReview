@@ -1,9 +1,10 @@
 ---
-id: BPR-0413
-title: Render the deferred conversation-view mockups the owner asked for
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0191]
+schema: "implement-rfc.card.v1"
+id: "BPR-0413"
+title: "Render the deferred conversation-view mockups the owner asked for"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0191"]
 ---
 
 # Render the deferred conversation-view mockups the owner asked for

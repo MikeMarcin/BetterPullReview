@@ -1,8 +1,9 @@
 ---
-id: BPR-0491
-title: A launched station's name does not bind in peer agent lists
-status: Done
-rfc: none
+schema: "implement-rfc.card.v1"
+id: "BPR-0491"
+title: "A launched station's name does not bind in peer agent lists"
+status: "Done"
+rfcs: []
 depends_on: []
 ---
 

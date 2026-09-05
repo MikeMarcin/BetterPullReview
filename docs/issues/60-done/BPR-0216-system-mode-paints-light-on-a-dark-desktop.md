@@ -1,9 +1,10 @@
 ---
-id: BPR-0216
-title: System mode paints the light palette on a dark desktop
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0183, BPR-0186]
+schema: "implement-rfc.card.v1"
+id: "BPR-0216"
+title: "System mode paints the light palette on a dark desktop"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0183","BPR-0186"]
 ---
 
 # System mode paints the light palette on a dark desktop

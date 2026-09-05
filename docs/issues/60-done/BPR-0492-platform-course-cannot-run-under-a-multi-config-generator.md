@@ -1,8 +1,9 @@
 ---
-id: BPR-0492
-title: The platform course cannot run under a multi-config generator
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0492"
+title: "The platform course cannot run under a multi-config generator"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

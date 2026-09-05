@@ -1,8 +1,9 @@
 ---
-id: BPR-0379
-title: The operator validation record is not byte-exact on Windows
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0379"
+title: "The operator validation record is not byte-exact on Windows"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

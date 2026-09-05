@@ -1,8 +1,9 @@
 ---
-id: BPR-0335
-title: Add the agent launcher and panel to the composition inventory
-status: Done
-rfc: RFC-BPR-0011
+schema: "implement-rfc.card.v1"
+id: "BPR-0335"
+title: "Add the agent launcher and panel to the composition inventory"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
 depends_on: []
 ---
 

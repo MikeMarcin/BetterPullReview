@@ -1,9 +1,10 @@
 ---
-id: BPR-0451
-title: Reconcile the credential-free symbol guard with the shipped device transport
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0318]
+schema: "implement-rfc.card.v1"
+id: "BPR-0451"
+title: "Reconcile the credential-free symbol guard with the shipped device transport"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0318"]
 ---
 
 # Reconcile the credential-free symbol guard with the shipped device transport

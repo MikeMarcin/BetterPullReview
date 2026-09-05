@@ -1,9 +1,10 @@
 ---
-id: BPR-0619
-title: Kill SQLite journal transactions and recover epoch state
-status: In Progress
-rfc: RFC-BPR-0013
-depends_on: [BPR-0618]
+schema: "implement-rfc.card.v1"
+id: "BPR-0619"
+title: "Kill SQLite journal transactions and recover epoch state"
+status: "In Progress"
+rfcs: ["RFC-BPR-0013"]
+depends_on: ["BPR-0618"]
 ---
 
 # Kill SQLite journal transactions and recover epoch state

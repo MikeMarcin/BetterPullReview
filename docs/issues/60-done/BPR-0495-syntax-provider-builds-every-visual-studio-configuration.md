@@ -1,8 +1,9 @@
 ---
-id: BPR-0495
-title: The syntax provider builds every Visual Studio configuration and MinSizeRel does not compile
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0495"
+title: "The syntax provider builds every Visual Studio configuration and MinSizeRel does not compile"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

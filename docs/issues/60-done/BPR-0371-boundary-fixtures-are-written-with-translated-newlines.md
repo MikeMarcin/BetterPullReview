@@ -1,8 +1,9 @@
 ---
-id: BPR-0371
-title: The architecture-boundary fixtures are written with translated newlines
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0371"
+title: "The architecture-boundary fixtures are written with translated newlines"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

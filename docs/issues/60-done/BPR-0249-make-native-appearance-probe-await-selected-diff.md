@@ -1,9 +1,10 @@
 ---
-id: BPR-0249
-title: Make the native appearance probe await the selected diff
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0227]
+schema: "implement-rfc.card.v1"
+id: "BPR-0249"
+title: "Make the native appearance probe await the selected diff"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0227"]
 ---
 
 # Make the native appearance probe await the selected diff

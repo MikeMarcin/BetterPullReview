@@ -1,9 +1,10 @@
 ---
-id: BPR-0235
-title: Enforce default-deny network isolation for live mutation tests
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0221, BPR-0347, BPR-0350]
+schema: "implement-rfc.card.v1"
+id: "BPR-0235"
+title: "Enforce default-deny network isolation for live mutation tests"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0221","BPR-0347","BPR-0350"]
 ---
 
 # Enforce default-deny network isolation for live mutation tests

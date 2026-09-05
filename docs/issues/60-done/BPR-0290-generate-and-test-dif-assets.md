@@ -1,9 +1,10 @@
 ---
-id: BPR-0290
-title: Generate and mechanically verify Dif sprite assets
-status: Done
-rfc: RFC-BPR-0019
-depends_on: [BPR-0288, BPR-0289]
+schema: "implement-rfc.card.v1"
+id: "BPR-0290"
+title: "Generate and mechanically verify Dif sprite assets"
+status: "Done"
+rfcs: ["RFC-BPR-0019"]
+depends_on: ["BPR-0288","BPR-0289"]
 ---
 
 # Generate and mechanically verify Dif sprite assets

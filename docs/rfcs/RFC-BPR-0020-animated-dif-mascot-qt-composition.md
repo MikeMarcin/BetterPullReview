@@ -1,11 +1,11 @@
 ---
-id: RFC-BPR-0020
-title: Animated Dif Mascot Qt Presentation and Workbench Composition
-status: Deferred
-area: BPR
-milestone: Post-Pack v2
-depends_on: [RFC-BPR-0005, RFC-BPR-0006, RFC-BPR-0013, RFC-BPR-0019]
-pack_version: post-v2
+id: "RFC-BPR-0020"
+title: "Animated Dif Mascot Qt Presentation and Workbench Composition"
+status: "Deferred"
+area: "BPR"
+milestone: "Post-Pack v2"
+depends_on: ["RFC-BPR-0005","RFC-BPR-0006","RFC-BPR-0013","RFC-BPR-0019"]
+pack_version: "post-v2"
 ---
 
 # RFC-BPR-0020: Animated Dif Mascot Qt Presentation and Workbench Composition

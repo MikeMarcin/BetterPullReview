@@ -1,9 +1,10 @@
 ---
-id: BPR-0298
-title: Record anonymous GitHub service contracts
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0297, BPR-0405, BPR-0445]
+schema: "implement-rfc.card.v1"
+id: "BPR-0298"
+title: "Record anonymous GitHub service contracts"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0297","BPR-0405","BPR-0445"]
 ---
 
 # Record anonymous GitHub service contracts

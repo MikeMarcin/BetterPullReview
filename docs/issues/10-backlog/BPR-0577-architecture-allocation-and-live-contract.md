@@ -1,10 +1,11 @@
 ---
-id: BPR-0577
-title: Allocate RFC-BPR-0023 across core, host, adapters, Qt, and composition root
-status: Backlog
-rfc: RFC-BPR-0023
-milestone: Post-Pack v2
-depends_on: [BPR-0576]
+schema: "implement-rfc.card.v1"
+id: "BPR-0577"
+title: "Allocate RFC-BPR-0023 across core, host, adapters, Qt, and composition root"
+status: "Backlog"
+rfcs: ["RFC-BPR-0023"]
+depends_on: ["BPR-0576"]
+milestone: "Post-Pack v2"
 ---
 
 # Allocate RFC-BPR-0023 across core, host, adapters, Qt, and composition root

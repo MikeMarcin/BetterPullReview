@@ -1,9 +1,10 @@
 ---
-id: BPR-0322
-title: Restore colour-vision separation for high-contrast dark intraline emphasis
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0320]
+schema: "implement-rfc.card.v1"
+id: "BPR-0322"
+title: "Restore colour-vision separation for high-contrast dark intraline emphasis"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0320"]
 ---
 
 # Restore colour-vision separation for high-contrast dark intraline emphasis

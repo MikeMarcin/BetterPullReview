@@ -1,8 +1,9 @@
 ---
-id: BPR-0460
-title: Five new Windows-uncontained registrations were never pinned
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0460"
+title: "Five new Windows-uncontained registrations were never pinned"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

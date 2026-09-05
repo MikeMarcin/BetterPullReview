@@ -1,8 +1,9 @@
 ---
-id: BPR-0493
-title: Smart App Control and the ledger's --fresh requirement are mutually exclusive
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0493"
+title: "Smart App Control and the ledger's --fresh requirement are mutually exclusive"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

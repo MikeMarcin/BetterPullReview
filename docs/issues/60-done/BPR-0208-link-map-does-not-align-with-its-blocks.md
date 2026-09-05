@@ -1,9 +1,10 @@
 ---
-id: BPR-0208
-title: The gutter link map does not line up with the blocks it connects
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0192]
+schema: "implement-rfc.card.v1"
+id: "BPR-0208"
+title: "The gutter link map does not line up with the blocks it connects"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0192"]
 ---
 
 # The gutter link map does not line up with the blocks it connects

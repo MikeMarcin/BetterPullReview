@@ -1,8 +1,9 @@
 ---
-id: BPR-0461
-title: The fixture's vault lock shadows its recording lock under MSVC
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0461"
+title: "The fixture's vault lock shadows its recording lock under MSVC"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

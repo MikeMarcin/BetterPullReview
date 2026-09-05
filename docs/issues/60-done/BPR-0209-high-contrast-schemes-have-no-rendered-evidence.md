@@ -1,9 +1,10 @@
 ---
-id: BPR-0209
-title: The two high-contrast profiles have never been seen
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0201]
+schema: "implement-rfc.card.v1"
+id: "BPR-0209"
+title: "The two high-contrast profiles have never been seen"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0201"]
 ---
 
 # The two high-contrast profiles have never been seen

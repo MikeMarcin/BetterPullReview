@@ -1,9 +1,10 @@
 ---
-id: BPR-0498
+schema: "implement-rfc.card.v1"
+id: "BPR-0498"
 title: "Core: finding promotion into a local draft or defect, never a publication"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0497]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0497"]
 ---
 
 # Core: finding promotion into a local draft or defect, never a publication

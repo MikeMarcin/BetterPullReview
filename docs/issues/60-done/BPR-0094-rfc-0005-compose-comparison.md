@@ -1,9 +1,10 @@
 ---
-id: BPR-0094
-title: Compose the RFC-BPR-0004 comparison surface into the workbench
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0093]
+schema: "implement-rfc.card.v1"
+id: "BPR-0094"
+title: "Compose the RFC-BPR-0004 comparison surface into the workbench"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0093"]
 ---
 
 # Compose the RFC-BPR-0004 comparison surface into the workbench

@@ -1,10 +1,11 @@
 ---
-id: BPR-0040
-title: Allocate RFC-BPR-0003 Git cache and epoch architecture
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0039]
-completed: 2026-07-30
+schema: "implement-rfc.card.v1"
+id: "BPR-0040"
+title: "Allocate RFC-BPR-0003 Git cache and epoch architecture"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0039"]
+completed: "2026-07-30"
 ---
 
 # Allocate RFC-BPR-0003 Git cache and epoch architecture

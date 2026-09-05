@@ -1,9 +1,10 @@
 ---
-id: BPR-0132
-title: Share the hardened state-directory bootstrap between stores
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0128]
+schema: "implement-rfc.card.v1"
+id: "BPR-0132"
+title: "Share the hardened state-directory bootstrap between stores"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0128"]
 ---
 
 # Share the hardened state-directory bootstrap between stores

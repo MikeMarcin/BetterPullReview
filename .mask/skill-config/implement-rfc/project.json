@@ -1,0 +1,101 @@
+{
+  "schema": "implement-rfc.project.v2",
+  "project": "betterpullreview",
+  "display_name": "BetterPullReview",
+  "session_prefix": "bpr",
+  "origin_repo_name": "BetterPullReview",
+  "rfc_root": "docs/rfcs",
+  "issue_root": "docs/issues",
+  "next_id": {
+    "mode": "single-file",
+    "path": "docs/issues/NEXT_ID"
+  },
+  "reservations_dir": "docs/issues/_reservations",
+  "allocate_id_command": "python3 scripts/allocate_issue_id.py",
+  "lanes": {
+    "inbox": "00-inbox",
+    "backlog": "10-backlog",
+    "ready": "20-ready",
+    "in_progress": "30-in-progress",
+    "parked": "40-parked",
+    "blocked": "50-blocked",
+    "done": "60-done"
+  },
+  "lane_statuses": {
+    "00-inbox": "Inbox",
+    "10-backlog": "Backlog",
+    "20-ready": "Ready",
+    "30-in-progress": "In Progress",
+    "40-parked": "Parked",
+    "50-blocked": "Blocked",
+    "60-done": "Done"
+  },
+  "terminal_rfc_status": "Auto-Verified",
+  "structure_gate": [
+    "python3 scripts/verify_documentation.py --root ."
+  ],
+  "attended_review_skill": "attended-review",
+  "station_registry_doc": "docs/development/remote-stations.md",
+  "workstreams": {
+    "main": {
+      "branch": "main"
+    },
+    "win": {
+      "branch": "windows-lane",
+      "platform": "win"
+    },
+    "linux": {
+      "branch": "linux-lane",
+      "platform": "linux"
+    },
+    "mac": {
+      "branch": "mac-lane",
+      "platform": "mac"
+    }
+  },
+  "role_addenda": {
+    "rfc-worker": [
+      "Preserve the governing rule: the core decides, the host performs, Qt presents.",
+      "Do not contact or mutate a live GitHub or GHES pull request unless the delegation explicitly names a user-approved safe target."
+    ],
+    "rfc-reviewer": [
+      "Do not perform GitHub or GHES mutations while reviewing."
+    ],
+    "rfc-critical-reviewer": [
+      "Give highest scrutiny to credentials and authentication authority, GitHub/GHES request and mutation boundaries, Git cache and SQLite durability or recovery, diff correspondence and line identity, and default provider or package selection. Do not perform GitHub or GHES mutations while reviewing."
+    ]
+  },
+  "bookkeeping": {
+    "deferring_lanes": [
+      "00-inbox",
+      "10-backlog",
+      "50-blocked"
+    ],
+    "parked_on": [
+      "human-review",
+      "awaiting-live-github"
+    ],
+    "blocked_by_forbidden_prefixes": [
+      "platform-"
+    ],
+    "link_roots": [
+      "AGENTS.md",
+      "README.md",
+      "CONTRIBUTING.md",
+      "docs",
+      "src",
+      "tests",
+      "packaging",
+      ".agents"
+    ],
+    "protected_globs": [
+      "docs/rfcs/plans/**",
+      "docs/rfcs/assets/**",
+      "docs/verification/reviews/**"
+    ],
+    "editable_globs": [
+      "docs/rfcs/assets/*.LIVE_IMPORT.md"
+    ]
+  },
+  "sequencing": "ordered-index"
+}

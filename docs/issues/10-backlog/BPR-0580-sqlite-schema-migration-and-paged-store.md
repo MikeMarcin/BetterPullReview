@@ -1,10 +1,11 @@
 ---
-id: BPR-0580
-title: Implement the next ledger schema, legacy-note migration, durable IDs, and paged private stores
-status: Backlog
-rfc: RFC-BPR-0023
-milestone: Post-Pack v2
-depends_on: [BPR-0578, BPR-0579]
+schema: "implement-rfc.card.v1"
+id: "BPR-0580"
+title: "Implement the next ledger schema, legacy-note migration, durable IDs, and paged private stores"
+status: "Backlog"
+rfcs: ["RFC-BPR-0023"]
+depends_on: ["BPR-0578","BPR-0579"]
+milestone: "Post-Pack v2"
 ---
 
 # Implement the next ledger schema, legacy-note migration, durable IDs, and paged private stores

@@ -1,8 +1,9 @@
 ---
-id: BPR-0410
-title: The owner-return marker cannot say what happened
-status: Done
-rfc: RFC-BPR-0006
+schema: "implement-rfc.card.v1"
+id: "BPR-0410"
+title: "The owner-return marker cannot say what happened"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
 depends_on: []
 ---
 

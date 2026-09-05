@@ -1,9 +1,10 @@
 ---
-id: BPR-0314
-title: Verify anonymous preview remains unavailable on Linux
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0306]
+schema: "implement-rfc.card.v1"
+id: "BPR-0314"
+title: "Verify anonymous preview remains unavailable on Linux"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0306"]
 ---
 
 # Verify anonymous preview remains unavailable on Linux

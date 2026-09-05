@@ -1,9 +1,10 @@
 ---
-id: BPR-0571
-title: Compose RFC-BPR-0022 through the shipped review path
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0568, BPR-0569, BPR-0570]
+schema: "implement-rfc.card.v1"
+id: "BPR-0571"
+title: "Compose RFC-BPR-0022 through the shipped review path"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0568","BPR-0569","BPR-0570"]
 ---
 
 # Compose RFC-BPR-0022 through the shipped review path

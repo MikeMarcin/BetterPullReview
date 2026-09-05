@@ -1,11 +1,11 @@
 ---
-id: RFC-BPR-0023
-title: Private Review Threads, Provenance, and Comment Composition
-status: Deferred
-area: BPR
-milestone: Post-Pack v2
-depends_on: [RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0011, RFC-BPR-0012]
-pack_version: post-v2
+id: "RFC-BPR-0023"
+title: "Private Review Threads, Provenance, and Comment Composition"
+status: "Deferred"
+area: "BPR"
+milestone: "Post-Pack v2"
+depends_on: ["RFC-BPR-0007","RFC-BPR-0008","RFC-BPR-0011","RFC-BPR-0012"]
+pack_version: "post-v2"
 ---
 
 # RFC-BPR-0023: Private Review Threads, Provenance, and Comment Composition

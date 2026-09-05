@@ -1,10 +1,11 @@
 ---
-id: BPR-0006
-title: Wire and verify the RFC-BPR-0001 public application path
-status: Done
-rfc: RFC-BPR-0001
-depends_on: [BPR-0005]
-completed: 2026-07-29
+schema: "implement-rfc.card.v1"
+id: "BPR-0006"
+title: "Wire and verify the RFC-BPR-0001 public application path"
+status: "Done"
+rfcs: ["RFC-BPR-0001"]
+depends_on: ["BPR-0005"]
+completed: "2026-07-29"
 ---
 
 # Wire and verify the RFC-BPR-0001 public application path

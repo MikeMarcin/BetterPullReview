@@ -1,8 +1,9 @@
 ---
-id: BPR-0422
-title: Two RFC-0017 recorder tests create their temporaries through tempfile
-status: Done
-rfc: RFC-BPR-0017
+schema: "implement-rfc.card.v1"
+id: "BPR-0422"
+title: "Two RFC-0017 recorder tests create their temporaries through tempfile"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
 depends_on: []
 ---
 

@@ -1,8 +1,9 @@
 ---
-id: BPR-0432
-title: The manifest gate lists no tests under a multi-configuration generator
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0432"
+title: "The manifest gate lists no tests under a multi-configuration generator"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

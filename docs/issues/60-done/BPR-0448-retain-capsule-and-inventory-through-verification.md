@@ -1,9 +1,10 @@
 ---
-id: BPR-0448
-title: Retain capsule and inventory identity through verification and launch
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0352, BPR-0354]
+schema: "implement-rfc.card.v1"
+id: "BPR-0448"
+title: "Retain capsule and inventory identity through verification and launch"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0352","BPR-0354"]
 ---
 
 # Retain capsule and inventory identity through verification and launch

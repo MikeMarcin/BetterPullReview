@@ -1,8 +1,9 @@
 ---
-id: BPR-0550
-title: A new device grant releases the previous refresh binding
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0550"
+title: "A new device grant releases the previous refresh binding"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0231
-title: Compose an honest queue-enrollment input and landing surface
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0228]
+schema: "implement-rfc.card.v1"
+id: "BPR-0231"
+title: "Compose an honest queue-enrollment input and landing surface"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0228"]
 ---
 
 # Compose an honest queue-enrollment input and landing surface

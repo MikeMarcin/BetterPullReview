@@ -1,9 +1,10 @@
 ---
-id: BPR-0535
-title: Bind the device-authorization capability to the profile it was composed for
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0526]
+schema: "implement-rfc.card.v1"
+id: "BPR-0535"
+title: "Bind the device-authorization capability to the profile it was composed for"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0526"]
 ---
 
 # Bind the device-authorization capability to the profile it was composed for

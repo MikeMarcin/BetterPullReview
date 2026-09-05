@@ -1,8 +1,9 @@
 ---
-id: BPR-0213
-title: GITHUB_FIXTURE_FAILED is printed when the fixture is fine
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0213"
+title: "GITHUB_FIXTURE_FAILED is printed when the fixture is fine"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0232
-title: Compose explicit agent invocation into the shipped workbench
-status: Done
-rfc: RFC-BPR-0011
-depends_on: [BPR-0226, BPR-0228, BPR-0229, BPR-0230, BPR-0240, BPR-0247, BPR-0250, BPR-0420]
+schema: "implement-rfc.card.v1"
+id: "BPR-0232"
+title: "Compose explicit agent invocation into the shipped workbench"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
+depends_on: ["BPR-0226","BPR-0228","BPR-0229","BPR-0230","BPR-0240","BPR-0247","BPR-0250","BPR-0420"]
 ---
 
 # Compose explicit agent invocation into the shipped workbench

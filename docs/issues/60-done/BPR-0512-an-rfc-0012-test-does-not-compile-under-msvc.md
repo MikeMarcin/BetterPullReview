@@ -1,8 +1,9 @@
 ---
-id: BPR-0512
-title: An RFC-0012 test does not compile under MSVC because a structured binding is used only in decltype
-status: Done
-rfc: RFC-BPR-0012
+schema: "implement-rfc.card.v1"
+id: "BPR-0512"
+title: "An RFC-0012 test does not compile under MSVC because a structured binding is used only in decltype"
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
 depends_on: []
 ---
 

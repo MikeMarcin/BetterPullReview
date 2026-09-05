@@ -1,9 +1,10 @@
 ---
-id: BPR-0280
-title: Implement device-authorization Qt presentation and browser handoff
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0277, BPR-0279]
+schema: "implement-rfc.card.v1"
+id: "BPR-0280"
+title: "Implement device-authorization Qt presentation and browser handoff"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0277","BPR-0279"]
 ---
 
 # Implement device-authorization Qt presentation and browser handoff

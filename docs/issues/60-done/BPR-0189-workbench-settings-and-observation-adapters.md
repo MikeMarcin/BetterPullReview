@@ -1,9 +1,10 @@
 ---
-id: BPR-0189
+schema: "implement-rfc.card.v1"
+id: "BPR-0189"
 title: "Adapter: durable workbench layout settings"
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0188]
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0188"]
 ---
 
 # Adapter: durable workbench layout settings

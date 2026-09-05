@@ -1,8 +1,9 @@
 ---
-id: BPR-0561
-title: Plan and import RFC-BPR-0022 semantic source-line comments
-status: Backlog
-rfc: RFC-BPR-0022
+schema: "implement-rfc.card.v1"
+id: "BPR-0561"
+title: "Plan and import RFC-BPR-0022 semantic source-line comments"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0536
-title: Compose the device-authorization refresh lifecycle
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0450, BPR-0526]
+schema: "implement-rfc.card.v1"
+id: "BPR-0536"
+title: "Compose the device-authorization refresh lifecycle"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0450","BPR-0526"]
 ---
 
 # Compose the device-authorization refresh lifecycle

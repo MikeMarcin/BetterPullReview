@@ -1,10 +1,11 @@
 ---
-id: BPR-0045
-title: Implement RFC-BPR-0003 application host orchestration
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0041, BPR-0042, BPR-0043, BPR-0044]
-completed: 2026-08-01
+schema: "implement-rfc.card.v1"
+id: "BPR-0045"
+title: "Implement RFC-BPR-0003 application host orchestration"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0041","BPR-0042","BPR-0043","BPR-0044"]
+completed: "2026-08-01"
 ---
 
 # Implement RFC-BPR-0003 application host orchestration

@@ -1,10 +1,11 @@
 ---
-id: BPR-0143
-title: Mixed-client acceptance against a designated repository
-status: Parked
-rfc: RFC-BPR-0008
-depends_on: [BPR-0142]
-parked_on: awaiting-live-github
+schema: "implement-rfc.card.v1"
+id: "BPR-0143"
+title: "Mixed-client acceptance against a designated repository"
+status: "Parked"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0142"]
+parked_on: "awaiting-live-github"
 ---
 
 # Mixed-client acceptance against a designated repository

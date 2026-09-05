@@ -1,9 +1,10 @@
 ---
-id: BPR-0097
-title: Implement epoch selectors, focus, accessibility, and UI automation
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0096]
+schema: "implement-rfc.card.v1"
+id: "BPR-0097"
+title: "Implement epoch selectors, focus, accessibility, and UI automation"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0096"]
 ---
 
 # Implement epoch selectors, focus, accessibility, and UI automation

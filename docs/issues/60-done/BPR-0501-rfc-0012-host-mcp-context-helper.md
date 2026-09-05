@@ -1,9 +1,10 @@
 ---
-id: BPR-0501
+schema: "implement-rfc.card.v1"
+id: "BPR-0501"
 title: "Host: read-only MCP context helper over stdio"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0496]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0496"]
 ---
 
 # Host: read-only MCP context helper over stdio

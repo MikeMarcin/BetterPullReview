@@ -1,9 +1,10 @@
 ---
-id: BPR-0497
+schema: "implement-rfc.card.v1"
+id: "BPR-0497"
 title: "Core: structured finding schema and anchor validation"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0496]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0496"]
 ---
 
 # Core: structured finding schema and anchor validation

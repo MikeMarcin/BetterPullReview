@@ -1,8 +1,9 @@
 ---
-id: BPR-0435
-title: A developer build's STARTUP_FAILED names nothing
-status: Done
-rfc: RFC-BPR-0002
+schema: "implement-rfc.card.v1"
+id: "BPR-0435"
+title: "A developer build's STARTUP_FAILED names nothing"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
 depends_on: []
 ---
 

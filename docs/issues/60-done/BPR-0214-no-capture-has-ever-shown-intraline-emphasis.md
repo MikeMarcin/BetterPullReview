@@ -1,9 +1,10 @@
 ---
-id: BPR-0214
-title: Intraline emphasis has never appeared in a reviewed capture
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0233]
+schema: "implement-rfc.card.v1"
+id: "BPR-0214"
+title: "Intraline emphasis has never appeared in a reviewed capture"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0233"]
 ---
 
 # Intraline emphasis has never appeared in a reviewed capture

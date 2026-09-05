@@ -1,9 +1,10 @@
 ---
-id: BPR-0331
-title: Introduce the parked lane for person and service blockers
-status: Done
-rfc: RFC-BPR-0013
-depends_on: [BPR-0319]
+schema: "implement-rfc.card.v1"
+id: "BPR-0331"
+title: "Introduce the parked lane for person and service blockers"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
+depends_on: ["BPR-0319"]
 ---
 
 # Introduce the parked lane for person and service blockers

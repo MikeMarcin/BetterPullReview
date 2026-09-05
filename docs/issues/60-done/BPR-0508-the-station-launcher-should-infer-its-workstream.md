@@ -1,8 +1,9 @@
 ---
-id: BPR-0508
-title: The station launcher should infer its workstream and say what it opens
-status: Done
-rfc: none
+schema: "implement-rfc.card.v1"
+id: "BPR-0508"
+title: "The station launcher should infer its workstream and say what it opens"
+status: "Done"
+rfcs: []
 depends_on: []
 ---
 

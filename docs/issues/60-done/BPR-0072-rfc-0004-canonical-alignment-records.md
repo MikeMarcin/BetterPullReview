@@ -1,9 +1,10 @@
 ---
-id: BPR-0072
-title: Implement canonical diff and alignment records
-status: Done
-rfc: RFC-BPR-0004
-depends_on: [BPR-0071]
+schema: "implement-rfc.card.v1"
+id: "BPR-0072"
+title: "Implement canonical diff and alignment records"
+status: "Done"
+rfcs: ["RFC-BPR-0004"]
+depends_on: ["BPR-0071"]
 ---
 
 # Implement canonical diff and alignment records

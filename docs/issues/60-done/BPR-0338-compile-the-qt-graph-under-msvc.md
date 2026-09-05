@@ -1,9 +1,10 @@
 ---
-id: BPR-0338
-title: Compile the Qt application graph under MSVC
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0336, BPR-0337]
+schema: "implement-rfc.card.v1"
+id: "BPR-0338"
+title: "Compile the Qt application graph under MSVC"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0336","BPR-0337"]
 ---
 
 # Compile the Qt application graph under MSVC

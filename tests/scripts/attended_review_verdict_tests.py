@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-BUILDER = ROOT / ".agents/skills/bpr-attended-review/scripts/build_attended_review.py"
+BUILDER = ROOT / "scripts/verification/rfc0016_attended_contract/scripts/build_attended_review.py"
 
 FAILURES: list[str] = []
 

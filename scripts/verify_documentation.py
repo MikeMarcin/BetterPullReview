@@ -33,7 +33,7 @@ if sys.version_info < MINIMUM_PYTHON:
 
 
 # The portable board model owns card parsing and board invariants. RFC and
-# closeout callers retain the raw-value interface for their existing prose checks.
+# closeout callers consume decoded values, including canonical relationship arrays.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".agents/skills/implement-rfc/scripts"))
 import board_model  # noqa: E402
 import project_config  # noqa: E402
@@ -57,18 +57,8 @@ ACCEPTANCE_HEADING_RE = re.compile(
 # truth of the acceptance, and a closeout cost a full replay to satisfy them.
 CLOSEOUT_SECTION_HEADING = "## Closeout checklist"
 CLOSEOUT_CRITERION_COLUMN = "Criterion"
-PLATFORM_READY_LANES = {
-    "21-ready-win": "Windows",
-    "22-ready-mac": "macOS",
-    "23-ready-lin": "Linux",
-}
 OPEN_ISSUE_LANES = (
-    "10-backlog",
-    "40-parked",
-    "50-blocked",
-    "20-ready",
-    *PLATFORM_READY_LANES,
-    "30-in-progress",
+    "00-inbox", "10-backlog", "40-parked", "50-blocked", "20-ready", "30-in-progress",
 )
 DONE_ISSUE_LANE = "60-done"
 REVIEW_ROOT = "docs/verification/reviews"
@@ -92,9 +82,9 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
-def front_matter(path: Path) -> dict[str, str]:
+def front_matter(path: Path) -> dict[str, object]:
     try:
-        return board_model.parse_matter(path.read_bytes(), path).raw
+        return board_model.parse_matter(path.read_bytes(), path).values
     except board_model.BoardError as error:
         fail(str(error))
 
@@ -164,7 +154,7 @@ def verify_rfc_index(root: Path) -> None:
 
 
 def verify_issue_board(root: Path) -> None:
-    _, errors = board_model.validate_board(root.resolve(), project_config.load())
+    _, errors = board_model.validate_board(root.resolve(), project_config.load(repo_root=root.resolve()))
     if errors:
         fail("\n".join(map(str, errors)))
 
@@ -313,7 +303,7 @@ def verify_terminal_closeout_cards(root: Path) -> None:
             metadata = front_matter(path)
             title_match = CLOSEOUT_TITLE_RE.fullmatch(metadata.get("title", ""))
             filename_match = CLOSEOUT_FILENAME_RE.fullmatch(path.name)
-            if not title_match and not filename_match:
+            if not title_match and not filename_match and not metadata.get("closeout_for"):
                 continue
             if not title_match or not filename_match:
                 fail(f"closeout filename/title mismatch: {path}")
@@ -323,11 +313,13 @@ def verify_terminal_closeout_cards(root: Path) -> None:
             title_rfc_id = title_match.group(1)
             if (
                 metadata.get("id") != filename_issue_id
-                or metadata.get("rfc") != filename_rfc_id
+                or filename_rfc_id not in metadata.get("rfcs", [])
+                or filename_rfc_id not in metadata.get("closeout_for", [])
                 or title_rfc_id != filename_rfc_id
             ):
                 fail(f"closeout filename/title/front-matter mismatch: {path}")
-            verify_closeout_card(root, path, metadata, filename_rfc_id)
+            for linked_rfc in metadata["closeout_for"]:
+                verify_closeout_card(root, path, metadata, linked_rfc)
 
 
 def operator_packets(root: Path) -> dict[tuple[str, int], Path]:

@@ -1,9 +1,10 @@
 ---
-id: BPR-0255
-title: Compose authorized asynchronous review publication
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0227, BPR-0254]
+schema: "implement-rfc.card.v1"
+id: "BPR-0255"
+title: "Compose authorized asynchronous review publication"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0227","BPR-0254"]
 ---
 
 # Compose authorized asynchronous review publication

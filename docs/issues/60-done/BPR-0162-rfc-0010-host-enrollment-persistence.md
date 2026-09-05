@@ -1,9 +1,10 @@
 ---
-id: BPR-0162
+schema: "implement-rfc.card.v1"
+id: "BPR-0162"
 title: "Host: enrollment retention and the queue projection"
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0158]
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0158"]
 ---
 
 # Host: enrollment persistence and the queue projection

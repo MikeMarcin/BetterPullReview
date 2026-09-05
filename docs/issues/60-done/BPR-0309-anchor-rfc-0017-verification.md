@@ -1,9 +1,10 @@
 ---
-id: BPR-0309
-title: Anchor RFC-BPR-0017 capability-critical verification
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0035, BPR-0285, BPR-0297, BPR-0298, BPR-0299, BPR-0300, BPR-0301, BPR-0302, BPR-0303, BPR-0304, BPR-0305, BPR-0306, BPR-0307, BPR-0308, BPR-0312, BPR-0313, BPR-0314, BPR-0315, BPR-0316, BPR-0317, BPR-0558]
+schema: "implement-rfc.card.v1"
+id: "BPR-0309"
+title: "Anchor RFC-BPR-0017 capability-critical verification"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0035","BPR-0285","BPR-0297","BPR-0298","BPR-0299","BPR-0300","BPR-0301","BPR-0302","BPR-0303","BPR-0304","BPR-0305","BPR-0306","BPR-0307","BPR-0308","BPR-0312","BPR-0313","BPR-0314","BPR-0315","BPR-0316","BPR-0317","BPR-0558"]
 ---
 
 # Anchor RFC-BPR-0017 capability-critical verification

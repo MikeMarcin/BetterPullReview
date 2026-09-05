@@ -1,9 +1,10 @@
 ---
-id: BPR-0564
-title: Implement the canonical immutable code-permalink representation
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0562, BPR-0563]
+schema: "implement-rfc.card.v1"
+id: "BPR-0564"
+title: "Implement the canonical immutable code-permalink representation"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0562","BPR-0563"]
 ---
 
 # Implement the canonical immutable code-permalink representation

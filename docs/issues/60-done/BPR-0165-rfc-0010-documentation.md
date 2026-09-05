@@ -1,9 +1,10 @@
 ---
-id: BPR-0165
-title: Document the review queue
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0158]
+schema: "implement-rfc.card.v1"
+id: "BPR-0165"
+title: "Document the review queue"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0158"]
 ---
 
 # Document the review queue

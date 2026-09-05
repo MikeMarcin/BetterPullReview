@@ -1,9 +1,10 @@
 ---
-id: BPR-0264
-title: Restore the production composition contract after recovery repair
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0263]
+schema: "implement-rfc.card.v1"
+id: "BPR-0264"
+title: "Restore the production composition contract after recovery repair"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0263"]
 ---
 
 # Restore the production composition contract after recovery repair

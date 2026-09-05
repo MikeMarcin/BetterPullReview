@@ -1,9 +1,10 @@
 ---
-id: BPR-0068
-title: Bound epoch host job and ingress residency
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0045, BPR-0055, BPR-0056]
+schema: "implement-rfc.card.v1"
+id: "BPR-0068"
+title: "Bound epoch host job and ingress residency"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0045","BPR-0055","BPR-0056"]
 ---
 
 # Bound epoch host job and ingress residency

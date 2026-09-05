@@ -1,9 +1,10 @@
 ---
-id: BPR-0251
-title: Compose the attended native notification course
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0164, BPR-0193, BPR-0223]
+schema: "implement-rfc.card.v1"
+id: "BPR-0251"
+title: "Compose the attended native notification course"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0164","BPR-0193","BPR-0223"]
 ---
 
 # Compose the attended native notification course

@@ -1,9 +1,10 @@
 ---
-id: BPR-0318
-title: Record a distributable device-authorization identity
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0276, BPR-0282, BPR-0480]
+schema: "implement-rfc.card.v1"
+id: "BPR-0318"
+title: "Record a distributable device-authorization identity"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0276","BPR-0282","BPR-0480"]
 ---
 
 # Record a distributable device-authorization identity

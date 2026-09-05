@@ -1,8 +1,9 @@
 ---
-id: BPR-0523
-title: The platform course does not audit the composed hosts of the artifact it ships
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0523"
+title: "The platform course does not audit the composed hosts of the artifact it ships"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

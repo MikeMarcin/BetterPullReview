@@ -1,9 +1,10 @@
 ---
-id: BPR-0211
-title: Build the Treeverse-style overview of a deep thread
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0191, BPR-0413, BPR-0416, BPR-0417, BPR-0418]
+schema: "implement-rfc.card.v1"
+id: "BPR-0211"
+title: "Build the Treeverse-style overview of a deep thread"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0191","BPR-0413","BPR-0416","BPR-0417","BPR-0418"]
 ---
 
 # Build the Treeverse-style overview of a deep thread

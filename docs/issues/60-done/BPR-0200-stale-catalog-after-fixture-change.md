@@ -1,9 +1,10 @@
 ---
-id: BPR-0200
-title: A persisted catalog survives a fixture identity change and no test notices
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0197]
+schema: "implement-rfc.card.v1"
+id: "BPR-0200"
+title: "A persisted catalog survives a fixture identity change and no test notices"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0197"]
 ---
 
 # A persisted catalog survives a fixture identity change and no test notices

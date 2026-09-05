@@ -1,10 +1,11 @@
 ---
-id: BPR-0057
-title: Support intentional aggregate defaults under GCC 15
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0048]
-completed: 2026-08-01
+schema: "implement-rfc.card.v1"
+id: "BPR-0057"
+title: "Support intentional aggregate defaults under GCC 15"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0048"]
+completed: "2026-08-01"
 ---
 
 # Support intentional aggregate defaults under GCC 15

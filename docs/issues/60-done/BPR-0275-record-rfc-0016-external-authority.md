@@ -1,8 +1,9 @@
 ---
-id: BPR-0275
-title: Record RFC-BPR-0016 dependency and application authority
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0275"
+title: "Record RFC-BPR-0016 dependency and application authority"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

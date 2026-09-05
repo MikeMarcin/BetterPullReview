@@ -1,9 +1,10 @@
 ---
-id: BPR-0503
+schema: "implement-rfc.card.v1"
+id: "BPR-0503"
 title: "Qt: finding queue and before/after comment workshop"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0498, BPR-0500]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0498","BPR-0500"]
 ---
 
 # Qt: finding queue and before/after comment workshop

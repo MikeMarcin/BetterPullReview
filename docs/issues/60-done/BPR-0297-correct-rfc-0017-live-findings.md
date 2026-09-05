@@ -1,8 +1,9 @@
 ---
-id: BPR-0297
-title: Correct RFC-BPR-0017 findings against the live read path
-status: Done
-rfc: RFC-BPR-0017
+schema: "implement-rfc.card.v1"
+id: "BPR-0297"
+title: "Correct RFC-BPR-0017 findings against the live read path"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
 depends_on: []
 ---
 

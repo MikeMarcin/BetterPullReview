@@ -1,9 +1,10 @@
 ---
-id: BPR-0233
-title: Exercise the recorded UIforETW diff and intraline pixels through the selected public path
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0227, BPR-0246]
+schema: "implement-rfc.card.v1"
+id: "BPR-0233"
+title: "Exercise the recorded UIforETW diff and intraline pixels through the selected public path"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0227","BPR-0246"]
 ---
 
 # Exercise the recorded UIforETW diff and intraline pixels through the selected public path

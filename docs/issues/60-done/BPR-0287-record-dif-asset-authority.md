@@ -1,9 +1,10 @@
 ---
-id: BPR-0287
-title: Record Dif asset authority and pre-creation provenance
-status: Done
-rfc: RFC-BPR-0019
-depends_on: [BPR-0286]
+schema: "implement-rfc.card.v1"
+id: "BPR-0287"
+title: "Record Dif asset authority and pre-creation provenance"
+status: "Done"
+rfcs: ["RFC-BPR-0019"]
+depends_on: ["BPR-0286"]
 ---
 
 # Record Dif asset authority and pre-creation provenance

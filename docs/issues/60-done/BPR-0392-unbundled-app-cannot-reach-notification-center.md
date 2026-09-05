@@ -1,8 +1,9 @@
 ---
-id: BPR-0392
-title: The unbundled test build cannot register with Notification Center
-status: Done
-rfc: RFC-BPR-0010
+schema: "implement-rfc.card.v1"
+id: "BPR-0392"
+title: "The unbundled test build cannot register with Notification Center"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
 depends_on: []
 ---
 

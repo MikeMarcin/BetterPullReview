@@ -1,8 +1,9 @@
 ---
-id: BPR-0402
-title: Re-check the last Windows row, and two claims the board outran
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0402"
+title: "Re-check the last Windows row, and two claims the board outran"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

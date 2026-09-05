@@ -1,9 +1,10 @@
 ---
-id: BPR-0114
-title: Verify System mode follows a live OS scheme change
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0101, BPR-0106, BPR-0183, BPR-0184, BPR-0220, BPR-0249]
+schema: "implement-rfc.card.v1"
+id: "BPR-0114"
+title: "Verify System mode follows a live OS scheme change"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0101","BPR-0106","BPR-0183","BPR-0184","BPR-0220","BPR-0249"]
 ---
 
 # Verify System mode follows a live OS scheme change

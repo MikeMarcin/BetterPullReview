@@ -1,9 +1,10 @@
 ---
-id: BPR-0515
-title: Enabling Windows made the uncontained device-authorization gate reach GitHub on every dev-tree run
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0311]
+schema: "implement-rfc.card.v1"
+id: "BPR-0515"
+title: "Enabling Windows made the uncontained device-authorization gate reach GitHub on every dev-tree run"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0311"]
 ---
 
 # Enabling Windows made the uncontained device-authorization gate reach GitHub on every dev-tree run

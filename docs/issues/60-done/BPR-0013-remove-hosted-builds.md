@@ -1,9 +1,10 @@
 ---
-id: BPR-0013
-title: Remove hosted GitHub Actions builds from RFC-BPR-0001
-status: Done
-rfc: RFC-BPR-0001
-depends_on: [BPR-0011, BPR-0014, BPR-0015]
+schema: "implement-rfc.card.v1"
+id: "BPR-0013"
+title: "Remove hosted GitHub Actions builds from RFC-BPR-0001"
+status: "Done"
+rfcs: ["RFC-BPR-0001"]
+depends_on: ["BPR-0011","BPR-0014","BPR-0015"]
 ---
 
 # Remove hosted builds from RFC-BPR-0001 verification

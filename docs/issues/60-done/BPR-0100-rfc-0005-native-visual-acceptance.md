@@ -1,9 +1,10 @@
 ---
-id: BPR-0100
-title: Run the inherited native visual-acceptance pass
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0083, BPR-0097, BPR-0186, BPR-0187, BPR-0233]
+schema: "implement-rfc.card.v1"
+id: "BPR-0100"
+title: "Run the inherited native visual-acceptance pass"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0083","BPR-0097","BPR-0186","BPR-0187","BPR-0233"]
 ---
 
 # Run the inherited native visual-acceptance pass

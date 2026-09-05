@@ -1,10 +1,12 @@
 ---
-id: BPR-0153
-title: Confirm a GitHub-only collaborator understands a published defect
-status: Parked
-rfc: RFC-BPR-0009
-depends_on: [BPR-0149, BPR-0142]
-parked_on: awaiting-owner-verdict
+schema: "implement-rfc.card.v1"
+id: "BPR-0153"
+title: "Confirm a GitHub-only collaborator understands a published defect"
+status: "Parked"
+rfcs: ["RFC-BPR-0009"]
+depends_on: ["BPR-0149","BPR-0142"]
+parked_on: "human-review"
+metadata: {"original_parked_on":"awaiting-owner-verdict"}
 ---
 
 # Confirm a GitHub-only collaborator understands a published defect

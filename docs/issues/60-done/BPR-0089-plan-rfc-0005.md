@@ -1,9 +1,10 @@
 ---
-id: BPR-0089
-title: Plan RFC-BPR-0005 architecture and verification
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0088]
+schema: "implement-rfc.card.v1"
+id: "BPR-0089"
+title: "Plan RFC-BPR-0005 architecture and verification"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0088"]
 ---
 
 # Plan RFC-BPR-0005 architecture and verification

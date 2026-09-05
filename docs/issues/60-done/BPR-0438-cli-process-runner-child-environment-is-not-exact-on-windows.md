@@ -1,8 +1,9 @@
 ---
-id: BPR-0438
-title: The CLI process runner's constructed child environment is not exact on Windows
-status: Done
-rfc: RFC-BPR-0002
+schema: "implement-rfc.card.v1"
+id: "BPR-0438"
+title: "The CLI process runner's constructed child environment is not exact on Windows"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
 depends_on: []
 ---
 

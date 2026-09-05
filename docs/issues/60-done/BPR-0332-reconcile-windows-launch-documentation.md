@@ -1,9 +1,10 @@
 ---
-id: BPR-0332
-title: Reconcile the Windows launch documentation with the shipped dispatch
-status: Done
-rfc: RFC-BPR-0011
-depends_on: [BPR-0240]
+schema: "implement-rfc.card.v1"
+id: "BPR-0332"
+title: "Reconcile the Windows launch documentation with the shipped dispatch"
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
+depends_on: ["BPR-0240"]
 ---
 
 # Reconcile the Windows launch documentation with the shipped dispatch

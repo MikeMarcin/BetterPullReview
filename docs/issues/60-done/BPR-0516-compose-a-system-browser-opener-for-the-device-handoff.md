@@ -1,9 +1,10 @@
 ---
-id: BPR-0516
-title: Compose a system-browser opener for the device-authorization handoff
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0280, BPR-0318]
+schema: "implement-rfc.card.v1"
+id: "BPR-0516"
+title: "Compose a system-browser opener for the device-authorization handoff"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0280","BPR-0318"]
 ---
 
 # Compose a system-browser opener for the device-authorization handoff

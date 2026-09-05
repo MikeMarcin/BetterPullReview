@@ -1,9 +1,10 @@
 ---
-id: BPR-0237
-title: Implement semantic theme customization preview and safe import
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0236]
+schema: "implement-rfc.card.v1"
+id: "BPR-0237"
+title: "Implement semantic theme customization preview and safe import"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0236"]
 ---
 
 # Implement semantic theme customization preview and safe import

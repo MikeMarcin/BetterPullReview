@@ -1,9 +1,10 @@
 ---
-id: BPR-0327
-title: Match the application icon Dock footprint
-status: Done
-rfc: RFC-BPR-0014
-depends_on: [BPR-0326]
+schema: "implement-rfc.card.v1"
+id: "BPR-0327"
+title: "Match the application icon Dock footprint"
+status: "Done"
+rfcs: ["RFC-BPR-0014"]
+depends_on: ["BPR-0326"]
 ---
 
 # Match the application icon Dock footprint

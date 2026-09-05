@@ -1,9 +1,10 @@
 ---
-id: BPR-0418
-title: Build the thread map surface
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0416, BPR-0417]
+schema: "implement-rfc.card.v1"
+id: "BPR-0418"
+title: "Build the thread map surface"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0416","BPR-0417"]
 ---
 
 # Build the thread map surface

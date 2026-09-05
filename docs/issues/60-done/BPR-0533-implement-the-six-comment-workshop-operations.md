@@ -1,9 +1,10 @@
 ---
-id: BPR-0533
-title: Implement the six comment-workshop operations
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0503]
+schema: "implement-rfc.card.v1"
+id: "BPR-0533"
+title: "Implement the six comment-workshop operations"
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0503"]
 ---
 
 # Implement the six comment-workshop operations

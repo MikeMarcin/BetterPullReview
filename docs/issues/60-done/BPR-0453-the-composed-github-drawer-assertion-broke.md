@@ -1,9 +1,10 @@
 ---
-id: BPR-0453
-title: The composed GitHub drawer assertion broke when the map landed
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0418]
+schema: "implement-rfc.card.v1"
+id: "BPR-0453"
+title: "The composed GitHub drawer assertion broke when the map landed"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0418"]
 ---
 
 # The composed GitHub drawer assertion broke when the map landed

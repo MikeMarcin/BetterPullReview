@@ -1,9 +1,10 @@
 ---
-id: BPR-0562
-title: Implement RFC-BPR-0022 core publication placement policy
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0561]
+schema: "implement-rfc.card.v1"
+id: "BPR-0562"
+title: "Implement RFC-BPR-0022 core publication placement policy"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0561"]
 ---
 
 # Implement RFC-BPR-0022 core publication placement policy

@@ -1,9 +1,10 @@
 ---
-id: BPR-0347
-title: Contain the Windows test suite in an AppContainer
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0339]
+schema: "implement-rfc.card.v1"
+id: "BPR-0347"
+title: "Contain the Windows test suite in an AppContainer"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0339"]
 ---
 
 # Contain the Windows test suite in an AppContainer

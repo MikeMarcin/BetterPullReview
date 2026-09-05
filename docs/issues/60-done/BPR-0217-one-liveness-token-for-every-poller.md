@@ -1,9 +1,10 @@
 ---
-id: BPR-0217
-title: One liveness token for every poller that re-enters the application
-status: Done
-rfc: RFC-BPR-0013
-depends_on: [BPR-0215]
+schema: "implement-rfc.card.v1"
+id: "BPR-0217"
+title: "One liveness token for every poller that re-enters the application"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
+depends_on: ["BPR-0215"]
 ---
 
 # One liveness token for every poller that re-enters the application

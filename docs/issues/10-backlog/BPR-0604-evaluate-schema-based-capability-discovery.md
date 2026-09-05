@@ -1,9 +1,10 @@
 ---
-id: BPR-0604
-title: Evaluate schema-based capability discovery
-status: Backlog
-rfc: RFC-BPR-0016
-depends_on: [BPR-0559]
+schema: "implement-rfc.card.v1"
+id: "BPR-0604"
+title: "Evaluate schema-based capability discovery"
+status: "Backlog"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0559"]
 ---
 
 # Evaluate schema-based capability discovery

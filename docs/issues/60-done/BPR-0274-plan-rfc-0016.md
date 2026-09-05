@@ -1,8 +1,9 @@
 ---
-id: BPR-0274
-title: Plan RFC-BPR-0016 implementation and verification
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0274"
+title: "Plan RFC-BPR-0016 implementation and verification"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

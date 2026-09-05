@@ -1,9 +1,10 @@
 ---
-id: BPR-0316
-title: Enable anonymous public preview on target-native macOS
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0306]
+schema: "implement-rfc.card.v1"
+id: "BPR-0316"
+title: "Enable anonymous public preview on target-native macOS"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0306"]
 ---
 
 # Enable anonymous public preview on target-native macOS

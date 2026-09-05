@@ -1,10 +1,11 @@
 ---
-id: BPR-0008
-title: Verify the rendered RFC-BPR-0001 native UI
-status: Done
-rfc: RFC-BPR-0001
-depends_on: [BPR-0006, BPR-0007]
-completed: 2026-07-29
+schema: "implement-rfc.card.v1"
+id: "BPR-0008"
+title: "Verify the rendered RFC-BPR-0001 native UI"
+status: "Done"
+rfcs: ["RFC-BPR-0001"]
+depends_on: ["BPR-0006","BPR-0007"]
+completed: "2026-07-29"
 ---
 
 # Verify the rendered RFC-BPR-0001 native UI

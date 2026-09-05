@@ -1,10 +1,11 @@
 ---
-id: BPR-0044
-title: Implement review-epoch catalog persistence and aliases
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0041, BPR-0043]
-completed: 2026-07-31
+schema: "implement-rfc.card.v1"
+id: "BPR-0044"
+title: "Implement review-epoch catalog persistence and aliases"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0041","BPR-0043"]
+completed: "2026-07-31"
 ---
 
 # Implement review-epoch catalog persistence and aliases

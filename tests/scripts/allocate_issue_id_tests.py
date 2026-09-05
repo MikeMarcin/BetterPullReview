@@ -1,120 +1,80 @@
-#!/usr/bin/env python3
+"""Public BPR wrapper integration; canonical policy is tested by AgentSkills."""
 from __future__ import annotations
 
 import json
-import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPOSITORY_ROOT))
-
-from scripts.contained_temporary_support import ContainedTemporaryDirectory  # noqa: E402
-
-from scripts.allocate_issue_id import (  # noqa: E402
-    AllocationError,
-    allocate,
-)
-
-GIT_ENV = {
-    **os.environ,
-    "GIT_CONFIG_NOSYSTEM": "1",
-    "GIT_CONFIG_GLOBAL": os.devnull,
-    "GIT_AUTHOR_NAME": "Board Tests",
-    "GIT_AUTHOR_EMAIL": "tests@example.invalid",
-    "GIT_COMMITTER_NAME": "Board Tests",
-    "GIT_COMMITTER_EMAIL": "tests@example.invalid",
-}
+ROOT = Path(__file__).resolve().parents[2]
+ALLOCATOR = ROOT / "scripts/allocate_issue_id.py"
 
 
-class BoardFixture:
-    """A throwaway tracker tree; the real `docs/issues` is never touched."""
-
-    def __init__(self) -> None:
-        self.temporary = ContainedTemporaryDirectory()
-        self.repo_root = Path(self.temporary.name).resolve()
-        self.issues_root = self.repo_root / "docs/issues"
-        for lane in ("20-ready", "30-in-progress", "60-done"):
-            (self.issues_root / lane).mkdir(parents=True)
-        self.set_counter("BPR-0007")
-        self.add_card("60-done", "BPR-0006")
-
-    def cleanup(self) -> None:
-        self.temporary.cleanup()
-
-    def set_counter(self, value: str) -> None:
-        (self.issues_root / "NEXT_ID").write_text(f"{value}\n", encoding="utf-8")
-
-    def counter(self) -> str:
-        return (self.issues_root / "NEXT_ID").read_text(encoding="utf-8").strip()
-
-    def add_card(self, lane: str, card_id: str) -> None:
-        path = self.issues_root / lane / f"{card_id}-fixture-card.md"
-        path.write_text(f"# {card_id} fixture\n", encoding="utf-8")
-
-    def git(self, *arguments: str) -> None:
-        subprocess.run(
-            ["git", "-C", str(self.repo_root), *arguments],
-            check=True,
-            capture_output=True,
-            env=GIT_ENV,
-        )
-
-
-class AllocateIssueIdTests(unittest.TestCase):
+@unittest.skipUnless(shutil.which("git"), "Git required")
+class SharedBoardWrapperTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.board = BoardFixture()
-        self.addCleanup(self.board.cleanup)
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.repo = Path(self.temporary.name).resolve()
+        self.config = json.loads((ROOT / ".mask/skill-config/implement-rfc/project.json").read_text())
+        self.config["workstreams"] = {"main": {"branch": "main"}}
+        self.config["allocation"] = {"history_limit": 2000}
+        ctx = self.repo / ".mask/skill-config/implement-rfc"
+        ctx.mkdir(parents=True)
+        (ctx / "project.json").write_text(json.dumps(self.config))
+        (ctx / "project.md").write_text("Fixture repository, no product mutation.\n")
+        source = ROOT / ".agents/skills/implement-rfc"
+        target = self.repo / ".agents/skills/implement-rfc"
+        for folder in ("scripts", "schemas"):
+            shutil.copytree(source / folder, target / folder, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        board = self.repo / "docs/issues"
+        for lane in self.config["lanes"].values():
+            (board / lane).mkdir(parents=True, exist_ok=True)
+        (board / "NEXT_ID").write_text("BPR-0002\n")
+        (board / "_reservations").mkdir()
+        (self.repo / "docs/rfcs").mkdir()
+        fields = {"schema": "implement-rfc.card.v1", "id": "BPR-0001",
+                  "title": "Existing fixture", "status": "Done", "rfcs": [], "depends_on": []}
+        (board / "60-done/BPR-0001-fixture.md").write_text(
+            "---\n" + "".join(f"{key}: {json.dumps(value)}\n" for key, value in fields.items()) + "---\n")
+        self.git("init", "-q", "-b", "main")
+        self.git("config", "user.name", "Wrapper tests")
+        self.git("config", "user.email", "tests@example.invalid")
+        self.git("add", ".")
+        self.git("commit", "-qm", "Fixture baseline")
 
-    def test_claims_one_id_and_advances_the_counter(self) -> None:
-        allocation = allocate(self.board.repo_root, 1, None, "")
-        self.assertEqual(allocation.ids, ["BPR-0007"])
-        self.assertEqual(self.board.counter(), "BPR-0008")
+    def git(self, *args: str) -> None:
+        subprocess.run(["git", "-C", str(self.repo), *args], check=True, capture_output=True, text=True)
 
-    def test_reserve_for_writes_an_immutable_receipt(self) -> None:
-        allocation = allocate(self.board.repo_root, 3, "bpr-win-jaegaw", "fixture")
-        self.assertEqual(allocation.ids, ["BPR-0007", "BPR-0008", "BPR-0009"])
-        self.assertIsNotNone(allocation.receipt_path)
-        receipt_path = self.board.repo_root / allocation.receipt_path
-        self.assertEqual(receipt_path.parent, self.board.issues_root / "_reservations")
-        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-        self.assertEqual(receipt["schema"], "betterpullreview.issue-id-reservation.v1")
-        self.assertEqual(receipt["range"], {"start": "BPR-0007", "end": "BPR-0009"})
-        self.assertEqual(receipt["reserved_for"], "bpr-win-jaegaw")
-        self.assertEqual(self.board.counter(), "BPR-0010")
+    def run_wrapper(self, tool: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([sys.executable, str(tool), "--root", str(self.repo), *args],
+                              cwd=self.temporary.name, capture_output=True, text=True)
 
-    def test_refuses_a_counter_the_tree_has_already_passed(self) -> None:
-        self.board.add_card("20-ready", "BPR-0011")
-        with self.assertRaises(AllocationError):
-            allocate(self.board.repo_root, 1, None, "")
-        self.assertEqual(self.board.counter(), "BPR-0007")
+    def test_plain_allocation_is_reserved_and_dry_run_does_not_write(self) -> None:
+        counter = self.repo / "docs/issues/NEXT_ID"
+        preview = self.run_wrapper(ALLOCATOR, "--count", "2", "--dry-run", "--json")
+        self.assertEqual(preview.returncode, 0, preview.stderr + preview.stdout)
+        self.assertEqual(counter.read_text(), "BPR-0002\n")
+        result = self.run_wrapper(ALLOCATOR, "--count", "2", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["ids"], ["BPR-0002", "BPR-0003"])
+        self.assertEqual(report["schema"], "implement-rfc.allocation.v1")
+        self.assertEqual(counter.read_text(), "BPR-0004\n")
+        receipt_path = next(p for p in report["changed_paths"] if p.endswith(".json"))
+        self.assertEqual(json.loads((self.repo / receipt_path).read_text())["reserve_for"], "local-main")
 
-    def test_refuses_a_counter_rewound_below_git_history(self) -> None:
-        self.board.git("init", "-q", "-b", "main")
-        self.board.git("add", "-A")
-        self.board.git("commit", "-q", "-m", "seed")
-        self.board.set_counter("BPR-0031")
-        self.board.git("add", "-A")
-        self.board.git("commit", "-q", "-m", "advance")
-        self.board.set_counter("BPR-0007")
-        with self.assertRaises(AllocationError) as caught:
-            allocate(self.board.repo_root, 1, None, "")
-        self.assertIn("already reached in Git history", str(caught.exception))
+    def test_reservation_purpose_is_forwarded(self) -> None:
+        result = self.run_wrapper(ALLOCATOR, "--reserve-for", "bpr-test-lane",
+                                  "--purpose", "bounded test work", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        report = json.loads(result.stdout)
+        receipt_path = next(p for p in report["changed_paths"] if p.endswith(".json"))
+        self.assertEqual(json.loads((self.repo / receipt_path).read_text())["purpose"], "bounded test work")
 
-    def test_a_held_lock_refuses_a_second_allocation(self) -> None:
-        lock_dir = self.board.repo_root / "build/tmp/issue-board"
-        lock_dir.mkdir(parents=True)
-        (lock_dir / "NEXT_ID.lock").write_text("pid 1\n", encoding="utf-8")
-        with self.assertRaises(AllocationError):
-            allocate(self.board.repo_root, 1, None, "")
-        self.assertEqual(self.board.counter(), "BPR-0007")
-
-    def test_reservations_directory_is_not_scanned_for_cards(self) -> None:
-        allocate(self.board.repo_root, 1, "bpr-linux-jaegaw", "")
-        allocation = allocate(self.board.repo_root, 1, None, "")
-        self.assertEqual(allocation.ids, ["BPR-0008"])
 
 
 if __name__ == "__main__":

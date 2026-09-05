@@ -1,9 +1,10 @@
 ---
-id: BPR-0284
-title: Document device authorization and its authority boundaries
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0281, BPR-0282, BPR-0283]
+schema: "implement-rfc.card.v1"
+id: "BPR-0284"
+title: "Document device authorization and its authority boundaries"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0281","BPR-0282","BPR-0283"]
 ---
 
 # Document device authorization and its authority boundaries

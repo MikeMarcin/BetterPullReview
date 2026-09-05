@@ -1,9 +1,10 @@
 ---
-id: BPR-0304
-title: Implement explicit public-preview Qt presentation
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0303, BPR-0317]
+schema: "implement-rfc.card.v1"
+id: "BPR-0304"
+title: "Implement explicit public-preview Qt presentation"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0303","BPR-0317"]
 ---
 
 # Implement explicit public-preview Qt presentation

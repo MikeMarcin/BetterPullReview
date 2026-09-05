@@ -1,9 +1,10 @@
 ---
-id: BPR-0283
-title: Simplify the device-authorization implementation
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0281, BPR-0282, BPR-0310, BPR-0311, BPR-0318]
+schema: "implement-rfc.card.v1"
+id: "BPR-0283"
+title: "Simplify the device-authorization implementation"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0281","BPR-0282","BPR-0310","BPR-0311","BPR-0318"]
 ---
 
 # Simplify the device-authorization implementation

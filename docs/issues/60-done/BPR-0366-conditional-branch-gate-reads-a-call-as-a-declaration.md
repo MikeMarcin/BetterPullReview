@@ -1,8 +1,9 @@
 ---
-id: BPR-0366
-title: The conditional-branch gate reads a call as a declaration
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0366"
+title: "The conditional-branch gate reads a call as a declaration"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

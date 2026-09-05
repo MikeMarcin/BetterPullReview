@@ -1,9 +1,10 @@
 ---
-id: BPR-0125
-title: Host persistence request, typed completion, transactions, and WAL
-status: Done
-rfc: RFC-BPR-0007
-depends_on: [BPR-0124, BPR-0121]
+schema: "implement-rfc.card.v1"
+id: "BPR-0125"
+title: "Host persistence request, typed completion, transactions, and WAL"
+status: "Done"
+rfcs: ["RFC-BPR-0007"]
+depends_on: ["BPR-0124","BPR-0121"]
 ---
 
 # Host persistence request, typed completion, transactions, and WAL

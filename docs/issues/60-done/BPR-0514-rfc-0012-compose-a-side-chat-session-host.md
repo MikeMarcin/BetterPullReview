@@ -1,9 +1,10 @@
 ---
-id: BPR-0514
+schema: "implement-rfc.card.v1"
+id: "BPR-0514"
 title: "Host: compose a side-chat session host so a send reaches the agent"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0504]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0504"]
 ---
 
 # Host: compose a side-chat session host so a send reaches the agent

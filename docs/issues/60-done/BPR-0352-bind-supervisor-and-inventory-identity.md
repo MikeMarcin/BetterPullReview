@@ -1,10 +1,11 @@
 ---
-id: BPR-0352
-title: Bind supervisor and inventory identity into the approval subject
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0351]
-completed: 2026-08-18
+schema: "implement-rfc.card.v1"
+id: "BPR-0352"
+title: "Bind supervisor and inventory identity into the approval subject"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0351"]
+completed: "2026-08-18"
 ---
 
 # Bind supervisor and inventory identity into the approval subject

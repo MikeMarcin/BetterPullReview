@@ -1,9 +1,10 @@
 ---
-id: BPR-0036
-title: Run RFC-BPR-0002 Windows x64 target-native verification
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0034, BPR-0347, BPR-0350]
+schema: "implement-rfc.card.v1"
+id: "BPR-0036"
+title: "Run RFC-BPR-0002 Windows x64 target-native verification"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0034","BPR-0347","BPR-0350"]
 ---
 
 # Run RFC-BPR-0002 Windows x64 target-native verification

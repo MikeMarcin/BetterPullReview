@@ -1,10 +1,11 @@
 ---
-id: BPR-0038
-title: Decide query-preserving REST redirect policy
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0026, BPR-0027]
-completed: 2026-07-30
+schema: "implement-rfc.card.v1"
+id: "BPR-0038"
+title: "Decide query-preserving REST redirect policy"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0026","BPR-0027"]
+completed: "2026-07-30"
 ---
 
 # Decide query-preserving REST redirect policy

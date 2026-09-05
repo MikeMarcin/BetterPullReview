@@ -1,8 +1,9 @@
 ---
-id: BPR-0439
-title: The syntax classification contract expects a POSIX-shaped Qt test sandbox
-status: Done
-rfc: RFC-BPR-0006
+schema: "implement-rfc.card.v1"
+id: "BPR-0439"
+title: "The syntax classification contract expects a POSIX-shaped Qt test sandbox"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
 depends_on: []
 ---
 

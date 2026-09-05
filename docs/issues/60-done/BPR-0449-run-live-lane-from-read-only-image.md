@@ -1,9 +1,10 @@
 ---
-id: BPR-0449
-title: Run the designated live lane from the read-only image
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0448]
+schema: "implement-rfc.card.v1"
+id: "BPR-0449"
+title: "Run the designated live lane from the read-only image"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0448"]
 ---
 
 # Run the designated live lane from the read-only image

@@ -1,0 +1,25 @@
+{
+  "schema": "bpr.recorded-attendance-source.v1",
+  "retained": [
+    {
+      "source_path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+      "retained_path": "scripts/verification/rfc0016_attended_contract/scripts/build_attended_review.py",
+      "sha256": "a7c6887dcde15b54e0d29d6a7a43847355e8c9dac38093fcd29b6abb603013ce"
+    },
+    {
+      "source_path": ".agents/skills/bpr-attended-review/scripts/validate_operator_packet.py",
+      "retained_path": "scripts/verification/rfc0016_attended_contract/scripts/validate_operator_packet.py",
+      "sha256": "ff7240c49fe1ba5f1ad27256a19be77a35d32a24206d2a864e673de510eefcb6"
+    },
+    {
+      "source_path": ".agents/skills/bpr-attended-review/assets/attended_review.css",
+      "retained_path": "scripts/verification/rfc0016_attended_contract/assets/attended_review.css",
+      "sha256": "06f2d2f5a560a567edabada5507ad20c69fd290ce4e614381c5ac30488a18fe9"
+    },
+    {
+      "source_path": ".agents/skills/bpr-attended-review/assets/attended_review_runtime.js",
+      "retained_path": "scripts/verification/rfc0016_attended_contract/assets/attended_review_runtime.js",
+      "sha256": "17429f646b796aabcb588547de11b8614500ed692dbfde860ef592ec37925d7f"
+    }
+  ]
+}

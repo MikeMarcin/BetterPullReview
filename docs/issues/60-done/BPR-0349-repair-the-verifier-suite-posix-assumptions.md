@@ -1,9 +1,10 @@
 ---
-id: BPR-0349
-title: Repair the isolation verifier suite's POSIX assumptions
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0336]
+schema: "implement-rfc.card.v1"
+id: "BPR-0349"
+title: "Repair the isolation verifier suite's POSIX assumptions"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0336"]
 ---
 
 # Repair the isolation verifier suite's POSIX assumptions

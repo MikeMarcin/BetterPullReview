@@ -1,9 +1,10 @@
 ---
-id: BPR-0574
-title: Reconcile RFC-BPR-0022 documentation and simplify the implementation
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0572]
+schema: "implement-rfc.card.v1"
+id: "BPR-0574"
+title: "Reconcile RFC-BPR-0022 documentation and simplify the implementation"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0572"]
 ---
 
 # Reconcile RFC-BPR-0022 documentation and simplify the implementation

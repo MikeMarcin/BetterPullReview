@@ -27,7 +27,7 @@ completed slice before starting the next one.
 - Bounded changes update bounded projections. Do not reset an entire model or
   scan a whole review for an isolated interaction.
 
-## Required local verification
+## Verification commands
 
 ```sh
 cmake --preset dev
@@ -43,7 +43,7 @@ python3 scripts/verify_documentation.py --root .
 git diff --check
 ```
 
-Run more focused commands named by the affected RFC verification ledger.
+Choose focused commands from the affected RFC ledger for ordinary slices. At pack or milestone completion, run one integration-focused pass; full relevant suites and critical review are appropriate when warranted. The command list is a reference, not a mandatory matrix on every slice. Reuse unchanged evidence.
 Generated screenshots, logs, build trees, credentials, private repository
 content, and secret-bearing evidence must not be committed.
 

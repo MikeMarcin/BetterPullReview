@@ -1,8 +1,9 @@
 ---
-id: BPR-0361
-title: The live-mutation guard reads no symbols from a Windows PE
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0361"
+title: "The live-mutation guard reads no symbols from a Windows PE"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0317
-title: Implement anonymous Git cache epoch and diff authority
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0301, BPR-0303, BPR-0531]
+schema: "implement-rfc.card.v1"
+id: "BPR-0317"
+title: "Implement anonymous Git cache epoch and diff authority"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0301","BPR-0303","BPR-0531"]
 ---
 
 # Implement anonymous Git cache epoch and diff authority

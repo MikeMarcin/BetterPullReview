@@ -1,10 +1,11 @@
 ---
-id: BPR-0050
-title: Verify RFC-BPR-0003 Git and cache security boundaries
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0047, BPR-0048, BPR-0055, BPR-0058, BPR-0060, BPR-0061, BPR-0062, BPR-0063, BPR-0064]
-completed: 2026-08-01
+schema: "implement-rfc.card.v1"
+id: "BPR-0050"
+title: "Verify RFC-BPR-0003 Git and cache security boundaries"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0042","BPR-0043","BPR-0044","BPR-0045","BPR-0047","BPR-0048","BPR-0055","BPR-0058","BPR-0060","BPR-0061","BPR-0062","BPR-0063","BPR-0064"]
+completed: "2026-08-01"
 ---
 
 # Verify RFC-BPR-0003 Git and cache security boundaries

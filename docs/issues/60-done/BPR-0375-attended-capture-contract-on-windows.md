@@ -1,8 +1,9 @@
 ---
-id: BPR-0375
-title: The attended capture contract fails on Windows in two ways
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0375"
+title: "The attended capture contract fails on Windows in two ways"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

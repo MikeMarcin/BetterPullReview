@@ -1,9 +1,10 @@
 ---
-id: BPR-0538
-title: Clear a workshop press when its turn ends without a revision
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0533]
+schema: "implement-rfc.card.v1"
+id: "BPR-0538"
+title: "Clear a workshop press when its turn ends without a revision"
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0533"]
 ---
 
 # Clear a workshop press when its turn ends without a revision

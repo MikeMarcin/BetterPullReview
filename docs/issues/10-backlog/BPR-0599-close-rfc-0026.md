@@ -1,10 +1,12 @@
 ---
-id: BPR-0599
-title: Verify and close RFC-BPR-0026
-status: Backlog
-rfc: RFC-BPR-0026
-milestone: Post-Pack v2
-depends_on: [BPR-0598]
+schema: "implement-rfc.card.v1"
+id: "BPR-0599"
+title: "Verify and close RFC-BPR-0026"
+status: "Backlog"
+rfcs: ["RFC-BPR-0026"]
+depends_on: ["BPR-0598"]
+milestone: "Post-Pack v2"
+closeout_for: ["RFC-BPR-0026"]
 ---
 
 # Verify and close RFC-BPR-0026

@@ -1,10 +1,11 @@
 ---
-id: BPR-0346
-title: Repair the LP64 QJsonValue ambiguity no macOS compiler can see
-status: Done
-rfc: RFC-BPR-0006
+schema: "implement-rfc.card.v1"
+id: "BPR-0346"
+title: "Repair the LP64 QJsonValue ambiguity no macOS compiler can see"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
 depends_on: []
-completed: 2026-08-17
+completed: "2026-08-17"
 ---
 
 # Repair the LP64 QJsonValue ambiguity no macOS compiler can see

@@ -1,9 +1,10 @@
 ---
-id: BPR-0193
+schema: "implement-rfc.card.v1"
+id: "BPR-0193"
 title: "Adapter: deliver a queue notification to the operating system"
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0164]
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0164"]
 ---
 
 # Adapter: deliver a queue notification to the operating system

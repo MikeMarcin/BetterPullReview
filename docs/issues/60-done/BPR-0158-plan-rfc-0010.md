@@ -1,8 +1,9 @@
 ---
-id: BPR-0158
-title: Plan RFC-BPR-0010 verification and allocate its cards
-status: Done
-rfc: RFC-BPR-0010
+schema: "implement-rfc.card.v1"
+id: "BPR-0158"
+title: "Plan RFC-BPR-0010 verification and allocate its cards"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
 depends_on: []
 ---
 

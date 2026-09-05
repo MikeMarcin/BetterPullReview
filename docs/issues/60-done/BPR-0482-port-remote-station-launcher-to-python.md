@@ -1,8 +1,9 @@
 ---
-id: BPR-0482
-title: Port the remote-station launcher to Python
-status: Done
-rfc: none
+schema: "implement-rfc.card.v1"
+id: "BPR-0482"
+title: "Port the remote-station launcher to Python"
+status: "Done"
+rfcs: []
 depends_on: []
 ---
 

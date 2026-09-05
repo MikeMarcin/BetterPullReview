@@ -1,9 +1,10 @@
 ---
-id: BPR-0537
-title: Close the Release flag surface and tighten the enabled course
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0515]
+schema: "implement-rfc.card.v1"
+id: "BPR-0537"
+title: "Close the Release flag surface and tighten the enabled course"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0515"]
 ---
 
 # Close the Release flag surface and tighten the enabled course

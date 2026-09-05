@@ -1,0 +1,7 @@
+# Shared workflow adoption — 2026-09-05
+
+AgentSkills RFC-ASK-0003 supplies implement-rfc, attended-review and wizard through MASK links for Claude and Codex. External context preserves the product architecture, index sequencing, public-path hazards and platform requirements. One-off conversion normalized 611 live cards including Done history and 27 RFCs; Markdown bodies and acceptance remain intact. BPR-0153 is queryable as human-review; three live-GitHub waits remain distinct.
+
+Verified old skill/adapters are retained outside discovery in ignored `.mask/bootstrap-retired/unified-workflow-20260905/`. General workflow forks are retired. Specialized RFC-0016/17 evidence validators and rendering assets remain repository-owned under `scripts/verification/rfc0016_attended_contract/`, with source provenance and immutable recorded commands preserved. No migration tooling is installed as a skill.
+
+Guarded MASK deployment/doctor and actual documentation gate passed. Documentation62, relocated historical operator contract4 and public allocator2 tests passed. Live allocation dry-run returned BPR-0620 without mutation. Prepared fixture checks additionally covered RFC0017 44, capture38 plus recorded-fixture coverage, and retained verdict checks. No application build or product-wide revalidation occurred. Shared tools passed native Windows/macOS integration; live host skill loading was not asserted. No push occurred.

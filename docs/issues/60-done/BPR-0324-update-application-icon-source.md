@@ -1,9 +1,10 @@
 ---
-id: BPR-0324
-title: Update the application icon source
-status: Done
-rfc: RFC-BPR-0014
-depends_on: [BPR-0253]
+schema: "implement-rfc.card.v1"
+id: "BPR-0324"
+title: "Update the application icon source"
+status: "Done"
+rfcs: ["RFC-BPR-0014"]
+depends_on: ["BPR-0253"]
 ---
 
 # Update the application icon source

@@ -1,9 +1,10 @@
 ---
-id: BPR-0047
-title: Compose the public Git cache and epoch path
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0046, BPR-0055]
+schema: "implement-rfc.card.v1"
+id: "BPR-0047"
+title: "Compose the public Git cache and epoch path"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0042","BPR-0043","BPR-0044","BPR-0045","BPR-0046","BPR-0055"]
 ---
 
 # Compose the public Git cache and epoch path

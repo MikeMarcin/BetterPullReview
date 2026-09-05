@@ -1,10 +1,11 @@
 ---
-id: BPR-0589
-title: Verify rendered private-thread and composition UX across scale, theme, keyboard, and accessibility modes
-status: Backlog
-rfc: RFC-BPR-0023
-milestone: Post-Pack v2
-depends_on: [BPR-0585, BPR-0586, BPR-0587]
+schema: "implement-rfc.card.v1"
+id: "BPR-0589"
+title: "Verify rendered private-thread and composition UX across scale, theme, keyboard, and accessibility modes"
+status: "Backlog"
+rfcs: ["RFC-BPR-0023"]
+depends_on: ["BPR-0585","BPR-0586","BPR-0587"]
+milestone: "Post-Pack v2"
 ---
 
 # Verify rendered private-thread and composition UX across scale, theme, keyboard, and accessibility modes

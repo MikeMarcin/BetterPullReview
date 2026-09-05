@@ -1,9 +1,10 @@
 ---
-id: BPR-0151
-title: Documentation for defect semantics, mapping, and verification rules
-status: Done
-rfc: RFC-BPR-0009
-depends_on: [BPR-0150]
+schema: "implement-rfc.card.v1"
+id: "BPR-0151"
+title: "Documentation for defect semantics, mapping, and verification rules"
+status: "Done"
+rfcs: ["RFC-BPR-0009"]
+depends_on: ["BPR-0150"]
 ---
 
 # Documentation for defect semantics, mapping, and verification rules

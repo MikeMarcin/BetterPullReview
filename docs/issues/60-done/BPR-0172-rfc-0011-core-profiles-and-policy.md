@@ -1,9 +1,10 @@
 ---
-id: BPR-0172
+schema: "implement-rfc.card.v1"
+id: "BPR-0172"
 title: "Core: agent profiles, host policy, and explicit-invocation legality"
-status: Done
-rfc: RFC-BPR-0011
-depends_on: [BPR-0171]
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
+depends_on: ["BPR-0171"]
 ---
 
 # Core: agent profiles, host policy, and explicit-invocation legality

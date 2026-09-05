@@ -1,9 +1,10 @@
 ---
-id: BPR-0282
-title: Verify device-authorization security and public behavior
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0281, BPR-0450]
+schema: "implement-rfc.card.v1"
+id: "BPR-0282"
+title: "Verify device-authorization security and public behavior"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0281","BPR-0450"]
 ---
 
 # Verify device-authorization security and public behavior

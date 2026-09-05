@@ -1,9 +1,10 @@
 ---
-id: BPR-0518
-title: The type-read structured-binding idiom must carry maybe_unused, and a gate says so
-status: Done
-rfc: none
-depends_on: [BPR-0512]
+schema: "implement-rfc.card.v1"
+id: "BPR-0518"
+title: "The type-read structured-binding idiom must carry maybe_unused, and a gate says so"
+status: "Done"
+rfcs: []
+depends_on: ["BPR-0512"]
 ---
 
 # The type-read structured-binding idiom must carry `maybe_unused`, and a gate says so

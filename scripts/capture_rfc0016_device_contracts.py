@@ -32,8 +32,9 @@ CAPTURE_TOOL = "scripts/capture_rfc0016_device_contracts.py"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CAPTURE_RUNNER_PATH = "scripts/run_rfc0016_device_capture_attended.py"
 ATTENDED_VALIDATOR_PATH = (
-    ".agents/skills/bpr-attended-review/scripts/build_attended_review.py"
+    "scripts/verification/rfc0016_attended_contract/scripts/build_attended_review.py"
 )
+HISTORICAL_ATTENDED_VALIDATOR_PATH = ".agents/skills/bpr-attended-review/scripts/build_attended_review.py"
 ATTESTATION_REVIEW_GATE = "rfc0016_attended_live_capture"
 ATTESTATION_REVIEW_SCOPE = "human_sanitized_capture_bytes_acceptance_only"
 ATTESTATION_SUBJECT_ID = (
@@ -1230,7 +1231,12 @@ def _review_artifact_triple(
     )
     if type(triple["path"]) is not str or triple["path"] != expected_path:
         raise ContractError("review validation artifact path mismatch")
-    relative = PurePosixPath(expected_path)
+    physical_path = (
+        ATTENDED_VALIDATOR_PATH
+        if expected_path == HISTORICAL_ATTENDED_VALIDATOR_PATH
+        else expected_path
+    )
+    relative = PurePosixPath(physical_path)
     if relative.is_absolute() or ".." in relative.parts:
         raise ContractError("review validation artifact path escapes repository")
     path = repository_root.joinpath(*relative.parts)
@@ -2413,8 +2419,14 @@ def _validate_review_record(
     expected_verdict_path = f"{review_prefix}/{ATTESTATION_VERDICT_PATH}"
     expected_input_path = f"{review_prefix}/{ATTESTATION_INPUT_PATH}"
     expected_page_path = f"{review_prefix}/{ATTESTATION_PAGE_PATH}"
+    validator_binding = validation["official_validator"]
+    if not isinstance(validator_binding, dict):
+        raise ContractError("attended validator binding must be an object")
+    recorded_validator_path = validator_binding.get("path")
+    if recorded_validator_path not in (ATTENDED_VALIDATOR_PATH, HISTORICAL_ATTENDED_VALIDATOR_PATH):
+        raise ContractError("attended validator source path mismatch")
     expected_invocation = (
-        f"python3 {ATTENDED_VALIDATOR_PATH} validate-verdict "
+        f"python3 {recorded_validator_path} validate-verdict "
         f"--manifest {expected_manifest_path} --verdict {expected_verdict_path}"
     )
     if (
@@ -2465,7 +2477,7 @@ def _validate_review_record(
     )
     _review_artifact_triple(
         validation["official_validator"],
-        expected_path=ATTENDED_VALIDATOR_PATH,
+        expected_path=recorded_validator_path,
         repository_root=repository_root,
     )
     validator_path = repository_root / ATTENDED_VALIDATOR_PATH

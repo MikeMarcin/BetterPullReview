@@ -1,10 +1,10 @@
 ---
-id: RFC-BPR-0005
-title: Native Workbench Shell and Virtualized Review Surface
-status: Auto-Verified
-area: BPR
-milestone: M1 Native Read-Only Workbench
-depends_on: [RFC-BPR-0004]
+id: "RFC-BPR-0005"
+title: "Native Workbench Shell and Virtualized Review Surface"
+status: "Auto-Verified"
+area: "BPR"
+milestone: "M1 Native Read-Only Workbench"
+depends_on: ["RFC-BPR-0004"]
 pack_version: 2
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0248
-title: Reconcile the composed-host verifier with the shipped application
-status: Done
-rfc: RFC-BPR-0013
-depends_on: [BPR-0225, BPR-0228, BPR-0229, BPR-0230, BPR-0231, BPR-0247]
+schema: "implement-rfc.card.v1"
+id: "BPR-0248"
+title: "Reconcile the composed-host verifier with the shipped application"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
+depends_on: ["BPR-0225","BPR-0228","BPR-0229","BPR-0230","BPR-0231","BPR-0247"]
 ---
 
 # Reconcile the composed-host verifier with the shipped application

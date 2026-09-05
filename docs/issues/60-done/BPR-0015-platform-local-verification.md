@@ -1,9 +1,10 @@
 ---
-id: BPR-0015
-title: Preserve RFC-BPR-0001 platform-local verification
-status: Done
-rfc: RFC-BPR-0001
-depends_on: [BPR-0014]
+schema: "implement-rfc.card.v1"
+id: "BPR-0015"
+title: "Preserve RFC-BPR-0001 platform-local verification"
+status: "Done"
+rfcs: ["RFC-BPR-0001"]
+depends_on: ["BPR-0014"]
 ---
 
 # Harden RFC-BPR-0001 platform-local verification

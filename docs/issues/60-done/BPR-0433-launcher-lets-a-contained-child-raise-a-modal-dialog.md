@@ -1,8 +1,9 @@
 ---
-id: BPR-0433
-title: The launcher lets a contained child raise a modal loader dialog
-status: Done
-rfc: RFC-BPR-0008
+schema: "implement-rfc.card.v1"
+id: "BPR-0433"
+title: "The launcher lets a contained child raise a modal loader dialog"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
 depends_on: []
 ---
 

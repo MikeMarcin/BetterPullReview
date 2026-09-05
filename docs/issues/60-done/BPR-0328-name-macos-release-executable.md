@@ -1,9 +1,10 @@
 ---
-id: BPR-0328
-title: Name the macOS release executable
-status: Done
-rfc: RFC-BPR-0014
-depends_on: [BPR-0325]
+schema: "implement-rfc.card.v1"
+id: "BPR-0328"
+title: "Name the macOS release executable"
+status: "Done"
+rfcs: ["RFC-BPR-0014"]
+depends_on: ["BPR-0325"]
 ---
 
 # Name the macOS release executable

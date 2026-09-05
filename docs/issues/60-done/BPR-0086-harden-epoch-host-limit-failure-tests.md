@@ -1,9 +1,10 @@
 ---
-id: BPR-0086
-title: Harden epoch host limit and allocation-failure tests
-status: Done
-rfc: RFC-BPR-0003
-depends_on: [BPR-0068]
+schema: "implement-rfc.card.v1"
+id: "BPR-0086"
+title: "Harden epoch host limit and allocation-failure tests"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
+depends_on: ["BPR-0068"]
 ---
 
 # Harden epoch host limit and allocation-failure tests

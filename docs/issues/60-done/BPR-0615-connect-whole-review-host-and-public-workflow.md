@@ -1,9 +1,10 @@
 ---
-id: BPR-0615
-title: Connect whole-review host and public workflow
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0613, BPR-0614]
+schema: "implement-rfc.card.v1"
+id: "BPR-0615"
+title: "Connect whole-review host and public workflow"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0613","BPR-0614"]
 ---
 
 # Connect whole-review host and public workflow

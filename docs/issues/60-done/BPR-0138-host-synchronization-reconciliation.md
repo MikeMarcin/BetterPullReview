@@ -1,9 +1,10 @@
 ---
-id: BPR-0138
-title: Host synchronization, refresh cursors, and external-change reconciliation
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0137]
+schema: "implement-rfc.card.v1"
+id: "BPR-0138"
+title: "Host synchronization, refresh cursors, and external-change reconciliation"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0137"]
 ---
 
 # Host synchronization, refresh cursors, and external-change reconciliation

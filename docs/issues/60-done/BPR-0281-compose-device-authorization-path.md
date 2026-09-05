@@ -1,9 +1,10 @@
 ---
-id: BPR-0281
-title: Compose the production device-authorization path
-status: Done
-rfc: RFC-BPR-0016
-depends_on: [BPR-0279, BPR-0280]
+schema: "implement-rfc.card.v1"
+id: "BPR-0281"
+title: "Compose the production device-authorization path"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
+depends_on: ["BPR-0279","BPR-0280"]
 ---
 
 # Compose the production device-authorization path

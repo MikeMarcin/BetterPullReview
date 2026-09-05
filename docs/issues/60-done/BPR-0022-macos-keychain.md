@@ -1,10 +1,11 @@
 ---
-id: BPR-0022
-title: Implement and verify macOS Keychain credentials
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0021]
-completed: 2026-07-29
+schema: "implement-rfc.card.v1"
+id: "BPR-0022"
+title: "Implement and verify macOS Keychain credentials"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0021"]
+completed: "2026-07-29"
 ---
 
 # Implement and verify macOS Keychain credentials

@@ -1,10 +1,11 @@
 ---
-id: BPR-0351
-title: Establish supervisor provenance before QApplication and public observation
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0357]
-completed: 2026-08-18
+schema: "implement-rfc.card.v1"
+id: "BPR-0351"
+title: "Establish supervisor provenance before QApplication and public observation"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0357"]
+completed: "2026-08-18"
 ---
 
 # Establish supervisor provenance before QApplication and public observation

@@ -1,9 +1,10 @@
 ---
-id: BPR-0140
-title: Documentation for round-trip mapping, drafts, identity, and safe-test policy
-status: Done
-rfc: RFC-BPR-0008
-depends_on: [BPR-0139]
+schema: "implement-rfc.card.v1"
+id: "BPR-0140"
+title: "Documentation for round-trip mapping, drafts, identity, and safe-test policy"
+status: "Done"
+rfcs: ["RFC-BPR-0008"]
+depends_on: ["BPR-0139"]
 ---
 
 # Documentation for round-trip mapping, drafts, identity, and safe-test policy

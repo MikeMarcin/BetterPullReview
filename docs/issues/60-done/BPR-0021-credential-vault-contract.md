@@ -1,10 +1,11 @@
 ---
-id: BPR-0021
-title: Implement the credential-vault capability contract
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0020]
-completed: 2026-07-29
+schema: "implement-rfc.card.v1"
+id: "BPR-0021"
+title: "Implement the credential-vault capability contract"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0020"]
+completed: "2026-07-29"
 ---
 
 # Implement the credential-vault capability contract

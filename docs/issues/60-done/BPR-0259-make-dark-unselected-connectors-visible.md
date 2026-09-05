@@ -1,9 +1,10 @@
 ---
-id: BPR-0259
-title: Make dark unselected connectors visible
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0246]
+schema: "implement-rfc.card.v1"
+id: "BPR-0259"
+title: "Make dark unselected connectors visible"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0246"]
 ---
 
 # Make dark unselected connectors visible

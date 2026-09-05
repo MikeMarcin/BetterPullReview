@@ -1,9 +1,10 @@
 ---
-id: BPR-0170
-title: Persist enrollment across restarts
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0162]
+schema: "implement-rfc.card.v1"
+id: "BPR-0170"
+title: "Persist enrollment across restarts"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0162"]
 ---
 
 # Persist enrollment across restarts

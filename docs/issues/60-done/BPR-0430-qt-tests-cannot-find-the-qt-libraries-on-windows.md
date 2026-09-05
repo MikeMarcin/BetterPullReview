@@ -1,8 +1,9 @@
 ---
-id: BPR-0430
-title: Every Qt-linked test on Windows exits before main with 0xc0000135
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0430"
+title: "Every Qt-linked test on Windows exits before main with 0xc0000135"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0150
-title: Outdated and deleted anchors, and retained audit history
-status: Done
-rfc: RFC-BPR-0009
-depends_on: [BPR-0149]
+schema: "implement-rfc.card.v1"
+id: "BPR-0150"
+title: "Outdated and deleted anchors, and retained audit history"
+status: "Done"
+rfcs: ["RFC-BPR-0009"]
+depends_on: ["BPR-0149"]
 ---
 
 # Outdated and deleted anchors, and retained audit history

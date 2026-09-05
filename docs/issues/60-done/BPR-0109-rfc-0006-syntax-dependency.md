@@ -1,9 +1,10 @@
 ---
-id: BPR-0109
-title: Acquire KSyntaxHighlighting as a verified build dependency
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0103]
+schema: "implement-rfc.card.v1"
+id: "BPR-0109"
+title: "Acquire KSyntaxHighlighting as a verified build dependency"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0103"]
 ---
 
 # Acquire KSyntaxHighlighting as a verified build dependency

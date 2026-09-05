@@ -1,10 +1,11 @@
 ---
-id: BPR-0380
-title: Re-pin the application digests BPR-0341 left behind
-status: Done
-rfc: RFC-BPR-0013
-completed: 2026-08-18
+schema: "implement-rfc.card.v1"
+id: "BPR-0380"
+title: "Re-pin the application digests BPR-0341 left behind"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
+completed: "2026-08-18"
 ---
 
 # Re-pin the application digests BPR-0341 left behind

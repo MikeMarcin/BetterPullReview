@@ -1,8 +1,9 @@
 ---
-id: BPR-0525
-title: Mirror the two POSIX-guarded device-authorization selectors into the Windows registration
-status: Done
-rfc: RFC-BPR-0016
+schema: "implement-rfc.card.v1"
+id: "BPR-0525"
+title: "Mirror the two POSIX-guarded device-authorization selectors into the Windows registration"
+status: "Done"
+rfcs: ["RFC-BPR-0016"]
 depends_on: []
 ---
 

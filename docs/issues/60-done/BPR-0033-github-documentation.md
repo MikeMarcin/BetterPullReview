@@ -1,10 +1,11 @@
 ---
-id: BPR-0033
-title: Document RFC-BPR-0002 provider and credential behavior
-status: Done
-rfc: RFC-BPR-0002
-depends_on: [BPR-0029, BPR-0031, BPR-0032]
-completed: 2026-07-30
+schema: "implement-rfc.card.v1"
+id: "BPR-0033"
+title: "Document RFC-BPR-0002 provider and credential behavior"
+status: "Done"
+rfcs: ["RFC-BPR-0002"]
+depends_on: ["BPR-0029","BPR-0031","BPR-0032"]
+completed: "2026-07-30"
 ---
 
 # Document RFC-BPR-0002 provider and credential behavior

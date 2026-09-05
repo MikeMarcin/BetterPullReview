@@ -1,9 +1,10 @@
 ---
-id: BPR-0095
-title: Implement the full-width line-over-line lower detail pane
-status: Done
-rfc: RFC-BPR-0005
-depends_on: [BPR-0094]
+schema: "implement-rfc.card.v1"
+id: "BPR-0095"
+title: "Implement the full-width line-over-line lower detail pane"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
+depends_on: ["BPR-0094"]
 ---
 
 # Implement the full-width line-over-line lower detail pane

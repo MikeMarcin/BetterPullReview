@@ -1,10 +1,11 @@
 ---
-id: BPR-0003
-title: Implement the deterministic functional-core vertical slice
-status: Done
-rfc: RFC-BPR-0001
-depends_on: [BPR-0002]
-completed: 2026-07-29
+schema: "implement-rfc.card.v1"
+id: "BPR-0003"
+title: "Implement the deterministic functional-core vertical slice"
+status: "Done"
+rfcs: ["RFC-BPR-0001"]
+depends_on: ["BPR-0002"]
+completed: "2026-07-29"
 ---
 
 # Implement the deterministic functional-core vertical slice

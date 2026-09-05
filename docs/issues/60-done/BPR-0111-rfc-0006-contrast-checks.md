@@ -1,9 +1,10 @@
 ---
-id: BPR-0111
-title: Verify high-contrast and color-vision legibility
-status: Done
-rfc: RFC-BPR-0006
-depends_on: [BPR-0110]
+schema: "implement-rfc.card.v1"
+id: "BPR-0111"
+title: "Verify high-contrast and color-vision legibility"
+status: "Done"
+rfcs: ["RFC-BPR-0006"]
+depends_on: ["BPR-0110"]
 ---
 
 # Verify high-contrast and color-vision legibility

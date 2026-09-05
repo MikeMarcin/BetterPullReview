@@ -1,9 +1,10 @@
 ---
-id: BPR-0616
-title: Kill review publication across durable recovery boundaries
-status: Done
-rfc: RFC-BPR-0013
-depends_on: [BPR-0614, BPR-0615]
+schema: "implement-rfc.card.v1"
+id: "BPR-0616"
+title: "Kill review publication across durable recovery boundaries"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
+depends_on: ["BPR-0614","BPR-0615"]
 ---
 
 # Kill review publication across durable recovery boundaries

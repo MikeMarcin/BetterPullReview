@@ -1,8 +1,9 @@
 ---
-id: BPR-0475
-title: QWindows11Style diverges from the diff course's viewport palette-identity check
-status: Done
-rfc: RFC-BPR-0005
+schema: "implement-rfc.card.v1"
+id: "BPR-0475"
+title: "QWindows11Style diverges from the diff course's viewport palette-identity check"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
 depends_on: []
 ---
 

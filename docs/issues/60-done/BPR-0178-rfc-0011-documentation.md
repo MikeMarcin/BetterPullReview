@@ -1,9 +1,10 @@
 ---
-id: BPR-0178
+schema: "implement-rfc.card.v1"
+id: "BPR-0178"
 title: "Extend the AI agent boundary document"
-status: Done
-rfc: RFC-BPR-0011
-depends_on: [BPR-0171]
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
+depends_on: ["BPR-0171"]
 ---
 
 # Extend the AI agent boundary document

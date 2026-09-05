@@ -1,9 +1,10 @@
 ---
-id: BPR-0602
-title: Implement basic Quill logging for application and GitHub failures
-status: Done
-rfc: RFC-BPR-0027
-depends_on: [BPR-0600]
+schema: "implement-rfc.card.v1"
+id: "BPR-0602"
+title: "Implement basic Quill logging for application and GitHub failures"
+status: "Done"
+rfcs: ["RFC-BPR-0027"]
+depends_on: ["BPR-0600"]
 ---
 
 # Implement basic Quill logging for application and GitHub failures

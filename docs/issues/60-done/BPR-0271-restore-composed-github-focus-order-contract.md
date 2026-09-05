@@ -1,9 +1,10 @@
 ---
-id: BPR-0271
-title: Restore the composed GitHub focus-order contract
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0239]
+schema: "implement-rfc.card.v1"
+id: "BPR-0271"
+title: "Restore the composed GitHub focus-order contract"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0239"]
 ---
 
 # Restore the composed GitHub focus-order contract

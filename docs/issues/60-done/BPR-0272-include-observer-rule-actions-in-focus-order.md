@@ -1,9 +1,10 @@
 ---
-id: BPR-0272
-title: Include observer-rule actions in the workbench focus order
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0271]
+schema: "implement-rfc.card.v1"
+id: "BPR-0272"
+title: "Include observer-rule actions in the workbench focus order"
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0271"]
 ---
 
 # Include observer-rule actions in the workbench focus order

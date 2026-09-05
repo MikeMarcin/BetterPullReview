@@ -1,9 +1,10 @@
 ---
-id: BPR-0174
+schema: "implement-rfc.card.v1"
+id: "BPR-0174"
 title: "Core: the context supplement and what it may carry"
-status: Done
-rfc: RFC-BPR-0011
-depends_on: [BPR-0171]
+status: "Done"
+rfcs: ["RFC-BPR-0011"]
+depends_on: ["BPR-0171"]
 ---
 
 # Core: the context supplement and what it may carry

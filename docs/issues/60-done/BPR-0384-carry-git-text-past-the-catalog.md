@@ -1,10 +1,11 @@
 ---
-id: BPR-0384
-title: Carry the retained git text past the catalog boundary
-status: Done
-rfc: RFC-BPR-0003
+schema: "implement-rfc.card.v1"
+id: "BPR-0384"
+title: "Carry the retained git text past the catalog boundary"
+status: "Done"
+rfcs: ["RFC-BPR-0003"]
 depends_on: []
-completed: 2026-08-18
+completed: "2026-08-18"
 ---
 
 # Carry the retained git text past the catalog boundary

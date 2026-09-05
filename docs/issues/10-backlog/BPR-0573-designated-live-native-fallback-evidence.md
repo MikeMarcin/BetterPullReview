@@ -1,9 +1,10 @@
 ---
-id: BPR-0573
-title: Record designated GitHub.com and GHES off-hunk publication evidence
-status: Backlog
-rfc: RFC-BPR-0022
-depends_on: [BPR-0571, BPR-0572]
+schema: "implement-rfc.card.v1"
+id: "BPR-0573"
+title: "Record designated GitHub.com and GHES off-hunk publication evidence"
+status: "Backlog"
+rfcs: ["RFC-BPR-0022"]
+depends_on: ["BPR-0571","BPR-0572"]
 ---
 
 # Record designated GitHub.com and GHES off-hunk publication evidence

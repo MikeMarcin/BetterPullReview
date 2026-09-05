@@ -1,17 +1,17 @@
 ---
-id: RFC-BPR-0004
-title: Diff Computation, Correspondence Mapping, Grouping, and Alignment-Space Scrolling
-status: Auto-Verified
-area: BPR
-milestone: M1 Native Read-Only Workbench
+id: "RFC-BPR-0004"
+title: "Diff Computation, Correspondence Mapping, Grouping, and Alignment-Space Scrolling"
+status: "Auto-Verified"
+area: "BPR"
+milestone: "M1 Native Read-Only Workbench"
 pack_version: 2
-rfc_base_sha: 243295a70756b2e63a785ed11b14647b6b0a4c6d
-replacement_pack: betterpullreview-rfc-bpr-0004-diff-alignment-scroll-replacement-v1
+rfc_base_sha: "243295a70756b2e63a785ed11b14647b6b0a4c6d"
+replacement_pack: "betterpullreview-rfc-bpr-0004-diff-alignment-scroll-replacement-v1"
 revision: 2
 replaces_revision: 1
-depends_on: [RFC-BPR-0003]
-required_by: [RFC-BPR-0005, RFC-BPR-0006]
-architecture_contract: The core decides; the host performs; Qt presents
+depends_on: ["RFC-BPR-0003"]
+required_by: ["RFC-BPR-0005","RFC-BPR-0006"]
+architecture_contract: "The core decides; the host performs; Qt presents"
 ---
 
 # RFC-BPR-0004 — Diff Computation, Correspondence Mapping, Grouping, and Alignment-Space Scrolling

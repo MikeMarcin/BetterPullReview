@@ -1,9 +1,10 @@
 ---
-id: BPR-0558
-title: Expose public preview through the ordinary session controls
-status: Done
-rfc: RFC-BPR-0017
-depends_on: [BPR-0316]
+schema: "implement-rfc.card.v1"
+id: "BPR-0558"
+title: "Expose public preview through the ordinary session controls"
+status: "Done"
+rfcs: ["RFC-BPR-0017"]
+depends_on: ["BPR-0316"]
 ---
 
 # Expose public preview through the ordinary session controls

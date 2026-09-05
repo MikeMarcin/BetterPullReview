@@ -1,9 +1,10 @@
 ---
-id: BPR-0513
+schema: "implement-rfc.card.v1"
+id: "BPR-0513"
 title: "Qt: place the side-chat panel and finding queue in the workbench drawer"
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0504]
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0504"]
 ---
 
 # Qt: place the side-chat panel and finding queue in the workbench drawer

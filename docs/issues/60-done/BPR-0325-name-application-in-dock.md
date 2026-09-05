@@ -1,9 +1,10 @@
 ---
-id: BPR-0325
-title: Name the application in the macOS Dock
-status: Done
-rfc: RFC-BPR-0014
-depends_on: [BPR-0324]
+schema: "implement-rfc.card.v1"
+id: "BPR-0325"
+title: "Name the application in the macOS Dock"
+status: "Done"
+rfcs: ["RFC-BPR-0014"]
+depends_on: ["BPR-0324"]
 ---
 
 # Name the application in the macOS Dock

@@ -1,11 +1,11 @@
 ---
-id: RFC-BPR-0018
-title: Robust Settings Center and Preference Ownership
-status: Deferred
-area: BPR
-milestone: Post-Pack v2
-depends_on: [RFC-BPR-0014]
-pack_version: post-v2
+id: "RFC-BPR-0018"
+title: "Robust Settings Center and Preference Ownership"
+status: "Deferred"
+area: "BPR"
+milestone: "Post-Pack v2"
+depends_on: ["RFC-BPR-0014"]
+pack_version: "post-v2"
 ---
 
 # RFC-BPR-0018: Robust Settings Center and Preference Ownership

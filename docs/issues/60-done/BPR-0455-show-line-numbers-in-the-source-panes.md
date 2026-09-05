@@ -1,8 +1,9 @@
 ---
-id: BPR-0455
-title: Show line numbers in the source panes, on by default
-status: Done
-rfc: RFC-BPR-0005
+schema: "implement-rfc.card.v1"
+id: "BPR-0455"
+title: "Show line numbers in the source panes, on by default"
+status: "Done"
+rfcs: ["RFC-BPR-0005"]
 depends_on: []
 ---
 

@@ -1,9 +1,10 @@
 ---
-id: BPR-0168
-title: Confirm a native notification is delivered and its link opens the review
-status: Backlog
-rfc: RFC-BPR-0010
-depends_on: [BPR-0164, BPR-0169, BPR-0193, BPR-0223, BPR-0251]
+schema: "implement-rfc.card.v1"
+id: "BPR-0168"
+title: "Confirm a native notification is delivered and its link opens the review"
+status: "Backlog"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0164","BPR-0169","BPR-0193","BPR-0223","BPR-0251"]
 ---
 
 # Confirm a native notification is delivered and its link opens the review

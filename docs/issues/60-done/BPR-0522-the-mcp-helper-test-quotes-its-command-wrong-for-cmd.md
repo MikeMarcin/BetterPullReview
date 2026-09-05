@@ -1,9 +1,10 @@
 ---
-id: BPR-0522
-title: The MCP helper's test builds a command cmd.exe mangles, so the helper never starts on Windows
-status: Done
-rfc: RFC-BPR-0012
-depends_on: [BPR-0501]
+schema: "implement-rfc.card.v1"
+id: "BPR-0522"
+title: "The MCP helper's test builds a command cmd.exe mangles, so the helper never starts on Windows"
+status: "Done"
+rfcs: ["RFC-BPR-0012"]
+depends_on: ["BPR-0501"]
 ---
 
 # The MCP helper's test builds a command `cmd.exe` mangles, so the helper never starts on Windows

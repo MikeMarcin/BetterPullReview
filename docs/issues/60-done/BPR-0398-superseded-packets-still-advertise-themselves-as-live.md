@@ -1,8 +1,9 @@
 ---
-id: BPR-0398
-title: Superseded operator packets still advertise themselves as live
-status: Done
-rfc: RFC-BPR-0013
+schema: "implement-rfc.card.v1"
+id: "BPR-0398"
+title: "Superseded operator packets still advertise themselves as live"
+status: "Done"
+rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
 

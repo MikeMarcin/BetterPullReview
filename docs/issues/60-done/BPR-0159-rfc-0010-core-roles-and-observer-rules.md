@@ -1,9 +1,10 @@
 ---
-id: BPR-0159
+schema: "implement-rfc.card.v1"
+id: "BPR-0159"
 title: "Core: role classification, observer rules, and exclusions"
-status: Done
-rfc: RFC-BPR-0010
-depends_on: [BPR-0158]
+status: "Done"
+rfcs: ["RFC-BPR-0010"]
+depends_on: ["BPR-0158"]
 ---
 
 # Core: role classification, observer rules, and exclusions
