@@ -29,3 +29,16 @@ live course consumes another candidate.
 `qt_review_draft_editor` and the composed workbench path; build ordinary Release
 and regenerate BPR-0256's capsule only after verification. BPR-0256 v010 was not
 launched or materialized; prior spent approvals remain intact.
+
+## Verification checkpoint
+
+Publish/Discard QToolButtons bind the existing QActions and use strong keyboard
+focus. The public button test emits the expected command/body once, leaves state
+unchanged until projection, and refuses another intent while publishing. Three
+Qt editor/composed checks passed in 3.95 seconds. Strengthening geometry checks
+to the first 220 pixels passed the editor check again in 0.62 seconds. The
+render shows both named controls above the draft body. The pre-existing workshop
+fields can increase the standalone minimum height; this slice proves the controls
+remain in the first 220 pixels, not a whole-editor 220-pixel layout claim.
+Scoped strict tidy, format, code-simplifier inspection and documentation pass.
+Release/capsule rebuild is the remaining consumer before returning to BPR-0256.

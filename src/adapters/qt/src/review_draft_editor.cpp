@@ -1,8 +1,10 @@
 #include "bpr/qt/review_draft_editor.hpp"
 
 #include <QAction>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <array>
@@ -112,6 +114,18 @@ namespace bpr::qt {
 			= make_action(this, tr("Publish"), QStringLiteral("reviewPublish"));
 		Members.Discard
 			= make_action(this, tr("Discard"), QStringLiteral("reviewDiscard"));
+		auto* const publicationControls = new QHBoxLayout{ };
+		for (auto* const action : { Members.Publish, Members.Discard }) {
+			auto* const button = new QToolButton{ this };
+			button->setObjectName(action->objectName() + QStringLiteral("Button"));
+			button->setDefaultAction(action);
+			button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+			button->setFocusPolicy(Qt::StrongFocus);
+			publicationControls->addWidget(button);
+		}
+		publicationControls->addStretch();
+		layout->insertLayout(2, publicationControls);
+
 		Members.MarkRead = make_action(
 			this, tr("Mark read"), QStringLiteral("reviewMarkRead"));
 		Members.Accept = make_action(

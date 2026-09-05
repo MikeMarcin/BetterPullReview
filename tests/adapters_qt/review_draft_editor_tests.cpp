@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QToolButton>
 
 #include <algorithm>
 #include <array>
@@ -85,9 +86,26 @@ namespace {
 		auto  log    = intent_log{ };
 		auto* editor = editor_for(log);
 		editor->present(a_draft("Needs a test."));
+		editor->setMaximumHeight(220);
+		editor->resize(360, 220);
+		editor->show();
+		QApplication::processEvents();
+		auto* const publish = editor->findChild<QToolButton*>(QStringLiteral("reviewPublishButton"));
+		auto* const discard = editor->findChild<QToolButton*>(QStringLiteral("reviewDiscardButton"));
+		expect(publish != nullptr && discard != nullptr,
+			   "publication actions have real button controls");
+		expect(publish->isVisible() && discard->isVisible()
+				   && QRect(0, 0, editor->width(), 220).contains(publish->geometry())
+				   && QRect(0, 0, editor->width(), 220).contains(discard->geometry()),
+			   "publication controls fit the composed editor height");
+		expect(publish->text() == QStringLiteral("Publish")
+				   && publish->focusPolicy() == Qt::StrongFocus,
+			   "Publish has a readable label and keyboard focus");
+		expect(editor->grab().save(QStringLiteral("review-draft-publication-controls.png")),
+			   "public editor rendering is available for inspection");
 
 		const auto before = editor->shown_draft();
-		editor->publish_action()->trigger();
+		publish->click();
 
 		expect(log.Drafts.size() == 1U, "one draft intent was emitted");
 		expect(
@@ -112,6 +130,10 @@ namespace {
 			editor->shown_draft()->State == core::review_draft_state::publishing
 				&& !editor->publish_action()->isEnabled(),
 			"the accepted projection is what changes the editor");
+		expect(!publish->isEnabled() && !discard->isEnabled(),
+			   "visible controls follow the publishing projection");
+		publish->click();
+		expect(log.Drafts.size() == 1U, "disabled Publish cannot emit a second intent");
 
 		delete editor;
 	}

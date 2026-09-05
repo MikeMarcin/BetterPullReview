@@ -1,0 +1,32 @@
+{
+  "gate": "designated-live-review-publication-v010",
+  "status": "standing owner instruction recorded; not executed; superseded by pending UI repair",
+  "validated_commit": "78b897e4",
+  "validation_scope": "Exact preparation/review identity and actual non-execution disposition. No fabricated acceptance or publication.",
+  "validation_command": "python3 scripts/verify_documentation.py --root .",
+  "reviewed_packet": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v010/operator-packet.md",
+    "sha256": "sha256:aab8ed078ac0557b68473e4e2d3df403ca551cb88324aa305a8ae0d69bd613b8",
+    "byte_length": 9276
+  },
+  "operator_response": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v010/operator-response.md",
+    "sha256": "sha256:74d1579a43a8c244901f17a0552c01a7ed750c6fcbb84fb24acf136a073596f3",
+    "byte_length": 666
+  },
+  "approval_subject": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v010/approval-subject.txt",
+    "sha256": "sha256:320f179f832399b3cc08bd716a420e35ccbfc676aafaadc2cac2553680083537",
+    "byte_length": 1496
+  },
+  "source_manifest": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v010/source-manifest.txt",
+    "sha256": "sha256:a4fd275951a213c19be0af9e5b490a34a9de137906a4b845e3d060a33f90027c",
+    "byte_length": 4301
+  },
+  "attended_result": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v010/attended-result.md",
+    "sha256": "sha256:294f9543efa73f8aee6da59c06d24f8cb89e3237f18fe6caf25defd678d8522f",
+    "byte_length": 1172
+  }
+}
