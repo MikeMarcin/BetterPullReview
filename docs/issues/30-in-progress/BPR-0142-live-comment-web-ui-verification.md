@@ -1,9 +1,8 @@
 ---
 id: BPR-0142
 title: Verify a published comment in the GitHub web UI
-status: Parked
+status: In Progress
 rfc: RFC-BPR-0008
-parked_on: awaiting-owner-verdict
 depends_on: [BPR-0139, BPR-0221, BPR-0229, BPR-0235, BPR-0256, BPR-0318]
 ---
 
