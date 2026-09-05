@@ -53,18 +53,12 @@ closeout.
 - [ ] Only after every row is satisfied, the RFC status, index, verification
       ledger, and issue board transition atomically to `Auto-Verified`/terminal.
 
-## Final clean gates
+## Selected verification policy
 
-Clean `dev`, `core-only`, sanitizers, tests-disabled Release, focused provider/
-native-HTTPS/host/Qt/composition, format, strict tidy, documentation,
-dependency, runtime, boundary, secret/credential absence, no-Actions, and diff
-gates must all pass. Historical counts, the designated public observer, a
-fixture/helper, or macOS evidence for another platform do not substitute.
-
-The seeded exact commands, proof conditions, pending results/evidence, and
-commit fields live in
-`docs/verification/RFC-BPR-0017.md#final-command-ledger`. BPR-0306 replaces a
-planned selector only by updating that ledger and this anchor atomically.
+The current live-board and invoked implement-rfc rules select acceptance-focused
+checks and reuse unchanged results. The former blanket clean dev/core/sanitizer,
+full tidy and all-platform final replay plan is a command catalog, superseded by
+the concrete checks below. No omitted matrix is represented as passing.
 
 ## Available-macOS closeout claim — 2026-09-04
 
@@ -85,3 +79,35 @@ fixture absence, composition, dependency and runtime checks. Reuse byte-validate
 external decisions/captures and unchanged sanitizer/core evidence. Reconcile the
 exact changed-path ledger and current RFC verification matrix, then obtain the
 required capability-critical review of the committed candidate before status.
+
+## Current candidate results
+
+The incrementally rebuilt dev graph passed 18/19 anonymous course selectors in
+35.86 seconds. `core_anonymous_public_read` exposed one integration mismatch:
+BPR-0541 added a core-owned request ID to identity invalidation, while the
+anonymous mode-change helper omitted it. This slice now requires that helper's
+caller to supply the core-issued ID; it adds no allocator and preserves the
+same generation/scope invalidation. The original equality check remains intact
+and now uses a non-default request ID. Its direct rerun passed 1/1 in 0.40 s.
+The other eighteen results retain their recorded scope; the repaired core and
+direct composed public path were rechecked on the rebuilt final candidate:
+`core_anonymous_public_read`, `application_anonymous_read_host`, and
+`application_anonymous_public_preview_public_path` passed 3/3 in 0.99 seconds.
+
+Dev and tests-disabled Release incremental builds pass. Release checks pass
+in 1.89 seconds: the demonstration seam is absent, required production hosts
+are present, prohibited engines/strings are absent, dependencies/runtime pass,
+GitHub.com Public preview is enabled and GHES is refused, both with zero
+request/header/vault/sign-in effects. The two changed translation units pass
+strict tidy and formatting; the code-simplifier pass requires no further change.
+The direct architecture/core boundary gate passes. External capture and owner
+build-decision validators passed read-only at `9da7ed90` and their inputs are
+unchanged. Fifty-four documentation self-tests remain passing.
+
+The exact scope ledger has 2,273 paths before final card relocation. The RFC
+verification matrix now describes REST inline comments and unavailable
+GraphQL-only/viewer state, while retaining the immutable-base motivation.
+No new live-service request, credential operation or mutation occurred.
+Native Linux/Windows remain unavailable; no current native replay or fresh
+sanitizer/full-matrix result is claimed. Final review and status reconciliation
+remain pending.

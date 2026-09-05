@@ -235,7 +235,8 @@ namespace bpr::core {
 		const github_access_mode_change& aChange,
 		const application_session_id     aApplicationSession,
 		const github_identity_generation aCurrentGeneration,
-		const github_identity_scope&     aPrevious)
+		const github_identity_scope&     aPrevious,
+		request_id                       aRequest)
 		-> std::optional<invalidate_github_identity_request>
 	{
 		if (!crosses_modes(aChange)) {
@@ -243,6 +244,7 @@ namespace bpr::core {
 		}
 
 		return invalidate_github_identity_request{
+			.Request            = aRequest,
 			.ApplicationSession = aApplicationSession,
 			.NewGeneration      = advanced(aCurrentGeneration),
 			.Previous           = aPrevious,
@@ -302,7 +304,8 @@ namespace bpr::core {
 
 	auto change_mode(
 		anonymous_read_policy_state& aState,
-		const github_access_mode     aNext)
+		const github_access_mode     aNext,
+		const request_id             aRequest)
 		-> std::optional<invalidate_github_identity_request>
 	{
 		const auto change = github_access_mode_change{
@@ -313,7 +316,8 @@ namespace bpr::core {
 			change,
 			aState.ApplicationSession,
 			aState.IdentityGeneration,
-			aState.Scope);
+			aState.Scope,
+			aRequest);
 		if (!request.has_value()) {
 			return std::nullopt;
 		}

@@ -397,9 +397,9 @@ the product decision, not inside the evidence that informs it.
 
 | Claim | Direct surface | Proof |
 |---|---|---|
-| Nine of ten operations need no credential | Read contract route tests | Assert every operation but `list_review_threads` builds a REST route and that the anonymous set omits only it and viewer identity |
-| Refusing the GraphQL operation removes inline review comments entirely | Read contract catalog and route tests | Assert `read_operation_catalog` builds no `/pulls/{n}/comments` route and that `list_issue_comments` resolves to the issue path, while recording `github_mutation_contract.cpp` as the mutation-authority exception so its REST review-comment read is never mistaken for a read-path source |
-| Inline review comments are unavailable, not empty | Application state tests | Assert an anonymous projection distinguishes "no inline review comments were observable" from "there are none", so the workbench cannot render an unobserved conversation as an empty one |
+| Nine REST operation kinds are admitted anonymously | Read contract route tests | Assert the admitted set includes REST review comments and excludes GraphQL thread state and viewer identity before request construction |
+| Inline review comments use the existing REST read path | Read contract catalog, pager and normalizer tests | Assert `/pulls/{n}/comments` differs from issue comments, preserves reply linkage and line identity, and grants no mutation authority |
+| Missing observations are unavailable, not defaulted | Application state tests | Assert observed REST comments remain readable while GraphQL-only resolution and viewer-relative state remain unavailable; unobserved comments are distinct from an observed empty result |
 | No parallel path was introduced | Architecture boundary tests | Prove the anonymous mode adds no provider, normalizer, or fixture set and reuses the existing contract |
 | Unavailable observations are refused, not defaulted | Application state tests | Assert thread resolution, viewed state, and actionability are unavailable states and no default value reaches a projection |
 | No credential is touched | Vault and transport counters | Run a full anonymous open and require zero vault lookups and zero authorization headers |

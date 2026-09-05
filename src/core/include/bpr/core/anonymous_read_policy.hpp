@@ -306,12 +306,14 @@ namespace bpr::core {
 	/// A crossing change is an identity change: it yields the same request an
 	/// account switch yields, carrying the advanced generation and the scope
 	/// left behind, so the host applies one invalidation rule rather than two.
-	/// A change that stays in one mode yields nothing.
+	/// The caller supplies the core-issued request identity; this policy has no
+	/// second allocator. A change that stays in one mode yields nothing.
 	[[nodiscard]] auto mode_change_invalidation(
 		const github_access_mode_change& aChange,
 		application_session_id           aApplicationSession,
 		github_identity_generation       aCurrentGeneration,
-		const github_identity_scope&     aPrevious)
+		const github_identity_scope&     aPrevious,
+		request_id                       aRequest)
 		-> std::optional<invalidate_github_identity_request>;
 
 	/// \brief Describes the public-preview request identity.
@@ -379,7 +381,8 @@ namespace bpr::core {
 	/// \brief Changes the mode and yields the invalidation the host applies.
 	[[nodiscard]] auto change_mode(
 		anonymous_read_policy_state& aState,
-		github_access_mode           aNext)
+		github_access_mode           aNext,
+		request_id                   aRequest)
 		-> std::optional<invalidate_github_identity_request>;
 }
 

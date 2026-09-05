@@ -417,6 +417,7 @@ namespace {
 		-> core::invalidate_github_identity_request
 	{
 		auto state               = core::github_state{ };
+		state.NextRequest        = core::request_id{ 37U };
 		state.ApplicationSession = core::application_session_id{ 7U };
 		state.IdentityGeneration = core::github_identity_generation{ 2U };
 		const auto scope         = sample_scope();
@@ -443,7 +444,7 @@ namespace {
 		const auto expected = account_switch_invalidation();
 
 		auto       into    = fresh_policy();
-		const auto leaving = core::change_mode(into, mode::authenticated);
+		const auto leaving = core::change_mode(into, mode::authenticated, expected.Request);
 		expect(
 			leaving.has_value() && *leaving == expected,
 			"leaving public preview yields the account-switch invalidation");
@@ -455,7 +456,7 @@ namespace {
 
 		auto back           = fresh_policy();
 		back.Mode           = mode::authenticated;
-		const auto entering = core::change_mode(back, mode::public_preview);
+		const auto entering = core::change_mode(back, mode::public_preview, expected.Request);
 		expect(
 			entering.has_value() && *entering == expected,
 			"entering public preview yields the same invalidation");
@@ -463,7 +464,7 @@ namespace {
 		auto       unchanged = fresh_policy();
 		const auto before    = unchanged;
 		expect(
-			!core::change_mode(unchanged, mode::public_preview).has_value()
+			!core::change_mode(unchanged, mode::public_preview, core::request_id{ 23U }).has_value()
 				&& unchanged == before,
 			"a change that stays in one mode invalidates nothing");
 
@@ -474,7 +475,7 @@ namespace {
 			sample_context());
 		const auto identity
 			= std::get<core::anonymous_request_identity>(outcome);
-		static_cast<void>(core::change_mode(switching, mode::authenticated));
+		static_cast<void>(core::change_mode(switching, mode::authenticated, expected.Request));
 		expect(
 			core::admit(switching, identity)
 				== core::anonymous_completion_admission::stale_completion,
@@ -484,7 +485,7 @@ namespace {
 		static_cast<void>(core::exhaust(
 			exhausted,
 			core::anonymous_rate_limit_fact{ .Limit = 60U, .Reset = 1729U }));
-		static_cast<void>(core::change_mode(exhausted, mode::authenticated));
+		static_cast<void>(core::change_mode(exhausted, mode::authenticated, expected.Request));
 		expect(
 			!exhausted.Terminal.has_value(),
 			"signing in clears the budget refusal the signed-out mode carried");
