@@ -1,0 +1,33 @@
+{
+  "gate": "designated-live-review-publication-v011",
+  "status": "standing owner authorization consumed; one comment published and observed on GitHub; quit preserves sign-in",
+  "validated_commit": "901ba10a6807fc09c5c8405c9392e8b494ec77ea",
+  "recorded_at": "2026-09-05T12:22:40.460231+00:00",
+  "validation_scope": "Actual owner continuation authority, exact artifact and final command review, direct application and public GitHub observations, exit and detach. No fabricated human digest response or subjective acceptance; no reply-return or RFC closeout.",
+  "validation_command": "python3 scripts/verify_documentation.py --root .",
+  "reviewed_packet": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v011/operator-packet.md",
+    "sha256": "sha256:24fad553d4c7a4a1611b92c957c0e0cf668d430f70c1fe56cf53063ed92faeb3",
+    "byte_length": 9595
+  },
+  "operator_response": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v011/operator-response.md",
+    "sha256": "sha256:74d1579a43a8c244901f17a0552c01a7ed750c6fcbb84fb24acf136a073596f3",
+    "byte_length": 666
+  },
+  "approval_subject": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v011/approval-subject.txt",
+    "sha256": "sha256:89cc21f7afc4278a627ca9ac250debe02760f8ab6b50360e46ad8777b6ac0ec3",
+    "byte_length": 1496
+  },
+  "source_manifest": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v011/source-manifest.txt",
+    "sha256": "sha256:a4fd275951a213c19be0af9e5b490a34a9de137906a4b845e3d060a33f90027c",
+    "byte_length": 4301
+  },
+  "attended_result": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v011/attended-result.md",
+    "sha256": "sha256:b77e95cc2956d822bc1e69daed431e67c2c59d743ee5945710c7d126e9c16d35",
+    "byte_length": 4523
+  }
+}

@@ -1,7 +1,7 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560, BPR-0606, BPR-0607, BPR-0608, BPR-0609]
 ---
@@ -1350,3 +1350,31 @@ Launcher/supervisor acceptance is reused. The configured-isolation pass
 (4.86 seconds) was supplied by the primary; no extra test replay occurred.
 Opposite-family review was unavailable. Proceed to fresh one-use materialization,
 final plan comparison and the standing-authorized one-comment course.
+
+## v011 complete — 2026-09-05
+
+The [v011 result](../../verification/reviews/designated-live-review-publication-v011/attended-result.md)
+and [validation record](../../verification/reviews/designated-live-review-publication-v011/validation-record.json)
+record the exact standing-authorized native Mac course at `901ba10a`, using
+production source `a35eccaa`. Remembered MikeMarcin sign-in resumed automatically;
+exact base/head, history and source loaded. One Publish action sent the approved
+text at RIGHT line 1 of `bpr-live-review-fixture.txt`. The app confirmed publication
+and refresh; the ordinary GitHub web UI showed the same account, line and full
+text with no BPR decoration. No additional mutation occurred.
+
+`ctest --test-dir build/bpr0256-v011-live-manifest --output-on-failure -R
+'^live_review_mutation_designated_target$'` passed 1/1 in 679.73 seconds.
+Quit without Sign out followed the owner's amendment; exit 0, process absence,
+ordinary detach and the fresh spent replay marker were observed. The generated
+capsule/static/private/mount roots and 23 temporary files were removed; ordinary
+builds, remembered sign-in, owner log and all spent authority remain.
+
+The card's implementation, exact preparation, review and authorized course are
+complete. Historical instructions limiting this card to preparation and requiring
+Sign out were superseded for v011 by the recorded owner continuation instruction.
+No human acceptance is invented. BPR-0142 still owns reply-return/subjective
+acceptance; BPR-0143/0144 and RFC closeout remain separate. BPR-0235 now has its
+remaining live criterion and is next for evidence reconciliation.
+
+Documentation structure, its 62 self-tests and `git diff --check` pass for the
+completion record. Existing unchanged fixture/format/tidy results are reused.

@@ -1,10 +1,9 @@
 ---
 id: BPR-0235
 title: Enforce default-deny network isolation for live mutation tests
-status: Parked
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0221, BPR-0347, BPR-0350]
-parked_on: awaiting-live-github
 ---
 
 # Enforce default-deny network isolation for live mutation tests
@@ -319,3 +318,12 @@ after BPR-0609 exposed the existing Publish/Discard actions as buttons. V010 was
 reviewed but never materialized/launched. Its generated artifacts were removed.
 Standing owner instructions remain the authority; no new user question is needed.
 Current next slice: BPR-0256 exact v011 command check and one-comment execution.
+
+## Live criterion available; reconcile completion — 2026-09-05
+
+BPR-0256 v011 executed the exact designated shipped-app lane on native macOS:
+one comment published, independently observed in GitHub, clean exit and detach.
+The exact [result](../../verification/reviews/designated-live-review-publication-v011/attended-result.md)
+now supplies the sole remaining criterion recorded on 2026-08-27. Claim this
+card to reconcile its already-passing Mac/Linux/Windows boundary evidence and
+this live result; no new live action or full matrix is required.

@@ -293,3 +293,24 @@ its mounted preflight. Current checkpoint is
 [v011](reviews/designated-live-review-publication-v011/operator-packet.md); v010
 never launched. BPR-0256 resumes the same one-comment scope under standing owner
 authority, with remembered sign-in retained. No publication evidence yet.
+
+## One-comment publication observed — 2026-09-05
+
+BPR-0256 is Done. The [v011 result](reviews/designated-live-review-publication-v011/attended-result.md)
+records the shipped app's automatic remembered MikeMarcin session, exact PR
+history, one source-line Publish, successful refresh and independent public
+GitHub inspection. [Comment 3940608913](https://github.com/MikeMarcin/BPR-Test/pull/1#discussion_r3940608913)
+is by MikeMarcin at RIGHT line 1 of `bpr-live-review-fixture.txt`, body in full:
+
+> BetterPullReview attended round-trip verification.
+
+The web UI shows ordinary Owner/Author labels and no BPR badge/footer. This is
+agent-observed direct evidence, not an invented subjective owner verdict.
+CTest passed in 679.73 seconds at `901ba10a`, production source `a35eccaa`;
+normal quit preserved sign-in and the image detached. Temporary resources were
+removed. BPR-0235 is next for final evidence reconciliation. BPR-0142's web reply
+return remains unperformed; BPR-0143 mixed-client/state-loss/capability work and
+BPR-0144 Comment/Approve/Request Changes evidence remain open. The single comment
+course is spent, so no additional remote mutation follows from it. RFC-BPR-0008
+and the complete requested RFC goal remain unfinished. Advanced logging BPR-0603
+and schema-method BPR-0604 remain explicitly deferred.
