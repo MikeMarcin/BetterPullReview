@@ -1321,3 +1321,9 @@ sign-in on quit under the owner's latest instruction. Ordinary diagnostics have
 no publication grant. Existing `build/app-release` may produce the capsule;
 remove its generated capsule artifacts once consumed, retaining that ordinary
 build tree. No extra worktree or full matrix is required by this source repair.
+
+Current publication checkpoint: [v010](../../verification/reviews/designated-live-review-publication-v010/operator-packet.md),
+a fresh rebuilt one-use candidate after the proven BPR-0608 history fix.
+Standing owner authorization supplies continuation without another question;
+remembered sign-in is preserved on quit. Exact prelaunch review remains pending;
+no publication result or human acceptance is claimed. Earlier packets stay frozen.

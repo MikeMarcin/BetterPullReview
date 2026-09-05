@@ -107,3 +107,9 @@ passed in 49.56 seconds and live remembered-sign-in, exact history and rendered
 source diff succeeded. Current next slice is BPR-0256's fresh publication capsule
 under standing owner authority, preserving sign-in on quit. Publication itself
 remains unobserved; the live acceptance rows remain incomplete.
+
+Current publication checkpoint: [v010](../../verification/reviews/designated-live-review-publication-v010/operator-packet.md),
+a fresh rebuilt one-use candidate after the proven BPR-0608 history fix.
+Standing owner authorization supplies continuation without another question;
+remembered sign-in is preserved on quit. Exact prelaunch review remains pending;
+no publication result or human acceptance is claimed. Earlier packets stay frozen.

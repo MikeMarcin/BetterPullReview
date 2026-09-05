@@ -172,3 +172,9 @@ The [v009 packet](../../verification/reviews/designated-live-review-publication-
 ## v009 consumed; selected-file refusal — 2026-09-05
 
 The [v009 result](../../verification/reviews/designated-live-review-publication-v009/attended-result.md) records the single approved mounted run: sign-in as MikeMarcin and all nine capability checks succeeded, and the correct designated PR opened. Selecting its sole file failed before source loading with a changed-file refusal and unavailable exact comparison history. No body was entered or Publish action taken. Explicit Sign out, quit and detach completed; CTest exit 0 in 321.64 seconds proves cleanup only. Device-field emissions are disclosed in the result; clean capture compliance is not claimed. The new approval is spent. Next: diagnose and repair the file/history path with fixtures before preparing another candidate. All live publication acceptance rows remain incomplete.
+
+Current publication checkpoint: [v010](../../verification/reviews/designated-live-review-publication-v010/operator-packet.md),
+a fresh rebuilt one-use candidate after the proven BPR-0608 history fix.
+Standing owner authorization supplies continuation without another question;
+remembered sign-in is preserved on quit. Exact prelaunch review remains pending;
+no publication result or human acceptance is claimed. Earlier packets stay frozen.
