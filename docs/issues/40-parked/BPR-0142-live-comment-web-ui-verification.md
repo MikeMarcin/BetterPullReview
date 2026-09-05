@@ -1,12 +1,37 @@
 ---
 id: BPR-0142
 title: Verify a published comment in the GitHub web UI
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0008
+parked_on: awaiting-owner-verdict
 depends_on: [BPR-0139, BPR-0221, BPR-0229, BPR-0235, BPR-0256, BPR-0318]
 ---
 
 # Verify a published comment in the GitHub web UI
+
+## Current scope — 2026-09-05
+
+All dependencies are Done. V011 supplied the ordinary source-line comment,
+its exact author/text/anchor, successful app refresh and direct GitHub web
+inspection. No additional publication is needed. The remaining live operation
+is one web reply to comment 3940608913 followed by workbench refresh; the
+[prepared reply checkpoint](../../verification/reviews/web-comment-reply-return-v001/operator-packet.md)
+names its exact text, existing target, account, single-submit procedure and
+read-only app continuation. It requests a plain instruction, not another digest
+ceremony. The prior authorization explicitly excluded replies, and no reply
+or new human acceptance has been fabricated.
+
+The live queue audit at `157c37c3` found this as the only dependency-ready open
+card in RFC-BPR-0001 through 0014. Every other open pack card still depends on
+unfinished work; the explicitly deferred additional RFCs remain unchanged.
+Current public Refresh ownership was confirmed in the Qt workbench source.
+No rebuild, repeated fixture matrix, browser credential operation or remote
+mutation was needed to prepare this checkpoint.
+
+## Original planning and historical dispositions
+
+The records below retain their original context. The current scope above
+supersedes their older missing-provider, sign-in and publication statements.
 
 ## Final-state safety correction
 

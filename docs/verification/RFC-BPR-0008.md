@@ -341,3 +341,12 @@ valid with documented Windows exceptions. BPR-0142 is now parked for its
 remaining reply-return and subjective acceptance; BPR-0143/0144 depend on it.
 No portable/Mac ready card remains in this RFC queue, and no new remote mutation
 or human verdict was inferred. All temporary course outputs were removed.
+
+## Existing-comment reply checkpoint prepared
+
+BPR-0142 now links a [concrete one-reply procedure](reviews/web-comment-reply-return-v001/operator-packet.md)
+for comment 3940608913 and its returned workbench projection. It preserves the
+healthy remembered session and avoids another publication. The reply is a new
+message explicitly excluded from v011, so no submission or accepted verdict
+is recorded yet. All remaining pack cards depend on this frontier or later
+unfinished cards. The complete requested-set goal remains active.
