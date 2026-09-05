@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0621"
+  ],
+  "reserve_for": "ai-session-kill-recovery",
+  "purpose": "",
+  "created": "2026-09-05T23:27:29.142212+00:00",
+  "base": "741cd22359dc13ff371b0bc1bf2771bc91bd3c18"
+}
