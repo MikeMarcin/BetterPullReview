@@ -99,7 +99,7 @@ namespace {
 	}
 
 	/// \brief The one line the whole fixture is about.
-	[[nodiscard]] auto anchoredLine() -> core::source_line_ref
+	[[nodiscard]] auto anchored_line() -> core::source_line_ref
 	{
 		return {
 			.Comparison = comparison(),
@@ -119,7 +119,7 @@ namespace {
 			.Path       = std::string{ analyzedPath },
 			.Lines      = { 16U, 19U },
 			.Anchor     = {
-				.Line    = anchoredLine(),
+				.Line    = anchored_line(),
 				.Segment = segment(),
 				.Group   = group(),
 			},
@@ -138,7 +138,7 @@ namespace {
 	///
 	/// \details Computed rather than written out. A hand-built verdict would let
 	/// these cases agree with a validator that no longer exists.
-	[[nodiscard]] auto verdictFor(const core::agent_finding& aFinding)
+	[[nodiscard]] auto verdict_for(const core::agent_finding& aFinding)
 		-> core::agent_finding_verdict
 	{
 		return core::validate_agent_finding(aFinding, snapshot());
@@ -149,7 +149,7 @@ namespace {
 	{
 		return {
 			.Id     = core::review_draft_id{ 77U },
-			.Anchor = anchoredLine(),
+			.Anchor = anchored_line(),
 			.Body   = "the sentence the reviewer had already written",
 			.State  = core::review_draft_state::drafting,
 		};
@@ -163,7 +163,7 @@ namespace {
 	{
 		return {
 			.Id       = core::defect_id{ 88U },
-			.Anchor   = anchoredLine(),
+			.Anchor   = anchored_line(),
 			.Severity = core::defect_severity::trivial,
 			.Category = core::defect_category::style,
 			.State    = core::defect_state::open,
@@ -177,7 +177,7 @@ namespace {
 		auto subject = finding();
 		return {
 			.Finding  = subject,
-			.Verdict  = verdictFor(subject),
+			.Verdict  = verdict_for(subject),
 			.Choice   = aChoice,
 			.Standing = core::agent_finding_standing::delivered,
 			.Draft    = draft(),
@@ -188,7 +188,7 @@ namespace {
 	/// \brief Re-derives the verdict after a mutation changed the finding.
 	void revalidate(core::agent_finding_promotion_request& aRequest)
 	{
-		aRequest.Verdict = verdictFor(aRequest.Finding);
+		aRequest.Verdict = verdict_for(aRequest.Finding);
 	}
 
 	/// \brief Asserts a result carries one named artifact and nothing else.

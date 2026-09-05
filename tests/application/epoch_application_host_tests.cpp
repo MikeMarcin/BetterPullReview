@@ -4598,6 +4598,84 @@ namespace {
 			"malformed selected-pair Git output remains a typed resolution failure");
 	}
 
+	/// \brief BPR-0532. The second selected-diff authorization, proved three
+	/// ways.
+	///
+	/// \details A continued agent turn asks about a pair the review has moved
+	/// past, so the host has to answer for two comparisons at once without
+	/// letting either become a hole. Served: the context the host mints for
+	/// one kept binding resolves through the same port, and the reviewer's own
+	/// selection keeps resolving beside it. Scoped: what it will mint for is
+	/// bounded to this review's own host, repository, and pull request.
+	/// Minted: a caller that assembles the same retargeting itself is stale,
+	/// because the warrant is the host's decision to serve the pair and not
+	/// the shape of the request that names it.
+	void realignment_context_is_minted_scoped_and_never_assumed()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto authority = workbench_authority_for(value.Host->state());
+		auto       request   = selected_diff_request_for(value);
+		const auto onScreen  = request.Diff;
+		// The binding a kept agent session carries: this review's own host,
+		// repository, and pull request, and a pair that is not the one on
+		// screen.
+		const auto kept = core::agent_revision_binding{
+			.Host        = authority.Host,
+			.Repository  = authority.Repository,
+			.PullRequest = authority.PullRequest,
+			.BaseOid     = oid<core::git_commit_oid>(0x31U),
+			.HeadOid     = oid<core::git_commit_oid>(0x32U),
+			.LeftEpoch   = core::epoch_ordinal{ 4U },
+			.RightEpoch  = core::epoch_ordinal{ 5U },
+		};
+		const auto minted = value.Host->realignment_context(authority, kept);
+		expect(
+			minted.has_value()
+				&& minted->Comparison.Left.Identity.Epoch == kept.LeftEpoch
+				&& minted->Comparison.Left.Commit == kept.BaseOid
+				&& minted->Comparison.Right.Identity.Epoch == kept.RightEpoch
+				&& minted->Comparison.Right.Commit == kept.HeadOid
+				&& minted->Authority == onScreen.Authority
+				&& minted->OptionsDigest == onScreen.OptionsDigest
+				&& minted->Algorithm == onScreen.Algorithm
+				&& minted->Comparison != onScreen.Comparison,
+			"the minted context moves both anchors to the kept pair and keeps the review's own authority");
+
+		auto realigned            = request;
+		realigned.Context.Request = core::request_id{ 811U };
+		realigned.Diff            = *minted;
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x62U));
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x72U));
+		expect(
+			resolve_selected_diff(value, realigned).Status
+				== application::workbench_selected_diff_status::available,
+			"the kept pair resolves through the port the workbench resolves through");
+
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x63U));
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x73U));
+		auto current            = request;
+		current.Context.Request = core::request_id{ 812U };
+		expect(
+			resolve_selected_diff(value, current).Status
+				== application::workbench_selected_diff_status::available,
+			"the re-alignment is authorized beside the reviewer's own selection rather than over it");
+
+		auto foreign        = kept;
+		foreign.PullRequest = core::pull_request_id{ 72U };
+		expect(
+			!value.Host->realignment_context(authority, foreign).has_value(),
+			"a pair of another pull request is not this review's to answer for");
+
+		auto forged                                = realigned;
+		forged.Context.Request                     = core::request_id{ 813U };
+		forged.Diff.Comparison.Left.Identity.Epoch = core::epoch_ordinal{ 6U };
+		expect(
+			value.Host->resolve(forged, { }).Status
+				== application::workbench_selected_diff_status::stale,
+			"a comparison the host never minted is stale before any cache work");
+	}
+
 	void invalidated_authority_cannot_materialize_retained_cache()
 	{
 		fixture value;
@@ -6002,6 +6080,7 @@ int main()
 	selected_diff_resolves_each_endpoint_without_provider_direction();
 	selected_diff_rename_resolution_is_directional_and_ambiguous_closed();
 	selected_diff_multi_hop_rename_uses_the_exact_selected_pair();
+	realignment_context_is_minted_scoped_and_never_assumed();
 	invalidated_authority_cannot_materialize_retained_cache();
 	agent_workspace_failures_preserve_the_cache_diagnostic();
 	invalidated_inflight_blob_cannot_publish_bytes();

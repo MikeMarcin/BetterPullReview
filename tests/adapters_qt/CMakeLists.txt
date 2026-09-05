@@ -136,6 +136,41 @@ foreach(bpr_device_authorization_scale IN ITEMS 100 125 200)
 endforeach()
 
 bpr_add_executable(
+    test_better_pull_review_qt_anonymous_public_preview_tests
+    anonymous_public_preview_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_anonymous_public_preview_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_anonymous_public_preview_tests)
+bpr_enable_warnings(test_better_pull_review_qt_anonymous_public_preview_tests)
+
+foreach(bpr_public_preview_scale IN ITEMS 100 125 200)
+    if(bpr_public_preview_scale STREQUAL "100")
+        set(bpr_public_preview_scale_factor "1.0")
+    elseif(bpr_public_preview_scale STREQUAL "125")
+        set(bpr_public_preview_scale_factor "1.25")
+    else()
+        set(bpr_public_preview_scale_factor "2.0")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME qt_anonymous_public_preview_scale_${bpr_public_preview_scale}
+        COMMAND test_better_pull_review_qt_anonymous_public_preview_tests
+    )
+    set_tests_properties(
+        qt_anonymous_public_preview_scale_${bpr_public_preview_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_public_preview_scale_factor};BPR_EXPECTED_QT_SCALE=${bpr_public_preview_scale_factor}"
+            PASS_REGULAR_EXPRESSION "anonymous-public-preview-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()
+
+bpr_add_executable(
     test_better_pull_review_qt_github_conversation_panel_tests
     github_conversation_panel_tests.cpp
 )
@@ -421,6 +456,33 @@ set_tests_properties(
         TIMEOUT 120
 )
 
+# The side chat sits beside the launch panel and is proven the same way: it
+# holds no launcher and no process, so an intent is the only thing that can
+# leave it.
+bpr_add_executable(
+    test_better_pull_review_qt_side_chat_panel_tests
+    side_chat_panel_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_side_chat_panel_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_side_chat_panel_tests)
+bpr_enable_warnings(test_better_pull_review_qt_side_chat_panel_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_side_chat_panel
+    COMMAND test_better_pull_review_qt_side_chat_panel_tests
+)
+set_tests_properties(
+    qt_side_chat_panel
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "side-chat-panel-tests:pass"
+        TIMEOUT 120
+)
+
 # The canary is a real process, so the launcher's guarantee is measured
 # against what a child actually receives rather than against the request.
 bpr_add_executable(
@@ -673,6 +735,35 @@ set_tests_properties(
     qt_review_draft_editor
     PROPERTIES
         ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "review-draft-editor-tests:pass"
+)
+
+# The finding queue sits beside the draft editor and is proven the same way:
+# it holds no provider, no endpoint, and no store, so an intent naming one
+# exact finding is the only thing that can leave it.
+bpr_add_executable(
+    test_better_pull_review_qt_finding_queue_view_tests
+    finding_queue_view_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_finding_queue_view_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_finding_queue_view_tests)
+bpr_enable_warnings(test_better_pull_review_qt_finding_queue_view_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_finding_queue_view
+    COMMAND test_better_pull_review_qt_finding_queue_view_tests
+)
+set_tests_properties(
+    qt_finding_queue_view
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "finding-queue-view-tests:pass"
+        TIMEOUT 120
 )
 
 bpr_add_executable(

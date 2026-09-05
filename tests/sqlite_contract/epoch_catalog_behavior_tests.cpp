@@ -1101,11 +1101,11 @@ namespace {
 			execute("BEGIN IMMEDIATE");
 			::sqlite3_stmt*            insert    = nullptr;
 			constexpr std::string_view insertSql = "INSERT INTO pull_request_scope(incarnation, pr_scope, "
-												   "cache_scope, viewer_id, pull_request_id, pull_request_number, "
+												   "cache_scope, viewer_id, access_mode, pull_request_id, pull_request_number, "
 												   "next_ordinal, catalog_revision, retained_epoch_count, "
 												   "latest_live_ordinal, previous_distinct_head_ordinal, lifecycle, "
 												   "retention_rehydration_required) "
-												   "VALUES(?1, ?2, ?3, ?4, ?5, ?6, 1, 0, 0, NULL, NULL, 1, 0)";
+												   "VALUES(?1, ?2, ?3, ?4, 1, ?5, ?6, 1, 0, 0, NULL, NULL, 1, 0)";
 			expect(
 				::sqlite3_prepare_v3(
 					Handle,

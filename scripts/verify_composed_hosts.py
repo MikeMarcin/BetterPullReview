@@ -141,8 +141,73 @@ SHARED_REQUIRED = (
         "bpr::qt::agent_launch_panel::agent_launch_panel",
     ),
     function_anchor(
+        "agent finding application host constructor",
+        "bpr::application::agent_finding_host::agent_finding_host",
+    ),
+    function_anchor(
+        "agent chat session application host constructor",
+        "bpr::application::agent_chat_session_host::agent_chat_session_host",
+    ),
+    function_anchor(
+        "agent comment workshop application host constructor",
+        "bpr::application::agent_comment_workshop_host::agent_comment_workshop_host",
+    ),
+    function_anchor(
+        "MCP context helper supervisor constructor",
+        "bpr::application::mcp_context_helper_supervisor::mcp_context_helper_supervisor",
+    ),
+    function_anchor(
+        "Qt side chat panel constructor",
+        "bpr::qt::side_chat_panel::side_chat_panel",
+    ),
+    function_anchor(
+        "Qt finding queue view constructor",
+        "bpr::qt::finding_queue_view::finding_queue_view",
+    ),
+    function_anchor(
+        "Qt device authorization panel constructor",
+        "bpr::qt::device_authorization_panel::device_authorization_panel",
+    ),
+    function_anchor(
         "Qt workbench window constructor",
         "bpr::qt::workbench_window::workbench_window",
+    ),
+    function_anchor(
+        "system browser opener constructor",
+        "bpr::app::system_browser_opener::system_browser_opener",
+    ),
+    # BPR-0305: the public-preview candidate is composed in both profiles
+    # with its selection unavailable; the two shipped credential-free
+    # factories it reaches are the linkage proof that the anonymous provider
+    # and the anonymous Git path exist in the image the audit inspects.
+    function_anchor(
+        "anonymous read transport factory",
+        "bpr::adapters::github::detail::make_native_https_anonymous_read_transport",
+    ),
+    function_anchor(
+        "anonymous smart transport factory",
+        "bpr::adapters::github::detail::make_native_https_anonymous_smart_transport",
+    ),
+    # BPR-0536: the device-authorization refresh lifecycle is composed in both
+    # profiles, proven by the entry point the composition calls rather than by
+    # the composition function that calls it. The anchor is the device host's
+    # own out-of-line member, defined in the application library and
+    # referenced only from the composition: no compiler inlines it across that
+    # boundary without whole-program optimization, which these presets do not
+    # enable, and a linker that drops unreferenced sections removes it the
+    # moment composition stops binding -- which is the falsification this
+    # anchor exists for.
+    #
+    # BPR-0285 moved it here. The former anchor was the composition's own
+    # private `bind_device_refresh_authority`, which has exactly one call
+    # site: MSVC inlines it, so a Windows Release image cannot exhibit it at
+    # all (0 occurrences in the Release map against 5 in Debug), and on macOS
+    # it survives only as a local symbol, which proves presence rather than
+    # linkage. A private one-caller function is not a linkage anchor on any
+    # compiler; Windows made that visible first.
+    function_anchor(
+        "device refresh authority binding",
+        "bpr::application::device_authorization_application_host::bind_refresh_authority",
     ),
 )
 

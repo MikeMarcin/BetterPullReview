@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_core
     STATIC
+        src/anonymous_read_policy.cpp
         src/appearance_contrast.cpp
         src/appearance_model.cpp
         src/defect_workflow.cpp
@@ -18,6 +19,7 @@ add_library(
         src/model.cpp
         src/review_ledger.cpp
         src/review_queue.cpp
+        src/agent_chat_scope.cpp
         src/agent_context_supplement.cpp
         src/agent_finding.cpp
         src/agent_finding_promotion.cpp

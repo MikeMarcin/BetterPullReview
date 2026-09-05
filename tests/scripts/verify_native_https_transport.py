@@ -24,6 +24,12 @@ from scripts.contained_temporary_support import contained_temporary_directory  #
 
 AUTHORITY = "ghe.bpr.invalid:443"
 HOST = "ghe.bpr.invalid"
+# RFC-BPR-0017 admits anonymous reads on GitHub.com alone, so its courses run
+# against that authority rather than the GHES one every other course uses. One
+# disposable leaf certificate covers both names.
+GITHUB_AUTHORITY = "api.github.com:443"
+GITHUB_HOST = "api.github.com"
+ANONYMOUS_REST_PATH = "/repos/octo-org/review-repository"
 REST_PATH = "/api/v3/user"
 REDIRECTED_REST_PATH = "/api/v3/user/redirected"
 GRAPHQL_PATH = "/api/graphql"
@@ -82,10 +88,39 @@ SCENARIOS = (
 # selector for it, and so the answer is never buried in the general matrix.
 RFC0017_SCENARIOS = ("credential-free",)
 
+# The anonymous read authority answers two questions that must be asked of the
+# same fixture: a real REST read succeeds with no authorization header, and the
+# fixture that says so would have seen one. The canary is what keeps the first
+# result from being a fixture that simply never looks.
+ANONYMOUS_READ_SCENARIOS = ("anonymous-read", "anonymous-read-canary")
+
 SUITES = {
     "default": SCENARIOS,
     "rfc0017": RFC0017_SCENARIOS,
+    "anonymous_read": ANONYMOUS_READ_SCENARIOS,
 }
+
+SUITE_LABELS = {
+    "default": "native-https-transport-fixture",
+    "rfc0017": "rfc0017-credential-free-native-https",
+    "anonymous_read": "native-https-anonymous-read-fixture",
+}
+
+
+def scenario_host(scenario: str) -> str:
+    return (
+        GITHUB_HOST
+        if scenario in ANONYMOUS_READ_SCENARIOS
+        else HOST
+    )
+
+
+def scenario_authority(scenario: str) -> str:
+    return (
+        GITHUB_AUTHORITY
+        if scenario in ANONYMOUS_READ_SCENARIOS
+        else AUTHORITY
+    )
 
 
 class ProbeFailure(RuntimeError):
@@ -295,7 +330,7 @@ CN = {HOST}
 basicConstraints = critical,CA:FALSE
 keyUsage = critical,digitalSignature,keyEncipherment
 extendedKeyUsage = serverAuth
-subjectAltName = DNS:{HOST}
+subjectAltName = DNS:{HOST}, DNS:{GITHUB_HOST}
 subjectKeyIdentifier = hash
 """.lstrip(),
         encoding="ascii",
@@ -535,6 +570,8 @@ class LoopbackConnectTlsFixture:
         port: int,
     ) -> None:
         self.scenario = scenario
+        self.host = scenario_host(scenario)
+        self.authority = scenario_authority(scenario)
         self.token = token
         self.observation = Observation()
         self.stop_event = threading.Event()
@@ -563,7 +600,7 @@ class LoopbackConnectTlsFixture:
             selected_context: ssl.SSLContext,
         ) -> None:
             del ssl_socket, selected_context
-            if server_name != HOST:
+            if server_name != self.host:
                 self.observation.violate("tls-server-name")
 
         context.set_servername_callback(observe_server_name)
@@ -647,7 +684,7 @@ class LoopbackConnectTlsFixture:
             )
             connect_headers = parse_headers(
                 connect_header,
-                f"CONNECT {AUTHORITY} HTTP/1.1".encode("ascii"),
+                f"CONNECT {self.authority} HTTP/1.1".encode("ascii"),
             )
             with self.observation.lock:
                 self.observation.connect_requests += 1
@@ -660,8 +697,8 @@ class LoopbackConnectTlsFixture:
                 self.observation.violate("connect-credential")
             connect_host = one_header(connect_headers, "host")
             if connect_host not in {
-                AUTHORITY.encode("ascii"),
-                HOST.encode("ascii"),
+                self.authority.encode("ascii"),
+                self.host.encode("ascii"),
             }:
                 self.observation.violate("connect-host")
 
@@ -729,7 +766,7 @@ class LoopbackConnectTlsFixture:
 
     def _inspect_origin_request(self, request: OriginRequest) -> None:
         authorization = one_header(request.headers, "authorization")
-        if self.scenario == "credential-free":
+        if self.scenario in {"credential-free", "anonymous-read"}:
             # The whole point of this course. Any authorization material on the
             # wire falsifies it, so record a violation rather than a count.
             if authorization is not None:
@@ -749,7 +786,7 @@ class LoopbackConnectTlsFixture:
                 self.observation.violate("origin-authorization")
         if "proxy-authorization" in request.headers:
             self.observation.violate("origin-proxy-authorization")
-        if one_header(request.headers, "host") != HOST.encode("ascii"):
+        if one_header(request.headers, "host") != self.host.encode("ascii"):
             self.observation.violate("origin-host")
         if one_header(request.headers, "accept-encoding") != b"identity":
             self.observation.violate("origin-accept-encoding")
@@ -795,6 +832,8 @@ class LoopbackConnectTlsFixture:
             allowed_targets = {REST_PATH}
             if self.scenario == "same-redirect":
                 allowed_targets.add(REDIRECTED_REST_PATH)
+            if self.scenario in ANONYMOUS_READ_SCENARIOS:
+                allowed_targets = {ANONYMOUS_REST_PATH}
             if (
                 request.method != "GET"
                 or request.target not in allowed_targets
@@ -807,6 +846,19 @@ class LoopbackConnectTlsFixture:
         connection: ssl.SSLSocket,
         sequence: int,
     ) -> None:
+        if self.scenario in ANONYMOUS_READ_SCENARIOS:
+            # GitHub.com is the only contract the anonymous authority admits,
+            # and that contract requires the exact rate-limit tuple, so the
+            # course would fail on a response that omitted it.
+            connection.sendall(
+                response_bytes(
+                    200,
+                    "OK",
+                    b'{"id":1328277631,"name":"review-repository"}',
+                    rate_limit_headers("core"),
+                )
+            )
+            return
         if self.scenario in {
             "mutation-witness",
             "mutation-witness-failure",
@@ -1166,6 +1218,38 @@ class LoopbackConnectTlsFixture:
                 raise ProbeFailure("mutation-witness-failure-observation")
             return
 
+        if self.scenario == "anonymous-read":
+            # One request, zero authorizations. The two refused operations are
+            # what the count proves: they never reached the wire, so the total
+            # stays at the single admitted read.
+            if (
+                accepts != 1
+                or connects != 1
+                or handshakes != 1
+                or requests != 1
+                or authorizations != 0
+                or tls_failures != 0
+                or targets != (ANONYMOUS_REST_PATH,)
+            ):
+                raise ProbeFailure("anonymous-read-observation")
+            return
+
+        if self.scenario == "anonymous-read-canary":
+            # The same fixture, the same authority, the same path — and an
+            # account transport. Exactly one exact authorization proves the
+            # header check above is live rather than vacuous.
+            if (
+                accepts != 1
+                or connects != 1
+                or handshakes != 1
+                or requests != 1
+                or authorizations != 1
+                or tls_failures != 0
+                or targets != (ANONYMOUS_REST_PATH,)
+            ):
+                raise ProbeFailure("anonymous-read-canary-observation")
+            return
+
         if self.scenario == "credential-free":
             # Two requests, because the course proves the state is a deliberate
             # absence rather than a spent credential, and zero authorizations.
@@ -1280,7 +1364,9 @@ def invoke_child(
     # The credential-free child is handed no credential at all. A process that
     # never receives one cannot look one up, discover one, or fall back to one.
     framed = child_input(
-        bytearray() if scenario == "credential-free" else token,
+        bytearray()
+        if scenario in {"credential-free", "anonymous-read"}
+        else token,
         authority_pem,
     )
     try:
@@ -1415,11 +1501,7 @@ def parse_arguments() -> argparse.Namespace:
 
 def main() -> int:
     arguments = parse_arguments()
-    label = (
-        "native-https-transport-fixture"
-        if arguments.suite == "default"
-        else "rfc0017-credential-free-native-https"
-    )
+    label = SUITE_LABELS[arguments.suite]
     try:
         executable = executable_path(arguments.executable, None)
         openssl_fallback = shutil.which("openssl")

@@ -1,4 +1,5 @@
 #include "github_paged_read.hpp"
+#include "github_review_comment_grouping.hpp"
 
 #include <QByteArray>
 #include <QJsonArray>
@@ -1250,6 +1251,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_reviews:
 			case read_operation::list_review_threads:
 			case read_operation::list_issue_comments:
+			case read_operation::list_review_comments:
 				result.PullRequestNumber = aContext.Number.value();
 				break;
 			case read_operation::get_viewer_identity:
@@ -1384,6 +1386,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_pull_request_commits:
 			case read_operation::list_reviews:
 			case read_operation::list_issue_comments:
+			case read_operation::list_review_comments:
 			case read_operation::list_checks:
 				break;
 			case read_operation::get_viewer_identity:
@@ -2074,7 +2077,8 @@ namespace bpr::adapters::github::detail {
 			const validated_github_host_profile&                     aProfile,
 			const application::github_pull_request_provider_request& aRequest,
 			const core::provider_snapshot_id                         aSnapshot,
-			const github_paged_read_limits&                          aLimits) noexcept -> bool
+			const github_paged_read_limits&                          aLimits,
+			const github_provider_read_authority                     aReadAuthority) noexcept -> bool
 		{
 			const auto& context     = aRequest.Context;
 			const auto& authority   = aRequest.ProfileAuthority;
@@ -2085,17 +2089,36 @@ namespace bpr::adapters::github::detail {
 				.Facts       = evidence.Facts,
 				.SchemaFacts = evidence.SchemaFacts,
 			};
+			// RFC-BPR-0017. The signed-out reader, decided once. Two groups of
+			// terms below describe an account and a probe, and a signed-out
+			// read has neither; every other term still applies to it exactly
+			// as written, and this one is false unless the whole synthesised
+			// shape holds under the authority that is allowed to present it.
+			const auto signedOut = aReadAuthority
+					== github_provider_read_authority::anonymous_public
+				&& signed_out_read_identity(aRequest);
 			return limits_valid(aLimits) && aSnapshot.value() != 0U
 				&& application::detail::valid_context(context)
 				&& application::valid(authority) && aRequest.Attempt.valid()
-				&& aRequest.AccountTransport != nullptr
-				&& aRequest.Viewer.Account.value() != 0U
+				// An anonymous read holds no account, so it holds no account
+				// transport lease to present. Every other term below still
+				// applies to it; only the lease is authority-specific, and the
+				// authenticated authority keeps requiring it.
+				&& (aReadAuthority
+						== github_provider_read_authority::anonymous_public
+					|| aRequest.AccountTransport != nullptr)
+				// The reader. Named exactly, or named not at all: a
+				// signed-out read carries an empty viewer, which is the
+				// identity the accepted snapshot is required to carry back.
+				&& (signedOut
+					|| (aRequest.Viewer.Account.value() != 0U
+						&& bounded_text(aRequest.Viewer.Node.value(),
+										aLimits.Records.MaximumIdentityBytes,
+										true)
+						&& bounded_text(aRequest.Viewer.Login,
+										aLimits.Records.MaximumLoginBytes,
+										true)))
 				&& aRequest.Viewer.Account == context.Account
-				&& bounded_text(aRequest.Viewer.Node.value(),
-								aLimits.Records.MaximumIdentityBytes,
-								true)
-				&& bounded_text(
-					   aRequest.Viewer.Login, aLimits.Records.MaximumLoginBytes, true)
 				&& bounded_text(aRequest.Viewer.DisplayName,
 								aLimits.Records.MaximumDisplayNameBytes)
 				&& authority.Profile == context.Profile
@@ -2105,7 +2128,7 @@ namespace bpr::adapters::github::detail {
 				&& authority.Hostname.value() == aProfile.hostname()
 				&& authority.ServerContract == aProfile.server_contract()
 				&& authority.Authentication == aProfile.authentication_transport()
-				&& application::valid(observation)
+				&& (signedOut || application::valid(observation))
 				&& evidence.Authority.Profile == authority.Profile
 				&& evidence.Authority.ProfileRevision == authority.ProfileRevision
 				&& evidence.Authority.Host == authority.Host
@@ -2114,13 +2137,20 @@ namespace bpr::adapters::github::detail {
 				&& evidence.Authority.ProbeContractRevision
 				== authority.ProbeContractRevision
 				&& evidence.Revision == context.Capabilities
-				&& evidence.ExpiresBefore > evidence.ObservedAt
-				&& evidence.ExpiresBefore.value() - evidence.ObservedAt.value()
-				<= application::maximum_github_capability_freshness_window
-				&& evidence.Capabilities
-				== application::projected_capabilities(observation)
-				&& evidence.ReadShape
-				== application::projected_read_shape(observation);
+				// The probe. Observed within the freshness window and
+				// projected from what it observed, or -- signed out -- never
+				// observed at all, which `signed_out_read_identity` has
+				// already checked term by term.
+				&& (signedOut
+					|| (evidence.ExpiresBefore > evidence.ObservedAt
+						&& evidence.ExpiresBefore.value()
+								- evidence.ObservedAt.value()
+							<= application::
+								maximum_github_capability_freshness_window
+						&& evidence.Capabilities
+							== application::projected_capabilities(observation)
+						&& evidence.ReadShape
+							== application::projected_read_shape(observation)));
 		}
 
 		[[nodiscard]] auto
@@ -2455,6 +2485,69 @@ namespace bpr::adapters::github::detail {
 				.Author  = author.Actor,
 				.Body    = text(object.value("body")),
 				.Deleted = false,
+			};
+		}
+
+		/// Parses one entry of the REST inline review-comment listing.
+		///
+		/// The identity used here is the REST numeric id rendered as text
+		/// rather than the node id, because `in_reply_to_id` names the numeric
+		/// id and reply linkage is only checkable when both ends live in one
+		/// identifier space. `position` is required and carries the anchor
+		/// fact: the service returns null once the comment's line has left the
+		/// diff, which is what outdated means on this surface. Nothing here
+		/// reads resolution, viewer, viewed, or actionability, because the
+		/// response carries none of them and inferring one is prohibited.
+		[[nodiscard]] auto parse_review_comment(const QJsonValue& aValue)
+			-> std::expected<application::github_review_comment_record,
+							 github_paged_read_failure>
+		{
+			if (!aValue.isObject()
+				|| !has_required_keys(aValue.toObject(),
+									  {
+										  "body",
+										  "id",
+										  "path",
+										  "position",
+										  "user",
+									  })) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			const auto object = aValue.toObject();
+			const auto author = optional_rest_actor(object.value("user"));
+			const auto reply  = object.value("in_reply_to_id");
+			if (!exact_integer(object.value("id"), true) || !author.Valid
+				|| !object.value("body").isString()
+				|| !nonempty_string(object.value("path"))
+				|| (!object.value("position").isNull()
+					&& !exact_integer(object.value("position"), true))
+				|| (!object.value("line").isUndefined()
+					&& !object.value("line").isNull()
+					&& !exact_integer(object.value("line"), true))
+				|| (!object.value("original_line").isUndefined()
+					&& !object.value("original_line").isNull()
+					&& !exact_integer(object.value("original_line"), true))
+				|| (!reply.isUndefined() && !reply.isNull()
+					&& !exact_integer(reply, true))) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto replyTo = std::optional<application::github_comment_id>{ };
+			if (reply.isDouble()) {
+				replyTo = application::github_comment_id{
+					std::to_string(integer(reply))
+				};
+			}
+			return application::github_review_comment_record{
+				.Comment = application::github_comment_id{
+					std::to_string(integer(object.value("id"))) },
+				.ReplyTo      = std::move(replyTo),
+				.Author       = author.Actor,
+				.Body         = text(object.value("body")),
+				.Path         = text(object.value("path")),
+				.Line         = optional_line(object.value("line")),
+				.OriginalLine = optional_line(object.value("original_line")),
+				.Outdated     = object.value("position").isNull(),
+				.Deleted      = false,
 			};
 		}
 
@@ -3393,11 +3486,13 @@ namespace bpr::adapters::github::detail {
 		const application::github_pull_request_provider_request& aRequest,
 		const core::provider_snapshot_id                         aSnapshotId,
 		const std::stop_token                                    aStop,
-		const github_paged_read_limits&                          aLimits) noexcept -> github_paged_read_result
+		const github_paged_read_limits&                          aLimits,
+		const github_provider_read_authority                     aReadAuthority) noexcept -> github_paged_read_result
 	{
 		auto observedRateLimits = application::github_rate_limit_state{ };
 		try {
-			if (!provider_request_valid(aProfile, aRequest, aSnapshotId, aLimits)) {
+			if (!provider_request_valid(
+					aProfile, aRequest, aSnapshotId, aLimits, aReadAuthority)) {
 				return failed(
 					application::github_provider_failure::malformed_response);
 			}
@@ -3452,18 +3547,20 @@ namespace bpr::adapters::github::detail {
 					.Actor = aRequest.Viewer.Node,
 					.Login = aRequest.Viewer.Login,
 				},
-				.Snapshot                  = aSnapshotId,
-				.Repository                = std::move(*repository),
-				.PullRequest               = std::move(pullRequest->Record),
-				.Files                     = { },
-				.Commits                   = { },
-				.Reviews                   = { },
-				.ReviewThreadsAvailability = application::github_collection_availability::unavailable,
-				.ReviewThreads             = { },
-				.IssueComments             = { },
-				.Checks                    = { },
-				.SearchResults             = { },
-				.CapabilityEvidence        = application::github_capability_evidence{
+				.Snapshot                   = aSnapshotId,
+				.Repository                 = std::move(*repository),
+				.PullRequest                = std::move(pullRequest->Record),
+				.Files                      = { },
+				.Commits                    = { },
+				.Reviews                    = { },
+				.ReviewThreadsAvailability  = application::github_collection_availability::unavailable,
+				.ReviewThreads              = { },
+				.ReviewCommentsAvailability = application::github_collection_availability::unavailable,
+				.ReviewCommentGroups        = { },
+				.IssueComments              = { },
+				.Checks                     = { },
+				.SearchResults              = { },
+				.CapabilityEvidence         = application::github_capability_evidence{
 					.Capabilities    = aRequest.CapabilityEvidence.Capabilities,
 					.Revision        = aRequest.CapabilityEvidence.Revision,
 					.ReadShape       = aRequest.CapabilityEvidence.ReadShape,
@@ -3532,6 +3629,39 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ execution.enrich(graphql.error()) };
 			}
 
+			// The inline review conversation is read over REST only under the
+			// signed-out authority. An authenticated read already has the
+			// GraphQL threads, which carry resolution the REST listing cannot;
+			// issuing both would put the same conversation in two places and
+			// would change the recorded authenticated wire shape. The
+			// availability field stays `unavailable` on that path, which is
+			// the truthful answer for a collection that was never asked for.
+			if (aReadAuthority
+				== github_provider_read_authority::anonymous_public) {
+				std::vector<application::github_review_comment_record> flat;
+				if (const auto reviewComments = read_rest_array_collection(
+						execution,
+						aProfile,
+						semantic_request_for(*server,
+											 aRequest.Context,
+											 read_operation::list_review_comments),
+						flat,
+						aLimits.Records.MaximumTotalComments,
+						aLimits.MaximumPageRecords,
+						[](const QJsonValue& aValue) {
+							return parse_review_comment(aValue);
+						});
+					!reviewComments.has_value()) {
+					return std::unexpected{ execution.enrich(reviewComments.error()) };
+				}
+				if (!group_review_comments(std::move(flat),
+										   result.ReviewCommentGroups)) {
+					return execution.terminal_failure(
+						application::github_provider_failure::malformed_response);
+				}
+				result.ReviewCommentsAvailability = application::github_collection_availability::available;
+			}
+
 			if (const auto comments = read_rest_array_collection(
 					execution,
 					aProfile,
@@ -3575,6 +3705,15 @@ namespace bpr::adapters::github::detail {
 			if (aStop.stop_requested()) {
 				return cancelled();
 			}
+			// The authority the read ran under, carried on the snapshot it
+			// produced. The application layer validates the reader against
+			// this field rather than against the request, so a signed-out read
+			// that forgot to say so would be judged by the authenticated rule
+			// and refused for holding no account.
+			result.Mode           = aReadAuthority
+					== github_provider_read_authority::anonymous_public
+				? core::github_access_mode::public_preview
+				: core::github_access_mode::authenticated;
 			result.RateLimits     = execution.rate_limits();
 			const auto validation = application::validate(result, aRequest.Context, aLimits.Records);
 			if (!validation.valid()) {

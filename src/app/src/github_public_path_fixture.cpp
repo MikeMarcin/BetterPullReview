@@ -9,6 +9,8 @@
 
 #include "bpr/application/git_smart_transport_port.hpp"
 
+#include <QByteArrayView>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -18,6 +20,7 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <filesystem>
@@ -29,6 +32,8 @@
 #include <mutex>
 #include <optional>
 #include <random>
+#include <ranges>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -38,6 +43,7 @@
 
 namespace bpr::app::detail {
 	namespace {
+		using adapters::github::detail::anonymous_read_operations;
 		using adapters::github::detail::capability_probe_response;
 		using adapters::github::detail::github_capability_probe_wire_cancelled;
 		using adapters::github::detail::github_capability_probe_wire_completion;
@@ -440,6 +446,116 @@ namespace bpr::app::detail {
 			return exchanges;
 		}
 
+		/// \brief Builds the recording a signed-out read replays.
+		///
+		/// \details One recording rather than a second fixture. Every REST body
+		/// below is the body the authenticated script already serves, re-ordered
+		/// into the order the anonymous authority issues its operations and cut
+		/// down to the nine it may issue: viewer identity and the GraphQL threads
+		/// are absent because that authority refuses both before a request
+		/// exists, so a recording that carried them could only be reached by a
+		/// read that had stopped being anonymous.
+		///
+		/// The inline review conversation is the one operation the authenticated
+		/// script never records -- an authenticated read has the GraphQL threads
+		/// instead -- so its request is derived from the recorded reviews request,
+		/// which is exactly what the contract compiles for it: the same pull
+		/// request path with its last segment replaced and the same first page.
+		/// Deriving it rather than writing it out is what keeps the two in step;
+		/// a compiled path that ever stopped matching fails the strict transport
+		/// rather than passing against a hand-copied constant.
+		[[nodiscard]] auto load_anonymous_recording(
+			const fixture_descriptor& aDescriptor,
+			const std::string_view    aHead)
+			-> std::vector<recorded_exchange>
+		{
+			const auto authenticated = load_recording(aDescriptor, aHead);
+			const auto recorded      = [&authenticated](
+										   const read_operation aOperation)
+				-> const recorded_exchange& {
+				const auto match = std::ranges::find(
+					authenticated,
+					aOperation,
+					[](const recorded_exchange& aExchange) {
+						return aExchange.Request.Operation;
+					});
+				if (match == authenticated.end()) {
+					throw std::runtime_error{
+						"GitHub anonymous fixture is missing a recorded operation"
+					};
+				}
+				return *match;
+			};
+
+			auto exchanges = std::vector<recorded_exchange>{ };
+			exchanges.reserve(anonymous_read_operations.size());
+			for (const auto operation : anonymous_read_operations) {
+				if (operation != read_operation::list_review_comments) {
+					exchanges.push_back(recorded(operation));
+					continue;
+				}
+				auto comments = recorded(
+					read_operation::list_reviews);
+				constexpr std::string_view reviews = "/reviews";
+				if (!comments.Request.Path.ends_with(reviews)) {
+					throw std::runtime_error{
+						"GitHub anonymous fixture cannot derive its conversation path"
+					};
+				}
+				comments.Request.Path.resize(comments.Request.Path.size()
+											 - reviews.size());
+				comments.Request.Path += "/comments";
+				comments.Request.Operation = read_operation::list_review_comments;
+				// The promoted live body, byte for byte. It carries no placeholder
+				// to substitute because it was captured rather than synthesized.
+				comments.Response.Body = read_all(
+					std::filesystem::path{ BPR_RFC0017_ANONYMOUS_FIXTURE_ROOT }
+					/ "captures" / "pull-request-comments.json");
+				exchanges.push_back(std::move(comments));
+			}
+			// The authenticated script's count check has a mirror here rather than
+			// an exception: a script that grew or lost an operation must fail the
+			// same way on both authorities.
+			if (exchanges.size() != anonymous_read_operations.size()) {
+				throw std::runtime_error{
+					"GitHub anonymous fixture is incomplete"
+				};
+			}
+			return exchanges;
+		}
+
+		/// \brief Reports whether a request carries a credential of any kind.
+		///
+		/// \details The anonymous role refuses one rather than ignoring it. The
+		/// contract validator already rejects these two names on the way out, so
+		/// this is the second of two independent refusals and the only one on the
+		/// serving side: a transport that started attaching a header would be
+		/// answered by the recording it asked for, not by the recording it earned.
+		[[nodiscard]] auto carries_credential(
+			const std::vector<http_header>& aHeaders) -> bool
+		{
+			constexpr auto named = [](const std::string_view aLeft,
+									  const std::string_view aRight) {
+				return std::ranges::equal(
+					aLeft,
+					aRight,
+					[](const char aFirst, const char aSecond) {
+						const auto fold = [](const char aCharacter) {
+							return aCharacter >= 'A' && aCharacter <= 'Z'
+								? static_cast<char>(aCharacter - 'A' + 'a')
+								: aCharacter;
+						};
+						return fold(aFirst) == fold(aSecond);
+					});
+			};
+			return std::ranges::any_of(
+				aHeaders,
+				[named](const http_header& aHeader) {
+					return named(aHeader.Name, "Authorization")
+						|| named(aHeader.Name, "Proxy-Authorization");
+				});
+		}
+
 		[[nodiscard]] auto load_capability_response(
 			const std::string_view aCapabilityDirectory) -> std::string
 		{
@@ -508,6 +624,11 @@ namespace bpr::app::detail {
 					}
 					return result;
 				}() }
+				, AnonymousRecording{ load_anonymous_recording(
+					  Descriptor,
+					  aPhase == github_epoch_fixture_phase::reuse
+						  ? Descriptor.HeadTwoOid
+						  : Descriptor.HeadOneOid) }
 				, CapabilityBody{ load_capability_response(
 					  Descriptor.CapabilityDirectory) }
 			{
@@ -520,24 +641,44 @@ namespace bpr::app::detail {
 			std::shared_ptr<deterministic_git_fixture>      Git;
 			strict_recorded_transport                       BootstrapRecording;
 			strict_recorded_transport                       Recording;
-			std::string                                     CapabilityBody;
-			std::size_t                                     CapabilityCalls       = 0U;
-			std::size_t                                     BootstrapFactoryCalls = 0U;
-			std::size_t                                     AccountFactoryCalls   = 0U;
-			std::size_t                                     AccountReadCalls      = 0U;
-			std::size_t                                     SmartAcquireCalls     = 0U;
-			std::size_t                                     SmartDiscoveryCalls   = 0U;
-			std::size_t                                     SmartLsRefsCalls      = 0U;
-			std::size_t                                     SmartFetchCalls       = 0U;
-			std::optional<core::pull_request_authority>     LastSmartAuthority;
-			int                                             LastReadOperation = -1;
-			int                                             RecordingFailure  = -1;
-			mutable std::mutex                              Mutex;
+			// The signed-out script. A separate cursor as well as a separate
+			// order: the two authorities never share a position, so a course that
+			// ran both would not be able to advance one by driving the other.
+			strict_recorded_transport AnonymousRecording;
+			std::string               CapabilityBody;
+			std::size_t               CapabilityCalls       = 0U;
+			std::size_t               BootstrapFactoryCalls = 0U;
+			std::size_t               AccountFactoryCalls   = 0U;
+			// [[BPR-0536]]. Both factories are once-only, which is what makes
+			// "the transport was selected exactly once" a claim the other
+			// courses can make. The refresh course establishes a session more
+			// than once by construction -- the device grant enrolls after the
+			// fixture's own enrollment, and every rotation enrolls again under
+			// the same authority -- so under that course, and only there, the
+			// recorded transports serve each of them. The counts are still
+			// kept, so a course that reads them still reads the truth.
+			bool                                        RepeatSessions      = false;
+			std::size_t                                 AccountReadCalls    = 0U;
+			std::size_t                                 SmartAcquireCalls   = 0U;
+			std::size_t                                 SmartDiscoveryCalls = 0U;
+			std::size_t                                 SmartLsRefsCalls    = 0U;
+			std::size_t                                 SmartFetchCalls     = 0U;
+			std::optional<core::pull_request_authority> LastSmartAuthority;
+			int                                         LastReadOperation = -1;
+			int                                         RecordingFailure  = -1;
+			mutable std::mutex                          Mutex;
 		};
 
 		enum class fixture_transport_role {
 			bootstrap,
 			account,
+			// RFC-BPR-0017's credential-free read. It replays the same
+			// recording the account role replays, because the recorded public
+			// pull request is the same pull request either way; what differs
+			// is that nothing selected this transport with a credential and
+			// nothing can, so the authenticated evidence counters stay
+			// untouched by anything it serves.
+			anonymous,
 		};
 
 		[[nodiscard]] auto byte_vector(const std::string_view aValue)
@@ -780,8 +921,19 @@ namespace bpr::app::detail {
 							application::github_provider_failure::malformed_response),
 					};
 				}
+				if (Role == fixture_transport_role::anonymous
+					&& carries_credential(aRequest.Wire.Headers)) {
+					State->RecordingFailure = -3;
+					return github_wire_error{
+						.Correlation = aRequest.Correlation,
+						.Error       = provider_error(
+							application::github_provider_failure::authentication),
+					};
+				}
 				auto& recording = Role == fixture_transport_role::bootstrap
 					? State->BootstrapRecording
+					: Role == fixture_transport_role::anonymous
+					? State->AnonymousRecording
 					: State->Recording;
 				auto  response  = recording.perform(aRequest.Wire);
 				if (!response.has_value()) {
@@ -823,7 +975,11 @@ namespace bpr::app::detail {
 					|| aRequest.Correlation.Session.Profile
 						!= State->Profile.profile()
 					|| aRequest.Correlation.ObservedAccount.value() == 0U
-					|| State->CapabilityCalls != 0U) {
+					// [[BPR-0536]]. The same relaxation as the factories
+					// above, and for the same session: the host invalidates
+					// the identity's cached capabilities when the generation
+					// advances, so a second establishment probes again.
+					|| (!State->RepeatSessions && State->CapabilityCalls != 0U)) {
 					return github_capability_probe_wire_error{
 						.Correlation = aRequest.Correlation,
 						.Error       = provider_error(
@@ -919,6 +1075,7 @@ namespace bpr::app::detail {
 						State, fixture_transport_role::bootstrap)
 				}
 				, AccountTransport{ std::make_shared<fixture_recorded_wire_transport>(State, fixture_transport_role::account) }
+				, AnonymousTransport{ std::make_shared<fixture_recorded_wire_transport>(State, fixture_transport_role::anonymous) }
 			{
 			}
 
@@ -932,9 +1089,20 @@ namespace bpr::app::detail {
 				if (!same_profile(aProfile, State->Profile)
 					|| aContext.Profile != aProfile.profile()
 					|| !application::valid(aCredential)
-					|| State->BootstrapFactoryCalls != 0U) {
+					|| (!State->RepeatSessions
+						&& State->BootstrapFactoryCalls != 0U)) {
 					return std::unexpected{ provider_error(
 						application::github_provider_failure::unavailable) };
+				}
+				// [[BPR-0536]]. A repeat session is a repeat of the recorded
+				// script, not a continuation of it: the renewal course's
+				// rotation re-enrolls the rotated access token, the product
+				// establishes the session again to bind it, and that second
+				// establishment reads `/user` exactly as the first one did.
+				// Off the course the cursor is untouched and the recording
+				// stays consumed-once.
+				if (State->RepeatSessions && State->BootstrapFactoryCalls != 0U) {
+					State->BootstrapRecording.rewind();
 				}
 				++State->BootstrapFactoryCalls;
 				return BootstrapTransport;
@@ -956,18 +1124,48 @@ namespace bpr::app::detail {
 						!= aProfile.hostname()
 					|| aCredential.Context.Authority.ServerContract
 						!= aProfile.server_contract()
-					|| State->AccountFactoryCalls != 0U) {
+					|| (!State->RepeatSessions
+						&& State->AccountFactoryCalls != 0U)) {
 					return std::unexpected{ provider_error(
 						application::github_provider_failure::unavailable) };
 				}
+				// [[BPR-0536]]. The bootstrap rewind's counterpart. The
+				// account script opens with the same viewer read the session
+				// makes on the account transport, so a second establishment
+				// needs the cursor back at that exchange rather than at the
+				// pull-request read behind it.
+				if (State->RepeatSessions && State->AccountFactoryCalls != 0U) {
+					State->Recording.rewind();
+				}
 				++State->AccountFactoryCalls;
 				return AccountTransport;
+			}
+
+			// RFC-BPR-0017. Deliberately overridden rather than left to the
+			// base's refusal: the shipped factory beside this one composes a
+			// real anonymous transport, so a fixture that refused here would
+			// make the composed graph unreachable under test and prove nothing
+			// about it. There is no credential parameter on this entry, so
+			// nothing the course does can hand one over.
+			[[nodiscard]] auto make_anonymous(
+				const adapters::github::validated_github_host_profile& aProfile,
+				const core::github_session_request_context             aContext) noexcept
+				-> github_wire_transport_factory_result override
+			{
+				const std::scoped_lock lock{ State->Mutex };
+				if (!same_profile(aProfile, State->Profile)
+					|| aContext.Profile != aProfile.profile()) {
+					return std::unexpected{ provider_error(
+						application::github_provider_failure::unavailable) };
+				}
+				return AnonymousTransport;
 			}
 
 		private:
 			std::shared_ptr<fixture_recording_state>         State;
 			std::shared_ptr<fixture_recorded_wire_transport> BootstrapTransport;
 			std::shared_ptr<fixture_recorded_wire_transport> AccountTransport;
+			std::shared_ptr<fixture_recorded_wire_transport> AnonymousTransport;
 		};
 
 		// Replays BPR-0276's recorded device grant through the real wire
@@ -985,9 +1183,19 @@ namespace bpr::app::detail {
 			: public application::device_authorization_transport_port
 		{
 		public:
-			explicit recorded_device_authorization_transport(
-				std::filesystem::path aFixtureRoot)
+			// Two roots, because the two answers have different provenance.
+			// The grant is BPR-0276's recording of a real exchange; the
+			// renewal is BPR-0450's documented projection, which GitHub's
+			// documentation states is the user-access-token answer and which
+			// nobody has captured from the wire. Keeping them apart is what
+			// stops a documented shape from being read as a recorded one.
+			recorded_device_authorization_transport(
+				std::filesystem::path aFixtureRoot,
+				std::filesystem::path aDocumentedRoot,
+				const bool            aRefreshCourse)
 				: FixtureRoot{ std::move(aFixtureRoot) }
+				, DocumentedRoot{ std::move(aDocumentedRoot) }
+				, RefreshCourse{ aRefreshCourse }
 			{
 			}
 
@@ -997,7 +1205,7 @@ namespace bpr::app::detail {
 			{
 				++Submissions;
 				const auto parsed = adapters::github::detail::
-					parse_device_code_response(recorded("device_code_success"));
+					parse_device_code_response(recorded(FixtureRoot, "device_code_success", { }));
 				if (!parsed.has_value()
 					|| !std::holds_alternative<
 						adapters::github::detail::device_code_grant>(*parsed)) {
@@ -1041,7 +1249,7 @@ namespace bpr::app::detail {
 			{
 				++Submissions;
 				const auto parsed = adapters::github::detail::
-					parse_device_token_response(recorded("token_success"));
+					parse_device_token_response(recorded(FixtureRoot, "token_success", { }));
 				if (!parsed.has_value()
 					|| !std::holds_alternative<
 						adapters::github::detail::device_token_grant>(*parsed)) {
@@ -1085,13 +1293,73 @@ namespace bpr::app::detail {
 				application::device_token_exchange           aExchange,
 				application::device_token_completion_handler aCompletion) override
 			{
-				// The registered course enrolls; renewal has its own courses.
 				++Submissions;
-				aCompletion(application::device_authorization_transport_error{
+				if (!RefreshCourse) {
+					// The registered course enrolls and nothing renews it, so
+					// the slot it never asks for answers the way an
+					// unreachable network does.
+					aCompletion(
+						application::device_authorization_transport_error{
+							.Context = aExchange.Context,
+							.Failure = application::
+								device_authorization_transport_failure::network,
+						});
+					return;
+				}
+				++Renewals;
+				// The documented answer parses with the grant's parser
+				// because it is the same answer: BPR-0450 recorded that the
+				// renewal response *is* the user-access-token response. Using
+				// a second parser here would test a shape GitHub does not
+				// send.
+				const auto parsed = adapters::github::detail::
+					parse_device_token_response(recorded(
+						DocumentedRoot,
+						"refresh_success",
+						QStringLiteral("-renewal-%1")
+							.arg(static_cast<qulonglong>(Renewals))));
+				if (!parsed.has_value()
+					|| !std::holds_alternative<
+						adapters::github::detail::device_token_grant>(*parsed)) {
+					aCompletion(
+						application::device_authorization_transport_error{
+							.Context = aExchange.Context,
+							.Failure = application::
+								device_authorization_transport_failure::
+									malformed_response,
+						});
+					return;
+				}
+				const auto& grant = std::get<
+					adapters::github::detail::device_token_grant>(*parsed);
+				auto access  = material_of(grant.AccessToken);
+				auto refresh = material_of(grant.RefreshToken);
+				if (!access.has_value() || !refresh.has_value()) {
+					aCompletion(
+						application::device_authorization_transport_error{
+							.Context = aExchange.Context,
+							.Failure = application::
+								device_authorization_transport_failure::
+									malformed_response,
+						});
+					return;
+				}
+				AccessToken = grant.AccessToken;
+				aCompletion(application::device_token_issued{
 					.Context = aExchange.Context,
-					.Failure = application::
-						device_authorization_transport_failure::network,
+					.Grant   = application::device_token_material{
+						.AccessToken      = std::move(*access),
+						.RefreshToken     = std::move(refresh),
+						.ExpiresInSeconds = grant.ExpiresInSeconds,
+						.RefreshTokenExpiresInSeconds
+						= grant.RefreshTokenExpiresInSeconds,
+					},
 				});
+			}
+
+			[[nodiscard]] auto renewals() const noexcept -> std::size_t
+			{
+				return Renewals;
 			}
 
 			void cancel(core::device_authorization_request_context) override
@@ -1133,12 +1401,19 @@ namespace bpr::app::detail {
 			// the non-secret values it retained. The transient fields it
 			// deliberately omitted get a stand-in here, exactly as the contract
 			// tests do, so the shape on the wire is the recorded shape.
-			[[nodiscard]] auto recorded(const std::string& aOutcome) const
+			// The suffix distinguishes one renewal's stand-ins from the next.
+			// The capture omitted the token values deliberately, so every
+			// rotation would otherwise rebuild the identical bytes and a
+			// rotation that changed nothing would be indistinguishable from
+			// one that never happened.
+			[[nodiscard]] static auto recorded(
+				const std::filesystem::path& aRoot,
+				const std::string&           aOutcome,
+				const QString&               aSuffix)
 				-> adapters::github::detail::wire_response
 			{
-				const auto path
-					= FixtureRoot / "outcomes" / (aOutcome + ".json");
-				auto file = QFile{ QString::fromStdString(path.string()) };
+				const auto path = aRoot / "outcomes" / (aOutcome + ".json");
+				auto       file = QFile{ QString::fromStdString(path.string()) };
 				if (!file.open(QIODevice::ReadOnly)) {
 					return { };
 				}
@@ -1162,7 +1437,7 @@ namespace bpr::app::detail {
 						body.insert(name, values.value(name));
 						continue;
 					}
-					body.insert(name, stand_in(name));
+					body.insert(name, stand_in(name, aSuffix));
 				}
 				return {
 					.Status  = fixture.value(QLatin1StringView{ "http_status" })
@@ -1175,7 +1450,9 @@ namespace bpr::app::detail {
 				};
 			}
 
-			[[nodiscard]] static auto stand_in(const QString& aField) -> QString
+			[[nodiscard]] static auto stand_in(
+				const QString& aField,
+				const QString& aSuffix) -> QString
 			{
 				if (aField == QStringLiteral("device_code")) {
 					return QStringLiteral("fixture-device-code-0276");
@@ -1184,18 +1461,36 @@ namespace bpr::app::detail {
 					return QStringLiteral("FIXT-URE1");
 				}
 				if (aField == QStringLiteral("access_token")) {
-					return QStringLiteral("fixture-access-token-0276");
+					return QStringLiteral("fixture-access-token-0276") + aSuffix;
 				}
 				if (aField == QStringLiteral("refresh_token")) {
-					return QStringLiteral("fixture-refresh-token-0276");
+					return QStringLiteral("fixture-refresh-token-0276") + aSuffix;
 				}
 				return QStringLiteral("fixture");
 			}
 
 			std::filesystem::path FixtureRoot;
-			std::size_t           Submissions = 0U;
+			std::filesystem::path DocumentedRoot;
+			bool                  RefreshCourse = false;
+			std::size_t           Submissions   = 0U;
+			std::size_t           Renewals      = 0U;
 			std::string           AccessToken;
 		};
+
+		// [[BPR-0539]]. The identity of credential material, short enough to
+		// print beside a course's other facts and one-way, so the evidence a
+		// course prints is not the secret it is about. Tests-enabled only,
+		// like everything else in this file, and used on a fixture credential
+		// whose plaintext this process already scans the disk for.
+		[[nodiscard]] auto credential_digest(
+			const std::span<const std::byte> aBytes) -> std::string
+		{
+			auto hash = QCryptographicHash{ QCryptographicHash::Sha256 };
+			hash.addData(QByteArrayView{
+				reinterpret_cast<const char*>(aBytes.data()),
+				static_cast<qsizetype>(aBytes.size()) });
+			return hash.result().toHex().left(16).toStdString();
+		}
 
 		struct fixture_vault_state
 		{
@@ -1207,19 +1502,119 @@ namespace bpr::app::detail {
 			// Counted, not just flagged. "The credential reached the vault"
 			// and "the credential reached the vault exactly once" are
 			// different claims, and RFC-BPR-0016 makes the second one.
-			std::size_t        Stores = 0U;
-			mutable std::mutex Mutex;
+			std::size_t Stores = 0U;
+			// [[BPR-0539]]. The identity of the last material this vault
+			// accepted, kept beside the count. A superseding delete may empty
+			// the slot before a course reads its evidence, so what the store
+			// counted has to be recorded at the store.
+			std::string LastStoredDigest;
+			// [[BPR-0540]]. The identity of the last credential the fixture
+			// handed out for a connect, recorded where the store's own digest
+			// is so a course can ask whether the material that reached the
+			// vault is the one the reviewer pasted.
+			std::string LastEnrollmentDigest;
+			// The refresh slot, kept beside the credential rather than in
+			// place of it, exactly as the port's contract describes. It exists
+			// only under the refresh course; every other fixture run leaves it
+			// composed-out and the slot answers `unavailable` as before.
+			std::optional<application::github_credential_material> Refresh;
+			std::size_t                                            RefreshStores    = 0U;
+			std::size_t                                            RefreshRetrieves = 0U;
+			// [[BPR-0547]]. How many erasures of the slot this vault accepted.
+			// Retention is not visible in the slot alone: a course that reads
+			// only whether material is there at the end cannot tell one
+			// erasure from two, and the defect this counts for was exactly a
+			// second erasure -- a rotation's own re-enrollment destroying what
+			// the rotation had just stored -- hidden behind the shutdown's.
+			std::size_t RefreshDeletes = 0U;
+			// [[BPR-0547]]. The identity of the last material written into the
+			// slot, recorded at the store for the reason the credential's own
+			// digest above is: the orderly shutdown empties the slot before a
+			// course reads its evidence, so what is still there at the end cannot
+			// answer which rotation wrote it. A course that rotates twice needs
+			// exactly that answer -- the second rotation's material, not the
+			// first's, and no erasure between the two.
+			std::string LastRefreshDigest;
+			// [[BPR-0548]]. The contexts whose operation this vault has
+			// accepted and not yet begun executing, which is what every
+			// platform vault keys its pending map by. Guarded by `Mutex` with
+			// the rest of the slot state.
+			std::set<application::github_credential_operation_context> Pending;
+			mutable std::mutex                                         Mutex;
 		};
 
+		// [[BPR-0548]]. One pending operation per operation context, claimed
+		// before the work is queued and released when it begins, exactly as
+		// `queue`/`execute` do in every platform vault
+		// (`macos_keychain.cpp`, `linux_secret_service.cpp`,
+		// `windows_credential_manager.cpp`).
+		[[nodiscard]] auto claim_pending(
+			const std::shared_ptr<fixture_vault_state>&             aState,
+			const application::github_credential_operation_context& aContext)
+			-> bool
+		{
+			const std::scoped_lock lock{ aState->Mutex };
+			return aState->Pending.insert(aContext).second;
+		}
+
+		void release_pending(
+			const std::shared_ptr<fixture_vault_state>&             aState,
+			const application::github_credential_operation_context& aContext)
+		{
+			const std::scoped_lock lock{ aState->Mutex };
+			aState->Pending.erase(aContext);
+		}
+
+		// [[BPR-0548]]. This vault stands in for a platform vault, so it has
+		// to refuse everything a platform vault refuses -- a fixture more
+		// permissive than the thing it stands in for cannot falsify anything
+		// about it. Two rules are mirrored from
+		// `src/adapters/github/src/macos_keychain.cpp` and its Linux and
+		// Windows siblings, which enforce both on all six port methods:
+		//
+		//  1. `valid()` on the context or enrollment, and a callable
+		//     completion, checked before anything is queued; the refusal is
+		//     `invalid_request`. It is there because a context that names no
+		//     request, no application session, no authority, or identity
+		//     generation zero cannot address a stored secret, and a vault that
+		//     guesses would answer one session's query from another's slot.
+		//     Both slots are checked, because the refresh slot holds material
+		//     of exactly the same kind.
+		//  2. One pending operation per `github_credential_operation_context`,
+		//     a `std::map`/`std::set` keyed by that context with
+		//     `try_emplace`, the duplicate refused `invalid_request` before it
+		//     is queued (pinned as "duplicate store is not queued" in
+		//     `tests/github_contract/macos_keychain_contract_tests.cpp`). It
+		//     is there because the context is the key a completion, a
+		//     cancellation, and the executing task are all routed by: two live
+		//     operations under one context could not be told apart by
+		//     `cancel`, and their terminals could not be attributed.
+		//
+		// What is deliberately *not* mirrored is the platform's storage --
+		// this vault stays the in-memory, authority-keyed stand-in it was.
+		// Only its refusals match.
 		class fixture_credential_vault final
 			: public application::github_credential_vault_port
 		{
 		public:
+			// Two flags rather than one, because they answer different
+			// questions. `aRefreshSlot` is whether this vault has a second
+			// slot to rotate material through at all, which only the renewal
+			// course needs. `aAuthorityKeyed` is which key the slot it
+			// already has is matched on, and that is a property of every
+			// course whose credential arrives from the device grant --
+			// [[BPR-0539]] made the registered course one of them, so the two
+			// courses match the way the product's vault does rather than one
+			// each way.
 			fixture_credential_vault(
 				application::effect_executor&        aEffects,
-				std::shared_ptr<fixture_vault_state> aState)
+				std::shared_ptr<fixture_vault_state> aState,
+				const bool                           aRefreshSlot,
+				const bool                           aAuthorityKeyed)
 				: Effects{ aEffects }
 				, State{ std::move(aState) }
+				, RefreshSlot{ aRefreshSlot }
+				, AuthorityKeyed{ aAuthorityKeyed }
 			{
 			}
 
@@ -1228,27 +1623,26 @@ namespace bpr::app::detail {
 				application::github_credential_store_completion_handler aCompletion)
 				override
 			{
+				if (!admit_store(aEnrollment, aCompletion)) {
+					return;
+				}
 				auto pending = std::make_shared<
 					application::github_credential_enrollment>(
 					std::move(aEnrollment));
 				Effects.post(
-					[state      = State,
-					 pending    = std::move(pending),
-					 completion = std::move(aCompletion)]() mutable {
-						if (!application::valid(*pending)) {
-							completion(application::github_credential_store_error{
-								.Context = pending->Context,
-								.Failure = application::
-									github_credential_vault_failure::invalid_request,
-							});
-							return;
-						}
-						const auto context = pending->Context;
+					[state             = State,
+					 pendingEnrollment = std::move(pending),
+					 completion        = std::move(aCompletion)]() mutable {
+						const auto context = pendingEnrollment->Context;
+						release_pending(state, context);
+						auto digest = credential_digest(
+							pendingEnrollment->Credential.bytes());
 						{
 							const std::scoped_lock lock{ state->Mutex };
-							state->Context    = context;
-							state->Credential = std::move(pending->Credential);
-							state->Stored     = true;
+							state->Context          = context;
+							state->Credential       = std::move(pendingEnrollment->Credential);
+							state->Stored           = true;
+							state->LastStoredDigest = std::move(digest);
 							++state->Stores;
 						}
 						completion(application::github_credential_store_success{
@@ -1264,14 +1658,35 @@ namespace bpr::app::detail {
 				application::github_credential_retrieve_completion_handler aCompletion)
 				override
 			{
+				if (!admit_retrieve(aContext, aCompletion)) {
+					return;
+				}
 				Effects.post(
-					[state = State, aContext, completion = std::move(aCompletion)]() mutable {
+					[state = State,
+					 keyed = AuthorityKeyed,
+					 aContext,
+					 completion = std::move(aCompletion)]() mutable {
+						release_pending(state, aContext);
 						auto material = std::optional<
 							application::github_credential_material>{ };
 						{
 							const std::scoped_lock lock{ state->Mutex };
-							if (state->Context == aContext
-								&& state->Credential.has_value()) {
+							// Off the device courses the match is the exact
+							// operation context, which is what the fixture's
+							// own enrollment produces and what keeps this slot
+							// from answering for a session it never stored.
+							// Under them the credential arrives from the
+							// device grant instead, and the retrieve that
+							// re-establishes it is a different operation under
+							// the same authority -- which is the key the slot
+							// is defined by, and the one the product's vault
+							// matches on.
+							const auto matched = state->Context.has_value()
+								&& (keyed
+										? state->Context->Authority
+											== aContext.Authority
+										: *state->Context == aContext);
+							if (matched && state->Credential.has_value()) {
 								auto copy = application::github_credential_material::create(
 									state->Credential->bytes());
 								if (copy.has_value()) {
@@ -1300,14 +1715,31 @@ namespace bpr::app::detail {
 				application::github_credential_delete_completion_handler aCompletion)
 				override
 			{
+				if (!admit_delete(aContext, aCompletion)) {
+					return;
+				}
 				Effects.post(
-					[state = State, aContext, completion = std::move(aCompletion)]() mutable {
+					[state = State,
+					 keyed = AuthorityKeyed,
+					 aContext,
+					 completion = std::move(aCompletion)]() mutable {
+						release_pending(state, aContext);
 						auto disposition  = application::github_credential_delete_disposition::absent;
 						auto exactContext = true;
 						{
 							const std::scoped_lock lock{ state->Mutex };
-							if (state->Context.has_value()
-								&& state->Context != aContext) {
+							// The same key the retrieve above is defined by.
+							// A real vault deletes what the authority names;
+							// the operation context also carries the request
+							// and the identity generation, and the product
+							// deletes a superseded credential under the *new*
+							// generation -- so an exact-context match refuses
+							// the one delete every re-enrollment performs.
+							const auto matched = !state->Context.has_value()
+								|| (keyed ? state->Context->Authority
+											== aContext.Authority
+										  : *state->Context == aContext);
+							if (!matched) {
 								exactContext = false;
 							} else {
 								if (state->Credential.has_value()) {
@@ -1334,26 +1766,55 @@ namespace bpr::app::detail {
 					});
 			}
 
-			// The fixture models the public read path, which has no refresh
-			// material to hold. The slot reports itself unavailable rather than
-			// pretending to store anything.
+			// Without the refresh course the fixture models the public read
+			// path, which has no refresh material to hold, and the slot reports
+			// itself unavailable rather than pretending to store anything.
+			// Under the course it is a real second slot: renewal has to be able
+			// to write material, read it back on the next turn, and overwrite
+			// it, because a rotation that does not replace what it rotated is
+			// not a rotation.
 			void store_refresh(
 				application::github_credential_enrollment               aEnrollment,
 				application::github_credential_store_completion_handler aCompletion)
 				override
 			{
+				if (!admit_store(aEnrollment, aCompletion)) {
+					return;
+				}
 				auto pending = std::make_shared<
 					application::github_credential_enrollment>(
 					std::move(aEnrollment));
 				Effects.post(
-					[pending    = std::move(pending),
-					 completion = std::move(aCompletion)]() mutable {
-						const auto context = pending->Context;
-						pending->Credential.reset();
-						completion(application::github_credential_store_error{
-							.Context = context,
-							.Failure = application::
-								github_credential_vault_failure::unavailable,
+					[state             = State,
+					 slot              = RefreshSlot,
+					 pendingEnrollment = std::move(pending),
+					 completion        = std::move(aCompletion)]() mutable {
+						const auto context = pendingEnrollment->Context;
+						release_pending(state, context);
+						if (!slot) {
+							pendingEnrollment->Credential.reset();
+							completion(
+								application::github_credential_store_error{
+									.Context = context,
+									.Failure = application::
+										github_credential_vault_failure::
+											unavailable,
+								});
+							return;
+						}
+						{
+							const std::lock_guard guard{ state->Mutex };
+							state->Refresh = std::move(pendingEnrollment->Credential);
+							++state->RefreshStores;
+							if (state->Refresh.has_value()) {
+								state->LastRefreshDigest
+									= credential_digest(state->Refresh->bytes());
+							}
+						}
+						completion(application::github_credential_store_success{
+							.Context     = context,
+							.Disposition = application::
+								github_credential_store_disposition::stored,
 						});
 					});
 			}
@@ -1363,13 +1824,52 @@ namespace bpr::app::detail {
 				application::github_credential_retrieve_completion_handler aCompletion)
 				override
 			{
+				if (!admit_retrieve(aContext, aCompletion)) {
+					return;
+				}
 				Effects.post(
-					[aContext, completion = std::move(aCompletion)]() mutable {
-						completion(application::github_credential_retrieve_error{
-							.Context = aContext,
-							.Failure = application::
-								github_credential_vault_failure::unavailable,
-						});
+					[state = State,
+					 slot  = RefreshSlot,
+					 aContext,
+					 completion = std::move(aCompletion)]() mutable {
+						release_pending(state, aContext);
+						if (!slot) {
+							completion(
+								application::github_credential_retrieve_error{
+									.Context = aContext,
+									.Failure = application::
+										github_credential_vault_failure::
+											unavailable,
+								});
+							return;
+						}
+						auto copy
+							= std::optional<application::
+												github_credential_material>{ };
+						{
+							const std::lock_guard guard{ state->Mutex };
+							++state->RefreshRetrieves;
+							if (state->Refresh.has_value()) {
+								auto created = application::
+									github_credential_material::create(
+										state->Refresh->bytes());
+								if (created.has_value()) {
+									copy.emplace(std::move(*created));
+								}
+							}
+						}
+						if (!copy.has_value()) {
+							completion(
+								application::github_credential_retrieve_absent{
+									.Context = aContext,
+								});
+							return;
+						}
+						completion(
+							application::github_credential_retrieve_success{
+								.Context    = aContext,
+								.Credential = std::move(*copy),
+							});
 					});
 			}
 
@@ -1378,12 +1878,42 @@ namespace bpr::app::detail {
 				application::github_credential_delete_completion_handler aCompletion)
 				override
 			{
+				if (!admit_delete(aContext, aCompletion)) {
+					return;
+				}
 				Effects.post(
-					[aContext, completion = std::move(aCompletion)]() mutable {
-						completion(application::github_credential_delete_error{
-							.Context = aContext,
-							.Failure = application::
-								github_credential_vault_failure::unavailable,
+					[state = State,
+					 slot  = RefreshSlot,
+					 aContext,
+					 completion = std::move(aCompletion)]() mutable {
+						release_pending(state, aContext);
+						{
+							const std::lock_guard countGuard{ state->Mutex };
+							++state->RefreshDeletes;
+						}
+						if (!slot) {
+							completion(
+								application::github_credential_delete_error{
+									.Context = aContext,
+									.Failure = application::
+										github_credential_vault_failure::
+											unavailable,
+								});
+							return;
+						}
+						auto held = false;
+						{
+							const std::lock_guard guard{ state->Mutex };
+							held = state->Refresh.has_value();
+							state->Refresh.reset();
+						}
+						completion(application::github_credential_delete_success{
+							.Context     = aContext,
+							.Disposition = held
+								? application::
+									  github_credential_delete_disposition::deleted
+								: application::
+									  github_credential_delete_disposition::absent,
 						});
 					});
 			}
@@ -1396,8 +1926,86 @@ namespace bpr::app::detail {
 			}
 
 		private:
+			// The two mirrored rules, applied before anything is queued and
+			// answered with the platform vaults' typed refusal. A refused
+			// request is never queued, and the refusal is still delivered on
+			// the effect lane, so this vault keeps its own discipline of
+			// exactly one terminal per accepted call, published from the lane.
+			[[nodiscard]] auto admit_store(
+				application::github_credential_enrollment& aEnrollment,
+				application::github_credential_store_completion_handler&
+					aCompletion) -> bool
+			{
+				const auto context = aEnrollment.Context;
+				if (application::valid(aEnrollment) && aCompletion
+					&& claim_pending(State, context)) {
+					return true;
+				}
+				aEnrollment.Credential.reset();
+				if (!aCompletion) {
+					return false;
+				}
+				Effects.post(
+					[context, completion = std::move(aCompletion)]() mutable {
+						completion(application::github_credential_store_error{
+							.Context = context,
+							.Failure = application::
+								github_credential_vault_failure::invalid_request,
+						});
+					});
+				return false;
+			}
+
+			[[nodiscard]] auto admit_retrieve(
+				const application::github_credential_operation_context& aContext,
+				application::github_credential_retrieve_completion_handler&
+					aCompletion) -> bool
+			{
+				if (application::valid(aContext) && aCompletion
+					&& claim_pending(State, aContext)) {
+					return true;
+				}
+				if (!aCompletion) {
+					return false;
+				}
+				Effects.post(
+					[aContext, completion = std::move(aCompletion)]() mutable {
+						completion(application::github_credential_retrieve_error{
+							.Context = aContext,
+							.Failure = application::
+								github_credential_vault_failure::invalid_request,
+						});
+					});
+				return false;
+			}
+
+			[[nodiscard]] auto admit_delete(
+				const application::github_credential_operation_context& aContext,
+				application::github_credential_delete_completion_handler&
+					aCompletion) -> bool
+			{
+				if (application::valid(aContext) && aCompletion
+					&& claim_pending(State, aContext)) {
+					return true;
+				}
+				if (!aCompletion) {
+					return false;
+				}
+				Effects.post(
+					[aContext, completion = std::move(aCompletion)]() mutable {
+						completion(application::github_credential_delete_error{
+							.Context = aContext,
+							.Failure = application::
+								github_credential_vault_failure::invalid_request,
+						});
+					});
+				return false;
+			}
+
 			application::effect_executor&        Effects;
 			std::shared_ptr<fixture_vault_state> State;
+			bool                                 RefreshSlot    = false;
+			bool                                 AuthorityKeyed = false;
 		};
 
 		[[nodiscard]] auto make_fixture_credential()
@@ -1553,14 +2161,44 @@ namespace bpr::app::detail {
 			Git               = make_git_fixture(served.Packs);
 			Recording         = std::make_shared<fixture_recording_state>(
 				served, aProfile, Git, aOptions.EpochPhase);
-			Factory    = std::make_shared<fixture_transport_factory>(Recording);
-			VaultState = std::make_shared<fixture_vault_state>();
-			Vault      = std::make_unique<fixture_credential_vault>(
-				aVaultEffects, VaultState);
+			Recording->RepeatSessions = aOptions.DeviceRefreshCourse;
+			Factory                   = std::make_shared<fixture_transport_factory>(Recording);
+			VaultState                = std::make_shared<fixture_vault_state>();
+			// Every shipped platform vault has a real second slot since
+			// [[BPR-0542]] and [[BPR-0543]], so the fixture's has one on every
+			// course too: a shutdown that erases the refresh slot beside the
+			// credential ([[BPR-0540]]) must meet a store that answers, not a
+			// stub whose `unavailable` the host now rightly reports as a failed
+			// erasure.
+			Vault = std::make_unique<fixture_credential_vault>(
+				aVaultEffects,
+				VaultState,
+				true,
+				aOptions.RegisteredDeviceCourse);
+			if (aOptions.SeedOrphanedRefreshMaterial) {
+				// The shape a grant leaves behind: the documented refresh
+				// token this fixture's own recorded exchange answers with.
+				// Written straight into the slot rather than through the
+				// port, because no session in this process put it there and
+				// none could -- the run that did has exited.
+				const std::string orphaned{ "fixture-refresh-token-0276" };
+				auto              seeded = application::github_credential_material::create(
+					std::as_bytes(std::span{ orphaned }));
+				if (!seeded.has_value()) {
+					throw std::runtime_error{
+						"GitHub public-path fixture orphaned refresh seed failed"
+					};
+				}
+				const std::lock_guard seedGuard{ VaultState->Mutex };
+				VaultState->Refresh = std::move(*seeded);
+			}
 			DeviceTransport
 				= std::make_unique<recorded_device_authorization_transport>(
 					std::filesystem::path{
-						BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT });
+						BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT },
+					std::filesystem::path{
+						BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT },
+					aOptions.DeviceRefreshCourse);
 			Mutation = std::make_unique<fixture_review_mutation_provider>(
 				aOptions.LoseFirstReviewMutationResult);
 
@@ -1663,7 +2301,18 @@ namespace bpr::app::detail {
 	auto github_public_path_fixture_components::take_enrollment_credential()
 		-> application::github_credential_material
 	{
-		return make_fixture_credential();
+		// [[BPR-0540]]. Digested on the way out rather than at the store,
+		// because the question a connecting course asks is whether what the
+		// vault accepted is what the fixture handed the connect path, and
+		// only this end knows the second half. Each call mints new random
+		// bytes, so the digest is recorded per hand-out and not per fixture.
+		auto material = make_fixture_credential();
+		{
+			const std::scoped_lock enrollmentLock{ Implementation->VaultState->Mutex };
+			Implementation->VaultState->LastEnrollmentDigest
+				= credential_digest(material.bytes());
+		}
+		return material;
 	}
 
 	auto github_public_path_fixture_components::device_authorization_transport() noexcept
@@ -1705,10 +2354,24 @@ namespace bpr::app::detail {
 				const std::scoped_lock vaultLock{
 					Implementation->VaultState->Mutex
 				};
-				result.VaultStores = Implementation->VaultState->Stores;
+				result.VaultStores       = Implementation->VaultState->Stores;
+				result.VaultStoredDigest = Implementation->VaultState->LastStoredDigest;
 			}
 			result.DeviceTransportSubmissions
 				= Implementation->DeviceTransport->submissions();
+			// [[BPR-0539]]. The comparison the store itself cannot make: the
+			// grant's access token is known only once the recorded exchange
+			// has answered, so the identity of what was stored is settled
+			// here, against the token the transport issued. Both sides are
+			// digests of the same bytes -- the enrolled material is the
+			// token's own octets -- so equality is the claim that the one
+			// store this course counts is the grant and not the 32 random
+			// bytes a fixture connect would have enrolled.
+			const auto grantToken           = Implementation->DeviceTransport->access_token();
+			result.VaultStoredIsDeviceGrant = !grantToken.empty()
+				&& !result.VaultStoredDigest.empty()
+				&& result.VaultStoredDigest
+					== credential_digest(std::as_bytes(std::span{ grantToken }));
 			const auto& fixture   = Implementation->Recording->Descriptor;
 			result.BaseOid        = fixture.BaseOid;
 			result.HeadOneOid     = fixture.HeadOneOid;
@@ -1723,6 +2386,14 @@ namespace bpr::app::detail {
 			result.CredentialRetrieved = Implementation->VaultState->Retrieved;
 			result.CredentialDeleted   = Implementation->VaultState->Deleted;
 			result.SecretRetained      = Implementation->VaultState->Credential.has_value();
+			result.RefreshRetained     = Implementation->VaultState->Refresh.has_value();
+			result.RefreshStores       = Implementation->VaultState->RefreshStores;
+			result.RefreshRetrieves    = Implementation->VaultState->RefreshRetrieves;
+			result.RefreshDeletes      = Implementation->VaultState->RefreshDeletes;
+			result.RefreshStoredDigest
+				= Implementation->VaultState->LastRefreshDigest;
+			result.LastEnrollmentDigest
+				= Implementation->VaultState->LastEnrollmentDigest;
 		}
 		return result;
 	}

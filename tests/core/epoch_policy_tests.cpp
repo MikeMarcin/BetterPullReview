@@ -1,3 +1,4 @@
+#include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/epoch_transition.hpp"
 #include "bpr/core/sha256.hpp"
 
@@ -2168,15 +2169,15 @@ namespace {
 		{
 			const auto epochPair = [&](const anchor_availability aBase,
 									   const anchor_availability aHead) {
-				auto epoch               = fixture.Epoch;
-				epoch.BaseAvailability   = aBase;
-				epoch.HeadAvailability   = aHead;
-				auto state               = fixture.State;
-				state.AcceptedComparison = comparison_pair{
+				auto epoch                   = fixture.Epoch;
+				epoch.BaseAvailability       = aBase;
+				epoch.HeadAvailability       = aHead;
+				auto pairState               = fixture.State;
+				pairState.AcceptedComparison = comparison_pair{
 					.Left  = anchor(epoch, comparison_anchor_kind::epoch_base),
 					.Right = anchor(epoch, comparison_anchor_kind::epoch_head),
 				};
-				return state;
+				return pairState;
 			};
 			const auto pruneCommand = [](const epoch_state& aState) {
 				return epoch_commands(aState)[2];
@@ -3574,6 +3575,95 @@ namespace {
 		}
 	}
 
+	auto test_authority_access_mode_discrimination() -> void
+	{
+		// The authority as every existing caller writes it: eleven fields and
+		// no mode. It must still mean the authenticated authority it meant
+		// before the discriminant existed.
+		const auto authenticated = authority();
+		expect(authenticated.Mode == github_access_mode::authenticated,
+			   "an authority initializer that names no mode is authenticated");
+		expect(valid(authenticated),
+			   "the authenticated rule is unchanged: an account and a viewer "
+			   "make a valid authority");
+
+		auto noAccount    = authenticated;
+		noAccount.Account = github_account_id{ };
+		expect(!valid(noAccount),
+			   "an authenticated authority without an account is invalid");
+		auto noViewer   = authenticated;
+		noViewer.Viewer = github_viewer_actor_id{ };
+		expect(!valid(noViewer),
+			   "an authenticated authority without a viewer is invalid");
+
+		// Public preview has no reader to name, so absence is the rule rather
+		// than a tolerated shape. Every other field is validated exactly as it
+		// is under the authenticated mode.
+		auto preview    = authenticated;
+		preview.Mode    = github_access_mode::public_preview;
+		preview.Account = github_account_id{ };
+		preview.Viewer  = github_viewer_actor_id{ };
+		expect(valid(preview),
+			   "a public-preview authority carrying neither an account nor a "
+			   "viewer is valid");
+		auto previewWithoutScope  = preview;
+		previewWithoutScope.Scope = pull_request_authority_scope_id{ };
+		expect(!valid(previewWithoutScope),
+			   "public preview relaxes the identity fields and nothing else");
+
+		auto aliasingAccount    = preview;
+		aliasingAccount.Account = authenticated.Account;
+		expect(!valid(aliasingAccount),
+			   "a public-preview authority carrying an account is refused: an "
+			   "anonymous read cannot wear an account's identity");
+		auto aliasingViewer   = preview;
+		aliasingViewer.Viewer = authenticated.Viewer;
+		expect(!valid(aliasingViewer),
+			   "a public-preview authority carrying a viewer is refused");
+		auto aliasingBoth    = preview;
+		aliasingBoth.Account = authenticated.Account;
+		aliasingBoth.Viewer  = authenticated.Viewer;
+		expect(!valid(aliasingBoth),
+			   "a public-preview authority carrying a whole account identity "
+			   "is refused rather than normalized to an anonymous one");
+
+		auto corruptMode = authenticated;
+		corruptMode.Mode = static_cast<github_access_mode>(0x7FU);
+		expect(!valid(corruptMode),
+			   "a mode outside the enumeration is a corrupt discriminant, not "
+			   "a third mode to interpret");
+
+		// The pair the type exists to keep apart: every field agrees,
+		// including the account and the viewer, and only the discriminant
+		// differs. Neither is a valid authority on its own, which is the
+		// point: nothing may collapse them on the way to a key.
+		auto crossedModes = authenticated;
+		crossedModes.Mode = github_access_mode::public_preview;
+		expect(authenticated != crossedModes,
+			   "two authorities that differ only in mode are never equal");
+		expect((authenticated <=> crossedModes) < 0
+				   && (crossedModes <=> authenticated) > 0,
+			   "the mode orders two otherwise identical authorities "
+			   "deterministically and antisymmetrically");
+		expect((crossedModes <=> crossedModes) == 0,
+			   "an authority orders equal to itself");
+
+		// One epoch transition that keys on the whole authority. A mode change
+		// is an authority change, so identical material does not carry across
+		// it and the relation is unknown rather than same.
+		expect(material_relation(authenticated, material(), authenticated, material())
+				   == epoch_material_relation::same,
+			   "one authority observing the same material twice relates same");
+		expect(material_relation(preview, material(), preview, material())
+				   == epoch_material_relation::same,
+			   "a public-preview authority relates its own material the same "
+			   "way an authenticated one does");
+		expect(material_relation(preview, material(), authenticated, material())
+				   == epoch_material_relation::unknown,
+			   "a mode change is an authority change, so material observed "
+			   "under one mode does not relate to material under the other");
+	}
+
 	auto test_deterministic_replay() -> void
 	{
 		const auto first  = make_ready_fixture();
@@ -3605,6 +3695,7 @@ auto main() -> int
 	test_overflow_is_checked_and_invalidation_fails_closed();
 	test_bounded_epoch_history_paging();
 	test_core_authorized_epoch_maintenance();
+	test_authority_access_mode_discrimination();
 	test_deterministic_replay();
 	return EXIT_SUCCESS;
 }

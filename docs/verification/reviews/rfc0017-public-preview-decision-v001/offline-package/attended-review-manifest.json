@@ -1,0 +1,195 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/479439050b23e8fe4415ce6a",
+  "downstream_claims": {
+    "credential_mutation_or_private_read_authorized": false,
+    "implementation_cards_started": false,
+    "platform_enablement_claimed": false,
+    "release_gate_satisfied": false,
+    "rfc_0017_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "This page binds words, not pixels. The definitions below are the product statements the RFC-BPR-0017 implementation cards must satisfy; RFC text and the board outrank this page's summaries.",
+  "review_gate": "rfc0017_public_preview_definitions",
+  "review_scope": "public_preview_definition_binding_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "The four definitions below are what the RFC-BPR-0017 implementation cards must build, in these words.",
+        "The mode stays read-only, triage-less, GitHub.com-only, and credential-free; nothing here grants mutation, private read, or a second read path."
+      ],
+      "audit_verdict": {
+        "note": "All five v001 probe captures and both v005 conditional captures validate at their owning commits (VALID:5, BOUND:5; the v005 pair recorded used 3 → 4 across a 304), and the BPR-0299 build acceptance is a validated verdict beside its page.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "The product decision is already taken and is not reopened here: on 2026-09-01 the owner chose to build anonymous public preview as a credential-optional mode on the existing read path (run-boundary-decisions-v001, subject decision:/betterpullreview/bpr-0299/build-credential-optional-preview accepted). That acceptance carried no note, so the four definitions the subject asked for are still owed. They are proposed below in the exact words that will bind. Accept to bind them as written; to change one, put “<definition>: <replacement text>” in the note and the rest bind as proposed.",
+      "detail_sections": [
+        {
+          "heading": "The decision already taken (BPR-0299)",
+          "items": [
+            "Build anonymous public preview as a credential-optional profile on the existing read path; no second read path, normalizer, fixture set, or provider.",
+            "Recorded on the run-boundary-decisions-v001 page, batch bpr:/attended-review/betterpullreview/c7e77830ef4fa92c6047c99b, subject decision:/betterpullreview/bpr-0299/build-credential-optional-preview accepted and do-not-build recorded as not chosen.",
+            "This page does not reopen that. It binds only the four definitions the accepting note did not carry."
+          ],
+          "kind": "list"
+        },
+        {
+          "heading": "Proposed definitions to bind",
+          "items": [
+            {
+              "definition": "“Public preview”, with “signed out” stated beside it wherever the mode is named — the profile selector, the window title, and the workbench header all read “Public preview — signed out”. It is never presented as the authenticated workbench with fields missing.",
+              "term": "Public-preview name"
+            },
+            {
+              "definition": "Not a persistent bar. A small ring indicator in the workbench fills as the shared hourly core budget is consumed, in the manner of Claude Desktop’s usage ring. Hovering it shows a tooltip carrying the consumed fraction and the reset time — “32% of the hourly limit · Resets in 3 hr 4 min” — and, in that same tooltip, what the preview cannot do: GitHub.com only, no review threads, no triage or publishing. A conditional request answered 304 spends one unit like any other, so the ring moves on refresh. Budget exhaustion is a typed refusal naming the limit and the reset time, never a network or authentication error.",
+              "term": "Limit presentation"
+            },
+            {
+              "definition": "The RFC-BPR-0016 device authorization flow is offered from the ring’s tooltip and from every refusal — budget exhausted, review threads unavailable, and any triage or publishing attempt — and returns to the same pull request after sign-in.",
+              "term": "Sign-in handoff"
+            },
+            {
+              "definition": "All three desktop platforms — macOS, Linux, and Windows x64 — because the preview needs no credential store. GitHub.com public repositories only; every GHES profile stays unavailable and sends zero requests. The sign-in handoff is shown only where device authorization is enabled on that platform: macOS and Linux today, since BPR-0310 is terminal, and Windows once BPR-0311 — now ready on the Windows lane — is terminal too.",
+              "term": "Supported-platform policy"
+            }
+          ],
+          "kind": "definitions"
+        },
+        {
+          "heading": "The question each definition answers",
+          "items": [
+            {
+              "definition": "What is the mode called wherever the product names it?",
+              "term": "Public-preview name"
+            },
+            {
+              "definition": "How are the shared hourly budget, and the things the preview cannot do, presented?",
+              "term": "Limit presentation"
+            },
+            {
+              "definition": "How does the preview hand off to signing in?",
+              "term": "Sign-in handoff"
+            },
+            {
+              "definition": "Which platforms and profiles does the preview support?",
+              "term": "Supported-platform policy"
+            }
+          ],
+          "kind": "definitions"
+        },
+        {
+          "heading": "Measured facts the definitions rest on",
+          "items": [
+            "Unauthenticated REST core budget: 60 requests per hour per source address, shared by every client behind that address; opening one pull request costs several.",
+            "A conditional GET answered 304 Not Modified consumed one core unit (used 3 → 4), so refresh is not exempt.",
+            "GraphQL refuses anonymous callers with 403 and x-ratelimit-limit 0, so review threads have no anonymous route.",
+            "REST pull-request review comments answered 200 anonymously, but no read-path operation calls that source today.",
+            "A private or missing repository answers 404, so the mode cannot distinguish absent from private.",
+            "GHES in private mode rejects all unauthenticated access, so the mode is GitHub.com-only."
+          ],
+          "kind": "list"
+        },
+        {
+          "heading": "Bound documents (digests at build time)",
+          "items": [
+            "docs/rfcs/future/RFC-BPR-0017-unauthenticated-public-review-read.md: sha256:c4473f5369030d5bd2ef496c6f83d10b9e4b1664b629bda618e3504fb709c7f6 (26327 bytes)",
+            "docs/issues/60-done/BPR-0299-decide-anonymous-public-preview.md: sha256:eac4b473c4290fe570e46963823c77e761fb53e869328c01858de25ff0ea9c1d (3730 bytes)"
+          ],
+          "kind": "list"
+        },
+        {
+          "heading": "How to answer",
+          "items": [
+            "Accept with an empty note, or with the note “as proposed”, to bind all four definitions exactly as written above.",
+            "To replace one, write “<key>: <replacement text>” on its own line; the four keys are public_preview_name, limit_presentation, sign_in_handoff, and supported_platform_policy. Anything not replaced binds as proposed.",
+            "Replacement text may wrap over several lines, but no continuation line may begin with “word:” — that reads as a new key and is refused rather than silently folded into the previous answer.",
+            "Rejecting leaves BPR-0312 unresolved and every RFC-BPR-0017 implementation card blocked; that is a recordable answer, not a failure of this page."
+          ],
+          "kind": "list"
+        }
+      ],
+      "display_name": "Bind the four public-preview definitions BPR-0299's acceptance left owed",
+      "identity_files": [
+        {
+          "label": "BPR-0299 human verdict",
+          "media_kind": "file",
+          "path": "subjects/001-bpr-0312-public-preview-definitions/identity/01-bpr-0299-human-verdict.json",
+          "sha256": "sha256:e46474c5ae2856541c592c5513ef8c64b56c2f97f37913f0734f674fdac762fb"
+        },
+        {
+          "label": "BPR-0299 verdict validation",
+          "media_kind": "file",
+          "path": "subjects/001-bpr-0312-public-preview-definitions/identity/02-bpr-0299-verdict-validation.json",
+          "sha256": "sha256:62d955fe44e4adcec9360374aa4730a3275a1ae972bf6691c7f2943c7a349ddd"
+        },
+        {
+          "label": "rate-limit capture",
+          "media_kind": "file",
+          "path": "subjects/001-bpr-0312-public-preview-definitions/identity/03-rate-limit-capture.json",
+          "sha256": "sha256:9b52844edae8de5cd728ed59a7f205a0b432a7c1418953d8d94bc1e3adc41e76"
+        },
+        {
+          "label": "GraphQL refusal capture",
+          "media_kind": "file",
+          "path": "subjects/001-bpr-0312-public-preview-definitions/identity/04-graphql-refusal-capture.json",
+          "sha256": "sha256:67def7232c8fff7413238dca7181879539dda26cdc42cd0f832eb90e112094bd"
+        },
+        {
+          "label": "pull-request capture",
+          "media_kind": "file",
+          "path": "subjects/001-bpr-0312-public-preview-definitions/identity/05-pull-request-capture.json",
+          "sha256": "sha256:0f0737d8572f16cb77cd6a7d6c8734cd69adf15d37de73567e83d7b33316445f"
+        },
+        {
+          "label": "review-comments capture",
+          "media_kind": "file",
+          "path": "subjects/001-bpr-0312-public-preview-definitions/identity/06-review-comments-capture.json",
+          "sha256": "sha256:dd16dd6948458db8bc12c20e4882a4d78d93952ae0df4cd08c011898a5ddae7d"
+        },
+        {
+          "label": "absent-not-disclosed capture",
+          "media_kind": "file",
+          "path": "subjects/001-bpr-0312-public-preview-definitions/identity/07-absent-not-disclosed-capture.json",
+          "sha256": "sha256:2d7e0b9088acd8c6763ab541b56ac6ea8f69676d6d7bc56dd076e664f05ddc0e"
+        },
+        {
+          "label": "v001 capture bindings",
+          "media_kind": "file",
+          "path": "subjects/001-bpr-0312-public-preview-definitions/identity/08-v001-capture-bindings.json",
+          "sha256": "sha256:a54477d9f4181a8c088db5ed530c4eef5eb1c09976bb9e0edd8df31ab893baab"
+        },
+        {
+          "label": "conditional fresh capture",
+          "media_kind": "file",
+          "path": "subjects/001-bpr-0312-public-preview-definitions/identity/09-conditional-fresh-capture.json",
+          "sha256": "sha256:7f99c19116ccc892a4a0b5a435bd8d5b51357e067509f508e6111d3e514bb290"
+        },
+        {
+          "label": "conditional 304 capture",
+          "media_kind": "file",
+          "path": "subjects/001-bpr-0312-public-preview-definitions/identity/10-conditional-304-capture.json",
+          "sha256": "sha256:3f9006250099e9c294da28a8b24b460b8a2d67a1c7b6299dd3c09f2df55e2424"
+        },
+        {
+          "label": "v005 capture bindings",
+          "media_kind": "file",
+          "path": "subjects/001-bpr-0312-public-preview-definitions/identity/11-v005-capture-bindings.json",
+          "sha256": "sha256:a1bc0c7fb42aa2e2ea161601f2479f52b97129f41709457351fb3280dbbde986"
+        }
+      ],
+      "known_concerns": [
+        "The budget is shared by every client behind one source address, so the ring can move without this operator doing anything; the tooltip has to read as a shared budget rather than a personal one.",
+        "A read-path REST review-comment operation and its fixtures are still uncarded, so “no review threads” is the shipped behavior until one exists.",
+        "Windows device authorization is not verified yet (BPR-0311), so the sign-in handoff stays hidden there while the preview itself runs."
+      ],
+      "media_groups": [],
+      "subject_digest": "sha256:657e5459996d7e8adc4a64197072da9b624ebdabb592961ee58f16c418a5d5af",
+      "subject_id": "decision:/betterpullreview/bpr-0312/public-preview-definitions",
+      "subject_key": "bpr-0312-public-preview-definitions"
+    }
+  ],
+  "title": "RFC-BPR-0017 public-preview definitions (BPR-0312)"
+}

@@ -631,6 +631,92 @@ agree on every run rather than assumed to. That check earned its keep during
 development by catching the verifier demanding HTTP 200 for
 `authorization_pending`, which GitHub is entitled to send as 400.
 
+### Platform selection and what each platform's gate expects
+
+All three shipped platforms select the recorded distributable identity. Each
+was flipped in its own slice against its own target-native course, and none
+flipped another's; the constant in `src/app/src/github_application.cpp` is the
+only thing that enables a platform, and building on a different operating
+system is not.
+
+| Platform | Enabled by | Dev-tree isolation | Device gate expectation |
+|---|---|---|---|
+| macOS | [[BPR-0318]], 2026-08-29 | `macos-sandbox-exec` profile | `DEVICE_FLOW_STAGE:failed`, `DEVICE_FLOW_REQUESTS:0` |
+| Linux | [[BPR-0310]], 2026-09-02 | `linux-network-namespace` | `DEVICE_FLOW_STAGE:failed`, `DEVICE_FLOW_REQUESTS:0` |
+| Windows x64 | [[BPR-0311]], 2026-09-02 | AppContainer, but these selectors are `WINDOWS_UNCONTAINED` | `DEVICE_FLOW_STAGE:cancelled`, `DEVICE_FLOW_REQUESTS:0` |
+
+The expectation differs because the isolation does. On macOS and Linux the
+boundary denies the network, so a registered platform's probe cannot reach
+GitHub and lands on `failed`. On Windows the device selectors run outside the
+AppContainer — [[BPR-0362]] measured why a lowbox token cannot give them what
+they need — so the real flow starts, reaches `awaiting_authorization` against
+GitHub, and the probe's own budget cancels it there. An offline Windows host
+lands `failed` and fails that gate.
+
+Read `DEVICE_FLOW_REQUESTS:0` exactly: it counts submissions that reached the
+*refusing* transport, never HTTP requests. Zero proves the capability gate
+held, and is entirely consistent with a real device-code request having gone
+out. On macOS and Linux the isolation makes the two readings coincide; on
+Windows they come apart. Whether an unattended Windows gate may make outbound
+contact at all was adjudicated by [[BPR-0515]] on 2026-09-03: with the tests-enabled `--network-denied` override the dev-tree gate is denied locally on every platform and lands on `failed` with zero connections.
+
+The course enumerates every selector by name rather than counting matches, so
+a name that is not registered on a platform is a refusal by name unless the
+per-platform exclusion table in `scripts/verify_rfc0016_platform_course.py`
+lists it with its reason — and an exclusion for a name that is registered
+after all is refused as stale. Windows excludes exactly two:
+`github_device_authorization_refresh_contract` and
+`native_https_device_authorization_fixture`, both registered under a POSIX
+guard in `tests/github_contract/CMakeLists.txt` and not yet mirrored into the
+Windows block. Mirroring them, or making one exclusion permanent with its
+cause, is [[BPR-0525]] ([[BPR-0524]] named them).
+
+### Running a target-native course
+
+The Linux and Windows courses are the same script with that platform's
+interpreter and presets, run on that platform:
+
+```sh
+python3 scripts/verify_rfc0016_platform_course.py \
+    --platform linux \
+    --dev-preset dev \
+    --release-preset app-release \
+    --build-root build/rfc0016-linux-enablement \
+    --expected-device-selection enabled \
+    --fresh
+```
+
+```text
+py -3 scripts\verify_rfc0016_platform_course.py ^
+    --platform windows ^
+    --dev-preset windows-dev ^
+    --release-preset windows-app-release ^
+    --build-root build\rfc0016-windows-enablement ^
+    --expected-device-selection enabled ^
+    --fresh
+```
+
+Getting a station into the state where either of those runs — the hosts, the
+lanes, the launcher, the writer lease, and the supported Windows procedure —
+is not repeated here. It is in
+[remote stations](remote-stations.md), which is the operator procedure of
+record for both.
+
+### What RFC-BPR-0016 does not deliver yet
+
+- **The browser handoff has never been observed opening a real browser.** The
+  opener's presence in a shipped graph is proven by linkage and construction,
+  and no suite may launch one. That the action reaches a real browser at a
+  real verification address is a target-native observation, and all three
+  rows — macOS, Linux, and Windows x64 — are still pending on [[BPR-0516]].
+- **The Windows gate's network posture is decided.** [[BPR-0515]] closed on 2026-09-03 with the fixture proxy override; the sentences that follow record the posture it replaced. [[BPR-0515]] was open
+  and owns it.
+- **Nothing here is closeout evidence.** Every result above is an ordinary
+  run. The immutable final-head replay on each enabled platform, the complete
+  local matrix, and the independent capability-critical review are
+  [[BPR-0285]]'s, and RFC-BPR-0016 stays `Deferred` until BPR-0035/BPR-0036
+  close RFC-BPR-0002 besides.
+
 ## Targets
 
 | Target | Responsibility |
@@ -676,6 +762,24 @@ tests-disabled product graph therefore has no Python or coding-tool dependency;
 set `-DBPR_ENABLE_CODING_TARGETS=ON` to add the targets deliberately. The tidy
 profile's narrow compatibility exclusions and compilation-database adaptation
 are documented in `_coding-standard/README.md`.
+
+### Warning classes every compiler treats as errors
+
+`cmake/Warnings.cmake` is the one enforcement point: `bpr_enable_warnings`
+gives every first-party target `/W4 /permissive- /WX` on MSVC and
+`-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror` elsewhere.
+Two classes are worth naming because one compiler used to catch them alone.
+A local that hides an earlier local or a parameter is MSVC's C4456, and since
+BPR-0534 the same code fails on clang (`-Wshadow` together with
+`-Wshadow-uncaptured-local`, because `-Wshadow` alone skips a lambda local
+that hides an enclosing local the lambda does not capture, the commonest
+shape in this tree) and on GCC (`-Wshadow=local`, the local-scope form; GCC's
+plain `-Wshadow` would also reject members and globals, which MSVC does not). Narrowing conversions are `-Wconversion` and
+`-Wsign-conversion` on the clang hosts and C4244/C4267 under `/W4`. A slice
+that compiles clean on macOS can still fail the Windows station on a class
+this list does not cover — C4189 (unreferenced local) and C4996 (a deprecated
+CRT name) have both done so — and the fix is the rename or the portable call,
+never a narrower flag.
 
 ### The format gate needs clang-format 22 or newer
 
@@ -2266,6 +2370,76 @@ success claim.
   after an orderly lifecycle, not crash recovery; Windows target-native
   cleanup remains BPR-0036. Do not compensate with a broad credential
   deletion.
+
+### Signing in with a device code
+
+- Device sign-in is a second way to enrol a profile, not a replacement for the
+  token field. Manual token entry stays available on every profile, including
+  one the device grant already enrolled. Selecting the device path never
+  silently does nothing: it produces one typed terminal — authorized, denied,
+  expired, disabled, unavailable, cancelled, or failed.
+- The registered identity is a GitHub App owned by the GitHub user
+  `MikeMarcin`, with device flow and expiring user tokens enabled, an
+  any-account installation policy, and the exact approved permission set. Its
+  client identifier is public, is compiled into the binary, and carries no
+  secret; there is no secret to protect and none to configure.
+- **Installation implication.** A GitHub App's user token reaches a repository
+  only where the app is installed, so reviewing an organization's pull
+  requests through the device path depends on that organization installing it,
+  which is an administrator action outside the reviewer's control.
+  BetterPullReview does not require that of anyone — the token path remains
+  first-class precisely so administrator installation stays optional, which is
+  what keeps "requiring repository administrators to install a GitHub App" an
+  explicit product non-goal.
+- The reviewer never chooses a scope. The requested permissions are compiled
+  in and are the minimum the shipped operation catalog justifies; they are not
+  operator-editable, because an editable scope set reintroduces the decision
+  this path removes.
+- The acquired token expires and renews itself shortly before it does, and
+  since BPR-0536 the product does this rather than only the host: the
+  composition binds the renewal to the signed-in profile's vault authority
+  for the session that enrolled the grant (a session does not survive a
+  restart today; BPR-0541 persists the binding), and only for a credential
+  whose provenance is a device grant — a pasted token is never renewed
+  from refresh material a past grant left beside it (BPR-0540). A
+  renewal that cannot complete says so once, as one line on the sign-in
+  panel, and asks for re-enrollment rather than retrying forever; enrol again
+  from the same panel. Refresh material lives in a second slot of the same
+  platform vault, keyed by the same authority (real on macOS; BPR-0542 and
+  BPR-0543 make it real on Linux and Windows, whose vaults answered
+  `unavailable` for the slot), and every exact delete of the base
+  credential — orderly shutdown, sign-out, a superseding enrollment —
+  deletes the refresh slot under the same authority too (BPR-0540), issued
+  from that delete's own terminal rather than beside it, since a platform
+  vault refuses two operations under one context (BPR-0545). The one
+  exception is a rotation superseding its own session, which would
+  otherwise destroy the material it just stored: there the erasure is held
+  until the incoming session names its authority, and released the moment
+  that authority differs (BPR-0547, BPR-0549).
+  `application_device_authorization_refresh_course` proves two rotations
+  through the composed graph over the fixture and pins
+  `DEVICE_FLOW_REFRESH_RETAINED:false` after its orderly shutdown, one
+  erasure, and the second rotation's material in the slot;
+  `application_device_authorization_orphan_course` proves a pasted token
+  never resumes from a pre-seeded slot.
+- Opening a browser can fail, and that is not an authorization failure. The
+  code and the address stay on screen and the flow completes on whatever
+  device the reviewer finishes it on. An address that does not sit under the
+  compiled authority is refused and no browser is opened for it.
+- GHES profiles report device sign-in as unavailable and keep the token path.
+  The composed capability names the GitHub.com profile it was built for, so a
+  begin for a GHES profile — from the mounted panel or from the public-preview
+  sign-in — is refused before any transport, vault, or enrollment call
+  (BPR-0535; `application_device_authorization_ghes_refusal`). An enterprise
+  instance would need its own registered application, which is an
+  enterprise-administration action outside RFC-BPR-0016.
+- Do not work around an unavailable device path by pasting the client
+  identifier, editing an endpoint, or supplying a verification address by
+  hand. None of those is an input the application accepts, and the refusals
+  that reject them are the point of the design.
+- Target-native device-flow courses run on the stations rather than here; see
+  [remote stations](remote-stations.md) for the hosts, lanes, launcher, and
+  the supported Windows procedure.
 
 ### Retained Git history and epoch storage
 

@@ -6,6 +6,10 @@
 #endif
 
 #include "bpr/app/github_application.hpp"
+#include "bpr/application/agent_chat_session_host.hpp"
+#include "bpr/application/agent_comment_workshop_host.hpp"
+#include "bpr/application/agent_finding_host.hpp"
+#include "bpr/application/mcp_context_helper_supervisor.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -16,6 +20,12 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+namespace bpr::qt {
+	class device_authorization_panel;
+	class finding_queue_view;
+	class side_chat_panel;
+} // namespace bpr::qt
 
 namespace bpr::app::detail {
 	enum class github_public_path_fixture {
@@ -57,13 +67,71 @@ namespace bpr::app::detail {
 		bool                                 DisableAgentProcessLauncherComposition = false;
 		bool                                 DisableAgentHostComposition            = false;
 		bool                                 DisableAgentGestureWire                = false;
+		// RFC-BPR-0012 construction cuts. One per composed surface, each
+		// removing exactly one construction and nothing else, so a course can
+		// show that the gesture still fires and its effect is gone.
+		bool                                 DisableAgentFindingHostComposition = false;
+		bool                                 DisableChatSessionHostComposition  = false;
+		bool                                 DisableCommentWorkshopComposition  = false;
+		bool                                 DisableMcpHelperComposition        = false;
+		bool                                 DisableSideChatPanelComposition    = false;
+		bool                                 DisableFindingQueueComposition     = false;
 		std::optional<std::filesystem::path> ExternalAgentExecutable;
+		/// Points the Codex JSONL profile at a fixture executable. That
+		/// protocol is the one with a result frame a finding payload can ride
+		/// on; the external terminal has none and refuses one by design.
+		std::optional<std::filesystem::path> CodexAgentExecutable;
 		std::optional<std::filesystem::path> GitExecutable;
 		// RFC-BPR-0016. Composes a registered device capability against the
 		// recorded BPR-0276 grant so the enrollment reaches the real vault.
 		// Only meaningful with a fixture; a shipped build has no identity to
 		// register and this option does not exist there.
 		bool RegisteredDeviceCourse = false;
+		// RFC-BPR-0016 renewal. The same registered grant, plus the two things
+		// a rotation needs that the read-path fixture has no use for: a real
+		// second vault slot and the documented renewal answer on the
+		// transport. Only meaningful with a fixture.
+		bool DeviceRefreshCourse = false;
+		// RFC-BPR-0016 construction cut. Composes the device host with no
+		// browser capability bound at all, which is what every build was
+		// before [[BPR-0516]]. Removes exactly one construction: the flow
+		// still starts, the address is still presented, and the open action
+		// answers `unavailable` rather than doing nothing.
+		bool SuppressDeviceBrowser = false;
+		// [[BPR-0540]]. Puts the documented refresh shape in the refresh slot
+		// before this process has a session at all, which is the state a past
+		// grant's orderly shutdown used to leave behind: the access token
+		// deleted, the material keyed beside it still there. Seeded rather
+		// than earned, because the run that earned it is gone -- that is the
+		// whole condition. Only meaningful beside `DeviceRefreshCourse`,
+		// which is what composes a second slot to seed.
+		bool SeedOrphanedRefreshMaterial = false;
+		// [[BPR-0526]] construction cut. The window still builds and mounts the
+		// device sign-in panel -- placement is the window's decision, not the
+		// composition's -- but the composition adopts neither end of it: no
+		// gesture sink is set and no presentation is forwarded. The panel is on
+		// screen and inert, the recording sink still reads every publication,
+		// and the flow stays reachable through the self-test, so a graph that
+		// silently stopped composing the panel cannot pass for one that did.
+		bool DisableDeviceAuthorizationPanelComposition = false;
+		// RFC-BPR-0017. Forces the shipped public-preview selection available
+		// against the recorded fixture, so the composed credential-free
+		// authority can be driven through the real host and the real
+		// admission rules. Only meaningful with a fixture; a shipped build has
+		// no such override and this option does not exist there.
+		bool PublicPreviewEnabledCourse = false;
+		// The same override, activated on the enterprise profile instead. The
+		// refusal there is the core policy's rather than the composition's,
+		// which is a different claim and needs a different course.
+		bool PublicPreviewGhesCourse = false;
+		// [[BPR-0316]]. Forces the shipped public-preview selection available
+		// with no fixture at all. The two options above override the selection
+		// against recorded traffic; this one overrides it against the shipped
+		// composition, so the authority the host is handed is built from the
+		// production factories and a read issued through it would leave the
+		// machine. Only the tests-enabled binary has it, and only the
+		// live-candidate and forced-selection flags set it.
+		bool PublicPreviewSelectionAvailable = false;
 	};
 
 	struct queue_notification_fixture_evidence
@@ -121,6 +189,41 @@ namespace bpr::app::detail {
 		// the claim.
 		std::size_t VaultStores                = 0U;
 		std::size_t DeviceTransportSubmissions = 0U;
+		// [[BPR-0539]]. Which material the vault stored, rather than how many
+		// times it was asked. The digest is a truncated SHA-256 of the bytes
+		// the store accepted, taken at the store and kept afterwards so a
+		// later delete cannot erase the evidence; the flag is that digest
+		// compared against the recorded grant's own access token. A count
+		// alone cannot tell the grant's enrollment from the fixture's connect
+		// credential, and those are exactly the two candidates.
+		std::string VaultStoredDigest;
+		bool        VaultStoredIsDeviceGrant = false;
+		// [[BPR-0540]]. The refresh slot, reported the way `SecretRetained`
+		// above reports the base one. Nothing answered for the material
+		// beside the credential, so a course could show the access token
+		// deleted at shutdown while the refresh entry keyed under the same
+		// authority survived it -- which is exactly the orphan a later
+		// pasted-token session must never spend.
+		bool        RefreshRetained  = false;
+		std::size_t RefreshStores    = 0U;
+		std::size_t RefreshRetrieves = 0U;
+		// [[BPR-0547]]. How many times the slot was erased, which the retained
+		// flag above cannot answer: it reports the state one erasure or three
+		// leave behind. The refresh course's own re-enrollment used to erase
+		// the material its rotation had just stored, and the shutdown's
+		// erasure after it made the end state look correct.
+		std::size_t RefreshDeletes = 0U;
+		// [[BPR-0547]]. The identity of the last material written into the slot,
+		// which is how a course states that the rotation it drove last is the
+		// one whose material the slot held. The retained flag above cannot say
+		// it: the shutdown empties the slot before this evidence is read.
+		std::string RefreshStoredDigest;
+		// The digest of the last credential this fixture handed the connect
+		// path, taken with the same function and the same truncation the
+		// store uses so the two are comparable. A course that connects rather
+		// than granting has no recorded token to compare a store against, and
+		// this is what it compares instead.
+		std::string LastEnrollmentDigest;
 	};
 
 	struct github_epoch_maintenance_fixture_evidence
@@ -277,6 +380,83 @@ namespace bpr::app::detail {
 	};
 
 	/// \brief Raw accepted authorities used to falsify the emitted agent context.
+	/// \brief What the RFC-BPR-0012 composition actually did, as values.
+	/// \brief What the RFC-BPR-0012 side-chat session composition did.
+	struct agent_chat_composition_evidence
+	{
+		bool                                              ChatHostComposed      = false;
+		bool                                              SideChatPanelComposed = false;
+		std::size_t                                       Intents               = 0U;
+		std::size_t                                       Presentations         = 0U;
+		std::size_t                                       Turns                 = 0U;
+		std::size_t                                       RefusalsPresented     = 0U;
+		application::agent_chat_session_statistics        Statistics;
+		std::optional<core::agent_session>                Session;
+		std::optional<core::agent_revision_binding>       Observed;
+		std::optional<application::agent_chat_projection> Projection;
+		std::string                                       SendEnabled;
+		std::string                                       SessionStateText;
+		std::string                                       HeadOidText;
+		std::string                                       AgentPanelStatusText;
+
+		/// The last turn the composition handed to the launch path, as a
+		/// value. Read after a send because the launch path admits a session
+		/// of its own, so the chat's current session is no longer the one the
+		/// turn was produced under.
+		std::optional<application::agent_chat_turn_request> LastTurn;
+	};
+
+	struct agent_finding_composition_evidence
+	{
+		bool                                           FindingHostComposed     = false;
+		bool                                           CommentWorkshopComposed = false;
+		bool                                           McpHelperComposed       = false;
+		bool                                           SideChatPanelComposed   = false;
+		bool                                           FindingQueueComposed    = false;
+		std::size_t                                    QueuedFindings          = 0U;
+		std::size_t                                    WorkshopProposals       = 0U;
+		std::size_t                                    RefusalsPresented       = 0U;
+		std::size_t                                    SideChatPresentations   = 0U;
+		std::size_t                                    SideChatIntents         = 0U;
+		std::size_t                                    FrozenSnapshotWrites    = 0U;
+		std::size_t                                    FrozenFileCount         = 0U;
+		application::agent_finding_host_statistics     FindingStatistics;
+		application::agent_comment_workshop_statistics WorkshopStatistics;
+		application::mcp_helper_supervisor_statistics  McpStatistics;
+		std::optional<application::mcp_helper_launch>  McpLaunch;
+		std::string                                    McpAnswer;
+		std::string                                    QueuedClaim;
+		std::string                                    QueuedAnchorState;
+		std::string                                    LocalDraftBody;
+		std::string                                    WorkshopOriginalText;
+		std::string                                    WorkshopProposalText;
+		/// What the editor says about the operation: the question while a
+		/// press is unanswered, the operation that produced the proposal once
+		/// one arrives, and empty for a revision nobody workshopped.
+		std::string WorkshopOperationText;
+		/// The stable name of the operation still waiting for its turn's
+		/// answer, and empty when none is. Reported because "the operation was
+		/// recorded" and "the operation was spent by the turn it was asked in"
+		/// are different claims, and only a value that can be read between the
+		/// two can tell them apart.
+		std::string WorkshopPendingOperation;
+		/// Whether that pending press has learned which agent turn is
+		/// answering it. False between the dispatch and the admission, and
+		/// false is why an outcome arriving in that window names no operation.
+		bool        WorkshopPendingSessionBound = false;
+		std::string SideChatHeadOidText;
+		std::string AgentPanelStatusText;
+		/// Why the last continued turn froze what it froze. `none` names a
+		/// re-alignment that produced the old revision's identities, `deadline`
+		/// the wall-clock bound, and anything else is the refusal's own stable
+		/// name. Empty until a continuation has been sent.
+		std::string LastContinuationRealignment;
+		/// Whether that re-alignment asked about a different epoch pair than
+		/// the selection on screen. False for a request that would have
+		/// resolved exactly what is already displayed.
+		bool LastContinuationRealignmentRetargeted = false;
+	};
+
 	struct agent_invocation_context_evidence
 	{
 		core::application_session_id                        ApplicationSession;
@@ -405,6 +585,16 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto make(
 			github_public_path_fixture         aFixture,
 			github_public_path_fixture_options aOptions = { })
+			-> std::unique_ptr<github_application>;
+		/// \brief Composes the shipped graph with the public-preview selection
+		/// forced available and no fixture.
+		///
+		/// \details [[BPR-0316]]. Every factory below this is the production
+		/// one, so a read issued through the authority it composes reaches the
+		/// real service. Construction sends nothing; what the caller does with
+		/// the composed application decides whether anything is issued at all.
+		[[nodiscard]] static auto make_public_preview_selection_available(
+			github_application_config aConfig)
 			-> std::unique_ptr<github_application>;
 		[[nodiscard]] static auto evidence(
 			const github_application& aApplication) noexcept
@@ -547,6 +737,38 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto defect_composition_evidence(
 			const github_application& aApplication) noexcept
 			-> defect_composition_probe_evidence;
+		[[nodiscard]] static auto agent_finding_evidence(
+			const github_application& aApplication) noexcept
+			-> agent_finding_composition_evidence;
+		[[nodiscard]] static auto agent_chat_evidence(
+			const github_application& aApplication) noexcept
+			-> agent_chat_composition_evidence;
+		/// \brief Hands one side-chat intent to the composed dispatch.
+		///
+		/// \details The same edge the panel's own dispatch callback uses, and
+		/// the only way to put a value the panel's enablement rules will not
+		/// let a reviewer emit — a send against a stale session — to the host
+		/// that must refuse it. It composes nothing and decides nothing.
+		[[nodiscard]] static auto dispatch_side_chat_send(
+			github_application& aApplication, std::string aText) -> bool;
+		/// \brief Hands one private-context opt-in to the composed dispatch.
+		[[nodiscard]] static auto dispatch_side_chat_private_context(
+			github_application&    aApplication,
+			core::agent_session_id aSession,
+			bool                   aNotes,
+			bool                   aDrafts) -> bool;
+		/// \brief The composed finding queue, or nothing when it was cut.
+		[[nodiscard]] static auto finding_queue(
+			const github_application& aApplication) noexcept
+			-> qt::finding_queue_view*;
+		/// \brief The composed side-chat panel, or nothing when it was cut.
+		[[nodiscard]] static auto side_chat_panel(
+			const github_application& aApplication) noexcept
+			-> qt::side_chat_panel*;
+		/// \brief Starts the shipped read-only helper on one request line.
+		[[nodiscard]] static auto start_mcp_context_helper(
+			github_application& aApplication, std::string aRequest)
+			-> application::mcp_helper_refusal;
 		[[nodiscard]] static auto agent_invocation_evidence(
 			const github_application& aApplication) noexcept
 			-> agent_invocation_composition_evidence;

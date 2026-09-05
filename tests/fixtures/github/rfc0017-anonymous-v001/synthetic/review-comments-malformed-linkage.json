@@ -1,0 +1,31 @@
+[
+  {
+    "id": 801,
+    "body": "root",
+    "path": "README",
+    "position": 4,
+    "line": 2,
+    "original_line": null,
+    "user": {
+      "login": "octocat",
+      "node_id": "MDQ6VXNlcjE=",
+      "id": 1,
+      "type": "User"
+    }
+  },
+  {
+    "id": 802,
+    "body": "reply",
+    "path": "README",
+    "position": 4,
+    "line": 2,
+    "original_line": null,
+    "user": {
+      "login": "octocat",
+      "node_id": "MDQ6VXNlcjE=",
+      "id": 1,
+      "type": "User"
+    },
+    "in_reply_to_id": "801"
+  }
+]

@@ -1,7 +1,9 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 
+#include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
+#include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
@@ -50,6 +52,16 @@ class QVBoxLayout;
 namespace bpr::qt {
 	class diff_workbench;
 	class epoch_comparison_control;
+	// RFC-BPR-0012's two agent surfaces. Declared rather than included: the
+	// window places them and hands them out, and nothing in this header needs
+	// their shape, so a consumer of the shell does not acquire the finding
+	// delivery and chat-scope vocabularies along with it.
+	class finding_queue_view;
+	class side_chat_panel;
+	// RFC-BPR-0016's second way into a profile, declared for the same reason:
+	// the window places it and hands it out, and a consumer of the shell does
+	// not need the panel's shape to ask for it.
+	class device_authorization_panel;
 
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
 	using workbench_intent_dispatch = std::function<void(core::workbench_interaction_intent)>;
@@ -151,6 +163,7 @@ namespace bpr::qt {
 		  public application::workbench_projection_port,
 		  public application::epoch_projection_port,
 		  public application::github_projection_port,
+		  public application::public_preview_projection_port,
 		  public application::queue_landing_projection_port
 	{
 	public:
@@ -188,6 +201,23 @@ namespace bpr::qt {
 			const application::github_presentation_update& aUpdate) override;
 		void publish(
 			const application::queue_landing_projection& aProjection) override;
+		/// \brief Adopts one public-preview presentation.
+		///
+		/// \details The mode is named in all three places it is named — the
+		/// host picker entry, the window title and the review header — from
+		/// this one publication, so no two of them can disagree. It also
+		/// decides what the mode cannot do: triage, queue role, viewed state,
+		/// resolution and publishing are disabled with an explanation rather
+		/// than hidden, and the inline review conversation is shown read-only
+		/// when it was observed and named unobservable when it was not.
+		void publish(
+			const application::public_preview_presentation& aPresentation)
+			override;
+		/// \brief Adopts the instant public-preview text is measured from.
+		///
+		/// \details The window is given a now; it never reads a clock. A
+		/// presentation that carries the host's own instant overrides this.
+		void set_public_preview_now(std::uint64_t aNowUnixSeconds);
 		void fail(
 			const application::workbench_failure_publication& aFailure) override;
 		/// \brief Adopts the selected file's core-decided private receipt actions.
@@ -206,6 +236,15 @@ namespace bpr::qt {
 			workbench_review_draft_dispatch aDraftDispatch);
 		void set_defect_dispatch(workbench_defect_dispatch aDefectDispatch);
 		void set_agent_dispatch(agent_intent_dispatch aAgentDispatch);
+		/// \brief Adopts the sink the mounted device-sign-in panel dispatches to.
+		///
+		/// \details On the same terms as `set_agent_dispatch`: the window
+		/// mounts the panel because the review header is where sign-in lives,
+		/// and supplies no sink of its own. Until the composition sets one,
+		/// every gesture on the panel goes nowhere — which is exactly what the
+		/// construction cut leaves behind.
+		void set_device_authorization_dispatch(
+			application::device_authorization_gesture_dispatch aDispatch);
 		void set_defect_classification_dispatch(
 			workbench_defect_classification_dispatch aClassificationDispatch);
 		void set_queue_rule_dispatch(workbench_queue_rule_dispatch aDispatch);
@@ -244,6 +283,21 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversation_panel() const noexcept
 			-> github_conversation_panel*;
 		[[nodiscard]] auto agent_panel() const noexcept -> agent_launch_panel*;
+		/// \brief The side chat, placed beside the agent launcher it belongs to.
+		///
+		/// \details BPR-0513. The panel is composed here because the drawer is
+		/// where a reviewer can see it; the window supplies no dispatch, so
+		/// until the application sets one every gesture on it goes nowhere.
+		/// Placement adds nothing to what the panel holds — the aggregate its
+		/// own tests bind by name is untouched.
+		[[nodiscard]] auto side_chat() const noexcept -> side_chat_panel*;
+		/// \brief The finding queue, placed above the draft the promotion fills.
+		///
+		/// \details BPR-0513, on the same terms as `side_chat()`. Its
+		/// conversion actions are offered as buttons in this drawer, and the
+		/// workshop those promotions reach is the one already inside
+		/// `review_editor()`, one widget below it.
+		[[nodiscard]] auto finding_queue() const noexcept -> finding_queue_view*;
 		[[nodiscard]] auto review_editor() const noexcept -> review_draft_editor*;
 		[[nodiscard]] auto defect_card() const noexcept -> defect_card_view*;
 		[[nodiscard]] auto classify_defect_action() const noexcept -> QAction*;
@@ -276,6 +330,16 @@ namespace bpr::qt {
 		[[nodiscard]] auto queue_status_label() const noexcept -> QLabel*;
 
 		[[nodiscard]] auto session_panel() const noexcept -> github_session_panel*;
+		/// \brief The device sign-in panel, mounted beside the token prompt.
+		///
+		/// \details [[BPR-0526]]. Sign-in has two ways in and they belong in
+		/// one place: this sits directly under the session panel's host picker
+		/// and Connect control, in the review header column, and is bound to
+		/// whichever profile that picker currently names. The composition
+		/// publishes device presentations straight to it and reads its gestures
+		/// through `set_device_authorization_dispatch`.
+		[[nodiscard]] auto device_authorization() const noexcept
+			-> device_authorization_panel*;
 		[[nodiscard]] auto pull_request_panel() const noexcept
 			-> github_pull_request_panel*;
 		[[nodiscard]] auto github_connect_action() const noexcept -> QAction*;
@@ -300,6 +364,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversation_model() const noexcept
 			-> github_conversation_model*;
 		[[nodiscard]] auto profile_selector() const noexcept -> QComboBox*;
+		/// \brief The public-preview consumed-budget ring in the review header.
+		[[nodiscard]] auto usage_indicator() const noexcept -> usage_ring*;
+		[[nodiscard]] auto public_preview_signed_out() const noexcept -> bool;
+		/// \brief The refusal wording currently shown, empty when none is.
+		[[nodiscard]] auto public_preview_refusal_text() const -> QString;
 
 		/// \brief The appearance surface, composed beside the review it governs.
 		[[nodiscard]] auto appearance_settings() const noexcept
@@ -407,6 +476,11 @@ namespace bpr::qt {
 			const application::github_host_diagnostic_projection& aDiagnostic);
 		void clear_github_pull_request();
 		void update_github_presentation_state();
+		/// \brief Disables what the signed-out mode cannot do, with wording.
+		void apply_public_preview_availability();
+		/// \brief Presents the observed inline conversation, or says it was not.
+		void apply_public_preview_conversation();
+		void update_public_preview_title();
 		void focus_review_threads();
 		void announce_github_presentation_update();
 		void dispatch_navigation(std::size_t aIndex);
@@ -441,6 +515,8 @@ namespace bpr::qt {
 			-> std::optional<workbench_defect_classification>;
 		void synchronize_selected_conversation(const QModelIndex& aIndex);
 		void build_queue_landing(QWidget* aParent, QVBoxLayout& aLayout);
+		/// \brief Points device sign-in at the host profile the picker names.
+		void rebind_device_authorization_profile();
 		void dispatch_queue_rule(application::queue_rule_action aAction);
 		void update_queue_rule_actions();
 		void dispatch_queue_preferences();
@@ -490,6 +566,8 @@ namespace bpr::qt {
 		bool                                                       LeftConversationEndpointCurrent  = false;
 		bool                                                       RightConversationEndpointCurrent = false;
 		agent_launch_panel*                                        AgentPanel                       = nullptr;
+		side_chat_panel*                                           SideChat                         = nullptr;
+		finding_queue_view*                                        FindingQueue                     = nullptr;
 		review_draft_editor*                                       ReviewEditor                     = nullptr;
 		defect_card_view*                                          DefectCard                       = nullptr;
 		QLabel*                                                    DefectCountLabel                 = nullptr;
@@ -518,8 +596,10 @@ namespace bpr::qt {
 		QLabel*                                                    QueueStatus           = nullptr;
 		std::vector<core::observer_rule>                           QueueRules;
 		application::queue_landing_projection                      QueueProjection;
-		QScrollArea*                                               HeaderScroll         = nullptr;
-		github_session_panel*                                      SessionPanel         = nullptr;
+		QScrollArea*                                               HeaderScroll = nullptr;
+		github_session_panel*                                      SessionPanel = nullptr;
+		device_authorization_panel*                                DevicePanel  = nullptr;
+		application::device_authorization_gesture_dispatch         DeviceDispatch;
 		github_pull_request_panel*                                 PullRequestPanel     = nullptr;
 		appearance_settings_panel*                                 AppearanceSettings   = nullptr;
 		QStackedWidget*                                            PullRequestStack     = nullptr;
@@ -532,6 +612,9 @@ namespace bpr::qt {
 		QAction*                                                   ShowReviewThreadsAction = nullptr;
 		std::vector<application::github_profile_option>            GithubProfiles;
 		application::github_intent_dispatch                        GithubDispatch;
+		application::public_preview_presentation                   PublicPreview;
+		std::uint64_t                                              PublicPreviewNow         = 0;
+		bool                                                       PublicPreviewSignedOut   = false;
 		bool                                                       HasGithubPullRequest     = false;
 		bool                                                       ApplyingQueuePreferences = false;
 		core::workbench_command_delta                              Commands;

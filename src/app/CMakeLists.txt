@@ -4,6 +4,7 @@ if(BPR_BUILD_QT)
         STATIC
             src/foundation_application.cpp
             src/github_application.cpp
+            src/system_browser_opener.cpp
             src/worker_executor.cpp
     )
     if(BUILD_TESTING)
@@ -29,6 +30,7 @@ if(BPR_BUILD_QT)
             BetterPullReview::AdapterSyntax
             BetterPullReview::AdapterAI
 			BetterPullReview::AdapterAgent
+            BetterPullReview::AdapterMcp
             BetterPullReview::AdapterQt
             Threads::Threads
     )
@@ -49,10 +51,37 @@ if(BPR_BUILD_QT)
             better_pull_review_composition
             PRIVATE
                 BPR_BUILD_TESTING=1
+                # BPR-0515. Makes the GitHub adapter's fixture transport
+                # factories visible to the composition, so a tests-enabled run
+                # can compose its device-authorization wire against a closed
+                # loopback port and deny its own egress locally. The seam is
+                # the adapter's existing one and stays private and
+                # BUILD_TESTING-only in both targets; a tests-disabled build
+                # cannot see the declarations and does not link the symbols.
+                BPR_NATIVE_HTTPS_TESTING=1
                 "BPR_GITHUB_CONTRACT_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/contracts/v1\""
                 "BPR_GITHUB_CAPABILITY_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/capabilities/v1\""
+                # RFC-BPR-0017. The promoted signed-out bodies. The recorded
+                # public-path fixture serves the inline review conversation
+                # from the same captures the contract tests read, so the one
+                # operation only a signed-out read issues is replayed from a
+                # promoted live body rather than from a second invention.
+                "BPR_RFC0017_ANONYMOUS_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/rfc0017-anonymous-v001\""
                 "BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/pull-requests\""
                 "BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/device-authorization/v1\""
+                # RFC-BPR-0016 renewal. Documented rather than recorded, and a
+                # separate root so the refresh course cannot read a documented
+                # projection as a captured one.
+                "BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/device-authorization/documented-v1\""
+                # RFC-BPR-0012. The tests-enabled composition supervises the
+                # shipped helper out of the build tree; the shipped one resolves
+                # it beside its own executable. The construction is the same in
+                # both graphs, and only the path differs.
+                "BPR_MCP_HELPER_EXECUTABLE=\"$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>\""
+        )
+        add_dependencies(
+            better_pull_review_composition
+            tool_better_pull_review_mcp_context_helper
         )
     endif()
 

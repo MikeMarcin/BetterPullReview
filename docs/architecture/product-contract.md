@@ -19,6 +19,37 @@ actually observed, not a claim that the revision is still GitHub's current
 head. A force-pushed observed head may therefore remain comparable, while
 history that was never observed is never invented.
 
+## Credential acquisition
+
+A profile is enrolled by one of two paths, and both end in the same platform
+credential vault under the same authority key.
+
+- **A personal access token the operator supplies.** RFC-BPR-0002's path, and
+  still first-class: it is offered on every profile, including one the device
+  grant has already enrolled.
+- **The GitHub device grant.** RFC-BPR-0016's path. The reviewer selects it,
+  reads a short user code off the screen, and confirms it in a browser they
+  already trust. BetterPullReview asks the reviewer to choose no scope, mint no
+  token, and move no secret through a clipboard; the requested permissions are
+  compiled in and are the minimum the shipped operation catalog justifies.
+
+Selecting the device path always produces a typed answer rather than silence.
+The reviewer-visible terminals are authorized, denied, expired, disabled,
+unavailable, cancelled, and failed ([[BPR-0277]],
+`core_device_authorization`). A failed browser handoff is not one of them: the
+code and the address stay on screen and the flow completes wherever the
+reviewer finishes it ([[BPR-0280]], [[BPR-0516]],
+`application_device_authorization_browser_handoff`).
+
+A GitHub Enterprise Server profile answers `device_flow_unavailable` and sends
+nothing. An enterprise instance needs an application registered on that
+instance, which is an administrator action BetterPullReview does not perform
+and does not require; GHES profiles keep the token path. The refusal is
+structural — the device routes are admitted only for the GitHub.com server
+contract, so no request exists to send ([[BPR-0278]],
+`github_device_authorization_contract`). The end-to-end GHES selection is not
+separately exercised today and its ledger row stays open under [[BPR-0285]].
+
 ## Application architecture invariant
 
 BetterPullReview is implemented as a deterministic functional core inside an imperative shell containing an application host and a Qt presentation adapter. The governing rule is **The core decides. The host performs. Qt presents.**

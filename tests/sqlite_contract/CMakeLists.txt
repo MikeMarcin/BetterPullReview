@@ -344,3 +344,43 @@ set_tests_properties(
         TIMEOUT 60
         PASS_REGULAR_EXPRESSION "CONTAINED_CATALOG_PROBE_OK"
 )
+
+bpr_add_executable(
+    test_better_pull_review_sqlite_anonymous_epoch_authority_tests
+    anonymous_epoch_authority_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_sqlite_anonymous_epoch_authority_tests
+    PRIVATE
+        BetterPullReview::AdapterSQLite
+        BetterPullReview::SQLite3
+)
+target_compile_definitions(
+    test_better_pull_review_sqlite_anonymous_epoch_authority_tests
+    PRIVATE BPR_SQLITE_TESTING=1
+)
+if(WIN32)
+    target_link_libraries(
+        test_better_pull_review_sqlite_anonymous_epoch_authority_tests
+        PRIVATE advapi32
+    )
+endif()
+bpr_enable_hardening(
+    test_better_pull_review_sqlite_anonymous_epoch_authority_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_sqlite_anonymous_epoch_authority_tests
+)
+
+bpr_add_network_isolated_test(
+    NAME sqlite_anonymous_epoch_authority
+    WINDOWS_UNCONTAINED
+    COMMAND test_better_pull_review_sqlite_anonymous_epoch_authority_tests
+)
+set_tests_properties(
+    sqlite_anonymous_epoch_authority
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+            "sqlite-anonymous-epoch-authority-tests:pass"
+        TIMEOUT 60
+)

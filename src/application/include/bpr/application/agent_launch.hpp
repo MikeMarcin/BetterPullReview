@@ -3,6 +3,7 @@
 
 #include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
@@ -67,6 +68,33 @@ namespace bpr::application {
 		std::optional<agent_draft_observation>           CurrentDraft;
 		std::vector<local_note_id>                       IncludedNotes;
 		std::optional<agent_draft_choice>                IncludedDraft;
+		/// What the reviewer typed for this turn, when this is a chat turn.
+		///
+		/// \details Empty for every other invocation, and empty is what the
+		/// supplement then carries. Keyed to a session here would be keyed to
+		/// the wrong one: the launch path allocates the session identity, so
+		/// `build_agent_context_supplement` is where the message is bound to
+		/// the session it is actually being sent under.
+		std::string ChatMessage;
+		/// Which reviewer gesture this invocation is for.
+		///
+		/// \details BPR-0533. The launch panel's start and the side chat's
+		/// send are both `ask_about_selection`; a comment-workshop press is
+		/// `workshop_comment`. It is here rather than inferred from the fields
+		/// below because the entry point is what decides whether an operation
+		/// may be carried at all, and a rule that read "an operation is a
+		/// workshop turn because an operation is present" would admit itself.
+		core::agent_entry_point EntryPoint
+			= core::agent_entry_point::ask_about_selection;
+		/// Which of the six comment-workshop operations was asked for.
+		///
+		/// \details Absent for every invocation that is not a workshop press,
+		/// and absent is what the supplement then carries. Present under an
+		/// entry point that does not admit it is refused here rather than
+		/// dropped: an operation quietly removed would ask the agent to revise
+		/// a comment without saying how, and an operation quietly kept under a
+		/// review would be a workshop request nobody made.
+		std::optional<core::workshop_operation> WorkshopOperation;
 
 		auto operator<=>(const agent_context_observation&) const = default;
 	};
@@ -134,6 +162,37 @@ namespace bpr::application {
 	inline constexpr std::size_t maximum_agent_stderr_bytes = 1U * 1024U * 1024U;
 	inline constexpr std::size_t maximum_agent_frame_bytes  = 64U * 1024U;
 
+	/// \brief The longest structured-finding payload one turn may return.
+	///
+	/// \details Declared in the same style as the stdout, stderr, and frame
+	/// bounds above, and deliberately smaller than all of them: a payload
+	/// rides inside one result frame, so a bound at or above
+	/// `maximum_agent_frame_bytes` could never be the reason anything was
+	/// refused, and an unreachable bound is a bound no test can hold to
+	/// account. The consequence is stated rather than hidden — the sum of the
+	/// core's per-field maxima exceeds this, so a single maximal finding is
+	/// refused as an oversize payload rather than truncated.
+	inline constexpr std::size_t maximum_agent_finding_payload_bytes = 48U * 1024U;
+
+	/// \brief The most findings one completed turn may return.
+	inline constexpr std::size_t maximum_agent_findings_per_turn = 32U;
+
+	static_assert(
+		maximum_agent_finding_payload_bytes < maximum_agent_frame_bytes,
+		"a finding payload rides inside one frame, so its bound must be "
+		"reachable inside the frame bound");
+
+	/// \brief The member every carrying protocol names its payload with.
+	inline constexpr std::string_view agent_finding_payload_member = "bprFindings";
+
+	/// \brief The line prefix an external-terminal child would have to write.
+	///
+	/// \details External terminal has no result framing, so this exists only so
+	/// that an attempt to return findings over it is *refused* rather than
+	/// silently read as ordinary output. Nothing decodes what follows it.
+	inline constexpr std::string_view agent_finding_payload_sentinel
+		= "BPR-FINDINGS/1";
+
 	enum class agent_protocol_failure : std::uint8_t {
 		malformed_frame,
 		incomplete_frame,
@@ -142,12 +201,43 @@ namespace bpr::application {
 		remote_failed,
 		remote_interrupted,
 		causal_violation,
+		/// The payload's own declared byte bound was exceeded.
+		finding_payload_too_large,
+		/// The turn returned more findings than one turn may carry.
+		too_many_findings,
+		/// The payload is not a well-formed finding payload: a missing or
+		/// mistyped member, an identity of the wrong width, or an enumerator
+		/// nobody declared. An anchor the frozen snapshot does not contain is
+		/// **not** here; that is the core's verdict, not a wire error.
+		malformed_finding_payload,
+		/// The payload named a session this run was not started with.
+		unknown_finding_session,
+		/// The selected protocol has no result framing a payload could ride in,
+		/// so one is refused rather than given framing nobody specified.
+		unsupported_finding_transport,
 	};
+
+	/// \brief The number of declared protocol failures.
+	///
+	/// \details Exists so a sweep over the causes can be exhaustive rather than
+	/// a sample: a new failure that nothing distinguishes fails the count.
+	inline constexpr std::size_t agent_protocol_failure_count = 12U;
+
+	static_assert(
+		static_cast<std::size_t>(
+			agent_protocol_failure::unsupported_finding_transport)
+				+ 1U
+			== agent_protocol_failure_count,
+		"agent_protocol_failure_count must cover every declared failure");
 
 	enum class agent_protocol_event_kind : std::uint8_t {
 		output,
 		initialization_complete,
 		context_channel_ready,
+		/// The exact payload bytes lifted out of one result frame. Carried
+		/// undecoded so that the shared loop, rather than the frame reader, is
+		/// the one place a payload becomes findings.
+		finding_payload,
 	};
 
 	struct agent_protocol_event
@@ -157,6 +247,74 @@ namespace bpr::application {
 
 		auto operator<=>(const agent_protocol_event&) const = default;
 	};
+
+	/// \brief One completed turn's structured findings, exactly as returned.
+	///
+	/// \details **There is no verdict here.** Whether an anchor holds is
+	/// `core::validate_agent_finding`'s answer against the session's frozen
+	/// snapshot, and this type has no field it could occupy, so a decoder
+	/// cannot accidentally declare a finding anchored. `Session` is the session
+	/// the payload named; the loop refuses one that is not the running session
+	/// before this value is ever built.
+	///
+	/// Every member is a value. Nothing here is a pointer, a reference, or a
+	/// handle, so the decode path holds nothing it could write through.
+	struct agent_finding_payload
+	{
+		core::agent_session_id           Session;
+		std::vector<core::agent_finding> Findings;
+
+		auto operator<=>(const agent_finding_payload&) const = default;
+	};
+
+	/// \brief Decodes one bounded structured-finding payload from a turn.
+	///
+	/// \details The wire shape is one JSON object per finding, carried inside
+	/// the protocol's own result framing rather than in framing invented here:
+	///
+	/// - **Codex App Server** — `params.turn.bprFindings` on the
+	///   `turn/completed` notification whose turn status is `completed`.
+	/// - **Codex JSONL execution** — top-level `bprFindings` on the
+	///   `turn.completed` frame, beside `usage`.
+	/// - **Claude stream JSON** — top-level `bprFindings` on the terminal
+	///   `result` frame whose subtype is `success` and `is_error` is false.
+	/// - **External terminal** — nothing. That protocol emits newline-delimited
+	///   text with no result frame, so a payload has no carrier; a line opening
+	///   with `agent_finding_payload_sentinel` is refused with
+	///   `unsupported_finding_transport` rather than given framing nobody
+	///   specified, and rather than being read as ordinary output.
+	///
+	/// The payload itself is `{"session":<number>,"findings":[<finding>...]}`.
+	/// Each finding states `provider`, `severity`, `confidence`, `category`,
+	/// `path`, `lines` (`{"begin","end"}`), `anchor`, `claim`, `evidence`,
+	/// `consequence`, `requiredContext`, `analyzedBase`, `analyzedHead`, and
+	/// `analyzedCommits`; `suggestedComment` is the one optional member, and
+	/// absent stays absent rather than collapsing into an empty string. An
+	/// `anchor` carries an optional `line` or `boundary`
+	/// (`{"comparison","side","line"|"boundary"}`) and optional `segment`,
+	/// `group`, and `move` identities. Identities are 64 lowercase hex
+	/// characters, matching what `encode_agent_supplement` sent; commit object
+	/// identifiers are the canonical 40 or 64 hex characters, whose width
+	/// selects the hash algorithm.
+	///
+	/// Severity and category are the stable names `core::name` already emits,
+	/// so there is no second vocabulary to keep in step. Confidence is the one
+	/// enumerator the core deliberately never bounds, because bounding it there
+	/// would be a branch in which confidence changed an anchoring outcome —
+	/// **this is the place an undeclared confidence is refused**.
+	///
+	/// An anchor the frozen snapshot does not contain is not a decode failure.
+	/// It decodes, and `core::validate_agent_finding` refuses it as unanchored,
+	/// which is why a finding the agent misplaced still reaches the reviewer.
+	///
+	/// \returns The decoded payload, or the exact typed cause. Oversize, an
+	/// over-count, a malformation, an unknown session, and an unsupported
+	/// transport are five distinct values.
+	[[nodiscard]] auto decode_agent_finding_payload(
+		core::agent_protocol   aProtocol,
+		std::string_view       aPayload,
+		core::agent_session_id aSession)
+		-> std::expected<agent_finding_payload, agent_protocol_failure>;
 
 	/// \brief Builds the next App Server message after a decoded control event.
 	[[nodiscard]] auto build_agent_protocol_followup(
@@ -229,6 +387,12 @@ namespace bpr::application {
 		std::optional<int>              ExitCode;
 		/// Exact decoder cause when `Outcome` is `protocol_failure`.
 		std::optional<agent_protocol_failure> ProtocolFailure;
+		/// The turn's decoded findings, before any verdict. Absent when the
+		/// turn returned none. Unlike `Events` this survives a stale
+		/// finalization, because a payload the reviewer can no longer act on
+		/// is still a payload they are entitled to see refused by revision
+		/// rather than to never learn about.
+		std::optional<agent_finding_payload> Findings;
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};

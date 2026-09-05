@@ -32,6 +32,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPixmap>
+#include <QPushButton>
 #include <QSize>
 #include <QSpinBox>
 #include <QStandardPaths>
@@ -51,7 +52,6 @@
 	#include <QPalette>
 	#include <QPersistentModelIndex>
 	#include <QPlainTextEdit>
-	#include <QPushButton>
 	#include <QScrollArea>
 	#include <QSplitter>
 	#include <QStyle>
@@ -287,6 +287,38 @@ namespace {
 		}
 		return std::nullopt;
 	}
+
+#if defined(BPR_BUILD_TESTING)
+	/// \brief Reads a fixed run of values that follow one flag.
+	///
+	/// \details [[BPR-0316]]'s live candidate names an owner, a repository and
+	/// a number in one place, so the three are read together or not at all: a
+	/// partial run is no candidate rather than a candidate with a default in
+	/// it.
+	auto argument_values(
+		const int              aArgc,
+		char* const* const     aArgv,
+		const std::string_view aExpected,
+		const int              aCount)
+		-> std::optional<std::vector<std::string_view>>
+	{
+		for (auto index = 1; index < aArgc; ++index) {
+			if (std::string_view{ aArgv[index] } != aExpected) {
+				continue;
+			}
+			if (index + aCount >= aArgc) {
+				return std::nullopt;
+			}
+			auto values = std::vector<std::string_view>{ };
+			values.reserve(static_cast<std::size_t>(aCount));
+			for (auto offset = 1; offset <= aCount; ++offset) {
+				values.emplace_back(aArgv[index + offset]);
+			}
+			return values;
+		}
+		return std::nullopt;
+	}
+#endif
 
 	/// \brief Saves the evidence render, optionally with the files drawer shut.
 	///
@@ -677,6 +709,17 @@ namespace {
 			std::string                ExpectedActiveHostText;
 		};
 
+		// [[BPR-0540]]. Ticks the orphan course keeps running after the host's
+		// refresh probe has been answered, at the 10 ms poll the automated run
+		// already uses. The course's claim is a negative, so its terminal has
+		// to be a moment by which the positive would have happened: the
+		// vault's callback, the decision lane's turn, the republication and
+		// composition's read of it. Its adequacy is not argued -- reverting
+		// the provenance gate makes this course report a resume inside it.
+#if defined(BPR_BUILD_TESTING)
+		static constexpr std::size_t orphan_course_settle_ticks = 20U;
+#endif
+
 		// RFC-BPR-0016. Selecting the device path once, from the shipped
 		// composition, and reporting what came back. An unregistered platform
 		// answers with a typed refusal and nothing sent; a registered platform
@@ -694,6 +737,91 @@ namespace {
 			// ends the flow at the first stage only a registered composition
 			// can reach.
 			bool CancelDispatched = false;
+			// RFC-BPR-0016 browser handoff. One "Open browser" request, made
+			// when the flow reaches `awaiting_authorization` because that is
+			// the only stage at which there is an address to open. The
+			// composed opener under a tests-enabled build is the recording
+			// one, so this proves the request reaches a bound capability and
+			// starts no program.
+			bool BrowserProbe   = false;
+			bool OpenDispatched = false;
+			// [[BPR-0526]]. Starts the flow the way a reviewer does: through
+			// the panel the window mounts, found by the accessible name it
+			// announces rather than through any accessor the composition
+			// holds. A window that stopped mounting it, or a composition that
+			// stopped adopting it, finds nothing and reports so.
+			bool PanelCourse = false;
+			bool PanelBegan  = false;
+			// [[BPR-0535]]. The enterprise negative. Drives the picker onto a
+			// GHES profile, which is what the mounted panel binds its begin
+			// to, and presses the same "Get a code" the course above does.
+			// A capability composed for GitHub.com must refuse it before a
+			// request is built, so this course's terminal is `unavailable`
+			// while the panel course beside it enrolls.
+			bool GhesCourse = false;
+			bool GhesBegan  = false;
+			// [[BPR-0536]]. The registered course carried past its terminal.
+			// Where that one ends when the grant reaches the vault, this one
+			// waits for the renewal the grant armed to rotate the material
+			// under the same authority, which is the only place the claim
+			// "refreshes before expiry under existing vault authority" can be
+			// observed through the composed graph rather than at the host.
+			bool RefreshCourse = false;
+			// [[BPR-0540]]. The renewal course's composition driven the other
+			// way round: the refresh slot already holds a past grant's
+			// material, and the session this run establishes is the reviewer's
+			// own pasted credential. Nothing here may renew, because nothing
+			// here was granted -- so the course connects rather than selecting
+			// the device path, and reports the counters that would move if the
+			// orphan were spent.
+			bool        OrphanCourse      = false;
+			std::size_t OrphanSettleTicks = 0U;
+		};
+
+		// RFC-BPR-0017. Activating the signed-out preview once, from the
+		// shipped composition, and reporting what came back. A platform whose
+		// selection composed no credential-free read authority answers with a
+		// typed refusal and nothing sent; the tests-enabled courses force the
+		// selection available so the composed authority can be driven.
+		struct public_preview_probe_state
+		{
+			bool Enabled = false;
+			// The fixture course that forces the selection available and opens
+			// the recorded public pull request through the anonymous
+			// authority.
+			bool Course = false;
+			// The same override activated on an enterprise profile, where the
+			// core policy refuses rather than the composition.
+			bool Enterprise = false;
+			bool Activated  = false;
+			bool Opened     = false;
+			// Whether the run has offered the mode its refused write and
+			// triage intents. Offered exactly once, so the counted refusals
+			// are the two the course asked for and not a tick's worth.
+			bool WritesOffered = false;
+			// [[BPR-0316]]. The forced selection with no fixture under it.
+			// `SelectionForced` alone activates the mode and stops -- the
+			// verdict for a shipped enabled selection, which reaches zero
+			// requests -- and `LiveCandidate` additionally opens the named
+			// pull request through the production anonymous authority.
+			// `DryRun` composes the live candidate and reports its wiring
+			// without issuing anything.
+			bool SelectionForced = false;
+			bool LiveCandidate   = false;
+			bool DryRun          = false;
+			// Read from the live status while the session is open, because
+			// shutdown closes it before the markers are printed.
+			bool          SignedOutObserved        = false;
+			bool          ProductionFactories      = false;
+			bool          SnapshotSignedOut        = false;
+			bool          BudgetObserved           = false;
+			std::size_t   WireRequests             = 0U;
+			std::size_t   WireCapabilityProbes     = 0U;
+			std::size_t   WireCredentialedRefusals = 0U;
+			std::uint64_t BudgetLimit              = 0U;
+			std::uint64_t BudgetRemaining          = 0U;
+			std::uint64_t BudgetReset              = 0U;
+			std::string   HeadOid;
 		};
 
 		stage Stage = stage::start;
@@ -728,6 +856,7 @@ namespace {
 		int                                       FailedStage                        = -1;
 		cli_unavailable_probe_state               Cli;
 		device_authorization_probe_state          Device;
+		public_preview_probe_state                PublicPreview;
 #if defined(BPR_BUILD_TESTING)
 		struct native_appearance_probe_state
 		{
@@ -2719,6 +2848,66 @@ namespace {
 	}
 #endif
 
+	// [[BPR-0526]]. Starts the device flow the way a reviewer does, and finds
+	// the control the way an assistive reader does: by walking the shipped
+	// window for the accessible name the panel announces. Nothing here reaches
+	// through a composition accessor, so a window that stopped mounting the
+	// panel, a panel that stopped announcing itself, or a composition that
+	// never wired the panel's dispatch each end here with `false` rather than
+	// with a flow that started by another route.
+	[[nodiscard]] auto begin_through_device_panel(
+		const bpr::qt::workbench_window& aWindow) -> bool
+	{
+		for (auto* const widget : aWindow.findChildren<QWidget*>()) {
+			if (widget->accessibleName()
+				!= QStringLiteral("Sign in with a device code")) {
+				continue;
+			}
+			for (auto* const button : widget->findChildren<QPushButton*>()) {
+				if (button->accessibleName()
+					!= QStringLiteral("Get a device sign-in code")) {
+					continue;
+				}
+				if (!button->isEnabled()) {
+					return false;
+				}
+				button->click();
+				return true;
+			}
+			return false;
+		}
+		return false;
+	}
+
+	// [[BPR-0535]]. The same gesture as above, from the enterprise row of the
+	// picker. The picker names the profile the mounted panel asks a code for,
+	// so selecting the row is the whole of "the reviewer was looking at GHES":
+	// nothing here names a profile identity, reaches a composition accessor, or
+	// knows which profile the capability was composed for. A window with no
+	// enterprise row, or none that mounts the panel, ends here with `false`.
+	[[nodiscard]] auto begin_through_ghes_device_panel(
+		const bpr::qt::workbench_window& aWindow) -> bool
+	{
+		auto* const selector = aWindow.profile_selector();
+		if (selector == nullptr) {
+			return false;
+		}
+		for (auto row = 0; row < selector->count(); ++row) {
+			const auto label = selector->itemText(row);
+			if (
+				!label.startsWith(QStringLiteral("GHES"))
+				|| !label.endsWith(QStringLiteral("Native HTTPS"))) {
+				continue;
+			}
+			selector->setCurrentIndex(row);
+			if (selector->currentIndex() != row) {
+				return false;
+			}
+			return begin_through_device_panel(aWindow);
+		}
+		return false;
+	}
+
 	[[nodiscard]] auto cli_fail_closed_presentation_passed(
 		const bpr::qt::workbench_window& aWindow,
 		const automated_run&             aRun) -> bool
@@ -2879,6 +3068,46 @@ namespace {
 		return "idle";
 	}
 
+	[[nodiscard]] auto device_authorization_handoff_text(
+		const bpr::application::device_authorization_handoff aHandoff)
+		-> const char*
+	{
+		switch (aHandoff) {
+		case bpr::application::device_authorization_handoff::not_attempted:
+			return "not_attempted";
+		case bpr::application::device_authorization_handoff::opened:
+			return "opened";
+		case bpr::application::device_authorization_handoff::refused:
+			return "refused";
+		case bpr::application::device_authorization_handoff::failed:
+			return "failed";
+		case bpr::application::device_authorization_handoff::unavailable:
+			return "unavailable";
+		}
+		return "not_attempted";
+	}
+
+	// [[BPR-0536]]. Printed by name rather than by number: a course whose
+	// renewal landed in `reenrollment_required` and one that never armed at
+	// all are different failures, and an integer marker would read the same.
+	[[nodiscard]] auto device_refresh_state_name(
+		const bpr::application::device_authorization_refresh_state aState)
+		-> const char*
+	{
+		switch (aState) {
+		case bpr::application::device_authorization_refresh_state::idle:
+			return "idle";
+		case bpr::application::device_authorization_refresh_state::scheduled:
+			return "scheduled";
+		case bpr::application::device_authorization_refresh_state::refreshing:
+			return "refreshing";
+		case bpr::application::device_authorization_refresh_state::
+			reenrollment_required:
+			return "reenrollment_required";
+		}
+		return "idle";
+	}
+
 	void finish_automated_run(
 		bpr::app::github_application& aApplication,
 		const automated_run&          aRun)
@@ -2929,7 +3158,14 @@ namespace {
 		// pull-request course deliberately never runs. Judging it on evidence
 		// it was never asked to produce would report a failure that is a
 		// description of the run rather than a defect in it.
-		const auto fixtureCourseRan = aRun.Fixture && !aRun.Device.Registered;
+		// The public-preview courses run against the fixture without opening
+		// it the way the pull-request course does, so the pull-request
+		// expectations below are not theirs to satisfy.
+		// [[BPR-0540]]. The orphan course ends at its accepted session for the
+		// same reason: it never opens the fixture's pull request, so the
+		// pull-request expectations are not its to satisfy.
+		const auto fixtureCourseRan = aRun.Fixture && !aRun.Device.Registered
+			&& !aRun.Device.OrphanCourse && !aRun.PublicPreview.Enabled;
 		if (fixtureCourseRan) {
 			const auto expectedSmartCalls = aRun.MaintenanceProbe
 					== automated_run::epoch_maintenance_probe::verify_deleted
@@ -3039,6 +3275,24 @@ namespace {
 		}
 #endif
 
+		// [[BPR-0540]]. Lifted out of the tests-enabled block above so the
+		// device rows below can report the refresh slot inside the one stream
+		// chain they already build. A tests-disabled build composes no
+		// fixture, has no second slot, and runs none of the courses that read
+		// these lines.
+		auto refreshRetained = false;
+		auto refreshStores   = std::size_t{ 0U };
+		auto refreshDeletes  = std::size_t{ 0U };
+		auto pastedDigest    = std::string{ };
+		auto refreshDigest   = std::string{ };
+#if defined(BPR_BUILD_TESTING)
+		refreshRetained = fixtureEvidence.RefreshRetained;
+		refreshStores   = fixtureEvidence.RefreshStores;
+		refreshDeletes  = fixtureEvidence.RefreshDeletes;
+		pastedDigest    = fixtureEvidence.LastEnrollmentDigest;
+		refreshDigest   = fixtureEvidence.RefreshStoredDigest;
+#endif
+
 		QTextStream stream{ stdout };
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Fixture) {
@@ -3057,6 +3311,29 @@ namespace {
 		}
 #endif
 		stream << (passed ? "PUBLIC_PATH_OK\n" : "PUBLIC_PATH_FAILED\n");
+		// BPR-0555. A run that ran out of clock says so as a clock, before
+		// anything attributes the failure to whatever it happened to be doing.
+		// Four rows of the RFC-BPR-0016 closeout matrix reported only
+		// `EPOCH_FIXTURE_SEED_FAILED` on a host that was reindexing, which reads
+		// as a defect in the epoch path; the elapsed time against the bound was
+		// present, but in the verdict block, which prints after the marker that
+		// had already named the wrong thing.
+		if (aRun.BudgetExpired) {
+			const auto elapsedMs = static_cast<long long>(
+				std::chrono::duration_cast<std::chrono::milliseconds>(
+					automated_clock::now() - aRun.Started)
+					.count());
+			const auto budgetMs = static_cast<long long>(aRun.Budget.count());
+			stream << "RUN_BUDGET_EXPIRED:"
+				   << "elapsed_ms=" << elapsedMs << " budget_ms=" << budgetMs
+				   << " over_ms=" << (elapsedMs - budgetMs) << " stage="
+				   << (aRun.FailedStage >= 0 ? aRun.FailedStage
+											 : static_cast<int>(aRun.Stage))
+				   << " status=\""
+				   << QString::fromStdString(
+						  aApplication.window().github_status_text())
+				   << "\"\n";
+		}
 		if (aRun.VerifyNativePlatformVault) {
 			stream << "NATIVE_PLATFORM_VAULT_SELECTED:"
 				   << (status.NativePlatformVaultSelected ? "true" : "false")
@@ -3087,16 +3364,203 @@ namespace {
 				   << static_cast<unsigned long long>(
 						  status.DeviceAuthorizationTransportReached)
 				   << '\n';
-			if (aRun.Device.Registered) {
+			if (aRun.Device.BrowserProbe) {
+				// Three separate facts again. Whether a capability was bound
+				// at all, how many addresses reached it, and what the host
+				// made of the attempt: the construction cut turns the first
+				// false and the third `unavailable` while leaving every line
+				// above this untouched, which is what makes it a cut rather
+				// than a different run.
+				stream << "DEVICE_FLOW_BROWSER_COMPOSED:"
+					   << (status.DeviceAuthorizationBrowserComposed ? "true"
+																	 : "false")
+					   << "\nDEVICE_FLOW_BROWSER_OPENS:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationBrowserOpens)
+					   << "\nDEVICE_FLOW_HANDOFF:"
+					   << device_authorization_handoff_text(
+							  status.DeviceAuthorizationHandoff)
+					   << '\n';
+			}
+			if (aRun.Device.OrphanCourse) {
+				// [[BPR-0540]]. The renewal course's composition with the
+				// grant taken out of it: the refresh slot was seeded before
+				// the run began, and the session this run has is the one the
+				// reviewer pasted. Every counter a spent orphan would move is
+				// reported rather than a single verdict, because "the resume
+				// did not happen", "no rotation followed one" and "the vault
+				// holds what the reviewer pasted" fail for different reasons.
+				// The identity is the load-bearing one: a run that resumed
+				// would supersede the pasted session with the grant's, and
+				// only the digest can tell those apart.
+				const auto& orphanStoredDigest
+					= status.DeviceAuthorizationVaultStoredDigest;
+				const auto storedIsPasted = !orphanStoredDigest.empty()
+					&& !pastedDigest.empty()
+					&& orphanStoredDigest == pastedDigest;
+				const auto orphanIntact
+					= status.DeviceAuthorizationRefreshResumes == 0U
+					&& status.DeviceAuthorizationRefreshRotations == 0U
+					&& status.DeviceAuthorizationVaultStores == 1U
+					&& storedIsPasted;
+				stream << "DEVICE_FLOW_REFRESH_RESUMES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationRefreshResumes)
+					   << "\nDEVICE_FLOW_ROTATIONS:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationRefreshRotations)
+					   << "\nDEVICE_FLOW_VAULT_STORES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationVaultStores)
+					   << "\nDEVICE_FLOW_REFRESH_STORES:"
+					   << static_cast<unsigned long long>(refreshStores)
+					   << "\nDEVICE_FLOW_REFRESH_RETAINED:"
+					   << (refreshRetained ? "true" : "false")
+					   << "\nDEVICE_FLOW_VAULT_STORED_TOKEN:"
+					   << QByteArray::fromStdString(orphanStoredDigest)
+					   << "\nDEVICE_FLOW_PASTED_TOKEN:"
+					   << QByteArray::fromStdString(pastedDigest)
+					   << "\nDEVICE_FLOW_STORED_IS_PASTED:"
+					   << (storedIsPasted ? "true" : "false") << '\n'
+					   << (orphanIntact ? "DEVICE_FLOW_ORPHAN_OK\n"
+										: "DEVICE_FLOW_ORPHAN_FAILED\n");
+			} else if (aRun.Device.RefreshCourse) {
+				// [[BPR-0536]]. The registered course's claim, carried one
+				// step further: the grant reached the vault, composition armed
+				// renewal from the accepted session, and the renewal rotated
+				// the material before the access token expired -- through the
+				// real host, the real vault authority and a real timer. The
+				// vault stores count rises to two because a rotation enrolls a
+				// new access token under the same authority, which is the
+				// rotation being durable rather than a second enrollment;
+				// `DEVICE_FLOW_DURABLE_COPIES` stays zero, because nothing the
+				// renewal writes goes anywhere but the vault.
+				// [[BPR-0547]]. Two, because the first rotation is not the claim.
+				// A rotation that erased the material it had just stored still
+				// reports one rotation and `scheduled`; only the renewal that
+				// follows has to spend what the first one wrote.
+				const auto rotated
+					= status.DeviceAuthorizationRefreshRotations >= 2U;
+				const auto bound
+					= status.DeviceAuthorizationRefreshBindings >= 1U;
+				const auto refreshed = status.DeviceAuthorizationHostComposed
+					&& status.DeviceAuthorizationStage
+						== bpr::core::device_authorization_stage::authorized
+					&& bound && rotated
+					&& status.DeviceAuthorizationRefreshState
+						== bpr::application::
+							device_authorization_refresh_state::scheduled
+					&& status.DeviceAuthorizationVaultStores >= 3U
+					&& status.DeviceAuthorizationDurableCopies == 0U;
+				stream << "DEVICE_FLOW_ROTATIONS:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationRefreshRotations)
+					   << "\nDEVICE_FLOW_REFRESH_STATE:"
+					   << device_refresh_state_name(
+							  status.DeviceAuthorizationRefreshState)
+					   << "\nDEVICE_FLOW_VAULT_STORES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationVaultStores)
+					   << "\nDEVICE_FLOW_DURABLE_COPIES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationDurableCopies)
+					   << "\nDEVICE_FLOW_REFRESH_BOUND:"
+					   << (bound ? "true" : "false")
+					   << "\nDEVICE_FLOW_REFRESH_RESUMES:"
+					   << static_cast<unsigned long long>(
+							  status.DeviceAuthorizationRefreshResumes)
+					   // [[BPR-0540]]. What the vault holds after the orderly
+					   // shutdown, and how often the slot was written. The
+					   // course deleted the access token on the way out and
+					   // left the material keyed beside it behind, which no
+					   // row could see: the retained flag beside the base
+					   // one's is where that shows.
+					   << "\nDEVICE_FLOW_REFRESH_RETAINED:"
+					   << (refreshRetained ? "true" : "false")
+					   << "\nDEVICE_FLOW_REFRESH_STORES:"
+					   << static_cast<unsigned long long>(refreshStores)
+					   // [[BPR-0547]]. Which erasure the retained flag above
+					   // is reporting. This course rotates, and a rotation
+					   // ends by enrolling the rotated access token, which
+					   // supersedes the session the grant established: a
+					   // build that carries the slot's erasure along with
+					   // that supersession erases the material its own
+					   // rotation stored a moment earlier, and the shutdown's
+					   // erasure afterwards leaves the same retained flag
+					   // behind. One erasure is the shutdown's; two is the
+					   // renewal chain destroying itself.
+					   << "\nDEVICE_FLOW_REFRESH_DELETES:"
+					   << static_cast<unsigned long long>(refreshDeletes)
+					   // [[BPR-0547]]. Which rotation's material the slot last held.
+					   // The fixture's renewal answers carry the renewal's number in
+					   // them, so this digest names the rotation that wrote the slot
+					   // rather than merely counting that something did; read beside
+					   // the single erasure above, it is the second rotation's
+					   // material being durable until the orderly shutdown took it.
+					   << "\nDEVICE_FLOW_REFRESH_STORED_TOKEN:"
+					   << QByteArray::fromStdString(refreshDigest)
+					   // [[BPR-0551]]. Whether the orderly shutdown's erasure did what
+					   // it was asked. The host carries the answer and
+					   // `PUBLIC_PATH_VERDICT` prints it, but only on a run that had
+					   // already failed for some other reason, so no row could fail on
+					   // it: a delete the refresh erasure displaced left the access
+					   // token in the vault and both device rows still green. Printed
+					   // here unconditionally, and pinned, it is a marker a red run
+					   // cannot omit.
+					   << "\nDEVICE_FLOW_CLEANUP_FAILED:"
+					   << (status.ShutdownCleanupFailed ? "true" : "false")
+					   << '\n'
+					   << (refreshed ? "DEVICE_FLOW_REFRESH_OK\n"
+									 : "DEVICE_FLOW_REFRESH_FAILED\n");
+			} else if (aRun.Device.Registered) {
 				// The registered course makes the opposite claim: the grant
 				// must reach the existing vault exactly once, and the token
 				// must exist nowhere else the application wrote.
+				//
+				// [[BPR-0539]]. Which is a claim about identity and not only
+				// about arithmetic: one store counted the fixture's own
+				// connect credential just as readily as the grant, and did,
+				// until the course stopped connecting first. So the identity
+				// of the stored material is reported as its own fact and the
+				// verdict below depends on it. Printed ahead of the counts
+				// rather than beside the verdict because the browser and
+				// panel cuts read this block through the same stream: the
+				// panel rows begin reading at the enrollment count, so a line
+				// above it disturbs nothing they pin, while the browser rows
+				// read the handoff and that count as adjacent -- which is why
+				// a browser probe reports the counts alone, exactly as it did.
+				const auto identityReported = !aRun.Device.BrowserProbe;
+				const auto storedIsGrant
+					= status.DeviceAuthorizationVaultStoredIsGrant;
 				const auto enrolled = status.DeviceAuthorizationHostComposed
 					&& status.DeviceAuthorizationStage
 						== bpr::core::device_authorization_stage::authorized
 					&& status.DeviceAuthorizationEnrollments == 1U
 					&& status.DeviceAuthorizationVaultStores == 1U
-					&& status.DeviceAuthorizationDurableCopies == 0U;
+					&& status.DeviceAuthorizationDurableCopies == 0U
+					&& (!identityReported || storedIsGrant);
+				if (identityReported) {
+					stream << "DEVICE_FLOW_VAULT_STORED_TOKEN:"
+						   << QByteArray::fromStdString(
+								  status.DeviceAuthorizationVaultStoredDigest)
+						   << "\nDEVICE_FLOW_STORED_IS_GRANT:"
+						   << (storedIsGrant ? "true" : "false")
+						   // [[BPR-0540]]. Reported inside the identity block
+						   // rather than beside the counts, because the browser
+						   // and panel rows read those counts as adjacent
+						   // lines; this course composes no refresh slot at
+						   // all, so what it states is that the shutdown left
+						   // nothing keyed beside the credential it deleted.
+						   << "\nDEVICE_FLOW_REFRESH_RETAINED:"
+						   << (refreshRetained ? "true" : "false")
+						   // [[BPR-0551]]. The same always-emitted cleanup verdict the
+						   // renewal course prints, inside the identity block for the
+						   // reason the retained flag is: the browser and panel rows
+						   // read the counts below as adjacent lines.
+						   << "\nDEVICE_FLOW_CLEANUP_FAILED:"
+						   << (status.ShutdownCleanupFailed ? "true" : "false")
+						   << '\n';
+				}
 				stream << "DEVICE_FLOW_ENROLLMENTS:"
 					   << static_cast<unsigned long long>(
 							  status.DeviceAuthorizationEnrollments)
@@ -3112,6 +3576,28 @@ namespace {
 					   << '\n'
 					   << (enrolled ? "DEVICE_FLOW_ENROLLED_OK\n"
 									: "DEVICE_FLOW_ENROLLED_FAILED\n");
+			} else if (aRun.Device.GhesCourse) {
+				// [[BPR-0535]]. The enterprise negative, and the one course
+				// whose claim is about which profile asked. The picker named a
+				// GHES profile, the mounted panel was bound to it, and its
+				// "Get a code" was pressed: the composed capability belongs to
+				// GitHub.com, so the answer must be the typed refusal with
+				// nothing built. Reported as two facts, because "the reviewer
+				// pressed it and was refused" and "every other condition of
+				// the refusal held" fail for different reasons.
+				const auto ghesBeginRefused = aRun.Device.GhesBegan
+					&& status.DeviceAuthorizationStage
+						== bpr::core::device_authorization_stage::unavailable;
+				const auto ghesRefusalPassed = ghesBeginRefused
+					&& status.DeviceAuthorizationHostComposed
+					&& status.DeviceAuthorizationPanelComposed
+					&& status.DeviceAuthorizationPublications > 0U
+					&& status.DeviceAuthorizationTransportReached == 0U;
+				stream << "DEVICE_FLOW_GHES_BEGIN_REFUSED:"
+					   << (ghesBeginRefused ? "true" : "false") << '\n'
+					   << (ghesRefusalPassed
+							   ? "DEVICE_FLOW_GHES_REFUSAL_OK\n"
+							   : "DEVICE_FLOW_GHES_REFUSAL_FAILED\n");
 			} else if (status.DeviceAuthorizationCapabilityRegistered) {
 				// The registered claim is the refusal's mirror: the flow left
 				// `unavailable` behind and the refusing transport was never
@@ -3137,6 +3623,241 @@ namespace {
 					&& status.DeviceAuthorizationTransportReached == 0U;
 				stream << (deviceRefused ? "DEVICE_FLOW_UNAVAILABLE_OK\n"
 										 : "DEVICE_FLOW_UNAVAILABLE_FAILED\n");
+			}
+			// Last, and deliberately outside every line above it. [[BPR-0526]]
+			// added a second reader of the same publications, and the point of
+			// the marker is that adding or cutting it changes nothing the
+			// existing contracts read — so it is printed after all of them
+			// rather than between any two.
+			if (aRun.Device.PanelCourse) {
+				stream << "DEVICE_FLOW_PANEL_BEGAN:"
+					   << (aRun.Device.PanelBegan ? "true" : "false") << '\n';
+			}
+			stream << "DEVICE_FLOW_PANEL_COMPOSED:"
+				   << (status.DeviceAuthorizationPanelComposed ? "true"
+															   : "false")
+				   << '\n';
+		}
+		if (aRun.PublicPreview.Enabled) {
+			// Separate facts again, and for the same reason: "the authority
+			// was composed", "which answer the activation produced", and
+			// "nothing was sent, no header was built, no vault was touched"
+			// fail independently, and one verdict would hide which.
+			// The mode lives on the accepted session, and a run reports its
+			// markers after shutdown has closed that session. So the fact is
+			// taken from what the run observed while the session was live --
+			// `Opened` is set only once the status said signed out -- with the
+			// live answer still leading, for the rows that never open one.
+			const auto signedOut = status.PublicPreviewSignedOut
+				|| aRun.PublicPreview.Opened
+				|| aRun.PublicPreview.SignedOutObserved;
+			const auto stageText = signedOut
+				? "enabled"
+				: (status.PublicPreviewPolicyRefused ? "refused"
+													 : "unavailable");
+			stream << "PUBLIC_PREVIEW_COMPOSED:"
+				   << (status.PublicPreviewComposed ? "true" : "false")
+				   << "\nPUBLIC_PREVIEW_STAGE:" << stageText
+				   << "\nPUBLIC_PREVIEW_REQUESTS:"
+				   << static_cast<unsigned long long>(
+						  status.PublicPreviewRequests)
+				   << "\nPUBLIC_PREVIEW_HEADER_EFFECTS:"
+				   << static_cast<unsigned long long>(
+						  status.PublicPreviewHeaderEffects)
+				   << "\nPUBLIC_PREVIEW_VAULT_EFFECTS:"
+				   << static_cast<unsigned long long>(
+						  status.PublicPreviewVaultEffects)
+				   << "\nPUBLIC_PREVIEW_SIGN_IN_REQUESTS:"
+				   << static_cast<unsigned long long>(
+						  status.PublicPreviewSignInRequests)
+				   << '\n';
+#if defined(BPR_BUILD_TESTING)
+			if (aRun.PublicPreview.LiveCandidate) {
+				// [[BPR-0316]]. The live candidate reports what the shipped
+				// composition did, in the same shape the fixture course
+				// reports it, plus the four facts only a real read can carry:
+				// what reached the wire, what the shared budget said, which
+				// mode the accepted snapshot was read in, and which head the
+				// candidate resolved to. No body and no comment text: this
+				// output goes on a card.
+				stream << "PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:"
+					   << static_cast<unsigned long long>(
+							  status.PublicPreviewReviewCommentGroups)
+					   << "\nPUBLIC_PREVIEW_WRITE_REFUSALS:"
+					   << static_cast<unsigned long long>(
+							  status.PublicPreviewWriteRefusals)
+					   << "\nPUBLIC_PREVIEW_LIVE_CANDIDATE_PRODUCTION_FACTORIES:"
+					   << (aRun.PublicPreview.ProductionFactories ? "true"
+																  : "false")
+					   << '\n';
+				// [[BPR-0316]]. What the count above was spent on: one line
+				// per request the signed-out transport forwarded, in the order
+				// it forwarded them, with the operation's contract name, the
+				// page, how it ended and how long it took. Read from the
+				// transport now rather than from the tick snapshot, so a run
+				// whose budget expired mid-read still reports every request it
+				// had already made -- an expired run is the case this exists
+				// for. Never a body, never a URL, and no header beyond the
+				// rate-limit triple a failure itself carried.
+				const auto wireOperations
+					= aApplication.public_preview_wire_operations();
+				for (const auto& operation : wireOperations) {
+					stream << "PUBLIC_PREVIEW_WIRE_OPERATION:"
+						   << QString::fromStdString(operation.Operation) << ':'
+						   << static_cast<unsigned long long>(operation.Page)
+						   << ':' << QString::fromStdString(operation.Outcome)
+						   << ':'
+						   << static_cast<unsigned long long>(
+								  operation.ElapsedMilliseconds)
+						   << '\n';
+				}
+				// Costs nothing outside the process and says whether the
+				// mechanism that bounds this read to one attempt is in place,
+				// so the isolated dry run proves it and the authorized read
+				// carries the same proof beside its own numbers.
+				const auto singleAttempt
+					= bpr::app::public_preview_single_attempt_self_check();
+				stream << "PUBLIC_PREVIEW_WIRE_REQUESTS:"
+					   << static_cast<unsigned long long>(
+							  aRun.PublicPreview.WireRequests)
+					   << "\nPUBLIC_PREVIEW_WIRE_CAPABILITY_PROBES:"
+					   << static_cast<unsigned long long>(
+							  aRun.PublicPreview.WireCapabilityProbes)
+					   << "\nPUBLIC_PREVIEW_WIRE_CREDENTIALED_REFUSALS:"
+					   << static_cast<unsigned long long>(
+							  aRun.PublicPreview.WireCredentialedRefusals)
+					   << "\nPUBLIC_PREVIEW_WIRE_SINGLE_ATTEMPT:"
+					   << (singleAttempt ? "true" : "false")
+					   << "\nPUBLIC_PREVIEW_BUDGET:"
+					   << static_cast<unsigned long long>(
+							  aRun.PublicPreview.BudgetLimit)
+					   << '/'
+					   << static_cast<unsigned long long>(
+							  aRun.PublicPreview.BudgetRemaining)
+					   << '/'
+					   << static_cast<unsigned long long>(
+							  aRun.PublicPreview.BudgetReset)
+					   << "\nPUBLIC_PREVIEW_SNAPSHOT_MODE:"
+					   << (aRun.PublicPreview.SnapshotSignedOut
+							   ? "public_preview"
+							   : "authenticated")
+					   << "\nPUBLIC_PREVIEW_CANDIDATE:"
+					   << QString::fromStdString(aRun.Expectations.Owner) << '/'
+					   << QString::fromStdString(aRun.Expectations.Repository)
+					   << '#' << aRun.Expectations.Number << ' '
+					   << QString::fromStdString(aRun.PublicPreview.HeadOid)
+					   // How long the whole course took. The run bound itself
+					   // is the caller's business -- `--automated-run-budget-ms`
+					   // stays required -- and this is what it was spent on.
+					   << "\nPUBLIC_PREVIEW_LIVE_ELAPSED_MS:"
+					   << static_cast<long long>(
+							  std::chrono::duration_cast<
+								  std::chrono::milliseconds>(
+								  automated_clock::now() - aRun.Started)
+								  .count())
+					   << '\n';
+				// The wiring claim, which a dry run makes on its own: the
+				// signed-out authority was composed from the production
+				// factories, no credentialed transport was even asked for, and
+				// neither a header nor the vault was involved. The read claim
+				// is added only when a read was asked for.
+				auto livePassed = status.PublicPreviewComposed
+					&& aRun.PublicPreview.ProductionFactories && singleAttempt
+					&& !status.PublicPreviewUnavailable
+					&& !status.PublicPreviewPolicyRefused
+					&& aRun.PublicPreview.WireCredentialedRefusals == 0U
+					&& aRun.PublicPreview.WireCapabilityProbes == 0U
+					&& status.PublicPreviewHeaderEffects == 0U
+					&& status.PublicPreviewVaultEffects == 0U
+					&& status.PublicPreviewSignInRequests == 0U
+					&& status.PublicPreviewSmartAcquisitions == 0U
+					&& status.PublicPreviewPublications > 0U;
+				if (aRun.PublicPreview.DryRun) {
+					// The wiring claim on its own: the mode was entered over
+					// the production authority and the run stopped there, with
+					// nothing on the wire and no snapshot accepted.
+					livePassed = livePassed && signedOut
+						&& status.PublicPreviewRequests == 0U
+						&& aRun.PublicPreview.WireRequests == 0U
+						&& !aRun.PublicPreview.SnapshotSignedOut
+						&& aRun.PublicPreview.HeadOid.empty();
+				} else {
+					livePassed = livePassed && signedOut
+						&& status.PublicPreviewRequests >= 1U
+						&& aRun.PublicPreview.WireRequests >= 1U
+						&& aRun.PublicPreview.SnapshotSignedOut
+						&& aRun.PublicPreview.BudgetObserved
+						&& !aRun.PublicPreview.HeadOid.empty();
+				}
+				stream << (livePassed ? "PUBLIC_PREVIEW_LIVE_CANDIDATE_OK\n"
+									  : "PUBLIC_PREVIEW_LIVE_CANDIDATE_FAILED\n");
+			} else
+#endif
+				if (aRun.PublicPreview.Course) {
+				// The enabled claim: the mode was entered, the read went
+				// through the credential-free authority, the inline
+				// conversation was observed, and neither an authorization
+				// header nor the vault was involved in any of it.
+				const auto enabled = status.PublicPreviewComposed && signedOut
+					&& !status.PublicPreviewUnavailable
+					&& status.PublicPreviewRequests >= 1U
+					&& status.PublicPreviewHeaderEffects == 0U
+					&& status.PublicPreviewVaultEffects == 0U
+					&& status.PublicPreviewReviewCommentsObserved
+					&& status.PublicPreviewWriteRefusals == 2U
+					&& status.PublicPreviewPublications > 0U;
+				stream << "PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:"
+					   << static_cast<unsigned long long>(
+							  status.PublicPreviewReviewCommentGroups)
+					   << "\nPUBLIC_PREVIEW_WRITE_REFUSALS:"
+					   << static_cast<unsigned long long>(
+							  status.PublicPreviewWriteRefusals)
+					   << '\n'
+					   << (enabled ? "PUBLIC_PREVIEW_ENABLED_OK\n"
+								   : "PUBLIC_PREVIEW_ENABLED_FAILED\n");
+			} else if (aRun.PublicPreview.Enterprise) {
+				// The enterprise claim is the composition refusal's mirror:
+				// the authority was composed and the core policy still refused
+				// the mode, before a request was built.
+				const auto refused = status.PublicPreviewComposed
+					&& status.PublicPreviewPolicyRefused && !signedOut
+					&& status.PublicPreviewRequests == 0U
+					&& status.PublicPreviewHeaderEffects == 0U
+					&& status.PublicPreviewVaultEffects == 0U
+					&& status.PublicPreviewPublications > 0U;
+				stream << (refused ? "PUBLIC_PREVIEW_REFUSED_OK\n"
+								   : "PUBLIC_PREVIEW_REFUSED_FAILED\n");
+			} else if (status.PublicPreviewComposed) {
+				// [[BPR-0316]]. A selection that is enabled activates with no
+				// request at all: the mode is entered from the composed
+				// authority and nothing is read until a reviewer asks for
+				// something. So the enabled verdict for a plain probe is
+				// exactly the opposite of the fixture course's -- zero
+				// requests rather than at least one -- and a build whose
+				// selection ships enabled reports it without a course flag.
+				const auto enabled = signedOut
+					&& !status.PublicPreviewUnavailable
+					&& !status.PublicPreviewPolicyRefused
+					&& status.PublicPreviewRequests == 0U
+					&& status.PublicPreviewHeaderEffects == 0U
+					&& status.PublicPreviewVaultEffects == 0U
+					&& status.PublicPreviewSmartAcquisitions == 0U
+					&& status.PublicPreviewPublications > 0U;
+				stream << (enabled ? "PUBLIC_PREVIEW_ENABLED_OK\n"
+								   : "PUBLIC_PREVIEW_ENABLED_FAILED\n");
+			} else {
+				// The shipped selection where it is unavailable. Composed
+				// nothing, answered `public_preview_unavailable`, said so
+				// where a reviewer can see it, and sent nothing of any kind.
+				const auto unavailable = !status.PublicPreviewComposed
+					&& status.PublicPreviewUnavailable && !signedOut
+					&& status.PublicPreviewRequests == 0U
+					&& status.PublicPreviewHeaderEffects == 0U
+					&& status.PublicPreviewVaultEffects == 0U
+					&& status.PublicPreviewSmartAcquisitions == 0U
+					&& status.PublicPreviewPublications > 0U;
+				stream << (unavailable ? "PUBLIC_PREVIEW_UNAVAILABLE_OK\n"
+									   : "PUBLIC_PREVIEW_UNAVAILABLE_FAILED\n");
 			}
 		}
 #if defined(BPR_BUILD_TESTING)
@@ -4073,6 +4794,21 @@ namespace {
 			case automated_run::stage::start:
 #if defined(BPR_BUILD_TESTING)
 				if (aRun->Fixture) {
+					// RFC-BPR-0017. The signed-out courses take the fixture
+					// without the account: connecting one would enroll a
+					// credential and select an authenticated transport, which
+					// is exactly what these courses claim did not happen. So
+					// they activate the mode here and go straight to the
+					// stage that reads its answer.
+					if (aRun->PublicPreview.Course
+						|| aRun->PublicPreview.Enterprise) {
+						aRun->PublicPreview.Activated = true;
+						aApplication.activate_public_preview(
+							aRun->PublicPreview.Enterprise);
+						advance_fixture_stage(
+							*aRun, automated_run::stage::connect);
+						break;
+					}
 					if (aRun->AppearanceGestureProbe) {
 						// Here rather than in a later stage because this is the
 						// one point every fixture path passes through, seed and
@@ -4101,6 +4837,28 @@ namespace {
 							github_application_fixture_access::
 								refuse_appearance_gesture(aApplication);
 						QApplication::processEvents();
+					}
+					// [[BPR-0536]], widened by [[BPR-0539]]. No course that
+					// runs the recorded grant connects first, for the same
+					// reason the signed-out courses above do not:
+					// `github_connect_action` enrolls the fixture's own
+					// credential, and that enrollment is a whole session -- it
+					// takes the vault slot, consumes the recorded bootstrap
+					// exchange, and leaves the device grant to arrive as a
+					// second establishment that the strict recording cannot
+					// serve and that the product must first delete its way out
+					// of. The registered course counted that connect
+					// credential as its one vault store and called it the
+					// grant; the renewal course beside it had already stopped
+					// connecting, so the two are one rule here rather than one
+					// each way. The grant is the only session these courses
+					// want, so they go straight to the stage that starts the
+					// flow, and every store, read and probe the run then
+					// observes belongs to the grant.
+					if (aRun->Device.Registered) {
+						advance_fixture_stage(
+							*aRun, automated_run::stage::connect);
+						break;
 					}
 					window.github_connect_action()->trigger();
 					advance_fixture_stage(
@@ -4142,10 +4900,165 @@ namespace {
 				// before the CLI presentation below, because that check counts
 				// the profiles it passes and would count them again on every
 				// tick spent waiting here.
+				if (aRun->PublicPreview.Enabled
+					&& aRun->PublicPreview.Activated) {
+					// Read while the session is open. Shutdown closes it
+					// before the markers are printed, so a run that never
+					// recorded this could not tell an enabled selection from
+					// an unavailable one. [[BPR-0316]].
+					//
+					// Recorded only once the typed answer has been published
+					// and only when that answer was not a refusal. Activation
+					// names the mode before the core has answered, so a poll
+					// that read the mode alone would see the enterprise
+					// course's refused activation as a signed-out session for
+					// the tick between the two.
+					if (aApplication.status().PublicPreviewPublications > 0U
+						&& aApplication.status().PublicPreviewSignedOut
+						&& !aApplication.status().PublicPreviewPolicyRefused
+						&& !aApplication.status().PublicPreviewUnavailable) {
+						aRun->PublicPreview.SignedOutObserved = true;
+					}
+#if defined(BPR_BUILD_TESTING)
+					if (aRun->PublicPreview.LiveCandidate) {
+						const auto live = aApplication.status();
+						aRun->PublicPreview.ProductionFactories
+							= live.PublicPreviewLiveCandidateProductionFactories;
+						aRun->PublicPreview.WireRequests
+							= live.PublicPreviewWireRequests;
+						aRun->PublicPreview.WireCapabilityProbes
+							= live.PublicPreviewWireCapabilityProbes;
+						aRun->PublicPreview.WireCredentialedRefusals
+							= live.PublicPreviewWireCredentialedRefusals;
+						if (live.PublicPreviewBudgetObserved) {
+							aRun->PublicPreview.BudgetObserved = true;
+							aRun->PublicPreview.BudgetLimit
+								= live.PublicPreviewBudgetLimit;
+							aRun->PublicPreview.BudgetRemaining
+								= live.PublicPreviewBudgetRemaining;
+							aRun->PublicPreview.BudgetReset
+								= live.PublicPreviewBudgetResetUnixSeconds;
+						}
+						if (live.PublicPreviewSnapshotPublicPreview) {
+							aRun->PublicPreview.SnapshotSignedOut = true;
+							aRun->PublicPreview.HeadOid
+								= live.PublicPreviewSnapshotHeadOid;
+						}
+						// Read before anything is opened, so a composition
+						// that reached for a credentialed transport, built an
+						// authorization header, touched the vault, or was not
+						// built from the production factories issues no
+						// request at all. The run then ends on its own
+						// publication wait and reports the refusal.
+						const auto composed
+							= live.PublicPreviewLiveCandidateProductionFactories
+							&& live.PublicPreviewWireCredentialedRefusals == 0U
+							&& live.PublicPreviewHeaderEffects == 0U
+							&& live.PublicPreviewVaultEffects == 0U;
+						if (composed && !aRun->PublicPreview.DryRun) {
+							// The mode first, the pull request second, exactly
+							// as the fixture course below: opening before the
+							// session is signed out would read it on whatever
+							// authority the host had.
+							if (!aRun->PublicPreview.Opened) {
+								if (!live.PublicPreviewSignedOut) {
+									break;
+								}
+								aRun->PublicPreview.Opened = true;
+								window.session_panel()->owner_editor()->setText(
+									QString::fromStdString(
+										aRun->Expectations.Owner));
+								window.session_panel()
+									->repository_editor()
+									->setText(QString::fromStdString(
+										aRun->Expectations.Repository));
+								window.session_panel()
+									->pull_request_editor()
+									->setValue(aRun->Expectations.Number);
+								window.github_open_action()->trigger();
+								break;
+							}
+							if (live.PublicPreviewRequests == 0U
+								|| !live.PublicPreviewSnapshotPublicPreview) {
+								break;
+							}
+						}
+					}
+					if (aRun->PublicPreview.Course) {
+						// The mode first, the pull request second. Opening
+						// before the session is signed out would read it on
+						// whatever authority the host had, which is the one
+						// thing this course must not do.
+						if (!aRun->PublicPreview.Opened) {
+							if (!aApplication.status().PublicPreviewSignedOut) {
+								break;
+							}
+							aRun->PublicPreview.Opened = true;
+							window.session_panel()->owner_editor()->setText(
+								QString::fromStdString(
+									aRun->Expectations.Owner));
+							window.session_panel()
+								->repository_editor()
+								->setText(QString::fromStdString(
+									aRun->Expectations.Repository));
+							window.session_panel()
+								->pull_request_editor()
+								->setValue(aRun->Expectations.Number);
+							window.github_open_action()->trigger();
+							break;
+						}
+						if (aApplication.status().PublicPreviewRequests == 0U
+							|| !aApplication.status()
+									.PublicPreviewReviewCommentsObserved) {
+							break;
+						}
+						// Offered once the read is in, so the refusals are
+						// answered by a live signed-out session rather than by
+						// an absent one. Nothing here can send: the marker
+						// beside it still reports one anonymous read and no
+						// header, which is what makes "refused before a
+						// request" a reading of the evidence rather than a
+						// claim about it.
+						if (!aRun->PublicPreview.WritesOffered) {
+							aRun->PublicPreview.WritesOffered = true;
+							aApplication.attempt_public_preview_writes();
+						}
+					}
+#endif
+					// The refusal is posted to the decision lane, and the
+					// presentation it produces is the answer this probe
+					// reports; shutdown closes that lane, so the run waits for
+					// the publication rather than racing it.
+					if (aApplication.status().PublicPreviewPublications == 0U) {
+						break;
+					}
+					aRun->PresentationPassed
+						= aRun->Cli.Observed == aRun->Cli.Expected;
+					aRun->RenderSaved = save_render_evidence(
+						window,
+						aRun->RenderPath,
+						aRun->RenderCollapsesFilesDrawer);
+					transition_to_shutdown(aApplication, *aRun);
+					break;
+				}
 				if (aRun->Device.Enabled && aRun->Device.Selected) {
 					if (!bpr::core::terminal(
 							aApplication.status()
 								.DeviceAuthorizationStage)) {
+						// One "Open browser" request, at the only stage that
+						// has an address to open. Made once rather than every
+						// tick: the claim is that the request reaches the
+						// composed capability, not that it can be repeated.
+						// A tests-enabled graph composes the recording opener,
+						// so nothing starts.
+						if (aRun->Device.BrowserProbe
+							&& aApplication.status().DeviceAuthorizationStage
+								== bpr::core::device_authorization_stage::
+									awaiting_authorization
+							&& !aRun->Device.OpenDispatched) {
+							aRun->Device.OpenDispatched = true;
+							aApplication.open_device_verification_address();
+						}
 						// A registered platform's real flow parks in
 						// `awaiting_authorization` until a human answers,
 						// which the probe neither needs nor has budget for:
@@ -4172,6 +5085,66 @@ namespace {
 							== 0U) {
 						break;
 					}
+					// [[BPR-0536]]. The renewal is armed on a real timer off
+					// this run's lane, so the course waits for it by the count
+					// exactly as the store above is waited for, and waits past
+					// `refreshing` so the state it reports is a settled one
+					// rather than whichever instant the poll happened to land
+					// on.
+					//
+					// [[BPR-0544]]. Waiting for the rotation is not waiting for
+					// what the rotation is claimed to have done. The rotation
+					// counter and `scheduled` are published on this lane the
+					// moment the exchange settles, while the new access token
+					// reaches the vault through an off-lane worker, and on the
+					// JaegAW Windows station that store lands about 138 ms
+					// later -- fourteen 10 ms polls after the run had already
+					// decided it was finished. So the run read
+					// `DEVICE_FLOW_VAULT_STORES:1` and failed the row, except
+					// on the first run after a relink, when the cold image was
+					// slow enough for the store to win the race. The count is
+					// waited for here for the same reason the registered
+					// course waits for its first store, which makes the row
+					// deterministic without raising the budget: the bound was
+					// never the cause, and a 60,000 ms budget produced the same
+					// failure in the same 6.6 s.
+					//
+					// `reenrollment_required` is the typed refusal that ends
+					// the wait when the store cannot land at all -- a vault
+					// that answered a failure takes the host down that path --
+					// so a broken store is still reported rather than waited
+					// out to the budget.
+					//
+					// [[BPR-0547]]. Two rotations, not one. One rotation succeeds
+					// whether or not it keeps the material it just stored, because
+					// nothing has had to spend that material yet; the renewal after
+					// it is the one that reads the slot the first rotation wrote.
+					// So the run waits for the second rotation and for the second
+					// rotation's own access-token store to land, by the same count
+					// and for the same off-lane reason as the first.
+					//
+					// `reenrollment_required` ends the wait wherever it is reached,
+					// not only at the store: a chain that broke after the first
+					// rotation reports the count it got to and fails the row on it,
+					// rather than being waited out to the budget and failing as a
+					// timeout that names nothing.
+					if (aRun->Device.RefreshCourse) {
+						const auto refreshStatus = aApplication.status();
+						const auto refreshBroken
+							= refreshStatus.DeviceAuthorizationRefreshState
+							== bpr::application::
+								device_authorization_refresh_state::
+									reenrollment_required;
+						const auto refreshSettled
+							= refreshStatus.DeviceAuthorizationRefreshRotations >= 2U
+							&& refreshStatus.DeviceAuthorizationRefreshState
+								!= bpr::application::
+									device_authorization_refresh_state::refreshing
+							&& refreshStatus.DeviceAuthorizationVaultStores >= 3U;
+						if (!refreshBroken && !refreshSettled) {
+							break;
+						}
+					}
 					aRun->PresentationPassed
 						= aRun->Cli.Observed == aRun->Cli.Expected;
 					aRun->RenderSaved
@@ -4186,11 +5159,57 @@ namespace {
 				// than continuing into the fixture's own stages.
 				if (aRun->Device.Enabled && aRun->Device.Registered) {
 					aRun->Device.Selected = true;
-					aApplication.select_device_authorization();
+					// The one difference between this course and the panel
+					// course beside it: which control starts the flow. Every
+					// stage, terminal, vault store and enrollment below is the
+					// same, so a difference in the evidence is a difference in
+					// the mount rather than in the flow.
+					if (aRun->Device.PanelCourse) {
+						aRun->Device.PanelBegan
+							= begin_through_device_panel(window);
+					} else {
+						aApplication.select_device_authorization();
+					}
 					break;
 				}
 
 #if defined(BPR_BUILD_TESTING)
+				// [[BPR-0540]]. The orphan course's session is the connect
+				// above -- the reviewer's pasted credential -- and its claim
+				// is about what the host did *not* do with the material
+				// already sitting beside it. The acceptance starts the host's
+				// one-time refresh probe, and the fixture's retrieve count is
+				// that probe's own record of having asked, so the run waits
+				// for the question before reporting the answer. It then keeps
+				// ticking, because the answer still has two lane hops and a
+				// republication to travel before composition could resume: a
+				// course that stopped at the retrieve would report zero
+				// resumes for a build that resumes.
+				if (aRun->Device.Enabled && aRun->Device.OrphanCourse) {
+					if (window.github_status_text()
+						!= "GitHub account connected.") {
+						break;
+					}
+					const auto orphanEvidence = bpr::app::detail::
+						github_application_fixture_access::evidence(
+							aApplication);
+					if (orphanEvidence.RefreshRetrieves == 0U) {
+						break;
+					}
+					if (aRun->Device.OrphanSettleTicks
+						< automated_run::orphan_course_settle_ticks) {
+						++aRun->Device.OrphanSettleTicks;
+						break;
+					}
+					aRun->PresentationPassed
+						= aRun->Cli.Observed == aRun->Cli.Expected;
+					aRun->RenderSaved = save_render_evidence(
+						window,
+						aRun->RenderPath,
+						aRun->RenderCollapsesFilesDrawer);
+					transition_to_shutdown(aApplication, *aRun);
+					break;
+				}
 				if (aRun->Fixture) {
 					if (window.github_status_text() != "GitHub account connected."
 						|| !window.github_open_action()->isEnabled()) {
@@ -4219,6 +5238,37 @@ namespace {
 						if (!activate_cli_unavailable_profile(
 								window, *aRun, nextCliProfile)) {
 							fail_automated_run(aApplication, *aRun);
+						}
+					} else if (aRun->PublicPreview.Enabled) {
+						// Activate once. The typed answer is posted to the
+						// decision lane and has to be allowed to land before
+						// the run may transition to shutdown; the wait is at
+						// the top of this stage.
+						aRun->PublicPreview.Activated = true;
+						aApplication.activate_public_preview(false);
+					} else if (aRun->Device.Enabled && aRun->Device.GhesCourse) {
+						// [[BPR-0535]]. The same "select once, then wait for
+						// the typed answer" as below, begun the way a reviewer
+						// looking at an enterprise host begins it: through the
+						// picker and the mounted panel rather than through
+						// `select_device_authorization`, which always names
+						// the front profile and so could never reach this
+						// case.
+						aRun->Device.GhesBegan
+							= begin_through_ghes_device_panel(window);
+						aRun->Device.Selected = aRun->Device.GhesBegan;
+						if (!aRun->Device.GhesBegan) {
+							// Nothing was pressed, so no answer is coming.
+							// Report the false marker now rather than
+							// spending the budget waiting for a terminal that
+							// cannot arrive.
+							aRun->PresentationPassed
+								= aRun->Cli.Observed == aRun->Cli.Expected;
+							aRun->RenderSaved = save_render_evidence(
+								window,
+								aRun->RenderPath,
+								aRun->RenderCollapsesFilesDrawer);
+							transition_to_shutdown(aApplication, *aRun);
 						}
 					} else if (aRun->Device.Enabled) {
 						// Select once. The refusal is posted to the decision
@@ -5834,6 +6884,21 @@ auto main(int argc, char** argv) -> int
 						   : "APPLICATION_NETWORK_ISOLATION_NOT_DENIED\n");
 			return denied ? EXIT_SUCCESS : EXIT_FAILURE;
 		}
+		// [[BPR-0515]]. Tests-enabled only, and deliberately so: this is the
+		// one flag that changes where the shipped device-authorization wire
+		// dials, and a released binary must not carry a way to redirect its
+		// own egress from a command line. The string exists nowhere else, so
+		// the RFC-BPR-0017 fixture-seam scan can prove its absence from a
+		// tests-disabled Release by looking for it.
+		//
+		// What it buys is one gate's determinism.
+		// `application_device_authorization_unavailable` is exempt from the
+		// Windows AppContainer ([[BPR-0362]]), so on Windows nothing denied
+		// the connect and the gate's expectation depended on reaching
+		// github.com. With this the denial is the application's own, on every
+		// platform, and the expectation is the local `failed` macOS and Linux
+		// already recorded.
+		config.NetworkDenied               = has_argument(argc, argv, "--network-denied");
 		const auto testApplicationDataRoot = argument_value(
 			argc, argv, "--test-application-data-root");
 		if (testApplicationDataRoot.has_value()) {
@@ -5853,6 +6918,50 @@ auto main(int argc, char** argv) -> int
 			argc,
 			argv,
 			"--device-authorization-registered-course");
+		// [[BPR-0536]]. The renewal course composes the registered grant and
+		// two more seams: a real second vault slot and the documented renewal
+		// answer. Read here for the same reason as the line above it.
+		fixtureOptions.DeviceRefreshCourse = has_argument(
+			argc,
+			argv,
+			"--device-authorization-refresh-course");
+		// [[BPR-0540]]. The orphan course composes the renewal course's graph
+		// -- the registered capability and the second vault slot -- and adds
+		// the one thing no run of this process could produce: material already
+		// in that slot when the run starts. Read here with the two above it
+		// because the fixture options are assembled before the run flags.
+		fixtureOptions.SeedOrphanedRefreshMaterial = has_argument(
+			argc,
+			argv,
+			"--device-authorization-orphan-course");
+		fixtureOptions.DeviceRefreshCourse = fixtureOptions.DeviceRefreshCourse
+			|| fixtureOptions.SeedOrphanedRefreshMaterial;
+		// The renewal course is the registered course plus a renewal, so it
+		// composes the registered capability rather than a second one. Every
+		// stage up to the vault store is the same graph, which is what makes
+		// the rotation after it evidence about the shipped composition.
+		fixtureOptions.RegisteredDeviceCourse
+			= fixtureOptions.RegisteredDeviceCourse
+			|| fixtureOptions.DeviceRefreshCourse;
+		// RFC-BPR-0016 construction cut. Composes the device host with no
+		// browser capability, which is what every build had before
+		// [[BPR-0516]] composed one.
+		fixtureOptions.PublicPreviewEnabledCourse
+			= has_argument(argc, argv, "--public-preview-enabled-course");
+		fixtureOptions.PublicPreviewGhesCourse
+			= has_argument(argc, argv, "--public-preview-ghes-course");
+		fixtureOptions.SuppressDeviceBrowser = has_argument(
+			argc,
+			argv,
+			"--device-authorization-browser-absent");
+		// [[BPR-0526]] construction cut. The window still mounts the device
+		// sign-in panel; composition adopts neither of its edges, so it is
+		// drawn and inert while the flow stays reachable through this
+		// self-test.
+		fixtureOptions.DisableDeviceAuthorizationPanelComposition = has_argument(
+			argc,
+			argv,
+			"--device-authorization-panel-absent");
 		if (const auto fixture = argument_value(argc, argv, "--github-fixture");
 			fixture.has_value()) {
 			if (*fixture == "github-com") {
@@ -5961,8 +7070,157 @@ auto main(int argc, char** argv) -> int
 		const auto selfTest = has_argument(argc, argv, "--self-test");
 		const auto deviceProbe
 			= has_argument(argc, argv, "--device-authorization-probe");
-		const auto registeredDeviceCourse
-			= has_argument(argc, argv, "--device-authorization-registered-course");
+		// [[BPR-0537]]. Tests-enabled only, like the browser probe below.
+		// In a released image this flag suppressed the device probe's own
+		// cancel, so `--self-test --device-authorization-probe
+		// --device-authorization-registered-course` polled GitHub until the
+		// run budget expired. Every registration that passes it is a
+		// tests-enabled row, so gating it costs no course; what it buys is
+		// the string's absence from a tests-disabled image, which is how the
+		// RFC-BPR-0016 inventory scan proves the flag is gone rather than
+		// merely inert.
+		const auto registeredDeviceCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-registered-course");
+#else
+			false;
+#endif
+		// [[BPR-0536]]. Tests-enabled only, exactly like the registered course
+		// it extends: it forces a registered capability against the recorded
+		// fixture, and a released image must not be able to do that from a
+		// command line. Its absence from a tests-disabled binary is what the
+		// RFC-BPR-0016 inventory scan reads.
+		const auto deviceRefreshCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-refresh-course");
+#else
+			false;
+#endif
+		// [[BPR-0540]]. Tests-enabled only, exactly like the renewal course
+		// whose composition it borrows: it forces a registered capability and
+		// seeds a vault slot against the recorded fixture, and a released
+		// image must not be able to do either from a command line. Its
+		// absence from a tests-disabled binary is what the RFC-BPR-0016
+		// inventory scan reads.
+		const auto deviceOrphanCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-orphan-course");
+#else
+			false;
+#endif
+		// Tests-enabled only. A shipped binary opens a browser when the
+		// reviewer asks it to and at no other time: the stations run the
+		// release courses unattended, and a command-line flag that could start
+		// a browser in one of those runs is a failure nobody would be watching
+		// for. The composed opener is proven in a shipped graph by linkage and
+		// construction instead.
+		const auto deviceBrowserProbe =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-browser-probe");
+#else
+			false;
+#endif
+		// [[BPR-0526]]. Starts the flow through the mounted panel rather than
+		// through `select_device_authorization`, which is the only difference
+		// between this course and the registered one beside it, and
+		// tests-enabled only for the same reason ([[BPR-0537]]).
+		const auto devicePanelCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-panel-course");
+#else
+			false;
+#endif
+		// [[BPR-0535]]. Tests-enabled only, like the forced courses below.
+		// It drives the picker onto an enterprise profile and presses the
+		// mounted panel's begin, which is a reviewer's gesture; a shipped
+		// binary offers it from the window and from no command line.
+		const auto deviceGhesCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--device-authorization-ghes-course");
+#else
+			false;
+#endif
+		// RFC-BPR-0017. Unconditional, exactly like the device probe beside
+		// it: the claim a shipped binary has to be able to make is that the
+		// signed-out mode is unavailable and sends nothing, and a flag that
+		// existed only in a tests-enabled build could not make it.
+		const auto publicPreviewProbe
+			= has_argument(argc, argv, "--public-preview-probe");
+		// The two forced courses are tests-enabled only. They override the
+		// shipped selection, which is the one thing a released binary must
+		// never be able to do from a command line.
+		const auto publicPreviewEnabledCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--public-preview-enabled-course");
+#else
+			false;
+#endif
+		const auto publicPreviewGhesCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--public-preview-ghes-course");
+#else
+			false;
+#endif
+		// [[BPR-0316]]. The forced selection with no fixture underneath it.
+		// Tests-enabled only, for the reason the two courses above are: a
+		// released binary must never be able to override its own selection
+		// from a command line. `--public-preview-selection-enabled-probe`
+		// activates the mode and stops, which is what a shipped build whose
+		// selection is enabled does; the live candidate additionally opens the
+		// named pull request through the production anonymous authority, and
+		// its dry-run twin reports the same wiring having issued nothing.
+		auto publicPreviewSelectionForced = false;
+		auto publicPreviewLiveCandidate   = false;
+		auto publicPreviewLiveDryRun      = false;
+#if defined(BPR_BUILD_TESTING)
+		publicPreviewLiveDryRun = has_argument(
+			argc, argv, "--public-preview-live-candidate-dry-run");
+		if (const auto candidate = argument_values(
+				argc, argv, "--public-preview-live-candidate", 3);
+			candidate.has_value()) {
+			auto              number = 0;
+			const auto* const first  = (*candidate)[2U].data();
+			const auto* const last   = first + (*candidate)[2U].size();
+			const auto        parsed = std::from_chars(first, last, number);
+			if (parsed.ec != std::errc{ } || parsed.ptr != last || number <= 0
+				|| (*candidate)[0U].empty() || (*candidate)[1U].empty()) {
+				QTextStream{ stdout }
+					<< "PUBLIC_PREVIEW_LIVE_CANDIDATE_CONFIGURATION_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			publicPreviewLiveCandidate = true;
+			// The same three fields the fixture courses drive the session
+			// panel from, so the live candidate opens through the shipped
+			// control rather than through a path of its own.
+			fixtureExpectations.Owner.assign((*candidate)[0U]);
+			fixtureExpectations.Repository.assign((*candidate)[1U]);
+			fixtureExpectations.Number = number;
+		}
+		if (publicPreviewLiveDryRun && !publicPreviewLiveCandidate) {
+			QTextStream{ stdout }
+				<< "PUBLIC_PREVIEW_LIVE_CANDIDATE_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		publicPreviewSelectionForced = publicPreviewLiveCandidate
+			|| has_argument(
+										   argc, argv, "--public-preview-selection-enabled-probe");
+		// Refused here, before a graph exists and so before anything could be
+		// sent. A profile that is not GitHub.com has no anonymous read
+		// authority at all; a fixture would replace the production factories
+		// this is composed to exercise; a course flag would override the
+		// selection a second time; and the run bound is mandatory, because
+		// this is the one self-test whose requests leave the machine.
+		if (publicPreviewSelectionForced
+			&& (!selfTest || selectedFixture.has_value()
+				|| enterpriseHostname.has_value() || publicPreviewEnabledCourse
+				|| publicPreviewGhesCourse || deviceProbe
+				|| registeredDeviceCourse
+				|| !has_argument(argc, argv, "--automated-run-budget-ms"))) {
+			QTextStream{ stdout }
+				<< "PUBLIC_PREVIEW_LIVE_CANDIDATE_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+#endif
 		const auto renderPath                 = argument_value(argc, argv, "--render-evidence");
 		const auto renderCollapsesFilesDrawer = has_argument(
 			argc, argv, "--render-evidence-collapse-files");
@@ -6351,10 +7609,21 @@ auto main(int argc, char** argv) -> int
 			selectedFixture.has_value()
 			? bpr::app::detail::github_application_fixture_access::make(
 				  *selectedFixture, fixtureOptions)
-			:
+			: (publicPreviewSelectionForced
+				   // [[BPR-0316]]. The shipped graph with one thing changed:
+				   // the public-preview selection is available. Every factory
+				   // below it is the production one.
+				   ? bpr::app::detail::github_application_fixture_access::
+						 make_public_preview_selection_available(
+							 std::move(config))
+				   :
 #endif
-			std::make_unique<bpr::app::github_application>(
-				std::move(config));
+				   std::make_unique<bpr::app::github_application>(
+					   std::move(config))
+#if defined(BPR_BUILD_TESTING)
+			  )
+#endif
+			;
 		application->show();
 
 		// Closing the last window starts the shutdown poll rather than letting
@@ -6368,6 +7637,8 @@ auto main(int argc, char** argv) -> int
 		auto       verifyNativePlatformVault = selfTest;
 		auto       verifyCliUnavailable      = selfTest;
 		const auto verifyDeviceAuthorization = selfTest && deviceProbe;
+		const auto verifyPublicPreview       = selfTest
+			&& (publicPreviewProbe || publicPreviewSelectionForced);
 #if defined(BPR_BUILD_TESTING)
 		verifyNativePlatformVault = verifyNativePlatformVault && fixtureName.empty();
 		verifyCliUnavailable      = verifyCliUnavailable && fixtureName.empty();
@@ -6423,8 +7694,21 @@ auto main(int argc, char** argv) -> int
 							.EnterpriseHostname = std::move(enterpriseHostname),
 						},
 						.Device = automated_run::device_authorization_probe_state{
-							.Enabled    = verifyDeviceAuthorization,
-							.Registered = registeredDeviceCourse,
+							.Enabled       = verifyDeviceAuthorization,
+							.Registered    = registeredDeviceCourse || deviceRefreshCourse,
+							.BrowserProbe  = verifyDeviceAuthorization && deviceBrowserProbe,
+							.PanelCourse   = verifyDeviceAuthorization && devicePanelCourse,
+							.GhesCourse    = verifyDeviceAuthorization && deviceGhesCourse,
+							.RefreshCourse = verifyDeviceAuthorization && deviceRefreshCourse,
+							.OrphanCourse  = verifyDeviceAuthorization && deviceOrphanCourse,
+						},
+						.PublicPreview = automated_run::public_preview_probe_state{
+							.Enabled         = verifyPublicPreview,
+							.Course          = verifyPublicPreview && publicPreviewEnabledCourse,
+							.Enterprise      = verifyPublicPreview && publicPreviewGhesCourse,
+							.SelectionForced = publicPreviewSelectionForced,
+							.LiveCandidate   = publicPreviewLiveCandidate,
+							.DryRun          = publicPreviewLiveDryRun,
 						},
 #if defined(BPR_BUILD_TESTING)
 						.Fixture                         = !fixtureName.empty(),

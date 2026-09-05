@@ -1,9 +1,13 @@
 #include "bpr/qt/workbench_window.hpp"
 
+#include "bpr/qt/device_authorization_panel.hpp"
+#include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
 
 #include <QAbstractItemDelegate>
 #include <QAbstractItemModel>
+#include <QAbstractScrollArea>
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -17,12 +21,14 @@
 #include <QImage>
 #include <QItemSelectionModel>
 #include <QLabel>
+#include <QLayout>
 #include <QLineEdit>
 #include <QListView>
 #include <QPalette>
 #include <QPersistentModelIndex>
 #include <QPixmap>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSpinBox>
@@ -43,6 +49,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace {
@@ -2192,6 +2199,808 @@ namespace {
 				&& window.conversation_model()->statistics().ModelResets == 0U,
 			"rendered projection path performs no full model or window reset");
 	}
+	/// \brief BPR-0513: both agent surfaces are laid into the review drawer.
+	///
+	/// \details The claim this case makes is placement and nothing else. It
+	/// finds each panel the way a keyboard or assistive user does — by the
+	/// accessible name the panel gives itself — and then asks the drawer's own
+	/// column whether it manages the widget it found. Both halves are needed:
+	/// a panel constructed as a child of the column but never added to it is
+	/// still a `findChild` hit, and would still be painted, at the default
+	/// geometry, on top of the conversation tree.
+	auto test_agent_surfaces_are_placed_in_the_conversations_drawer() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		publish_session_ready(window);
+		publish_pull_request(window);
+		// Tall enough that the drawer can show the whole agent stack at once,
+		// which is what the capture below has to be a picture of.
+		window.resize(1'400, 1'500);
+		window.show();
+
+		// The drawer opens because the core said so, which is the only way it
+		// ever opens; the window decides no drawer state of its own.
+		auto opened    = application::workbench_projection{ };
+		opened.Drawers = core::workbench_drawer_delta{
+			.Files         = core::workbench_drawer_state::expanded,
+			.Conversations = core::workbench_drawer_state::expanded,
+		};
+		window.publish(opened);
+		QApplication::processEvents();
+
+		auto* const drawer = window.conversations_drawer();
+		expect(
+			drawer != nullptr && drawer->isVisible(),
+			"the conversations drawer opens on the core's decided state");
+
+		const auto named = [drawer](const QString& aName) -> QWidget* {
+			for (auto* const widget : drawer->findChildren<QWidget*>()) {
+				if (widget->accessibleName() == aName) {
+					return widget;
+				}
+			}
+			return nullptr;
+		};
+		auto* const sideChat     = named(QStringLiteral("AI side chat"));
+		auto* const findingQueue = named(QStringLiteral("AI finding queue"));
+		expect(
+			sideChat != nullptr && sideChat == window.side_chat(),
+			"the open drawer holds the side chat panel under its accessible name");
+		expect(
+			findingQueue != nullptr && findingQueue == window.finding_queue(),
+			"the open drawer holds the finding queue under its accessible name");
+
+		const auto laidOut = [](QWidget* const aWidget) {
+			auto* const parent
+				= aWidget == nullptr ? nullptr : aWidget->parentWidget();
+			return parent != nullptr && parent->layout() != nullptr
+				&& parent->layout()->indexOf(aWidget) >= 0;
+		};
+		expect(
+			laidOut(sideChat),
+			"the side chat is laid into the drawer's own column, not merely parented to it");
+		expect(
+			laidOut(findingQueue),
+			"the finding queue is laid into the drawer's own column, not merely parented to it");
+
+		auto* const agentPanel = window.agent_panel();
+		auto* const editor     = window.review_editor();
+		expect(
+			agentPanel != nullptr && editor != nullptr
+				&& agentPanel->parentWidget() == sideChat->parentWidget()
+				&& sideChat->parentWidget() == findingQueue->parentWidget(),
+			"both agent surfaces share the drawer column the agent launch panel is in");
+		const auto columnTop = [drawer](const QWidget* const aWidget) {
+			return aWidget->mapTo(drawer, QPoint{ 0, 0 }).y();
+		};
+		expect(
+			sideChat->isVisible() && findingQueue->isVisible()
+				&& sideChat->width() > 0 && sideChat->height() > 0
+				&& findingQueue->width() > 0 && findingQueue->height() > 0
+				&& columnTop(agentPanel) < columnTop(sideChat)
+				&& columnTop(sideChat) < columnTop(findingQueue),
+			"the agent launcher, the side chat, and the finding queue stack down one visible column");
+
+		// The workshop a promotion opens is the draft editor's own, and that
+		// editor is already in this drawer. There is no second workshop, and
+		// no window of its own for one to appear in.
+		expect(
+			drawer->isAncestorOf(editor)
+				&& drawer->isAncestorOf(editor->workshop_original_editor())
+				&& drawer->isAncestorOf(editor->workshop_proposal_editor()),
+			"the comment workshop a finding promotion reaches is in this drawer already");
+
+		auto* const convert = window.finding_queue()->action(
+			qt::finding_queue_action::convert_to_draft_comment);
+		expect(convert != nullptr, "the queue declares the promotion action");
+		auto* offered = static_cast<QToolButton*>(nullptr);
+		for (auto* const button : drawer->findChildren<QToolButton*>()) {
+			if (button->defaultAction() == convert) {
+				offered = button;
+			}
+		}
+		expect(
+			offered != nullptr && offered->isVisible(),
+			"the finding action that opens the workshop is offered in the drawer");
+
+		// The drawer button reaches the panel's own way out and nothing else.
+		// The window sets no dispatch, so this one is the test's.
+		auto intents = std::vector<qt::finding_action_intent>{ };
+		window.finding_queue()->set_dispatch(
+			[&intents](qt::finding_action_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			});
+		auto delivery = application::agent_finding_delivery{ };
+		delivery.Findings.push_back(application::agent_delivered_finding{ });
+		delivery.Findings.front().Finding.Claim = "BPR-0513 placed finding";
+		window.finding_queue()->present(delivery);
+		window.finding_queue()->select(0U);
+		offered->click();
+		QApplication::processEvents();
+		expect(
+			intents.size() == 1U
+				&& intents.front().Action
+					== qt::finding_queue_action::convert_to_draft_comment,
+			"clicking the placed button emits exactly one promotion intent and performs nothing");
+		window.finding_queue()->set_dispatch({ });
+
+		// The column is taller than the drawer, so it scrolls. Bringing the
+		// two agent surfaces into the drawer's own visible region is what
+		// makes the capture below a picture of them rather than of whatever
+		// happened to be at the top of the column.
+		auto* const column = drawer->findChild<QScrollArea*>(
+			QStringLiteral("workbenchConversationDrawerScroll"));
+		expect(
+			column != nullptr,
+			"the drawer's column scrolls rather than squeezing its panels");
+		column->verticalScrollBar()->setValue(
+			column->verticalScrollBar()->value()
+			+ sideChat->mapTo(column->viewport(), QPoint{ 0, 0 }).y());
+		QApplication::processEvents();
+		const auto mostlyShown = [drawer](const QWidget* const aWidget) {
+			const QRect placed{
+				aWidget->mapTo(drawer, QPoint{ 0, 0 }),
+				aWidget->size(),
+			};
+			return drawer->rect().intersected(placed).height()
+				>= placed.height() / 2;
+		};
+		expect(
+			mostlyShown(sideChat) && mostlyShown(findingQueue),
+			"scrolling the drawer's column shows both agent surfaces inside the drawer");
+
+		// The capture the acceptance criterion asks for, cropped to the drawer
+		// the panels are in. A whole-window diff would pass on a repaint
+		// anywhere; this raster is the drawer and only the drawer.
+		QApplication::processEvents();
+		const auto rendered = window.grab();
+		const auto ratio    = window.devicePixelRatioF();
+		const auto scaled   = [ratio](const int aValue) {
+			return static_cast<int>(
+				std::lround(static_cast<double>(aValue) * ratio));
+		};
+		const auto origin = drawer->mapTo(&window, QPoint{ 0, 0 });
+		// A logical rectangle's device rectangle is its two rounded edges, not
+		// a rounded origin plus a rounded size. Those two disagree by a pixel
+		// at 1.25x for half the drawer widths there are, and `copy` answers a
+		// rectangle that leaves the raster by returning a smaller pixmap
+		// rather than refusing, so the disagreement arrived here as a crop of
+		// the wrong size (BPR-0520).
+		const QRect region{
+			QPoint{ scaled(origin.x()), scaled(origin.y()) },
+			QPoint{ scaled(origin.x() + drawer->width()) - 1,
+					scaled(origin.y() + drawer->height()) - 1 },
+		};
+		const auto cropped = rendered.copy(region);
+		expect(
+			rendered.rect().contains(region) && !cropped.isNull()
+				&& cropped.size() == region.size(),
+			"the drawer crop has the drawer's exact device dimensions");
+		const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH");
+		if (!renderPath.isEmpty()) {
+			const QFileInfo configured{ renderPath };
+			expect(
+				cropped.save(
+					QStringLiteral("%1/%2-agent-drawer.png")
+						.arg(configured.path(), configured.completeBaseName()),
+					"PNG"),
+				"the drawer crop is saved in the ignored build tree");
+		}
+
+		// Collapse is the drawer's, and the placed panels inherit it rather
+		// than answering it themselves.
+		auto collapsed    = application::workbench_projection{ };
+		collapsed.Drawers = core::workbench_drawer_delta{
+			.Files         = core::workbench_drawer_state::expanded,
+			.Conversations = core::workbench_drawer_state::collapsed,
+		};
+		window.publish(collapsed);
+		QApplication::processEvents();
+		expect(
+			!drawer->isVisible() && !sideChat->isVisible()
+				&& !findingQueue->isVisible(),
+			"collapsing the drawer hides both placed agent surfaces with it");
+		window.publish(opened);
+		QApplication::processEvents();
+		expect(
+			drawer->isVisible() && sideChat->isVisible()
+				&& findingQueue->isVisible(),
+			"reopening the drawer restores both placed agent surfaces");
+	}
+	/// \brief Whether a layout, or a row nested inside it, manages a widget.
+	///
+	/// \details BPR-0520 follows BPR-0513's membership check one level deeper,
+	/// because a defect button sits in a row nested in the drawer's column
+	/// rather than directly in the column. A button constructed as a child of
+	/// that column but never added to any of its rows still answers
+	/// `findChildren`, still paints, and would sit at the column's origin -
+	/// which is inside the visible width, and so would pass the measurement
+	/// below for entirely the wrong reason.
+	[[nodiscard]] auto laid_into(
+		const QLayout* const aLayout,
+		const QWidget* const aWidget) -> bool
+	{
+		if (aLayout == nullptr) {
+			return false;
+		}
+		for (auto index = 0; index < aLayout->count(); ++index) {
+			auto* const item = aLayout->itemAt(index);
+			if (item->widget() == aWidget || laid_into(item->layout(), aWidget)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/// \brief Names a control the way a failure has to name it.
+	///
+	/// \details BPR-0527 sweeps every control in the drawer rather than a
+	/// listed few, so the message cannot be written out beside each name. A
+	/// button answers under the object name its action carries, which is the
+	/// name the card and the product's own wiring use; anything else answers
+	/// under its own object name, then its accessible name, then its class,
+	/// so a control nobody named still fails legibly instead of anonymously.
+	[[nodiscard]] auto control_name(const QWidget* const aWidget) -> std::string
+	{
+		const auto* const button = qobject_cast<const QToolButton*>(aWidget);
+		const auto* const action = button == nullptr ? nullptr
+													 : button->defaultAction();
+		auto              name   = action != nullptr && !action->objectName().isEmpty()
+			? action->objectName()
+			: aWidget->objectName();
+		if (name.isEmpty()) {
+			name = aWidget->accessibleName();
+		}
+		if (name.isEmpty()) {
+			name = QString::fromLatin1(aWidget->metaObject()->className());
+		}
+		return name.toStdString();
+	}
+
+	/// \brief Every control the drawer's own width has to hold.
+	///
+	/// \details BPR-0527 widens BPR-0520's per-action measurement from the
+	/// defect rows to the whole drawer, because the card it came from was
+	/// written about two rows that had never been measured and a listed name
+	/// cannot fail for a row nobody thought to list. The walk is over the
+	/// column's own widget tree, so a row added later is swept without being
+	/// added here.
+	///
+	/// It stops at a pane that scrolls on its own. A conversation tree, the
+	/// agent's output, the finding list: each of those answers for what is
+	/// inside it and can be scrolled to reach it. The drawer's width has to
+	/// hold the pane, and that is what is measured. Hidden children and
+	/// windows of their own - a combo box's popup - are not in the column's
+	/// coordinate space and are not controls the drawer's width has to hold.
+	void collect_drawer_controls(
+		QWidget* const         aRoot,
+		std::vector<QWidget*>& aFound)
+	{
+		for (auto* const child : aRoot->findChildren<QWidget*>(
+				 QString{ }, Qt::FindDirectChildrenOnly)) {
+			if (child->isWindow() || !child->isVisible()) {
+				continue;
+			}
+			aFound.push_back(child);
+			if (qobject_cast<QAbstractScrollArea*>(child) == nullptr) {
+				collect_drawer_controls(child, aFound);
+			}
+		}
+	}
+
+	/// \brief Every control in the conversations drawer is inside its width.
+	///
+	/// \details The drawer's column scrolls down and refuses to scroll
+	/// sideways, so a control whose rectangle leaves the visible width is not
+	/// offscreen — it is absent, and no gesture in the product reaches it.
+	/// BPR-0513's capture showed that happening to the defect rows; BPR-0520
+	/// measured those two rows rather than looking at them. BPR-0527 widens
+	/// the same measurement to the whole drawer, because two rows it did not
+	/// name — the conversation panel's reveal and the agent launcher's run
+	/// controls — were still overflowing while this case passed.
+	///
+	/// So it asks three questions. Whether the column is no wider than the
+	/// width a reviewer can reach, which is the one claim that covers a row
+	/// added tomorrow. Whether every control the column holds is inside that
+	/// width, swept from the widget tree and named in the failure. And
+	/// whether each action the drawer offers is still there under the object
+	/// name it carried, is laid into a layout rather than merely parented,
+	/// and was reached by the sweep — so a rename fails here rather than
+	/// silently skipping. One executable is the 1.0x, 1.25x and 2.0x scale
+	/// cases, so each is measured at all three scales the card names.
+	auto test_drawer_controls_are_reachable_in_the_conversations_drawer() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		publish_session_ready(window);
+		publish_pull_request(window);
+		// Only the centre absorbs a window resize, so widening the window
+		// leaves the drawer at the width the composition gives it - which is
+		// the default width the claim is about. The height is generous so the
+		// whole defect stack can be shown at once, which is what the window
+		// capture below has to be a picture of.
+		window.resize(1'400, 1'500);
+		window.show();
+
+		auto opened    = application::workbench_projection{ };
+		opened.Drawers = core::workbench_drawer_delta{
+			.Files         = core::workbench_drawer_state::expanded,
+			.Conversations = core::workbench_drawer_state::expanded,
+		};
+		window.publish(opened);
+		QApplication::processEvents();
+
+		auto* const drawer = window.conversations_drawer();
+		expect(
+			drawer != nullptr && drawer->isVisible(),
+			"the conversations drawer opens on the core's decided state");
+		auto* const column = drawer->findChild<QScrollArea*>(
+			QStringLiteral("workbenchConversationDrawerScroll"));
+		expect(
+			column != nullptr && column->viewport() != nullptr
+				&& column->viewport()->width() > 0,
+			"the drawer's column has a visible width to be inside of");
+		// The premise everything below rests on. With sideways scrolling
+		// refused, the viewport's width is the whole of what a reviewer can
+		// reach, at every scroll position the column has.
+		expect(
+			column->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff
+				&& !column->horizontalScrollBar()->isVisible(),
+			"the drawer's column still refuses to scroll sideways");
+
+		// Every control the column holds, swept from the widget tree rather
+		// than listed, so a row nobody thought to list is measured too.
+		expect(
+			column->widget() != nullptr,
+			"the drawer's column holds a widget to sweep");
+		auto controls = std::vector<QWidget*>{ };
+		collect_drawer_controls(column->widget(), controls);
+		expect(
+			!controls.empty(),
+			"the sweep reaches the drawer's controls rather than an empty column");
+		// BPR-0527's one claim about the drawer rather than about a control in
+		// it, and the one that covers a row added tomorrow. A column is
+		// resized to its own minimum whenever that minimum is wider than the
+		// viewport, and everything past the viewport is then unreachable at
+		// every scroll position - so the column fitting is the whole of what
+		// makes its contents reachable. It is asked first because it names
+		// what made the column too wide, which is not the same widget as the
+		// one that then sticks out of it: a row that asks for nine pixels too
+		// many stretches every panel beside it, and the sweep below reports
+		// whichever of those the walk reaches first.
+		auto* widest = static_cast<QWidget*>(nullptr);
+		for (auto* const control : controls) {
+			if (widest == nullptr
+				|| control->minimumSizeHint().width()
+					> widest->minimumSizeHint().width()) {
+				widest = control;
+			}
+		}
+		expect(
+			column->widget()->width() <= column->viewport()->width()
+				&& column->horizontalScrollBar()->maximum() == 0,
+			std::string{ "the drawer's column is no wider than the width a "
+						 "reviewer can reach; the widest thing in it is " }
+				+ control_name(widest) + ", asking "
+				+ std::to_string(widest->minimumSizeHint().width())
+				+ " px of a " + std::to_string(column->viewport()->width())
+				+ " px viewport");
+
+		for (auto* const control : controls) {
+			const QRect placed{
+				control->mapTo(column->viewport(), QPoint{ 0, 0 }),
+				control->size(),
+			};
+			expect(
+				placed.left() >= 0
+					&& placed.right() < column->viewport()->width(),
+				std::string{ "the drawer control is inside the drawer's "
+							 "visible width: " }
+					+ control_name(control));
+		}
+
+		const auto offered = [drawer](const QString& aName) -> QToolButton* {
+			auto* found = static_cast<QToolButton*>(nullptr);
+			for (auto* const button : drawer->findChildren<QToolButton*>()) {
+				auto* const action = button->defaultAction();
+				if (action != nullptr && action->objectName() == aName) {
+					found = button;
+				}
+			}
+			return found;
+		};
+		// Every action the drawer offers, row by row, under the object name it
+		// already carried. The sweep above measures whatever the column holds;
+		// this list is what the drawer is supposed to hold, so a renamed or
+		// dropped action fails here rather than passing as an absence.
+		for (const auto* const name :
+			 { // The conversation panel's own row, at the top of the column
+			   // (RFC-BPR-0009, RFC-BPR-0010).
+			   "showReviewThreadsAction",
+			   // The agent launcher's run controls (RFC-BPR-0011).
+			   "agentExistingCheckoutAction", "startAgentAction",
+			   "cancelAgentAction",
+			   // The side chat's row (RFC-BPR-0012, placed by BPR-0513).
+			   "sideChatSend", "sideChatAddContext", "sideChatStartNewSession",
+			   "sideChatContinueOldRevision",
+			   // The six the finding queue declares (BPR-0506).
+			   "findingOpenEvidence", "findingAskFollowUp",
+			   "findingConvertToDraftComment", "findingConvertToDraftDefect",
+			   "findingAddToPrivateNotes", "findingDismiss",
+			   // The three that fill and walk the defect queue, then the five
+			   // verdicts RFC-BPR-0009 and RFC-BPR-0010 give the selected
+			   // defect (BPR-0520).
+			   "classifySelectedDefect", "previousDefect", "nextDefect",
+			   "defectVerify", "defectReopen", "defectWithdraw",
+			   "defectAcceptAsIs", "defectReclassify" }) {
+			auto* const button = offered(QString::fromLatin1(name));
+			expect(
+				button != nullptr && button->isVisible() && button->width() > 0
+					&& button->height() > 0,
+				std::string{ "the open drawer offers a visible button for " }
+					+ name);
+			expect(
+				laid_into(button->parentWidget()->layout(), button),
+				std::string{ "the drawer action is laid into the layout that "
+							 "owns it, not merely parented to it: " }
+					+ name);
+			// And that the sweep saw it. A sweep that walked past the panels
+			// would leave these names measured only by the loop that lists
+			// them, which is the sample the card refused.
+			expect(
+				std::find(controls.begin(), controls.end(), button)
+					!= controls.end(),
+				std::string{ "the sweep reached the drawer action: " } + name);
+			const QRect placed{
+				button->mapTo(column->viewport(), QPoint{ 0, 0 }),
+				button->size(),
+			};
+			expect(
+				placed.left() >= 0
+					&& placed.right() < column->viewport()->width(),
+				std::string{ "the drawer action is inside the drawer's "
+							 "visible width: " }
+					+ name);
+		}
+
+		// The two rows BPR-0527 stacked, asserted as stacked rather than as
+		// merely fitting. The width above is the width the product opens at,
+		// and it is the reviewer's to change: the drawer drags down to
+		// `minimum_workbench_drawer_width`, and at those widths what keeps a
+		// row's last control reachable is that the row is a column. Measured
+		// as the arrangement it is - the second control begins at or below the
+		// bottom of the first, so the two do not share a line - because a
+		// horizontal row of these three run controls asks for 366 px, nine
+		// more than the stacked column asks for, and the difference is small
+		// enough to hide inside the column's own margins at the opening
+		// width while being lost at every narrower one.
+		const auto stackedUnder = [](const QWidget* const aAbove,
+									 const QWidget* const aBelow) {
+			return aAbove != nullptr && aBelow != nullptr
+				&& aBelow->mapTo(aBelow->window(), QPoint{ 0, 0 }).y()
+				>= aAbove->mapTo(aAbove->window(), QPoint{ 0, 0 }).y()
+					+ aAbove->height();
+		};
+		auto* const availability = drawer->findChild<QLabel*>(
+			QStringLiteral("reviewThreadAvailability"));
+		expect(
+			availability != nullptr && availability->isVisible(),
+			"the open drawer shows the review-thread availability sentence");
+		expect(
+			stackedUnder(availability, offered(QStringLiteral("showReviewThreadsAction"))),
+			"the reveal action is stacked under the availability sentence rather than beside it: showReviewThreadsAction");
+		expect(
+			stackedUnder(
+				offered(QStringLiteral("agentExistingCheckoutAction")),
+				offered(QStringLiteral("startAgentAction")))
+				&& stackedUnder(
+					offered(QStringLiteral("startAgentAction")),
+					offered(QStringLiteral("cancelAgentAction"))),
+			"the agent launcher's run controls are stacked rather than laid in a row: startAgentAction, cancelAgentAction");
+
+		// The one control in these rows that is not an action. BPR-0527's card
+		// measured it 17 px past the viewport with its text still legible,
+		// which is the failure that reads as success: the label was inside the
+		// drawer, its right edge was not.
+		auto* const defectCount = drawer->findChild<QLabel*>(
+			QStringLiteral("defectCount"));
+		expect(
+			defectCount != nullptr && defectCount->isVisible(),
+			"the open drawer shows the defect queue position");
+		expect(
+			std::find(controls.begin(), controls.end(), defectCount)
+					!= controls.end()
+				&& QRect{ defectCount->mapTo(column->viewport(), QPoint{ 0, 0 }),
+						  defectCount->size() }
+						.right()
+					< column->viewport()->width(),
+			"the defect queue position is inside the drawer's visible width");
+
+		// The column is taller than the drawer, so the defect stack has to be
+		// brought into the drawer's visible region before a capture is a
+		// picture of it. Scrolling moves these rows down the drawer; what it
+		// cannot do is move them across it, which is the whole point.
+		auto* const first = offered(QStringLiteral("classifySelectedDefect"));
+		auto* const last  = offered(QStringLiteral("defectReclassify"));
+		column->verticalScrollBar()->setValue(
+			column->verticalScrollBar()->value()
+			+ first->mapTo(column->viewport(), QPoint{ 0, 0 }).y());
+		QApplication::processEvents();
+		const auto wholly = [column](const QWidget* const aWidget) {
+			const QRect placed{
+				aWidget->mapTo(column->viewport(), QPoint{ 0, 0 }),
+				aWidget->size(),
+			};
+			return column->viewport()->rect().contains(placed);
+		};
+		expect(
+			wholly(first) && wholly(last),
+			"the defect stack from its first action to its last is inside the drawer's visible region");
+
+		// The capture the card asks for, cropped to the drawer the actions are
+		// in. A whole-window raster would differ on a repaint anywhere; this
+		// one is the drawer and only the drawer.
+		QApplication::processEvents();
+		const auto rendered = window.grab();
+		const auto ratio    = window.devicePixelRatioF();
+		const auto scaled   = [ratio](const int aValue) {
+			return static_cast<int>(
+				std::lround(static_cast<double>(aValue) * ratio));
+		};
+		const auto  origin = drawer->mapTo(&window, QPoint{ 0, 0 });
+		const QRect region{
+			QPoint{ scaled(origin.x()), scaled(origin.y()) },
+			QPoint{ scaled(origin.x() + drawer->width()) - 1,
+					scaled(origin.y() + drawer->height()) - 1 },
+		};
+		const auto cropped = rendered.copy(region);
+		expect(
+			rendered.rect().contains(region) && !cropped.isNull()
+				&& cropped.size() == region.size(),
+			"the defect drawer crop has the drawer's exact device dimensions");
+		const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH");
+		if (!renderPath.isEmpty()) {
+			const QFileInfo configured{ renderPath };
+			expect(
+				cropped.save(
+					QStringLiteral("%1/%2-defect-drawer.png")
+						.arg(configured.path(), configured.completeBaseName()),
+					"PNG"),
+				"the defect drawer crop is saved in the ignored build tree");
+			// And the column whole. The crop above is what the drawer shows at
+			// one scroll position, and BPR-0527's claim is about every row, so
+			// looking at it means looking at all of them. The column renders at
+			// exactly the width a reviewer can reach, so a control past that
+			// width is cut off in this picture as it is in the drawer.
+			expect(
+				column->widget()->grab().save(
+					QStringLiteral("%1/%2-drawer-column.png")
+						.arg(configured.path(), configured.completeBaseName()),
+					"PNG"),
+				"the whole drawer column is saved in the ignored build tree");
+		}
+	}
+
+	/// \brief BPR-0526: device sign-in is mounted beside the token prompt.
+	///
+	/// \details Found the way an assistive reader finds it -- by the accessible
+	/// name the panel announces -- and then asked the review header's own column
+	/// whether it manages what was found, because a panel parented to the header
+	/// but never laid into it is still a `findChildren` hit and would still be
+	/// painted at the default geometry on top of the session chrome.
+	///
+	/// The gestures are the second half. The window supplies no dispatch, so the
+	/// sink here is the test's; in the shipped graph it is the one the
+	/// composition sets, which ends at the device host. What this case proves is
+	/// that pressing begin on the mounted panel emits exactly one typed intent
+	/// naming exactly the profile the session panel's picker names -- before and
+	/// after the reviewer changes that picker -- and that nothing else leaves.
+	auto test_device_sign_in_is_mounted_beside_the_session_chrome() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		publish_session_ready(window);
+		publish_pull_request(window);
+		window.resize(1'100, 900);
+		window.show();
+		QApplication::processEvents();
+
+		auto* const header = required_child<QWidget>(
+			window, "workbenchReviewHeader");
+		auto* found = static_cast<QWidget*>(nullptr);
+		for (auto* const widget : header->findChildren<QWidget*>()) {
+			if (widget->accessibleName()
+				== QStringLiteral("Sign in with a device code")) {
+				found = widget;
+			}
+		}
+		expect(
+			found != nullptr && found == window.device_authorization(),
+			"the review header holds the device sign-in panel under its "
+			"accessible name");
+
+		auto* const panel = window.device_authorization();
+		expect(
+			panel->parentWidget() == header
+				&& header->layout() != nullptr
+				&& header->layout()->indexOf(panel) >= 0,
+			"the device panel is laid into the review header's own column, not "
+			"merely parented to it");
+		auto* const session = window.session_panel();
+		expect(
+			session != nullptr && session->parentWidget() == header
+				&& header->layout()->indexOf(panel)
+					== header->layout()->indexOf(session) + 1,
+			"device sign-in is the stop directly after the session chrome that "
+			"offers the token prompt");
+		expect(
+			panel->isVisible() && panel->width() > 0 && panel->height() > 0
+				&& panel->mapTo(header, QPoint{ 0, 0 }).y()
+					> session->mapTo(header, QPoint{ 0, 0 }).y(),
+			"the mounted panel is a visible region under the Connect control");
+
+		const auto declared = window.focus_order();
+		expect(
+			declared.contains(panel->begin_button())
+				&& declared.contains(panel->cancel_button())
+				&& declared.indexOf(panel->user_code_field())
+					== declared.indexOf(session->refresh_button()) + 1,
+			"the panel's stops are declared directly after the session chrome's");
+
+		// The window sets no dispatch of its own, so this one is the test's,
+		// exactly as it is for the two agent surfaces above.
+		auto gestures = std::vector<application::device_authorization_gesture>{ };
+		window.set_device_authorization_dispatch(
+			[&gestures](application::device_authorization_gesture aGesture) {
+				gestures.push_back(std::move(aGesture));
+			});
+
+		const auto selected = session->selected_profile();
+		expect(
+			selected.has_value() && panel->bound_profile() == *selected,
+			"the mounted panel is bound to the profile the picker already names");
+		expect(
+			panel->begin_button()->isEnabled(),
+			"asking for a code is the one command the core allows before a flow");
+		panel->begin_button()->click();
+		QApplication::processEvents();
+		expect(
+			gestures.size() == 1U
+				&& std::holds_alternative<core::begin_device_authorization_intent>(
+					gestures.front())
+				&& std::get<core::begin_device_authorization_intent>(
+					   gestures.front())
+						.Profile
+					== *selected,
+			"pressing begin emits one intent naming the picker's own profile");
+
+		// The picker names the host the Connect button acts on. Sign-in has to
+		// mean the same host through both doors, so changing it here changes
+		// which profile a new code would be asked for.
+		const auto first = session->profile_selector()->currentIndex();
+		session->profile_selector()->setCurrentIndex(first == 0 ? 1 : 0);
+		QApplication::processEvents();
+		const auto changed = session->selected_profile();
+		expect(
+			changed.has_value() && *changed != *selected
+				&& panel->bound_profile() == *changed,
+			"changing the host picker rebinds the mounted panel to that profile");
+		panel->begin_button()->click();
+		QApplication::processEvents();
+		expect(
+			gestures.size() == 2U
+				&& std::get<core::begin_device_authorization_intent>(
+					   gestures.back())
+						.Profile
+					== *changed,
+			"the next request names the profile the picker changed to");
+
+		// One published presentation, applied through the same call the
+		// composition's fan-out makes. It is what turns the two gestures below
+		// into legal ones, and it is what the capture is a picture of.
+		auto awaiting = application::device_authorization_presentation{
+			.Stage                    = core::device_authorization_stage::awaiting_authorization,
+			.UserCode                 = "WDJB-MJHT",
+			.VerificationUri          = "https://github.com/login/device",
+			.RemainingValiditySeconds = 899U,
+		};
+		awaiting.Commands = core::device_authorization_commands(
+			core::device_authorization_state{
+				.Stage = core::device_authorization_stage::awaiting_authorization,
+			});
+		panel->apply(awaiting);
+		QApplication::processEvents();
+		expect(
+			panel->user_code_field()->text() == QStringLiteral("WDJB-MJHT")
+				&& panel->address_field()->text()
+					== QStringLiteral("https://github.com/login/device"),
+			"a published presentation reaches the mounted panel's own fields");
+
+		panel->open_button()->click();
+		panel->cancel_button()->click();
+		QApplication::processEvents();
+		expect(
+			gestures.size() == 4U
+				&& std::holds_alternative<
+					application::open_verification_address_gesture>(
+					gestures[2])
+				&& std::holds_alternative<
+					core::cancel_device_authorization_intent>(gestures[3]),
+			"opening a browser and cancelling both leave through the same sink "
+			"and neither is performed here");
+		window.set_device_authorization_dispatch({ });
+
+		// The header column is taller than the bound its scroll area keeps, so
+		// the panel has to be scrolled into that region before the capture is a
+		// picture of it rather than of the chrome above it.
+		auto* const headerScroll = window.findChild<QScrollArea*>(
+			QStringLiteral("workbenchReviewHeaderScroll"));
+		expect(
+			headerScroll != nullptr,
+			"the review header column scrolls rather than squeezing its panels");
+		headerScroll->verticalScrollBar()->setValue(
+			headerScroll->verticalScrollBar()->value()
+			+ panel->mapTo(headerScroll->viewport(), QPoint{ 0, 0 }).y());
+		QApplication::processEvents();
+		const QRect placed{
+			panel->mapTo(headerScroll, QPoint{ 0, 0 }),
+			panel->size(),
+		};
+		expect(
+			headerScroll->rect().intersected(placed).height()
+				>= placed.height() / 2,
+			"scrolling the header column shows the device panel inside it");
+
+		// Cropped to the header the panel is in. A whole-window raster would
+		// pass on a repaint anywhere; this one is the header and only the
+		// header.
+		QApplication::processEvents();
+		const auto rendered = window.grab();
+		const auto ratio    = window.devicePixelRatioF();
+		const auto scaled   = [ratio](const int aValue) {
+			return static_cast<int>(
+				std::lround(static_cast<double>(aValue) * ratio));
+		};
+		const auto origin = headerScroll->mapTo(&window, QPoint{ 0, 0 });
+		// Two rounded edges rather than a rounded origin plus a rounded size,
+		// for the reason BPR-0520 recorded one crop below.
+		const QRect region{
+			QPoint{ scaled(origin.x()), scaled(origin.y()) },
+			QPoint{ scaled(origin.x() + headerScroll->width()) - 1,
+					scaled(origin.y() + headerScroll->height()) - 1 },
+		};
+		const auto cropped = rendered.copy(region);
+		expect(
+			rendered.rect().contains(region) && !cropped.isNull()
+				&& cropped.size() == region.size(),
+			"the review header crop has the header's exact device dimensions");
+		const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH");
+		if (!renderPath.isEmpty()) {
+			const QFileInfo configured{ renderPath };
+			expect(
+				cropped.save(
+					QStringLiteral("%1/%2-device-sign-in.png")
+						.arg(configured.path(), configured.completeBaseName()),
+					"PNG"),
+				"the device sign-in crop is saved in the ignored build tree");
+		}
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -2209,6 +3018,9 @@ auto main(int argc, char** argv) -> int
 	test_native_inheritance_and_wrapped_conversation_layout();
 	test_accessible_announcements_are_combined_and_deduplicated();
 	test_accessibility_minimum_geometry_and_render();
+	test_agent_surfaces_are_placed_in_the_conversations_drawer();
+	test_drawer_controls_are_reachable_in_the_conversations_drawer();
+	test_device_sign_in_is_mounted_beside_the_session_chrome();
 
 	std::cout << "All GitHub Qt presentation tests passed\n";
 	return EXIT_SUCCESS;

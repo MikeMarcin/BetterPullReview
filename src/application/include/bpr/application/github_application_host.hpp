@@ -1,17 +1,22 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_APPLICATION_HOST_HPP
 
+#include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/application/github_capability_cache.hpp"
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/github_provider_port.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_mutation_port.hpp"
+#include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_transition.hpp"
 
 #include <array>
+#include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 
@@ -22,6 +27,56 @@ namespace bpr::application {
 		retain,
 		delete_retained_on_shutdown,
 	};
+
+	/// \brief Names where the material behind an accepted credential came from.
+	///
+	/// \details Presence of a refresh entry beside a credential is not by
+	/// itself evidence that the credential renews itself: the vault keys both
+	/// slots by the same authority, so a token the reviewer pasted for an
+	/// account a past device grant once enrolled lands on the very slot that
+	/// grant's material sits beside. Spending that material would replace the
+	/// pasted session with a device one the reviewer never asked for. So the
+	/// host carries what it knows about the material's origin and answers the
+	/// renewability question with both facts rather than with presence alone.
+	/// `manual` is the default everywhere, because a caller that does not say
+	/// where its material came from has not established that it came from a
+	/// grant.
+	enum class github_credential_provenance : std::uint8_t {
+		/// A token the reviewer supplied. Nothing renews it.
+		manual,
+		/// A device grant this host enrolled, or a binding restored from one.
+		device_grant,
+	};
+
+	/// Why a public-preview activation or read was refused.
+	enum class github_public_preview_refusal_cause : std::uint8_t {
+		/// No anonymous read authority is composed, so the mode cannot be
+		/// entered at all. This is a composition fact the host reports
+		/// rather than a policy the core decided.
+		public_preview_unavailable,
+		/// The core policy refused. `Policy` carries its typed refusal.
+		policy_refused,
+	};
+
+	/// \brief Describes a refused public-preview activation or read.
+	///
+	/// Sign-in is offered from every refusal, because `core::anonymous_refusal`
+	/// makes that a property of the type rather than a flag a caller sets.
+	struct github_public_preview_refusal
+	{
+		github_public_preview_refusal_cause Cause
+			= github_public_preview_refusal_cause::public_preview_unavailable;
+		std::optional<core::anonymous_refusal> Policy;
+
+		auto operator<=>(const github_public_preview_refusal&) const = default;
+	};
+
+	/// Where a switch-to-sign-in gesture goes. The host does not own the
+	/// device-authorization flow, so it forwards the profile the signed-out
+	/// session was activated for and lets composition begin the flow that
+	/// returns the reviewer to the same pull request.
+	using public_preview_sign_in_sink
+		= std::function<void(core::host_profile_id)>;
 
 	/// \brief Provides the github credential binding catalog contract.
 	class github_credential_binding_catalog final
@@ -43,13 +98,26 @@ namespace bpr::application {
 	private:
 		[[nodiscard]] auto find(core::host_profile_id aProfile) const noexcept
 			-> const github_credential_authority_key*;
+		/// \brief Returns where the material behind a remembered binding came
+		/// from, or `manual` when nothing is remembered for the profile.
+		[[nodiscard]] auto provenance(core::host_profile_id aProfile) const noexcept
+			-> github_credential_provenance;
 		[[nodiscard]] auto
-			 remember(github_credential_authority_key aAuthority) noexcept -> bool;
+			 remember(github_credential_authority_key aAuthority,
+					  github_credential_provenance    aProvenance) noexcept -> bool;
 		void forget(const github_credential_authority_key& aAuthority) noexcept;
 
 		std::array<std::optional<github_credential_authority_key>,
 				   maximum_github_credential_bindings>
 			Entries{ };
+		// Kept beside the key rather than inside it, because the key names a
+		// vault slot and two different origins can name the same slot. A
+		// resume inside this process reads it back, which is what lets a
+		// device grant this host enrolled still renew after the session was
+		// re-established from the vault.
+		std::array<github_credential_provenance,
+				   maximum_github_credential_bindings>
+			Provenances{ };
 
 		friend class github_application_host;
 	};
@@ -75,7 +143,21 @@ namespace bpr::application {
 			decision_executor&                 aDecisionLane,
 			github_projection_port&            aProjections,
 			github_credential_shutdown_policy  aCredentialShutdownPolicy = github_credential_shutdown_policy::retain,
-			github_epoch_handoff_port*         aEpochs                   = nullptr);
+			github_epoch_handoff_port*         aEpochs                   = nullptr,
+			// The credential-free read authority. Null until composition
+			// supplies one, which is what refusing public preview means
+			// today: the mode is unavailable rather than degraded.
+			github_pull_request_port* aAnonymousPullRequests = nullptr,
+			// The credential-free smart-Git authority. Composition owns it and
+			// passes an instance that can carry no credential: it is the only
+			// way a public-preview session reaches a Git repository at all.
+			// Null keeps the signed-out epoch handoff unavailable, which is
+			// what a composition without it means.
+			git_smart_transport_factory_port* aAnonymousSmartGit = nullptr,
+			// The signed-out presentation sink. Null until composition
+			// supplies one, which leaves the mode working but unpresented
+			// rather than silently authenticated.
+			public_preview_projection_port* aPublicPreview = nullptr);
 		~github_application_host();
 
 		github_application_host(const github_application_host&) = delete;
@@ -86,13 +168,27 @@ namespace bpr::application {
 			-> github_application_host& = delete;
 
 		void dispatch(const core::github_event& aEvent);
-		void enroll_profile(core::host_profile_id      aProfile,
-							github_credential_material aCredential);
+		// The provenance is the caller's statement about where the material
+		// came from, and only the device-authorization enrollment boundary
+		// says `device_grant`. It decides nothing about the session: it
+		// decides whether the vault's answer about a refresh entry beside
+		// this credential may be believed later.
+		void enroll_profile(core::host_profile_id        aProfile,
+							github_credential_material   aCredential,
+							github_credential_provenance aProvenance
+							= github_credential_provenance::manual);
 		// Resume asks only for a profile. The host-owned trusted binding catalog,
 		// populated from prior accepted /user observations, selects the exact
 		// account authority. Public account and login values never select vault
 		// entries.
 		void resume_profile(core::host_profile_id aProfile);
+		// Activates the profile signed out. No credential is read, no vault is
+		// consulted, no `/user` request is issued, and no capability is
+		// probed: the mode supports none of them, so nothing may look as
+		// though it asked. The anonymous scope is the profile, its revision,
+		// the host, the mode, and the identity generation; it carries no
+		// account, not even a zero one.
+		void activate_public_preview(core::host_profile_id aProfile);
 		void shutdown();
 
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;
@@ -100,6 +196,45 @@ namespace bpr::application {
 			-> const std::optional<github_session_read_model>&;
 		[[nodiscard]] auto accepted_snapshot() const noexcept
 			-> const std::optional<github_pull_request_snapshot>&;
+		/// \brief Returns the vault authority the accepted session is keyed by.
+		///
+		/// \details Absent until an authenticated `/user` observation has been
+		/// accepted under an exact account, which is the first moment the key
+		/// exists at all: it is minted from the profile authority and the
+		/// account the viewer reported, and nothing outside this host may
+		/// assemble one. Absent for every public-preview session, which has no
+		/// account and no vault entry. It names a slot, not a credential; no
+		/// credential byte is reachable through it.
+		[[nodiscard]] auto accepted_credential_authority() const noexcept
+			-> std::optional<github_credential_authority_key>;
+		/// \brief Returns whether the accepted credential can renew itself.
+		///
+		/// \details True once the vault has answered that a refresh entry sits
+		/// beside the accepted credential under the same authority *and* the
+		/// accepted credential's own provenance is a device grant this host
+		/// enrolled or resumed. Presence alone is not the answer: both slots
+		/// are keyed by the same authority, so a pasted token for an account
+		/// a past grant enrolled reaches the slot that grant's material sits
+		/// beside, and spending it would silently replace the reviewer's
+		/// session. False for a credential the reviewer pasted, whatever the
+		/// vault holds beside it; false for a grant
+		/// this run's device flow is still holding refresh material for, which
+		/// binds rather than resumes; and false until the vault has answered,
+		/// after which the session is published again so the answer is read.
+		/// No refresh byte is reachable through it: the probe destroys the
+		/// material it retrieved on the vault's own callback and carries only
+		/// the answer onto the decision lane.
+		[[nodiscard]] auto accepted_credential_renewable() const noexcept -> bool;
+		/// \brief Returns the identity generation the accepted session runs under.
+		///
+		/// \details Zero when no session has been accepted, and nonzero for
+		/// every accepted one: the generation advances on each identity
+		/// activation. It is the generation this host stamps on its own vault
+		/// operations for the same authority, so a second host storing beside
+		/// this credential names the same identity rather than an epoch of its
+		/// own ([[BPR-0546]]). It identifies an epoch, not a secret.
+		[[nodiscard]] auto accepted_identity_generation() const noexcept
+			-> core::github_identity_generation;
 		/// \brief Returns the opaque transport for the currently accepted account.
 		///
 		/// \details The capability is absent unless the host has accepted an exact
@@ -115,6 +250,33 @@ namespace bpr::application {
 		[[nodiscard]] auto shutdown_cleanup_failed() const noexcept -> bool;
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
 		[[nodiscard]] auto epoch_handoff_delivery_failed() const noexcept -> bool;
+		/// \brief Returns the mode the active profile was activated in.
+		[[nodiscard]] auto access_mode() const noexcept -> core::github_access_mode;
+		/// \brief Returns the refusal that ended the last public-preview
+		/// activation or read, if one did.
+		[[nodiscard]] auto public_preview_refusal() const noexcept
+			-> const std::optional<github_public_preview_refusal>&;
+		/// \brief Decides the intent's legality in the current mode.
+		///
+		/// \details Under public preview this is the core policy's answer, so
+		/// a mutation, triage, queue-role, viewed-state, or resolution intent
+		/// is refused here rather than approximated by a request nobody can
+		/// answer. Under the authenticated mode every intent is legal here and
+		/// the capability rules decide the rest.
+		[[nodiscard]] auto public_preview_legality(
+			core::anonymous_read_intent aIntent) const noexcept
+			-> core::anonymous_intent_legality;
+		/// \brief Adopts the sink a switch-to-sign-in gesture leaves through.
+		void set_public_preview_sign_in(public_preview_sign_in_sink aSignIn);
+		/// \brief Forwards a switch-to-sign-in gesture to that sink.
+		///
+		/// \details Names the profile the signed-out session was activated
+		/// for, so the code the reviewer is about to read aloud belongs to the
+		/// host they are already reading, and sign-in returns them to it.
+		void request_public_preview_sign_in();
+		/// \brief Reports whether the last accepted snapshot handed the epoch
+		/// authority nothing because the mode has no cache or epoch authority.
+		[[nodiscard]] auto epoch_handoff_unavailable() const noexcept -> bool;
 
 	private:
 		struct implementation;

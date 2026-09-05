@@ -1008,3 +1008,12 @@ after the portable slices that can still change bound `src/app` sources, since
 every one of them would invalidate a regenerated packet. The terminal
 requirement is unchanged: one exact attended operator decision, then the live
 lane against the now-public `MikeMarcin/BPR-Test#1`.
+
+## Lane — 2026-09-02
+
+The [[BPR-0521]] question is decided — old-revision continuations stay
+unanchored, nothing further rebuilds the binary for it — so that hold is
+lifted. The sequencing rule above still applies: RFC-BPR-0017's
+implementation is in progress and its composition card ([[BPR-0305]]) will
+change bound `src/app` sources, so the v007 regeneration is scheduled after
+that lands rather than binding a digest it would move.

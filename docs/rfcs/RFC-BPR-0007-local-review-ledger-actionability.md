@@ -1,7 +1,7 @@
 ---
 id: RFC-BPR-0007
 title: Local Review Ledger, File and Conversation Receipts, and Actionability
-status: Proposed
+status: Auto-Verified
 area: BPR
 milestone: M2 Personal Review Workflow
 depends_on: [RFC-BPR-0003, RFC-BPR-0005]

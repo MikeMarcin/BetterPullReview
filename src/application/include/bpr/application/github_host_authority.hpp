@@ -229,6 +229,27 @@ namespace bpr::application {
 		return false;
 	}
 
+	// The compiled authority a GitHub.com device-authorization verification
+	// address must sit under. It is a constant rather than a setting because an
+	// operator who can edit it can be talked into editing it, and the whole
+	// point of the check is that the address the server sent is not the one
+	// that decides.
+	//
+	// One declaration, two independent checks, deliberately: the GitHub
+	// adapter's wire parser refuses an off-authority `verification_uri` before
+	// the address ever reaches the host, and the host refuses it again against
+	// the authority composition handed it before any browser is invoked. Both
+	// checks stay; what was two spellings of one string is now one, so a
+	// registration that ever moved the device endpoints cannot leave half the
+	// product still trusting the old authority.
+	//
+	// It is deliberately not `valid_github_authority_hostname`'s literal above,
+	// which answers a different question — which hostname the GitHub.com server
+	// contract names — and would have to keep answering it if these ever
+	// diverged.
+	inline constexpr std::string_view default_device_verification_authority
+		= "github.com";
+
 	/// \brief Computes the product kind result.
 	[[nodiscard]] constexpr auto product_kind(
 		const github_server_contract aContract) noexcept

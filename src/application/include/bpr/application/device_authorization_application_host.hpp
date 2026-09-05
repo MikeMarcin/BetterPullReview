@@ -202,11 +202,17 @@ namespace bpr::application {
 
 	/// \brief Provides the device authorization timer port contract.
 	///
-	/// \details One pending expiry at a time, which is all the flow needs: the
-	/// poll schedule and the renewal schedule never overlap. Scheduling again
-	/// replaces the pending expiry, and `cancel` withdraws it. The expiry may
-	/// run on any thread; the host wraps it so the work lands on its decision
-	/// lane.
+	/// \details One pending expiry at a time. Scheduling again replaces the
+	/// pending expiry, and `cancel` withdraws it. The expiry may run on any
+	/// thread; the host wraps it so the work lands on its decision lane.
+	///
+	/// [[BPR-0554]]. A poll and a renewal do overlap -- a reviewer with a live
+	/// session can start a second flow, and a device code outlives the renewal
+	/// lead -- but that is the host's to resolve, not this port's. The host
+	/// holds both deadlines and gives this port the earlier one, so a second
+	/// timer would be a second thing for every platform to compose, adapt, and
+	/// shut down in order to answer a question one deadline comparison already
+	/// answers.
 	class device_authorization_timer_port
 	{
 	public:
@@ -220,13 +226,6 @@ namespace bpr::application {
 			std::function<void()> aExpiry) -> bool = 0;
 		virtual void cancel() noexcept             = 0;
 	};
-
-	// The compiled authority a GitHub.com profile's verification address must
-	// sit under. It is a constant rather than a setting because an operator who
-	// can edit it can be talked into editing it, and the whole point of the
-	// check is that the address the server sent is not the one that decides.
-	inline constexpr std::string_view default_device_verification_authority
-		= "github.com";
 
 	/// \brief Provides the device authorization browser port contract.
 	///
@@ -307,53 +306,22 @@ namespace bpr::application {
 		github_application_host* Host;
 	};
 
-	enum class device_authorization_refresh_state : std::uint8_t {
-		// No account has authorized material to renew.
-		idle,
-		// A renewal is armed for a moment before the access token expires.
-		scheduled,
-		// A renewal exchange is in flight.
-		refreshing,
-		// Renewal cannot continue. The reviewer has to authorize again, and the
-		// host says so once instead of retrying forever.
-		reenrollment_required,
-	};
-
-	enum class device_authorization_refresh_failure : std::uint8_t {
-		none,
-		// The vault could not be reached or refused the slot.
-		vault_unavailable,
-		// The vault holds no refresh material for this authority.
-		refresh_absent,
-		// The server refused the refresh material it was given.
-		refresh_rejected,
-		// The exchange did not complete.
-		transport_failed,
-		// New material arrived but could not be stored, so rotating would have
-		// left nothing durable behind.
-		storage_failed,
-	};
-
-	/// \brief Describes the device authorization refresh observation record.
-	struct device_authorization_refresh_observation
-	{
-		device_authorization_refresh_state State
-			= device_authorization_refresh_state::idle;
-		device_authorization_refresh_failure Failure
-			= device_authorization_refresh_failure::none;
-		// How many times material has been rotated under this host.
-		std::uint32_t Rotations = 0U;
-
-		auto operator<=>(const device_authorization_refresh_observation&) const
-			= default;
-	};
-
 	/// \brief Describes the device authorization capability record.
 	///
 	/// \details Whether this build has a registered application identity to
-	/// run the flow under, and nothing else. It carries no client identifier,
-	/// because the host does not need the value to know whether one exists and
-	/// a value that never enters the host cannot leak from it.
+	/// run the flow under, and which profile that identity belongs to. It
+	/// carries no client identifier, because the host does not need the value
+	/// to know whether one exists and a value that never enters the host
+	/// cannot leak from it.
+	///
+	/// The profile is here because a registered identity is registered
+	/// somewhere: the composed wire is bound to one host and the client is
+	/// that host's. A begin naming any other profile would run this host's
+	/// flow under a foreign authority and enroll the resulting token under
+	/// the profile that did not issue it, so the host refuses it exactly as
+	/// it refuses an unregistered build ([[BPR-0535]]). It defaults to the
+	/// zero identity, which no composed profile ever has, so an
+	/// unbound capability admits nothing.
 	///
 	/// It defaults to unregistered on purpose. Every shipped build is
 	/// unregistered until [[BPR-0318]] records a distributable identity, and a
@@ -367,6 +335,9 @@ namespace bpr::application {
 	struct device_authorization_capability
 	{
 		bool Registered = false;
+		// The one profile this capability was composed for. Every other
+		// profile is refused before a request is built.
+		core::host_profile_id Profile;
 
 		auto operator<=>(const device_authorization_capability&) const = default;
 	};
@@ -429,7 +400,7 @@ namespace bpr::application {
 		device_authorization_application_host(
 			core::device_authorization_state      aInitialState,
 			device_authorization_transport_port&  aTransport,
-			github_credential_vault_port&         aVault,
+			github_credential_refresh_vault_port& aVault,
 			device_authorization_enrollment_port& aEnrollment,
 			device_authorization_clock_port&      aClock,
 			device_authorization_timer_port&      aTimer,
@@ -456,11 +427,24 @@ namespace bpr::application {
 		// which happens after enrollment. Until it arrives the host holds new
 		// refresh material in memory and stores it the moment it can; every
 		// terminal, cancellation, and shutdown erases it instead.
-		void bind_refresh_authority(github_credential_authority_key aAuthority);
+		//
+		// [[BPR-0546]]. The identity generation arrives with the authority
+		// because only the GitHub host knows it. Every platform vault refuses
+		// a context whose generation is zero (`valid()` in
+		// `github_credential_vault.hpp`, checked before anything is queued),
+		// and this host's own `State.IdentityGeneration` is the device flow's
+		// copy of a generation composition seeds before any identity exists --
+		// zero, for the whole run. A zero generation is refused here rather
+		// than minted into a context the vault would refuse later.
+		void bind_refresh_authority(
+			github_credential_authority_key  aAuthority,
+			core::github_identity_generation aIdentityGeneration);
 		// The restart path. Renews from the refresh entry the vault already
 		// holds, without the reviewer authorizing again. Requests
 		// re-enrollment if there is nothing to renew from.
-		void resume_refresh(github_credential_authority_key aAuthority);
+		void resume_refresh(
+			github_credential_authority_key  aAuthority,
+			core::github_identity_generation aIdentityGeneration);
 		// The browser handoff, and the only thing in this host that changes no
 		// core state at all. It validates the retained address against the
 		// compiled authority, invokes the browser capability only if that

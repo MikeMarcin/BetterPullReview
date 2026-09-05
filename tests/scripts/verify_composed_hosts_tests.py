@@ -38,6 +38,24 @@ SHARED_LINES = {
     "agent process launcher constructor": "0020 T bpr::adapters::agent::agent_process_launcher::agent_process_launcher()",
     "Qt agent launch panel constructor": "0021 T bpr::qt::agent_launch_panel::agent_launch_panel()",
     "Qt workbench window constructor": "0013 T bpr::qt::workbench_window::workbench_window()",
+    # BPR-0504, BPR-0514, BPR-0516, BPR-0526 anchors. The fixture trailed
+    # SHARED_REQUIRED by seven for a day and this suite sat red at HEAD with
+    # nobody running it (BPR-0529); the guard test below now refuses the gap.
+    "agent finding application host constructor": "0022 T bpr::application::agent_finding_host::agent_finding_host()",
+    "agent comment workshop application host constructor": "0023 T bpr::application::agent_comment_workshop_host::agent_comment_workshop_host()",
+    "MCP context helper supervisor constructor": "0024 T bpr::application::mcp_context_helper_supervisor::mcp_context_helper_supervisor()",
+    "Qt side chat panel constructor": "0025 T bpr::qt::side_chat_panel::side_chat_panel()",
+    "Qt finding queue view constructor": "0026 T bpr::qt::finding_queue_view::finding_queue_view()",
+    "agent chat session application host constructor": "0027 T bpr::application::agent_chat_session_host::agent_chat_session_host()",
+    "system browser opener constructor": "0028 T bpr::app::system_browser_opener::system_browser_opener()",
+    "Qt device authorization panel constructor": "0029 T bpr::qt::device_authorization_panel::device_authorization_panel()",
+    "anonymous read transport factory": "0030 T bpr::adapters::github::detail::make_native_https_anonymous_read_transport(bpr::adapters::github::validated_github_host_profile const&, bpr::core::github_session_request_context)",
+    "anonymous smart transport factory": "0031 T bpr::adapters::github::detail::make_native_https_anonymous_smart_transport(bpr::adapters::github::validated_github_host_profile const&, bpr::core::github_session_request_context)",
+    # BPR-0285: the anchor moved to the device host's own cross-library entry
+    # point. A private one-caller composition function is not a linkage anchor:
+    # MSVC inlines it, so a Windows Release cannot exhibit it, and on macOS it
+    # survives only as a local symbol.
+    "device refresh authority binding": "0032 T bpr::application::device_authorization_application_host::bind_refresh_authority(bpr::application::github_credential_authority_key, bpr::core::github_identity_generation)",
 }
 FIXTURE_LINES = {
     "fixture review mutation provider boundary": "0015 T bpr::app::detail::github_public_path_fixture_components::review_mutation_provider()",
@@ -161,6 +179,20 @@ def completed(
 
 
 class ComposedHostVerifierTests(unittest.TestCase):
+    def test_the_fixture_names_every_shared_anchor(self) -> None:
+        """A new SHARED_REQUIRED anchor must be added here in the same change.
+
+        Otherwise every positive case below fails on the new name with a
+        message about a synthetic binary, which is what happened for a day
+        after BPR-0504 (BPR-0529).
+        """
+        missing = [
+            anchor.name
+            for anchor in VERIFIER.SHARED_REQUIRED
+            if anchor.name not in SHARED_LINES
+        ]
+        self.assertEqual(missing, [])
+
     def setUp(self) -> None:
         self.TemporaryDirectory = ContainedTemporaryDirectory()
         self.Binary = Path(self.TemporaryDirectory.name) / "application"

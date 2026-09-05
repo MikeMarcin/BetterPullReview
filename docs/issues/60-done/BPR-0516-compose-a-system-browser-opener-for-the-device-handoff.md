@@ -1,0 +1,654 @@
+---
+id: BPR-0516
+title: Compose a system-browser opener for the device-authorization handoff
+status: Done
+rfc: RFC-BPR-0016
+depends_on: [BPR-0280, BPR-0318]
+---
+
+# Compose a system-browser opener for the device-authorization handoff
+
+## Why
+
+RFC-BPR-0016 requires the verification address to open in the system
+browser and never in an embedded one. [[BPR-0280]] delivered the Qt
+presentation and the handoff's authority cut and failing-opener contracts,
+and said in so many words that the Qt adapter ships no opener because the
+opener belongs to composition. Composition never received one:
+`src/app/src/github_application.cpp` composes
+`device_authorization_browser_handoff{ .Browser = nullptr }` on every
+platform under a comment written when no shipped platform could start a
+flow. Since [[BPR-0318]], [[BPR-0310]], and [[BPR-0311]] every shipped
+platform can, so a reviewer reaches `awaiting_authorization` with a code
+and a URL and an "Open browser" action that always answers `unavailable`.
+Found by the [[BPR-0283]] scout on 2026-09-02; nothing in `src/` calls
+`QDesktopServices::openUrl` or any platform equivalent.
+
+## Required final state
+
+- One production implementation of `device_authorization_browser_port` that
+  opens the validated verification address in the operating system's default
+  browser through the platform's own launch service, with no embedded engine
+  and no network of its own. It is composed under the same
+  fixture/production split as the device host, and the fixture profile keeps
+  the recording opener the contracts drive.
+- The host's authority check still runs before the opener is called; an
+  off-authority address reaches no opener (the existing cut stays green).
+- A construction cut: with the opener absent the flow still starts and the
+  action answers `unavailable`, exactly as today, and the positive marker is
+  false. `composed_application_hosts` names the opener's constructor.
+- The platform course's `check_platform_surfaces` still proves the absence
+  of every embedded browser engine on every platform.
+- Target-native observation on each enabled platform that the action opens
+  the system browser at the verification address — recorded by each
+  station as a row on this card, since no isolated selector can prove a
+  real browser launched.
+
+## Non-goals
+
+- Changing the handoff's presentation or the panel — [[BPR-0280]].
+- Any change to the authority rule — it is the core's and the host's.
+
+## Verification
+
+```text
+ctest --preset dev -R '^(application_device_authorization_host|qt_device_authorization_scale_(100|125|200)|application_device_authorization_(public_path|unavailable|release_contract|registered_course)|composed_application_hosts)$' --output-on-failure
+python3 scripts/verify_rfc0016_platform_course.py --platform macos --dev-preset dev --release-preset app-release --build-root build/rfc0016-macos-browser --expected-device-selection enabled --fresh
+```
+
+The Linux and Windows courses and the browser observation run on the
+stations.
+
+## What this slice delivered — 2026-09-02
+
+**The opener lives in composition, not in the Qt adapter.** That was decided
+by the rule rather than by preference: `VerifyArchitectureBoundaries.cmake`
+refuses `QDesktopServices`, `QUrl`, and a literal scheme anywhere under
+`src/adapters/qt/`, and `src/adapters/qt/AGENTS.md` states the consequence
+outright — "the system-browser capability is host-owned and lives outside this
+adapter". [[BPR-0280]] had already written the same sentence from the other
+side when it declared the port. So `bpr::app::system_browser_opener` sits in
+`src/app/src/system_browser_opener.{hpp,cpp}`, in the composition library that
+already links Qt GUI, and `QDesktopServices::openUrl` is its entire effect —
+the call that defers to `LSOpenCFURLRef`, `xdg-open`, or `ShellExecute`. No
+embedded engine, no network, no listener, no supervised child process. It
+re-parses the address in `QUrl::StrictMode` and refuses anything that is not an
+absolute `https` address with a host and no userinfo, which costs one parse and
+removes the possibility of an opener that trusts its caller completely.
+
+**The split is the device host's seam, made total.** The shipped graph binds
+`system_browser_opener`; a tests-enabled graph binds a recording opener
+instead. The seam is `BPR_BUILD_TESTING` rather than `Fixture != nullptr`,
+which is stricter than the transport's split beside it, and deliberately: a
+fixture transport reached by mistake writes a line to a log, and a browser
+opened by mistake opens a browser on whoever's machine is running the suite.
+No test in this repository can launch one. `SystemBrowser` is constructed
+either way, so the shipped implementation is present by linkage and by
+construction in both profiles, which is what the composed-host anchor audits.
+
+**The authority check still runs first, and reaches no opener when it fails.**
+Untouched: `resolve_handoff()` validates against the compiled authority before
+it consults the capability, so a build with no browser and a build with a bad
+address give different answers. `test_an_off_authority_address_is_refused_with_no_browser_call`
+asserts `world.Browser.Addresses.empty()` for
+`https://github.com.evil.invalid/login/device` and still passes.
+
+**The construction cut.** `--device-authorization-browser-absent` composes the
+device host with no capability bound and changes nothing else. The flow still
+starts, still presents, still reaches `authorized`, and still enrolls exactly
+once through the real vault; the action answers `unavailable` and the positive
+marker `DEVICE_FLOW_BROWSER_COMPOSED` is `false`.
+
+**Two pins moved, in two passes, and a third gate fired between them.** The
+second drift stays hidden until the first is repinned, and the contract's
+message wraps across lines, so the found digest has to be matched with `\s+`
+rather than read off one line. `bpr_expected_full_application_digest`
+`408d9746…babe1` → `f30b9005…24437a`;
+`bpr_expected_production_app_manifest_digest` `ff2c96c3…abeaff` →
+`31b8fa26…9e447c`. Between them `bpr_expected_app_sources` refused the two new
+files by name and was extended. All three moved twice, because `clang-format`
+reflowed four lines of `github_application.cpp` after the first repin — the
+values above are the final ones, and again after `--device-authorization-browser-probe`
+was gated to tests-enabled builds so no station's unattended release course can
+be handed a flag that opens a browser.
+
+**No test opens a real browser, and none should.** The shipped opener's
+presence is proven by linkage and construction; that it reaches a real browser
+at a real verification address is a target-native observation, recorded below
+by each station.
+
+| Claim | Command | Result | Commit |
+|---|---|---|---|
+| The device-authorization selectors, the Qt scales, the composed-host audit, and the pinned composition contract all hold | `ctest --preset dev -R '^(application_device_authorization_host\|qt_device_authorization_scale_(100\|125\|200)\|application_device_authorization_(public_path\|unavailable\|release_contract\|registered_course)\|composed_application_hosts\|application_review_round_trip_composition_contract)$' --output-on-failure` | 10/10 passed in 56.6 s; host 0.07 s, scales 4.90/4.89/4.89 s, public_path 0.89 s, unavailable 0.48 s, registered_course 5.44 s, release_contract 0.46 s, composition contract 32.9 s, composed hosts 1.62 s | this commit |
+| The composed opener is reached and answers, and the construction cut leaves the flow intact with the marker false | `ctest --preset dev -R '^application_device_authorization_browser_(handoff\|absent)$' --output-on-failure` | Both passed, 5.44 s and 5.44 s. Handoff: `DEVICE_FLOW_BROWSER_COMPOSED:true`, `DEVICE_FLOW_BROWSER_OPENS:1`, `DEVICE_FLOW_HANDOFF:opened`, `DEVICE_FLOW_ENROLLMENTS:1`. Cut: `DEVICE_FLOW_PRESENTED:true`, `DEVICE_FLOW_STAGE:authorized`, `DEVICE_FLOW_REQUESTS:0`, `DEVICE_FLOW_BROWSER_COMPOSED:false`, `DEVICE_FLOW_BROWSER_OPENS:0`, `DEVICE_FLOW_HANDOFF:unavailable`, `DEVICE_FLOW_ENROLLMENTS:1` | this commit |
+| The composed-host anchor tracks composition rather than mere linkage | Deleted the `SystemBrowser` member and bound production to `nullptr`, leaving `system_browser_opener.cpp` compiled and the verifier untouched; rebuilt; ran `composed_application_hosts` | Failed in 1.58 s with `COMPOSED_HOSTS_FAILED: required exact demangled anchor is absent: system browser opener constructor` — the object was still compiled, so the linker dropped it and the audit noticed | this commit |
+| Restoring the composed object restores the audit | Restored `github_application.cpp` byte-exact (md5 `f63aca6a1a47c840709c901f45385b6c` before the cut and after the restore; the file's final md5 is `c9a5fde46be8ce8c530a8da204740d19` because `clang-format` reflowed four lines later in the slice), rebuilt, reran the selector set | 10/10 passed; `composed_application_hosts` 1.62 s. The Debug Mach-O is not bit-reproducible across relinks, so the byte-exact claim is the source file and the contract's own LF-normalized source digest, both of which match | this commit |
+| No embedded browser engine is present in the artifact | `verify_composed_hosts.py`'s `inspect_symbols` (`llvm-nm --demangle`) plus a raw image scan over `build/dev`'s app binary, against `check_platform_surfaces`'s own forbidden sets | 117 727 demangled symbols, zero hits for `QWebEngine`, `QWebView`, `QtWebEngine`; the 58 137 872-byte image contains none of those as ASCII, nor `QtWebEngineCore`. The full platform course was not run here — it builds two fresh trees and is a station command | this commit |
+| The whole dev graph builds clean under `-Werror` | `cmake --build --preset dev` | Exit 0, zero `error:` or `warning:` lines in the whole log | this commit |
+| Every touched C++ file is formatted | `clang-format --dry-run --Werror` on the six touched files | Exit 0 after reflowing four lines of `github_application.cpp` and one of `main.cpp` | this commit |
+| macOS: the action opens the system browser at the verification address | The owner's attended sitting against the restaged artifact | Observed 2026-09-02 by the owner: the device flow connected end to end — see *macOS — the owner's observation — 2026-09-02* | this commit |
+| Linux: the action opens the system browser at the verification address | The owner's attended sitting on the JaegAW WSLg desktop against the restaged artifact | Observed 2026-09-02 by the owner: the code and web-browser flow works end to end — see *Linux and Windows — the owner's sittings — 2026-09-02* | this commit |
+| Windows x64: the action opens the system browser at the verification address | The owner's attended sitting at the JaegAW desktop against the deployed copy | Observed 2026-09-02 by the owner: the code and browser flow works end to end — see *Windows — the owner's observation — 2026-09-02* | this commit |
+
+## Integrator reproduction — 2026-09-02
+
+Rebuilt `build/dev` (exit 0) and ran the device-authorization host, the three
+Qt scales, the five end-to-end device contracts including the two new
+`browser_handoff` and `browser_absent` ones, `composed_application_hosts`,
+`application_review_round_trip_composition_contract`,
+`application_composition_contract` (109.44 s),
+`application_agent_finding_composition_contract`, and
+`rfc0016_test_inventory`: 15/15. `clang-format` clean by exit code on the
+six touched C++ files. The delegation had suggested the Qt adapter as the
+opener's home; the slice was right to refuse it — the architecture gate
+forbids `QDesktopServices` under `src/adapters/qt/`, and the adapter's own
+guide says the capability is host-owned. The two new selectors are now
+allocated in `scripts/verify_rfc0016_test_inventory.py` with their required
+arguments, so the stations' release scan proves their absence from the
+tests-disabled artifact. The code is landed; the card stays open for the
+three target-native observation rows.
+## Linux — 2026-09-02
+
+Produced by `bpr-linux` on the JaegAW WSL2 host (Ubuntu 26.04, kernel
+6.18.33.2-microsoft-standard-WSL2 x86_64, GCC 15.2.0, Qt 6.10.3, WSLg with
+`DISPLAY=:0` and `WAYLAND_DISPLAY=wayland-0`) at `5b5f0d65`, which contains
+`d46a766a`. **No browser was opened and no real device flow was started** —
+that row is the owner's and is left Pending below.
+
+Precondition, read first: `Locked` on
+`/org/freedesktop/secrets/collection/login` is `(<false>,)` at
+2026-09-02T08:08:21Z, so the vault rows below are real rather than skipped.
+
+`cmake --preset dev` and `cmake --build --preset dev` both exit 0, with zero
+`error:` or `warning:` lines in the whole build log.
+
+### The focused selectors, including the two new browser contracts
+
+`ctest --preset dev -R '^(application_device_authorization_host|qt_device_authorization_scale_(100|125|200)|application_device_authorization_(public_path|unavailable|release_contract|registered_course|browser_handoff|browser_absent)|composed_application_hosts|rfc0016_test_inventory|linux_secret_service_[a-z_]*)$' --output-on-failure`
+— exit 0, **16/16 passed, 33.67 s total**:
+
+| Test | Result | Time |
+|---|---|---|
+| `rfc0016_test_inventory` | Passed | 0.06 sec |
+| `application_device_authorization_host` | Passed | 0.00 sec |
+| `qt_device_authorization_scale_100` | Passed | 4.75 sec |
+| `qt_device_authorization_scale_125` | Passed | 4.73 sec |
+| `qt_device_authorization_scale_200` | Passed | 4.73 sec |
+| `linux_secret_service_contract` | Passed | 0.01 sec |
+| `linux_secret_service_native_setup` | Passed | 0.01 sec |
+| `linux_secret_service_native` | Passed | 0.42 sec |
+| `linux_secret_service_native_cleanup` | Passed | 0.01 sec |
+| `application_device_authorization_public_path` | Passed | 0.16 sec |
+| `application_device_authorization_unavailable` | Passed | 0.17 sec |
+| `application_device_authorization_registered_course` | Passed | 5.69 sec |
+| `application_device_authorization_browser_handoff` | Passed | 5.69 sec |
+| `application_device_authorization_browser_absent` | Passed | 5.69 sec |
+| `application_device_authorization_release_contract` | Passed | 0.15 sec |
+| `composed_application_hosts` | Passed | 1.39 sec |
+
+### The enabled course
+
+`build/rfc0016-linux-enablement` was deleted whole first. The ledger's exact
+Linux command with `--expected-device-selection enabled --fresh`, exit 0 in
+236 s: `RFC0016_PLATFORM:linux`, `RFC0016_SELECTION:enabled`,
+`RFC0016_COURSE_SELECTORS:16`, `RFC0016_DEVICE_STAGE:cancelled`,
+`RFC0016_DEVICE_REQUESTS:0`, `RFC0016_PLATFORM_COURSE_OK`.
+
+`DEVICE_FLOW_REQUESTS:0` against the enabled artifact is the row that matters
+here as it did for [[BPR-0310]]: the shipped build composes and presents, and
+still sends nothing unattended.
+
+### The opener's anchor, in both binaries
+
+The course's `COURSE_SELECTOR_PATTERN` does not include
+`composed_application_hosts`, so the course does not prove the anchor and the
+proof is taken directly against each binary instead. The demangled anchor
+`verify_composed_hosts.py` requires — "system browser opener constructor",
+`bpr::app::system_browser_opener::system_browser_opener` — is present in both:
+
+```text
+tests-enabled  build/dev/src/app/better_pull_review
+  000000000019857a T bpr::app::system_browser_opener::system_browser_opener()
+tests-disabled build/rfc0016-linux-enablement/release/src/app/better_pull_review
+  00000000000ec4f0 T bpr::app::system_browser_opener::system_browser_opener()
+```
+
+Both composed-host audits agree, each under its own profile:
+
+```text
+COMPOSED_HOSTS_OK: profile=development-fixture required=27 forbidden=2 inspector=nm | c++filt
+COMPOSED_HOSTS_OK: profile=production           required=26 forbidden=7 inspector=nm | c++filt
+```
+
+The release gate on the browser probe is confirmed from the shipped side as
+well: `--device-authorization-browser-probe` does not occur in the
+tests-disabled artifact as a string at all, which is the flag's absence
+observed rather than inferred from the `#if`.
+
+### Restaged at `8a6e7612` — the artifact the observation actually needs
+
+The artifact staged earlier in this section (11,325,064 bytes, sha256
+`79d602c0…`, built at `5b5f0d65`) is **superseded and should not be used**.
+The opener was composed in it, but [[BPR-0526]] had not yet mounted the panel,
+so the shipped workbench offered no way to reach the handoff: the observation
+was not merely unrecorded, it was impossible from that binary. Everything else
+in this section stands as the record of that head.
+
+Restaged at `8a6e7612`, which contains `bc352bad`. `Locked` on
+`/org/freedesktop/secrets/collection/login` read `(<false>,)` at
+2026-09-02T11:01:38Z before anything ran; `cmake --preset dev` and
+`cmake --build --preset dev` both exit 0 with zero `error:` or `warning:`
+lines.
+
+`ctest --preset dev -R '^(application_device_authorization_(panel_course|panel_absent|browser_handoff|browser_absent)|qt_composed_github_scale_(100|125|200)|composed_application_hosts|rfc0016_test_inventory)$' --output-on-failure`
+— exit 0, **9/9 passed, 27.12 s**:
+
+| Test | Result | Time |
+|---|---|---|
+| `rfc0016_test_inventory` | Passed | 0.06 sec |
+| `qt_composed_github_scale_100` | Passed | 0.69 sec |
+| `qt_composed_github_scale_125` | Passed | 0.82 sec |
+| `qt_composed_github_scale_200` | Passed | 1.41 sec |
+| `application_device_authorization_browser_handoff` | Passed | 5.68 sec |
+| `application_device_authorization_browser_absent` | Passed | 5.68 sec |
+| **`application_device_authorization_panel_course`** | **Passed** | **5.68 sec** |
+| **`application_device_authorization_panel_absent`** | **Passed** | **5.68 sec** |
+| `composed_application_hosts` | Passed | 1.40 sec |
+
+The enabled course on a root deleted whole first, exit 0 in 251 s:
+`RFC0016_PLATFORM:linux`, `RFC0016_SELECTION:enabled`,
+**`RFC0016_COURSE_SELECTORS:17`**, `RFC0016_DEVICE_STAGE:cancelled`,
+`RFC0016_DEVICE_REQUESTS:0`, `RFC0016_PLATFORM_COURSE_OK`. Seventeen is
+[[BPR-0523]]'s addition of `composed_application_hosts` to the course's own
+selector set, so from this run onward the course audits the composed hosts of
+the tree it ships rather than assuming them.
+
+```text
+/home/mmarcin/bpr-linux/build/rfc0016-linux-enablement/release/src/app/better_pull_review
+size    11,370,392 bytes
+sha256  ddae8dc21b617e91c49d4c3b77e37ebfa84d5f014f13bac8a737b4b8d4a4a4f9
+```
+
+The panel is present in that artifact, not merely in the dev graph:
+
+```text
+000000000040f900 T bpr::qt::device_authorization_panel::device_authorization_panel(...)
+00000000000ef7e0 T bpr::app::system_browser_opener::system_browser_opener()
+COMPOSED_HOSTS_OK: profile=production required=27 forbidden=7 inspector=nm | c++filt
+```
+
+Its user-visible strings are in the image too — "Sign in with a device code",
+"Get a code", "Open browser", "Opened in your browser." — so the control the
+observation needs is in the shipped binary and not only in a tests-enabled one.
+
+### For the owner: where the panel is, and what the row is
+
+Launch it from the WSLg desktop **without** `QT_QPA_PLATFORM=offscreen`, since
+the observation needs a real display and a real default browser:
+
+```sh
+/home/mmarcin/bpr-linux/build/rfc0016-linux-enablement/release/src/app/better_pull_review
+```
+
+Since [[BPR-0526]] the sign-in panel is mounted **in the review header,
+directly under the session panel** — the same column, no drawer and no dialog
+— headed "Sign in with a device code". It acts on whichever profile the
+session panel's picker names, which is the same profile that panel's Connect
+control acts on; that shared picker is deliberate, so two sign-in controls
+side by side cannot mean two different hosts.
+
+Press **Get a code**, wait for the status to read "Waiting for you to
+authorize" with a code and an address filled in, then press **Open browser**.
+
+The row is only whether the system default browser opens at the address shown
+beside the code — nothing about which browser, only that it is the system one
+and the address matches. `QDesktopServices::openUrl` defers to `xdg-open`
+here, so the browser that answers is whatever
+`xdg-settings get default-web-browser` names. The panel's own handoff line
+reads "Opened in your browser." when the opener reports success, which is the
+application's claim; the row is whether the browser actually came up at that
+address, which is why it is an attended observation and not a selector.
+
+| Row | Result |
+|---|---|
+| Linux: the action opens the system browser at the verification address | **Pending — the owner's attended click.** It starts a real device flow, so the station did not perform it. Everything it depends on is green above |
+
+## macOS — 2026-09-02
+
+Run on the integrator host at `5b5f0d65` (the tree of `d46a766a` plus one
+card move), in a fresh build root:
+
+| Row | Command | Result |
+|---|---|---|
+| Enabled platform course | `python3 scripts/verify_rfc0016_platform_course.py --platform macos --dev-preset dev --release-preset app-release --build-root build/rfc0016-macos-browser --expected-device-selection enabled --fresh` | exit 0 in 146 s: `RFC0016_COURSE_SELECTORS:16`, `RFC0016_DEVICE_STAGE:cancelled`, `RFC0016_DEVICE_REQUESTS:0`, `RFC0016_PLATFORM_COURSE_OK` |
+| The opener's anchor in both binaries | `composed_application_hosts` inside the course | `composed_application_hosts passed inside the course with the opener anchor required` |
+| Staged artifact | `build/rfc0016-macos-browser/release/src/app/BetterPullReview.app` | 10,406,976 bytes, sha256 `759e743c4ce6a1dbe972098e90cb0264b5b53e11629ff2d9e2f87f7fc1d12050` |
+| The action opens the system browser at the verification address | Launch the staged app, start sign-in, click "Open browser" | **Pending** — the owner's attended observation; it starts a real device flow, so no agent performs it |
+
+## Windows — 2026-09-02
+
+Station `bpr-win` at `37018b7c`, under the [[BPR-0493]] procedure: Smart App
+Control off, `vcvars64`, and each build root deleted whole rather than trusted
+to `--fresh`. **No browser was opened and no device flow was started by hand**;
+the observation row below is the owner's and stays Pending.
+
+### The dev tree
+
+`cmake --preset windows-dev` exit 0, "Configuring done (12.1s)".
+`cmake --build --preset windows-dev --config Debug` exit 0 — 137 projects
+linked, zero `error C` and zero `warning C` lines in the whole log.
+
+The focused set, 12/12 in 47.64 s:
+
+| Selector | Result |
+|---|---|
+| `rfc0016_test_inventory` | Passed 0.47 s |
+| `application_device_authorization_host` | Passed 0.07 s |
+| `qt_device_authorization_scale_100` / `_125` / `_200` | Passed 7.48 / 5.18 / 4.99 s |
+| `application_device_authorization_public_path` | Passed 1.13 s |
+| `application_device_authorization_unavailable` | Passed 1.18 s |
+| `application_device_authorization_registered_course` | Passed 6.37 s |
+| **`application_device_authorization_browser_handoff`** | **Passed 6.33 s** |
+| **`application_device_authorization_browser_absent`** | **Passed 6.34 s** |
+| `application_device_authorization_release_contract` | Passed 1.03 s |
+| `composed_application_hosts` | Passed 7.01 s — `COMPOSED_HOSTS_OK: profile=development-fixture required=27 forbidden=2 inspector=link /MAP \| undname` |
+
+`application_device_authorization_unavailable` is the uncontained gate
+[[BPR-0515]] adjudicates. Its stage is `DEVICE_FLOW_STAGE:cancelled`,
+`DEVICE_FLOW_REQUESTS:0`, `DEVICE_FLOW_REGISTERED_SELECTION_OK` — matching the
+committed Windows expectation, and reaching GitHub once, exactly as measured
+under that card. Recorded here so the run is not read as network-free.
+
+### The enabled platform course
+
+Build root deleted whole, then the exact ledger command with
+`--expected-device-selection enabled --fresh`:
+
+```text
+RFC0016_PLATFORM:windows
+RFC0016_SELECTION:enabled
+RFC0016_COURSE_SELECTORS:14
+RFC0016_DEVICE_STAGE:cancelled
+RFC0016_DEVICE_REQUESTS:0
+RFC0016_ELAPSED_SECONDS:973
+RFC0016_PLATFORM_COURSE_OK
+```
+
+### The opener is in both binaries, and no engine came with it
+
+`check_platform_surfaces` passed inside the course, and the shipped image was
+read again directly:
+
+| Claim | Result |
+|---|---|
+| The production profile admits the shipped artifact | `COMPOSED_HOSTS_OK: profile=production required=26 forbidden=7 inspector=link /MAP \| undname` |
+| The opener's anchor is present in the tests-**disabled** Release image | 21 `system_browser_opener` symbols in 34,072, including the anchor the audit names: `bpr::app::system_browser_opener::system_browser_opener(void) __ptr64`, plus `::open(class std::basic_string_view<char,...>)`, the vftable and the RTTI records |
+| The opener's anchor is present in the tests-**enabled** Debug image | `composed_application_hosts` passes under `development-fixture`, whose required set includes the same anchor |
+| No embedded browser engine came with it | `QWebEngine`, `QWebView`, `QtWebEngine` all ABSENT from the 34,072-symbol table |
+
+Both binaries carry the constructor, which is what the card asked for: the
+shipped implementation is present by linkage **and** by construction in both
+profiles, and the tests-enabled graph still binds the recording opener, so no
+test on this host can launch a browser.
+
+### Restaged for the owner's one attended click — 2026-09-02, at `8a6e7612`
+
+The earlier staging predates [[BPR-0526]], so the artifact it named had no
+panel to press. This one has. Course rerun from a build root deleted whole:
+
+```text
+RFC0016_SELECTION:enabled       RFC0016_COURSE_SELECTORS:17
+RFC0016_DEVICE_STAGE:cancelled  RFC0016_DEVICE_REQUESTS:0
+RFC0016_ELAPSED_SECONDS:1063    RFC0016_PLATFORM_COURSE_OK
+```
+
+The artifact, absolute path first because that is what the owner needs:
+
+```text
+C:/code/git/bpr-windows/build/rfc0016-windows-enablement/release/src/app/better_pull_review.exe
+7,685,632 bytes
+sha256 5997e1587e379750cee5b518946ae6421ed234f323827e8cc2f57667e1afeba5
+```
+
+**Where to press.** [[BPR-0526]] mounts `qt::device_authorization_panel` in
+`workbench_window` beside `github_session_panel`, laid into the **review header
+column directly under the "Connect GitHub host" control**, reached by the
+`device_authorization()` accessor. Sign-in is where sign-in belongs, so the
+owner should not have to hunt for it.
+
+Both anchors are in this exact image, read from its own linker map
+(`link /MAP | undname`, 34,321 symbols):
+
+| Anchor | Hits |
+|---|---|
+| `bpr::qt::device_authorization_panel::device_authorization_panel(...)` — the mounted panel | 163 |
+| `bpr::app::system_browser_opener::system_browser_opener(void)` — the opener it dispatches to | 21 |
+| `QWebEngine`, `QWebView`, `QtWebEngine` | absent |
+
+So the artifact carries the panel, the panel's one way out, and no embedded
+engine — which is everything the click depends on except the click.
+
+The dev-tree contracts behind it, all green at this head: 9/9 including the two
+new `application_device_authorization_panel_course` (6.37 s) and `panel_absent`
+(6.35 s), `browser_handoff` (6.36 s), `browser_absent` (6.36 s), the three
+`qt_composed_github_scale_100/125/200` (7.49 / 8.03 / 10.05 s),
+`composed_application_hosts` (7.13 s) and `rfc0016_test_inventory` (0.19 s).
+
+**No browser was opened and no device flow was started by hand.** The
+observation row stays Pending: that pressing the panel's action opens the real
+system browser at the real verification address is the owner's row, at the
+JaegAW desktop, against the artifact above.
+
+### A correction to the previous staging
+
+The absolute path recorded here on 2026-09-02 was corrupted and unusable. It
+was written through a shell heredoc that interpreted its own backslashes, so
+`\b`, `\r` and `\a` became a backspace, a carriage return and a bell:
+
+```text
+C:\code\git<BS>pr-windows<BS>uild
+fc0016-windows-enablement
+elease\src<BEL>pp<BS>etter_pull_review.exe
+```
+
+The size and digest beside it were correct; the one field the owner actually
+needed to find the file was not. It is replaced above, written with forward
+slashes so no later quoting can eat it again. Recorded rather than quietly
+fixed, because a staging row exists to be acted on by someone else and this one
+could not have been.
+
+## Correction — 2026-09-02
+
+`cmake --build build/dev --target check_boundaries` was red at this slice's
+head: a doc comment in `src/app/src/system_browser_opener.hpp` named a
+forbidden Windows shell API in prose. The integrator's reproduction ran the
+selectors and the composition contract and not that gate. [[BPR-0283]]
+reworded the comment with no code change and the gate is green again.
+
+## The observation rows wait on a mount — 2026-09-02
+
+[[BPR-0284]] found that no shipped window mounts the device-authorization
+panel: the composition binds the projection port to a self-test sink, so
+the staged artifacts on all three platforms offer no sign-in control and the
+"Open browser" observation cannot be made from them. The three observation
+rows above stay pending on [[BPR-0526]], which mounts the panel; the staged
+artifacts and every other row here stand.
+
+## macOS — restaged with the mounted panel — 2026-09-02
+
+With [[BPR-0526]] landed, the enabled course was rerun from a deleted root
+at `8a6e7612`: exit 0 in 116 s, `RFC0016_COURSE_SELECTORS:17` (the course
+now audits `composed_application_hosts`, the shipped artifact's production
+profile, and its own registration set), `RFC0016_DEVICE_STAGE:cancelled`,
+`RFC0016_DEVICE_REQUESTS:0`, `RFC0016_PLATFORM_COURSE_OK`. The staged
+artifact replaces the earlier one:
+
+| Artifact | Size | sha256 |
+|---|---|---|
+| `build/rfc0016-macos-browser/release/src/app/BetterPullReview.app` | 10,463,760 bytes | `531b21ac7ab6d75fe0d836baf78146b32e573a3935d737441c762617c19416a2` |
+
+The sign-in panel sits in the review header under the session panel's
+"Connect GitHub host" control. The macOS observation row stays the owner's:
+launch the app, choose the GitHub.com profile, press "Get a code", and
+press "Open browser" when the code and address appear; judge only whether
+the system default browser opens at the verification address.
+
+## macOS — the owner's observation — 2026-09-02
+
+The owner ran the staged macOS app and reported, in full: "I ran the mac
+app and got the device flow connected, seemed to work ok." The artifact at
+`build/rfc0016-macos-browser/release/src/app/BetterPullReview.app` at the
+time was the `8a6e7612` restage above (10,463,760 bytes, sha256
+`531b21ac…16a2`); the owner did not re-read the digest, and it is recorded
+here from the staging row rather than from the sitting.
+
+What the report establishes: a real device flow was started from the
+shipped, tests-disabled artifact, the verification address was reached,
+authorization completed, and the profile connected — the whole path this
+card composed the opener for, exercised by its user on the platform it
+ships on. The report does not separately name the "Open browser" press, so
+the row records the owner's words and the end-to-end outcome rather than a
+finer claim than was made. No agent performed or observed any part of it,
+and no agent-side evidence of it exists or should: the enrollment lives in
+the owner's own Keychain under the owner's own account.
+
+The Linux and Windows rows stay the owner's, against the artifacts staged
+above.
+
+## Linux and Windows — the owner's sittings — 2026-09-02
+
+**Linux is observed.** The owner ran the staged Linux artifact on the WSLg
+desktop and reported, in full: "The linux code and web browser flow works."
+As on macOS, the report is the end-to-end outcome — code, browser, device
+flow — from the tests-disabled artifact restaged at `8a6e7612`
+(`/home/mmarcin/bpr-linux/build/rfc0016-linux-enablement/release/src/app/better_pull_review`,
+11,370,392 bytes, sha256 `ddae8dc2…a4f9`, per the staging row above). No
+agent performed or observed any part of it.
+
+**Windows did not launch.** Double-clicking
+`C:/code/git/bpr-windows/build/rfc0016-windows-enablement/release/src/app/better_pull_review.exe`
+from Explorer produced the system error "The code execution cannot proceed
+because Qt6Gui.dll was not found." That is not the opener and not the
+panel: the staged artifact is the bare Release executable the platform
+course builds, and the course launches it under the launch environment
+[[BPR-0511]] reads from the ctest inventory — the Qt runtime directory
+prepended to `PATH`. Explorer prepends nothing, so the loader cannot find
+the Qt DLLs beside a binary that was never deployed with them. Every
+Windows row above stands: the course's own runs, the composed-host audit,
+the panel and opener anchors, and the release scan were all made against
+this same image under that environment.
+
+Two consequences. First, the owner can launch the staged image now from a
+shell with the Qt runtime directory on `PATH` — the same directory the
+course uses. Second, a staged artifact meant for a desktop click should be
+self-contained; `bpr-win` is asked to stage a deployed copy (`windeployqt`
+beside a copy of the exact image, digest recorded before and after) so the
+observation is a double-click rather than a shell incantation. Whether a
+shipped Windows package deploys Qt is a packaging question outside this
+card; here it only decides how the click is made.
+
+| Row | Result |
+|---|---|
+| Windows x64: the action opens the system browser at the verification address | **Observed by the owner on 2026-09-02 against the deployed copy** — see the section below |
+
+### Deployed for the owner's click — 2026-09-02
+
+The staged image is unchanged and was not rebuilt. Its digest still reads
+`5997e1587e379750cee5b518946ae6421ed234f323827e8cc2f57667e1afeba5`, so the
+copy below is the same executable every Windows row above was made against.
+
+**The Qt runtime directory the course prepends.** Read from the registered
+tests' `ENVIRONMENT_MODIFICATION`, the `path_list_prepend` value on
+`application_device_authorization_public_path` and on every other registered
+test — one distinct value across the whole build tree:
+
+```text
+C:/code/git/bpr-windows/build/.cpm-cache/bprqt/6.10.3/6.10.3/msvc2022_64/bin
+```
+
+That is what a shell launch of the *undeployed* image needs on `PATH` today.
+The deployed copy needs none of it.
+
+**The deployed copy.** `windeployqt --release --no-translations
+--no-compiler-runtime`, from that same Qt install, run against a copy of the
+exact image:
+
+```text
+C:/code/git/bpr-windows/build/rfc0016-windows-enablement/deployed/better_pull_review.exe
+7,685,632 bytes
+sha256 5997e1587e379750cee5b518946ae6421ed234f323827e8cc2f57667e1afeba5
+```
+
+The digest is identical before and after deployment — `windeployqt` writes
+beside the executable, never into it. The directory holds **22 files**,
+80,220,992 bytes: the executable and ten DLLs at the top level (`Qt6Core`,
+`Qt6Gui`, `Qt6Network`, `Qt6Svg`, `Qt6Widgets`, `icuuc`, `opengl32sw`,
+`d3dcompiler_47`, `dxcompiler`, `dxil`) and seven plugin directories —
+`platforms` (`qwindows.dll`), `styles` (`qmodernwindowsstyle.dll`),
+`imageformats` (4), `tls` (2), `generic`, `iconengines`, `networkinformation`.
+
+`dumpbin /dependents` on the copy names four Qt imports — `Qt6Core.dll`,
+`Qt6Gui.dll`, `Qt6Network.dll`, `Qt6Widgets.dll` — and each of the four sits
+beside the executable. The rest are `ADVAPI32`, `KERNEL32`, `bcrypt`, the
+`api-ms-win-crt-*` set, and the MSVC runtime (`MSVCP140`,
+`MSVCP140_ATOMIC_WAIT`, `VCRUNTIME140`, `VCRUNTIME140_1`), which
+`--no-compiler-runtime` deliberately leaves to the system; all four are
+present in `C:/WINDOWS/System32` on this host, so the copy is self-contained
+in the sense that matters here — it carries every Qt dependency.
+
+**Launch check, no device flow.** From a `cmd` whose `PATH` carries no Qt
+directory, the copy started with no arguments, was still running after five
+seconds with the main window `BetterPullReview`, and was then terminated.
+Every Qt module it had loaded resolved from the deployed directory:
+
+```text
+deployed/Qt6Core.dll  deployed/Qt6Gui.dll  deployed/Qt6Network.dll
+deployed/Qt6Widgets.dll  deployed/platforms/qwindows.dll
+deployed/styles/qmodernwindowsstyle.dll
+```
+
+Nothing was pressed, no flag was passed, no device flow was started and no
+browser was opened.
+
+**One thing the check found that the deployment does not fix.** With `PATH`
+set to `%SystemRoot%\System32` *alone*, the copy loads Qt fine — no
+`0xC0000135`, the Qt6Gui failure is gone — but the application then exits 1
+printing `STARTUP_FAILED`. The debug artifact, run the same way, names the
+cause the tests-disabled build withholds:
+
+```text
+STARTUP_FAILED_CAUSE: Application data or installed Git is unavailable
+```
+
+It is a missing `git.exe`, not a missing DLL. The undeployed image with the
+Qt directory prepended refuses the same bare launch identically, which is
+what proves the deployment complete rather than short: the refusal is the
+application's, and predates this work. Adding `C:/Program Files/Git/cmd` to
+that bare `PATH` — nothing else, still no Qt directory — is what produced the
+running window above. The owner's persisted `PATH`, which is what Explorer
+hands a double-clicked process, already contains `C:/Program Files/Git/cmd`
+and does not contain the Qt directory, so the click should reach the window.
+
+The observation row stays Pending. The click is the owner's.
+
+## Windows — the owner's observation — 2026-09-02
+
+Against the self-contained copy `bpr-win` staged
+(`C:/code/git/bpr-windows/build/rfc0016-windows-enablement/deployed/better_pull_review.exe`,
+the exact staged image at sha256 `5997e158…feba5` with its Qt runtime
+deployed beside it), the owner reported, in full: "windows code browser flow
+now works." As on macOS and Linux, that is the end-to-end outcome — code,
+browser, device flow — from the tests-disabled artifact, performed by the
+owner at the JaegAW desktop and by no agent.
+
+All three enabled platforms are now observed. The two launch barriers the
+Windows sitting surfaced — the bare Release image needing its Qt runtime on
+`PATH`, and the application needing installed Git on `PATH` — are recorded
+above and in the station's deployment section; neither is the opener, and
+whether a shipped Windows package deploys Qt is a packaging question outside
+this card.
+
+With every row of the required final state met, this card is done.
+[[BPR-0285]]'s final-head replay is the remaining RFC-BPR-0016 work, and
+[[BPR-0515]] is the one open owner decision that could still change the
+tree it replays.

@@ -39,8 +39,8 @@ station; never reuse a name for a different checkout.
 | Station name | Machine | Environment | Workstream | Branch | Status |
 |---|---|---|---|---|---|
 | `bpr-main-mac` | MacBook Pro | macos | main (integrator) | `main` | provisioned 2026-08-29 under the v1 station file; relaunch through the v2 launcher before dispatching through Codex |
-| `bpr-win-jaegaw` | JaegAW | windows-native | win | `windows-lane` | relaunched 2026-09-01 under v2 with `lane-commit` and the writer lease, but with the server form the launcher used until [[BPR-0491]]: **no session exists**; relaunch once through the corrected launcher |
-| `bpr-linux-jaegaw` | JaegAW (WSL2) | wsl2 | linux | `linux-lane` | relaunched 2026-09-01 under v2 with `lane-commit` and the writer lease, same server-form launch: **no session exists**; relaunch once through the corrected launcher |
+| `bpr-win` | JaegAW | windows-native | win | `windows-lane` | launched 2026-09-02 through the corrected launcher (`py -3 scripts/launch_remote_station.py`, [[BPR-0491]], [[BPR-0508]], [[BPR-0509]]) with `lane-commit` and the writer lease; the interactive session is the station. Succeeds `bpr-win-jaegaw`, whose server-form launch never created a session |
+| `bpr-linux` | JaegAW (WSL2) | wsl2 | linux | `linux-lane` | launched 2026-09-02 through the corrected launcher with `lane-commit` and the writer lease; the interactive session is the station. Succeeds `bpr-linux-jaegaw`, same history |
 
 The station file format changed to `implement-rfc.remote-station.v2` on
 2026-09-01 (workstream instead of role, plus the Codex task and Claude session
@@ -125,6 +125,7 @@ authoritative everywhere else, and the station file is authoritative always.
    py -3 scripts/launch_remote_station.py                    # native Windows station
    python3 scripts/launch_remote_station.py                  # WSL2/Linux station, or the Mac integrator
    py -3 scripts/launch_remote_station.py --continue         # reattach after restart
+   py -3 scripts/launch_remote_station.py --fresh-station    # forget this station and start over
    python3 scripts/launch_remote_station.py --no-server      # Codex: provision only
    ```
 
@@ -132,12 +133,27 @@ authoritative everywhere else, and the station file is authoritative always.
    `.remote-station.json` when the checkout was launched before, otherwise
    from the checkout's branch (`windows-lane` is `win`, `linux-lane` is
    `linux`, `main` is `main`). Passing it explicitly is allowed and refuses
-   if it disagrees with the checkout. Two options exist for cases this
-   project does not currently have: `--machine <suffix>` when the same
-   platform runs on more than one machine (the JaegAW stations were
-   registered with `--machine jaegaw` before that rule was read closely;
-   keep passing it for them so their names stay stable), and `--read-only`
-   for a checkout with no push credential for its station branch.
+   if it disagrees with the checkout. So is the machine suffix: the JaegAW
+   stations were registered with `--machine jaegaw` before that rule was read
+   closely, and the launcher now reads that suffix back out of the station
+   file, so their names stay stable without anyone retyping it. `--machine`
+   remains available for the case the rule is actually for — the same
+   platform on more than one machine — and refuses when it contradicts what
+   the checkout already recorded. `--read-only` is for a checkout with no
+   push credential for its station branch.
+
+   **Starting over.** Every identity in `.remote-station.json` is durable on
+   purpose, so when a station's recorded bindings go wrong there is no
+   ordinary launch that clears them. `--fresh-station` is the one that does:
+   it archives the recorded Codex task and anything else answering to the
+   station name in this checkout, drops the recorded `station_id`, Codex task
+   and Claude session, and provisions the workstream's canonical name again —
+   without the inferred machine suffix, so it is also how a station is
+   deliberately renamed. Nothing is deleted; archiving is Codex's own
+   reversible form of forgetting, and the abandoned task stays readable in
+   the sidebar. It refuses next to `--continue` and `--no-server`, which
+   respectively need the session it discards and cannot release the old task
+   at all.
 
    **What you will see.** After the Codex task is provisioned, Claude opens
    in that terminal. That interactive session *is* the station: it is the
@@ -209,6 +225,97 @@ restoring it requires a Windows reset — and it is a permanent reduction in
 that machine's protection, so it is a decision for whoever owns the machine
 and not one an agent makes or is asked to make. Prefer a dedicated build host
 over a personal machine for exactly this reason.
+
+## Windows hosts: the supported platform-course procedure
+
+Recorded under BPR-0493 from the first complete `--fresh` runs of BPR-0311's
+ledger command on the JaegAW host (2026-09-02), so the next Windows station
+learns these from the document rather than from a failed run each.
+
+The RFC-BPR-0017 course adds one requirement to the same procedure: the
+verified-KSyntaxHighlighting nested configure wants `perl`, and the only
+`perl` on the JaegAW host is Git for Windows'. Append Git's `usr/bin` to
+`PATH` — never prepend it — because that directory also ships a `link.exe`,
+and the symbol reader behind the surface checks shells `link /MAP` and must
+find MSVC's first. `bpr-win` found this on 2026-09-02 when the first
+RFC-0017 course died at `configure-failed:windows-dev:missing:
+PERL_EXECUTABLE`; the [[BPR-0036]] PATH addendum is what fixes it.
+
+1. **Smart App Control is off.** That is the supported state, per the section
+   above; the course does not detect an enforcing host, it fails at configure
+   the way that section describes. A run on an enforcing host is unsupported,
+   not merely slow.
+2. **Run the ledger command from a Visual Studio developer environment** —
+   the "x64 Native Tools Command Prompt", or a shell that has run
+   `vcvars64.bat`. Two independent steps need it: `windows-app-release` is a
+   Ninja preset and an ordinary shell has no `ninja` on `PATH` (`CMake was
+   unable to find a build program corresponding to "Ninja"`), and the
+   symbol reader behind `check_platform_surfaces` shells `link /MAP` and
+   `undname`, which only that environment provides. The failure without it
+   is `configure-failed:windows-app-release` at the release step, thirteen
+   minutes in.
+3. **Delete the build root, not just its cache.** `--fresh` clears the CMake
+   cache; it does not clear the dependency cache under
+   `build/<tree>/_bpr/`, which keeps earlier configuration logs and the
+   objects they describe. When the run must prove a clean tree, remove the
+   whole build root first.
+4. **Retire hand-written presets that the repository has since committed.**
+   A gitignored `CMakeUserPresets.json` that still carries a preset the
+   repository now ships (`windows-app-release` was one) makes *every* preset
+   command on the host fail with `Duplicate preset`, `windows-dev` included.
+   Remove the superseded pair before running anything.
+5. **The shipped artifact's launch environment is the course's job.** The
+   course launches the artifact outside CTest and gives those launches the Qt
+   runtime directory the registered tests declare (BPR-0511); an operator
+   should not prepend it by hand, and a run that needed a hand-repaired
+   `PATH` is not a ledger row.
+
+The multi-config `windows-dev` tree and the single-config
+`windows-app-release` tree resolve from their own caches in one run; the
+course reads the configuration each tree declares (BPR-0492) and the
+dependency provider builds only the configurations the tree selects
+(BPR-0495).
+
+## Linux hosts: the Secret Service `login` collection must be unlocked
+
+The `linux_secret_service_native*` fixtures and every RFC-BPR-0016 vault row
+on Linux talk to the real `org.freedesktop.secrets` service and target the
+collection the `default` alias names — the `login` collection. The vault
+refuses to prompt by construction, so a locked collection makes those rows
+fail with `github_credential_vault_failure::locked` and nothing on the host
+will ever unlock it: on a stock desktop PAM unlocks it at login with the user's
+password, and a WSL2 host has no such login. Recorded from the JaegAW WSL2
+host, 2026-09-02 (BPR-0310):
+
+- Check first, and again before every course run, since a one-shot unlock is
+  per daemon and re-locks whenever gnome-keyring restarts:
+
+  ```bash
+  DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus gdbus call --session \
+    --dest org.freedesktop.secrets \
+    --object-path /org/freedesktop/secrets/collection/login \
+    --method org.freedesktop.DBus.Properties.Get \
+    org.freedesktop.Secret.Collection Locked
+  ```
+
+  `(<false>,)` is the state the rows need.
+- gnome-keyring 50 rejects an empty password: the widely quoted
+  `echo -n "" | gnome-keyring-daemon --unlock` creates nothing and prints no
+  error. A blank-password, always-unlocked keyring is not available.
+- `--unlock` alone does not touch a daemon that is already running; only
+  `--replace --unlock` does, and under systemd the
+  `gnome-keyring-daemon.socket` unit socket-activates the daemon, so a
+  hand-started one cannot take the bus name.
+- The durable shape is a systemd user override
+  (`~/.config/systemd/user/gnome-keyring-daemon.service.d/`) whose
+  `ExecStart` adds `--unlock` with a password file on stdin, so the
+  collection unlocks at every session start. The password file is
+  plaintext-equivalent at rest: it buys a working Secret Service for the
+  fixtures, not secrecy, so store nothing real in that keyring. If the file
+  goes missing the service fails to start rather than prompting, and
+  Secret Service clients then report no service at all.
+- A `login.keyring` whose password nobody knows cannot be recovered; move it
+  aside and let the new collection be created.
 
 ## Dispatch and merge in one paragraph
 

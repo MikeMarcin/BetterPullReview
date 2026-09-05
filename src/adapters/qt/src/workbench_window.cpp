@@ -6,8 +6,11 @@
 
 #include "bpr/qt/menu_tool_button.hpp"
 
+#include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
 
 #include <QAbstractItemView>
 #include <QAccessible>
@@ -26,6 +29,7 @@
 #include <QPainter>
 #include <QPalette>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QSizePolicy>
 #include <QSpinBox>
@@ -69,6 +73,37 @@ namespace bpr::qt {
 		static_assert(
 			static_cast<std::size_t>(application::file_receipt_action_id::excluded)
 			== 3U);
+
+		/// \brief The width the conversations drawer opens at, in logical pixels.
+		///
+		/// \details Stated here because the alternative is what the drawer had
+		/// before: whichever row was widest set the column's size hint, the
+		/// splitter handed the drawer exactly that, and then the vertical scroll
+		/// bar took 18 px back out of it. So the widest row was always the row
+		/// that lost its last control, at whatever width the drawer opened -
+		/// 540 px while the defect rows were horizontal, 366 px once BPR-0520
+		/// stacked them and the agent launcher's run controls became the widest
+		/// row instead. A number nobody chose, that moved whenever a label did,
+		/// and that was wrong by the scroll bar's width every time.
+		///
+		/// Measured at 100 % with every row of the drawer stacked (BPR-0506,
+		/// BPR-0520, BPR-0527): the column asks for 357 px to draw every control
+		/// at its natural width, needs 251 px for its widest single control -
+		/// *Classify selected conversation as defect* - below which it starts
+		/// losing controls again, and the vertical scroll bar takes 18 px that
+		/// the column never gets. 357 plus 18 is this. A style or system font
+		/// whose metrics run wider than this machine's - the headless Linux gate
+		/// uses a different style from macOS - squeezes the column toward the
+		/// 251 it needs rather than clipping it, which is why the number that is
+		/// stated is the one the column asks for and not the one it needs.
+		///
+		/// It is a floor on the column, not on the drawer. The panel keeps its
+		/// own explicit `minimum_workbench_drawer_width`, so a reviewer can still
+		/// drag the drawer narrower and the host still persists what they chose.
+		/// What holds at those narrower widths is that every row is a column, so
+		/// a row cannot put its last control out of reach; this number is only
+		/// what the product opens at.
+		constexpr int conversation_drawer_default_width = 375;
 
 		/// \brief Recolours one native icon silhouette for the live widget palette.
 		///
@@ -679,14 +714,79 @@ namespace bpr::qt {
 		AgentPanel = new agent_launch_panel{ { }, conversationContents };
 		AgentPanel->setMaximumHeight(300);
 		conversationLayout->addWidget(AgentPanel);
-		auto* const defectNavigation = new QHBoxLayout{ };
+		// BPR-0513. RFC-BPR-0012's two agent surfaces go where the launcher
+		// that produces their content already is, in the order the work runs:
+		// ask the agent, watch the chat, read what it found, and promote a
+		// finding into the draft editor above — whose comment workshop is the
+		// view a promotion opens, and which is already in this drawer.
+		//
+		// Placement only. Neither panel is given a dispatch here, so a window
+		// nobody has composed emits nothing from either, and neither gains a
+		// member, an action, or a field by being laid out.
+		SideChat = new side_chat_panel{ { }, conversationContents };
+		conversationLayout->addWidget(SideChat);
+		// Stacked, as the finding queue's actions are: the drawer never scrolls
+		// sideways, so a row wider than the drawer loses its last actions rather
+		// than pushing them offscreen (BPR-0506).
+		auto* const chatActions = new QVBoxLayout{ };
+		for (auto* const action : { SideChat->send_action(),
+									SideChat->add_context_action(),
+									SideChat->new_session_action(),
+									SideChat->continue_old_revision_action() }) {
+			auto* const button = new QToolButton{ conversationContents };
+			button->setDefaultAction(action);
+			chatActions->addWidget(button);
+		}
+		conversationLayout->addLayout(chatActions);
+		FindingQueue = new finding_queue_view{ { }, conversationContents };
+		conversationLayout->addWidget(FindingQueue);
+		// One button per declared action, indexed by the enumerator, so a
+		// seventh finding action cannot be declared and then never offered.
+		//
+		// BPR-0506. Stacked rather than in a row. Six buttons whose longest
+		// label is *Convert to local draft comment* need more width than any
+		// drawer a reviewer is likely to give this column, and the drawer
+		// deliberately does not scroll sideways, so a row put the last two
+		// actions somewhere no gesture reaches. A column cannot clip: each
+		// button is as wide as its own label and the drawer already scrolls
+		// down. The six actions, their order, their labels, and the single
+		// intent each emits are untouched - this is where they are drawn, not
+		// what they are.
+		auto* const findingActions = new QVBoxLayout{ };
+		for (auto index = std::size_t{ 0U }; index < finding_queue_action_count;
+			 ++index) {
+			auto* const action = FindingQueue->action(
+				static_cast<finding_queue_action>(index));
+			if (action == nullptr) {
+				continue;
+			}
+			auto* const button = new QToolButton{ conversationContents };
+			button->setDefaultAction(action);
+			findingActions->addWidget(button);
+		}
+		conversationLayout->addLayout(findingActions);
+		// BPR-0520. Stacked, for the reason BPR-0506 stacked the finding
+		// actions, and now on a measurement rather than on a suspicion. At the
+		// drawer's default width the column's visible region was 522 px wide
+		// while these two rows asked for 621, and the drawer scrolls down but
+		// never sideways. *Next defect* began 17 px past the right edge and so
+		// was not offscreen but absent; *Previous defect* lost its last
+		// pixels; and one row below, *Apply local classification* lost two
+		// thirds of itself. A column cannot clip: each button is as wide as
+		// its own label, and the drawer already scrolls down.
+		//
+		// The count label keeps its place between the classify action and the
+		// pair that walks the queue, and loses only the horizontal stretch
+		// that used to push that pair to the far edge - a column has nothing
+		// to push against.
+		auto* const defectNavigation = new QVBoxLayout{ };
 		auto* const classifyButton   = new QToolButton{ conversationContents };
 		classifyButton->setDefaultAction(ClassifyDefect);
 		defectNavigation->addWidget(classifyButton);
 		DefectCountLabel = new QLabel{ QStringLiteral("Defects 0/0"), conversationContents };
 		DefectCountLabel->setObjectName(QStringLiteral("defectCount"));
 		DefectCountLabel->setAccessibleName(QStringLiteral("Defect queue position"));
-		defectNavigation->addWidget(DefectCountLabel, 1);
+		defectNavigation->addWidget(DefectCountLabel);
 		for (auto* const action : { PreviousDefect, NextDefect }) {
 			auto* const button = new QToolButton{ conversationContents };
 			button->setDefaultAction(action);
@@ -694,7 +794,12 @@ namespace bpr::qt {
 		}
 		conversationLayout->addLayout(defectNavigation);
 		conversationLayout->addWidget(DefectCard);
-		auto* const defectActions = new QHBoxLayout{ };
+		// BPR-0520, the second half of the same measurement. The five verdicts
+		// RFC-BPR-0009 and RFC-BPR-0010 give a defect are the same five, in the
+		// same order, under the same labels and object names, each emitting the
+		// single intent it emitted before. This is where they are drawn, not
+		// what they are.
+		auto* const defectActions = new QVBoxLayout{ };
 		for (auto* const action : { DefectCard->verify_action(),
 									DefectCard->reopen_action(), DefectCard->withdraw_action(),
 									DefectCard->accept_as_is_action(), DefectCard->reclassify_action() }) {
@@ -703,8 +808,29 @@ namespace bpr::qt {
 			defectActions->addWidget(button);
 		}
 		conversationLayout->addLayout(defectActions);
+		// BPR-0513. The column now stacks the conversation tree, the draft
+		// editor with its comment workshop, the agent launcher, the side chat,
+		// and the finding queue. That is more than a short drawer can show at
+		// once, and a column that simply squeezed would show each panel with
+		// its own fields overlapping — which is showing a reviewer nothing.
+		// So the content scrolls. Collapse, width reporting, and the toggle
+		// are untouched: this is inside the drawer's content, not around it.
+		auto* const conversationScroll = new QScrollArea{ Drawers[1].Panel };
+		conversationScroll->setObjectName(
+			QStringLiteral("workbenchConversationDrawerScroll"));
+		conversationScroll->setWidgetResizable(true);
+		conversationScroll->setFrameShape(QFrame::NoFrame);
+		// BPR-0527. The drawer opens at the width stated above rather than at
+		// whatever the widest row asked for.
+		conversationScroll->setMinimumWidth(conversation_drawer_default_width);
+		// Vertically only. A drawer is a column, and a column that also
+		// scrolled sideways would hide a control behind a gesture nobody
+		// makes; the width a panel gets is still the width the reviewer gave
+		// the drawer, exactly as it was before this content scrolled at all.
+		conversationScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		conversationScroll->setWidget(conversationContents);
 		Drawers[1].Panel->set_content_widget(
-			conversationContents, ConversationPanel->view());
+			conversationScroll, ConversationPanel->view());
 		CentralSplitter->addWidget(Drawers[0].Panel);
 		CentralSplitter->addWidget(CentreSurface);
 		CentralSplitter->addWidget(Drawers[1].Panel);
@@ -793,12 +919,57 @@ namespace bpr::qt {
 		};
 		PullRequestPanel = new github_pull_request_panel{ };
 
+		// [[BPR-0526]]. A profile has two ways in -- the token prompt the
+		// Connect button opens, and a code read aloud into a browser -- and a
+		// reviewer looking for either looks in one place. So the device panel
+		// is mounted directly under the session chrome rather than behind a
+		// drawer or a dialog of its own, in the same column, under the same
+		// scroll bound.
+		//
+		// The window supplies no dispatch. Every gesture leaves through
+		// `DeviceDispatch`, which the composition sets, so a panel nobody wired
+		// stays visible and inert instead of quietly performing a host effect
+		// from the presentation layer.
+		DevicePanel = new device_authorization_panel{
+			SessionPanel->selected_profile().value_or(core::host_profile_id{ }),
+			[this](application::device_authorization_gesture aGesture) {
+				if (DeviceDispatch) {
+					DeviceDispatch(std::move(aGesture));
+				}
+			},
+			nullptr,
+		};
+
 		auto* const header = new QWidget;
 		header->setObjectName(QStringLiteral("workbenchReviewHeader"));
 		header->setAccessibleName(QStringLiteral("Pull request"));
 		auto* const column = new QVBoxLayout{ header };
 		column->setContentsMargins(0, 0, 0, 0);
 		column->addWidget(SessionPanel);
+		column->addWidget(DevicePanel);
+		// The picker names the profile the Connect button acts on, so it names
+		// the profile a device code is asked for too. Two sign-in controls side
+		// by side that meant two different hosts would be the defect this mount
+		// is most likely to introduce.
+		connect(
+			SessionPanel->profile_selector(),
+			&QComboBox::currentIndexChanged,
+			this,
+			[this] { rebind_device_authorization_profile(); });
+		// Switching to sign-in is offered from the ring and from every
+		// refusal, and both go to the one entry point already mounted here:
+		// the device panel's "Get a code", for the profile the picker names.
+		// The window adds no second way in, so sign-in cannot begin against a
+		// host the reviewer is not looking at.
+		SessionPanel->set_public_preview_dispatch(
+			[this](application::public_preview_gesture aGesture) {
+				static_cast<void>(aGesture);
+				if (DevicePanel == nullptr) {
+					return;
+				}
+				rebind_device_authorization_profile();
+				DevicePanel->begin_button()->click();
+			});
 		build_queue_landing(header, *column);
 
 		// The empty state is not decoration. Without it a reviewer with no pull
@@ -1604,6 +1775,12 @@ namespace bpr::qt {
 		AgentPanel->set_dispatch(std::move(aAgentDispatch));
 	}
 
+	void workbench_window::set_device_authorization_dispatch(
+		application::device_authorization_gesture_dispatch aDispatch)
+	{
+		DeviceDispatch = std::move(aDispatch);
+	}
+
 	void workbench_window::set_defect_classification_dispatch(
 		workbench_defect_classification_dispatch aClassificationDispatch)
 	{
@@ -1946,6 +2123,10 @@ namespace bpr::qt {
 		}
 		if (aTransition.Identity.has_value()) {
 			SessionPanel->apply_identity(*aTransition.Identity);
+			// An accepted identity moves the picker with its signals blocked,
+			// so the rebind the picker's own change would have performed has to
+			// be performed here as well. Both paths end at the same profile.
+			rebind_device_authorization_profile();
 			++Statistics.GithubIdentityUpdates;
 		}
 		if (aTransition.Capabilities.has_value()) {
@@ -2028,6 +2209,173 @@ namespace bpr::qt {
 		ConversationPanel->clear(QStringLiteral(
 			"Review threads are unavailable until a pull request is open."));
 		update_github_presentation_state();
+	}
+
+	void workbench_window::publish(
+		const application::public_preview_presentation& aPresentation)
+	{
+		PublicPreview          = aPresentation;
+		PublicPreviewSignedOut = aPresentation.Mode
+			== application::public_preview_mode::signed_out;
+		if (SessionPanel != nullptr) {
+			SessionPanel->apply_public_preview(aPresentation, PublicPreviewNow);
+		}
+		update_public_preview_title();
+		apply_public_preview_conversation();
+		// Re-decides the commands from their projections first, then lets the
+		// mode have the last word over them.
+		update_action_state();
+		apply_focus_order();
+		update_github_presentation_state();
+	}
+
+	void workbench_window::set_public_preview_now(
+		const std::uint64_t aNowUnixSeconds)
+	{
+		PublicPreviewNow = aNowUnixSeconds;
+		if (SessionPanel != nullptr) {
+			SessionPanel->apply_public_preview(PublicPreview, PublicPreviewNow);
+		}
+	}
+
+	void workbench_window::update_public_preview_title()
+	{
+		setWindowTitle(
+			PublicPreviewSignedOut
+				? QStringLiteral("BetterPullReview — %1")
+					  .arg(public_preview_mode_text())
+				: QStringLiteral("BetterPullReview"));
+	}
+
+	void workbench_window::apply_public_preview_availability()
+	{
+		const auto restore = [](QWidget* const aWidget) {
+			if (aWidget != nullptr) {
+				aWidget->setEnabled(true);
+				aWidget->setToolTip(QString{ });
+			}
+		};
+		if (!PublicPreviewSignedOut) {
+			restore(QueueRoleFilter);
+			restore(ReviewEditor);
+			restore(
+				ConversationPanel != nullptr ? ConversationPanel->reveal_button()
+											 : nullptr);
+			return;
+		}
+		// Disabled and explained, never hidden and never defaulted. A control
+		// that vanished would leave the reviewer guessing whether the mode
+		// cannot do this or the pull request simply has none of it.
+		const auto refuseAction
+			= [](QAction* const aAction, const QString& aName) {
+				  if (aAction == nullptr) {
+					  return;
+				  }
+				  const auto wording = public_preview_unavailable_text(aName);
+				  aAction->setEnabled(false);
+				  aAction->setToolTip(wording);
+				  aAction->setStatusTip(wording);
+			  };
+		const auto refuseWidget
+			= [](QWidget* const aWidget, const QString& aName) {
+				  if (aWidget == nullptr) {
+					  return;
+				  }
+				  aWidget->setEnabled(false);
+				  aWidget->setToolTip(public_preview_unavailable_text(aName));
+			  };
+		for (auto* const action : ReceiptActions) {
+			refuseAction(action, QStringLiteral("Private review progress"));
+		}
+		refuseAction(
+			ShowReviewThreadsAction,
+			QStringLiteral("Review-thread resolution"));
+		refuseWidget(
+			ConversationPanel != nullptr ? ConversationPanel->reveal_button()
+										 : nullptr,
+			QStringLiteral("Review-thread resolution"));
+		refuseWidget(QueueRoleFilter, QStringLiteral("Queue role"));
+		refuseWidget(ReviewEditor, QStringLiteral("Publishing a review"));
+	}
+
+	void workbench_window::apply_public_preview_conversation()
+	{
+		if (!PublicPreviewSignedOut || ConversationPanel == nullptr) {
+			return;
+		}
+		if (PublicPreview.ReviewComments
+			!= application::public_preview_observation::observed) {
+			// Not an empty conversation. An unobservable conversation and an
+			// observed empty one are different answers and the wording keeps
+			// them apart.
+			ConversationPanel->clear(
+				QStringLiteral("Review comments were not observable."));
+			return;
+		}
+		std::vector<application::github_conversation_projection> conversations;
+		const auto                                               identifier = [](const std::string& aId) {
+			return std::string{ "public-preview-comment:" } + aId;
+		};
+		const auto project =
+			[](const application::public_preview_review_comment& aComment,
+			   std::string                                       aId,
+			   std::optional<std::string>                        aParent) {
+				return application::github_conversation_projection{
+					.Id           = std::move(aId),
+					.ParentId     = std::move(aParent),
+					.Kind         = application::github_conversation_kind::review_comment,
+					.AuthorLogin  = aComment.AuthorLogin,
+					.Body         = aComment.Body,
+					.Path         = aComment.Path,
+					.Line         = aComment.Line,
+					.OriginalLine = std::nullopt,
+					.DiffSide     = std::nullopt,
+					// Signed out there is no selected-revision agreement to
+					// claim, so the anchor is reported as file level rather
+					// than asserted current.
+					.AnchorAvailability = application::
+						github_conversation_anchor_availability::file_level,
+					.ReviewState
+					= application::github_review_state_projection::none,
+					// Resolution needs a reader and there is none. False here
+					// renders nothing at all, which is the absence the mode
+					// requires rather than a claim that it is unresolved.
+					.Resolved = false,
+					.Outdated = false,
+					.Deleted  = false,
+				};
+			};
+		for (const auto& group : PublicPreview.ReviewCommentGroups) {
+			auto rootId = identifier(group.Root.Id);
+			conversations.push_back(project(group.Root, rootId, std::nullopt));
+			for (const auto& reply : group.Replies) {
+				conversations.push_back(
+					project(reply, identifier(reply.Id), rootId));
+			}
+		}
+		ConversationPanel->adopt(
+			conversations,
+			QStringLiteral(
+				"Review comments are read-only in public preview. Review "
+				"threads and their resolution are unavailable."));
+	}
+
+	auto workbench_window::usage_indicator() const noexcept -> usage_ring*
+	{
+		return SessionPanel != nullptr ? SessionPanel->usage_indicator()
+									   : nullptr;
+	}
+
+	auto workbench_window::public_preview_signed_out() const noexcept -> bool
+	{
+		return PublicPreviewSignedOut;
+	}
+
+	auto workbench_window::public_preview_refusal_text() const -> QString
+	{
+		return SessionPanel != nullptr && SessionPanel->refusal_label() != nullptr
+			? SessionPanel->refusal_label()->text()
+			: QString{ };
 	}
 
 	void workbench_window::update_github_presentation_state()
@@ -2209,6 +2557,23 @@ namespace bpr::qt {
 		return SessionPanel;
 	}
 
+	auto workbench_window::device_authorization() const noexcept
+		-> device_authorization_panel*
+	{
+		return DevicePanel;
+	}
+
+	void workbench_window::rebind_device_authorization_profile()
+	{
+		if (DevicePanel == nullptr || SessionPanel == nullptr) {
+			return;
+		}
+		if (const auto profile = SessionPanel->selected_profile();
+			profile.has_value()) {
+			DevicePanel->bind_profile(*profile);
+		}
+	}
+
 	auto workbench_window::pull_request_panel() const noexcept
 		-> github_pull_request_panel*
 	{
@@ -2244,6 +2609,16 @@ namespace bpr::qt {
 	auto workbench_window::agent_panel() const noexcept -> agent_launch_panel*
 	{
 		return AgentPanel;
+	}
+
+	auto workbench_window::side_chat() const noexcept -> side_chat_panel*
+	{
+		return SideChat;
+	}
+
+	auto workbench_window::finding_queue() const noexcept -> finding_queue_view*
+	{
+		return FindingQueue;
 	}
 
 	auto workbench_window::review_editor() const noexcept -> review_draft_editor*
@@ -2442,6 +2817,8 @@ namespace bpr::qt {
 		// The review header sits under the toolbars and above the workbench, so
 		// its stops are declared there. Reading order and focus order agree.
 		if (SessionPanel != nullptr) {
+			// The ring reads above the picker, so it is walked before it.
+			append(SessionPanel->usage_indicator());
 			append(SessionPanel->profile_selector());
 			append(SessionPanel->connect_button());
 			append(SessionPanel->connection_details_button());
@@ -2450,6 +2827,17 @@ namespace bpr::qt {
 			append(SessionPanel->pull_request_editor());
 			append(SessionPanel->open_button());
 			append(SessionPanel->refresh_button());
+		}
+		// Device sign-in reads directly under the session chrome, so it is
+		// walked directly after it. The panel declares its own internal order;
+		// this places that run in the shell's.
+		if (DevicePanel != nullptr) {
+			append(DevicePanel->user_code_field());
+			append(DevicePanel->address_field());
+			append(DevicePanel->begin_button());
+			append(DevicePanel->copy_button());
+			append(DevicePanel->open_button());
+			append(DevicePanel->cancel_button());
 		}
 		append(QueueView);
 		append(QueueRoleFilter);
@@ -2861,6 +3249,10 @@ namespace bpr::qt {
 			DrawerStates.Conversations);
 		apply_line_numbers();
 		update_receipt_actions();
+		// Last, and deliberately. The mode is not a second opinion about a
+		// command's legality; it is the answer that stands once the core's
+		// projections have had theirs.
+		apply_public_preview_availability();
 	}
 
 	void workbench_window::update_receipt_actions()

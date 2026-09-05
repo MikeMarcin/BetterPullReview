@@ -59,6 +59,21 @@ SELECTORS: dict[str, int] = {
     "application_device_authorization_unavailable": 1,
     "application_device_authorization_release_contract": 1,
     "application_device_authorization_registered_course": 1,
+    # BPR-0516: the composed system-browser opener and its construction cut.
+    "application_device_authorization_browser_handoff": 1,
+    "application_device_authorization_browser_absent": 1,
+    # BPR-0526: the mounted sign-in panel's course and its construction cut.
+    "application_device_authorization_panel_course": 1,
+    "application_device_authorization_panel_absent": 1,
+    "application_device_authorization_ghes_refusal": 1,
+    # BPR-0537: the system-browser opener's validation, observed without a launch.
+    "application_device_authorization_browser_address": 1,
+    # BPR-0536: one rotation through the composed graph over the fixture's
+    # refresh slot, with a course-only clock offset.
+    "application_device_authorization_refresh_course": 1,
+    # BPR-0540: a pre-seeded orphan refresh slot and a pasted credential
+    # never resume; the pasted session stays intact.
+    "application_device_authorization_orphan_course": 1,
 }
 
 # Counting a name proves only that something claimed it. Each selector below
@@ -80,6 +95,37 @@ REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "application_device_authorization_registered_course": (
         "--device-authorization-registered-course",
         "--github-fixture",
+    ),
+    "application_device_authorization_browser_handoff": (
+        "--device-authorization-probe",
+        "--device-authorization-registered-course",
+    ),
+    "application_device_authorization_browser_absent": (
+        "--device-authorization-probe",
+    ),
+    "application_device_authorization_panel_course": (
+        "--device-authorization-probe",
+        "--device-authorization-panel-course",
+    ),
+    "application_device_authorization_panel_absent": (
+        "--device-authorization-probe",
+        "--device-authorization-panel-absent",
+    ),
+    # BPR-0535: the GHES negative — the mounted panel's begin for a GHES
+    # profile is refused before any transport call.
+    "application_device_authorization_ghes_refusal": (
+        "--device-authorization-probe",
+        "--device-authorization-ghes-course",
+    ),
+    # BPR-0536: the composed refresh course.
+    "application_device_authorization_refresh_course": (
+        "--device-authorization-probe",
+        "--device-authorization-refresh-course",
+    ),
+    # BPR-0540: the orphan course.
+    "application_device_authorization_orphan_course": (
+        "--device-authorization-probe",
+        "--device-authorization-orphan-course",
     ),
 }
 
@@ -105,9 +151,14 @@ GRAPH_INDEPENDENT_SELECTORS = frozenset(
     }
 )
 
-# BPR-0446 registered the anchor fixture on Windows without the APPLE/Linux
-# wire block that carries these two, so the anchor no longer implies them.
-# Their condition is the platform holding that block, not the fixture.
+# The two selectors of the wire block. BPR-0446 registered the anchor fixture
+# on Windows without the APPLE/Linux block that carried them, so for a while
+# the anchor did not imply them there; BPR-0525 mirrored both into the
+# Windows registration, so the anchor implies them on every platform again.
+# The set stays named so that a platform which loses them is refused with
+# this reason rather than a generic count — the same omission was once
+# written down here and in the platform course's exclusion table with
+# nothing linking the two, and pruning one silently left the other.
 WIRE_BLOCK_SELECTORS = frozenset(
     {
         "github_device_authorization_refresh_contract",
@@ -142,6 +193,25 @@ FORBIDDEN_STRINGS: tuple[str, ...] = (
     # more — it was sanitized before it was committed — but a shipped binary
     # containing a recorded user code would mean a fixture reached the product.
     "WDJB-MJHT",
+    # BPR-0537. Every tests-enabled flag the app parses under BPR_BUILD_TESTING,
+    # forbidden by string so a Release that learned to parse one fails here
+    # rather than in a station's course. The two course flags joined once the
+    # card's second half gated them.
+    "--network-denied",
+    "--device-authorization-registered-course",
+    "--device-authorization-panel-course",
+    "--device-authorization-refresh-course",
+    "--device-authorization-orphan-course",
+    "--device-authorization-browser-absent",
+    "--device-authorization-panel-absent",
+    "--device-authorization-browser-probe",
+    "--public-preview-enabled-course",
+    "--public-preview-ghes-course",
+    "--public-preview-selection-enabled-probe",
+    "--public-preview-live-candidate",
+    "--test-application-data-root",
+    "--github-fixture",
+    "--device-authorization-ghes-course",
 )
 
 # Secret-shaped patterns. GitHub's token prefixes are documented and stable, so
@@ -225,8 +295,14 @@ def registered_tests(
             raise InventoryFailure("ctest-inventory-name")
         command = entry.get("command")
         if command is None:
-            arguments: tuple[str, ...] = ()
-        elif isinstance(command, list) and all(
+            # CTest lists a test it cannot describe with no `command` at all
+            # — inside a Windows AppContainer that is every test whose
+            # interpreter path a lowbox token cannot read. Reading that as
+            # an empty argument list turned "CTest did not describe this
+            # test" into "the command omits --suite refresh", an accusation
+            # about a registration the listing never saw (BPR-0528).
+            raise InventoryFailure(f"ctest-inventory-command-absent:{name}")
+        if isinstance(command, list) and all(
             isinstance(argument, str) for argument in command
         ):
             arguments = tuple(command)
@@ -247,11 +323,10 @@ def check_inventory(
     registered = registered_tests(build_dir, build_config)
     names = [name for name, _ in registered]
     anchored = GRAPH_ANCHOR in names
-    wire_block = sys.platform in {"darwin", "linux"}
     failures: list[str] = []
     for selector, declared in sorted(SELECTORS.items()):
         if selector in WIRE_BLOCK_SELECTORS:
-            expected = declared if anchored and wire_block else 0
+            expected = declared if anchored else 0
         elif anchored or selector in GRAPH_INDEPENDENT_SELECTORS:
             expected = declared
         else:
@@ -262,9 +337,10 @@ def check_inventory(
         if len(matching) != expected:
             if selector in WIRE_BLOCK_SELECTORS:
                 reason = (
-                    "the APPLE/Linux wire block is configured"
+                    "the anchor fixture implies the wire block on every "
+                    "platform since BPR-0525"
                     if expected
-                    else "this platform has no APPLE/Linux wire block"
+                    else "graph registers no anchor fixture"
                 )
             elif anchored:
                 reason = "graph builds the Qt and loopback halves"

@@ -440,6 +440,14 @@ namespace {
 		return core::host_profile_id{ 7U };
 	}
 
+	// A second composed profile -- the enterprise host beside the one the
+	// capability was registered for. Nothing about it is malformed; it is
+	// simply not the profile this host's identity belongs to ([[BPR-0535]]).
+	[[nodiscard]] auto foreign_profile() -> core::host_profile_id
+	{
+		return core::host_profile_id{ 9U };
+	}
+
 	class fake_clock final : public application::device_authorization_clock_port
 	{
 	public:
@@ -619,6 +627,13 @@ namespace {
 			Published.push_back(aPresentation);
 		}
 
+		void publish_refresh(
+			const application::device_authorization_refresh_observation&
+				aObservation) override
+		{
+			Refreshes.push_back(aObservation);
+		}
+
 		[[nodiscard]] auto last() const
 			-> application::device_authorization_presentation
 		{
@@ -627,7 +642,9 @@ namespace {
 		}
 
 		std::vector<application::device_authorization_presentation> Published;
-		bool                                                        Throw = false;
+		std::vector<application::device_authorization_refresh_observation>
+			 Refreshes;
+		bool Throw = false;
 	};
 
 	// Counts every call so a test can prove the browser was never reached, not
@@ -654,14 +671,21 @@ namespace {
 	// The device course itself needs no refresh slot. This vault gives the
 	// answer every platform without one gives, so nothing in these tests can
 	// depend on refresh material existing.
-	class unavailable_vault final : public application::github_credential_vault_port
+	//
+	// It implements the refresh-only port, which is the whole of what the
+	// device host is handed. There is no base-token slot here to stub out and
+	// none for the host to reach: the narrowing is what makes that a fact about
+	// the types rather than a claim about the code.
+	class unavailable_vault final
+		: public application::github_credential_refresh_vault_port
 	{
 	public:
-		void store(
+		void store_refresh(
 			application::github_credential_enrollment               aEnrollment,
 			application::github_credential_store_completion_handler aCompletion)
 			override
 		{
+			++Calls;
 			const auto context = aEnrollment.Context;
 			aEnrollment.Credential.reset();
 			aCompletion(application::github_credential_store_error{
@@ -670,42 +694,16 @@ namespace {
 			});
 		}
 
-		void retrieve(
-			application::github_credential_operation_context           aContext,
-			application::github_credential_retrieve_completion_handler aCompletion)
-			override
-		{
-			aCompletion(application::github_credential_retrieve_error{
-				.Context = aContext,
-				.Failure = application::github_credential_vault_failure::unavailable,
-			});
-		}
-
-		void delete_credential(
-			application::github_credential_operation_context         aContext,
-			application::github_credential_delete_completion_handler aCompletion)
-			override
-		{
-			aCompletion(application::github_credential_delete_error{
-				.Context = aContext,
-				.Failure = application::github_credential_vault_failure::unavailable,
-			});
-		}
-
-		void store_refresh(
-			application::github_credential_enrollment               aEnrollment,
-			application::github_credential_store_completion_handler aCompletion)
-			override
-		{
-			store(std::move(aEnrollment), std::move(aCompletion));
-		}
-
 		void retrieve_refresh(
 			application::github_credential_operation_context           aContext,
 			application::github_credential_retrieve_completion_handler aCompletion)
 			override
 		{
-			retrieve(aContext, std::move(aCompletion));
+			++Calls;
+			aCompletion(application::github_credential_retrieve_error{
+				.Context = aContext,
+				.Failure = application::github_credential_vault_failure::unavailable,
+			});
 		}
 
 		void delete_refresh(
@@ -713,12 +711,20 @@ namespace {
 			application::github_credential_delete_completion_handler aCompletion)
 			override
 		{
-			delete_credential(aContext, std::move(aCompletion));
+			++Calls;
+			aCompletion(application::github_credential_delete_error{
+				.Context = aContext,
+				.Failure = application::github_credential_vault_failure::unavailable,
+			});
 		}
 
 		void cancel(application::github_credential_operation_context) override
 		{
 		}
+
+		// Every reached call, so a test can prove the vault was never asked
+		// rather than only that it answered nothing useful ([[BPR-0535]]).
+		std::size_t Calls = 0U;
 	};
 
 	// One harness for the whole matrix. Everything the host talks to is here,
@@ -739,14 +745,19 @@ namespace {
 						.Authority = std::string{ aAuthority },
 					},
 					application::device_authorization_capability{
-						.Registered = aRegistered } }
+						.Registered = aRegistered, .Profile = profile() } }
 		{
 		}
 
 		void begin()
 		{
+			begin_for(profile());
+		}
+
+		void begin_for(const core::host_profile_id aProfile)
+		{
 			Host.dispatch(core::begin_device_authorization_intent{
-				.Profile = profile(),
+				.Profile = aProfile,
 			});
 		}
 
@@ -1438,6 +1449,63 @@ namespace {
 			"and no attempt ever built a request");
 	}
 
+	void test_a_begin_for_another_profile_is_refused_before_the_transport()
+	{
+		harness world;
+		world.begin_for(foreign_profile());
+		world.Lane.drain();
+
+		expect(
+			world.stage() == core::device_authorization_stage::unavailable,
+			"a begin for a profile the capability was not composed for "
+			"reaches the unavailable terminal");
+		expect(
+			world.Transport.CodeRequests.empty(),
+			"having constructed no device-code request");
+		expect(
+			world.Transport.TokenRequests.empty(),
+			"and no token request either");
+		expect(
+			world.Vault.Calls == 0U,
+			"the vault was never asked for anything");
+		expect(
+			world.Enrollment.Profiles.empty(),
+			"and nothing was enrolled under a profile that issued nothing");
+		expect(
+			!world.Timer.armed(),
+			"nothing is scheduled, so nothing will try again");
+		expect(
+			!world.Host.holds_transient_material(),
+			"and no transient material was ever held");
+		expect(
+			world.Projections.last().Stage
+				== core::device_authorization_stage::unavailable,
+			"presentation is told, so the refusal is visible and typed");
+	}
+
+	void test_the_composed_profile_still_begins_after_a_foreign_refusal()
+	{
+		harness world;
+		world.begin_for(foreign_profile());
+		world.Lane.drain();
+
+		world.begin();
+		world.Lane.drain();
+		expect(
+			world.Transport.CodeRequests.size() == 1U,
+			"the composed profile's begin still reaches the transport");
+		expect(
+			world.Transport.CodeRequests.back().Profile == profile(),
+			"under the profile the capability was composed for");
+
+		world.Transport.answer_code(world.acquired());
+		world.Lane.drain();
+		expect(
+			world.stage()
+				== core::device_authorization_stage::awaiting_authorization,
+			"and runs exactly as it did before the refusal");
+	}
+
 	// -- browser handoff ---------------------------------------------------
 
 	void test_the_authority_check_admits_only_the_compiled_host()
@@ -1727,6 +1795,8 @@ auto main() -> int
 	test_an_unregistered_build_refuses_before_it_builds_a_request();
 	test_an_unregistered_build_opens_no_browser_either();
 	test_an_unregistered_build_can_be_asked_again_and_still_refuses();
+	test_a_begin_for_another_profile_is_refused_before_the_transport();
+	test_the_composed_profile_still_begins_after_a_foreign_refusal();
 
 	test_the_authority_check_admits_only_the_compiled_host();
 	test_a_browser_handoff_opens_the_exact_presented_address();

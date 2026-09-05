@@ -201,8 +201,14 @@ set_tests_properties(
 # Only the inventory half runs here. The tests-disabled Release absence scan
 # needs a build this graph does not contain, so it stays a closeout command
 # documented in docs/development/build-and-test.md.
+# BPR-0528: the inventory shells `ctest --show-only`, which needs the
+# drive-letter translation a lowbox token is refused, so inside the
+# AppContainer CTest lists the Python-driven tests with no command at all;
+# it reads a listing and opens no socket, so the exemption costs no network
+# claim.
 bpr_add_network_isolated_test(
     NAME rfc0017_test_inventory
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/scripts/verify_rfc0017_test_inventory.py"
@@ -246,8 +252,14 @@ endif()
 # were built; the shipped-artifact scan needs a tests-disabled Release build
 # this graph does not contain, so it stays a closeout command documented in
 # docs/development/build-and-test.md and named in the RFC-BPR-0016 ledger.
+# BPR-0528: the inventory shells `ctest --show-only`, which needs the
+# drive-letter translation a lowbox token is refused, so inside the
+# AppContainer CTest lists the Python-driven tests with no command at all;
+# it reads a listing and opens no socket, so the exemption costs no network
+# claim.
 bpr_add_network_isolated_test(
     NAME rfc0016_test_inventory
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/scripts/verify_rfc0016_test_inventory.py"
@@ -419,6 +431,28 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_device_capture_tests.py"
 )
 
+# BPR-0312. The gate standing between "the owner approved building public
+# preview" and "these four definitions are what gets built". It reaches no
+# network and writes only inside a scratch repository it creates.
+bpr_add_network_isolated_test(
+    NAME rfc0017_public_preview_decision_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/validate_rfc0017_public_preview_decision_tests.py"
+)
+
+# The RFC-BPR-0017 evidence-selector inventory's own refusal table, fed
+# inventories directly so no build tree or CTest is consulted: a missing or
+# duplicated selector, an anchored selector present where its graph does not
+# build the anchor, the ledger's --required/--all insistence, an unknown name,
+# and a command that lost the argument that makes it the right suite.
+bpr_add_network_isolated_test(
+    NAME rfc0017_test_inventory_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/verify_rfc0017_test_inventory_tests.py"
+)
+
 bpr_add_network_isolated_test(
     NAME rfc0016_device_live_runner_security
     COMMAND
@@ -438,6 +472,52 @@ bpr_add_network_isolated_test(
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_production_course_tests.py"
+)
+
+# BPR-0511. The platform course launches the shipped artifact outside CTest,
+# so it must carry the Qt runtime directory the registered tests declare.
+# BPR-0518. The type-read structured-binding idiom must carry
+# [[maybe_unused]], or MSVC's C4189 breaks the Windows lane one slice at a time.
+# BPR-0519. std::getenv in a Windows-built unit must carry the scoped C4996
+# suppression or a _dupenv_s branch, or MSVC refuses it on the lane alone.
+bpr_add_network_isolated_test(
+    NAME msvc_secure_crt_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/msvc_secure_crt_tests.py"
+)
+
+bpr_add_network_isolated_test(
+    NAME type_read_binding_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/type_read_binding_tests.py"
+)
+
+bpr_add_network_isolated_test(
+    NAME rfc0016_platform_course_launch_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_platform_course_tests.py"
+)
+
+# BPR-0306. The RFC-BPR-0017 courses take an hour and a target-native host, so
+# every refusal they make — a selector missing, doubled, or unknown to the
+# inventory; a preview stage, request, header, or vault effect that is not what
+# the platform promised; a sanitizer diagnostic under a green CTest run — is
+# driven here against fabricated listings and fabricated output instead.
+bpr_add_network_isolated_test(
+    NAME rfc0017_platform_course_launch_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0017_platform_course_tests.py"
+)
+
+bpr_add_network_isolated_test(
+    NAME rfc0017_sanitizer_course_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0017_sanitizer_course_tests.py"
 )
 
 bpr_add_network_isolated_test(

@@ -178,3 +178,52 @@ if(WIN32)
         )
     endforeach()
 endif()
+
+bpr_add_executable(
+    test_better_pull_review_git_anonymous_public_read_tests
+    anonymous_public_read_tests.cpp
+    ../../src/adapters/git/src/installed_git_cache.cpp
+    ../../src/adapters/git/src/installed_git_process.cpp
+)
+target_include_directories(
+    test_better_pull_review_git_anonymous_public_read_tests
+    PRIVATE
+        ../../src/adapters/git/include
+)
+target_link_libraries(
+    test_better_pull_review_git_anonymous_public_read_tests
+    PRIVATE
+        BetterPullReview::Application
+        Qt6::Core
+        Threads::Threads
+)
+target_compile_definitions(
+    test_better_pull_review_git_anonymous_public_read_tests
+    PRIVATE
+        BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
+)
+if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_definitions(
+        test_better_pull_review_git_anonymous_public_read_tests
+        PRIVATE
+            _LIBCPP_ENABLE_EXPERIMENTAL
+    )
+endif()
+bpr_enable_hardening(
+    test_better_pull_review_git_anonymous_public_read_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_git_anonymous_public_read_tests
+)
+
+bpr_add_network_isolated_test(
+    NAME git_anonymous_public_read
+    WINDOWS_UNCONTAINED
+    COMMAND test_better_pull_review_git_anonymous_public_read_tests
+)
+set_tests_properties(
+    git_anonymous_public_read
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "git-anonymous-public-read-tests:pass"
+        TIMEOUT 180
+)

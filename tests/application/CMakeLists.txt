@@ -93,6 +93,46 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_application_anonymous_read_host_tests
+    github_anonymous_read_host_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_application_anonymous_read_host_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_application_anonymous_read_host_tests)
+bpr_enable_warnings(test_better_pull_review_application_anonymous_read_host_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_anonymous_read_host
+    COMMAND test_better_pull_review_application_anonymous_read_host_tests
+)
+
+bpr_add_executable(
+    test_better_pull_review_application_anonymous_diff_authority_tests
+    anonymous_diff_authority_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_application_anonymous_diff_authority_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(
+    test_better_pull_review_application_anonymous_diff_authority_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_application_anonymous_diff_authority_tests
+)
+
+bpr_add_network_isolated_test(
+    NAME application_anonymous_diff_authority
+    COMMAND test_better_pull_review_application_anonymous_diff_authority_tests
+)
+
+bpr_add_executable(
     test_better_pull_review_application_github_contract_tests
     github_contract_tests.cpp
 )
@@ -448,6 +488,14 @@ target_link_libraries(
     PRIVATE
         BetterPullReview::Application
 )
+# "The ungated overload is no longer reachable from the host" is a claim about
+# what the host does not call, and no value it returns can show it. The suite
+# reads the one translation unit that could call it.
+target_compile_definitions(
+    test_better_pull_review_agent_launch_tests
+    PRIVATE
+        "BPR_AGENT_LAUNCH_SOURCE=\"${PROJECT_SOURCE_DIR}/src/application/src/agent_launch.cpp\""
+)
 bpr_enable_hardening(test_better_pull_review_agent_launch_tests)
 bpr_enable_warnings(test_better_pull_review_agent_launch_tests)
 
@@ -486,6 +534,71 @@ set_tests_properties(
     application_agent_protocol_loop
     PROPERTIES
         PASS_REGULAR_EXPRESSION "agent-protocol-loop-tests:pass"
+)
+
+bpr_add_executable(
+    test_better_pull_review_agent_finding_protocol_tests
+    agent_finding_protocol_tests.cpp
+    "${PROJECT_SOURCE_DIR}/src/adapters/agent/src/agent_protocol_loop.cpp"
+)
+target_include_directories(
+    test_better_pull_review_agent_finding_protocol_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/agent/src"
+)
+target_link_libraries(
+    test_better_pull_review_agent_finding_protocol_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+# The real child fixture only exists where Qt is configured, because that is
+# where the process adapter it serves exists. Without it the suite still proves
+# the wire contract and every typed cause; it reports the absence rather than
+# passing quietly on a course it did not run.
+if(BPR_BUILD_QT)
+    target_compile_definitions(
+        test_better_pull_review_agent_finding_protocol_tests
+        PRIVATE
+            "BPR_AGENT_CANARY_EXECUTABLE=\"$<TARGET_FILE:test_better_pull_review_agent_canary>\""
+    )
+    add_dependencies(
+        test_better_pull_review_agent_finding_protocol_tests
+        test_better_pull_review_agent_canary
+    )
+endif()
+bpr_enable_hardening(test_better_pull_review_agent_finding_protocol_tests)
+bpr_enable_warnings(test_better_pull_review_agent_finding_protocol_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_agent_finding_protocol
+    COMMAND test_better_pull_review_agent_finding_protocol_tests
+)
+set_tests_properties(
+    application_agent_finding_protocol
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "agent-finding-protocol-tests:pass"
+)
+
+bpr_add_executable(
+    test_better_pull_review_agent_comment_workshop_host_tests
+    agent_comment_workshop_host_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_agent_comment_workshop_host_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_agent_comment_workshop_host_tests)
+bpr_enable_warnings(test_better_pull_review_agent_comment_workshop_host_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_agent_comment_workshop_host
+    COMMAND test_better_pull_review_agent_comment_workshop_host_tests
+)
+set_tests_properties(
+    application_agent_comment_workshop_host
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "agent-comment-workshop-host-tests:pass"
 )
 
 bpr_add_executable(
@@ -605,4 +718,50 @@ set_tests_properties(
     PROPERTIES
         PASS_REGULAR_EXPRESSION "workbench-snapshot-observation-tests:pass"
         TIMEOUT 60
+)
+
+# The MCP context helper's evidence is what a separate process reaches, so the
+# canary drives the shipped executable over real stdio rather than calling the
+# library in-process. It links the adapter as well, because the advertised tool
+# list is compared against the compiled enumeration and the source text.
+bpr_add_executable(
+    test_better_pull_review_mcp_context_helper_tests
+    mcp_context_helper_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_mcp_context_helper_tests
+    PRIVATE
+        BetterPullReview::AdapterMcp
+)
+target_compile_definitions(
+    test_better_pull_review_mcp_context_helper_tests
+    PRIVATE
+        "BPR_MCP_HELPER_EXECUTABLE=\"$<TARGET_FILE:tool_better_pull_review_mcp_context_helper>\""
+        "BPR_MCP_TOOL_SOURCE=\"${PROJECT_SOURCE_DIR}/src/adapters/mcp/include/bpr/adapters/mcp/mcp_context_helper.hpp\""
+)
+add_dependencies(
+    test_better_pull_review_mcp_context_helper_tests
+    tool_better_pull_review_mcp_context_helper
+)
+bpr_enable_hardening(test_better_pull_review_mcp_context_helper_tests)
+bpr_enable_warnings(test_better_pull_review_mcp_context_helper_tests)
+
+# No LOOPBACK_PORT_COUNT: the helper declares no socket surface at all, so the
+# default of zero is the claim rather than an omission.
+# BPR-0522: the suite's three filesystem rows reach weakly_canonical on the
+# snapshot root, and a lowbox token refuses the drive-letter translation that
+# needs, so inside the AppContainer the helper answers snapshot_unavailable
+# where path_outside_snapshot is expected (BPR-0362's cause, measured on the
+# Windows station); outside it the whole suite passes. The helper itself
+# opens no socket, so the exemption costs no network claim.
+bpr_add_network_isolated_test(
+    NAME application_mcp_context_helper
+    WINDOWS_UNCONTAINED
+    COMMAND test_better_pull_review_mcp_context_helper_tests
+)
+set_tests_properties(
+    application_mcp_context_helper
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "mcp-context-helper-tests:pass"
+        TIMEOUT 120
 )

@@ -46,7 +46,7 @@
     },
     {
       "path": "references/remote-routing.md",
-      "sha256": "d8ef8a3229f57a2b9847a21a537cdc6024297d6dcdd1722aaaf1ad4c789a8518"
+      "sha256": "3cae97ea8d7692fab3032581b48867675485ddc8b7a945385c98b70aa4d6b44d"
     },
     {
       "path": "references/runtime-compatibility.md",
@@ -82,11 +82,11 @@
     },
     {
       "path": "scripts/codex_station.py",
-      "sha256": "6d92cf99fbe74f6d3e1ac546d6cd921ae274f7e633e7c1650e5e94727a16c24d"
+      "sha256": "a922ac049eebbdcb052b154a9e6f0afb38598569c1785ba93c5f8b58198739ec"
     },
     {
       "path": "scripts/launch_remote_station.py",
-      "sha256": "68f72807530b73a07bed8a757f91314ec79c473a1448111adb11354df9fd9942"
+      "sha256": "ba75e445175baea000b0778a05250d028d97633e6e38093bf9b9b60d70c533b6"
     },
     {
       "path": "scripts/project_config.py",
@@ -118,11 +118,11 @@
     },
     {
       "path": "tests/test_codex_station.py",
-      "sha256": "b7b73def36fab05461955348338c34b4511c1724e486247cbab8354e236c2522"
+      "sha256": "59d94bdf6c1e0b796a9799cff6e8841955659cc4c7dd5d634bfa37a4a0eb6314"
     },
     {
       "path": "tests/test_launch_remote_station.py",
-      "sha256": "4cf1de806052d9b88ec49f269679d9d9edc38db30d37d4adad6428b886d9ceeb"
+      "sha256": "897fc392aa64cb67a23d135ecf04cfd13084315601277bc748d731ebafe78a92"
     },
     {
       "path": "tests/test_project_config.py",
@@ -141,6 +141,6 @@
       "sha256": "0c570e408e59704d19c64e228d206bf3b915622f6ee684a773d1c3e80e2f4bda"
     }
   ],
-  "portable_digest": "e76c1e02ebd14cb0",
+  "portable_digest": "1e2cab0639a2a76d",
   "schema": "implement-rfc.portable-manifest.v1"
 }

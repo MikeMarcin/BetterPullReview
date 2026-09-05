@@ -41,24 +41,146 @@ import time
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
+if str(REPOSITORY_ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
+
+import verify_rfc0016_test_inventory as rfc0016_inventory  # noqa: E402
+
 PLATFORMS = ("macos", "linux", "windows")
 SELECTIONS = ("unavailable", "enabled")
 
-# The focused selector set the RFC-BPR-0016 ledger replays. Written as one
-# anchored alternation so a name that is not registered cannot be quietly
-# skipped by a looser pattern.
-COURSE_SELECTOR_PATTERN = (
-    "^("
-    "core_device_authorization"
-    "|application_device_authorization_(host|refresh|public_path|unavailable"
-    "|release_contract|registered_course)"
-    "|application_github_credential_vault"
-    "|github_device_authorization_(contract|refresh_contract)"
-    "|native_https_device_authorization_(contract|fixture)"
-    "|qt_device_authorization_scale_(100|125|200)"
-    "|rfc0016_test_inventory"
-    ")$"
+# What this course runs is derived, not hand-listed. The hand-maintained
+# tuple that lived here audited 17 names while the inventory grew to 26, and
+# nothing could refuse the reverse of a missing registration — a registered
+# evidence selector nobody added to the tuple — so seven device rows went
+# unaudited by three platforms' final-head replays until the count was read
+# twice (BPR-0285, 2026-09-04). The shape below is RFC-BPR-0017's: the owed
+# set is the inventory's, the exceptions are written down with their reasons
+# and refused when stale, and an unlisted family name is refused.
+COURSE_ONLY_SELECTORS: dict[str, str] = {
+    # The inventory guard's own registration, run first so a graph that lost
+    # an evidence selector fails before any test.
+    "rfc0016_test_inventory": "the inventory guard's own registration",
+    # BPR-0523: the composed-host audit of the tests-enabled binary, so a
+    # platform whose dev graph lost a required constructor fails here.
+    "composed_application_hosts": "the composed-host audit of the dev graph",
+}
+
+# Registered names that look like this RFC's and are deliberately not course
+# selectors, each with its reason. The course refuses an unlisted one
+# (`course-selector-extra`) and refuses an entry that turns out to be owed
+# after all (`course-exception-stale`), so the table cannot outlive what it
+# excuses.
+FAMILY_EXCEPTIONS: dict[str, str] = {
+    "rfc0016_device_capture_security": (
+        "capture tooling; the ledger runs it under its isolated "
+        "capture-tooling row, not in the platform course"
+    ),
+    "rfc0016_device_live_runner_security": (
+        "capture tooling; the ledger runs it under its isolated "
+        "capture-tooling row, not in the platform course"
+    ),
+    "rfc0016_production_identity_security": (
+        "the distributable-identity audit; the ledger runs it isolated and "
+        "the course runs verify_rfc0016_production_identity.py directly"
+    ),
+    "rfc0016_production_course_security": (
+        "the production course's own audit; the ledger runs it isolated "
+        "beside the identity audit"
+    ),
+    "rfc0016_platform_course_launch_contract": (
+        "this course's own hermetic contract"
+    ),
+}
+
+# What "looks like this RFC's" means to CTest: the net that catches a device
+# selector the inventory has not been told about. A search, not an anchor.
+FAMILY_PATTERN = (
+    "rfc0016_|device_authorization|application_github_credential_vault"
 )
+
+# The same set, enumerated, so the course can say which name is missing on a
+# platform rather than passing on "more than zero matched" (BPR-0524).
+COURSE_SELECTOR_NAMES: tuple[str, ...] = tuple(
+    sorted(
+        (set(rfc0016_inventory.SELECTORS) - set(FAMILY_EXCEPTIONS))
+        | set(COURSE_ONLY_SELECTORS)
+    )
+)
+
+# One anchored alternation over the enumeration, so a looser pattern cannot
+# quietly skip a name.
+COURSE_SELECTOR_PATTERN = (
+    "^(" + "|".join(re.escape(name) for name in COURSE_SELECTOR_NAMES) + ")$"
+)
+
+# The only way a platform audits fewer names than the pattern enumerates.
+# Every entry carries its reason, and an entry whose name turns out to be
+# registered on that platform is refused as stale, so the table shrinks the
+# moment the registration lands rather than outliving it.
+PLATFORM_SELECTOR_EXCLUSIONS: dict[str, dict[str, str]] = {
+    # Empty since BPR-0525 mirrored the two POSIX-guarded selectors into the
+    # Windows registration; the shape stays so the next omission is written
+    # down here with its reason rather than passing on a count.
+}
+
+
+def registered_course_selectors(
+    build_dir: pathlib.Path,
+    configuration: str | None = None,
+) -> set[str]:
+    """The course selectors CTest actually lists in this tree."""
+    command = ["ctest", "--test-dir", str(build_dir)]
+    if configuration is not None:
+        command += ["-C", configuration]
+    command += ["-N", "-R", COURSE_SELECTOR_PATTERN]
+    result = run(command, cwd=REPOSITORY_ROOT, timeout=600)
+    require(
+        result.returncode == 0,
+        f"course-registration-unreadable:{result.stderr.strip()[:400]}",
+    )
+    return set(re.findall(r"Test\s+#\d+:\s+(\S+)", result.stdout))
+
+
+def check_course_registration(
+    registered: set[str],
+    platform_name: str,
+) -> None:
+    """Every enumerated selector is registered, or its absence is written down.
+
+    A count above zero says nothing about which audits ran; the Windows
+    course passed at fourteen while macOS and Linux ran sixteen and no
+    output said which two were missing (BPR-0524). A name absent on a
+    platform is a refusal by name unless the exclusion table names it with
+    its reason, and an exclusion for a name that is registered after all is
+    refused too, so the table cannot outlive the omission it records.
+    """
+    exclusions = PLATFORM_SELECTOR_EXCLUSIONS.get(platform_name, {})
+    for name in COURSE_SELECTOR_NAMES:
+        if name in registered:
+            require(
+                name not in exclusions,
+                f"course-exclusion-stale:{platform_name}:{name}",
+            )
+        else:
+            require(
+                name in exclusions,
+                f"course-selector-missing:{platform_name}:{name}",
+            )
+    for name, reason in FAMILY_EXCEPTIONS.items():
+        require(
+            name not in COURSE_SELECTOR_NAMES,
+            f"course-exception-stale:{platform_name}:{name}",
+        )
+        require(bool(reason.strip()), f"course-exception-unreasoned:{name}")
+    family = re.compile(FAMILY_PATTERN)
+    for name in sorted(set(registered)):
+        if not family.search(name):
+            continue
+        require(
+            name in COURSE_SELECTOR_NAMES or name in FAMILY_EXCEPTIONS,
+            f"course-selector-extra:{platform_name}:{name}",
+        )
 
 # The platform credential store each host must select, and the symbol that
 # proves the shipped artifact actually contains it. A build that linked the
@@ -377,7 +499,131 @@ def check_release_artifact(binary: pathlib.Path) -> None:
     )
 
 
-def check_runtime_and_dependencies(binary: pathlib.Path) -> None:
+def ctest_inventory(
+    build_dir: pathlib.Path,
+    configuration: str | None = None,
+) -> dict:
+    """CTest's own JSON inventory of the configured tree, properties included."""
+    command = ["ctest", "--test-dir", str(build_dir)]
+    if configuration is not None:
+        command += ["-C", configuration]
+    command.append("--show-only=json-v1")
+    result = run(command, cwd=REPOSITORY_ROOT, timeout=600)
+    require(
+        result.returncode == 0,
+        f"launch-environment-inventory-unavailable:{result.stderr.strip()[:400]}",
+    )
+    try:
+        document = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        require(False, "launch-environment-inventory-malformed")
+    require(isinstance(document, dict), "launch-environment-inventory-shape")
+    return document
+
+
+def environment_from_inventory(
+    document: dict,
+    base: dict[str, str],
+    platform_name: str,
+) -> dict[str, str]:
+    """The environment the shipped artifact is launched in.
+
+    The registered tests already know how to run a Qt-linked executable on
+    this host: `cmake/BprTestIsolation.cmake` prepends the directory of
+    Qt6::Core's DLL to PATH and names a font directory for every test on
+    Windows, because nothing deploys Qt beside the executables and a Windows
+    loader finds a shared Qt only on PATH (BPR-0430, BPR-0412). The course
+    launches the shipped artifact outside CTest — the runtime-surface check
+    and the device-selection probe — so those two steps used to run with the
+    ambient environment and the artifact exited before `main` with
+    STATUS_DLL_NOT_FOUND, printing nothing (BPR-0511). Rather than resolve Qt
+    a second time, the course takes the exact modification the tree declares
+    for its tests, from CTest's own inventory, and applies it the way CTest
+    would. On a platform whose tests declare nothing the environment is the
+    ambient one, unchanged.
+    """
+    prepends: list[str] = []
+    settings: dict[str, str] = {}
+    for entry in document.get("tests", []):
+        if not isinstance(entry, dict):
+            continue
+        for property_ in entry.get("properties", []):
+            if (
+                not isinstance(property_, dict)
+                or property_.get("name") != "ENVIRONMENT_MODIFICATION"
+            ):
+                continue
+            for modification in property_.get("value", []):
+                if not isinstance(modification, str):
+                    continue
+                name, _, rest = modification.partition("=")
+                operation, _, value = rest.partition(":")
+                if name == "PATH" and operation == "path_list_prepend":
+                    if value and value not in prepends:
+                        prepends.append(value)
+                elif name == "QT_QPA_FONTDIR" and operation == "set" and value:
+                    settings[name] = value
+    if platform_name == "windows":
+        # A Windows tree that declares no Qt directory would make both direct
+        # launches fail the same opaque way the tests would; name it instead.
+        require(bool(prepends), "qt-runtime-directory-undeclared")
+    environment = dict(base)
+    if prepends:
+        existing = environment.get("PATH", "")
+        parts = list(prepends)
+        if existing:
+            parts.append(existing)
+        environment["PATH"] = os.pathsep.join(parts)
+    environment.update(settings)
+    return environment
+
+
+def launch_environment(
+    build_dir: pathlib.Path,
+    configuration: str | None,
+    platform_name: str,
+) -> dict[str, str]:
+    """The shipped artifact's launch environment, from the test tree's declaration."""
+    return environment_from_inventory(
+        ctest_inventory(build_dir, configuration),
+        dict(os.environ),
+        platform_name,
+    )
+
+
+def check_composed_hosts_of_the_artifact(binary: pathlib.Path) -> None:
+    """The shipped artifact carries every production-required host.
+
+    `composed_application_hosts` in the Debug tree audits the tests-enabled
+    binary; nothing in the course audited the tests-disabled artifact it
+    ships, so a platform whose production graph had lost a composed host
+    (the system-browser opener, BPR-0516, was the case that showed it) would
+    have passed. This runs the same verifier under its production profile
+    against the artifact the rest of the course measures (BPR-0523).
+    """
+    result = run(
+        [
+            sys.executable,
+            str(REPOSITORY_ROOT / "scripts" / "verify_composed_hosts.py"),
+            "--profile",
+            "production",
+            str(binary),
+        ],
+        cwd=REPOSITORY_ROOT,
+        timeout=600,
+    )
+    require(
+        result.returncode == 0 and "COMPOSED_HOSTS_OK" in result.stdout,
+        f"composed-hosts-of-artifact-failed:{(result.stdout + result.stderr).strip()[-400:]}",
+    )
+
+
+def check_runtime_and_dependencies(
+    binary: pathlib.Path,
+    environment: dict[str, str] | None = None,
+) -> None:
+    # The runtime-surface check launches the shipped artifact itself, with
+    # the environment it inherits here; see environment_from_inventory.
     for script in (
         "verify_binary_dependencies.py",
         "verify_runtime_surface.py",
@@ -386,6 +632,7 @@ def check_runtime_and_dependencies(binary: pathlib.Path) -> None:
             [sys.executable, str(REPOSITORY_ROOT / "scripts" / script), str(binary)],
             cwd=REPOSITORY_ROOT,
             timeout=300,
+            environment=environment,
         )
         require(
             result.returncode == 0,
@@ -396,9 +643,10 @@ def check_runtime_and_dependencies(binary: pathlib.Path) -> None:
 def check_device_selection(
     binary: pathlib.Path,
     expected: str,
+    launch: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Run the shipped self-test and require the exact stated selection."""
-    environment = dict(os.environ)
+    environment = dict(os.environ if launch is None else launch)
     environment["QT_QPA_PLATFORM"] = "offscreen"
     result = run(
         [
@@ -442,12 +690,19 @@ def check_device_selection(
             "device-unavailable-verdict-absent",
         )
     else:
-        # An enabled build must NOT answer `unavailable`. What it does answer
-        # depends on whether a reviewer authorizes during the run, so the
-        # course requires only that the refusal is gone and the flow started.
+        # An enabled build must reach GitHub: `cancelled` is the stage only a
+        # minted device code reaches before the run budget cancels it, and
+        # the same probe under local denial lands on `failed`. Accepting any
+        # stage but `unavailable` let an offline station pass without proving
+        # the flow reached the service (BPR-0537, from BPR-0285's review). The
+        # refusing-transport count stays a negative control here too.
         require(
-            markers.get("DEVICE_FLOW_STAGE") != "unavailable",
-            "device-selection-still-unavailable",
+            markers.get("DEVICE_FLOW_STAGE") == "cancelled",
+            f"device-selection-not-reached:{markers.get('DEVICE_FLOW_STAGE')}",
+        )
+        require(
+            markers.get("DEVICE_FLOW_REQUESTS") == "0",
+            f"device-requests-not-zero:{markers.get('DEVICE_FLOW_REQUESTS')}",
         )
     return markers
 
@@ -550,7 +805,14 @@ def main() -> int:
             arguments.dev_preset, debug_dir, arguments.fresh, "Debug"
         )
         check_inventory(debug_dir, debug_configuration)
+        check_course_registration(
+            registered_course_selectors(debug_dir, debug_configuration),
+            arguments.platform,
+        )
         selectors = check_course_selectors(debug_dir, debug_configuration)
+        launch = launch_environment(
+            debug_dir, debug_configuration, arguments.platform
+        )
 
         release_configuration = configure_and_build(
             arguments.release_preset, release_dir, arguments.fresh, "Release"
@@ -560,11 +822,12 @@ def main() -> int:
         )
 
         check_platform_surfaces(shipped, arguments.platform)
+        check_composed_hosts_of_the_artifact(shipped)
         check_release_artifact(shipped)
         check_no_private_identity(shipped)
-        check_runtime_and_dependencies(shipped)
+        check_runtime_and_dependencies(shipped, launch)
         markers = check_device_selection(
-            shipped, arguments.expected_device_selection
+            shipped, arguments.expected_device_selection, launch
         )
     except CourseFailure as error:
         print(f"rfc0016-platform-course:fail:{error}", file=sys.stderr)

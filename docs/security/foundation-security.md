@@ -68,6 +68,57 @@ audit when it intentionally changes that application boundary. The attended
 identity review, rather than a byte scan, owns visual originality, GitHub-mark
 absence, and foreign-character exclusion.
 
+## RFC-BPR-0016 device authorization boundary
+
+The foundation selects no browser engine, listener, or embedded web view, and
+the device grant does not add one. It was chosen over the authorization-code
+redirect for exactly that reason: the redirect variant needs an inbound
+loopback socket to receive its callback, and the device grant polls an
+outbound endpoint instead.
+
+- **Public client, no secret.** The shipped artifact carries one public GitHub
+  App client identifier and no client secret; a public-client registration is
+  what makes that possible. The release scan requires the recorded
+  distributable client to be present and [[BPR-0276]]'s private owner-only
+  verification client to be absent ([[BPR-0318]],
+  `rfc0016_production_identity_security`).
+- **Transient material stays inside the host.** The device code lives for the
+  poll window only and is never written to settings, logs, diagnostics,
+  SQLite, or evidence; the access and refresh tokens reach the platform vault
+  and nothing else — the refresh token parked by a grant is flushed to the
+  vault the moment composition binds the session's authority, and the
+  probe that reads the refresh slot destroys what it read on the vault's
+  own thread and passes only a yes ([[BPR-0536]]). Both slots share one
+  erasure path — an orderly shutdown, a sign-out, or a superseding
+  enrollment deletes the refresh material with the access token under the
+  same authority, the one exception being a rotation superseding the
+  session it just renewed, where the erasure is held only while the
+  incoming session may still name that same authority and runs the moment
+  it does not ([[BPR-0547]], [[BPR-0549]]) — and the probe's yes renews a credential only when that
+  credential's own provenance is a device grant, so a pasted token is
+  never silently replaced by a session minted from an orphaned refresh
+  token ([[BPR-0540]]). The core, the
+  projection, and the Qt adapter cannot name any of them ([[BPR-0277]],
+  [[BPR-0282]], `rfc0016_test_inventory`).
+- **Redirect and certificate rules are inherited, not restated.** Both device
+  routes run on the RFC-BPR-0002 native HTTPS transport under system trust and
+  proxy configuration, with no certificate-error bypass, unknown-authority
+  redirects rejected before any credential or body is forwarded, and every
+  query-bearing redirect failing closed ([[BPR-0278]],
+  `native_https_device_authorization_contract`).
+- **The browser is the operating system's.** `bpr::app::system_browser_opener`
+  hands one already-validated address to the platform's own launch service and
+  supervises nothing afterwards. It re-parses the address and refuses anything
+  that is not an absolute `https` address with a host and no userinfo, so an
+  opener cannot be talked into a `file:` or `javascript:` address. No suite in
+  this repository binds it: a tests-enabled graph binds a recording opener
+  instead ([[BPR-0516]],
+  `application_device_authorization_browser_handoff`).
+
+The device-flow service endpoints are deliberately not forbidden material. The
+host owns them and a shipped binary that can run the flow must contain them,
+so forbidding them would be a scan that fails on correct code.
+
 ## Designated-live replay boundary
 
 The optional macOS designated-live verification lane uses one explicit

@@ -81,6 +81,57 @@ control follows this same native-System inheritance. User-selectable System,
 Light, Dark, and high-contrast profiles remain RFC-BPR-0006 work, with a fresh
 installation defaulting to System.
 
+## Signing in with a device code
+
+RFC-BPR-0016 adds a second way to enrol a profile beside the token field, and
+the token field stays. `qt::device_authorization_panel` is the surface:
+
+- A heading, two read-only fields — the user code and the address to enter it
+  at — a remaining-validity label, and a browser-handoff label. The reviewer
+  has to read the code aloud or type it elsewhere, so both fields are
+  selectable text rather than a status line.
+- Four actions: Get a code, Copy code, Open browser, and Cancel. Get a code
+  becomes Get a new code once the flow has left `idle`, because offering
+  "Get a code" after a denial reads as though nothing happened.
+- Get a code and Cancel are enabled from the core's command projection rather
+  than from a rule the panel keeps for itself. An absent command is a disabled
+  command, so a projection that lost one fails closed. Copy and Open are
+  enabled from what is on screen, because neither moves the flow
+  ([[BPR-0283]], `qt_device_authorization_scale_100`).
+- The handoff label reports what became of the last attempt to open a browser
+  and never an authorization outcome. A refused, failed, or unavailable
+  handoff leaves the flow exactly as live as an opened one, with the code and
+  the address still presented ([[BPR-0280]], [[BPR-0516]]).
+- Every terminal, including the successful one, clears the code and the
+  address. A user code that outlives its flow is a code the reviewer can still
+  be tricked into typing.
+- Each published change produces at most one combined polite announcement
+  carrying the stage, the code, and the handoff together, under the same rule
+  as the rest of this window, and the panel is rendered at 1.0x, 1.25x, and
+  2.0x in the Qt harness.
+
+The panel receives a projection and never a token, a refresh token, a device
+code, a client identifier, or an endpoint; those fields do not exist on the
+type it is handed.
+
+**Where it is mounted.** The workbench places the panel in the review header
+column, directly under the session chrome that offers the host picker and the
+Connect control, because a profile has two ways in and a reviewer looking for
+either looks in one place. It is bound to whichever profile that picker names
+and is rebound when the picker changes, so the token prompt and the device code
+can never mean two different hosts. The header column scrolls, and the panel is
+below the fold at the default height ([[BPR-0526]]).
+
+The application constructs the device host on every platform and binds its
+projection port to a fan-out: every publication reaches the recording sink the
+public self-test reads, and then the mounted panel. The panel's own contracts
+run at the adapter boundary (`qt_device_authorization_scale_100`, `_125`,
+`_200`); its placement, profile binding and gestures are proven in the composed
+window (`qt_composed_github_scale_100`, `_125`, `_200`); and that beginning a
+flow from the mounted control reaches the device host is proven end to end
+(`application_device_authorization_panel_course`, with
+`application_device_authorization_panel_absent` as its construction cut).
+
 ## Primary actions
 
 Previous/next file and previous/next change are always visible in one compact

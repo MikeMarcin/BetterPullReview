@@ -235,6 +235,35 @@ namespace bpr::adapters::agent::detail {
 				}
 			}
 
+			/// \brief Turns one lifted payload into this run's findings, once.
+			///
+			/// \details This is where a completed turn's bytes become
+			/// `core::agent_finding` values, and it lives in the shared loop so
+			/// that the POSIX and Windows transports get it once and neither
+			/// reimplements it. The loop holds no core store, no snapshot, and
+			/// no verdict: whether an anchor holds is decided later, by the
+			/// host, against the session's frozen snapshot.
+			void process_finding_payload(
+				const application::agent_protocol_event& aMessage)
+			{
+				if (Result.Findings.has_value()) {
+					// One completed turn returns one payload. A second is not
+					// merged with the first, because merging would let a later
+					// frame append findings to an answer already given.
+					record_protocol_failure(
+						application::agent_protocol_failure::
+							malformed_finding_payload);
+					return;
+				}
+				auto decoded = application::decode_agent_finding_payload(
+					Request.Protocol, aMessage.Text, Request.Session);
+				if (!decoded) {
+					record_protocol_failure(decoded.error());
+					return;
+				}
+				Result.Findings = std::move(*decoded);
+			}
+
 			void process_messages(
 				const std::span<const application::agent_protocol_event> aMessages)
 			{
@@ -243,6 +272,13 @@ namespace bpr::adapters::agent::detail {
 						if (!publish(message)) {
 							record_protocol_failure(
 								application::agent_protocol_failure::malformed_frame);
+							return;
+						}
+					} else if (
+						message.Kind
+						== application::agent_protocol_event_kind::finding_payload) {
+						process_finding_payload(message);
+						if (has_cause()) {
 							return;
 						}
 					} else {
@@ -345,6 +381,11 @@ namespace bpr::adapters::agent::detail {
 				}
 				if (Result.Outcome != application::agent_run_outcome::success) {
 					Result.Events.clear();
+					// A run that failed did not complete a turn, so whatever it
+					// wrote is not a turn's answer. Staleness is the one reason
+					// a payload survives an unsuccessful result, and staleness
+					// is decided by the host rather than here.
+					Result.Findings.reset();
 				}
 			}
 

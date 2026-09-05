@@ -1,5 +1,6 @@
 #include "github_provider.hpp"
 
+#include "github_anonymous_read_admission.hpp"
 #include "github_paged_read.hpp"
 #include "native_https_transport.hpp"
 
@@ -44,8 +45,10 @@ namespace bpr::adapters::github::detail {
 
 		struct provider_state
 		{
-			application::effect_executor*                                     Effects = nullptr;
-			std::shared_ptr<github_wire_transport_factory_port>               TransportFactory;
+			application::effect_executor*                       Effects = nullptr;
+			std::shared_ptr<github_wire_transport_factory_port> TransportFactory;
+			github_provider_read_authority                      ReadAuthority
+				= github_provider_read_authority::authenticated;
 			std::vector<std::shared_ptr<const validated_github_host_profile>> Profiles;
 			std::mutex                                                        Mutex;
 			std::vector<std::shared_ptr<provider_job>>                        Jobs;
@@ -246,6 +249,10 @@ namespace bpr::adapters::github::detail {
 			case native_https_configuration_failure::invalid_test_configuration:
 				return provider_error(
 					application::github_provider_failure::unavailable);
+			case native_https_configuration_failure::
+				anonymous_read_contract_unsupported:
+				return provider_error(provider_failure_for(
+					anonymous_read_refusal::server_contract_unsupported));
 			}
 			return provider_error(application::github_provider_failure::unavailable);
 		}
@@ -343,7 +350,14 @@ namespace bpr::adapters::github::detail {
 				&& aRequest.AccountTransport != nullptr && aRequest.Attempt.valid();
 		}
 
-		[[nodiscard]] auto valid_request(
+		/// \brief Checks everything about a read request but its transport.
+		///
+		/// \details Split out because an anonymous read carries no account
+		/// transport lease to check: there is no account, so there is no lease.
+		/// Every correlation, authority, and capability-evidence rule below
+		/// still applies to both authorities, and the authenticated entry keeps
+		/// the lease requirement it has always had.
+		[[nodiscard]] auto valid_read_correlation(
 			const application::github_pull_request_provider_request& aRequest) noexcept
 			-> bool
 		{
@@ -366,7 +380,87 @@ namespace bpr::adapters::github::detail {
 				&& aRequest.CapabilityEvidence.Revision
 				== aRequest.Context.Capabilities
 				&& structurally_valid(aRequest.CapabilityEvidence)
-				&& aRequest.AccountTransport != nullptr && aRequest.Attempt.valid();
+				&& aRequest.Attempt.valid();
+		}
+
+		/// \brief Reports whether a signed-out read names itself correctly.
+		///
+		/// \details The same correlation the authenticated read must satisfy,
+		/// with one term replaced rather than dropped: a signed-out session
+		/// never probed, so `structurally_valid` -- which asks whether the
+		/// evidence is what an observation would have projected -- has nothing
+		/// to check, and the synthesised shape is required in its place. The
+		/// account-shaped terms in `valid_read_correlation` still hold here,
+		/// because a signed-out read names the same absent account in all
+		/// three places rather than naming none.
+		[[nodiscard]] auto valid_anonymous_read_correlation(
+			const application::github_pull_request_provider_request& aRequest) noexcept
+			-> bool
+		{
+			return application::detail::valid_context(aRequest.Context)
+				&& application::valid(aRequest.ProfileAuthority)
+				&& aRequest.Context.Profile == aRequest.ProfileAuthority.Profile
+				&& aRequest.Context.Host == aRequest.ProfileAuthority.Host
+				&& aRequest.Viewer.Account == aRequest.Context.Account
+				&& aRequest.CapabilityEvidence.Authority.Profile
+				== aRequest.Context.Profile
+				&& aRequest.CapabilityEvidence.Authority.Host == aRequest.Context.Host
+				&& aRequest.CapabilityEvidence.Authority.Account
+				== aRequest.Context.Account
+				&& aRequest.CapabilityEvidence.Authority.ProfileRevision
+				== aRequest.ProfileAuthority.ProfileRevision
+				&& aRequest.CapabilityEvidence.Authority.ServerContract
+				== aRequest.ProfileAuthority.ServerContract
+				&& aRequest.CapabilityEvidence.Authority.ProbeContractRevision
+				== aRequest.ProfileAuthority.ProbeContractRevision
+				&& aRequest.CapabilityEvidence.Revision
+				== aRequest.Context.Capabilities
+				&& (signed_out_read_identity(aRequest)
+					|| structurally_valid(aRequest.CapabilityEvidence))
+				&& aRequest.Attempt.valid();
+		}
+
+		[[nodiscard]] auto valid_request(
+			const application::github_pull_request_provider_request& aRequest) noexcept
+			-> bool
+		{
+			return valid_read_correlation(aRequest)
+				&& aRequest.AccountTransport != nullptr;
+		}
+
+		/// \brief Reports the refusal an anonymous authority owes an operation.
+		///
+		/// \details Callers ask only about operations an anonymous authority
+		/// never admits, so the admitted branch is unreachable rather than
+		/// merely unlikely; it stays because a silent fall-through would be
+		/// worse than a conservative one.
+		[[nodiscard]] auto anonymous_read_error(
+			const read_operation                      aOperation,
+			const application::github_server_contract aContract) noexcept
+			-> application::github_provider_error
+		{
+			const auto admitted = admit_anonymous_read(aOperation, aContract);
+			return provider_error(
+				admitted.has_value()
+					? application::github_provider_failure::unavailable
+					: provider_failure_for(admitted.error()));
+		}
+
+		/// \brief Derives the session correlation an anonymous read runs under.
+		///
+		/// \details An anonymous transport binds to a session and identity
+		/// generation, never to an account, so this carries across exactly the
+		/// fields the binding compares and drops the one it must not.
+		[[nodiscard]] auto anonymous_session_context(
+			const core::pull_request_request_context& aContext) noexcept
+			-> core::github_session_request_context
+		{
+			return {
+				.Request            = aContext.Request,
+				.ApplicationSession = aContext.ApplicationSession,
+				.Profile            = aContext.Profile,
+				.IdentityGeneration = aContext.IdentityGeneration,
+			};
 		}
 
 		[[nodiscard]] auto make_job(const std::shared_ptr<provider_state>&     aState,
@@ -660,6 +754,19 @@ namespace bpr::adapters::github::detail {
 		return std::shared_ptr<github_wire_transport_port>{ std::move(*transport) };
 	}
 
+	auto native_github_wire_transport_factory::make_anonymous(
+		const validated_github_host_profile&       aProfile,
+		const core::github_session_request_context aContext) noexcept
+		-> github_wire_transport_factory_result
+	{
+		auto transport = make_native_https_anonymous_read_transport(
+			aProfile, aContext);
+		if (!transport.has_value()) {
+			return std::unexpected{ configuration_error(transport.error()) };
+		}
+		return std::shared_ptr<github_wire_transport_port>{ std::move(*transport) };
+	}
+
 	github_provider::github_provider(
 		std::unique_ptr<implementation> aImplementation) noexcept
 		: Implementation{ std::move(aImplementation) }
@@ -811,6 +918,20 @@ namespace bpr::adapters::github::detail {
 			});
 			return;
 		}
+		if (state->ReadAuthority
+			== github_provider_read_authority::anonymous_public) {
+			// Refused here, before a job, a transport, or a wire request
+			// exists. The viewer operation names an account and an anonymous
+			// authority has none; a GHES profile is refused first, and for
+			// every operation. Either way the provider observes zero requests.
+			aCompletion(application::github_viewer_error{
+				.Request = request,
+				.Error   = anonymous_read_error(
+					read_operation::get_viewer_identity,
+					profile->server_contract()),
+			});
+			return;
+		}
 
 		std::shared_ptr<provider_completion_delivery<
 			application::github_viewer_completion_handler>>
@@ -850,7 +971,7 @@ namespace bpr::adapters::github::detail {
 				 job,
 				 profile,
 				 request,
-				 authentication = std::move(authentication),
+				 viewerAuthentication = std::move(authentication),
 				 delivery]() mutable {
 					const auto cancelled = [&] {
 						finish_job(state, job);
@@ -876,7 +997,7 @@ namespace bpr::adapters::github::detail {
 							cancelled();
 							return;
 						}
-						if (authentication->valueless_by_exception()) {
+						if (viewerAuthentication->valueless_by_exception()) {
 							failed(provider_error(
 								application::github_provider_failure::
 									malformed_response));
@@ -890,7 +1011,7 @@ namespace bpr::adapters::github::detail {
 							application::github_provider_failure::unavailable) };
 						if (auto* bootstrap = std::get_if<
 								application::github_bootstrap_credential>(
-								authentication.get());
+								viewerAuthentication.get());
 							bootstrap != nullptr) {
 							if (!application::valid(bootstrap->Credential)) {
 								failed(provider_error(
@@ -905,7 +1026,7 @@ namespace bpr::adapters::github::detail {
 						} else if (auto* account = std::get_if<
 									   application::
 										   github_credential_retrieve_success>(
-									   authentication.get());
+									   viewerAuthentication.get());
 								   account != nullptr) {
 							if (!application::valid(*account)
 								|| account->Context.Request
@@ -1055,6 +1176,20 @@ namespace bpr::adapters::github::detail {
 		application::github_capability_request            aRequest,
 		application::github_capability_completion_handler aCompletion)
 	{
+		if (Implementation != nullptr
+			&& Implementation->State->ReadAuthority
+				== github_provider_read_authority::anonymous_public) {
+			// The probe is the GraphQL surface, and an anonymous read shape is
+			// all-false by construction. Refusing the whole surface is what
+			// keeps the shape a fact rather than something normalized out of a
+			// refused probe.
+			aCompletion(application::github_capability_error{
+				.Request = std::move(aRequest),
+				.Error   = provider_error(provider_failure_for(
+					anonymous_read_refusal::graphql_surface_unavailable)),
+			});
+			return;
+		}
 		if (Implementation == nullptr || !valid_request(aRequest)) {
 			aCompletion(application::github_capability_error{
 				.Request = std::move(aRequest),
@@ -1341,7 +1476,13 @@ namespace bpr::adapters::github::detail {
 		application::github_pull_request_provider_request   aRequest,
 		application::github_pull_request_completion_handler aCompletion)
 	{
-		if (Implementation == nullptr || !valid_request(aRequest)) {
+		const auto anonymous = Implementation != nullptr
+			&& Implementation->State->ReadAuthority
+				== github_provider_read_authority::anonymous_public;
+		if (
+			Implementation == nullptr
+			|| !(anonymous ? valid_anonymous_read_correlation(aRequest)
+						   : valid_request(aRequest))) {
 			aCompletion(application::github_pull_request_error{
 				.Request = std::move(aRequest),
 				.Error   = provider_error(
@@ -1349,14 +1490,67 @@ namespace bpr::adapters::github::detail {
 			});
 			return;
 		}
-		const auto state            = Implementation->State;
-		const auto profile          = find_exact_profile(*state, aRequest.ProfileAuthority);
-		const auto accountTransport = exact_account_transport(aRequest.AccountTransport,
-															  aRequest.ProfileAuthority,
-															  aRequest.Context.ApplicationSession,
-															  aRequest.Context.IdentityGeneration,
-															  aRequest.Context.Account);
-		if (profile == nullptr || accountTransport == nullptr) {
+		const auto state   = Implementation->State;
+		const auto profile = find_exact_profile(*state, aRequest.ProfileAuthority);
+		if (profile == nullptr) {
+			aCompletion(application::github_pull_request_error{
+				.Request = std::move(aRequest),
+				.Error   = provider_error(
+					application::github_provider_failure::unavailable),
+			});
+			return;
+		}
+		std::shared_ptr<github_wire_account_transport> accountTransport;
+		std::shared_ptr<github_wire_transport_port>    readTransport;
+		if (anonymous) {
+			// Every refusal below happens before a transport is constructed, so
+			// a refused request costs zero requests rather than one that is
+			// discarded. The contract rule is asked first: a GHES profile is
+			// refused for every operation.
+			const auto admitted = admit_anonymous_read(
+				read_operation::get_pull_request, profile->server_contract());
+			if (!admitted.has_value()) {
+				aCompletion(application::github_pull_request_error{
+					.Request = std::move(aRequest),
+					.Error   = provider_error(
+						provider_failure_for(admitted.error())),
+				});
+				return;
+			}
+			// An anonymous read shape is all-false. Requiring that here is what
+			// keeps the shared read path from routing its GraphQL operation on
+			// this authority: the operation is refused by the shape it would
+			// need, before a request naming it can be compiled.
+			if (aRequest.CapabilityEvidence.ReadShape
+				!= application::github_read_shape{ }) {
+				aCompletion(application::github_pull_request_error{
+					.Request = std::move(aRequest),
+					.Error   = provider_error(provider_failure_for(
+						anonymous_read_refusal::graphql_surface_unavailable)),
+				});
+				return;
+			}
+			auto transport = state->TransportFactory->make_anonymous(
+				*profile, anonymous_session_context(aRequest.Context));
+			if (!transport.has_value()) {
+				aCompletion(application::github_pull_request_error{
+					.Request = std::move(aRequest),
+					.Error   = transport.error(),
+				});
+				return;
+			}
+			readTransport = std::move(*transport);
+		} else {
+			accountTransport = exact_account_transport(aRequest.AccountTransport,
+													   aRequest.ProfileAuthority,
+													   aRequest.Context.ApplicationSession,
+													   aRequest.Context.IdentityGeneration,
+													   aRequest.Context.Account);
+			if (accountTransport != nullptr) {
+				readTransport = accountTransport->Transport;
+			}
+		}
+		if (readTransport == nullptr) {
 			aCompletion(application::github_pull_request_error{
 				.Request = std::move(aRequest),
 				.Error   = provider_error(
@@ -1400,6 +1594,7 @@ namespace bpr::adapters::github::detail {
 				 job,
 				 profile,
 				 accountTransport,
+				 readTransport,
 				 aRequest,
 				 delivery]() mutable {
 					const auto cancelled = [&] {
@@ -1435,11 +1630,13 @@ namespace bpr::adapters::github::detail {
 									response_limit));
 							return;
 						}
-						auto result = perform_paged_github_read(*accountTransport->Transport,
+						auto result = perform_paged_github_read(*readTransport,
 																*profile,
 																aRequest,
 																*snapshot,
-																job->Stop.get_token());
+																job->Stop.get_token(),
+																{ },
+																state->ReadAuthority);
 						if (!result.has_value()) {
 							auto& error = result.error();
 							if (error.valueless_by_exception()) {
@@ -1522,7 +1719,8 @@ namespace bpr::adapters::github::detail {
 		auto make_github_provider_from_pointers(
 			const std::span<const validated_github_host_profile* const> aProfiles,
 			application::effect_executor&                               aEffects,
-			std::shared_ptr<github_wire_transport_factory_port>         aTransportFactory) noexcept
+			std::shared_ptr<github_wire_transport_factory_port>         aTransportFactory,
+			const github_provider_read_authority                        aReadAuthority) noexcept
 			-> github_provider_factory_result
 		{
 			if (aProfiles.empty()) {
@@ -1559,6 +1757,7 @@ namespace bpr::adapters::github::detail {
 				auto state              = std::make_shared<provider_state>();
 				state->Effects          = &aEffects;
 				state->TransportFactory = std::move(aTransportFactory);
+				state->ReadAuthority    = aReadAuthority;
 				state->Profiles.reserve(aProfiles.size());
 				for (const auto* const profile : aProfiles) {
 					state->Profiles.push_back(
@@ -1578,7 +1777,8 @@ namespace bpr::adapters::github::detail {
 	auto make_github_provider(
 		const std::span<const validated_github_host_profile> aProfiles,
 		application::effect_executor&                        aEffects,
-		std::shared_ptr<github_wire_transport_factory_port>  aTransportFactory) noexcept
+		std::shared_ptr<github_wire_transport_factory_port>  aTransportFactory,
+		const github_provider_read_authority                 aReadAuthority) noexcept
 		-> github_provider_factory_result
 	{
 		try {
@@ -1588,7 +1788,8 @@ namespace bpr::adapters::github::detail {
 				profilePointers.push_back(&profile);
 			}
 			return make_github_provider_from_pointers(
-				profilePointers, aEffects, std::move(aTransportFactory));
+				profilePointers, aEffects, std::move(aTransportFactory),
+				aReadAuthority);
 		} catch (...) {
 			return std::unexpected{
 				github_provider_configuration_failure::allocation_failure
@@ -1599,10 +1800,11 @@ namespace bpr::adapters::github::detail {
 	auto make_github_provider(
 		const std::span<const validated_github_host_profile* const> aProfiles,
 		application::effect_executor&                               aEffects,
-		std::shared_ptr<github_wire_transport_factory_port>         aTransportFactory) noexcept
+		std::shared_ptr<github_wire_transport_factory_port>         aTransportFactory,
+		const github_provider_read_authority                        aReadAuthority) noexcept
 		-> github_provider_factory_result
 	{
 		return make_github_provider_from_pointers(
-			aProfiles, aEffects, std::move(aTransportFactory));
+			aProfiles, aEffects, std::move(aTransportFactory), aReadAuthority);
 	}
 }

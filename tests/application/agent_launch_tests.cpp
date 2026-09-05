@@ -7,7 +7,9 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <string>
 #include <string_view>
@@ -246,6 +248,57 @@ namespace {
 				&& invalidResult.error()
 					== application::agent_context_failure::selected_draft_invalid,
 			"an empty selected draft is refused before session persistence");
+	}
+
+	/// \brief The asked-for operation crosses only under the workshop press.
+	///
+	/// \details BPR-0533. The entry point is what admits the operation, so this
+	/// is the one seam where "a workshop request" and "a launch that happens to
+	/// carry an operation" are told apart. A press carries its exact operation
+	/// into the supplement the agent is framed from; the same operation named
+	/// under any other gesture is refused whole rather than dropped, because a
+	/// supplement built with the field cleared would ask the agent to revise a
+	/// comment without saying how.
+	void test_the_workshop_operation_crosses_only_under_its_entry_point()
+	{
+		auto asked              = observation();
+		asked.EntryPoint        = core::agent_entry_point::workshop_comment;
+		asked.WorkshopOperation = core::workshop_operation::phrase_as_a_question;
+		const auto pressed
+			= application::build_agent_context_supplement(asked, session());
+		expect(
+			pressed.has_value()
+				&& pressed->Operation
+					== core::workshop_operation::phrase_as_a_question,
+			"a workshop press carries its exact operation into the supplement");
+
+		const auto plain
+			= application::build_agent_context_supplement(observation(), session());
+		expect(
+			plain.has_value() && !plain->Operation.has_value(),
+			"every launch that is not a workshop press carries no operation");
+
+		auto smuggled              = observation();
+		smuggled.WorkshopOperation = core::workshop_operation::shorten;
+		const auto smuggledResult
+			= application::build_agent_context_supplement(smuggled, session());
+		expect(
+			!smuggledResult
+				&& smuggledResult.error()
+					== application::agent_context_failure::invalid_observation,
+			"an operation riding on a gesture that is not a workshop press is refused whole");
+
+		auto undeclared              = observation();
+		undeclared.EntryPoint        = core::agent_entry_point::workshop_comment;
+		undeclared.WorkshopOperation = static_cast<core::workshop_operation>(
+			core::workshop_operation_count);
+		const auto undeclaredResult
+			= application::build_agent_context_supplement(undeclared, session());
+		expect(
+			!undeclaredResult
+				&& undeclaredResult.error()
+					== application::agent_context_failure::invalid_observation,
+			"an operation nobody declared is refused before it reaches the wire");
 	}
 
 	void test_the_complete_encoding_preserves_presence_and_exact_identity()
@@ -851,17 +904,66 @@ namespace {
 				&& stale.Events.empty(),
 			"the core's head-movement verdict rejects rather than retargets output");
 	}
+	void test_private_prose_crosses_only_through_the_session_keyed_optin()
+	{
+		auto unselected          = observation();
+		unselected.IncludedNotes = { };
+		unselected.IncludedDraft.reset();
+		const auto gated = application::build_agent_context_supplement(
+			unselected, session());
+		expect(
+			gated.has_value() && gated->Notes.empty() && gated->Drafts.empty(),
+			"a session that opted into nothing carries no note and no draft");
+		expect(
+			!unselected.Private.Notes.empty()
+				&& unselected.CurrentDraft.has_value(),
+			"and the review still held both, so the gate is what emptied them");
+		expect(
+			gated->Files.size() == 1U && gated->Defects.size() == 1U
+				&& gated->Selection.has_value()
+				&& gated->LastReviewedHead == commit(4U),
+			"the private prose is dropped, never the rest of the context");
+
+		const auto selected = built_supplement();
+		expect(
+			selected.Notes.size() == 1U && selected.Drafts.size() == 1U
+				&& selected.Notes.front().Text == "check retry exhaustion",
+			"an explicit selection is what turns the opt-in on for this session");
+
+		// The opt-in is keyed to the session that carries it, so the two must
+		// be built together. Reading the source is how "the ungated overload is
+		// no longer reachable from the host" is checked: no behavioural
+		// difference could show it, because the only opt-in the host can build
+		// is the one its own selection implies.
+		auto       source = std::ifstream{ BPR_AGENT_LAUNCH_SOURCE, std::ios::binary };
+		const auto text   = std::string{
+			std::istreambuf_iterator<char>{ source },
+			std::istreambuf_iterator<char>{ },
+		};
+		expect(!text.empty(), "the host's context source is readable");
+		expect(
+			text.find("core::build_agent_supplement(request, optIn)")
+				!= std::string::npos,
+			"the host builds its supplement through the gated overload");
+		expect(
+			text.find("core::build_agent_supplement(request)")
+				== std::string::npos,
+			"no ungated one-argument build remains reachable from the host");
+	}
+
 } // namespace
 
 auto main() -> int
 {
 	test_private_ledger_observation_is_an_input_not_an_implicit_store();
+	test_the_workshop_operation_crosses_only_under_its_entry_point();
 	test_the_complete_encoding_preserves_presence_and_exact_identity();
 	test_each_protocol_has_exact_argv_and_distinct_input_framing();
 	test_no_credential_crosses_the_environment_boundary();
 	test_launch_refuses_inexact_profile_session_and_schema();
 	test_every_protocol_decoder_handles_partial_frames();
 	test_process_and_staleness_outcomes_remain_distinct();
+	test_private_prose_crosses_only_through_the_session_keyed_optin();
 	std::cout << "agent-launch-tests:pass\n";
 	return EXIT_SUCCESS;
 }

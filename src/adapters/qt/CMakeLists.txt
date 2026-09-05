@@ -14,6 +14,7 @@ add_library(
         src/comparison_scroll_controller.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp
+        src/finding_queue_view.cpp
         src/event_loop_executor.cpp
         src/event_loop_device_timer.cpp
         src/epoch_comparison_control.cpp
@@ -27,6 +28,8 @@ add_library(
     src/github_pull_request_panel.cpp
         src/measured_alignment_axis.cpp
         src/sensitive_text_input.cpp
+        src/side_chat_panel.cpp
+        src/usage_ring.cpp
         src/workbench_drawer.cpp
         src/workbench_window.cpp
 )

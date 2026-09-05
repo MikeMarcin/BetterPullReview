@@ -172,6 +172,52 @@ set_tests_properties(
         TIMEOUT 30
 )
 
+# RFC-BPR-0017's anonymous read authority is asked its whole question without a
+# network: the binding's match table, the surfaces that refuse it, and the
+# refusals the factory makes before a transport exists. It runs on every Qt
+# graph because none of it needs a loopback fixture.
+bpr_add_executable(
+    test_better_pull_review_native_https_anonymous_read_tests
+    native_https_anonymous_read_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_native_https_anonymous_read_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        BetterPullReview::Application
+        Qt6::Core
+        Qt6::Network
+        Threads::Threads
+)
+target_include_directories(
+    test_better_pull_review_native_https_anonymous_read_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    test_better_pull_review_native_https_anonymous_read_tests
+    PRIVATE
+        BPR_NATIVE_HTTPS_TESTING=1
+)
+bpr_enable_hardening(
+    test_better_pull_review_native_https_anonymous_read_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_native_https_anonymous_read_tests
+)
+
+bpr_add_network_isolated_test(
+    NAME native_https_anonymous_read_contract
+    COMMAND
+        test_better_pull_review_native_https_anonymous_read_tests
+        --contract
+)
+set_tests_properties(
+    native_https_anonymous_read_contract
+    PROPERTIES
+        TIMEOUT 60
+)
+
 if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_program(
         BPR_TEST_NATIVE_HTTPS_OPENSSL
@@ -218,6 +264,33 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
             TIMEOUT 90
             PASS_REGULAR_EXPRESSION
                 "rfc0017-credential-free-native-https:pass"
+    )
+
+    # RFC-BPR-0017's anonymous read runs against the same loopback CONNECT and
+    # TLS fixture, on the GitHub.com authority the anonymous factory admits. It
+    # carries its own selector because the pass line is the evidence: a REST
+    # read served with no authorization header, and a canary course through the
+    # same fixture proving the header check is live.
+    bpr_add_network_isolated_test(
+        NAME native_https_anonymous_read_fixture
+        LOOPBACK_PORT_COUNT 2
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/verify_native_https_transport.py"
+            --executable
+            "$<TARGET_FILE:test_better_pull_review_native_https_transport_tests>"
+            --openssl
+            "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
+            --suite
+            anonymous_read
+    )
+    set_tests_properties(
+        native_https_anonymous_read_fixture
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 90
+            PASS_REGULAR_EXPRESSION
+                "native-https-anonymous-read-fixture:pass"
     )
 
     bpr_add_network_isolated_test(
@@ -323,6 +396,69 @@ if(WIN32)
         PROPERTIES
             RESOURCE_LOCK native_https_loopback
             TIMEOUT 90
+    )
+
+    # BPR-0525 mirrors the two RFC-BPR-0016 device-authorization selectors the
+    # APPLE/Linux block above registers and BPR-0446 did not. The guard there
+    # exists for the openssl binary this block has already found, and the
+    # executable both drive is registered on Windows unguarded as
+    # `native_https_device_authorization_contract`, so nothing but the omission
+    # kept them off this platform. Arguments are the POSIX ones verbatim.
+    #
+    # Uncontained for the same dos-volume-name cause as the wire fixture
+    # above, measured here rather than inherited: registered contained
+    # first, both selectors refused at once with
+    # `fail:unavailable-executable` -- the driver's strict executable
+    # resolution needs the drive-letter translation a lowbox token is
+    # refused (BPR-0362, BPR-0525). Neither reaches a network it is not
+    # entitled to; both talk only to their own loopback origin, exactly as
+    # their POSIX registrations do.
+    bpr_add_network_isolated_test(
+        NAME native_https_device_authorization_fixture
+        WINDOWS_UNCONTAINED
+        LOOPBACK_PORT_COUNT 1
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/github_contract/verify_native_https_device_authorization.py"
+            --executable
+            "$<TARGET_FILE:test_better_pull_review_native_https_device_authorization_tests>"
+            --openssl
+            "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
+    )
+    set_tests_properties(
+        native_https_device_authorization_fixture
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 90
+            PASS_REGULAR_EXPRESSION
+                "native-https-device-authorization:pass"
+    )
+
+    # BPR-0450's separate selector for the renewal courses, mirrored here for
+    # the same reason: the RFC-BPR-0016 ledger allocates this exact name and
+    # verify_rfc0016_test_inventory.py must be able to count one selector for
+    # it on every platform the course audits.
+    bpr_add_network_isolated_test(
+        NAME github_device_authorization_refresh_contract
+        WINDOWS_UNCONTAINED
+        LOOPBACK_PORT_COUNT 1
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/github_contract/verify_native_https_device_authorization.py"
+            --executable
+            "$<TARGET_FILE:test_better_pull_review_native_https_device_authorization_tests>"
+            --openssl
+            "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
+            --suite
+            refresh
+    )
+    set_tests_properties(
+        github_device_authorization_refresh_contract
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 90
+            PASS_REGULAR_EXPRESSION
+                "github-device-authorization-refresh:pass"
     )
 endif()
 
@@ -452,6 +588,48 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_github_contract_tests
 )
 
+# RFC-BPR-0017's provider admission, asked without a network: the verdict table
+# over every operation, the refusals that cost zero requests, and the door an
+# eligible read goes through.
+bpr_add_executable(
+    test_better_pull_review_github_anonymous_read_contract_tests
+    github_anonymous_read_contract_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_github_anonymous_read_contract_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        BetterPullReview::Application
+        Qt6::Core
+        Qt6::Network
+        Threads::Threads
+)
+target_include_directories(
+    test_better_pull_review_github_anonymous_read_contract_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+# The promoted captures and the review packet they were promoted from. The
+# test binds one to the other by digest, so a promoted body that drifts from
+# the recorded capture fails rather than becoming its own authority.
+target_compile_definitions(
+    test_better_pull_review_github_anonymous_read_contract_tests
+    PRIVATE
+        BPR_RFC0017_ANONYMOUS_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/github/rfc0017-anonymous-v001"
+        BPR_RFC0017_ANONYMOUS_CAPTURE_ROOT="${PROJECT_SOURCE_DIR}/docs/verification/reviews/rfc0017-anonymous-probe-v001"
+)
+bpr_enable_hardening(
+    test_better_pull_review_github_anonymous_read_contract_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_github_anonymous_read_contract_tests
+)
+
+bpr_add_network_isolated_test(
+    NAME github_anonymous_read_contract
+    COMMAND test_better_pull_review_github_anonymous_read_contract_tests
+)
+
 bpr_add_executable(
     test_better_pull_review_github_device_authorization_contract_tests
     github_device_authorization_contract_tests.cpp
@@ -555,6 +733,11 @@ target_include_directories(
     test_better_pull_review_github_paged_read_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    test_better_pull_review_github_paged_read_tests
+    PRIVATE
+        BPR_RFC0017_ANONYMOUS_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/github/rfc0017-anonymous-v001"
 )
 bpr_enable_hardening(
     test_better_pull_review_github_paged_read_tests

@@ -327,11 +327,26 @@ namespace {
 		}
 	}
 
+	/// @brief Which of the vault's two slots a native helper drives.
+	///
+	/// The refresh slot is a second store behind the same port, so every
+	/// lifecycle question the credential slot answers -- stored, read back,
+	/// absent, deleted -- has to be asked of it separately. Parameterizing the
+	/// helpers rather than copying them keeps the two slots answering the same
+	/// questions, so a slot that quietly stopped answering one of them shows up
+	/// as a failure here instead of as a case nobody wrote for it.
+	enum class vault_slot : std::uint8_t {
+		credential,
+		refresh,
+	};
+
 	[[nodiscard]] auto run_store(
 		application::github_credential_vault_port& aVault,
 		application::manual_executor&              aLane,
 		const std::uint64_t                        aRequest,
-		const std::span<const std::byte>           aBytes) -> bool
+		const std::span<const std::byte>           aBytes,
+		const vault_slot                           aSlot = vault_slot::credential)
+		-> bool
 	{
 		auto material = application::github_credential_material::create(aBytes);
 		if (!material.has_value()) {
@@ -340,15 +355,19 @@ namespace {
 
 		const auto     operation = native_context(aRequest);
 		store_recorder recorder;
-		aVault.store(
-			application::github_credential_enrollment{
-				.Context    = operation,
-				.Credential = std::move(*material),
-			},
-			[&recorder](
-				application::github_credential_store_completion aTerminal) {
-				recorder.record(std::move(aTerminal));
-			});
+		auto           enrollment = application::github_credential_enrollment{
+			.Context    = operation,
+			.Credential = std::move(*material),
+		};
+		auto handler = [&recorder](
+						   application::github_credential_store_completion aTerminal) {
+			recorder.record(std::move(aTerminal));
+		};
+		if (aSlot == vault_slot::refresh) {
+			aVault.store_refresh(std::move(enrollment), handler);
+		} else {
+			aVault.store(std::move(enrollment), handler);
+		}
 		if (aLane.pending() != 1U) {
 			aVault.cancel(operation);
 			aLane.drain();
@@ -368,16 +387,21 @@ namespace {
 		application::github_credential_vault_port& aVault,
 		application::manual_executor&              aLane,
 		const std::uint64_t                        aRequest,
-		const std::span<const std::byte>           aExpected) -> bool
+		const std::span<const std::byte>           aExpected,
+		const vault_slot                           aSlot = vault_slot::credential)
+		-> bool
 	{
 		const auto        operation = native_context(aRequest);
 		retrieve_recorder recorder;
-		aVault.retrieve(
-			operation,
-			[&recorder](
-				application::github_credential_retrieve_completion aTerminal) {
-				recorder.record(std::move(aTerminal));
-			});
+		auto              handler = [&recorder](
+										application::github_credential_retrieve_completion aTerminal) {
+			recorder.record(std::move(aTerminal));
+		};
+		if (aSlot == vault_slot::refresh) {
+			aVault.retrieve_refresh(operation, handler);
+		} else {
+			aVault.retrieve(operation, handler);
+		}
 		if (aLane.pending() != 1U) {
 			aVault.cancel(operation);
 			aLane.drain();
@@ -455,16 +479,21 @@ namespace {
 	[[nodiscard]] auto run_retrieve_absent(
 		application::github_credential_vault_port& aVault,
 		application::manual_executor&              aLane,
-		const std::uint64_t                        aRequest) -> bool
+		const std::uint64_t                        aRequest,
+		const vault_slot                           aSlot = vault_slot::credential)
+		-> bool
 	{
 		const auto        operation = native_context(aRequest);
 		retrieve_recorder recorder;
-		aVault.retrieve(
-			operation,
-			[&recorder](
-				application::github_credential_retrieve_completion aTerminal) {
-				recorder.record(std::move(aTerminal));
-			});
+		auto              handler = [&recorder](
+										application::github_credential_retrieve_completion aTerminal) {
+			recorder.record(std::move(aTerminal));
+		};
+		if (aSlot == vault_slot::refresh) {
+			aVault.retrieve_refresh(operation, handler);
+		} else {
+			aVault.retrieve(operation, handler);
+		}
 		if (aLane.pending() != 1U) {
 			aVault.cancel(operation);
 			aLane.drain();
@@ -485,16 +514,20 @@ namespace {
 		const std::uint64_t                        aRequest,
 		const std::optional<
 			application::github_credential_delete_disposition>
-			aExpected) -> bool
+						 aExpected,
+		const vault_slot aSlot = vault_slot::credential) -> bool
 	{
 		const auto      operation = native_context(aRequest);
 		delete_recorder recorder;
-		aVault.delete_credential(
-			operation,
-			[&recorder](
-				application::github_credential_delete_completion aTerminal) {
-				recorder.record(std::move(aTerminal));
-			});
+		auto            handler = [&recorder](
+									  application::github_credential_delete_completion aTerminal) {
+			recorder.record(std::move(aTerminal));
+		};
+		if (aSlot == vault_slot::refresh) {
+			aVault.delete_refresh(operation, handler);
+		} else {
+			aVault.delete_credential(operation, handler);
+		}
 		if (aLane.pending() != 1U) {
 			aVault.cancel(operation);
 			aLane.drain();
@@ -542,6 +575,69 @@ namespace {
 			write_fixed_diagnostic(aCategory);
 		}
 		aAggregate = aResult && aAggregate;
+	}
+
+	/// [[BPR-0545]] Both erasures under one occasion, sequenced, against the
+	/// real collection.
+	///
+	/// This is the shape [[BPR-0540]] should have had and the fix now has: the
+	/// refresh erasure is issued from the credential delete's *terminal*, not
+	/// beside it. Submitted that way the shared context is harmless, because
+	/// the first operation has left the vault's pending map by the time the
+	/// second arrives -- which is exactly the difference between this and the
+	/// contract case that pins the refusal.
+	///
+	/// It is written against the real Secret Service rather than a fake because
+	/// the property is about two stores: what has to be true afterwards is that
+	/// the base slot is empty, the refresh slot is empty, and neither answered
+	/// for the other while they were being emptied.
+	[[nodiscard]] auto run_shared_occasion_erasure(
+		application::github_credential_vault_port& aVault,
+		application::manual_executor&              aLane,
+		const std::span<const std::byte>           aBase,
+		const std::span<const std::byte>           aRefresh) -> bool
+	{
+		auto ok = true;
+		record_lifecycle_result(
+			run_store(aVault, aLane, 140U, aBase),
+			"linux-secret-service-occasion:base-store\n",
+			ok);
+		record_lifecycle_result(
+			run_store(aVault, aLane, 141U, aRefresh, vault_slot::refresh),
+			"linux-secret-service-occasion:refresh-store\n",
+			ok);
+
+		// One request number, so both deletes carry the identical context the
+		// host used to submit at once.
+		constexpr std::uint64_t occasion = 142U;
+		record_lifecycle_result(
+			run_delete(
+				aVault,
+				aLane,
+				occasion,
+				application::github_credential_delete_disposition::deleted),
+			"linux-secret-service-occasion:credential-delete\n",
+			ok);
+		// Only after the first has terminated.
+		record_lifecycle_result(
+			run_delete(
+				aVault,
+				aLane,
+				occasion,
+				application::github_credential_delete_disposition::deleted,
+				vault_slot::refresh),
+			"linux-secret-service-occasion:refresh-delete\n",
+			ok);
+
+		record_lifecycle_result(
+			run_retrieve_absent(aVault, aLane, 143U),
+			"linux-secret-service-occasion:base-absent\n",
+			ok);
+		record_lifecycle_result(
+			run_retrieve_absent(aVault, aLane, 144U, vault_slot::refresh),
+			"linux-secret-service-occasion:refresh-absent\n",
+			ok);
+		return ok;
 	}
 
 	[[nodiscard]] auto run_native_lifecycle(
@@ -600,8 +696,88 @@ namespace {
 			"linux-secret-service-lifecycle:repeat-delete\n",
 			ok);
 
+		// [[BPR-0542]] The refresh slot, against the same real collection. The
+		// order matters: the base credential is stored again first, so the two
+		// slots hold different bytes under the *same* authority at the same
+		// moment. That is the only arrangement in which "the refresh read
+		// answered from the refresh slot" is a claim rather than a coincidence
+		// -- with one slot empty, a single shared slot would pass every check
+		// below.
+		record_lifecycle_result(
+			run_store(*vault, lane, 120U, aCanaryA),
+			"linux-secret-service-refresh:base-store\n",
+			ok);
+		record_lifecycle_result(
+			run_retrieve_absent(*vault, lane, 121U, vault_slot::refresh),
+			"linux-secret-service-refresh:initial-absence\n",
+			ok);
+		record_lifecycle_result(
+			run_store(*vault, lane, 122U, aCanaryB, vault_slot::refresh),
+			"linux-secret-service-refresh:store\n",
+			ok);
+		record_lifecycle_result(
+			run_retrieve(*vault, lane, 123U, aCanaryB, vault_slot::refresh),
+			"linux-secret-service-refresh:retrieve\n",
+			ok);
+		// The cut that makes the two slots two: the base slot still answers
+		// its own bytes, not the refresh bytes just written beside it.
+		record_lifecycle_result(
+			run_retrieve(*vault, lane, 124U, aCanaryA),
+			"linux-secret-service-refresh:base-unshadowed\n",
+			ok);
+		record_lifecycle_result(
+			run_delete(
+				*vault,
+				lane,
+				125U,
+				application::github_credential_delete_disposition::deleted,
+				vault_slot::refresh),
+			"linux-secret-service-refresh:delete\n",
+			ok);
+		record_lifecycle_result(
+			run_retrieve_absent(*vault, lane, 126U, vault_slot::refresh),
+			"linux-secret-service-refresh:post-delete-absence\n",
+			ok);
+		// Erasure honesty, the row [[BPR-0540]] depends on: deleting a refresh
+		// entry that is not there is a success reporting `absent`, never
+		// `unavailable`. An `unavailable` here would let an orderly shutdown
+		// treat "I could not reach the store" as "there was nothing to erase".
+		record_lifecycle_result(
+			run_delete(
+				*vault,
+				lane,
+				127U,
+				application::github_credential_delete_disposition::absent,
+				vault_slot::refresh),
+			"linux-secret-service-refresh:repeat-delete\n",
+			ok);
+		// And the base credential survived the refresh slot's whole lifecycle.
+		record_lifecycle_result(
+			run_retrieve(*vault, lane, 128U, aCanaryA),
+			"linux-secret-service-refresh:base-survives\n",
+			ok);
+		record_lifecycle_result(
+			run_delete(*vault, lane, 129U, std::nullopt),
+			"linux-secret-service-refresh:base-cleanup\n",
+			ok);
+
+		record_lifecycle_result(
+			run_shared_occasion_erasure(*vault, lane, aCanaryA, aCanaryB),
+			"linux-secret-service-occasion:sequence\n",
+			ok);
+
 		const auto cleanup            = run_delete(*vault, lane, 109U, std::nullopt);
 		const auto postCleanupAbsence = run_retrieve_absent(*vault, lane, 110U);
+		const auto refreshCleanup     = run_delete(
+			*vault,
+			lane,
+			130U,
+			std::nullopt,
+			vault_slot::refresh);
+		record_lifecycle_result(
+			refreshCleanup,
+			"linux-secret-service-refresh:cleanup\n",
+			ok);
 		record_lifecycle_result(
 			cleanup,
 			"linux-secret-service-lifecycle:cleanup\n",
@@ -610,7 +786,7 @@ namespace {
 			postCleanupAbsence,
 			"linux-secret-service-lifecycle:cleanup-absence\n",
 			ok);
-		return ok && cleanup && postCleanupAbsence;
+		return ok && cleanup && postCleanupAbsence && refreshCleanup;
 	}
 
 	[[nodiscard]] auto read_exact(
@@ -1468,6 +1644,37 @@ namespace {
 					 "linux-secret-service-lifecycle:cleanup\n" },
 				 std::string_view{
 					 "linux-secret-service-lifecycle:cleanup-absence\n" },
+				 std::string_view{
+					 "linux-secret-service-refresh:base-store\n" },
+				 std::string_view{
+					 "linux-secret-service-refresh:initial-absence\n" },
+				 std::string_view{ "linux-secret-service-refresh:store\n" },
+				 std::string_view{ "linux-secret-service-refresh:retrieve\n" },
+				 std::string_view{
+					 "linux-secret-service-refresh:base-unshadowed\n" },
+				 std::string_view{ "linux-secret-service-refresh:delete\n" },
+				 std::string_view{
+					 "linux-secret-service-refresh:post-delete-absence\n" },
+				 std::string_view{
+					 "linux-secret-service-refresh:repeat-delete\n" },
+				 std::string_view{
+					 "linux-secret-service-refresh:base-survives\n" },
+				 std::string_view{
+					 "linux-secret-service-refresh:base-cleanup\n" },
+				 std::string_view{ "linux-secret-service-refresh:cleanup\n" },
+				 std::string_view{
+					 "linux-secret-service-occasion:base-store\n" },
+				 std::string_view{
+					 "linux-secret-service-occasion:refresh-store\n" },
+				 std::string_view{
+					 "linux-secret-service-occasion:credential-delete\n" },
+				 std::string_view{
+					 "linux-secret-service-occasion:refresh-delete\n" },
+				 std::string_view{
+					 "linux-secret-service-occasion:base-absent\n" },
+				 std::string_view{
+					 "linux-secret-service-occasion:refresh-absent\n" },
+				 std::string_view{ "linux-secret-service-occasion:sequence\n" },
 				 std::string_view{
 					 "linux-secret-service-retrieve:terminal-count\n" },
 				 std::string_view{

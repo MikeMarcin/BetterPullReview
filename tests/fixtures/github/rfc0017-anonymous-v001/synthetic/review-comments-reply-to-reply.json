@@ -1,0 +1,46 @@
+[
+  {
+    "id": 601,
+    "body": "root",
+    "path": "README",
+    "position": 4,
+    "line": 2,
+    "original_line": null,
+    "user": {
+      "login": "octocat",
+      "node_id": "MDQ6VXNlcjE=",
+      "id": 1,
+      "type": "User"
+    }
+  },
+  {
+    "id": 602,
+    "body": "reply",
+    "path": "README",
+    "position": 4,
+    "line": 2,
+    "original_line": null,
+    "user": {
+      "login": "octocat",
+      "node_id": "MDQ6VXNlcjE=",
+      "id": 1,
+      "type": "User"
+    },
+    "in_reply_to_id": 601
+  },
+  {
+    "id": 603,
+    "body": "reply to a reply",
+    "path": "README",
+    "position": 4,
+    "line": 2,
+    "original_line": null,
+    "user": {
+      "login": "octocat",
+      "node_id": "MDQ6VXNlcjE=",
+      "id": 1,
+      "type": "User"
+    },
+    "in_reply_to_id": 602
+  }
+]

@@ -5,6 +5,7 @@
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "review_mutation_execution_authority.hpp"
+#include "system_browser_opener.hpp"
 
 #include "bpr/app/worker_executor.hpp"
 
@@ -32,6 +33,7 @@
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/git/installed_git_process.hpp"
+#include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
@@ -40,7 +42,11 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/application/agent_chat_session_host.hpp"
+#include "bpr/application/agent_comment_workshop_host.hpp"
+#include "bpr/application/agent_finding_host.hpp"
 #include "bpr/application/agent_invocation_host.hpp"
+#include "bpr/application/agent_realignment.hpp"
 #include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/defect_correlation.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
@@ -49,6 +55,7 @@
 #include "bpr/application/epoch_runtime_ports.hpp"
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
@@ -58,9 +65,12 @@
 #include "bpr/application/workbench_snapshot_observation.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/event_loop_device_timer.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
+#include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/system_tray_notification_sink.hpp"
 
 #include <QApplication>
@@ -107,6 +117,7 @@
 #include <array>
 #include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <deque>
@@ -872,10 +883,10 @@ namespace bpr::app {
 					application::github_credential_enrollment>(
 					std::move(aEnrollment));
 				Effects.post(
-					[pending = std::move(pending),
+					[pendingEnrollment = std::move(pending),
 					 context,
 					 completion = std::move(aCompletion)]() mutable {
-						pending->Credential.reset();
+						pendingEnrollment->Credential.reset();
 						completion(application::github_credential_store_error{
 							.Context = context,
 							.Failure = application::github_credential_vault_failure::
@@ -1051,10 +1062,183 @@ namespace bpr::app {
 			{
 				Last = aPresentation;
 				++Published;
+				// The host clears the handoff on the next stage change, so a
+				// reader that arrives after the flow moved on sees
+				// `not_attempted` and cannot tell an opener that answered
+				// from one that was never asked. This keeps the answer
+				// instead of the moment it was true: what a self-test needs
+				// at shutdown is which fate the last attempt met, and only a
+				// new attempt or a new run replaces it.
+				if (
+					aPresentation.Handoff
+					!= application::device_authorization_handoff::not_attempted) {
+					LastAttempt = aPresentation.Handoff;
+				}
+			}
+
+			// The renewal lifecycle the host published last. Recorded for the
+			// same reason the presentation is: a composed course has to state
+			// what a reviewer would be told about renewal rather than infer it
+			// from a rotation count nobody surfaced.
+			void publish_refresh(
+				const application::device_authorization_refresh_observation&
+					aObservation) override
+			{
+				LastRefresh = aObservation;
+				++RefreshPublished;
 			}
 
 			[[nodiscard]] auto last() const noexcept
 				-> const application::device_authorization_presentation&
+			{
+				return Last;
+			}
+
+			[[nodiscard]] auto last_refresh() const noexcept
+				-> const application::device_authorization_refresh_observation&
+			{
+				return LastRefresh;
+			}
+
+			[[nodiscard]] auto refresh_published() const noexcept -> std::size_t
+			{
+				return RefreshPublished;
+			}
+
+			[[nodiscard]] auto last_attempt() const noexcept
+				-> application::device_authorization_handoff
+			{
+				return LastAttempt;
+			}
+
+			[[nodiscard]] auto published() const noexcept -> std::size_t
+			{
+				return Published;
+			}
+
+		private:
+			application::device_authorization_presentation        Last;
+			application::device_authorization_refresh_observation LastRefresh;
+			application::device_authorization_handoff             LastAttempt
+				= application::device_authorization_handoff::not_attempted;
+			std::size_t Published        = 0U;
+			std::size_t RefreshPublished = 0U;
+		};
+
+		// The device host publishes to exactly one port, and [[BPR-0526]] gave
+		// the presentation a second reader without taking the first one away.
+		// So this stands where the sink stood and hands every publication to
+		// both: the sink first and unconditionally, then the mounted panel if
+		// one was composed.
+		//
+		// Unconditionally is the whole point. Six executable contracts read
+		// `DeviceProjections` through the self-test markers, and they have to
+		// read exactly what they read before a window was in the picture --
+		// including in a graph whose panel composition was cut. `publish()` is
+		// synchronous and returns nothing, so a second reader cannot reorder,
+		// delay, or veto what the first one sees.
+		class composition_device_authorization_projection final
+			: public application::device_authorization_projection_port
+		{
+		public:
+			using presented_sink = std::function<void(
+				const application::device_authorization_presentation&)>;
+			using renewed_sink   = std::function<void(
+				const application::device_authorization_refresh_observation&)>;
+
+			composition_device_authorization_projection(
+				application::device_authorization_projection_port& aRecorded,
+				presented_sink                                     aPresented,
+				renewed_sink                                       aRenewed)
+				: Recorded{ &aRecorded }
+				, Presented{ std::move(aPresented) }
+				, Renewed{ std::move(aRenewed) }
+			{
+			}
+
+			void publish(
+				const application::device_authorization_presentation& aPresentation)
+				override
+			{
+				Recorded->publish(aPresentation);
+				if (Presented) {
+					Presented(aPresentation);
+				}
+			}
+
+			// The renewal lifecycle fans out on the same terms and in the same
+			// order: the sink first and unconditionally, then whoever
+			// composition bound to watch renewal. [[BPR-0536]].
+			void publish_refresh(
+				const application::device_authorization_refresh_observation&
+					aObservation) override
+			{
+				Recorded->publish_refresh(aObservation);
+				if (Renewed) {
+					Renewed(aObservation);
+				}
+			}
+
+		private:
+			application::device_authorization_projection_port* Recorded = nullptr;
+			presented_sink                                     Presented;
+			renewed_sink                                       Renewed;
+		};
+
+		// The session projection, with composition listening behind the window.
+		// [[BPR-0536]] needs one fact the window has no use for: that an
+		// authenticated `/user` observation was accepted, which is the first
+		// moment the vault authority a refresh entry is keyed by exists. The
+		// window is told first and unchanged, so every existing reader sees
+		// exactly the sequence it saw before; composition only reads.
+		class composition_github_projection final
+			: public application::github_projection_port
+		{
+		public:
+			using accepted_sink = std::function<void(
+				const application::github_presentation_update&)>;
+
+			composition_github_projection(
+				application::github_projection_port& aPresented,
+				accepted_sink                        aAccepted)
+				: Presented{ &aPresented }
+				, Accepted{ std::move(aAccepted) }
+			{
+			}
+
+			void publish(
+				const application::github_presentation_update& aUpdate) override
+			{
+				Presented->publish(aUpdate);
+				if (Accepted) {
+					Accepted(aUpdate);
+				}
+			}
+
+		private:
+			application::github_projection_port* Presented = nullptr;
+			accepted_sink                        Accepted;
+		};
+
+		// Records what the signed-out presentation was told. The window is the
+		// reader [[BPR-0304]] built and tests at the adapter boundary; what
+		// composition needs is the same published record, so the public
+		// self-test can state the mode and the typed refusal a reviewer would
+		// see rather than infer them from a picture.
+		class public_preview_projection_sink final
+			: public application::public_preview_projection_port
+		{
+		public:
+			void publish(
+				const application::public_preview_presentation& aPresentation)
+				override
+			{
+				Last = aPresentation;
+				++Published;
+			}
+
+			[[nodiscard]] auto last() const noexcept
+				-> const application::public_preview_presentation&
 			{
 				return Last;
 			}
@@ -1065,9 +1249,513 @@ namespace bpr::app {
 			}
 
 		private:
-			application::device_authorization_presentation Last;
-			std::size_t                                    Published = 0U;
+			application::public_preview_presentation Last;
+			std::size_t                              Published = 0U;
 		};
+
+		// The same fan-out the device projection above uses, for the same
+		// reason: the host publishes to exactly one port, the self-test
+		// contracts read the recording sink, and the window is a second reader
+		// that must not reorder, delay, or veto what the first one sees. The
+		// sink is told first and unconditionally.
+		class composition_public_preview_projection final
+			: public application::public_preview_projection_port
+		{
+		public:
+			using presented_sink = std::function<void(
+				const application::public_preview_presentation&)>;
+
+			composition_public_preview_projection(
+				application::public_preview_projection_port& aRecorded,
+				presented_sink                               aPresented)
+				: Recorded{ &aRecorded }
+				, Presented{ std::move(aPresented) }
+			{
+			}
+
+			void publish(
+				const application::public_preview_presentation& aPresentation)
+				override
+			{
+				Recorded->publish(aPresentation);
+				if (Presented) {
+					Presented(aPresentation);
+				}
+			}
+
+		private:
+			application::public_preview_projection_port* Recorded = nullptr;
+			presented_sink                               Presented;
+		};
+
+		// Counts every credential-free pull-request read that reached the
+		// anonymous authority. Composed whether or not the selection hands
+		// that authority to the host, so an unavailable build reports a number
+		// rather than an absence: zero is the claim that the mode's gate
+		// refused before a request was built, and any other value is the gate
+		// being bypassed.
+		class counting_anonymous_pull_requests final
+			: public application::github_pull_request_port
+		{
+		public:
+			explicit counting_anonymous_pull_requests(
+				application::github_pull_request_port& aInner) noexcept
+				: Inner{ &aInner }
+			{
+			}
+
+			void fetch_pull_request(
+				application::github_pull_request_provider_request aRequest,
+				application::github_pull_request_completion_handler
+					aCompletion) override
+			{
+				++Reads;
+				Inner->fetch_pull_request(
+					std::move(aRequest), std::move(aCompletion));
+			}
+
+			void cancel_pull_request(
+				application::github_pull_request_provider_request aRequest)
+				override
+			{
+				Inner->cancel_pull_request(std::move(aRequest));
+			}
+
+			[[nodiscard]] auto reads() const noexcept -> std::size_t
+			{
+				return Reads;
+			}
+
+		private:
+			application::github_pull_request_port* Inner = nullptr;
+			std::size_t                            Reads = 0U;
+		};
+
+		// [[BPR-0316]]. What the signed-out transport forwarded, in order,
+		// and what came back for each request. The count below answers "how
+		// much of the shared hourly budget did this read cost"; only this
+		// answers "which operation failed, how, and how long it waited",
+		// which is the question the first authorized read could not be asked.
+		// Shared and lock-guarded rather than atomic, because the transport is
+		// driven from a worker while the reporting thread copies the whole
+		// record.
+		class anonymous_wire_operation_log final
+		{
+		public:
+			void record(
+				std::string         aOperation,
+				const std::uint32_t aPage,
+				std::string         aOutcome,
+				const std::uint64_t aElapsedMilliseconds)
+			{
+				const std::scoped_lock lock{ Mutex };
+				Records.push_back(public_preview_wire_operation_record{
+					.Operation           = std::move(aOperation),
+					.Page                = aPage,
+					.Outcome             = std::move(aOutcome),
+					.ElapsedMilliseconds = aElapsedMilliseconds,
+				});
+			}
+
+			// Latched by the first request that came back a failure, and never
+			// cleared. The host retries a `network` or `timeout` provider
+			// failure up to `maximum_github_provider_attempts`, so a candidate
+			// read allowed to fail costs three times what it was authorized
+			// to; the transport answering the retry itself, without
+			// forwarding it, is the whole of the single-attempt mechanism.
+			void latch_failure()
+			{
+				const std::scoped_lock lock{ Mutex };
+				Failed = true;
+			}
+
+			[[nodiscard]] auto failed() const -> bool
+			{
+				const std::scoped_lock lock{ Mutex };
+				return Failed;
+			}
+
+			[[nodiscard]] auto records() const
+				-> std::vector<public_preview_wire_operation_record>
+			{
+				const std::scoped_lock lock{ Mutex };
+				return Records;
+			}
+
+		private:
+			mutable std::mutex                                Mutex;
+			std::vector<public_preview_wire_operation_record> Records;
+			bool                                              Failed = false;
+		};
+
+		// The enumerator's own name, so a failure is reported as the kind the
+		// provider contract calls it rather than as a number a reader has to
+		// look up.
+		[[nodiscard]] auto anonymous_wire_failure_name(
+			const application::github_provider_failure aFailure) noexcept
+			-> std::string_view
+		{
+			using failure = application::github_provider_failure;
+			switch (aFailure) {
+			case failure::authentication:
+				return "authentication";
+			case failure::permission:
+				return "permission";
+			case failure::network:
+				return "network";
+			case failure::api_version:
+				return "api_version";
+			case failure::unsupported_capability:
+				return "unsupported_capability";
+			case failure::rate_limit:
+				return "rate_limit";
+			case failure::certificate:
+				return "certificate";
+			case failure::redirect:
+				return "redirect";
+			case failure::timeout:
+				return "timeout";
+			case failure::process_startup:
+				return "process_startup";
+			case failure::cli_unavailable:
+				return "cli_unavailable";
+			case failure::vault:
+				return "vault";
+			case failure::malformed_response:
+				return "malformed_response";
+			case failure::response_limit:
+				return "response_limit";
+			case failure::unavailable:
+				return "unavailable";
+			}
+			return "unknown";
+		}
+
+		// The whole of what a completion is allowed to say on a card: a status
+		// line, or a failure kind with the two numbers a failed read is
+		// diagnosed from. No body, no URL, no header other than the
+		// rate-limit triple the failure itself named.
+		[[nodiscard]] auto anonymous_wire_outcome_text(
+			const adapters::github::detail::github_wire_completion& aCompletion)
+			-> std::string
+		{
+			if (const auto* const success = std::get_if<
+					adapters::github::detail::github_wire_success>(&aCompletion);
+				success != nullptr) {
+				return "http_" + std::to_string(success->Response.Status);
+			}
+			const auto* const failure
+				= std::get_if<adapters::github::detail::github_wire_error>(
+					&aCompletion);
+			if (failure == nullptr) {
+				return "cancelled";
+			}
+			auto text = std::string{ "error_" };
+			text += anonymous_wire_failure_name(failure->Error.Failure);
+			if (failure->Error.RetryAfterSeconds.has_value()) {
+				text += ".retry_after=";
+				text += std::to_string(*failure->Error.RetryAfterSeconds);
+			}
+			if (failure->Error.RateLimitCause.has_value()) {
+				text += ".rate=";
+				text += std::to_string(failure->Error.RateLimitCause->Limit);
+				text += '/';
+				text += std::to_string(failure->Error.RateLimitCause->Remaining);
+				text += '/';
+				text += std::to_string(
+					failure->Error.RateLimitCause->ResetUnixSeconds);
+			}
+			return text;
+		}
+
+		// [[BPR-0316]]. Counts what the anonymous transport itself put on the
+		// wire. The wrapper above counts pull-request reads offered to the
+		// authority; one such read is several REST operations, and the number
+		// a live candidate has to report is the second one. The counters are
+		// shared and atomic because the transport is driven from a worker and
+		// read from the reporting thread.
+		class counting_anonymous_wire_transport final
+			: public adapters::github::detail::github_wire_transport_port
+		{
+		public:
+			counting_anonymous_wire_transport(
+				std::shared_ptr<
+					adapters::github::detail::github_wire_transport_port>
+															  aInner,
+				std::shared_ptr<std::atomic<std::size_t>>     aRequests,
+				std::shared_ptr<std::atomic<std::size_t>>     aCapabilityProbes,
+				std::shared_ptr<anonymous_wire_operation_log> aLog) noexcept
+				: Inner{ std::move(aInner) }
+				, Requests{ std::move(aRequests) }
+				, CapabilityProbes{ std::move(aCapabilityProbes) }
+				, Log{ std::move(aLog) }
+			{
+			}
+
+			[[nodiscard]] auto perform(
+				const adapters::github::detail::github_wire_request& aRequest,
+				std::stop_token                                      aStop)
+				-> adapters::github::detail::github_wire_completion override
+			{
+				// One attempt. Once a request for this read has come back a
+				// failure, every later one is answered here -- as the
+				// cancellation the host already knows how to end a read on --
+				// rather than forwarded, so the retry costs nothing outside
+				// the process. A refused request is neither counted nor
+				// recorded, because the count is what reached the wire.
+				if (Log->failed()) {
+					return adapters::github::detail::github_wire_cancelled{
+						.Correlation = aRequest.Correlation,
+					};
+				}
+				Requests->fetch_add(1U, std::memory_order_relaxed);
+				const auto started    = std::chrono::steady_clock::now();
+				auto       completion = Inner->perform(aRequest, aStop);
+				const auto elapsed    = std::chrono::duration_cast<
+					std::chrono::milliseconds>(
+					std::chrono::steady_clock::now() - started);
+				Log->record(
+					std::string{ adapters::github::detail::operation_name(
+						aRequest.Correlation.Operation) },
+					aRequest.Correlation.Page,
+					anonymous_wire_outcome_text(completion),
+					static_cast<std::uint64_t>(
+						elapsed.count() < 0 ? 0 : elapsed.count()));
+				if (std::holds_alternative<
+						adapters::github::detail::github_wire_error>(
+						completion)) {
+					Log->latch_failure();
+				}
+				return completion;
+			}
+
+			[[nodiscard]] auto perform_capability_probe(
+				const adapters::github::detail::
+					github_capability_probe_wire_request& aRequest,
+				std::stop_token                           aStop)
+				-> adapters::github::detail::
+					github_capability_probe_wire_completion override
+			{
+				CapabilityProbes->fetch_add(1U, std::memory_order_relaxed);
+				return Inner->perform_capability_probe(
+					aRequest, std::move(aStop));
+			}
+
+		private:
+			std::shared_ptr<
+				adapters::github::detail::github_wire_transport_port>
+														  Inner;
+			std::shared_ptr<std::atomic<std::size_t>>     Requests;
+			std::shared_ptr<std::atomic<std::size_t>>     CapabilityProbes;
+			std::shared_ptr<anonymous_wire_operation_log> Log;
+		};
+
+		// [[BPR-0316]]'s live-candidate REST authority. Every transport it
+		// issues comes from `make_native_https_anonymous_read_transport` --
+		// the shipped entry, with system proxy discovery and system trust --
+		// and it has no credentialed form at all: both credentialed entries
+		// refuse and count the attempt, so a composition that reached for an
+		// authorization header shows up as a number rather than as a header
+		// nobody looked for. The GHES refusal is the shipped factory's, made
+		// before a transport exists.
+		class shipped_anonymous_wire_transport_factory final
+			: public github_wire_transport_factory_port
+		{
+		public:
+			[[nodiscard]] auto make_bootstrap(
+				const validated_github_host_profile&    aProfile,
+				core::github_session_request_context    aContext,
+				application::github_credential_material aCredential) noexcept
+				-> adapters::github::detail::
+					github_wire_transport_factory_result override
+			{
+				static_cast<void>(aProfile);
+				static_cast<void>(aContext);
+				static_cast<void>(aCredential);
+				CredentialedRefusals->fetch_add(1U, std::memory_order_relaxed);
+				return std::unexpected{ refusal() };
+			}
+
+			[[nodiscard]] auto make_account(
+				const validated_github_host_profile&            aProfile,
+				application::github_credential_retrieve_success aCredential) noexcept
+				-> adapters::github::detail::
+					github_wire_transport_factory_result override
+			{
+				static_cast<void>(aProfile);
+				static_cast<void>(aCredential);
+				CredentialedRefusals->fetch_add(1U, std::memory_order_relaxed);
+				return std::unexpected{ refusal() };
+			}
+
+			[[nodiscard]] auto make_anonymous(
+				const validated_github_host_profile& aProfile,
+				core::github_session_request_context aContext) noexcept
+				-> adapters::github::detail::
+					github_wire_transport_factory_result override
+			{
+				auto transport = adapters::github::detail::
+					make_native_https_anonymous_read_transport(
+						aProfile, std::move(aContext));
+				if (!transport.has_value()) {
+					return std::unexpected{ refusal() };
+				}
+				try {
+					return std::shared_ptr<adapters::github::detail::
+											   github_wire_transport_port>{
+						std::make_shared<counting_anonymous_wire_transport>(
+							std::shared_ptr<adapters::github::detail::
+												github_wire_transport_port>{
+								std::move(*transport) },
+							Requests,
+							CapabilityProbes,
+							Log)
+					};
+				} catch (...) {
+					return std::unexpected{ refusal() };
+				}
+			}
+
+			[[nodiscard]] auto requests() const noexcept -> std::size_t
+			{
+				return Requests->load(std::memory_order_relaxed);
+			}
+
+			[[nodiscard]] auto capability_probes() const noexcept -> std::size_t
+			{
+				return CapabilityProbes->load(std::memory_order_relaxed);
+			}
+
+			[[nodiscard]] auto credentialed_refusals() const noexcept
+				-> std::size_t
+			{
+				return CredentialedRefusals->load(std::memory_order_relaxed);
+			}
+
+			// What each forwarded request was for and how it ended, in the
+			// order it was forwarded.
+			[[nodiscard]] auto operations() const
+				-> std::vector<public_preview_wire_operation_record>
+			{
+				return Log->records();
+			}
+
+		private:
+			[[nodiscard]] static auto refusal() noexcept
+				-> application::github_provider_error
+			{
+				return application::github_provider_error{
+					.Failure = application::github_provider_failure::
+						unsupported_capability,
+					.RetryAfterSeconds = std::nullopt,
+					.RateLimits        = { },
+					.RateLimitCause    = std::nullopt,
+				};
+			}
+
+			std::shared_ptr<std::atomic<std::size_t>> Requests
+				= std::make_shared<std::atomic<std::size_t>>(0U);
+			std::shared_ptr<std::atomic<std::size_t>> CapabilityProbes
+				= std::make_shared<std::atomic<std::size_t>>(0U);
+			std::shared_ptr<std::atomic<std::size_t>> CredentialedRefusals
+				= std::make_shared<std::atomic<std::size_t>>(0U);
+			std::shared_ptr<anonymous_wire_operation_log> Log
+				= std::make_shared<anonymous_wire_operation_log>();
+		};
+
+		// The credential-free Git smart authority. It takes no credential and
+		// has no entry that could accept one: every lease it issues comes from
+		// the shipped anonymous factory, which refuses an authenticated
+		// authority and refuses an enterprise profile before a request exists.
+		// Constructed in both profiles, so a shipped graph reaches the
+		// production factory by construction rather than through a fixture.
+		class anonymous_git_smart_transport_factory final
+			: public application::git_smart_transport_factory_port
+		{
+		public:
+			explicit anonymous_git_smart_transport_factory(
+				const validated_github_host_profile& aProfile) noexcept
+				: Profile{ &aProfile }
+			{
+			}
+
+			[[nodiscard]] auto acquire(
+				const application::git_smart_request_context& aContext)
+				-> application::git_smart_transport_result<
+					application::git_smart_transport> override
+			{
+				++Acquisitions;
+				auto wire = adapters::github::detail::
+					make_native_https_anonymous_smart_transport(
+						*Profile,
+						core::github_session_request_context{
+							.Request            = core::request_id{ 917U },
+							.ApplicationSession = aContext.ApplicationSession,
+							.Profile            = Profile->profile(),
+							.IdentityGeneration
+							= core::github_identity_generation{ 918U },
+						});
+				if (!wire.has_value()) {
+					return std::unexpected{
+						application::git_smart_transport_error{
+							.Failure = application::
+								git_smart_transport_failure::unavailable,
+						}
+					};
+				}
+				return adapters::github::detail::make_native_git_smart_transport(
+					std::shared_ptr<
+						adapters::github::detail::native_https_transport>{
+						std::move(*wire) },
+					aContext);
+			}
+
+			[[nodiscard]] auto acquisitions() const noexcept -> std::size_t
+			{
+				return Acquisitions;
+			}
+
+		private:
+			const validated_github_host_profile* Profile      = nullptr;
+			std::size_t                          Acquisitions = 0U;
+		};
+
+#if defined(BPR_BUILD_TESTING)
+		// The fixture profile's opener. A tests-enabled graph never binds the
+		// real one: `system_browser_opener` hands the address to the desktop,
+		// and a suite that launched a browser on a reviewer's machine — or on
+		// a station running unattended — would be doing the one thing no test
+		// here is allowed to do. This records what it was given and answers
+		// yes, which is what the handoff contract needs to observe `opened`
+		// without any program starting.
+		class recording_device_authorization_browser final
+			: public application::device_authorization_browser_port
+		{
+		public:
+			[[nodiscard]] auto open(const std::string_view aAddress)
+				-> bool override
+			{
+				LastAddress.assign(aAddress);
+				++Opens;
+				return true;
+			}
+
+			[[nodiscard]] auto opens() const noexcept -> std::size_t
+			{
+				return Opens;
+			}
+
+			[[nodiscard]] auto last_address() const noexcept
+				-> const std::string&
+			{
+				return LastAddress;
+			}
+
+		private:
+			std::string LastAddress;
+			std::size_t Opens = 0U;
+		};
+#endif
 
 		// No registered application identity means there is nothing to talk to.
 		// This is not a fixture and not a stub standing in for a real transport: it
@@ -1150,18 +1838,75 @@ namespace bpr::app {
 			= std::string_view{ "Iv23liitiYN1WSSbag50" };
 
 		// macOS is registered under the recorded distributable identity since
-		// [[BPR-0318]]; Linux and Windows stay unregistered until [[BPR-0310]]
-		// and [[BPR-0311]] flip their own platform in their own slice. Moving a
-		// card between folders does not enable a capability, and neither does
+		// [[BPR-0318]], Linux since [[BPR-0310]], and Windows since [[BPR-0311]];
+		// each flipped its own platform in its own slice, against its own
+		// target-native course, and neither flipped another's. Moving a card
+		// between folders does not enable a capability, and neither does
 		// building on a different operating system: this constant is the only
 		// thing that does.
 		[[nodiscard]] constexpr auto shipped_device_authorization_capability() noexcept
 			-> application::device_authorization_capability
 		{
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
 			return { .Registered = true };
 #else
 			return { .Registered = false };
+#endif
+		}
+
+#if defined(BPR_BUILD_TESTING)
+		// [[BPR-0515]]. The one local denial the dev-tree gate composes.
+		//
+		// `application_device_authorization_unavailable` drives the shipped
+		// device selection and needs the connect to fail on the host, not at
+		// GitHub. macOS and Linux got that from the harness - sandbox-exec and
+		// a loopback-only network namespace - but [[BPR-0362]] exempts this
+		// test from the Windows AppContainer, so on Windows nothing stood in
+		// front of the network and the real flow reached `awaiting_authorization`
+		// against github.com once per run. Denying at the socket sidesteps the
+		// token the container could not grant: the wire is composed against a
+		// closed loopback port instead of the discovered system proxy, the
+		// connect is refused immediately, and all three platforms land on the
+		// same `failed` terminal without the expectation depending on what the
+		// host can reach.
+		//
+		// Port 1 is the denial. It is reserved, never bound by anything this
+		// application would talk to, and `proxy_candidates` under this policy
+		// offers it alone - no direct candidate and no fallback port - so there
+		// is no route by which a request could still leave the machine.
+		[[nodiscard]] auto denied_loopback_network() noexcept
+			-> adapters::github::detail::native_https_test_configuration
+		{
+			return { .ProxyHost = "127.0.0.1", .ProxyPort = 1U };
+		}
+#endif
+
+		/// \brief Describes whether this build offers the signed-out preview.
+		struct public_preview_capability
+		{
+			bool Available = false;
+		};
+
+		// RFC-BPR-0017's shipped selection, and the only thing that enables the
+		// signed-out reading mode. It is false on every platform in this
+		// candidate slice: [[BPR-0316]] flips macOS in its own slice once
+		// [[BPR-0306]] passes, and Linux and Windows stay unavailable until a
+		// target-native card of their own says otherwise ([[BPR-0314]],
+		// [[BPR-0315]]). The three branches are written out rather than
+		// collapsed so flipping one platform is one line and cannot flip
+		// another. Moving a card between folders does not enable a capability,
+		// and neither does building on a different operating system.
+		[[nodiscard]] constexpr auto shipped_public_preview_capability() noexcept
+			-> public_preview_capability
+		{
+#if defined(__APPLE__)
+			return { .Available = false };
+#elif defined(__linux__)
+			return { .Available = false };
+#elif defined(_WIN32)
+			return { .Available = false };
+#else
+			return { .Available = false };
 #endif
 		}
 
@@ -1984,6 +2729,401 @@ namespace bpr::app {
 			= application::ledger_store_failure::unavailable;
 	};
 
+	/// \brief Names one core promotion refusal for a reviewer to read.
+	///
+	/// \details Presentation wording lives at this boundary because the core
+	/// publishes none: `core::agent_finding_promotion_refusal` is a decision,
+	/// and how it is worded to a reviewer is not the core's business. Every
+	/// declared enumerator has a case, so a refusal added later fails to
+	/// compile here rather than reaching the reviewer as an empty string.
+	[[nodiscard]] constexpr auto promotion_refusal_name(
+		const core::agent_finding_promotion_refusal aRefusal) noexcept
+		-> std::string_view
+	{
+		switch (aRefusal) {
+		case core::agent_finding_promotion_refusal::none:
+			return "none";
+		case core::agent_finding_promotion_refusal::unknown_choice:
+			return "unknown_choice";
+		case core::agent_finding_promotion_refusal::dismissed:
+			return "dismissed";
+		case core::agent_finding_promotion_refusal::unanchored:
+			return "unanchored";
+		case core::agent_finding_promotion_refusal::stale:
+			return "stale";
+		case core::agent_finding_promotion_refusal::foreign_verdict:
+			return "foreign_verdict";
+		case core::agent_finding_promotion_refusal::malformed_finding:
+			return "malformed_finding";
+		case core::agent_finding_promotion_refusal::unnamed_target:
+			return "unnamed_target";
+		case core::agent_finding_promotion_refusal::anchor_elsewhere:
+			return "anchor_elsewhere";
+		case core::agent_finding_promotion_refusal::boundary_anchor:
+			return "boundary_anchor";
+		case core::agent_finding_promotion_refusal::no_suggested_comment:
+			return "no_suggested_comment";
+		}
+		return "unknown";
+	}
+
+	/// \brief The Qt action a composed finding gesture asks the host for.
+	[[nodiscard]] constexpr auto composed_finding_action(
+		const qt::finding_queue_action aAction) noexcept
+		-> application::agent_finding_action
+	{
+		switch (aAction) {
+		case qt::finding_queue_action::open_evidence:
+			return application::agent_finding_action::open_evidence;
+		case qt::finding_queue_action::ask_follow_up:
+			return application::agent_finding_action::ask_follow_up;
+		case qt::finding_queue_action::convert_to_draft_comment:
+			return application::agent_finding_action::convert_to_draft_comment;
+		case qt::finding_queue_action::convert_to_draft_defect:
+			return application::agent_finding_action::convert_to_draft_defect;
+		case qt::finding_queue_action::add_to_private_notes:
+			return application::agent_finding_action::add_to_private_notes;
+		case qt::finding_queue_action::dismiss:
+			return application::agent_finding_action::dismiss;
+		}
+		return application::agent_finding_action::open_evidence;
+	}
+
+	static_assert(
+		qt::finding_queue_action_count == application::agent_finding_action_count,
+		"the composed finding vocabulary and the queue's must stay one list");
+
+	/// \brief Writes one frozen review projection the MCP helper may serve.
+	///
+	/// \details The same values the invocation request freezes for anchor
+	/// validation, written once so the helper answers about exactly what the
+	/// agent was asked about. The layout is the one
+	/// `adapters::mcp::mcp_context_helper` reads: a `binding` line, an
+	/// `alignment` record, and a `files` directory the helper resolves inside.
+	[[nodiscard]] auto freeze_mcp_snapshot(
+		const std::filesystem::path&                          aRoot,
+		const std::string&                                    aBinding,
+		const std::vector<core::agent_finding_snapshot_file>& aFiles) -> bool
+	{
+		auto error = std::error_code{ };
+		std::filesystem::remove_all(aRoot, error);
+		std::filesystem::create_directories(aRoot / "files", error);
+		if (error) {
+			return false;
+		}
+		const auto hex = [](const auto& aIdentity) {
+			constexpr auto digits = std::string_view{ "0123456789abcdef" };
+			auto           text   = std::string{ };
+			for (const auto byte : aIdentity.bytes()) {
+				text.push_back(digits[static_cast<std::size_t>(byte) >> 4U]);
+				text.push_back(digits[static_cast<std::size_t>(byte) & 0x0FU]);
+			}
+			return text;
+		};
+		auto binding = std::ofstream{ aRoot / "binding", std::ios::binary };
+		binding << aBinding << '\n';
+		auto alignment = std::ofstream{ aRoot / "alignment", std::ios::binary };
+		for (const auto& file : aFiles) {
+			alignment << "file\t" << file.Path << '\n'
+					  << "comparison\t" << hex(file.Comparison) << '\n'
+					  << "left_line_count\t" << file.LeftLineCount << '\n'
+					  << "right_line_count\t" << file.RightLineCount << '\n';
+			for (const auto& segment : file.Segments) {
+				alignment << "segment\t" << hex(segment) << '\n';
+			}
+			for (const auto& group : file.Groups) {
+				alignment << "group\t" << hex(group) << '\n';
+			}
+			for (const auto& move : file.Moves) {
+				alignment << "move\t" << hex(move) << '\n';
+			}
+		}
+		return binding.good() && alignment.good();
+	}
+
+	/// \brief Carries every invocation projection onward, findings included.
+	///
+	/// \details The launch panel stays the invocation surface it already is;
+	/// this adds one edge, from the host's typed finding delivery to the
+	/// composed finding host. It is deliberately the *only* new edge out of the
+	/// agent host: there is no path from here to the review-mutation
+	/// coordinator, and RFC-BPR-0012's "no private backchannel" is that absence
+	/// rather than a check somewhere downstream.
+	class composition_agent_invocation_projection final
+		: public application::agent_invocation_projection_port
+	{
+	public:
+		using finding_sink = std::function<void(
+			const application::agent_invocation_projection_identity&,
+			const application::agent_finding_delivery&)>;
+		using session_sink = std::function<void(const core::agent_session&)>;
+		/// \brief BPR-0538. One turn, ended, with how it ended.
+		///
+		/// \details The third sink, and the last one this projection needs: a
+		/// press learns that its turn is over from the turn itself. A poll
+		/// would have to decide how often to ask and would still be wrong
+		/// between two asks.
+		using run_sink = std::function<void(
+			const application::agent_invocation_projection_identity&,
+			const application::agent_run_result&)>;
+
+		composition_agent_invocation_projection(
+			application::agent_invocation_projection_port& aPanel,
+			finding_sink                                   aFindings,
+			session_sink                                   aSessions,
+			run_sink                                       aRuns)
+			: Panel{ aPanel }
+			, Findings{ std::move(aFindings) }
+			, Sessions{ std::move(aSessions) }
+			, Runs{ std::move(aRuns) }
+		{
+		}
+
+		void offer(const std::span<const core::agent_profile> aProfiles) override
+		{
+			Panel.offer(aProfiles);
+		}
+
+		void refuse(const std::string_view aReason) override
+		{
+			Panel.refuse(aReason);
+		}
+
+		void admit(
+			const application::agent_invocation_projection_identity& aIdentity)
+			override
+		{
+			Panel.admit(aIdentity);
+			// The one place an agent session identity is allocated. The chat
+			// host learns the session its turn actually runs under from here
+			// rather than keeping one of its own, so the delivery this run
+			// produces is keyed to the session the chat is holding.
+			if (Sessions) {
+				Sessions(aIdentity.Session);
+			}
+		}
+
+		void start(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::prepared_workspace&                   aWorkspace) override
+		{
+			Panel.start(aIdentity, aWorkspace);
+		}
+
+		void stream(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::agent_stream_event&                   aEvent) override
+		{
+			Panel.stream(aIdentity, aEvent);
+		}
+
+		void finish(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::agent_run_result&                     aResult) override
+		{
+			Panel.finish(aIdentity, aResult);
+			// The one place a turn is known to be over. A press taken out on
+			// this turn is answered by now or is never going to be, and either
+			// way the turn it was waiting for has stopped running.
+			if (Runs) {
+				Runs(aIdentity, aResult);
+			}
+		}
+
+		void deliver_findings(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::agent_finding_delivery&               aDelivery) override
+		{
+			Panel.deliver_findings(aIdentity, aDelivery);
+			if (Findings) {
+				Findings(aIdentity, aDelivery);
+			}
+		}
+
+		void present_session_catalog(
+			const application::agent_session_catalog_projection& aProjection)
+			override
+		{
+			Panel.present_session_catalog(aProjection);
+		}
+
+	private:
+		application::agent_invocation_projection_port& Panel;
+		finding_sink                                   Findings;
+		session_sink                                   Sessions;
+		run_sink                                       Runs;
+	};
+
+	/// \brief Forwards chat state and chat outcomes to their surfaces.
+	///
+	/// \details The same shape `composition_agent_finding_projection` already
+	/// uses: the host decides, this carries the decision to the widget that
+	/// shows it. There is no branch here that starts anything.
+	class composition_agent_chat_projection final
+		: public application::agent_chat_projection_port
+	{
+	public:
+		using state_sink
+			= std::function<void(const application::agent_chat_projection&)>;
+		using outcome_sink
+			= std::function<void(const application::agent_chat_outcome&)>;
+		using clear_sink = std::function<void()>;
+
+		composition_agent_chat_projection(
+			state_sink aState, outcome_sink aOutcome, clear_sink aClear)
+			: State{ std::move(aState) }
+			, Outcome{ std::move(aOutcome) }
+			, Clear{ std::move(aClear) }
+		{
+		}
+
+		void present(
+			const application::agent_chat_projection& aProjection) override
+		{
+			if (State) {
+				State(aProjection);
+			}
+		}
+
+		void present(const application::agent_chat_outcome& aOutcome) override
+		{
+			if (Outcome) {
+				Outcome(aOutcome);
+			}
+		}
+
+		void clear() override
+		{
+			if (Clear) {
+				Clear();
+			}
+		}
+
+	private:
+		state_sink   State;
+		outcome_sink Outcome;
+		clear_sink   Clear;
+	};
+
+	/// \brief Forwards finding deliveries and outcomes to their surfaces.
+	class composition_agent_finding_projection final
+		: public application::agent_finding_projection_port
+	{
+	public:
+		using delivery_sink
+			= std::function<void(const application::agent_finding_delivery&)>;
+		using outcome_sink
+			= std::function<void(const application::agent_finding_outcome&)>;
+		using clear_sink = std::function<void()>;
+
+		composition_agent_finding_projection(
+			delivery_sink aDelivered, outcome_sink aAnswered, clear_sink aCleared)
+			: Delivered{ std::move(aDelivered) }
+			, Answered{ std::move(aAnswered) }
+			, Cleared{ std::move(aCleared) }
+		{
+		}
+
+		void present(const application::agent_finding_delivery& aDelivery) override
+		{
+			if (Delivered) {
+				Delivered(aDelivery);
+			}
+		}
+
+		void present(const application::agent_finding_outcome& aOutcome) override
+		{
+			if (Answered) {
+				Answered(aOutcome);
+			}
+		}
+
+		void clear() override
+		{
+			if (Cleared) {
+				Cleared();
+			}
+		}
+
+	private:
+		delivery_sink Delivered;
+		outcome_sink  Answered;
+		clear_sink    Cleared;
+	};
+
+	/// \brief One comment-workshop press, and the turn it started.
+	///
+	/// \details BPR-0533. The reviewer's question, held from the press until
+	/// the answer to *that* turn arrives. `Draft` and `Operation` are what was
+	/// asked and about what; `Session` is which agent turn was started to
+	/// answer it, learned from the one place a session identity is allocated
+	/// and absent only in the window between the dispatch and that admission.
+	///
+	/// The session is what makes the pairing explicit. Without it, the next
+	/// revision to arrive from anywhere — a finding a reviewer promoted while
+	/// the workshop turn was still running — would be labelled with an
+	/// operation that never produced it, and the reviewer would read a
+	/// before/after answering a question nobody asked about that text.
+	struct pending_comment_workshop
+	{
+		core::review_draft_id                 Draft;
+		core::workshop_operation              Operation = core::workshop_operation::clarify;
+		std::optional<core::agent_session_id> Session;
+
+		/// BPR-0538. True while the turn this press started is still running.
+		/// It is what shuts the six controls, and it stops being true when
+		/// that turn ends — not when its answer is converted, which may never
+		/// happen. A record that outlives its turn still names which operation
+		/// the outcome came from; it no longer claims a turn is running.
+		bool Running = true;
+
+		/// True once that turn has delivered a finding of its own: something
+		/// the reviewer can still convert into the revision this press asked
+		/// for. A turn that ends without one has produced no revision and none
+		/// is coming, which is the whole of what this flag decides.
+		bool Delivered = false;
+
+		auto operator<=>(const pending_comment_workshop&) const = default;
+	};
+
+	/// \brief Forwards one proposed revision, or the reason there is none.
+	class composition_comment_workshop_projection final
+		: public application::agent_comment_workshop_projection_port
+	{
+	public:
+		using proposal_sink = std::function<void(
+			const application::agent_comment_workshop_proposal&)>;
+		using refusal_sink
+			= std::function<void(application::agent_comment_workshop_refusal)>;
+
+		composition_comment_workshop_projection(
+			proposal_sink aProposed, refusal_sink aRefused)
+			: Proposed{ std::move(aProposed) }
+			, Refused{ std::move(aRefused) }
+		{
+		}
+
+		void present(
+			const application::agent_comment_workshop_proposal& aProposal) override
+		{
+			if (Proposed) {
+				Proposed(aProposal);
+			}
+		}
+
+		void refuse(
+			const application::agent_comment_workshop_refusal aRefusal) override
+		{
+			if (Refused) {
+				Refused(aRefusal);
+			}
+		}
+
+	private:
+		proposal_sink Proposed;
+		refusal_sink  Refused;
+	};
+
 	/// \brief Forwards selected diff terminals and observes accepted availability.
 	class composition_diff_projection final
 		: public application::diff_projection_port
@@ -2023,6 +3163,94 @@ namespace bpr::app {
 		application::diff_projection_port* Target = nullptr;
 		publication_sink                   Publication;
 	};
+
+#if defined(BPR_BUILD_TESTING)
+	// How many renewals the refresh course means to drive, which is how many
+	// waits the clock below is allowed to skip. Two, because one rotation
+	// succeeds whether or not the rotation keeps the material it stored, and
+	// only the second says the renewal chain survived the first.
+	constexpr auto device_refresh_course_rotations = std::size_t{ 2U };
+
+	// How far one of those steps moves the clock: the whole wait a renewal is
+	// armed for, less one second. The wait is the fixture grant's eight-hour
+	// access-token lifetime less the host's default five-minute renewal lead,
+	// so a step of that size exactly leaves the renewal due a second from now.
+	//
+	// [[BPR-0547]]. The second is deliberate and is the difference between
+	// testing the lifecycle and timing it. A rotation enrolls its new access
+	// token and arms the next renewal in the same turn, while the enrollment it
+	// just made is still travelling: the profile activates, the old session is
+	// invalidated, and the vault operations that follow decide what is left in
+	// the refresh slot. A renewal made due in that same instant outruns all of
+	// it and reads a slot nothing has had the chance to touch yet, which is a
+	// race the shipped product never runs -- there the next renewal is eight
+	// hours after the supersession has long settled. A second is a thousandfold
+	// margin over the few posts that supersession costs, and it costs the two
+	// rotations this course drives two seconds.
+	//
+	// If either constant it is derived from moves, this becomes an ordinary
+	// step: too large and the renewal is due at once and races again, too small
+	// and the course waits out its budget and says so.
+	constexpr auto device_refresh_course_step = std::chrono::seconds{
+		28'800 - 300 - 1,
+	};
+
+	// A one-way step forward, applied once per renewal the host arms and at
+	// most `Steps` times. The port requires a monotonic reading -- a clock that
+	// stepped back would let a poll outrun its interval -- so each offset
+	// latches and stays rather than being added and removed around a call.
+	//
+	// [[BPR-0547]]. It steps per arming rather than once, because a course that
+	// proves renewal works more than once needs a second wait skipped and the
+	// second one is armed by the host itself rather than by composition. Every
+	// re-arm runs the same three steps in one turn: capture `AuthorizedAt` from
+	// this clock, raise the rotation count, then read this clock again to work
+	// out how much of the new lifetime is already spent. So the armings this
+	// composition can count -- the first bind, and every rotation after it --
+	// each fall strictly inside that window, and the offset that lands there
+	// makes the second read a whole lifetime past the capture beside it: the
+	// renewal is due now. Stepping on every rotation forever would rotate for
+	// as long as the run lasts and no count could be pinned, so the steps are
+	// capped at what the course drives; the arming after the last one keeps its
+	// real eight hours, which is what leaves the run reporting `scheduled`
+	// instead of being read mid-rotation.
+	class composition_device_refresh_clock final
+		: public application::device_authorization_clock_port
+	{
+	public:
+		composition_device_refresh_clock(
+			std::unique_ptr<application::device_authorization_clock_port> aInner,
+			std::function<std::size_t()>                                  aArmings,
+			const std::chrono::milliseconds                               aOffset,
+			const std::size_t                                             aSteps)
+			: Inner{ std::move(aInner) }
+			, Armings{ std::move(aArmings) }
+			, Offset{ aOffset }
+			, Steps{ aSteps }
+		{
+		}
+
+		[[nodiscard]] auto observe_monotonic() noexcept
+			-> std::chrono::milliseconds override
+		{
+			const auto observed = Inner->observe_monotonic();
+			if (Armings) {
+				// Never fewer steps than are already applied: the reading owes
+				// its monotonicity to this clock, not to what it counts.
+				Applied = std::min(std::max(Applied, Armings()), Steps);
+			}
+			return observed
+				+ Offset * static_cast<std::chrono::milliseconds::rep>(Applied);
+		}
+
+	private:
+		std::unique_ptr<application::device_authorization_clock_port> Inner;
+		std::function<std::size_t()>                                  Armings;
+		std::chrono::milliseconds                                     Offset{ 0 };
+		std::size_t                                                   Steps   = 0U;
+		std::size_t                                                   Applied = 0U;
+	};
+#endif
 
 	class github_application::implementation final
 		: public application::github_epoch_handoff_port,
@@ -2098,6 +3326,17 @@ namespace bpr::app {
 				}
 			}
 #if defined(BPR_BUILD_TESTING)
+			// [[BPR-0515]]. Adopted outside the fixture branch below, because
+			// the gate this exists for selects no fixture: it drives the
+			// shipped composition and only wants the connect denied.
+			NetworkDenied = aConfig.NetworkDenied;
+			// [[BPR-0316]]. Read outside the fixture branch below, because
+			// this is the one option that means something without a fixture:
+			// it forces the shipped selection available over the production
+			// composition rather than over recorded traffic.
+			PublicPreviewSelectionAvailable
+				= aFixtureOptions.PublicPreviewSelectionAvailable
+				&& !aFixture.has_value();
 			if (aFixture.has_value()) {
 				DisableWorkbenchSelectionWire
 					= aFixtureOptions.DisableWorkbenchSelectionWire;
@@ -2117,10 +3356,31 @@ namespace bpr::app {
 					= aFixtureOptions.DisableAgentHostComposition;
 				DisableAgentGestureWire
 					= aFixtureOptions.DisableAgentGestureWire;
+				DisableAgentFindingHostComposition
+					= aFixtureOptions.DisableAgentFindingHostComposition;
+				DisableChatSessionHostComposition
+					= aFixtureOptions.DisableChatSessionHostComposition;
+				DisableCommentWorkshopComposition
+					= aFixtureOptions.DisableCommentWorkshopComposition;
+				DisableMcpHelperComposition
+					= aFixtureOptions.DisableMcpHelperComposition;
+				DisableSideChatPanelComposition
+					= aFixtureOptions.DisableSideChatPanelComposition;
+				DisableFindingQueueComposition
+					= aFixtureOptions.DisableFindingQueueComposition;
 				ExternalAgentExecutable
 					= aFixtureOptions.ExternalAgentExecutable;
+				CodexAgentExecutable   = aFixtureOptions.CodexAgentExecutable;
 				RegisteredDeviceCourse = aFixtureOptions.RegisteredDeviceCourse;
-				const auto host        = fixture_host(*aFixture);
+				DeviceRefreshCourse    = aFixtureOptions.DeviceRefreshCourse;
+				SuppressDeviceBrowser  = aFixtureOptions.SuppressDeviceBrowser;
+				DisableDeviceAuthorizationPanelComposition
+					= aFixtureOptions
+						  .DisableDeviceAuthorizationPanelComposition;
+				PublicPreviewEnabledCourse
+					= aFixtureOptions.PublicPreviewEnabledCourse;
+				PublicPreviewGhesCourse = aFixtureOptions.PublicPreviewGhesCourse;
+				const auto host         = fixture_host(*aFixture);
 				append_profile(
 					Profiles,
 					ProfileOptions,
@@ -2223,6 +3483,57 @@ namespace bpr::app {
 				throw std::runtime_error{ "GitHub provider composition failed" };
 			}
 			Provider = std::move(*provider);
+
+			// RFC-BPR-0017's credential-free read authority, over the same
+			// profiles and the same transport factory. A second provider
+			// rather than a mode on the first one: the authority is fixed at
+			// construction, so no request can decay from authenticated into
+			// anonymous or back, and the GHES, viewer-identity, GraphQL and
+			// mutation refusals happen inside it before a request is built.
+			//
+			// Constructed in both profiles and on every platform, including
+			// the ones whose selection is unavailable. Construction sends
+			// nothing; what the selection below decides is whether the host is
+			// ever given this authority at all.
+			//
+			// [[BPR-0316]]. The live candidate replaces the factory for this
+			// second provider alone, with one that names the shipped
+			// anonymous entry, counts what reaches the wire, and refuses both
+			// credentialed entries. The authenticated provider above keeps the
+			// factory it had, so this changes what the signed-out authority is
+			// built from and nothing else. What the anonymous provider was
+			// actually constructed with is kept below, so the evidence is a
+			// pointer identity rather than a claim about a call site.
+			AnonymousTransportFactory = TransportFactory;
+#if defined(BPR_BUILD_TESTING)
+			if (PublicPreviewSelectionAvailable) {
+				ShippedAnonymousTransports
+					= std::make_shared<shipped_anonymous_wire_transport_factory>();
+				AnonymousTransportFactory = ShippedAnonymousTransports;
+			}
+#endif
+			auto anonymousProvider = make_github_provider(
+				std::span<const validated_github_host_profile* const>{
+					profilePointers },
+				ProviderEffects,
+				AnonymousTransportFactory,
+				adapters::github::detail::github_provider_read_authority::
+					anonymous_public);
+			if (!anonymousProvider.has_value()) {
+				throw std::runtime_error{
+					"Anonymous GitHub provider composition failed"
+				};
+			}
+			AnonymousProvider = std::move(*anonymousProvider);
+			CountedAnonymousPullRequests
+				= std::make_unique<counting_anonymous_pull_requests>(
+					*AnonymousProvider);
+			// One profile carries the signed-out mode, and it is the
+			// GitHub.com one: `make_native_https_anonymous_smart_transport`
+			// refuses every other server contract before a transport exists.
+			AnonymousSmartGit
+				= std::make_unique<anonymous_git_smart_transport_factory>(
+					Profiles.front());
 
 #if defined(BPR_BUILD_TESTING)
 			if (Fixture == nullptr)
@@ -2356,6 +3667,17 @@ namespace bpr::app {
 				[this](core::review_draft_command aCommand) {
 					dispatch_review_draft(std::move(aCommand));
 				});
+			// BPR-0533. The six comment-workshop controls reach the composed
+			// workshop host and nothing else: the editor asks for an operation
+			// on one exact draft, and this composition is what decides whether
+			// there is anything to answer with. The widget holds no host, no
+			// agent, and no revision of its own.
+			if (Window->review_editor() != nullptr) {
+				Window->review_editor()->set_workshop_dispatch(
+					[this](qt::comment_workshop_request aRequest) {
+						ask_comment_workshop(aRequest);
+					});
+			}
 			Window->comparison_surface()->set_selection_sink(
 				[this](const std::optional<core::semantic_selection>& aSelection) {
 					observe_review_selection(aSelection);
@@ -2463,7 +3785,94 @@ namespace bpr::app {
 				|| within(cachePath, agentWorkspacePath)) {
 				throw std::runtime_error{ "Agent workspace root crosses Git cache" };
 			}
+			// The one new edge out of the agent host. The launch panel still
+			// receives every projection it already did; this adds the typed
+			// finding delivery, and nothing else. There is deliberately no
+			// path from here to the review-mutation coordinator: RFC-BPR-0012's
+			// "no private backchannel" is that absence rather than a check
+			// somewhere downstream.
+			AgentProjections
+				= std::make_unique<composition_agent_invocation_projection>(
+					*Window->agent_panel(),
+					[this](
+						const application::
+							agent_invocation_projection_identity&  aIdentity,
+						const application::agent_finding_delivery& aDelivery) {
+						static_cast<void>(aIdentity);
+						if (Closing) {
+							return;
+						}
+						if (FindingHost != nullptr) {
+							FindingHost->deliver(aDelivery);
+						}
+						// The chat's reply is this same validated value, at
+						// this same seam. There is no second delivery edge for
+						// a chat turn, so nothing a chat receives can bypass
+						// the finding bounds this one enforces.
+						if (ChatHost != nullptr) {
+							ChatHost->deliver(aDelivery);
+						}
+						// BPR-0538. Whether the turn a press is waiting on has
+						// produced anything the reviewer could still convert.
+						// Recorded from the delivery rather than inferred at
+						// the terminal, because by then the payload is gone.
+						if (PendingWorkshopOperation.has_value()
+							&& PendingWorkshopOperation->Session.has_value()
+							&& *PendingWorkshopOperation->Session
+								== aDelivery.Session
+							&& !aDelivery.Findings.empty()) {
+							PendingWorkshopOperation->Delivered = true;
+						}
+					},
+					[this](const core::agent_session& aSession) {
+						if (Closing) {
+							return;
+						}
+						if (ChatHost != nullptr) {
+							ChatHost->admitted(aSession);
+						}
+						// The same seam, for the same reason. A workshop press
+						// learns which turn is answering it here rather than
+						// keeping an identity of its own, so the outcome the
+						// operation is spent on is the outcome of the turn the
+						// press actually started. Only a press still waiting
+						// for a turn takes one: a session admitted for the
+						// launch panel or the chat while a workshop turn is
+						// already running belongs to neither.
+						if (PendingWorkshopOperation.has_value()
+							&& !PendingWorkshopOperation->Session.has_value()) {
+							PendingWorkshopOperation->Session = aSession.Id;
+						}
+					},
+					// BPR-0538. The third sink, and the one this composition
+					// was missing: the turn a press started has ended. Until
+					// it existed the six controls stayed shut behind "a
+					// workshop turn is already running" long after the turn
+					// stopped running, and only an unrelated draft edit
+					// reopened them.
+					[this](
+						const application::agent_invocation_projection_identity&
+															 aIdentity,
+						const application::agent_run_result& aResult) {
+						if (Closing) {
+							return;
+						}
+						settle_comment_workshop(
+							aIdentity.Session.Id, aResult.Outcome);
+					});
 			auto agentProfiles = core::built_in_agent_profiles();
+			// Stated once and given to both hosts. The chat host asks
+			// `core::decide_agent_action` the same host-policy question the
+			// launch host already asks, and two lists written apart are two
+			// answers waiting to differ.
+			const auto agentPolicies = std::vector<core::agent_host_policy>{
+				core::built_in_agent_policy(
+					core::git_host_id{ 1U },
+					core::built_in_agent_host_kind::github_com),
+				core::built_in_agent_policy(
+					core::git_host_id{ 2U },
+					core::built_in_agent_host_kind::explicit_ghes),
+			};
 #if defined(BPR_BUILD_TESTING)
 			if (ExternalAgentExecutable.has_value()) {
 				const auto external = std::ranges::find(
@@ -2472,6 +3881,15 @@ namespace bpr::app {
 					&core::agent_profile::Id);
 				if (external != agentProfiles.end()) {
 					external->Executable = ExternalAgentExecutable->string();
+				}
+			}
+			if (CodexAgentExecutable.has_value()) {
+				const auto codex = std::ranges::find(
+					agentProfiles,
+					core::codex_jsonl_profile_id,
+					&core::agent_profile::Id);
+				if (codex != agentProfiles.end()) {
+					codex->Executable = CodexAgentExecutable->string();
 				}
 			}
 #endif
@@ -2490,16 +3908,17 @@ namespace bpr::app {
 			if (!DisableAgentHostComposition && AgentProcessProbe != nullptr)
 #endif
 			{
+				// BPR-0532. The re-alignment a continued turn asks for, served
+				// by the same two ports a fresh alignment resolves and
+				// materializes through, so one revision cannot be aligned two
+				// ways. Composed with the chat host, because it is only a
+				// continued turn of that host's that ever asks for one.
+				Realigner
+					= std::make_unique<application::composed_agent_realignment>(
+						*EpochHost, *EpochHost);
 				AgentHost = std::make_unique<application::agent_invocation_host>(
-					std::move(agentProfiles),
-					std::vector<core::agent_host_policy>{
-						core::built_in_agent_policy(
-							core::git_host_id{ 1U },
-							core::built_in_agent_host_kind::github_com),
-						core::built_in_agent_policy(
-							core::git_host_id{ 2U },
-							core::built_in_agent_host_kind::explicit_ghes),
-					},
+					agentProfiles,
+					agentPolicies,
 					agentWorkspacePath,
 					*this,
 					*EpochHost,
@@ -2516,7 +3935,7 @@ namespace bpr::app {
 					},
 					AgentEffects,
 					DecisionLane,
-					*Window->agent_panel());
+					*AgentProjections);
 			}
 			Window->set_agent_dispatch(
 				[this](qt::agent_intent aIntent) {
@@ -2527,6 +3946,189 @@ namespace bpr::app {
 #endif
 					dispatch_agent_intent(std::move(aIntent));
 				});
+			// RFC-BPR-0012 composition, here rather than anywhere else and
+			// under the same fixture and production split the agent host and
+			// the review-mutation host already use. A surface built in one of
+			// the two graphs is a claim about the other one nobody checks.
+			auto mcpHelper = std::filesystem::path{ };
+#if defined(BPR_BUILD_TESTING)
+			mcpHelper = std::filesystem::path{ BPR_MCP_HELPER_EXECUTABLE };
+#else
+			mcpHelper = std::filesystem::path{
+				QCoreApplication::applicationDirPath().toStdString()
+			} / "tool_better_pull_review_mcp_context_helper";
+#endif
+			// Its own launcher rather than the agent's. `cancel` is a launcher
+			// operation, and one shared between an agent run and a helper
+			// lifetime would stop whichever the reviewer did not mean.
+			McpProcess      = std::make_unique<adapters::agent::agent_process_launcher>();
+			McpSnapshotRoot = ApplicationDataRoot / "mcp-snapshot";
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableMcpHelperComposition)
+#endif
+			{
+				McpHelper = std::make_unique<
+					application::mcp_context_helper_supervisor>(
+					std::move(mcpHelper),
+					*McpProcess,
+					McpEffects,
+					DecisionLane);
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableSideChatPanelComposition)
+#endif
+			{
+				// BPR-0513: the window places both panels in its conversations
+				// drawer, so the composition here is the one edge that matters
+				// — the dispatch. A panel this branch skips stays on screen and
+				// stays inert, because a widget nobody handed a dispatch to has
+				// nowhere to send anything.
+				SideChat = Window->side_chat();
+				SideChat->set_dispatch([this](qt::side_chat_intent aIntent) {
+					dispatch_side_chat_intent(std::move(aIntent));
+				});
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableFindingQueueComposition)
+#endif
+			{
+				FindingQueue = Window->finding_queue();
+				FindingQueue->set_dispatch(
+					[this](qt::finding_action_intent aIntent) {
+						dispatch_finding_intent(std::move(aIntent));
+					});
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableDeviceAuthorizationPanelComposition)
+#endif
+			{
+				// [[BPR-0526]], on exactly the terms above. The window mounted
+				// the panel in its review header; the composition adopts it and
+				// wires its two edges — gestures out through the device host,
+				// presentations in through the fan-out below, which reads
+				// `DevicePanel` on every publication. Skipping this branch
+				// leaves a panel that is drawn, is inert, and is never told
+				// anything.
+				DevicePanel = Window->device_authorization();
+				Window->set_device_authorization_dispatch(
+					[this](application::device_authorization_gesture aGesture) {
+						dispatch_device_authorization_gesture(aGesture);
+					});
+			}
+			FindingProjections
+				= std::make_unique<composition_agent_finding_projection>(
+					[this](const application::agent_finding_delivery& aDelivery) {
+						if (FindingQueue != nullptr) {
+							FindingQueue->present(aDelivery);
+						}
+					},
+					[this](const application::agent_finding_outcome& aOutcome) {
+						present_finding_outcome(aOutcome);
+					},
+					[this]() {
+						if (FindingQueue != nullptr) {
+							FindingQueue->present(
+								application::agent_finding_delivery{ });
+						}
+					});
+			WorkshopProjections
+				= std::make_unique<composition_comment_workshop_projection>(
+					[this](
+						const application::agent_comment_workshop_proposal&
+							aProposal) {
+						if (Window == nullptr
+							|| Window->review_editor() == nullptr) {
+							return;
+						}
+						++CommentWorkshopProposals;
+						Window->review_editor()->present(
+							qt::comment_workshop_proposal{
+								.Draft     = aProposal.Draft,
+								.Original  = aProposal.Original,
+								.Proposed  = aProposal.Proposed,
+								.Operation = aProposal.Operation,
+							});
+					},
+					[this](
+						const application::agent_comment_workshop_refusal
+							aRefusal) {
+						present_agent_refusal(
+							"comment workshop", application::name(aRefusal));
+					});
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableCommentWorkshopComposition)
+#endif
+			{
+				WorkshopHost = std::make_unique<
+					application::agent_comment_workshop_host>(
+					*WorkshopProjections);
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableAgentFindingHostComposition)
+#endif
+			{
+				FindingHost = std::make_unique<application::agent_finding_host>(
+					[this]() -> application::review_ledger_store_port* {
+						return ReviewLedger.get();
+					},
+					*FindingProjections);
+			}
+			// RFC-BPR-0012's chat *session*, under the same fixture and
+			// production split every other agent host here uses. The turn it
+			// produces is handed to `dispatch_agent_invocation` — the one
+			// launch path in this file — so a chat send and a launch-panel
+			// start are the same launch, the same protocol, and the same
+			// frozen snapshot findings are delivered from.
+			ChatProjections
+				= std::make_unique<composition_agent_chat_projection>(
+					[this](const application::agent_chat_projection& aChat) {
+						present_side_chat(aChat);
+					},
+					[this](const application::agent_chat_outcome& aOutcome) {
+						present_chat_outcome(aOutcome);
+					},
+					[this]() {
+						if (SideChat != nullptr) {
+							++SideChatPresentations;
+							SideChat->present(qt::side_chat_projection{ });
+						}
+					});
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableChatSessionHostComposition)
+#endif
+			{
+				ChatHost
+					= std::make_unique<application::agent_chat_session_host>(
+						agentProfiles,
+						agentPolicies,
+						core::codex_jsonl_profile_id,
+						[this](const application::agent_chat_turn_request&
+								   aTurn) -> bool {
+#if defined(BPR_BUILD_TESTING)
+							LastChatTurn = aTurn;
+#endif
+							// The reviewer's own words, from the send intent
+							// the chat host validated, handed to the same
+							// launch path a start gesture uses. This is the
+							// only call site that passes a message.
+							return dispatch_agent_invocation(
+								aTurn.Session.Profile,
+								aTurn.IncludeNotes
+									? all_private_note_ids()
+									: std::vector<application::local_note_id>{ },
+								aTurn.IncludeDraft ? current_agent_draft_choice()
+												   : std::nullopt,
+								false,
+								aTurn.Message,
+								aTurn.Session,
+								core::agent_entry_point::ask_about_selection,
+								std::nullopt);
+						},
+						[this]() -> application::agent_chat_private_prose {
+							return current_chat_private_prose();
+						},
+						*ChatProjections);
+			}
 			Window->epoch_selectors()->set_dispatch(
 				[this](application::epoch_intent aIntent) { dispatch_epoch_intent(std::move(aIntent)); });
 			DiffProjections = std::make_unique<composition_diff_projection>(
@@ -2584,6 +4186,59 @@ namespace bpr::app {
 					};
 				});
 
+			// One port, two readers, exactly as the device projection below:
+			// the recording sink is told first and unconditionally, so every
+			// self-test marker reads what it read before a window was in the
+			// picture, and the window is told the same thing afterwards.
+			//
+			// Composed on every platform, registered or not. The signed-out
+			// mode being unavailable is a typed answer a reviewer must see,
+			// not a silence, so the projection is bound even where the
+			// authorities below are withheld.
+			PublicPreviewProjectionFanOut = std::make_unique<
+				composition_public_preview_projection>(
+				PublicPreviewProjections,
+				[this](const application::public_preview_presentation&
+						   aPresentation) {
+					if (Window == nullptr) {
+						return;
+					}
+					Window->set_public_preview_now(public_preview_now());
+					Window->publish(aPresentation);
+				});
+			// The shipped selection. Unavailable on every platform in this
+			// slice, which is what makes `activate_public_preview` answer
+			// `public_preview_unavailable` before the core is asked anything:
+			// a null authority is the composition fact the host reports.
+			auto publicPreview = shipped_public_preview_capability();
+#if defined(BPR_BUILD_TESTING)
+			// The forced courses. A tests-enabled build with the recorded
+			// fixture overrides the shipped selection so the composed
+			// anonymous authority runs through the real host, the real
+			// provider and the real anonymous admission rules, which is the
+			// only place "no header, no vault, and a public snapshot" can be
+			// observed rather than argued.
+			if ((PublicPreviewEnabledCourse || PublicPreviewGhesCourse)
+				&& Fixture != nullptr) {
+				publicPreview = public_preview_capability{ .Available = true };
+			}
+			// [[BPR-0316]]. The same override with no fixture underneath it:
+			// the authority handed to the host is the production one, so a
+			// read issued through it leaves the machine. Nothing here issues
+			// one; the run driving the composition decides that.
+			if (PublicPreviewSelectionAvailable && Fixture == nullptr) {
+				publicPreview = public_preview_capability{ .Available = true };
+			}
+#endif
+			PublicPreviewComposed = publicPreview.Available;
+			// The session fan-out. The window keeps its place at the front, and
+			// composition reads acceptances behind it so the device host's
+			// refresh authority can be bound the moment one exists.
+			GithubProjectionFanOut = std::make_unique<composition_github_projection>(
+				*Window,
+				[this](const application::github_presentation_update& aUpdate) {
+					bind_device_refresh_authority(aUpdate);
+				});
 			Host = std::make_unique<application::github_application_host>(
 				initial_github_state(),
 				*Provider,
@@ -2593,10 +4248,35 @@ namespace bpr::app {
 				credential_vault(),
 				CredentialBindings,
 				DecisionLane,
-				*Window,
+				*GithubProjectionFanOut,
 				application::github_credential_shutdown_policy::
 					delete_retained_on_shutdown,
-				this);
+				this,
+				PublicPreviewComposed
+					? static_cast<application::github_pull_request_port*>(
+						  CountedAnonymousPullRequests.get())
+					: nullptr,
+				PublicPreviewComposed
+					? static_cast<application::git_smart_transport_factory_port*>(
+						  AnonymousSmartGit.get())
+					: nullptr,
+				PublicPreviewProjectionFanOut.get());
+			// The switch-to-sign-in gesture, end to end. The ring in the
+			// review header dispatches it, the host names the profile the
+			// signed-out session was activated for, and the device flow for
+			// that same profile begins -- so sign-in returns the reviewer to
+			// the pull request they were reading rather than to a picker.
+			Host->set_public_preview_sign_in(
+				[this](const core::host_profile_id aProfile) {
+					begin_public_preview_sign_in(aProfile);
+				});
+			if (Window->session_panel() != nullptr) {
+				Window->session_panel()->set_public_preview_dispatch(
+					[this](application::public_preview_gesture aGesture) {
+						static_cast<void>(aGesture);
+						Host->request_public_preview_sign_in();
+					});
+			}
 
 			// The device-authorization path. It is composed on every platform,
 			// registered or not, because the visible choice and its typed
@@ -2618,6 +4298,47 @@ namespace bpr::app {
 					*DeviceEnrollment);
 #endif
 			DeviceClock = application::make_system_device_authorization_clock();
+#if defined(BPR_BUILD_TESTING)
+			// [[BPR-0536]]. The one input a fixture cannot supply is time.
+			// A renewal is armed a lead before an eight-hour access token
+			// expires, and no course can wait that out; the transport seam
+			// beside this one replaces the network, and this replaces the
+			// wait. Tests-enabled only, and composed only under the refresh
+			// course, so a shipped image has one clock and it is the system's.
+			//
+			// It steps on the binding rather than on the authorized stage. The
+			// host captures `AuthorizedAt` from this same clock at the moment
+			// the stage turns, so an offset that stepped there would move both
+			// ends of `elapsed` and change nothing. Composition's
+			// `bind_refresh_authority` falls strictly between that capture and
+			// the `schedule_refresh` that reads the clock again, which is the
+			// only window where a one-way step shortens the wait to zero.
+			//
+			// [[BPR-0547]]. The host arms every renewal after the first one for
+			// itself, and composition is told about it only once the timer is
+			// already set -- too late to shorten anything. What it can read in
+			// time is the host's own live rotation count, which the re-arm
+			// raises inside that same window, between the capture and the read.
+			// So the armings are the bind plus the rotations, and each one buys
+			// one more step until the course has the rotations it drives.
+			if (DeviceRefreshCourse && Fixture != nullptr) {
+				DeviceClock = std::make_unique<composition_device_refresh_clock>(
+					std::move(DeviceClock),
+					[this]() noexcept -> std::size_t {
+						const auto bound = DeviceRefreshBindings > 0U
+							? std::size_t{ 1U }
+							: std::size_t{ 0U };
+						if (DeviceHost == nullptr) {
+							return bound;
+						}
+						return bound
+							+ static_cast<std::size_t>(
+								   DeviceHost->refresh_observation().Rotations);
+					},
+					device_refresh_course_step,
+					device_refresh_course_rotations);
+			}
+#endif
 			// The shipped selection. A registered platform composes the real
 			// credential-free wire bound to the recorded distributable client;
 			// an unregistered platform composes the refusing transport whose
@@ -2631,17 +4352,30 @@ namespace bpr::app {
 				= application::device_authorization_capability{ .Registered
 																= false };
 			if constexpr (shipped_device_authorization_capability().Registered) {
-				auto deviceWire = adapters::github::detail::
-					make_native_https_credential_free_transport(
-						Profiles.front(),
-						core::github_session_request_context{
-							.Request            = core::request_id{ 907U },
-							.ApplicationSession = core::application_session_id{
-								908U },
-							.Profile            = Profiles.front().profile(),
-							.IdentityGeneration = core::github_identity_generation{
-								909U },
-						});
+				const auto deviceContext = core::github_session_request_context{
+					.Request            = core::request_id{ 907U },
+					.ApplicationSession = core::application_session_id{ 908U },
+					.Profile            = Profiles.front().profile(),
+					.IdentityGeneration = core::github_identity_generation{ 909U },
+				};
+				auto deviceWire = [this, &deviceContext]() {
+#if defined(BPR_BUILD_TESTING)
+					// [[BPR-0515]]. The same binding, the same credential-free
+					// request, the same headers - only the proxy policy differs,
+					// and it differs into a closed port. Selected by nothing but
+					// `--network-denied`, which exists only here.
+					if (NetworkDenied) {
+						return adapters::github::detail::
+							make_native_https_credential_free_transport_for_test(
+								Profiles.front(),
+								deviceContext,
+								denied_loopback_network());
+					}
+#endif
+					return adapters::github::detail::
+						make_native_https_credential_free_transport(
+							Profiles.front(), deviceContext);
+				}();
 				if (deviceWire.has_value()) {
 					auto deviceAdapter = adapters::github::detail::
 						make_github_device_authorization_transport(
@@ -2655,6 +4389,15 @@ namespace bpr::app {
 						deviceTransport     = DeviceWireTransport.get();
 						deviceCapability
 							= shipped_device_authorization_capability();
+						// The identity is registered for one host, and the
+						// wire above is bound to that host's profile. The
+						// capability names the same profile so the host can
+						// refuse a begin for any other one before it builds
+						// a request ([[BPR-0535]]); the picker can bind the
+						// mounted panel to a GHES profile, and this is what
+						// keeps that gesture out of GitHub.com's flow.
+						deviceCapability.Profile
+							= Profiles.front().profile();
 					}
 				}
 			}
@@ -2665,14 +4408,62 @@ namespace bpr::app {
 			// enrollment boundary, and the real vault, which is the only place
 			// "exactly one enrollment, and no settings or SQLite copy" can be
 			// observed rather than argued.
-			if (RegisteredDeviceCourse && Fixture != nullptr) {
+			if (RegisteredDeviceCourse && Fixture != nullptr
+				&& !Profiles.empty()) {
 				deviceTransport  = &Fixture->device_authorization_transport();
 				deviceCapability = application::device_authorization_capability{
-					.Registered = true
+					.Registered = true,
+					// The same profile the course begins for, by the same
+					// rule as the shipped selection above.
+					.Profile = Profiles.front().profile(),
 				};
 			}
 #endif
 			DeviceCapabilityRegistered = deviceCapability.Registered;
+			// The browser handoff, under the same seam as the transport above
+			// and for the same reason: the shipped graph gets the real
+			// capability, a tests-enabled graph gets a recording one. The
+			// seam is total here rather than fixture-conditional, because a
+			// fixture transport that is reached by mistake writes a line to a
+			// log and a browser that is opened by mistake opens a browser.
+			//
+			// `SystemBrowser` is constructed either way. Its constructor is
+			// the anchor `verify_composed_hosts.py` requires in both
+			// profiles, so a build that stopped composing the opener fails
+			// the audit rather than silently going back to answering
+			// `unavailable` forever, which is the defect [[BPR-0516]] found.
+#if defined(BPR_BUILD_TESTING)
+			auto* deviceBrowser = SuppressDeviceBrowser
+				? nullptr
+				: static_cast<application::device_authorization_browser_port*>(
+					  &RecordingBrowser);
+#else
+			auto* deviceBrowser
+				= static_cast<application::device_authorization_browser_port*>(
+					&SystemBrowser);
+#endif
+			DeviceBrowserComposed = deviceBrowser != nullptr;
+			// One port, two readers. The recording sink keeps its place at the
+			// front of the fan-out, so every existing device contract still
+			// observes the identical sequence of publications; the mounted
+			// panel is told the same thing afterwards when the composition
+			// adopted one.
+			DeviceProjectionFanOut = std::make_unique<
+				composition_device_authorization_projection>(
+				DeviceProjections,
+				[this](
+					const application::device_authorization_presentation&
+						aPresentation) {
+					observe_device_stage(aPresentation);
+					if (DevicePanel != nullptr) {
+						DevicePanel->apply(aPresentation);
+					}
+				},
+				[this](
+					const application::device_authorization_refresh_observation&
+						aObservation) {
+					observe_device_refresh(aObservation);
+				});
 			DeviceHost = std::make_unique<
 				application::device_authorization_application_host>(
 				initial_device_authorization_state(),
@@ -2682,14 +4473,14 @@ namespace bpr::app {
 				*DeviceClock,
 				DeviceTimer,
 				DecisionLane,
-				DeviceProjections,
+				*DeviceProjectionFanOut,
 				application::device_authorization_host_limits{ },
 				application::device_authorization_browser_handoff{
-					// No browser capability is composed in this slice. A build
-					// that cannot start a flow has nothing to open, and the
-					// host reports `unavailable` for the handoff rather than
-					// inventing an address.
-					.Browser   = nullptr,
+					// Null only under the construction cut, where the host
+					// reports `unavailable` rather than inventing an address.
+					// The authority travels with the pointer so a profile
+					// that is not GitHub.com cannot inherit GitHub.com's.
+					.Browser   = deviceBrowser,
 					.Authority = std::string{
 						application::default_device_verification_authority },
 				},
@@ -2908,6 +4699,44 @@ namespace bpr::app {
 			return 0U;
 		}
 
+		// [[BPR-0539]]. What that one store holds. The count alone is
+		// satisfied by any enrollment, and before this course stopped
+		// connecting first the enrollment it counted was the fixture's own
+		// connect credential -- so the identity of the stored material is
+		// reported beside the count, and the comparison against the recorded
+		// grant is made where both are known.
+		[[nodiscard]] auto device_vault_stored_digest() const -> std::string
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr && RegisteredDeviceCourse) {
+				return Fixture->evidence().VaultStoredDigest;
+			}
+#endif
+			return { };
+		}
+
+		[[nodiscard]] auto device_vault_stored_is_grant() const -> bool
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr && RegisteredDeviceCourse) {
+				return Fixture->evidence().VaultStoredIsDeviceGrant;
+			}
+#endif
+			return false;
+		}
+
+		// Only the recording opener counts. The shipped opener's evidence is a
+		// browser window a person sees on a station, which this process has no
+		// way to observe and must not claim to.
+		[[nodiscard]] auto device_browser_opens() const noexcept -> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			return RecordingBrowser.opens();
+#else
+			return 0U;
+#endif
+		}
+
 		[[nodiscard]] auto device_enrollments() const noexcept -> std::size_t
 		{
 #if defined(BPR_BUILD_TESTING)
@@ -2916,6 +4745,182 @@ namespace bpr::app {
 			}
 #endif
 			return 0U;
+		}
+
+		// RFC-BPR-0017 evidence. Three exclusive answers, read from the host
+		// rather than inferred from the presentation: the composition refusal,
+		// the core policy's refusal, and the mode actually entered.
+		[[nodiscard]] auto public_preview_unavailable() const noexcept -> bool
+		{
+			if (Host == nullptr) {
+				return true;
+			}
+			const auto& refusal = Host->public_preview_refusal();
+			return refusal.has_value()
+				&& refusal->Cause
+				== application::github_public_preview_refusal_cause::
+					public_preview_unavailable;
+		}
+
+		[[nodiscard]] auto public_preview_policy_refused() const noexcept -> bool
+		{
+			if (Host == nullptr) {
+				return false;
+			}
+			const auto& refusal = Host->public_preview_refusal();
+			return refusal.has_value()
+				&& refusal->Cause
+				== application::github_public_preview_refusal_cause::
+					policy_refused;
+		}
+
+		[[nodiscard]] auto public_preview_signed_out() const noexcept -> bool
+		{
+			return Host != nullptr
+				&& Host->access_mode()
+				== core::github_access_mode::public_preview;
+		}
+
+		[[nodiscard]] auto public_preview_requests() const noexcept -> std::size_t
+		{
+			return CountedAnonymousPullRequests == nullptr
+				? 0U
+				: CountedAnonymousPullRequests->reads();
+		}
+
+		// Authenticated transports the session selected during the run. A
+		// signed-out read builds neither, so any non-zero value here is an
+		// authorization header this mode is not allowed to have sent.
+		[[nodiscard]] auto public_preview_header_effects() const noexcept
+			-> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr) {
+				const auto evidence = Fixture->evidence();
+				return (evidence.BootstrapTransportSelected ? 1U : 0U)
+					+ (evidence.AccountTransportSelected ? 1U : 0U);
+			}
+#endif
+			return 0U;
+		}
+
+		// Credential operations that crossed the vault boundary during the
+		// run. A signed-out read consults no vault, so this is zero or the
+		// mode reached for a credential it must not have.
+		[[nodiscard]] auto public_preview_vault_effects() const noexcept
+			-> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr) {
+				const auto evidence = Fixture->evidence();
+				return evidence.VaultStores
+					+ (evidence.CredentialRetrieved ? 1U : 0U)
+					+ (evidence.CredentialDeleted ? 1U : 0U);
+			}
+#endif
+			return 0U;
+		}
+
+		// [[BPR-0316]] live-candidate evidence. The claim is about what the
+		// anonymous provider was built from, so it is answered by comparing
+		// what that provider was constructed with against the shipped factory
+		// this composition made. A composition that handed the provider any
+		// other object -- a fixture seam, a loopback twin -- fails the
+		// comparison without anyone having to remember to update a flag.
+		[[nodiscard]] auto public_preview_production_factories() const noexcept
+			-> bool
+		{
+#if defined(BPR_BUILD_TESTING)
+			return ShippedAnonymousTransports != nullptr
+				&& AnonymousTransportFactory.get()
+				== static_cast<github_wire_transport_factory_port*>(
+					   ShippedAnonymousTransports.get())
+				&& AnonymousSmartGit != nullptr && Fixture == nullptr;
+#else
+			return false;
+#endif
+		}
+
+		[[nodiscard]] auto public_preview_wire_requests() const noexcept
+			-> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			return ShippedAnonymousTransports == nullptr
+				? 0U
+				: ShippedAnonymousTransports->requests();
+#else
+			return 0U;
+#endif
+		}
+
+		[[nodiscard]] auto public_preview_wire_capability_probes() const noexcept
+			-> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			return ShippedAnonymousTransports == nullptr
+				? 0U
+				: ShippedAnonymousTransports->capability_probes();
+#else
+			return 0U;
+#endif
+		}
+
+		[[nodiscard]] auto public_preview_wire_credentialed_refusals()
+			const noexcept -> std::size_t
+		{
+#if defined(BPR_BUILD_TESTING)
+			return ShippedAnonymousTransports == nullptr
+				? 0U
+				: ShippedAnonymousTransports->credentialed_refusals();
+#else
+			return 0U;
+#endif
+		}
+
+		[[nodiscard]] auto public_preview_wire_operations() const
+			-> std::vector<public_preview_wire_operation_record>
+		{
+#if defined(BPR_BUILD_TESTING)
+			return ShippedAnonymousTransports == nullptr
+				? std::vector<public_preview_wire_operation_record>{ }
+				: ShippedAnonymousTransports->operations();
+#else
+			return { };
+#endif
+		}
+
+		// The shared hourly core budget, taken from the rate-limit headers the
+		// session carries rather than from any body.
+		[[nodiscard]] auto public_preview_budget() const noexcept
+			-> std::optional<application::github_rate_limit_record>
+		{
+			return Host == nullptr ? std::nullopt : Host->rate_limits().Core;
+		}
+
+		// The accepted snapshot's own discriminant, not the session's: a
+		// snapshot accepted under an authenticated authority answers false
+		// here even where the session says signed out.
+		[[nodiscard]] auto public_preview_snapshot_signed_out() const noexcept
+			-> bool
+		{
+			if (Host == nullptr) {
+				return false;
+			}
+			const auto& snapshot = Host->accepted_snapshot();
+			return snapshot.has_value()
+				&& snapshot->Mode == core::github_access_mode::public_preview;
+		}
+
+		[[nodiscard]] auto public_preview_snapshot_head_oid() const
+			-> std::string
+		{
+			if (Host == nullptr) {
+				return { };
+			}
+			const auto& snapshot = Host->accepted_snapshot();
+			return snapshot.has_value()
+				? std::string{ snapshot->PullRequest.HeadOid.value() }
+				: std::string{ };
 		}
 
 		[[nodiscard]] auto device_transport_submissions() const noexcept
@@ -2976,6 +4981,140 @@ namespace bpr::app {
 #endif
 		}
 
+		// [[BPR-0536]]. The one place the device host learns which vault slot
+		// its renewable material belongs to, and the only caller that may name
+		// one: the key is minted inside `github_application_host` when an
+		// authenticated `/user` observation is accepted, and composition reads
+		// it rather than assembling one.
+		//
+		// Bound only after this run's device flow authorized. A profile signed
+		// in with a token the reviewer pasted has no renewable material and no
+		// renewal chain to lose, and telling its panel to renew would end in a
+		// vault that answers `absent` and a reviewer told to authorize again
+		// for no reason.
+		//
+		// An acceptance with no authorized stage behind it is the restart: the
+		// credential was re-established from what the vault already held, so
+		// renewal continues from the entry rather than starting over -- but
+		// only once the host says an entry is there. The guard is exact key
+		// equality against a key we actually acted on, so a republication that
+		// names the same slot does nothing once armed and everything before.
+		// [[BPR-0550]]. The memo `bind_device_refresh_authority` keeps records
+		// which slot this composition already bound the device host to, so a
+		// republication naming the same one costs nothing. A second grant in one
+		// run establishes its own session, and for the same account that session
+		// names the same slot -- the memo would early return, and the material
+		// the new grant parked in the host would never be flushed, because the
+		// host released the previous binding when the new flow began.
+		//
+		// Reaching `authorized` is the moment a grant exists that no binding has
+		// been made for. The memo is dropped there, on the transition rather
+		// than on the level, so the acceptance that follows rebinds exactly once
+		// and a stage that merely stays authorized rebinds nothing.
+		void observe_device_stage(
+			const application::device_authorization_presentation& aPresentation)
+		{
+			const auto authorized = aPresentation.Stage
+				== core::device_authorization_stage::authorized;
+			if (authorized && !DeviceStageAuthorized) {
+				DeviceRefreshAuthority.reset();
+			}
+			DeviceStageAuthorized = authorized;
+		}
+
+		void bind_device_refresh_authority(
+			const application::github_presentation_update& aUpdate)
+		{
+			if (
+				Closing || Host == nullptr || DeviceHost == nullptr
+				|| Profiles.empty() || !aUpdate.Session.has_value()) {
+				return;
+			}
+			if (aUpdate.Session->Profile != Profiles.front().profile()) {
+				return;
+			}
+			const auto authority = Host->accepted_credential_authority();
+			if (!authority.has_value()) {
+				return;
+			}
+			// [[BPR-0546]]. The slot's authority and the identity generation
+			// that owns it travel together. The device host's own state carries
+			// the generation this composition seeded the device flow with,
+			// which is zero and stays zero, and every platform vault refuses a
+			// context carrying it -- so before this the composed refresh
+			// lifecycle stored nothing on any platform.
+			const auto generation = Host->accepted_identity_generation();
+			if (generation.value() == 0U) {
+				return;
+			}
+			if (
+				DeviceRefreshAuthority.has_value()
+				&& *DeviceRefreshAuthority == *authority) {
+				return;
+			}
+			if (
+				DeviceHost->state().Stage
+				== core::device_authorization_stage::authorized) {
+				DeviceRefreshAuthority = *authority;
+				++DeviceRefreshBindings;
+				DeviceHost->bind_refresh_authority(*authority, generation);
+				return;
+			}
+			// The restart. Nothing about this run says a device flow happened,
+			// so the question goes to the host that owns the vault: is there
+			// material beside this credential that renews it? Only a device
+			// grant leaves any, so an affirmative answer is the enrollment
+			// evidence the stage cannot supply after a restart.
+			if (!Host->accepted_credential_renewable()) {
+				// A pasted token, or an answer the vault has not given yet.
+				// Nothing is recorded either way, so the republication that
+				// follows a settled answer is still free to act.
+				return;
+			}
+			DeviceRefreshAuthority = *authority;
+			++DeviceRefreshResumes;
+			DeviceHost->resume_refresh(*authority, generation);
+		}
+
+		// Renewal, as presentation is told it. The panel is the reader that
+		// matters; the counters are what a composed course states.
+		void observe_device_refresh(
+			const application::device_authorization_refresh_observation&
+				aObservation)
+		{
+			DeviceRefreshObservation = aObservation;
+			++DeviceRefreshPublications;
+			if (DevicePanel != nullptr) {
+				DevicePanel->apply_refresh(aObservation);
+			}
+		}
+
+		// The mounted panel's one way out. Beginning and cancelling are core
+		// intents and reach the host's transition lane; opening a browser is
+		// not an intent and reaches the host's handoff directly. Qt never opens
+		// an address itself, so this is the only place a device gesture becomes
+		// an effect.
+		void dispatch_device_authorization_gesture(
+			const application::device_authorization_gesture& aGesture)
+		{
+			if (Closing || DeviceHost == nullptr) {
+				return;
+			}
+			if (const auto* const begin
+				= std::get_if<core::begin_device_authorization_intent>(
+					&aGesture)) {
+				DeviceHost->dispatch(*begin);
+				return;
+			}
+			if (const auto* const cancel
+				= std::get_if<core::cancel_device_authorization_intent>(
+					&aGesture)) {
+				DeviceHost->dispatch(*cancel);
+				return;
+			}
+			DeviceHost->open_verification_address();
+		}
+
 		// The same typed intent the device panel dispatches. Composition owns
 		// the profile it names, because the panel is given one rather than
 		// choosing one.
@@ -2989,6 +5128,85 @@ namespace bpr::app {
 			});
 		}
 
+		// One activation, from the composed graph, naming one profile. The
+		// enterprise selection is a different claim from the GitHub.com one --
+		// the core policy refuses it rather than the composition -- so it is
+		// asked for by name rather than inferred from a hostname.
+		void activate_public_preview(const bool aEnterprise)
+		{
+			if (Closing || Host == nullptr || Profiles.empty()) {
+				return;
+			}
+			const auto* selected = &Profiles.front();
+			if (aEnterprise) {
+				selected = nullptr;
+				for (const auto& profile : Profiles) {
+					if (profile.server_contract()
+						!= application::github_server_contract::
+							github_com_2022_11_28) {
+						selected = &profile;
+						break;
+					}
+				}
+			}
+			if (selected == nullptr) {
+				return;
+			}
+			Host->activate_public_preview(selected->profile());
+		}
+
+		// One write and one triage intent, offered to the mode and answered by
+		// the core policy alone. `public_preview_legality` is a pure question:
+		// it reaches no provider, asks for no transport and builds no request,
+		// so the refusals counted here cost exactly the zero requests the
+		// markers beside them report.
+		void attempt_public_preview_writes()
+		{
+			if (Host == nullptr) {
+				return;
+			}
+			constexpr std::array intents{
+				core::anonymous_read_intent::publish_review_comment,
+				core::anonymous_read_intent::set_viewed_file_state,
+			};
+			for (const auto intent : intents) {
+				if (std::holds_alternative<core::anonymous_intent_refused>(
+						Host->public_preview_legality(intent))) {
+					++PublicPreviewWriteRefusals;
+				}
+			}
+		}
+
+		// The instant the signed-out presentation is measured from. The window
+		// reads no clock of its own, so composition hands it one on every
+		// publication; a presentation that carries the host's own instant
+		// overrides it. Seconds since the epoch, because that is what the
+		// budget's reset is expressed in.
+		[[nodiscard]] static auto public_preview_now() noexcept -> std::uint64_t
+		{
+			const auto now = std::chrono::duration_cast<std::chrono::seconds>(
+								 std::chrono::system_clock::now()
+									 .time_since_epoch())
+								 .count();
+			return now <= 0 ? 0U : static_cast<std::uint64_t>(now);
+		}
+
+		// Where the switch-to-sign-in gesture lands. The host names the
+		// profile the signed-out session was activated for, so the flow that
+		// begins is the one that returns the reviewer to the pull request they
+		// were already reading. It is the same typed intent the device panel
+		// dispatches; nothing here knows how the flow works.
+		void begin_public_preview_sign_in(const core::host_profile_id aProfile)
+		{
+			++PublicPreviewSignInRequests;
+			if (Closing || DeviceHost == nullptr || aProfile.value() == 0U) {
+				return;
+			}
+			DeviceHost->dispatch(core::begin_device_authorization_intent{
+				.Profile = aProfile,
+			});
+		}
+
 		// The same typed intent the device panel dispatches for the user's
 		// cancel. The probe uses it to end a registered platform's real flow
 		// at `awaiting_authorization`, which no unregistered composition can
@@ -2999,6 +5217,18 @@ namespace bpr::app {
 				return;
 			}
 			DeviceHost->dispatch(core::cancel_device_authorization_intent{ });
+		}
+
+		// The same request the device panel's "Open browser" action makes.
+		// Not a core intent: opening a browser decides nothing about the
+		// grant, so it reaches the host directly and the host republishes
+		// what happened without a transition ([[BPR-0280]]).
+		void open_device_verification_address()
+		{
+			if (Closing || DeviceHost == nullptr) {
+				return;
+			}
+			DeviceHost->open_verification_address();
 		}
 
 		void dispatch_workbench_intent(
@@ -4295,6 +6525,41 @@ namespace bpr::app {
 					: std::nullopt);
 		}
 
+		/// \brief What the reviewer is pointing at, in RFC-BPR-0004 identities.
+		///
+		/// \details Read from the alignment on screen, and only when the
+		/// selection and the published comparison are the same one. **There is
+		/// no coordinate here and none reachable from here**: a file identity
+		/// and a semantic selection are the whole of it.
+		[[nodiscard]] auto current_agent_chat_selection() const
+			-> std::optional<core::agent_selection>
+		{
+			if (Window == nullptr || !SelectedDiffPublication.has_value()) {
+				return std::nullopt;
+			}
+			const auto&       selected  = *SelectedDiffPublication;
+			const auto* const workbench = Window->comparison_surface();
+			if (
+				workbench == nullptr || !workbench->selection().has_value()
+				|| workbench->current_result() == nullptr
+				|| workbench->current_result()->Alignment.Key != selected.Key
+				|| workbench->selection()->Comparison
+					!= workbench->current_result()->Alignment.Digest) {
+				return std::nullopt;
+			}
+			return core::agent_selection{
+				.File      = selected.Request.File.File,
+				.Selection = *workbench->selection(),
+			};
+		}
+
+		void clear_side_chat()
+		{
+			if (ChatHost != nullptr) {
+				ChatHost->clear();
+			}
+		}
+
 		void refresh_agent_authority()
 		{
 			if (AgentHost == nullptr || EpochHost == nullptr || Window == nullptr) {
@@ -4304,6 +6569,7 @@ namespace bpr::app {
 			if (!state.Authority.has_value() || !state.AcceptedRevision.has_value()
 				|| !state.AcceptedComparison.has_value() || !AgentReview.has_value()) {
 				AgentHost->clear();
+				clear_side_chat();
 				return;
 			}
 			const auto& authority  = *state.Authority;
@@ -4313,6 +6579,7 @@ namespace bpr::app {
 				|| authority.Repository != AgentReview->Repository
 				|| authority.PullRequest != AgentReview->PullRequest) {
 				AgentHost->clear();
+				clear_side_chat();
 				return;
 			}
 			AgentHost->observe(
@@ -4328,6 +6595,24 @@ namespace bpr::app {
 					.RightEpoch  = comparison.Right.Identity.Epoch,
 				});
 			refresh_agent_private_context_choices();
+			const auto observedBinding = core::agent_revision_binding{
+				.Host        = authority.Host,
+				.Repository  = authority.Repository,
+				.PullRequest = authority.PullRequest,
+				.BaseOid     = revision.Base,
+				.HeadOid     = revision.Head,
+				.LeftEpoch   = comparison.Left.Identity.Epoch,
+				.RightEpoch  = comparison.Right.Identity.Epoch,
+			};
+			if (ChatHost != nullptr) {
+				// Recorded, never retargeted. The chat host presents itself
+				// through its own projection, so a head that moved makes the
+				// session stale on screen instead of quietly re-pointing it.
+				ChatHost->observe_selection(current_agent_chat_selection());
+				ChatHost->observe(observedBinding);
+			} else {
+				present_side_chat(observedBinding);
+			}
 			Window->agent_panel()->disclose_scope(
 				QStringLiteral(
 					"The selected agent receives the exact accepted PR/diff identities, "
@@ -4350,13 +6635,73 @@ namespace bpr::app {
 				AgentHost->cancel();
 				return;
 			}
-			const auto  start = std::get<qt::start_agent_intent>(aIntent);
+			const auto start = std::get<qt::start_agent_intent>(aIntent);
+			// A start gesture is not a chat turn, so it asks nothing: the
+			// supplement's message stays empty on this path.
+			static_cast<void>(dispatch_agent_invocation(
+				start.Profile,
+				start.IncludedNotes,
+				start.IncludedDraft,
+				start.ExistingCheckoutChosen,
+				std::string_view{ },
+				std::nullopt,
+				core::agent_entry_point::ask_about_selection,
+				std::nullopt));
+		}
+
+		/// \brief The one launch path, and there is deliberately no second.
+		///
+		/// \details Both the launch panel's start gesture and the side chat's
+		/// send arrive here, so the agent host's own `dispatch` has exactly one
+		/// call site in this file. A chat that had grown its own launch would have its own
+		/// workspace, its own frozen snapshot, and its own answer about the
+		/// same revision; `application_agent_chat_composition_contract` reads
+		/// this file and fails if a second call site appears.
+		///
+		/// `aChatMessage` is what the reviewer typed for this turn, and is
+		/// empty for every gesture that is not a chat send. It is an argument
+		/// rather than something read from the chat host here, so the one place
+		/// a question enters an invocation is a value passed at a call site a
+		/// reader can see.
+		///
+		/// `aTurnSession` is the session a chat turn is sent under, and is
+		/// absent for the launch panel's start gesture. When that session is
+		/// bound to a revision the review has moved away from — which is what
+		/// RFC-BPR-0012's `continue_against_old_revision` leaves behind — the
+		/// revision *it* names is the one everything below composes from.
+		///
+		/// `aEntryPoint` is the reviewer gesture this turn is for, and
+		/// `aWorkshopOperation` is which of the six comment-workshop
+		/// operations was pressed. Both are arguments for the same reason
+		/// `aChatMessage` is: the one place a gesture's intent enters an
+		/// invocation is a value passed at a call site a reader can see.
+		/// `build_agent_context_supplement` refuses an operation the entry
+		/// point does not admit, so a workshop operation cannot ride along on
+		/// a start gesture or a chat send.
+		///
+		/// \returns Whether exactly one invocation was dispatched. A refusal is
+		/// already named on the launch panel before this returns `false`.
+		[[nodiscard]] auto dispatch_agent_invocation(
+			const core::agent_profile_id                          aProfile,
+			const std::vector<application::local_note_id>&        aIncludedNotes,
+			const std::optional<application::agent_draft_choice>& aIncludedDraft,
+			const bool                                            aExistingCheckoutChosen,
+			const std::string_view                                aChatMessage,
+			const std::optional<core::agent_session>&             aTurnSession,
+			const core::agent_entry_point                         aEntryPoint,
+			const std::optional<core::workshop_operation>&        aWorkshopOperation)
+			-> bool
+		{
+			if (Closing || AgentHost == nullptr || EpochHost == nullptr
+				|| Window == nullptr) {
+				return false;
+			}
 			const auto& state = EpochHost->state();
 			if (!state.Authority.has_value() || !state.AcceptedRevision.has_value()
 				|| !state.AcceptedComparison.has_value() || !AgentReview.has_value()
 				|| ReviewLedgerHost == nullptr) {
 				Window->agent_panel()->refuse("no exact accepted review context");
-				return;
+				return false;
 			}
 			const auto& authority          = *state.Authority;
 			const auto& revision           = *state.AcceptedRevision;
@@ -4366,7 +6711,7 @@ namespace bpr::app {
 				auto observed = ReviewLedgerHost->private_observation();
 				if (!observed.has_value()) {
 					Window->agent_panel()->refuse("private review context is unavailable");
-					return;
+					return false;
 				}
 				privateObservation = std::move(*observed);
 			}
@@ -4379,17 +6724,54 @@ namespace bpr::app {
 				.LeftEpoch   = comparison.Left.Identity.Epoch,
 				.RightEpoch  = comparison.Right.Identity.Epoch,
 			};
+			// RFC-BPR-0012's `continue_against_old_revision`, composed and not
+			// only kept. A chat turn whose session is bound to a revision the
+			// epoch host has moved past is a question about *that* revision,
+			// so the revision it names — not the one under review — is what
+			// this invocation is built from. The next line is the whole of it;
+			// without it the turn would be framed from the current head while
+			// still naming the older session, and `agent_invocation_host`
+			// refuses that disagreement as
+			// `agent_continuation_binding_mismatch`.
+			const auto continuing
+				= aTurnSession.has_value() && aTurnSession->Binding != binding;
+			auto turnBinding = binding;
+			if (continuing) {
+				turnBinding = aTurnSession->Binding;
+			}
 			auto observation = application::agent_context_observation{
 				.ApplicationSession = state.ApplicationSession,
-				.Binding            = binding,
+				.Binding            = turnBinding,
 				.PullRequestUrl     = "https://" + AgentReview->Hostname + "/"
 					+ AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name
 					+ "/pull/" + std::to_string(AgentReview->Number.value()),
-				.Private       = std::move(privateObservation),
-				.IncludedNotes = start.IncludedNotes,
-				.IncludedDraft = start.IncludedDraft,
+				.Private           = std::move(privateObservation),
+				.IncludedNotes     = aIncludedNotes,
+				.IncludedDraft     = aIncludedDraft,
+				.ChatMessage       = std::string{ aChatMessage },
+				.EntryPoint        = aEntryPoint,
+				.WorkshopOperation = aWorkshopOperation,
 			};
 			observation.CurrentDraft = current_agent_draft_observation();
+			// Which file, and where in it. The two are told apart because
+			// only one of them names a comparison. The file is a path and a
+			// review receipt, which belong to the file rather than to any pair
+			// of commits, so a continuation may say them: the turn is answered
+			// against the frozen snapshot of its own revision, and a finding
+			// that names no file cannot be anchored to one. BPR-0532.
+			//
+			// The semantic selection below is read off the alignment the
+			// reviewer is looking at, and its segments, groups, and comparison
+			// digest belong to the revision under review. Under a continuation
+			// that is a different revision than the one being asked about, so
+			// none of it is sent: carrying a newer comparison's identities
+			// beneath an older binding is the silent re-anchoring BPR-0521
+			// refused, and this card does not un-refuse it. What a
+			// continuation carries instead is the position the reviewer is
+			// pointing at — a side and a line and nothing identified — held
+			// here and said with the old revision's own identities once the
+			// re-alignment below has produced them.
+			auto pointedAt = std::optional<continuation_anchor>{ };
 			if (SelectedDiffPublication.has_value()) {
 				const auto& selected = *SelectedDiffPublication;
 				const auto  lock     = std::scoped_lock{ ReviewLedgerStateMutex };
@@ -4403,11 +6785,12 @@ namespace bpr::app {
 					});
 				}
 				const auto* const workbench = Window->comparison_surface();
-				if (workbench->selection().has_value()
+				const auto        pointing  = workbench->selection().has_value()
 					&& workbench->current_result() != nullptr
 					&& workbench->current_result()->Alignment.Key == selected.Key
 					&& workbench->selection()->Comparison
-						== workbench->current_result()->Alignment.Digest) {
+						== workbench->current_result()->Alignment.Digest;
+				if (pointing && !continuing) {
 					observation.Selection = core::supplement_semantic_context{
 						.File       = selected.Request.File.File,
 						.Selection  = *workbench->selection(),
@@ -4415,16 +6798,897 @@ namespace bpr::app {
 						.Segments   = workbench->current_result()->Alignment.Segments,
 						.Groups     = workbench->current_result()->Alignment.Groups,
 					};
+				} else if (pointing) {
+					pointedAt = continuation_anchor{
+						.File = selected.Request.File.File,
+						.Side = workbench->selection()->PreferredLine.Side,
+						.Line = workbench->selection()->PreferredLine.Line,
+					};
+				}
+			}
+			// A continuation asks for the old revision's alignment before it
+			// asks the agent anything, and asks for it off this gesture:
+			// recomputing an alignment queues behind whatever epoch work the
+			// review is already doing, and a gesture that waited for it would
+			// freeze the window for seconds. The reviewer's send returns here;
+			// the dispatch follows the answer.
+			if (continuing) {
+				return begin_continuation_realignment(
+					aProfile,
+					authority,
+					state.ApplicationSession,
+					std::move(observation),
+					aExistingCheckoutChosen,
+					*aTurnSession,
+					pointedAt);
+			}
+			return launch_agent_invocation(
+				aProfile,
+				authority,
+				state.ApplicationSession,
+				std::move(observation),
+				aExistingCheckoutChosen,
+				std::nullopt,
+				frozen_snapshot_files());
+		}
+
+		/// \brief Freezes one turn's identities, pins them, and dispatches it.
+		///
+		/// \details The tail every gesture reaches, whether it got here
+		/// straight from the composition above or from a re-alignment that
+		/// answered later. The agent host's own dispatch is called here and
+		/// nowhere else, which is the property
+		/// `application_agent_chat_composition_contract` reads this file for
+		/// by counting that call site — so this sentence deliberately does not
+		/// spell the token it counts.
+		///
+		/// The frozen snapshot is stated once and used twice: the host
+		/// validates every returned finding against it, and the MCP helper is
+		/// pinned to the same values on disk. Two answers about one revision
+		/// cannot disagree if they are one value. An empty list is a complete
+		/// answer rather than a missing one — every finding then arrives
+		/// unanchored — and it is what a continuation whose re-alignment was
+		/// refused is dispatched with.
+		[[nodiscard]] auto launch_agent_invocation(
+			const core::agent_profile_id                   aProfile,
+			const core::pull_request_authority&            aAuthority,
+			const core::application_session_id             aApplicationSession,
+			application::agent_context_observation         aObservation,
+			const bool                                     aExistingCheckoutChosen,
+			const std::optional<core::agent_session>&      aContinuedSession,
+			std::vector<core::agent_finding_snapshot_file> aFrozen) -> bool
+		{
+			if (Closing || AgentHost == nullptr) {
+				return false;
+			}
+			if (McpHelper != nullptr) {
+				const auto encoded = adapters::mcp::encode_revision_binding(
+					aObservation.Binding);
+				if (freeze_mcp_snapshot(McpSnapshotRoot, encoded, aFrozen)) {
+					++FrozenSnapshotWrites;
+					McpHelper->pin(McpSnapshotRoot, encoded);
 				}
 			}
 			AgentHost->dispatch(application::agent_invocation_request{
-				.ApplicationSession     = state.ApplicationSession,
-				.Authority              = authority,
-				.Profile                = start.Profile,
-				.Context                = std::move(observation),
-				.ExistingCheckoutChosen = start.ExistingCheckoutChosen,
+				.ApplicationSession     = aApplicationSession,
+				.Authority              = aAuthority,
+				.Profile                = aProfile,
+				.Context                = std::move(aObservation),
+				.ExistingCheckoutChosen = aExistingCheckoutChosen,
 				.ExistingCheckout       = ExistingCheckout,
+				.FrozenFiles            = std::move(aFrozen),
+				.ContinuedSession       = aContinuedSession,
 			});
+			return true;
+		}
+
+		/// \brief Where the reviewer is pointing, as a continuation may say it.
+		///
+		/// \details A file, a side, and a line number: the position, with
+		/// every identity of the revision on screen deliberately left behind.
+		/// The comparison digest, the segment, and the group that position
+		/// belongs to are the old revision's to state, and they are stated
+		/// once the re-alignment has recomputed them.
+		struct continuation_anchor
+		{
+			core::file_identity File;
+			core::diff_side     Side = core::diff_side::left;
+			std::uint32_t       Line = 0U;
+		};
+
+		/// \brief What one continued turn is waiting on its alignment to send.
+		struct pending_continuation
+		{
+			core::agent_profile_id                 Profile;
+			core::pull_request_authority           Authority;
+			core::application_session_id           ApplicationSession;
+			application::agent_context_observation Observation;
+			bool                                   ExistingCheckoutChosen = false;
+			core::agent_session                    Session;
+			std::optional<continuation_anchor>     PointedAt;
+		};
+
+		/// \brief Asks for the kept revision's own alignment, then dispatches.
+		///
+		/// \details BPR-0532. The reviewer kept a session bound to a revision
+		/// the review has moved past, so the identities this turn must be
+		/// answered against belong to that revision and not to the comparison
+		/// on screen. They are recomputed rather than retained: the request
+		/// below carries the current selection's authority, options, and file
+		/// and nothing else, and `realignment_lookup` retargets it onto the
+		/// kept binding's epoch pair.
+		///
+		/// Two bounds, both stated in the application layer rather than here:
+		/// `maximum_agent_realignment_files` and the request's own compute
+		/// limits — the limits a fresh alignment has — cap the work, and
+		/// `maximum_agent_realignment_wait` caps the wait. Past the wait the
+		/// request is stopped and the turn is dispatched with nothing frozen,
+		/// which is the same answer any other refusal produces. Nothing here
+		/// blocks and nothing here waits twice: the dispatch happens in the
+		/// completion below, once.
+		[[nodiscard]] auto begin_continuation_realignment(
+			const core::agent_profile_id              aProfile,
+			const core::pull_request_authority&       aAuthority,
+			const core::application_session_id        aApplicationSession,
+			application::agent_context_observation    aObservation,
+			const bool                                aExistingCheckoutChosen,
+			const core::agent_session&                aTurnSession,
+			const std::optional<continuation_anchor>& aPointedAt) -> bool
+		{
+			LastContinuationRealignmentRetargeted = false;
+			auto realignment
+				= std::optional<application::agent_realignment_request>{ };
+			if (Realigner != nullptr && SelectedDiffPublication.has_value()) {
+				const auto& selected = *SelectedDiffPublication;
+				// The warrant, asked of the host that owns the cache the
+				// recompute will read. The reviewer's own selected diff is
+				// authorized for the comparison on screen and nothing else, so
+				// a turn about an older pair is refused as stale unless the
+				// host has decided to answer for that pair; asking for the
+				// decision is what this is, and a host that declines leaves
+				// this turn on the documented empty freeze.
+				const auto warrant = EpochHost->realignment_context(
+					selected.Request.WorkbenchAuthority, aTurnSession.Binding);
+				if (!warrant.has_value()) {
+					return refuse_continuation_realignment(
+						pending_continuation{
+							.Profile                = aProfile,
+							.Authority              = aAuthority,
+							.ApplicationSession     = aApplicationSession,
+							.Observation            = std::move(aObservation),
+							.ExistingCheckoutChosen = aExistingCheckoutChosen,
+							.Session                = aTurnSession,
+							.PointedAt              = aPointedAt,
+						},
+						application::agent_realignment_refusal::host_failure);
+				}
+				realignment = application::agent_realignment_request{
+					.Binding            = aTurnSession.Binding,
+					.Context            = selected.Request.Context,
+					.WorkbenchAuthority = selected.Request.WorkbenchAuthority,
+					.Diff               = *warrant,
+					.Files              = { selected.Request.File },
+					.Options            = warrant->Options,
+					.Limits             = core::diff_compute_limits{ },
+				};
+				// Whether the retarget is a retarget at all. When the kept
+				// binding's pair is the pair already on screen this asks for
+				// what is already there, and a course that proved anything
+				// about re-alignment from such a turn would be proving
+				// nothing.
+				LastContinuationRealignmentRetargeted
+					= application::realignment_lookup(
+						  *realignment, realignment->Files.front())
+					!= selected.Request;
+			}
+			auto turn = pending_continuation{
+				.Profile                = aProfile,
+				.Authority              = aAuthority,
+				.ApplicationSession     = aApplicationSession,
+				.Observation            = std::move(aObservation),
+				.ExistingCheckoutChosen = aExistingCheckoutChosen,
+				.Session                = aTurnSession,
+				.PointedAt              = aPointedAt,
+			};
+			if (!realignment.has_value() || Window == nullptr) {
+				return refuse_continuation_realignment(
+					std::move(turn),
+					application::agent_realignment_refusal::host_failure);
+			}
+			auto        stop      = std::make_shared<std::stop_source>();
+			const auto  token     = stop->get_token();
+			auto* const realigner = Realigner.get();
+			auto* const lane      = &DecisionLane;
+			ContinuationRealignmentsInFlight.fetch_add(
+				1U, std::memory_order_release);
+			try {
+				AgentEffects.post(
+					[this,
+					 lane,
+					 realigner,
+					 token,
+					 asked   = *realignment,
+					 waiting = std::move(turn)]() mutable {
+						auto outcome = realigner->realign(asked, token);
+						try {
+							lane->post([this,
+										produced = std::move(outcome),
+										resumed  = std::move(waiting)]() mutable {
+								finish_continuation_realignment(
+									std::move(resumed), std::move(produced));
+							});
+						} catch (...) {
+							ContinuationRealignmentsInFlight.fetch_sub(
+								1U, std::memory_order_release);
+						}
+					});
+			} catch (...) {
+				ContinuationRealignmentsInFlight.fetch_sub(
+					1U, std::memory_order_release);
+				return refuse_continuation_realignment(
+					std::move(turn),
+					application::agent_realignment_refusal::host_failure);
+			}
+			LastContinuationRealignment = "pending";
+			ContinuationRealignmentStop = stop;
+			// The wall-clock bound, armed on the gesture and disarmed by the
+			// completion resetting the handle it compares against. A timer
+			// that arrives after its own turn finished belongs to no request
+			// and stops nothing.
+			QTimer::singleShot(
+				static_cast<int>(
+					application::maximum_agent_realignment_wait.count()),
+				Window.get(),
+				[this, stop] {
+					if (ContinuationRealignmentStop != stop) {
+						return;
+					}
+					ContinuationRealignmentDeadlineFired = true;
+					static_cast<void>(stop->request_stop());
+				});
+			return true;
+		}
+
+		/// \brief Dispatches a continued turn whose alignment was refused.
+		[[nodiscard]] auto refuse_continuation_realignment(
+			pending_continuation                         aTurn,
+			const application::agent_realignment_refusal aRefusal) -> bool
+		{
+			LastContinuationRealignment
+				= std::string{ application::stable_name(aRefusal) };
+			return launch_agent_invocation(
+				aTurn.Profile,
+				aTurn.Authority,
+				aTurn.ApplicationSession,
+				std::move(aTurn.Observation),
+				aTurn.ExistingCheckoutChosen,
+				aTurn.Session,
+				{ });
+		}
+
+		/// \brief Dispatches the continued turn its alignment answered for.
+		void finish_continuation_realignment(
+			pending_continuation                   aTurn,
+			application::agent_realignment_outcome aOutcome)
+		{
+			ContinuationRealignmentsInFlight.fetch_sub(
+				1U, std::memory_order_release);
+			const auto expired = ContinuationRealignmentDeadlineFired;
+			ContinuationRealignmentStop.reset();
+			ContinuationRealignmentDeadlineFired = false;
+			// The reason, recorded whether or not anything was frozen. A turn
+			// that froze nothing and a turn nobody asked to freeze anything
+			// are different events, and only a recorded reason tells them
+			// apart afterwards.
+			LastContinuationRealignment = expired
+				? std::string{ "deadline" }
+				: std::string{ application::stable_name(aOutcome.Refusal) };
+			if (Closing) {
+				return;
+			}
+			// Where the reviewer is pointing, said in the old revision's own
+			// terms. The position crossed over by line and side, which is a
+			// positional mapping and not an identity one, so the confidence
+			// stated is `approximate` and no segment or group identity is
+			// claimed: this composition did not compute one, and inventing an
+			// identity for a line is the whole failure mode here. What it does
+			// state is the re-aligned pair's own comparison digest, segments,
+			// and groups, so every identity the turn carries and every
+			// identity it is validated against come from the one alignment the
+			// re-alignment produced. Out of the old revision's range the
+			// position is simply not said - that revision has no such line,
+			// and the turn is still answered against its frozen identities.
+			if (!aOutcome.Alignments.empty() && aTurn.PointedAt.has_value()) {
+				const auto& realigned = aOutcome.Alignments.front();
+				const auto  anchor    = core::source_line_ref{
+					.Comparison = realigned.Digest,
+					.Side       = aTurn.PointedAt->Side,
+					.Line       = aTurn.PointedAt->Line,
+				};
+				if (core::valid(
+						anchor,
+						realigned.LeftLineCount,
+						realigned.RightLineCount)) {
+					aTurn.Observation.Selection
+						= core::supplement_semantic_context{
+							  .File      = aTurn.PointedAt->File,
+							  .Selection = core::semantic_selection{
+								  .Comparison    = realigned.Digest,
+								  .Kind          = core::semantic_selection_kind::line,
+								  .PreferredLine = anchor,
+							  },
+							  .Confidence = core::supplement_mapping_confidence::approximate,
+							  .Segments   = realigned.Segments,
+							  .Groups     = realigned.Groups,
+						  };
+				}
+			}
+			static_cast<void>(launch_agent_invocation(
+				aTurn.Profile,
+				aTurn.Authority,
+				aTurn.ApplicationSession,
+				std::move(aTurn.Observation),
+				aTurn.ExistingCheckoutChosen,
+				aTurn.Session,
+				std::move(aOutcome.Files)));
+		}
+
+		/// \brief The frozen alignment facts one invocation is answered against.
+		///
+		/// \details Read from the alignment the reviewer is actually looking
+		/// at, once, and carried as values. An empty list is a complete answer
+		/// rather than a missing one: every finding then arrives unanchored,
+		/// which is what a run that froze nothing has evidence for.
+		[[nodiscard]] auto frozen_snapshot_files() const
+			-> std::vector<core::agent_finding_snapshot_file>
+		{
+			auto files = std::vector<core::agent_finding_snapshot_file>{ };
+			if (Window == nullptr || !SelectedDiffPublication.has_value()) {
+				return files;
+			}
+			const auto* const workbench = Window->comparison_surface();
+			if (workbench == nullptr || workbench->current_result() == nullptr
+				|| workbench->current_result()->Alignment.Key
+					!= SelectedDiffPublication->Key) {
+				return files;
+			}
+			const auto& alignment = workbench->current_result()->Alignment;
+			auto        file      = core::agent_finding_snapshot_file{
+				.Path           = SelectedDiffPublication->Request.File.PresentationPath,
+				.Comparison     = alignment.Digest,
+				.LeftLineCount  = alignment.LeftLineCount,
+				.RightLineCount = alignment.RightLineCount,
+			};
+			file.Segments.reserve(alignment.Segments.size());
+			for (const auto& segment : alignment.Segments) {
+				file.Segments.push_back(segment.Id);
+			}
+			file.Groups.reserve(alignment.Groups.size());
+			for (const auto& group : alignment.Groups) {
+				file.Groups.push_back(group.Id);
+			}
+			file.Moves.reserve(alignment.Moves.size());
+			for (const auto& move : alignment.Moves) {
+				file.Moves.push_back(move.Id);
+			}
+			files.push_back(std::move(file));
+			return files;
+		}
+
+		void present_agent_refusal(
+			const std::string_view aSubject, const std::string_view aReason)
+		{
+			if (Window == nullptr || Window->agent_panel() == nullptr) {
+				return;
+			}
+			Window->agent_panel()->refuse(
+				std::string{ aSubject } + " refused: " + std::string{ aReason });
+		}
+
+		/// \brief Starts one agent turn for one asked-for workshop operation.
+		///
+		/// \details The reviewer's half of the workshop: the operation is
+		/// admitted under the one entry point it means anything for, held
+		/// against the draft it was asked about, and handed to the same
+		/// `dispatch_agent_invocation` a start gesture and a chat send use.
+		/// There is no second launch path, no workshop agent, and no host of
+		/// this method's own — the turn it starts is the one this application
+		/// already knows how to start, with `workshop_comment` named as the
+		/// gesture and the operation in the supplement.
+		///
+		/// Nothing here writes a revision. The answer arrives as this turn's
+		/// outcome and is proposed by the composed workshop host; inventing
+		/// text here would be this composition answering a question it
+		/// forwarded.
+		///
+		/// One press, one turn. A second press while the first turn is still
+		/// unanswered is refused and named rather than queued: a queued press
+		/// would either start a second turn about a comment the first is
+		/// already revising, or sit silently until the reviewer concluded the
+		/// control did nothing.
+		void ask_comment_workshop(const qt::comment_workshop_request& aRequest)
+		{
+			const auto admitted = core::workshop_operation_for(
+				core::agent_entry_point::workshop_comment, aRequest.Operation);
+			if (!admitted.has_value()) {
+				present_agent_refusal("comment workshop", "unknown_operation");
+				return;
+			}
+			if (!ReviewDraft.has_value() || ReviewDraft->Id != aRequest.Draft) {
+				present_agent_refusal(
+					"comment workshop",
+					application::name(application::
+										  agent_comment_workshop_refusal::
+											  different_draft));
+				return;
+			}
+			// One press, one *running* turn. A record left over from a turn
+			// that has already ended is not a turn in flight: it is only the
+			// name of the operation the next outcome may still be labelled
+			// with, and asking again replaces it below.
+			if (PendingWorkshopOperation.has_value()
+				&& PendingWorkshopOperation->Running) {
+				present_agent_refusal(
+					"comment workshop", "workshop_turn_in_flight");
+				return;
+			}
+			PendingWorkshopOperation = pending_comment_workshop{
+				.Draft     = aRequest.Draft,
+				.Operation = *admitted,
+			};
+			// The draft's own text and anchor are this turn's context, so the
+			// question the agent is answering is about the comment on screen
+			// and not about whatever the launch panel happened to have
+			// checked. No private notes cross: the reviewer asked how to say
+			// this better, not what else is known.
+			if (!dispatch_agent_invocation(
+					core::codex_jsonl_profile_id,
+					std::vector<application::local_note_id>{ },
+					current_agent_draft_choice(),
+					false,
+					std::string_view{ },
+					std::nullopt,
+					core::agent_entry_point::workshop_comment,
+					admitted)) {
+				// The launch panel has already named why. The operation is
+				// cleared rather than left recorded, because a question no
+				// turn was started for is not waiting for an answer, and a
+				// later unrelated revision must not be labelled with it.
+				PendingWorkshopOperation.reset();
+				// BPR-0538. And said on the surface that asked. The panel
+				// names the refusal for the operator; the reviewer is looking
+				// at the six controls that just shut, and they reopen here
+				// with the reason where the answer would have been.
+				present_comment_workshop_settlement(
+					aRequest.Draft, "the turn was refused before it started");
+			}
+		}
+
+		/// \brief Ends the press whose turn has just ended.
+		///
+		/// \details BPR-0538. The third sink's whole decision, in one place.
+		/// Three questions in order, and all three are about *this* turn:
+		///
+		/// - Is this the turn the press is waiting on? A press bound to
+		///   another session is untouched, so a second, unrelated turn
+		///   finishing — a launch-panel start, a chat send — neither reopens
+		///   the six nor consumes the operation the press is holding.
+		/// - Whatever it produced, it is over, so the six reopen. The tooltip
+		///   they carried said a turn was running; it is not.
+		/// - Did it produce anything the reviewer could still convert into the
+		///   revision that was asked for? If it did, the record stays so that
+		///   conversion is still labelled with the operation that produced it.
+		///   If it did not — no finding delivered, a failed run, a session the
+		///   review moved out from under — nothing is coming, so the record
+		///   goes and the surface says why.
+		///
+		/// Nothing here retries and nothing here proposes: a turn that
+		/// answered nothing is reported as having answered nothing.
+		void settle_comment_workshop(
+			const core::agent_session_id         aSession,
+			const application::agent_run_outcome aOutcome)
+		{
+			if (!PendingWorkshopOperation.has_value()
+				|| !PendingWorkshopOperation->Session.has_value()
+				|| *PendingWorkshopOperation->Session != aSession) {
+				return;
+			}
+			PendingWorkshopOperation->Running = false;
+			const auto draft                  = PendingWorkshopOperation->Draft;
+			const auto answered               = PendingWorkshopOperation->Delivered
+				&& aOutcome == application::agent_run_outcome::success;
+			auto reason = std::string{ };
+			if (!answered) {
+				reason = aOutcome == application::agent_run_outcome::success
+					? std::string{ "the turn proposed no revision" }
+					: "the turn ended "
+						+ std::string{ application::name(aOutcome) };
+				PendingWorkshopOperation.reset();
+			}
+			present_comment_workshop_settlement(draft, reason);
+		}
+
+		/// \brief Reopens the six controls, and says why if nothing is coming.
+		///
+		/// \details Presented on the workshop surface rather than on the
+		/// launch panel: the reviewer pressed a control beside their own text
+		/// and is watching the space the before/after would fill. A reason
+		/// delivered to the invocation panel is a reason they are not reading.
+		void present_comment_workshop_settlement(
+			const core::review_draft_id aDraft, const std::string& aReason)
+		{
+			if (Window == nullptr || Window->review_editor() == nullptr) {
+				return;
+			}
+			Window->review_editor()->present(qt::comment_workshop_settlement{
+				.Draft  = aDraft,
+				.Reason = aReason,
+			});
+		}
+
+		/// \brief Presents what one asked-for finding action produced.
+		///
+		/// \details A promoted comment becomes a *proposal* rather than a
+		/// draft: the reviewer reads the before and the after on the shipped
+		/// editor and accepts it there, which is the one gesture that emits a
+		/// local draft command. Nothing here writes, and nothing here reaches
+		/// the review-mutation host.
+		void present_finding_outcome(
+			const application::agent_finding_outcome& aOutcome)
+		{
+			if (aOutcome.Draft.has_value() && WorkshopHost != nullptr
+				&& ReviewDraft.has_value()) {
+				// The operation the reviewer asked for, spent by the turn it
+				// was asked in and by no other. The pairing is the session
+				// identity carried from the press: a finding promoted from a
+				// different turn — or from this one before the workshop turn
+				// was admitted — is a revision nobody workshopped, and
+				// labelling it with a pending operation would name a question
+				// that produced none of this text.
+				const auto matched = PendingWorkshopOperation.has_value()
+					&& PendingWorkshopOperation->Session.has_value()
+					&& *PendingWorkshopOperation->Session == aOutcome.Session
+					&& PendingWorkshopOperation->Draft == ReviewDraft->Id;
+				const auto asked = matched
+					? std::optional<core::workshop_operation>{
+						  PendingWorkshopOperation->Operation
+					  }
+					: std::optional<core::workshop_operation>{ };
+				if (matched) {
+					PendingWorkshopOperation.reset();
+				}
+				static_cast<void>(WorkshopHost->propose(
+					*ReviewDraft, *aOutcome.Draft, asked));
+				return;
+			}
+			if (aOutcome.Defect.has_value()) {
+				dispatch_defect(*aOutcome.Defect);
+				return;
+			}
+			if (aOutcome.Note.has_value()) {
+				refresh_agent_private_context_choices();
+				return;
+			}
+			// A refused conversion is presented, not dropped. A reviewer who
+			// is shown nothing cannot tell a refusal from a swallowed gesture.
+			++FindingRefusalsPresented;
+			present_agent_refusal(
+				application::name(aOutcome.Action),
+				aOutcome.Refusal
+						!= application::agent_finding_action_refusal::none
+					? application::name(aOutcome.Refusal)
+					: promotion_refusal_name(aOutcome.Promotion));
+		}
+
+		[[nodiscard]] auto next_private_note_id() const
+			-> application::local_note_id
+		{
+			auto next = std::uint64_t{ 1U };
+			if (ReviewLedgerHost != nullptr) {
+				if (const auto observed = ReviewLedgerHost->private_observation();
+					observed.has_value()) {
+					for (const auto& note : observed->Notes) {
+						next = std::max(next, note.Id.value() + 1U);
+					}
+				}
+			}
+			return application::local_note_id{ next };
+		}
+
+		[[nodiscard]] auto current_note_attachment() const
+			-> std::optional<application::local_note_attachment>
+		{
+			if (!SelectedDiffPublication.has_value()) {
+				return std::nullopt;
+			}
+			return application::local_note_attachment{
+				.File       = SelectedDiffPublication->Request.File.File,
+				.Comparison = core::comparison_digest(SelectedDiffPublication->Key),
+			};
+		}
+
+		/// \brief The durable defect anchored exactly where the finding is.
+		///
+		/// \details Nothing is moved onto a nearby defect. `promote_agent_finding`
+		/// refuses `anchor_elsewhere` when the two disagree, and supplying the
+		/// nearest one here would be that refusal arriving from the other
+		/// direction.
+		[[nodiscard]] auto anchored_durable_defect(
+			const core::agent_finding& aFinding) const
+			-> std::optional<core::defect_record>
+		{
+			if (!aFinding.Anchor.Line.has_value()) {
+				return std::nullopt;
+			}
+			for (const auto& durable : DurableDefects) {
+				if (durable.History.Defect.Anchor == *aFinding.Anchor.Line) {
+					return durable.History.Defect;
+				}
+			}
+			return std::nullopt;
+		}
+
+		void dispatch_finding_intent(qt::finding_action_intent aIntent)
+		{
+			if (Closing || FindingHost == nullptr) {
+				return;
+			}
+			auto request = application::agent_finding_action_request{
+				.Session = aIntent.Subject.Session,
+				.Ordinal = aIntent.Subject.Ordinal,
+				.Action  = composed_finding_action(aIntent.Action),
+			};
+			switch (request.Action) {
+			case application::agent_finding_action::convert_to_draft_comment:
+				request.Draft = ReviewDraft;
+				break;
+			case application::agent_finding_action::convert_to_draft_defect:
+				request.Defect = anchored_durable_defect(aIntent.Subject.Finding);
+				break;
+			case application::agent_finding_action::add_to_private_notes:
+				request.Note       = next_private_note_id();
+				request.Attachment = current_note_attachment();
+				break;
+			case application::agent_finding_action::open_evidence:
+			case application::agent_finding_action::ask_follow_up:
+			case application::agent_finding_action::dismiss:
+				break;
+			}
+			static_cast<void>(FindingHost->act(request));
+		}
+
+		/// \brief Carries one side-chat gesture to the composed chat host.
+		///
+		/// \details Translation and nothing else. The Qt intents are restated
+		/// as the application's own request values because this host may not
+		/// depend on the adapter that emits them, and every decision below the
+		/// translation belongs to `agent_chat_session_host` and, through it, to
+		/// the core. With the chat host cut, a send is refused by name rather
+		/// than quietly doing nothing.
+		void dispatch_side_chat_intent(qt::side_chat_intent aIntent)
+		{
+			++SideChatIntents;
+			if (ChatHost == nullptr) {
+				if (std::holds_alternative<qt::send_chat_message_intent>(
+						aIntent)) {
+					present_agent_refusal(
+						"side chat", "no composed chat session host");
+				}
+				return;
+			}
+			if (const auto* const send
+				= std::get_if<qt::send_chat_message_intent>(&aIntent);
+				send != nullptr) {
+				// Read at the gesture, from the alignment on screen. A
+				// selection observed earlier would answer for where the
+				// reviewer was, not where they are.
+				ChatHost->observe_selection(current_agent_chat_selection());
+				static_cast<void>(
+					ChatHost->send(application::agent_chat_send{
+						.Session = send->Session,
+						.Action  = send->Action,
+						.Scope   = send->Scope,
+						.Text    = send->Text,
+					}));
+				return;
+			}
+			if (const auto* const widen
+				= std::get_if<qt::widen_chat_scope_intent>(&aIntent);
+				widen != nullptr) {
+				static_cast<void>(
+					ChatHost->widen(application::agent_chat_widening{
+						.Session  = widen->Session,
+						.Widening = widen->Widening,
+					}));
+				return;
+			}
+			if (const auto* const optIn
+				= std::get_if<qt::chat_private_context_intent>(&aIntent);
+				optIn != nullptr) {
+				static_cast<void>(ChatHost->set_private_context(optIn->OptIn));
+				return;
+			}
+			const auto& choice
+				= std::get<qt::choose_chat_continuation_intent>(aIntent);
+			static_cast<void>(
+				ChatHost->choose(application::agent_chat_continuation_choice{
+					.Session        = choice.Session,
+					.Choice         = choice.Choice,
+					.OfferedBinding = choice.OfferedBinding,
+				}));
+		}
+
+		/// \brief Says on the panel what one chat gesture produced.
+		///
+		/// \details A refusal is presented, never dropped. The reason is the
+		/// host's own name for it, which carries the core's verdict where there
+		/// is one, so a reviewer whose send was refused is told which of the
+		/// core's answers refused it rather than watching a chat do nothing.
+		void present_chat_outcome(const application::agent_chat_outcome& aOutcome)
+		{
+			if (aOutcome.Refusal == application::agent_chat_refusal::none) {
+				if (aOutcome.Turn.has_value()) {
+					++SideChatTurns;
+				}
+				return;
+			}
+			++SideChatRefusals;
+			auto reason = std::string{ application::name(aOutcome.Refusal) };
+			switch (aOutcome.Refusal) {
+			case application::agent_chat_refusal::session_stale:
+				reason += " (";
+				reason += core::stable_name(aOutcome.Staleness);
+				reason += ')';
+				break;
+			case application::agent_chat_refusal::action_refused:
+				reason += " (";
+				reason += core::stable_name(aOutcome.Action);
+				reason += ')';
+				break;
+			case application::agent_chat_refusal::scope_refused:
+				reason += " (";
+				reason += core::stable_name(aOutcome.Scope);
+				reason += ')';
+				break;
+			case application::agent_chat_refusal::none:
+			case application::agent_chat_refusal::no_session:
+			case application::agent_chat_refusal::other_session:
+			case application::agent_chat_refusal::private_context_refused:
+			case application::agent_chat_refusal::empty_message:
+			case application::agent_chat_refusal::unknown_continuation:
+			case application::agent_chat_refusal::binding_mismatch:
+			case application::agent_chat_refusal::launch_refused:
+				break;
+			}
+			present_agent_refusal("side chat", reason);
+		}
+
+		/// \brief Every private note the review holds, by identity.
+		[[nodiscard]] auto all_private_note_ids() const
+			-> std::vector<application::local_note_id>
+		{
+			auto notes = std::vector<application::local_note_id>{ };
+			if (ReviewLedgerHost == nullptr) {
+				return notes;
+			}
+			const auto observed = ReviewLedgerHost->private_observation();
+			if (!observed.has_value()) {
+				return notes;
+			}
+			notes.reserve(observed->Notes.size());
+			for (const auto& note : observed->Notes) {
+				notes.push_back(note.Id);
+			}
+			return notes;
+		}
+
+		/// \brief The draft a chat turn may carry, when there is one to carry.
+		[[nodiscard]] auto current_agent_draft_choice() const
+			-> std::optional<application::agent_draft_choice>
+		{
+			const auto draft = current_agent_draft_observation();
+			if (
+				!draft.has_value()
+				|| draft->Draft.State != core::review_draft_state::drafting) {
+				return std::nullopt;
+			}
+			return draft->Choice;
+		}
+
+		/// \brief The reviewer's own prose, as the core admission takes it.
+		///
+		/// \details Read at call time and never held. This is the *material*
+		/// the core decides about; whether any of it crosses is
+		/// `core::admit_private_context`'s answer, keyed by session.
+		[[nodiscard]] auto current_chat_private_prose() const
+			-> application::agent_chat_private_prose
+		{
+			auto prose = application::agent_chat_private_prose{ };
+			if (ReviewLedgerHost != nullptr) {
+				if (const auto observed = ReviewLedgerHost->private_observation();
+					observed.has_value()) {
+					prose.Notes.reserve(observed->Notes.size());
+					for (const auto& note : observed->Notes) {
+						prose.Notes.push_back(note.Note);
+					}
+				}
+			}
+			if (const auto draft = current_agent_draft_observation();
+				draft.has_value()
+				&& draft->Draft.State == core::review_draft_state::drafting) {
+				prose.Drafts.push_back(
+					core::supplement_draft{ .Text = draft->Draft.Body });
+			}
+			return prose;
+		}
+
+		/// \brief Shows the chat the composed host is holding, and nothing else.
+		///
+		/// \details Every revision-bearing field comes from the host's own
+		/// projection, which carries the *session's* binding. The composition
+		/// adds only the four fields the core has no opinion about — provider
+		/// name, Git host, workspace, and chips — so there is still no path by
+		/// which the head now under review reaches this widget.
+		void present_side_chat(const application::agent_chat_projection& aChat)
+		{
+			if (SideChat == nullptr || !AgentReview.has_value()) {
+				return;
+			}
+			++SideChatPresentations;
+			SideChat->present(qt::side_chat_projection{
+				.Session        = aChat.Session,
+				.Continuations  = aChat.Continuations,
+				.Chat           = aChat.Chat,
+				.PrivateContext = aChat.PrivateContext,
+				.EntryPoint     = aChat.EntryPoint,
+				.Provider       = agent_provider_name(aChat.Session.Profile),
+				.GitHost        = AgentReview->Hostname,
+				.Workspace      = AgentWorkspaceRoot != nullptr ? AgentWorkspaceRoot->path().toStdString() : std::string{ },
+			});
+		}
+
+		/// \brief Shows the chat when its host was cut out of the composition.
+		///
+		/// \details The panel stays on screen and stays truthful: it is handed
+		/// the session it would have, presented as current, so the send gesture
+		/// is still reachable and still observable. What is gone is the turn —
+		/// `dispatch_side_chat_intent` refuses it by name — which is exactly
+		/// what a construction cut is supposed to leave behind.
+		void present_side_chat(const core::agent_revision_binding& aBinding)
+		{
+			if (SideChat == nullptr || !AgentReview.has_value()) {
+				return;
+			}
+			const auto session = core::agent_session{
+				.Id      = core::agent_session_id{ 1U },
+				.Profile = core::codex_jsonl_profile_id,
+				.Binding = aBinding,
+			};
+			present_side_chat(application::agent_chat_projection{
+				.Session       = session,
+				.Continuations = core::offer_agent_continuations(session, aBinding),
+				.Chat          = core::agent_chat_state{
+					.Scope = core::agent_chat_scope{
+						.Kind = core::agent_chat_scope_kind::pull_request,
+					},
+				},
+				.PrivateContext = core::agent_private_context_optin{
+					.Session = session.Id,
+				},
+				.EntryPoint = core::agent_entry_point::ask_about_selection,
+			});
+		}
+
+		[[nodiscard]] static auto agent_provider_name(
+			const core::agent_profile_id aProfile) -> std::string
+		{
+			const auto profiles = core::built_in_agent_profiles();
+			for (const auto& profile : profiles) {
+				if (profile.Id == aProfile) {
+					return profile.DisplayName;
+				}
+			}
+			return { };
 		}
 
 		void publish(
@@ -5016,6 +8280,13 @@ namespace bpr::app {
 			}
 			Closing = true;
 			RetryableReviewDraft.reset();
+			// The one outstanding re-alignment is told to stop here rather
+			// than waited on: its ports are closing, and a request that kept
+			// resolving through them would be the hang the poll below reports
+			// as a timeout.
+			if (ContinuationRealignmentStop) {
+				static_cast<void>(ContinuationRealignmentStop->request_stop());
+			}
 			if (AgentHost) {
 				AgentHost->shutdown();
 			}
@@ -5094,6 +8365,9 @@ namespace bpr::app {
 			if (
 				!DiffHost->is_quiescent() || !EpochHost->is_quiescent()
 				|| !Host->is_quiescent()
+				|| ContinuationRealignmentsInFlight.load(
+					   std::memory_order_acquire)
+					!= 0U
 				|| (DeviceHost && !DeviceHost->is_quiescent())
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
 				|| (QueueHost && !QueueHost->is_quiescent())
@@ -5138,10 +8412,52 @@ namespace bpr::app {
 		// build.
 		bool DeviceCapabilityRegistered = false;
 #if defined(BPR_BUILD_TESTING)
-		bool RegisteredDeviceCourse = false;
+		bool RegisteredDeviceCourse                     = false;
+		bool DeviceRefreshCourse                        = false;
+		bool SuppressDeviceBrowser                      = false;
+		bool DisableDeviceAuthorizationPanelComposition = false;
+		// [[BPR-0515]]. Whether this run composes its device wire against the
+		// closed loopback port rather than the discovered system proxy.
+		bool NetworkDenied = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		// RFC-BPR-0017 courses. The first forces the shipped selection
+		// available against the recorded fixture so the composed anonymous
+		// authority can be driven end to end; the second does the same and
+		// then activates an enterprise profile, where the refusal is the
+		// core policy's rather than the composition's.
+		bool PublicPreviewEnabledCourse = false;
+		bool PublicPreviewGhesCourse    = false;
+#endif
+		// Whether a browser capability was bound at all, which is the fact the
+		// handoff's `unavailable` answer reports and the construction cut
+		// removes.
+		bool                  DeviceBrowserComposed = false;
+		system_browser_opener SystemBrowser;
+#if defined(BPR_BUILD_TESTING)
+		recording_device_authorization_browser RecordingBrowser;
 #endif
 		qt::event_loop_device_timer          DeviceTimer;
 		device_authorization_projection_sink DeviceProjections;
+		// The window's panel, adopted rather than owned: the window built it
+		// and keeps it alive. Null under the construction cut, and read on
+		// every publication, which is why the fan-out asks rather than binds.
+		qt::device_authorization_panel* DevicePanel = nullptr;
+		std::unique_ptr<composition_device_authorization_projection>
+			DeviceProjectionFanOut;
+		// The vault slot this run's renewable material belongs to, and what
+		// composition did with it. Held so a republication of the same
+		// acceptance cannot bind twice or renew on every update.
+		std::optional<application::github_credential_authority_key>
+			DeviceRefreshAuthority;
+		// [[BPR-0550]]. Whether the device presentation last seen was
+		// `authorized`, so the memo above is dropped on the transition into it.
+		bool        DeviceStageAuthorized     = false;
+		std::size_t DeviceRefreshBindings     = 0U;
+		std::size_t DeviceRefreshResumes      = 0U;
+		std::size_t DeviceRefreshPublications = 0U;
+		application::device_authorization_refresh_observation
+			DeviceRefreshObservation;
 		std::unique_ptr<application::device_authorization_clock_port>
 			DeviceClock;
 		std::unique_ptr<application::github_host_device_authorization_enrollment>
@@ -5361,14 +8677,49 @@ namespace bpr::app {
 		bool                                 DisableAgentProcessLauncherComposition = false;
 		bool                                 DisableAgentHostComposition            = false;
 		bool                                 DisableAgentGestureWire                = false;
+		bool                                 DisableAgentFindingHostComposition     = false;
+		bool                                 DisableChatSessionHostComposition      = false;
+		bool                                 DisableCommentWorkshopComposition      = false;
+		bool                                 DisableMcpHelperComposition            = false;
+		bool                                 DisableSideChatPanelComposition        = false;
+		bool                                 DisableFindingQueueComposition         = false;
 		std::optional<std::filesystem::path> ExternalAgentExecutable;
+		std::optional<std::filesystem::path> CodexAgentExecutable;
 		bool                                 ReviewLedgerWasPresentOnEntry     = false;
 		bool                                 ReviewLedgerRoundTripPassed       = false;
 		bool                                 FixtureReviewMutationHostComposed = false;
 #endif
-		std::unique_ptr<application::github_credential_vault_port>   OwnedVault;
-		std::shared_ptr<github_wire_transport_factory_port>          TransportFactory;
-		std::unique_ptr<github_provider>                             Provider;
+		std::unique_ptr<application::github_credential_vault_port> OwnedVault;
+		std::shared_ptr<github_wire_transport_factory_port>        TransportFactory;
+		// [[BPR-0316]]. What the anonymous provider was constructed with, kept
+		// so the live-candidate evidence can compare it against the shipped
+		// factory this composition built rather than assert a call site.
+		std::shared_ptr<github_wire_transport_factory_port>
+			AnonymousTransportFactory;
+#if defined(BPR_BUILD_TESTING)
+		std::shared_ptr<shipped_anonymous_wire_transport_factory>
+			 ShippedAnonymousTransports;
+		bool PublicPreviewSelectionAvailable = false;
+#endif
+		std::unique_ptr<github_provider> Provider;
+		// RFC-BPR-0017's credential-free authorities. Declared beside the
+		// authenticated provider they are constructed beside, and after it, so
+		// they are destroyed first and the counting wrapper can never outlive
+		// the provider it forwards to.
+		std::unique_ptr<github_provider>                       AnonymousProvider;
+		std::unique_ptr<counting_anonymous_pull_requests>      CountedAnonymousPullRequests;
+		std::unique_ptr<anonymous_git_smart_transport_factory> AnonymousSmartGit;
+		// Whether the selection handed those authorities to the host. False on
+		// every shipped platform in this slice, which is what makes the mode
+		// answer `public_preview_unavailable` with nothing sent.
+		bool PublicPreviewComposed = false;
+		// Sign-in gestures the host forwarded. Evidence that the refusal
+		// leaves the reviewer somewhere to go rather than nowhere.
+		std::size_t                    PublicPreviewSignInRequests = 0U;
+		std::size_t                    PublicPreviewWriteRefusals  = 0U;
+		public_preview_projection_sink PublicPreviewProjections;
+		std::unique_ptr<composition_public_preview_projection>
+																	 PublicPreviewProjectionFanOut;
 		qt::event_loop_executor                                      DecisionLane;
 		std::unique_ptr<qt::workbench_window>                        Window;
 		application::github_credential_binding_catalog               CredentialBindings;
@@ -5421,6 +8772,7 @@ namespace bpr::app {
 		worker_executor                                                EpochEffects;
 		worker_executor                                                DiffEffects;
 		worker_executor                                                AgentEffects;
+		worker_executor                                                McpEffects;
 		worker_executor                                                WorkbenchEffects;
 		worker_executor                                                AppearanceEffects;
 		worker_executor                                                QueueEffects;
@@ -5432,7 +8784,59 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 		std::unique_ptr<composition_agent_process_launcher_probe> AgentProcessProbe;
 #endif
-		std::unique_ptr<application::agent_invocation_host>             AgentHost;
+		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;
+		std::unique_ptr<application::agent_invocation_host>      AgentHost;
+		// BPR-0532. Declared after the epoch host it resolves and materializes
+		// through, so it is destroyed before that host is.
+		std::unique_ptr<application::agent_realignment_port> Realigner;
+		/// The stop handle of the one outstanding continuation re-alignment.
+		/// Held so shutdown and the wall-clock bound can stop the same request
+		/// the completion is waiting on, and reset by that completion so a
+		/// late timer stops nothing.
+		std::shared_ptr<std::stop_source> ContinuationRealignmentStop;
+		/// Counted rather than flagged, and atomic because the worker that
+		/// posts the completion decrements it when the lane refuses the post.
+		/// Shutdown waits on this: a re-alignment in flight holds ports that
+		/// close_and_drain would otherwise pull out from under it.
+		std::atomic_size_t ContinuationRealignmentsInFlight{ 0U };
+		bool               ContinuationRealignmentDeadlineFired = false;
+		/// Why the last continued turn froze what it froze: `none` when the
+		/// old revision was aligned again, `deadline` when the wait bound
+		/// stopped it, and the refusal's own name otherwise.
+		std::string LastContinuationRealignment;
+		/// Whether that re-alignment asked about a different pair than the one
+		/// on screen.
+		bool LastContinuationRealignmentRetargeted = false;
+		// RFC-BPR-0012. Composed beside the agent host and driven by the
+		// shipped window's own gestures. BPR-0513 moved the two panels into
+		// the window's conversations drawer, which owns them as it owns every
+		// other widget it places, so these are observers of what is on screen
+		// rather than a second lifetime for it. They hold no process,
+		// provider, credential, or store of their own; the only way out of
+		// either is an intent this composition answers.
+		qt::side_chat_panel*                                        SideChat     = nullptr;
+		qt::finding_queue_view*                                     FindingQueue = nullptr;
+		std::unique_ptr<composition_agent_finding_projection>       FindingProjections;
+		std::unique_ptr<application::agent_finding_host>            FindingHost;
+		std::unique_ptr<composition_agent_chat_projection>          ChatProjections;
+		std::unique_ptr<application::agent_chat_session_host>       ChatHost;
+		std::unique_ptr<composition_comment_workshop_projection>    WorkshopProjections;
+		std::unique_ptr<application::agent_comment_workshop_host>   WorkshopHost;
+		std::unique_ptr<adapters::agent::agent_process_launcher>    McpProcess;
+		std::unique_ptr<application::mcp_context_helper_supervisor> McpHelper;
+		std::filesystem::path                                       McpSnapshotRoot;
+		std::size_t                                                 CommentWorkshopProposals = 0U;
+		/// The operation the reviewer last asked the workshop for, and the
+		/// turn started to answer it, spent by that turn's outcome and by no
+		/// other. Absent is the ordinary state, and it is what makes a
+		/// promoted finding a proposal nobody workshopped.
+		std::optional<pending_comment_workshop>                         PendingWorkshopOperation;
+		std::size_t                                                     FindingRefusalsPresented = 0U;
+		std::size_t                                                     SideChatIntents          = 0U;
+		std::size_t                                                     SideChatPresentations    = 0U;
+		std::size_t                                                     SideChatTurns            = 0U;
+		std::size_t                                                     SideChatRefusals         = 0U;
+		std::size_t                                                     FrozenSnapshotWrites     = 0U;
 		std::unique_ptr<composition_diff_projection>                    DiffProjections;
 		std::unique_ptr<application::diff_application_host>             DiffHost;
 		std::unique_ptr<application::workbench_application_host>        WorkbenchHost;
@@ -5443,6 +8847,7 @@ namespace bpr::app {
 		std::optional<queue_activity_baseline>                          QueueActivityBaseline;
 		std::optional<queue_activity_fact>                              QueueActivity;
 		std::vector<queue_notification_transition>                      ActiveQueueNotifications;
+		std::unique_ptr<composition_github_projection>                  GithubProjectionFanOut;
 		std::unique_ptr<application::github_application_host>           Host;
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
 		struct agent_review_facts
@@ -5499,6 +8904,12 @@ namespace bpr::app {
 		bool                       DisableNotificationRequestWire   = false;
 		bool                       DisableNotificationSelectionWire = false;
 		std::size_t                CapturedNotificationDisplays     = 0U;
+
+		/// The last turn this composition handed to the launch path, kept so a
+		/// course can read what was dispatched. It cannot be read back off the
+		/// chat host afterwards: the launch path admits a session of its own,
+		/// so by the time a turn has run the host is holding a different one.
+		std::optional<application::agent_chat_turn_request> LastChatTurn;
 #endif
 	};
 
@@ -5677,14 +9088,87 @@ namespace bpr::app {
 			= Implementation->UnregisteredDeviceTransport.reached(),
 			.DeviceAuthorizationPublications
 			= Implementation->DeviceProjections.published(),
+			.DeviceAuthorizationBrowserComposed
+			= Implementation->DeviceBrowserComposed,
+			.DeviceAuthorizationHandoff
+			= Implementation->DeviceProjections.last_attempt(),
+			.DeviceAuthorizationBrowserOpens
+			= Implementation->device_browser_opens(),
 			.DeviceAuthorizationVaultStores
 			= Implementation->device_vault_stores(),
 			.DeviceAuthorizationDurableCopies
 			= Implementation->device_durable_copies(),
 			.DeviceAuthorizationTransportSubmissions
 			= Implementation->device_transport_submissions(),
+			.DeviceAuthorizationVaultStoredDigest
+			= Implementation->device_vault_stored_digest(),
+			.DeviceAuthorizationVaultStoredIsGrant
+			= Implementation->device_vault_stored_is_grant(),
 			.DeviceAuthorizationEnrollments
 			= Implementation->device_enrollments(),
+			.DeviceAuthorizationPanelComposed
+			= Implementation->DevicePanel != nullptr,
+			.DeviceAuthorizationRefreshRotations
+			= Implementation->DeviceRefreshObservation.Rotations,
+			.DeviceAuthorizationRefreshState
+			= Implementation->DeviceRefreshObservation.State,
+			.DeviceAuthorizationRefreshBindings
+			= Implementation->DeviceRefreshBindings,
+			.DeviceAuthorizationRefreshResumes
+			= Implementation->DeviceRefreshResumes,
+			.PublicPreviewComposed = Implementation->PublicPreviewComposed,
+			.PublicPreviewUnavailable
+			= Implementation->public_preview_unavailable(),
+			.PublicPreviewPolicyRefused
+			= Implementation->public_preview_policy_refused(),
+			.PublicPreviewSignedOut = Implementation->public_preview_signed_out(),
+			.PublicPreviewPublications
+			= Implementation->PublicPreviewProjections.published(),
+			.PublicPreviewRequests = Implementation->public_preview_requests(),
+			.PublicPreviewHeaderEffects
+			= Implementation->public_preview_header_effects(),
+			.PublicPreviewVaultEffects
+			= Implementation->public_preview_vault_effects(),
+			.PublicPreviewSmartAcquisitions
+			= Implementation->AnonymousSmartGit == nullptr
+				? 0U
+				: Implementation->AnonymousSmartGit->acquisitions(),
+			.PublicPreviewSignInRequests
+			= Implementation->PublicPreviewSignInRequests,
+			.PublicPreviewReviewCommentsObserved
+			= Implementation->PublicPreviewProjections.last().ReviewComments
+				== application::public_preview_observation::observed,
+			.PublicPreviewReviewCommentGroups
+			= Implementation->PublicPreviewProjections.last()
+				  .ReviewCommentGroups.size(),
+			.PublicPreviewWriteRefusals
+			= Implementation->PublicPreviewWriteRefusals,
+			.PublicPreviewLiveCandidateProductionFactories
+			= Implementation->public_preview_production_factories(),
+			.PublicPreviewWireRequests
+			= Implementation->public_preview_wire_requests(),
+			.PublicPreviewWireCapabilityProbes
+			= Implementation->public_preview_wire_capability_probes(),
+			.PublicPreviewWireCredentialedRefusals
+			= Implementation->public_preview_wire_credentialed_refusals(),
+			.PublicPreviewBudgetObserved
+			= Implementation->public_preview_budget().has_value(),
+			.PublicPreviewBudgetLimit
+			= Implementation->public_preview_budget().has_value()
+				? Implementation->public_preview_budget()->Limit
+				: 0U,
+			.PublicPreviewBudgetRemaining
+			= Implementation->public_preview_budget().has_value()
+				? Implementation->public_preview_budget()->Remaining
+				: 0U,
+			.PublicPreviewBudgetResetUnixSeconds
+			= Implementation->public_preview_budget().has_value()
+				? Implementation->public_preview_budget()->ResetUnixSeconds
+				: 0U,
+			.PublicPreviewSnapshotPublicPreview
+			= Implementation->public_preview_snapshot_signed_out(),
+			.PublicPreviewSnapshotHeadOid
+			= Implementation->public_preview_snapshot_head_oid(),
 		};
 	}
 
@@ -5696,6 +9180,123 @@ namespace bpr::app {
 	void github_application::cancel_device_authorization()
 	{
 		Implementation->cancel_device_authorization();
+	}
+
+	void github_application::open_device_verification_address()
+	{
+		Implementation->open_device_verification_address();
+	}
+
+	void github_application::activate_public_preview(const bool aEnterprise)
+	{
+		Implementation->activate_public_preview(aEnterprise);
+	}
+
+	void github_application::attempt_public_preview_writes()
+	{
+		Implementation->attempt_public_preview_writes();
+	}
+
+	auto github_application::public_preview_wire_operations() const
+		-> std::vector<public_preview_wire_operation_record>
+	{
+		return Implementation->public_preview_wire_operations();
+	}
+
+	auto public_preview_single_attempt_self_check() noexcept -> bool
+	{
+#if defined(BPR_BUILD_TESTING)
+		// [[BPR-0316]]. The single-attempt claim, checked where it can be
+		// checked for nothing: over a stub that fails the way the live service
+		// failed the first authorized read, with no socket, no host name and
+		// no proxy anywhere in it. The claim has three parts and all three are
+		// asserted -- the first request reached the inner transport and was
+		// recorded, the second was answered without reaching it, and the count
+		// of what went to the wire did not move for the second.
+		class always_failing_wire_transport final
+			: public adapters::github::detail::github_wire_transport_port
+		{
+		public:
+			[[nodiscard]] auto perform(
+				const adapters::github::detail::github_wire_request& aRequest,
+				std::stop_token                                      aStop)
+				-> adapters::github::detail::github_wire_completion override
+			{
+				static_cast<void>(aStop);
+				++Forwarded;
+				return adapters::github::detail::github_wire_error{
+					.Correlation = aRequest.Correlation,
+					.Error       = application::github_provider_error{
+						.Failure
+						= application::github_provider_failure::network,
+						.RetryAfterSeconds = std::nullopt,
+						.RateLimits        = { },
+						.RateLimitCause    = std::nullopt,
+					},
+				};
+			}
+
+			[[nodiscard]] auto perform_capability_probe(
+				const adapters::github::detail::
+					github_capability_probe_wire_request& aRequest,
+				std::stop_token                           aStop)
+				-> adapters::github::detail::
+					github_capability_probe_wire_completion override
+			{
+				static_cast<void>(aStop);
+				return adapters::github::detail::
+					github_capability_probe_wire_cancelled{
+						.Correlation = aRequest.Correlation,
+					};
+			}
+
+			[[nodiscard]] auto forwarded() const noexcept -> std::size_t
+			{
+				return Forwarded;
+			}
+
+		private:
+			std::size_t Forwarded = 0U;
+		};
+
+		try {
+			auto inner    = std::make_shared<always_failing_wire_transport>();
+			auto requests = std::make_shared<std::atomic<std::size_t>>(0U);
+			auto probes   = std::make_shared<std::atomic<std::size_t>>(0U);
+			auto log      = std::make_shared<anonymous_wire_operation_log>();
+			auto counting = counting_anonymous_wire_transport{ inner,
+															   requests,
+															   probes,
+															   log };
+			auto request  = adapters::github::detail::github_wire_request{ };
+			request.Correlation.Operation
+				= adapters::github::detail::read_operation::get_pull_request;
+			request.Correlation.Page = 1U;
+
+			const auto first = counting.perform(request, std::stop_token{ });
+			const auto forwardedFirst
+				= std::holds_alternative<
+					  adapters::github::detail::github_wire_error>(first)
+				&& inner->forwarded() == 1U
+				&& requests->load(std::memory_order_relaxed) == 1U
+				&& log->records().size() == 1U
+				&& log->records().front().Outcome == "error_network";
+
+			const auto second = counting.perform(request, std::stop_token{ });
+			const auto refusedSecond
+				= std::holds_alternative<
+					  adapters::github::detail::github_wire_cancelled>(second)
+				&& inner->forwarded() == 1U
+				&& requests->load(std::memory_order_relaxed) == 1U
+				&& log->records().size() == 1U;
+
+			return forwardedFirst && refusedSecond;
+		} catch (...) {
+			return false;
+		}
+#else
+		return false;
+#endif
 	}
 
 #if defined(BPR_BUILD_TESTING)
@@ -5766,6 +9367,20 @@ namespace bpr::app {
 		return std::unique_ptr<github_application>{ new github_application{
 			std::make_unique<github_application::implementation>(
 				github_application_config{ }, aFixture, std::move(aOptions)) } };
+	}
+
+	auto detail::github_application_fixture_access::
+		make_public_preview_selection_available(
+			github_application_config aConfig)
+			-> std::unique_ptr<github_application>
+	{
+		return std::unique_ptr<github_application>{ new github_application{
+			std::make_unique<github_application::implementation>(
+				std::move(aConfig),
+				std::nullopt,
+				detail::github_public_path_fixture_options{
+					.PublicPreviewSelectionAvailable = true,
+				}) } };
 	}
 
 	auto detail::github_application_fixture_access::evidence(
@@ -10905,6 +14520,204 @@ namespace bpr::app {
 			.Catalog    = std::move(*catalog),
 			.Statistics = implementation->ReviewLedgerHost->statistics(),
 		};
+	}
+
+	auto detail::github_application_fixture_access::finding_queue(
+		const github_application& aApplication) noexcept -> qt::finding_queue_view*
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation == nullptr ? nullptr
+										 : implementation->FindingQueue;
+	}
+
+	auto detail::github_application_fixture_access::side_chat_panel(
+		const github_application& aApplication) noexcept -> qt::side_chat_panel*
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation == nullptr ? nullptr
+										 : implementation->SideChat;
+	}
+
+	auto detail::github_application_fixture_access::start_mcp_context_helper(
+		github_application& aApplication, std::string aRequest)
+		-> application::mcp_helper_refusal
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->McpHelper == nullptr) {
+			return application::mcp_helper_refusal::no_helper;
+		}
+		return implementation->McpHelper->start(std::move(aRequest));
+	}
+
+	auto detail::github_application_fixture_access::agent_chat_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::agent_chat_composition_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return { };
+		}
+		auto evidence = detail::agent_chat_composition_evidence{
+			.ChatHostComposed      = implementation->ChatHost != nullptr,
+			.SideChatPanelComposed = implementation->SideChat != nullptr,
+			.Intents               = implementation->SideChatIntents,
+			.Presentations         = implementation->SideChatPresentations,
+			.Turns                 = implementation->SideChatTurns,
+			.RefusalsPresented     = implementation->SideChatRefusals,
+			.Statistics            = implementation->ChatHost != nullptr
+				? implementation->ChatHost->statistics()
+				: application::agent_chat_session_statistics{ },
+		};
+		evidence.LastTurn = implementation->LastChatTurn;
+		if (implementation->ChatHost != nullptr) {
+			evidence.Session    = implementation->ChatHost->session();
+			evidence.Observed   = implementation->ChatHost->observed();
+			evidence.Projection = implementation->ChatHost->projection();
+		}
+		if (implementation->SideChat != nullptr) {
+			evidence.SendEnabled
+				= implementation->SideChat->send_action() != nullptr
+					&& implementation->SideChat->send_action()->isEnabled()
+				? "enabled"
+				: "disabled";
+			evidence.SessionStateText
+				= implementation->SideChat->session_state_text().toStdString();
+			evidence.HeadOidText
+				= implementation->SideChat->head_oid_text().toStdString();
+		}
+		if (implementation->Window != nullptr) {
+			if (auto* const panel = implementation->Window->agent_panel();
+				panel != nullptr) {
+				evidence.AgentPanelStatusText
+					= panel->status_text().toStdString();
+			}
+		}
+		return evidence;
+	}
+
+	auto detail::github_application_fixture_access::dispatch_side_chat_send(
+		github_application& aApplication, std::string aText) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (
+			implementation == nullptr || implementation->SideChat == nullptr
+			|| implementation->ChatHost == nullptr) {
+			return false;
+		}
+		const auto shown = implementation->ChatHost->projection();
+		if (!shown.has_value()) {
+			return false;
+		}
+		implementation->dispatch_side_chat_intent(qt::send_chat_message_intent{
+			.Session = shown->Session.Id,
+			.Action  = core::agent_action_intent{ shown->EntryPoint },
+			.Scope   = shown->Chat.Scope,
+			.Text    = std::move(aText),
+		});
+		return true;
+	}
+
+	auto detail::github_application_fixture_access::
+		dispatch_side_chat_private_context(
+			github_application&          aApplication,
+			const core::agent_session_id aSession,
+			const bool                   aNotes,
+			const bool                   aDrafts) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->ChatHost == nullptr) {
+			return false;
+		}
+		implementation->dispatch_side_chat_intent(qt::chat_private_context_intent{
+			.OptIn = {
+				.Session = aSession,
+				.Notes   = aNotes,
+				.Drafts  = aDrafts,
+			},
+		});
+		return true;
+	}
+
+	auto detail::github_application_fixture_access::agent_finding_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::agent_finding_composition_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return { };
+		}
+		auto evidence = detail::agent_finding_composition_evidence{
+			.FindingHostComposed = implementation->FindingHost != nullptr,
+			.CommentWorkshopComposed
+			= implementation->WorkshopHost != nullptr,
+			.McpHelperComposed     = implementation->McpHelper != nullptr,
+			.SideChatPanelComposed = implementation->SideChat != nullptr,
+			.FindingQueueComposed  = implementation->FindingQueue != nullptr,
+			.QueuedFindings        = implementation->FindingQueue != nullptr
+				? implementation->FindingQueue->finding_count()
+				: 0U,
+			.WorkshopProposals     = implementation->CommentWorkshopProposals,
+			.RefusalsPresented     = implementation->FindingRefusalsPresented,
+			.SideChatPresentations = implementation->SideChatPresentations,
+			.SideChatIntents       = implementation->SideChatIntents,
+			.FrozenSnapshotWrites  = implementation->FrozenSnapshotWrites,
+			.FrozenFileCount       = implementation->frozen_snapshot_files().size(),
+			.FindingStatistics     = implementation->FindingHost != nullptr
+				? implementation->FindingHost->statistics()
+				: application::agent_finding_host_statistics{ },
+			.WorkshopStatistics    = implementation->WorkshopHost != nullptr
+				? implementation->WorkshopHost->statistics()
+				: application::agent_comment_workshop_statistics{ },
+			.McpStatistics         = implementation->McpHelper != nullptr
+				? implementation->McpHelper->statistics()
+				: application::mcp_helper_supervisor_statistics{ },
+			.McpLaunch             = implementation->McpHelper != nullptr
+				? implementation->McpHelper->describe()
+				: std::nullopt,
+			.McpAnswer             = implementation->McpHelper != nullptr
+				? implementation->McpHelper->answer()
+				: std::string{ },
+			.LastContinuationRealignment
+			= implementation->LastContinuationRealignment,
+			.LastContinuationRealignmentRetargeted
+			= implementation->LastContinuationRealignmentRetargeted,
+		};
+		if (implementation->FindingQueue != nullptr) {
+			evidence.QueuedClaim
+				= implementation->FindingQueue->claim_text().toStdString();
+			evidence.QueuedAnchorState
+				= implementation->FindingQueue->anchor_state_text().toStdString();
+		}
+		if (implementation->ReviewDraft.has_value()) {
+			evidence.LocalDraftBody = implementation->ReviewDraft->Body;
+		}
+		if (implementation->PendingWorkshopOperation.has_value()) {
+			evidence.WorkshopPendingOperation = std::string{ core::stable_name(
+				implementation->PendingWorkshopOperation->Operation) };
+			evidence.WorkshopPendingSessionBound
+				= implementation->PendingWorkshopOperation->Session.has_value();
+		}
+		if (implementation->Window != nullptr) {
+			if (auto* const editor = implementation->Window->review_editor();
+				editor != nullptr) {
+				evidence.WorkshopOriginalText
+					= editor->workshop_original_text().toStdString();
+				evidence.WorkshopProposalText
+					= editor->workshop_proposal_text().toStdString();
+				evidence.WorkshopOperationText
+					= editor->workshop_operation_text().toStdString();
+			}
+			if (auto* const panel = implementation->Window->agent_panel();
+				panel != nullptr) {
+				evidence.AgentPanelStatusText
+					= panel->status_text().toStdString();
+			}
+		}
+		if (implementation->SideChat != nullptr) {
+			evidence.SideChatHeadOidText
+				= implementation->SideChat->head_oid_text().toStdString();
+		}
+		return evidence;
 	}
 
 	auto detail::github_application_fixture_access::agent_invocation_evidence(

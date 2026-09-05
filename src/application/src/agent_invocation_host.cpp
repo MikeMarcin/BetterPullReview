@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <condition_variable>
+#include <cstdint>
 #include <map>
 #include <mutex>
 #include <ranges>
@@ -11,6 +12,20 @@
 
 namespace bpr::application {
 	namespace {
+		/// \brief Why the host is ending whatever is running.
+		///
+		/// \details Two causes, told apart because one of them is not news
+		/// about a continuation. `review_changed` means the reviewer is no
+		/// longer looking at the review this invocation belongs to, which ends
+		/// every turn. `binding_moved` means the revision under review moved
+		/// while the review stayed, which ends a turn asked about the revision
+		/// under review and deliberately does not end one asked about an
+		/// older one.
+		enum class supersession_cause : std::uint8_t {
+			binding_moved,
+			review_changed,
+		};
+
 		[[nodiscard]] auto binding_matches_authority(
 			const core::agent_revision_binding& aBinding,
 			const core::pull_request_authority& aAuthority) noexcept -> bool
@@ -48,13 +63,29 @@ namespace bpr::application {
 		{
 			invocation(
 				agent_invocation_projection_identity aIdentity,
+				core::agent_finding_snapshot         aSnapshot,
+				const bool                           aContinued,
 				std::shared_ptr<std::stop_source>    aStop)
 				: Identity{ std::move(aIdentity) }
+				, Snapshot{ std::move(aSnapshot) }
+				, Continued{ aContinued }
 				, Stop{ std::move(aStop) }
 			{
 			}
 
 			agent_invocation_projection_identity Identity;
+			/// Frozen at admission and never rebuilt. Const in effect: nothing
+			/// below writes it, so the verdict a payload receives is the one
+			/// the revision it was asked about produces.
+			const core::agent_finding_snapshot Snapshot;
+			/// Whether this turn continues a session the reviewer kept.
+			///
+			/// \details Frozen at admission beside the snapshot, and read
+			/// wherever a moved revision would otherwise end the turn. A
+			/// continuation is bound by BPR-0521's design to a revision the
+			/// review may already have moved away from, so "the binding
+			/// changed" is not news about it.
+			const bool                           Continued = false;
 			std::shared_ptr<std::stop_source>    Stop;
 			std::mutex                           WorkspaceMutex;
 			std::optional<owned_agent_workspace> OwnedWorkspace;
@@ -179,6 +210,16 @@ namespace bpr::application {
 			}
 		}
 
+		void project_findings(
+			const agent_invocation_projection_identity& aIdentity,
+			const agent_finding_delivery&               aDelivery) noexcept
+		{
+			try {
+				Projection.deliver_findings(aIdentity, aDelivery);
+			} catch (...) {
+			}
+		}
+
 		void project_session_catalog(
 			const agent_session_catalog_projection& aProjection) noexcept
 		{
@@ -234,18 +275,27 @@ namespace bpr::application {
 			core::agent_revision_binding       aBinding)
 		{
 			auto changed = false;
+			auto cause   = supersession_cause::review_changed;
 			{
 				std::scoped_lock lock{ StateMutex };
-				changed = !ApplicationSession.has_value()
+				const auto       reviewChanged = !ApplicationSession.has_value()
 					|| *ApplicationSession != aApplicationSession
-					|| Authority != std::optional{ aAuthority }
-					|| Binding != std::optional{ aBinding };
+					|| Authority != std::optional{ aAuthority };
+				const auto bindingChanged = Binding != std::optional{ aBinding };
+				changed                   = reviewChanged || bindingChanged;
+				// Only when the review itself stayed put is a moved binding
+				// the whole of the change; anything else is reported as the
+				// larger cause, so a continuation is never carried across a
+				// review it was not asked about.
+				cause              = reviewChanged
+					? supersession_cause::review_changed
+					: supersession_cause::binding_moved;
 				ApplicationSession = aApplicationSession;
 				Authority          = std::move(aAuthority);
 				Binding            = aBinding;
 			}
 			if (changed) {
-				supersede();
+				supersede(cause);
 			}
 			publish_session_catalog(aBinding);
 			publish_offerings();
@@ -259,7 +309,7 @@ namespace bpr::application {
 				Authority.reset();
 				Binding.reset();
 			}
-			supersede();
+			supersede(supersession_cause::review_changed);
 			project_session_catalog({ });
 			publish_offerings();
 		}
@@ -314,10 +364,41 @@ namespace bpr::application {
 				project_refuse("invalid_agent_context");
 				return;
 			}
+			if (aRequest.FrozenFiles.size() > core::maximum_supplement_paths) {
+				project_refuse("invalid_agent_finding_snapshot");
+				return;
+			}
+			// A continuation says two things about one revision, and they are
+			// checked against each other before anything is run. The session
+			// the turn continues carries its own binding; the context the
+			// caller composed carries one too. A turn whose two answers differ
+			// would freeze a snapshot under one revision and ask about the
+			// other, which is exactly the mismatch
+			// `continue_against_old_revision` exists to prevent, so it is
+			// refused by name rather than resolved in favour of either.
+			if (aRequest.ContinuedSession.has_value()) {
+				if (!core::valid_agent_session(*aRequest.ContinuedSession)
+					|| aRequest.ContinuedSession->Profile != profile->Id) {
+					project_refuse("agent_continuation_invalid_session");
+					return;
+				}
+				if (aRequest.ContinuedSession->Binding
+					!= aRequest.Context.Binding) {
+					project_refuse("agent_continuation_binding_mismatch");
+					return;
+				}
+			}
 
 			auto job = std::shared_ptr<invocation>{ };
 			{
 				std::scoped_lock lock{ StateMutex };
+				// The revision this turn is about: the one under review, or —
+				// for a continuation — the one the continued session was
+				// bound to. Both are values this host holds or was handed
+				// whole; neither is a revision a caller named on its own.
+				const auto turnBinding = aRequest.ContinuedSession.has_value()
+					? aRequest.ContinuedSession->Binding
+					: Binding.value_or(core::agent_revision_binding{ });
 				if (
 					!ApplicationSession.has_value() || !Authority.has_value()
 					|| !Binding.has_value() || ActiveInvocation
@@ -325,33 +406,53 @@ namespace bpr::application {
 					|| aRequest.Context.ApplicationSession
 						!= aRequest.ApplicationSession
 					|| aRequest.Authority != *Authority
-					|| aRequest.Context.Binding != *Binding
+					|| aRequest.Context.Binding != turnBinding
+					|| !binding_matches_authority(turnBinding, *Authority)
 					|| !binding_matches_authority(*Binding, *Authority)) {
 					project_refuse(
 						ActiveInvocation ? "agent_invocation_already_running"
 										 : "stale_or_mismatched_agent_context");
 					return;
 				}
-				++SessionAdmissions;
-				auto admitted = Sessions.admit(agent_session_admission{
-					.Profile = profile->Id,
-					.Binding = *Binding,
-				});
-				if (!admitted) {
-					++SessionAdmissionFailures;
-					project_refuse(
-						std::string{ "agent_session_admission_" }
-						+ std::string{ name(admitted.error()) });
-					return;
+				// Continuing is the one path that allocates nothing. The
+				// identity already exists in the catalog, which is what makes
+				// it a continuation rather than a second conversation, and
+				// re-admitting it would mint an identity the reviewer's own
+				// session is not keyed to.
+				auto session = aRequest.ContinuedSession;
+				if (!session.has_value()) {
+					++SessionAdmissions;
+					auto admitted = Sessions.admit(agent_session_admission{
+						.Profile = profile->Id,
+						.Binding = *Binding,
+					});
+					if (!admitted) {
+						++SessionAdmissionFailures;
+						project_refuse(
+							std::string{ "agent_session_admission_" }
+							+ std::string{ name(admitted.error()) });
+						return;
+					}
+					session = *admitted;
 				}
-				supplement->Session = *admitted;
+				supplement->Session = *session;
 				job                 = std::make_shared<invocation>(
 					agent_invocation_projection_identity{
 						.ApplicationSession   = aRequest.ApplicationSession,
 						.Authority            = aRequest.Authority,
-						.Session              = *admitted,
+						.Session              = *session,
 						.InvocationGeneration = ++InvocationGeneration,
 					},
+					// The binding comes from the session this turn runs under,
+					// never from the request beside it. A caller cannot name a
+					// revision that session was not started against, because
+					// there is nowhere for it to say one and the one place it
+					// could restate it has already been checked equal.
+					core::agent_finding_snapshot{
+						.Binding = session->Binding,
+						.Files   = aRequest.FrozenFiles,
+					},
+					aRequest.ContinuedSession.has_value(),
 					std::make_shared<std::stop_source>());
 				ActiveInvocation = job;
 				ActiveJobs.store(1U, std::memory_order_release);
@@ -421,10 +522,10 @@ namespace bpr::application {
 						try {
 							self->Effects.post(
 								[weak,
-								 request    = std::move(request),
-								 profile    = std::move(profile),
-								 supplement = std::move(supplement),
-								 existing   = std::move(existing),
+								 runRequest    = std::move(request),
+								 runProfile    = std::move(profile),
+								 runSupplement = std::move(supplement),
+								 runExisting   = std::move(existing),
 								 aInvocation]() mutable {
 									auto effectOwner = weak.lock();
 									if (!effectOwner || !effectOwner->enter_callback()) {
@@ -432,10 +533,10 @@ namespace bpr::application {
 									}
 									auto effectGuard = callback_guard{ effectOwner };
 									effectOwner->run(
-										std::move(request),
-										std::move(profile),
-										std::move(supplement),
-										std::move(existing),
+										std::move(runRequest),
+										std::move(runProfile),
+										std::move(runSupplement),
+										std::move(runExisting),
 										aInvocation);
 								});
 						} catch (...) {
@@ -640,16 +741,54 @@ namespace bpr::application {
 								observed = self->Binding;
 							}
 						}
-						auto final = aInvocation->Superseded.load(std::memory_order_acquire)
+						// Lifted off the result before any staleness decision.
+						// A terminal that supersession replaces wholesale would
+						// otherwise take the turn's findings with it, and a
+						// payload the reviewer can no longer act on is still
+						// one they are entitled to see refused by revision
+						// rather than to never learn about.
+						auto payload = std::move(result.Findings);
+						result.Findings.reset();
+						// Which revision this turn's outcome is judged
+						// against. A fresh turn is judged against the revision
+						// under review, unchanged. A continuation is judged
+						// against the revision its session was started on: the
+						// reviewer asked about that one, the frozen snapshot
+						// every finding below is validated against is that
+						// one's, and judging the answer against the head on
+						// screen would report every continuation as stale by
+						// construction. The delivery below still states its
+						// staleness against `observed`, so how far the review
+						// has moved is reported rather than hidden.
+						const auto judged = aInvocation->Continued
+								&& observed.has_value()
+							? std::optional{ aInvocation->Identity.Session.Binding }
+							: observed;
+						auto       final  = aInvocation->Superseded.load(std::memory_order_acquire)
 							? agent_run_result{
 								  .Session = aInvocation->Identity.Session.Id,
 								  .Outcome = agent_run_outcome::stale_result,
 							  }
-							: observed.has_value() ? finalize_agent_run(std::move(result), aInvocation->Identity.Session, *observed)
-												   : agent_run_result{
-														 .Session = aInvocation->Identity.Session.Id,
-														 .Outcome = agent_run_outcome::stale_result,
-													 };
+							: judged.has_value() ? finalize_agent_run(std::move(result), aInvocation->Identity.Session, *judged)
+												 : agent_run_result{
+													   .Session = aInvocation->Identity.Session.Id,
+													   .Outcome = agent_run_outcome::stale_result,
+												   };
+						// The terminal carries no undecoded payload. Findings
+						// leave the host exactly once, with a verdict each, and
+						// through the call below; there is no second route by
+						// which an unvalidated finding could reach a
+						// presentation.
+						final.Findings.reset();
+						if (payload.has_value()) {
+							self->project_findings(
+								aInvocation->Identity,
+								deliver_agent_findings(
+									*payload,
+									aInvocation->Identity.Session,
+									aInvocation->Snapshot,
+									observed));
+						}
 						self->project_finish(aInvocation->Identity, final);
 						aInvocation->TerminalComplete.store(
 							true, std::memory_order_release);
@@ -745,7 +884,7 @@ namespace bpr::application {
 			Processes.cancel();
 		}
 
-		void supersede()
+		void supersede(const supersession_cause aCause)
 		{
 			auto active = std::shared_ptr<invocation>{ };
 			{
@@ -753,6 +892,18 @@ namespace bpr::application {
 				active = ActiveInvocation;
 			}
 			if (!active) {
+				return;
+			}
+			// The guard, and the whole of it. A continuation was dispatched
+			// against the revision its session was started on, which BPR-0521
+			// permits to differ from the one under review — that difference is
+			// what the reviewer chose when they kept the session. Stopping it
+			// because the binding moved would kill the turn for the condition
+			// it was created under, and the reviewer would lose an answer they
+			// asked for on purpose. A fresh turn is superseded exactly as
+			// before: it was asked about the revision that just moved.
+			if (aCause == supersession_cause::binding_moved
+				&& active->Continued) {
 				return;
 			}
 			active->Superseded.store(true, std::memory_order_release);

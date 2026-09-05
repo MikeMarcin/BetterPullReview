@@ -22,6 +22,13 @@ namespace bpr::adapters::github {
 																	 L"windows-credential-manager.v2/";
 		constexpr std::wstring_view integration_test_target_prefix = L"org.betterpullreview.github-native-credential."
 																	 L"windows-credential-manager.integration-test.v2/";
+		// BPR-0543. The refresh slot's own targets, distinct from the base
+		// credential's in the prefix rather than the account, so both slots key
+		// the same authority and neither can answer the other's query.
+		constexpr std::wstring_view production_refresh_target_prefix       = L"org.betterpullreview.github-native-refresh."
+																			 L"windows-credential-manager.v1/";
+		constexpr std::wstring_view integration_test_refresh_target_prefix = L"org.betterpullreview.github-native-refresh."
+																			 L"windows-credential-manager.integration-test.v1/";
 
 		// Microsoft documents a 5 * 512-byte generic credential blob limit for the
 		// supported Windows 10/11 surface. Some MinGW headers retain the legacy
@@ -41,6 +48,30 @@ namespace bpr::adapters::github {
 			integration_test_target_prefix.size()
 				+ windows_credential_manager_authority_account_chars
 			<= CRED_MAX_GENERIC_TARGET_NAME_LENGTH);
+		static_assert(
+			production_refresh_target_prefix.size()
+				+ windows_credential_manager_authority_account_chars
+			== 647U);
+		static_assert(
+			integration_test_refresh_target_prefix.size()
+				+ windows_credential_manager_authority_account_chars
+			== 664U);
+		static_assert(
+			integration_test_refresh_target_prefix.size()
+				+ windows_credential_manager_authority_account_chars
+			<= CRED_MAX_GENERIC_TARGET_NAME_LENGTH);
+		// Neither refresh prefix may be a prefix of a base one, or a target
+		// built for one slot could name an entry in the other.
+		static_assert(
+			!production_refresh_target_prefix.starts_with(
+				production_target_prefix)
+			&& !production_target_prefix.starts_with(
+				production_refresh_target_prefix));
+		static_assert(
+			!integration_test_refresh_target_prefix.starts_with(
+				integration_test_target_prefix)
+			&& !integration_test_target_prefix.starts_with(
+				integration_test_refresh_target_prefix));
 		static_assert(
 			application::maximum_github_credential_bytes
 			== windows_credential_manager_maximum_blob_bytes);
@@ -434,28 +465,49 @@ namespace bpr::adapters::github {
 			}
 		}
 
+		// BPR-0543. Which of the two Credential Manager targets an operation
+		// belongs to. Carried on the queued work rather than read from the
+		// context, so a queued operation cannot be re-routed after the fact.
+		enum class credential_slot : std::uint8_t {
+			credential,
+			refresh,
+		};
+
 		struct pending_store
 		{
 			application::github_credential_enrollment               Enrollment;
 			application::github_credential_store_completion_handler Completion;
+			credential_slot                                         Slot = credential_slot::credential;
 		};
 
 		struct pending_retrieve
 		{
 			application::github_credential_operation_context           Context;
 			application::github_credential_retrieve_completion_handler Completion;
+			credential_slot                                            Slot = credential_slot::credential;
 		};
 
 		struct pending_delete
 		{
 			application::github_credential_operation_context         Context;
 			application::github_credential_delete_completion_handler Completion;
+			credential_slot                                          Slot = credential_slot::credential;
 		};
 
 		using pending_operation  = std::variant<pending_store, pending_retrieve, pending_delete>;
 		using pending_operations = std::map<
 			application::github_credential_operation_context,
 			pending_operation>;
+
+		[[nodiscard]] auto slot_of(const pending_operation& aOperation) noexcept
+			-> credential_slot
+		{
+			return std::visit(
+				[](const auto& aPending) noexcept {
+					return aPending.Slot;
+				},
+				aOperation);
+		}
 
 		[[nodiscard]] auto extract_pending(
 			pending_operations&                                     operations,
@@ -570,24 +622,30 @@ namespace bpr::adapters::github {
 		private:
 			struct shared_state
 			{
-				explicit shared_state(
-					std::shared_ptr<windows_credential_manager_backend> backend) noexcept
+				shared_state(
+					std::shared_ptr<windows_credential_manager_backend> backend,
+					std::shared_ptr<windows_credential_manager_backend> aRefreshBackend) noexcept
 					: Backend{ std::move(backend) }
+					, RefreshBackend{ std::move(aRefreshBackend) }
 				{
 				}
 
 				std::mutex                                          Mutex;
 				pending_operations                                  Pending;
 				std::shared_ptr<windows_credential_manager_backend> Backend;
+				std::shared_ptr<windows_credential_manager_backend> RefreshBackend;
 				bool                                                Closing = false;
 			};
 
 		public:
 			windows_credential_manager_vault(
 				application::effect_executor&                       effect_lane,
-				std::shared_ptr<windows_credential_manager_backend> backend)
+				std::shared_ptr<windows_credential_manager_backend> backend,
+				std::shared_ptr<windows_credential_manager_backend> aRefreshBackend)
 				: EffectLane{ effect_lane }
-				, State{ std::make_shared<shared_state>(std::move(backend)) }
+				, State{ std::make_shared<shared_state>(
+					  std::move(backend),
+					  std::move(aRefreshBackend)) }
 			{
 			}
 
@@ -614,25 +672,10 @@ namespace bpr::adapters::github {
 				application::github_credential_store_completion_handler completion)
 				override
 			{
-				const auto context = enrollment.Context;
-				if (!application::valid(enrollment) || !completion) {
-					enrollment.Credential.reset();
-					if (completion) {
-						completion(application::github_credential_store_error{
-							.Context = context,
-							.Failure = application::
-								github_credential_vault_failure::invalid_request,
-						});
-					}
-					return;
-				}
-
-				queue(
-					context,
-					pending_store{
-						.Enrollment = std::move(enrollment),
-						.Completion = std::move(completion),
-					});
+				submit_store(
+					credential_slot::credential,
+					std::move(enrollment),
+					std::move(completion));
 			}
 
 			void retrieve(
@@ -640,23 +683,10 @@ namespace bpr::adapters::github {
 				application::github_credential_retrieve_completion_handler completion)
 				override
 			{
-				if (!application::valid(context) || !completion) {
-					if (completion) {
-						completion(application::github_credential_retrieve_error{
-							.Context = context,
-							.Failure = application::
-								github_credential_vault_failure::invalid_request,
-						});
-					}
-					return;
-				}
-
-				queue(
+				submit_retrieve(
+					credential_slot::credential,
 					context,
-					pending_retrieve{
-						.Context    = context,
-						.Completion = std::move(completion),
-					});
+					std::move(completion));
 			}
 
 			void delete_credential(
@@ -664,49 +694,25 @@ namespace bpr::adapters::github {
 				application::github_credential_delete_completion_handler completion)
 				override
 			{
-				if (!application::valid(context) || !completion) {
-					if (completion) {
-						completion(application::github_credential_delete_error{
-							.Context = context,
-							.Failure = application::
-								github_credential_vault_failure::invalid_request,
-						});
-					}
-					return;
-				}
-
-				queue(
+				submit_delete(
+					credential_slot::credential,
 					context,
-					pending_delete{
-						.Context    = context,
-						.Completion = std::move(completion),
-					});
+					std::move(completion));
 			}
 
-			// The refresh slot has no Credential Manager target of its own yet, so
-			// it reports itself unavailable rather than sharing the credential
-			// target and letting one slot answer for the other. Enabling it
-			// belongs to BPR-0311.
+			// BPR-0543. The refresh slot is a second Credential Manager target
+			// under the same authority account, reached through the same queue
+			// and the same effect lane as the base credential. It answers
+			// unavailable only when that store cannot be reached at all.
 			void store_refresh(
 				application::github_credential_enrollment               aEnrollment,
 				application::github_credential_store_completion_handler aCompletion)
 				override
 			{
-				const auto context = aEnrollment.Context;
-				auto       pending
-					= std::make_shared<application::github_credential_enrollment>(
-						std::move(aEnrollment));
-				EffectLane.post(
-					[pending = std::move(pending), context, completion = std::move(aCompletion)]() mutable {
-						pending->Credential.reset();
-						if (completion) {
-							completion(application::github_credential_store_error{
-								.Context = context,
-								.Failure = application::
-									github_credential_vault_failure::unavailable,
-							});
-						}
-					});
+				submit_store(
+					credential_slot::refresh,
+					std::move(aEnrollment),
+					std::move(aCompletion));
 			}
 
 			void retrieve_refresh(
@@ -714,16 +720,10 @@ namespace bpr::adapters::github {
 				application::github_credential_retrieve_completion_handler aCompletion)
 				override
 			{
-				EffectLane.post(
-					[aContext, completion = std::move(aCompletion)]() mutable {
-						if (completion) {
-							completion(application::github_credential_retrieve_error{
-								.Context = aContext,
-								.Failure = application::
-									github_credential_vault_failure::unavailable,
-							});
-						}
-					});
+				submit_retrieve(
+					credential_slot::refresh,
+					aContext,
+					std::move(aCompletion));
 			}
 
 			void delete_refresh(
@@ -731,16 +731,10 @@ namespace bpr::adapters::github {
 				application::github_credential_delete_completion_handler aCompletion)
 				override
 			{
-				EffectLane.post(
-					[aContext, completion = std::move(aCompletion)]() mutable {
-						if (completion) {
-							completion(application::github_credential_delete_error{
-								.Context = aContext,
-								.Failure = application::
-									github_credential_vault_failure::unavailable,
-							});
-						}
-					});
+				submit_delete(
+					credential_slot::refresh,
+					aContext,
+					std::move(aCompletion));
 			}
 
 			void cancel(
@@ -758,6 +752,83 @@ namespace bpr::adapters::github {
 			}
 
 		private:
+			void submit_store(
+				const credential_slot                                   aSlot,
+				application::github_credential_enrollment               aEnrollment,
+				application::github_credential_store_completion_handler aCompletion)
+			{
+				const auto operation = aEnrollment.Context;
+				if (!application::valid(aEnrollment) || !aCompletion) {
+					aEnrollment.Credential.reset();
+					if (aCompletion) {
+						aCompletion(application::github_credential_store_error{
+							.Context = operation,
+							.Failure = application::
+								github_credential_vault_failure::invalid_request,
+						});
+					}
+					return;
+				}
+
+				queue(
+					operation,
+					pending_store{
+						.Enrollment = std::move(aEnrollment),
+						.Completion = std::move(aCompletion),
+						.Slot       = aSlot,
+					});
+			}
+
+			void submit_retrieve(
+				const credential_slot                                      aSlot,
+				const application::github_credential_operation_context&    aContext,
+				application::github_credential_retrieve_completion_handler aCompletion)
+			{
+				if (!application::valid(aContext) || !aCompletion) {
+					if (aCompletion) {
+						aCompletion(application::github_credential_retrieve_error{
+							.Context = aContext,
+							.Failure = application::
+								github_credential_vault_failure::invalid_request,
+						});
+					}
+					return;
+				}
+
+				queue(
+					aContext,
+					pending_retrieve{
+						.Context    = aContext,
+						.Completion = std::move(aCompletion),
+						.Slot       = aSlot,
+					});
+			}
+
+			void submit_delete(
+				const credential_slot                                    aSlot,
+				const application::github_credential_operation_context&  aContext,
+				application::github_credential_delete_completion_handler aCompletion)
+			{
+				if (!application::valid(aContext) || !aCompletion) {
+					if (aCompletion) {
+						aCompletion(application::github_credential_delete_error{
+							.Context = aContext,
+							.Failure = application::
+								github_credential_vault_failure::invalid_request,
+						});
+					}
+					return;
+				}
+
+				queue(
+					aContext,
+					pending_delete{
+						.Context    = aContext,
+						.Completion = std::move(aCompletion),
+						.Slot       = aSlot,
+					});
+			}
+
 			void queue(
 				const application::github_credential_operation_context& context,
 				pending_operation                                       operation)
@@ -847,10 +918,22 @@ namespace bpr::adapters::github {
 					const auto lock = std::scoped_lock{ state->Mutex };
 					pending         = extract_pending(state->Pending, context);
 					if (pending.has_value()) {
-						backend = state->Backend;
+						backend = slot_of(*pending) == credential_slot::refresh
+							? state->RefreshBackend
+							: state->Backend;
 					}
 				}
 				if (!pending.has_value()) {
+					return;
+				}
+				// A vault built without a refresh backend has no second slot to
+				// reach; that store is unreachable, which is what unavailable
+				// means here and the only thing it means (BPR-0543).
+				if (backend == nullptr) {
+					publish_failure(
+						*pending,
+						application::github_credential_vault_failure::
+							unavailable);
 					return;
 				}
 
@@ -1035,7 +1118,8 @@ namespace bpr::adapters::github {
 
 		[[nodiscard]] auto make_vault(
 			application::effect_executor&                       effect_lane,
-			std::shared_ptr<windows_credential_manager_backend> backend) noexcept
+			std::shared_ptr<windows_credential_manager_backend> backend,
+			std::shared_ptr<windows_credential_manager_backend> aRefreshBackend) noexcept
 			-> windows_credential_manager_vault_factory_result
 		{
 			if (backend == nullptr) {
@@ -1048,7 +1132,8 @@ namespace bpr::adapters::github {
 				return std::unique_ptr<application::github_credential_vault_port>{
 					std::make_unique<windows_credential_manager_vault>(
 						effect_lane,
-						std::move(backend))
+						std::move(backend),
+						std::move(aRefreshBackend))
 				};
 			} catch (const std::bad_alloc&) {
 				return std::unexpected{
@@ -1073,6 +1158,10 @@ namespace bpr::adapters::github {
 			return production_target_prefix;
 		case windows_credential_manager_target_scope::integration_test:
 			return integration_test_target_prefix;
+		case windows_credential_manager_target_scope::production_refresh:
+			return production_refresh_target_prefix;
+		case windows_credential_manager_target_scope::integration_test_refresh:
+			return integration_test_refresh_target_prefix;
 		}
 		return { };
 	}
@@ -1169,7 +1258,15 @@ namespace bpr::adapters::github {
 		if (!backend.has_value()) {
 			return std::unexpected{ backend.error() };
 		}
-		return make_vault(effect_lane, std::move(*backend));
+		auto refresh = make_native_backend(
+			windows_credential_manager_target_scope::production_refresh);
+		if (!refresh.has_value()) {
+			return std::unexpected{ refresh.error() };
+		}
+		return make_vault(
+			effect_lane,
+			std::move(*backend),
+			std::move(*refresh));
 	}
 
 	auto make_windows_credential_manager_integration_test_vault(
@@ -1181,14 +1278,26 @@ namespace bpr::adapters::github {
 		if (!backend.has_value()) {
 			return std::unexpected{ backend.error() };
 		}
-		return make_vault(effect_lane, std::move(*backend));
+		auto refresh = make_native_backend(
+			windows_credential_manager_target_scope::integration_test_refresh);
+		if (!refresh.has_value()) {
+			return std::unexpected{ refresh.error() };
+		}
+		return make_vault(
+			effect_lane,
+			std::move(*backend),
+			std::move(*refresh));
 	}
 
 	auto make_windows_credential_manager_vault_with_backend(
 		application::effect_executor&                       effect_lane,
-		std::shared_ptr<windows_credential_manager_backend> backend) noexcept
+		std::shared_ptr<windows_credential_manager_backend> backend,
+		std::shared_ptr<windows_credential_manager_backend> aRefreshBackend) noexcept
 		-> windows_credential_manager_vault_factory_result
 	{
-		return make_vault(effect_lane, std::move(backend));
+		return make_vault(
+			effect_lane,
+			std::move(backend),
+			std::move(aRefreshBackend));
 	}
 }

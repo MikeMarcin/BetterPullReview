@@ -67,9 +67,10 @@ namespace bpr::adapters::sqlite::detail {
 
 		constexpr std::string_view CatalogName   = "epoch-catalog.sqlite3";
 		constexpr std::int32_t     ApplicationId = 0x42504543;
-		constexpr std::int32_t     UserVersion   = 1;
+		constexpr std::int32_t     UserVersion   = 2;
 #if defined(BPR_SQLITE_TESTING)
 		std::atomic_bool InterruptBootstrapBeforePublication = false;
+		std::atomic_bool InterruptMigrationBeforeCommit      = false;
 #endif
 		static_assert(
 			application::maximum_retained_epoch_count_per_pull_request == 100'000U);
@@ -90,7 +91,7 @@ namespace bpr::adapters::sqlite::detail {
 				"catalog_meta",
 				R"sql(CREATE TABLE catalog_meta(
             singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1),
-            schema_format INTEGER NOT NULL CHECK(schema_format = 1),
+            schema_format INTEGER NOT NULL CHECK(schema_format = 2),
             incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32))
         ) STRICT, WITHOUT ROWID)sql" },
 			schema_object{
@@ -107,7 +108,11 @@ namespace bpr::adapters::sqlite::detail {
             profile_revision BLOB NOT NULL CHECK(length(profile_revision) = 8 AND profile_revision != zeroblob(8)),
             host_id BLOB NOT NULL CHECK(length(host_id) = 8 AND host_id != zeroblob(8)),
             host_authority BLOB NOT NULL CHECK(length(host_authority) = 32 AND host_authority != zeroblob(32)),
-            account_id BLOB NOT NULL CHECK(length(account_id) = 8 AND account_id != zeroblob(8)),
+            account_id BLOB NOT NULL CHECK(length(account_id) = 8),
+            access_mode INTEGER NOT NULL CHECK(
+                access_mode IN (1, 2)
+                AND (access_mode = 1) = (account_id != zeroblob(8))
+            ),
             repository_id BLOB NOT NULL CHECK(length(repository_id) = 8 AND repository_id != zeroblob(8)),
             object_format INTEGER NOT NULL CHECK(object_format IN (1, 2)),
             lifecycle INTEGER NOT NULL CHECK(lifecycle IN (1, 2, 3, 4)),
@@ -119,8 +124,14 @@ namespace bpr::adapters::sqlite::detail {
 				"repository_scope_active_authority",
 				R"sql(CREATE UNIQUE INDEX repository_scope_active_authority ON repository_scope(
             incarnation, profile_id, profile_revision, host_id, host_authority,
-            account_id, repository_id, object_format
+            access_mode, account_id, repository_id, object_format
         ) WHERE lifecycle != 4)sql" },
+			schema_object{
+				"index",
+				"repository_scope_mode",
+				R"sql(CREATE UNIQUE INDEX repository_scope_mode ON repository_scope(
+            incarnation, cache_scope, access_mode
+        ))sql" },
 			schema_object{
 				"table",
 				"pull_request_scope",
@@ -128,7 +139,11 @@ namespace bpr::adapters::sqlite::detail {
             incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32)),
             pr_scope BLOB NOT NULL CHECK(length(pr_scope) = 32 AND pr_scope != zeroblob(32)),
             cache_scope BLOB NOT NULL CHECK(length(cache_scope) = 32 AND cache_scope != zeroblob(32)),
-            viewer_id BLOB NOT NULL CHECK(length(viewer_id) = 8 AND viewer_id != zeroblob(8)),
+            viewer_id BLOB NOT NULL CHECK(length(viewer_id) = 8),
+            access_mode INTEGER NOT NULL CHECK(
+                access_mode IN (1, 2)
+                AND (access_mode = 1) = (viewer_id != zeroblob(8))
+            ),
             pull_request_id BLOB NOT NULL CHECK(length(pull_request_id) = 8 AND pull_request_id != zeroblob(8)),
             pull_request_number INTEGER NOT NULL CHECK(pull_request_number BETWEEN 1 AND 2147483647),
             next_ordinal INTEGER CHECK(next_ordinal IS NULL OR next_ordinal > 0),
@@ -139,8 +154,8 @@ namespace bpr::adapters::sqlite::detail {
             lifecycle INTEGER NOT NULL CHECK(lifecycle IN (1, 2, 3, 4)),
             retention_rehydration_required INTEGER NOT NULL CHECK(retention_rehydration_required IN (0, 1)),
             PRIMARY KEY(incarnation, pr_scope),
-            FOREIGN KEY(incarnation, cache_scope)
-                REFERENCES repository_scope(incarnation, cache_scope),
+            FOREIGN KEY(incarnation, cache_scope, access_mode)
+                REFERENCES repository_scope(incarnation, cache_scope, access_mode),
             FOREIGN KEY(incarnation, pr_scope, latest_live_ordinal)
                 REFERENCES epoch(incarnation, pr_scope, ordinal),
             FOREIGN KEY(incarnation, pr_scope, previous_distinct_head_ordinal)
@@ -620,7 +635,7 @@ namespace bpr::adapters::sqlite::detail {
 				rollback();
 				return app;
 			}
-			if (auto version = execute(aDatabase, "PRAGMA user_version = 1", aStop);
+			if (auto version = execute(aDatabase, "PRAGMA user_version = 2", aStop);
 				!version) {
 				rollback();
 				return version;
@@ -634,7 +649,7 @@ namespace bpr::adapters::sqlite::detail {
 			auto insert = prepare(
 				aDatabase,
 				"INSERT INTO catalog_meta(singleton, schema_format, incarnation) "
-				"VALUES(1, 1, ?1)");
+				"VALUES(1, 2, ?1)");
 			if (!insert) {
 				rollback();
 				return std::unexpected(insert.error());
@@ -654,6 +669,225 @@ namespace bpr::adapters::sqlite::detail {
 				rollback();
 				return std::unexpected(writeFailure);
 			}
+			if (auto commit = execute(aDatabase, "COMMIT", aStop); !commit) {
+				rollback();
+				return commit;
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto schema_sql(const std::string_view aName) noexcept
+			-> std::string_view
+		{
+			for (const auto& object : SchemaObjects) {
+				if (object.Name == aName) {
+					return object.Sql;
+				}
+			}
+			return { };
+		}
+
+		// The v1 -> v2 upgrade. Version 1 held one authority shape, and every
+		// row it holds is an authenticated one: the mode did not exist, so no
+		// row could have been written under any other. The upgrade therefore
+		// asserts nothing about the data it finds beyond what v1's own
+		// constraints already guaranteed - it rewrites each row under the
+		// discriminated schema with `access_mode` fixed at authenticated,
+		// leaving account, viewer, repository, and cache identity untouched.
+		//
+		// The three tables whose constraints changed are rebuilt rather than
+		// altered, because the change is a relaxation of a column CHECK
+		// (`account_id`/`viewer_id` may now be zero, but only under the public
+		// mode) and SQLite cannot drop a CHECK in place. Each is recreated
+		// from the same DDL text `validate_schema` compares against, so a
+		// migrated catalog and a freshly bootstrapped one are the same schema
+		// byte for byte rather than merely equivalent - no rename is used,
+		// because a rename would rewrite the stored text and the two would
+		// stop matching.
+		//
+		// Everything runs in one transaction with foreign keys deferred to its
+		// commit, so a failure at any point - including the injected one -
+		// leaves a complete v1 catalog with its version, its schema, and its
+		// rows exactly as they were. Nothing is ever recreated from empty: a
+		// version this build cannot read is refused before this function
+		// begins any work.
+		[[nodiscard]] auto migrate_schema(::sqlite3* aDatabase, std::stop_token aStop)
+			-> std::expected<void, failure>
+		{
+			progress_scope progress{ aDatabase, aStop };
+			const auto     applicationId = scalar_integer(aDatabase, "PRAGMA application_id");
+			if (!applicationId || *applicationId != ApplicationId) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			const auto userVersion = scalar_integer(aDatabase, "PRAGMA user_version");
+			if (!userVersion) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			if (*userVersion == UserVersion) {
+				return { };
+			}
+			// Zero, a negative value, a version this build never wrote, and a
+			// version a newer build wrote are all the same answer: this build
+			// does not know what the file means, so it refuses it. None of
+			// them is recreated, downgraded, or repaired - a catalog is
+			// never silently discarded to make an open succeed.
+			if (*userVersion != 1) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+
+			if (auto begin = execute(aDatabase, "BEGIN IMMEDIATE", aStop); !begin) {
+				return begin;
+			}
+			auto rollback = [&aDatabase]() noexcept {
+				(void)::sqlite3_exec(aDatabase, "ROLLBACK", nullptr, nullptr, nullptr);
+			};
+			const auto step = [&](const std::string_view aSql)
+				-> std::expected<void, failure> {
+				if (aSql.empty()) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				return execute(aDatabase, aSql, aStop);
+			};
+			const auto counted = [&](const std::string_view aSql)
+				-> std::expected<std::int64_t, failure> {
+				return scalar_integer(aDatabase, aSql);
+			};
+
+			const auto metaBefore       = counted("SELECT count(*) FROM catalog_meta");
+			const auto repositoryBefore = counted("SELECT count(*) FROM repository_scope");
+			const auto pullRequestBefore
+				= counted("SELECT count(*) FROM pull_request_scope");
+			if (!metaBefore || !repositoryBefore || !pullRequestBefore) {
+				rollback();
+				return std::unexpected(failure::schema_mismatch);
+			}
+
+			constexpr std::array<std::string_view, 3> rebuiltNames{
+				"catalog_meta", "repository_scope", "pull_request_scope"
+			};
+			constexpr std::array<std::string_view, 6> rebuiltIndexNames{
+				"catalog_meta_incarnation",
+				"repository_scope_active_authority",
+				"repository_scope_mode",
+				"pull_request_scope_cache_id",
+				"pull_request_scope_cache_number",
+				"pull_request_scope_cache_binding"
+			};
+			const std::array<std::string_view, 12> preparation{
+				// Deferred rather than disabled: every reference the rebuild
+				// breaks is checked again at the commit that ends it, so a
+				// migration that lost a row cannot commit.
+				"PRAGMA defer_foreign_keys = ON",
+				"CREATE TABLE migration_catalog_meta AS SELECT * FROM catalog_meta",
+				"CREATE TABLE migration_repository_scope AS "
+				"SELECT * FROM repository_scope",
+				"CREATE TABLE migration_pull_request_scope AS "
+				"SELECT * FROM pull_request_scope",
+				"DROP TABLE pull_request_scope",
+				"DROP TABLE repository_scope",
+				"DROP TABLE catalog_meta",
+				schema_sql(rebuiltNames[0]),
+				schema_sql(rebuiltIndexNames[0]),
+				schema_sql(rebuiltNames[1]),
+				schema_sql(rebuiltIndexNames[1]),
+				schema_sql(rebuiltIndexNames[2]),
+			};
+			const std::array<std::string_view, 4> remainder{
+				schema_sql(rebuiltNames[2]),
+				schema_sql(rebuiltIndexNames[3]),
+				schema_sql(rebuiltIndexNames[4]),
+				schema_sql(rebuiltIndexNames[5]),
+			};
+			const std::array<std::string_view, 3> copies{
+				"INSERT INTO catalog_meta(singleton, schema_format, incarnation) "
+				"SELECT singleton, 2, incarnation FROM migration_catalog_meta",
+				// Every migrated row is authenticated. The mode is the only
+				// column this adds; account, repository, cache, and lifecycle
+				// identity are carried across unchanged.
+				"INSERT INTO repository_scope(incarnation, cache_scope, profile_id, "
+				"profile_revision, host_id, host_authority, account_id, access_mode, "
+				"repository_id, object_format, lifecycle) "
+				"SELECT incarnation, cache_scope, profile_id, profile_revision, "
+				"host_id, host_authority, account_id, 1, repository_id, "
+				"object_format, lifecycle FROM migration_repository_scope",
+				"INSERT INTO pull_request_scope(incarnation, pr_scope, cache_scope, "
+				"viewer_id, access_mode, pull_request_id, pull_request_number, "
+				"next_ordinal, catalog_revision, retained_epoch_count, "
+				"latest_live_ordinal, previous_distinct_head_ordinal, lifecycle, "
+				"retention_rehydration_required) "
+				"SELECT incarnation, pr_scope, cache_scope, viewer_id, 1, "
+				"pull_request_id, pull_request_number, next_ordinal, "
+				"catalog_revision, retained_epoch_count, latest_live_ordinal, "
+				"previous_distinct_head_ordinal, lifecycle, "
+				"retention_rehydration_required FROM migration_pull_request_scope",
+			};
+			const std::array<std::string_view, 4> completion{
+				"DROP TABLE migration_pull_request_scope",
+				"DROP TABLE migration_repository_scope",
+				"DROP TABLE migration_catalog_meta",
+				"PRAGMA user_version = 2",
+			};
+
+			for (const auto sql : preparation) {
+				if (auto applied = step(sql); !applied) {
+					rollback();
+					return applied;
+				}
+			}
+			for (const auto sql : remainder) {
+				if (auto applied = step(sql); !applied) {
+					rollback();
+					return applied;
+				}
+			}
+			for (const auto sql : copies) {
+				if (auto applied = step(sql); !applied) {
+					rollback();
+					return applied;
+				}
+			}
+
+			// The row counts are compared before the temporary copies are
+			// dropped, so a copy that silently lost or duplicated a row is
+			// caught while the evidence still exists.
+			const auto metaAfter       = counted("SELECT count(*) FROM catalog_meta");
+			const auto repositoryAfter = counted("SELECT count(*) FROM repository_scope");
+			const auto pullRequestAfter
+				= counted("SELECT count(*) FROM pull_request_scope");
+			if (
+				!metaAfter || !repositoryAfter || !pullRequestAfter
+				|| *metaAfter != *metaBefore
+				|| *repositoryAfter != *repositoryBefore
+				|| *pullRequestAfter != *pullRequestBefore) {
+				rollback();
+				return std::unexpected(failure::integrity_failure);
+			}
+
+			for (const auto sql : completion) {
+				if (auto applied = step(sql); !applied) {
+					rollback();
+					return applied;
+				}
+			}
+
+			auto foreignKeyCheck = prepare(aDatabase, "PRAGMA foreign_key_check");
+			if (!foreignKeyCheck
+				|| ::sqlite3_step(foreignKeyCheck->Value) != SQLITE_DONE) {
+				rollback();
+				return std::unexpected(failure::integrity_failure);
+			}
+
+#if defined(BPR_SQLITE_TESTING)
+			// Armed by a test to prove the rollback is real: everything above
+			// has already run, so what survives is exactly what an interrupted
+			// migration leaves behind.
+			if (InterruptMigrationBeforeCommit.exchange(
+					false, std::memory_order_relaxed)) {
+				rollback();
+				return std::unexpected(failure::cancelled);
+			}
+#endif
+
 			if (auto commit = execute(aDatabase, "COMMIT", aStop); !commit) {
 				rollback();
 				return commit;
@@ -4129,6 +4363,11 @@ namespace bpr::adapters::sqlite::detail {
 			InterruptBootstrapBeforePublication.store(true, std::memory_order_relaxed);
 		}
 
+		void interrupt_next_migration_before_commit() noexcept
+		{
+			InterruptMigrationBeforeCommit.store(true, std::memory_order_relaxed);
+		}
+
 		auto classify_sqlite_result_code(const int aResultCode) noexcept
 			-> application::epoch_catalog_failure
 		{
@@ -4382,10 +4621,15 @@ namespace bpr::adapters::sqlite::detail {
 				: std::expected<void, failure>{
 					  std::unexpected(current.error())
 				  };
-			auto validated  = configured
-				? validate_schema(database, aStop)
+			auto migrated   = configured
+				? migrate_schema(database, aStop)
 				: std::expected<void, failure>{
 					  std::unexpected(configured.error())
+				  };
+			auto validated  = migrated
+				? validate_schema(database, aStop)
+				: std::expected<void, failure>{
+					  std::unexpected(migrated.error())
 				  };
 			if (!validated) {
 				(void)::sqlite3_close_v2(database);
@@ -4504,9 +4748,12 @@ namespace bpr::adapters::sqlite::detail {
 		}
 		::sqlite3* database   = *opened;
 		auto       configured = configure_connection(database);
-		auto       validated  = configured
-			? validate_schema(database, aStop)
+		auto       migrated   = configured
+			? migrate_schema(database, aStop)
 			: std::expected<void, failure>{ std::unexpected(configured.error()) };
+		auto       validated  = migrated
+			? validate_schema(database, aStop)
+			: std::expected<void, failure>{ std::unexpected(migrated.error()) };
 		if (!validated) {
 			(void)::sqlite3_close_v2(database);
 			return std::unexpected(validated.error());

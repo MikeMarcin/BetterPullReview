@@ -1,0 +1,215 @@
+{
+  "binding_file": "docs/verification/reviews/rfc0017-anonymous-probe-v001/capture-bindings.json",
+  "note": "Every entry under promoted/ is a byte-exact body from the RFC-BPR-0017 anonymous probe review; its digest is the one that review recorded. Every entry under synthetic/ is written by hand for a case the single-comment live capture cannot express, and is never presented as observed service behaviour.",
+  "promoted": [
+    {
+      "body_sha256": "d3643b1a08d05c25e4c4b635a33c296396df16562b3653e763e67f98aee052a3",
+      "capture_file": "docs/verification/reviews/rfc0017-anonymous-probe-v001/captures/absent-not-disclosed.json",
+      "capture_file_sha256": "2d7e0b9088acd8c6763ab541b56ac6ea8f69676d6d7bc56dd076e664f05ddc0e",
+      "capture_relative_file": "captures/absent-not-disclosed.json",
+      "http_status": 404,
+      "name": "absent-not-disclosed",
+      "operation": "rest_absent_not_disclosed",
+      "promoted_file": "captures/absent-not-disclosed.json",
+      "retained_headers": {
+        "content-type": "application/json; charset=utf-8",
+        "x-github-api-version-selected": "2022-11-28",
+        "x-github-media-type": "github.v3; format=json",
+        "x-ratelimit-limit": "60",
+        "x-ratelimit-remaining": "59",
+        "x-ratelimit-reset": "1787546881",
+        "x-ratelimit-resource": "core",
+        "x-ratelimit-used": "1"
+      },
+      "source_kind": "live",
+      "url": "https://api.github.com/repos/MikeMarcin/bpr-nonexistent-probe-target"
+    },
+    {
+      "body_sha256": "53565167d29e0bf0c711d14025153ded176ea414d46b36986292424aac3782ce",
+      "capture_file": "docs/verification/reviews/rfc0017-anonymous-probe-v001/captures/graphql-refusal.json",
+      "capture_file_sha256": "67def7232c8fff7413238dca7181879539dda26cdc42cd0f832eb90e112094bd",
+      "capture_relative_file": "captures/graphql-refusal.json",
+      "http_status": 403,
+      "name": "graphql-refusal",
+      "operation": "graphql_unauthenticated_refusal",
+      "promoted_file": "captures/graphql-refusal.json",
+      "retained_headers": {
+        "content-type": "application/json; charset=utf-8",
+        "x-github-media-type": "github.v3; format=json",
+        "x-ratelimit-limit": "0",
+        "x-ratelimit-remaining": "0",
+        "x-ratelimit-reset": "1787886522",
+        "x-ratelimit-resource": "graphql",
+        "x-ratelimit-used": "0"
+      },
+      "source_kind": "live",
+      "url": "https://api.github.com/graphql"
+    },
+    {
+      "body_sha256": "36128c4924cf3aa2198e5a5117c18ecb8edd061faab2cf7093c11b12ff567190",
+      "capture_file": "docs/verification/reviews/rfc0017-anonymous-probe-v001/captures/pull-request.json",
+      "capture_file_sha256": "0f0737d8572f16cb77cd6a7d6c8734cd69adf15d37de73567e83d7b33316445f",
+      "capture_relative_file": "captures/pull-request.json",
+      "http_status": 200,
+      "name": "pull-request",
+      "operation": "rest_pull_request",
+      "promoted_file": "captures/pull-request.json",
+      "retained_headers": {
+        "content-type": "application/json; charset=utf-8",
+        "etag": "\"b651e01dc2085840542ae4c9d01c50a611531327abac78af83330e807d53bf6f\"",
+        "last-modified": "Sun, 23 Aug 2026 03:57:54 GMT",
+        "x-github-api-version-selected": "2022-11-28",
+        "x-github-media-type": "github.v3; format=json",
+        "x-ratelimit-limit": "60",
+        "x-ratelimit-remaining": "58",
+        "x-ratelimit-reset": "1787546881",
+        "x-ratelimit-resource": "core",
+        "x-ratelimit-used": "2"
+      },
+      "source_kind": "live",
+      "url": "https://api.github.com/repos/octocat/Hello-World/pulls/1"
+    },
+    {
+      "body_sha256": "540b2fd6f15db2dbb55375903ff8215caf6aa51b56302f812cd0ebb71c1839aa",
+      "capture_file": "docs/verification/reviews/rfc0017-anonymous-probe-v001/captures/pull-request-comments.json",
+      "capture_file_sha256": "dd16dd6948458db8bc12c20e4882a4d78d93952ae0df4cd08c011898a5ddae7d",
+      "capture_relative_file": "captures/pull-request-comments.json",
+      "http_status": 200,
+      "name": "pull-request-comments",
+      "operation": "rest_pull_request_comments",
+      "promoted_file": "captures/pull-request-comments.json",
+      "retained_headers": {
+        "content-type": "application/json; charset=utf-8",
+        "etag": "W/\"8c25c525ec5cf470f65f91a6fa2c908aeec44bd16b377ac442a592b6342cc57a\"",
+        "x-github-api-version-selected": "2022-11-28",
+        "x-github-media-type": "github.v3; format=json",
+        "x-ratelimit-limit": "60",
+        "x-ratelimit-remaining": "57",
+        "x-ratelimit-reset": "1787546881",
+        "x-ratelimit-resource": "core",
+        "x-ratelimit-used": "3"
+      },
+      "source_kind": "live",
+      "url": "https://api.github.com/repos/octocat/Hello-World/pulls/1/comments?per_page=1"
+    },
+    {
+      "body_sha256": "53565167d29e0bf0c711d14025153ded176ea414d46b36986292424aac3782ce",
+      "capture_file": "docs/verification/reviews/rfc0017-anonymous-probe-v001/synthetic/rate-exhaustion.json",
+      "capture_file_sha256": "6800f1cbcfbb074b1ab2471b1f5635ffdf29c75b82dbda8f1d1fdffeb35bba1f",
+      "capture_relative_file": "synthetic/rate-exhaustion.json",
+      "http_status": 403,
+      "name": "rate-exhaustion",
+      "operation": "rest_pull_request",
+      "promoted_file": "captures/rate-exhaustion.json",
+      "retained_headers": {
+        "content-type": "application/json; charset=utf-8",
+        "x-github-media-type": "github.v3; format=json",
+        "x-ratelimit-limit": "60",
+        "x-ratelimit-remaining": "0",
+        "x-ratelimit-reset": "1787546881",
+        "x-ratelimit-resource": "core",
+        "x-ratelimit-used": "60"
+      },
+      "source_kind": "synthetic",
+      "url": "https://api.github.com/repos/octocat/Hello-World/pulls/1"
+    },
+    {
+      "body_sha256": "69b5d8b0d2c69b7ecfcc663858d510f67ebf0369cc53a1a86a2c096051fa49b5",
+      "capture_file": "docs/verification/reviews/rfc0017-anonymous-probe-v001/captures/rate-limit.json",
+      "capture_file_sha256": "9b52844edae8de5cd728ed59a7f205a0b432a7c1418953d8d94bc1e3adc41e76",
+      "capture_relative_file": "captures/rate-limit.json",
+      "http_status": 200,
+      "name": "rate-limit",
+      "operation": "rest_rate_limit",
+      "promoted_file": "captures/rate-limit.json",
+      "retained_headers": {
+        "content-type": "application/json; charset=utf-8",
+        "x-github-media-type": "github.v3; format=json",
+        "x-ratelimit-limit": "60",
+        "x-ratelimit-remaining": "60",
+        "x-ratelimit-reset": "1787546881",
+        "x-ratelimit-resource": "core",
+        "x-ratelimit-used": "0"
+      },
+      "source_kind": "live",
+      "url": "https://api.github.com/rate_limit"
+    }
+  ],
+  "schema_name": "bpr.rfc0017.promoted_capture_provenance",
+  "schema_version": 1,
+  "source_review": "docs/verification/reviews/rfc0017-anonymous-probe-v001",
+  "synthetic": [
+    {
+      "file": "synthetic/review-comments-cyclic.json",
+      "purpose": "two comments naming each other",
+      "sha256": "52be47d1927efb1f4e801db1d109bbbabaa0307389cadcbdf9400425676d172a",
+      "source_kind": "synthetic"
+    },
+    {
+      "file": "synthetic/review-comments-duplicate-id.json",
+      "purpose": "two comments sharing one identity",
+      "sha256": "a4815749e0b2fcdfb75f21464a92f62ecef4863539e10b5168f3cf91035af75e",
+      "source_kind": "synthetic"
+    },
+    {
+      "file": "synthetic/review-comments-linked.json",
+      "purpose": "reply linkage grouping where a second root sits between two replies to the first",
+      "sha256": "830471b42c578e4df11b768d70efdea66920f4dc59d99a20cb29d63eedd4138b",
+      "source_kind": "synthetic"
+    },
+    {
+      "file": "synthetic/review-comments-malformed-linkage.json",
+      "purpose": "in_reply_to_id carried as text rather than an identifier",
+      "sha256": "5fd335ba44743ef4e002d30d76b03910f1aa88916ca60ce6293af11af4854bf4",
+      "source_kind": "synthetic"
+    },
+    {
+      "file": "synthetic/review-comments-missing-parent.json",
+      "purpose": "a reply naming a comment nobody returned",
+      "sha256": "6ac7fe24b595fe50ecc899133eb1e106ecc898cc098dab509fe94519531f5f66",
+      "source_kind": "synthetic"
+    },
+    {
+      "file": "synthetic/review-comments-missing-position.json",
+      "purpose": "the anchor fact absent rather than null",
+      "sha256": "655de491a942e6b02d63f0c4591eefdb1efc17914f399e0b6147e261f56a598d",
+      "source_kind": "synthetic"
+    },
+    {
+      "file": "synthetic/review-comments-observed-empty.json",
+      "purpose": "a conversation that was read and holds nothing",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "source_kind": "synthetic"
+    },
+    {
+      "file": "synthetic/review-comments-outdated.json",
+      "purpose": "a null position, the anchor having left the diff",
+      "sha256": "98a89f2d79061b98d133867542d4f7b0d9370584f2a94fcdb90022c3c847a3a7",
+      "source_kind": "synthetic"
+    },
+    {
+      "file": "synthetic/review-comments-page-1.json",
+      "purpose": "first of two pages, exactly one full page of roots",
+      "sha256": "206526654800226b9b435cbed139d06206cf7df49e7f5657b87d9365f0803795",
+      "source_kind": "synthetic"
+    },
+    {
+      "file": "synthetic/review-comments-page-2.json",
+      "purpose": "second page carrying replies to roots returned on the first",
+      "sha256": "6d25837c57cd70c55fa9f83be1c4c265f55e86d7cb7a4258ce7466aa188cfaac",
+      "source_kind": "synthetic"
+    },
+    {
+      "file": "synthetic/review-comments-reply-to-reply.json",
+      "purpose": "a reply chained onto another reply",
+      "sha256": "ae98e966787c6a673b9c5f3b9cfda0c902ed47a5c28b89fa81e87e28a5cb09b4",
+      "source_kind": "synthetic"
+    },
+    {
+      "file": "synthetic/review-comments-self-reply.json",
+      "purpose": "a comment naming itself as its reply target",
+      "sha256": "bac897d3c54799357164f1fd37e1cf902678a9a9093edd3a93fffdee46cc0f09",
+      "source_kind": "synthetic"
+    }
+  ]
+}

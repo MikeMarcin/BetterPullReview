@@ -85,6 +85,11 @@ The launcher writes `.remote-station.json`, untracked, at the checkout root:
 
 - `station_id` is generated once and reused on relaunch; the name may be
   cosmetically adjusted, the id may not.
+- `station` is the name the launcher reads back on relaunch, machine suffix
+  included. The suffix is inferred from this field exactly as the workstream
+  is, because a recomputed shorter name does not make the checkout a different
+  station — it keeps `codex.thread_id` and then refuses to rename that task.
+  An explicit `--machine` that contradicts the record is a refusal.
 - `codex.thread_id` is the immutable persistent-task identity and is also
   reused on relaunch. `thread_name` equals `station`; a mismatch is a hard
   stop. `codex` may be `null` only in the deprecated `--no-server` path.
@@ -104,6 +109,20 @@ The launcher writes `.remote-station.json`, untracked, at the checkout root:
 machine-local configuration, not dispatch input: a message cannot rewrite it,
 and the skill must treat a hand-edited file that disagrees with the live
 checkout (wrong branch, wrong repo) as a hard stop, not as truth.
+
+### Starting a station over
+
+Every identity above is durable on purpose, which leaves no ordinary way out
+of a station whose recorded bindings have become wrong. `--fresh-station` is
+that way out, and it is the only one: it archives the recorded Codex task and
+anything else already answering to the station name in this checkout, then
+discards `station_id`, `codex`, and `claude` and provisions the workstream's
+canonical name again — the recorded machine suffix included, so it is also how
+a station is deliberately renamed. Archiving, not deletion, is what Codex
+offers, so the abandoned history stays readable; it simply stops being the
+station. `--fresh-station` refuses alongside `--continue`, which requires the
+session it discards, and alongside `--no-server`, which reaches no App Server
+and so could only pretend the old task was released.
 
 ## Writer lease
 

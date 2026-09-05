@@ -328,6 +328,28 @@ set_tests_properties(
 )
 
 bpr_add_executable(
+    test_better_pull_review_agent_chat_scope_core_tests
+    agent_chat_scope_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_agent_chat_scope_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_agent_chat_scope_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_chat_scope_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_agent_chat_scope
+    COMMAND test_better_pull_review_agent_chat_scope_core_tests
+)
+set_tests_properties(
+    core_agent_chat_scope
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "agent-chat-scope-tests:pass"
+)
+
+bpr_add_executable(
     test_better_pull_review_agent_context_supplement_core_tests
     agent_context_supplement_tests.cpp
 )
@@ -409,4 +431,22 @@ bpr_enable_warnings(test_better_pull_review_device_authorization_core_tests)
 bpr_add_network_isolated_test(
     NAME core_device_authorization
     COMMAND test_better_pull_review_device_authorization_core_tests
+)
+
+bpr_add_executable(
+    test_better_pull_review_anonymous_read_policy_core_tests
+    anonymous_read_policy_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_anonymous_read_policy_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_anonymous_read_policy_core_tests)
+bpr_enable_warnings(test_better_pull_review_anonymous_read_policy_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_anonymous_public_read
+    COMMAND test_better_pull_review_anonymous_read_policy_core_tests
 )

@@ -25,6 +25,7 @@ def arguments(**overrides: object) -> argparse.Namespace:
         "authority": "lane-commit",
         "reattach": False,
         "new_claude_session": False,
+        "fresh_station": False,
         "pair_codex": False,
         "no_server": False,
         "_supervise": False,
@@ -288,6 +289,151 @@ class LauncherTests(unittest.TestCase):
                 name,
             )
 
+    def test_machine_suffix_is_inferred_from_the_station_file(self) -> None:
+        """A relaunch keeps the recorded name without retyping `--machine`."""
+        self.context.station_file.write_text(
+            json.dumps(
+                {"schema": launcher.STATION_SCHEMA, "station": "fx-win-jaegaw"}
+            ),
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            launcher.infer_machine(self.context.station_file, "fx-win"), "jaegaw"
+        )
+
+    def test_a_station_recorded_without_a_suffix_infers_none(self) -> None:
+        self.context.station_file.write_text(
+            json.dumps({"schema": launcher.STATION_SCHEMA, "station": "fx-win"}),
+            encoding="utf-8",
+        )
+        self.assertEqual(launcher.infer_machine(self.context.station_file, "fx-win"), "")
+        self.assertEqual(
+            launcher.infer_machine(self.context.station_file, "fx-linux"), ""
+        )
+
+    def test_a_malformed_recorded_suffix_is_not_inferred(self) -> None:
+        for recorded in ("fx-win-JaegAW", "fx-win-", "fx-win-a b", 17, None):
+            with self.subTest(recorded=recorded):
+                self.context.station_file.write_text(
+                    json.dumps(
+                        {"schema": launcher.STATION_SCHEMA, "station": recorded}
+                    ),
+                    encoding="utf-8",
+                )
+                self.assertEqual(
+                    launcher.infer_machine(self.context.station_file, "fx-win"), ""
+                )
+
+    def test_no_station_file_infers_no_machine(self) -> None:
+        self.assertEqual(
+            launcher.infer_machine(self.context.station_file, "fx-win"), ""
+        )
+
+    def resolve(self, argv: list[str]) -> launcher.StationContext:
+        """`resolve_context` for a checkout on the `win` workstream's branch."""
+        workstream = launcher.WORKSTREAMS["win"]
+
+        def fake_git(root: object, *command: str) -> str:
+            if command[0] == "rev-parse":
+                return str(self.context.root)
+            if command[0] == "remote":
+                return f"git@github.com:owner/{launcher.PROJECT['origin_repo_name']}.git"
+            return workstream["branch"]
+
+        with (
+            mock.patch.object(launcher, "run_git", side_effect=fake_git),
+            mock.patch.object(launcher, "host_platform", return_value=("win", "windows-native")),
+        ):
+            return launcher.resolve_context(launcher.parse_arguments(argv))
+
+    def test_a_recorded_machine_suffix_survives_an_argument_free_relaunch(self) -> None:
+        """The refusal this fixes: a relaunch recomputed a name its own task
+        did not carry, kept the recorded task id, and then would not rename it."""
+        self.context.station_file.write_text(
+            json.dumps(
+                {
+                    "schema": launcher.STATION_SCHEMA,
+                    "workstream": "win",
+                    "station": f"{launcher.PROJECT['session_prefix']}-win-jaegaw",
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            self.resolve([]).name,
+            f"{launcher.PROJECT['session_prefix']}-win-jaegaw",
+        )
+
+    def test_fresh_station_takes_the_canonical_name_again(self) -> None:
+        self.context.station_file.write_text(
+            json.dumps(
+                {
+                    "schema": launcher.STATION_SCHEMA,
+                    "workstream": "win",
+                    "station": f"{launcher.PROJECT['session_prefix']}-win-jaegaw",
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            self.resolve(["--fresh-station"]).name,
+            f"{launcher.PROJECT['session_prefix']}-win",
+        )
+
+    def test_an_explicit_machine_that_contradicts_the_record_refuses(self) -> None:
+        self.context.station_file.write_text(
+            json.dumps(
+                {
+                    "schema": launcher.STATION_SCHEMA,
+                    "workstream": "win",
+                    "station": f"{launcher.PROJECT['session_prefix']}-win-jaegaw",
+                }
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(launcher.LaunchRefusal, "disagrees"):
+            self.resolve(["--machine", "nuc"])
+        # The same token the record already carries is not a contradiction.
+        self.assertEqual(
+            self.resolve(["--machine", "jaegaw"]).name,
+            f"{launcher.PROJECT['session_prefix']}-win-jaegaw",
+        )
+        # `--fresh-station` is how a station is deliberately renamed.
+        self.assertEqual(
+            self.resolve(["--fresh-station", "--machine", "nuc"]).name,
+            f"{launcher.PROJECT['session_prefix']}-win-nuc",
+        )
+
+    def test_the_resolved_machine_reaches_the_supervised_child(self) -> None:
+        self.context.station_file.write_text(
+            json.dumps(
+                {
+                    "schema": launcher.STATION_SCHEMA,
+                    "workstream": "win",
+                    "station": f"{launcher.PROJECT['session_prefix']}-win-jaegaw",
+                }
+            ),
+            encoding="utf-8",
+        )
+        parsed = launcher.parse_arguments([])
+        workstream = launcher.WORKSTREAMS["win"]
+
+        def fake_git(root: object, *command: str) -> str:
+            if command[0] == "rev-parse":
+                return str(self.context.root)
+            if command[0] == "remote":
+                return f"git@github.com:owner/{launcher.PROJECT['origin_repo_name']}.git"
+            return workstream["branch"]
+
+        with (
+            mock.patch.object(launcher, "run_git", side_effect=fake_git),
+            mock.patch.object(launcher, "host_platform", return_value=("win", "windows-native")),
+        ):
+            launcher.resolve_context(parsed)
+
+        command = launcher.internal_supervisor_arguments(parsed)
+        self.assertEqual(command[command.index("--machine") + 1], "jaegaw")
+
     def test_unknown_branch_without_a_station_file_refuses_to_guess(self) -> None:
         with self.assertRaisesRegex(launcher.LaunchRefusal, "cannot infer a workstream"):
             launcher.infer_workstream(self.context.station_file, "feature/x")
@@ -530,6 +676,140 @@ class LauncherTests(unittest.TestCase):
 
         self.assertIn("--new-claude-session", command)
         self.assertNotIn("--continue", command)
+
+    def test_fresh_station_is_forwarded_to_the_supervisor(self) -> None:
+        command = launcher.internal_supervisor_arguments(
+            arguments(fresh_station=True, new_claude_session=True)
+        )
+
+        self.assertIn("--fresh-station", command)
+        self.assertNotIn("--continue", command)
+
+    def test_fresh_station_archives_the_recorded_task_before_provisioning(self) -> None:
+        """Starting over leaves nothing the new provisioning could adopt."""
+        context = self.windows_context()
+        client = FakeRemoteClient({})
+        app_server = mock.MagicMock()
+        app_server.return_value.__enter__.return_value = client
+
+        with (
+            mock.patch.object(launcher, "codex_cli_version", return_value="0.151.0"),
+            mock.patch.object(launcher, "AppServerClient", app_server),
+            mock.patch.object(launcher, "start_codex_desktop_app"),
+            mock.patch.object(
+                launcher,
+                "release_named_threads",
+                return_value=["thr-recorded archived"],
+            ) as release,
+            mock.patch.object(
+                launcher,
+                "provision_named_thread",
+                return_value="thr-station-5678",
+            ) as provision,
+        ):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                with launcher.provision_codex(
+                    context,
+                    existing={"codex": {"thread_id": "thr-recorded"}},
+                    pair=False,
+                    fresh=True,
+                ) as provisioned:
+                    self.assertEqual(provisioned["thread_id"], "thr-station-5678")
+
+        release.assert_called_once_with(
+            client,
+            cwd=context.root,
+            name=context.name,
+            recorded_thread_id="thr-recorded",
+        )
+        self.assertIn("thr-recorded archived", output.getvalue())
+        # The recorded id is forgotten, so provisioning creates rather than adopts.
+        provision.assert_called_once_with(
+            client,
+            cwd=context.root,
+            name=context.name,
+            expected_thread_id=None,
+        )
+
+    def test_a_normal_relaunch_archives_nothing(self) -> None:
+        context = self.windows_context()
+        client = FakeRemoteClient({})
+        app_server = mock.MagicMock()
+        app_server.return_value.__enter__.return_value = client
+
+        with (
+            mock.patch.object(launcher, "codex_cli_version", return_value="0.151.0"),
+            mock.patch.object(launcher, "AppServerClient", app_server),
+            mock.patch.object(launcher, "start_codex_desktop_app"),
+            mock.patch.object(launcher, "release_named_threads") as release,
+            mock.patch.object(
+                launcher,
+                "provision_named_thread",
+                return_value="thr-recorded",
+            ) as provision,
+        ):
+            with launcher.provision_codex(
+                context,
+                existing={"codex": {"thread_id": "thr-recorded"}},
+                pair=False,
+            ):
+                pass
+
+        release.assert_not_called()
+        self.assertEqual(
+            provision.call_args.kwargs["expected_thread_id"], "thr-recorded"
+        )
+
+    def test_fresh_station_keeps_neither_station_id_nor_claude_session(self) -> None:
+        self.context.station_file.write_text(
+            json.dumps(
+                {
+                    "schema": launcher.STATION_SCHEMA,
+                    "station_id": "stn-1234abcd",
+                    "codex": {"thread_id": "thr-recorded"},
+                    "claude": {"session_id": "session_Old123"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        codex = {
+            "thread_id": "thr-station-5678",
+            "thread_name": self.context.name,
+            "cli_version": "0.151.0",
+        }
+
+        with (
+            mock.patch.object(
+                launcher,
+                "provision_codex",
+                return_value=contextlib.nullcontext(codex),
+            ) as provision,
+            mock.patch.object(
+                launcher.subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess(["claude"], 0),
+            ) as run,
+        ):
+            result = launcher.supervise(
+                arguments(fresh_station=True, new_claude_session=True), self.context
+            )
+
+        self.assertEqual(result, 0)
+        # provision_codex still sees the recorded file, because it is what
+        # tells it which task to archive.
+        self.assertEqual(
+            provision.call_args.kwargs["existing"]["station_id"], "stn-1234abcd"
+        )
+        self.assertIs(provision.call_args.kwargs["fresh"], True)
+        written = json.loads(self.context.station_file.read_text(encoding="utf-8"))
+        self.assertNotEqual(written["station_id"], "stn-1234abcd")
+        self.assertEqual(written["codex"], codex)
+        self.assertIsNone(written["claude"])
+        self.assertEqual(
+            run.call_args.args[0][0:3],
+            ["claude", "--remote-control", self.context.name],
+        )
 
     def test_pairing_is_explicit_and_follows_local_provisioning(self) -> None:
         client = FakeRemoteClient(

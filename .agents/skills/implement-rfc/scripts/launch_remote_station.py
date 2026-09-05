@@ -9,7 +9,13 @@ usage: launch_remote_station.py [workstream] [options]
               `main` is the integrator; a platform-bound workstream launches
               only on its host.
   --machine <suffix>   append a machine token to the station name (mandatory
-                       when the same platform exists on more than one machine)
+                       when the same platform exists on more than one machine);
+                       inferred from the station file once a checkout has
+                       launched under one, so a relaunch never retypes it
+  --fresh-station      forget this checkout's recorded station and start over:
+                       archive the Codex tasks bound to it, drop the recorded
+                       Claude session and station id, and take the workstream's
+                       canonical name again
   --read-only          bind with authority read-only-proof
   --continue           require Claude to reattach the recorded exact session
   --new-claude-session skip automatic reattachment and create a fresh session
@@ -62,6 +68,7 @@ from codex_station import (  # noqa: E402
     CodexStationError,
     ProxyAppServerClient,
     provision_named_thread,
+    release_named_threads,
 )
 
 PROJECT = project_config.load()
@@ -271,6 +278,21 @@ def resolve_context(arguments: argparse.Namespace) -> StationContext:
             f"host; this is a {environment} host (WSL2 is a Linux station, native "
             "Windows a Windows station)"
         )
+    station_file = root / ".remote-station.json"
+    canonical = project_config.station_name(
+        PROJECT, arguments.workstream, platform_token
+    )
+    recorded_machine = (
+        "" if arguments.fresh_station else infer_machine(station_file, canonical)
+    )
+    if arguments.machine and recorded_machine and arguments.machine != recorded_machine:
+        raise LaunchRefusal(
+            f"--machine {arguments.machine} disagrees with this checkout's "
+            f"recorded station '{canonical}-{recorded_machine}'; relaunch without "
+            "--machine to keep that name, or with --fresh-station to start over "
+            "under a different one"
+        )
+    arguments.machine = arguments.machine or recorded_machine
     name = project_config.station_name(
         PROJECT, arguments.workstream, platform_token, arguments.machine
     )
@@ -285,7 +307,7 @@ def resolve_context(arguments: argparse.Namespace) -> StationContext:
         environment=environment,
         authority=arguments.authority,
         lease_role=lease_role,
-        station_file=root / ".remote-station.json",
+        station_file=station_file,
     )
 
 
@@ -321,6 +343,24 @@ def infer_workstream(station_file: pathlib.Path, current_branch: str) -> str:
         f"which no workstream names, and it has no station file; the "
         f"workstreams are {branches}"
     )
+
+
+def infer_machine(station_file: pathlib.Path, canonical_name: str) -> str:
+    """The machine suffix this checkout already launched under, without being told.
+
+    The station file records the exact name the Codex task, the station
+    registry, and any id reservation carry. Recomputing a shorter name on
+    relaunch does not make the checkout a different station — it keeps the
+    recorded task id and then refuses to rename that task — so the suffix is
+    read back the same way the workstream is. `--fresh-station` is how an
+    operator drops it on purpose.
+    """
+    recorded = load_station_file(station_file).get("station")
+    prefix = f"{canonical_name}-"
+    if not isinstance(recorded, str) or not recorded.startswith(prefix):
+        return ""
+    suffix = recorded[len(prefix):]
+    return suffix if MACHINE_TOKEN.fullmatch(suffix) else ""
 
 
 def codex_cli_version(context: StationContext) -> str:
@@ -583,9 +623,24 @@ def provision_codex(
     *,
     existing: dict[str, Any],
     pair: bool,
+    fresh: bool = False,
 ) -> Iterator[dict[str, str]]:
     version = codex_cli_version(context)
     expected_thread_id = expected_codex_thread_id(existing)
+
+    def forget_recorded_tasks(client: Any) -> None:
+        """Archive the tasks a fresh start must not adopt, and say which."""
+        nonlocal expected_thread_id
+        if not fresh:
+            return
+        for outcome in release_named_threads(
+            client,
+            cwd=context.root,
+            name=context.name,
+            recorded_thread_id=expected_thread_id,
+        ):
+            print(f"fresh station: Codex task {outcome}", flush=True)
+        expected_thread_id = None
 
     if not uses_managed_codex_daemon(context):
         if pair:
@@ -597,6 +652,7 @@ def provision_codex(
         start_codex_desktop_app(context)
         try:
             with AppServerClient(cwd=context.root) as client:
+                forget_recorded_tasks(client)
                 thread_id = provision_named_thread(
                     client,
                     cwd=context.root,
@@ -616,6 +672,7 @@ def provision_codex(
     try:
         client = connect_codex_app_server(context)
         ensure_codex_remote(client, pair=pair)
+        forget_recorded_tasks(client)
         thread_id = provision_named_thread(
             client,
             cwd=context.root,
@@ -945,13 +1002,18 @@ def run_claude(
 
 def supervise(arguments: argparse.Namespace, context: StationContext) -> int:
     existing = load_station_file(context.station_file)
-    station_id = durable_station_id(existing)
-    claude_session_id = expected_claude_session_id(existing)
+    # A fresh start still reads the file — provisioning needs the recorded task
+    # id to archive it — but nothing recorded there survives into the new
+    # station: not its id, not its Claude session, not its Codex task.
+    remembered = {} if arguments.fresh_station else existing
+    station_id = durable_station_id(remembered)
+    claude_session_id = expected_claude_session_id(remembered)
     try:
         codex_session = provision_codex(
             context,
             existing=existing,
             pair=arguments.pair_codex,
+            fresh=arguments.fresh_station,
         )
         with codex_session as codex:
             atomic_write_json(
@@ -986,7 +1048,7 @@ def supervise(arguments: argparse.Namespace, context: StationContext) -> int:
                 )
             if arguments.reattach:
                 claude_action = "requiring reattachment"
-            elif arguments.new_claude_session:
+            elif arguments.fresh_station or arguments.new_claude_session:
                 claude_action = "starting fresh"
             else:
                 claude_action = "resuming if available, otherwise starting fresh"
@@ -1041,6 +1103,8 @@ def internal_supervisor_arguments(arguments: argparse.Namespace) -> list[str]:
         command.append("--continue")
     if arguments.new_claude_session:
         command.append("--new-claude-session")
+    if arguments.fresh_station:
+        command.append("--fresh-station")
     if arguments.pair_codex:
         command.append("--pair-codex")
     return command
@@ -1058,7 +1122,9 @@ def run_under_lease(arguments: argparse.Namespace, context: StationContext) -> i
         "--",
         *internal_supervisor_arguments(arguments),
     ]
-    if arguments.reattach:
+    if arguments.fresh_station:
+        verb = "starting over"
+    elif arguments.reattach:
         verb = "reattaching"
     elif arguments.new_claude_session:
         verb = "starting fresh"
@@ -1130,6 +1196,14 @@ def parse_arguments(argv: list[str] | None) -> argparse.Namespace:
         action="store_true",
         help="skip automatic Claude reattachment and create a fresh session",
     )
+    parser.add_argument(
+        "--fresh-station",
+        action="store_true",
+        help=(
+            "forget this checkout's recorded station and start over under the "
+            "workstream's canonical name"
+        ),
+    )
     parser.add_argument("--pair-codex", action="store_true")
     parser.add_argument("--no-server", action="store_true")
     parser.add_argument("--_supervise", action="store_true", help=argparse.SUPPRESS)
@@ -1150,6 +1224,17 @@ def parse_arguments(argv: list[str] | None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     arguments = parse_arguments(argv)
+    if arguments.fresh_station and arguments.reattach:
+        print(
+            "--fresh-station discards the recorded Claude session, which "
+            "--continue requires; pass one or the other",
+            file=sys.stderr,
+        )
+        return 2
+    # Forgetting the station forgets its session too, so the Claude side takes
+    # the fresh path rather than continuing this directory's conversation.
+    if arguments.fresh_station:
+        arguments.new_claude_session = True
     try:
         context = resolve_context(arguments)
     except LaunchRefusal as refusal:
@@ -1160,6 +1245,15 @@ def main(argv: list[str] | None = None) -> int:
         if arguments._supervise or arguments.pair_codex:
             print(
                 "--no-server cannot be combined with internal supervision or pairing",
+                file=sys.stderr,
+            )
+            return 2
+        if arguments.fresh_station:
+            # Without an App Server the recorded Codex task cannot be archived,
+            # so this path could only pretend to have started the station over.
+            print(
+                "--no-server cannot start a station over: it reaches no App "
+                "Server, so the recorded Codex task would survive the reset",
                 file=sys.stderr,
             )
             return 2

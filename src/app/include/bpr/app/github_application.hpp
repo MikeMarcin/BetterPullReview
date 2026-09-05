@@ -1,14 +1,17 @@
 #ifndef BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 #define BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 
+#include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/core/device_authorization_model.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace bpr::app {
 	namespace detail {
@@ -32,6 +35,21 @@ namespace bpr::app {
 		std::string AttendedInventorySha256;
 		std::string BuildConfiguration;
 		bool        BuildTesting = true;
+		/// [[BPR-0515]]. Denies this process's own outbound HTTPS locally.
+		///
+		/// \details The device-authorization wire is composed against a closed
+		/// loopback proxy instead of the discovered system proxy, so the connect
+		/// is refused on the host and the dev-tree gate reaches `failed` without
+		/// anything leaving the machine. Only a tests-enabled build reads this:
+		/// the composition branch that honours it, the fixture factory it
+		/// selects, and the `--network-denied` flag that sets it are all behind
+		/// the tests-enabled build guard, so a shipped binary has no way to set
+		/// it and no code that would notice if it were set. The field itself
+		/// stays outside that guard for one reason only - this header is
+		/// included by a target that links the composition without defining
+		/// the guard, and a conditionally-sized record passed by value across
+		/// that seam would disagree about its own layout.
+		bool NetworkDenied = false;
 	};
 
 	/// \brief Initializes or deliberately resets the designated-live replay
@@ -203,15 +221,171 @@ namespace bpr::app {
 		// contain the enrolled token, which must be none — the vault is the
 		// only place a credential belongs, and settings and SQLite are the two
 		// places a second copy would plausibly appear.
+		//
+		// Whether composition bound a browser capability to the handoff, as
+		// opposed to linking one. A shipped build binds the system opener; a
+		// tests-enabled build binds a recording one so no suite can start a
+		// browser; the construction cut binds none, and only then may the
+		// action answer `unavailable`.
+		bool DeviceAuthorizationBrowserComposed = false;
+		// The fate of the last handoff attempt in this run, kept across the
+		// stage change that clears it from the live presentation. Reported
+		// rather than the current value, because a run that finished
+		// authorizing would otherwise show `not_attempted` for an attempt
+		// that did happen.
+		application::device_authorization_handoff DeviceAuthorizationHandoff
+			= application::device_authorization_handoff::not_attempted;
+		// Addresses handed to the recording opener. Zero in a shipped build,
+		// which has no recording opener; the system opener counts nothing,
+		// because its evidence is a browser window on a station rather than a
+		// number this process can read.
+		std::size_t DeviceAuthorizationBrowserOpens         = 0U;
 		std::size_t DeviceAuthorizationVaultStores          = 0U;
 		std::size_t DeviceAuthorizationDurableCopies        = 0U;
 		std::size_t DeviceAuthorizationTransportSubmissions = 0U;
+		// [[BPR-0539]]. Which material the one counted store holds, rather
+		// than how many stores happened. The digest is a truncated SHA-256 of
+		// the bytes the vault accepted; the flag is that digest compared
+		// against the recorded grant's own access token, which is a
+		// comparison only the fixture can make and only after the exchange
+		// has answered. Empty and false in a shipped build, which has no
+		// recorded grant to compare against.
+		std::string DeviceAuthorizationVaultStoredDigest;
+		bool        DeviceAuthorizationVaultStoredIsGrant = false;
 		// Credentials that crossed the enrollment boundary. Counted there
 		// rather than at the vault, because the GitHub host collapses a
 		// repeated enrollment for the same profile before the vault sees it —
 		// so a vault store count alone cannot tell one enrollment from two.
 		std::size_t DeviceAuthorizationEnrollments = 0U;
+		// Whether composition adopted the window's device sign-in panel, as
+		// opposed to the window having mounted one. [[BPR-0526]]: the panel is
+		// drawn either way, so the fact worth reporting is whether its gestures
+		// reach the device host and whether the host's publications reach it.
+		// The construction cut turns exactly this false and leaves every line
+		// above it as it was.
+		bool DeviceAuthorizationPanelComposed = false;
+		// [[BPR-0536]]. The renewal lifecycle, as composition observed it
+		// rather than as the host holds it. Rotations and state come from the
+		// published observation, so a graph that stopped delivering
+		// `publish_refresh` reports zero and idle no matter what the host did;
+		// the two counters below come from composition's own arming, so a
+		// graph that stopped calling `bind_refresh_authority` or
+		// `resume_refresh` reports zero no matter what the observation says.
+		// Kept apart because "renewal happened" and "composition asked for it"
+		// fail for different reasons.
+		std::size_t DeviceAuthorizationRefreshRotations = 0U;
+		application::device_authorization_refresh_state
+			DeviceAuthorizationRefreshState
+			= application::device_authorization_refresh_state::idle;
+		std::size_t DeviceAuthorizationRefreshBindings = 0U;
+		std::size_t DeviceAuthorizationRefreshResumes  = 0U;
+		// RFC-BPR-0017. Whether composition handed the host a credential-free
+		// read authority at all. False on every shipped platform in this
+		// candidate slice, which is exactly what makes the signed-out mode
+		// answer `public_preview_unavailable` rather than degrade.
+		bool PublicPreviewComposed = false;
+		// The typed answer the last activation produced, as three exclusive
+		// facts rather than one verdict: the composition refusal, the core
+		// policy's refusal, and the mode actually being entered all fail for
+		// different reasons and a single flag would hide which.
+		bool PublicPreviewUnavailable   = false;
+		bool PublicPreviewPolicyRefused = false;
+		bool PublicPreviewSignedOut     = false;
+		// Presentations the host published. Zero would mean the mode's answer
+		// is invisible rather than typed.
+		std::size_t PublicPreviewPublications = 0U;
+		// Credential-free pull-request reads that reached the anonymous
+		// authority. Zero on an unavailable platform: the authority is
+		// composed either way, so this counts the gate being bypassed rather
+		// than requests being sent.
+		std::size_t PublicPreviewRequests = 0U;
+		// Authenticated transports the session selected, and credential
+		// operations that crossed the vault boundary, during the run. Both
+		// must be zero for a signed-out read: an anonymous request carries no
+		// authorization header and consults no vault, and these two counters
+		// are where that stops being an assertion.
+		std::size_t PublicPreviewHeaderEffects = 0U;
+		std::size_t PublicPreviewVaultEffects  = 0U;
+		// Smart-Git leases the anonymous factory issued. Zero unless a
+		// signed-out session materialised a repository.
+		std::size_t PublicPreviewSmartAcquisitions = 0U;
+		// Switch-to-sign-in gestures the host forwarded to composition.
+		std::size_t PublicPreviewSignInRequests = 0U;
+		// Whether the last publication reported an observed inline review
+		// conversation, and how many groups it carried. An unobservable
+		// conversation and an observed empty one are different answers.
+		bool        PublicPreviewReviewCommentsObserved = false;
+		std::size_t PublicPreviewReviewCommentGroups    = 0U;
+		// Write intents the mode refused. Counted rather than asserted,
+		// because the claim is that the refusal happened at all: an intent
+		// that was answered by a request nobody could serve would show up
+		// here as a zero and in the fixture's evidence as a request.
+		std::size_t PublicPreviewWriteRefusals = 0U;
+		// [[BPR-0316]] live-candidate evidence. Whether the anonymous read
+		// authority the host was handed is the one this composition built from
+		// the shipped native factory, checked by pointer identity against what
+		// the anonymous provider was actually constructed with rather than by
+		// naming a call site. A composition that routed the signed-out read
+		// through any other factory — a fixture seam, a loopback test twin —
+		// hands the provider a different object and turns this false.
+		bool PublicPreviewLiveCandidateProductionFactories = false;
+		// REST requests the anonymous transport itself issued, counted at the
+		// wire boundary rather than at the pull-request port above it, and
+		// capability probes it was asked for. The second must stay zero: a
+		// signed-out read builds no capability request.
+		std::size_t PublicPreviewWireRequests         = 0U;
+		std::size_t PublicPreviewWireCapabilityProbes = 0U;
+		// Credentialed transports the anonymous factory was asked to build.
+		// It has no such form and refuses both, so this counts a composition
+		// reaching for an authorization header rather than one obtaining it.
+		std::size_t PublicPreviewWireCredentialedRefusals = 0U;
+		// The shared hourly core budget the session projection carries, taken
+		// from the response headers the host observed. Absent until a response
+		// reported one, which is why the observation is a separate fact from
+		// the three numbers.
+		bool          PublicPreviewBudgetObserved         = false;
+		std::uint64_t PublicPreviewBudgetLimit            = 0U;
+		std::uint64_t PublicPreviewBudgetRemaining        = 0U;
+		std::uint64_t PublicPreviewBudgetResetUnixSeconds = 0U;
+		// The mode the accepted snapshot was read in, and the head revision it
+		// named. The mode is the snapshot's own discriminant, not the
+		// session's: a snapshot accepted under an authenticated authority
+		// would report false here even if the session said signed out.
+		bool        PublicPreviewSnapshotPublicPreview = false;
+		std::string PublicPreviewSnapshotHeadOid;
 	};
+
+	/// \brief Describes one REST request the signed-out live-candidate
+	/// transport put on the wire, and what came back for it.
+	///
+	/// \details [[BPR-0316]]. The counted total says how much of the shared
+	/// hourly budget a candidate read spent; it does not say which operation
+	/// spent it or which one failed, and a run whose budget expires mid-read
+	/// reports nothing else. One record per forwarded request answers both.
+	/// It carries no body, no URL and no header beyond the rate-limit triple
+	/// a failure named, because this output goes on a card.
+	struct public_preview_wire_operation_record
+	{
+		/// The read operation's contract name, as `operation_name` spells it.
+		std::string   Operation;
+		std::uint32_t Page = 1U;
+		/// `http_<status>` for a response, `error_<failure>` with the
+		/// retry-after and rate-limit triple it carried, or `cancelled`.
+		std::string   Outcome;
+		std::uint64_t ElapsedMilliseconds = 0U;
+	};
+
+	/// \brief Checks in process that the live-candidate transport forwards one
+	/// attempt only.
+	///
+	/// \details [[BPR-0316]]. Drives the counting transport over a stub that
+	/// always fails, and answers whether the second request was refused
+	/// without reaching the stub. Nothing here opens a socket or names a host,
+	/// so the single-attempt claim the live candidate prints is proven by the
+	/// isolated dry run rather than by the authorized read it bounds. False in
+	/// a build without the testing guard, where no such transport exists.
+	[[nodiscard]] auto public_preview_single_attempt_self_check() noexcept
+		-> bool;
 
 	/// \brief Provides the github application contract.
 	class github_application final
@@ -267,8 +441,54 @@ namespace bpr::app {
 		/// platform there is never a live flow to cancel.
 		void cancel_device_authorization();
 
+		/// \brief Asks the composed browser capability to open the address.
+		///
+		/// \details The same request the Qt panel's "Open browser" action
+		/// makes. It changes no core state: the host revalidates the retained
+		/// address against the compiled authority, invokes the capability only
+		/// if that passes, and republishes what happened. Every outcome —
+		/// including a refused address and an absent capability — leaves the
+		/// flow exactly where it was, so this can be called on a live grant
+		/// without risking it.
+		void open_device_verification_address();
+
+		/// \brief Activates the signed-out preview once, as a reviewer would.
+		///
+		/// \details RFC-BPR-0017's zero-request evidence runs through here. It
+		/// asks the host to enter the mode for one profile and returns without
+		/// waiting; the answer is read from `status()`. Where the shipped
+		/// selection composed no credential-free read authority the host
+		/// refuses `public_preview_unavailable` before the core is asked
+		/// anything, and nothing of any kind is sent.
+		///
+		/// \param aEnterprise Selects the first enterprise profile instead of
+		/// GitHub.com, which is refused by the core policy rather than by the
+		/// composition. Does nothing when no enterprise profile is composed.
+		void activate_public_preview(bool aEnterprise = false);
+
+		/// \brief Offers the mode one mutation and one triage intent.
+		///
+		/// \details Both are refused by the core policy, and the refusal is
+		/// the whole of the answer: nothing is queued, no transport is asked
+		/// for, and no request is built, so a run that offers them and then
+		/// reports zero requests has shown where the refusal happened. Asking
+		/// costs nothing outside the process, which is what makes it safe to
+		/// do in the middle of a read.
+		void attempt_public_preview_writes();
+
 		[[nodiscard]] auto window() noexcept -> qt::workbench_window&;
 		[[nodiscard]] auto status() const noexcept -> github_application_status;
+
+		/// \brief Reports what the signed-out live-candidate transport
+		/// forwarded, in the order it forwarded it.
+		///
+		/// \details [[BPR-0316]]. Kept off `status()` because it is a growing
+		/// record rather than a fact of the moment, and the status record is
+		/// copied on every tick of an automated run. Empty in every
+		/// composition that did not build the counting transport, which is
+		/// every shipped one.
+		[[nodiscard]] auto public_preview_wire_operations() const
+			-> std::vector<public_preview_wire_operation_record>;
 
 	private:
 		class implementation;

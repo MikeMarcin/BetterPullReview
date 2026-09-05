@@ -48,6 +48,17 @@ namespace {
 		return std::string{ "https://" } + "github.com/login/device";
 	}
 
+	// Exactly what a host publishes: the core is asked which commands are legal
+	// in the stage, and the answer travels in the projection. A fixture that
+	// hand-wrote the flags would be testing the fixture's opinion of the rule
+	// rather than the panel's obedience to it.
+	[[nodiscard]] auto commands(const core::device_authorization_stage aStage)
+		-> std::vector<core::device_authorization_command_projection>
+	{
+		return core::device_authorization_commands(
+			core::device_authorization_state{ .Stage = aStage });
+	}
+
 	[[nodiscard]] auto awaiting(
 		const device_authorization_handoff aHandoff
 		= device_authorization_handoff::not_attempted,
@@ -59,6 +70,8 @@ namespace {
 			.VerificationUri          = verification_address(),
 			.RemainingValiditySeconds = aRemaining,
 			.Handoff                  = aHandoff,
+			.Commands                 = commands(
+				core::device_authorization_stage::awaiting_authorization),
 		};
 	}
 
@@ -71,6 +84,7 @@ namespace {
 			.VerificationUri          = { },
 			.RemainingValiditySeconds = 0U,
 			.Handoff                  = device_authorization_handoff::not_attempted,
+			.Commands                 = commands(aStage),
 		};
 	}
 
@@ -456,6 +470,54 @@ namespace {
 		QApplication::processEvents();
 	}
 
+	// The panel renders command legality; it no longer decides it. The stage
+	// that proves the difference is `cancelling`: it is neither `requested` nor
+	// `awaiting_authorization`, so a panel reasoning from the stage offers "Get
+	// a code" during it, and the core refuses that command with
+	// `cancellation_in_progress`. Reading the projection is what makes the two
+	// agree.
+	void test_the_panel_obeys_the_core_command_legality(const double aScale)
+	{
+		static_cast<void>(aScale);
+		recorded_gestures record;
+		auto              observed = core::host_profile_id{ };
+		auto* const       panel    = make_panel(record, observed);
+		panel->show();
+		QApplication::processEvents();
+
+		panel->apply(awaiting());
+		panel->apply(settled(core::device_authorization_stage::cancelling));
+		expect(
+			!panel->begin_button()->isEnabled(),
+			"a flow being cancelled offers no new one, because the core forbids "
+			"one");
+		expect(
+			!panel->cancel_button()->isEnabled(),
+			"and cancelling again is refused for the same reason");
+
+		// And the projection is the only thing that says so: the same stage
+		// with the core's idle answer attached enables what that answer allows.
+		auto disagreeing     = settled(core::device_authorization_stage::cancelling);
+		disagreeing.Commands = commands(core::device_authorization_stage::idle);
+		panel->apply(disagreeing);
+		expect(
+			panel->begin_button()->isEnabled(),
+			"the panel follows the published commands rather than the stage");
+
+		// A projection that carries no command at all disables both rather than
+		// falling back to a rule of its own.
+		auto silent     = settled(core::device_authorization_stage::idle);
+		silent.Commands = { };
+		panel->apply(silent);
+		expect(
+			!panel->begin_button()->isEnabled()
+				&& !panel->cancel_button()->isEnabled(),
+			"an absent command is a disabled command");
+
+		panel->deleteLater();
+		QApplication::processEvents();
+	}
+
 	// What this adapter can prove about manual entry, and no more. Whether the
 	// token prompt still enrolls a profile is a composition claim that
 	// [[BPR-0282]]'s public-path course owns; what belongs here is that the
@@ -645,6 +707,7 @@ auto main(int argc, char** argv) -> int
 	test_an_off_authority_refusal_is_distinct_from_a_failure(scale);
 	test_the_code_can_be_copied_and_the_address_cannot_be_copied_implicitly(scale);
 	test_a_terminal_flow_offers_a_fresh_code(scale);
+	test_the_panel_obeys_the_core_command_legality(scale);
 	test_the_device_path_does_not_displace_manual_token_entry(scale);
 	test_the_panel_renders_at_the_requested_scale(scale);
 	test_the_production_timer_arms_fires_once_and_clears(scale);

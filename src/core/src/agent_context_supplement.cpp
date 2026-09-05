@@ -20,18 +20,6 @@ namespace bpr::core {
 				&& enumerator_at_most(aLine.Side, diff_side::right);
 		}
 
-		[[nodiscard]] auto valid_session(const agent_session& aSession) noexcept
-			-> bool
-		{
-			const auto& binding = aSession.Binding;
-			return aSession.Id.value() != 0U && aSession.Profile.value() != 0U
-				&& binding.Host.value() != 0U
-				&& binding.Repository.value() != 0U
-				&& binding.PullRequest.value() != 0U && binding.BaseOid.valid()
-				&& binding.HeadOid.valid() && binding.LeftEpoch.value() != 0U
-				&& binding.RightEpoch.value() != 0U;
-		}
-
 		[[nodiscard]] auto valid_file(
 			const supplement_file_state& aFile) noexcept -> bool
 		{
@@ -161,6 +149,21 @@ namespace bpr::core {
 			return aDraft.Text.size() <= maximum_draft_bytes
 				&& (!aDraft.Anchor || valid_line_identity(*aDraft.Anchor));
 		}
+
+		/// \brief Whether this session may carry the supplied typed question.
+		///
+		/// \details The gate is the message's own session identity, checked
+		/// the way `admit_private_context` checks the opt-in's: a message
+		/// typed into one conversation is not admitted into the next one just
+		/// because both were sent by the same reviewer.
+		[[nodiscard]] auto valid_chat_message(
+			const agent_session&                     aSession,
+			const std::optional<agent_chat_message>& aMessage) noexcept -> bool
+		{
+			return !aMessage
+				|| (aMessage->Session == aSession.Id
+					&& aMessage->Text.size() <= maximum_chat_message_bytes);
+		}
 	} // namespace
 
 	auto build_agent_supplement(const agent_supplement_request& aRequest)
@@ -168,7 +171,7 @@ namespace bpr::core {
 	{
 		if (
 			aRequest.ApplicationSession.value() == 0U
-			|| !valid_session(aRequest.Session) || aRequest.PullRequestUrl.empty()
+			|| !valid_agent_session(aRequest.Session) || aRequest.PullRequestUrl.empty()
 			|| aRequest.PullRequestUrl.size() > maximum_pull_request_url_bytes
 			|| aRequest.Files.size() > maximum_supplement_paths
 			|| aRequest.Defects.size() > maximum_supplement_defects
@@ -176,6 +179,8 @@ namespace bpr::core {
 			|| aRequest.SelectedDrafts.size() > maximum_selected_drafts
 			|| (aRequest.PreviousUpload && !aRequest.PreviousUpload->valid())
 			|| (aRequest.LastReviewedHead && !aRequest.LastReviewedHead->valid())
+			|| !valid_chat_message(aRequest.Session, aRequest.Message)
+			|| (aRequest.Operation && !declared(*aRequest.Operation))
 			|| (aRequest.Selection && !valid_selection(*aRequest.Selection))) {
 			return std::nullopt;
 		}
@@ -200,6 +205,8 @@ namespace bpr::core {
 			.ApplicationSession = aRequest.ApplicationSession,
 			.Session            = aRequest.Session,
 			.PullRequestUrl     = aRequest.PullRequestUrl,
+			.Message            = aRequest.Message ? aRequest.Message->Text
+												   : std::string{ },
 			.PreviousUpload     = aRequest.PreviousUpload,
 			.LastReviewedHead   = aRequest.LastReviewedHead,
 			.Files              = aRequest.Files,
@@ -207,6 +214,46 @@ namespace bpr::core {
 			.Selection          = aRequest.Selection,
 			.Notes              = aRequest.SelectedNotes,
 			.Drafts             = aRequest.SelectedDrafts,
+			.Operation          = aRequest.Operation,
 		};
+	}
+
+	auto admit_private_context(
+		const agent_session&                 aSession,
+		const agent_private_context_optin&   aOptIn,
+		const std::vector<supplement_note>&  aNotes,
+		const std::vector<supplement_draft>& aDrafts) -> agent_private_context
+	{
+		if (!valid_agent_session(aSession) || aOptIn.Session != aSession.Id) {
+			return { };
+		}
+		return {
+			.Notes  = aOptIn.Notes ? aNotes : std::vector<supplement_note>{ },
+			.Drafts = aOptIn.Drafts ? aDrafts : std::vector<supplement_draft>{ },
+		};
+	}
+
+	auto build_agent_supplement(
+		const agent_supplement_request&    aRequest,
+		const agent_private_context_optin& aOptIn)
+		-> std::optional<agent_context_supplement>
+	{
+		if (!valid_agent_session(aRequest.Session)
+			|| aOptIn.Session != aRequest.Session.Id) {
+			return std::nullopt;
+		}
+		// Validated as the request stands, so an oversize or malformed note
+		// still refuses the whole supplement rather than being silently
+		// dropped by an opt-in that happened to be off.
+		auto built = build_agent_supplement(aRequest);
+		if (!built.has_value()) {
+			return std::nullopt;
+		}
+		auto admitted = admit_private_context(
+			aRequest.Session, aOptIn, aRequest.SelectedNotes,
+			aRequest.SelectedDrafts);
+		built->Notes  = std::move(admitted.Notes);
+		built->Drafts = std::move(admitted.Drafts);
+		return built;
 	}
 } // namespace bpr::core

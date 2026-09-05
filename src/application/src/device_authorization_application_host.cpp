@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <limits>
 #include <utility>
+#include <vector>
 
 namespace bpr::application {
 	namespace {
@@ -143,7 +144,13 @@ namespace bpr::application {
 		const core::host_profile_id aProfile,
 		github_credential_material  aCredential)
 	{
-		Host->enroll_profile(aProfile, std::move(aCredential));
+		// [[BPR-0540]]. The one boundary that may say a credential came from
+		// a device grant. Everything else that enrolls is a token the reviewer
+		// supplied, and only this origin lets the host believe a refresh entry
+		// under the same authority belongs to the credential beside it.
+		Host->enroll_profile(aProfile,
+							 std::move(aCredential),
+							 github_credential_provenance::device_grant);
 	}
 
 	auto make_system_device_authorization_clock()
@@ -184,7 +191,7 @@ namespace bpr::application {
 		implementation(
 			core::device_authorization_state       aInitialState,
 			device_authorization_transport_port&   aTransport,
-			github_credential_vault_port&          aVault,
+			github_credential_refresh_vault_port&  aVault,
 			device_authorization_enrollment_port&  aEnrollment,
 			device_authorization_clock_port&       aClock,
 			device_authorization_timer_port&       aTimer,
@@ -205,13 +212,47 @@ namespace bpr::application {
 			, Handoff{ std::move(aHandoff) }
 			, Capability{ aCapability }
 		{
+			// The command set presentation sees before any transition. It is
+			// the core's answer for the state this host was constructed with,
+			// asked for rather than restated, so the first publication carries
+			// the same legality every later one does.
+			Commands = core::device_authorization_commands(State);
 		}
 
 		// -- lane and clock ------------------------------------------------
 
 		void post(std::function<void()> aTask)
 		{
-			DecisionLane->post(std::move(aTask));
+			// Every renewal state change happens inside one of these turns, and
+			// there are a dozen places that make one. Publishing here rather
+			// than at each of them is what makes "the observation reaches
+			// presentation" a property of the lane instead of a list somebody
+			// has to keep complete; `deliver_refresh` publishes only on a
+			// change, so a turn that renewed nothing costs a comparison.
+			DecisionLane->post(
+				[weak = weak_from_this(), task = std::move(aTask)]() mutable {
+					task();
+					if (const auto self = weak.lock(); self != nullptr) {
+						self->deliver_refresh();
+					}
+				});
+		}
+
+		// Republishes the renewal lifecycle when, and only when, it changed.
+		// Renewal is observational in the same sense the presentation is: a
+		// reader cannot veto a rotation, and an exception on the way out is
+		// contained here rather than allowed to abandon material mid-flight.
+		void deliver_refresh()
+		{
+			if (Closing || Refresh == PublishedRefresh) {
+				return;
+			}
+			PublishedRefresh = Refresh;
+			try {
+				Projections->publish_refresh(PublishedRefresh);
+			} catch (...) {
+				ProjectionDeliveryFailed = true;
+			}
 		}
 
 		// Submissions are counted rather than tracked individually because the
@@ -241,6 +282,9 @@ namespace bpr::application {
 			auto output = core::transition(State, aEvent);
 			execute(output);
 			publish(output);
+			if (output.Status.has_value()) {
+				release_flow_deadline();
+			}
 		}
 
 		void execute(const core::device_authorization_transition_output& aOutput)
@@ -256,6 +300,16 @@ namespace bpr::application {
 
 		void publish(const core::device_authorization_transition_output& aOutput)
 		{
+			// The core decides which commands are legal and says so in the
+			// output it just produced. The host carries that decision to
+			// presentation unchanged; nothing downstream re-derives it, and a
+			// republication with no transition behind it reports the last
+			// answer the core gave rather than a fresh guess.
+			if (core::has_changed(
+					aOutput.Changed,
+					core::device_authorization_changed_domain::commands)) {
+				Commands = aOutput.Commands;
+			}
 			if (!aOutput.Status.has_value()) {
 				return;
 			}
@@ -277,6 +331,7 @@ namespace bpr::application {
 				.VerificationUri          = { },
 				.RemainingValiditySeconds = 0U,
 				.Handoff                  = LastHandoff,
+				.Commands                 = Commands,
 			};
 			if (
 				State.Stage
@@ -349,14 +404,39 @@ namespace bpr::application {
 			PendingAccess.reset();
 			PendingRefresh.reset();
 			AuthorizingContext.reset();
-			ConsecutiveFailures = 0U;
+			// [[BPR-0553]]. The slot the previous grant was keyed by is marked
+			// here, not released. It belongs to whatever session preceded this
+			// flow, and that session stays the live one until this flow
+			// produces a grant of its own: released at the gesture that starts
+			// a flow ([[BPR-0550]]) the armed renewal died the moment a
+			// reviewer pressed *Get a code*, which the panel offers in every
+			// terminal stage, and a flow they then abandoned, denied, or
+			// failed left a working access token with nothing to renew it and
+			// an observation reading `idle`, so nothing was said. The release
+			// belongs at `authorize()`, where this flow's own material is
+			// about to be written under whatever slot is bound.
+			RefreshBindingPrecedesFlow = RefreshAuthority.has_value();
+			ConsecutiveFailures        = 0U;
 
 			Flow = aRequest.Context;
-			if (!Capability.Registered) {
-				// No registered identity, so no request is built and the
-				// transport is never reached. The refusal is posted rather
-				// than applied inline because this runs inside the transition
-				// that produced the request.
+			if (!Capability.Registered
+				|| aRequest.Context.Profile != Capability.Profile) {
+				// No registered identity, or one registered for a different
+				// profile than the one this begin names: either way no
+				// request is built and the transport is never reached.
+				//
+				// The second condition is the same refusal for the same
+				// reason. The capability is composed for exactly one profile
+				// -- the wire is bound to that host and the client identity
+				// is that host's -- so a begin arriving for another profile,
+				// as one does the moment the mounted panel is bound to
+				// whichever profile the picker names, would run this host's
+				// flow under a foreign authority and then enroll the issued
+				// token under the profile that did not issue it
+				// ([[BPR-0535]]).
+				//
+				// The refusal is posted rather than applied inline because
+				// this runs inside the transition that produced the request.
 				post([self = shared_from_this(), context = aRequest.Context] {
 					if (self->Closing || self->Flow != context) {
 						return;
@@ -377,9 +457,25 @@ namespace bpr::application {
 		void perform(const core::cancel_device_authorization_request& aRequest)
 		{
 			const auto context = aRequest.Context;
-			cancel_timer();
+			// [[BPR-0554]]. The flow's deadline, not the timer. A renewal
+			// queued behind this poll belongs to the session the reviewer
+			// still holds, and stopping a flow they started by mistake is not
+			// a reason to stop renewing it.
+			drop_deadline(timer_purpose::poll);
 			Transport->cancel(context);
 			erase_flow_transients();
+			// The same forgetting `shutdown()` does, for the same reason. A
+			// store left outstanding across a cancel still answers, and the
+			// answer arrives into a flow that no longer exists: a success
+			// would mark material durable and arm a renewal nobody asked
+			// for, and a failure would tell the reviewer to authorize again
+			// after they chose to stop. Cancelling the slot and dropping the
+			// context makes the late answer land on the guard in
+			// `on_refresh_stored` instead.
+			if (RefreshStoreContext.has_value()) {
+				Vault->cancel(*RefreshStoreContext);
+				RefreshStoreContext.reset();
+			}
 			PendingAccess.reset();
 			PendingRefresh.reset();
 			AuthorizingContext.reset();
@@ -657,10 +753,30 @@ namespace bpr::application {
 			const core::device_authorization_request_context& aContext,
 			device_token_material&&                           aGrant)
 		{
-			cancel_timer();
+			// The poll is over. Anything queued behind it takes the timer,
+			// and the release below decides whether a renewal is still one of
+			// those things.
+			drop_deadline(timer_purpose::poll);
 			// The device code has done its work. It goes before anything else
 			// happens, so no later branch can be the one that forgot.
 			erase_flow_transients();
+
+			// [[BPR-0550]], [[BPR-0553]]. This is the point past which a
+			// binding older than this flow must not be used: every branch below
+			// either writes this grant's renewable material down or enrolls its
+			// access token, and both are wrong under the previous session's
+			// slot. The write files a renewal chain under an account that never
+			// authenticated it, and a renewal left armed against the old
+			// material would enroll the old account's token over the one just
+			// granted. Released rather than replaced: the material then parks
+			// in memory until this grant's own authenticated `/user` binds it,
+			// which is the first-grant path both composed courses drive.
+			//
+			// Only a binding this flow inherited. One made while the flow ran
+			// is this grant's own, and it is spent below rather than dropped.
+			if (RefreshBindingPrecedesFlow) {
+				release_refresh_binding();
+			}
 
 			AccessLifetimeSeconds = aGrant.ExpiresInSeconds;
 			PendingAccess.emplace(std::move(aGrant.AccessToken));
@@ -709,11 +825,17 @@ namespace bpr::application {
 		{
 			const auto request = core::request_id{ NextHostRequest };
 			++NextHostRequest;
+			// [[BPR-0546]]. The generation is the one the GitHub host bound
+			// this authority under, not `State.IdentityGeneration`. The state's
+			// copy is whatever composition seeded the device flow with -- zero
+			// in the composed product, which is exactly what every platform
+			// vault's `valid()` refuses, so every store and retrieve from this
+			// host came back `invalid_request` and the lifecycle was inert.
 			return github_credential_operation_context{
 				.Request            = request,
 				.ApplicationSession = State.ApplicationSession,
 				.Authority          = *RefreshAuthority,
-				.IdentityGeneration = State.IdentityGeneration,
+				.IdentityGeneration = RefreshIdentityGeneration,
 			};
 		}
 
@@ -847,6 +969,24 @@ namespace bpr::application {
 			}
 			Refresh.State   = device_authorization_refresh_state::scheduled;
 			Refresh.Failure = device_authorization_refresh_failure::none;
+		}
+
+		// [[BPR-0553]], [[BPR-0554]]. A flow that has reached a terminal owes no
+		// more polls, so its deadline goes and a renewal waiting behind it
+		// takes the timer for whatever it has left.
+		//
+		// BPR-0553 re-armed the renewal here instead, from `AuthorizedAt`, and
+		// that was the whole of the repair: it came back late by however long
+		// the flow had run, and read `scheduled` with nothing behind it in
+		// between. It no longer needs re-arming, because it was never
+		// displaced -- only queued behind an earlier deadline, and only while
+		// the poll's was in fact the earlier one.
+		void release_flow_deadline()
+		{
+			if (!core::terminal(State.Stage)) {
+				return;
+			}
+			drop_deadline(timer_purpose::poll);
 		}
 
 		void begin_refresh()
@@ -986,10 +1126,22 @@ namespace bpr::application {
 			schedule_refresh();
 		}
 
+		// [[BPR-0554]]. The renewal's deadline only. A flow polling alongside a
+		// renewal chain that just failed keeps its own: what broke is the
+		// chain, not the flow, and taking the flow's timer would leave it with
+		// nothing to end it.
 		void request_reenrollment(
 			const device_authorization_refresh_failure aFailure)
 		{
-			cancel_timer();
+			report_reenrollment(aFailure);
+			drop_deadline(timer_purpose::refresh);
+		}
+
+		// The state half, with no timer work at all, so the arming path can
+		// reach it without arming again from inside itself.
+		void report_reenrollment(
+			const device_authorization_refresh_failure aFailure)
+		{
 			PendingAccess.reset();
 			PendingRefresh.reset();
 			RefreshDurable = false;
@@ -1000,16 +1152,82 @@ namespace bpr::application {
 
 		// -- timer ---------------------------------------------------------
 
-		[[nodiscard]] auto schedule_timer(
-			const timer_purpose aPurpose,
-			const std::uint32_t aSeconds) -> bool
+		// [[BPR-0554]]. The host holds both deadlines and the port holds the
+		// earlier one. The port's contract is unchanged -- one pending expiry,
+		// scheduling replaces it -- because a second port would need a second
+		// timer composed, adapted, and shut down on every platform to answer a
+		// question the host can answer itself, and re-arming the renewal
+		// immediately would simply take the timer back from the poll and hand
+		// the same contention to the flow instead.
+		//
+		// A deadline is an absolute monotonic instant rather than a remaining
+		// count, so a deadline that waits behind another is re-armed for the
+		// time it has left rather than for the time it was first given.
+		[[nodiscard]] auto deadline_of(const timer_purpose aPurpose) noexcept
+			-> std::optional<std::chrono::milliseconds>&
 		{
+			// Only the two purposes that name a deadline reach here; `none`
+			// is filtered by every caller that can hold it.
+			return aPurpose == timer_purpose::poll ? PollDueAt : RefreshDueAt;
+		}
+
+		[[nodiscard]] auto seconds_until(
+			const std::chrono::milliseconds aDeadline) noexcept -> std::uint32_t
+		{
+			const auto current = now();
+			if (aDeadline <= current) {
+				return 0U;
+			}
+			// Rounded up. Truncation would arm a poll fractionally inside the
+			// server's interval, which is the one direction the interval is
+			// there to prevent.
+			return static_cast<std::uint32_t>(
+				std::chrono::ceil<std::chrono::seconds>(aDeadline - current)
+					.count());
+		}
+
+		[[nodiscard]] auto earliest_deadline() noexcept -> timer_purpose
+		{
+			if (!PollDueAt.has_value()) {
+				return RefreshDueAt.has_value() ? timer_purpose::refresh
+												: timer_purpose::none;
+			}
+			if (!RefreshDueAt.has_value()) {
+				return timer_purpose::poll;
+			}
+			// A tie goes to the renewal. The poll has an interval to spare and
+			// the renewal has a token expiring behind it.
+			return *RefreshDueAt <= *PollDueAt ? timer_purpose::refresh
+											   : timer_purpose::poll;
+		}
+
+		// False means the port refused. The deadlines are left as they were, so
+		// the caller that owns the one that could not be armed can answer for
+		// it rather than leaving an observation nothing stands behind.
+		[[nodiscard]] auto arm_earliest_deadline() -> bool
+		{
+			const auto purpose = earliest_deadline();
+			if (purpose == timer_purpose::none) {
+				Timer->cancel();
+				TimerArmed = false;
+				Purpose    = timer_purpose::none;
+				return true;
+			}
+
+			const auto due = *deadline_of(purpose);
+			if (TimerArmed && Purpose == purpose && ArmedDueAt == due) {
+				// Already holding exactly this instant. Re-arming would only
+				// re-round the wait and churn the port.
+				return true;
+			}
+
 			Timer->cancel();
 			TimerArmed = false;
-			Purpose    = aPurpose;
+			Purpose    = purpose;
+			ArmedDueAt = due;
 
 			const auto weak = weak_from_this();
-			if (!Timer->schedule_after(aSeconds, [weak] {
+			if (!Timer->schedule_after(seconds_until(due), [weak] {
 					const auto self = weak.lock();
 					if (self == nullptr) {
 						return;
@@ -1026,8 +1244,69 @@ namespace bpr::application {
 			return true;
 		}
 
+		// A port that refuses is saying the expiry will never arrive, so the
+		// deadline it refused is dropped and whoever was owed it hears about
+		// it -- an observation with nothing behind it is precisely what this
+		// card removes. `aReported` names the one purpose whose refusal the
+		// caller answers for itself, so no refusal is answered twice. The loop
+		// runs at most twice: each turn drops a deadline.
+		void arm_or_answer(const timer_purpose aReported = timer_purpose::none)
+		{
+			while (!arm_earliest_deadline()) {
+				const auto refused = earliest_deadline();
+				deadline_of(refused).reset();
+				if (refused == aReported) {
+					continue;
+				}
+				if (refused == timer_purpose::refresh) {
+					report_reenrollment(
+						device_authorization_refresh_failure::transport_failed);
+					continue;
+				}
+				// Without a timer the total bound cannot be enforced, and a
+				// flow nobody will ever end is worse than one that fails.
+				fail_unbounded_flow();
+			}
+		}
+
+		[[nodiscard]] auto schedule_timer(
+			const timer_purpose aPurpose,
+			const std::uint32_t aSeconds) -> bool
+		{
+			deadline_of(aPurpose) = now() + std::chrono::seconds{ aSeconds };
+			arm_or_answer(aPurpose);
+			// The caller's deadline is still there unless the port refused it,
+			// which is the answer both call sites already have one for.
+			return deadline_of(aPurpose).has_value();
+		}
+
+		// A deadline that is no longer owed. Whatever is left takes the timer,
+		// which is the whole of what this card fixes: a flow that ends, is
+		// cancelled, or authorizes hands the timer straight back to a renewal
+		// that was waiting behind it.
+		void drop_deadline(const timer_purpose aPurpose)
+		{
+			deadline_of(aPurpose).reset();
+			arm_or_answer();
+		}
+
+		void fail_unbounded_flow()
+		{
+			if (!Flow.has_value()) {
+				return;
+			}
+			const auto context = *Flow;
+			erase_flow_transients();
+			apply(core::device_authorization_failed_event{
+				.Context = context,
+				.Failure = core::device_authorization_failure::timeout,
+			});
+		}
+
 		void cancel_timer() noexcept
 		{
+			PollDueAt.reset();
+			RefreshDueAt.reset();
 			Timer->cancel();
 			TimerArmed = false;
 			Purpose    = timer_purpose::none;
@@ -1037,22 +1316,68 @@ namespace bpr::application {
 		{
 			TimerArmed         = false;
 			const auto purpose = std::exchange(Purpose, timer_purpose::none);
+			if (purpose != timer_purpose::none) {
+				// Spent. Only the deadline that just arrived is cleared; the
+				// other one is still owed.
+				deadline_of(purpose).reset();
+			}
 			if (Closing) {
 				return;
 			}
 			switch (purpose) {
 			case timer_purpose::poll:
 				arm();
-				return;
+				break;
 			case timer_purpose::refresh:
 				begin_refresh();
-				return;
+				break;
 			case timer_purpose::none:
-				return;
+				break;
 			}
+			// The deadline that waited behind this one takes the timer now.
+			// This is where a renewal armed behind a poll gets it back, and
+			// where a poll goes back on behind a renewal that just fired.
+			arm_or_answer();
 		}
 
 		// -- erasure and lifecycle -----------------------------------------
+
+		// [[BPR-0550]]. A refresh binding belongs to the session that named it
+		// and outlives no flow. Released rather than replaced: the next grant's
+		// material then parks in memory until its own authenticated `/user`
+		// binds it, which is the first-grant path both composed courses drive,
+		// instead of being stored under the previous account's key, called
+		// durable, and renewed against a slot the incoming session erases.
+		//
+		// A renewal in flight goes with the binding. Every step of that
+		// lifecycle mints its context from the authority, so an answer arriving
+		// after the release would either name a slot this host no longer stands
+		// behind or find no authority to name one with at all.
+		void release_refresh_binding()
+		{
+			// [[BPR-0554]]. The renewal's deadline goes with the binding it
+			// was armed under; a poll waiting behind it does not.
+			drop_deadline(timer_purpose::refresh);
+			if (RefreshContext.has_value()) {
+				Transport->cancel(*RefreshContext);
+				RefreshContext.reset();
+			}
+			if (RefreshRetrieveContext.has_value()) {
+				Vault->cancel(*RefreshRetrieveContext);
+				RefreshRetrieveContext.reset();
+			}
+			if (RefreshStoreContext.has_value()) {
+				Vault->cancel(*RefreshStoreContext);
+				RefreshStoreContext.reset();
+			}
+			RefreshAuthority.reset();
+			RefreshIdentityGeneration = core::github_identity_generation{ };
+			RefreshDurable            = false;
+			// No binding is left, so none of it precedes anything.
+			RefreshBindingPrecedesFlow = false;
+			Refresh.State              = device_authorization_refresh_state::idle;
+			Refresh.Failure            = device_authorization_refresh_failure::none;
+		}
 
 		void erase_flow_transients() noexcept
 		{
@@ -1112,7 +1437,7 @@ namespace bpr::application {
 
 		core::device_authorization_state      State;
 		device_authorization_transport_port*  Transport    = nullptr;
-		github_credential_vault_port*         Vault        = nullptr;
+		github_credential_refresh_vault_port* Vault        = nullptr;
 		device_authorization_enrollment_port* Enrollment   = nullptr;
 		device_authorization_clock_port*      Clock        = nullptr;
 		device_authorization_timer_port*      Timer        = nullptr;
@@ -1131,6 +1456,7 @@ namespace bpr::application {
 		std::uint32_t                                             ConsecutiveFailures = 0U;
 
 		std::optional<github_credential_authority_key>            RefreshAuthority;
+		core::github_identity_generation                          RefreshIdentityGeneration;
 		std::optional<github_credential_material>                 PendingAccess;
 		std::optional<github_credential_material>                 PendingRefresh;
 		std::optional<core::device_authorization_request_context> AuthorizingContext;
@@ -1140,10 +1466,23 @@ namespace bpr::application {
 		std::chrono::milliseconds                                 AuthorizedAt{ 0 };
 		std::uint32_t                                             AccessLifetimeSeconds = 0U;
 		bool                                                      RefreshDurable        = false;
-		device_authorization_refresh_observation                  Refresh;
+		// [[BPR-0553]]. Whether the binding above was in place before the
+		// current flow began, which is what makes it the previous session's
+		// rather than this grant's. Recorded at the begin and answered at the
+		// authorization, so a flow that never produces a grant answers nothing.
+		bool                                     RefreshBindingPrecedesFlow = false;
+		device_authorization_refresh_observation Refresh;
+		// What presentation was last told. The host publishes renewal on
+		// change, and the change is measured against what left the host, not
+		// against what the last turn happened to set.
+		device_authorization_refresh_observation PublishedRefresh;
 
 		device_authorization_presentation Presentation;
-		device_authorization_handoff      LastHandoff
+		// The last command legality the core published. Held rather than
+		// recomputed so a republication cannot answer differently from the
+		// transition that produced it.
+		std::vector<core::device_authorization_command_projection> Commands;
+		device_authorization_handoff                               LastHandoff
 			= device_authorization_handoff::not_attempted;
 		std::uint64_t NextHostRequest          = 1U;
 		std::uint64_t NextRefreshGeneration    = 1U;
@@ -1152,12 +1491,20 @@ namespace bpr::application {
 		bool          TimerArmed               = false;
 		bool          Closing                  = false;
 		bool          ProjectionDeliveryFailed = false;
+
+		// [[BPR-0554]]. Both deadlines the host owes, as absolute monotonic
+		// instants. The port holds the earlier one; `Purpose` says which, and
+		// `ArmedDueAt` the instant it was armed for, so a deadline that moves
+		// while it is armed is re-armed rather than left on the old expiry.
+		std::optional<std::chrono::milliseconds> PollDueAt;
+		std::optional<std::chrono::milliseconds> RefreshDueAt;
+		std::chrono::milliseconds                ArmedDueAt{ 0 };
 	};
 
 	device_authorization_application_host::device_authorization_application_host(
 		core::device_authorization_state       aInitialState,
 		device_authorization_transport_port&   aTransport,
-		github_credential_vault_port&          aVault,
+		github_credential_refresh_vault_port&  aVault,
 		device_authorization_enrollment_port&  aEnrollment,
 		device_authorization_clock_port&       aClock,
 		device_authorization_timer_port&       aTimer,
@@ -1197,28 +1544,61 @@ namespace bpr::application {
 	}
 
 	void device_authorization_application_host::bind_refresh_authority(
-		github_credential_authority_key aAuthority)
+		github_credential_authority_key        aAuthority,
+		const core::github_identity_generation aIdentityGeneration)
 	{
-		if (Implementation->Closing || !valid(aAuthority)) {
+		// [[BPR-0546]]. A generation of zero names no identity and every
+		// platform vault refuses a context carrying one, so binding under it
+		// would arm a lifecycle whose every operation is refused. Refusing the
+		// binding leaves the material in memory, which the next terminal
+		// erases, rather than parking it against a slot it can never reach.
+		if (
+			Implementation->Closing || !valid(aAuthority)
+			|| aIdentityGeneration.value() == 0U) {
 			return;
 		}
-		Implementation->RefreshAuthority = std::move(aAuthority);
+		// [[BPR-0550]]. A binding names the slot this host's material is kept
+		// in. One arriving under a different authority -- the session changed
+		// account, or composition rebound this host to a token the reviewer
+		// pasted -- says nothing about what that slot holds, so the durability
+		// and the renewal armed for the old one are released rather than
+		// carried across. Carried across, the next renewal reads the new key
+		// for material stored under the old, finds nothing, and asks a
+		// reviewer holding a working credential to enroll again.
+		if (
+			Implementation->RefreshAuthority.has_value()
+			&& (!(*Implementation->RefreshAuthority == aAuthority)
+				|| Implementation->RefreshIdentityGeneration.value()
+					!= aIdentityGeneration.value())) {
+			Implementation->release_refresh_binding();
+		}
+		Implementation->RefreshAuthority          = std::move(aAuthority);
+		Implementation->RefreshIdentityGeneration = aIdentityGeneration;
+		// [[BPR-0553]]. Bound now, so it precedes no flow: a grant answered
+		// after this point ran under this binding and spends it.
+		Implementation->RefreshBindingPrecedesFlow = false;
 		if (
 			Implementation->PendingRefresh.has_value()
 			&& !Implementation->AuthorizingContext.has_value()) {
 			Implementation->submit_refresh_store();
 		}
+		Implementation->deliver_refresh();
 	}
 
 	void device_authorization_application_host::resume_refresh(
-		github_credential_authority_key aAuthority)
+		github_credential_authority_key        aAuthority,
+		const core::github_identity_generation aIdentityGeneration)
 	{
-		if (Implementation->Closing || !valid(aAuthority)) {
+		if (
+			Implementation->Closing || !valid(aAuthority)
+			|| aIdentityGeneration.value() == 0U) {
 			return;
 		}
-		Implementation->RefreshAuthority = std::move(aAuthority);
-		Implementation->RefreshDurable   = true;
+		Implementation->RefreshAuthority          = std::move(aAuthority);
+		Implementation->RefreshIdentityGeneration = aIdentityGeneration;
+		Implementation->RefreshDurable            = true;
 		Implementation->begin_refresh();
+		Implementation->deliver_refresh();
 	}
 
 	void device_authorization_application_host::open_verification_address()

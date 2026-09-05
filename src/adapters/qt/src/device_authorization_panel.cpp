@@ -11,19 +11,34 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <utility>
+#include <vector>
 
 namespace bpr::qt {
 	namespace {
 		using application::device_authorization_handoff;
 		using application::device_authorization_presentation;
+		using application::device_authorization_refresh_observation;
+		using application::device_authorization_refresh_state;
 
-		[[nodiscard]] auto live(
-			const core::device_authorization_stage aStage) noexcept -> bool
+		// Whether the core says this command may be issued right now. The panel
+		// asks; it does not work the answer out from the stage, because the
+		// stage is not the whole rule — a cancellation in flight forbids
+		// beginning again, and a widget that reasons from "requested or
+		// awaiting" offers a button the core would refuse. An unpublished
+		// command is a disabled one, so a projection that arrives without this
+		// command disables it rather than assuming.
+		[[nodiscard]] auto enabled(
+			const std::vector<core::device_authorization_command_projection>&
+														aCommands,
+			const core::device_authorization_command_id aId) noexcept -> bool
 		{
-			return aStage == core::device_authorization_stage::requested
-				|| aStage
-				== core::device_authorization_stage::awaiting_authorization;
+			const auto match = std::ranges::find(
+				aCommands,
+				aId,
+				&core::device_authorization_command_projection::Id);
+			return match != aCommands.end() && match->Enabled;
 		}
 
 		[[nodiscard]] auto stage_text(
@@ -83,6 +98,25 @@ namespace bpr::qt {
 			return { };
 		}
 
+		// Three of the four states say nothing. Renewal is a promise the
+		// application keeps on its own, and a panel that narrated it would be
+		// asking the reviewer to supervise a token they are never shown.
+		[[nodiscard]] auto renewal_text(
+			const device_authorization_refresh_state aState) -> QString
+		{
+			switch (aState) {
+			case device_authorization_refresh_state::idle:
+			case device_authorization_refresh_state::scheduled:
+			case device_authorization_refresh_state::refreshing:
+				return { };
+			case device_authorization_refresh_state::reenrollment_required:
+				return QObject::tr(
+					"This sign-in can no longer renew itself. Get a code to "
+					"sign in again.");
+			}
+			return { };
+		}
+
 		[[nodiscard]] auto validity_text(const std::uint32_t aSeconds) -> QString
 		{
 			if (aSeconds == 0U) {
@@ -130,9 +164,15 @@ namespace bpr::qt {
 		UserCodeField = make_readonly_field(
 			QStringLiteral("bpr-device-authorization-user-code"),
 			tr("Device code to enter"));
+		UserCodeField->setAccessibleDescription(
+			tr("The code to type at the sign-in address. Empty until a code "
+			   "has been asked for, and empty again at every terminal."));
 		AddressField = make_readonly_field(
 			QStringLiteral("bpr-device-authorization-address"),
 			tr("Address to enter the code at"));
+		AddressField->setAccessibleDescription(
+			tr("The sign-in address this profile's code is entered at. It may "
+			   "be read and typed on any device."));
 
 		ValidityLabel = new QLabel{ };
 		ValidityLabel->setObjectName(
@@ -145,6 +185,12 @@ namespace bpr::qt {
 		HandoffLabel->setAccessibleName(tr("Browser handoff"));
 		HandoffLabel->setWordWrap(true);
 
+		RenewalLabel = new QLabel{ };
+		RenewalLabel->setObjectName(
+			QStringLiteral("bpr-device-authorization-renewal"));
+		RenewalLabel->setAccessibleName(tr("Sign-in renewal"));
+		RenewalLabel->setWordWrap(true);
+
 		BeginButton  = new QPushButton{ tr("Get a code") };
 		CopyButton   = new QPushButton{ tr("Copy code") };
 		OpenButton   = new QPushButton{ tr("Open browser") };
@@ -155,6 +201,23 @@ namespace bpr::qt {
 		OpenButton->setObjectName(QStringLiteral("bpr-device-authorization-open"));
 		CancelButton->setObjectName(
 			QStringLiteral("bpr-device-authorization-cancel"));
+		// Named apart from the visible text. `BeginButton` relabels itself at a
+		// terminal, and an accessible name that moved with it would rename a
+		// stop under an assistive reader mid-flow.
+		BeginButton->setAccessibleName(tr("Get a device sign-in code"));
+		BeginButton->setAccessibleDescription(
+			tr("Asks this host profile for a code to authorize in a browser."));
+		CopyButton->setAccessibleName(tr("Copy the device sign-in code"));
+		CopyButton->setAccessibleDescription(
+			tr("Copies the code to the clipboard. The address is never copied "
+			   "with it."));
+		OpenButton->setAccessibleName(tr("Open the device sign-in address"));
+		OpenButton->setAccessibleDescription(
+			tr("Asks the host to open the sign-in address in a browser. The "
+			   "flow stays live whether or not one opens."));
+		CancelButton->setAccessibleName(tr("Cancel device sign-in"));
+		CancelButton->setAccessibleDescription(
+			tr("Ends the running sign-in without authorizing it."));
 
 		auto* const fields = new QFormLayout{ };
 		fields->addRow(tr("Code"), UserCodeField);
@@ -172,6 +235,7 @@ namespace bpr::qt {
 		layout->addLayout(fields);
 		layout->addWidget(ValidityLabel);
 		layout->addWidget(HandoffLabel);
+		layout->addWidget(RenewalLabel);
 		layout->addLayout(actions);
 
 		// Reading order and tab order agree: code, address, then the actions
@@ -241,16 +305,45 @@ namespace bpr::qt {
 		announce(compose_status());
 	}
 
+	void device_authorization_panel::apply_refresh(
+		const device_authorization_refresh_observation& aObservation)
+	{
+		++Statistics.Applications;
+		if (aObservation == Refresh) {
+			return;
+		}
+
+		const auto previous = std::exchange(Refresh, aObservation);
+		if (
+			previous.State == Refresh.State
+			&& previous.Failure == Refresh.Failure) {
+			// A rotation moved the count and nothing else. Renewal working is
+			// not news, and repainting for it would be the panel telling the
+			// reviewer about a token they never see.
+			return;
+		}
+
+		++Statistics.Rebuilds;
+		RenewalLabel->setText(renewal_text(Refresh.State));
+		if (Refresh.State
+			== device_authorization_refresh_state::reenrollment_required) {
+			announce(renewal_text(Refresh.State));
+		}
+	}
+
 	void device_authorization_panel::apply_commands()
 	{
-		const auto running  = live(Presentation.Stage);
-		const auto hasCode  = !Presentation.UserCode.empty();
-		const auto hasPlace = !Presentation.VerificationUri.empty();
-
-		BeginButton->setEnabled(!running);
-		CancelButton->setEnabled(running);
-		CopyButton->setEnabled(hasCode);
-		OpenButton->setEnabled(hasPlace);
+		// Beginning and cancelling are core commands, so their legality comes
+		// from the core. Copying and opening are not: neither moves the flow,
+		// and both are answerable from what is on screen.
+		BeginButton->setEnabled(enabled(
+			Presentation.Commands,
+			core::device_authorization_command_id::begin_device_authorization));
+		CancelButton->setEnabled(enabled(
+			Presentation.Commands,
+			core::device_authorization_command_id::cancel_device_authorization));
+		CopyButton->setEnabled(!Presentation.UserCode.empty());
+		OpenButton->setEnabled(!Presentation.VerificationUri.empty());
 
 		// The one gesture that changes wording rather than only enablement: a
 		// terminal flow is retried by asking for a new code, and calling that
@@ -259,6 +352,18 @@ namespace bpr::qt {
 			Presentation.Stage == core::device_authorization_stage::idle
 				? tr("Get a code")
 				: tr("Get a new code"));
+	}
+
+	void device_authorization_panel::bind_profile(
+		const core::host_profile_id aProfile)
+	{
+		Profile = aProfile;
+	}
+
+	auto device_authorization_panel::bound_profile() const noexcept
+		-> core::host_profile_id
+	{
+		return Profile;
 	}
 
 	auto device_authorization_panel::copy_user_code() -> bool
@@ -330,6 +435,11 @@ namespace bpr::qt {
 	auto device_authorization_panel::validity_label() const noexcept -> QLabel*
 	{
 		return ValidityLabel;
+	}
+
+	auto device_authorization_panel::renewal_label() const noexcept -> QLabel*
+	{
+		return RenewalLabel;
 	}
 
 	auto device_authorization_panel::handoff_label() const noexcept -> QLabel*

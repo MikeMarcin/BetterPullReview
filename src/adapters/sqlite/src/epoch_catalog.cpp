@@ -2,6 +2,8 @@
 
 #include "catalog_database.hpp"
 
+#include "bpr/core/anonymous_read_policy.hpp"
+
 #include <sqlite3.h>
 
 #include <algorithm>
@@ -371,6 +373,29 @@ namespace bpr::adapters::sqlite {
 			return output;
 		}
 
+		// The same eight bytes, read without the nonzero rule. `read_u64`
+		// refuses a zero because under the authenticated mode no identity may
+		// be zero, and that rule is right there. A public-preview row stores
+		// exactly zero because it names no reader, so it is read through this
+		// one and the caller's mode decides which value is correct. Nothing
+		// here treats zero as a sentinel: it is only ever compared against the
+		// zero the key itself carries, and `valid` has already refused a key
+		// whose reader disagrees with its mode.
+		[[nodiscard]] auto read_u64_including_absent(
+			::sqlite3_stmt* aQuery, const int aColumn) noexcept
+			-> std::optional<std::uint64_t>
+		{
+			std::array<std::uint8_t, 8> encoded{ };
+			if (!read_blob(aQuery, aColumn, encoded)) {
+				return std::nullopt;
+			}
+			std::uint64_t output = 0U;
+			for (const auto byte : encoded) {
+				output = (output << 8U) | byte;
+			}
+			return output;
+		}
+
 		template <typename Identity>
 		[[nodiscard]] auto read_fixed(::sqlite3_stmt* aQuery, const int aColumn)
 			-> std::optional<Identity>
@@ -624,12 +649,34 @@ namespace bpr::adapters::sqlite {
 			std::shared_ptr<catalog_state> State;
 		};
 
+		// The catalog stores the access mode as a small positive integer
+		// rather than the enumerator's own value, so the schema's CHECK
+		// constraints read as constraints rather than as a coincidence of C++
+		// enumerator ordering, and a reordering of that enumeration cannot
+		// silently re-read every stored row as the other mode.
+		[[nodiscard]] constexpr auto access_mode_column(
+			const core::github_access_mode aMode) noexcept -> int
+		{
+			switch (aMode) {
+			case core::github_access_mode::authenticated:
+				return 1;
+			case core::github_access_mode::public_preview:
+				return 2;
+			}
+			return 0;
+		}
+
+		// The mode is bound with the rest of the authority and never
+		// separately, so no query can filter on an identity while ignoring
+		// which mode owns it. It is bound last so a caller's own trailing
+		// parameters stay numbered relative to the whole key.
 		[[nodiscard]] auto bind_authority_key(
 			::sqlite3_stmt*                         aQuery,
 			const app::epoch_catalog_authority_key& aKey,
 			const int                               aFirst) noexcept -> bool
 		{
-			return bind_u64(aQuery, aFirst, aKey.Profile.value())
+			const auto mode = access_mode_column(aKey.Mode);
+			return mode != 0 && bind_u64(aQuery, aFirst, aKey.Profile.value())
 				&& bind_u64(aQuery, aFirst + 1, aKey.ProfileRevision.value())
 				&& bind_u64(aQuery, aFirst + 2, aKey.Host.value())
 				&& bind_fixed(aQuery, aFirst + 3, aKey.HostAuthority)
@@ -637,7 +684,8 @@ namespace bpr::adapters::sqlite {
 				&& bind_u64(aQuery, aFirst + 5, aKey.Repository.value())
 				&& ::sqlite3_bind_int(
 					   aQuery, aFirst + 6, static_cast<int>(aKey.ObjectFormat))
-				== SQLITE_OK;
+				== SQLITE_OK
+				&& ::sqlite3_bind_int(aQuery, aFirst + 7, mode) == SQLITE_OK;
 		}
 
 		[[nodiscard]] auto compact_retired_cache_journals(
@@ -826,7 +874,7 @@ namespace bpr::adapters::sqlite {
 				"AND profile_revision = ?3 AND host_id = ?4 "
 				"AND host_authority = ?5 AND account_id = ?6 "
 				"AND repository_id = ?7 AND object_format = ?8 "
-				"AND lifecycle != 4");
+				"AND access_mode = ?9 AND lifecycle != 4");
 			if (!repository || !bind_fixed(repository->Value, 1, *incarnation)
 				|| !bind_authority_key(repository->Value, aRequest.Authority, 2)) {
 				return std::unexpected(
@@ -860,8 +908,9 @@ namespace bpr::adapters::sqlite {
 						database,
 						"INSERT INTO repository_scope(incarnation, cache_scope, "
 						"profile_id, profile_revision, host_id, host_authority, "
-						"account_id, repository_id, object_format, lifecycle) "
-						"VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1)");
+						"account_id, repository_id, object_format, access_mode, "
+						"lifecycle) "
+						"VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1)");
 					if (!insert || !bind_fixed(insert->Value, 1, *incarnation)
 						|| !bind_fixed(insert->Value, 2, candidate)
 						|| !bind_authority_key(
@@ -911,11 +960,12 @@ namespace bpr::adapters::sqlite {
 					"AND r.profile_revision = ?3 AND r.host_id = ?4 "
 					"AND r.host_authority = ?5 AND r.account_id = ?6 "
 					"AND r.repository_id = ?7 AND r.object_format = ?8 "
-					"AND r.lifecycle = 4 AND p.pull_request_id = ?9");
+					"AND r.access_mode = ?9 "
+					"AND r.lifecycle = 4 AND p.pull_request_id = ?10");
 				if (!retired || !bind_fixed(retired->Value, 1, *incarnation)
 					|| !bind_authority_key(retired->Value, aRequest.Authority, 2)
 					|| !bind_u64(
-						retired->Value, 9, aRequest.Authority.PullRequest.value())) {
+						retired->Value, 10, aRequest.Authority.PullRequest.value())) {
 					return std::unexpected(
 						retired ? failure::unavailable : retired.error());
 				}
@@ -990,8 +1040,9 @@ namespace bpr::adapters::sqlite {
 			if (code == SQLITE_ROW) {
 				prScope = read_fixed<core::pull_request_authority_scope_id>(
 					pullRequest->Value, 0);
-				const auto viewer = read_u64(pullRequest->Value, 1);
-				catalogRevision   = ::sqlite3_column_int64(pullRequest->Value, 3);
+				const auto viewer
+					= read_u64_including_absent(pullRequest->Value, 1);
+				catalogRevision = ::sqlite3_column_int64(pullRequest->Value, 3);
 				if (!prScope || !viewer
 					|| *viewer != aRequest.Authority.Viewer.value()
 					|| ::sqlite3_column_int64(pullRequest->Value, 2)
@@ -1044,12 +1095,13 @@ namespace bpr::adapters::sqlite {
 					auto       insert    = prepare(
 						database,
 						"INSERT INTO pull_request_scope(incarnation, pr_scope, "
-						"cache_scope, viewer_id, pull_request_id, "
+						"cache_scope, viewer_id, access_mode, pull_request_id, "
 						"pull_request_number, next_ordinal, catalog_revision, "
 						"retained_epoch_count, "
 						"latest_live_ordinal, previous_distinct_head_ordinal, "
 						"lifecycle, retention_rehydration_required) "
-						"VALUES(?1, ?2, ?3, ?4, ?5, ?6, 1, 0, 0, NULL, NULL, 1, 0)");
+						"VALUES(?1, ?2, ?3, ?4, ?7, ?5, ?6, 1, 0, 0, NULL, NULL, "
+						"1, 0)");
 					if (!insert || !bind_fixed(insert->Value, 1, *incarnation)
 						|| !bind_fixed(insert->Value, 2, candidate)
 						|| !bind_fixed(insert->Value, 3, *cacheScope)
@@ -1061,6 +1113,15 @@ namespace bpr::adapters::sqlite {
 							aRequest.Authority.PullRequest.value())
 						|| ::sqlite3_bind_int64(
 							   insert->Value, 6, aRequest.Authority.Number.value())
+							!= SQLITE_OK
+						// The pull-request scope carries the mode its
+						// repository scope carries; the schema's foreign key
+						// refuses any other pairing, so a mixed-authority row
+						// cannot be written even by mistake here.
+						|| ::sqlite3_bind_int(
+							   insert->Value,
+							   7,
+							   access_mode_column(aRequest.Authority.Mode))
 							!= SQLITE_OK) {
 						return std::unexpected(failure::unavailable);
 					}
@@ -1137,6 +1198,12 @@ namespace bpr::adapters::sqlite {
 					.PullRequest     = aRequest.Authority.PullRequest,
 					.Number          = aRequest.Authority.Number,
 					.Scope           = *prScope,
+					// Without this the binding a public-preview key opens
+					// would hand back an authenticated authority, and every
+					// key derived from it - the Git cache scope, the
+					// comparison digest - would land in the signed-in
+					// namespace.
+					.Mode = aRequest.Authority.Mode,
 				},
 				.Catalog = core::epoch_catalog_identity{
 					.Incarnation = *incarnation,
@@ -3513,6 +3580,7 @@ namespace bpr::adapters::sqlite {
 				"AND owned.host_id = current.host_id "
 				"AND owned.host_authority = current.host_authority "
 				"AND owned.account_id = current.account_id "
+				"AND owned.access_mode = current.access_mode "
 				"AND owned.repository_id = current.repository_id "
 				"AND owned.object_format = current.object_format "
 				"WHERE current.incarnation = o.incarnation "
@@ -5559,6 +5627,7 @@ namespace bpr::adapters::sqlite {
 					  "AND owned.host_id = current.host_id "
 					  "AND owned.host_authority = current.host_authority "
 					  "AND owned.account_id = current.account_id "
+					  "AND owned.access_mode = current.access_mode "
 					  "AND owned.repository_id = current.repository_id "
 					  "AND owned.object_format = current.object_format "
 					  "WHERE current.incarnation = o.incarnation "
@@ -5577,6 +5646,7 @@ namespace bpr::adapters::sqlite {
 					  "AND owned.host_id = current.host_id "
 					  "AND owned.host_authority = current.host_authority "
 					  "AND owned.account_id = current.account_id "
+					  "AND owned.access_mode = current.access_mode "
 					  "AND owned.repository_id = current.repository_id "
 					  "AND owned.object_format = current.object_format "
 					  "WHERE current.incarnation = o.incarnation "

@@ -4,18 +4,41 @@ else()
     set(bpr_native_platform_vault_self_test_result "false")
 endif()
 
-# RFC-BPR-0016. What the shipped device-authorization selection answers under
-# network isolation, per platform. macOS is registered under the recorded
-# distributable identity since BPR-0318: its real flow starts, the isolated
-# transport fails immediately, and the refusing transport is never touched, so
-# the terminal is `failed` with zero gate bypasses. Every other platform stays
-# unregistered until BPR-0310/BPR-0311 flip it, and keeps the typed refusal
-# with nothing sent.
-if(APPLE)
-    set(bpr_device_selection_self_test_expression
+# RFC-BPR-0016, as BPR-0515 left it. What the shipped device-authorization
+# selection answers in the dev-tree matrix, on one mechanism for every platform
+# and every row that uses it. `DEVICE_FLOW_REQUESTS` counts submissions that
+# reached the refusing transport, never HTTP requests, so zero means the
+# capability gate held and is the one value every platform shares.
+#
+# macOS is registered under the recorded distributable identity since BPR-0318,
+# Linux since BPR-0310, and Windows since BPR-0311, so on all three the real
+# flow starts and the refusing transport is never touched. What it starts
+# against is the difference this expression exists to remove. macOS used to get
+# its terminal from sandbox-exec and Linux from a network namespace whose only
+# interface is loopback, while Windows carries WINDOWS_UNCONTAINED - BPR-0362
+# exempts these rows from the AppContainer because a lowbox token cannot give
+# them the drive-letter link, the mount-point manager, or the pipe namespace -
+# so on Windows nothing stood in front of the network at all, the flow reached
+# `awaiting_authorization` against github.com, and a device code was minted once
+# per run per row.
+#
+# `--network-denied` replaces all three with the application denying its own
+# egress: the device-authorization wire is composed against a closed loopback
+# port rather than the discovered system proxy, so the connect is refused inside
+# the process before anything is dialled, whatever the harness or the station
+# can reach. It denies at the socket, which is what these rows actually needed
+# and the one thing containment could never have given them, so
+# WINDOWS_UNCONTAINED stays and is now beside the point.
+#
+# One mechanism, so one value: `failed`, which macOS and Linux already recorded
+# and which no longer depends on anything being reachable. An unregistered
+# platform composes no wire for the override to apply to, so it keeps answering
+# the typed refusal.
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(bpr_device_selection_denied_self_test_expression
         "DEVICE_FLOW_STAGE:failed[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_REGISTERED_SELECTION_OK")
 else()
-    set(bpr_device_selection_self_test_expression
+    set(bpr_device_selection_denied_self_test_expression
         "DEVICE_FLOW_STAGE:unavailable[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_UNAVAILABLE_OK")
 endif()
 
@@ -93,14 +116,32 @@ endfunction()
 #   self test                       0.5 s   budget 8 s     16x
 #   fixture render and workbench   12-13 s  budget 40 s     3x
 #   native appearance probe        ~11 s    budget 30 s   2.7x
-#   epoch phase                     25 s    budget 60 s   2.4x
+#   epoch phase                     25 s    budget 120 s  4.8x
 #
 # A budget is not a target. It is the point past which waiting has stopped
 # being useful and the run should say what it was waiting for.
+#
+# The epoch phase is the one whose headroom was measured against a host doing
+# something else, because that is where it kept running out (BPR-0555). Four
+# rows failed the RFC-BPR-0016 closeout matrix on 2026-09-03 at 60 s, and were
+# reproduced failing at the head that session started from, so the seed was not
+# slow by construction; the host was reindexing. Re-measured on 2026-09-03 on
+# macOS 15.7.7 arm64, Qt 6.11.1, three consecutive seed phases driven directly:
+#
+#   quiet host, previously recorded            25.0 s
+#   load average 5.1 (browser, an Android      34.7 s, 33.3 s, 33.4 s
+#     emulator, WindowServer)
+#   the hosts that failed, from their own      60.0 s to 68.6 s
+#     PUBLIC_PATH_BUDGET lines
+#
+# 120 s is 4.8x the quiet measurement, 3.5x the loaded one, and 1.75x the worst
+# a real host has actually taken. The seed itself was left alone: its cost is
+# writing a Git object cache and a SQLite catalog for real, which is the point
+# of the fixture, and making it cheaper means changing what these rows drive.
 set(bpr_self_test_budget_ms 8000)
 set(bpr_fixture_run_budget_ms 40000)
 set(bpr_native_appearance_budget_ms 30000)
-set(bpr_epoch_phase_budget_ms 60000)
+set(bpr_epoch_phase_budget_ms 120000)
 set(bpr_stall_budget_ms 5000)
 
 set(bpr_test_qt_root "")
@@ -194,6 +235,16 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# BPR-0515. `WINDOWS_UNCONTAINED` stays: BPR-0362's reasoning is unchanged, and
+# this test still needs the drive-letter link, the mount-point manager, and the
+# pipe namespace that a lowbox token cannot reach. `--network-denied` does not
+# contain the process; it denies at the socket, which is what this row actually
+# needed and the one thing the container could never have given it.
+# The selector's name predates the registered selection: on an unregistered
+# platform its stage is `unavailable`, and on every shipped platform it is now
+# the dev-tree device-authorization gate under local denial (BPR-0515), landing
+# on `failed`. The name stays because six gates bind it by string and the closed
+# cards record it (BPR-0285); read it as "the dev-tree device gate".
 bpr_add_network_isolated_test(
     NAME application_device_authorization_unavailable
     WINDOWS_UNCONTAINED
@@ -203,6 +254,7 @@ bpr_add_network_isolated_test(
         --ghes-host
         ghe.example.invalid
         --device-authorization-probe
+        --network-denied
         --automated-run-budget-ms
         ${bpr_self_test_budget_ms}
 )
@@ -211,7 +263,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "${bpr_device_selection_self_test_expression}"
+            "${bpr_device_selection_denied_self_test_expression}"
 )
 bpr_bound_automated_run(
     application_device_authorization_unavailable
@@ -229,6 +281,21 @@ bpr_bound_automated_run(
 # distributable one is BPR-0318's - so this course needs the fixture, and it
 # ends at the grant's terminal rather than continuing into the fixture's own
 # pull-request stages.
+#
+# BPR-0539. The count alone did not make that claim. The course connected the
+# fixture account before it began, `github_connect_action` enrolled the
+# fixture's own 32 random bytes, and the one store this row counted was that
+# credential rather than the grant - whose own enrollment then arrived as a
+# second establishment the fixture vault refused. The course now runs the
+# grant as its first session, and the row reads the identity of what was
+# stored rather than only how often: `DEVICE_FLOW_VAULT_STORED_TOKEN` is the
+# leading 16 hex digits of the SHA-256 of the bytes the vault accepted, and
+# the value pinned here is that digest for the recorded grant's own access
+# token - `printf '%s' fixture-access-token-0276 | shasum -a 256` - so the row
+# is anchored to a value outside the process rather than to the fixture's own
+# say-so. `DEVICE_FLOW_STORED_IS_GRANT` is the comparison the fixture makes
+# between the two, and the connect credential is random per run, so it can
+# match neither.
 bpr_add_network_isolated_test(
     NAME application_device_authorization_registered_course
     WINDOWS_UNCONTAINED
@@ -247,10 +314,317 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         PASS_REGULAR_EXPRESSION
-            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK"
+            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_VAULT_STORED_TOKEN:f5505a4b89c07e21[\r\n]+DEVICE_FLOW_STORED_IS_GRANT:true[\r\n]+DEVICE_FLOW_REFRESH_RETAINED:false[\r\n]+DEVICE_FLOW_CLEANUP_FAILED:false[\r\n]+DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK"
 )
 bpr_bound_automated_run(
     application_device_authorization_registered_course
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# BPR-0536. The registered course carried one step past its terminal, and the
+# only place RFC-BPR-0016's claim-matrix row 9 can be observed through the
+# composed graph rather than at the host: the recorded grant enrolls, the
+# composition binds the refresh authority from the accepted session, and the
+# renewal rotates the access and refresh material under that same vault
+# authority before the access token expires. Two vault stores, because the
+# rotation enrolls the rotated access token under the authority the grant
+# established - that is the rotation being durable rather than a second
+# enrollment - and `DEVICE_FLOW_DURABLE_COPIES` stays zero because nothing the
+# renewal writes goes anywhere but the vault. `WINDOWS_UNCONTAINED` and the
+# isolation keyword are the registered course's, unchanged: this row runs the
+# same graph with one more flag.
+#
+# BPR-0547. `DEVICE_FLOW_REFRESH_DELETES:1` is which erasure the retained flag
+# beside it reports. The rotation ends by enrolling the rotated access token,
+# which supersedes the session the grant established; a build that carries the
+# refresh slot's erasure along with that supersession destroys the material the
+# rotation stored a moment earlier, and the orderly shutdown's own erasure
+# afterwards leaves `RETAINED:false` looking exactly the same. One erasure is
+# the shutdown's. Two is the renewal chain destroying itself, and the next
+# renewal answering `refresh_absent`.
+#
+# BPR-0547. And `DEVICE_FLOW_ROTATIONS:2`, because one rotation is satisfied by
+# a chain that has already destroyed itself: nothing has had to spend the
+# material the first rotation wrote. The second renewal is the one that reads
+# the slot the first filled, so the row now drives it -- the composed clock
+# steps once per renewal the host arms rather than once, which is the only
+# input a course cannot otherwise supply. Every count moves with it: a third
+# vault store for the second rotation's access token, a third refresh store for
+# its renewable material, and `DEVICE_FLOW_REFRESH_STORED_TOKEN` naming which
+# rotation last wrote the slot, since the fixture's renewal answers carry the
+# renewal's number. Read beside the single erasure, that digest is the second
+# rotation's material being durable until the orderly shutdown took it. The
+# erasure count does not move: retention is what makes the second rotation
+# possible, so the shutdown is still the only occasion that erases.
+#
+# The bounds are raised, and for a measured reason. Each of the two renewals is
+# made due one second from the moment it is armed rather than at once: a
+# rotation arms the next renewal in the same turn that enrolls its new access
+# token, while that enrollment is still travelling through the profile
+# activation and the vault operations that decide what the refresh slot holds.
+# A renewal due in that same instant outruns them and reads a slot nothing has
+# touched yet, which is a race the shipped product never runs -- there the next
+# renewal is eight hours after the supersession settled. So the row costs two
+# seconds of deliberate waiting it did not cost before, and it is measured
+# rather than assumed: 8.5 s beside one other test and 10.1 s alone on a
+# JaegAW macOS station with another build running, against 5.6 s when both
+# renewals were due the instant they were armed. The two seconds are a fixed
+# cost rather than variance, which is why the budget moves with them.
+set(bpr_refresh_course_budget_ms 12000)
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_refresh_course
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-refresh-course
+        --automated-run-budget-ms
+        ${bpr_refresh_course_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_refresh_course
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_ROTATIONS:2[\r\n]+DEVICE_FLOW_REFRESH_STATE:scheduled[\r\n]+DEVICE_FLOW_VAULT_STORES:3[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_REFRESH_BOUND:true[\r\n]+DEVICE_FLOW_REFRESH_RESUMES:0[\r\n]+DEVICE_FLOW_REFRESH_RETAINED:false[\r\n]+DEVICE_FLOW_REFRESH_STORES:3[\r\n]+DEVICE_FLOW_REFRESH_DELETES:1[\r\n]+DEVICE_FLOW_REFRESH_STORED_TOKEN:e2e8c030e3a107e9[\r\n]+DEVICE_FLOW_CLEANUP_FAILED:false[\r\n]+DEVICE_FLOW_REFRESH_OK"
+)
+bpr_bound_automated_run(
+    application_device_authorization_refresh_course
+    TIMEOUT 25
+    BUDGET_MS ${bpr_refresh_course_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# BPR-0540. The renewal course's composition driven the other way round, and
+# the only place the review's finding can be observed rather than argued: the
+# refresh slot already holds a past grant's material when the run starts - the
+# state an orderly shutdown used to leave behind, keyed by authority and
+# outliving the process that earned it - and the session this run establishes
+# is the credential the reviewer pasted. Presence of that material is not
+# permission to spend it. A build that answers renewability from the slot
+# alone resumes here, rotates, and supersedes the pasted session with a device
+# one nobody asked for; the pinned counters are each half of that sequence
+# refusing to start, and `DEVICE_FLOW_STORED_IS_PASTED` is the load-bearing
+# one, because only the digest can tell the two candidate sessions apart. The
+# digests are random per run - the connect credential is 32 fresh bytes - so
+# the row pins their equality rather than their value. `REFRESH_RETAINED:false`
+# is the other half of the same slice: the orphan is erased at shutdown rather
+# than merely left unspent. `WINDOWS_UNCONTAINED` and the isolation keyword are
+# the renewal course's, unchanged: this row runs the same graph, seeded, with
+# one flag more.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_orphan_course
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-orphan-course
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_orphan_course
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_REFRESH_RESUMES:0[\r\n]+DEVICE_FLOW_ROTATIONS:0[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_REFRESH_STORES:0[\r\n]+DEVICE_FLOW_REFRESH_RETAINED:false[\r\n]+DEVICE_FLOW_VAULT_STORED_TOKEN:[0-9a-f]+[\r\n]+DEVICE_FLOW_PASTED_TOKEN:[0-9a-f]+[\r\n]+DEVICE_FLOW_STORED_IS_PASTED:true[\r\n]+DEVICE_FLOW_ORPHAN_OK"
+)
+bpr_bound_automated_run(
+    application_device_authorization_orphan_course
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# RFC-BPR-0016's browser handoff, and its construction cut. Both drive the
+# registered course, because `awaiting_authorization` is the only stage that
+# has an address to open and the recorded grant is the only composition that
+# reaches it without a human. Neither starts a browser: a tests-enabled graph
+# binds the recording opener rather than `system_browser_opener`, so what these
+# prove is that the action reaches a bound capability and what the host makes
+# of the answer. That the shipped opener is the one bound in a shipped graph is
+# proven by linkage (`composed_application_hosts`) and by construction; that it
+# reaches a real browser is a target-native observation the stations record.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_browser_handoff
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-registered-course
+        --device-authorization-browser-probe
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_browser_handoff
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_BROWSER_COMPOSED:true[\r\n]+DEVICE_FLOW_BROWSER_OPENS:1[\r\n]+DEVICE_FLOW_HANDOFF:opened[\r\n]+DEVICE_FLOW_ENROLLMENTS:1"
+)
+bpr_bound_automated_run(
+    application_device_authorization_browser_handoff
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# The construction cut. One construction removed and nothing else: the same
+# course, the same flow, the same grant reaching the same vault once, with no
+# browser capability bound. The action still answers - `unavailable`, which is
+# what every build did before the opener was composed - and the positive marker
+# is false, so a run that quietly stopped composing the opener could not pass
+# the handoff contract above by accident.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_browser_absent
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-registered-course
+        --device-authorization-browser-probe
+        --device-authorization-browser-absent
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_browser_absent
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_PRESENTED:true[\r\n]+DEVICE_FLOW_STAGE:authorized[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_BROWSER_COMPOSED:false[\r\n]+DEVICE_FLOW_BROWSER_OPENS:0[\r\n]+DEVICE_FLOW_HANDOFF:unavailable[\r\n]+DEVICE_FLOW_ENROLLMENTS:1"
+)
+bpr_bound_automated_run(
+    application_device_authorization_browser_absent
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# [[BPR-0526]]'s mount, and its construction cut, on the same terms as the
+# browser pair above: one course, one difference. The first starts the flow by
+# pressing the begin control on the panel the shipped window mounts, found by
+# the accessible name it announces rather than through any accessor the
+# composition holds, and then makes the identical registered-course claim -
+# same terminal, same single enrollment, same single vault store, same two
+# recorded submissions. A window that stopped mounting the panel, or a
+# composition that stopped wiring it, reports `DEVICE_FLOW_PANEL_BEGAN:false`
+# and never reaches that claim.
+#
+# The second removes exactly one thing: composition adopts neither edge of the
+# panel. The window still draws it, `select_device_authorization` still starts
+# the same flow to the same terminal, and the positive marker is false - so a
+# graph that quietly stopped composing the panel cannot pass the course above
+# by accident.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_panel_course
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-registered-course
+        --device-authorization-panel-course
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_panel_course
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK[\r\n]+DEVICE_FLOW_PANEL_BEGAN:true[\r\n]+DEVICE_FLOW_PANEL_COMPOSED:true"
+)
+bpr_bound_automated_run(
+    application_device_authorization_panel_course
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_panel_absent
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --github-fixture
+        github-com
+        --device-authorization-probe
+        --device-authorization-registered-course
+        --device-authorization-panel-absent
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_panel_absent
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_ENROLLMENTS:1[\r\n]+DEVICE_FLOW_VAULT_STORES:1[\r\n]+DEVICE_FLOW_DURABLE_COPIES:0[\r\n]+DEVICE_FLOW_TRANSPORT_SUBMISSIONS:2[\r\n]+DEVICE_FLOW_ENROLLED_OK[\r\n]+DEVICE_FLOW_PANEL_COMPOSED:false"
+)
+bpr_bound_automated_run(
+    application_device_authorization_panel_absent
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# BPR-0535. The enterprise negative the row above could never make: every
+# course beside it begins for the front profile, and the picker is the only
+# thing that can bind the mounted panel to another one. The capability is
+# composed for GitHub.com, so a begin pressed while a GHES profile is selected
+# has to end in the typed refusal with nothing built - on every platform,
+# registered or not, which is why the expression names no platform. The wire is
+# composed under local denial like the gate above, so a run that stopped
+# refusing reaches a closed loopback port rather than github.com.
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_ghes_refusal
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --ghes-host
+        ghe.example.invalid
+        --device-authorization-probe
+        --device-authorization-ghes-course
+        --network-denied
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_device_authorization_ghes_refusal
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "DEVICE_FLOW_STAGE:unavailable[\r\n]+DEVICE_FLOW_REQUESTS:0[\r\n]+DEVICE_FLOW_GHES_BEGIN_REFUSED:true[\r\n]+DEVICE_FLOW_GHES_REFUSAL_OK"
+)
+bpr_bound_automated_run(
+    application_device_authorization_ghes_refusal
     TIMEOUT 15
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
@@ -264,6 +638,7 @@ bpr_add_network_isolated_test(
         $<TARGET_FILE:app_better_pull_review>
         --self-test
         --device-authorization-probe
+        --network-denied
         --automated-run-budget-ms
         ${bpr_self_test_budget_ms}
 )
@@ -275,15 +650,173 @@ set_tests_properties(
         # platform vault rather than a fixture, the existing CLI refusal
         # unchanged beside it, and then the device path composed, presented,
         # and answering the platform's shipped selection — the typed refusal
-        # where unregistered, the started-then-terminated real flow where
-        # registered. This is the contract the tests-disabled Release build
-        # inherits; what it cannot check here is symbol absence, which is the
-        # separate closeout scan.
+        # where unregistered, the started-then-locally-refused real flow where
+        # registered. This row runs the same tests-enabled binary against the
+        # same registered selection as the gate above, so BPR-0515 gives it the
+        # same `--network-denied` and the same terminal: the dev-tree matrix
+        # makes no real GitHub connection on any platform. What the override
+        # does not change is what this row is for — the shipped composition,
+        # the real vault, and the shipped capability are exactly what a
+        # tests-disabled Release inherits. What it cannot check here is symbol
+        # absence, which is the separate closeout scan.
         PASS_REGULAR_EXPRESSION
-            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+DEVICE_FLOW_HOST_COMPOSED:true[\r\n]+DEVICE_FLOW_PRESENTED:true[\r\n]+${bpr_device_selection_self_test_expression}"
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+DEVICE_FLOW_HOST_COMPOSED:true[\r\n]+DEVICE_FLOW_PRESENTED:true[\r\n]+${bpr_device_selection_denied_self_test_expression}"
 )
 bpr_bound_automated_run(
     application_device_authorization_release_contract
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# RFC-BPR-0017. The signed-out reading mode's shipped selection, on the same
+# terms as the device triple above: each row drives the shipped binary, and the
+# facts are reported separately because "no authority was composed", "the
+# activation answered with a typed refusal", and "nothing of any kind was sent"
+# fail for different reasons.
+#
+# The whole shipped chain in one expression, in order: the composition
+# withheld the credential-free authority on this platform, the activation
+# answered `unavailable` rather than doing nothing, and no request, no
+# authorization header, and no vault operation happened on the way to that
+# answer. [[BPR-0316]] flips macOS in its own slice; Linux and Windows stay
+# here until a target-native card of their own says otherwise.
+set(bpr_public_preview_unavailable_self_test_expression
+    "PUBLIC_PREVIEW_COMPOSED:false[\r\n]+PUBLIC_PREVIEW_STAGE:unavailable[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_UNAVAILABLE_OK"
+)
+
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_unavailable
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --ghes-host
+        ghe.example.invalid
+        --public-preview-probe
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_unavailable
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:2[\r\n]+${bpr_public_preview_unavailable_self_test_expression}"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_unavailable
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# The tests-disabled-equivalent probe. `--public-preview-probe` is
+# unconditional for exactly this reason: the claim a released binary has to be
+# able to make is that the mode is unavailable and sends nothing, and a flag
+# that existed only in a tests-enabled build could not make it. What this row
+# cannot check is symbol absence, which is the separate closeout scan.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_release_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-probe
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_release_contract
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+${bpr_public_preview_unavailable_self_test_expression}"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_release_contract
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# [[BPR-0316]]. The verdict a shipped build whose selection is enabled has to
+# be able to print. An enabled selection activates the mode from the composed
+# authority and reads nothing until a reviewer asks for something, so the
+# passing shape here is the opposite of the fixture course's: the mode entered
+# with zero requests, no authorization header, and no vault operation. The
+# selection is forced from a tests-enabled flag because no platform ships it
+# enabled yet; the markers this asserts are the shipped ones.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_enabled_probe
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-selection-enabled-probe
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_enabled_probe
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}[\r\n]+CLI_UNAVAILABLE_OK[\r\n]+CLI_UNAVAILABLE_COUNT:1[\r\n]+PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_enabled_probe
+    TIMEOUT 15
+    BUDGET_MS ${bpr_self_test_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# [[BPR-0316]]. The live candidate's wiring, proven without reaching the
+# network. The dry run composes exactly what the live read would compose --
+# the shipped anonymous REST factory, the shipped anonymous smart factory, no
+# fixture -- enters the mode, and stops before opening anything. The
+# production-factories marker is a pointer identity between what the anonymous
+# provider was constructed with and the shipped factory this composition
+# built, so a graph that routed the signed-out read through any other factory
+# turns it false. The row is network-isolated, which is what makes "issued
+# nothing" a fact rather than a promise; the read itself is an authorized
+# operator step and has no selector.
+#
+# [[BPR-0316]] part two. The regex is contiguous, so `WIRE_REQUESTS:0`
+# following `PRODUCTION_FACTORIES:true` asserts that no per-request
+# `PUBLIC_PREVIEW_WIRE_OPERATION` line was printed between them, which is what
+# a run that issued nothing must report. `WIRE_SINGLE_ATTEMPT:true` is the
+# in-process check that the counting transport refuses a second request for a
+# read that already failed -- the mechanism that bounds an authorized read to
+# one provider attempt, proven here rather than against the live service --
+# and `LIVE_ELAPSED_MS` is the whole course's wall time.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_live_candidate_wiring
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-live-candidate
+        octocat
+        Hello-World
+        1
+        --public-preview-live-candidate-dry-run
+        --automated-run-budget-ms
+        ${bpr_self_test_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_live_candidate_wiring
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:0[\r\n]+PUBLIC_PREVIEW_WRITE_REFUSALS:0[\r\n]+PUBLIC_PREVIEW_LIVE_CANDIDATE_PRODUCTION_FACTORIES:true[\r\n]+PUBLIC_PREVIEW_WIRE_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_WIRE_CAPABILITY_PROBES:0[\r\n]+PUBLIC_PREVIEW_WIRE_CREDENTIALED_REFUSALS:0[\r\n]+PUBLIC_PREVIEW_WIRE_SINGLE_ATTEMPT:true[\r\n]+PUBLIC_PREVIEW_BUDGET:0/0/0[\r\n]+PUBLIC_PREVIEW_SNAPSHOT_MODE:authenticated[\r\n]+PUBLIC_PREVIEW_CANDIDATE:octocat/Hello-World#1 [\r\n]+PUBLIC_PREVIEW_LIVE_ELAPSED_MS:[0-9]+[\r\n]+PUBLIC_PREVIEW_LIVE_CANDIDATE_OK"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_live_candidate_wiring
     TIMEOUT 15
     BUDGET_MS ${bpr_self_test_budget_ms}
     RUNS 1
@@ -366,6 +899,45 @@ set_tests_properties(
     application_public_path_wait
     PROPERTIES
         PASS_REGULAR_EXPRESSION "public-path-wait-tests:pass"
+        TIMEOUT 15
+)
+
+# BPR-0537. The composed system-browser opener's address validation, asked
+# directly. The three device-authorization courses observe a browser that
+# opened; this asks what the opener refuses, which is the claim, and drives
+# `open` with the platform launch substituted for a counting stand-in so no
+# test ever hands an address to the desktop. Links the composition for the
+# opener itself and needs no window, no event loop, and no network.
+bpr_add_executable(
+    test_better_pull_review_system_browser_opener_tests
+    system_browser_opener_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_system_browser_opener_tests
+    PRIVATE
+        BetterPullReview::Composition
+)
+target_compile_definitions(
+    test_better_pull_review_system_browser_opener_tests
+    PRIVATE
+        BPR_BUILD_TESTING=1
+)
+target_compile_features(
+    test_better_pull_review_system_browser_opener_tests
+    PRIVATE
+        cxx_std_23
+)
+bpr_enable_hardening(test_better_pull_review_system_browser_opener_tests)
+bpr_enable_warnings(test_better_pull_review_system_browser_opener_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_device_authorization_browser_address
+    COMMAND test_better_pull_review_system_browser_opener_tests
+)
+set_tests_properties(
+    application_device_authorization_browser_address
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "system-browser-opener-tests:pass"
         TIMEOUT 15
 )
 
@@ -472,6 +1044,151 @@ bpr_enable_hardening(
 bpr_enable_warnings(
     test_better_pull_review_agent_invocation_composition_public_path
 )
+
+# RFC-BPR-0012. A fixture agent that anchors its finding at the identity the
+# composed context disclosed, rather than at a fixed repeated hex digit. The
+# existing canary proves an unanchored answer still reaches the reviewer; this
+# one proves a correctly placed answer validates against the frozen snapshot.
+bpr_add_executable(
+    test_better_pull_review_agent_finding_canary
+    agent_finding_canary_main.cpp
+)
+target_compile_features(
+    test_better_pull_review_agent_finding_canary
+    PRIVATE
+        cxx_std_23
+)
+bpr_enable_hardening(test_better_pull_review_agent_finding_canary)
+bpr_enable_warnings(test_better_pull_review_agent_finding_canary)
+
+bpr_add_executable(
+    test_better_pull_review_agent_finding_composition_public_path
+    agent_finding_composition_public_path.cpp
+)
+target_link_libraries(
+    test_better_pull_review_agent_finding_composition_public_path
+    PRIVATE
+        BetterPullReview::Composition
+)
+target_compile_definitions(
+    test_better_pull_review_agent_finding_composition_public_path
+    PRIVATE
+        BPR_BUILD_TESTING=1
+        "BPR_COMPOSITION_SOURCE=\"${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp\""
+)
+add_dependencies(
+    test_better_pull_review_agent_finding_composition_public_path
+    test_better_pull_review_agent_finding_canary
+)
+bpr_enable_hardening(
+    test_better_pull_review_agent_finding_composition_public_path
+)
+bpr_enable_warnings(
+    test_better_pull_review_agent_finding_composition_public_path
+)
+
+# RFC-BPR-0012 (BPR-0514, BPR-0517). The side-chat session, driven through the
+# shipped panel: one send reaches one turn on the launch path that already
+# existed and the typed message reaches the agent's frame exactly once, a stale
+# send is refused by the core's verdict and named on screen, `start_new_session`
+# starts exactly one session, and `continue_against_old_revision` starts none
+# and takes one further turn under the session the reviewer kept.
+bpr_add_executable(
+    test_better_pull_review_agent_chat_composition_public_path
+    agent_chat_composition_public_path.cpp
+)
+target_link_libraries(
+    test_better_pull_review_agent_chat_composition_public_path
+    PRIVATE
+        BetterPullReview::Composition
+)
+target_compile_definitions(
+    test_better_pull_review_agent_chat_composition_public_path
+    PRIVATE
+        BPR_BUILD_TESTING=1
+        "BPR_COMPOSITION_SOURCE=\"${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp\""
+)
+add_dependencies(
+    test_better_pull_review_agent_chat_composition_public_path
+    test_better_pull_review_agent_finding_canary
+)
+bpr_enable_hardening(
+    test_better_pull_review_agent_chat_composition_public_path
+)
+bpr_enable_warnings(
+    test_better_pull_review_agent_chat_composition_public_path
+)
+
+foreach(
+    course
+    IN ITEMS
+        positive
+        stale
+        continued
+        anchored-continuation
+        construction-cut
+)
+    if(course STREQUAL "positive")
+        set(chat_test_name application_agent_chat_composition_contract)
+        set(chat_pass_marker "agent-chat-composition:pass")
+    else()
+        string(REPLACE "-" "_" chat_course_name "${course}")
+        set(chat_test_name "application_agent_chat_${chat_course_name}_contract")
+        set(chat_pass_marker "agent-chat-${course}:pass")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME "${chat_test_name}"
+        WINDOWS_UNCONTAINED
+        COMMAND
+            test_better_pull_review_agent_chat_composition_public_path
+            "${course}"
+            $<TARGET_FILE:test_better_pull_review_agent_finding_canary>
+    )
+    set_tests_properties(
+        "${chat_test_name}"
+        PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment};GITHUB_TOKEN=must-not-cross-agent-boundary"
+            PASS_REGULAR_EXPRESSION "${chat_pass_marker}"
+            TIMEOUT 120
+    )
+endforeach()
+
+foreach(
+    course
+    IN ITEMS
+        positive
+        full-agent
+        finding-host-construction-cut
+        workshop-press
+        workshop-construction-cut
+        mcp-construction-cut
+        chat-panel-construction-cut
+        queue-construction-cut
+)
+    if(course STREQUAL "positive")
+        set(finding_test_name application_agent_finding_composition_contract)
+        set(finding_pass_marker "agent-finding-composition:pass")
+    else()
+        string(REPLACE "-" "_" finding_course_name "${course}")
+        set(finding_test_name "application_agent_finding_${finding_course_name}_contract")
+        set(finding_pass_marker "agent-finding-${course}:pass")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME "${finding_test_name}"
+        WINDOWS_UNCONTAINED
+        COMMAND
+            test_better_pull_review_agent_finding_composition_public_path
+            "${course}"
+            $<TARGET_FILE:test_better_pull_review_agent_finding_canary>
+    )
+    set_tests_properties(
+        "${finding_test_name}"
+        PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment};GITHUB_TOKEN=must-not-cross-agent-boundary"
+            PASS_REGULAR_EXPRESSION "${finding_pass_marker}"
+            TIMEOUT 120
+    )
+endforeach()
 
 foreach(
     course
@@ -998,9 +1715,14 @@ bpr_bound_automated_run(
 # that failed to bound itself would be killed by the harness at 30 s, print
 # nothing, and fail this test; there is no arrangement of the numbers under
 # which a missing bound still passes.
+# The one row whose subject is a failed run, so the one row `PUBLIC_PATH_FAILED`
+# must not fail: it asserts the stall probe's verdict block, which prints only
+# after `passed` is false. BPR-0552 makes that marker an error expression for
+# every other row registered through `bpr_add_network_isolated_test`.
 bpr_add_network_isolated_test(
     NAME application_automated_run_budget
     WINDOWS_UNCONTAINED
+    EXPECTS_FAILED_RUN
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
         --github-fixture
@@ -1055,6 +1777,81 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# The enterprise host is refused by the core policy rather than by the
+# composition, so it needs a course where the authority *is* composed: a row
+# that withheld it would prove the composition refusal twice and the policy
+# refusal never. Tests-enabled only, because forcing the shipped selection is
+# the one thing a released binary must not be able to do from a command line.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_ghes_refusal
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-probe
+        --public-preview-ghes-course
+        --github-fixture
+        ghes-3.18
+        --automated-run-budget-ms
+        ${bpr_fixture_run_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_ghes_refusal
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PATH_OK[\r\n]+PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:refused[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REFUSED_OK"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_ghes_refusal
+    TIMEOUT 60
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
+# The signed-out read, end to end against the recorded public path. The fixture
+# replays a second script here -- the nine credential-free operations in the
+# order the anonymous authority issues them -- so what this row proves is not
+# that a recording exists but that the composed host reaches it: the mode is
+# entered, the pull request opens through the credential-free authority, the
+# inline conversation the signed-out REST surface carries is observed, and
+# neither an authorization header nor the vault was involved in any of it.
+# Tests-enabled only, for the same reason the enterprise row above is.
+bpr_add_network_isolated_test(
+    NAME application_anonymous_public_preview_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --self-test
+        --public-preview-probe
+        --public-preview-enabled-course
+        --github-fixture
+        github-com
+        --automated-run-budget-ms
+        ${bpr_fixture_run_budget_ms}
+)
+set_tests_properties(
+    application_anonymous_public_preview_public_path
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        # Every term of the claim, in the order the run prints them. The two
+        # zeroes are the ones a passing read could most easily have bought:
+        # a header the transport attached, or a vault the read touched. The
+        # two refusals are the write and triage intents the mode was offered
+        # while the session was live, and they sit beside a request count of
+        # one, which is where "refused before a request" is legible.
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:1[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:1[\r\n]+PUBLIC_PREVIEW_WRITE_REFUSALS:2[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
+)
+bpr_bound_automated_run(
+    application_anonymous_public_preview_public_path
+    TIMEOUT 60
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
 foreach(
     fixture_case
     IN ITEMS
@@ -1088,7 +1885,7 @@ foreach(
     # Two budgeted runs: the seed phase and the reuse phase.
     bpr_bound_automated_run(
         application_epoch_persistence_${fixture_test_name}
-        TIMEOUT 240
+        TIMEOUT 340
         BUDGET_MS ${bpr_epoch_phase_budget_ms}
         RUNS 2
         RESERVE_MS 4000
@@ -1115,7 +1912,7 @@ set_tests_properties(
 # Four budgeted runs: seed, prune, verify-pruned-delete, verify-deleted.
 bpr_bound_automated_run(
     application_epoch_maintenance_public_path
-    TIMEOUT 360
+    TIMEOUT 660
     BUDGET_MS ${bpr_epoch_phase_budget_ms}
     RUNS 4
     RESERVE_MS 8000
@@ -1141,7 +1938,7 @@ set_tests_properties(
 # Three budgeted runs: the fresh composition, the gesture, and the restart.
 bpr_bound_automated_run(
     application_appearance_gesture_contract
-    TIMEOUT 300
+    TIMEOUT 500
     BUDGET_MS ${bpr_epoch_phase_budget_ms}
     RUNS 3
     RESERVE_MS 6000
@@ -1154,7 +1951,12 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/appearance-store-fallback-contract"
-        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        # An epoch fixture seed, not a fixture render: this row drives
+        # `--epoch-fixture-phase` and was one of the four BPR-0555 named. Under
+        # the render budget it had 40 s for work measured at 33-35 s on a
+        # loaded host, which is the thinnest margin in the file and was read as
+        # a seed defect every time it ran out.
+        "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/appearance_store_fallback_contract.cmake"
 )
@@ -1168,8 +1970,8 @@ set_tests_properties(
 # then a restart against the same obstructed appearance-store path.
 bpr_bound_automated_run(
     application_appearance_store_fallback_contract
-    TIMEOUT 120
-    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    TIMEOUT 340
+    BUDGET_MS ${bpr_epoch_phase_budget_ms}
     RUNS 2
     RESERVE_MS 4000
 )

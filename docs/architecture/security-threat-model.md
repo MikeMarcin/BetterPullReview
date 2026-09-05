@@ -989,6 +989,105 @@ fixtures, and verification output. Security tests use synthetic repositories
 and canaries and inspect both tracked and on-disk surfaces. No live private
 repository or GitHub mutation is required.
 
+## RFC-BPR-0016 device authorization boundary
+
+### What the device host may reach
+
+The device-authorization host reaches exactly four capabilities and nothing
+else: the device-authorization transport port, the refresh slot of the
+credential vault, the enrollment port, and a clock and timer. It is handed
+`github_credential_refresh_vault_port` rather than the whole vault, so
+`store`, `retrieve`, and `delete_credential` — the base account slot — are not
+reachable from it at all; that is a compile error rather than a convention
+([[BPR-0283]], `application_device_authorization_refresh`,
+`application_github_credential_vault`). It never sees a profile list, a Git
+process, SQLite, an agent, or the workbench.
+
+The browser capability it is given can do one thing: take a single address the
+host has just validated and ask the operating system to open it. It receives
+no credential, no device code, no client identifier, and no endpoint, and its
+`false` answer is an ordinary result rather than an error ([[BPR-0280]],
+[[BPR-0516]], `application_device_authorization_browser_handoff`).
+
+### What crosses no boundary
+
+- **No client secret exists.** The registration is a public client; the shipped
+  artifact must contain the recorded distributable client identifier and must
+  not contain the private owner-only verification identifier used for
+  [[BPR-0276]]'s capture ([[BPR-0318]], `scripts/verify_rfc0016_production_identity.py
+  --release-binary`, `rfc0016_production_identity_security`).
+- **The access token, the refresh token, and the device code never leave the
+  host outward.** The token enters the existing enrollment boundary and the
+  platform vault and gets no separate storage, lifetime, or erasure rule; the
+  device code is bearer material for the length of the poll window only. Core,
+  projection, and Qt types cannot name any of them ([[BPR-0277]],
+  [[BPR-0280]], [[BPR-0282]], `rfc0016_test_inventory`).
+- **The presentation record is closed.** Stage, user code, verification
+  address, remaining validity, handoff outcome, and the core's command
+  projection. Both text fields are empty at every terminal including the
+  successful one, because a user code that outlives its flow is a code a
+  reviewer can still be tricked into typing ([[BPR-0280]],
+  `qt_device_authorization_scale_100`).
+- **Every terminal erases.** Denial, expiry, disablement, refusal,
+  cancellation, failure, and success all leave no retained device code and no
+  partially enrolled profile ([[BPR-0279]],
+  `application_device_authorization_host`).
+
+### The verification address is not the server's decision
+
+An address returned by the service is checked twice against one declared
+authority — at the wire by the contract parser, so it never reaches a host,
+and again in the host against the authority its composition supplied, before
+any browser is invoked. The host's check is an exact host match over HTTPS:
+no subdomain, because `github.com.example.invalid` is a subdomain of nothing
+the reviewer meant; no userinfo, because `github.com@evil` reads as the
+authority to a human and resolves elsewhere; no port, because the compiled
+authority names none. A refusal opens no browser ([[BPR-0280]],
+[[BPR-0283]], `application_device_authorization_host`,
+`github_device_authorization_contract`).
+
+The authority is compiled in rather than configured. An operator who can edit
+it can be talked into editing it, and the whole point of the check is that the
+address the server sent is not the one that decides.
+
+### Prohibited designs that remain prohibited
+
+No loopback listener, callback server, broker, or daemon; no embedded web
+view, browser engine, or in-process credential entry for GitHub itself; no
+shipped, derived, or obfuscated client secret; no browser cookie or session
+reuse; no operator-editable scope set; and no polling faster than the interval
+the service supplies or continuing after denial, expiry, or the total bound.
+The device grant was selected over the authorization-code redirect precisely
+because the redirect variant needs an inbound socket and this one does not.
+
+### The fixture and production split
+
+A shipped graph binds the real transport and the real system-browser opener. A
+tests-enabled graph binds the recorded [[BPR-0276]] grant and a recording
+opener instead, and that seam is `BPR_BUILD_TESTING` rather than
+fixture-conditional for the browser specifically: a fixture transport reached
+by mistake writes a line to a log, and a browser opened by mistake opens a
+browser on whoever's machine is running the suite. No test in this repository
+launches one ([[BPR-0516]], `application_device_authorization_browser_handoff`).
+
+The registered course therefore exists only in a tests-enabled build. It is
+where the headline claim is observed rather than argued: the recorded grant
+runs through the real host, the real enrollment boundary, and the real vault,
+and the enrolled token is then looked for in every file the application wrote
+([[BPR-0282]], `application_device_authorization_registered_course`).
+
+### Automated-test network posture
+
+The device selectors are registered through the default-deny automated-test
+boundary. On macOS that is the `sandbox-exec` profile and on Linux a network
+namespace, and under both a registered platform's probe reaches `failed`
+without sending anything. On Windows the same selectors carry
+`WINDOWS_UNCONTAINED`, so they run outside the AppContainer for the reasons
+[[BPR-0362]] measured, and the probe reaches `cancelled` by actually reaching
+GitHub. That posture was recorded rather than endorsed, and [[BPR-0515]] resolved it on 2026-09-03: a tests-enabled `--network-denied` override routes the dev-tree probe through a closed loopback port, so every platform's dev-tree gate lands on `failed` with zero connections and the shipped Release carries no trace of the flag. The following sentence records what [[BPR-0515]] adjudicated
+whether an unattended Windows gate may make outbound contact at all, and it is
+open.
+
 ## Security evidence
 
 Required release evidence includes threat-model review, SBOM, dependency inventory, secret scan, static analysis, sanitizers, parser fuzzing, hardened build flags, signed package verification, mutation-target tests, and diagnostics redaction tests.

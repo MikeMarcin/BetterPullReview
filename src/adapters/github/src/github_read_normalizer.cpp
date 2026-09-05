@@ -1,4 +1,5 @@
 #include "github_read_contract.hpp"
+#include "github_review_comment_grouping.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -28,12 +29,12 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto operation_index(const read_operation aOperation) noexcept
 			-> std::optional<std::size_t>
 		{
-			const auto iterator = std::ranges::find(read_operation_catalog, aOperation);
-			if (iterator == read_operation_catalog.end()) {
+			const auto iterator = std::ranges::find(all_read_operations, aOperation);
+			if (iterator == all_read_operations.end()) {
 				return std::nullopt;
 			}
 			return static_cast<std::size_t>(
-				std::distance(read_operation_catalog.begin(), iterator));
+				std::distance(all_read_operations.begin(), iterator));
 		}
 
 		[[nodiscard]] auto ascii_equal_fold(
@@ -66,6 +67,59 @@ namespace bpr::adapters::github::detail {
 				return true;
 			}
 			return false;
+		}
+
+		/// Reports whether an admission can be normalized at all.
+		///
+		/// The seven operations named here are the ones every normalized read
+		/// reads from unconditionally, so an admission missing one has no
+		/// document to answer with. The two conditional operations are viewer
+		/// identity and the GraphQL projection; the first must be replaced by
+		/// a stated viewer when it is absent, because a session read model
+		/// without a viewer is not a thing this normalizer may invent.
+		[[nodiscard]] auto admission_is_valid(
+			const github_read_admission& aAdmission) -> bool
+		{
+			constexpr std::array<read_operation, 7> required{
+				read_operation::get_repository,
+				read_operation::get_pull_request,
+				read_operation::list_pull_request_files,
+				read_operation::list_pull_request_commits,
+				read_operation::list_reviews,
+				read_operation::list_issue_comments,
+				read_operation::list_checks,
+			};
+			const auto present = [&aAdmission](const read_operation aOperation) {
+				return std::ranges::find(aAdmission.Operations, aOperation)
+					!= aAdmission.Operations.end();
+			};
+			if (!std::ranges::all_of(required, present)) {
+				return false;
+			}
+			if (!present(read_operation::search_pull_requests)) {
+				return false;
+			}
+			if (
+				!present(read_operation::get_viewer_identity)
+				&& !aAdmission.Viewer.has_value()) {
+				return false;
+			}
+			for (std::size_t index = 0U; index < aAdmission.Operations.size();
+				 ++index) {
+				const auto operation = aAdmission.Operations[index];
+				if (std::ranges::find(all_read_operations, operation)
+					== all_read_operations.end()) {
+					return false;
+				}
+				for (std::size_t other = index + 1U;
+					 other < aAdmission.Operations.size();
+					 ++other) {
+					if (aAdmission.Operations[other] == operation) {
+						return false;
+					}
+				}
+			}
+			return true;
 		}
 
 		[[nodiscard]] auto context_is_valid(
@@ -416,6 +470,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_reviews:
 			case read_operation::list_review_threads:
 			case read_operation::list_issue_comments:
+			case read_operation::list_review_comments:
 				request.PullRequestNumber = aContext.PullRequestRequest.Number.value();
 				break;
 			case read_operation::get_viewer_identity:
@@ -447,27 +502,61 @@ namespace bpr::adapters::github::detail {
 		}
 	}
 
+	auto authenticated_read_admission() -> github_read_admission
+	{
+		return github_read_admission{
+			.Operations = read_operation_catalog,
+			.Shape      = {
+				.ReviewThreads       = true,
+				.ViewedFileState     = true,
+				.ResolvePermission   = true,
+				.UnresolvePermission = true,
+			},
+			.Viewer = std::nullopt,
+		};
+	}
+
+	auto anonymous_read_admission(
+		const application::github_viewer_record& aViewer)
+		-> github_read_admission
+	{
+		return github_read_admission{
+			.Operations = anonymous_read_operations,
+			.Shape      = { },
+			.Viewer     = aViewer,
+		};
+	}
+
 	auto normalize_github_read(
 		const github_read_normalization_context&  aContext,
-		const std::span<const operation_response> aResponses)
+		const std::span<const operation_response> aResponses,
+		const github_read_admission&              aAdmission)
 		-> normalized_read_result
 	{
 		try {
 			if (!context_is_valid(aContext)) {
 				return failed(contract_failure_code::identity_mismatch);
 			}
-			if (aResponses.size() < read_operation_catalog.size()) {
+			if (!admission_is_valid(aAdmission)) {
+				return failed(contract_failure_code::unsupported_operation);
+			}
+			const auto admitted = [&aAdmission](const read_operation aOperation) {
+				return std::ranges::find(aAdmission.Operations, aOperation)
+					!= aAdmission.Operations.end();
+			};
+			if (aResponses.size() < aAdmission.Operations.size()) {
 				return failed(contract_failure_code::recording_exhausted);
 			}
-			if (aResponses.size() > read_operation_catalog.size()) {
+			if (aResponses.size() > aAdmission.Operations.size()) {
 				return failed(contract_failure_code::unexpected_operation);
 			}
 
-			std::array<QJsonDocument, read_operation_catalog.size()> documents;
-			std::array<bool, read_operation_catalog.size()>          present{ };
+			std::array<QJsonDocument, all_read_operations.size()> documents;
+			std::array<bool, all_read_operations.size()>          present{ };
 			for (const auto& response : aResponses) {
 				const auto index = operation_index(response.Operation);
-				if (!index.has_value() || present[*index]) {
+				if (!index.has_value() || present[*index]
+					|| !admitted(response.Operation)) {
 					return failed(contract_failure_code::unexpected_operation);
 				}
 				const auto validation = validate_strict_fixture_response(
@@ -479,8 +568,10 @@ namespace bpr::adapters::github::detail {
 				documents[*index] = parse_document(response.Response);
 				present[*index]   = true;
 			}
-			if (std::ranges::find(present, false) != present.end()) {
-				return failed(contract_failure_code::recording_exhausted);
+			for (const auto operation : aAdmission.Operations) {
+				if (!present[*operation_index(operation)]) {
+					return failed(contract_failure_code::recording_exhausted);
+				}
 			}
 
 			const auto document = [&documents](const read_operation aOperation)
@@ -490,33 +581,34 @@ namespace bpr::adapters::github::detail {
 			const auto targetName = full_name(
 				aContext.PullRequestRequest.Repository);
 
-			const auto viewer = document(
-									read_operation::get_viewer_identity)
-									.object();
-			if (integer(viewer.value("id")) != aContext.Account.value()) {
+			// A read that does not reach `/user` has no viewer document, so
+			// the viewer comes from the admission instead. Nothing is
+			// invented for it: an admission that omits the operation without
+			// naming a viewer is refused by `admission_is_valid` above.
+			const auto viewerRecord = admitted(read_operation::get_viewer_identity)
+				? application::github_viewer_record{
+					  .Account = core::github_account_id{
+						  integer(document(read_operation::get_viewer_identity)
+									  .object()
+									  .value("id")) },
+					  .Node        = application::github_actor_id{ text(document(read_operation::get_viewer_identity).object().value("node_id")) },
+					  .Login       = text(document(read_operation::get_viewer_identity).object().value("login")),
+					  .DisplayName = text(document(read_operation::get_viewer_identity).object().value("name")),
+				  }
+				: *aAdmission.Viewer;
+			if (viewerRecord.Account != aContext.Account) {
 				return failed(contract_failure_code::identity_mismatch);
 			}
 
 			normalized_github_read result;
 			result.Session = {
-				.Profile = aContext.Profile,
-				.Host    = aContext.Host,
-				.Viewer  = {
-					.Account = aContext.Account,
-					.Node    = application::github_actor_id{
-						text(viewer.value("node_id")) },
-					.Login       = text(viewer.value("login")),
-					.DisplayName = text(viewer.value("name")),
-				},
+				.Profile            = aContext.Profile,
+				.Host               = aContext.Host,
+				.Viewer             = viewerRecord,
 				.CapabilityEvidence = {
-					.Capabilities = aContext.Capabilities,
-					.Revision     = aContext.CapabilityRevision,
-					.ReadShape    = {
-						.ReviewThreads       = true,
-						.ViewedFileState     = true,
-						.ResolvePermission   = true,
-						.UnresolvePermission = true,
-					},
+					.Capabilities    = aContext.Capabilities,
+					.Revision        = aContext.CapabilityRevision,
+					.ReadShape       = aAdmission.Shape,
 					.ContractVersion = 1U,
 				},
 				.RateLimits = aContext.RateLimits,
@@ -564,9 +656,8 @@ namespace bpr::adapters::github::detail {
 				.Host    = aContext.Host,
 				.Account = aContext.Account,
 				.Viewer  = {
-					.Actor = application::github_actor_id{
-						text(viewer.value("node_id")) },
-					.Login = text(viewer.value("login")),
+					.Actor = viewerRecord.Node,
+					.Login = viewerRecord.Login,
 				},
 				.Snapshot   = aContext.Snapshot,
 				.Repository = {
@@ -592,23 +683,20 @@ namespace bpr::adapters::github::detail {
 					.BaseRef     = text(base.value("ref")),
 					.HeadRef     = text(head.value("ref")),
 				},
-				.Files                     = { },
-				.Commits                   = { },
-				.Reviews                   = { },
-				.ReviewThreadsAvailability = application::github_collection_availability::available,
-				.ReviewThreads             = { },
-				.IssueComments             = { },
-				.Checks                    = { },
-				.SearchResults             = { },
-				.CapabilityEvidence        = {
-					.Capabilities = aContext.Capabilities,
-					.Revision     = aContext.CapabilityRevision,
-					.ReadShape    = {
-						.ReviewThreads       = true,
-						.ViewedFileState     = true,
-						.ResolvePermission   = true,
-						.UnresolvePermission = true,
-					},
+				.Files                      = { },
+				.Commits                    = { },
+				.Reviews                    = { },
+				.ReviewThreadsAvailability  = admitted(read_operation::list_review_threads) ? application::github_collection_availability::available : application::github_collection_availability::unavailable,
+				.ReviewThreads              = { },
+				.ReviewCommentsAvailability = admitted(read_operation::list_review_comments) ? application::github_collection_availability::available : application::github_collection_availability::unavailable,
+				.ReviewCommentGroups        = { },
+				.IssueComments              = { },
+				.Checks                     = { },
+				.SearchResults              = { },
+				.CapabilityEvidence         = {
+					.Capabilities    = aContext.Capabilities,
+					.Revision        = aContext.CapabilityRevision,
+					.ReadShape       = aAdmission.Shape,
 					.ContractVersion = 1U,
 				},
 				.RateLimits = aContext.RateLimits,
@@ -686,117 +774,154 @@ namespace bpr::adapters::github::detail {
 					});
 			}
 
-			const auto& reviewThreadsDocument = document(read_operation::list_review_threads);
-			const auto  graphqlRepository     = reviewThreadsDocument.object()
-													.value("data")
-													.toObject()
-													.value("repository")
-													.toObject();
-			const auto  graphqlPullRequest    = graphqlRepository.value("pullRequest").toObject();
-			if (
-				text(graphqlRepository.value("id"))
-					!= text(repository.value("node_id"))
-				|| text(graphqlPullRequest.value("id"))
-					!= text(pullRequest.value("node_id"))
-				|| text(graphqlPullRequest.value("headRefOid")) != headOid) {
-				return failed(contract_failure_code::identity_mismatch);
-			}
-			const auto graphqlFiles = graphqlPullRequest.value("files")
-										  .toObject()
-										  .value("nodes")
-										  .toArray();
-			if (
-				static_cast<std::size_t>(graphqlFiles.size())
-				!= result.PullRequest.Files.size()) {
-				return failed(contract_failure_code::identity_mismatch);
-			}
-			std::unordered_map<
-				std::string,
-				application::github_file_viewed_state>
-				viewedStates;
-			viewedStates.reserve(
-				static_cast<std::size_t>(graphqlFiles.size()));
-			for (const auto& fileValue : graphqlFiles) {
-				const auto file  = fileValue.toObject();
-				const auto state = viewed_state(file.value("viewerViewedState").toString());
-				if (!state.has_value()) {
-					return failed(
-						contract_failure_code::unexpected_response_shape);
-				}
-				const auto inserted = viewedStates
-										  .emplace(text(file.value("path")), *state)
-										  .second;
-				if (!inserted) {
-					return failed(contract_failure_code::duplicate_identity);
-				}
-			}
-			for (auto& file : result.PullRequest.Files) {
-				const auto iterator = viewedStates.find(file.Path);
-				if (iterator == viewedStates.end()) {
+			// The GraphQL projection is the authenticated read's source of
+			// viewed-file state and review threads. An admission that does
+			// not reach it leaves both where they started: every file's
+			// viewed state stays unavailable and the thread collection
+			// stays unavailable and empty, which is what the snapshot's
+			// all-false read shape requires of it.
+			if (admitted(read_operation::list_review_threads)) {
+				const auto& reviewThreadsDocument = document(read_operation::list_review_threads);
+				const auto  graphqlRepository     = reviewThreadsDocument.object()
+														.value("data")
+														.toObject()
+														.value("repository")
+														.toObject();
+				const auto  graphqlPullRequest    = graphqlRepository.value("pullRequest").toObject();
+				if (
+					text(graphqlRepository.value("id"))
+						!= text(repository.value("node_id"))
+					|| text(graphqlPullRequest.value("id"))
+						!= text(pullRequest.value("node_id"))
+					|| text(graphqlPullRequest.value("headRefOid")) != headOid) {
 					return failed(contract_failure_code::identity_mismatch);
 				}
-				file.ViewedState = iterator->second;
-				viewedStates.erase(iterator);
-			}
-			if (!viewedStates.empty()) {
-				return failed(contract_failure_code::identity_mismatch);
-			}
-			const auto threads = review_threads_array(reviewThreadsDocument);
-			result.PullRequest.ReviewThreads.reserve(
-				static_cast<std::size_t>(threads.size()));
-			for (const auto& threadValue : threads) {
-				const auto thread = threadValue.toObject();
-				const auto side   = diff_side(thread.value("diffSide").toString());
-				if (!side.has_value()) {
-					return failed(contract_failure_code::unexpected_response_shape);
+				const auto graphqlFiles = graphqlPullRequest.value("files")
+											  .toObject()
+											  .value("nodes")
+											  .toArray();
+				if (
+					static_cast<std::size_t>(graphqlFiles.size())
+					!= result.PullRequest.Files.size()) {
+					return failed(contract_failure_code::identity_mismatch);
 				}
-				application::github_review_thread_record threadRecord{
-					.Thread = application::github_thread_id{
-						text(thread.value("id")) },
-					.Subject                   = review_thread_subject(thread.value("subjectType").toString()),
-					.Path                      = text(thread.value("path")),
-					.Line                      = optional_line(thread.value("line")),
-					.OriginalLine              = optional_line(thread.value("originalLine")),
-					.DiffSide                  = *side,
-					.Resolved                  = thread.value("isResolved").toBool(),
-					.Outdated                  = thread.value("isOutdated").toBool(),
-					.ViewerResolvePermission   = thread.value("viewerCanResolve").toBool() ? application::github_permission_state::allowed : application::github_permission_state::denied,
-					.ViewerUnresolvePermission = thread.value("viewerCanUnresolve").toBool() ? application::github_permission_state::allowed : application::github_permission_state::denied,
-					.Comments                  = { },
-				};
-				const auto comments = thread.value("comments")
-										  .toObject()
-										  .value("nodes")
-										  .toArray();
-				threadRecord.Comments.reserve(
-					static_cast<std::size_t>(comments.size()));
-				for (const auto& commentValue : comments) {
-					const auto                                    comment = commentValue.toObject();
-					std::optional<application::github_comment_id> replyTo;
-					if (!comment.value("replyTo").isNull()) {
-						replyTo = application::github_comment_id{
-							text(
-								comment.value("replyTo")
-									.toObject()
-									.value("id"))
-						};
+				std::unordered_map<
+					std::string,
+					application::github_file_viewed_state>
+					viewedStates;
+				viewedStates.reserve(
+					static_cast<std::size_t>(graphqlFiles.size()));
+				for (const auto& fileValue : graphqlFiles) {
+					const auto file  = fileValue.toObject();
+					const auto state = viewed_state(file.value("viewerViewedState").toString());
+					if (!state.has_value()) {
+						return failed(
+							contract_failure_code::unexpected_response_shape);
 					}
-					threadRecord.Comments.push_back(
+					const auto inserted = viewedStates
+											  .emplace(text(file.value("path")), *state)
+											  .second;
+					if (!inserted) {
+						return failed(contract_failure_code::duplicate_identity);
+					}
+				}
+				for (auto& file : result.PullRequest.Files) {
+					const auto iterator = viewedStates.find(file.Path);
+					if (iterator == viewedStates.end()) {
+						return failed(contract_failure_code::identity_mismatch);
+					}
+					file.ViewedState = iterator->second;
+					viewedStates.erase(iterator);
+				}
+				if (!viewedStates.empty()) {
+					return failed(contract_failure_code::identity_mismatch);
+				}
+				const auto threads = review_threads_array(reviewThreadsDocument);
+				result.PullRequest.ReviewThreads.reserve(
+					static_cast<std::size_t>(threads.size()));
+				for (const auto& threadValue : threads) {
+					const auto thread = threadValue.toObject();
+					const auto side   = diff_side(thread.value("diffSide").toString());
+					if (!side.has_value()) {
+						return failed(contract_failure_code::unexpected_response_shape);
+					}
+					application::github_review_thread_record threadRecord{
+						.Thread = application::github_thread_id{
+							text(thread.value("id")) },
+						.Subject                   = review_thread_subject(thread.value("subjectType").toString()),
+						.Path                      = text(thread.value("path")),
+						.Line                      = optional_line(thread.value("line")),
+						.OriginalLine              = optional_line(thread.value("originalLine")),
+						.DiffSide                  = *side,
+						.Resolved                  = thread.value("isResolved").toBool(),
+						.Outdated                  = thread.value("isOutdated").toBool(),
+						.ViewerResolvePermission   = thread.value("viewerCanResolve").toBool() ? application::github_permission_state::allowed : application::github_permission_state::denied,
+						.ViewerUnresolvePermission = thread.value("viewerCanUnresolve").toBool() ? application::github_permission_state::allowed : application::github_permission_state::denied,
+						.Comments                  = { },
+					};
+					const auto comments = thread.value("comments")
+											  .toObject()
+											  .value("nodes")
+											  .toArray();
+					threadRecord.Comments.reserve(
+						static_cast<std::size_t>(comments.size()));
+					for (const auto& commentValue : comments) {
+						const auto                                    comment = commentValue.toObject();
+						std::optional<application::github_comment_id> replyTo;
+						if (!comment.value("replyTo").isNull()) {
+							replyTo = application::github_comment_id{
+								text(
+									comment.value("replyTo")
+										.toObject()
+										.value("id"))
+							};
+						}
+						threadRecord.Comments.push_back(
+							application::github_review_comment_record{
+								.Comment = application::github_comment_id{
+									text(comment.value("id")) },
+								.ReplyTo      = std::move(replyTo),
+								.Author       = optional_graphql_actor(comment.value("author")),
+								.Body         = text(comment.value("bodyText")),
+								.Path         = text(comment.value("path")),
+								.Line         = optional_line(comment.value("line")),
+								.OriginalLine = optional_line(comment.value("originalLine")),
+								.Outdated     = comment.value("outdated").toBool(),
+								.Deleted      = false,
+							});
+					}
+					result.PullRequest.ReviewThreads.push_back(
+						std::move(threadRecord));
+				}
+			}
+
+			if (admitted(read_operation::list_review_comments)) {
+				std::vector<application::github_review_comment_record> flat;
+				const auto                                             reviewComments = document(
+																							read_operation::list_review_comments)
+																							.array();
+				flat.reserve(static_cast<std::size_t>(reviewComments.size()));
+				for (const auto& value : reviewComments) {
+					const auto object  = value.toObject();
+					const auto replyTo = object.value("in_reply_to_id");
+					flat.push_back(
 						application::github_review_comment_record{
 							.Comment = application::github_comment_id{
-								text(comment.value("id")) },
-							.ReplyTo      = std::move(replyTo),
-							.Author       = optional_graphql_actor(comment.value("author")),
-							.Body         = text(comment.value("bodyText")),
-							.Path         = text(comment.value("path")),
-							.Line         = optional_line(comment.value("line")),
-							.OriginalLine = optional_line(comment.value("originalLine")),
-							.Outdated     = comment.value("outdated").toBool(),
+								std::to_string(integer(object.value("id"))) },
+							.ReplyTo      = replyTo.isDouble() ? std::optional<application::github_comment_id>{ application::github_comment_id{ std::to_string(integer(replyTo)) } } : std::nullopt,
+							.Author       = optional_rest_actor(object.value("user")),
+							.Body         = text(object.value("body")),
+							.Path         = text(object.value("path")),
+							.Line         = optional_line(object.value("line")),
+							.OriginalLine = optional_line(object.value("original_line")),
+							.Outdated     = object.value("position").isNull(),
 							.Deleted      = false,
 						});
 				}
-				result.PullRequest.ReviewThreads.push_back(
-					std::move(threadRecord));
+				if (!group_review_comments(
+						std::move(flat), result.PullRequest.ReviewCommentGroups)) {
+					return failed(contract_failure_code::unexpected_response_shape);
+				}
 			}
 
 			const auto issueComments = document(read_operation::list_issue_comments).array();
@@ -884,18 +1009,22 @@ namespace bpr::adapters::github::detail {
 
 	auto perform_normalized_github_read(
 		github_transport&                        aTransport,
-		const github_read_normalization_context& aContext)
+		const github_read_normalization_context& aContext,
+		const github_read_admission&             aAdmission)
 		-> normalized_read_result
 	{
 		try {
 			if (!context_is_valid(aContext)) {
 				return failed(contract_failure_code::identity_mismatch);
 			}
+			if (!admission_is_valid(aAdmission)) {
+				return failed(contract_failure_code::unsupported_operation);
+			}
 
 			std::vector<operation_response> responses;
-			responses.reserve(read_operation_catalog.size());
+			responses.reserve(aAdmission.Operations.size());
 			std::string headOid;
-			for (const auto operation : read_operation_catalog) {
+			for (const auto operation : aAdmission.Operations) {
 				const auto semantic = semantic_request(aContext, operation, headOid);
 				const auto request  = compile_read_request(semantic);
 				if (!request.has_value()) {
@@ -926,7 +1055,7 @@ namespace bpr::adapters::github::detail {
 						.Response  = *response,
 					});
 			}
-			return normalize_github_read(aContext, responses);
+			return normalize_github_read(aContext, responses, aAdmission);
 		} catch (const std::bad_alloc&) {
 			return failed(contract_failure_code::response_limit);
 		}

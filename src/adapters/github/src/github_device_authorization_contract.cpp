@@ -1,5 +1,7 @@
 #include "github_device_authorization_contract.hpp"
 
+#include "bpr/application/github_host_authority.hpp"
+
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -22,9 +24,23 @@ namespace bpr::adapters::github::detail {
 			= "https://github.com/login/oauth/access_token";
 		constexpr std::string_view device_grant_type
 			= "urn:ietf:params:oauth:grant-type:device_code";
-		constexpr std::string_view refresh_grant_type              = "refresh_token";
-		constexpr std::string_view expected_verification_authority = "github.com";
-		constexpr std::string_view official_error_uri_authority    = "docs.github.com";
+		constexpr std::string_view refresh_grant_type           = "refresh_token";
+		constexpr std::string_view official_error_uri_authority = "docs.github.com";
+
+		// The authority a returned `verification_uri` must sit under, shared
+		// with the host that checks the same address again before it opens a
+		// browser. Two checks, one declaration: this one refuses the address at
+		// the wire, so it never reaches a host at all, and the host refuses it
+		// again against the authority its composition handed it.
+		[[nodiscard]] auto expected_verification_authority() -> QLatin1StringView
+		{
+			constexpr auto authority
+				= application::default_device_verification_authority;
+			return QLatin1StringView{
+				authority.data(),
+				static_cast<qsizetype>(authority.size()),
+			};
+		}
 
 		[[nodiscard]] auto form_safe(const char aCharacter) noexcept -> bool
 		{
@@ -401,11 +417,7 @@ namespace bpr::adapters::github::detail {
 		const auto verificationUrl = QUrl{ verification.toString() };
 		if (!verificationUrl.isValid()
 			|| verificationUrl.scheme() != QStringLiteral("https")
-			|| verificationUrl.host()
-				!= QLatin1StringView{
-					expected_verification_authority.data(),
-					static_cast<qsizetype>(
-						expected_verification_authority.size()) }) {
+			|| verificationUrl.host() != expected_verification_authority()) {
 			return std::unexpected(
 				device_failure::off_authority_verification_uri);
 		}
