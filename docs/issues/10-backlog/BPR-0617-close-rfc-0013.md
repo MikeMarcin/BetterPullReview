@@ -3,7 +3,7 @@ id: BPR-0617
 title: Verify and close RFC-BPR-0013
 status: Backlog
 rfc: RFC-BPR-0013
-depends_on: [BPR-0507, BPR-0616]
+depends_on: [BPR-0507, BPR-0616, BPR-0618]
 ---
 
 # Verify and close RFC-BPR-0013
@@ -21,7 +21,8 @@ The canonical index permits available-target implementation while earlier
 live checks remain open. Closure still waits for BPR-0507 and every remaining
 criterion below. Advanced logging and broad Glaze conversion remain deferred.
 
-Planned card: BPR-0616, the first concrete new recovery gap. Allocate later
+Planned cards: BPR-0616 (review-publication kill recovery, Done) and BPR-0618
+(Git-fetch/epoch kill recovery). Allocate later
 slices after inspecting retained product coverage; do not introduce a parallel
 performance subsystem or fabricate timing budgets before measurement.
 
@@ -41,7 +42,7 @@ performance subsystem or fabricate timing budgets before measurement.
 
 ## Continuation
 
-BPR-0616 is complete. Next scope the remaining Git/SQLite transaction/AI kill
+BPR-0616 is complete. Implement BPR-0618 next, then scope SQLite transaction/AI kill
 courses and measured public-path performance gaps. Reuse unchanged direct
 evidence from earlier RFCs. Run only acceptance-focused local checks; no GitHub
 Actions, push, paid CI or live mutation is part of this work.
