@@ -236,7 +236,7 @@ passed again after the stale-refusal correction (2/2, 0.66 seconds). Independent
 review has no remaining blocker. Closeout review runtime: native collaboration
 (gpt-6-astra, high). This contract slice does not claim a shipped review action.
 
-Planned next card: [BPR-0614](../20-ready/BPR-0614-execute-whole-reviews-with-durable-recovery.md),
+Planned next card: [BPR-0614](../30-in-progress/BPR-0614-execute-whole-reviews-with-durable-recovery.md),
 provider execution together with durable indeterminate recovery. Follow it with
 async host and public UI/composition work before BPR-0144's live review checks.
 BPR-0612's broad Qt JSON migration and BPR-0603/0604 remain backlogged/deferred.

@@ -1,7 +1,7 @@
 ---
 id: BPR-0614
 title: Execute whole reviews with durable indeterminate recovery
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0610, BPR-0613]
 ---
