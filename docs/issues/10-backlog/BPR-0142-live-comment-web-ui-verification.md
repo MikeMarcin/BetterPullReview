@@ -136,3 +136,13 @@ both the source and binary halves.
 Landing the provider also requires moving `live_review_mutation_provider` from
 `NOT_COMPOSED` to `COMPOSED` in `scripts/verify_composed_hosts.py` in the same
 commit — that entry exists so this cannot be forgotten.
+
+## Current successor packet — 2026-09-04
+
+BPR-0256 prepared the [v007 browser/device-login packet](../../verification/reviews/designated-live-review-publication-v007/operator-packet.md)
+after BPR-0318, BPR-0541 and RFC-0017 implementation. It is pending fresh
+critical review of its exact stored capsule and packet, then its own exact
+operator decision. v006 remains immutable, consumed and non-retryable. No
+approval, live run, comment or GitHub UI observation exists for v007. The
+one-comment course includes explicit Sign out cleanup; any web reply remains
+a separate authority. This card's completion evidence is unchanged and open.

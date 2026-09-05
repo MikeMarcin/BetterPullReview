@@ -1062,3 +1062,44 @@ intermediate image's mounted production probe passed, but those image bytes
 are obsolete after the tidy repair and will be removed; the final producer
 must rebuild and probe the committed repaired source before identities or an
 operator packet are finalized. No approval or live authority was created.
+
+## Final v007 candidate prepared — 2026-09-04
+
+The [v007 operator packet](../../verification/reviews/designated-live-review-publication-v007/operator-packet.md)
+is 16,002 bytes with SHA-256
+`565043fb548ee9896a1b6242b1a745ea0dad60ad70d4eaf08391e11aa2a65539`. It binds final committed
+source `2a043335f649375d56f64590df8d0af8d181a4c0`, the 37-entry manifest
+`f2325e97fe25d6ca8e9d87568f522534027451dba8ab4a1912ae3baa26bfba45`, and the canonical approval subject
+`015ad8a7636483f4258ab7f8ac22af841ba48bdeb924f324b77abf01631e6921`. The application, supervisor, inventory and exact
+stored image are respectively:
+
+- `e8d2b7006f6da8aba8b006c4e933624cc8286a68136fba1f7d6f17e1efea8fcb` (8,042,624 bytes);
+- `7bd25da312afba16c72dfe64c9432609ac164f4aa414422a753cd92ac7bb7847` (239,312 bytes);
+- `8cc606342009652d9813d31d1860e65ec336c7dee352120f3c6fb00c9d78f7f2` (11,112 bytes);
+- `e53a6dbbe44318f059e7132ed71ac3fd7f76e896840fcb35f26af4c1ec1f3e76` (29,746,780 bytes).
+
+The final capsule build and mounted production-shaped preflight pass; ordinary
+detach leaves zero v007 image attachments. Both obsolete intermediate source-
+artifact roots were removed. The final producer root and empty mode-0700 mount
+parent remain active consumers for exact critical review and the attended
+packet. The read-only production formatter/load helper lives temporarily at
+`/tmp/bpr0256-v007-subject.cpp` and `/tmp/bpr0256-v007-subject`; its artifact
+metadata and inspection logs are `/tmp/bpr0256-v007-*` and will be removed after
+review consumes their results. No source checkout was created as evidence.
+
+The configured default graph contains 277 tests with zero live exceptions.
+Static opt-in inspection contains 278 tests, exactly one live entry/label,
+the exact captured-byte preloader/launcher/image/source/mount/approval command,
+a 1,800-second timeout, 24 environment removals and no verdict override. The
+official configured-isolation validator passes with 278 configured tests,
+254 source registrations and `macos-sandbox-exec`. Its deliberately invalid
+private placeholder and parent were removed; the static graph remains only
+for review and is never executed. A real approval is absent.
+
+The existing namespace is unchanged and still contains the spent v006 ID.
+The new ID `ab4a37dd919851edb63992fb5ebc311d5def51349733e4d05b77be9c6166f0d3` is unspent. The packet uses production
+browser/device sign-in, verifies the operator's intended actor, and explicitly
+Signs out before quit because the separately approved device policy retains
+accepted grants on ordinary shutdown. This is pending exact critical review;
+no owner response may yet activate it. No live observation, credential,
+attended launch or mutation occurred during regeneration.
