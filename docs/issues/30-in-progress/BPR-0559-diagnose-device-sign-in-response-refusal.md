@@ -79,3 +79,5 @@ The [diagnostic checkpoint](../../verification/reviews/device-session-bootstrap-
 ## Approved diagnostic observation — 2026-09-04
 
 The owner supplied the exact [one-run approval](../../verification/reviews/device-session-bootstrap-diagnostic-v001/operator-response.md). Packet and binary hashes match. The integrator resumes this card for the sign-in-only observation and cleanup; no PR or publication is authorized.
+
+The approved ordinary executable was launched once with no arguments after a second digest check, with all 24 specified environment variables removed from its child environment and child output discarded. Native UI showed the expected GitHub.com Native HTTPS profile and no connected host. Operator browser authorization is pending; do not launch again. The active run must finish by collecting its safe terminal result, explicitly selecting Sign out and quitting. Documentation gate passed after approval recording.
