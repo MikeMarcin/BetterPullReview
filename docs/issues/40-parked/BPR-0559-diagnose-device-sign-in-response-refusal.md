@@ -1,7 +1,8 @@
 ---
 id: BPR-0559
 title: Diagnose device sign-in response refusal after browser authorization
-status: In Progress
+status: Parked
+parked_on: awaiting-owner-verdict
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -254,3 +255,21 @@ BPR-0602 (`3d109fd4`) now preserves sanitized capability error prose in a local
 Quill log, with credential-free native/provider/file/composition evidence. This
 removes the need for another UI-only diagnostic category. It does not identify
 the previous live failure or authorize another sign-in; this card remains open.
+
+## Pending logged v004 observation — 2026-09-05
+
+The owner resumed diagnosis after BPR-0602. The live log path does not yet exist;
+previous attended errors predate the logger. Read-only query inspection found
+no concrete validation defect: the query uses standard introspection and its
+recorded GitHub.com schema fixture already validates it. No speculative source
+change or additional code whitelist is warranted.
+
+The [v004 packet](../../verification/reviews/device-session-bootstrap-diagnostic-v004/operator-packet.md)
+(SHA-256 `a12ba71a6b9ccc2f41157bf486c8c27a27b0cc31deadc3d240b310486b122538`) binds the existing 11,066,048-byte logging-enabled
+Release executable `baf16706e2e0427e29b7c9ba2b36b22c6c3377d8c86d9fd3da74f9b799ed46a4`. Prior BPR-0602 verification is reused because
+source/configuration/fixture inputs have not changed. No v004 approval or launch
+has occurred. The packet permits one sign-in-only observation and local log
+reading, explicit Sign out and quit; no PR or publication. Root-repair criteria
+remain open pending the actual sanitized server error. This card parks awaiting
+the exact owner verdict. Existing Release build is retained for that consumer;
+no temporary worktree or new evidence/build root was created.
