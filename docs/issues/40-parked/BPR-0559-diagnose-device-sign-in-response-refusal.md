@@ -1,7 +1,8 @@
 ---
 id: BPR-0559
 title: Diagnose device sign-in response refusal after browser authorization
-status: In Progress
+status: Parked
+parked_on: awaiting-owner-verdict
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -207,3 +208,16 @@ All six consumed `/tmp/bpr0559-codes-*.log` files were reviewed and removed.
 Existing dev/Release roots and ignored renders remain reused. No temporary
 worktree was created. Root-repair acceptance remains open. Further live
 observation requires approval for the exact changed executable.
+
+## Pending exact v003 observation
+
+Source refinement `f8c205f9c8cd1b6085957af53005e853c6e79534` is committed.
+The [v003 checkpoint](../../verification/reviews/device-session-bootstrap-diagnostic-v003/operator-packet.md)
+binds the exact 10,660,096-byte Release executable
+`dd1f41a413f7f8d79a9a22190068a283e22b251d7f6650bfd33571033624f15c`.
+No approval or launch has occurred. The card parks awaiting the owner after
+all available offline work. A recognized code may narrow diagnosis, but an
+unknown code can still leave the cause unresolved. Existing live approvals
+are consumed; no PR or publication is included. The existing Release build
+is retained for this pending consumer. No temporary worktree or inspection
+logs remain. The portable and Mac ready lanes contain no other startable card.
