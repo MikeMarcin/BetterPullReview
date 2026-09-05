@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0621"
 title: "Verify composed application recovery after an agent-session kill"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0620"]
 ---
