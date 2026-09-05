@@ -1,8 +1,9 @@
 ---
 id: BPR-0142
 title: Verify a published comment in the GitHub web UI
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0008
+parked_on: awaiting-owner-verdict
 depends_on: [BPR-0139, BPR-0221, BPR-0229, BPR-0235, BPR-0256, BPR-0318]
 ---
 
@@ -10,22 +11,20 @@ depends_on: [BPR-0139, BPR-0221, BPR-0229, BPR-0235, BPR-0256, BPR-0318]
 
 ## Current scope — 2026-09-05
 
-All dependencies are Done. V011 supplied the ordinary source-line comment,
-its exact author/text/anchor, successful app refresh and direct GitHub web
-inspection. No additional publication is needed. The remaining live operation
-is one web reply to comment 3940608913 followed by workbench refresh; the
-[prepared reply checkpoint](../../verification/reviews/web-comment-reply-return-v001/operator-packet.md)
-names its exact text, existing target, account, single-submit procedure and
-read-only app continuation. It requests a plain instruction, not another digest
-ceremony. The prior authorization explicitly excluded replies, and no reply
-or new human acceptance has been fabricated.
+All dependencies and the live reply-return operation are complete. V011 supplied
+the ordinary source-line comment and web inspection; the
+[authorized web reply result](../../verification/reviews/web-comment-reply-return-v001/attended-result.md)
+now supplies the reply displayed once beneath that parent after the app's public
+refresh. The exact author and corrected complete text match. The agent's initial
+duplicated text and corrective edit of that same reply are disclosed in the
+result; no additional reply was posted. App numeric-ID equality is not separately
+claimed because the UI does not expose it.
 
-The live queue audit at `157c37c3` found this as the only dependency-ready open
-card in RFC-BPR-0001 through 0014. Every other open pack card still depends on
-unfinished work; the explicitly deferred additional RFCs remain unchanged.
-Current public Refresh ownership was confirmed in the Qt workbench source.
-No rebuild, repeated fixture matrix, browser credential operation or remote
-mutation was needed to prepare this checkpoint.
+Only the explicitly human, subjective ordinary-comment acceptance remains on
+this card. The actual GitHub parent/reply links and rendered application
+observations are available; no further sign-in, publication or reply should be
+repeated to obtain that decision. The owner's yes authorized the live operation,
+not an invented appearance verdict. BPR-0143/0144 remain separate.
 
 ## Original planning and historical dispositions
 
@@ -248,3 +247,22 @@ subjective human verdict. No new approval question was issued in this run.
 The owner quoted the exact one-reply request and answered “yes”. The actual
 response is recorded in the checkpoint directory. Execute that reply once and
 verify its return; preserve remembered sign-in. No result is claimed yet.
+
+## Authorized reply returned — 2026-09-05
+
+[Reply 3941498416](https://github.com/MikeMarcin/BPR-Test/pull/1#discussion_r3941498416)
+was created in Chrome as MikeMarcin under parent 3940608913. Its final text is
+“BetterPullReview web reply return verification.” The app's public Refresh
+pulled it into the same source-line thread, where the rendered drawer and
+accessibility text showed it exactly once with the matching author. The full
+[run result](../../verification/reviews/web-comment-reply-return-v001/attended-result.md)
+and [validation record](../../verification/reviews/web-comment-reply-return-v001/validation-record.json)
+record the initial input duplication and the edit correcting this same reply.
+No full BPR-0143 external-edit sequence or independent app numeric-ID comparison
+is claimed. Runtime source was unchanged at execution commit `2e9c43a9`.
+
+Normal quit preserved remembered sign-in; the shutdown record and absence of
+app PID 79417 were observed. The temporary run-state file was removed. No code
+changed, so no repeated source test or build was necessary. Documentation
+structure and diff hygiene pass. Park for the subjective owner criterion only;
+no additional live action is awaiting authorization on this completed reply.

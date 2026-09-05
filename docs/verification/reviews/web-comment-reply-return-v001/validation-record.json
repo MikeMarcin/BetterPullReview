@@ -1,0 +1,23 @@
+{
+  "gate": "web-comment-reply-return-v001",
+  "status": "owner authorized; one reply created, corrected to exact text and observed after app refresh",
+  "validated_commit": "2e9c43a9",
+  "recorded_at": "2026-09-05T17:51:32.763667+00:00",
+  "validation_scope": "Actual yes response, exact existing parent, GitHub reply identity/author/body and rendered app reply return. Disclosed correction edit; no subjective owner acceptance or RFC closeout.",
+  "validation_command": "python3 scripts/verify_documentation.py --root .",
+  "reviewed_packet": {
+    "path": "docs/verification/reviews/web-comment-reply-return-v001/operator-packet.md",
+    "sha256": "sha256:8ff6cad659f754c12b855cb08416a1505e954f5343aac91aab11a44ef05a7740",
+    "byte_length": 3869
+  },
+  "operator_response": {
+    "path": "docs/verification/reviews/web-comment-reply-return-v001/operator-response.md",
+    "sha256": "sha256:cebaac0b5f7961d066c636f2e9f0ff9365c80110b541b580f7ce2bbe2f4e09eb",
+    "byte_length": 163
+  },
+  "attended_result": {
+    "path": "docs/verification/reviews/web-comment-reply-return-v001/attended-result.md",
+    "sha256": "sha256:fbc1aba7e6ee049d893f1d527d6f7da431ecfe445f46b28e88aba56679a2401d",
+    "byte_length": 4174
+  }
+}

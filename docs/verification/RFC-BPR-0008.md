@@ -3,7 +3,7 @@
 RFC base: `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`
 
 Status: **one designated source-line comment has published through the shipped
-application and appeared correctly in GitHub; reply-return, mixed-client and
+application and appeared correctly in GitHub; web reply-return is also observed; subjective, mixed-client and
 all review-disposition acceptance remain open.** RFC-BPR-0001 through 0007 are
 Auto-Verified; RFC-BPR-0008 remains Proposed.
 
@@ -191,7 +191,7 @@ exactly what is missing.
 
 | Card | Gate | What is missing |
 |---|---|---|
-| BPR-0142 | A comment is readable and replyable in the GitHub web UI with no tool-specific marker | V011 supplies publication, exact text/line/account and ordinary web rendering; web reply-return and subjective owner acceptance remain |
+| BPR-0142 | A comment is readable and replyable in the GitHub web UI with no tool-specific marker | V011 supplies publication and ordinary web rendering; the authorized web reply returned at `2e9c43a9`; subjective owner acceptance remains |
 | BPR-0143 | Mixed-client acceptance: external edit, delete, resolve, reopen | The designated repository, session authority, and a second client acting on it |
 | BPR-0144 | Reviews appear under the authenticated user's identity with ordinary semantics | An authorized review submission and authoritative GitHub attribution; BPR-0605 observed account sign-in, which does not prove review semantics |
 
@@ -350,3 +350,15 @@ healthy remembered session and avoids another publication. The reply is a new
 message explicitly excluded from v011, so no submission or accepted verdict
 is recorded yet. All remaining pack cards depend on this frontier or later
 unfinished cards. The complete requested-set goal remains active.
+
+## Authorized web reply returned — 2026-09-05
+
+[Reply 3941498416](https://github.com/MikeMarcin/BPR-Test/pull/1#discussion_r3941498416)
+now appears once under the original thread after the app's public refresh, with
+MikeMarcin author and exact text “BetterPullReview web reply return verification.”
+The [result](reviews/web-comment-reply-return-v001/attended-result.md) records the
+initial input duplication, one edit correcting the same reply, the visible
+parent/author/body match, app numeric-ID visibility limitation and clean quit
+preserving sign-in. BPR-0142's live reply-return requirement is observed; only
+subjective owner acceptance remains there. BPR-0143/0144 are not discharged by
+this single course. No extra mutation or human verdict is inferred.
