@@ -2,6 +2,11 @@
 
 #include "catalog_database.hpp"
 
+#if defined(BPR_SQLITE_TESTING)
+	#include "bpr/adapters/sqlite/testing.hpp"
+	#include <atomic>
+#endif
+
 #include "bpr/core/anonymous_read_policy.hpp"
 
 #include <sqlite3.h>
@@ -32,6 +37,16 @@ namespace bpr::adapters::sqlite {
 		using failure  = app::epoch_catalog_failure;
 		template <typename Value>
 		using result = app::epoch_catalog_result<Value>;
+
+#if defined(BPR_SQLITE_TESTING)
+		std::atomic<detail::testing::epoch_journal_checkpoint> JournalCheckpoint = nullptr;
+		void                                                   observe_journal_transaction(detail::testing::epoch_journal_stage aStage)
+		{
+			if (const auto checkpoint = JournalCheckpoint.load(std::memory_order_acquire)) {
+				checkpoint(aStage);
+			}
+		}
+#endif
 
 		class statement final
 		{
@@ -3211,6 +3226,9 @@ namespace bpr::adapters::sqlite {
 			if (!output) {
 				return std::unexpected(output.error());
 			}
+#if defined(BPR_SQLITE_TESTING)
+			observe_journal_transaction(detail::testing::epoch_journal_stage::receiving);
+#endif
 			if (auto committed = write.commit(); !committed) {
 				return std::unexpected(committed.error());
 			}
@@ -3349,6 +3367,9 @@ namespace bpr::adapters::sqlite {
 			if (!output) {
 				return std::unexpected(output.error());
 			}
+#if defined(BPR_SQLITE_TESTING)
+			observe_journal_transaction(detail::testing::epoch_journal_stage::spool);
+#endif
 			if (auto committed = write.commit(); !committed) {
 				return std::unexpected(committed.error());
 			}
@@ -3474,6 +3495,9 @@ namespace bpr::adapters::sqlite {
 			if (!output) {
 				return std::unexpected(output.error());
 			}
+#if defined(BPR_SQLITE_TESTING)
+			observe_journal_transaction(detail::testing::epoch_journal_stage::installation);
+#endif
 			if (auto committed = write.commit(); !committed) {
 				return std::unexpected(committed.error());
 			}
@@ -5841,6 +5865,15 @@ namespace bpr::adapters::sqlite {
 			return output;
 		}
 	} // namespace
+
+#if defined(BPR_SQLITE_TESTING)
+	namespace detail::testing {
+		void set_epoch_journal_checkpoint(epoch_journal_checkpoint aCheckpoint) noexcept
+		{
+			JournalCheckpoint.store(aCheckpoint, std::memory_order_release);
+		}
+	} // namespace detail::testing
+#endif
 
 	auto make_epoch_catalog(
 		const epoch_catalog_configuration& aConfiguration,

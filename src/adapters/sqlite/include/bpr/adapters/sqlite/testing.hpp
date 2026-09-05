@@ -20,6 +20,18 @@ namespace bpr::adapters::sqlite::detail::testing {
 	/// \brief Performs the interrupt next migration before commit operation.
 	void interrupt_next_migration_before_commit() noexcept;
 
+	enum class epoch_journal_stage : std::uint8_t {
+		receiving,
+		spool,
+		installation,
+	};
+	using epoch_journal_checkpoint = void (*)(epoch_journal_stage);
+	// Invoked after a record method's SQL writes and validation, before COMMIT.
+	// The callback runs inside the transaction and must not reenter the catalog.
+	// Passing nullptr disarms it. This API and its storage are test-build only.
+	/// \brief Sets the test observer for an uncommitted epoch journal write.
+	void set_epoch_journal_checkpoint(epoch_journal_checkpoint aCheckpoint) noexcept;
+
 	// Classifies a SQLite result code without requiring a live connection.
 	/// \brief Computes the classify sqlite result code result.
 	[[nodiscard]] auto classify_sqlite_result_code(int aResultCode) noexcept

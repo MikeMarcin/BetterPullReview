@@ -1,6 +1,7 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/adapters/sqlite/testing.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "windows_system_root.hpp"
@@ -388,7 +389,7 @@ namespace {
 					.Failure = application::git_smart_transport_failure::cancelled,
 				} };
 			}
-			auto body = packet(std::string{ commit_hex } + " refs/heads/main\n");
+			auto body = packet(std::string{ commit_hex } + " " + std::string{ Context.BaseRef.view() } + "\n");
 			append(body, packet(std::string{ commit_hex } + " refs/pull/81/head\n"));
 			append(body, bytes("0000"));
 			return application::git_smart_ls_refs_response{
@@ -589,10 +590,10 @@ namespace {
 		bool                  Owned;
 	};
 
-	[[nodiscard]] auto make_handoff(std::function<void()> aDuringFetch = { }) -> application::accepted_pull_request_handoff
+	[[nodiscard]] auto make_handoff(std::function<void()> aDuringFetch = { }, bool aRetarget = false) -> application::accepted_pull_request_handoff
 	{
 		const auto commit  = core::parse_git_commit_oid(commit_hex);
-		const auto baseRef = application::parse_git_base_branch_ref("refs/heads/main");
+		const auto baseRef = application::parse_git_base_branch_ref(aRetarget ? "refs/heads/release" : "refs/heads/main");
 		require(commit.has_value() && baseRef.has_value(),
 				"fixture identities parse");
 		auto handoff = application::accepted_pull_request_handoff{
@@ -608,12 +609,12 @@ namespace {
 			.Locator               = { .Owner = "octo-org", .Name = "maintenance-fixture" },
 			.PullRequest           = core::pull_request_id{ 71U },
 			.Number                = core::pull_request_number{ 81U },
-			.Snapshot              = core::provider_snapshot_id{ 1U },
+			.Snapshot              = core::provider_snapshot_id{ aRetarget ? 2U : 1U },
 			.IdentityGeneration    = core::github_identity_generation{ 3U },
 			.PullRequestGeneration = core::request_generation{ 4U },
 			.Origin                = core::pull_request_revision_origin::live,
 			.ObjectFormat          = core::git_hash_algorithm::sha1,
-			.BaseBranch            = identity<core::base_branch_id>(30U),
+			.BaseBranch            = identity<core::base_branch_id>(aRetarget ? 31U : 30U),
 			.BaseRef               = *baseRef,
 			.Base                  = *commit,
 			.Head                  = *commit,
@@ -784,6 +785,43 @@ namespace {
 		}
 		auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
 	};
+	std::filesystem::path JournalCheckpointRoot;
+	std::string_view      JournalCheckpointPhase;
+	bool                  JournalCheckpointWithHistory = false;
+	void                  observe_journal_checkpoint(sqlite_adapter::detail::testing::epoch_journal_stage aStage)
+	{
+		using enum sqlite_adapter::detail::testing::epoch_journal_stage;
+		if ((aStage == receiving && JournalCheckpointPhase == "--kill-transaction-receiving")
+			|| (aStage == spool && JournalCheckpointPhase == "--kill-transaction-spool")
+			|| (aStage == installation && JournalCheckpointPhase == "--kill-transaction-install")) {
+			kill_checkpoint(JournalCheckpointRoot, std::string{ JournalCheckpointPhase } + (JournalCheckpointWithHistory ? "-history" : ""));
+		}
+	}
+
+	void kill_journal_transaction(std::string_view aPhase, const std::filesystem::path& aRoot)
+	{
+		JournalCheckpointWithHistory = aPhase.ends_with("-history");
+		if (JournalCheckpointWithHistory) {
+			aPhase.remove_suffix(std::string_view{ "-history" }.size());
+		}
+		require(aPhase == "--kill-transaction-receiving" || aPhase == "--kill-transaction-spool" || aPhase == "--kill-transaction-install",
+				"known journal transaction kill course");
+		JournalCheckpointRoot  = aRoot;
+		JournalCheckpointPhase = aPhase;
+		real_fixture value{ "transaction-kill", aRoot };
+		if (JournalCheckpointWithHistory) {
+			value.start();
+			std::ofstream expected{ aRoot / "expected-visible", std::ios::binary };
+			expected << epoch_identity(value.inserted_epoch());
+			expected.close();
+			require(expected.good(), "prior committed epoch identity recorded");
+		}
+		sqlite_adapter::detail::testing::set_epoch_journal_checkpoint(observe_journal_checkpoint);
+		value.Host->accept(make_handoff({ }, JournalCheckpointWithHistory));
+		value.drain();
+		require(false, "journal must reach its precommit kill checkpoint");
+	}
+
 	void kill_epoch(std::string_view aPhase, const std::filesystem::path& aRoot)
 	{
 		require(aPhase == "--kill-fetch" || aPhase == "--kill-spool" || aPhase == "--kill-prepared" || aPhase == "--kill-visible", "known epoch kill course");
@@ -951,7 +989,9 @@ auto main(int argc, char** argv) -> int
 	QCoreApplication application{ argc, argv };
 	if (argc == 3) {
 		const auto phase = std::string_view{ argv[1] };
-		if (phase.starts_with("--kill-")) {
+		if (phase.starts_with("--kill-transaction-")) {
+			kill_journal_transaction(phase, argv[2]);
+		} else if (phase.starts_with("--kill-")) {
 			kill_epoch(phase, argv[2]);
 		} else {
 			require(phase == "--recover-epoch", "known epoch recovery course");

@@ -56,3 +56,33 @@ Run an exact network-isolated transaction-kill selector, affected focused
 contracts and one real persisted-state path. Use the Mac only. No production
 GUI, credentials, sign-out, GitHub Actions, workflow dispatch, push, remote
 mutation, paid CI or broad test matrix is authorized by this card.
+
+## Transaction regression evidence (2026-09-05)
+
+The new `epoch_transaction_kill_recovery` selector kills the selected real
+SQLite record methods after their writes and output validation, before COMMIT.
+It runs receiving/spool/install both on an empty catalog and after a committed
+epoch, then requests ordinary host recovery and a second restart. The history
+courses use a new accepted base branch and snapshot on the same real host;
+read-only SQL independently checks rollback and the prior epoch identity.
+
+At `683cb32c` plus this slice, the local selector failed in 106.78 seconds:
+all six rollback/integrity/foreign-key checks passed; spool, spool-history
+and install-history recovered with exact refs, Git fsck and repeated restart.
+Receiving, receiving-history and first-install recovery failed with
+`repair_required`. The history receiving case retains the committed epoch
+identity in SQL, but ordinary startup remains unavailable. These are production
+recovery failures, not accepted outcomes or RFC closeout evidence.
+
+The test hook is compiled only under the existing `BPR_SQLITE_TESTING` boundary.
+The focused dev target and tests-off SQLite adapter built successfully; `nm -C`
+confirmed the hook present in dev and absent in app-release. The network
+isolation manifest passed in 3.72 seconds. No test used a network allowance,
+production application, credential or remote action. All killed children were
+reaped and the parent-owned temporary roots were removed.
+
+Next: repair first-install recovery without granting deletion authority over
+an unjournaled pack, and resolve the unowned empty receiving-file policy.
+Installed artifacts are already preserved by ordinary operation abort; an
+unrecorded installation must remain distinct from exact journaled ownership.
+The receiving-file case must continue to preserve unknown/substituted files.

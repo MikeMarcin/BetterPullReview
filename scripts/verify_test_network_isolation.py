@@ -144,6 +144,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "epoch_history_fixture_contract": "dos-volume-name",
     "epoch_maintenance_integration": "dos-volume-name",
     "epoch_kill_recovery": "dos-volume-name",
+    "epoch_transaction_kill_recovery": "dos-volume-name",
     "git_process_contract": "qprocess-named-pipe",
     "git_cache_contract": "qprocess-named-pipe",
     "live_review_mutation_restart_recovery": "dos-volume-name",
