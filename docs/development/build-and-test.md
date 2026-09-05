@@ -2576,6 +2576,15 @@ credential, before any summary reaches Quill. Authentication bodies, headers,
 request URLs and source/review bodies are excluded. Local prose can still name
 a service or account; identity anonymization and export are deferred.
 
+Epoch preparation also records fixed `epoch_stage`, `failure_domain`, `failure`
+and optional `pack_failure` names. These distinguish catalog/cache access,
+transport acquisition, protocol parsing and revision preparation without
+recording Git stderr, paths, repository names or wire bodies. A stage success
+means that effect returned successfully; it does not establish an accepted
+comparison. Nested catalog recovery currently retains its mapped core reason,
+so its earlier adapter detail may already be unavailable. Logging refusal or
+backpressure does not change the history result.
+
 One owner-only file survives quit and appends across launches. The 16 MiB cap
 stops further recording; this version does not rotate or delete logs. To start a
 fresh file, quit the app and move or remove that exact file yourself. Symlinked,

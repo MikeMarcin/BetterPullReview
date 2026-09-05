@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_EPOCH_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_EPOCH_APPLICATION_HOST_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/diff_runtime_ports.hpp"
 #include "bpr/application/epoch_catalog_port.hpp"
 #include "bpr/application/epoch_projection.hpp"
@@ -32,15 +33,16 @@ namespace bpr::application {
 		// shutdown() closes ingress without waiting. Composition keeps every
 		// referenced port, executor, and projection alive until is_quiescent().
 		epoch_application_host(
-			core::epoch_state      aInitialState,
-			git_cache_port&        aCaches,
-			epoch_catalog_port&    aCatalogs,
-			epoch_entropy_port&    aEntropy,
-			epoch_clock_port&      aClock,
-			effect_executor&       aEffects,
-			decision_executor&     aDecisionLane,
-			epoch_projection_port& aProjections,
-			epoch_host_limits      aLimits = { });
+			core::epoch_state                    aInitialState,
+			git_cache_port&                      aCaches,
+			epoch_catalog_port&                  aCatalogs,
+			epoch_entropy_port&                  aEntropy,
+			epoch_clock_port&                    aClock,
+			effect_executor&                     aEffects,
+			decision_executor&                   aDecisionLane,
+			epoch_projection_port&               aProjections,
+			epoch_host_limits                    aLimits        = { },
+			std::shared_ptr<diagnostic_log_port> aDiagnosticLog = { });
 		~epoch_application_host() override;
 
 		epoch_application_host(const epoch_application_host&) = delete;

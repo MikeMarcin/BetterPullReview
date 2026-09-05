@@ -258,6 +258,66 @@ namespace bpr::application {
 			return Identity{ *bytes };
 		}
 
+		// Captured by one bounded worker job; no host or presentation lifetime is retained.
+		struct epoch_diagnostics
+		{
+			std::shared_ptr<diagnostic_log_port> Log;
+			std::uint64_t                        Request = 0U;
+
+			void record(diagnostic_epoch_stage aStage, diagnostic_outcome aOutcome,
+						diagnostic_epoch_failure               aFailure = { },
+						std::optional<git_pack_stream_failure> aPack    = { }) const noexcept
+			{
+				if (Log) {
+					static_cast<void>(Log->record({ .Operation        = diagnostic_operation::epoch,
+													.Outcome          = aOutcome,
+													.Request          = Request,
+													.EpochStage       = aStage,
+													.EpochFailure     = std::move(aFailure),
+													.EpochPackFailure = aPack }));
+				}
+			}
+			template <typename Failure>
+			void failed(diagnostic_epoch_stage aStage, const Failure aFailure) const noexcept
+			{
+				record(aStage, diagnostic_outcome::failed, aFailure);
+			}
+			void failed(diagnostic_epoch_stage aStage, const git_cache_error& aFailure) const noexcept
+			{
+				failed(aStage, aFailure.Code);
+			}
+			void failed(diagnostic_epoch_stage aStage, const git_smart_transport_error& aFailure) const noexcept
+			{
+				failed(aStage, aFailure.Failure);
+			}
+			void failed(diagnostic_epoch_stage aStage, const git_protocol_v2_error& aFailure) const noexcept
+			{
+				record(aStage, diagnostic_outcome::failed, aFailure.Failure, aFailure.PackFailure);
+			}
+			template <typename... Failure>
+			void failed(diagnostic_epoch_stage aStage, const std::variant<Failure...>& aFailure) const noexcept
+			{
+				std::visit([&](const auto& aValue) { failed(aStage, aValue); }, aFailure);
+			}
+			template <typename Effect>
+			auto perform(diagnostic_epoch_stage aStage, Effect&& aEffect) const -> decltype(aEffect())
+			{
+				record(aStage, diagnostic_outcome::started);
+				try {
+					auto result = aEffect();
+					if (result) {
+						record(aStage, diagnostic_outcome::succeeded);
+					} else {
+						failed(aStage, result.error());
+					}
+					return result;
+				} catch (...) {
+					failed(aStage, core::epoch_failure::unavailable);
+					throw;
+				}
+			}
+		};
+
 		[[nodiscard]] auto catalog_failure(
 			const epoch_catalog_failure aFailure) noexcept -> core::epoch_failure
 		{
@@ -989,7 +1049,7 @@ namespace bpr::application {
 			effect_executor&        aEffects,
 			decision_executor&      aDecisionLane,
 			epoch_projection_port&  aProjections,
-			const epoch_host_limits aLimits)
+			const epoch_host_limits aLimits, std::shared_ptr<diagnostic_log_port> aDiagnosticLog)
 			: State{ std::move(aInitialState) }
 			, Caches{ aCaches }
 			, Catalogs{ aCatalogs }
@@ -999,6 +1059,7 @@ namespace bpr::application {
 			, DecisionLane{ aDecisionLane }
 			, Projections{ aProjections }
 			, Limits{ validated_limits(aLimits) }
+			, DiagnosticLog{ std::move(aDiagnosticLog) }
 			, CompletionGate{ std::make_shared<completion_gate>() }
 		{
 			Jobs.reserve(Limits.OutstandingJobs);
@@ -4228,7 +4289,7 @@ namespace bpr::application {
 				 caches,
 				 entropy,
 				 token,
-				 cleanup](
+				 cleanup, diagnostics = epoch_diagnostics{ DiagnosticLog }](
 					const std::stop_token aStop) mutable -> worker_completion {
 					struct lease_guard final
 					{
@@ -4264,12 +4325,14 @@ namespace bpr::application {
 							aHost.release_pending_cleanup(cleanup);
 						};
 					}
-					auto opened = catalogs->open(
-						epoch_catalog_open_request{
-							.ApplicationSession = offered->ApplicationSession,
-							.Authority          = catalog_key(*offered),
-						},
-						aStop);
+					auto opened = diagnostics.perform(
+						diagnostic_epoch_stage::catalog_open,
+						[&] { return catalogs->open(
+								  epoch_catalog_open_request{
+									  .ApplicationSession = offered->ApplicationSession,
+									  .Authority          = catalog_key(*offered),
+								  },
+								  aStop); });
 					if (!opened) {
 						const auto reason = core::reason_for(
 							catalog_failure(opened.error()));
@@ -4295,13 +4358,15 @@ namespace bpr::application {
 					if (effectActor->Cache && effectActor->Cache->request() != expectedCache) {
 						effectActor->Cache.reset();
 					}
-					const auto recovered = recover_catalog(
-						**opened,
-						*caches,
-						*entropy,
-						*offered,
-						effectActor->Cache,
-						aStop);
+					const auto recovered = diagnostics.perform(
+						diagnostic_epoch_stage::catalog_recovery,
+						[&] { return recover_catalog(
+								  **opened,
+								  *caches,
+								  *entropy,
+								  *offered,
+								  effectActor->Cache,
+								  aStop); });
 					if (!recovered) {
 						return diagnostic(core::reason_for(recovered.error()));
 					}
@@ -4315,7 +4380,9 @@ namespace bpr::application {
 						if (!source) {
 							break;
 						}
-						const auto exists = (*opened)->source_observation_exists(*source, aStop);
+						const auto exists = diagnostics.perform(
+							diagnostic_epoch_stage::catalog_prepare,
+							[&] { return (*opened)->source_observation_exists(*source, aStop); });
 						if (!exists) {
 							const auto reason = core::reason_for(
 								catalog_failure(exists.error()));
@@ -4634,9 +4701,11 @@ namespace bpr::application {
 			}
 			auto actor = context->Actor;
 			submit_effect(
-				[context, aRequest](const std::stop_token aStop)
+				[context, aRequest, diagnostics = epoch_diagnostics{ DiagnosticLog, aRequest.Context.Request.value() }](const std::stop_token aStop)
 					-> worker_completion {
-					const auto snapshot = context->Catalog->snapshot(aStop);
+					const auto snapshot = diagnostics.perform(
+						diagnostic_epoch_stage::catalog_prepare,
+						[&] { return context->Catalog->snapshot(aStop); });
 					if (!snapshot) {
 						if (snapshot.error() == epoch_catalog_failure::cancelled) {
 							return [aRequest](implementation& aHost) {
@@ -4704,7 +4773,7 @@ namespace bpr::application {
 			auto* const clock   = &Clock;
 			auto        actor   = context->Actor;
 			submit_effect(
-				[context, aRequest, caches, entropy, clock](
+				[context, aRequest, caches, entropy, clock, diagnostics = epoch_diagnostics{ DiagnosticLog, aRequest.Context.Request.value() }](
 					const std::stop_token aStop) -> worker_completion {
 					const auto cancelled = [aRequest]() -> worker_completion {
 						return [aRequest](implementation& aHost) {
@@ -4714,8 +4783,9 @@ namespace bpr::application {
 								});
 						};
 					};
-					const auto failed = [aRequest](const core::epoch_failure aFailure)
+					const auto failed = [aRequest, diagnostics](const core::epoch_failure aFailure)
 						-> worker_completion {
+						diagnostics.failed(diagnostic_epoch_stage::revision_prepare, aFailure);
 						return [aRequest, aFailure](implementation& aHost) {
 							aHost.dispatch_core(
 								core::epoch_revision_prepare_failed_event{
@@ -4727,7 +4797,9 @@ namespace bpr::application {
 					if (aStop.stop_requested()) {
 						return cancelled();
 					}
-					const auto snapshot = context->Catalog->snapshot(aStop);
+					const auto snapshot = diagnostics.perform(
+						diagnostic_epoch_stage::catalog_prepare,
+						[&] { return context->Catalog->snapshot(aStop); });
 					if (!snapshot) {
 						return snapshot.error() == epoch_catalog_failure::cancelled
 							? cancelled()
@@ -4776,14 +4848,16 @@ namespace bpr::application {
 									core::epoch_failure::unavailable
 								};
 							}
-							const auto review = context->Catalog->canonical_review(
-								canonical_review_request{
-									.Catalog             = expectedCatalog,
-									.Candidate           = *aRequest.Context.Revision.CurrentViewerReview,
-									.ProposedAssociation = *association,
-									.ProjectedHead       = aProjected,
-								},
-								aStop);
+							const auto review = diagnostics.perform(
+								diagnostic_epoch_stage::catalog_prepare,
+								[&] { return context->Catalog->canonical_review(
+										  canonical_review_request{
+											  .Catalog             = expectedCatalog,
+											  .Candidate           = *aRequest.Context.Revision.CurrentViewerReview,
+											  .ProposedAssociation = *association,
+											  .ProjectedHead       = aProjected,
+										  },
+										  aStop); });
 							if (review) {
 								return std::optional{ *review };
 							}
@@ -4881,8 +4955,10 @@ namespace bpr::application {
 							},
 							.ProposedOrdinal = *snapshot->NextOrdinal,
 						};
-						const auto reserved = context->Catalog->reserve_append(
-							reservation, aStop);
+						const auto reserved = diagnostics.perform(
+							diagnostic_epoch_stage::catalog_prepare,
+							[&] { return context->Catalog->reserve_append(
+									  reservation, aStop); });
 						if (reserved) {
 							if (!exact_append_reservation(
 									*reserved,
@@ -4911,7 +4987,9 @@ namespace bpr::application {
 								if (!replacement) {
 									break;
 								}
-								const auto exists = context->Catalog->source_observation_exists(*replacement, aStop);
+								const auto exists = diagnostics.perform(
+									diagnostic_epoch_stage::catalog_prepare,
+									[&] { return context->Catalog->source_observation_exists(*replacement, aStop); });
 								if (!exists) {
 									return failed(catalog_failure(exists.error()));
 								}
@@ -4974,8 +5052,10 @@ namespace bpr::application {
 						.Authority          = context->Authority,
 						.ObjectFormat       = context->Handoff.ObjectFormat,
 					};
-					const auto cache = open_actor_cache(
-						*context->Actor, *caches, expectedCache, aStop);
+					const auto cache = diagnostics.perform(
+						diagnostic_epoch_stage::cache_open,
+						[&] { return open_actor_cache(
+								  *context->Actor, *caches, expectedCache, aStop); });
 					if (!cache) {
 						return cache.error() == git_cache_failure::cancelled
 							? cancelPrepared()
@@ -4985,10 +5065,12 @@ namespace bpr::application {
 						|| context->Handoff.SmartGit->revoked()) {
 						return failPrepared(core::epoch_failure::unavailable);
 					}
-					auto sink = context->Actor->Cache->create_pack_sink(
-						prepared.Operation,
-						context->Actor->Cache->request().Limits.OperationPackBytes,
-						aStop);
+					auto sink = diagnostics.perform(
+						diagnostic_epoch_stage::pack_sink,
+						[&] { return context->Actor->Cache->create_pack_sink(
+								  prepared.Operation,
+								  context->Actor->Cache->request().Limits.OperationPackBytes,
+								  aStop); });
 					if (!sink) {
 						return sink.error() == git_cache_failure::cancelled
 							? cancelPrepared()
@@ -5005,7 +5087,9 @@ namespace bpr::application {
 						.Repository         = context->Handoff.Locator,
 						.BaseRef            = context->Handoff.BaseRef,
 					};
-					auto transport = context->Handoff.SmartGit->acquire(smartContext);
+					auto transport = diagnostics.perform(
+						diagnostic_epoch_stage::smart_acquire,
+						[&] { return context->Handoff.SmartGit->acquire(smartContext); });
 					if (!transport) {
 						(*sink)->abort();
 						return aStop.stop_requested()
@@ -5054,18 +5138,20 @@ namespace bpr::application {
 							snapshot->LatestLive->Head,
 							snapshot->LatestLive->HeadAvailability);
 					}
-					const auto acquisition = acquire_git_protocol_v2_pack(
-						**transport,
-						smartContext,
-						haves,
-						**sink,
-						git_protocol_v2_fetch_limits{
-							.MaximumWireBytes     = maximum_git_smart_fetch_response_bytes,
-							.MaximumPackBytes     = context->Actor->Cache->request().Limits.OperationPackBytes,
-							.MaximumProgressBytes = maximum_git_protocol_v2_progress_bytes,
-							.MaximumPackets       = maximum_git_protocol_v2_fetch_packets,
-						},
-						aStop);
+					const auto acquisition = diagnostics.perform(
+						diagnostic_epoch_stage::protocol_acquire,
+						[&] { return acquire_git_protocol_v2_pack(
+								  **transport,
+								  smartContext,
+								  haves,
+								  **sink,
+								  git_protocol_v2_fetch_limits{
+									  .MaximumWireBytes     = maximum_git_smart_fetch_response_bytes,
+									  .MaximumPackBytes     = context->Actor->Cache->request().Limits.OperationPackBytes,
+									  .MaximumProgressBytes = maximum_git_protocol_v2_progress_bytes,
+									  .MaximumPackets       = maximum_git_protocol_v2_fetch_packets,
+								  },
+								  aStop); });
 					if (!acquisition) {
 						(*transport)->revoke();
 						const auto wasCancelled = aStop.stop_requested()
@@ -5079,8 +5165,10 @@ namespace bpr::application {
 							? cancelPrepared()
 							: failPrepared(core::epoch_failure::unavailable);
 					}
-					const auto inventory = context->Actor->Cache->observe_preimport(
-						acquisition->Fetch.Pack, aStop);
+					const auto inventory = diagnostics.perform(
+						diagnostic_epoch_stage::cache_inventory,
+						[&] { return context->Actor->Cache->observe_preimport(
+								  acquisition->Fetch.Pack, aStop); });
 					if (!inventory) {
 						return inventory.error() == git_cache_failure::cancelled
 							? cancelPrepared()
@@ -5093,8 +5181,10 @@ namespace bpr::application {
 						.Spool                     = durable_fact(acquisition->Fetch.Pack),
 						.Preimport                 = durable_fact(*inventory),
 					};
-					auto record = context->Catalog->record_spool(
-						spoolRequest, aStop);
+					auto record = diagnostics.perform(
+						diagnostic_epoch_stage::catalog_prepare,
+						[&] { return context->Catalog->record_spool(
+								  spoolRequest, aStop); });
 					if (!record) {
 						return record.error() == epoch_catalog_failure::cancelled
 							? cancelPrepared()
@@ -5132,8 +5222,10 @@ namespace bpr::application {
 						.Head      = aRequest.Context.Revision.Head,
 						.PriorHead = priorHead,
 					};
-					auto git = context->Actor->Cache->prepare_revision(
-						gitRequest, aStop);
+					auto git = diagnostics.perform(
+						diagnostic_epoch_stage::revision_prepare,
+						[&] { return context->Actor->Cache->prepare_revision(
+								  gitRequest, aStop); });
 					if (!git) {
 						return git.error() == git_cache_failure::cancelled
 							? cancelPrepared()
@@ -5158,8 +5250,10 @@ namespace bpr::application {
 						.ExpectedOperationRevision = prepared.Record->OperationRevision,
 						.Install                   = durable_fact(*git),
 					};
-					record = context->Catalog->record_install(
-						installRequest, aStop);
+					record = diagnostics.perform(
+						diagnostic_epoch_stage::catalog_prepare,
+						[&] { return context->Catalog->record_install(
+								  installRequest, aStop); });
 					if (!record) {
 						return record.error() == epoch_catalog_failure::cancelled
 							? cancelPrepared()
@@ -5171,12 +5265,14 @@ namespace bpr::application {
 							core::epoch_failure::repair_required);
 					}
 					prepared.Record    = *record;
-					const auto staging = advance_append(
-						*context,
-						*prepared.Record,
-						expectedCatalog,
-						epoch_catalog_operation_phase::staging_ready,
-						aStop);
+					const auto staging = diagnostics.perform(
+						diagnostic_epoch_stage::catalog_prepare,
+						[&] { return advance_append(
+								  *context,
+								  *prepared.Record,
+								  expectedCatalog,
+								  epoch_catalog_operation_phase::staging_ready,
+								  aStop); });
 					if (!staging) {
 						return staging.error()
 								== epoch_catalog_failure::cancelled
@@ -6392,16 +6488,17 @@ namespace bpr::application {
 				std::move(actor));
 		}
 
-		core::epoch_state                State;
-		git_cache_port&                  Caches;
-		epoch_catalog_port&              Catalogs;
-		epoch_entropy_port&              Entropy;
-		epoch_clock_port&                Clock;
-		effect_executor&                 Effects;
-		decision_executor&               DecisionLane;
-		epoch_projection_port&           Projections;
-		epoch_host_limits                Limits;
-		std::shared_ptr<completion_gate> CompletionGate;
+		core::epoch_state                    State;
+		git_cache_port&                      Caches;
+		epoch_catalog_port&                  Catalogs;
+		epoch_entropy_port&                  Entropy;
+		epoch_clock_port&                    Clock;
+		effect_executor&                     Effects;
+		decision_executor&                   DecisionLane;
+		epoch_projection_port&               Projections;
+		epoch_host_limits                    Limits;
+		std::shared_ptr<diagnostic_log_port> DiagnosticLog;
+		std::shared_ptr<completion_gate>     CompletionGate;
 		std::vector<
 			std::pair<cache_actor_key, std::shared_ptr<authority_effect_actor>>>
 														   CacheActors;
@@ -6439,7 +6536,7 @@ namespace bpr::application {
 		effect_executor&        aEffects,
 		decision_executor&      aDecisionLane,
 		epoch_projection_port&  aProjections,
-		const epoch_host_limits aLimits)
+		const epoch_host_limits aLimits, std::shared_ptr<diagnostic_log_port> aDiagnosticLog)
 		: Implementation{ std::make_unique<implementation>(
 			  std::move(aInitialState),
 			  aCaches,
@@ -6449,7 +6546,7 @@ namespace bpr::application {
 			  aEffects,
 			  aDecisionLane,
 			  aProjections,
-			  aLimits) }
+			  aLimits, std::move(aDiagnosticLog)) }
 	{
 	}
 

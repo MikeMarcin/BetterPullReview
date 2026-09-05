@@ -1,4 +1,8 @@
 #include "bpr/logging/quill_log.hpp"
+#include "bpr/application/epoch_catalog_port.hpp"
+#include "bpr/application/git_cache_port.hpp"
+#include "bpr/application/git_protocol_v2.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
@@ -16,6 +20,122 @@
 #endif
 namespace bpr::adapters::logging {
 	namespace {
+		auto failure_name(std::monostate) noexcept -> std::string_view { return "none"; }
+		auto failure_name(application::epoch_catalog_failure aFailure) noexcept -> std::string_view
+		{
+			switch (aFailure) {
+			case application::epoch_catalog_failure::invalid_request:             return "invalid_request";
+			case application::epoch_catalog_failure::invalid_path:                return "invalid_path";
+			case application::epoch_catalog_failure::invalid_permissions:         return "invalid_permissions";
+			case application::epoch_catalog_failure::unavailable:                 return "unavailable";
+			case application::epoch_catalog_failure::schema_mismatch:             return "schema_mismatch";
+			case application::epoch_catalog_failure::integrity_failure:           return "integrity_failure";
+			case application::epoch_catalog_failure::authority_mismatch:          return "authority_mismatch";
+			case application::epoch_catalog_failure::catalog_mismatch:            return "catalog_mismatch";
+			case application::epoch_catalog_failure::revision_conflict:           return "revision_conflict";
+			case application::epoch_catalog_failure::operation_identity_conflict: return "operation_identity_conflict";
+			case application::epoch_catalog_failure::source_observation_conflict: return "source_observation_conflict";
+			case application::epoch_catalog_failure::operation_conflict:          return "operation_conflict";
+			case application::epoch_catalog_failure::phase_conflict:              return "phase_conflict";
+			case application::epoch_catalog_failure::quota_exceeded:              return "quota_exceeded";
+			case application::epoch_catalog_failure::ordinal_exhausted:           return "ordinal_exhausted";
+			case application::epoch_catalog_failure::busy:                        return "busy";
+			case application::epoch_catalog_failure::repair_required:             return "repair_required";
+			case application::epoch_catalog_failure::cancelled:                   return "cancelled";
+			case application::epoch_catalog_failure::platform_unsupported:        return "platform_unsupported";
+			}
+			return "unknown";
+		}
+		auto failure_name(application::git_cache_failure aFailure) noexcept -> std::string_view
+		{
+			switch (aFailure) {
+			case application::git_cache_failure::invalid_request:        return "invalid_request";
+			case application::git_cache_failure::invalid_authority:      return "invalid_authority";
+			case application::git_cache_failure::invalid_path:           return "invalid_path";
+			case application::git_cache_failure::invalid_manifest:       return "invalid_manifest";
+			case application::git_cache_failure::invalid_repository:     return "invalid_repository";
+			case application::git_cache_failure::lock_unavailable:       return "lock_unavailable";
+			case application::git_cache_failure::quota_exceeded:         return "quota_exceeded";
+			case application::git_cache_failure::spool_failure:          return "spool_failure";
+			case application::git_cache_failure::inventory_mismatch:     return "inventory_mismatch";
+			case application::git_cache_failure::authorization_mismatch: return "authorization_mismatch";
+			case application::git_cache_failure::process_failure:        return "process_failure";
+			case application::git_cache_failure::object_mismatch:        return "object_mismatch";
+			case application::git_cache_failure::ref_conflict:           return "ref_conflict";
+			case application::git_cache_failure::repair_required:        return "repair_required";
+			case application::git_cache_failure::cancelled:              return "cancelled";
+			}
+			return "unknown";
+		}
+		auto failure_name(application::git_smart_transport_failure aFailure) noexcept -> std::string_view
+		{
+			switch (aFailure) {
+			case application::git_smart_transport_failure::invalid_request:    return "invalid_request";
+			case application::git_smart_transport_failure::unavailable:        return "unavailable";
+			case application::git_smart_transport_failure::authentication:     return "authentication";
+			case application::git_smart_transport_failure::permission:         return "permission";
+			case application::git_smart_transport_failure::network:            return "network";
+			case application::git_smart_transport_failure::certificate:        return "certificate";
+			case application::git_smart_transport_failure::proxy:              return "proxy";
+			case application::git_smart_transport_failure::redirect:           return "redirect";
+			case application::git_smart_transport_failure::timeout:            return "timeout";
+			case application::git_smart_transport_failure::cancelled:          return "cancelled";
+			case application::git_smart_transport_failure::request_limit:      return "request_limit";
+			case application::git_smart_transport_failure::response_limit:     return "response_limit";
+			case application::git_smart_transport_failure::malformed_response: return "malformed_response";
+			case application::git_smart_transport_failure::consumer_rejected:  return "consumer_rejected";
+			}
+			return "unknown";
+		}
+		auto failure_name(application::git_protocol_v2_failure aFailure) noexcept -> std::string_view
+		{
+			switch (aFailure) {
+			case application::git_protocol_v2_failure::invalid_request:        return "invalid_request";
+			case application::git_protocol_v2_failure::request_limit:          return "request_limit";
+			case application::git_protocol_v2_failure::response_limit:         return "response_limit";
+			case application::git_protocol_v2_failure::malformed_packet:       return "malformed_packet";
+			case application::git_protocol_v2_failure::unsupported_version:    return "unsupported_version";
+			case application::git_protocol_v2_failure::missing_capability:     return "missing_capability";
+			case application::git_protocol_v2_failure::object_format_mismatch: return "object_format_mismatch";
+			case application::git_protocol_v2_failure::unexpected_ref:         return "unexpected_ref";
+			case application::git_protocol_v2_failure::duplicate_ref:          return "duplicate_ref";
+			case application::git_protocol_v2_failure::oid_mismatch:           return "oid_mismatch";
+			case application::git_protocol_v2_failure::unexpected_section:     return "unexpected_section";
+			case application::git_protocol_v2_failure::sideband_error:         return "sideband_error";
+			case application::git_protocol_v2_failure::progress_limit:         return "progress_limit";
+			case application::git_protocol_v2_failure::pack_limit:             return "pack_limit";
+			case application::git_protocol_v2_failure::incomplete_response:    return "incomplete_response";
+			case application::git_protocol_v2_failure::pack_sink:              return "pack_sink";
+			case application::git_protocol_v2_failure::allocation:             return "allocation";
+			}
+			return "unknown";
+		}
+		auto failure_name(application::git_pack_stream_failure aFailure) noexcept -> std::string_view
+		{
+			switch (aFailure) {
+			case application::git_pack_stream_failure::invalid_request: return "invalid_request";
+			case application::git_pack_stream_failure::invalid_state:   return "invalid_state";
+			case application::git_pack_stream_failure::input_limit:     return "input_limit";
+			case application::git_pack_stream_failure::storage:         return "storage";
+			case application::git_pack_stream_failure::malformed_pack:  return "malformed_pack";
+			case application::git_pack_stream_failure::cancelled:       return "cancelled";
+			}
+			return "unknown";
+		}
+		auto failure_name(core::epoch_failure aFailure) noexcept -> std::string_view
+		{
+			switch (aFailure) {
+			case core::epoch_failure::unavailable:           return "unavailable";
+			case core::epoch_failure::malformed_observation: return "malformed_observation";
+			case core::epoch_failure::catalog_conflict:      return "catalog_conflict";
+			case core::epoch_failure::quota_exceeded:        return "quota_exceeded";
+			case core::epoch_failure::ordinal_exhausted:     return "ordinal_exhausted";
+			case core::epoch_failure::repair_required:       return "repair_required";
+			case core::epoch_failure::process_failure:       return "process_failure";
+			}
+			return "unknown";
+		}
+
 		using status_type              = application::diagnostic_log_status;
 		std::atomic_flag backend_owned = ATOMIC_FLAG_INIT;
 		struct frontend_options : quill::FrontendOptions
@@ -149,7 +269,7 @@ namespace bpr::adapters::logging {
 			std::uint64_t               MaximumBytes;
 			std::uint64_t               Bytes = 0;
 		};
-		constexpr std::array<std::string_view, 3> operations{ "application", "github.viewer", "github.capability" };
+		constexpr std::array<std::string_view, 4> operations{ "application", "github.viewer", "github.capability", "epoch" };
 		constexpr std::array<std::string_view, 6> outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
 		constexpr std::array<std::string_view, 5> summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
 	}
@@ -219,10 +339,13 @@ namespace bpr::adapters::logging {
 			if (State->Status != status_type::available || Logger == nullptr) {
 				return State->Status;
 			}
-			const auto operation = static_cast<std::size_t>(aEvent.Operation);
-			const auto outcome   = static_cast<std::size_t>(aEvent.Outcome);
-			const auto summary   = static_cast<std::size_t>(aEvent.Summary.State);
-			if (operation >= operations.size() || outcome >= outcomes.size() || summary >= summaries.size() || aEvent.Summary.Size > aEvent.Summary.Text.size()
+			const auto                                        operation = static_cast<std::size_t>(aEvent.Operation);
+			const auto                                        outcome   = static_cast<std::size_t>(aEvent.Outcome);
+			const auto                                        stage     = static_cast<std::size_t>(aEvent.EpochStage);
+			static constexpr std::array<std::string_view, 10> stages{ "none", "catalog_open", "catalog_recovery", "catalog_prepare", "cache_open", "pack_sink", "smart_acquire", "protocol_acquire", "cache_inventory", "revision_prepare" };
+			static constexpr std::array<std::string_view, 6>  domains{ "none", "catalog", "cache", "transport", "protocol", "epoch" };
+			const auto                                        summary = static_cast<std::size_t>(aEvent.Summary.State);
+			if (stage >= stages.size() || aEvent.EpochFailure.valueless_by_exception() || operation >= operations.size() || outcome >= outcomes.size() || summary >= summaries.size() || aEvent.Summary.Size > aEvent.Summary.Text.size()
 				|| std::ranges::any_of(aEvent.Summary.text(), [](const unsigned char aCharacter) { return aCharacter < 32U || aCharacter == 127U; })) {
 				++State->Dropped;
 				return status_type::dropped;
@@ -236,8 +359,8 @@ namespace bpr::adapters::logging {
 				Threads[ThreadCount++] = thread;
 			}
 			try {
-				static constexpr quill::MacroMetadata metadata{ "", "", "v=1 op={} outcome={} request={} http_status={} summary={} dropped={} detail={}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
-				if (!Logger->log_statement<false>(&metadata, operations[operation], outcomes[outcome], aEvent.Request, aEvent.HttpStatus, summaries[summary], State->Dropped.load(), aEvent.Summary.text())) {
+				static constexpr quill::MacroMetadata metadata{ "", "", "v=1 op={} outcome={} request={} http_status={} summary={} dropped={} detail={} epoch_stage={} failure_domain={} failure={} pack_failure={}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
+				if (!Logger->log_statement<false>(&metadata, operations[operation], outcomes[outcome], aEvent.Request, aEvent.HttpStatus, summaries[summary], State->Dropped.load(), aEvent.Summary.text(), stages[stage], domains[aEvent.EpochFailure.index()], std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.EpochFailure), aEvent.EpochPackFailure ? failure_name(*aEvent.EpochPackFailure) : std::string_view{ "none" })) {
 					++State->Dropped;
 					return status_type::dropped;
 				}

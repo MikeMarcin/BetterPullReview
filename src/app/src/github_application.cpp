@@ -3780,7 +3780,7 @@ namespace bpr::app {
 				*EpochClock,
 				EpochEffects,
 				DecisionLane,
-				*this);
+				*this, application::epoch_host_limits{ }, DiagnosticLog);
 
 			// git pack-objects creates its temporary pack inside the --git-dir's
 			// own object store and renames it onto the requested output base.

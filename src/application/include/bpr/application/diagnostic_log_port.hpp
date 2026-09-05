@@ -2,11 +2,37 @@
 #define BPR_APPLICATION_DIAGNOSTIC_LOG_PORT_HPP
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string_view>
+#include <variant>
+namespace bpr::core {
+	enum class epoch_failure : std::uint8_t;
+}
 namespace bpr::application {
+	enum class epoch_catalog_failure : std::uint8_t;
+	enum class git_cache_failure : std::uint8_t;
+	enum class git_smart_transport_failure : std::uint8_t;
+	enum class git_protocol_v2_failure : std::uint8_t;
+	enum class git_pack_stream_failure : std::uint8_t;
+	enum class diagnostic_epoch_stage : std::uint8_t {
+		none,
+		catalog_open,
+		catalog_recovery,
+		catalog_prepare,
+		cache_open,
+		pack_sink,
+		smart_acquire,
+		protocol_acquire,
+		cache_inventory,
+		revision_prepare
+	};
+	using diagnostic_epoch_failure = std::variant<std::monostate, epoch_catalog_failure,
+												  git_cache_failure, git_smart_transport_failure, git_protocol_v2_failure, core::epoch_failure>;
+
 	enum class diagnostic_operation : std::uint8_t { application,
 													 viewer,
-													 capability };
+													 capability,
+													 epoch };
 	enum class diagnostic_outcome : std::uint8_t { started,
 												   succeeded,
 												   failed,
@@ -29,11 +55,14 @@ namespace bpr::application {
 	};
 	struct diagnostic_event
 	{
-		diagnostic_operation Operation  = diagnostic_operation::application;
-		diagnostic_outcome   Outcome    = diagnostic_outcome::started;
-		std::uint64_t        Request    = 0;
-		std::uint16_t        HttpStatus = 0;
-		diagnostic_summary   Summary{ };
+		diagnostic_operation                   Operation  = diagnostic_operation::application;
+		diagnostic_outcome                     Outcome    = diagnostic_outcome::started;
+		std::uint64_t                          Request    = 0;
+		std::uint16_t                          HttpStatus = 0;
+		diagnostic_summary                     Summary{ };
+		diagnostic_epoch_stage                 EpochStage = diagnostic_epoch_stage::none;
+		diagnostic_epoch_failure               EpochFailure;
+		std::optional<git_pack_stream_failure> EpochPackFailure;
 	};
 	enum class diagnostic_log_status : std::uint8_t { available,
 													  unavailable,

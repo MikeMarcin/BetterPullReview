@@ -28,13 +28,12 @@ Historical evidence is provenance only; every row requires final replay at the f
 
 ## Current continuation — 2026-09-05
 
-RFC base remains `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`. The next slice is
-[[BPR-0256]] v008 unattended capsule/packet regeneration following BPR-0559's
-verified capability repair and BPR-0605's recorded live sign-in result. BPR-0235
-and BPR-0142/0143/0144 still owe their designated live observations. No previous
-approval may be replayed; no RFC closeout or publication is claimed. Reuse
-unchanged automated evidence and run focused final-candidate checks as required
-by the preparation card.
+RFC base remains `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`. BPR-0606 repaired
+the missing epoch-preparation diagnostics after v009 sign-in and PR open
+succeeded but history preparation refused. Next: BPR-0256 prepares a new
+candidate from the diagnostic source and records the first causal history
+failure before any publication claim. Its v009 approval is consumed. The live
+rows above and the whole requested RFC goal remain incomplete.
 
 ## v008 preparation complete; attended decision pending — 2026-09-05
 
@@ -77,3 +76,12 @@ BPR-0256 prepares the [v009 packet](../../verification/reviews/designated-live-r
 The [v009 result](../../verification/reviews/designated-live-review-publication-v009/attended-result.md) records the single approved mounted run: sign-in as MikeMarcin and all nine capability checks succeeded, and the correct designated PR opened. Selecting its sole file failed before source loading with a changed-file refusal and unavailable exact comparison history. No body was entered or Publish action taken. Explicit Sign out, quit and detach completed; CTest exit 0 in 321.64 seconds proves cleanup only. Device-field emissions are disclosed in the result; clean capture compliance is not claimed. The new approval is spent. Next: diagnose and repair the file/history path with fixtures before preparing another candidate. All live publication acceptance rows remain incomplete.
 
 Current next slice: [[BPR-0606]] adds the missing epoch preparation diagnostics and investigates the upstream refusal. BPR-0256 returns to backlog behind it. Existing v009 authority is consumed; no successor or changed binary is launched in this repair slice.
+
+## Epoch diagnostics available — 2026-09-05
+
+[[BPR-0606]] is Done: five focused host/logging/composition checks passed in
+49.33 seconds; integrator reproduction passed three checks in 5.94 seconds.
+Dev/Release, six changed-TU tidy and scoped format pass. The live root cause is
+still unknown. BPR-0256 is the next candidate/attended slice; no RFC closeout
+or successful publication is claimed. All consumed v009 producer/image,
+static/mount/approval and temporary inspection resources were removed.

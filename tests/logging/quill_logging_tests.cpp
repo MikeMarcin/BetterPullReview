@@ -1,3 +1,4 @@
+#include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "github_capability_probe.hpp"
 #include <QFileInfo>
@@ -51,7 +52,13 @@ int main(int aArgc, char** aArgv)
 		log.close();
 		expect(log.record({ }) == status::closed, "closed ingress");
 	}
+
+	{
+		adapters::logging::quill_log log{ root };
+		expect(log.record({ .Operation = application::diagnostic_operation::epoch, .Outcome = application::diagnostic_outcome::failed, .Request = 19U, .EpochStage = application::diagnostic_epoch_stage::protocol_acquire, .EpochFailure = application::git_protocol_v2_failure::pack_sink, .EpochPackFailure = application::git_pack_stream_failure::input_limit }) == status::available, "typed epoch detail accepted by real sink");
+	}
 	const auto first = read(file);
+	expect(first.find("epoch_stage=protocol_acquire failure_domain=protocol failure=pack_sink pack_failure=input_limit") != std::string::npos, "fixed protocol and pack failure names persisted");
 	expect(first.find("newField") != std::string::npos && first.find("NEW_SCHEMA_CODE") != std::string::npos && first.find("request=42 http_status=200") != std::string::npos, "useful sanitized prose and correlation survive file encoding");
 	expect(first.find("runtime-only-file-secret") == std::string::npos, "credential canary absent from persisted file");
 	expect(first.find("op=application outcome=started") != std::string::npos, "ordinary close persists startup");

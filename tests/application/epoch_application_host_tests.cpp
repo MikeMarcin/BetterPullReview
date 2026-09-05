@@ -1,4 +1,5 @@
 #include "bpr/application/epoch_application_host.hpp"
+#include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/testing.hpp"
 
 #include <algorithm>
@@ -246,12 +247,28 @@ namespace {
 		std::optional<std::size_t>        AcceptedPostsBeforeRejection;
 	};
 
+	struct recording_epoch_log final : application::diagnostic_log_port
+	{
+		std::vector<application::diagnostic_event> Events;
+		application::diagnostic_log_status         Status = application::diagnostic_log_status::available;
+		auto                                       record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			Events.push_back(aEvent);
+			return Status;
+		}
+		auto status() const noexcept -> application::diagnostic_log_status override { return Status; }
+	};
+
 	struct shared_state
 	{
-		std::vector<std::string>            Calls;
-		application::epoch_catalog_binding  Binding;
-		application::epoch_catalog_snapshot Snapshot;
-		std::deque<bool>                    SourceCollisions;
+		std::optional<application::git_smart_transport_failure> AcquireFailure;
+		std::optional<application::git_smart_transport_failure> DiscoveryFailure;
+		bool                                                    MalformedDiscovery = false;
+		std::optional<application::git_pack_stream_failure>     PackFailure;
+		std::vector<std::string>                                Calls;
+		application::epoch_catalog_binding                      Binding;
+		application::epoch_catalog_snapshot                     Snapshot;
+		std::deque<bool>                                        SourceCollisions;
 		std::deque<std::optional<application::epoch_catalog_failure>>
 																 CatalogOpenFailures;
 		std::deque<application::epoch_catalog_snapshot>          CatalogOpenSnapshots;
@@ -1203,6 +1220,9 @@ namespace {
 				application::completed_git_pack_receipt> override
 		{
 			State.Calls.emplace_back("cache.sink-finish");
+			if (State.PackFailure) {
+				return std::unexpected{ *State.PackFailure };
+			}
 			if (aStop.stop_requested()) {
 				return std::unexpected{
 					application::git_pack_stream_failure::cancelled
@@ -1621,6 +1641,12 @@ namespace {
 				application::git_smart_discovery_response> override
 		{
 			State.Calls.emplace_back("transport.discover");
+			if (State.DiscoveryFailure) {
+				return std::unexpected{ application::git_smart_transport_error{ .Failure = *State.DiscoveryFailure } };
+			}
+			if (State.MalformedDiscovery) {
+				return application::git_smart_discovery_response{ .Body = bytes("not-pkt-line") };
+			}
 			++State.TransportCalls;
 			if (aStop.stop_requested() || aRequest.Context != Context) {
 				return std::unexpected{ application::git_smart_transport_error{
@@ -1720,6 +1746,9 @@ namespace {
 				application::git_smart_transport> override
 		{
 			State.Calls.emplace_back("transport.acquire");
+			if (State.AcquireFailure) {
+				return std::unexpected{ application::git_smart_transport_error{ .Failure = *State.AcquireFailure } };
+			}
 			if (Revoked) {
 				return std::unexpected{ application::git_smart_transport_error{
 					.Failure = application::git_smart_transport_failure::cancelled,
@@ -1996,7 +2025,7 @@ namespace {
 		fake_projection                                      Projections{ State, Decisions };
 		std::unique_ptr<application::epoch_application_host> Host;
 
-		explicit fixture(const application::epoch_host_limits aLimits = { })
+		explicit fixture(const application::epoch_host_limits aLimits = { }, std::shared_ptr<application::diagnostic_log_port> aLog = { })
 		{
 			State.Binding = application::epoch_catalog_binding{
 				.Authority    = authority(),
@@ -2018,7 +2047,7 @@ namespace {
 				Effects,
 				Decisions,
 				Projections,
-				aLimits);
+				aLimits, std::move(aLog));
 		}
 
 		~fixture()
@@ -2305,6 +2334,69 @@ namespace {
 					   value.State.Calls, "catalog.source-probe")
 					== 2,
 			"one collision consumes one fresh replacement observation");
+	}
+
+	void epoch_preparation_diagnostics_preserve_results()
+	{
+		using stage  = application::diagnostic_epoch_stage;
+		using status = application::diagnostic_log_status;
+		for (const auto sinkStatus : { status::available, status::unavailable, status::full, status::dropped }) {
+			for (unsigned mode = 0U; mode < 7U; ++mode) {
+				auto log    = std::make_shared<recording_epoch_log>();
+				log->Status = sinkStatus;
+				fixture                               value{ { }, log };
+				stage                                 expectedStage   = stage::catalog_open;
+				application::diagnostic_epoch_failure expectedFailure = application::epoch_catalog_failure::invalid_permissions;
+				switch (mode) {
+				default: expect(false, "unknown epoch diagnostic fixture case"); break;
+				case 0U: value.State.CatalogOpenFailures.emplace_back(application::epoch_catalog_failure::invalid_permissions); break;
+				case 1U:
+					value.State.CacheOpenFailures.push_back(application::git_cache_failure::invalid_path);
+					expectedStage   = stage::cache_open;
+					expectedFailure = application::git_cache_failure::invalid_path;
+					break;
+				case 2U:
+					value.State.AcquireFailure = application::git_smart_transport_failure::authentication;
+					expectedStage              = stage::smart_acquire;
+					expectedFailure            = *value.State.AcquireFailure;
+					break;
+				case 3U:
+					value.State.DiscoveryFailure = application::git_smart_transport_failure::network;
+					expectedStage                = stage::protocol_acquire;
+					expectedFailure              = *value.State.DiscoveryFailure;
+					break;
+				case 4U:
+					value.State.MalformedDiscovery = true;
+					expectedStage                  = stage::protocol_acquire;
+					expectedFailure                = application::git_protocol_v2_failure::malformed_packet;
+					break;
+				case 6U:
+					value.State.PackFailure = application::git_pack_stream_failure::input_limit;
+					expectedStage           = stage::protocol_acquire;
+					expectedFailure         = application::git_protocol_v2_failure::pack_sink;
+					break;
+				case 5U:
+					value.State.PrepareCacheFailures.emplace_back("cache.prepare-revision", application::git_cache_failure::object_mismatch);
+					expectedStage   = stage::revision_prepare;
+					expectedFailure = application::git_cache_failure::object_mismatch;
+					break;
+				}
+				value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+				drain(value);
+				expect(!value.Host->state().AcceptedComparison && std::ranges::count(value.State.Calls, "catalog.commit-authorized") == 0, "failed preparation cannot accept comparison or commit regardless of logging availability");
+
+				const auto expectedReason = mode == 5U ? core::epoch_reason_code::repair_required : core::epoch_reason_code::unavailable;
+				expect(std::ranges::any_of(value.State.Updates, [&](const auto& aUpdate) { return aUpdate.Transition && std::ranges::any_of(aUpdate.Transition->Diagnostics, [&](const auto& aDiagnostic) { return aDiagnostic.Code == expectedReason; }); }), "logging status preserves the original core diagnostic");
+				if (mode == 6U) {
+					expect(std::ranges::any_of(log->Events, [](const auto& aEvent) { return aEvent.EpochPackFailure == application::git_pack_stream_failure::input_limit; }), "protocol acquisition retains exact pack failure");
+				}
+				expect(std::ranges::any_of(log->Events, [&](const auto& aEvent) { return aEvent.Operation == application::diagnostic_operation::epoch && aEvent.Outcome == application::diagnostic_outcome::failed && aEvent.EpochStage == expectedStage && aEvent.EpochFailure == expectedFailure && aEvent.Summary.text().empty(); }), "exact typed stage failure is recorded without raw details");
+			}
+		}
+		auto    log = std::make_shared<recording_epoch_log>();
+		fixture value{ { }, log };
+		establish_ready_comparison(value);
+		expect(std::ranges::any_of(log->Events, [](const auto& aEvent) { return aEvent.EpochStage == stage::protocol_acquire && aEvent.Outcome == application::diagnostic_outcome::succeeded; }), "successful preparation still yields exact comparison and stage evidence");
 	}
 
 	void successful_append_preserves_exact_order()
@@ -6035,6 +6127,7 @@ namespace {
 
 int main()
 {
+	epoch_preparation_diagnostics_preserve_results();
 	invalid_handoff_has_no_effects();
 	source_collision_retries_before_core_acceptance();
 	successful_append_preserves_exact_order();

@@ -172,7 +172,7 @@ exactly what is missing.
 
 | Card | Gate | What is missing |
 |---|---|---|
-| BPR-0142 | A comment is readable and replyable in the GitHub web UI with no tool-specific marker | Exact v008 operator approval, attended live-lane publication and web inspection, then separately authorized reply-return evidence |
+| BPR-0142 | A comment is readable and replyable in the GitHub web UI with no tool-specific marker | Fresh candidate authority, successful history preparation, attended publication and web inspection, then separately authorized reply-return evidence |
 | BPR-0143 | Mixed-client acceptance: external edit, delete, resolve, reopen | The designated repository, session authority, and a second client acting on it |
 | BPR-0144 | Reviews appear under the authenticated user's identity with ordinary semantics | An authorized review submission and authoritative GitHub attribution; BPR-0605 observed account sign-in, which does not prove review semantics |
 
@@ -256,3 +256,13 @@ The [v008 result](reviews/designated-live-review-publication-v008/attended-resul
 ## v009 consumed; selected-file refusal — 2026-09-05
 
 The [v009 result](reviews/designated-live-review-publication-v009/attended-result.md) records the single approved mounted run: sign-in as MikeMarcin and all nine capability checks succeeded, and the correct designated PR opened. Selecting its sole file failed before source loading with a changed-file refusal and unavailable exact comparison history. No body was entered or Publish action taken. Explicit Sign out, quit and detach completed; CTest exit 0 in 321.64 seconds proves cleanup only. Device-field emissions are disclosed in the result; clean capture compliance is not claimed. The new approval is spent. Next: diagnose and repair the file/history path with fixtures before preparing another candidate. All live publication acceptance rows remain incomplete.
+
+## Epoch diagnostic gap repaired — 2026-09-05
+
+BPR-0606 adds fixed stage and typed failure records to the production epoch
+host through the existing bounded Quill port. Five focused checks passed in
+49.33 seconds, including failed preparation through the real PR-open composition;
+three integrator checks passed in 5.94 seconds. Logging refusal leaves original
+core diagnostics and comparison admission unchanged. The v009 live cause is
+still unproven, and no live-publication acceptance row is satisfied by these
+fixture results. Advanced logging and schema-method work remain deferred.
