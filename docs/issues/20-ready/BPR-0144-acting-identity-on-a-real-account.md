@@ -1,7 +1,7 @@
 ---
 id: BPR-0144
 title: Confirm review identity on a real account
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0008
 depends_on: [BPR-0142, BPR-0610]
 ---

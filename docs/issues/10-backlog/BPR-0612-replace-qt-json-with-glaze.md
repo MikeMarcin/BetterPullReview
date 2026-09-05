@@ -1,0 +1,80 @@
+---
+id: BPR-0612
+title: Replace all remaining Qt JSON parsing and serialization with Glaze
+status: Backlog
+rfc: RFC-BPR-0002
+depends_on: [BPR-0610]
+---
+
+# Replace all remaining Qt JSON parsing and serialization with Glaze
+
+The owner explicitly requested a backlog card for the full Qt-to-Glaze JSON
+migration on 2026-09-05. BPR-0610 introduces pinned Glaze and converts the new
+whole-review contract. This card tracks the remaining production code and test
+helpers. It is a later migration under the foundational adapter architecture,
+not a reopening of RFC-BPR-0002's already verified acceptance or a prerequisite
+for BPR-0610. Select and split it into bounded slices before implementation.
+
+## Scope and starting inventory
+
+Replace Qt JSON parsing, DOM construction, conversion and serialization with
+Glaze across repository-owned C++ code, including fixtures and test helpers.
+Qt remains the UI framework. Python/CMake JSON tooling and third-party source
+are outside this Qt-to-Glaze migration.
+
+Production and composed-fixture sources at allocation:
+
+- `src/adapters/github/src/github_capability_probe.cpp`
+- `src/adapters/github/src/github_device_authorization_contract.cpp`
+- `src/adapters/github/src/github_mutation_contract.cpp` (remaining old contracts)
+- `src/adapters/github/src/github_paged_read.cpp`
+- `src/adapters/github/src/github_read_contract.cpp`
+- `src/adapters/github/src/github_read_normalizer.cpp`
+- `src/app/src/github_application.cpp`
+- `src/app/src/github_public_path_fixture.cpp`
+
+Test sources:
+
+- `tests/adapters_qt/github_thread_map_tests.cpp`
+- `tests/github_contract/github_anonymous_read_contract_tests.cpp`
+- `tests/github_contract/github_capability_probe_tests.cpp`
+- `tests/github_contract/github_device_authorization_contract_tests.cpp`
+- `tests/github_contract/github_mutation_contract_tests.cpp`
+- `tests/github_contract/github_paged_read_tests.cpp`
+- `tests/github_contract/github_provider_tests.cpp`
+- `tests/github_contract/github_read_contract_tests.cpp`
+- `tests/network_isolation/designated_live_mutation_runner.cpp`
+
+Refresh this inventory when selected:
+`rg -n 'QJson(Document|Object|Array|Value|ParseError)' src tests`.
+Inspect other Qt JSON entry points/includes as well; this starting inventory is
+not permission to leave a newly discovered caller behind.
+
+## Acceptance and migration constraints
+
+- All repository-owned Qt JSON parser/serializer usage is replaced by Glaze;
+  remaining textual references are intentional documentation or boundary guards.
+- Prefer typed wire records and exact integer types. Do not carry Qt or Glaze
+  provider types into the functional core or public application ports.
+- Preserve required/nullable/unknown field semantics, full-input consumption,
+  duplicate-key policy, UTF-8 and surrogate handling, byte/depth/record bounds,
+  pagination completion, error categories and credential/log privacy.
+- Preserve canonical outbound request bytes where required. Audit any changed
+  serialization against stored authority fingerprints, recovery records and
+  existing exact-body fixtures; do not silently invalidate durable state.
+- Prioritize the old mutation parser's known double-normalization behavior:
+  raw `user.id: 22.0000000000000001` can normalize to integer `22`. BPR-0610
+  fixes this in its new typed review parser; its raw fractional, large-integer,
+  overflow, malformed-Unicode and control-character fixtures are patterns for
+  the remaining contracts. Extend them to the selected production path.
+- Verify each bounded migration through its provider/host/public composition
+  tests, including anonymous reads, capability discovery, device sign-in,
+  pagination and mutation/recovery as applicable. Finish with a fresh inventory.
+- Retain the pinned Glaze provider and license provenance. The owner-supplied
+  EntoleGlazeProvider.cmake was consulted as a reference; do not depend on its
+  absolute local path in this project's build.
+
+## Status
+
+Not started. Full migration is intentionally backlogged; BPR-0610's new
+whole-review contract remains its own current implementation slice.

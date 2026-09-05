@@ -1,7 +1,7 @@
 ---
 id: BPR-0610
 title: Compile and validate whole-review submission wire contracts
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0142]
 ---
@@ -68,3 +68,37 @@ also cover malformed surrogate text and review IDs. These must pass using
 Glaze before completion; an earlier green fixture run is superseded.
 
 Closeout review runtime: native collaboration (gpt-6-astra, high).
+
+## Completion — 2026-09-05
+
+Implemented in `c304442f`. The new whole-review contract compiles all three
+explicit dispositions with typed Glaze v8.3.0 JSON and parses exact submitted
+review identities without passing integers through floating point. Glaze types
+stay private to the adapter. Existing source-line session selection is unchanged.
+The owner-supplied Entole provider informed the MIT license verification;
+BetterPullReview retains its pinned-archive provider convention.
+
+Validation on the committed source:
+
+- `cmake --preset dev` and focused contract/provider target builds passed.
+- `ctest --test-dir build/dev --output-on-failure -R '^(github_mutation_contract|live_review_mutation_provider)$'`:
+  2/2 passed in 0.51 seconds. This exercises the new wire contract and the
+  existing provider publication path; no live server was contacted.
+- `ctest --test-dir build/dev --output-on-failure -R '^architecture_boundaries$'`:
+  1/1 passed in 8.29 seconds.
+- `DependencyModernizationTests.test_configured_dependency_audit_uses_supported_providers`:
+  passed against `build/dev`, including the Glaze provider record.
+- Three-file `clang-format --dry-run --Werror`, scoped simplifier review,
+  documentation structure and `git diff --check` passed.
+
+Raw fixtures reject fractional ID tokens, overflow and malformed surrogates;
+positive fixtures preserve uint64 identities above 2^53 and at UINT64_MAX.
+Control characters are escaped on write and survive round trip. Independent
+review's initial numeric finding is resolved; its bounded Glaze recheck found
+no remaining blocker. Native review was used because no opposite-family role
+was callable. No full matrix, native Windows/Linux run or whole-review UI/live
+submission is claimed.
+
+BPR-0144 still needs whole-review policy, receipt/recovery, production selection
+and UI before real-account evidence. BPR-0612 records the owner's separate
+backlog request to replace every remaining Qt JSON parser/serializer.

@@ -370,3 +370,14 @@ The owner confirmed the displayed comments look right on the web. The
 completes BPR-0142 alongside v011 publication and the web reply-return course.
 BPR-0142 is Done. BPR-0143's mixed-client cases and BPR-0144's three review
 dispositions remain open and now dependency-ready; RFC-BPR-0008 stays Proposed.
+
+## Whole-review Glaze contract — 2026-09-05
+
+BPR-0610 (`c304442f`) adds an adapter-private whole-review compiler/parser for
+Comment, Approve and Request Changes using Glaze v8.3.0. Two contract/provider
+checks passed in 0.51 seconds and architecture boundaries in 8.29 seconds.
+Raw numeric/Unicode counterexamples pass after replacing the initial Qt
+whole-review parser; old source-line production selection is unchanged.
+This is wire-contract evidence only. BPR-0144 still needs application policy,
+recovery, production selection, UI and real-account observations, so no review
+submission or RFC closeout criterion is promoted by this slice.
