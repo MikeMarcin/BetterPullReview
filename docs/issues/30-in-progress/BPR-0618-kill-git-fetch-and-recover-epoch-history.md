@@ -106,3 +106,79 @@ The fixture target rebuilt successfully after adding that identity assertion.
 No negative test result has been relabeled or disabled. Resume BPR-0618 at the
 exact-ownership repair described above; the next ID is BPR-0619 if a separate
 bounded dependency is needed.
+
+## Selected first repair
+
+Close the post-preparation journal gap using the existing SQLite install fact,
+without changing its schema. Add a synchronous optional installation witness to
+`git_cache_session::prepare_revision`; the concrete adapter offers exact pack,
+index, tree and lineage facts before staging refs or deleting the spool. The
+selected host must persist and validate those facts in its existing
+`record_install` transaction before allowing preparation to continue. Refused
+or uncertain acknowledgment cannot trigger cleanup of possibly journaled
+artifacts. The host also checks the eventual prepared result against its
+persisted fact. The default absent witness preserves lower-level adapter
+callers; production host admission always supplies and requires it.
+
+Owned repair paths extend to `git_cache_port.hpp`, `epoch_application_host.cpp`,
+`installed_git_cache.cpp`, the host/cache direct fixtures, and the owning
+`git-and-epoch-model.md` paragraph. Verify actual callback order/refusal plus
+host failure/cancellation and the real killed-prepared course. This does not
+claim to repair the earlier receiving/completed-spool gaps or interruption
+inside `index-pack`; those remain open in this card.
+
+
+## First repair verification — 2026-09-05
+
+The selected host now records the exact install fact during the adapter's
+synchronous witness, before staging refs and completed-spool deletion. The
+host rejects an omitted or repeated witness and a returned artifact identity
+that differs from the persisted fact. Direct host fixtures also preserve the
+typed failure/cancellation terminal when catalog persistence refuses the fact.
+The real Git fixture observes no refs and an intact spool inside the witness;
+a refused witness retains the installed pack/index and spool for recovery.
+Its disposable cache is cleaned through the normal abort/delete ports after
+inspection, before later suite cases run.
+
+The initial prepared restart exceeded the harness's inherited 15-second
+review-recovery allowance. A separate contained, network-denied diagnosis
+completed successfully in 15.67 seconds, including independent Git/SQLite
+inspection. Epoch recovery now has a bounded 30-second child allowance;
+review-publication recovery keeps its existing 15 seconds. This changes a
+fixture deadline, not a product performance budget.
+
+The five-selector replay ran in 136.20 seconds. Host tests passed (0.68 s),
+review-publication restart passed (0.53 s), and real prune/delete passed
+(22.23 s). The full epoch kill lane ran in 70.02 seconds: **prepared and
+visible pass**, including the second restart, exact retained comparison/ref
+pair, Git fsck, SQLite integrity and no unfinished spool. **Fetch and spool
+still fail** with repair-required startup. The Git-cache suite initially
+caught residue from the new refusal fixture; its abort/delete cleanup was
+corrected before the focused replay below.
+
+BPR-0618 remains In Progress. Next repair: persist the receiving file's exact
+ownership before accepting pack payload, and preserve that identity across
+completion until the catalog's completed-spool record is durable. Recovery
+must still refuse substituted or unrelated artifacts; a filename is not
+ownership. The gap inside `index-pack` remains outside this first repair.
+No production app was launched, and remembered sign-in was untouched. All
+new diagnostic/crash roots were removed after their contained consumers ended.
+No Actions, remote mutation, push or paid CI was used.
+
+
+Final focused replay after correcting refusal-fixture cleanup:
+`ctest --test-dir build/dev --output-on-failure -R
+'^(application_epoch_host|git_cache_contract)$'` passed **2/2 in 201.82 s**
+(host 0.68 s; Git cache 201.13 s). The three affected C++ fixture targets
+built successfully. The unchanged prepared/visible kill result and
+prune/delete/review-restart results above remain valid; no redundant crash
+replay was needed for the fixture cleanup and comment/formatting edits.
+Documentation validation, all 62 documentation tests, scoped clang-format,
+the code-simplifier pass and `git diff --check` passed. No full matrix,
+release rebuild, tidy run, GUI/credential check or other-platform execution
+was claimed or required for this persisted-state slice.
+The changed-port architecture checks also passed:
+`ctest --test-dir build/dev --output-on-failure -R
+'^(architecture_boundaries|architecture_boundary_contract)$'`, **2/2 in
+72.74 s**. Next work remains BPR-0618's receiving/completed-spool ownership
+repair; BPR-0617 and the persistent RFC goal stay open.

@@ -259,6 +259,13 @@ namespace {
 		auto status() const noexcept -> application::diagnostic_log_status override { return Status; }
 	};
 
+	enum class install_witness_fault {
+		none,
+		omitted,
+		repeated,
+		changed_result,
+	};
+
 	struct shared_state
 	{
 		std::optional<application::git_smart_transport_failure> AcquireFailure;
@@ -321,7 +328,9 @@ namespace {
 		/// commit can find a session that is not the one it needs; while the
 		/// fixture's session always matched, the commit's own cache open was
 		/// unreachable (BPR-0459).
-		bool RetainedCacheSessionIsForeign = false;
+		bool                                              RetainedCacheSessionIsForeign = false;
+		install_witness_fault                             InstallWitnessFault           = install_witness_fault::none;
+		std::optional<application::epoch_catalog_failure> InstallFailure;
 		/// Failures for the *resolve* path rather than maintenance. A catalog
 		/// retained across a change of history names commits the cache can no
 		/// longer produce, and the question BPR-0200 asks is what a reviewer is
@@ -741,6 +750,9 @@ namespace {
 			State.Calls.emplace_back("catalog.imported");
 			if (aStop.stop_requested() || !State.Operation) {
 				return std::unexpected{ application::epoch_catalog_failure::cancelled };
+			}
+			if (State.InstallFailure) {
+				return std::unexpected{ *State.InstallFailure };
 			}
 			State.Operation->Install = aRequest.Install;
 			advance(application::epoch_catalog_operation_phase::imported);
@@ -1331,8 +1343,9 @@ namespace {
 		}
 
 		[[nodiscard]] auto prepare_revision(
-			const application::git_prepare_revision_request& aRequest,
-			const std::stop_token                            aStop)
+			const application::git_prepare_revision_request&                      aRequest,
+			const std::stop_token                                                 aStop,
+			const std::function<bool(const application::git_prepared_revision&)>& aWitness)
 			-> application::git_cache_result<
 				application::git_prepared_revision> override
 		{
@@ -1345,7 +1358,7 @@ namespace {
 					State.PrepareCacheFailures, "cache.prepare-revision")) {
 				return std::unexpected{ *failure };
 			}
-			return application::git_prepared_revision{
+			auto prepared = application::git_prepared_revision{
 				.Operation     = aRequest.Authorization.Operation,
 				.Pack          = aRequest.Authorization.ExpectedPack,
 				.InstalledPack = artifact(
@@ -1363,6 +1376,16 @@ namespace {
 				.HeadLineage   = core::head_lineage::not_applicable,
 				.ImportedBytes = 8U,
 			};
+			if (aWitness && State.InstallWitnessFault != install_witness_fault::omitted && !aWitness(prepared)) {
+				return std::unexpected{ application::git_cache_failure::authorization_mismatch };
+			}
+			if (aWitness && State.InstallWitnessFault == install_witness_fault::repeated) {
+				static_cast<void>(aWitness(prepared));
+			}
+			if (State.InstallWitnessFault == install_witness_fault::changed_result) {
+				prepared.InstalledPack.Identity.Bytes.back() ^= 1U;
+			}
+			return prepared;
 		}
 
 		[[nodiscard]] auto promote_retained(
@@ -6106,6 +6129,32 @@ namespace {
 			"and says so in the diagnostic the commit terminal publishes");
 	}
 
+	void installation_requires_one_exact_durable_witness()
+	{
+		for (const auto fault : { install_witness_fault::omitted, install_witness_fault::repeated, install_witness_fault::changed_result }) {
+			fixture value;
+			value.State.InstallWitnessFault = fault;
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+			drain(value);
+			expect(!value.State.Retained && !value.Host->state().PendingIngestion
+					   && std::ranges::count(value.State.Calls, "catalog.imported") == (fault == install_witness_fault::omitted ? 0 : 1)
+					   && std::ranges::count(value.State.Calls, "catalog.commit-authorized") == 0
+					   && has_diagnostic(value.State, core::epoch_reason_code::repair_required),
+				   "omitted, duplicate and changed installation witnesses cannot authorize retained refs");
+		}
+		for (const auto failure : { application::epoch_catalog_failure::unavailable, application::epoch_catalog_failure::cancelled }) {
+			fixture value;
+			value.State.InstallFailure = failure;
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+			drain(value);
+			expect(!value.State.Retained && !value.Host->state().PendingIngestion
+					   && std::ranges::count(value.State.Calls, "catalog.imported") == 1
+					   && std::ranges::count(value.State.Calls, "catalog.commit-authorized") == 0
+					   && has_diagnostic(value.State, failure == application::epoch_catalog_failure::cancelled ? core::epoch_reason_code::cancelled : core::epoch_reason_code::unavailable),
+				   "failed or cancelled install persistence stops preparation with its typed terminal");
+		}
+	}
+
 	void shutdown_waits_for_worker_and_decision_quiescence()
 	{
 		fixture value;
@@ -6131,6 +6180,7 @@ int main()
 	invalid_handoff_has_no_effects();
 	source_collision_retries_before_core_acceptance();
 	successful_append_preserves_exact_order();
+	installation_requires_one_exact_durable_witness();
 	projection_failure_is_contained_and_decision_progress_drains();
 	reentrant_projection_ingress_is_deferred_without_recursion();
 	epoch_host_limits_reject_invalid_capacity();

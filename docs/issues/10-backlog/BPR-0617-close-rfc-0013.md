@@ -35,15 +35,17 @@ performance subsystem or fabricate timing budgets before measurement.
 | Memory and cache usage remain within documented budgets and recover after closing/pruning reviews. | Measure process/cache retention through close and prune; justify hardware-specific thresholds before enforcing them. | Open; no RFC-wide passing result claimed. |
 | Primary and secondary rate-limit simulations produce bounded backoff and useful UI state. | Reuse and assess provider/host rate-limit fixtures and their visible projection; add uncovered backoff cases. | Open; no RFC-wide passing result claimed. |
 | Offline mode uses clearly labeled cached data and never implies freshness. | Inspect selected cached-data behavior and exercise explicit stale/offline presentation. | Open; no RFC-wide passing result claimed. |
-| Process-kill tests recover Git cache and SQLite state without corruption or duplicate mutations. | BPR-0616: `live_review_submission_provider` and `live_review_submission_restart_recovery` passed 2/2, including five SIGKILL courses, SQLite integrity and zero duplicate POSTs. BPR-0618 reproduces repair-required startup at partial fetch, completed spool and Git preparation; post-visibility recovery passes. In-transaction DB write and AI kill courses remain to be scoped. | Partial passing evidence in BPR-0616, implementation `72022b52`; full criterion remains open. |
+| Process-kill tests recover Git cache and SQLite state without corruption or duplicate mutations. | BPR-0616: `live_review_submission_provider` and `live_review_submission_restart_recovery` passed 2/2, including five SIGKILL courses, SQLite integrity and zero duplicate POSTs. BPR-0618 now recovers killed Git preparation and post-visibility state; partial fetch and completed-spool startup still fail with repair-required state. In-transaction DB write and AI kill courses remain to be scoped. | Partial passing evidence in BPR-0616, implementation `72022b52`; full criterion remains open. |
 | Fuzzers cover diff parsing/mapping, Markdown, settings/themes, API normalization, Git output parsing, and AI structured output. | Inventory custom parser entry points and add bounded fuzz targets/corpora for uncovered surfaces. | Open; no RFC-wide passing result claimed. |
 | Logging and diagnostics remain metadata-only under large/error conditions. | Reuse basic Quill metadata-only and bounded-backpressure evidence (BPR-0602, BPR-0606); assess pathological workloads. | Open; no RFC-wide passing result claimed. |
 | Architecture benchmarks and instrumentation prove active-set/changed-set scaling, serialized decision application, incremental Qt updates, deterministic cancellation, and stale-result rejection. | Reuse diff scale / host identity / incremental Qt evidence where inputs are unchanged; measure uncovered public paths. | Open; no RFC-wide passing result claimed. |
 
 ## Continuation
 
-BPR-0616 is complete. BPR-0618 now has a failing four-course kill harness;
-repair exact durable spool/install ownership before marking it Done. Then scope SQLite transaction/AI kill
+BPR-0616 is complete. BPR-0618 has repaired the post-preparation install
+journal gap; its four-course kill harness now passes prepared and visible
+recovery. Persist exact receiving/completed-spool ownership to repair the
+two remaining failures before marking it Done. Then scope SQLite transaction/AI kill
 courses and measured public-path performance gaps. Reuse unchanged direct
 evidence from earlier RFCs. Run only acceptance-focused local checks; no GitHub
 Actions, push, paid CI or live mutation is part of this work.

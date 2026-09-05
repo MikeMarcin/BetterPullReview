@@ -3162,8 +3162,9 @@ namespace bpr::adapters::git {
 			}
 
 			[[nodiscard]] auto prepare_revision(
-				const application::git_prepare_revision_request& aRequest,
-				const std::stop_token                            aStop)
+				const application::git_prepare_revision_request&                      aRequest,
+				const std::stop_token                                                 aStop,
+				const std::function<bool(const application::git_prepared_revision&)>& aWitness)
 				-> application::git_cache_result<
 					application::git_prepared_revision> override
 			{
@@ -3719,6 +3720,36 @@ namespace bpr::adapters::git {
 							repair_required
 					};
 				}
+				const auto prepared = application::git_prepared_revision{
+					.Operation     = aRequest.Receipt.Operation,
+					.Pack          = aRequest.Receipt.ExpectedPack,
+					.InstalledPack = {
+						.Role = application::git_artifact_role::
+							installed_pack,
+						.Identity = *durablePackIdentity,
+						.Bytes    = expectedPack->PackBytes,
+					},
+					.InstalledIndex = {
+						.Role     = application::git_artifact_role::installed_index,
+						.Identity = *durableIndexIdentity,
+						.Bytes    = expectedPack->IndexBytes,
+					},
+					.Base          = aRequest.Base,
+					.BaseTree      = core_tree(baseInspection->Tree),
+					.Head          = aRequest.Head,
+					.HeadTree      = core_tree(headInspection->Tree),
+					.HeadLineage   = headLineage,
+					.ImportedBytes = aRequest.Receipt.Spool.Bytes,
+				};
+				if (aWitness && !aWitness(prepared)) {
+					// The catalog may have committed despite an unavailable reply.
+					// Leave the installed objects and spool for exact recovery.
+					return std::unexpected{ application::git_cache_failure::authorization_mismatch };
+				}
+				if (!State->active_boundary_still_owned()
+					|| inspect_installed_pack_artifacts(State->Repository, aRequest.Receipt.ExpectedPack) != preparedArtifacts) {
+					return std::unexpected{ application::git_cache_failure::repair_required };
+				}
 				const std::array<application::git_ref_mutation, 2U>
 						   staging{
 							   application::git_ref_write{
@@ -3784,27 +3815,7 @@ namespace bpr::adapters::git {
 							repair_required
 					};
 				}
-				return application::git_prepared_revision{
-					.Operation     = aRequest.Receipt.Operation,
-					.Pack          = aRequest.Receipt.ExpectedPack,
-					.InstalledPack = {
-						.Role = application::git_artifact_role::
-							installed_pack,
-						.Identity = *durablePackIdentity,
-						.Bytes    = expectedPack->PackBytes,
-					},
-					.InstalledIndex = {
-						.Role     = application::git_artifact_role::installed_index,
-						.Identity = *durableIndexIdentity,
-						.Bytes    = expectedPack->IndexBytes,
-					},
-					.Base          = aRequest.Base,
-					.BaseTree      = core_tree(baseInspection->Tree),
-					.Head          = aRequest.Head,
-					.HeadTree      = core_tree(headInspection->Tree),
-					.HeadLineage   = headLineage,
-					.ImportedBytes = aRequest.Receipt.Spool.Bytes,
-				};
+				return prepared;
 			}
 
 			[[nodiscard]] auto promote_retained(

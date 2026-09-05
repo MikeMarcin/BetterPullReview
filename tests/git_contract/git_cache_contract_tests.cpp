@@ -1080,6 +1080,72 @@ namespace {
 		require(last.has_value(), "append final pack fragment");
 	}
 
+	auto verify_refused_installation_witness(
+		application::git_cache_port& aCache,
+		const std::filesystem::path& aRoot,
+		const std::filesystem::path& aExecutable) -> void
+	{
+		const auto cacheRequest = request(0xb7U, 0xb8U);
+		auto       opened       = aCache.open(cacheRequest, { });
+		require(opened.has_value(), "open installation refusal cache");
+		auto&      session   = **opened;
+		const auto operation = identity<core::epoch_operation_id>(0xb7U);
+		auto       sink      = session.create_pack_sink(operation, sha1_pack.size(), { });
+		require(sink.has_value(), "create installation refusal spool");
+		append_pack(**sink, sha1_pack);
+		const auto receipt = (*sink)->finish({ });
+		require(receipt.has_value(), "finish installation refusal spool");
+		sink->reset();
+		const auto inventory = session.observe_preimport(*receipt, { });
+		const auto commit    = core::parse_git_commit_oid(sha1_commit_hex);
+		require(inventory.has_value() && commit.has_value(), "observe installation refusal inventory");
+		const auto  repository     = repository_path(aRoot, cacheRequest);
+		const auto  spool          = aRoot / "incoming" / "v1" / (lower_hex(operation.bytes()) + ".pack.part");
+		std::size_t witnesses      = 0U;
+		const auto  prepareRequest = application::git_prepare_revision_request{
+			.Receipt       = *receipt,
+			.Inventory     = *inventory,
+			.Authorization = {
+				.CatalogIncarnation      = identity<core::epoch_catalog_incarnation_id>(0xb7U),
+				.ExpectedCatalogRevision = core::epoch_catalog_revision{ 0 },
+				.Operation               = operation,
+				.ExpectedPack            = receipt->ExpectedPack,
+				.ReceiptToken            = receipt->OpaqueToken,
+				.InventoryToken          = inventory->OpaqueToken,
+				.DurableRecordToken      = token(0xb7U),
+			},
+			.Base = *commit,
+			.Head = *commit,
+		};
+		const auto refuseInstallation = [&](const application::git_prepared_revision& aInstallation) {
+			++witnesses;
+			require(application::valid(aInstallation) && aInstallation.Pack == receipt->ExpectedPack,
+					"refused witness receives complete installation facts");
+			return false;
+		};
+		const auto prepared = session.prepare_revision(prepareRequest, { }, refuseInstallation);
+		const auto refs     = run_fixture_git(aExecutable, aRoot,
+											  { "--git-dir=" + QString::fromStdString(repository.string()), "for-each-ref" });
+		const auto pack     = repository / "objects" / "pack" / ("pack-" + std::string{ sha1_pack_hex } + ".pack");
+		const auto index    = repository / "objects" / "pack" / ("pack-" + std::string{ sha1_pack_hex } + ".idx");
+		require(!prepared && prepared.error() == application::git_cache_failure::authorization_mismatch
+					&& witnesses == 1U && refs.Output.isEmpty()
+					&& std::filesystem::file_size(spool) == sha1_pack.size()
+					&& std::filesystem::file_size(pack) == sha1_pack.size()
+					&& std::filesystem::file_size(index) > 0U,
+				"refusal preserves possibly journaled spool and install artifacts without staging refs");
+		require(session.abort_operation(operation, { }).has_value(), "clean exact refusal fixture operation after inspection");
+		opened->reset();
+		require(aCache.delete_cache(cacheRequest, {
+													  .ApplicationSession = cacheRequest.ApplicationSession,
+													  .Cache              = cacheRequest.Authority.Cache,
+													  .DurableIntentToken = token(0xb8U),
+												  },
+									{ })
+					.has_value(),
+				"delete isolated installation refusal cache after verification");
+	}
+
 	auto verify_descendant_lineage(
 		application::git_cache_port& aCache,
 		const force_push_fixture&    aDescendant) -> void
@@ -1288,6 +1354,7 @@ namespace {
 		});
 		require(cache.has_value(), "construct installed Git cache");
 		verify_descendant_lineage(**cache, descendant);
+		verify_refused_installation_witness(**cache, root.Path, executable);
 
 		const auto crossProcessRequest = request(0x36U, 0x46U);
 		const auto lockReady           = root.Path / "cross-process-lock-ready";
@@ -2410,7 +2477,8 @@ namespace {
 						authorization_mismatch,
 			"caller cannot forge preimport authorization facts");
 
-		const auto prepared = (*primary)->prepare_revision(
+		std::size_t installationWitnesses = 0U;
+		const auto  prepared              = (*primary)->prepare_revision(
 			application::git_prepare_revision_request{
 				.Receipt       = *receipt,
 				.Inventory     = *observation,
@@ -2418,7 +2486,16 @@ namespace {
 				.Base          = *commit,
 				.Head          = *commit,
 			},
-			{ });
+			{ }, [&](const application::git_prepared_revision& aInstallation) {
+				++installationWitnesses;
+				const auto refs = run_fixture_git(executable, root.Path,
+												  { "--git-dir=" + QString::fromStdString(primaryRepository.string()), "for-each-ref" });
+				require(application::valid(aInstallation) && aInstallation.Pack == receipt->ExpectedPack
+							&& refs.Output.isEmpty() && std::filesystem::is_regular_file(completedSpool),
+						"exact installation witness precedes staging refs and completed spool removal");
+				return true;
+			});
+		require(installationWitnesses == 1U, "installation witness runs exactly once");
 		require(
 			prepared.has_value() && application::valid(*prepared)
 				&& prepared->BaseTree == *tree

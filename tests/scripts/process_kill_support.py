@@ -9,13 +9,13 @@ import subprocess
 import time
 
 
-def run(executable: Path, phase: str, root: Path) -> str:
+def run(executable: Path, phase: str, root: Path, *, timeout: float = 15) -> str:
     completed = subprocess.run(
         [str(executable), phase, str(root)],
         check=False,
         capture_output=True,
         text=True,
-        timeout=15,
+        timeout=timeout,
     )
     if completed.returncode != 0:
         raise RuntimeError(

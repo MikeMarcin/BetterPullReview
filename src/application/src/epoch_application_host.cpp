@@ -5222,49 +5222,63 @@ namespace bpr::application {
 						.Head      = aRequest.Context.Revision.Head,
 						.PriorHead = priorHead,
 					};
+					const auto normalizeLineage = [&](git_prepared_revision aPrepared) {
+						if (snapshot->LatestLive
+							&& snapshot->LatestLive->Head != aRequest.Context.Revision.Head
+							&& snapshot->LatestLive->HeadAvailability != core::anchor_availability::available) {
+							aPrepared.HeadLineage = core::head_lineage::unknown;
+						}
+						return aPrepared;
+					};
+					bool                               witnessed        = false;
+					bool                               witnessCancelled = false;
+					std::optional<core::epoch_failure> witnessFailure;
+					const auto                         persistInstallation = [&](const git_prepared_revision& aInstallation) {
+						if (witnessed || witnessFailure || witnessCancelled
+							|| !exact_prepared_revision(aInstallation, gitRequest)) {
+							witnessFailure = core::epoch_failure::repair_required;
+							return false;
+						}
+						const auto installRequest = record_install_request{
+							.Catalog                   = expectedCatalog,
+							.Operation                 = prepared.Operation,
+							.ExpectedOperationRevision = prepared.Record->OperationRevision,
+							.Install                   = durable_fact(normalizeLineage(aInstallation)),
+						};
+						const auto installed = diagnostics.perform(diagnostic_epoch_stage::catalog_prepare,
+																   [&] { return context->Catalog->record_install(installRequest, aStop); });
+						if (!installed) {
+							witnessCancelled = installed.error() == epoch_catalog_failure::cancelled;
+							witnessFailure   = catalog_failure(installed.error());
+							return false;
+						}
+						if (!exact_install_record(*prepared.Record, *installed, installRequest)) {
+							witnessFailure = core::epoch_failure::repair_required;
+							return false;
+						}
+						prepared.Record = *installed;
+						witnessed       = true;
+						return true;
+					};
 					auto git = diagnostics.perform(
 						diagnostic_epoch_stage::revision_prepare,
-						[&] { return context->Actor->Cache->prepare_revision(
-								  gitRequest, aStop); });
+						[&] { return context->Actor->Cache->prepare_revision(gitRequest, aStop, persistInstallation); });
+					if (witnessFailure) {
+						return witnessCancelled ? cancelPrepared() : failPrepared(*witnessFailure);
+					}
 					if (!git) {
 						return git.error() == git_cache_failure::cancelled
 							? cancelPrepared()
 							: failPrepared(cache_failure(git.error()));
 					}
-					if (!exact_prepared_revision(*git, gitRequest)) {
-						return failPrepared(
-							core::epoch_failure::repair_required);
+					if (!witnessed || !exact_prepared_revision(*git, gitRequest)) {
+						return failPrepared(core::epoch_failure::repair_required);
 					}
-					if (
-						snapshot->LatestLive
-						&& snapshot->LatestLive->Head
-							!= aRequest.Context.Revision.Head
-						&& snapshot->LatestLive->HeadAvailability
-							!= core::anchor_availability::available) {
-						git->HeadLineage = core::head_lineage::unknown;
+					*git = normalizeLineage(*git);
+					if (prepared.Record->Install != durable_fact(*git)) {
+						return failPrepared(core::epoch_failure::repair_required);
 					}
-					prepared.Git              = *git;
-					const auto installRequest = record_install_request{
-						.Catalog                   = expectedCatalog,
-						.Operation                 = prepared.Operation,
-						.ExpectedOperationRevision = prepared.Record->OperationRevision,
-						.Install                   = durable_fact(*git),
-					};
-					record = diagnostics.perform(
-						diagnostic_epoch_stage::catalog_prepare,
-						[&] { return context->Catalog->record_install(
-								  installRequest, aStop); });
-					if (!record) {
-						return record.error() == epoch_catalog_failure::cancelled
-							? cancelPrepared()
-							: failPrepared(catalog_failure(record.error()));
-					}
-					if (!exact_install_record(
-							*prepared.Record, *record, installRequest)) {
-						return failPrepared(
-							core::epoch_failure::repair_required);
-					}
-					prepared.Record    = *record;
+					prepared.Git       = *git;
 					const auto staging = diagnostics.perform(
 						diagnostic_epoch_stage::catalog_prepare,
 						[&] { return advance_append(

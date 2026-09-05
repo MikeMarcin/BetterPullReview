@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
@@ -655,9 +656,15 @@ namespace bpr::application {
 			std::stop_token                   aStop)
 			-> git_cache_result<git_preimport_observation> = 0;
 
+		// When supplied, the witness runs synchronously on the effect worker after
+		// object validation and before staging refs/spool deletion. It must durably
+		// record the exact installation before returning true. A refusal preserves
+		// potentially journaled artifacts for recovery. The witness must not reenter
+		// this cache session while preparation holds its operation lock.
 		[[nodiscard]] virtual auto prepare_revision(
-			const git_prepare_revision_request& aRequest,
-			std::stop_token                     aStop)
+			const git_prepare_revision_request&                      aRequest,
+			std::stop_token                                          aStop,
+			const std::function<bool(const git_prepared_revision&)>& aWitness = { })
 			-> git_cache_result<git_prepared_revision> = 0;
 
 		[[nodiscard]] virtual auto promote_retained(

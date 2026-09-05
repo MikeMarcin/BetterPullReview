@@ -836,9 +836,15 @@ visibility authority:
    its pack identity, a short catalog transaction records that identity, the
    bounded pre-import pack inventory, and preexisting-pack fact before
    `index-pack` starts.
-3. Import and verify the exact accepted objects, create the paired staging
+3. Import and verify the exact accepted objects. Before creating paired
+   staging refs or deleting the spool, the cache synchronously offers its exact
+   installation facts to the host's witness on the effect worker. The host
+   validates and persists those facts with `record_install`; preparation
+   proceeds only after the witness accepts. A refusal preserves possibly
+   journaled artifacts for recovery. The cache then creates the paired staging
    refs with one expected-value ref transaction and the selected full
-   durability policy, then exact-delete the spool.
+   durability policy, and exact-deletes the spool. The host requires the final
+   prepared result to match the persisted installation.
 4. Return only bounded lineage, tree, alias, and catalog facts to the
    serialized decision lane.
 5. After an exact core commit authorization, a catalog transaction rechecks

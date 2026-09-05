@@ -86,10 +86,10 @@ def main() -> int:
                     receiving = list((course / "git").rglob("*.pack.receiving"))
                     if len(receiving) != 1 or receiving[0].stat().st_size != 115:
                         raise RuntimeError("fetch kill did not interrupt a half-written pack")
-                if "--recover-epoch:pass" not in run(args.executable, "--recover-epoch", course):
+                if "--recover-epoch:pass" not in run(args.executable, "--recover-epoch", course, timeout=30):
                     raise RuntimeError(f"{boundary}: missing recovered host result")
                 first = inspect_recovered_state(args.git, course)
-                if "--recover-epoch:pass" not in run(args.executable, "--recover-epoch", course):
+                if "--recover-epoch:pass" not in run(args.executable, "--recover-epoch", course, timeout=30):
                     raise RuntimeError(f"{boundary}: missing repeated recovery result")
                 if inspect_recovered_state(args.git, course) != first:
                     raise RuntimeError(f"{boundary}: another restart changed retained refs")
