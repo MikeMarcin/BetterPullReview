@@ -286,3 +286,10 @@ Current next slice: [[BPR-0609]], exposing Publish/Discard as real controls.
 The source action existed without a user-accessible button/menu, discovered
 before v010 was materialized or launched. BPR-0256 is queued behind this repair;
 no further user approval is requested for equivalent continuation.
+
+BPR-0609 completed the public Publish/Discard controls at `a35eccaa`. Focused
+Qt checks and rendered editor inspection passed, and the rebuilt capsule passed
+its mounted preflight. Current checkpoint is
+[v011](reviews/designated-live-review-publication-v011/operator-packet.md); v010
+never launched. BPR-0256 resumes the same one-comment scope under standing owner
+authority, with remembered sign-in retained. No publication evidence yet.

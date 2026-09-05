@@ -1,7 +1,7 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560, BPR-0606, BPR-0607, BPR-0608, BPR-0609]
 ---
@@ -1332,3 +1332,9 @@ Before v010 approval materialization, UI source inspection found Publish is
 only a QAction attached to a QWidget: no visible button, shortcut or context
 menu exposes it. BPR-0609 owns the contained control repair. The candidate has
 not launched and its fresh approval is unspent; do not launch that obsolete UI.
+
+Current publication checkpoint: [v011](../../verification/reviews/designated-live-review-publication-v011/operator-packet.md)
+after BPR-0609 exposed the existing Publish/Discard actions as buttons. V010 was
+reviewed but never materialized/launched. Its generated artifacts were removed.
+Standing owner instructions remain the authority; no new user question is needed.
+Current next slice: BPR-0256 exact v011 command check and one-comment execution.

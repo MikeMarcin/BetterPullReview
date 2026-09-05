@@ -118,3 +118,9 @@ Current next slice: [[BPR-0609]], exposing Publish/Discard as real controls.
 The source action existed without a user-accessible button/menu, discovered
 before v010 was materialized or launched. BPR-0256 is queued behind this repair;
 no further user approval is requested for equivalent continuation.
+
+Current publication checkpoint: [v011](../../verification/reviews/designated-live-review-publication-v011/operator-packet.md)
+after BPR-0609 exposed the existing Publish/Discard actions as buttons. V010 was
+reviewed but never materialized/launched. Its generated artifacts were removed.
+Standing owner instructions remain the authority; no new user question is needed.
+Current next slice: BPR-0256 exact v011 command check and one-comment execution.

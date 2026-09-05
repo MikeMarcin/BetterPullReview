@@ -1,7 +1,7 @@
 ---
 id: BPR-0609
 title: Expose review publication controls
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0608]
 ---
@@ -42,3 +42,5 @@ fields can increase the standalone minimum height; this slice proves the control
 remain in the first 220 pixels, not a whole-editor 220-pixel layout claim.
 Scoped strict tidy, format, code-simplifier inspection and documentation pass.
 Release/capsule rebuild is the remaining consumer before returning to BPR-0256.
+
+Release and signed capsule rebuilt at `a35eccaa`; mounted preflight passed and detached. BPR-0609 is complete.

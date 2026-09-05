@@ -313,3 +313,9 @@ a fresh rebuilt one-use candidate after the proven BPR-0608 history fix.
 Standing owner authorization supplies continuation without another question;
 remembered sign-in is preserved on quit. Exact prelaunch review remains pending;
 no publication result or human acceptance is claimed. Earlier packets stay frozen.
+
+Current publication checkpoint: [v011](../../verification/reviews/designated-live-review-publication-v011/operator-packet.md)
+after BPR-0609 exposed the existing Publish/Discard actions as buttons. V010 was
+reviewed but never materialized/launched. Its generated artifacts were removed.
+Standing owner instructions remain the authority; no new user question is needed.
+Current next slice: BPR-0256 exact v011 command check and one-comment execution.
