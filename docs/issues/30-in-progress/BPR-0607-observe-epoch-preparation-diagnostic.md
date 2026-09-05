@@ -1,10 +1,9 @@
 ---
 id: BPR-0607
 title: Observe the epoch-preparation diagnostic on macOS
-status: Parked
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0606]
-parked_on: awaiting-owner-verdict
 ---
 
 # Observe the epoch-preparation diagnostic on macOS
@@ -35,3 +34,12 @@ The executable hash/length were read after build and match the packet. Reuse
 these unchanged results; no full matrix, platform expansion or new code is
 needed for this checkpoint. Existing ordinary Release output is the pending
 consumer's candidate; no separate build tree or worktree was created.
+
+## Owner resumed diagnostics — 2026-09-05
+
+The owner explicitly said to go ahead without waiting for approvals for actions
+already performed under earlier approvals. The actual instruction is retained
+in the checkpoint response. The prepared hash revalidated and no app process
+exists. Resume this bounded PR-read course and equivalent diagnostic follow-ups
+without another digest ceremony; preserve actual build/outcome records and
+explicit Sign out/quit. No publication grant is introduced.
