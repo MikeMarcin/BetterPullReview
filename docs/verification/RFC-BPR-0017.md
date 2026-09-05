@@ -2,11 +2,11 @@
 
 RFC base: `a45750f6bd84716240aa27a20f0734f33808ab8e`
 
-Current RFC status: `Proposed`
+Current RFC status: `Auto-Verified`
 
-The eligibility gates below are satisfied; the claim matrix awaits final
-closeout reconciliation. Individual executed rows below name their evidence;
-rows still marked pending are not passing evidence. BPR-0298 measured the
+The eligibility gates and claim matrix are satisfied by the named focused
+evidence. BPR-0309 records clean independent review of candidate `d9006237`
+and the explicit platform and verification limits. BPR-0298 measured the
 anonymous service, BPR-0299 decided to build on those measurements, and
 BPR-0312 bound the four definitions that decision left owed. RFC-BPR-0016
 remains the answer for anyone who signs in; this RFC is the credential-optional
@@ -27,16 +27,16 @@ profile beside it.
 
 | State | Claim | Owner | Durable final evidence |
 |---|---|---|---|
-| [ ] | Existing provider/normalizer opens a public PR without a parallel path. | BPR-0302, BPR-0305, BPR-0306 | Tests-disabled recorded-contract composition |
-| [ ] | Credential-free public Git/cache/epoch authority renders exact selected-file diff content. | BPR-0317, BPR-0304, BPR-0305, BPR-0306 | Discriminated authenticated/anonymous authority, versioned SQLite migration, installed-Git/SQLite restart, and real rendered selected-file course |
-| [ ] | GraphQL and viewer requests refuse before construction. | BPR-0300, BPR-0301, BPR-0306 | Admission and transport counters |
-| [ ] | Shape/capabilities are unavailable rather than defaulted. | BPR-0300, BPR-0302, BPR-0304 | Core/normalizer/projection/Qt negatives |
-| [ ] | Vault and authorization are untouched. | BPR-0301, BPR-0303, BPR-0306 | Positive vault/header canaries |
-| [ ] | Rate limits are typed and not retried. | BPR-0298, BPR-0302, BPR-0303 | Recorded fixture and controlled host course |
-| [ ] | 404 is existence-neutral. | BPR-0298, BPR-0302, BPR-0304 | Provider/Qt private-or-missing course |
-| [ ] | GHES refusal sends zero requests. | BPR-0301, BPR-0305 | Tests-disabled profile counters |
-| [ ] | Mode switching invalidates all identity-sensitive state. | BPR-0303, BPR-0305 | Two-mode host/application course |
-| [ ] | Evidence is local/target-native with exact platform availability. | BPR-0306, BPR-0314, BPR-0315, BPR-0316, BPR-0309 | Clean build/runtime/platform ledger |
+| [x] | Existing provider/normalizer opens a public PR without a parallel path. | BPR-0302, BPR-0305, BPR-0306 | Tests-disabled recorded-contract composition |
+| [x] | Credential-free public Git/cache/epoch authority renders exact selected-file diff content. | BPR-0317, BPR-0304, BPR-0305, BPR-0306 | Discriminated authenticated/anonymous authority, versioned SQLite migration, installed-Git/SQLite restart, and real rendered selected-file course |
+| [x] | GraphQL and viewer requests refuse before construction. | BPR-0300, BPR-0301, BPR-0306 | Admission and transport counters |
+| [x] | Shape/capabilities are unavailable rather than defaulted. | BPR-0300, BPR-0302, BPR-0304 | Core/normalizer/projection/Qt negatives |
+| [x] | Vault and authorization are untouched. | BPR-0301, BPR-0303, BPR-0306 | Positive vault/header canaries |
+| [x] | Rate limits are typed and not retried. | BPR-0298, BPR-0302, BPR-0303 | Recorded fixture and controlled host course |
+| [x] | 404 is existence-neutral. | BPR-0298, BPR-0302, BPR-0304 | Provider/Qt private-or-missing course |
+| [x] | GHES refusal sends zero requests. | BPR-0301, BPR-0305 | Tests-disabled profile counters |
+| [x] | Mode switching invalidates all identity-sensitive state. | BPR-0303, BPR-0305 | Two-mode host/application course |
+| [x] | Evidence is local/target-native with exact platform availability. | BPR-0306, BPR-0314, BPR-0315, BPR-0316, BPR-0309 | Clean build/runtime/platform ledger |
 
 ## Documentation impact ledger
 
@@ -85,8 +85,8 @@ commit; this Mac run does not claim a final native replay on either platform.
 | Core-only and sanitizer scope | Retain historical BPR-0300 core anonymous test/112-test core-only result and BPR-0306 four-selector ASan/UBSan provenance; use current focused dev evidence for changed composition/host inputs | Historical passing results, not a current sanitizer claim. No clean replay claimed. BPR-0541 separately rechecked changed core request identity and dependency boundaries 5/5 | BPR-0300, BPR-0306, `141250a6` |
 | macOS native enablement and public-service demonstration | BPR-0316 before/after nineteen-selector course and the separately authorized capped native read of MikeMarcin/BPR-Test#1 | Pass: nine HTTP 200 responses, zero credential/header/vault effects; no additional live read at closeout | `a319dd51`, public head `17990ba0c2fb50338141f35c0717f0f99639c7ba` |
 | Linux and Windows platform policy | Reuse native unavailable courses; keep selection unavailable | Linux seventeen selectors/222 s and Windows fifteen selectors/1,136 s at their owning commits; final-head native replays omitted here | BPR-0314/BPR-0315 |
-| Documentation, scope and hygiene | `python3 scripts/verify_documentation.py --root .`; `python3 tests/scripts/verify_documentation_tests.py`; `git diff --check`; exact base-to-candidate path reconciliation | Pending final status reconciliation; 54 validator tests already pass unchanged | BPR-0308, BPR-0309; changed C++ format/tidy and boundaries retained on BPR-0558/BPR-0541 |
-| Capability-critical review | One native `rfc-critical-reviewer` on the committed candidate; only contained findings trigger narrow rechecks | Pending | BPR-0309 review record |
+| Documentation, scope and hygiene | `python3 scripts/verify_documentation.py --root .`; `python3 tests/scripts/verify_documentation_tests.py`; `git diff --check`; exact base-to-candidate path reconciliation | Pass at closeout; 54 validator tests pass unchanged | BPR-0308, BPR-0309; changed C++ format/tidy and boundaries retained on BPR-0558/BPR-0541 |
+| Capability-critical review | One native `rfc-critical-reviewer` on the committed candidate; only contained findings trigger narrow rechecks | Clean review of immutable `d9006237`; no blockers or in-scope follow-ups | BPR-0309 review record |
 
 The no-write external validation commands (already passed, unchanged inputs) are:
 
@@ -156,3 +156,20 @@ product head `670726f9` plus this documentation slice. Each row names its owning
 RFC/workstream, an update or no-impact disposition, and source commit references.
 This is the path ledger explicitly required by BPR-0308; it is not a new test or
 release gate. BPR-0309 reconciles later changed paths at final closeout.
+
+## BPR-0309 closeout — 2026-09-04
+
+The initial nineteen-selector run passed eighteen tests and exposed the new
+invalidation request-ID integration mismatch. The helper now carries the
+caller-issued core identity; the original non-default-ID equality check remains
+intact. Core policy, anonymous host and the direct composed public path then
+passed 3/3 in 0.99 seconds. Current Release checks passed in 1.89 seconds, with
+zero effects for enabled GitHub.com and refused GHES. Strict tidy for the two
+changed translation units, format, boundaries, documentation and diff gates
+passed. Unchanged external verdict/capture inputs retain their read-only
+validation; broad historical matrices are not presented as new evidence.
+
+One native capability-critical reviewer accepted candidate `d9006237` with no
+blocker. The integrator records the explicit exclusions and closes this RFC.
+The exact path ledger is reconciled through this status slice, including later
+BPR-0541 policy work and BPR-0256's separate claim as out-of-scope ownership.

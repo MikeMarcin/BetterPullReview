@@ -1,7 +1,7 @@
 ---
 id: RFC-BPR-0017
 title: Unauthenticated Public Review Read
-status: Proposed
+status: Auto-Verified
 area: BPR
 milestone: Post-Pack v2
 depends_on: [RFC-BPR-0002]
@@ -14,9 +14,9 @@ pack_version: post-v2
 
 The anonymous-service measurements and the owner's positive build decision
 are recorded, and the implementation now enables Public preview on macOS.
-Linux and Windows retain verified unavailable selections. RFC status remains
-Proposed until BPR-0309 reconciles acceptance, documentation, and closeout
-evidence; implementation progress does not itself close this RFC.
+Linux and Windows retain verified unavailable selections. BPR-0309 closed the
+RFC on 2026-09-04 with focused macOS acceptance evidence and clean independent
+review of `d9006237`; its ledger records omitted matrices and platform limits.
 
 The current read catalog adds REST inline review comments to the existing
 provider/pager/normalizer. Public preview admits nine REST operation kinds,
