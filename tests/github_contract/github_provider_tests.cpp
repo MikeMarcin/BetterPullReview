@@ -1388,12 +1388,12 @@ namespace {
 					   && error->CapabilityDetail == application::bounded_capability_diagnostic(detail),
 				   "provider preserves only bounded capability detail without changing failure policy");
 		}
-		for (const auto detail : { diagnostic::graphql_errors, diagnostic::provider_rate_tuple, diagnostic::provider_retry_metadata, diagnostic::provider_correlation }) {
+		for (const auto detail : { diagnostic::graphql_code_forbidden, diagnostic::provider_rate_tuple, diagnostic::provider_retry_metadata, diagnostic::provider_correlation }) {
 			fixture.Transport->CapabilityHandler = [detail](const github_capability_probe_wire_request& aWire, std::stop_token) {
 				auto response    = supported_capability_response();
 				auto correlation = aWire.Correlation;
-				if (detail == diagnostic::graphql_errors) {
-					response.Body = R"({"errors":[]})";
+				if (detail == diagnostic::graphql_code_forbidden) {
+					response.Body = R"({"errors":[{"extensions":{"code":"FORBIDDEN"},"message":"fixture-secret-marker"}]})";
 				}
 				if (detail == diagnostic::provider_rate_tuple) {
 					response.RateLimitHeaderCount = 0U;

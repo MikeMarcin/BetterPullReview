@@ -477,6 +477,125 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
+		[[nodiscard]] auto graphql_error_code_detail(const QString& aCode)
+			-> application::github_capability_diagnostic
+		{
+			if (aCode == QStringLiteral("FORBIDDEN")) {
+				return application::github_capability_diagnostic::graphql_code_forbidden;
+			}
+			if (aCode == QStringLiteral("UNAUTHORIZED")) {
+				return application::github_capability_diagnostic::graphql_code_unauthorized;
+			}
+			if (aCode == QStringLiteral("NOT_FOUND")) {
+				return application::github_capability_diagnostic::graphql_code_not_found;
+			}
+			if (aCode == QStringLiteral("MAX_NODE_LIMIT_EXCEEDED")) {
+				return application::github_capability_diagnostic::graphql_code_max_node_limit_exceeded;
+			}
+			if (aCode == QStringLiteral("INTERNAL")) {
+				return application::github_capability_diagnostic::graphql_code_internal;
+			}
+			if (aCode == QStringLiteral("SERVICE_UNAVAILABLE")) {
+				return application::github_capability_diagnostic::graphql_code_service_unavailable;
+			}
+			if (aCode == QStringLiteral("GRAPHQL_PARSE_FAILED")) {
+				return application::github_capability_diagnostic::graphql_code_parse_failed;
+			}
+			if (aCode == QStringLiteral("GRAPHQL_VALIDATION_FAILED")) {
+				return application::github_capability_diagnostic::graphql_code_validation_failed;
+			}
+			if (aCode == QStringLiteral("undefinedField")) {
+				return application::github_capability_diagnostic::graphql_code_undefined_field;
+			}
+			if (aCode == QStringLiteral("argumentNotAccepted")) {
+				return application::github_capability_diagnostic::graphql_code_argument_not_accepted;
+			}
+			if (aCode == QStringLiteral("undefinedType")) {
+				return application::github_capability_diagnostic::graphql_code_undefined_type;
+			}
+			if (aCode == QStringLiteral("selectionMismatch")) {
+				return application::github_capability_diagnostic::graphql_code_selection_mismatch;
+			}
+			if (aCode == QStringLiteral("variableMismatch")) {
+				return application::github_capability_diagnostic::graphql_code_variable_mismatch;
+			}
+			if (aCode == QStringLiteral("variableNotUsed")) {
+				return application::github_capability_diagnostic::graphql_code_variable_not_used;
+			}
+			if (aCode == QStringLiteral("variableRequiresValidType")) {
+				return application::github_capability_diagnostic::graphql_code_variable_requires_valid_type;
+			}
+			if (aCode == QStringLiteral("variableNotDefined")) {
+				return application::github_capability_diagnostic::graphql_code_variable_not_defined;
+			}
+			return application::github_capability_diagnostic::graphql_errors;
+		}
+
+		// This refines presentation only after the existing non-rate refusal.
+		// Neither message/location/path nor unrecognized strings leave this parser.
+		[[nodiscard]] auto graphql_error_detail(const QJsonValue& aErrors) noexcept
+			-> application::github_capability_diagnostic
+		{
+			try {
+				using diagnostic = application::github_capability_diagnostic;
+				if (!aErrors.isArray()) {
+					return diagnostic::graphql_errors_not_array;
+				}
+				const auto errors = aErrors.toArray();
+				if (errors.isEmpty()) {
+					return diagnostic::graphql_errors_empty;
+				}
+				std::optional<diagnostic> selected;
+				bool                      unknown       = false;
+				bool                      mixed         = false;
+				std::size_t               markerCount   = 0U;
+				const auto                observeMarker = [&](const QJsonValue& aMarker) {
+					++markerCount;
+					if (!aMarker.isString()) {
+						return false;
+					}
+					const auto detail = graphql_error_code_detail(aMarker.toString());
+					if (detail == diagnostic::graphql_errors) {
+						unknown = true;
+					} else if (selected && *selected != detail) {
+						mixed = true;
+					} else {
+						selected = detail;
+					}
+					return true;
+				};
+				for (const auto& value : errors) {
+					if (!value.isObject()) {
+						return diagnostic::graphql_errors_malformed;
+					}
+					const auto entry  = value.toObject();
+					const auto before = markerCount;
+					if (entry.contains("type") && !observeMarker(entry.value("type"))) {
+						return diagnostic::graphql_errors_malformed;
+					}
+					if (entry.contains("extensions")) {
+						if (!entry.value("extensions").isObject()) {
+							return diagnostic::graphql_errors_malformed;
+						}
+						const auto extensions = entry.value("extensions").toObject();
+						for (const auto* key : { "type", "code" }) {
+							if (extensions.contains(key) && !observeMarker(extensions.value(key))) {
+								return diagnostic::graphql_errors_malformed;
+							}
+						}
+					}
+					unknown = unknown || markerCount == before;
+				}
+				if (mixed || (unknown && (selected || markerCount > 1U || errors.size() > 1))) {
+					return diagnostic::graphql_errors_mixed;
+				}
+				return selected.value_or(diagnostic::graphql_errors);
+			} catch (...) {
+				// Diagnostic allocation/inspection must not change refusal policy.
+				return application::github_capability_diagnostic::graphql_errors;
+			}
+		}
+
 		[[nodiscard]] auto valid_limits(const capability_probe_limits& aLimits) noexcept
 			-> bool
 		{
@@ -2306,7 +2425,7 @@ namespace bpr::adapters::github::detail {
 						capability_probe_unavailability::rate_limit, application::github_capability_diagnostic::graphql_errors);
 				}
 				return unavailable(
-					capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_errors);
+					capability_probe_unavailability::partial_response, graphql_error_detail(envelope.value("errors")));
 			}
 			if (
 				!envelope.contains("data")

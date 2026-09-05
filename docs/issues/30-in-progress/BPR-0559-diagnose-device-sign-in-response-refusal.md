@@ -172,3 +172,38 @@ The category locates the `envelope.contains("errors")` branch after native
 metadata admission and JSON parsing. The error contents were not retained;
 no particular GraphQL rejection or root repair is established. V002 authority
 is consumed. Continue bounded offline query/error-contract investigation.
+
+## Exact GraphQL code discriminator verified
+
+The non-rate error branch now reports sixteen exact allowlisted code tokens
+from `type`, `extensions.type` or `extensions.code`, using fixed Qt text.
+Every entry and supplied marker must agree; unknown or conflicting markers
+remain generic or mixed/unclassified. Empty/non-array error fields and malformed
+entries have separate fixed categories. Messages, paths, locations and unknown
+strings are never displayed or copied. This reports a recognized token without
+asserting a root cause or a stable provider vocabulary. Existing rate-limit
+precedence, refusal semantics, schema acceptance and credential cleanup are
+unchanged.
+
+Dev and tests-disabled Release incremental builds pass. Worker checks passed
+5/5 in 5.37 seconds; integrator reproduction passed 5/5 in 3.85 seconds:
+
+```sh
+ctest --test-dir build/dev --output-on-failure -R '^(github_capability_probe|github_provider|qt_composed_github_scale_(100|125|200))$'
+```
+
+Tests cover all three marker positions, agreement across records, conflicting
+and unknown markers, synthetic secret values, malformed/empty shapes, unchanged
+rate precedence and supported normalization, production provider forwarding,
+fixed visible/copied text and replacement clearing. The complete six-file diff
+and rendered FORBIDDEN fixture were inspected. This render is synthetic, not the
+live v002 result. Scoped strict tidy across five TUs, six-file formatting,
+code-simplifier review and diff hygiene pass. The initial build exposed a
+test-only QJsonObject/QJsonDocument helper mismatch, corrected before final
+passing verification. No full matrix, additional independent review or live
+request ran; the narrow change reuses the existing accepted diagnostic pipeline.
+
+All six consumed `/tmp/bpr0559-codes-*.log` files were reviewed and removed.
+Existing dev/Release roots and ignored renders remain reused. No temporary
+worktree was created. Root-repair acceptance remains open. Further live
+observation requires approval for the exact changed executable.

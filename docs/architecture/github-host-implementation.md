@@ -728,6 +728,17 @@ request; stale replacements cannot inherit it. Qt renders a fixed sentence in
 the existing copyable diagnostic. Invalid category values display an explicit
 unavailable-detail fallback and do not change failure or retry policy.
 
+For non-rate GraphQL errors, the parser additionally distinguishes an empty
+or non-array errors field, malformed entries, and sixteen exact allowlisted
+`type`/`extensions.type`/`extensions.code` tokens. Qt reports the recognized
+token through fixed source-defined wording; this is a report of the code,
+not an inferred cause or a promise about GitHub's error vocabulary. Every
+entry and supplied marker must agree before a recognized code is selected.
+Unknown or conflicting markers stay generic or mixed/unclassified. Remote
+messages, paths, locations and unrecognized strings never enter presentation.
+This refinement runs only after the existing non-rate refusal; rate-limit
+precedence, schema acceptance and session authority are unchanged.
+
 Those are adapter acceptance and retention bounds, not exact bounds on Qt's
 private HTTP parser, socket buffers, or other in-flight allocations. Qt can
 parse or retain bytes before exposing metadata through `QNetworkReply`, and it

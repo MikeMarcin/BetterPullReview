@@ -1768,6 +1768,64 @@ namespace {
 			!valid(invalidIncomplete),
 			"incomplete evidence cannot retain partial schema facts");
 	}
+	auto test_graphql_error_code_details_do_not_change_refusal() -> void
+	{
+		using diagnostic = application::github_capability_diagnostic;
+		const std::array codes{
+			std::pair{ QStringLiteral("FORBIDDEN"), diagnostic::graphql_code_forbidden },
+			std::pair{ QStringLiteral("UNAUTHORIZED"), diagnostic::graphql_code_unauthorized },
+			std::pair{ QStringLiteral("NOT_FOUND"), diagnostic::graphql_code_not_found },
+			std::pair{ QStringLiteral("MAX_NODE_LIMIT_EXCEEDED"), diagnostic::graphql_code_max_node_limit_exceeded },
+			std::pair{ QStringLiteral("INTERNAL"), diagnostic::graphql_code_internal },
+			std::pair{ QStringLiteral("SERVICE_UNAVAILABLE"), diagnostic::graphql_code_service_unavailable },
+			std::pair{ QStringLiteral("GRAPHQL_PARSE_FAILED"), diagnostic::graphql_code_parse_failed },
+			std::pair{ QStringLiteral("GRAPHQL_VALIDATION_FAILED"), diagnostic::graphql_code_validation_failed },
+			std::pair{ QStringLiteral("undefinedField"), diagnostic::graphql_code_undefined_field },
+			std::pair{ QStringLiteral("argumentNotAccepted"), diagnostic::graphql_code_argument_not_accepted },
+			std::pair{ QStringLiteral("undefinedType"), diagnostic::graphql_code_undefined_type },
+			std::pair{ QStringLiteral("selectionMismatch"), diagnostic::graphql_code_selection_mismatch },
+			std::pair{ QStringLiteral("variableMismatch"), diagnostic::graphql_code_variable_mismatch },
+			std::pair{ QStringLiteral("variableNotUsed"), diagnostic::graphql_code_variable_not_used },
+			std::pair{ QStringLiteral("variableRequiresValidType"), diagnostic::graphql_code_variable_requires_valid_type },
+			std::pair{ QStringLiteral("variableNotDefined"), diagnostic::graphql_code_variable_not_defined }
+		};
+		const auto check = [](const QJsonValue& aErrors, const diagnostic aExpected) {
+			const auto body        = compact(QJsonDocument{ QJsonObject{ { QStringLiteral("errors"), aErrors } } });
+			const auto observation = observe(body);
+			expect_all_unknown(observation, capability_probe_unavailability::partial_response,
+							   "error-code refinement retains the existing non-rate refusal");
+			expect(observation.CapabilityDetail == aExpected, "error-code detail reports only the exact finite marker or shape");
+		};
+		for (const auto& [code, detail] : codes) {
+			check(QJsonArray{ QJsonObject{ { QStringLiteral("type"), code } } }, detail);
+			check(QJsonArray{ QJsonObject{ { QStringLiteral("extensions"), QJsonObject{ { QStringLiteral("type"), code } } } } }, detail);
+			check(QJsonArray{ QJsonObject{ { QStringLiteral("extensions"), QJsonObject{ { QStringLiteral("code"), code } } } } }, detail);
+			const QJsonObject agreeing{ { QStringLiteral("type"), code }, { QStringLiteral("extensions"), QJsonObject{ { QStringLiteral("type"), code }, { QStringLiteral("code"), code } } } };
+			check(QJsonArray{ agreeing, agreeing }, detail);
+		}
+		check(QJsonValue::Null, diagnostic::graphql_errors_not_array);
+		check(QJsonObject{ }, diagnostic::graphql_errors_not_array);
+		check(QJsonArray{ }, diagnostic::graphql_errors_empty);
+		check(QJsonArray{ QJsonValue::Null }, diagnostic::graphql_errors_malformed);
+		check(QJsonArray{ QJsonObject{ { QStringLiteral("type"), 42 } } }, diagnostic::graphql_errors_malformed);
+		check(QJsonArray{ QJsonObject{ { QStringLiteral("extensions"), 42 } } }, diagnostic::graphql_errors_malformed);
+		check(QJsonArray{ QJsonObject{ { QStringLiteral("extensions"), QJsonObject{ { QStringLiteral("code"), QJsonValue::Null } } } } }, diagnostic::graphql_errors_malformed);
+		const QJsonObject known{ { QStringLiteral("type"), QStringLiteral("FORBIDDEN") } };
+		const QJsonObject unknown{ { QStringLiteral("type"), QStringLiteral("fixture-secret-marker") } };
+		check(QJsonArray{ unknown }, diagnostic::graphql_errors);
+		check(QJsonArray{ QJsonObject{ { QStringLiteral("type"), QStringLiteral(" FORBIDDEN") } } }, diagnostic::graphql_errors);
+		check(QJsonArray{ QJsonObject{ { QStringLiteral("message"), QStringLiteral("FORBIDDEN fixture-secret-marker") }, { QStringLiteral("path"), QJsonArray{ QStringLiteral("UNAUTHORIZED") } }, { QStringLiteral("locations"), QJsonArray{ } } } }, diagnostic::graphql_errors);
+		check(QJsonArray{ known, unknown }, diagnostic::graphql_errors_mixed);
+		check(QJsonArray{ unknown, known }, diagnostic::graphql_errors_mixed);
+		check(QJsonArray{ known, QJsonObject{ } }, diagnostic::graphql_errors_mixed);
+		check(QJsonArray{ unknown, unknown }, diagnostic::graphql_errors_mixed);
+		check(QJsonArray{ known, QJsonObject{ { QStringLiteral("type"), QStringLiteral("UNAUTHORIZED") } } }, diagnostic::graphql_errors_mixed);
+		check(QJsonArray{ QJsonObject{ { QStringLiteral("type"), QStringLiteral("FORBIDDEN") }, { QStringLiteral("extensions"), QJsonObject{ { QStringLiteral("code"), QStringLiteral("UNAUTHORIZED") } } } } }, diagnostic::graphql_errors_mixed);
+		const auto rate = observe(R"({"errors":[{"type":"FORBIDDEN"},{"type":"RATE_LIMITED"}]})");
+		expect_all_unknown(rate, capability_probe_unavailability::rate_limit, "existing rate-limit precedence is unchanged");
+		expect(rate.CapabilityDetail == diagnostic::graphql_errors, "rate-limit branch retains its existing detail");
+	}
+
 	auto test_closed_capability_refusal_details() -> void
 	{
 		const auto supported = load_supported_fixture(fixture_root() / "github-com/supported.json");
@@ -1775,7 +1833,7 @@ namespace {
 		const std::array cases{
 			std::pair{ observe(""), diagnostic::json_shape },
 			std::pair{ observe("[]"), diagnostic::json_shape },
-			std::pair{ observe(R"({"errors":[]})"), diagnostic::graphql_errors },
+			std::pair{ observe(R"({"errors":[]})"), diagnostic::graphql_errors_empty },
 			std::pair{ observe("{}"), diagnostic::graphql_data },
 			std::pair{ observe(R"({"data":null})"), diagnostic::graphql_data },
 			std::pair{ observe(R"({"data":{}})"), diagnostic::graphql_aliases },
@@ -1799,6 +1857,7 @@ namespace {
 int main()
 {
 	test_closed_capability_refusal_details();
+	test_graphql_error_code_details_do_not_change_refusal();
 	test_requests_bind_validated_profile_authority();
 	test_paired_supported_contracts();
 	test_synthetic_missing_and_incompatible_contracts();

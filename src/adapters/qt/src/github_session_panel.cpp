@@ -69,6 +69,46 @@ namespace bpr::qt {
 				return QStringLiteral("The capability response had invalid JSON structure.");
 			case application::github_capability_diagnostic::graphql_errors:
 				return QStringLiteral("The capability response contained a GraphQL error envelope.");
+			case application::github_capability_diagnostic::graphql_errors_not_array:
+				return QStringLiteral("The capability errors field was not an array.");
+			case application::github_capability_diagnostic::graphql_errors_empty:
+				return QStringLiteral("The capability response contained an empty errors array.");
+			case application::github_capability_diagnostic::graphql_errors_malformed:
+				return QStringLiteral("The capability response contained a malformed error entry.");
+			case application::github_capability_diagnostic::graphql_errors_mixed:
+				return QStringLiteral("The capability response contained mixed or unclassified error codes.");
+			case application::github_capability_diagnostic::graphql_code_forbidden:
+				return QStringLiteral("The capability response reported GraphQL error code FORBIDDEN.");
+			case application::github_capability_diagnostic::graphql_code_unauthorized:
+				return QStringLiteral("The capability response reported GraphQL error code UNAUTHORIZED.");
+			case application::github_capability_diagnostic::graphql_code_not_found:
+				return QStringLiteral("The capability response reported GraphQL error code NOT_FOUND.");
+			case application::github_capability_diagnostic::graphql_code_max_node_limit_exceeded:
+				return QStringLiteral("The capability response reported GraphQL error code MAX_NODE_LIMIT_EXCEEDED.");
+			case application::github_capability_diagnostic::graphql_code_internal:
+				return QStringLiteral("The capability response reported GraphQL error code INTERNAL.");
+			case application::github_capability_diagnostic::graphql_code_service_unavailable:
+				return QStringLiteral("The capability response reported GraphQL error code SERVICE_UNAVAILABLE.");
+			case application::github_capability_diagnostic::graphql_code_parse_failed:
+				return QStringLiteral("The capability response reported GraphQL error code GRAPHQL_PARSE_FAILED.");
+			case application::github_capability_diagnostic::graphql_code_validation_failed:
+				return QStringLiteral("The capability response reported GraphQL error code GRAPHQL_VALIDATION_FAILED.");
+			case application::github_capability_diagnostic::graphql_code_undefined_field:
+				return QStringLiteral("The capability response reported GraphQL error code undefinedField.");
+			case application::github_capability_diagnostic::graphql_code_argument_not_accepted:
+				return QStringLiteral("The capability response reported GraphQL error code argumentNotAccepted.");
+			case application::github_capability_diagnostic::graphql_code_undefined_type:
+				return QStringLiteral("The capability response reported GraphQL error code undefinedType.");
+			case application::github_capability_diagnostic::graphql_code_selection_mismatch:
+				return QStringLiteral("The capability response reported GraphQL error code selectionMismatch.");
+			case application::github_capability_diagnostic::graphql_code_variable_mismatch:
+				return QStringLiteral("The capability response reported GraphQL error code variableMismatch.");
+			case application::github_capability_diagnostic::graphql_code_variable_not_used:
+				return QStringLiteral("The capability response reported GraphQL error code variableNotUsed.");
+			case application::github_capability_diagnostic::graphql_code_variable_requires_valid_type:
+				return QStringLiteral("The capability response reported GraphQL error code variableRequiresValidType.");
+			case application::github_capability_diagnostic::graphql_code_variable_not_defined:
+				return QStringLiteral("The capability response reported GraphQL error code variableNotDefined.");
 			case application::github_capability_diagnostic::graphql_data:
 				return QStringLiteral("The capability response lacked an object data envelope.");
 			case application::github_capability_diagnostic::graphql_aliases:

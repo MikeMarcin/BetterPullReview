@@ -428,3 +428,11 @@ normalizer, provider and host branches in the copyable diagnostic. Focused
 native/provider/host/Qt evidence is recorded on BPR-0559. The actual live response
 contract remains unknown; instrumentation is not a root repair or successful
 application-session claim.
+
+The [v002 result](reviews/device-session-bootstrap-diagnostic-v002/attended-result.md)
+isolates the non-rate GraphQL `errors` envelope after native metadata and JSON
+admission. Explicit Sign out and normal quit completed. The error contents
+remain unknown. The subsequent BPR-0559 refinement exposes only sixteen exact
+allowlisted code tokens through fixed text, with explicit empty, malformed and
+mixed/unclassified fallbacks. Five focused parser/provider/composed Qt selectors
+pass on macOS; no subsequent live run or repaired session is claimed.

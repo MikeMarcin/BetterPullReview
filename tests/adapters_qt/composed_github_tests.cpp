@@ -1100,18 +1100,41 @@ namespace {
 		window.resize(960, 640);
 		window.show();
 		using diagnostic = application::github_capability_diagnostic;
-		for (const auto detail : { diagnostic::transport_content_encoding, diagnostic::graphql_errors, diagnostic::host_cache_stage, static_cast<diagnostic>(255U) }) {
+		const std::array cases{
+			std::pair{ diagnostic::transport_content_encoding, QStringLiteral("The response used an unsupported content encoding.") },
+			std::pair{ diagnostic::graphql_errors, QStringLiteral("The capability response contained a GraphQL error envelope.") },
+			std::pair{ diagnostic::host_cache_stage, QStringLiteral("The application could not stage the capability observation.") },
+			std::pair{ diagnostic::graphql_errors_not_array, QStringLiteral("The capability errors field was not an array.") },
+			std::pair{ diagnostic::graphql_errors_empty, QStringLiteral("The capability response contained an empty errors array.") },
+			std::pair{ diagnostic::graphql_errors_malformed, QStringLiteral("The capability response contained a malformed error entry.") },
+			std::pair{ diagnostic::graphql_errors_mixed, QStringLiteral("The capability response contained mixed or unclassified error codes.") },
+			std::pair{ diagnostic::graphql_code_forbidden, QStringLiteral("The capability response reported GraphQL error code FORBIDDEN.") },
+			std::pair{ diagnostic::graphql_code_unauthorized, QStringLiteral("The capability response reported GraphQL error code UNAUTHORIZED.") },
+			std::pair{ diagnostic::graphql_code_not_found, QStringLiteral("The capability response reported GraphQL error code NOT_FOUND.") },
+			std::pair{ diagnostic::graphql_code_max_node_limit_exceeded, QStringLiteral("The capability response reported GraphQL error code MAX_NODE_LIMIT_EXCEEDED.") },
+			std::pair{ diagnostic::graphql_code_internal, QStringLiteral("The capability response reported GraphQL error code INTERNAL.") },
+			std::pair{ diagnostic::graphql_code_service_unavailable, QStringLiteral("The capability response reported GraphQL error code SERVICE_UNAVAILABLE.") },
+			std::pair{ diagnostic::graphql_code_parse_failed, QStringLiteral("The capability response reported GraphQL error code GRAPHQL_PARSE_FAILED.") },
+			std::pair{ diagnostic::graphql_code_validation_failed, QStringLiteral("The capability response reported GraphQL error code GRAPHQL_VALIDATION_FAILED.") },
+			std::pair{ diagnostic::graphql_code_undefined_field, QStringLiteral("The capability response reported GraphQL error code undefinedField.") },
+			std::pair{ diagnostic::graphql_code_argument_not_accepted, QStringLiteral("The capability response reported GraphQL error code argumentNotAccepted.") },
+			std::pair{ diagnostic::graphql_code_undefined_type, QStringLiteral("The capability response reported GraphQL error code undefinedType.") },
+			std::pair{ diagnostic::graphql_code_selection_mismatch, QStringLiteral("The capability response reported GraphQL error code selectionMismatch.") },
+			std::pair{ diagnostic::graphql_code_variable_mismatch, QStringLiteral("The capability response reported GraphQL error code variableMismatch.") },
+			std::pair{ diagnostic::graphql_code_variable_not_used, QStringLiteral("The capability response reported GraphQL error code variableNotUsed.") },
+			std::pair{ diagnostic::graphql_code_variable_requires_valid_type, QStringLiteral("The capability response reported GraphQL error code variableRequiresValidType.") },
+			std::pair{ diagnostic::graphql_code_variable_not_defined, QStringLiteral("The capability response reported GraphQL error code variableNotDefined.") },
+			std::pair{ static_cast<diagnostic>(255U), QStringLiteral("No more specific capability refusal detail is available.") }
+		};
+		for (const auto& [detail, expected] : cases) {
 			window.publish(application::github_presentation_update{
 				.Transition = application::github_transition_projection{
 					.Status      = core::github_status_delta{ .Status = core::github_status::session_failed },
 					.Diagnostics = { { .Code = core::github_reason_code::malformed_response } } },
 				.HostDiagnostics = { { .Reason = core::github_reason_code::malformed_response, .BootstrapStage = application::github_bootstrap_failure_stage::capability_discovery, .CapabilityDetail = detail } } });
 			QApplication::processEvents();
-			const auto message  = QString::fromStdString(window.github_diagnostic_text());
-			const auto expected = detail == diagnostic::transport_content_encoding ? QStringLiteral("The response used an unsupported content encoding.")
-				: detail == diagnostic::graphql_errors                             ? QStringLiteral("The capability response contained a GraphQL error envelope.")
-				: detail == diagnostic::host_cache_stage                           ? QStringLiteral("The application could not stage the capability observation.")
-																				   : QStringLiteral("No more specific capability refusal detail is available.");
+			const auto message = QString::fromStdString(window.github_diagnostic_text());
+
 			expect(message.startsWith(QStringLiteral("Capability discovery: ")) && message.endsWith(expected)
 					   && required_label(window, "githubEmptyStateBody")->isVisible()
 					   && required_label(window, "githubEmptyStateBody")->text() == message,
@@ -1119,8 +1142,8 @@ namespace {
 			required_child<QToolButton>(window, "copyGithubMessageButton")->click();
 			expect(QApplication::clipboard()->text() == QStringLiteral("Connection unavailable\n") + message,
 				   "copy uses exactly the finite visible detail");
-			if (detail == diagnostic::graphql_errors) {
-				capture_layout_state(window, QStringLiteral("capability-graphql-refusal-detail"));
+			if (detail == diagnostic::graphql_code_forbidden) {
+				capture_layout_state(window, QStringLiteral("capability-graphql-code-refusal"));
 			}
 			window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = core::github_status::no_profile } } });
 			expect(window.github_diagnostic_text().empty(), "replacement clears capability detail");
