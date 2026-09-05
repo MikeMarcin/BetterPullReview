@@ -1,7 +1,8 @@
 ---
 id: BPR-0559
 title: Diagnose device sign-in response refusal after browser authorization
-status: In Progress
+status: Parked
+parked_on: awaiting-owner-verdict
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -151,3 +152,7 @@ Documentation now passes and all 62 documentation tests pass. All 21 consumed
 were cleaned by the fixture. Existing dev/Release roots and ignored renders
 remain reused. The root cause remains open pending a separately authorized
 observation of the exact new diagnostic executable.
+
+## Pending exact v002 observation
+
+Source slice `9414ffc93b70aae51104b20c81a974b890eecf5a` is committed. The [v002 checkpoint](../../verification/reviews/device-session-bootstrap-diagnostic-v002/operator-packet.md), SHA-256 `17536739901f87628c518f0ac2687fec983e6ababe55fc0f58bf260a65199a80`, binds the exact 10,659,808-byte Release executable `ecf3f273f48e8f8a1dd72e15e85ed401584c8aef8669beea8c9010559669d304`. No v002 approval or launch has occurred. All unattended diagnostic work is complete; the actual root-repair criteria remain open. The card parks awaiting the owner. No temporary worktree or inspection logs remain; the existing Release root is retained for this pending consumer.
