@@ -3,8 +3,10 @@
 
 #include "github_host_profile.hpp"
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/github_capability_diagnostic.hpp"
 #include "bpr/core/github_model.hpp"
+#include <span>
 
 #include <array>
 #include <cstddef>
@@ -203,6 +205,9 @@ namespace bpr::adapters::github::detail {
 		const validated_github_host_profile& aProfile,
 		const capability_probe_limits&       aLimits = { })
 		-> capability_probe_request_result;
+
+	/// \brief Extracts only error prose while the caller owns the active credential.
+	[[nodiscard]] auto sanitize_capability_error(std::string_view aBody, std::span<const std::byte> aCredential) noexcept -> application::diagnostic_summary;
 
 	[[nodiscard]] auto normalize_capability_probe(
 		const capability_probe_transport_result& aResponse,

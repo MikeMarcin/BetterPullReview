@@ -84,6 +84,7 @@ namespace bpr::adapters::github::detail {
 	{
 		github_capability_probe_wire_correlation Correlation;
 		capability_probe_response                Response;
+		application::diagnostic_summary          Summary{ };
 
 		auto operator==(const github_capability_probe_wire_success&) const
 			-> bool = default;

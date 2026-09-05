@@ -46,6 +46,7 @@ namespace bpr::adapters::github::detail {
 		struct provider_state
 		{
 			application::effect_executor*                       Effects = nullptr;
+			std::shared_ptr<application::diagnostic_log_port>   Log;
 			std::shared_ptr<github_wire_transport_factory_port> TransportFactory;
 			github_provider_read_authority                      ReadAuthority
 				= github_provider_read_authority::authenticated;
@@ -886,6 +887,27 @@ namespace bpr::adapters::github::detail {
 		application::github_viewer_submission         aSubmission,
 		application::github_viewer_completion_handler aCompletion)
 	{
+
+		const auto log = Implementation != nullptr ? Implementation->State->Log : nullptr;
+		if (log) {
+			const auto requestId = aSubmission.Request.Context.Request.value();
+			static_cast<void>(log->record({ .Operation = application::diagnostic_operation::viewer, .Outcome = application::diagnostic_outcome::started, .Request = requestId }));
+			try {
+				auto candidate = [log, requestId, completion = aCompletion](application::github_viewer_completion aTerminal) {
+					auto outcome = application::diagnostic_outcome::succeeded;
+					if (std::holds_alternative<application::github_viewer_error>(aTerminal)) {
+						outcome = application::diagnostic_outcome::failed;
+					}
+					if (std::holds_alternative<application::github_viewer_cancelled>(aTerminal)) {
+						outcome = application::diagnostic_outcome::cancelled;
+					}
+					static_cast<void>(log->record({ .Operation = application::diagnostic_operation::viewer, .Outcome = outcome, .Request = requestId }));
+					completion(std::move(aTerminal));
+				};
+				aCompletion = std::move(candidate);
+			} catch (...) { /* Logging cannot consume or replace the original completion on allocation failure. */
+			}
+		}
 		auto request = aSubmission.Request;
 		if (Implementation == nullptr || !valid_request(request)) {
 			aCompletion(application::github_viewer_error{
@@ -1176,6 +1198,27 @@ namespace bpr::adapters::github::detail {
 		application::github_capability_request            aRequest,
 		application::github_capability_completion_handler aCompletion)
 	{
+
+		const auto log = Implementation != nullptr ? Implementation->State->Log : nullptr;
+		if (log) {
+			const auto requestId = aRequest.Context.Request.value();
+			static_cast<void>(log->record({ .Operation = application::diagnostic_operation::capability, .Outcome = application::diagnostic_outcome::started, .Request = requestId }));
+			try {
+				auto candidate = [log, requestId, completion = aCompletion](application::github_capability_completion aTerminal) {
+					auto outcome = application::diagnostic_outcome::succeeded;
+					if (std::holds_alternative<application::github_capability_error>(aTerminal)) {
+						outcome = application::diagnostic_outcome::failed;
+					}
+					if (std::holds_alternative<application::github_capability_cancelled>(aTerminal)) {
+						outcome = application::diagnostic_outcome::cancelled;
+					}
+					static_cast<void>(log->record({ .Operation = application::diagnostic_operation::capability, .Outcome = outcome, .Request = requestId }));
+					completion(std::move(aTerminal));
+				};
+				aCompletion = std::move(candidate);
+			} catch (...) { /* Logging cannot consume or replace the original completion on allocation failure. */
+			}
+		}
 		if (Implementation != nullptr
 			&& Implementation->State->ReadAuthority
 				== github_provider_read_authority::anonymous_public) {
@@ -1347,6 +1390,16 @@ namespace bpr::adapters::github::detail {
 									   ? application::github_capability_diagnostic::provider_metadata
 									   : application::github_capability_diagnostic::provider_correlation);
 							return;
+						}
+
+						if (state->Log) {
+							static_cast<void>(state->Log->record({
+								.Operation  = application::diagnostic_operation::capability,
+								.Outcome    = application::diagnostic_outcome::response_received,
+								.Request    = aRequest.Context.Request.value(),
+								.HttpStatus = static_cast<std::uint16_t>(success->Response.Status),
+								.Summary    = success->Summary,
+							}));
 						}
 
 						wire_response metadataResponse{
@@ -1734,7 +1787,8 @@ namespace bpr::adapters::github::detail {
 			const std::span<const validated_github_host_profile* const> aProfiles,
 			application::effect_executor&                               aEffects,
 			std::shared_ptr<github_wire_transport_factory_port>         aTransportFactory,
-			const github_provider_read_authority                        aReadAuthority) noexcept
+			const github_provider_read_authority                        aReadAuthority,
+			std::shared_ptr<application::diagnostic_log_port>           aLog) noexcept
 			-> github_provider_factory_result
 		{
 			if (aProfiles.empty()) {
@@ -1772,6 +1826,7 @@ namespace bpr::adapters::github::detail {
 				state->Effects          = &aEffects;
 				state->TransportFactory = std::move(aTransportFactory);
 				state->ReadAuthority    = aReadAuthority;
+				state->Log              = std::move(aLog);
 				state->Profiles.reserve(aProfiles.size());
 				for (const auto* const profile : aProfiles) {
 					state->Profiles.push_back(
@@ -1792,7 +1847,8 @@ namespace bpr::adapters::github::detail {
 		const std::span<const validated_github_host_profile> aProfiles,
 		application::effect_executor&                        aEffects,
 		std::shared_ptr<github_wire_transport_factory_port>  aTransportFactory,
-		const github_provider_read_authority                 aReadAuthority) noexcept
+		const github_provider_read_authority                 aReadAuthority,
+		std::shared_ptr<application::diagnostic_log_port>    aLog) noexcept
 		-> github_provider_factory_result
 	{
 		try {
@@ -1803,7 +1859,7 @@ namespace bpr::adapters::github::detail {
 			}
 			return make_github_provider_from_pointers(
 				profilePointers, aEffects, std::move(aTransportFactory),
-				aReadAuthority);
+				aReadAuthority, std::move(aLog));
 		} catch (...) {
 			return std::unexpected{
 				github_provider_configuration_failure::allocation_failure
@@ -1815,10 +1871,11 @@ namespace bpr::adapters::github::detail {
 		const std::span<const validated_github_host_profile* const> aProfiles,
 		application::effect_executor&                               aEffects,
 		std::shared_ptr<github_wire_transport_factory_port>         aTransportFactory,
-		const github_provider_read_authority                        aReadAuthority) noexcept
+		const github_provider_read_authority                        aReadAuthority,
+		std::shared_ptr<application::diagnostic_log_port>           aLog) noexcept
 		-> github_provider_factory_result
 	{
 		return make_github_provider_from_pointers(
-			aProfiles, aEffects, std::move(aTransportFactory), aReadAuthority);
+			aProfiles, aEffects, std::move(aTransportFactory), aReadAuthority, std::move(aLog));
 	}
 }

@@ -2,6 +2,7 @@
 #define BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 
 #include "bpr/application/device_authorization_projection.hpp"
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/core/device_authorization_model.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -21,11 +22,12 @@ namespace bpr::app {
 	/// \brief Describes the github application config record.
 	struct github_application_config
 	{
-		std::optional<std::string>           EnterpriseHostname  = std::nullopt;
-		std::optional<std::filesystem::path> ApplicationDataRoot = std::nullopt;
-		std::optional<std::filesystem::path> GitExecutable       = std::nullopt;
-		std::optional<std::filesystem::path> ExistingCheckout    = std::nullopt;
-		std::optional<std::filesystem::path> AttendedDesignatedLiveApproval
+		std::shared_ptr<application::diagnostic_log_port> DiagnosticLog;
+		std::optional<std::string>                        EnterpriseHostname  = std::nullopt;
+		std::optional<std::filesystem::path>              ApplicationDataRoot = std::nullopt;
+		std::optional<std::filesystem::path>              GitExecutable       = std::nullopt;
+		std::optional<std::filesystem::path>              ExistingCheckout    = std::nullopt;
+		std::optional<std::filesystem::path>              AttendedDesignatedLiveApproval
 			= std::nullopt;
 		std::filesystem::path RunningExecutable;
 		std::string           AttendedSourceSha256;

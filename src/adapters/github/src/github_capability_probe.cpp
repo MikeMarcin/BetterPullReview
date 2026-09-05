@@ -5,6 +5,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QRegularExpression>
 #include <QSet>
 #include <QString>
 
@@ -2340,6 +2341,104 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected{
 				capability_probe_unavailability::allocation_failure
 			};
+		}
+	}
+
+	auto sanitize_capability_error(const std::string_view aBody, const std::span<const std::byte> aCredential) noexcept -> application::diagnostic_summary
+	{
+		using state = application::diagnostic_summary_state;
+		application::diagnostic_summary result;
+		try {
+			const capability_probe_limits limits;
+			if (aBody.size() > limits.MaximumResponseBytes || aCredential.empty() || aCredential.size() > 8192U) {
+				result.State = state::omitted_limit;
+				return result;
+			}
+			if (json_structural_preflight{ aBody, limits }.run() != json_preflight_result::valid) {
+				result.State = state::omitted_invalid;
+				return result;
+			}
+			QJsonParseError parseError;
+			const auto      document = QJsonDocument::fromJson(QByteArray{ aBody.data(), static_cast<qsizetype>(aBody.size()) }, &parseError);
+			if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+				result.State = state::omitted_invalid;
+				return result;
+			}
+			const auto envelope = document.object();
+			if (!envelope.contains("errors")) {
+				return result;
+			}
+			const auto errors = envelope.value("errors");
+			if (!errors.isArray() || errors.toArray().isEmpty() || errors.toArray().size() > 8) {
+				result.State = state::omitted_invalid;
+				return result;
+			}
+			const QByteArray credential{ reinterpret_cast<const char*>(aCredential.data()), static_cast<qsizetype>(aCredential.size()) };
+			auto             percent = QByteArray{ };
+			for (const auto character : credential) {
+				percent += '%';
+				percent += QByteArray(1, character).toHex();
+			}
+			const auto       encodedJson = QJsonDocument{ QJsonArray{ QString::fromUtf8(credential) } }.toJson(QJsonDocument::Compact);
+			const std::array representations{
+				QString::fromUtf8(credential), QString::fromLatin1(credential.toBase64()),
+				QString::fromLatin1(credential.toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals)),
+				QString::fromLatin1(credential.toHex()), QString::fromLatin1(percent), QString::fromLatin1(credential.toPercentEncoding()),
+				QString::fromUtf8(encodedJson.mid(2, encodedJson.size() - 4))
+			};
+			QString    summary;
+			const auto append = [&](const QString& aName, const QJsonValue& aValue) -> bool {
+				if (aValue.isUndefined()) {
+					return true;
+				}
+				if (!aValue.isString() || aValue.toString().size() > 8192) {
+					return false;
+				}
+				auto text = aValue.toString();
+				// Remove complete reflections before any truncation. JSON decoding above
+				// handles wire escapes; common nested/encoded representations are removed too.
+				for (const auto& representation : representations) {
+					if (!representation.isEmpty()) {
+						text.replace(representation, QStringLiteral("[redacted]"), Qt::CaseInsensitive);
+					}
+				}
+				text.replace(QRegularExpression{ QStringLiteral(R"((?i)(?:authorization|proxy-authorization|cookie|set-cookie|password|access_token|refresh_token|client_secret)\s*[:=][^\r\n]*)") }, QStringLiteral("[redacted header]"));
+				text.replace(QRegularExpression{ QStringLiteral(R"((?i)(?:https?://|www\.)[^\s<>"']+)") }, QStringLiteral("[redacted URL]"));
+				text.replace(QRegularExpression{ QStringLiteral(R"((?i)\b(?:bearer|basic|token)\s+[^\s,;"']+)") }, QStringLiteral("[redacted credential]"));
+				text.replace(QRegularExpression{ QStringLiteral(R"((?i)\b(?:gh[pousr]_[a-z0-9_]+|github_pat_[a-z0-9_]+|[a-z0-9_+/-]{32,}={0,2}|eyJ[a-z0-9_.-]+))") }, QStringLiteral("[redacted token]"));
+				text.replace(QRegularExpression{ QStringLiteral("[\\x00-\\x1f\\x7f-\\x9f\\x{2028}\\x{2029}\\x{202a}-\\x{202e}\\x{2066}-\\x{2069}]") }, QStringLiteral(" "));
+				summary += aName + QStringLiteral("=\"") + text + QStringLiteral("\" ");
+				return true;
+			};
+			for (const auto& value : errors.toArray()) {
+				if (!value.isObject()) {
+					result.State = state::omitted_invalid;
+					return result;
+				}
+				const auto entry      = value.toObject();
+				const auto extensions = entry.value("extensions");
+				if ((!extensions.isUndefined() && !extensions.isObject())
+					|| !append(QStringLiteral("message"), entry.value("message"))
+					|| !append(QStringLiteral("type"), entry.value("type"))
+					|| !append(QStringLiteral("type"), extensions.toObject().value("type"))
+					|| !append(QStringLiteral("code"), extensions.toObject().value("code"))) {
+					result.State = state::omitted_invalid;
+					return result;
+				}
+			}
+			auto bytes = summary.toUtf8();
+			if (bytes.size() > static_cast<qsizetype>(result.Text.size())) {
+				result.State = state::omitted_limit;
+				return result;
+			}
+			std::copy(bytes.begin(), bytes.end(), result.Text.begin());
+			result.Size  = static_cast<std::uint16_t>(bytes.size());
+			result.State = state::sanitized;
+			return result;
+		} catch (...) {
+			result       = { };
+			result.State = state::omitted_failure;
+			return result;
 		}
 	}
 

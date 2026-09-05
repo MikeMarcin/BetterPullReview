@@ -1,0 +1,277 @@
+#include "bpr/logging/quill_log.hpp"
+#include <algorithm>
+#include <atomic>
+#include <cstdio>
+#include <mutex>
+#include <quill/Backend.h>
+#include <quill/Frontend.h>
+#include <quill/Logger.h>
+#include <quill/sinks/Sink.h>
+#include <thread>
+#if !defined(_WIN32)
+	#include <fcntl.h>
+	#include <sys/file.h>
+	#include <sys/stat.h>
+	#include <unistd.h>
+#endif
+namespace bpr::adapters::logging {
+	namespace {
+		using status_type              = application::diagnostic_log_status;
+		std::atomic_flag backend_owned = ATOMIC_FLAG_INIT;
+		struct frontend_options : quill::FrontendOptions
+		{
+			static constexpr auto        queue_type             = quill::QueueType::BoundedDropping;
+			static constexpr std::size_t initial_queue_capacity = 64U * 1024U;
+		};
+		using frontend = quill::FrontendImpl<frontend_options>;
+		struct sink_state
+		{
+			std::atomic<status_type>   Status{ status_type::unavailable };
+			std::atomic<std::uint64_t> Dropped{ 0 };
+			void                       fail(const status_type aStatus) noexcept
+			{
+				Status.store(aStatus);
+			}
+		};
+#if !defined(_WIN32)
+		struct owned_fd
+		{
+			int Value = -1;
+			~owned_fd()
+			{
+				if (Value >= 0) {
+					::close(Value);
+				}
+			}
+		};
+		// Walk every component without following links; the final file is owner-only,
+		// single-link, regular, and exclusively locked for this process lifetime.
+		auto open_log(const std::filesystem::path& aRoot) -> std::FILE*
+		{
+			if (!aRoot.is_absolute() || aRoot.lexically_normal() != aRoot) {
+				return nullptr;
+			}
+			owned_fd directory{ ::open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC) };
+			if (directory.Value < 0) {
+				return nullptr;
+			}
+			for (const auto& component : aRoot.relative_path() / "logs") {
+				if (component == "." || component == "..") {
+					return nullptr;
+				}
+				if (::mkdirat(directory.Value, component.c_str(), 0700) != 0 && errno != EEXIST) {
+					return nullptr;
+				}
+				const auto next = ::openat(directory.Value, component.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+				if (next < 0) {
+					return nullptr;
+				}
+				::close(directory.Value);
+				directory.Value = next;
+			}
+			struct stat directoryStat{ };
+			if (::fstat(directory.Value, &directoryStat) != 0 || directoryStat.st_uid != ::geteuid() || (directoryStat.st_mode & 0077U) != 0) {
+				return nullptr;
+			}
+			owned_fd    file{ ::openat(directory.Value, "diagnostics.log", O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC, 0600) };
+			struct stat fileStat{ };
+			if (file.Value < 0 || ::fstat(file.Value, &fileStat) != 0 || !S_ISREG(fileStat.st_mode) || fileStat.st_uid != ::geteuid() || fileStat.st_nlink != 1 || (fileStat.st_mode & 0077U) != 0 || ::flock(file.Value, LOCK_EX | LOCK_NB) != 0) {
+				return nullptr;
+			}
+			auto* stream = ::fdopen(file.Value, "a");
+			if (stream != nullptr) {
+				file.Value = -1;
+			}
+			return stream;
+		}
+#endif
+		class capped_sink final : public quill::Sink
+		{
+		public:
+			capped_sink(const std::filesystem::path& aRoot, const std::uint64_t aMaximumBytes, std::shared_ptr<sink_state> aState)
+				: State{ std::move(aState) }
+				, MaximumBytes{ aMaximumBytes }
+			{
+#if !defined(_WIN32)
+				File = open_log(aRoot);
+#else
+				static_cast<void>(aRoot);
+#endif
+				if (File == nullptr) {
+					return;
+				}
+				if (std::fseek(File, 0, SEEK_END) != 0) {
+					return;
+				}
+				const auto size = std::ftell(File);
+				if (size < 0) {
+					return;
+				}
+				Bytes         = static_cast<std::uint64_t>(size);
+				State->Status = status_type::available;
+				if (Bytes >= MaximumBytes) {
+					State->fail(status_type::full);
+				}
+			}
+			~capped_sink() override
+			{
+				if (File != nullptr) {
+					std::fclose(File);
+				}
+			}
+
+		protected:
+			void write_log(const quill::MacroMetadata*, std::uint64_t, std::string_view, std::string_view, const std::string&, std::string_view, quill::LogLevel, std::string_view, std::string_view, const std::vector<std::pair<std::string, std::string>>*, std::string_view, const std::string_view aStatement) override
+			{
+				if (State->Status != status_type::available) {
+					return;
+				}
+				if (aStatement.size() > MaximumBytes - Bytes) {
+					State->fail(status_type::full);
+					return;
+				}
+				if (std::fwrite(aStatement.data(), 1, aStatement.size(), File) != aStatement.size()) {
+					State->fail(status_type::unavailable);
+					return;
+				}
+				Bytes += aStatement.size();
+			}
+			void flush_sink() override
+			{
+				if (File != nullptr && std::fflush(File) != 0) {
+					State->fail(status_type::unavailable);
+				}
+			}
+
+		private:
+			std::shared_ptr<sink_state> State;
+			std::FILE*                  File = nullptr;
+			std::uint64_t               MaximumBytes;
+			std::uint64_t               Bytes = 0;
+		};
+		constexpr std::array<std::string_view, 3> operations{ "application", "github.viewer", "github.capability" };
+		constexpr std::array<std::string_view, 6> outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
+		constexpr std::array<std::string_view, 5> summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
+	}
+	class quill_log::implementation
+	{
+	public:
+		explicit implementation(const std::filesystem::path& aRoot, const std::uint64_t aMaximumBytes)
+			: State{ std::make_shared<sink_state>() }
+		{
+			if (backend_owned.test_and_set()) {
+				return;
+			}
+			OwnsBackend = true;
+			try {
+				Sink = std::make_shared<capped_sink>(aRoot, aMaximumBytes, State);
+				if (State->Status != status_type::available) {
+					return;
+				}
+				quill::BackendOptions options;
+				options.transit_event_buffer_initial_capacity = 32;
+				options.transit_events_soft_limit             = 128;
+				options.transit_events_hard_limit             = 128;
+				options.error_notifier                        = [state = State](const std::string&) { state->fail(status_type::unavailable); };
+				quill::Backend::start(options);
+				Started = true;
+				Logger  = frontend::create_or_get_logger("bpr.diagnostics", Sink, quill::PatternFormatterOptions{ "%(time) %(message)", "%Y-%m-%dT%H:%M:%S.%QnsZ", quill::Timezone::GmtTime });
+			} catch (...) {
+				State->fail(status_type::unavailable);
+			}
+		}
+		~implementation() { close(); }
+		void close() noexcept
+		{
+			std::lock_guard lock{ Mutex };
+			if (Closed) {
+				return;
+			}
+			Closed = true;
+			try {
+				if (Logger != nullptr) {
+					Logger->flush_log();
+					frontend::remove_logger_blocking(Logger);
+					Logger = nullptr;
+				}
+				if (Started) {
+					quill::Backend::stop();
+				}
+			} catch (...) {
+				State->fail(status_type::unavailable);
+			}
+			Sink.reset();
+			if (OwnsBackend) {
+				backend_owned.clear();
+				OwnsBackend = false;
+			}
+		}
+		auto record(const application::diagnostic_event& aEvent) noexcept -> status_type
+		{
+			std::unique_lock lock{ Mutex, std::try_to_lock };
+			if (!lock.owns_lock()) {
+				++State->Dropped;
+				return status_type::dropped;
+			}
+			if (Closed) {
+				return status_type::closed;
+			}
+			if (State->Status != status_type::available || Logger == nullptr) {
+				return State->Status;
+			}
+			const auto operation = static_cast<std::size_t>(aEvent.Operation);
+			const auto outcome   = static_cast<std::size_t>(aEvent.Outcome);
+			const auto summary   = static_cast<std::size_t>(aEvent.Summary.State);
+			if (operation >= operations.size() || outcome >= outcomes.size() || summary >= summaries.size() || aEvent.Summary.Size > aEvent.Summary.Text.size()
+				|| std::ranges::any_of(aEvent.Summary.text(), [](const unsigned char aCharacter) { return aCharacter < 32U || aCharacter == 127U; })) {
+				++State->Dropped;
+				return status_type::dropped;
+			}
+			const auto thread = std::this_thread::get_id();
+			if (std::find(Threads.begin(), Threads.begin() + static_cast<std::ptrdiff_t>(ThreadCount), thread) == Threads.begin() + static_cast<std::ptrdiff_t>(ThreadCount)) {
+				if (ThreadCount == Threads.size()) {
+					++State->Dropped;
+					return status_type::dropped;
+				}
+				Threads[ThreadCount++] = thread;
+			}
+			try {
+				static constexpr quill::MacroMetadata metadata{ "", "", "v=1 op={} outcome={} request={} http_status={} summary={} dropped={} detail={}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
+				if (!Logger->log_statement<false>(&metadata, operations[operation], outcomes[outcome], aEvent.Request, aEvent.HttpStatus, summaries[summary], State->Dropped.load(), aEvent.Summary.text())) {
+					++State->Dropped;
+					return status_type::dropped;
+				}
+				return status_type::available;
+			} catch (...) {
+				++State->Dropped;
+				return status_type::dropped;
+			}
+		}
+		std::shared_ptr<sink_state> State;
+
+	private:
+		std::mutex                      Mutex;
+		std::array<std::thread::id, 16> Threads{ };
+		std::size_t                     ThreadCount = 0;
+		std::shared_ptr<capped_sink>    Sink;
+		frontend::logger_t*             Logger      = nullptr;
+		bool                            OwnsBackend = false;
+		bool                            Started     = false;
+		bool                            Closed      = false;
+	};
+	quill_log::quill_log(const std::filesystem::path& aRoot, const std::uint64_t aMaximumBytes) noexcept
+	{
+		try {
+			Implementation = std::make_unique<implementation>(aRoot, aMaximumBytes);
+		} catch (...) { }
+	}
+	quill_log::~quill_log() = default;
+	auto quill_log::record(const application::diagnostic_event& aEvent) noexcept -> status_type { return Implementation ? Implementation->record(aEvent) : status_type::unavailable; }
+	auto quill_log::status() const noexcept -> status_type { return Implementation ? Implementation->State->Status.load() : status_type::unavailable; }
+	void quill_log::close() noexcept
+	{
+		if (Implementation) {
+			Implementation->close();
+		}
+	}
+}

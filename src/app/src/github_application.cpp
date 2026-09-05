@@ -1,4 +1,5 @@
 #include "bpr/app/github_application.hpp"
+#include "bpr/logging/quill_log.hpp"
 
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
@@ -3511,6 +3512,37 @@ namespace bpr::app {
 				TransportFactory = std::make_shared<native_github_wire_transport_factory>();
 			}
 
+			auto applicationDataRoot = std::filesystem::path{ };
+			auto gitExecutable       = std::filesystem::path{ };
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr) {
+				applicationDataRoot = Fixture->application_data_root();
+				gitExecutable       = Fixture->git_executable();
+			} else
+#endif
+			{
+				applicationDataRoot = prepare_application_data_root(
+					native_application_data_root(aConfig));
+				gitExecutable = native_git_executable(aConfig);
+			}
+			if (applicationDataRoot.empty() || gitExecutable.empty()) {
+				throw std::runtime_error{
+					"Application data or installed Git is unavailable"
+				};
+			}
+			ApplicationDataRoot = applicationDataRoot;
+			DiagnosticLog       = aConfig.DiagnosticLog;
+			if (!DiagnosticLog) {
+				try {
+					OwnedDiagnosticLog = std::make_shared<adapters::logging::quill_log>(applicationDataRoot);
+					DiagnosticLog      = OwnedDiagnosticLog;
+				} catch (...) { /* Diagnostics allocation must not prevent application startup. */
+				}
+			}
+			if (DiagnosticLog) {
+				static_cast<void>(DiagnosticLog->record({ .Operation = application::diagnostic_operation::application, .Outcome = application::diagnostic_outcome::started }));
+			}
+
 			auto profilePointers = std::vector<const validated_github_host_profile*>{ };
 			profilePointers.reserve(Profiles.size());
 			for (const auto& profile : Profiles) {
@@ -3520,7 +3552,7 @@ namespace bpr::app {
 				std::span<const validated_github_host_profile* const>{
 					profilePointers },
 				ProviderEffects,
-				TransportFactory);
+				TransportFactory, adapters::github::detail::github_provider_read_authority::authenticated, DiagnosticLog);
 			if (!provider.has_value()) {
 				throw std::runtime_error{ "GitHub provider composition failed" };
 			}
@@ -3588,26 +3620,6 @@ namespace bpr::app {
 						VaultEffects);
 				}
 			}
-
-			auto applicationDataRoot = std::filesystem::path{ };
-			auto gitExecutable       = std::filesystem::path{ };
-#if defined(BPR_BUILD_TESTING)
-			if (Fixture != nullptr) {
-				applicationDataRoot = Fixture->application_data_root();
-				gitExecutable       = Fixture->git_executable();
-			} else
-#endif
-			{
-				applicationDataRoot = prepare_application_data_root(
-					native_application_data_root(aConfig));
-				gitExecutable = native_git_executable(aConfig);
-			}
-			if (applicationDataRoot.empty() || gitExecutable.empty()) {
-				throw std::runtime_error{
-					"Application data or installed Git is unavailable"
-				};
-			}
-			ApplicationDataRoot = applicationDataRoot;
 
 			auto cache   = adapters::git::make_installed_git_cache({
 				.GitExecutable     = gitExecutable,
@@ -8484,8 +8496,17 @@ namespace bpr::app {
 			VaultEffects.close_and_drain();
 			DeviceTransportEffects.close_and_drain();
 			DeviceBindingEffects.close_and_drain();
+			if (DiagnosticLog) {
+				static_cast<void>(DiagnosticLog->record({ .Operation = application::diagnostic_operation::application, .Outcome = application::diagnostic_outcome::shutdown }));
+			}
+			if (OwnedDiagnosticLog) {
+				OwnedDiagnosticLog->close();
+			}
 			ShutdownComplete = true;
 		}
+
+		std::shared_ptr<adapters::logging::quill_log>     OwnedDiagnosticLog;
+		std::shared_ptr<application::diagnostic_log_port> DiagnosticLog;
 
 		bool RememberDeviceSignIn = true;
 #if defined(BPR_BUILD_TESTING)

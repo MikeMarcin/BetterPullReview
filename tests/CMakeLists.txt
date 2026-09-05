@@ -1033,3 +1033,5 @@ set_tests_properties(
     PROPERTIES
         TIMEOUT 60
 )
+
+add_subdirectory(logging)

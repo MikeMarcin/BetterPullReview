@@ -302,6 +302,7 @@ class DependencyModernizationTests(unittest.TestCase):
             for name in (
                 "AitoCpm.cmake",
                 "BprDependencies.cmake",
+                "BprQuillProvider.cmake",
                 "BprSQLiteProvider.cmake",
                 "CTest.cmake",
                 "FetchContent.cmake",
@@ -440,6 +441,21 @@ class DependencyModernizationTests(unittest.TestCase):
             f"configurations share an installed library: {locations!r}",
         )
 
+    def test_quill_provider_is_pinned_and_download_only(self) -> None:
+        provider = (ROOT / "cmake/BprQuillProvider.cmake").read_text(encoding="utf-8")
+        self.assertIn("88b4a1542125577a4d51cf444c51e34d63618c422ba6a4fa9bd23894b49d696b", provider)
+        self.assertIn("2061083", provider)
+        self.assertIn("BPR_DEPENDENCY_OFFLINE", provider)
+        self.assertIn("FETCHCONTENT_SOURCE_DIR_BPRQUILL", provider)
+        self.assertIn("file(SHA256", provider)
+        self.assertIn("SYSTEM INTERFACE", provider)
+        self.assertNotIn("find_package(", provider)
+        self.assertNotIn("add_subdirectory(", provider)
+        sink = (ROOT / "src/adapters/logging/src/quill_log.cpp").read_text(encoding="utf-8")
+        self.assertNotIn("stderr", sink)
+        self.assertNotIn("std::cerr", sink)
+        self.assertIn("BoundedDropping", sink)
+
     def test_configured_dependency_audit_uses_supported_providers(self) -> None:
         audit = BUILD_DIR / "_bpr/product-dependency-audit.cmake"
         self.assertTrue(audit.is_file(), audit)
@@ -448,11 +464,12 @@ class DependencyModernizationTests(unittest.TestCase):
         modes = {record.split("|", 2)[1] for record in records}
         self.assertTrue(
             modes
-            <= {"CMAKE_CONFIG", "CMAKE_MODULE", "PKG_CONFIG", "TOOLCHAIN"}
+            <= {"CMAKE_CONFIG", "CMAKE_MODULE", "PKG_CONFIG", "TOOLCHAIN", "PINNED_ARCHIVE"}
         )
         targets = {record.split("|", 2)[2] for record in records}
         self.assertIn("Threads::Threads", targets)
         if any(target.startswith("Qt6::") for target in targets):
+            self.assertIn("Quill|PINNED_ARCHIVE|quill::quill", records)
             self.assertTrue(
                 {"Qt6::Core", "Qt6::Gui", "Qt6::Widgets", "Qt6::Network"}
                 <= targets

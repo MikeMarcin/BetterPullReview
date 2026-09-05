@@ -1198,7 +1198,12 @@ class LoopbackConnectTlsFixture:
                     200,
                     "OK",
                     CAPABILITY_RESPONSE.read_bytes()
-                    if self.scenario == "capability-success" else b"{}",
+                    if self.scenario == "capability-success" else (
+                        '{"errors":[{"message":"Unknown schema field newField. '
+                        + ''.join('\\u%04x' % value for value in self.token)
+                        + r'\n\u001b[31m ghp_synthetic_secret_marker",'
+                        + '"extensions":{"code":"UNFAMILIAR_SCHEMA_CODE"}}]}'
+                    ).encode(),
                     (
                         ("X-RateLimit-Limit", "60"),
                         ("X-RateLimit-Remaining", "42"),

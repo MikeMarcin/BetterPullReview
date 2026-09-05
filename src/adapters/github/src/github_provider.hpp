@@ -165,7 +165,8 @@ namespace bpr::adapters::github::detail {
 						 std::shared_ptr<github_wire_transport_factory_port>
 														aTransportFactory,
 						 github_provider_read_authority aReadAuthority
-						 = github_provider_read_authority::authenticated) noexcept
+						 = github_provider_read_authority::authenticated,
+						 std::shared_ptr<application::diagnostic_log_port> aLog = { }) noexcept
 		-> github_provider_factory_result;
 
 	[[nodiscard]] auto make_github_provider(
@@ -173,7 +174,8 @@ namespace bpr::adapters::github::detail {
 		application::effect_executor&                         aEffects,
 		std::shared_ptr<github_wire_transport_factory_port>   aTransportFactory,
 		github_provider_read_authority                        aReadAuthority
-		= github_provider_read_authority::authenticated) noexcept
+		= github_provider_read_authority::authenticated,
+		std::shared_ptr<application::diagnostic_log_port> aLog = { }) noexcept
 		-> github_provider_factory_result;
 }
 

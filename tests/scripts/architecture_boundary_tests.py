@@ -129,6 +129,8 @@ add_subdirectory(agent)
 
 DEPENDENCIES_TARGET = """\
 function(bpr_configure_dependencies)
+bpr_acquire_quill()
+bpr_require_dependency_target(quill::quill Quill)
 bpr_include_builtin_find_module(Threads)
 target_link_libraries(example PRIVATE Qt6::Core)
 target_link_libraries(example PRIVATE LibSecret::LibSecret)
@@ -1862,6 +1864,12 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "must not compile a test-only production seam",
             git_target=GIT_TARGET
             + "\nif(BPR_BUILD_TESTS)\nendif()\n",
+        )
+
+    def test_quill_headers_are_owned_by_logging_adapter(self) -> None:
+        self.assert_failure(
+            "Quill effects belong exclusively to the logging adapter",
+            {"src/app/src/unowned_logging.cpp": "#include <quill/Backend.h>\n"},
         )
 
     def test_core_application_and_qt_reject_process_and_network_types(

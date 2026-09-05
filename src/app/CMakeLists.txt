@@ -27,6 +27,7 @@ if(BPR_BUILD_QT)
             BetterPullReview::AdapterGitHub
             BetterPullReview::AdapterGit
             BetterPullReview::AdapterSQLite
+            BetterPullReview::AdapterLogging
             BetterPullReview::AdapterSyntax
             BetterPullReview::AdapterAI
 			BetterPullReview::AdapterAgent

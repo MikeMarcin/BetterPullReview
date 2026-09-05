@@ -413,10 +413,25 @@ namespace {
 		return response;
 	}
 
+	class recording_log final : public application::diagnostic_log_port
+	{
+	public:
+		std::vector<application::diagnostic_event> Events;
+		bool*                                      FailCompletionCopy = nullptr;
+		auto                                       record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			Events.push_back(aEvent);
+			if (FailCompletionCopy && aEvent.Outcome == application::diagnostic_outcome::started) {
+				*FailCompletionCopy = true;
+			}
+			return application::diagnostic_log_status::available;
+		}
+		auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+	};
 	struct provider_fixture
 	{
 		explicit provider_fixture(
-			const application::github_authentication_transport aAuthentication)
+			const application::github_authentication_transport aAuthentication, std::shared_ptr<application::diagnostic_log_port> aLog = { })
 			: Profile{ test_profile(aAuthentication) }
 			, Transport{ std::make_shared<fake_wire_transport>() }
 			, Factory{ std::make_shared<fake_transport_factory>() }
@@ -426,7 +441,7 @@ namespace {
 			auto provider               = make_github_provider(
 				std::span<const validated_github_host_profile>{ &Profile, 1U },
 				Effects,
-				Factory);
+				Factory, github_provider_read_authority::authenticated, std::move(aLog));
 			expect(provider.has_value(), "concrete provider constructs");
 			Provider = std::move(*provider);
 		}
@@ -1369,6 +1384,60 @@ namespace {
 			   "provider never retries beyond explicitly submitted attempts");
 	}
 
+	template <typename TTerminal>
+	struct throwing_completion_copy
+	{
+		bool* Fail;
+		int*  Terminals;
+		throwing_completion_copy(bool& aFail, int& aTerminals)
+			: Fail{ &aFail }
+			, Terminals{ &aTerminals }
+		{ }
+		throwing_completion_copy(const throwing_completion_copy& aOther)
+			: Fail{ aOther.Fail }
+			, Terminals{ aOther.Terminals }
+		{
+			if (*Fail) {
+				throw std::bad_alloc{ };
+			}
+		}
+		void operator()(TTerminal) const { ++*Terminals; }
+	};
+	void test_logging_wrapper_failure_preserves_terminal()
+	{
+		const auto       log = std::make_shared<recording_log>();
+		provider_fixture fixture{ application::github_authentication_transport::native_https, log };
+		bool             fail      = false;
+		int              terminals = 0;
+		log->FailCompletionCopy    = &fail;
+		application::github_viewer_completion_handler viewer{ throwing_completion_copy<application::github_viewer_completion>{ fail, terminals } };
+		fixture.Provider->observe_viewer({ }, std::move(viewer));
+		expect(terminals == 1 && fixture.Effects.pending() == 0U, "logging copy failure preserves original viewer refusal terminal");
+		fail = false;
+		application::github_capability_completion_handler capability{ throwing_completion_copy<application::github_capability_completion>{ fail, terminals } };
+		fixture.Provider->probe_capabilities({ }, std::move(capability));
+		expect(terminals == 2 && fixture.Effects.pending() == 0U, "logging copy failure preserves original capability refusal terminal");
+	}
+	void test_sanitized_provider_logging()
+	{
+		const auto       log = std::make_shared<recording_log>();
+		provider_fixture fixture{ application::github_authentication_transport::native_https, log };
+		const auto       request             = capability_request_for(fixture, account_lease(fixture));
+		fixture.Transport->CapabilityHandler = [](const github_capability_probe_wire_request& aWire, std::stop_token) {
+			auto response             = supported_capability_response();
+			response.Body             = R"({"errors":[{"message":"Unknown schema field newField","extensions":{"code":"UNFAMILIAR_SCHEMA_CODE"}}]})";
+			const std::string secret  = "runtime-only-fixture-secret";
+			const auto        summary = sanitize_capability_error(response.Body, std::as_bytes(std::span{ secret }));
+			return github_capability_probe_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response), .Summary = summary };
+		};
+		const auto completion = run_capability(fixture, request);
+		expect(std::holds_alternative<application::github_capability_error>(completion), "logging preserves capability failure");
+		expect(log->Events.size() >= 5U, "viewer and capability outcomes logged");
+		const auto& detail = log->Events[log->Events.size() - 2U];
+		expect(detail.Operation == application::diagnostic_operation::capability && detail.Outcome == application::diagnostic_outcome::response_received && detail.HttpStatus == 200 && detail.Request == request.Context.Request.value() && detail.Summary.text().find("UNFAMILIAR_SCHEMA_CODE") != std::string_view::npos, "provider forwards only sanitized useful detail with request and status");
+		expect(log->Events.back().Outcome == application::diagnostic_outcome::failed, "failure terminal remains explicit");
+	}
+
 	void test_capability_refusal_detail_propagation()
 	{
 		provider_fixture fixture{ application::github_authentication_transport::native_https };
@@ -1632,6 +1701,8 @@ namespace {
 
 int main()
 {
+	test_sanitized_provider_logging();
+	test_logging_wrapper_failure_preserves_terminal();
 	test_profile_set_validation();
 	test_multi_profile_routing_and_authority_rejection();
 	test_multi_profile_cancellation_is_profile_scoped();

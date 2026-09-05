@@ -145,6 +145,8 @@ foreach(
         "LibSecret::LibSecret"
         "Python3::Interpreter"
         "Git::Git"
+        "bpr_acquire_quill()"
+        "bpr_require_dependency_target(quill::quill Quill)"
 )
     string(FIND "${dependencies_cmake_contents}" "${pattern}" pattern_index)
     if(pattern_index EQUAL -1)
@@ -5053,3 +5055,11 @@ if(EXISTS "${github_cli_transport}")
 endif()
 
 message(STATUS "Application, provider, and Qt architecture boundaries verified")
+
+file(GLOB_RECURSE quill_boundary_sources "${BPR_ROOT}/src/*.cpp" "${BPR_ROOT}/src/*.hpp")
+foreach(source IN LISTS quill_boundary_sources)
+    file(READ "${source}" contents)
+    if(contents MATCHES "#[ \t]*include[ \t]*[<\"]quill/" AND NOT source MATCHES "/src/adapters/logging/")
+        message(FATAL_ERROR "Quill effects belong exclusively to the logging adapter: ${source}")
+    endif()
+endforeach()

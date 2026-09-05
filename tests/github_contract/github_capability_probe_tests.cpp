@@ -1852,10 +1852,44 @@ namespace {
 			   "supported normalization carries no refusal detail");
 	}
 
+	void test_safe_capability_error_logging()
+	{
+		const std::string secret     = "runtime-only-secret-canary";
+		const auto        credential = std::as_bytes(std::span{ secret });
+		const auto        body       = QJsonDocument{ QJsonObject{ { "errors", QJsonArray{ QJsonObject{ { "message", QStringLiteral("Unknown schema field 'newField' is unavailable. ") + QString::fromStdString(secret) + QStringLiteral("\n\x1b[31m forged line https://example.invalid/private?token=x ghp_synthetic_secret_marker") }, { "type", QStringLiteral("UNFAMILIAR_SCHEMA_CODE") }, { "extensions", QJsonObject{ { "code", QString::fromStdString(secret) } } } } } } } }.toJson(QJsonDocument::Compact).toStdString();
+		const auto        result     = sanitize_capability_error(body, credential);
+		expect(result.State == application::diagnostic_summary_state::sanitized, "sanitized bounded GraphQL prose");
+		expect(result.text().find("newField") != std::string_view::npos && result.text().find("UNFAMILIAR_SCHEMA_CODE") != std::string_view::npos, "unknown code and useful schema prose retained");
+		for (const auto& forbidden : { secret, std::string{ "ghp_synthetic_secret_marker" }, std::string{ "https://" }, std::string{ "\n" }, std::string{ "\x1b" } }) {
+			expect(result.text().find(forbidden) == std::string_view::npos, "forbidden span absent before logging");
+		}
+		auto        escaped = body;
+		std::string encoded;
+		for (const auto character : secret) {
+			const char digits[] = "0123456789abcdef";
+			encoded += "\\u00";
+			encoded += digits[(static_cast<unsigned int>(static_cast<unsigned char>(character)) >> 4U) & 15U];
+			encoded += digits[static_cast<unsigned char>(character) & 15U];
+		}
+		for (auto at = escaped.find(secret); at != std::string::npos; at = escaped.find(secret)) {
+			escaped.replace(at, secret.size(), encoded);
+		}
+		const auto escapedResult = sanitize_capability_error(escaped, credential);
+		expect(escapedResult.State == application::diagnostic_summary_state::sanitized && escapedResult.text().find(secret) == std::string_view::npos, "JSON escaped reflection removed");
+		expect(sanitize_capability_error(R"({"errors":[],"errors":[{"message":"unsafe"}]})", credential).State == application::diagnostic_summary_state::omitted_invalid, "duplicate keys omitted without raw fallback");
+		expect(sanitize_capability_error(R"({"access_token":"authentication body"})", credential).text().empty(), "non-error fields excluded");
+		expect(sanitize_capability_error(R"({"errors":[{"message":42}]})", credential).text().empty(), "invalid prose omitted");
+		expect(sanitize_capability_error(body, { }).text().empty(), "missing credential boundary omits prose");
+		const std::string punctuationSecret = "abcd+efgh/ijkl";
+		const auto        selective         = sanitize_capability_error(R"({"errors":[{"message":"Unknown schema field newField abcd%2Befgh%2Fijkl"}]})", std::as_bytes(std::span{ punctuationSecret }));
+		expect(selective.State == application::diagnostic_summary_state::sanitized && selective.text().find("newField") != std::string_view::npos && selective.text().find("abcd") == std::string_view::npos, "selective percent-encoded active credential is removed");
+	}
+
 } // namespace
 
 int main()
 {
+	test_safe_capability_error_logging();
 	test_closed_capability_refusal_details();
 	test_graphql_error_code_details_do_not_change_refusal();
 	test_requests_bind_validated_profile_authority();

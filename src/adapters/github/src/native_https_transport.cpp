@@ -217,10 +217,11 @@ namespace bpr::adapters::github::detail {
 
 		struct hop_success
 		{
-			int                      Status = 0;
-			std::string              Body;
-			std::vector<http_header> Headers;
-			page_completeness        Completeness = page_completeness::unknown;
+			int                             Status = 0;
+			std::string                     Body;
+			std::vector<http_header>        Headers;
+			page_completeness               Completeness = page_completeness::unknown;
+			application::diagnostic_summary CapabilitySummary{ };
 		};
 
 		struct hop_capability_failure
@@ -2050,6 +2051,7 @@ namespace bpr::adapters::github::detail {
 				return github_capability_probe_wire_success{
 					.Correlation = aCorrelation,
 					.Response    = std::move(response),
+					.Summary     = success->CapabilitySummary,
 				};
 			}
 			if (auto* error = std::get_if<hop_capability_failure>(&aResult)) {
@@ -3859,6 +3861,9 @@ namespace bpr::adapters::github::detail {
 				auto result = execute_with_proxy_candidates(aOperation, current, *candidates);
 				if (auto* success = std::get_if<hop_success>(&result);
 					success != nullptr) {
+					if (aOperation->Request.Surface == native_request_surface::capability_probe) {
+						success->CapabilitySummary = sanitize_capability_error(success->Body, credential_bytes());
+					}
 					return std::move(*success);
 				}
 				if (std::holds_alternative<hop_cancelled>(result)) {
