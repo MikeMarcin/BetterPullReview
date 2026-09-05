@@ -397,3 +397,22 @@ record that Computer Use stopped before any operation because its current
 browser URL was disallowed. No mixed-client acceptance row is promoted. The
 approval remains valid for the unchanged packet and remembered sign-in remains
 untouched.
+
+## Whole-review provider and durable recovery — 2026-09-05
+
+BPR-0614 (`f2d23e0f`) implements the production session/provider boundary with
+exact request correlation, durable pre-send baseline/admission, a transmission
+witness, server reconciliation and a distinct review receipt. SQLite v3
+preserves v1/v2 source-line records while adding sibling whole-review tables.
+Eight focused behavior/architecture checks passed (70.73 seconds), isolation
+checks passed 2/2 (3.91 seconds), and the integrator reproduced the three new
+provider/storage/restart checks (0.73 seconds). Critical review found no blocker
+against duplicate/false-success publication or migration data loss.
+
+The provider is not yet selected by the application UI. BPR-0615 owns that
+integration, pending-request restoration and the conservative moved-head
+recovery limitation. Review lists currently require one complete page of at
+most 100 entries; restart evidence uses fresh processes with normal exits.
+Windows fixture exceptions reuse the established filesystem cause, with no new
+native Windows execution claim. No live review or RFC acceptance row is closed
+by this provider/storage slice.

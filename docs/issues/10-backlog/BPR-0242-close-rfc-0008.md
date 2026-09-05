@@ -248,3 +248,25 @@ URL was disallowed. No operation ran, no alternate route was attempted, and no
 live acceptance is claimed. Its parked reason is awaiting-live-github, not a
 missing owner decision. The approved packet remains unchanged. RFC0008 and the
 whole requested-set goal remain unfinished.
+
+## Whole-review provider/recovery complete — 2026-09-05
+
+BPR-0614 is Done at `f2d23e0f`: one-POST submission/reconciliation, typed Glaze
+review-list baseline, complete request correlation and SQLite schema v3 with
+preserved v1/v2 comment records. Eight focused behavior/architecture selectors
+passed (70.73 seconds), isolation manifest/structure passed 2/2 (3.91 seconds),
+and the integrator reproduced new provider/storage/restart checks 3/3 (0.73
+seconds). Formatting, documentation and diff checks passed. Critical review
+found no blocker against duplicate/false-success publication or migration data
+loss. Closeout review runtime: native collaboration (gpt-6-astra, xhigh).
+
+The one-page review limit, normal-exit restart evidence and reused Windows
+filesystem exemption are recorded on the card. A moved head currently leaves
+historical recovery indeterminate without querying that review; this is
+conservative, not retry permission. Planned next:
+[BPR-0615](../20-ready/BPR-0615-connect-whole-review-host-and-public-workflow.md)
+connects the async host, exact pending-request restoration, whole-review
+authority and normal Qt/public composition, including that read-only recovery
+case. BPR-0144 waits for it. BPR-0143's four operations remain approved but
+unexecuted under the browser restriction. RFC0008 and the requested-set goal
+remain unfinished; deferred work remains deferred.
