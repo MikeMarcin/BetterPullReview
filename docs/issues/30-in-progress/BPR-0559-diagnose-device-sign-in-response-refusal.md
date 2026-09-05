@@ -289,3 +289,23 @@ acceptance. Explicit Sign out, disconnected UI, normal exit 0 and logged shutdow
 completed. V004 authority is consumed; no PR/publication ran. Continue offline
 query repair and an exact repetition-limit regression. Do not weaken capability
 validation or add another speculative diagnostic enum.
+
+## Bounded repair plan
+
+Replace the singleton introspection request with exactly nine canonical serial
+query parts, each expanding every introspection field no more than twice.
+Keep the existing selected schema facts, 1 MiB response/aggregate ceiling and
+50,000-value final bound; do not download the unrelated complete schema or
+increase limits. Carry exact part identity through request validation and
+completion. Validate every part's authority/correlation/metadata/rate state,
+stop on first error or cancellation, reject missing/duplicate/unexpected aliases,
+and publish only the complete merged observation. No implicit retry is added.
+
+The existing GitHub.com selected response is 177,113 compact bytes, with the
+largest natural parts around 85 KiB and 63 KiB, so this partition requires no
+larger response allowance. Preserve the original fixture provenance and label
+new partials as deterministic projections of those recorded source responses.
+Regression evidence must fail the old query's 17/17/3/4 repetitions and accept
+the new fixed plan, then cover provider stopping/correlation/bounds and the
+native-to-composed session path. Historical answered review artifacts remain
+immutable. Additional live verification requires its own exact changed build.
