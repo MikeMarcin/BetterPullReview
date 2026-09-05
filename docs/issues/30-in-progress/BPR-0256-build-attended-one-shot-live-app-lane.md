@@ -1,7 +1,7 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560, BPR-0606, BPR-0607, BPR-0608]
 ---
@@ -1308,3 +1308,16 @@ failure before regenerating another publication capsule. The next publication
 candidate depends on that observation and any proven repair. No changed binary
 was launched and no new response or acceptance is invented. Prior v009 remains
 consumed; the deferred advanced logging/schema work is untouched.
+
+## History repaired; resume publication candidate — 2026-09-05
+
+BPR-0607/BPR-0608 are Done. The remembered MikeMarcin session resumed without
+owner input, and the designated exact base/head and source diff loaded in the
+ordinary Release app. Continue the one-comment course under the standing owner
+instruction without another approval question; do not invent a human digest
+statement or reset spent authority. Prepare a fresh one-use subject and capsule,
+retain the previously accepted target/body/runtime limits, and preserve remembered
+sign-in on quit under the owner's latest instruction. Ordinary diagnostics have
+no publication grant. Existing `build/app-release` may produce the capsule;
+remove its generated capsule artifacts once consumed, retaining that ordinary
+build tree. No extra worktree or full matrix is required by this source repair.

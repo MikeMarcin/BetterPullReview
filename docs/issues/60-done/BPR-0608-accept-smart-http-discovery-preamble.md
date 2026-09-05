@@ -1,7 +1,7 @@
 ---
 id: BPR-0608
 title: Accept the smart HTTP discovery preamble
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0607]
 ---
@@ -44,3 +44,26 @@ into the production parser; the real epoch/cache integration uses the wrapper.
 All four planned selectors passed (49.56 seconds). Dev targets and Release app
 built; scoped format, code-simplifier inspection and documentation gate pass.
 Live remembered-sign-in/history observation remains in progress.
+
+## Live result and completion — 2026-09-05
+
+Release SHA-256 `58862689e01cfca29afa733f63aefff65f12b2aef5116203cd1bc0b1fae60b56`
+at source `092dddd8` ran as sole PID 52525, 11:41:32–11:45:17 UTC.
+The remembered MikeMarcin session resumed without a code request or owner
+interaction; all nine capability requests succeeded. Protocol acquisition
+succeeded at 11:42:46.896081314 UTC and revision preparation at
+11:42:47.768826652 UTC. The UI showed base
+`e2a44aa8fef704de7373463222b1872e796918c6` and head
+`17990ba0c2fb50338141f35c0717f0f99639c7ba`. Selecting
+`bpr-live-review-fixture.txt` rendered its source, one insertion, actionable
+file 1 of 1 and review history ready. No draft or Publish action occurred.
+The app quit with exit 0 and process absence; remembered sign-in was preserved.
+Only this run's appended sanitized diagnostics were read. No screenshot or log
+was committed. Native capture excluded the device panel.
+
+Strict scoped tidy identified one test-only temporary-string allocation;
+corrected with append, then the protocol test passed again (0.37 seconds) and
+that TU's strict tidy passed. The other three TUs passed unchanged. A direct
+tidy invocation initially lacked Apple's SDK settings; the repository wrapper
+supplied those settings for the final checks. No additional full matrix was run.
+BPR-0256 can now continue the previously authorized one-comment course.

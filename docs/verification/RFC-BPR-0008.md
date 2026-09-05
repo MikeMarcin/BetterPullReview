@@ -275,3 +275,9 @@ autonomous diagnostic iterations; the app quit without Sign out. No publication
 occurred. Current next slice: [[BPR-0608]] repairs the observed smart HTTP
 service preamble mismatch, verifies fixtures and reopens the designated PR.
 No live acceptance row or RFC closeout is claimed by this diagnostic result.
+
+BPR-0608 completed the HTTP framing repair at `092dddd8`: four focused checks
+passed in 49.56 seconds and live remembered-sign-in, exact history and rendered
+source diff succeeded. Current next slice is BPR-0256's fresh publication capsule
+under standing owner authority, preserving sign-in on quit. Publication itself
+remains unobserved; the live acceptance rows remain incomplete.

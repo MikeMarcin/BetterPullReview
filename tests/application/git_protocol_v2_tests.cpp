@@ -438,13 +438,16 @@ namespace {
 					   && parsed->LsRefs == direct->LsRefs && parsed->Fetch == direct->Fetch,
 				   "HTTP preamble preserves required v2 capabilities and object format");
 		}
-		const auto body = text(advertisement(core::git_hash_algorithm::sha1));
+		const auto body             = text(advertisement(core::git_hash_algorithm::sha1));
+		auto       repeatedPreamble = preamble;
+		repeatedPreamble += preamble;
+		repeatedPreamble += body;
 		for (const auto& invalid : {
 				 packet("# service=git-receive-pack\n") + "0000" + body,
 				 packet("# service=git-upload-pack\n") + body,
 				 packet("# service=git-upload-pack\n") + "0001" + body,
 				 packet("# service=git-upload-pack\r\n") + "0000" + body,
-				 preamble + preamble + body,
+				 repeatedPreamble,
 				 preamble,
 				 preamble + packet("version 1\n") + "0000",
 				 preamble + packet("version 2\n") + "0000",
