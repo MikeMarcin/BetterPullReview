@@ -4,7 +4,7 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622"]
 closeout_for: ["RFC-BPR-0013"]
 ---
 
@@ -81,3 +81,7 @@ check retained identity and absence of automatic agent replay, not just a
 successful new application start.
 
 BPR-0621 now owns the composed AI-session kill/reopen proof described above.
+
+BPR-0622 records the observed interrupted-workspace retention gap and owns the
+durable exact-ownership/reclamation outcome. Do not count preservation alone
+as completed workspace resource recovery.
