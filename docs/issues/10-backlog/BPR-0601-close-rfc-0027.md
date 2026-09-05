@@ -4,7 +4,7 @@ title: Verify and close RFC-BPR-0027
 status: Backlog
 rfc: RFC-BPR-0027
 milestone: Post-Pack v2
-depends_on: [BPR-0600]
+depends_on: [BPR-0600, BPR-0602, BPR-0603]
 ---
 
 # Verify and close RFC-BPR-0027
@@ -16,7 +16,7 @@ implementation cards, direct evidence and the shipped diagnostic path.
 
 RFC base: `55a3eb6c5d0f37cbcb4e35a33c2c90467a6f13ce`.
 Requested RFC set: RFC-BPR-0027; workstream position: 1 of 1.
-Planned cards: BPR-0600, BPR-0601. Add subsequently allocated required slices to
+Planned cards: BPR-0600, BPR-0601, BPR-0602, BPR-0603. Add subsequently allocated required slices to
 this list and dependencies before closeout. Registration is not implementation.
 
 ## Closeout checklist
@@ -44,6 +44,9 @@ then reconcile RFC/index status only when canonical order and dependencies allow
 
 ## Resume
 
-Next task: [BPR-0600](BPR-0600-plan-structured-diagnostic-logging.md), after a later
-implementation request. No product test has run, no live authority was granted,
+Next task: BPR-0602, the owner-authorized basic foundation. BPR-0600 planning
+is complete; BPR-0603 and the full RFC closeout remain deferred. No product test has run, no live authority was granted,
 and no implementation slice is complete.
+
+Phase-1 results belong to BPR-0602 and do not mark full criteria complete. The
+owner explicitly deferred rotating logs, anonymization and Settings controls.

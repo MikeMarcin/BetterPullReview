@@ -12,18 +12,48 @@ pack_version: post-v2
 
 ## Status and scope
 
-**Requested design; registration only; implementation requires a later request.**
+**Basic logging foundation authorized; advanced controls remain deferred.**
 The owner requested this RFC on 2026-09-04, using AllTheThings' verbosity and
-privacy controls as the reference. The details below are the proposed contract,
-not a claim of implemented or owner-tested behavior. This registration adds no
-credential, remote-mutation, dependency-acquisition or RFC-closeout authority.
+privacy controls as the reference. The owner subsequently requested basic Quill logging now, deferring fancy
+rotation, anonymization and Settings controls. This authorizes the foundation
+implementation and its pinned Quill dependency, not a new live sign-in or
+publication. The full design below remains the later target, not a claim of
+implemented or owner-tested behavior.
 
 Registration baseline: `55a3eb6c5d0f37cbcb4e35a33c2c90467a6f13ce`.
-Entry: [[BPR-0600]]. Closeout: [[BPR-0601]]. Both remain in backlog. This
+Entry: [[BPR-0600]]. Foundation: [[BPR-0602]]. Advanced phase: [[BPR-0603]].
+Closeout: [[BPR-0601]]. Partial implementation does not close this RFC. This
 additional RFC blocks no original-pack work and changes no canonical ordering.
 Its logging foundation can be implemented without the later Settings center or
 multiple-profile system; those integrations use the same typed ports when
 available, without creating reverse dependencies.
+
+## Authorized implementation phases
+
+**Phase 1, now — BPR-0602:** pin Quill; explicitly own its backend lifetime;
+write startup/shutdown and GitHub viewer/capability operation outcomes to one
+fixed owner-local log file; retain a bounded useful capability GraphQL error
+summary before response disposal. Use a nonblocking bounded queue, capped
+records and a fixed file byte ceiling. When the file fills, stop recording and
+report that state; no rotation or automatic deletion is implemented. The file
+survives quit and is directly readable at a documented path. Logging failure
+must not change sign-in, retry or cleanup behavior.
+
+Only the static capability query's bounded error message/code fields may supply
+remote diagnostic prose in this phase. Filter active credential reflections and
+credential-shaped material within the GitHub adapter before a summary reaches
+the logging port. Exclude authentication bodies, headers, URLs, requests,
+arbitrary extensions, source/review content and all other response bodies.
+Retained prose may still identify the service or account; local logs are not
+anonymized or automatically safe to share. This distinction replaces the full
+phase-2 anonymization default for the limited initial implementation.
+
+**Phase 2, later — BPR-0603:** rotation/age/aggregate retention, identity
+anonymization, Standard/Verbose and privacy/Off Settings controls, recent-context
+ring, preview/export/Clear/Open-logs UI, expanded operation coverage and later
+profile integration. The full acceptance criteria below remain the RFC closeout
+contract. BPR-0602 has its own bounded acceptance and may finish while phase 2
+and the overall RFC remain deferred. No Settings dependency blocks phase 1.
 
 ## Problem and intended outcome
 
