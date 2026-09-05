@@ -75,6 +75,17 @@ Implementation Architecture](github-host-implementation.md).
           └──────────────────────────────────────────────┘
 ```
 
+## Diagnostic logging boundary
+
+BPR-0602 adds a bounded `application::diagnostic_log_port`. Composition constructs
+and injects the concrete logger and closes it after producers quiesce. The logging
+adapter alone owns Quill and file effects; core and Qt presentation have no logger
+or Quill dependency. The GitHub native adapter sanitizes only static capability
+error message/type/code fields while it owns the active credential. Provider
+callbacks submit that bounded summary and fixed operation facts without changing
+request acceptance, retries or terminal delivery. Quill is pinned centrally and
+excluded from core-only builds. Advanced controls remain RFC-BPR-0027 phase 2.
+
 ## Build-target and dependency direction
 
 The initial target shape should be equivalent to:
@@ -90,6 +101,7 @@ better_pull_review_application
 better_pull_review_adapter_github
 better_pull_review_adapter_git
 better_pull_review_adapter_sqlite
+better_pull_review_adapter_logging
 better_pull_review_adapter_ai
     implement application-host ports
 

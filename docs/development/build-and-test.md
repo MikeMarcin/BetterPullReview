@@ -2510,3 +2510,52 @@ Nine operation kinds do not imply nine production HTTP requests. A dry run
 proves wiring only; a completed candidate requires an accepted public snapshot,
 head, and observed budget. Do not repeat an attended service read from a stale
 packet or treat a fixture or official service description as executed evidence.
+
+## Basic local diagnostics
+
+BPR-0602 uses pinned Quill v13.0.0 through a dedicated logging adapter. The
+provider verifies the archive hash and size, stages its headers, and does not
+execute upstream tests, examples or install rules. The core-only graph does not
+acquire Quill. License and bundled fmt notices are in `third_party/quill/`.
+
+The Mac app appends to:
+
+```text
+~/Library/Application Support/BetterPullReview/BetterPullReview/logs/diagnostics.log
+```
+
+Read it directly while diagnosing a run; UI error copying is unnecessary for
+these events:
+
+```sh
+tail -n 100 "$HOME/Library/Application Support/BetterPullReview/BetterPullReview/logs/diagnostics.log"
+```
+
+The file contains UTC timestamps, application startup/shutdown, GitHub viewer
+and capability outcomes, local request numbers, capability HTTP status and a
+sanitized error summary. Unknown capability error message/type/code prose stays
+useful. Filtering happens while the native adapter still owns the active
+credential, before any summary reaches Quill. Authentication bodies, headers,
+request URLs and source/review bodies are excluded. Local prose can still name
+a service or account; identity anonymization and export are deferred.
+
+One owner-only file survives quit and appends across launches. The 16 MiB cap
+stops further recording; this version does not rotate or delete logs. To start a
+fresh file, quit the app and move or remove that exact file yourself. Symlinked,
+shared-permission or already-locked targets are refused. Windows file logging
+currently reports unavailable; runtime evidence covers macOS, not native Linux.
+
+Summary storage is capped at 2,048 bytes. Each admitted producer has a dropping
+64 KiB queue, with at most 16 admitted thread identities and bounded backend
+transit buffers. Normal backend flushing uses Quill's 200 ms minimum interval;
+ordinary shutdown drains after producer quiescence. This is not crash durability
+or a hard filesystem-latency guarantee. Full/unavailable/drop states are exposed
+through the typed logging port; no Settings indicator or console fallback exists
+in this foundation. Rotation, retention, verbose/privacy controls, anonymization,
+export and expanded event coverage remain BPR-0603 work.
+
+Focused checks:
+
+```sh
+ctest --preset dev --output-on-failure -R '^(native_https_transport_contract|native_https_transport_fixture|github_provider|github_capability_probe|application_logging|quill_logging|quill_logging_backpressure)$'
+```

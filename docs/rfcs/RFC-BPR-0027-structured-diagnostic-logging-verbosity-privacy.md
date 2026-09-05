@@ -12,7 +12,7 @@ pack_version: post-v2
 
 ## Status and scope
 
-**Basic logging foundation authorized; advanced controls remain deferred.**
+**Basic logging foundation implemented; advanced controls remain deferred.**
 The owner requested this RFC on 2026-09-04, using AllTheThings' verbosity and
 privacy controls as the reference. The owner subsequently requested basic Quill logging now, deferring fancy
 rotation, anonymization and Settings controls. This authorizes the foundation
@@ -54,6 +54,22 @@ ring, preview/export/Clear/Open-logs UI, expanded operation coverage and later
 profile integration. The full acceptance criteria below remain the RFC closeout
 contract. BPR-0602 has its own bounded acceptance and may finish while phase 2
 and the overall RFC remain deferred. No Settings dependency blocks phase 1.
+
+## Phase-1 implementation record
+
+BPR-0602 implements the foundation in `3d109fd4`: Quill v13.0.0, an explicit
+application port and logging adapter, composition lifetime, and sanitized native
+capability-error detail. The file is `<ApplicationDataRoot>/logs/diagnostics.log`,
+append-only with a 16 MiB ceiling and 2,048-byte summaries. Availability/full/drop
+states are typed; there is no Settings indicator or stderr fallback yet.
+
+Focused native/provider/sanitizer, real file, blocked-stderr cleanup and composed
+application checks pass on macOS. Development and tests-disabled Release builds
+pass; the core-only graph omits Quill. See [[BPR-0602]] for exact evidence and
+[local logging instructions](../development/build-and-test.md#basic-local-diagnostics).
+Windows file logging is explicitly unavailable; Linux native evidence, advanced
+controls and full RFC closeout remain deferred. No new live sign-in ran, and
+BPR-0559's live refusal root cause remains unknown.
 
 ## Problem and intended outcome
 

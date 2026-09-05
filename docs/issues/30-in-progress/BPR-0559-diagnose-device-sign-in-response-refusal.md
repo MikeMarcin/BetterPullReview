@@ -247,3 +247,10 @@ and its backlog entry/closeout cards now specify that work, including a useful
 sanitized unfamiliar GraphQL error fixture. This is design registration only;
 no logger is implemented, no further live run is authorized and BPR-0559's
 root-repair criteria remain open.
+
+## Basic logger follow-up
+
+BPR-0602 (`3d109fd4`) now preserves sanitized capability error prose in a local
+Quill log, with credential-free native/provider/file/composition evidence. This
+removes the need for another UI-only diagnostic category. It does not identify
+the previous live failure or authorize another sign-in; this card remains open.

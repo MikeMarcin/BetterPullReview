@@ -18,7 +18,10 @@ Implement RFC-BPR-0027's rotation/age/aggregate retention; typed identity
 anonymization; Standard/Verbose, privacy and Off controls; recent-context ring;
 previewed anonymized/identifying exports; Open logs and Clear UI; expanded
 operation coverage and applicable Settings/profile integration. Preserve the
-foundation's credential filtering and no-authentication-body rule.
+foundation's credential filtering and no-authentication-body rule. BPR-0602's
+macOS implementation is complete; add Windows file support and obtain native
+Linux/Windows evidence before claiming those platforms. The initial fixed log
+uses typed availability states without a UI indicator.
 
 ## Acceptance and verification
 

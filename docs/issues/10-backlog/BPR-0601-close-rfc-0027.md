@@ -42,11 +42,18 @@ attended claims limited to actual evidence. Preserve unsupported-platform and
 crash-durability limitations. Run the documentation gate and git diff hygiene,
 then reconcile RFC/index status only when canonical order and dependencies allow.
 
-## Resume
+## Foundation evidence and resume
 
-Next task: BPR-0602, the owner-authorized basic foundation. BPR-0600 planning
-is complete; BPR-0603 and the full RFC closeout remain deferred. No product test has run, no live authority was granted,
-and no implementation slice is complete.
+BPR-0602 completed the owner-authorized phase 1 in `3d109fd4`. Its card records
+passing native/provider/sanitizer, file persistence/cap, blocked-stderr cleanup,
+composed application and dependency/boundary checks. Those establish the basic
+subset of AC-02, AC-03 and AC-06 through AC-09; they do not complete the full
+numbered criteria above. No new live sign-in ran and no live root cause is claimed.
 
-Phase-1 results belong to BPR-0602 and do not mark full criteria complete. The
-owner explicitly deferred rotating logs, anonymization and Settings controls.
+Next task, only when requested: BPR-0603's advanced retention, anonymization,
+controls, export and native-platform work. BPR-0600 and BPR-0602 are done; this
+closeout and the full RFC remain deferred.
+
+Closeout review runtime: native collaboration (gpt-6-astra, xhigh).
+The bounded BPR-0602 confidentiality/lifetime review resolved all three findings;
+no blocker remains in that subset. Opposite-family review was unavailable.
