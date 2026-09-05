@@ -1,8 +1,7 @@
 ---
 id: BPR-0559
 title: Diagnose device sign-in response refusal after browser authorization
-status: Parked
-parked_on: awaiting-owner-verdict
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -273,3 +272,7 @@ reading, explicit Sign out and quit; no PR or publication. Root-repair criteria
 remain open pending the actual sanitized server error. This card parks awaiting
 the exact owner verdict. Existing Release build is retained for that consumer;
 no temporary worktree or new evidence/build root was created.
+
+## Exact v004 approval received
+
+The owner supplied the exact [v004 response](../../verification/reviews/device-session-bootstrap-diagnostic-v004/operator-response.md). Packet and executable hashes and executable length match; native inventory showed no app instance. Resume this single sign-in-only run and sanitized local-log reading, followed by explicit Sign out and quit. No PR or publication is authorized.
