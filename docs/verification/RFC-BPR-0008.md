@@ -266,3 +266,12 @@ three integrator checks passed in 5.94 seconds. Logging refusal leaves original
 core diagnostics and comparison admission unchanged. The v009 live cause is
 still unproven, and no live-publication acceptance row is satisfied by these
 fixture results. Advanced logging and schema-method work remain deferred.
+
+## History protocol repair — 2026-09-05
+
+[[BPR-0607]] observed healthy MikeMarcin sign-in followed by protocol discovery
+`unsupported_version`. The owner requested preserving remembered sign-in and
+autonomous diagnostic iterations; the app quit without Sign out. No publication
+occurred. Current next slice: [[BPR-0608]] repairs the observed smart HTTP
+service preamble mismatch, verifies fixtures and reopens the designated PR.
+No live acceptance row or RFC closeout is claimed by this diagnostic result.

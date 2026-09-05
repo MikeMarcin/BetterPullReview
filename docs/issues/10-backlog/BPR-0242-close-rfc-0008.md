@@ -92,3 +92,12 @@ It accepts a plain instruction to run, as requested by the owner, and does not
 require another pasted digest block. No returned instruction, live result or
 publication is fabricated. The persistent goal remains active for the complete
 RFC set; all currently available unattended work in this slice is committed.
+
+## History protocol repair — 2026-09-05
+
+[[BPR-0607]] observed healthy MikeMarcin sign-in followed by protocol discovery
+`unsupported_version`. The owner requested preserving remembered sign-in and
+autonomous diagnostic iterations; the app quit without Sign out. No publication
+occurred. Current next slice: [[BPR-0608]] repairs the observed smart HTTP
+service preamble mismatch, verifies fixtures and reopens the designated PR.
+No live acceptance row or RFC closeout is claimed by this diagnostic result.

@@ -1,7 +1,7 @@
 ---
 id: BPR-0607
 title: Observe the epoch-preparation diagnostic on macOS
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0606]
 ---
@@ -43,3 +43,34 @@ in the checkpoint response. The prepared hash revalidated and no app process
 exists. Resume this bounded PR-read course and equivalent diagnostic follow-ups
 without another digest ceremony; preserve actual build/outcome records and
 explicit Sign out/quit. No publication grant is introduced.
+
+## Observed result — 2026-09-05
+
+The exact Release executable `171595c34d8c573d6855dda4e38c11334bde91b33e31791e5f1fd0a95781dd41`
+ran as PID 50905 from 11:30:31 through 11:32:38 UTC. MikeMarcin sign-in and
+all nine capability probes succeeded. The designated PR opened, but comparison
+preparation failed. At 11:31:48.715717785 UTC the first typed failure was
+`epoch_stage=protocol_acquire failure_domain=protocol failure=unsupported_version`.
+Catalog, cache, pack sink and transport acquisition had succeeded. No file,
+draft or publication operation followed. The exact head was not independently
+observed in this run, so successful designated-head acceptance is not claimed.
+
+The owner amended cleanup while the app was running:
+
+> Are we still really debugging the authorization step? That feels to be working. Can't we just stop logging out?
+
+> Seems like you should be able to diagnose things and iterate without me in the loop now on this.
+
+The app quit without Sign out to preserve the remembered sign-in, as requested.
+Shutdown and exit 0 were observed at 11:32:38 UTC and process absence confirmed.
+This supersedes this card's earlier Sign out procedure for diagnostic iterations;
+it is not a claim that Sign out occurred. Equivalent rebuild/reopen/read/log
+iterations continue under standing authorization with no new approval ceremony.
+
+Only appended sanitized diagnostics were inspected; no raw logs or screenshots
+are committed. A bounded anonymous discovery request to the designated public
+repository returned HTTP 200 with the upload-pack advertisement content type:
+service pkt-line, flush, then `version 2`. The parser rejected that HTTP preamble.
+[[BPR-0608]] owns the contained framing repair and regression evidence. This
+card is complete as diagnostic observation, with the head-observation limitation
+retained; no RFC closeout or publication acceptance is claimed.

@@ -3,7 +3,7 @@ id: BPR-0256
 title: Build the attended one-shot live application lane
 status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560, BPR-0606, BPR-0607]
+depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560, BPR-0606, BPR-0607, BPR-0608]
 ---
 
 # Build the attended one-shot live application lane
