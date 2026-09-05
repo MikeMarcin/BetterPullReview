@@ -1,7 +1,7 @@
 ---
 id: BPR-0143
 title: Mixed-client acceptance against a designated repository
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0142]
 ---
@@ -28,3 +28,10 @@ workbench is open.
   directions.
 - A local assumption is shown never to overwrite an unknown external change
   without an explicit user action.
+
+## Current slice — 2026-09-05
+
+BPR-0142 is Done. Claim this card to reconcile the existing external reply
+evidence, identify the remaining bounded live operations and prepare their
+exact continuation. Preserve remembered sign-in and reuse the existing test
+thread; no further message or destructive action is claimed by preparation.

@@ -1,30 +1,34 @@
 ---
 id: BPR-0142
 title: Verify a published comment in the GitHub web UI
-status: Parked
+status: Done
 rfc: RFC-BPR-0008
-parked_on: awaiting-owner-verdict
 depends_on: [BPR-0139, BPR-0221, BPR-0229, BPR-0235, BPR-0256, BPR-0318]
 ---
 
 # Verify a published comment in the GitHub web UI
 
-## Current scope — 2026-09-05
+## Completed — 2026-09-05
 
-All dependencies and the live reply-return operation are complete. V011 supplied
-the ordinary source-line comment and web inspection; the
-[authorized web reply result](../../verification/reviews/web-comment-reply-return-v001/attended-result.md)
-now supplies the reply displayed once beneath that parent after the app's public
-refresh. The exact author and corrected complete text match. The agent's initial
-duplicated text and corrective edit of that same reply are disclosed in the
-result; no additional reply was posted. App numeric-ID equality is not separately
-claimed because the UI does not expose it.
+The owner confirmed the displayed GitHub web appearance: “Do you mean does it
+look right on the web? Yes it does”. The exact
+[appearance decision](../../verification/reviews/web-comment-appearance-v001/decision-subject.md),
+[actual response](../../verification/reviews/web-comment-appearance-v001/operator-response.md)
+and [validation record](../../verification/reviews/web-comment-appearance-v001/validation-record.json)
+complete the remaining human criterion.
 
-Only the explicitly human, subjective ordinary-comment acceptance remains on
-this card. The actual GitHub parent/reply links and rendered application
-observations are available; no further sign-in, publication or reply should be
-repeated to obtain that decision. The owner's yes authorized the live operation,
-not an invented appearance verdict. BPR-0143/0144 remain separate.
+V011 supplies source-line publication, full text, authenticated author and
+ordinary GitHub web rendering. The authorized web reply course supplies a reply
+shown once under that thread after public app refresh. Its initial duplicated
+input and same-reply correction remain disclosed, with no fabricated app
+numeric-ID comparison. The safe repository and PR were designated before the
+runs. All four required direct-evidence items and subjective web acceptance are
+satisfied. Documentation structure and diff hygiene pass; unchanged runtime
+checks are reused rather than repeating publication or sign-in.
+
+BPR-0143 and BPR-0144 are now dependency-ready and retain their own required
+mixed-client and review-disposition evidence. No additional live mutation or
+RFC-BPR-0008 closeout is authorized or claimed by this appearance decision.
 
 ## Original planning and historical dispositions
 

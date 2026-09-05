@@ -362,3 +362,11 @@ parent/author/body match, app numeric-ID visibility limitation and clean quit
 preserving sign-in. BPR-0142's live reply-return requirement is observed; only
 subjective owner acceptance remains there. BPR-0143/0144 are not discharged by
 this single course. No extra mutation or human verdict is inferred.
+
+## Owner web appearance accepted — 2026-09-05
+
+The owner confirmed the displayed comments look right on the web. The
+[appearance decision](reviews/web-comment-appearance-v001/validation-record.json)
+completes BPR-0142 alongside v011 publication and the web reply-return course.
+BPR-0142 is Done. BPR-0143's mixed-client cases and BPR-0144's three review
+dispositions remain open and now dependency-ready; RFC-BPR-0008 stays Proposed.

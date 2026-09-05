@@ -1,0 +1,28 @@
+{
+  "gate": "web-comment-appearance-v001",
+  "status": "accepted",
+  "validated_commit": "460c9ff4",
+  "recorded_at": "2026-09-05T18:10:25.650986+00:00",
+  "validation_scope": "Owner confirmed the displayed GitHub web appearance in response to the exact ordinary-comment question. No new mutation authority or RFC closeout.",
+  "validation_command": "python3 scripts/verify_documentation.py --root .",
+  "decision_subject": {
+    "path": "docs/verification/reviews/web-comment-appearance-v001/decision-subject.md",
+    "sha256": "sha256:2e4a346fdc363d1e00455225a68432d55939ac85909f8527d2fedee193fab0ed",
+    "byte_length": 1275
+  },
+  "operator_response": {
+    "path": "docs/verification/reviews/web-comment-appearance-v001/operator-response.md",
+    "sha256": "sha256:4858431c136e93f70c478e22c74a5567aa0303dd06c436606d69585fccdae3df",
+    "byte_length": 55
+  },
+  "publication_result": {
+    "path": "docs/verification/reviews/designated-live-review-publication-v011/attended-result.md",
+    "sha256": "sha256:b77e95cc2956d822bc1e69daed431e67c2c59d743ee5945710c7d126e9c16d35",
+    "byte_length": 4523
+  },
+  "reply_result": {
+    "path": "docs/verification/reviews/web-comment-reply-return-v001/attended-result.md",
+    "sha256": "sha256:fbc1aba7e6ee049d893f1d527d6f7da431ecfe445f46b28e88aba56679a2401d",
+    "byte_length": 4174
+  }
+}
