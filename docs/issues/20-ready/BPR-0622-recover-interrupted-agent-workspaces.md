@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0622"
 title: "Recover interrupted agent workspaces with durable exact ownership"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0621"]
 ---
@@ -55,3 +55,28 @@ adapters. No credentials, live agent, paid service, GitHub Actions or push.
 BPR-0617 remains the closeout anchor at RFC base
 `d4d9e61d9224ef869ca4de9725c2bf52c5df701a`. This card stays open until the complete
 recovery/resource outcome is demonstrated; BPR-0621 alone cannot close it.
+
+## Implementation plan and ownership
+
+First establish lifetime exclusion at the process boundary. A bounded optional
+host value names an exact regular guard-file identity; the Unix launcher opens
+it read-only without following links, checks native identity/private ownership
+and retains a shared file lock. The bundled supervisor receives a duplicate of
+that same locked open file description and keeps it through group teardown;
+the external agent receives no guard descriptor. Recovery will need an
+exclusive lock, so application death cannot release exclusion before the
+supervisor stops the child. Unsupported platforms must refuse a requested
+guard until their lifetime transfer is implemented, never silently discard it.
+No production caller requests this guard until the durable workspace owner is
+wired; that later integration is required for this card to finish.
+
+Own `agent_launch.hpp`, the agent launcher/supervisor and their focused canary,
+parent-death runner and architecture allowance. Then own the workspace host/port,
+installed-Git workspace operations, application composition and focused Git/
+composed recovery tests for durable records and recovery. Use existing native
+identity/quarantine operations. Bound registry records and use a versioned
+Glaze record if JSON is selected; reserve ownership before directory creation,
+persist identity before materialization, and record a chosen quarantine path
+before rename. Keep all scans and recursive cleanup on the effect lane. Root
+construction, materialization and cleanup need crash checkpoints. This plan
+is not acceptance of an unwired lifetime guard or incomplete journal.
