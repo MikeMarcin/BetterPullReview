@@ -603,13 +603,21 @@ bounded binary snapshot preserves the complete request and full uint64 IDs.
 Both factories validate the shared schema; transactional v1/v2 migration
 preserves source-line records. Admission, witness and resolution are atomic.
 
-This is a provider/storage boundary. Whole-review host/UI selection and
-production execution authority remain subsequent work. The app must preserve
-or discover the original pending request/key on restart; a fresh draft with the
-same prose is not a recovery request. The current recovery session also refuses
-when a known pending request's head has moved; it does not query that historical
-review until the exact-head precondition is met. This is a conservative recovery
-limitation, not evidence of failed publication or permission to retry.
+Whole-review host/UI selection and production execution authority remain
+subsequent work. The recovery port now discovers unresolved records atomically
+within its exact account/repository/PR scope, bounded by the existing 1,024-record
+capacity. Provider discovery validates the complete actor and target identity
+and returns each original request and idempotency key. Discovery is an effect-lane
+operation; a fresh draft with the same prose is not a recovery request. Prepared
+records remain unresolved because another process may still own their send.
+
+For an already admitted, possibly-transmitted request, read-only reconciliation
+re-observes the authenticated actor and stable repository/PR identity. It can
+then find the original-head review even if head, base, refs or server open state
+have changed. The original body, disposition, head, baseline and key still decide
+the match. This path never sends a POST. Missing local recovery records or
+wrong recovery authority cannot establish definite nonpublication. A new request continues to require the
+full current expected target and head immediately before publication.
 
 Focused evidence: `github_mutation_contract`, `live_review_submission_provider`,
 `sqlite_review_submission_recovery_storage` and

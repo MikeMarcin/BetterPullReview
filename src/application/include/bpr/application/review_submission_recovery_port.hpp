@@ -34,6 +34,9 @@ namespace bpr::application {
 	/// \brief Digests the immutable live target and authenticated actor binding.
 	[[nodiscard]] auto review_submission_authority_fingerprint(const review_submission_live_binding& aBinding) -> std::array<std::uint8_t, 32>;
 
+	/// \brief Compares stable PR and actor identity without rebinding mutable revision context.
+	[[nodiscard]] auto same_review_submission_identity(const review_submission_live_binding& aLeft, const review_submission_live_binding& aRight) -> bool;
+
 	/// \brief Transactional durable admission, transmission witness and exact resolution.
 	class review_submission_recovery_port
 	{
@@ -45,6 +48,9 @@ namespace bpr::application {
 		auto operator=(const review_submission_recovery_port&) -> review_submission_recovery_port& = delete;
 		review_submission_recovery_port(review_submission_recovery_port&&)                         = delete;
 		auto operator=(review_submission_recovery_port&&) -> review_submission_recovery_port&      = delete;
+
+		/// \brief Atomically reads all unresolved records in this scope, bounded by store capacity.
+		[[nodiscard]] virtual auto pending() -> std::expected<std::vector<review_submission_recovery_record>, review_mutation_recovery_failure> = 0;
 
 		[[nodiscard]] virtual auto load(const std::string& aKey) -> std::expected<std::optional<review_submission_recovery_record>, review_mutation_recovery_failure> = 0;
 

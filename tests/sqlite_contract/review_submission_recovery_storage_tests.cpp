@@ -118,6 +118,8 @@ namespace {
 		expect(!store->resolve(input.IdempotencyKey, expected.RequestFingerprint, receipt(input)), "prepared record cannot resolve");
 		auto marked = store->mark_possibly_transmitted(input.IdempotencyKey, expected.RequestFingerprint);
 		expect(marked.has_value(), "durable witness succeeds");
+		const auto pending = store->pending();
+		expect(pending && *pending == std::vector{ *marked }, "pending discovery retains full exact witnessed request");
 		expect(!store->resolve(input.IdempotencyKey, expected.RequestFingerprint, receipt(input, 40U)), "baseline review cannot become receipt");
 		const auto exactReceipt = receipt(input, std::numeric_limits<std::uint64_t>::max());
 		auto       resolved     = store->resolve(input.IdempotencyKey, expected.RequestFingerprint, exactReceipt);
@@ -126,6 +128,7 @@ namespace {
 		store       = storage(root.Path);
 		auto loaded = store->load(input.IdempotencyKey);
 		expect(loaded && *loaded && **loaded == *resolved, "fresh connection recovers exact success and request");
+		expect(store->pending() && store->pending()->empty(), "successful records are excluded from pending discovery");
 		auto duplicate = store->admit(expected);
 		expect(duplicate && !duplicate->Inserted && duplicate->Record == *resolved, "duplicate admission preserves frozen baseline and success");
 		auto changed             = input;
@@ -139,6 +142,7 @@ namespace {
 		expect(!store->admit(bad), "unverified request fingerprint is refused");
 		auto wrongScope = adapters::sqlite::make_review_submission_recovery_store({ .StorageRoot = root.Path, .Host = "github.com", .Account = "22", .Repository = "MikeMarcin/BPR-Test", .PullRequest = 1 });
 		expect(wrongScope && !(*wrongScope)->admit(expected) && (*wrongScope)->load(input.IdempotencyKey)->has_value() == false, "scope cannot read or admit another actor request");
+		expect((*wrongScope)->pending() && (*wrongScope)->pending()->empty(), "pending discovery cannot cross actor scope");
 	}
 	void test_integrity_and_schema()
 	{
@@ -151,6 +155,7 @@ namespace {
 			execute_sql(database(root), mutation);
 			store = storage(root.Path);
 			expect(!store->load(expected.Request.IdempotencyKey), "corrupt snapshot or baseline fails integrity checks");
+			expect(!store->pending(), "pending discovery rejects corrupt records atomically");
 		}
 		for (const auto* mutation : { "PRAGMA user_version = 4", "ALTER TABLE submission_attempt ADD COLUMN unexpected TEXT" }) {
 			temporary_directory root;
@@ -178,6 +183,14 @@ namespace {
 			auto value           = request();
 			value.IdempotencyKey = "attempt-" + std::to_string(index);
 			expect(store->admit(record(value)).has_value(), "bounded capacity admits exact rows");
+		}
+		const auto pending = store->pending();
+		expect(pending && pending->size() == application::maximum_review_mutation_recovery_records && std::ranges::all_of(*pending, [](const auto& value) { return value.Transmission == application::review_mutation_recovery_transmission::prepared; }), "all prepared records remain discoverable at exact capacity");
+		for (const auto& scope : std::array<adapters::sqlite::review_mutation_recovery_configuration, 3>{ { { .StorageRoot = root.Path, .Host = "github.com", .Account = "22", .Repository = "MikeMarcin/BPR-Test", .PullRequest = 1 },
+																											{ .StorageRoot = root.Path, .Host = "github.com", .Account = "21", .Repository = "MikeMarcin/another-repository", .PullRequest = 1 },
+																											{ .StorageRoot = root.Path, .Host = "github.com", .Account = "21", .Repository = "MikeMarcin/BPR-Test", .PullRequest = 2 } } }) {
+			auto other = adapters::sqlite::make_review_submission_recovery_store(scope);
+			expect(other && (*other)->pending() && (*other)->pending()->empty(), "pending records cannot cross account/repository/PR scope");
 		}
 		const auto full = store->admit(record());
 		expect(!full && full.error() == application::review_mutation_recovery_failure::capacity, "record capacity fails without eviction");

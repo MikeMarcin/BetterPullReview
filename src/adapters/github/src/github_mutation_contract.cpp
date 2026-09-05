@@ -208,6 +208,35 @@ namespace bpr::adapters::github::detail {
 				static constexpr auto value = glz::object("id", &review_list_json::Id, "node_id", &review_list_json::NodeId, "state", &review_list_json::State, "pull_request_url", &review_list_json::PullRequestUrl, "body", &review_list_json::Body, "commit_id", &review_list_json::CommitId, "submitted_at", &review_list_json::SubmittedAt, "user", &review_list_json::User);
 			};
 		};
+		struct recovery_repository_json
+		{
+			std::uint64_t Id = 0U;
+			std::string   NodeId;
+			std::string   FullName;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("id", &recovery_repository_json::Id, "node_id", &recovery_repository_json::NodeId, "full_name", &recovery_repository_json::FullName);
+			};
+		};
+		struct recovery_base_json
+		{
+			recovery_repository_json Repository;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("repo", &recovery_base_json::Repository);
+			};
+		};
+		struct recovery_target_json
+		{
+			std::uint64_t      Id = 0U;
+			std::string        NodeId;
+			std::uint64_t      Number = 0U;
+			recovery_base_json Base;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("id", &recovery_target_json::Id, "node_id", &recovery_target_json::NodeId, "number", &recovery_target_json::Number, "base", &recovery_target_json::Base);
+			};
+		};
 		struct review_json_options : glz::opts
 		{
 			bool escape_control_characters    = true;
@@ -919,6 +948,31 @@ namespace bpr::adapters::github::detail {
 		} catch (...) {
 			return failed(review_mutation_contract_failure::response_limit);
 		}
+	}
+
+	auto parse_review_submission_recovery_target(const review_mutation_wire_response& aResponse, const application::review_mutation_target_binding& aExpected) -> review_mutation_parse_result<void>
+	{
+		if (!application::valid(aExpected)) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse) || has_header(aResponse, "location")) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		if (aResponse.Body.size() > maximum_review_mutation_response_bytes) {
+			return failed(review_mutation_contract_failure::response_limit);
+		}
+		if (!json_preflight{ aResponse.Body }.run()) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		recovery_target_json target;
+		if (glz::read<review_json_options{ }>(target, aResponse.Body)) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		const auto& repository = target.Base.Repository;
+		if (target.Id != aExpected.PullRequestDatabaseId || target.NodeId != aExpected.PullRequestNodeId || target.Number != aExpected.Number.value() || repository.Id != aExpected.RepositoryDatabaseId || repository.Id != aExpected.BaseRepositoryDatabaseId || repository.NodeId != aExpected.RepositoryNodeId || repository.FullName != aExpected.Repository.Owner + "/" + aExpected.Repository.Name) {
+			return failed(review_mutation_contract_failure::identity_mismatch);
+		}
+		return { };
 	}
 
 	auto parse_target_observation(

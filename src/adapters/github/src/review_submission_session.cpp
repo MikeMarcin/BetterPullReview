@@ -31,7 +31,7 @@ namespace bpr::adapters::github::detail {
 		}
 		return Transport.perform_review_mutation({ .Context = Configuration.CredentialContext, .Wire = std::move(aWire) }, aStop, std::move(aWitness));
 	}
-	auto review_submission_session::observe_exact(std::stop_token aStop) -> std::expected<void, application::review_mutation_failure>
+	auto review_submission_session::observe_exact(std::stop_token aStop, bool aHistorical) -> std::expected<void, application::review_mutation_failure>
 	{
 		auto viewer = compile_viewer_observation_request(Configuration.ActingIdentity, Configuration.Target.ServerContract);
 		if (!viewer) {
@@ -50,6 +50,9 @@ namespace bpr::adapters::github::detail {
 		auto* targetSuccess  = std::get_if<github_mutation_wire_success>(&observedTarget);
 		if (!targetSuccess) {
 			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
+		if (aHistorical) {
+			return parse_review_submission_recovery_target(targetSuccess->Response, Configuration.Target) ? std::expected<void, application::review_mutation_failure>{ } : std::unexpected(application::review_mutation_failure::undesignated_target);
 		}
 		auto parsed = parse_target_observation(targetSuccess->Response, Configuration.Target);
 		if (!parsed) {
@@ -124,8 +127,8 @@ namespace bpr::adapters::github::detail {
 		using publication = application::review_submission_publication;
 		try {
 			std::scoped_lock lock{ Mutex };
-			if (!application::valid(aRequest) || !aRequest.LiveBinding || aRequest.LiveBinding->Target != Configuration.Target || aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
-				return result(aRequest, publication::definitely_not_published, application::review_mutation_failure::undesignated_target);
+			if (!application::valid(aRequest) || !aRequest.LiveBinding || !application::same_review_submission_identity(*aRequest.LiveBinding, { .Target = Configuration.Target, .ActingIdentity = Configuration.ActingIdentity })) {
+				return result(aRequest, aAllowNew ? publication::definitely_not_published : publication::indeterminate, application::review_mutation_failure::undesignated_target);
 			}
 			if (!Recovery || !Lease || !Lease->active() || !valid(Configuration)) {
 				return result(aRequest);
@@ -148,13 +151,17 @@ namespace bpr::adapters::github::detail {
 				if (known.Receipt || known.Transmission != application::review_mutation_recovery_transmission::possibly_transmitted) {
 					return finish_known(known, aStop, true);
 				}
-				if (aStop.stop_requested() || !observe_exact(aStop)) {
+				if (aStop.stop_requested() || !observe_exact(aStop, true)) {
 					return result(aRequest);
 				}
 				return finish_known(known, aStop, true);
 			}
 			if (!aAllowNew) {
-				return result(aRequest, publication::definitely_not_published);
+				// A missing local row is not proof that the original review was never sent.
+				return result(aRequest);
+			}
+			if (aRequest.LiveBinding->Target != Configuration.Target || aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
+				return result(aRequest, publication::definitely_not_published, application::review_mutation_failure::stale_head);
 			}
 			if (aStop.stop_requested()) {
 				return result(aRequest, publication::definitely_not_published, application::review_mutation_failure::cancelled);
@@ -169,6 +176,11 @@ namespace bpr::adapters::github::detail {
 				return result(aRequest);
 			}
 			if (!admitted->Inserted) {
+				if (!admitted->Record.Receipt
+					&& admitted->Record.Transmission == application::review_mutation_recovery_transmission::possibly_transmitted
+					&& !observe_exact(aStop, true)) {
+					return result(aRequest);
+				}
 				return finish_known(admitted->Record, aStop, true);
 			}
 			if (admitted->Record != expected) {
@@ -216,6 +228,29 @@ namespace bpr::adapters::github::detail {
 			return resolve_observed(**persisted, *observed, false);
 		} catch (...) {
 			return result(aRequest);
+		}
+	}
+	auto review_submission_session::pending(std::stop_token aStop) -> std::expected<std::vector<application::review_submission_request>, application::review_mutation_failure>
+	{
+		try {
+			std::scoped_lock lock{ Mutex };
+			if (aStop.stop_requested() || !Recovery || !Lease || !Lease->active() || !valid(Configuration)) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			auto records = Recovery->pending();
+			if (!records || records->size() > application::maximum_review_mutation_recovery_records) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			std::vector<application::review_submission_request> requests;
+			for (const auto& record : *records) {
+				if (aStop.stop_requested() || !application::valid(record) || record.State != application::review_mutation_recovery_state::unresolved || !application::same_review_submission_identity(*record.Request.LiveBinding, { .Target = Configuration.Target, .ActingIdentity = Configuration.ActingIdentity })) {
+					return std::unexpected(application::review_mutation_failure::unavailable);
+				}
+				requests.push_back(record.Request);
+			}
+			return requests;
+		} catch (...) {
+			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
 	}
 	auto review_submission_session::submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result { return execute(aRequest, aStop, true); }

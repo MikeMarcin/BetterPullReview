@@ -891,6 +891,39 @@ namespace bpr::adapters::sqlite {
 				, Configuration{ std::move(aConfiguration) }
 			{ }
 			~submission_store() override { static_cast<void>(::sqlite3_close_v2(Database)); }
+			auto pending() -> std::expected<std::vector<record>, failure> override
+			{
+				std::scoped_lock lock{ Mutex };
+				return transaction<std::vector<record>>([&]() -> std::expected<std::vector<record>, failure> {
+					auto query = detail::prepare(Database, "SELECT idempotency_key FROM submission_attempt WHERE scope_id = ?1 AND state = 0 ORDER BY idempotency_key LIMIT ?2");
+					if (!query || ::sqlite3_bind_int64(query->Value, 1, Scope) != SQLITE_OK || ::sqlite3_bind_int64(query->Value, 2, static_cast<std::int64_t>(application::maximum_review_mutation_recovery_records + 1U)) != SQLITE_OK) {
+						return std::unexpected(failure::unavailable);
+					}
+					std::vector<record> records;
+					int                 row;
+					while ((row = ::sqlite3_step(query->Value)) == SQLITE_ROW) {
+						if (records.size() == application::maximum_review_mutation_recovery_records) {
+							return std::unexpected(failure::capacity);
+						}
+						const auto key = text_at(query->Value, 0);
+						if (!key) {
+							return std::unexpected(failure::integrity_failure);
+						}
+						auto value = load_locked(*key);
+						if (!value) {
+							return std::unexpected(value.error());
+						}
+						if (!*value || (**value).State != application::review_mutation_recovery_state::unresolved) {
+							return std::unexpected(failure::integrity_failure);
+						}
+						records.push_back(std::move(**value));
+					}
+					if (row != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+					return records;
+				});
+			}
 			auto load(const std::string& aKey) -> std::expected<std::optional<record>, failure> override
 			{
 				std::scoped_lock lock{ Mutex };

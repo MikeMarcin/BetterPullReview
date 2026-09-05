@@ -175,6 +175,9 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto validate_outbound_review_mutation_request(
 		const review_mutation_wire_request& aRequest)
 		-> std::expected<void, review_mutation_contract_failure>;
+	/// \brief Validates stable PR identity for read-only recovery, ignoring revision movement.
+	[[nodiscard]] auto parse_review_submission_recovery_target(const review_mutation_wire_response& aResponse, const application::review_mutation_target_binding& aExpected) -> review_mutation_parse_result<void>;
+
 	[[nodiscard]] auto parse_target_observation(
 		const review_mutation_wire_response&               aResponse,
 		const application::review_mutation_target_binding& aExpected)

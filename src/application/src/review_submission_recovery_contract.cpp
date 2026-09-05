@@ -75,6 +75,19 @@ namespace bpr::application {
 		}
 		return digest(bytes);
 	}
+	auto same_review_submission_identity(const review_submission_live_binding& aLeft, const review_submission_live_binding& aRight) -> bool
+	{
+		if (!valid(aLeft) || !valid(aRight)) {
+			return false;
+		}
+		auto left                         = aLeft;
+		left.Target.Semantic.ExpectedHead = aRight.Target.Semantic.ExpectedHead;
+		left.Target.BaseOid               = aRight.Target.BaseOid;
+		left.Target.BaseRef               = aRight.Target.BaseRef;
+		left.Target.HeadRef               = aRight.Target.HeadRef;
+		left.Target.Open                  = aRight.Target.Open;
+		return left == aRight;
+	}
 	auto valid(const review_submission_recovery_record& aRecord) -> bool
 	{
 		if (!valid(aRecord.Request) || !aRecord.Request.LiveBinding || aRecord.RequestFingerprint != review_submission_request_fingerprint(aRecord.Request) || aRecord.AuthorityFingerprint != review_submission_authority_fingerprint(*aRecord.Request.LiveBinding)) {

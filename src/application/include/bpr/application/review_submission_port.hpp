@@ -32,8 +32,12 @@ namespace bpr::application {
 		review_submission_port(review_submission_port&&)                         = delete;
 		auto operator=(review_submission_port&&) -> review_submission_port&      = delete;
 
+		/// \brief Discovers bounded original pending requests on the effect lane; includes prepared attempts.
+		[[nodiscard]] virtual auto pending(std::stop_token aStop = { }) -> std::expected<std::vector<review_submission_request>, review_mutation_failure> = 0;
+
 		[[nodiscard]] virtual auto submit_and_reconcile(const review_submission_request& aRequest, std::stop_token aStop = { }) -> review_submission_result = 0;
 		/// \brief Reads only an already admitted attempt; never authorizes a new POST.
+		/// \details A missing local row cannot establish definite nonpublication.
 
 		[[nodiscard]] virtual auto reconcile(const review_submission_request& aRequest, std::stop_token aStop = { }) -> review_submission_result = 0;
 	};

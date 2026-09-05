@@ -37,6 +37,10 @@ def main() -> int:
         root = Path(raw)
         first = run(arguments.executable, "--write-unresolved", root)
         second = run(arguments.executable, "--recover-unresolved", root)
+        moved_root = root / "moved"
+        moved_root.mkdir(mode=0o700)
+        run(arguments.executable, "--write-unresolved", moved_root)
+        moved = run(arguments.executable, "--recover-moved", moved_root)
         prepared_root = root / "prepared"
         prepared_root.mkdir(mode=0o700)
         prepared_first = run(
@@ -48,6 +52,7 @@ def main() -> int:
     for output, phase in (
         (first, "--write-unresolved"),
         (second, "--recover-unresolved"),
+        (moved, "--recover-moved"),
         (prepared_first, "--write-prepared"),
         (prepared_second, "--recover-prepared"),
     ):

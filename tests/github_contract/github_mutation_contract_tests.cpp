@@ -547,6 +547,29 @@ namespace {
 			   "a REST line beyond the semantic range is refused");
 	}
 
+	void test_historical_review_target_identity()
+	{
+		const auto response = review_mutation_wire_response{
+			.Status = 200, .Body = target_body(commit(0x33U))
+		};
+		expect(parse_review_submission_recovery_target(response, target()).has_value(), "historical read accepts moved head for exact stable target");
+		for (const auto& [from, to] : std::array<std::pair<std::string_view, std::string_view>, 9>{ { { "4246446933", "4246446934" }, { "4246446933", "4246446933.0" }, { "4246446933", "18446744073709551616" }, { "PR_kwDOTyvof879G6NV", "wrong-pr-node" }, { "1328277631", "1328277632" }, { "R_kgDOTyvofw", "wrong-repo-node" }, { "MikeMarcin/BPR-Test", "MikeMarcin/another-repo" }, { "\"number\":1", "\"number\":2" }, { "\"id\":4246446933", "\"unexpected\":4246446933" } } }) {
+			auto       changed  = response;
+			const auto position = changed.Body.find(from);
+			expect(position != std::string::npos, "historical parser mutation locates expected field");
+			changed.Body.replace(position, from.size(), to);
+			expect(!parse_review_submission_recovery_target(changed, target()), "historical parser rejects wrong, missing and inexact stable identities");
+		}
+		auto duplicate = response;
+		duplicate.Body.insert(1U, "\"id\":4246446933,");
+		expect(!parse_review_submission_recovery_target(duplicate, target()), "historical parser rejects duplicate keys");
+		auto redirected = response;
+		redirected.Headers.push_back({ .Name = "Location", .Value = "https://elsewhere.invalid" });
+		expect(!parse_review_submission_recovery_target(redirected, target()), "historical parser refuses redirected identity");
+		auto oversized = response;
+		oversized.Body.resize(maximum_review_mutation_response_bytes + 1U, ' ');
+		expect(!parse_review_submission_recovery_target(oversized, target()), "historical target response remains bounded");
+	}
 	void test_exact_response_identity_and_bounds()
 	{
 		const auto targetResponse = review_mutation_wire_response{
@@ -621,6 +644,7 @@ auto main() -> int
 	test_whole_review_exact_integer_ids_and_extensions();
 	test_zero_based_semantic_lines_translate_to_one_based_rest_lines();
 	test_exact_response_identity_and_bounds();
+	test_historical_review_target_identity();
 	std::cout << "github-mutation-contract-tests:pass\n";
 	return EXIT_SUCCESS;
 }

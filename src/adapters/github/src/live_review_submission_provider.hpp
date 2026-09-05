@@ -29,6 +29,7 @@ namespace bpr::adapters::github {
 		auto operator=(live_review_submission_provider&&)
 			-> live_review_submission_provider& = delete;
 
+		[[nodiscard]] auto pending(std::stop_token aStop = { }) -> std::expected<std::vector<application::review_submission_request>, application::review_mutation_failure> override;
 		[[nodiscard]] auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result override;
 		[[nodiscard]] auto reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result override;
 

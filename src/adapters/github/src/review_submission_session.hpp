@@ -9,13 +9,14 @@ namespace bpr::adapters::github::detail {
 	{
 	public:
 		review_submission_session(github_mutation_wire_transport& aTransport, live_review_mutation_configuration aConfiguration, application::review_mutation_transport aLease, std::unique_ptr<application::review_submission_recovery_port> aRecovery);
+		[[nodiscard]] auto pending(std::stop_token aStop = { }) -> std::expected<std::vector<application::review_submission_request>, application::review_mutation_failure>;
 		[[nodiscard]] auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result;
 		[[nodiscard]] auto reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result;
 
 	private:
 		[[nodiscard]] auto                                            execute(const application::review_submission_request& aRequest, std::stop_token aStop, bool aAllowNew) -> application::review_submission_result;
 		[[nodiscard]] auto                                            perform(review_mutation_wire_request aWire, std::stop_token aStop, github_mutation_transmission_witness aWitness = { }) -> github_mutation_wire_completion;
-		[[nodiscard]] auto                                            observe_exact(std::stop_token aStop) -> std::expected<void, application::review_mutation_failure>;
+		[[nodiscard]] auto                                            observe_exact(std::stop_token aStop, bool aHistorical = false) -> std::expected<void, application::review_mutation_failure>;
 		[[nodiscard]] auto                                            observe_reviews(const application::review_submission_request& aRequest, std::stop_token aStop) -> review_mutation_parse_result<review_submission_reconciliation>;
 		[[nodiscard]] auto                                            finish_known(const application::review_submission_recovery_record& aRecord, std::stop_token aStop, bool aDuplicate) -> application::review_submission_result;
 		[[nodiscard]] auto                                            resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate) -> application::review_submission_result;

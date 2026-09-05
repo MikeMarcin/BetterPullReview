@@ -270,3 +270,16 @@ authority and normal Qt/public composition, including that read-only recovery
 case. BPR-0144 waits for it. BPR-0143's four operations remain approved but
 unexecuted under the browser restriction. RFC0008 and the requested-set goal
 remain unfinished; deferred work remains deferred.
+
+
+## Whole-review recovery integration progress — 2026-09-05
+
+BPR-0615 now exposes bounded pending-request discovery and fixes historical
+read-only recovery after head movement, preserving original request/key and
+exact actor/PR identity. Its first implementation slice passed eight focused
+provider/storage/restart/architecture checks (79.86 seconds), plus the expanded
+historical parser check (0.40 seconds). Normal-exit restart evidence includes
+moved head/base/refs and zero recovery POSTs. Prepared attempts stay unresolved;
+no new SQLite schema, live effects or credentials are involved. The card remains
+In Progress for host/authority, Qt controls and real application composition.
+BPR-0143 remains separately parked; its four authorized actions have not run.

@@ -156,8 +156,9 @@ namespace {
 		application::review_submission_request Request = request();
 		std::vector<std::string>               Reviews;
 		std::vector<review_mutation_operation> Trace;
-		std::size_t                            Posts            = 0U;
-		std::size_t                            NewCount         = 1U;
+		std::size_t                            Posts           = 0U;
+		std::size_t                            NewCount        = 1U;
+		bool                                   WrongRepository = false, MovedContext = false;
 		bool                                   DefinitelyUnsent = false, LoseResponse = false, MalformedResponse = false, ThrowAfterSend = false, WrongActor = false, WrongHead = false, Incomplete = false, WitnessRejected = false;
 		std::stop_source*                      CancelOnPost = nullptr;
 		std::function<void()>                  OnTarget;
@@ -177,7 +178,19 @@ namespace {
 				if (OnTarget) {
 					OnTarget();
 				}
-				return target_response(target().RepositoryDatabaseId, WrongHead ? commit(0x22U) : target().Semantic.ExpectedHead);
+				{
+					auto response = target_response(WrongRepository ? 999U : target().RepositoryDatabaseId, WrongHead ? commit(0x22U) : target().Semantic.ExpectedHead);
+					if (MovedContext) {
+						auto& body = std::get<github_mutation_wire_success>(response).Response.Body;
+						for (const auto& [from, to] : std::array<std::pair<std::string_view, std::string_view>, 4>{ { { "1010101010101010101010101010101010101010", "3333333333333333333333333333333333333333" },
+																													  { "codex/disposable-live-review-20260810", "moved-head" },
+																													  { "main", "moved-base" },
+																													  { "open", "closed" } } }) {
+							body.replace(body.find(from), from.size(), to);
+						}
+					}
+					return response;
+				}
 			case review_mutation_operation::observe_reviews: return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = Incomplete ? std::vector<http_header>{ { .Name = "lInK", .Value = "next" } } : std::vector<http_header>{ }, .Body = list(Reviews) } };
 			case review_mutation_operation::create_review:
 				++Posts;
@@ -231,6 +244,7 @@ namespace {
 		explicit failing_store(std::unique_ptr<application::review_submission_recovery_port> aInner)
 			: Inner{ std::move(aInner) }
 		{ }
+		auto pending() -> std::expected<std::vector<application::review_submission_recovery_record>, application::review_mutation_recovery_failure> override { return Inner->pending(); }
 		auto load(const std::string& aKey) -> std::expected<std::optional<application::review_submission_recovery_record>, application::review_mutation_recovery_failure> override { return Inner->load(aKey); }
 		auto admit(const application::review_submission_recovery_record& aRecord) -> std::expected<application::review_submission_recovery_admission, application::review_mutation_recovery_failure> override { return Inner->admit(aRecord); }
 		auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override
@@ -347,6 +361,68 @@ namespace {
 			expect(session.submit_and_reconcile(wire.Request, stop.get_token()).Publication == application::review_submission_publication::definitely_not_published && wire.Posts == 0U, "pre-send actor/head/cancellation/pagination failures publish nothing");
 		}
 	}
+	void test_historical_recovery()
+	{
+		for (const auto mode : { 0, 1, 2, 3 }) {
+			temporary_directory root;
+			transport           wire;
+			wire.NewCount     = 0U;
+			wire.LoseResponse = true;
+			{
+				review_submission_session initial{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+				expect(initial.submit_and_reconcile(wire.Request).Publication == application::review_submission_publication::indeterminate, "lost response retains original attempt");
+			}
+			wire.Reviews = { review(wire.Request) };
+			wire.Trace.clear();
+			wire.Posts           = 0U;
+			wire.WrongHead       = true;
+			wire.MovedContext    = true;
+			wire.WrongActor      = mode == 2;
+			wire.WrongRepository = mode == 3;
+			auto current         = configuration();
+			if (mode == 1) {
+				current.Target.Semantic.ExpectedHead = commit(0x22U);
+				current.Target.BaseOid               = commit(0x33U);
+				current.Target.BaseRef               = "moved-base";
+				current.Target.HeadRef               = "moved-head";
+			}
+			review_submission_session recovery{ wire, current, std::make_shared<lease>(), storage(root.Path) };
+			const auto                pending = recovery.pending();
+			expect(pending && *pending == std::vector{ wire.Request } && wire.Trace.empty(), "discovery preserves original request without network effects after revision movement");
+			const auto result = recovery.reconcile(pending->front());
+			expect(wire.Posts == 0U && result.Request == wire.Request, "historical recovery preserves exact request and cannot POST");
+			expect((result.Publication == application::review_submission_publication::published) == (mode < 2), "only matching stable actor and PR may recover original-head review");
+			if (mode < 2) {
+				expect(result.Receipt && result.Receipt->Target == wire.Request.Proposal.Target, "receipt retains original head");
+				expect(recovery.pending()->empty(), "resolved attempt leaves pending discovery");
+			}
+			if (mode == 1) {
+				auto fresh           = wire.Request;
+				fresh.IdempotencyKey = "new-key-at-old-head";
+				expect(recovery.submit_and_reconcile(fresh).Publication == application::review_submission_publication::definitely_not_published && wire.Posts == 0U, "historical allowance never permits fresh old-head POST");
+			}
+		}
+		temporary_directory root;
+		auto                store    = storage(root.Path);
+		const auto          original = request();
+		const auto          prepared = application::review_submission_recovery_record{
+			.Request              = original,
+			.RequestFingerprint   = application::review_submission_request_fingerprint(original),
+			.AuthorityFingerprint = application::review_submission_authority_fingerprint(*original.LiveBinding),
+			.BaselineReviewIds    = std::vector<application::review_database_id>{ },
+			.Transmission         = application::review_mutation_recovery_transmission::prepared
+		};
+		expect(store->admit(prepared).has_value(), "prepared discovery fixture admitted");
+		transport wire;
+		auto      current             = configuration();
+		current.ActingIdentity.NodeId = "different-node";
+		review_submission_session wrongActor{ wire, current, std::make_shared<lease>(), std::move(store) };
+		expect(!wrongActor.pending() && wire.Trace.empty(), "discovery refuses another exact actor identity even within semantic scope");
+		expect(wrongActor.reconcile(original).Publication == application::review_submission_publication::indeterminate && wire.Trace.empty(), "wrong recovery authority cannot claim definite nonpublication");
+		temporary_directory       absentRoot;
+		review_submission_session absent{ wire, configuration(), std::make_shared<lease>(), storage(absentRoot.Path) };
+		expect(absent.reconcile(original).Publication == application::review_submission_publication::indeterminate && wire.Trace.empty(), "missing local attempt cannot prove nonpublication or issue a POST");
+	}
 	void restart(std::string_view aPhase, const std::filesystem::path& aRoot)
 	{
 		transport wire;
@@ -359,11 +435,26 @@ namespace {
 		} else {
 			wire.Reviews = { review(wire.Request) };
 		}
-		review_submission_session session{ wire, configuration(), authority, storage(aRoot) };
-		const auto                result = session.submit_and_reconcile(wire.Request);
+		auto current = configuration();
+		if (aPhase == "--recover-moved") {
+			wire.WrongHead                       = true;
+			wire.MovedContext                    = true;
+			current.Target.Semantic.ExpectedHead = commit(0x22U);
+			current.Target.BaseOid               = commit(0x33U);
+			current.Target.BaseRef               = "moved-base";
+			current.Target.HeadRef               = "moved-head";
+		}
+		review_submission_session session{ wire, current, authority, storage(aRoot) };
+		auto                      restored = wire.Request;
+		if (aPhase.starts_with("--recover-")) {
+			const auto pending = session.pending();
+			expect(pending && *pending == std::vector{ wire.Request } && wire.Trace.empty(), "fresh process discovers exact original request and retry key");
+			restored = pending->front();
+		}
+		const auto result = aPhase.starts_with("--recover-") ? session.reconcile(restored) : session.submit_and_reconcile(restored);
 		if (aPhase == "--write-unresolved") {
 			expect(result.Publication == application::review_submission_publication::indeterminate && wire.Posts == 1U, "first process durably unresolved");
-		} else if (aPhase == "--recover-unresolved") {
+		} else if (aPhase == "--recover-unresolved" || aPhase == "--recover-moved") {
 			expect(result.Publication == application::review_submission_publication::published && wire.Posts == 0U, "fresh process resolves without POST");
 		} else if (aPhase == "--write-prepared") {
 			expect(wire.Posts == 0U, "prepared phase sends nothing");
@@ -382,6 +473,7 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 	test_dispositions_and_old_reviews();
 	test_uncertainty_and_cancellation();
+	test_historical_recovery();
 	std::cout << "live-review-submission-provider-tests:pass\n";
 	return EXIT_SUCCESS;
 }

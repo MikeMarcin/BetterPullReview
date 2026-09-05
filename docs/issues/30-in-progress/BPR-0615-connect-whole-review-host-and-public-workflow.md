@@ -93,3 +93,43 @@ Changes course using a suitable designated target/account. MikeMarcin authored
 BPR-Test#1 and cannot use it to prove own-PR approval. Do not switch accounts,
 create a PR or assume extra remote mutation authority. BPR-0143's four approved
 mixed-client actions remain separately parked on the Computer Use restriction.
+
+## Recovery integration progress — 2026-09-05
+
+The first implementation slice adds effect-lane pending discovery through the
+provider and SQLite recovery port. It returns the original request/key, validates
+stable target and actor identity, rejects corrupt records atomically, preserves
+prepared attempts, and respects the existing 1,024-record scope capacity.
+Historical read-only recovery now finds the exact original-head review after
+head/base/ref movement; fresh publication retains the strict current-head check.
+A separate private Glaze DTO validates historical PR identity without weakening
+the source-line parser. Shared SQLite schema stays v3.
+
+Verification: five affected dev targets built. The focused command below passed
+8/8 in 79.86 seconds, including normal-exit fresh-process discovery/recovery,
+prepared restart, moved-head recovery with zero POSTs, actor/PR refusal, storage
+scope/capacity/integrity and existing source-line regressions:
+
+```sh
+ctest --test-dir build/dev --output-on-failure -R '^(github_mutation_contract|live_review_mutation_provider|sqlite_review_mutation_recovery_storage|live_review_submission_provider|live_review_submission_restart_recovery|sqlite_review_submission_recovery_storage|architecture_boundaries|architecture_boundary_contract)$'
+```
+
+After adding malformed/missing/overflow/fractional/duplicate historical identity
+cases, the rebuilt `github_mutation_contract` passed 1/1 in 0.40 seconds. Scoped
+formatting and code-simplifier review completed. No live effects, app launch,
+credential/log access, new build root or retained temporary fixture occurred.
+This is not abrupt-kill or power-loss evidence. A prepared attempt remains
+unresolved after restart; discovery cannot prove another process never sent it.
+The delegated worker hit its usage limit; the integrator completed and verified
+the partial changes locally. No additional independent review ran for this
+bounded correction; the earlier BPR-0614 counterexample is now directly covered.
+
+Final diff inspection also corrected read-only refusal semantics: absent local
+records or wrong recovery authority remain indeterminate, and a concurrent
+admission winner receives the same stable actor/PR observation before historical
+reconciliation. The rebuilt provider/restart checks passed 2/2 in 0.66 seconds.
+Documentation structure, all 62 documentation tests and `git diff --check` passed.
+
+Remaining in this card: async host and exact one-use whole-review authority,
+normal PR-level editor, real composition/lifecycle and public-control fixtures.
+The four BPR-0143 live actions remain approved and unexecuted.
