@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0622"
 title: "Recover interrupted agent workspaces with durable exact ownership"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0621"]
 ---
