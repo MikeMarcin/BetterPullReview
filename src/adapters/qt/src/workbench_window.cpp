@@ -2821,6 +2821,7 @@ namespace bpr::qt {
 			append(SessionPanel->usage_indicator());
 			append(SessionPanel->profile_selector());
 			append(SessionPanel->connect_button());
+			append(SessionPanel->public_preview_button());
 			append(SessionPanel->connection_details_button());
 			append(SessionPanel->owner_editor());
 			append(SessionPanel->repository_editor());
@@ -2917,6 +2918,14 @@ namespace bpr::qt {
 		-> workbench_window_statistics
 	{
 		return Statistics;
+	}
+
+	void workbench_window::resizeEvent(QResizeEvent* const aEvent)
+	{
+		QMainWindow::resizeEvent(aEvent);
+		if (SessionPanel != nullptr) {
+			SessionPanel->apply_compact_layout(width() < 900);
+		}
 	}
 
 	void workbench_window::changeEvent(QEvent* const aEvent)

@@ -123,7 +123,7 @@ namespace bpr::qt {
 		void update_selected_profile();
 		void update_connect_enabled();
 		void refresh_native_appearance();
-		/// \brief Lays the locator actions out for the available width.
+		/// \brief Lays the connection and locator actions out for the available width.
 		void apply_compact_layout(bool aCompact);
 
 		[[nodiscard]] auto profile_selector() const noexcept -> QComboBox*;
@@ -138,6 +138,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto repository_editor() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto pull_request_editor() const noexcept -> QSpinBox*;
 		[[nodiscard]] auto connect_button() const noexcept -> QToolButton*;
+		/// \brief Enters public preview for the currently selected host profile.
+		[[nodiscard]] auto public_preview_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto open_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto refresh_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto connection_details_button() const noexcept -> QToolButton*;
@@ -172,9 +174,11 @@ namespace bpr::qt {
 		github_session_environment                      Environment;
 
 		QAction*     ConnectAction           = nullptr;
+		QAction*     PublicPreviewAction     = nullptr;
 		QAction*     OpenAction              = nullptr;
 		QAction*     RefreshAction           = nullptr;
 		QToolButton* ConnectButton           = nullptr;
+		QToolButton* PublicPreviewButton     = nullptr;
 		QToolButton* OpenButton              = nullptr;
 		QToolButton* RefreshButton           = nullptr;
 		QToolButton* ConnectionDetailsButton = nullptr;
@@ -191,6 +195,8 @@ namespace bpr::qt {
 		QLabel*      StatusLabel             = nullptr;
 		QFrame*      StatusBanner            = nullptr;
 		QWidget*     ConnectionDetails       = nullptr;
+		QWidget*     ConnectionActions       = nullptr;
+		QGridLayout* IdentityLayout          = nullptr;
 		QWidget*     PublicPreviewStrip      = nullptr;
 		QLabel*      AccessModeLabel         = nullptr;
 		QLabel*      RefusalLabel            = nullptr;

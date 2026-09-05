@@ -433,6 +433,7 @@ namespace bpr::qt {
 
 	protected:
 		void changeEvent(QEvent* aEvent) override;
+		void resizeEvent(QResizeEvent* aEvent) override;
 
 	private:
 		/// \brief Binds one primary action to its presentation wording.

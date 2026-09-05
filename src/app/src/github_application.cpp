@@ -112,6 +112,7 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QTreeView>
+#include <QVariant>
 
 #include <algorithm>
 #include <array>
@@ -5133,31 +5134,33 @@ namespace bpr::app {
 			});
 		}
 
-		// One activation, from the composed graph, naming one profile. The
-		// enterprise selection is a different claim from the GitHub.com one --
-		// the core policy refuses it rather than the composition -- so it is
-		// asked for by name rather than inferred from a hostname.
+		// Automation uses the same selected-profile control as an ordinary
+		// launch. Select native HTTPS explicitly; CLI remains unavailable.
 		void activate_public_preview(const bool aEnterprise)
 		{
-			if (Closing || Host == nullptr || Profiles.empty()) {
+			if (Closing || Host == nullptr || Window == nullptr) {
 				return;
 			}
-			const auto* selected = &Profiles.front();
-			if (aEnterprise) {
-				selected = nullptr;
-				for (const auto& profile : Profiles) {
-					if (profile.server_contract()
-						!= application::github_server_contract::
-							github_com_2022_11_28) {
-						selected = &profile;
-						break;
-					}
-				}
-			}
-			if (selected == nullptr) {
+			const auto selected = std::ranges::find_if(
+				Profiles,
+				[aEnterprise](const validated_github_host_profile& aProfile) {
+					const auto enterprise = aProfile.server_contract()
+						!= application::github_server_contract::github_com_2022_11_28;
+					return enterprise == aEnterprise
+						&& aProfile.authentication_transport()
+						== application::github_authentication_transport::native_https;
+				});
+			if (selected == Profiles.end() || Window->session_panel() == nullptr) {
 				return;
 			}
-			Host->activate_public_preview(selected->profile());
+			auto* const selector = Window->profile_selector();
+			const auto  index    = selector->findData(
+				QVariant::fromValue<qulonglong>(selected->profile().value()));
+			if (index < 0) {
+				return;
+			}
+			selector->setCurrentIndex(index);
+			Window->session_panel()->public_preview_button()->click();
 		}
 
 		// One write and one triage intent, offered to the mode and answered by
@@ -6411,7 +6414,15 @@ namespace bpr::app {
 						if (profile->authentication_transport()
 							== application::github_authentication_transport::
 								github_cli) {
-							Host->dispatch(core::github_event{ aValue });
+							// CLI selection retains its unavailable path and cannot
+							// acquire an anonymous mode through this control.
+							Host->dispatch(core::github_event{
+								core::activate_host_profile_intent{ .Profile = aValue.Profile },
+							});
+							return;
+						}
+						if (aValue.Mode == core::github_access_mode::public_preview) {
+							Host->activate_public_preview(aValue.Profile);
 							return;
 						}
 

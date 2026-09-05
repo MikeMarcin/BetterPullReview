@@ -38,6 +38,7 @@
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QTimer>
+#include <QToolButton>
 
 #if defined(BPR_BUILD_TESTING)
 	#include <QDir>
@@ -2925,6 +2926,7 @@ namespace {
 			&& aWindow.github_diagnostic_text()
 			== "The selected GitHub CLI connection is unavailable."
 			&& aWindow.active_account_text() == "Not authenticated"
+			&& !aWindow.public_preview_signed_out()
 			&& !aWindow.github_open_action()->isEnabled()
 			&& statistics.GithubFullResets == 0U;
 	}
@@ -3004,7 +3006,11 @@ namespace {
 		cli.IdentityUpdatesBeforeConnect   = statistics.GithubIdentityUpdates;
 		cli.DiagnosticUpdatesBeforeConnect = statistics.GithubDiagnosticUpdates;
 		cli.ExpectedActiveHostText         = std::move(*expectedHost);
-		aWindow.github_connect_action()->trigger();
+		if (aRun.PublicPreview.Enabled) {
+			aWindow.session_panel()->public_preview_button()->click();
+		} else {
+			aWindow.github_connect_action()->trigger();
+		}
 		return true;
 	}
 

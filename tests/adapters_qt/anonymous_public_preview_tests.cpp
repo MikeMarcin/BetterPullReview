@@ -4,6 +4,7 @@
 #include "bpr/qt/usage_ring.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include <QAccessible>
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -11,6 +12,7 @@
 #include <QLabel>
 #include <QString>
 #include <QStringList>
+#include <QToolButton>
 #include <QWidget>
 
 #include <cstddef>
@@ -21,6 +23,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -146,6 +149,85 @@ namespace {
 			window->active_account_text().find("Public preview")
 				== std::string::npos,
 			"the mode is not presented as an authenticated account");
+	}
+
+	void test_public_preview_activates_only_the_selected_profile()
+	{
+		auto options = profiles();
+		options.push_back(application::github_profile_option{
+			.Profile   = core::host_profile_id{ 7U },
+			.Label     = "Enterprise native",
+			.Hostname  = "ghe.example.invalid",
+			.Product   = application::github_profile_product::github_enterprise_server,
+			.Transport = application::github_profile_transport::native_https,
+		});
+		options.push_back(application::github_profile_option{
+			.Profile   = core::host_profile_id{ 9U },
+			.Label     = "GitHub CLI",
+			.Hostname  = "github.com",
+			.Product   = application::github_profile_product::github_com,
+			.Transport = application::github_profile_transport::github_cli,
+		});
+		std::vector<application::github_intent> intents;
+		qt::workbench_window                    window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			options,
+			[&intents](application::github_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			},
+			nullptr,
+		};
+		device_sink device;
+		device.adopt(window);
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		auto* const panel   = window.session_panel();
+		auto* const preview = panel->public_preview_button();
+		expect(preview->isVisible() && preview->isEnabled(),
+			   "public preview is available beside ordinary connection controls");
+		auto* const accessible = QAccessible::queryAccessibleInterface(preview);
+		expect(accessible != nullptr
+				   && accessible->text(QAccessible::Name) == QStringLiteral("Public preview")
+				   && !accessible->text(QAccessible::Description).isEmpty(),
+			   "public preview has an accessible name and explanation");
+		expect(window.focus_order().indexOf(preview)
+				   == window.focus_order().indexOf(panel->connect_button()) + 1,
+			   "preview follows Connect in the declared keyboard order");
+		window.resize(640, 820);
+		QApplication::processEvents();
+		expect(preview->mapTo(panel, QPoint{ }).y()
+				   > panel->profile_selector()->mapTo(panel, panel->profile_selector()->rect().bottomLeft()).y(),
+			   "compact connection buttons use a separate row below the profile");
+		window.resize(1'280, 820);
+		QApplication::processEvents();
+		const auto previewCenter = preview->mapTo(panel, preview->rect().center()).y();
+		expect(previewCenter >= panel->profile_selector()->mapTo(panel, QPoint{ }).y()
+				   && previewCenter <= panel->profile_selector()->mapTo(panel, panel->profile_selector()->rect().bottomLeft()).y(),
+			   "wide connection buttons return beside the profile");
+		for (auto index = 0; index < panel->profile_selector()->count(); ++index) {
+			panel->profile_selector()->setCurrentIndex(index);
+			expect(intents.empty(), "selecting a profile does not authenticate or activate it");
+			preview->click();
+			expect(intents.size() == 1U, "one preview click emits exactly one intent");
+			const auto* const activation = std::get_if<core::activate_host_profile_intent>(&intents.front());
+			expect(activation != nullptr
+					   && activation->Profile == options[static_cast<std::size_t>(index)].Profile
+					   && activation->Mode == core::github_access_mode::public_preview,
+				   "preview emits the exact selected profile and public-preview mode");
+			intents.clear();
+		}
+		expect(device.Begins == 0U, "preview never emits device sign-in");
+		static_cast<void>(panel->apply_command(core::github_command_projection{
+			.Id             = core::github_command_id::activate_host_profile,
+			.Enabled        = false,
+			.DisabledReason = core::github_reason_code::invalid_profile,
+		}));
+		preview->click();
+		expect(!preview->isEnabled() && intents.empty(),
+			   "preview obeys the host activation command state");
 	}
 
 	void test_the_ring_reports_the_budget_and_the_way_out(const double aScale)
@@ -433,6 +515,7 @@ auto main(int argc, char** argv) -> int
 	expect(parsed, "expected Qt scale is numeric");
 
 	test_the_mode_is_named_in_all_three_places(scale);
+	test_public_preview_activates_only_the_selected_profile();
 	test_the_ring_reports_the_budget_and_the_way_out(scale);
 	test_the_reset_wording_degrades_by_the_supplied_instant(scale);
 	test_sign_in_is_offered_from_the_ring_and_from_every_refusal(scale);

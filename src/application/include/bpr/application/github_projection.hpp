@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_PROJECTION_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_PROJECTION_HPP
 
+#include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_model.hpp"
 
 #include <compare>

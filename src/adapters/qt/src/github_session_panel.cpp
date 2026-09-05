@@ -51,8 +51,8 @@ namespace bpr::qt {
 		identityGroup->setFrameShape(QFrame::StyledPanel);
 		identityGroup->setObjectName(QStringLiteral("githubIdentityGroup"));
 		identityGroup->setAccessibleName(QStringLiteral("GitHub connection"));
-		auto* const identityLayout = new QGridLayout{ identityGroup };
-		identityLayout->setColumnStretch(1, 1);
+		IdentityLayout = new QGridLayout{ identityGroup };
+		IdentityLayout->setColumnStretch(1, 1);
 
 		ProfileSelector = new QComboBox{ identityGroup };
 		ProfileSelector->setObjectName(QStringLiteral("githubProfileSelector"));
@@ -74,6 +74,14 @@ namespace bpr::qt {
 		ConnectButton->setAccessibleName(QStringLiteral("Connect GitHub host"));
 		ConnectButton->setFocusPolicy(Qt::StrongFocus);
 		ConnectButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+
+		PublicPreviewAction = new QAction{ QStringLiteral("Public preview"), this };
+		PublicPreviewButton = new QToolButton{ identityGroup };
+		PublicPreviewButton->setDefaultAction(PublicPreviewAction);
+		PublicPreviewButton->setObjectName(QStringLiteral("publicPreviewButton"));
+		PublicPreviewButton->setAccessibleName(QStringLiteral("Public preview"));
+		PublicPreviewButton->setFocusPolicy(Qt::StrongFocus);
+		PublicPreviewButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
 		ConnectionDetailsButton = new QToolButton{ identityGroup };
 		ConnectionDetailsButton->setObjectName(
@@ -131,14 +139,20 @@ namespace bpr::qt {
 		detailsLayout->setColumnStretch(3, 1);
 		ConnectionDetails->hide();
 
-		identityLayout->addWidget(profileLabel, 0, 0);
-		identityLayout->addWidget(ProfileSelector, 0, 1);
-		identityLayout->addWidget(ConnectButton, 0, 2);
-		identityLayout->addWidget(ConnectionDetailsButton, 0, 3);
-		identityLayout->addWidget(HostLabel, 1, 0, 1, 3);
-		identityLayout->addWidget(TransportLabel, 1, 3);
-		identityLayout->addWidget(AccountLabel, 2, 0, 1, 4);
-		identityLayout->addWidget(ConnectionDetails, 3, 0, 1, 4);
+		ConnectionActions                  = new QWidget{ identityGroup };
+		auto* const connectionActionLayout = new QHBoxLayout{ ConnectionActions };
+		connectionActionLayout->setContentsMargins(0, 0, 0, 0);
+		connectionActionLayout->addWidget(ConnectButton);
+		connectionActionLayout->addWidget(PublicPreviewButton);
+		connectionActionLayout->addWidget(ConnectionDetailsButton);
+		connectionActionLayout->addStretch(1);
+		IdentityLayout->addWidget(profileLabel, 0, 0);
+		IdentityLayout->addWidget(ProfileSelector, 0, 1);
+		IdentityLayout->addWidget(ConnectionActions, 0, 2, 1, 2);
+		IdentityLayout->addWidget(HostLabel, 2, 0, 1, 3);
+		IdentityLayout->addWidget(TransportLabel, 2, 3);
+		IdentityLayout->addWidget(AccountLabel, 3, 0, 1, 4);
+		IdentityLayout->addWidget(ConnectionDetails, 4, 0, 1, 4);
 		panelLayout->addWidget(identityGroup);
 
 		// The mode banner reads above the connection it describes, because a
@@ -296,6 +310,20 @@ namespace bpr::qt {
 						Dispatch(application::github_intent{
 							core::activate_host_profile_intent{
 								.Profile = *profile,
+							},
+						});
+					}
+				});
+		connect(PublicPreviewAction,
+				&QAction::triggered,
+				this,
+				[this] {
+					if (const auto profile = selected_profile();
+						profile.has_value() && Dispatch) {
+						Dispatch(application::github_intent{
+							core::activate_host_profile_intent{
+								.Profile = *profile,
+								.Mode    = core::github_access_mode::public_preview,
 							},
 						});
 					}
@@ -536,6 +564,12 @@ namespace bpr::qt {
 	{
 		const auto hasProfile = selected_profile().has_value();
 		const auto enabled    = ConnectCommandEnabled && hasProfile;
+		apply_action_state(
+			PublicPreviewAction,
+			PublicPreviewButton,
+			enabled,
+			hasProfile ? ConnectDisabledReason : core::github_reason_code::invalid_profile,
+			QStringLiteral("Preview public GitHub.com pull requests without signing in"));
 		if (!hasProfile) {
 			ConnectAction->setEnabled(false);
 			ConnectAction->setProperty(
@@ -579,10 +613,13 @@ namespace bpr::qt {
 			return;
 		}
 		LocatorLayout->removeWidget(LocatorActions);
+		IdentityLayout->removeWidget(ConnectionActions);
 		if (aCompact) {
 			LocatorLayout->addWidget(LocatorActions, 1, 0, 1, 6);
+			IdentityLayout->addWidget(ConnectionActions, 1, 0, 1, 4);
 		} else {
 			LocatorLayout->addWidget(LocatorActions, 0, 6);
+			IdentityLayout->addWidget(ConnectionActions, 0, 2, 1, 2);
 		}
 		LocatorActions->setProperty("githubNarrowLayout", aCompact);
 	}
@@ -692,6 +729,11 @@ namespace bpr::qt {
 	auto github_session_panel::open_button() const noexcept -> QToolButton*
 	{
 		return OpenButton;
+	}
+
+	auto github_session_panel::public_preview_button() const noexcept -> QToolButton*
+	{
+		return PublicPreviewButton;
 	}
 
 	auto github_session_panel::refresh_button() const noexcept -> QToolButton*
