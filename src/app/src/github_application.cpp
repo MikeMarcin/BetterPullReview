@@ -1,11 +1,15 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/logging/quill_log.hpp"
 
+#include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "live_review_submission_provider.hpp"
 #include "review_mutation_execution_authority.hpp"
+#include "review_submission_execution_authority.hpp"
+#include "review_submission_workflow.hpp"
 #include "system_browser_opener.hpp"
 
 #include "bpr/app/worker_executor.hpp"
@@ -29,6 +33,7 @@
 	#include "github_public_path_fixture.hpp"
 	#include "github_read_contract.hpp"
 	#include "github_wire_transport.hpp"
+	#include "review_submission_fixture.hpp"
 #endif
 
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
@@ -380,8 +385,7 @@ namespace bpr::app {
 			return selection;
 		}
 
-#if defined(BPR_BUILD_TESTING)
-		[[nodiscard]] auto select_fixture_review_mutation(
+		[[nodiscard]] auto select_observed_review_mutation(
 			const application::accepted_pull_request_handoff& aHandoff,
 			const application::github_pull_request_snapshot&  aSnapshot)
 			-> std::optional<designated_review_mutation_selection>
@@ -439,7 +443,6 @@ namespace bpr::app {
 				? std::optional{ std::move(selection) }
 				: std::nullopt;
 		}
-#endif
 
 		[[nodiscard]] auto native_filesystem_path(const QString& aValue)
 			-> std::filesystem::path
@@ -3379,6 +3382,7 @@ namespace bpr::app {
 				= aFixtureOptions.PublicPreviewSelectionAvailable
 				&& !aFixture.has_value();
 			if (aFixture.has_value()) {
+				ReviewSubmissionServer = aFixtureOptions.ReviewSubmissionServer ? aFixtureOptions.ReviewSubmissionServer : std::make_shared<detail::review_submission_fixture_state>();
 				DisableWorkbenchSelectionWire
 					= aFixtureOptions.DisableWorkbenchSelectionWire;
 				DisableReviewLedgerGestureWire
@@ -3717,6 +3721,26 @@ namespace bpr::app {
 #endif
 					dispatch_receipt(std::move(aCommand));
 				});
+#if defined(BPR_BUILD_TESTING)
+			ReviewSubmissionDecisionGate = std::make_unique<gated_review_mutation_decision_executor>(DecisionLane);
+			auto& reviewDecisions        = *ReviewSubmissionDecisionGate;
+#else
+			auto& reviewDecisions = DecisionLane;
+#endif
+#if defined(BPR_BUILD_TESTING)
+			review_submission_workflow::grant_factory issueReviewGrant = [this](auto aSession, auto aGeneration, const auto& aRequest) {
+				return Fixture ? application::make_review_submission_testing_grant(aSession, aGeneration, aRequest) : application::review_submission_execution_grant{ };
+			};
+#else
+			review_submission_workflow::grant_factory issueReviewGrant = application::detail::review_submission_user_authority_issuer::issue;
+#endif
+			ReviewSubmission = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions,
+																			*Window->review_submission_editor_view(), std::move(issueReviewGrant));
+			Window->set_review_submission_dispatch([this](qt::review_submission_editor_intent aIntent) {
+				if (!Closing && ReviewSubmission) {
+					ReviewSubmission->dispatch(std::move(aIntent));
+				}
+			});
 			Window->set_review_draft_dispatch(
 				[this](core::review_draft_command aCommand) {
 					dispatch_review_draft(std::move(aCommand));
@@ -5698,6 +5722,55 @@ namespace bpr::app {
 				&& aRecord.Authority == aAuthority;
 		}
 
+		void compose_review_submission(const application::accepted_pull_request_handoff& aHandoff)
+		{
+			if (!ReviewSubmission || !Host || !Host->accepted_snapshot()) {
+				return;
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (!Fixture) {
+				ReviewSubmission->invalidate();
+				return;
+			}
+#endif
+			auto selection = select_observed_review_mutation(aHandoff, *Host->accepted_snapshot());
+			if (!selection) {
+				ReviewSubmission->invalidate();
+				return;
+			}
+			auto binding       = application::review_submission_live_binding{ selection->Target, selection->ActingIdentity };
+			auto configuration = adapters::sqlite::review_mutation_recovery_configuration{
+				.StorageRoot = ApplicationDataRoot, .Host = std::string{ binding.Target.Hostname.value() }, .Account = std::to_string(binding.ActingIdentity.Account.value()), .Repository = binding.Target.Repository.Owner + "/" + binding.Target.Repository.Name, .PullRequest = static_cast<std::int64_t>(binding.Target.Number.value())
+			};
+#if defined(BPR_BUILD_TESTING)
+			auto factory = [configuration, binding, server = ReviewSubmissionServer]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+				auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
+				if (!store) {
+					return std::unexpected(application::review_mutation_failure::unavailable);
+				}
+				return detail::make_review_submission_fixture_provider(server, std::move(*store), binding);
+			};
+#else
+			auto acceptedLease = Host->accepted_review_mutation_transport();
+			if (!acceptedLease) {
+				ReviewSubmission->invalidate();
+				return;
+			}
+			auto factory = [configuration, binding, lease = std::move(acceptedLease)]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+				auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
+				if (!store) {
+					return std::unexpected(application::review_mutation_failure::unavailable);
+				}
+				auto provider = adapters::github::make_live_review_submission_provider(lease, binding.Target, binding.ActingIdentity, std::move(*store));
+				if (!provider) {
+					return std::unexpected(provider.error());
+				}
+				return std::unique_ptr<application::review_submission_port>{ std::move(*provider) };
+			};
+#endif
+			ReviewSubmission->adopt(std::move(binding), workbench_authority(aHandoff), std::move(factory));
+		}
+
 		void retire_review_mutation_host()
 		{
 			if (ReviewMutationHost != nullptr) {
@@ -5742,7 +5815,7 @@ namespace bpr::app {
 				});
 				return;
 			}
-			auto selection = select_fixture_review_mutation(
+			auto selection = select_observed_review_mutation(
 				aHandoff, *Host->accepted_snapshot());
 			if (!selection.has_value()) {
 				return;
@@ -6409,6 +6482,7 @@ namespace bpr::app {
 					WorkbenchHost->observe(authority);
 				}
 				compose_review_mutation(aHandoff);
+				compose_review_submission(aHandoff);
 				EpochHost->accept(std::move(aHandoff));
 			}
 		}
@@ -6450,6 +6524,9 @@ namespace bpr::app {
 					&& aAuthority.Repository == aInvalidation.Repository
 					&& aAuthority.PullRequest == aInvalidation.PullRequest;
 			});
+			if (ReviewSubmission) {
+				ReviewSubmission->invalidate(aInvalidation);
+			}
 			if (retiresLedger) {
 				retire_review_ledger();
 				retire_review_mutation_host();
@@ -8401,6 +8478,14 @@ namespace bpr::app {
 				return;
 			}
 			OtherShutdownBegun = true;
+#if defined(BPR_BUILD_TESTING)
+			if (ReviewSubmissionDecisionGate) {
+				ReviewSubmissionDecisionGate->release();
+			}
+#endif
+			if (ReviewSubmission) {
+				ReviewSubmission->shutdown();
+			}
 			// Every composed host must be told, or the shutdown poll waits on a
 			// host that was never asked to stop and the application never
 			// exits. Adding a host to the composition without adding it here is
@@ -8472,6 +8557,7 @@ namespace bpr::app {
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
 				|| (QueueHost && !QueueHost->is_quiescent())
 				|| (AppearanceHost && !AppearanceHost->is_quiescent())
+				|| (ReviewSubmission && !ReviewSubmission->is_quiescent())
 				|| (ReviewMutationHost && !ReviewMutationHost->is_quiescent())
 				|| std::ranges::any_of(
 					RetiredReviewMutationHosts,
@@ -8482,6 +8568,7 @@ namespace bpr::app {
 
 			ShutdownCleanupFailed         = Host->shutdown_cleanup_failed();
 			EpochProjectionDeliveryFailed = EpochHost->projection_delivery_failed();
+			ReviewSubmission.reset();
 			ReviewMutationHost.reset();
 			RetiredReviewMutationHosts.clear();
 			AppearanceEffects.close_and_drain();
@@ -8490,6 +8577,7 @@ namespace bpr::app {
 			WorkbenchEffects.close_and_drain();
 			DiffEffects.close_and_drain();
 			ReviewMutationEffects.close_and_drain();
+			ReviewSubmissionEffects.close_and_drain();
 			EpochEffects.close_and_drain();
 			Provider->shutdown();
 			ProviderEffects.close_and_drain();
@@ -8591,8 +8679,11 @@ namespace bpr::app {
 		worker_executor                                 ProviderEffects;
 		worker_executor                                 VaultEffects;
 		worker_executor                                 ReviewMutationEffects;
+		worker_executor                                 ReviewSubmissionEffects;
 #if defined(BPR_BUILD_TESTING)
 		std::unique_ptr<detail::github_public_path_fixture_components> Fixture;
+		std::shared_ptr<detail::review_submission_fixture_state>       ReviewSubmissionServer;
+		std::unique_ptr<gated_review_mutation_decision_executor>       ReviewSubmissionDecisionGate;
 		std::unique_ptr<gated_review_mutation_decision_executor>
 																  ReviewMutationDecisionGate;
 		std::optional<application::accepted_pull_request_handoff> LastAcceptedHandoff;
@@ -8840,6 +8931,7 @@ namespace bpr::app {
 																	 PublicPreviewProjectionFanOut;
 		qt::event_loop_executor                                      DecisionLane;
 		std::unique_ptr<qt::workbench_window>                        Window;
+		std::unique_ptr<review_submission_workflow>                  ReviewSubmission;
 		application::github_credential_binding_catalog               CredentialBindings;
 		std::unique_ptr<application::git_cache_port>                 GitCaches;
 		std::unique_ptr<application::epoch_catalog_port>             EpochCatalogs;
@@ -9532,6 +9624,23 @@ namespace bpr::app {
 				detail::github_public_path_fixture_options{
 					.PublicPreviewSelectionAvailable = true,
 				}) } };
+	}
+
+	void detail::github_application_fixture_access::hold_review_submission_terminals(github_application& aApplication, bool aHold)
+	{
+		auto& gate = aApplication.Implementation->ReviewSubmissionDecisionGate;
+		if (gate) {
+			if (aHold) {
+				gate->hold();
+			} else {
+				gate->release();
+			}
+		}
+	}
+	auto detail::github_application_fixture_access::held_review_submission_terminals(const github_application& aApplication) -> std::size_t
+	{
+		const auto& gate = aApplication.Implementation->ReviewSubmissionDecisionGate;
+		return gate ? gate->pending() : 0U;
 	}
 
 	auto detail::github_application_fixture_access::device_binding_store_idle(const github_application& aApplication) noexcept -> bool

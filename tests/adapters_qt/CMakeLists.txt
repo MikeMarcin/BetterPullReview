@@ -811,3 +811,22 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "${bpr_qt_github_common_environment}"
 )
+
+# PR-scoped editor mechanics, independent of provider effects.
+bpr_add_executable(test_better_pull_review_qt_review_submission_editor_tests review_submission_editor_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_review_submission_editor_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_review_submission_editor_tests)
+bpr_enable_warnings(test_better_pull_review_qt_review_submission_editor_tests)
+foreach(scale IN ITEMS 100 125 200)
+    math(EXPR scale_integer "${scale} / 100")
+    if(scale EQUAL 125)
+        set(scale_factor "1.25")
+    else()
+        set(scale_factor "${scale_integer}")
+    endif()
+    bpr_add_network_isolated_test(NAME qt_review_submission_editor_scale_${scale}
+        COMMAND test_better_pull_review_qt_review_submission_editor_tests "${CMAKE_CURRENT_BINARY_DIR}/review-submission-editor-${scale}.png")
+    set_tests_properties(qt_review_submission_editor_scale_${scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${scale_factor}"
+        PASS_REGULAR_EXPRESSION "review-submission-editor:pass")
+endforeach()

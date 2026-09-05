@@ -180,6 +180,21 @@ namespace bpr::core {
 		}
 	} // namespace
 
+	auto controls(const review_submission_draft& aDraft) noexcept -> review_submission_controls
+	{
+		if (!valid(aDraft)) {
+			return { };
+		}
+		const auto editing = aDraft.State == state::drafting;
+		return {
+			.Edit      = editing,
+			.Submit    = editing && command_rejection(aDraft, { .Id = aDraft.Id, .Kind = kind::begin_submit }) == rejection::none,
+			.Discard   = editing,
+			.Reconcile = aDraft.State == state::submitting,
+			.NewReview = aDraft.State == state::submitted || aDraft.State == state::discarded
+		};
+	}
+
 	auto valid(const review_disposition aDisposition) noexcept -> bool
 	{
 		switch (aDisposition) {

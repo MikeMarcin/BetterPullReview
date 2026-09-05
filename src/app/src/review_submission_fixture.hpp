@@ -1,0 +1,28 @@
+#ifndef BPR_SRC_APP_SRC_REVIEW_SUBMISSION_FIXTURE_HPP
+#define BPR_SRC_APP_SRC_REVIEW_SUBMISSION_FIXTURE_HPP
+#if !defined(BPR_BUILD_TESTING)
+	#error "Whole-review fixtures are test-build only"
+#endif
+#include "bpr/application/review_submission_application_host.hpp"
+#include "bpr/application/review_submission_recovery_port.hpp"
+#include <filesystem>
+#include <mutex>
+
+namespace bpr::app::detail {
+	/// \brief Independent synthetic server state, reusable across reconstructed applications.
+	struct review_submission_fixture_state
+	{
+		std::mutex                                          Mutex;
+		std::vector<application::review_submission_request> Reviews;
+		bool                                                LoseNextResponse = false;
+		bool                                                RefuseBeforeSend = false;
+		bool                                                StaleNextResult  = false;
+		std::size_t                                         Submissions      = 0U;
+		std::size_t                                         Reconciliations  = 0U;
+	};
+	[[nodiscard]] auto make_review_submission_fixture_provider(
+		std::shared_ptr<review_submission_fixture_state>              aState,
+		std::unique_ptr<application::review_submission_recovery_port> aStore,
+		application::review_submission_live_binding                   aBinding) -> std::unique_ptr<application::review_submission_port>;
+}
+#endif

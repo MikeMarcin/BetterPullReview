@@ -107,6 +107,18 @@ namespace bpr::core {
 		auto operator<=>(const review_submission_proposal&) const = default;
 	};
 
+	/// \brief Decided ordinary actions for the current immutable PR-scoped draft.
+	struct review_submission_controls
+	{
+		bool Edit                                                 = false;
+		bool Submit                                               = false;
+		bool Discard                                              = false;
+		bool Reconcile                                            = false;
+		bool NewReview                                            = false;
+		auto operator<=>(const review_submission_controls&) const = default;
+	};
+	[[nodiscard]] auto controls(const review_submission_draft& aDraft) noexcept -> review_submission_controls;
+
 	/// \brief Checks the closed ordinary review disposition vocabulary.
 	[[nodiscard]] auto valid(review_disposition aDisposition) noexcept -> bool;
 	/// \brief Checks nonzero PR authority identities and a valid expected head.

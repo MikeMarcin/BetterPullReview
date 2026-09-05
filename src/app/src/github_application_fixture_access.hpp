@@ -53,24 +53,26 @@ namespace bpr::app::detail {
 		reuse,
 	};
 
+	struct review_submission_fixture_state;
 	struct github_fixture_vault_state;
 	/// \brief Owns runtime-only fake vault material across fully reconstructed applications.
 	[[nodiscard]] auto make_shared_github_fixture_vault() -> std::shared_ptr<github_fixture_vault_state>;
 
 	struct github_public_path_fixture_options
 	{
-		std::optional<std::filesystem::path> ApplicationDataRoot;
-		github_epoch_fixture_phase           EpochPhase                             = github_epoch_fixture_phase::single;
-		bool                                 DisableWorkbenchSelectionWire          = false;
-		bool                                 DisableReviewLedgerGestureWire         = false;
-		bool                                 LoseFirstReviewMutationResult          = false;
-		bool                                 UseGrantedNotificationSink             = false;
-		bool                                 CaptureSystemNotificationDisplay       = false;
-		bool                                 DisableNotificationRequestWire         = false;
-		bool                                 DisableNotificationSelectionWire       = false;
-		bool                                 DisableAgentProcessLauncherComposition = false;
-		bool                                 DisableAgentHostComposition            = false;
-		bool                                 DisableAgentGestureWire                = false;
+		std::optional<std::filesystem::path>             ApplicationDataRoot;
+		github_epoch_fixture_phase                       EpochPhase                     = github_epoch_fixture_phase::single;
+		bool                                             DisableWorkbenchSelectionWire  = false;
+		bool                                             DisableReviewLedgerGestureWire = false;
+		std::shared_ptr<review_submission_fixture_state> ReviewSubmissionServer;
+		bool                                             LoseFirstReviewMutationResult          = false;
+		bool                                             UseGrantedNotificationSink             = false;
+		bool                                             CaptureSystemNotificationDisplay       = false;
+		bool                                             DisableNotificationRequestWire         = false;
+		bool                                             DisableNotificationSelectionWire       = false;
+		bool                                             DisableAgentProcessLauncherComposition = false;
+		bool                                             DisableAgentHostComposition            = false;
+		bool                                             DisableAgentGestureWire                = false;
 		// RFC-BPR-0012 construction cuts. One per composed surface, each
 		// removing exactly one construction and nothing else, so a course can
 		// show that the gesture still fires and its effect is gone.
@@ -608,6 +610,8 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto evidence(
 			const github_application& aApplication) noexcept
 			-> github_public_path_fixture_evidence;
+		static void               hold_review_submission_terminals(github_application& aApplication, bool aHold);
+		[[nodiscard]] static auto held_review_submission_terminals(const github_application& aApplication) -> std::size_t;
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
 			-> review_mutation_fixture_evidence;

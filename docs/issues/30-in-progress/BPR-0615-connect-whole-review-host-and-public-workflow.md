@@ -186,3 +186,82 @@ must not silently rebind a draft. The app must retain the executor/projection
 through host quiescence. Add production selection/compile-seal checks and source
 manifest updates when these new components become selected. BPR-0615 remains
 In Progress and no RFC acceptance or live course is closed by this host slice.
+
+## Public workflow integration — 2026-09-05
+
+The normal conversations drawer now exposes a separate whole-review editor.
+Core controls decide its edit/submit/discard/reconcile/new-review actions. The
+composition selects an effect-worker provider factory, which opens/closes SQLite
+and the concrete provider off the Qt lane, and a separate exact user-submit grant.
+The extracted `review_submission_workflow` owns PR-scoped draft/pending context,
+original head/account/body, read-only restoration and lifecycle. Authentication
+invalidation is independent of file-ledger availability. Retired results cannot
+complete or rebind a current draft. No existing source-line grant is reused.
+
+The real public-control fixture uses the normal PR open, file selection, review
+choice/summary and actions. All three dispositions, empty Approve, duplicate
+submission, definitive refusal, stale result, lost response, reconstructed app
+with a moved head, original-key read-only recovery, fake-account invalidation
+and shutdown with a held terminal are covered. The typed fake server is separate
+from real SQLite; this is not a live-GitHub or abrupt-kill result. The rendered
+window exposed a clipped whole-review identity in a manually narrowed drawer;
+the editor now follows its visible width and the public fixture checks that bound.
+The independent editor tests exercise literal/copyable text, normal keyboard
+submission, focus/cursor preservation, pending controls and three scales.
+
+Verification for this integration:
+
+- Dev composition, application and focused test targets built. The production
+  tests-disabled `build/app-release` composition target also built; no launch.
+- Core `core_review_submission` passed in dev and core-only (the latter 1/1,
+  0.35 seconds). Earlier provider, storage and host results above remain valid.
+- Ten existing architecture, isolation, composition and source-line/Qt regression
+  selectors passed 10/10 in 263.23 seconds. The source inventory and production
+  manifest were reviewed and repinned for the selected workflow files.
+- The new production compile-seal test passed (1 test, 3.257 seconds): separate
+  source-line/whole-review grant types, fixture factory absent from production,
+  and private whole-review grant construction. The test-build issuer's refusal
+  remains covered by the host suite from the previous slice.
+- Expanded narrow-layout verification initially used a malformed fixture OID;
+  that test input was corrected. Final focused render/control results are
+  recorded below after the affected rerun. No product failure was hidden.
+
+Scoped code-simplifier review reduced dense command gating and kept the workflow
+out of the already-large app implementation. No new independent review was
+selected; direct host/provider/public-path evidence and source inspection cover
+this slice. Existing worker usage-limit failures were not retried or reset.
+Only ordinary build roots are used; disposable SQLite/server fixtures clean up
+automatically. No GitHub Actions, pushes, remote mutations, production credentials
+or remembered sign-in changes occurred. BPR-0143 remains separately parked;
+BPR-0144 needs a suitable designated PR/account for real attribution.
+
+The identity field uses a native read-only text view with visual wrapping, so a
+long head is fully visible without changing the text copied by the reviewer.
+The public fixture also refreshes a local unsent draft to a new server head:
+Submit stays disabled, original summary/head remain frozen, and only explicit
+Discard then New review binds a new empty draft to that revision. No submission
+occurs in that course.
+
+Commands for the final changed UI and selected-path verification:
+
+```sh
+ctest --test-dir build/dev --output-on-failure -R '^(application_review_submission_composition_public_path|application_review_round_trip_composition_contract|qt_review_submission_editor_scale_(100|125|200)|qt_workbench_window_scale_(100|125|200))$'
+python3 tests/end_to_end/composition_contract_tests.py CompositionContractTests.test_whole_review_authority_is_distinct_and_test_factory_is_private
+ctest --test-dir build/core-only --output-on-failure -R '^core_review_submission$'
+```
+
+Final eight-selector UI/public-path rerun passed 8/8 in 53.52 seconds, including
+the existing source-line round-trip and the new fresh-head draft refusal course.
+The production tests-disabled application executable linked successfully in
+`build/app-release`; it was not launched. Scoped formatting, documentation
+structure, all 62 documentation tests and `git diff --check` passed. Full matrices,
+`coding-tidy`, native Windows/Linux, live publication and subjective owner visual
+acceptance were not run. The inspected render is an offscreen layout result.
+
+After the final identity word-wrapping refinement, the three scaled editor tests
+and whole-review public course passed 4/4 in 2.72 seconds. The final 1280×900
+full-window render and 300-pixel editor render were inspected: the entire head,
+account, disposition, summary, controls and outcome are visible and copyable.
+The production application executable was rebuilt successfully after that
+refinement. The three task-created build logs were removed after inspection;
+only ordinary build outputs and deterministic render outputs remain.

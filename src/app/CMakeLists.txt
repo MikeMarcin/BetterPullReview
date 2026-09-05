@@ -4,6 +4,7 @@ if(BPR_BUILD_QT)
         STATIC
             src/foundation_application.cpp
             src/github_application.cpp
+            src/review_submission_workflow.cpp
             src/system_browser_opener.cpp
             src/worker_executor.cpp
     )
@@ -12,6 +13,7 @@ if(BPR_BUILD_QT)
             better_pull_review_composition
             PRIVATE
                 src/github_public_path_fixture.cpp
+                src/review_submission_fixture.cpp
         )
     endif()
     add_library(
@@ -130,6 +132,27 @@ if(BPR_BUILD_QT)
 		src/app/main.cpp
 		src/app/include/bpr/app/github_application.hpp
 		src/app/src/github_application.cpp
+		src/app/src/review_submission_workflow.hpp
+		src/app/src/review_submission_workflow.cpp
+		src/application/include/bpr/application/review_submission_application_host.hpp
+		src/application/include/bpr/application/review_submission_contract.hpp
+		src/application/include/bpr/application/review_submission_port.hpp
+		src/application/include/bpr/application/review_submission_recovery_port.hpp
+		src/application/src/review_submission_execution_authority.hpp
+		src/application/src/review_submission_application_host.cpp
+		src/application/src/review_submission_contract.cpp
+		src/application/src/review_submission_recovery_contract.cpp
+		src/adapters/github/src/live_review_submission_provider.hpp
+		src/adapters/github/src/live_review_submission_provider.cpp
+		src/adapters/github/src/review_submission_session.hpp
+		src/adapters/github/src/review_submission_session.cpp
+		src/adapters/sqlite/include/bpr/adapters/sqlite/review_submission_recovery_store.hpp
+		src/core/include/bpr/core/review_submission.hpp
+		src/core/src/review_submission.cpp
+		src/adapters/qt/include/bpr/qt/review_submission_editor.hpp
+		src/adapters/qt/src/review_submission_editor.cpp
+		src/adapters/qt/include/bpr/qt/workbench_window.hpp
+		src/adapters/qt/src/workbench_window.cpp
 		src/application/CMakeLists.txt
 		src/application/include/bpr/application/review_mutation_application_host.hpp
 		src/application/include/bpr/application/review_mutation_recovery_port.hpp

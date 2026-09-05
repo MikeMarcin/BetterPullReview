@@ -557,14 +557,14 @@ and the round-trip composition contract is pinned across it
 
 ## What is not proven here
 
-Three acceptance criteria still require the live product path, session-scoped
-write authority, and in two cases a person. The repository and disposable PR
-identity are now designated; that designation is an allowlist input, not a
-completed live or attended run.
+The remaining mixed-client and whole-review attribution criteria require the
+live product path and scoped write authority. BPR-0142 already completed the
+source-comment/web-reply round trip and owner appearance check. BPR-0143 has
+a designated disposable PR; BPR-0144 still needs a target that permits approval
+by the chosen reviewer. Neither remaining live course is claimed complete.
 
 | Card | What it needs |
 |---|---|
-| BPR-0142 | Composition of the implemented provider into the exact-target live lane, a write-scoped token, and a human to confirm the comment on designated PR `#1` is readable, replyable, and unmarked in the GitHub web UI |
 | BPR-0143 | The same repository plus a second client, to confirm GitHub produces the external shapes the reconciliation handles |
 | BPR-0144 | A real account whose login is known in advance, so the observed review author can be compared to it rather than merely being non-empty |
 
@@ -587,12 +587,15 @@ inspecting a terminal's summary.
 Whole-review authority is an independent, opaque, revocable, one-use grant. It
 binds session, generation, draft/attempt, complete authenticated target/actor,
 summary, disposition and retry key. Source-line grants cannot be substituted.
-The private whole-review issuer is intended for the normal authenticated Submit
+The private whole-review issuer is selected by the normal authenticated Submit
 review handler after its core command is accepted for the exact displayed draft.
 This is the implementation's product assumption; no owner verdict is fabricated
 and it does not authorize an agent to run a live publication. Test builds refuse
-production issuance and use separate fixture grants. The app does not yet select
-this host or issuer; normal controls and composition remain in progress.
+production issuance and use separate fixture grants. Production composition
+selects the live provider and SQLite store; test composition selects an explicit
+typed fake server and real SQLite. Each provider/store opens and closes on the
+whole-review effect worker. Authentication invalidation retires this workflow
+independently of the file-review ledger.
 
 Read-only discovery/reconciliation need no new publication grant and cannot
 select a submit effect. Discovery validates every recovered request's stable
@@ -600,6 +603,40 @@ actor/PR scope before publishing the bounded list. Provider results with stale
 draft/attempt, a different request or an invalid receipt become an indeterminate
 result for the original request. A stop after confirmed publication cannot erase
 its receipt; a provider exception or timeout cannot establish nonpublication.
+
+## Whole-review workbench controls
+
+The conversations drawer contains a separate Review pull request editor with
+Comment, Approve and Request changes choices, a summary, Submit review, Discard,
+Check status and New review. It presents the host, owner/repository, PR number,
+original expected head and actual acting account before submission. Identity and
+outcome text are literal, selectable and keyboard-copyable. Width follows the
+visible drawer rather than the wider scroll content; the native palette and font
+remain inherited. Presentation emits core commands and receives decided controls.
+
+`review_submission_workflow` composes this editor, the core draft and the async
+host. File navigation and identical accepted refreshes preserve the draft.
+Changed heads freeze the original draft until discard/new review; a different
+account or PR receives a new empty draft, without copying the old body into a
+new authority. An admitted pending attempt stays in its original durable scope.
+
+Submit creates one request/key after the core accepts the exact displayed draft.
+Pending controls cannot submit or discard it. Reopening discovers the original
+request and reconciles it read-only, including after head movement. An unknown
+outcome stays submitting and exposes Check status. Only a validated receipt
+completes that attempt; a definite fresh-submission refusal retains the summary.
+New review is explicit, and remaining restored attempts are inspected before
+starting a fresh review. Retired host terminals cannot replace current state;
+shutdown retains the projection and decision lane until all hosts quiesce.
+
+`application_review_submission_composition_public_path` drives the normal PR
+open, file selection and review controls against a typed fake server and real
+SQLite. It covers all three dispositions, duplicate gestures, refusal, stale
+results, lost response, reconstruction at a newer head with zero additional
+submissions, fake-account invalidation and shutdown with a held terminal.
+Independent provider fresh-process recovery evidence remains in BPR-0614/0615;
+the application reconstruction fixture does not claim abrupt-kill durability or
+live GitHub attribution. The Qt editor is checked at 100%, 125% and 200% scale.
 
 ## Whole-review provider boundary
 
@@ -632,8 +669,7 @@ bounded binary snapshot preserves the complete request and full uint64 IDs.
 Both factories validate the shared schema; transactional v1/v2 migration
 preserves source-line records. Admission, witness and resolution are atomic.
 
-Whole-review host/UI selection and production execution authority remain
-subsequent work. The recovery port now discovers unresolved records atomically
+The recovery port discovers unresolved records atomically
 within its exact account/repository/PR scope, bounded by the existing 1,024-record
 capacity. Provider discovery validates the complete actor and target identity
 and returns each original request and idempotency key. Discovery is an effect-lane

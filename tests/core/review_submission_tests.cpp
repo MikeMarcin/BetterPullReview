@@ -43,6 +43,23 @@ namespace {
 			   "refusal returns no replacement draft and names its reason");
 	}
 
+	void test_decided_controls()
+	{
+		auto current = draft();
+		current.Body.clear();
+		expect(controls(current).Edit && controls(current).Discard && !controls(current).Submit, "blank comment stays editable without submit");
+		current.Disposition = review_disposition::approve;
+		expect(controls(current).Submit, "empty approval enables submit");
+		current = *apply(current, command(kind::begin_submit)).Draft;
+		expect(controls(current) == review_submission_controls{ .Reconcile = true }, "pending only reconciles");
+		current = *apply(current, command(kind::complete_submit, 1U)).Draft;
+		expect(controls(current) == review_submission_controls{ .NewReview = true }, "success requires explicit new draft");
+		current = *apply(draft(), command(kind::discard)).Draft;
+		expect(controls(current) == review_submission_controls{ .NewReview = true }, "discard is terminal");
+		current.Id = { };
+		expect(controls(current) == review_submission_controls{ }, "invalid identity enables nothing");
+	}
+
 	void test_transitions()
 	{
 		const auto initial = draft();
@@ -232,6 +249,7 @@ namespace {
 
 int main()
 {
+	test_decided_controls();
 	test_transitions();
 	test_body_policy();
 	test_late_terminals_do_not_inspect_or_return_body();

@@ -294,3 +294,33 @@ core/contract, architecture and isolation checks pass after building two missing
 dev regression binaries. The card records exact commands. Next is the separate
 PR-level editor and real composition/public-control course; no live acceptance
 claim changes and RFC-BPR-0008 remains Proposed.
+
+
+## Local verification and CI budget constraint — 2026-09-05
+
+The owner clarified that GitHub Actions allotment is nearly exhausted and no
+money should be spent on CI. Continue local Mac builds/verification only; do not
+run GitHub Actions workflows or push changes that trigger them. The four approved
+BPR-0143 comment/thread edits are separate remote interactions, not CI workflow
+actions, and remain unexecuted. Local issue-slice commits do not authorize a push.
+
+## Whole-review workflow integrated — 2026-09-05
+
+BPR-0615 now connects the normal PR-level editor, core controls, separate one-use
+user-submit authority, worker-owned provider/store factory and durable pending
+restoration. Source-line grants remain distinct. Local real-composition fixtures
+cover all dispositions, no-anchor use, file navigation, exact refresh preservation,
+duplicate gestures, refusal, stale/lost responses, reopened recovery at a moved
+head, local-draft head drift, fake-account invalidation and pending shutdown.
+The final eight UI/source-line/whole-review selectors passed in 53.52 seconds;
+the prior ten architecture/isolation/composition regressions passed in 263.23
+seconds. Core-only and the production authority compile-seal case also pass.
+Dev and tests-disabled production application builds pass without live launch.
+BPR-0615 records the exact commands, limitations and final integration commit.
+
+Next: BPR-0144 needs a disposable PR authored by someone other than the chosen
+reviewer and a concrete live course; the owner was asked for that target.
+BPR-0143's four approved actions remain unexecuted under the Computer Use URL
+restriction. Before any future authorized GitHub mutation, verify that it cannot
+trigger Actions; no workflow dispatch or push is authorized. RFC-BPR-0008 remains
+Proposed and the persistent goal remains active. No acceptance is fabricated.

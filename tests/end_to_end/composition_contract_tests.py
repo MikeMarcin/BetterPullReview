@@ -30,6 +30,7 @@ CONCRETE_SELECTION_PATTERNS = (
     # allowlist. This entry is the part that fails in the same suite that
     # already owns concrete-selection policy.
     re.compile(r"\bmake_live_review_mutation_provider\s*\("),
+    re.compile(r"\bmake_live_review_submission_provider\s*\("),
 )
 RELEASE_BINARY_FORBIDDEN_BYTES = (
     b"--github-fixture",
@@ -410,6 +411,31 @@ class CompositionContractTests(unittest.TestCase):
                 "make_review_mutation_one_shot_testing_grant",
                 UNDECLARED,
             )
+
+    def test_whole_review_authority_is_distinct_and_test_factory_is_private(self) -> None:
+        header = '#include "bpr/application/review_submission_application_host.hpp"\n'
+        with contained_temporary_directory() as temporary_directory:
+            root = Path(temporary_directory)
+            baseline = compile_snippet(root, "whole-review-baseline", header +
+                '#include "bpr/application/review_mutation_application_host.hpp"\n'
+                '#include <type_traits>\n'
+                'static_assert(!std::is_convertible_v<bpr::application::review_mutation_execution_grant, '
+                'bpr::application::review_submission_execution_grant>);\n'
+                'int main() { return 0; }\n')
+            self.assertEqual(baseline.returncode, 0, baseline.stdout + baseline.stderr)
+            testing = compile_snippet(root, "whole-review-test-declaration",
+                '#define BPR_APPLICATION_TESTING 1\n' + header +
+                'auto fixture() { return bpr::application::make_review_submission_testing_grant({}, {}, {}); }\n')
+            self.assertEqual(testing.returncode, 0, testing.stdout + testing.stderr)
+            forbidden_factory = compile_snippet(root, "whole-review-forbidden-test-factory", header +
+                'auto fixture() { return bpr::application::make_review_submission_testing_grant({}, {}, {}); }\n')
+            self.assert_language_sealed(forbidden_factory, "make_review_submission_testing_grant", UNDECLARED)
+            private_header = (REPOSITORY_ROOT / "src/application/src/review_submission_execution_authority.hpp").as_posix()
+            construction = compile_snippet(root, "whole-review-forbidden-construction",
+                f'#include "{private_header}"\n' +
+                'auto fixture() { return new bpr::application::review_submission_execution_authority{'
+                '{}, {}, {}, std::chrono::steady_clock::time_point{}}; }\n')
+            self.assert_language_sealed(construction, "review_submission_execution_authority", ACCESS_CONTROLLED)
 
     def test_language_seal_assertion_rejects_what_does_not_prove_a_seal(
         self,

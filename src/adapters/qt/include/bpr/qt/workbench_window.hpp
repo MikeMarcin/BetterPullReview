@@ -16,6 +16,7 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
+#include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
 #include <QList>
@@ -234,6 +235,7 @@ namespace bpr::qt {
 		void set_receipt_dispatch(workbench_receipt_dispatch aReceiptDispatch);
 		void set_review_draft_dispatch(
 			workbench_review_draft_dispatch aDraftDispatch);
+		void set_review_submission_dispatch(review_submission_editor_dispatch aDispatch);
 		void set_defect_dispatch(workbench_defect_dispatch aDefectDispatch);
 		void set_agent_dispatch(agent_intent_dispatch aAgentDispatch);
 		/// \brief Adopts the sink the mounted device-sign-in panel dispatches to.
@@ -298,6 +300,7 @@ namespace bpr::qt {
 		/// workshop those promotions reach is the one already inside
 		/// `review_editor()`, one widget below it.
 		[[nodiscard]] auto finding_queue() const noexcept -> finding_queue_view*;
+		[[nodiscard]] auto review_submission_editor_view() const noexcept -> review_submission_editor*;
 		[[nodiscard]] auto review_editor() const noexcept -> review_draft_editor*;
 		[[nodiscard]] auto defect_card() const noexcept -> defect_card_view*;
 		[[nodiscard]] auto classify_defect_action() const noexcept -> QAction*;
@@ -538,6 +541,8 @@ namespace bpr::qt {
 		workbench_drawer_width_dispatch          WidthDispatch;
 		workbench_receipt_dispatch               ReceiptDispatch;
 		workbench_review_draft_dispatch          ReviewDraftDispatch;
+		review_submission_editor_dispatch        ReviewSubmissionDispatch;
+		review_submission_editor*                ReviewSubmissionEditor = nullptr;
 		workbench_defect_dispatch                DefectDispatch;
 		workbench_defect_classification_dispatch DefectClassificationDispatch;
 		workbench_queue_rule_dispatch            QueueRuleDispatch;

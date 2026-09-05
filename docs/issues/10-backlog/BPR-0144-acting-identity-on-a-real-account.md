@@ -16,13 +16,14 @@ show it.
 
 ## Exactly what is missing
 
-Production currently hardcodes Comment and creates a source-line comment.
-The core disposition enum alone does not prove whole-review submission.
 BPR-0610 completed the adapter wire contract; BPR-0613 completed separate core
 policy and application requests/receipts. BPR-0614 completed provider execution
-with durable indeterminate recovery at `f2d23e0f`. BPR-0615 now owns the async
-host, pending-request restoration, composition and whole-review controls before
-this card can run its attended checks.
+with durable indeterminate recovery at `f2d23e0f`. BPR-0615 connects the async
+host, normal PR-level controls, exact one-use user-submit authority, SQLite
+pending restoration and production provider selection. Its local public fixture
+covers Comment, empty Approve and Request Changes under the exact synthetic
+account, including reconstruction at a newer head without another submission.
+The remaining work here is GitHub's real attribution for all three dispositions.
 
 GitHub does not allow authors to approve their own pull requests. The current
 MikeMarcin account authored BPR-Test#1, so an authorized different reviewer
@@ -41,3 +42,17 @@ than merely being non-empty.
 - The observed author is compared to the active profile's account rather than
   checked for presence.
 - No BetterPullReview-specific metadata accompanies the review.
+
+## Next attended course
+
+First identify a disposable PR authored by someone other than MikeMarcin while
+preserving the chosen reviewer account. Then prepare the exact built application,
+current head, account and the three visible review summaries for the existing
+attended workflow. No live whole-review approval is inferred from the earlier
+source-line comment or mixed-client edit approvals. No live mutation ran in
+BPR-0615. The owner has been asked to identify a suitable disposable PR.
+
+The owner requires local verification and no paid CI. Before proposing any live
+review or comment operation, inspect the designated target's relevant workflow
+triggers; do not execute an operation that would start GitHub Actions. Do not push
+or dispatch a workflow. The local fixtures require neither credentials nor CI.

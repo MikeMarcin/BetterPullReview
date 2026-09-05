@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
 	set(bpr_expected_full_application_digest
-		"dee4076ea92c0a3fb55287d21346eb2b1c0a5504de76d7025da109065f114914"
+		"25270fe4d34e5f88a825924ff61cd3dbcd0f4445b0d2c6cdcd0d81b139fe168d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -78,6 +78,10 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application_fixture_access.hpp"
         "src/github_public_path_fixture.cpp"
         "src/github_public_path_fixture.hpp"
+        "src/review_submission_fixture.cpp"
+        "src/review_submission_fixture.hpp"
+        "src/review_submission_workflow.cpp"
+        "src/review_submission_workflow.hpp"
         "src/system_browser_opener.cpp"
         "src/system_browser_opener.hpp"
 		"src/worker_executor.cpp"
@@ -112,6 +116,8 @@ function(bpr_verify_app_source_tree app_source_root)
 		"src/designated_live_macos_supervisor_launch.hpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
+        "src/review_submission_workflow.cpp"
+        "src/review_submission_workflow.hpp"
 		"src/worker_executor.cpp"
     )
     set(bpr_production_app_manifest "")
@@ -146,7 +152,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
-		"3d4faa38be9fe4d8e2879c6e41013d0a185c3e867bbd1701f6c2e920c84a624b"
+		"0d917568be307a4e5ef6873af63668e9e3c5a3fccc6f835c273a6b11d1c93b73"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

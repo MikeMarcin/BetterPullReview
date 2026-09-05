@@ -666,6 +666,14 @@ namespace bpr::qt {
 					update_defect_surface();
 				}
 			});
+		ReviewSubmissionEditor = new review_submission_editor{
+			[this](review_submission_editor_intent intent) {
+				if (ReviewSubmissionDispatch) {
+					ReviewSubmissionDispatch(std::move(intent));
+				}
+			},
+			Drawers[1].Panel
+		};
 		ReviewEditor = new review_draft_editor{
 			[this](core::review_draft_command aCommand) {
 				if (ReviewDraftDispatch) {
@@ -712,6 +720,7 @@ namespace bpr::qt {
 		auto* const conversationLayout   = new QVBoxLayout{ conversationContents };
 		conversationLayout->setContentsMargins(0, 0, 0, 0);
 		conversationLayout->addWidget(ConversationPanel, 1);
+		conversationLayout->addWidget(ReviewSubmissionEditor, 0, Qt::AlignLeft);
 		conversationLayout->addWidget(ReviewEditor);
 		AgentPanel = new agent_launch_panel{ { }, conversationContents };
 		AgentPanel->setMaximumHeight(300);
@@ -1772,6 +1781,9 @@ namespace bpr::qt {
 	{
 		ReceiptDispatch = std::move(aReceiptDispatch);
 	}
+
+	void workbench_window::set_review_submission_dispatch(review_submission_editor_dispatch aDispatch) { ReviewSubmissionDispatch = std::move(aDispatch); }
+	auto workbench_window::review_submission_editor_view() const noexcept -> review_submission_editor* { return ReviewSubmissionEditor; }
 
 	void workbench_window::set_review_draft_dispatch(
 		workbench_review_draft_dispatch aDraftDispatch)
@@ -3106,6 +3118,12 @@ namespace bpr::qt {
 		const core::workbench_drawer aDrawer,
 		const std::uint32_t          aWidth)
 	{
+		// The scroll column can be wider than a manually narrowed drawer.
+		// Keep the exact review identity and controls inside its visible width.
+		if (aDrawer == core::workbench_drawer::conversations && ReviewSubmissionEditor != nullptr) {
+			ReviewSubmissionEditor->setMaximumWidth(std::max(1, Drawers[1].Panel->contentsRect().width()));
+		}
+
 		// Geometry this window just applied is not a user resize. Reporting it
 		// would let a width the window could merely grant overwrite the width the
 		// host persisted.
