@@ -6,7 +6,7 @@
     },
     {
       "path": "SKILL.md",
-      "sha256": "846db80884acba63dc10b519d33e66e9f30f8f76cd8f76f966f49e9a75852a0b"
+      "sha256": "fd15dace47dfe3054567e188c187801800be05b976fa5d4cdfcc3f8c665d22ae"
     },
     {
       "path": "agents/openai.yaml",
@@ -27,6 +27,10 @@
     {
       "path": "config/routing.json",
       "sha256": "aacab2b0a9f26c64b18962843d564fb7d6377f0e44f25b0fa505b8d77391bfdf"
+    },
+    {
+      "path": "references/bookkeeping.md",
+      "sha256": "91e5fb47099920fbc4900fe3139702fde93c7d8c7577249c332ebf754c8281a3"
     },
     {
       "path": "references/codex-lanes.md",
@@ -53,8 +57,12 @@
       "sha256": "6ab9eb52a05977dbe4ac8b4e7254598fb98b3f8439e408b4e968aa77a6e8c909"
     },
     {
+      "path": "schemas/issue-card.schema.json",
+      "sha256": "4e464c8caec3c95d9cd8b903e0ba7312679912d6f25887ae8eb280dc1e1d0b08"
+    },
+    {
       "path": "schemas/project.schema.json",
-      "sha256": "0b93b8712b142b82c02b5a79e8a8b7dc9aa7aa23f5c8a7c9ed2f5c3795c00426"
+      "sha256": "7459458057f47f55d9efd9e583b8a0fc513067da009d654967743b69da01ccf5"
     },
     {
       "path": "schemas/remote-station.schema.json",
@@ -74,7 +82,11 @@
     },
     {
       "path": "scripts/audit_board.py",
-      "sha256": "8e37ed56d71e0c5f8d15271e3cb57aeb1ca9168357e073e2da783c41f8756c59"
+      "sha256": "293523d85768e9a1106fac352186af502a5ee7ca5e49699fa8fad5ee418f0a51"
+    },
+    {
+      "path": "scripts/board_model.py",
+      "sha256": "f3f2d58029313c8ab0415b1d4de2fd33a28a68ed24ecdce292db12878b23d487"
     },
     {
       "path": "scripts/codex_lane.py",
@@ -85,12 +97,16 @@
       "sha256": "a922ac049eebbdcb052b154a9e6f0afb38598569c1785ba93c5f8b58198739ec"
     },
     {
+      "path": "scripts/issue_board.py",
+      "sha256": "1e92372b0b54e274147a2fd6a93884fd76c9f0f4dfb3232d0ea993e755b91487"
+    },
+    {
       "path": "scripts/launch_remote_station.py",
       "sha256": "ba75e445175baea000b0778a05250d028d97633e6e38093bf9b9b60d70c533b6"
     },
     {
       "path": "scripts/project_config.py",
-      "sha256": "dd8b527e5da958393e26b3ec5fb312f07c91c5154910e9a8e2cd8b1750210bb9"
+      "sha256": "b77519983757328b79239057cde0f8ff80a5c87b06f3562b3d22f0359098f2a9"
     },
     {
       "path": "scripts/remote_station_guard.py",
@@ -110,7 +126,7 @@
     },
     {
       "path": "tests/test_audit_board.py",
-      "sha256": "62b1c4b222243d4ea59a45d7ba480d66d94cfdcbe6a4b34bdcd8e8fede337a6c"
+      "sha256": "23eb2291ee3135100f6de903067ad176e456f4e5a4b0330cec3235fa181812d7"
     },
     {
       "path": "tests/test_codex_lane.py",
@@ -121,12 +137,16 @@
       "sha256": "59d94bdf6c1e0b796a9799cff6e8841955659cc4c7dd5d634bfa37a4a0eb6314"
     },
     {
+      "path": "tests/test_issue_board.py",
+      "sha256": "6185409d25a937beabd7652320670f000d54cd54ea9a68d401949091241906c6"
+    },
+    {
       "path": "tests/test_launch_remote_station.py",
       "sha256": "84e97ab1f68c81b9143c7d5bbdc1790f10ea73e5108036b0b47d34605d890b02"
     },
     {
       "path": "tests/test_project_config.py",
-      "sha256": "f12f4c993c729184ac87e67c074d2508fe29842a6056fe901d853e932bbaf53a"
+      "sha256": "d17baeb4d75040b0844d8989de0dc30c42a3c190ac66478421d4df4abe89d6c5"
     },
     {
       "path": "tests/test_remote_station_guard.py",
@@ -141,6 +161,6 @@
       "sha256": "0c570e408e59704d19c64e228d206bf3b915622f6ee684a773d1c3e80e2f4bda"
     }
   ],
-  "portable_digest": "57ed33dfc26344ed",
+  "portable_digest": "be09048b11ad9805",
   "schema": "implement-rfc.portable-manifest.v1"
 }

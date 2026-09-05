@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://implement-rfc.local/schemas/issue-card.v1.json",
+  "title": "implement-rfc decoded issue-card metadata v1",
+  "description": "Evaluated by board_model.py. The configured rfc_link_field replaces the rfc property name. Lane and graph rules are validated against the board and project configuration. Plain scalars are text, including dates and the optional closeout marker.",
+  "type": "object",
+  "required": ["id", "title", "status", "rfc", "depends_on"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string", "pattern": "^[A-Z]{2,8}-\\d{4}$"},
+    "title": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "minLength": 1},
+    "rfc": {"type": "string", "pattern": "^(?:none|RFC-[A-Z]{2,8}(?:-[A-Z]{2,8})?-\\d{4})$"},
+    "depends_on": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[A-Z]{2,8}-\\d{4}$"}},
+    "parked_on": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"},
+    "blocked_by": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"},
+    "milestone": {"type": "string", "minLength": 1},
+    "completed": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+    "closeout": {"type": "string", "pattern": "^(?:true|false)$"}
+  }
+}

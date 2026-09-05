@@ -21,6 +21,25 @@ folder. Move a card rather than copying it, and update dependencies when new
 work is discovered. The two-digit prefix exists so that a directory listing
 sorts the lanes in workflow order rather than alphabetically.
 
+Use the portable board tool for routine validation, queue discovery, and moves:
+
+```sh
+python3 .agents/skills/implement-rfc/scripts/issue_board.py validate
+python3 .agents/skills/implement-rfc/scripts/issue_board.py queue --rfc RFC-BPR-0008 --platform mac
+python3 .agents/skills/implement-rfc/scripts/issue_board.py move BPR-NNNN --to 30-in-progress --dry-run
+```
+
+Replace `BPR-NNNN` with the actual card ID; omit `--dry-run` to apply the move.
+The command keeps status and reason metadata aligned, checks dependencies, and
+repairs live Markdown links. It never stages or commits; commit a claim before
+implementation and move to Done only after acceptance is verified.
+The shared [card schema](../../.agents/skills/implement-rfc/schemas/issue-card.schema.json)
+and parser also serve the documentation gate and portable audit. Duplicate or
+unknown fields, malformed metadata, and invalid board relationships fail
+validation. See the [command and format contract](../../.agents/skills/implement-rfc/references/bookkeeping.md)
+for JSON output, parked/blocked reasons, protected references, and supported
+front-matter syntax. Workflow maintenance cards may explicitly use `rfc: none`.
+
 ### Ready, and ready where
 
 A lane has to tell a session what it can actually start. That is the whole

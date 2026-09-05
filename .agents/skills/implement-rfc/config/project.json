@@ -63,5 +63,40 @@
     "rfc-critical-reviewer": [
       "Give highest scrutiny to credentials and authentication authority, GitHub/GHES request and mutation boundaries, Git cache and SQLite durability or recovery, diff correspondence and line identity, and default provider or package selection. Do not perform GitHub or GHES mutations while reviewing."
     ]
+  },
+  "bookkeeping": {
+    "deferring_lanes": [
+      "10-backlog",
+      "50-blocked",
+      "21-ready-win",
+      "22-ready-mac",
+      "23-ready-lin"
+    ],
+    "parked_on": [
+      "awaiting-owner-verdict",
+      "awaiting-live-github",
+      "awaiting-product-decision"
+    ],
+    "blocked_by_forbidden_prefixes": [
+      "platform-"
+    ],
+    "link_roots": [
+      "AGENTS.md",
+      "README.md",
+      "CONTRIBUTING.md",
+      "docs",
+      "src",
+      "tests",
+      "packaging",
+      ".agents"
+    ],
+    "protected_globs": [
+      "docs/rfcs/plans/**",
+      "docs/rfcs/assets/**",
+      "docs/verification/reviews/**"
+    ],
+    "editable_globs": [
+      "docs/rfcs/assets/*.LIVE_IMPORT.md"
+    ]
   }
 }

@@ -27,6 +27,7 @@ REQUIRED_KEYS = (
     "structure_gate", "attended_review_skill", "station_registry_doc", "workstreams",
     "role_addenda",
 )
+OPTIONAL_KEYS = ("bookkeeping",)
 LANE_KEYS = ("backlog", "ready", "platform_ready", "in_progress", "parked", "blocked", "done")
 
 
@@ -59,7 +60,7 @@ def validate(config: Any) -> dict[str, Any]:
     missing = [key for key in REQUIRED_KEYS if key not in config]
     if missing:
         raise ProjectConfigError(f"project.json lacks required keys: {', '.join(missing)}")
-    extra = sorted(set(config) - set(REQUIRED_KEYS))
+    extra = sorted(set(config) - set(REQUIRED_KEYS) - set(OPTIONAL_KEYS))
     if extra:
         raise ProjectConfigError(f"project.json has unknown keys: {', '.join(extra)}")
     if config["schema"] != SCHEMA:
@@ -72,6 +73,10 @@ def validate(config: Any) -> dict[str, Any]:
         _require_relative_path(config, key)
     _require_text(config, "allocate_id_command")
     _require_text(config, "rfc_link_field")
+    if (not re.fullmatch(r"[a-z][a-z0-9_]*", config["rfc_link_field"])
+            or config["rfc_link_field"] in {"id", "title", "status", "depends_on", "parked_on",
+                                           "blocked_by", "milestone", "completed", "closeout"}):
+        raise ProjectConfigError("rfc_link_field must be a distinct front-matter key")
     _require_text(config, "terminal_rfc_status")
 
     next_id = config["next_id"]
@@ -115,6 +120,8 @@ def validate(config: Any) -> dict[str, Any]:
             isinstance(k, str) and isinstance(v, str) for k, v in value.items()
         ):
             raise ProjectConfigError("closeout_card.front_matter must map one key to one value")
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", next(iter(value))):
+            raise ProjectConfigError("closeout_card.front_matter must name a valid field")
     else:
         raise ProjectConfigError(f"closeout_card has unknown rule {rule!r}")
 
@@ -147,6 +154,26 @@ def validate(config: Any) -> dict[str, Any]:
         for role, lines in addenda.items()
     ):
         raise ProjectConfigError("role_addenda must map role names to lists of instruction strings")
+    if "bookkeeping" in config:
+        rules = config["bookkeeping"]
+        keys = {"deferring_lanes", "parked_on", "blocked_by_forbidden_prefixes",
+                "link_roots", "protected_globs", "editable_globs"}
+        if not isinstance(rules, dict) or set(rules) != keys:
+            raise ProjectConfigError("bookkeeping must define exactly " + ", ".join(sorted(keys)))
+        for key, values in rules.items():
+            if not isinstance(values, list) or not all(isinstance(v, str) and v.strip() for v in values):
+                raise ProjectConfigError(f"bookkeeping.{key} must be a list of nonempty strings")
+            if len(values) != len(set(values)):
+                raise ProjectConfigError(f"bookkeeping.{key} contains duplicates")
+        if set(rules["deferring_lanes"]) - set(lane_names(config)):
+            raise ProjectConfigError("bookkeeping.deferring_lanes names an unknown lane")
+        for key in ("parked_on", "blocked_by_forbidden_prefixes"):
+            if any(not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", v) for v in rules[key]):
+                raise ProjectConfigError(f"bookkeeping.{key} contains an invalid token")
+        for key in ("link_roots", "protected_globs", "editable_globs"):
+            for value in rules[key]:
+                if value.startswith("/") or ".." in value.split("/") or "\\" in value or "\n" in value:
+                    raise ProjectConfigError(f"bookkeeping.{key} must use repository-relative paths")
     return config
 
 

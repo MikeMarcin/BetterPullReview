@@ -25,7 +25,7 @@ class ProjectConfigTests(unittest.TestCase):
     def test_schema_and_loader_agree_on_required_keys(self) -> None:
         schema = json.loads((SKILL_DIR / "schemas" / "project.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(set(schema["required"]), set(module.REQUIRED_KEYS))
-        self.assertEqual(set(schema["properties"]), set(module.REQUIRED_KEYS))
+        self.assertEqual(set(schema["properties"]), set(module.REQUIRED_KEYS) | set(module.OPTIONAL_KEYS))
 
     def test_lane_order_and_activity(self) -> None:
         lanes = module.lane_names(self.config)

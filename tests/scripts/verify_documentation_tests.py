@@ -162,7 +162,7 @@ class IssueGraphTests(unittest.TestCase):
             f"id: {issue_id}\n"
             "title: Fixture\n"
             f"status: {status}\n"
-            "rfc: RFC-BPR-TEST\n"
+            "rfc: none\n"
             f"depends_on: [{dependencies}]\n"
             f"{blocked_line}"
             f"{parked_line}"
@@ -643,7 +643,7 @@ class OperatorPacketRecordTests(unittest.TestCase):
             f"id: {issue_id}\n"
             "title: Fixture\n"
             "status: Parked\n"
-            "rfc: RFC-BPR-TEST\n"
+            "rfc: none\n"
             "depends_on: []\n"
             f"---\n\n{body}\n",
             encoding="utf-8",

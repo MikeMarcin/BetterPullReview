@@ -32,14 +32,15 @@ if sys.version_info < MINIMUM_PYTHON:
     raise SystemExit(2)
 
 
-# A front-matter value is unquoted and carries a colon that YAML would read
-# as a nested mapping key. Quoting it makes both readers agree.
-UNQUOTED_YAML_COLON_RE = re.compile(r"""(?!["'])[^\n]*:(?:\s|$)""")
-FRONT_MATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.S)
+# The portable board model owns card parsing and board invariants. RFC and
+# closeout callers retain the raw-value interface for their existing prose checks.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".agents/skills/implement-rfc/scripts"))
+import board_model  # noqa: E402
+import project_config  # noqa: E402
+
 LINK_RE = re.compile(r"!?\[[^\]]+\]\(([^)]+)\)")
 FENCED_CODE_RE = re.compile(r"```.*?```", re.S)
 INLINE_CODE_RE = re.compile(r"`[^`]*`")
-ISSUE_ID_RE = re.compile(r"^BPR-(\d{4})$")
 CLOSEOUT_TITLE_RE = re.compile(r"^Verify and close (RFC-BPR-\d{4})$")
 CLOSEOUT_FILENAME_RE = re.compile(r"^BPR-(\d{4})-close-rfc-(\d{4})\.md$")
 RFC_BASE_RE = re.compile(r"^RFC base: `([0-9a-f]{40})`\.$", re.M)
@@ -56,10 +57,6 @@ ACCEPTANCE_HEADING_RE = re.compile(
 # truth of the acceptance, and a closeout cost a full replay to satisfy them.
 CLOSEOUT_SECTION_HEADING = "## Closeout checklist"
 CLOSEOUT_CRITERION_COLUMN = "Criterion"
-# Ready splits by platform because a lane has to tell a session what it can
-# actually start. "Blocked" said something was unresolved when nothing was: the
-# machine exists and the work is specified, so it is ready somewhere else.
-BLOCKED_BY_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 PLATFORM_READY_LANES = {
     "21-ready-win": "Windows",
     "22-ready-mac": "macOS",
@@ -74,12 +71,6 @@ OPEN_ISSUE_LANES = (
     "30-in-progress",
 )
 DONE_ISSUE_LANE = "60-done"
-# A platform lane defers exactly as the blocked lane it replaces did: the
-# platform is why the card is not in `20-ready/`, and its dependency graph is a
-# separate question that stays in `depends_on`.
-DEFERRING_ISSUE_LANES = frozenset(
-    {"10-backlog", "50-blocked", *PLATFORM_READY_LANES}
-)
 REVIEW_ROOT = "docs/verification/reviews"
 OPERATOR_PACKET_NAME = "operator-packet.md"
 OPERATOR_RESPONSE_NAME = "operator-response.md"
@@ -94,13 +85,6 @@ PACKET_PENDING_RE = re.compile(r"pending\b", re.I)
 RESPONSE_PACKET_SHA_RE = re.compile(
     r"^Packet SHA-256: `([0-9a-f]{64})`(?: \([^\r\n]*\))?$", re.M
 )
-PARKED_ON_VALUES = frozenset(
-    {
-        "awaiting-owner-verdict",
-        "awaiting-live-github",
-        "awaiting-product-decision",
-    }
-)
 
 
 def fail(message: str) -> None:
@@ -109,29 +93,10 @@ def fail(message: str) -> None:
 
 
 def front_matter(path: Path) -> dict[str, str]:
-    text = path.read_text(encoding="utf-8")
-    match = FRONT_MATTER_RE.match(text)
-    if not match:
-        fail(f"missing front matter: {path}")
-    result: dict[str, str] = {}
-    for line in match.group(1).splitlines():
-        if ":" not in line:
-            fail(f"invalid front matter in {path}: {line}")
-        key, value = line.split(":", 1)
-        value = value.strip()
-        # This parser keeps everything after the first colon, so it reads an
-        # unquoted `title: Core: buckets and reasons` correctly. A YAML parser
-        # does not -- it rejects the whole block with "mapping values are not
-        # allowed here" and returns no front matter at all. The `---` fence
-        # tells every reader the block is YAML, so refuse the inputs on which
-        # the two disagree rather than depending on which reader arrives.
-        if UNQUOTED_YAML_COLON_RE.match(value):
-            fail(
-                f"unquoted colon in front matter of {path}: {line}\n"
-                "  a YAML reader rejects the whole block; quote the value"
-            )
-        result[key.strip()] = value
-    return result
+    try:
+        return board_model.parse_matter(path.read_bytes(), path).raw
+    except board_model.BoardError as error:
+        fail(str(error))
 
 
 def require_files(root: Path) -> None:
@@ -199,116 +164,9 @@ def verify_rfc_index(root: Path) -> None:
 
 
 def verify_issue_board(root: Path) -> None:
-    issue_root = root / "docs/issues"
-    lane_status = {
-        "10-backlog": "Backlog",
-        "40-parked": "Parked",
-        "50-blocked": "Blocked",
-        "20-ready": "Ready",
-        **{lane: "Ready" for lane in PLATFORM_READY_LANES},
-        "30-in-progress": "In Progress",
-        DONE_ISSUE_LANE: "Done",
-    }
-    cards: dict[str, tuple[str, list[str], Path]] = {}
-    highest = 0
-    for lane, expected_status in lane_status.items():
-        lane_path = issue_root / lane
-        if not lane_path.exists():
-            continue
-        for path in lane_path.glob("BPR-*.md"):
-            metadata = front_matter(path)
-            issue_id = metadata.get("id", "")
-            status = metadata.get("status")
-            match = ISSUE_ID_RE.fullmatch(issue_id)
-            if not match:
-                fail(f"invalid issue id in {path}: {issue_id}")
-            if issue_id in cards:
-                fail(f"duplicate issue id: {issue_id}")
-            if status != expected_status:
-                fail(
-                    f"issue lane/status mismatch: {path} is {status}, "
-                    f"expected {expected_status}"
-                )
-            dependencies = issue_dependencies(metadata, path)
-            if len(dependencies) != len(set(dependencies)):
-                fail(
-                    f"duplicate dependency in {path}: "
-                    f"{metadata.get('depends_on')}"
-                )
-            # `50-blocked/` is for a real blocker: something unresolved that
-            # is not a platform, a person, or another card. A platform is a
-            # lane now, so naming one here would hide the card from the session
-            # that could actually run it.
-            blocked_by = metadata.get("blocked_by")
-            if lane == "50-blocked":
-                if not blocked_by:
-                    fail(f"blocked card does not declare blocked_by: {path}")
-                if not BLOCKED_BY_RE.fullmatch(blocked_by):
-                    fail(f"malformed blocked_by in {path}: {blocked_by}")
-                if blocked_by.startswith("platform-"):
-                    fail(
-                        f"{path} declares {blocked_by}; a platform is a lane, "
-                        f"not a blocker: use one of {sorted(PLATFORM_READY_LANES)}"
-                    )
-            elif blocked_by is not None:
-                fail(f"blocked_by outside the blocked lane: {path}")
-            parked_on = metadata.get("parked_on")
-            if lane == "40-parked":
-                if not parked_on:
-                    fail(f"parked card does not declare parked_on: {path}")
-                if parked_on not in PARKED_ON_VALUES:
-                    fail(
-                        f"unknown parked_on in {path}: {parked_on}; "
-                        f"expected one of {sorted(PARKED_ON_VALUES)}"
-                    )
-            elif parked_on is not None:
-                fail(f"parked_on outside the parked lane: {path}")
-            cards[issue_id] = (lane, dependencies, path)
-            highest = max(highest, int(match.group(1)))
-
-    next_id = (issue_root / "NEXT_ID").read_text(encoding="utf-8").strip()
-    next_match = ISSUE_ID_RE.fullmatch(next_id)
-    if not next_match:
-        fail(f"invalid NEXT_ID: {next_id}")
-    if int(next_match.group(1)) <= highest:
-        fail(f"NEXT_ID {next_id} does not follow highest allocated issue")
-
-    for issue_id, (lane, dependencies, path) in cards.items():
-        for dependency in dependencies:
-            if dependency == issue_id:
-                fail(f"self dependency in {path}: {dependency}")
-            if dependency not in cards:
-                fail(f"missing dependency in {path}: {dependency}")
-            dependency_lane = cards[dependency][0]
-            if (
-                lane not in DEFERRING_ISSUE_LANES
-                and dependency_lane != DONE_ISSUE_LANE
-            ):
-                fail(
-                    f"{lane} card {issue_id} depends on {dependency} "
-                    f"in {dependency_lane}"
-                )
-
-    visiting: set[str] = set()
-    visited: set[str] = set()
-
-    def visit(issue_id: str, trail: list[str]) -> None:
-        if issue_id in visited:
-            return
-        if issue_id in visiting:
-            cycle_start = trail.index(issue_id)
-            cycle = " -> ".join(trail[cycle_start:] + [issue_id])
-            fail(f"issue dependency cycle: {cycle}")
-        visiting.add(issue_id)
-        trail.append(issue_id)
-        for dependency in cards[issue_id][1]:
-            visit(dependency, trail)
-        trail.pop()
-        visiting.remove(issue_id)
-        visited.add(issue_id)
-
-    for issue_id in sorted(cards):
-        visit(issue_id, [])
+    _, errors = board_model.validate_board(root.resolve(), project_config.load())
+    if errors:
+        fail("\n".join(map(str, errors)))
 
 
 def normalize_whitespace(value: str) -> str:
@@ -376,25 +234,6 @@ def canonical_acceptance_criteria(path: Path) -> list[str]:
     if not criteria:
         fail(f"empty acceptance criteria section: {path}")
     return criteria
-
-
-def issue_dependencies(metadata: dict[str, str], path: Path) -> list[str]:
-    raw_dependencies = metadata.get("depends_on")
-    if (
-        raw_dependencies is None
-        or not raw_dependencies.startswith("[")
-        or not raw_dependencies.endswith("]")
-    ):
-        fail(f"invalid depends_on list in {path}: {raw_dependencies}")
-    dependency_text = raw_dependencies[1:-1].strip()
-    dependencies = (
-        [part.strip() for part in dependency_text.split(",")]
-        if dependency_text
-        else []
-    )
-    if any(not ISSUE_ID_RE.fullmatch(item) for item in dependencies):
-        fail(f"invalid dependency id in {path}: {raw_dependencies}")
-    return dependencies
 
 
 def closeout_table(text: str, path: Path) -> list[dict[str, str]]:

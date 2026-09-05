@@ -183,14 +183,13 @@ class BoardAuditTests(unittest.TestCase):
             violations, _, _ = module.audit(root, CONFIG)
             self.assertNotIn("_reservations", "\n".join(violations))
 
-    def test_done_status_mismatch_is_a_warning(self) -> None:
+    def test_done_status_mismatch_is_a_violation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.build_clean(root)
             write_card(root, "60-done", "AAA-0005", "old-card", status="Parked")
             violations, warnings, _ = module.audit(root, CONFIG)
-            self.assertEqual(violations, [])
-            self.assertIn("status 'Parked' != 'Done'", "\n".join(warnings))
+            self.assertIn("status 'Parked' != 'Done'", "\n".join(violations))
 
     def test_duplicate_card_id_is_a_violation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -243,14 +242,13 @@ class BoardAuditTests(unittest.TestCase):
             violations, _, _ = module.audit(root, CONFIG)
             self.assertIn("below AAA-0020, which the counter already held", "\n".join(violations))
 
-    def test_missing_linked_rfc_is_a_warning(self) -> None:
+    def test_missing_linked_rfc_is_a_violation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.build_clean(root)
             write_card(root, "20-ready", "AAA-0007", "missing-rfc", rfc="RFC-BBB-0001")
             violations, warnings, _ = module.audit(root, CONFIG)
-            self.assertEqual(violations, [])
-            self.assertIn("linked RFC-BBB-0001 has no RFC file", "\n".join(warnings))
+            self.assertIn("linked RFC-BBB-0001 has no RFC file", "\n".join(violations))
 
     def test_active_auto_verified_rfc_is_a_follow_up_warning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

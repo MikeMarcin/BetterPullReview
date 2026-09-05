@@ -81,14 +81,13 @@ interruption, compaction, conflict resolution, or a material external change:
   RFC index;
 - closeout card: find it in any lane and read back `RFC_BASE_SHA`, the
   planned cards, and the verification record;
-- queue: the planned cards plus every card whose `rfc_link_field` names the
-  current RFC — select by linkage, never by lane listing;
-- next task: the queue card already in the in-progress lane, else the
-  lowest-ID queue card outside the done lane whose dependencies are done and
-  whose lane is startable here — the ready lane always, a platform-ready lane
-  only when it matches this host or station platform. A card ready only on
-  another platform is deferred, not skipped silently; a blocked card's
-  blocker is surfaced;
+- queue and next task: run `python3 .agents/skills/implement-rfc/scripts/issue_board.py
+  queue --rfc RFC-ID --platform PLATFORM`. It validates the board and reports
+  linked cards, closeout paths, dependency readiness, platform deferrals,
+  blockers, and the next eligible card. Add `--include ISSUE-ID ...` for
+  planned cards not linked to this RFC; planned scope still comes from the
+  closeout record. Resolve multiple in-progress cards explicitly; do not
+  infer a winner or promote backlog automatically;
 - cross-check `git log --oneline "$RFC_BASE_SHA"..HEAD` against the queue:
   commits without a done card mean an interrupted task, and a done card
   without commits needs reconciliation;
@@ -115,8 +114,13 @@ For each dependency-ready card:
 
 1. Confirm ownership, non-goals, applicable instructions, acceptance criteria,
    and the narrowest direct verification command before editing.
-2. Move the card through the board's normal lifecycle and keep its
-   front-matter status equal to its lane.
+2. Move the card with `python3 .agents/skills/implement-rfc/scripts/issue_board.py
+   move ISSUE-ID --to LANE`. The command synchronizes status and lane metadata,
+   checks dependencies, and updates live links. Use its changed paths for
+   explicit staging; commit the claim before implementation. The agent still
+   decides whether acceptance evidence warrants Done. Read
+   [references/bookkeeping.md](references/bookkeeping.md) for parked/blocked
+   moves, dry runs, schema diagnostics, or configuring another project.
 3. Implement the smallest coherent change, keeping each concern in the layer
    `references/project.md` assigns it.
 4. Add focused tests for changed behavior. Update an instruction or reference

@@ -91,6 +91,68 @@
     "role_addenda": {
       "type": "object",
       "additionalProperties": {"type": "array", "items": {"type": "string", "minLength": 1}}
+    },
+    "bookkeeping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deferring_lanes",
+        "parked_on",
+        "blocked_by_forbidden_prefixes",
+        "link_roots",
+        "protected_globs",
+        "editable_globs"
+      ],
+      "properties": {
+        "deferring_lanes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "parked_on": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "blocked_by_forbidden_prefixes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "link_roots": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "protected_globs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "editable_globs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
     }
   }
 }
