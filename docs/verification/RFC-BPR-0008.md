@@ -172,9 +172,9 @@ exactly what is missing.
 
 | Card | Gate | What is missing |
 |---|---|---|
-| BPR-0142 | A comment is readable and replyable in the GitHub web UI with no tool-specific marker | RFC-BPR-0016 device-login composition and distributable identity through BPR-0318, a successor BPR-0256 packet, attended live-lane execution, and a human to inspect the web UI |
+| BPR-0142 | A comment is readable and replyable in the GitHub web UI with no tool-specific marker | Exact v008 operator approval, attended live-lane publication and web inspection, then separately authorized reply-return evidence |
 | BPR-0143 | Mixed-client acceptance: external edit, delete, resolve, reopen | The designated repository, session authority, and a second client acting on it |
-| BPR-0144 | Reviews appear under the authenticated user's identity with ordinary semantics | A real account acquired through the required device-login path; the fixture proves the identity is carried, not that GitHub honours it |
+| BPR-0144 | Reviews appear under the authenticated user's identity with ordinary semantics | An authorized review submission and authoritative GitHub attribution; BPR-0605 observed account sign-in, which does not prove review semantics |
 
 The product owner designated `MikeMarcin/BPR-Test` before any run. Session
 authority and the required human/mixed-client actions remain unexercised. The
@@ -230,3 +230,21 @@ Windows x64 evidence in BPR-0036 and BPR-0053. It additionally cannot close
 before BPR-0142, BPR-0143, BPR-0144, and BPR-0235. The repository is
 designated; session authority, human/mixed-client execution, and durable
 default-deny isolation remain open. BPR-0141 will make no closure claim.
+
+## Current attended frontier — 2026-09-05
+
+RFC-BPR-0001 through RFC-BPR-0007 are Auto-Verified. RFC-BPR-0008 remains
+Proposed with BPR-0242 as its closeout anchor. BPR-0318's device-login identity,
+BPR-0559's capability repair and BPR-0560's copyable diagnostics are complete.
+BPR-0605 observed successful live sign-in as MikeMarcin and explicit Sign out;
+its result separately records the accidental signed-out relaunch after quit.
+This is functional sign-in evidence, not publication or clean one-launch evidence.
+
+BPR-0256's [v008 packet](reviews/designated-live-review-publication-v008/operator-packet.md)
+binds the fresh tests-disabled signed capsule after that repair. Its card owns
+the exact critical-review activation and resource-cleanup record. The packet
+requires a new owner response; v006/v007 are consumed. Six focused preparation
+checks pass, mounted preflight detaches normally, and static inspection finds
+zero default live tests versus exactly one opt-in lane. No v008 live launch,
+credential operation, publication or web-UI observation has occurred. BPR-0142,
+BPR-0143, BPR-0144 and BPR-0235 retain their outstanding attended/platform gates.

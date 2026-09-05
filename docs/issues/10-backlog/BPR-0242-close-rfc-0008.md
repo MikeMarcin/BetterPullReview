@@ -35,3 +35,31 @@ and BPR-0142/0143/0144 still owe their designated live observations. No previous
 approval may be replayed; no RFC closeout or publication is claimed. Reuse
 unchanged automated evidence and run focused final-candidate checks as required
 by the preparation card.
+
+## v008 preparation complete; attended decision pending — 2026-09-05
+
+[[BPR-0256]] is parked as `awaiting-owner-verdict` with its
+[v008 packet](../../verification/reviews/designated-live-review-publication-v008/operator-packet.md)
+active after clean exact critical review. Packet SHA-256:
+`2bc3e8699cf3674b25e1c5b0e933e3e59605d0abecc130dfafde99cfec77cdfd`.
+
+Closeout review runtime: native collaboration (gpt-6-astra, xhigh).
+
+Preparation at production source `a63e92e6`, unchanged at `eff28443`: offline
+Release/tests-disabled capsule build and mounted preflight passed; six selected
+fixture/authority/isolation checks passed in 99.19 seconds; configured isolation
+passed for 281 tests; default/static enumeration proved zero/one live lanes.
+Documentation structure and 62 self-tests passed. Independent review found no
+blocking or non-blocking findings and matched all eight artifacts, 37 selected
+source entries, 95 inventory entries, command properties and unspent replay ID.
+No full matrix or native Windows/Linux check was added. These are preparation
+results, not replacement evidence for the unchecked live acceptance rows above.
+
+The temporary static graph, private invalid placeholder/parent and eleven
+inspection/helper files are removed. Retain only the exact final producer/image
+and empty mount parent for the pending owner decision. No app process or image
+attachment remains; only the original main worktree exists. The task's restored
+persistent goal stays active across this checkpoint; the issue board remains
+authoritative. No portable/Mac ready card remains. Next: receive the exact v008
+response, then revalidate and run its single bounded attended course; BPR-0142's
+reply-return, BPR-0143 and BPR-0144 require separate authority and evidence.

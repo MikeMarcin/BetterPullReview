@@ -1,9 +1,10 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: In Progress
+status: Parked
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560]
+parked_on: awaiting-owner-verdict
 ---
 
 # Build the attended one-shot live application lane
@@ -37,7 +38,7 @@ one exact request in a tests-disabled shipped application.
   token and grants only permission for one exact publication attempt. The
   operator authorizes the production browser/device sign-in after launch;
   credential secrets never enter CTest configuration, argv, environment, the
-  approval artifact, IPC, fixtures, diagnostics, or logs. The v007 course
+  approval artifact, IPC, fixtures, diagnostics, or logs. The v008 course
   explicitly Signs out before quit to remove its retained device grant.
 - The bootstrap carrier is retained privately until the async mutation host has
   validated the exact application session, workbench generation, designated
@@ -1184,3 +1185,84 @@ Planned temporary producer: `build/bpr0256-v008-release`; static inspection grap
 attended decision is pending; remove intermediate artifacts and consumed
 inspection logs. Do not use an app UI getter or handle after quit; monitor the
 new sanitized log for sign-in completion and verify final process absence.
+
+## v008 unattended candidate — 2026-09-05
+
+The [v008 packet](../../verification/reviews/designated-live-review-publication-v008/operator-packet.md)
+binds a new signed capsule and exact stored DMG from committed source
+`a63e92e6` (production source unchanged at `eff28443`). Its canonical subject
+was rendered through the producer Application/Core libraries and the production
+read-only replay loader. The namespace identity is unchanged, both prior spent
+markers remain intact, and the new approval ID is unspent. No approval file was
+materialized and no live command was executed.
+
+Verification on this candidate:
+
+- Offline Release/tests-disabled configure and `designated_live_macos_capsule`
+  build passed, including production-shaped mounted preflight and ordinary detach.
+- All 37 selected manifest entries match current and committed source; both
+  binaries embed source digest `7256057388474bc59e3cad76611cf6223684c05fd7b006cfea96539e9fd08b94`.
+  The packet binds the exact application, supervisor, inventory, image, digest
+  file, launcher and canonical subject hashes/lengths. This is the existing
+  selected manifest contract, not a transitive-source or reproducible-build claim.
+- `ctest --test-dir build/dev --output-on-failure -R
+  '^(designated_live_mutation_gate|designated_live_macos_capsule_contract|live_mutation_isolation|live_mutation_isolation_contract|application_designated_review_authority_bootstrap|designated_live_public_observer_fixture)$'`:
+  6/6 passed in 99.19 seconds, with fixtures and no live service.
+- Show-only CTest enumeration: default 280 tests, zero live entries/labels;
+  static opt-in 281 tests, exactly one live entry/label, fixed captured-byte
+  launcher command, literal image/source digests, 1,800-second timeout, 24
+  environment removals and no verdict overrides.
+- The official `verify_test_network_isolation.py` static check uses the exact
+  configured CMake/Python paths, macOS deny profile and runner, plus the packet's
+  image/digest/mount/producer and deliberately invalid private placeholder.
+  An initial invocation omitted required backend arguments; a second used
+  different symlink spellings for the configured tools. These were invocation
+  errors, corrected without changing source, graph or enforcement. The final
+  command passed: `TEST_NETWORK_ISOLATION_OK:configured=281:registrations=257:backend=macos-sandbox-exec`.
+- Documentation structure, its 62 self-tests and `git diff --check` pass.
+- BPR-0559's unchanged-source production composition, architecture, scoped
+  tidy/format and focused repair checks remain valid. No full matrix is run.
+
+A read-only native critical review will inspect these exact artifacts and
+packet for authority/identity mismatch before the packet becomes active. The
+current static graph, private invalid placeholder and `/tmp/bpr0256-v008-*`
+inspection files are temporary review inputs; remove them after that consumer
+finishes. Retain the final producer/image and empty private mount parent for
+the attended checkpoint only. There is no new credential or publication authority.
+
+## v008 exact critical review and pending decision — 2026-09-05
+
+Closeout review runtime: native collaboration (gpt-6-astra, xhigh).
+
+The read-only critical reviewer accepted the exact 17,237-byte packet with
+SHA-256 `2bc3e8699cf3674b25e1c5b0e933e3e59605d0abecc130dfafde99cfec77cdfd`.
+No packet bytes changed after review. Blocking findings: none. Non-blocking
+findings: none. No verification failure remains unresolved.
+
+Independent inspection matched all eight bound artifact hashes/lengths, all 37
+selected source entries against the producer/current/`a63e92e6`/`eff28443`,
+and all 95 inventory entries. Fresh show-only enumeration matched default
+280/zero live and opt-in 281/exactly one live, including the captured launcher,
+literal digests, 1,800-second timeout and 24 environment removals. The replay
+namespace identity and both spent markers are unchanged; the fresh v008 ID is
+unspent. The placeholder was invalid and the mount parent empty, mode 0700.
+
+The four disclosed runtime limits and selected-manifest contract remain the
+bounds of this review. Opposite-family review was unavailable. The reviewer
+performed no launch, build/test execution, live query, credential operation,
+approval materialization or publication. Review is not operator approval.
+
+After that review consumed the inputs, removed the disposable
+`build/bpr0256-v008-live-manifest`, its invalid private placeholder and parent,
+and all eleven `/tmp/bpr0256-v008-*` inspection/formatter files. No process held
+the static graph. No BetterPullReview process or v008 image attachment remains.
+Retain `build/bpr0256-v008-release` and the empty mode-0700
+`build/bpr0256-v008-live-mount-parent` for this pending attended consumer only.
+No extra worktree exists. The owner's existing sanitized log is untouched.
+
+The exact packet is active for the owner's decision. BPR-0256 parks with
+`awaiting-owner-verdict`; the portable and Mac ready lanes are empty. The next
+step is the exact v008 response, followed by artifact/replay revalidation,
+private approval materialization and fresh static inspection before its sole
+attended run. No previous response authorizes it. Publication, web inspection,
+Sign out, normal exit and detach evidence remain owed; no RFC closeout is claimed.

@@ -285,3 +285,13 @@ a separate authority. This card's completion evidence is unchanged and open.
 ## v007 attended disposition — 2026-09-04
 
 The owner approved v007 and its single run consumed the approval. Browser authorization completed, but the app refused GitHub data before establishing a session. No comment was published. Explicit Sign out and normal shutdown completed; the image detached. See the [frozen run result](../../verification/reviews/designated-live-review-publication-v007/attended-result.md). BPR-0559/BPR-0560 now precede BPR-0256 regeneration; v007 cannot be retried.
+
+## v008 prepared after sign-in repair — 2026-09-05
+
+BPR-0559's repair is committed and BPR-0605 observed live sign-in success.
+BPR-0256 prepared the [v008 packet](../../verification/reviews/designated-live-review-publication-v008/operator-packet.md)
+with fresh application/source/supervisor/inventory/image and approval identities.
+Clean exact critical review is recorded on BPR-0256. The packet now awaits
+its own exact owner response. v006 and v007 stay consumed and
+immutable. No v008 approval, live run, publication or GitHub web observation
+exists; this card's outstanding acceptance remains unchanged.
