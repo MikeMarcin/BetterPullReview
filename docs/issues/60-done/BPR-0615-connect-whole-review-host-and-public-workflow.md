@@ -1,7 +1,7 @@
 ---
 id: BPR-0615
 title: Connect whole-review host and public workflow
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0613, BPR-0614]
 ---
@@ -265,3 +265,8 @@ account, disposition, summary, controls and outcome are visible and copyable.
 The production application executable was rebuilt successfully after that
 refinement. The three task-created build logs were removed after inspection;
 only ordinary build outputs and deterministic render outputs remain.
+
+Implementation commits: `f79c3628` (historical pending recovery), `2e527a03`
+(async host/authority), and `2bc5841a` (normal controls, composition and public
+fixtures). All BPR-0615 acceptance is complete. Its live attribution successor
+BPR-0144 is parked separately; this is not RFC-BPR-0008 closeout.

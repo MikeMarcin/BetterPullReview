@@ -1,9 +1,10 @@
 ---
 id: BPR-0144
 title: Confirm review identity on a real account
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0008
 depends_on: [BPR-0142, BPR-0610, BPR-0613, BPR-0614, BPR-0615]
+parked_on: awaiting-live-github
 ---
 
 # Confirm review identity on a real account
