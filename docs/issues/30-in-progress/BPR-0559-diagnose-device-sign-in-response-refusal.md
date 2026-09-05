@@ -1,8 +1,7 @@
 ---
 id: BPR-0559
 title: Diagnose device sign-in response refusal after browser authorization
-status: Parked
-parked_on: awaiting-owner-verdict
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -86,3 +85,7 @@ The approved ordinary executable was launched once with no arguments after a sec
 ## Diagnostic process closed before observed result
 
 The owner reported no visible app. The process exited with code 0 and native app inventory confirmed no remaining instance. See the [recorded outcome](../../verification/reviews/device-session-bootstrap-diagnostic-v001/attended-result.md). No connection result or explicit Sign out was observed. The exact one-launch authority is consumed; no retry was made. Root diagnosis remains pending authorization to reopen the same build.
+
+## Capability discovery failure observed and cleaned up
+
+The owner authorized one reopen with “try again”. The [retry result](../../verification/reviews/device-session-bootstrap-diagnostic-v001/retry-authorization-and-result.md) records matching owner/UI evidence that capability discovery failed. Copy message and explicit Sign out were exercised; terminal disconnected UI and normal exit 0 were observed. No PR opened or publication attempted. This card resumes bounded offline diagnosis of capability transport/normalization; the precise refusing contract remains unknown.
