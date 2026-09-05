@@ -1,7 +1,7 @@
 ---
 id: BPR-0613
 title: Model whole-review drafts and application submission contracts
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0610]
 ---
@@ -68,3 +68,33 @@ provider execution with exact target/actor re-observation, review-list baseline
 and durable indeterminate recovery, then PR-scope UI and public composition.
 The private Glaze DTOs remain in the GitHub adapter. BPR-0612's broad Qt JSON
 migration stays backlogged; no live review or new credential action is included.
+
+## Implementation and evidence — 2026-09-05
+
+Implemented separate core draft/attempt policy and application request/receipt
+contracts. Refusal returns no replacement state, preserving the caller's input
+without copying or scanning the body for stale or late completions. Accepted
+no-op edits and choices explicitly return unchanged state. A definitive failure
+permits another attempt; an indeterminate write remains submitting for later
+host reconciliation.
+
+At the candidate based on claim `8e72b00e`, `core-only` configure/build and all
+six named selectors passed (70.29 seconds). After correcting stale-refusal
+copying, the two affected targets rebuilt and these checks passed 2/2 in 0.66
+seconds:
+
+```sh
+cmake --build --preset core-only --target test_better_pull_review_review_submission_core_tests test_better_pull_review_review_submission_contract_application_tests
+ctest --test-dir build/core-only --output-on-failure -R '^(core_review_submission|application_review_submission_contract)$'
+```
+
+The other four unchanged passing lanes remain applicable. Scoped formatting,
+code-simplifier inspection, documentation structure, 62 documentation tests and
+diff hygiene passed. Independent review confirmed the bounded correction has
+no remaining blocker; opposite-family review was unavailable.
+Closeout review runtime: native collaboration (gpt-6-astra, high).
+
+Only ordinary `build/core-only` outputs remain. No live request, credential
+operation, persistence, provider selection or UI behavior is claimed. Next:
+implement whole-review provider execution together with durable indeterminate
+recovery, then connect the async host and PR-level public UI.

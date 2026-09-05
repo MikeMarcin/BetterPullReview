@@ -5,6 +5,7 @@ add_library(
 		src/designated_review_authority_bootstrap.cpp
         src/review_ledger_application_host.cpp
 		src/review_mutation_contract.cpp
+        src/review_submission_contract.cpp
         src/review_mutation_coordinator.cpp
 		src/review_mutation_application_host.cpp
         src/defect_correlation.cpp

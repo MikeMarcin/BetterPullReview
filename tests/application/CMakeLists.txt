@@ -765,3 +765,19 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "mcp-context-helper-tests:pass"
         TIMEOUT 120
 )
+
+bpr_add_executable(
+    test_better_pull_review_review_submission_contract_application_tests
+    review_submission_contract_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_review_submission_contract_application_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_review_submission_contract_application_tests)
+bpr_enable_warnings(test_better_pull_review_review_submission_contract_application_tests)
+bpr_add_network_isolated_test(
+    NAME application_review_submission_contract
+    COMMAND test_better_pull_review_review_submission_contract_application_tests
+)

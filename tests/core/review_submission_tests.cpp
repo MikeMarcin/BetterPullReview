@@ -1,0 +1,240 @@
+#include "bpr/core/review_submission.hpp"
+
+#include <array>
+#include <cstdlib>
+#include <iostream>
+#include <limits>
+#include <string_view>
+
+namespace {
+	using namespace bpr::core;
+	using kind      = review_submission_command_kind;
+	using state     = review_submission_state;
+	using rejection = review_submission_rejection;
+
+	void expect(const bool aCondition, const std::string_view aMessage)
+	{
+		if (!aCondition) {
+			std::cerr << "FAILED: " << aMessage << '\n';
+			std::exit(EXIT_FAILURE);
+		}
+	}
+
+	[[nodiscard]] auto draft() -> review_submission_draft
+	{
+		auto bytes = std::array<std::uint8_t, 32>{ };
+		bytes.fill(1U);
+		return { .Id            = review_submission_draft_id{ 1U },
+				 .Target        = { .Host = git_host_id{ 2U }, .Repository = repository_id{ 3U }, .PullRequest = pull_request_id{ 4U }, .ExpectedHead = git_commit_oid{ git_hash_algorithm::sha256, bytes } },
+				 .ActingAccount = github_account_id{ 5U },
+				 .Body          = "Review summary" };
+	}
+
+	[[nodiscard]] auto command(const kind aKind, const std::uint64_t aAttempt = 0U) -> review_submission_command
+	{
+		return { .Id = draft().Id, .Kind = aKind, .Attempt = review_submission_attempt_id{ aAttempt } };
+	}
+
+	void refused(const review_submission_draft&   aDraft,
+				 const review_submission_command& aCommand, const rejection aReason)
+	{
+		const auto result = apply(aDraft, aCommand);
+		expect(result.Rejection == aReason && !result.Changed && !result.Draft.has_value(),
+			   "refusal returns no replacement draft and names its reason");
+	}
+
+	void test_transitions()
+	{
+		const auto initial = draft();
+		expect(valid(initial) && !propose(initial), "drafting has no proposal");
+		auto edit         = command(kind::edit);
+		edit.Body         = "Edited summary";
+		const auto edited = apply(initial, edit);
+		expect(edited.Changed && edited.Draft->Body == edit.Body, "edit replaces body");
+		const auto sameEdit = apply(*edited.Draft, edit);
+		expect(sameEdit.Rejection == rejection::none && sameEdit.Draft && !sameEdit.Changed
+				   && *sameEdit.Draft == *edited.Draft,
+			   "identical edit returns accepted unchanged state");
+		auto choose        = command(kind::choose_disposition);
+		choose.Disposition = review_disposition::request_changes;
+		const auto chosen  = apply(*edited.Draft, choose);
+		expect(chosen.Changed && chosen.Draft->Disposition == choose.Disposition,
+			   "choice replaces disposition");
+		const auto sameChoice = apply(*chosen.Draft, choose);
+		expect(sameChoice.Rejection == rejection::none && sameChoice.Draft && !sameChoice.Changed
+				   && *sameChoice.Draft == *chosen.Draft,
+			   "identical choice returns accepted unchanged state");
+		const auto begun = apply(*chosen.Draft, command(kind::begin_submit));
+		expect(begun.Changed && begun.Draft->State == state::submitting
+				   && begun.Draft->Attempt.value() == 1U,
+			   "begin issues attempt one");
+		const auto proposal = propose(*begun.Draft);
+		expect(proposal && valid(*proposal) && proposal->Draft == initial.Id
+				   && proposal->Attempt == begun.Draft->Attempt && proposal->Target == initial.Target
+				   && proposal->ActingAccount == initial.ActingAccount && proposal->Body == edit.Body
+				   && proposal->Disposition == choose.Disposition,
+			   "proposal carries frozen exact semantic intent");
+		const auto failed = apply(*begun.Draft, command(kind::fail_submit, 1U));
+		expect(failed.Changed && failed.Draft->State == state::drafting
+				   && failed.Draft->Body == edit.Body && failed.Draft->Disposition == choose.Disposition
+				   && failed.Draft->Attempt.value() == 1U,
+			   "definitive failure retains exact intent and counter");
+		refused(*failed.Draft, command(kind::fail_submit, 1U), rejection::not_submitting);
+		const auto retry = apply(*failed.Draft, command(kind::begin_submit));
+		expect(retry.Changed && retry.Draft->Attempt.value() == 2U, "retry advances attempt");
+		for (const auto terminal : { kind::complete_submit, kind::fail_submit }) {
+			refused(*retry.Draft, command(terminal, 1U), rejection::stale_attempt);
+			refused(*retry.Draft, command(terminal, 3U), rejection::stale_attempt);
+			refused(*retry.Draft, command(terminal), rejection::invalid_identity);
+		}
+		const auto done = apply(*retry.Draft, command(kind::complete_submit, 2U));
+		expect(done.Changed && done.Draft->State == state::submitted && !propose(*done.Draft),
+			   "exact completion reaches terminal submitted");
+		expect(done.Draft->Target == initial.Target && done.Draft->ActingAccount == initial.ActingAccount,
+			   "all commands preserve creation authority");
+		const auto discarded = apply(initial, command(kind::discard));
+		expect(discarded.Changed && discarded.Draft->State == state::discarded && !propose(*discarded.Draft),
+			   "discard is terminal and cannot propose");
+		for (const auto action : { kind::edit, kind::choose_disposition, kind::discard,
+								   kind::begin_submit, kind::complete_submit, kind::fail_submit }) {
+			const auto terminal = action == kind::complete_submit || action == kind::fail_submit;
+			const auto cmd      = command(action, terminal ? 2U : 0U);
+			refused(*done.Draft, cmd, rejection::submitted_draft);
+			refused(*discarded.Draft, cmd, rejection::discarded_draft);
+			if (!terminal) {
+				refused(*retry.Draft, cmd, rejection::already_submitting);
+			} else {
+				refused(initial, cmd, rejection::not_submitting);
+			}
+		}
+	}
+
+	void test_late_terminals_do_not_inspect_or_return_body()
+	{
+		auto current = draft();
+		current.Body.assign(maximum_review_submission_body_bytes - 1U, 'x');
+		current.Body += static_cast<char>(0xFF);
+		current.Attempt = review_submission_attempt_id{ 2U };
+		for (const auto terminal : { kind::complete_submit, kind::fail_submit }) {
+			current.State = state::submitting;
+			refused(current, command(terminal, 1U), rejection::stale_attempt);
+			current.State = state::drafting;
+			refused(current, command(terminal, 2U), rejection::not_submitting);
+			current.State = state::submitted;
+			refused(current, command(terminal, 2U), rejection::submitted_draft);
+			current.State = state::discarded;
+			refused(current, command(terminal, 2U), rejection::discarded_draft);
+		}
+	}
+
+	void test_body_policy()
+	{
+		constexpr auto whitespace = std::array<std::string_view, 25>{
+			"\x09", "\x0A", "\x0B", "\x0C", "\x0D", " ", "\xC2\x85", "\xC2\xA0",
+			"\xE1\x9A\x80", "\xE2\x80\x80", "\xE2\x80\x81", "\xE2\x80\x82",
+			"\xE2\x80\x83", "\xE2\x80\x84", "\xE2\x80\x85", "\xE2\x80\x86",
+			"\xE2\x80\x87", "\xE2\x80\x88", "\xE2\x80\x89", "\xE2\x80\x8A",
+			"\xE2\x80\xA8", "\xE2\x80\xA9", "\xE2\x80\xAF", "\xE2\x81\x9F", "\xE3\x80\x80"
+		};
+		for (const auto disposition : { review_disposition::comment, review_disposition::approve,
+										review_disposition::request_changes }) {
+			auto current        = draft();
+			current.Disposition = disposition;
+			current.Body.clear();
+			for (const auto space : whitespace) {
+				expect(valid(current), "blank drafts remain editable");
+				const auto result = apply(current, command(kind::begin_submit));
+				expect(result.Rejection == (disposition == review_disposition::approve ? rejection::none : rejection::blank_body), "empty and mixed Unicode whitespace follow disposition");
+				current.Body += space;
+			}
+			const auto final = apply(current, command(kind::begin_submit));
+			expect(final.Rejection == (disposition == review_disposition::approve ? rejection::none : rejection::blank_body), "entire White_Space set is blank");
+			for (const auto text : { "\xE2\x80\x8B", "\xEF\xBB\xBF", "\xE1\xA0\x8E", "\xF4\x8F\xBF\xBF", "\xEF\xBF\xBD" }) {
+				current.Body = text;
+				expect(apply(current, command(kind::begin_submit)).Changed, "non-whitespace Unicode scalar is valid text");
+			}
+		}
+		for (const auto bad : { "\x80", "\xC0\x80", "\xC1\xBF", "\xC2", "\xC2\x20",
+								"\xE0\x80\x80", "\xED\xA0\x80", "\xED\xBF\xBF", "\xE2\x80",
+								"\xF0\x80\x80\x80", "\xF4\x90\x80\x80", "\xF5\x80\x80\x80", "\xFF" }) {
+			auto edit = command(kind::edit);
+			edit.Body = std::string{ "valid prefix" } + bad;
+			refused(draft(), edit, rejection::invalid_utf8);
+			auto malformed = draft();
+			malformed.Body = edit.Body;
+			expect(!valid(malformed), "malformed initial text is refused");
+			refused(malformed, command(kind::begin_submit), rejection::invalid_utf8);
+		}
+		auto edit = command(kind::edit);
+		edit.Body.clear();
+		expect(apply(draft(), edit).Changed, "edit may clear summary");
+		edit.Body.assign(maximum_review_submission_body_bytes, 'x');
+		const auto boundary = apply(draft(), edit);
+		expect(boundary.Changed && apply(*boundary.Draft, command(kind::begin_submit)).Changed,
+			   "exact 64 KiB semantic body accepted");
+		edit.Body += 'x';
+		refused(*boundary.Draft, edit, rejection::body_too_large);
+		edit.Body.assign(maximum_review_submission_body_bytes - 2U, 'x');
+		edit.Body += "\xC2\xA0";
+		expect(apply(draft(), edit).Changed, "byte ceiling respects complete UTF-8 boundary");
+		edit.Body.pop_back();
+		refused(draft(), edit, rejection::invalid_utf8);
+	}
+
+	void test_invalid_identity_and_enums()
+	{
+		for (const auto mutation : std::array<void (*)(review_submission_draft&), 6>{
+				 [](auto& aDraft) { aDraft.Id = { }; },
+				 [](auto& aDraft) { aDraft.Target.Host = { }; },
+				 [](auto& aDraft) { aDraft.Target.Repository = { }; },
+				 [](auto& aDraft) { aDraft.Target.PullRequest = { }; },
+				 [](auto& aDraft) { aDraft.Target.ExpectedHead = { }; },
+				 [](auto& aDraft) { aDraft.ActingAccount = { }; } }) {
+			auto current = draft();
+			mutation(current);
+			expect(!valid(current), "invalid creation identity refused");
+			refused(current, command(kind::begin_submit), rejection::invalid_identity);
+			current.State   = state::submitting;
+			current.Attempt = review_submission_attempt_id{ 1U };
+			expect(!propose(current), "invalid identity has no proposal");
+		}
+		auto current  = draft();
+		current.State = static_cast<state>(255U);
+		refused(current, command(kind::discard), rejection::invalid_state);
+		expect(!valid(current) && !propose(current), "invalid state fails closed");
+		current             = draft();
+		current.Disposition = static_cast<review_disposition>(255U);
+		refused(current, command(kind::begin_submit), rejection::invalid_disposition);
+		auto invalid = command(static_cast<kind>(255U));
+		refused(draft(), invalid, rejection::invalid_command);
+		invalid             = command(kind::choose_disposition);
+		invalid.Disposition = static_cast<review_disposition>(255U);
+		refused(draft(), invalid, rejection::invalid_disposition);
+		invalid    = command(kind::edit);
+		invalid.Id = { };
+		refused(draft(), invalid, rejection::invalid_identity);
+		invalid.Id = review_submission_draft_id{ 99U };
+		refused(draft(), invalid, rejection::unknown_draft);
+		refused(draft(), command(kind::begin_submit, 1U), rejection::invalid_identity);
+		current       = draft();
+		current.State = state::submitting;
+		refused(current, command(kind::complete_submit, 1U), rejection::invalid_identity);
+		expect(!propose(current), "zero active attempt cannot propose");
+		current         = draft();
+		current.Attempt = review_submission_attempt_id{ std::numeric_limits<std::uint64_t>::max() - 1U };
+		const auto last = apply(current, command(kind::begin_submit));
+		expect(last.Changed && last.Draft->Attempt.value() == std::numeric_limits<std::uint64_t>::max(),
+			   "last representable attempt is usable");
+		const auto failed = apply(*last.Draft, command(kind::fail_submit, last.Draft->Attempt.value()));
+		refused(*failed.Draft, command(kind::begin_submit), rejection::attempt_exhausted);
+	}
+} // namespace
+
+int main()
+{
+	test_transitions();
+	test_body_policy();
+	test_late_terminals_do_not_inspect_or_return_body();
+	test_invalid_identity_and_enums();
+	return EXIT_SUCCESS;
+}
