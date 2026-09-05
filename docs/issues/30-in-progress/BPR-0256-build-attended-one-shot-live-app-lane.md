@@ -1,10 +1,9 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Parked
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560]
-parked_on: awaiting-owner-verdict
 ---
 
 # Build the attended one-shot live application lane
@@ -1266,3 +1265,7 @@ step is the exact v008 response, followed by artifact/replay revalidation,
 private approval materialization and fresh static inspection before its sole
 attended run. No previous response authorizes it. Publication, web inspection,
 Sign out, normal exit and detach evidence remain owed; no RFC closeout is claimed.
+
+## Exact v008 owner approval received — 2026-09-05
+
+The owner returned the exact [v008 response](../../verification/reviews/designated-live-review-publication-v008/operator-response.md). Removing only Markdown quote prefixes and the blank-line presentation matches every approval word and identity. The frozen packet, all eight artifact hash/length pairs, all 37 current and committed source entries, unchanged replay namespace with two spent historical markers, fresh unspent v008 ID and empty private mount parent revalidated. No app process is running. Resume only this one approved course: materialize the private approval, inspect the exact configured command, launch once, detect sign-in automatically from appended sanitized records, publish at most the one bound comment, inspect the web result, explicitly Sign out and quit. This record grants no retry or broader mutation and claims no execution result yet.
