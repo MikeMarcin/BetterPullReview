@@ -1041,3 +1041,24 @@ Task-created producer root: `build/bpr0256-v007-release`, retained only while
 building/reviewing the capsule and while the exact attended packet consumes
 its stored artifacts. Static graph and helper/log roots are disposable after
 inspection. The final packet will bind an owner-private empty mount parent.
+
+### macOS compiler and scoped-tidy repair
+
+The first current capsule build failed on Apple Clang's
+`-Wshadow-uncaptured-local`: the supervisor's move capture reused its outer
+local name. The local is now `originalSpawn`; the retained callable and launch
+ordering are unchanged. Scoped strict tidy also exposed three signed-bitmask
+diagnostics in that production-only translation unit. Explicit unsigned
+operands preserve the same owner-write and POLLIN predicates. The inspected
+twelve-source application inventory was repinned after these exact changes.
+
+The Release supervisor builds, strict tidy for its complete translation unit
+passes, formatting and direct architecture/core boundaries pass, and final
+`macos_supervisor_identity_continuity` plus
+`application_review_round_trip_composition_contract` pass 2/2 in 41.89 seconds.
+The earlier six-selector authority/capsule/default-isolation/public-observer
+course passed 6/6 in 74.40 seconds. It exercised fixtures only. The first
+intermediate image's mounted production probe passed, but those image bytes
+are obsolete after the tidy repair and will be removed; the final producer
+must rebuild and probe the committed repaired source before identities or an
+operator packet are finalized. No approval or live authority was created.

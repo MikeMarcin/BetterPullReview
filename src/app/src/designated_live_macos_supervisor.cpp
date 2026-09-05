@@ -339,7 +339,7 @@ namespace {
 		struct stat identity{ };
 		if (!parent || !executable || ::fstat(executable.get(), &identity) != 0
 			|| !S_ISREG(identity.st_mode) || identity.st_uid != ::geteuid()
-			|| (identity.st_mode & 0022) != 0) {
+			|| (static_cast<unsigned>(identity.st_mode) & 0022U) != 0) {
 			return false;
 		}
 		const auto expectedSigningDigest = static_signing_digest(application);
@@ -448,7 +448,7 @@ namespace {
 			.fd = parentSocket.get(), .events = POLLIN, .revents = 0
 		};
 		if (::poll(&descriptor, 1, 10'000) <= 0
-			|| (descriptor.revents & POLLIN) == 0) {
+			|| (static_cast<unsigned>(descriptor.revents) & static_cast<unsigned>(POLLIN)) == 0) {
 			return failChild();
 		}
 		auto       response = std::array<char, 64>{ };
@@ -487,7 +487,7 @@ namespace {
 		struct stat identity{ };
 		if (!parent || !executable || ::fstat(executable.get(), &identity) != 0
 			|| !S_ISREG(identity.st_mode) || identity.st_uid != ::geteuid()
-			|| (identity.st_mode & 0022) != 0) {
+			|| (static_cast<unsigned>(identity.st_mode) & 0022U) != 0) {
 			return false;
 		}
 		const auto expectedSigningDigest = static_signing_digest(application);
@@ -558,9 +558,9 @@ namespace {
 					return childSigningDigest.has_value()
 						&& *childSigningDigest == *expectedSigningDigest;
 				});
-		auto productionSpawn = std::move(launchOperations.Spawn);
+		auto originalSpawn = std::move(launchOperations.Spawn);
 		launchOperations.Spawn
-			= [&, productionSpawn = std::move(productionSpawn)](
+			= [&, productionSpawn = std::move(originalSpawn)](
 				  pid_t*                            aProcess,
 				  const char*                       aExecutable,
 				  const posix_spawn_file_actions_t* aActions,
