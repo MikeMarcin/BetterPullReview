@@ -1,7 +1,7 @@
 ---
 id: BPR-0309
 title: Anchor RFC-BPR-0017 capability-critical verification
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: [BPR-0035, BPR-0285, BPR-0297, BPR-0298, BPR-0299, BPR-0300, BPR-0301, BPR-0302, BPR-0303, BPR-0304, BPR-0305, BPR-0306, BPR-0307, BPR-0308, BPR-0312, BPR-0313, BPR-0314, BPR-0315, BPR-0316, BPR-0317, BPR-0558]
 ---
@@ -65,3 +65,23 @@ The seeded exact commands, proof conditions, pending results/evidence, and
 commit fields live in
 `docs/verification/RFC-BPR-0017.md#final-command-ledger`. BPR-0306 replaces a
 planned selector only by updating that ledger and this anchor atomically.
+
+## Available-macOS closeout claim — 2026-09-04
+
+All implementation dependencies are terminal, including BPR-0558 and the
+adjacent BPR-0541 device-retention repair at `141250a6`. This slice verifies the
+current anonymous-preview surface on the Mac and reconciles the final claims.
+The live board and invoked implement-rfc skill supersede this card's legacy
+blanket clean-matrix instructions: use focused acceptance selectors, one direct
+product course, and unchanged passing evidence. Full clean dev/core/sanitizer
+and whole-repository tidy matrices are catalogs, not automatic closeout gates.
+The final command ledger will record the actual selected commands and omissions
+without claiming a fresh Windows or Linux replay. macOS is the only enabled
+platform; their existing unavailable selections remain unchanged.
+
+Run the existing nineteen-selector inventory/course against incrementally built
+`build/dev`, and the existing Release artifact's selection, GHES refusal,
+fixture absence, composition, dependency and runtime checks. Reuse byte-validated
+external decisions/captures and unchanged sanitizer/core evidence. Reconcile the
+exact changed-path ledger and current RFC verification matrix, then obtain the
+required capability-critical review of the committed candidate before status.
