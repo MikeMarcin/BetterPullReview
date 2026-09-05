@@ -264,7 +264,7 @@ The one-page review limit, normal-exit restart evidence and reused Windows
 filesystem exemption are recorded on the card. A moved head currently leaves
 historical recovery indeterminate without querying that review; this is
 conservative, not retry permission. Planned next:
-[BPR-0615](../20-ready/BPR-0615-connect-whole-review-host-and-public-workflow.md)
+[BPR-0615](../30-in-progress/BPR-0615-connect-whole-review-host-and-public-workflow.md)
 connects the async host, exact pending-request restoration, whole-review
 authority and normal Qt/public composition, including that read-only recovery
 case. BPR-0144 waits for it. BPR-0143's four operations remain approved but

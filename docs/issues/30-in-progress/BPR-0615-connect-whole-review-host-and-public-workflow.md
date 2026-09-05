@@ -1,7 +1,7 @@
 ---
 id: BPR-0615
 title: Connect whole-review host and public workflow
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0613, BPR-0614]
 ---
