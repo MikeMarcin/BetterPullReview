@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <random>
@@ -162,6 +163,7 @@ namespace {
 		bool                                   DefinitelyUnsent = false, LoseResponse = false, MalformedResponse = false, ThrowAfterSend = false, WrongActor = false, WrongHead = false, Incomplete = false, WitnessRejected = false;
 		std::stop_source*                      CancelOnPost = nullptr;
 		std::function<void()>                  OnTarget;
+		std::function<void()>                  OnPublished;
 		auto                                   perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
 		{
 			expect(validate_outbound_review_mutation_request(aRequest.Wire).has_value(), "all session requests are canonical");
@@ -202,6 +204,9 @@ namespace {
 				for (auto index = std::size_t{ }; index < NewCount; ++index) {
 					Reviews.push_back(review(Request, 45U + index));
 				}
+				if (OnPublished) {
+					OnPublished();
+				}
 				if (CancelOnPost) {
 					CancelOnPost->request_stop();
 				}
@@ -241,25 +246,41 @@ namespace {
 	public:
 		std::unique_ptr<application::review_submission_recovery_port> Inner;
 		bool                                                          FailMark = false, FailResolve = false;
+		std::function<void()>                                         AfterAdmit, AfterMark, AfterResolve;
 		explicit failing_store(std::unique_ptr<application::review_submission_recovery_port> aInner)
 			: Inner{ std::move(aInner) }
 		{ }
 		auto pending() -> std::expected<std::vector<application::review_submission_recovery_record>, application::review_mutation_recovery_failure> override { return Inner->pending(); }
 		auto load(const std::string& aKey) -> std::expected<std::optional<application::review_submission_recovery_record>, application::review_mutation_recovery_failure> override { return Inner->load(aKey); }
-		auto admit(const application::review_submission_recovery_record& aRecord) -> std::expected<application::review_submission_recovery_admission, application::review_mutation_recovery_failure> override { return Inner->admit(aRecord); }
+		auto admit(const application::review_submission_recovery_record& aRecord) -> std::expected<application::review_submission_recovery_admission, application::review_mutation_recovery_failure> override
+		{
+			auto result = Inner->admit(aRecord);
+			if (result && AfterAdmit) {
+				AfterAdmit();
+			}
+			return result;
+		}
 		auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override
 		{
 			if (FailMark) {
 				return std::unexpected(application::review_mutation_recovery_failure::unavailable);
 			}
-			return Inner->mark_possibly_transmitted(aKey, aFingerprint);
+			auto result = Inner->mark_possibly_transmitted(aKey, aFingerprint);
+			if (result && AfterMark) {
+				AfterMark();
+			}
+			return result;
 		}
 		auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const application::review_submission_receipt& aReceipt) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override
 		{
 			if (FailResolve) {
 				return std::unexpected(application::review_mutation_recovery_failure::unavailable);
 			}
-			return Inner->resolve(aKey, aFingerprint, aReceipt);
+			auto result = Inner->resolve(aKey, aFingerprint, aReceipt);
+			if (result && AfterResolve) {
+				AfterResolve();
+			}
+			return result;
 		}
 	};
 	void test_dispositions_and_old_reviews()
@@ -423,6 +444,109 @@ namespace {
 		review_submission_session absent{ wire, configuration(), std::make_shared<lease>(), storage(absentRoot.Path) };
 		expect(absent.reconcile(original).Publication == application::review_submission_publication::indeterminate && wire.Trace.empty(), "missing local attempt cannot prove nonpublication or issue a POST");
 	}
+	void write_fixture_file(const std::filesystem::path& aPath, std::string_view aText)
+	{
+		std::ofstream output{ aPath, std::ios::binary | std::ios::app };
+		output << aText;
+		output.close();
+		expect(output.good(), "fixture file persisted before checkpoint");
+	}
+	void kill_checkpoint(const std::filesystem::path& aRoot, std::string_view aPhase)
+	{
+		// The parent keeps stdin open and kills this process here. Returning or
+		// unwinding would make this an orderly-close test instead.
+		write_fixture_file(aRoot / "kill-ready", aPhase);
+		static_cast<void>(std::cin.get());
+		expect(false, "kill checkpoint must never resume");
+	}
+	void kill_publication(std::string_view aPhase, const std::filesystem::path& aRoot)
+	{
+		transport wire;
+		wire.Reviews = { review(wire.Request, 40U) };
+		auto store   = std::make_unique<failing_store>(storage(aRoot));
+		auto pause   = [&] { kill_checkpoint(aRoot, aPhase); };
+		if (aPhase == "--kill-prepared") {
+			store->AfterAdmit = pause;
+		} else if (aPhase == "--kill-witnessed") {
+			store->AfterMark = pause;
+		} else if (aPhase == "--kill-resolved") {
+			store->AfterResolve = pause;
+		} else {
+			expect(aPhase == "--kill-published", "known kill course");
+		}
+		wire.OnPublished = [&] {
+			expect(!wire.WitnessRejected, "server accepts only after successful durable witness");
+			// This external fixture journal outlives the killed client. Recovery
+			// derives server truth from it, not from the requested test outcome.
+			write_fixture_file(aRoot / "server-reviews", "45\n");
+			if (aPhase == "--kill-published") {
+				pause();
+			}
+		};
+		review_submission_session session{ wire, configuration(), std::make_shared<lease>(), std::move(store) };
+		static_cast<void>(session.submit_and_reconcile(wire.Request));
+		expect(false, "publication must reach its kill checkpoint");
+	}
+	void recover_killed_publication(std::string_view aPhase, const std::filesystem::path& aRoot)
+	{
+		const auto prepared  = aPhase == "--recover-killed-prepared";
+		const auto witnessed = aPhase == "--recover-killed-witnessed";
+		const auto resolved  = aPhase == "--recover-killed-resolved";
+		const auto moved     = aPhase == "--recover-killed-published-moved";
+		expect(prepared || witnessed || resolved || moved || aPhase == "--recover-killed-published", "known killed recovery course");
+		transport wire;
+		wire.Reviews = { review(wire.Request, 40U) };
+		std::ifstream server{ aRoot / "server-reviews" };
+		std::string   serverId;
+		while (std::getline(server, serverId)) {
+			expect(serverId == "45", "fixed external fixture review identity");
+			wire.Reviews.push_back(review(wire.Request));
+		}
+		expect(wire.Reviews.size() == (prepared || witnessed ? 1U : 2U), "external server journal agrees with actual publication boundary");
+		wire.OnPublished = [&] { write_fixture_file(aRoot / "server-reviews", "45\n"); };
+		auto store       = storage(aRoot);
+		auto expected    = application::review_submission_recovery_record{
+			.Request              = wire.Request,
+			.RequestFingerprint   = application::review_submission_request_fingerprint(wire.Request),
+			.AuthorityFingerprint = application::review_submission_authority_fingerprint(*wire.Request.LiveBinding),
+			.BaselineReviewIds    = std::vector{ application::review_database_id{ 40U } },
+			.Transmission         = prepared ? application::review_mutation_recovery_transmission::prepared : application::review_mutation_recovery_transmission::possibly_transmitted,
+		};
+		const auto receipt = application::review_submission_receipt{
+			.ReviewDatabaseId = application::review_database_id{ 45U },
+			.ReviewNodeId     = "PRR_45",
+			.Target           = wire.Request.Proposal.Target,
+			.ActingAccount    = wire.Request.Proposal.ActingAccount,
+			.Disposition      = wire.Request.Proposal.Disposition,
+		};
+		if (resolved) {
+			expected.State   = application::review_mutation_recovery_state::succeeded;
+			expected.Receipt = receipt;
+		}
+		const auto loaded = store->load(wire.Request.IdempotencyKey);
+		expect(loaded && *loaded && **loaded == expected, "abrupt restart retains exact request, authority, baseline, witness and receipt");
+		auto current = configuration();
+		if (moved) {
+			wire.WrongHead                       = true;
+			wire.MovedContext                    = true;
+			current.Target.Semantic.ExpectedHead = commit(0x22U);
+			current.Target.BaseOid               = commit(0x33U);
+			current.Target.BaseRef               = "moved-base";
+			current.Target.HeadRef               = "moved-head";
+		}
+		review_submission_session session{ wire, current, std::make_shared<lease>(), std::move(store) };
+		const auto                pending = session.pending();
+		expect(pending && *pending == (resolved ? std::vector<application::review_submission_request>{ } : std::vector{ wire.Request }) && wire.Trace.empty(), "fresh discovery returns only original unresolved attempt without effects");
+		const auto result      = session.reconcile(wire.Request);
+		const auto publication = prepared || witnessed ? application::review_submission_publication::indeterminate : application::review_submission_publication::published;
+		expect(result.Request == wire.Request && result.Publication == publication && wire.Posts == 0U, "kill recovery has exact outcome without POST");
+		expect(result.Receipt == (prepared || witnessed ? std::optional<application::review_submission_receipt>{ } : receipt), "kill recovery cannot manufacture or retarget receipt");
+		const auto retry = session.submit_and_reconcile(wire.Request);
+		expect(retry.Request == result.Request && retry.Publication == result.Publication && retry.Receipt == result.Receipt && wire.Posts == 0U, "explicit original-attempt retry cannot duplicate publication");
+		const auto remaining = session.pending();
+		expect(remaining && *remaining == (prepared || witnessed ? std::vector{ wire.Request } : std::vector<application::review_submission_request>{ }), "only unresolved attempts stay pending after recovery");
+		std::cout << aPhase << ":pass\n";
+	}
 	void restart(std::string_view aPhase, const std::filesystem::path& aRoot)
 	{
 		transport wire;
@@ -468,7 +592,14 @@ auto main(int aArgc, char** aArgv) -> int
 {
 	static_assert(std::is_base_of_v<application::review_submission_port, bpr::adapters::github::live_review_submission_provider>);
 	if (aArgc == 3) {
-		restart(aArgv[1], aArgv[2]);
+		const auto phase = std::string_view{ aArgv[1] };
+		if (phase.starts_with("--kill-")) {
+			kill_publication(phase, aArgv[2]);
+		} else if (phase.starts_with("--recover-killed-")) {
+			recover_killed_publication(phase, aArgv[2]);
+		} else {
+			restart(phase, aArgv[2]);
+		}
 		return EXIT_SUCCESS;
 	}
 	test_dispositions_and_old_reviews();

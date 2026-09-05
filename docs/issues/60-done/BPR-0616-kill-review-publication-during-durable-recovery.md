@@ -1,7 +1,7 @@
 ---
 id: BPR-0616
 title: Kill review publication across durable recovery boundaries
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: [BPR-0614, BPR-0615]
 ---
@@ -46,3 +46,38 @@ run `live_review_submission_provider` and
 `live_review_submission_restart_recovery`. The existing provider/SQLite path
 is the direct persisted-state surface. Check scoped formatting, documentation
 validation and `git diff --check`. Inspect changed code for simplification.
+
+## Completion evidence — 2026-09-05
+
+The existing test transport and real SQLite port now expose fixture-only
+post-operation checkpoints. The Python parent sends SIGKILL while the child is
+still alive with stdin and its SQLite store open, and requires the signal exit
+status. Five courses cover prepared admission, durable witness before send,
+simulated publication before reconciliation, resolved receipt before close,
+and publication followed by a moved head at recovery. A file-backed fixture
+server journal survives the child and independently detects additional sends.
+
+Each recovery opens production storage before any independent integrity check,
+compares the full persisted record, discovers the original pending request,
+reconciles, retries that exact request, then opens another process to verify
+the resulting receipt or uncertainty is durable. Both retries issue zero POSTs.
+SQLite integrity and foreign-key checks pass after all five courses.
+
+At the implementation committed after planning `c8840b65`:
+
+- Local focused target build passed with strict compiler warnings.
+- `ctest --test-dir build/dev --output-on-failure -R
+  '^(live_review_submission_provider|live_review_submission_restart_recovery)$'`:
+  **2/2 passed, 0.96 seconds**, including all five forced-kill courses and the
+  retained orderly restart cases. macOS arm64, network-deny sandbox, zero
+  loopback ports; no native Windows/Linux result is claimed.
+- Scoped clang-format, code-simplifier inspection, `git diff --check`, root
+  documentation validation and all **62 documentation tests** passed.
+
+No production source or behavior changed; the persisted-state path is the
+selected direct surface. No application launch, credential operation, live
+request, GitHub Actions, push or paid CI occurred. Every child was reaped;
+contained temporary fixture roots were removed automatically. No separate
+build root or retained evidence package was created. Full matrices and tidy
+were unnecessary for this two-file fixture change. Remaining RFC-0013 kill,
+performance and fuzz coverage stays open in BPR-0617.
