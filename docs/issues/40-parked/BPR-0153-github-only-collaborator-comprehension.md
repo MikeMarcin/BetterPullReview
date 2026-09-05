@@ -1,9 +1,10 @@
 ---
 id: BPR-0153
 title: Confirm a GitHub-only collaborator understands a published defect
-status: Backlog
+status: Parked
 rfc: RFC-BPR-0009
 depends_on: [BPR-0149, BPR-0142]
+parked_on: awaiting-owner-verdict
 ---
 
 # Confirm a GitHub-only collaborator understands a published defect
@@ -16,9 +17,16 @@ lacks all local context can act on them.
 
 ## Exactly what is missing
 
-1. The designated safe repository and write-scoped token from BPR-0142.
+1. A concrete defect and disposable PR on which to publish it. BPR-0142 is
+   Done, but its round-trip comment names BetterPullReview and is not a defect
+   report suitable for this comprehension check. Existing MikeMarcin sign-in
+   is retained; no new token request is needed.
 2. **A person who has not used this tool**, reading the thread as an ordinary
-   GitHub collaborator.
+   GitHub collaborator. The owner must identify that collaborator; an agent
+   cannot supply their interpretation or acceptance.
+3. A concrete publication/reply course after those inputs are known. Earlier
+   source-comment/reply authority does not authorize a new defect publication
+   or contacting another person.
 
 ## What must not be done instead
 
@@ -38,3 +46,16 @@ comment that needs a legend has already failed this criterion.
   being told the local severity or category.
 - They reply, and the reply returns to the workbench as an ordinary reply.
 - Nothing in the published prose refers to BetterPullReview.
+
+## Parked checkpoint — 2026-09-05
+
+Both implementation dependencies are Done. The remaining evidence needs the
+collaborator and defect/target above, so this card is parked awaiting the owner.
+No result is inferred from the owner's earlier visual approval of BPR-0142.
+Prepare the exact prose and attended packet once the target and collaborator
+are identified, then collect their ordinary-GitHub interpretation and reply.
+
+Standing owner CI constraint: do not dispatch Actions, push, or incur paid CI.
+Before any future GitHub mutation, inspect the target's workflow triggers and
+do not execute a test action that would trigger Actions. No mutation or message
+to another person was performed while preparing this checkpoint.
