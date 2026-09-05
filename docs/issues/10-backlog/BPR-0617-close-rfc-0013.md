@@ -4,7 +4,7 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620"]
 closeout_for: ["RFC-BPR-0013"]
 ---
 
@@ -45,8 +45,8 @@ performance subsystem or fabricate timing budgets before measurement.
 
 ## Continuation
 
-BPR-0616, BPR-0618 and BPR-0619 are complete. Next, scope the required
-AI-session kill lane against the existing agent invocation host, protocol loop
+BPR-0616, BPR-0618 and BPR-0619 are complete. BPR-0620 now covers forced parent death and agent/descendant lifetime.
+Next, scope the complete Git/SQLite/workspace restart during an AI-session kill against the existing agent invocation host, protocol loop
 and application composition fixtures. The inspected invocation-host tests cover
 cooperative cancellation and a later run, but do not contain forced parent
 process death; do not relabel that evidence as crash recovery. Use a local fake
