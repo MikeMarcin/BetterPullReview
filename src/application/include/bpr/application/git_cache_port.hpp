@@ -308,7 +308,22 @@ namespace bpr::application {
 	// Durable catalog facts are projected into this Git-owned recovery contract.
 	// The cache never interprets a physical final ref as catalog visibility or
 	// durable success; it only reports exact physical evidence to the host.
-	/// \brief Describes the git recovery spool expectation record.
+	/// Exact receiving-file ownership, captured before payload consumption.
+	struct git_spool_ownership
+	{
+		core::epoch_operation_id Operation;
+		git_artifact_identity    Identity;
+		std::uint64_t            MaximumBytes                                  = 0U;
+		auto                     operator<=>(const git_spool_ownership&) const = default;
+	};
+
+	[[nodiscard]] constexpr auto valid(const git_spool_ownership& aOwnership) noexcept -> bool
+	{
+		return aOwnership.Operation.valid() && valid(aOwnership.Identity)
+			&& aOwnership.MaximumBytes > 0U
+			&& aOwnership.MaximumBytes <= maximum_git_cache_operation_pack_bytes;
+	}
+
 	struct git_recovery_spool_expectation
 	{
 		git_pack_oid      ExpectedPack;
@@ -411,6 +426,7 @@ namespace bpr::application {
 		core::git_commit_oid                            Head;
 		std::optional<git_recovery_spool_expectation>   Spool;
 		std::optional<git_recovery_install_expectation> Install;
+		std::optional<git_spool_ownership>              Receiving;
 
 		auto operator<=>(const git_operation_recovery_request&) const = default;
 	};
@@ -418,7 +434,8 @@ namespace bpr::application {
 	[[nodiscard]] inline auto valid(
 		const git_operation_recovery_request& aRequest) noexcept -> bool
 	{
-		return aRequest.Operation.valid() && aRequest.Scope.valid()
+		return (!aRequest.Receiving || (valid(*aRequest.Receiving) && aRequest.Receiving->Operation == aRequest.Operation && (!aRequest.Spool || (aRequest.Spool->CompletedSpool.Identity == aRequest.Receiving->Identity && aRequest.Spool->CompletedSpool.Bytes <= aRequest.Receiving->MaximumBytes))))
+			&& aRequest.Operation.valid() && aRequest.Scope.valid()
 			&& core::valid(aRequest.Ordinal) && aRequest.Base.valid()
 			&& aRequest.Head.valid()
 			&& aRequest.Base.algorithm() == aRequest.Head.algorithm()
@@ -645,10 +662,15 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto request() const noexcept
 			-> const git_cache_open_request& = 0;
 
+		// The optional witness runs synchronously after creating the empty file,
+		// before any payload can be written. Persist ownership before returning true.
+		// Do not reenter this session from the witness; its operation lock is held.
+		// Refusal cleans only the exact empty file and returns no usable sink.
 		[[nodiscard]] virtual auto create_pack_sink(
-			core::epoch_operation_id aOperation,
-			std::uint64_t            aMaximumBytes,
-			std::stop_token          aStop)
+			core::epoch_operation_id                               aOperation,
+			std::uint64_t                                          aMaximumBytes,
+			std::stop_token                                        aStop,
+			const std::function<bool(const git_spool_ownership&)>& aWitness = { })
 			-> git_cache_result<std::unique_ptr<git_pack_stream_sink>> = 0;
 
 		[[nodiscard]] virtual auto observe_preimport(

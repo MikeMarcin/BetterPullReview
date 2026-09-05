@@ -13,7 +13,7 @@ namespace bpr::adapters::sqlite::detail::testing {
 	/// \brief Performs the interrupt next bootstrap before publication operation.
 	void interrupt_next_bootstrap_before_publication() noexcept;
 
-	// Arms one test-only interruption after a complete v1 -> v2 migration has
+	// Arms one test-only interruption after the next supported migration step has
 	// been staged and checked, and before the commit that would publish it.
 	// What the catalog holds afterwards is exactly what an interrupted
 	// migration leaves behind.

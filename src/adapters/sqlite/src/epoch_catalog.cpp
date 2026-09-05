@@ -582,6 +582,9 @@ namespace bpr::adapters::sqlite {
 			[[nodiscard]] auto reserve_append(
 				const app::append_reservation_request& aRequest,
 				std::stop_token                        aStop) -> result<app::append_operation_record> override;
+			[[nodiscard]] auto record_receiving(
+				const app::record_receiving_request& aRequest,
+				std::stop_token                      aStop) -> result<app::append_operation_record> override;
 			[[nodiscard]] auto record_spool(
 				const app::record_spool_request& aRequest,
 				std::stop_token                  aStop) -> result<app::append_operation_record> override;
@@ -753,6 +756,13 @@ namespace bpr::adapters::sqlite {
 					"AND operation IN (SELECT operation FROM operation "
 					"WHERE incarnation = ?1 AND cache_scope = ?2)",
 					"SELECT count(*) FROM append_inventory d JOIN operation o "
+					"ON o.incarnation = d.incarnation AND o.operation = d.operation "
+					"WHERE d.incarnation = ?1 AND o.cache_scope = ?2" },
+				cleanup_statement{
+					"DELETE FROM append_receiving WHERE incarnation = ?1 "
+					"AND operation IN (SELECT operation FROM operation "
+					"WHERE incarnation = ?1 AND cache_scope = ?2)",
+					"SELECT count(*) FROM append_receiving d JOIN operation o "
 					"ON o.incarnation = d.incarnation AND o.operation = d.operation "
 					"WHERE d.incarnation = ?1 AND o.cache_scope = ?2" },
 				cleanup_statement{
@@ -2509,6 +2519,26 @@ namespace bpr::adapters::sqlite {
 					.Head      = true,
 				},
 			};
+			auto receiving = prepare(database,
+									 "SELECT spool_identity, maximum_bytes FROM append_receiving WHERE incarnation = ?1 AND operation = ?2");
+			if (!receiving || !bind_fixed(receiving->Value, 1, Binding.Catalog.Incarnation)
+				|| !bind_operation(receiving->Value, 2, aOperation)) {
+				return std::unexpected(receiving ? failure::unavailable : receiving.error());
+			}
+			const auto receivingCode = ::sqlite3_step(receiving->Value);
+			if (receivingCode == SQLITE_ROW) {
+				app::git_spool_ownership ownership{ .Operation = aOperation };
+				if (!read_blob(receiving->Value, 0, ownership.Identity.Bytes)) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				ownership.MaximumBytes = static_cast<std::uint64_t>(::sqlite3_column_int64(receiving->Value, 1));
+				if (!app::valid(ownership) || ::sqlite3_step(receiving->Value) != SQLITE_DONE) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				output.Receiving = ownership;
+			} else if (receivingCode != SQLITE_DONE) {
+				return std::unexpected(sql_failure(database, { }));
+			}
 			auto receipt = prepare(
 				database,
 				"SELECT spool_identity, spool_bytes, expected_pack_algorithm, "
@@ -3114,6 +3144,78 @@ namespace bpr::adapters::sqlite {
 			return output;
 		}
 
+		auto sqlite_epoch_catalog_session::record_receiving(
+			const app::record_receiving_request& aRequest,
+			std::stop_token                      aStop) -> result<app::append_operation_record>
+		{
+			if (!app::valid(aRequest) || aRequest.Catalog != Binding.Catalog) {
+				return std::unexpected(failure::invalid_request);
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected(failure::cancelled);
+			}
+			std::scoped_lock lock{ State->Mutex };
+			auto*            database = State->Database.handle();
+			progress_guard   progress{ database, aStop };
+			transaction      write{ database, aStop };
+			if (auto begun = write.begin(); !begun) {
+				return std::unexpected(begun.error());
+			}
+			if (auto active = require_active_pull_request_scope(
+					database, Binding, aRequest.Catalog.Revision);
+				!active) {
+				return std::unexpected(active.error());
+			}
+			auto existing = load_append(aRequest.Operation);
+			if (!existing) {
+				return std::unexpected(existing.error());
+			}
+			if (existing->Phase == app::epoch_catalog_operation_phase::preparing
+				&& existing->OperationRevision.value() == aRequest.ExpectedOperationRevision.value() + 1
+				&& existing->Receiving == aRequest.Receiving) {
+				return existing;
+			}
+			if (existing->Phase != app::epoch_catalog_operation_phase::preparing
+				|| existing->OperationRevision != aRequest.ExpectedOperationRevision || existing->Receiving) {
+				return std::unexpected(failure::phase_conflict);
+			}
+			auto receiving = prepare(database,
+									 "INSERT INTO append_receiving(incarnation, operation, spool_identity, maximum_bytes) VALUES(?1, ?2, ?3, ?4)");
+			if (!receiving || !bind_fixed(receiving->Value, 1, Binding.Catalog.Incarnation)
+				|| !bind_operation(receiving->Value, 2, aRequest.Operation)
+				|| !bind_bytes(receiving->Value, 3, aRequest.Receiving.Identity.Bytes)
+				|| ::sqlite3_bind_int64(receiving->Value, 4, static_cast<std::int64_t>(aRequest.Receiving.MaximumBytes)) != SQLITE_OK
+				|| ::sqlite3_step(receiving->Value) != SQLITE_DONE) {
+				return std::unexpected(sql_failure(database, aStop));
+			}
+			auto advance = prepare(
+				database,
+				"UPDATE operation SET "
+				"operation_revision = operation_revision + 1 "
+				"WHERE incarnation = ?1 AND operation = ?2 AND kind = 1 "
+				"AND phase = 1 AND operation_revision = ?3 "
+				"AND cache_scope = ?4 AND pr_scope = ?5 "
+				"AND operation_revision < 9223372036854775806");
+			if (!advance || !bind_fixed(advance->Value, 1, Binding.Catalog.Incarnation)
+				|| !bind_operation(advance->Value, 2, aRequest.Operation)
+				|| ::sqlite3_bind_int64(
+					   advance->Value, 3, aRequest.ExpectedOperationRevision.value())
+					!= SQLITE_OK
+				|| !bind_fixed(advance->Value, 4, Binding.Authority.Cache)
+				|| !bind_fixed(advance->Value, 5, Binding.Authority.Scope)
+				|| ::sqlite3_step(advance->Value) != SQLITE_DONE
+				|| ::sqlite3_changes(database) != 1) {
+				return std::unexpected(failure::operation_conflict);
+			}
+			auto output = load_append(aRequest.Operation);
+			if (!output) {
+				return std::unexpected(output.error());
+			}
+			if (auto committed = write.commit(); !committed) {
+				return std::unexpected(committed.error());
+			}
+			return output;
+		}
 		auto sqlite_epoch_catalog_session::record_spool(
 			const app::record_spool_request& aRequest,
 			std::stop_token                  aStop) -> result<app::append_operation_record>
@@ -3151,6 +3253,9 @@ namespace bpr::adapters::sqlite {
 			if (existing->Phase != app::epoch_catalog_operation_phase::preparing
 				|| existing->OperationRevision != aRequest.ExpectedOperationRevision) {
 				return std::unexpected(failure::phase_conflict);
+			}
+			if (existing->Receiving && (existing->Receiving->Identity != aRequest.Spool.Spool.Identity || aRequest.Spool.Spool.Bytes > existing->Receiving->MaximumBytes)) {
+				return std::unexpected(failure::invalid_request);
 			}
 			auto receipt = prepare(
 				database,
@@ -3951,6 +4056,19 @@ namespace bpr::adapters::sqlite {
 					|| ::sqlite3_step(receipt->Value) != SQLITE_DONE
 					|| ::sqlite3_changes(database)
 						!= (currentAppend->Spool ? 1 : 0)) {
+					return std::unexpected(failure::operation_conflict);
+				}
+				auto receiving = prepare(
+					database,
+					"DELETE FROM append_receiving WHERE incarnation = ?1 "
+					"AND operation = ?2");
+				if (!receiving
+					|| !bind_fixed(
+						receiving->Value, 1, Binding.Catalog.Incarnation)
+					|| !bind_operation(receiving->Value, 2, aRequest.Operation)
+					|| ::sqlite3_step(receiving->Value) != SQLITE_DONE
+					|| ::sqlite3_changes(database)
+						!= (currentAppend->Receiving ? 1 : 0)) {
 					return std::unexpected(failure::operation_conflict);
 				}
 			}
@@ -5450,6 +5568,14 @@ namespace bpr::adapters::sqlite {
 				return std::unexpected(failure::operation_conflict);
 			}
 			if (saturatedCode != SQLITE_DONE) {
+				return std::unexpected(sql_failure(database, { }));
+			}
+			auto compactRepairReceiving = prepare(database,
+												  "DELETE FROM append_receiving WHERE incarnation = ?1 AND operation IN "
+												  "(SELECT operation FROM operation WHERE incarnation = ?1 AND cache_scope = ?2 AND kind = 1 AND terminal = 3)");
+			if (!compactRepairReceiving || !bind_fixed(compactRepairReceiving->Value, 1, Binding.Catalog.Incarnation)
+				|| !bind_fixed(compactRepairReceiving->Value, 2, operation->Cache)
+				|| ::sqlite3_step(compactRepairReceiving->Value) != SQLITE_DONE) {
 				return std::unexpected(sql_failure(database, { }));
 			}
 			auto compactRepairInventory = prepare(

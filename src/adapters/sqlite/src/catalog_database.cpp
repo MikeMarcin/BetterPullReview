@@ -67,7 +67,7 @@ namespace bpr::adapters::sqlite::detail {
 
 		constexpr std::string_view CatalogName   = "epoch-catalog.sqlite3";
 		constexpr std::int32_t     ApplicationId = 0x42504543;
-		constexpr std::int32_t     UserVersion   = 2;
+		constexpr std::int32_t     UserVersion   = 3;
 #if defined(BPR_SQLITE_TESTING)
 		std::atomic_bool InterruptBootstrapBeforePublication = false;
 		std::atomic_bool InterruptMigrationBeforeCommit      = false;
@@ -82,7 +82,7 @@ namespace bpr::adapters::sqlite::detail {
 			std::string_view Sql;
 		};
 
-		// These are the complete BPEC v1 objects. The schema contains typed facts
+		// These are the complete BPEC v3 objects. The schema contains typed facts
 		// only. Ref names are represented by their versioned components, so no path,
 		// provider string, opaque token, or generic payload enters the catalog.
 		constexpr std::array SchemaObjects{
@@ -91,7 +91,7 @@ namespace bpr::adapters::sqlite::detail {
 				"catalog_meta",
 				R"sql(CREATE TABLE catalog_meta(
             singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1),
-            schema_format INTEGER NOT NULL CHECK(schema_format = 2),
+            schema_format INTEGER NOT NULL CHECK(schema_format = 3),
             incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32))
         ) STRICT, WITHOUT ROWID)sql" },
 			schema_object{
@@ -455,6 +455,18 @@ namespace bpr::adapters::sqlite::detail {
         ) STRICT, WITHOUT ROWID)sql" },
 			schema_object{
 				"table",
+				"append_receiving",
+				R"sql(CREATE TABLE append_receiving(
+            incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32)),
+            operation BLOB NOT NULL CHECK(length(operation) = 32 AND operation != zeroblob(32)),
+            spool_identity BLOB NOT NULL CHECK(length(spool_identity) = 32 AND spool_identity != zeroblob(32)),
+            maximum_bytes INTEGER NOT NULL CHECK(maximum_bytes > 0 AND maximum_bytes <= 4294967296),
+            PRIMARY KEY(incarnation, operation),
+            FOREIGN KEY(incarnation, operation)
+                REFERENCES append_operation(incarnation, operation)
+        ) STRICT, WITHOUT ROWID)sql" },
+			schema_object{
+				"table",
 				"append_receipt",
 				R"sql(CREATE TABLE append_receipt(
             incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32)),
@@ -635,7 +647,7 @@ namespace bpr::adapters::sqlite::detail {
 				rollback();
 				return app;
 			}
-			if (auto version = execute(aDatabase, "PRAGMA user_version = 2", aStop);
+			if (auto version = execute(aDatabase, "PRAGMA user_version = 3", aStop);
 				!version) {
 				rollback();
 				return version;
@@ -649,7 +661,7 @@ namespace bpr::adapters::sqlite::detail {
 			auto insert = prepare(
 				aDatabase,
 				"INSERT INTO catalog_meta(singleton, schema_format, incarnation) "
-				"VALUES(1, 2, ?1)");
+				"VALUES(1, 3, ?1)");
 			if (!insert) {
 				rollback();
 				return std::unexpected(insert.error());
@@ -676,9 +688,16 @@ namespace bpr::adapters::sqlite::detail {
 			return { };
 		}
 
-		[[nodiscard]] auto schema_sql(const std::string_view aName) noexcept
+		[[nodiscard]] auto schema_sql(const std::string_view aName, const std::int64_t aVersion = UserVersion) noexcept
 			-> std::string_view
 		{
+			if (aName == "catalog_meta" && aVersion == 2) {
+				return R"sql(CREATE TABLE catalog_meta(
+            singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1),
+            schema_format INTEGER NOT NULL CHECK(schema_format = 2),
+            incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32))
+        ) STRICT, WITHOUT ROWID)sql";
+			}
 			for (const auto& object : SchemaObjects) {
 				if (object.Name == aName) {
 					return object.Sql;
@@ -711,7 +730,7 @@ namespace bpr::adapters::sqlite::detail {
 		// rows exactly as they were. Nothing is ever recreated from empty: a
 		// version this build cannot read is refused before this function
 		// begins any work.
-		[[nodiscard]] auto migrate_schema(::sqlite3* aDatabase, std::stop_token aStop)
+		[[nodiscard]] auto migrate_schema_v1(::sqlite3* aDatabase, std::stop_token aStop)
 			-> std::expected<void, failure>
 		{
 			progress_scope progress{ aDatabase, aStop };
@@ -723,7 +742,7 @@ namespace bpr::adapters::sqlite::detail {
 			if (!userVersion) {
 				return std::unexpected(failure::schema_mismatch);
 			}
-			if (*userVersion == UserVersion) {
+			if (*userVersion == 2) {
 				return { };
 			}
 			// Zero, a negative value, a version this build never wrote, and a
@@ -786,7 +805,7 @@ namespace bpr::adapters::sqlite::detail {
 				"DROP TABLE pull_request_scope",
 				"DROP TABLE repository_scope",
 				"DROP TABLE catalog_meta",
-				schema_sql(rebuiltNames[0]),
+				schema_sql(rebuiltNames[0], 2),
 				schema_sql(rebuiltIndexNames[0]),
 				schema_sql(rebuiltNames[1]),
 				schema_sql(rebuiltIndexNames[1]),
@@ -895,14 +914,14 @@ namespace bpr::adapters::sqlite::detail {
 			return { };
 		}
 
-		[[nodiscard]] auto validate_schema(::sqlite3* aDatabase, std::stop_token aStop)
+		[[nodiscard]] auto validate_schema(::sqlite3* aDatabase, std::stop_token aStop, const std::int64_t aVersion = UserVersion)
 			-> std::expected<void, failure>
 		{
 			progress_scope progress{ aDatabase, aStop };
 			const auto     applicationId = scalar_integer(aDatabase, "PRAGMA application_id");
 			const auto     userVersion   = scalar_integer(aDatabase, "PRAGMA user_version");
 			if (!applicationId || *applicationId != ApplicationId || !userVersion
-				|| *userVersion != UserVersion) {
+				|| *userVersion != aVersion) {
 				return std::unexpected(failure::schema_mismatch);
 			}
 
@@ -910,7 +929,7 @@ namespace bpr::adapters::sqlite::detail {
 				aDatabase,
 				"SELECT schema_format, incarnation FROM catalog_meta WHERE singleton = 1");
 			if (!meta || ::sqlite3_step(meta->Value) != SQLITE_ROW
-				|| ::sqlite3_column_int64(meta->Value, 0) != UserVersion
+				|| ::sqlite3_column_int64(meta->Value, 0) != aVersion
 				|| ::sqlite3_column_type(meta->Value, 1) != SQLITE_BLOB
 				|| ::sqlite3_column_bytes(meta->Value, 1) != 32) {
 				return std::unexpected(failure::schema_mismatch);
@@ -935,6 +954,14 @@ namespace bpr::adapters::sqlite::detail {
 			std::vector<schema_object> expected{
 				SchemaObjects.begin(), SchemaObjects.end()
 			};
+			if (aVersion == 2) {
+				std::erase_if(expected, [](const auto& aObject) { return aObject.Name == "append_receiving"; });
+				for (auto& object : expected) {
+					if (object.Name == "catalog_meta") {
+						object.Sql = schema_sql("catalog_meta", 2);
+					}
+				}
+			}
 			std::ranges::sort(expected, { }, &schema_object::Name);
 			std::size_t index = 0;
 			while (true) {
@@ -987,12 +1014,70 @@ namespace bpr::adapters::sqlite::detail {
 			return { };
 		}
 
+		[[nodiscard]] auto migrate_schema(::sqlite3* aDatabase, std::stop_token aStop)
+			-> std::expected<void, failure>
+		{
+			const auto version = scalar_integer(aDatabase, "PRAGMA user_version");
+			if (!version || (*version != 1 && *version != 2 && *version != UserVersion)) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			if (*version == UserVersion) {
+				return { };
+			}
+			if (*version == 1) {
+				if (auto migrated = migrate_schema_v1(aDatabase, aStop); !migrated) {
+					return migrated;
+				}
+			}
+			if (auto validated = validate_schema(aDatabase, aStop, 2); !validated) {
+				return validated;
+			}
+			if (auto begun = execute(aDatabase, "BEGIN IMMEDIATE", aStop); !begun) {
+				return begun;
+			}
+			const auto rollback = [&] { (void)::sqlite3_exec(aDatabase, "ROLLBACK", nullptr, nullptr, nullptr); };
+			// Rebuild only the versioned metadata CHECK. Existing catalog, authority,
+			// epoch and operation rows stay in place; legacy operations gain no facts.
+			const std::array<std::string_view, 9> statements{
+				"PRAGMA defer_foreign_keys = ON",
+				"CREATE TABLE migration_catalog_meta AS SELECT * FROM catalog_meta",
+				"DROP TABLE catalog_meta",
+				schema_sql("catalog_meta"),
+				schema_sql("catalog_meta_incarnation"),
+				"INSERT INTO catalog_meta(singleton, schema_format, incarnation) SELECT singleton, 3, incarnation FROM migration_catalog_meta",
+				"DROP TABLE migration_catalog_meta",
+				schema_sql("append_receiving"),
+				"PRAGMA user_version = 3",
+			};
+			for (const auto statement : statements) {
+				if (auto applied = execute(aDatabase, statement, aStop); !applied) {
+					rollback();
+					return applied;
+				}
+			}
+			if (auto validated = validate_schema(aDatabase, aStop); !validated) {
+				rollback();
+				return validated;
+			}
+#if defined(BPR_SQLITE_TESTING)
+			if (InterruptMigrationBeforeCommit.exchange(false, std::memory_order_relaxed)) {
+				rollback();
+				return std::unexpected(failure::cancelled);
+			}
+#endif
+			if (auto committed = execute(aDatabase, "COMMIT", aStop); !committed) {
+				rollback();
+				return committed;
+			}
+			return { };
+		}
+
 		[[nodiscard]] auto known_runtime_table(const char* aValue) noexcept -> bool
 		{
 			if (aValue == nullptr) {
 				return false;
 			}
-			constexpr std::array<std::string_view, 18> tables{
+			constexpr std::array<std::string_view, 19> tables{
 				"catalog_meta",
 				"repository_scope",
 				"pull_request_scope",
@@ -1003,6 +1088,7 @@ namespace bpr::adapters::sqlite::detail {
 				"operation",
 				"append_operation",
 				"append_source_review",
+				"append_receiving",
 				"append_receipt",
 				"append_inventory",
 				"append_install",

@@ -182,3 +182,73 @@ The changed-port architecture checks also passed:
 '^(architecture_boundaries|architecture_boundary_contract)$'`, **2/2 in
 72.74 s**. Next work remains BPR-0618's receiving/completed-spool ownership
 repair; BPR-0617 and the persistent RFC goal stay open.
+
+
+## Selected receiving ownership repair
+
+Persist a typed receiving-spool ownership fact (operation, opaque file identity,
+maximum payload bytes) in the existing SQLite operation journal before the
+selected host allows payload consumption. The adapter's receiving-to-completed
+rename preserves this identity. Recovery can therefore exact-delete either
+name when only this fact exists, without inventing a pack identity or importing
+an unrecorded completed spool. Existing completed receipts must agree with it.
+Missing legacy facts keep their conservative refusal behavior.
+
+Extend the existing catalog with an additive ownership table and a versioned,
+transactional migration that preserves catalog/authority/epoch/operation IDs.
+Terminal compaction and cache deletion must also remove the ownership row.
+Owned paths additionally include `epoch_catalog_port.hpp`, SQLite catalog and
+schema implementation, their direct storage/behavior/migration fixtures, and
+application contract checks. Direct verification includes migration rollback,
+record/reopen/compaction, wrong/substituted ownership, host refusal, and all four
+existing real process-kill courses. No remote or credential effects are needed.
+
+
+## Receiving repair results — 2026-09-05
+
+`epoch_kill_recovery` passed **107.67 s**, exercising all four forced-death
+courses and another fresh-process reopen for each. Each retains exactly one
+visible epoch, the exact accepted comparison and paired Git refs, intact
+SQLite integrity/foreign keys, Git fsck, and no unfinished spool or recovery
+operation. The preexisting visible-epoch identity remains unchanged.
+
+`sqlite_epoch_catalog_storage_contract`, `sqlite_epoch_catalog_behavior_contract`
+and `sqlite_anonymous_epoch_authority` passed **3/3 in 41.11 s**. Evidence
+includes v1/v2 migration, injected rollback before either migration step's
+commit, preserved populated v2 snapshot and unfinished operation, receiving
+record/replay/reopen, conflicting identity and payload-limit refusal, and
+terminal compaction. The initial storage check correctly rejected its stale
+18-table/v2 expectation; the explicit v3 table count and future-version
+refusal fixture were updated, and the passing result above is the corrected
+replay.
+
+`application_epoch_host`, `git_cache_contract` and
+`epoch_maintenance_integration` passed **3/3 in 231.26 s** (0.48, 208.85 and
+21.93 s). The concrete Git fixture refuses substituted receiving/completed
+files after reopening without in-memory spool registrations, preserves both
+the unrelated file and displaced original, and exact-cleans only after the
+original identity is restored. Refused creation cleans its owned empty file
+without deadlocking; the sink now destructs after the operation lock releases.
+Host checks prevent payload acquisition on missing, repeated or foreign
+witnesses, storage refusal and cancellation. Prune/delete still passes through
+the real host, Git and SQLite adapters.
+
+All affected fixture targets built. Scoped formatting, simplifier inspection,
+documentation validation, all 62 documentation tests and `git diff --check`
+passed. No separate build root or retained diagnostic root was created;
+contained temporary fixture roots cleaned themselves and children were reaped.
+The ordinary `build/dev` remains. No GitHub Actions, push, paid CI, remote
+mutation, GUI launch, credential read or sign-out occurred.
+
+The tested boundary begins after receiving ownership is committed. Death
+between empty-file creation and that commit, interruption inside `index-pack`
+or a SQLite write transaction, AI-session kill, and actual power loss are not
+claimed by these four courses. Legacy spools without ownership stay protected.
+Those broader RFC-0013 boundaries remain open in BPR-0617.
+
+The final changed-port/architecture checks passed **3/3 in 69.00 s**:
+`application_epoch_catalog_contract`, `architecture_boundaries`, and
+`architecture_boundary_contract`. The source diff was reviewed with the
+receiving record, migration, callback lifetime, exact cleanup and terminal
+compaction paths together. No known defect remains at this card's four named
+kill boundaries.

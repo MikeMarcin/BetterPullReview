@@ -2097,7 +2097,7 @@ namespace bpr::adapters::git {
 				abort();
 			}
 
-			[[nodiscard]] auto initialize() -> bool
+			[[nodiscard]] auto initialize(const std::function<bool(const application::git_spool_ownership&)>& aWitness) -> bool
 			{
 				Tail.reserve(DigestBytes);
 				Header.reserve(12U);
@@ -2112,7 +2112,11 @@ namespace bpr::adapters::git {
 						.Completed = Completed,
 						.Identity  = *ReceivingIdentity,
 					});
-				return Registered;
+				if (!Registered) {
+					return false;
+				}
+				const auto identity = artifact_identity(*ReceivingIdentity);
+				return identity && (!aWitness || aWitness({ .Operation = Operation, .Identity = *identity, .MaximumBytes = MaximumBytes }));
 			}
 
 			[[nodiscard]] auto append(
@@ -3010,13 +3014,17 @@ namespace bpr::adapters::git {
 			}
 
 			[[nodiscard]] auto create_pack_sink(
-				const core::epoch_operation_id aOperation,
-				const std::uint64_t            aMaximumBytes,
-				const std::stop_token          aStop)
+				const core::epoch_operation_id                                      aOperation,
+				const std::uint64_t                                                 aMaximumBytes,
+				const std::stop_token                                               aStop,
+				const std::function<bool(const application::git_spool_ownership&)>& aWitness)
 				-> application::git_cache_result<
 					std::unique_ptr<application::git_pack_stream_sink>> override
 			{
-				std::lock_guard operationGuard{ State->OperationMutex };
+				// On initialization failure, release the lock before the sink destructor
+				// acquires it for exact cleanup. Declaration order also covers exceptions.
+				std::unique_ptr<pack_sink> sink;
+				std::lock_guard            operationGuard{ State->OperationMutex };
 				if (
 					aStop.stop_requested() || !aOperation.valid()
 					|| aMaximumBytes == 0U
@@ -3047,14 +3055,14 @@ namespace bpr::adapters::git {
 						application::git_cache_failure::spool_failure
 					};
 				}
-				auto sink = std::make_unique<pack_sink>(
+				sink = std::make_unique<pack_sink>(
 					State,
 					aOperation,
 					receiving,
 					*completed,
 					aMaximumBytes,
 					State->Request.ObjectFormat);
-				if (!sink->initialize()) {
+				if (!sink->initialize(aWitness)) {
 					return std::unexpected{
 						application::git_cache_failure::spool_failure
 					};
@@ -4931,6 +4939,16 @@ namespace bpr::adapters::git {
 					completedSpool.Kind == recovery_file_kind::absent
 					&& receivingSpool.Kind == recovery_file_kind::absent) {
 					result.Spool = git_recovery_match::absent;
+				} else if (aRequest.Receiving && !aRequest.Spool) {
+					const auto identity = exact_identity(aRequest.Receiving->Identity);
+					const auto owned    = [&](const recovery_file_observation& aFile) {
+						return aFile.Kind == recovery_file_kind::absent
+							|| (aFile.Kind == recovery_file_kind::private_regular && identity
+								&& aFile.Identity == identity && aFile.Bytes <= aRequest.Receiving->MaximumBytes);
+					};
+					result.Spool = owned(receivingSpool) && owned(completedSpool)
+						? git_recovery_match::exact
+						: git_recovery_match::mismatch;
 				} else if (
 					receivingSpool.Kind != recovery_file_kind::absent
 					|| (completedSpool.Kind == recovery_file_kind::private_regular
@@ -5303,13 +5321,13 @@ namespace bpr::adapters::git {
 						application::git_cache_failure::cancelled
 					};
 				}
-				if (!aRequest.Spool) {
+				if (!aRequest.Spool && !aRequest.Receiving) {
 					return std::unexpected{
 						application::git_cache_failure::repair_required
 					};
 				}
 				const auto expected = exact_identity(
-					aRequest.Spool->CompletedSpool.Identity);
+					aRequest.Spool ? aRequest.Spool->CompletedSpool.Identity : aRequest.Receiving->Identity);
 				const auto path = State->Process->pack_spool_path(
 					process_operation(aRequest.Operation));
 				if (!expected.has_value() || !path.has_value()) {
@@ -5321,8 +5339,8 @@ namespace bpr::adapters::git {
 					/ ("." + lower_hex(aRequest.Operation.bytes())
 					   + ".pack.receiving");
 				if (
-					!missing(receiving)
-					|| !remove_exact_private_file(*path, *expected)) {
+					(!missing(receiving) && (!aRequest.Receiving || !remove_exact_private_file(receiving, *expected)))
+					|| (!missing(*path) && !remove_exact_private_file(*path, *expected))) {
 					return std::unexpected{
 						application::git_cache_failure::repair_required
 					};

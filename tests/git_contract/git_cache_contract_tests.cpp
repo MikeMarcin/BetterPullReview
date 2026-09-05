@@ -1080,6 +1080,82 @@ namespace {
 		require(last.has_value(), "append final pack fragment");
 	}
 
+	auto verify_receiving_ownership_recovery(
+		application::git_cache_port& aCache,
+		const std::filesystem::path& aRoot) -> void
+	{
+		for (const auto completed : { false, true }) {
+			const auto seed         = static_cast<std::uint8_t>(completed ? 0xbbU : 0xb9U);
+			const auto cacheRequest = request(seed, static_cast<std::uint8_t>(seed + 1U));
+			auto       opened       = aCache.open(cacheRequest, { });
+			require(opened.has_value(), "open receiving recovery cache");
+			const auto  refusedOperation = identity<core::epoch_operation_id>(static_cast<std::uint8_t>(seed + 20U));
+			std::size_t refusedWitnesses = 0U;
+			const auto  refused          = (*opened)->create_pack_sink(refusedOperation, sha1_pack.size(), { },
+																	   [&](const application::git_spool_ownership& aOwnership) {
+																 ++refusedWitnesses;
+																 require(application::valid(aOwnership) && aOwnership.Operation == refusedOperation
+																			 && aOwnership.MaximumBytes == sha1_pack.size(),
+																		 "receiving witness exposes exact operation, identity and bound");
+																 return false;
+																	   });
+			require(!refused && refusedWitnesses == 1U
+						&& std::filesystem::is_empty(aRoot / "incoming" / "v1"),
+					"refused receiving witness cleans its empty file without deadlocking");
+			const auto                                      operation = identity<core::epoch_operation_id>(seed);
+			std::optional<application::git_spool_ownership> ownership;
+			auto                                            sink = (*opened)->create_pack_sink(operation, sha1_pack.size(), { },
+																							   [&](const application::git_spool_ownership& aOwnership) { ownership = aOwnership; return true; });
+			require(sink && ownership, "receiving witness admits bounded payload");
+			if (completed) {
+				append_pack(**sink, sha1_pack);
+				const auto receipt = (*sink)->finish({ });
+				require(receipt && receipt->Spool.Identity == ownership->Identity, "completed publication preserves the witnessed identity");
+			} else {
+				require((*sink)->append(std::as_bytes(std::span{ sha1_pack }.first(17U)), { }).has_value(), "receive a partial payload");
+			}
+			const auto name     = (completed ? "" : ".") + lower_hex(operation.bytes()) + (completed ? ".pack.part" : ".pack.receiving");
+			const auto spool    = aRoot / "incoming" / "v1" / name;
+			const auto original = aRoot / ("original-" + std::to_string(seed));
+			std::filesystem::rename(spool, original);
+			write_file(spool, "unrelated fixture artifact");
+			sink->reset();
+			opened->reset();
+			opened = aCache.open(cacheRequest, { });
+			require(opened.has_value(), "reopen receiving cache without process-local spool registrations");
+			const auto commit = core::parse_git_commit_oid(sha1_commit_hex);
+			require(commit.has_value(), "fixture commit parses");
+			const auto recovery = application::git_operation_recovery_request{
+				.Operation = operation,
+				.Scope     = cacheRequest.Authority.Scope,
+				.Ordinal   = core::epoch_ordinal{ 1 },
+				.Base      = *commit,
+				.Head      = *commit,
+				.Receiving = ownership,
+			};
+			const auto observed = (*opened)->inspect_operation_recovery(recovery, { });
+			const auto rejected = (*opened)->abort_recovered_operation(recovery, { });
+			require(observed && observed->Spool == application::git_recovery_match::mismatch
+						&& !rejected && rejected.error() == application::git_cache_failure::repair_required
+						&& std::filesystem::file_size(spool) == std::string_view{ "unrelated fixture artifact" }.size()
+						&& std::filesystem::file_size(original) == (completed ? sha1_pack.size() : 17U),
+					"receiving ownership refuses substituted partial or completed artifacts and preserves both files");
+			std::filesystem::remove(spool);
+			std::filesystem::rename(original, spool);
+			require((*opened)->abort_recovered_operation(recovery, { }).has_value()
+						&& !std::filesystem::exists(spool)
+						&& (*opened)->abort_recovered_operation(recovery, { }).has_value(),
+					"restored exact ownership permits idempotent cleanup after reopen");
+			opened->reset();
+			const auto deletion = application::git_cache_delete_authorization{
+				.ApplicationSession = cacheRequest.ApplicationSession,
+				.Cache              = cacheRequest.Authority.Cache,
+				.DurableIntentToken = token(seed),
+			};
+			require(aCache.delete_cache(cacheRequest, deletion, { }).has_value(), "remove receiving recovery fixture cache");
+		}
+	}
+
 	auto verify_refused_installation_witness(
 		application::git_cache_port& aCache,
 		const std::filesystem::path& aRoot,
@@ -1355,6 +1431,7 @@ namespace {
 		require(cache.has_value(), "construct installed Git cache");
 		verify_descendant_lineage(**cache, descendant);
 		verify_refused_installation_witness(**cache, root.Path, executable);
+		verify_receiving_ownership_recovery(**cache, root.Path);
 
 		const auto crossProcessRequest = request(0x36U, 0x46U);
 		const auto lockReady           = root.Path / "cross-process-lock-ready";

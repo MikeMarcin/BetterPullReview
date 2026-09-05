@@ -266,6 +266,13 @@ namespace {
 		changed_result,
 	};
 
+	enum class receiving_witness_fault {
+		none,
+		omitted,
+		repeated,
+		foreign_operation,
+	};
+
 	struct shared_state
 	{
 		std::optional<application::git_smart_transport_failure> AcquireFailure;
@@ -331,6 +338,8 @@ namespace {
 		bool                                              RetainedCacheSessionIsForeign = false;
 		install_witness_fault                             InstallWitnessFault           = install_witness_fault::none;
 		std::optional<application::epoch_catalog_failure> InstallFailure;
+		std::optional<application::epoch_catalog_failure> ReceivingFailure;
+		receiving_witness_fault                           ReceivingWitnessFault = receiving_witness_fault::none;
 		/// Failures for the *resolve* path rather than maintenance. A catalog
 		/// retained across a change of history names commits the cache can no
 		/// longer produce, and the question BPR-0200 asks is what a reviewer is
@@ -722,6 +731,21 @@ namespace {
 			return *State.Operation;
 		}
 
+		[[nodiscard]] auto record_receiving(const application::record_receiving_request& aRequest, std::stop_token aStop)
+			-> application::epoch_catalog_result<application::append_operation_record> override
+		{
+			State.Calls.emplace_back("catalog.receiving");
+			if (aStop.stop_requested() || !State.Operation) {
+				return std::unexpected{ application::epoch_catalog_failure::cancelled };
+			}
+			if (State.ReceivingFailure) {
+				return std::unexpected{ *State.ReceivingFailure };
+			}
+			State.Operation->Receiving = aRequest.Receiving;
+			advance(application::epoch_catalog_operation_phase::preparing);
+			return *State.Operation;
+		}
+
 		[[nodiscard]] auto record_spool(
 			const application::record_spool_request& aRequest,
 			const std::stop_token                    aStop)
@@ -859,6 +883,7 @@ namespace {
 				|| aRequest.Next
 					== application::epoch_catalog_operation_phase::complete) {
 				State.Operation->RecoveryInputCompacted = true;
+				State.Operation->Receiving.reset();
 				State.Operation->Spool.reset();
 				State.Operation->Preimport.reset();
 			}
@@ -1307,9 +1332,10 @@ namespace {
 		}
 
 		[[nodiscard]] auto create_pack_sink(
-			const core::epoch_operation_id aOperation,
-			const std::uint64_t,
-			const std::stop_token aStop)
+			const core::epoch_operation_id                                      aOperation,
+			const std::uint64_t                                                 aMaximumBytes,
+			const std::stop_token                                               aStop,
+			const std::function<bool(const application::git_spool_ownership&)>& aWitness)
 			-> application::git_cache_result<
 				std::unique_ptr<application::git_pack_stream_sink>> override
 		{
@@ -1317,6 +1343,19 @@ namespace {
 			++State.CacheMutationCalls;
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::git_cache_failure::cancelled };
+			}
+			const auto ownership = application::git_spool_ownership{
+				.Operation    = State.ReceivingWitnessFault == receiving_witness_fault::foreign_operation
+					? opaque<core::epoch_operation_id>(0xe9U)
+					: aOperation,
+				.Identity     = artifact(application::git_artifact_role::completed_spool, 0x51U, 8U).Identity,
+				.MaximumBytes = aMaximumBytes,
+			};
+			if (aWitness && State.ReceivingWitnessFault != receiving_witness_fault::omitted && !aWitness(ownership)) {
+				return std::unexpected{ application::git_cache_failure::spool_failure };
+			}
+			if (aWitness && State.ReceivingWitnessFault == receiving_witness_fault::repeated) {
+				static_cast<void>(aWitness(ownership));
 			}
 			return std::make_unique<fake_pack_sink>(State, aOperation);
 		}
@@ -2444,6 +2483,7 @@ namespace {
 			{
 				"catalog.reserve",
 				"cache.create-sink",
+				"catalog.receiving",
 				"transport.acquire",
 				"transport.discover",
 				"transport.ls-refs",
@@ -6129,6 +6169,32 @@ namespace {
 			"and says so in the diagnostic the commit terminal publishes");
 	}
 
+	void payload_requires_durable_receiving_ownership()
+	{
+		for (const auto fault : { receiving_witness_fault::omitted, receiving_witness_fault::repeated, receiving_witness_fault::foreign_operation }) {
+			fixture value;
+			value.State.ReceivingWitnessFault = fault;
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+			drain(value);
+			expect(!value.State.Retained && !value.Host->state().PendingIngestion
+					   && std::ranges::count(value.State.Calls, "transport.acquire") == 0
+					   && std::ranges::count(value.State.Calls, "catalog.receiving") == (fault == receiving_witness_fault::repeated ? 1 : 0)
+					   && has_diagnostic(value.State, core::epoch_reason_code::repair_required),
+				   "omitted, repeated or foreign receiving witnesses cannot start payload acquisition");
+		}
+		for (const auto failure : { application::epoch_catalog_failure::unavailable, application::epoch_catalog_failure::cancelled }) {
+			fixture value;
+			value.State.ReceivingFailure = failure;
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+			drain(value);
+			expect(!value.State.Retained && !value.Host->state().PendingIngestion
+					   && std::ranges::count(value.State.Calls, "transport.acquire") == 0
+					   && std::ranges::count(value.State.Calls, "catalog.receiving") == 1
+					   && has_diagnostic(value.State, failure == application::epoch_catalog_failure::cancelled ? core::epoch_reason_code::cancelled : core::epoch_reason_code::unavailable),
+				   "failed or cancelled receiving persistence stops acquisition with its typed terminal");
+		}
+	}
+
 	void installation_requires_one_exact_durable_witness()
 	{
 		for (const auto fault : { install_witness_fault::omitted, install_witness_fault::repeated, install_witness_fault::changed_result }) {
@@ -6181,6 +6247,7 @@ int main()
 	source_collision_retries_before_core_acceptance();
 	successful_append_preserves_exact_order();
 	installation_requires_one_exact_durable_witness();
+	payload_requires_durable_receiving_ownership();
 	projection_failure_is_contained_and_decision_progress_drains();
 	reentrant_projection_ingress_is_deferred_without_recursion();
 	epoch_host_limits_reject_invalid_capacity();

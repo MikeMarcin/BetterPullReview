@@ -544,6 +544,7 @@ namespace bpr::application {
 				.Ordinal   = aRecord.ReservedOrdinal,
 				.Base      = aRecord.Context.Revision.Base,
 				.Head      = aRecord.Context.Revision.Head,
+				.Receiving = aRecord.Receiving,
 			};
 			if (aRecord.Spool && aRecord.Preimport) {
 				request.Spool = git_recovery_spool_expectation{
@@ -696,7 +697,7 @@ namespace bpr::application {
 				== epoch_catalog_operation_revision{ 1 }
 			&& aRecord.Phase == epoch_catalog_operation_phase::preparing
 				&& !aRecord.RepairFromPhase && !aRecord.RecoveryInputCompacted
-				&& !aRecord.Spool && !aRecord.Preimport && !aRecord.Install
+				&& !aRecord.Receiving && !aRecord.Spool && !aRecord.Preimport && !aRecord.Install
 				&& !aRecord.Candidate
 				&& aRecord.StagingBase
 				== epoch_catalog_ref_identity{
@@ -744,9 +745,10 @@ namespace bpr::application {
 			return exactRepairOrigin && aNext.Install == aPrior.Install
 				&& aNext.Candidate == aPrior.Candidate
 				&& (terminal
-						? aNext.RecoveryInputCompacted && !aNext.Spool
+						? aNext.RecoveryInputCompacted && !aNext.Receiving && !aNext.Spool
 							&& !aNext.Preimport
 						: !aNext.RecoveryInputCompacted
+							&& aNext.Receiving == aPrior.Receiving
 							&& aNext.Spool == aPrior.Spool
 							&& aNext.Preimport == aPrior.Preimport);
 		}
@@ -762,6 +764,7 @@ namespace bpr::application {
 				&& aNext.OperationRevision.value()
 				== aPrior.OperationRevision.value() + 1
 				&& !aNext.RepairFromPhase && !aNext.RecoveryInputCompacted
+				&& aNext.Receiving == aPrior.Receiving
 				&& aNext.Spool == std::optional{ aRequest.Spool }
 			&& aNext.Preimport == std::optional{ aRequest.Preimport }
 			&& aNext.Install == aPrior.Install
@@ -779,6 +782,7 @@ namespace bpr::application {
 				&& aNext.OperationRevision.value()
 				== aPrior.OperationRevision.value() + 1
 				&& !aNext.RepairFromPhase && !aNext.RecoveryInputCompacted
+				&& aNext.Receiving == aPrior.Receiving
 				&& aNext.Spool == aPrior.Spool && aNext.Preimport == aPrior.Preimport
 				&& aNext.Install == std::optional{ aRequest.Install }
 			&& aNext.Candidate == aPrior.Candidate;
@@ -808,6 +812,7 @@ namespace bpr::application {
 				&& aNext.OperationRevision.value()
 				== aPrior.OperationRevision.value() + 1
 				&& !aNext.RepairFromPhase && !aNext.RecoveryInputCompacted
+				&& aNext.Receiving == aPrior.Receiving
 				&& aNext.Spool == aPrior.Spool && aNext.Preimport == aPrior.Preimport
 				&& aNext.Install == aPrior.Install
 				&& aNext.Candidate == std::optional{ aRequest.Candidate };
@@ -5065,18 +5070,59 @@ namespace bpr::application {
 						|| context->Handoff.SmartGit->revoked()) {
 						return failPrepared(core::epoch_failure::unavailable);
 					}
+					bool                                 receivingWitnessed      = false;
+					bool                                 invalidReceivingWitness = false;
+					std::optional<epoch_catalog_failure> receivingFailure;
+					const auto                           maximumPackBytes = context->Actor->Cache->request().Limits.OperationPackBytes;
+					const auto                           persistReceiving = [&](const git_spool_ownership& aOwnership) {
+						if (receivingWitnessed || receivingFailure || invalidReceivingWitness || !valid(aOwnership)
+							|| aOwnership.Operation != prepared.Operation || aOwnership.MaximumBytes != maximumPackBytes) {
+							invalidReceivingWitness = true;
+							return false;
+						}
+						const auto request = record_receiving_request{
+							.Catalog                   = expectedCatalog,
+							.Operation                 = prepared.Operation,
+							.ExpectedOperationRevision = prepared.Record->OperationRevision,
+							.Receiving                 = aOwnership,
+						};
+						const auto record = diagnostics.perform(diagnostic_epoch_stage::catalog_prepare,
+																[&] { return context->Catalog->record_receiving(request, aStop); });
+						if (!record) {
+							receivingFailure = record.error();
+							return false;
+						}
+						auto expected              = *prepared.Record;
+						expected.Receiving         = aOwnership;
+						expected.OperationRevision = epoch_catalog_operation_revision{ request.ExpectedOperationRevision.value() + 1 };
+						if (!valid(*record) || *record != expected) {
+							invalidReceivingWitness = true;
+							return false;
+						}
+						prepared.Record    = *record;
+						receivingWitnessed = true;
+						return true;
+					};
 					auto sink = diagnostics.perform(
 						diagnostic_epoch_stage::pack_sink,
 						[&] { return context->Actor->Cache->create_pack_sink(
 								  prepared.Operation,
-								  context->Actor->Cache->request().Limits.OperationPackBytes,
-								  aStop); });
+								  maximumPackBytes,
+								  aStop, persistReceiving); });
+					if (invalidReceivingWitness) {
+						return failPrepared(core::epoch_failure::repair_required);
+					}
+					if (receivingFailure) {
+						return *receivingFailure == epoch_catalog_failure::cancelled
+							? cancelPrepared()
+							: failPrepared(catalog_failure(*receivingFailure));
+					}
 					if (!sink) {
 						return sink.error() == git_cache_failure::cancelled
 							? cancelPrepared()
 							: failPrepared(cache_failure(sink.error()));
 					}
-					if (!*sink) {
+					if (!*sink || !receivingWitnessed) {
 						return failPrepared(
 							core::epoch_failure::repair_required);
 					}

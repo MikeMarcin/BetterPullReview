@@ -8,6 +8,7 @@
 // rather than repaired, migrated, or recreated.
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/testing.hpp"
+#include "epoch_catalog_legacy_fixture.hpp"
 #include "platform_test_support.hpp"
 
 #include <sqlite3.h>
@@ -249,6 +250,7 @@ namespace {
 		direct_database database{ aDatabase };
 		database.execute("PRAGMA foreign_keys = OFF");
 		database.execute("BEGIN IMMEDIATE");
+		database.execute("DROP TABLE append_receiving");
 		database.execute("CREATE TABLE t_meta AS SELECT * FROM catalog_meta");
 		database.execute(
 			"CREATE TABLE t_repo AS SELECT * FROM repository_scope");
@@ -424,12 +426,12 @@ namespace {
 		{
 			direct_database database{ database_path(root.path()) };
 			expect(
-				database.integer("PRAGMA user_version") == 2
+				database.integer("PRAGMA user_version") == 3
 					&& database.integer(
 						   "SELECT schema_format FROM catalog_meta "
 						   "WHERE singleton = 1")
-						== 2,
-				"the migrated catalog reports the v2 version everywhere");
+						== 3,
+				"the migrated catalog reports the v3 version everywhere");
 			expect(
 				database.integer("SELECT count(*) FROM repository_scope")
 						== repositoryRows
@@ -506,16 +508,49 @@ namespace {
 		expect(made.has_value(), "the next open migrates the same catalog");
 		direct_database database{ database_path(root.path()) };
 		expect(
-			database.integer("PRAGMA user_version") == 2,
+			database.integer("PRAGMA user_version") == 3,
 			"the retried migration completes");
 	}
 
 	// A version this build never wrote is refused, and refusing it changes
 	// nothing: the catalog is still there, still at its own version, with its
 	// rows intact.
+	void version_two_migration_rollback_contract()
+	{
+		temporary_root             root{ "v2-migration" };
+		app::epoch_catalog_binding original;
+		{
+			auto made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+			expect(made.has_value(), "v2 migration fixture bootstraps");
+			auto opened = (*made)->open(open_request(authenticated_key()), { });
+			expect(opened.has_value(), "v2 migration authority opens");
+			original = (*opened)->binding();
+		}
+		{
+			direct_database database{ database_path(root.path()) };
+			expect(test_platform::make_version_two_catalog(database), "restore exact legacy v2 schema");
+		}
+		sqlite::detail::testing::interrupt_next_migration_before_commit();
+		expect_failure(sqlite::make_epoch_catalog({ .StorageRoot = root.path() }),
+					   app::epoch_catalog_failure::cancelled, "interrupted v2 migration rolls back");
+		{
+			direct_database database{ database_path(root.path()) };
+			expect(database.integer("PRAGMA user_version") == 2
+					   && database.integer("SELECT schema_format FROM catalog_meta") == 2
+					   && database.integer("SELECT count(*) FROM sqlite_schema WHERE name = 'append_receiving' OR name LIKE 'migration_%'") == 0
+					   && database.integer("SELECT count(*) FROM repository_scope") == 1
+					   && database.integer("SELECT count(*) FROM pull_request_scope") == 1,
+				   "rollback preserves complete v2 schema and authority rows without migration residue");
+		}
+		auto made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "v2 migration retry succeeds");
+		auto opened = (*made)->open(open_request(authenticated_key()), { });
+		expect(opened.has_value() && (*opened)->binding() == original, "v2 migration preserves exact catalog and authority identity");
+	}
+
 	void unknown_version_contract()
 	{
-		for (const auto version : { 0, 3, 99 }) {
+		for (const auto version : { 0, 4, 99 }) {
 			temporary_root root{ "unknown-version" };
 			{
 				auto made
@@ -719,6 +754,7 @@ auto main() -> int
 {
 	migration_contract();
 	interrupted_migration_contract();
+	version_two_migration_rollback_contract();
 	unknown_version_contract();
 	discriminated_namespace_contract();
 	constraint_contract();

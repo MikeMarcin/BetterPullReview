@@ -828,14 +828,32 @@ Git refs and SQLite cannot share one physical transaction, so publication
 uses SQLite as the durable coordinator and the catalog as BetterPullReview's
 visibility authority:
 
+Catalog schema v3 adds a typed `append_receiving` ownership row. The v2 upgrade
+validates the old schema, adds this table and updates version metadata in one
+transaction, preserving existing authority, epoch and operation identities.
+The earlier v1-to-v2 migration remains a separate atomic step. Legacy unfinished
+operations gain no invented ownership. Terminal compaction and whole-cache
+cleanup remove the receiving fact with the other recovery inputs.
+
+When death occurs after receiving ownership is recorded but before a completed
+receipt is journaled, recovery may exact-delete the receiving or completed file
+under that ownership and size limit. It does not import the unrecorded pack.
+A substituted file, an unknown legacy spool, or an empty file left by death
+before ownership persistence remains ambiguous and is not deleted by filename.
+
 1. Under the exact cache writer lock, `BEGIN IMMEDIATE` verifies the authority,
    catalog incarnation/revision, and quota; reserves a never-reused ordinal;
    and records a typed `preparing` operation with exact generated staging and
    final refs. The SQLite transaction commits before network work.
-2. Stream the bounded response into the request-owned spool. After validating
-   its pack identity, a short catalog transaction records that identity, the
-   bounded pre-import pack inventory, and preexisting-pack fact before
-   `index-pack` starts.
+2. Create the empty receiving file and offer its exact opaque identity,
+   operation and payload limit to the host's synchronous witness. The host
+   persists this ownership with `record_receiving` before payload acquisition.
+   Stream the bounded response into that spool. Publication preserves the
+   file identity when changing its receiving name to the completed name.
+   After validating its pack identity, a short catalog transaction records
+   that identity, the bounded pre-import pack inventory, and preexisting-pack
+   fact before `index-pack` starts. The receipt must match the persisted file
+   identity and payload limit.
 3. Import and verify the exact accepted objects. Before creating paired
    staging refs or deleting the spool, the cache synchronously offers its exact
    installation facts to the host's witness on the effect worker. The host

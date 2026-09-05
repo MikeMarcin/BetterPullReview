@@ -954,6 +954,7 @@ namespace bpr::application {
 		epoch_catalog_ref_identity                   StagingHead;
 		epoch_catalog_ref_identity                   FinalBase;
 		epoch_catalog_ref_identity                   FinalHead;
+		std::optional<git_spool_ownership>           Receiving;
 		std::optional<durable_git_spool_fact>        Spool;
 		std::optional<durable_git_preimport_fact>    Preimport;
 		std::optional<durable_git_install_fact>      Install;
@@ -986,8 +987,11 @@ namespace bpr::application {
 			|| !application::valid(aRecord.FinalHead)) {
 			return false;
 		}
-		const auto& operation    = aRecord.Context.Operation;
-		const auto  sameRefOwner = aRecord.StagingBase.Authority
+		const auto& operation = aRecord.Context.Operation;
+		if (aRecord.Receiving && (!valid(*aRecord.Receiving) || aRecord.Receiving->Operation != operation || aRecord.RecoveryInputCompacted || (aRecord.Spool && (aRecord.Spool->Spool.Identity != aRecord.Receiving->Identity || aRecord.Spool->Spool.Bytes > aRecord.Receiving->MaximumBytes)))) {
+			return false;
+		}
+		const auto sameRefOwner = aRecord.StagingBase.Authority
 				== aRecord.StagingHead.Authority
 			&& aRecord.StagingBase.Authority
 				== aRecord.FinalBase.Authority
@@ -1085,6 +1089,23 @@ namespace bpr::application {
 		default:
 			return false;
 		}
+	}
+
+	struct record_receiving_request
+	{
+		core::epoch_catalog_identity     Catalog;
+		core::epoch_operation_id         Operation;
+		epoch_catalog_operation_revision ExpectedOperationRevision;
+		git_spool_ownership              Receiving;
+		auto                             operator<=>(const record_receiving_request&) const = default;
+	};
+
+	[[nodiscard]] constexpr auto valid(const record_receiving_request& aRequest) noexcept -> bool
+	{
+		return core::valid(aRequest.Catalog) && aRequest.Operation.valid()
+			&& valid(aRequest.ExpectedOperationRevision)
+			&& can_advance_nonterminal(aRequest.ExpectedOperationRevision)
+			&& valid(aRequest.Receiving) && aRequest.Receiving.Operation == aRequest.Operation;
 	}
 
 	/// \brief Describes the record spool request record.
@@ -1699,6 +1720,10 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto reserve_append(
 			const append_reservation_request& aRequest,
 			std::stop_token                   aStop)
+			-> epoch_catalog_result<append_operation_record> = 0;
+
+		[[nodiscard]] virtual auto record_receiving(
+			const record_receiving_request& aRequest, std::stop_token aStop)
 			-> epoch_catalog_result<append_operation_record> = 0;
 
 		[[nodiscard]] virtual auto record_spool(

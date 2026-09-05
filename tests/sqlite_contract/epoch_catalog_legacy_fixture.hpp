@@ -1,0 +1,31 @@
+#pragma once
+
+namespace bpr::tests::sqlite_contract {
+	// Restore the exact v2 schema only when doing so discards no ownership facts.
+	// Call with all product catalog handles closed.
+	template <typename Database>
+	[[nodiscard]] auto make_version_two_catalog(Database& aDatabase) -> bool
+	{
+		if (aDatabase.integer("SELECT count(*) FROM append_receiving") != 0) {
+			return false;
+		}
+		aDatabase.execute("PRAGMA foreign_keys = OFF");
+		aDatabase.execute("BEGIN IMMEDIATE");
+		aDatabase.execute("CREATE TABLE fixture_meta AS SELECT * FROM catalog_meta");
+		aDatabase.execute("DROP TABLE catalog_meta");
+		aDatabase.execute(
+			"CREATE TABLE catalog_meta("
+			"singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1),"
+			"schema_format INTEGER NOT NULL CHECK(schema_format = 2),"
+			"incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32))"
+			") STRICT, WITHOUT ROWID");
+		aDatabase.execute("CREATE UNIQUE INDEX catalog_meta_incarnation ON catalog_meta(incarnation)");
+		aDatabase.execute("INSERT INTO catalog_meta SELECT singleton, 2, incarnation FROM fixture_meta");
+		aDatabase.execute("DROP TABLE fixture_meta");
+		aDatabase.execute("DROP TABLE append_receiving");
+		aDatabase.execute("PRAGMA user_version = 2");
+		aDatabase.execute("COMMIT");
+		aDatabase.execute("PRAGMA foreign_keys = ON");
+		return true;
+	}
+} // namespace bpr::tests::sqlite_contract

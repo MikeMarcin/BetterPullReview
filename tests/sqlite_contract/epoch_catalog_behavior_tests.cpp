@@ -1,4 +1,5 @@
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
+#include "epoch_catalog_legacy_fixture.hpp"
 #include "platform_test_support.hpp"
 
 #include <sqlite3.h>
@@ -417,6 +418,7 @@ namespace {
 
 	struct append_fixture_options
 	{
+		bool                                                PersistReceiving = false;
 		std::optional<core::accepted_pull_request_revision> Accepted;
 		std::optional<core::epoch_cause>                    Cause;
 	};
@@ -501,6 +503,19 @@ namespace {
 				"rejected spool leaves no partial on-disk receipt or inventory");
 		}
 
+		if (aOptions.PersistReceiving) {
+			const auto receiving = aSession.record_receiving({
+																 .Catalog                   = aSession.binding().Catalog,
+																 .Operation                 = record.Context.Operation,
+																 .ExpectedOperationRevision = record.OperationRevision,
+																 .Receiving                 = { .Operation    = record.Context.Operation,
+																								.Identity     = spool_request(record, aSeed).Spool.Spool.Identity,
+																								.MaximumBytes = 4096U },
+															 },
+															 { });
+			expect(receiving.has_value(), "complete append persists receiving ownership before payload receipt");
+			record = *receiving;
+		}
 		const auto spool   = spool_request(record, aSeed);
 		auto       spooled = aSession.record_spool(spool, { });
 		expect(spooled.has_value(), "spool and inventory record atomically");
@@ -4228,6 +4243,98 @@ namespace {
 			"reparented PR continues its never-reused ordinal sequence");
 	}
 
+	void receiving_ownership_migration_and_restart_contract()
+	{
+		temporary_root root{ "receiving-ownership" };
+		auto           made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "receiving fixture bootstraps");
+		auto port   = std::move(*made);
+		auto opened = port->open(open_request(1U), { });
+		expect(opened.has_value(), "receiving fixture opens");
+		auto       session = std::move(*opened);
+		const auto visible = complete_append(*session, core::epoch_ordinal{ 1 }, 151U,
+											 core::application_session_id{ 1U }, true, false, nullptr, { .PersistReceiving = true });
+		expect(!visible.Terminal.Receiving && direct_count(database_path(root.path()), "SELECT count(*) FROM append_receiving") == 0,
+			   "successful completion compacts the exact receiving fact");
+		auto reserved = session->reserve_append({
+													.Context         = context(session->binding(), operation(152U), revision(152U), 152U, core::application_session_id{ 1U }),
+													.ProposedOrdinal = core::epoch_ordinal{ 2 },
+												},
+												{ });
+		expect(reserved.has_value(), "reserve a legacy unfinished operation");
+		const auto legacy           = *reserved;
+		const auto originalSnapshot = session->snapshot({ });
+		expect(originalSnapshot.has_value(), "snapshot exists before migration");
+		session.reset();
+		port.reset();
+		{
+			direct_database database{ database_path(root.path()), true };
+			expect(test_platform::make_version_two_catalog(database), "restore v2 with visible epoch and unfinished operation");
+		}
+		auto remade = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(remade.has_value(), "migrate populated v2 catalog");
+		port          = std::move(*remade);
+		auto reopened = port->open(open_request(1U), { });
+		expect(reopened.has_value(), "reopen migrated authority");
+		session                     = std::move(*reopened);
+		const auto migratedSnapshot = session->snapshot({ });
+		const auto legacyPage       = session->recovery_page({ }, 10U, { });
+		expect(migratedSnapshot && *migratedSnapshot == *originalSnapshot && legacyPage && legacyPage->Operations.size() == 1U
+				   && std::get<app::append_operation_record>(legacyPage->Operations.front()) == legacy,
+			   "migration preserves visible epoch, next ordinal, authority and full legacy operation without invented ownership");
+		const auto receivingRequest = app::record_receiving_request{
+			.Catalog                   = session->binding().Catalog,
+			.Operation                 = legacy.Context.Operation,
+			.ExpectedOperationRevision = legacy.OperationRevision,
+			.Receiving                 = { .Operation    = legacy.Context.Operation,
+										   .Identity     = spool_request(legacy, 152U).Spool.Spool.Identity,
+										   .MaximumBytes = 4096U },
+		};
+		std::stop_source stopped;
+		stopped.request_stop();
+		expect_failure(session->record_receiving(receivingRequest, stopped.get_token()), app::epoch_catalog_failure::cancelled,
+					   "cancelled receiving persistence writes nothing");
+		auto invalid                   = receivingRequest;
+		invalid.Receiving.MaximumBytes = 0;
+		expect_failure(session->record_receiving(invalid, { }), app::epoch_catalog_failure::invalid_request, "zero receiving bound is refused");
+		auto received = session->record_receiving(receivingRequest, { });
+		expect(received && received->Receiving == receivingRequest.Receiving
+				   && received->Phase == app::epoch_catalog_operation_phase::preparing
+				   && received->OperationRevision.value() == legacy.OperationRevision.value() + 1,
+			   "receiving persistence advances only its operation revision and exact ownership");
+		const auto replay = session->record_receiving(receivingRequest, { });
+		expect(replay && *replay == *received, "exact receiving retry is idempotent");
+		auto conflict = receivingRequest;
+		conflict.Receiving.Identity.Bytes.back() ^= 1U;
+		expect_failure(session->record_receiving(conflict, { }), app::epoch_catalog_failure::phase_conflict, "conflicting identity cannot overwrite persisted ownership");
+		session.reset();
+		port.reset();
+		remade = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(remade.has_value(), "receiving ownership catalog restarts");
+		port     = std::move(*remade);
+		reopened = port->open(open_request(1U), { });
+		expect(reopened.has_value(), "receiving ownership authority reopens");
+		session         = std::move(*reopened);
+		const auto page = session->recovery_page({ }, 10U, { });
+		expect(page && page->Operations.size() == 1U && std::get<app::append_operation_record>(page->Operations.front()) == *received,
+			   "reopen returns exact durable receiving ownership and revision");
+		auto spool      = spool_request(*received, 152U);
+		auto wrongSpool = spool;
+		wrongSpool.Spool.Spool.Identity.Bytes.back() ^= 1U;
+		expect_failure(session->record_spool(wrongSpool, { }), app::epoch_catalog_failure::invalid_request, "completed receipt cannot substitute another file identity");
+		wrongSpool                   = spool;
+		wrongSpool.Spool.Spool.Bytes = 8192U;
+		expect_failure(session->record_spool(wrongSpool, { }), app::epoch_catalog_failure::invalid_request, "completed receipt cannot exceed the persisted payload limit");
+		const auto spooled = session->record_spool(spool, { });
+		expect(spooled && spooled->Receiving == received->Receiving, "completed receipt preserves receiving ownership");
+		const auto aborting = transition_append(*session, session->binding().Catalog, *spooled,
+												app::epoch_catalog_operation_phase::abort_requested, app::epoch_catalog_transition_evidence::catalog_transaction);
+		const auto aborted  = transition_append(*session, session->binding().Catalog, aborting,
+												app::epoch_catalog_operation_phase::aborted, app::epoch_catalog_transition_evidence::exact_cleanup_complete);
+		expect(!aborted.Receiving && !aborted.Spool && direct_count(database_path(root.path()), "SELECT count(*) FROM append_receiving") == 0,
+			   "abort compacts ownership and completed spool facts without altering the visible epoch");
+	}
+
 	void source_observation_restart_contract()
 	{
 		temporary_root root{ "source-observation-restart" };
@@ -5851,6 +5958,7 @@ namespace {
 int main()
 {
 	append_snapshot_history_anchor_contract();
+	receiving_ownership_migration_and_restart_contract();
 	reservation_conflict_and_never_reuse_contract();
 	canonical_review_read_contract();
 	ordinal_exhaustion_snapshot_contract();
