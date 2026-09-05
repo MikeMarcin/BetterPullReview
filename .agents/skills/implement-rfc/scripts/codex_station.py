@@ -642,6 +642,7 @@ def _list_named_threads(
     *,
     cwd: pathlib.Path,
     name: str,
+    archived: bool = False,
 ) -> list[dict[str, Any]]:
     matches: list[dict[str, Any]] = []
     normalized_cwd = _normalized_path(cwd)
@@ -651,7 +652,7 @@ def _list_named_threads(
         result = client.request(
             "thread/list",
             {
-                "archived": False,
+                "archived": archived,
                 "cursor": cursor,
                 "cwd": str(cwd),
                 "limit": 100,
@@ -759,8 +760,11 @@ def _materialize_thread(
         status = turn.get("status")
 
     if status != "completed":
+        error = turn.get("error")
+        detail = error.get("message") if isinstance(error, dict) else None
         raise CodexStationError(
             f"Codex station bootstrap turn {turn_id} ended with status {status!r}"
+            + (f": {detail}" if isinstance(detail, str) and detail else "")
         )
 
 
@@ -795,15 +799,41 @@ def _is_disposable_registered_task(thread: dict[str, Any]) -> bool:
     return not turns or (len(turns) == 1 and _is_station_bootstrap_turn(turns[0]))
 
 
-def _is_active_writer_error(error: CodexStationError, thread_id: str) -> bool:
+def _is_active_writer_error(
+    error: CodexStationError, thread_id: str, method: str = "thread/resume"
+) -> bool:
     rpc_error = error.rpc_error
     return (
-        error.method == "thread/resume"
+        error.method == method
         and isinstance(rpc_error, dict)
         and rpc_error.get("code") == -32600
         and rpc_error.get("message")
         == f"thread {thread_id} already has an active writer"
     )
+
+
+def _archive_idle_thread(client: _AppServerRpcClient, thread_id: str) -> None:
+    """Archive the reset target or explain how to release its owning writer."""
+    params = {"threadId": thread_id}
+    try:
+        client.request("thread/archive", params)
+    except CodexStationError as error:
+        if not _is_active_writer_error(error, thread_id, "thread/archive"):
+            raise
+        thread = _read_thread(client, thread_id, include_turns=True)
+        if any(
+            turn.get("status") not in TERMINAL_TURN_STATUSES
+            for turn in _thread_turns(thread, "archive writer recovery")
+        ):
+            raise CodexStationError(
+                f"Codex task {thread_id} has an active turn; stop it before resetting"
+            ) from error
+        raise CodexStationError(
+            f"Codex task {thread_id} is idle but another App Server owns its writer. "
+            "Archive this exact task in Codex Desktop, then rerun with --fresh codex "
+            "(or --fresh for both runtimes). The standalone helper cannot release "
+            "Desktop's writer with thread/unsubscribe."
+        ) from error
 
 
 def _resume_thread(
@@ -891,6 +921,7 @@ def provision_named_thread(
     cwd: pathlib.Path,
     name: str,
     expected_thread_id: str | None,
+    new_session: bool = False,
 ) -> str:
     """Create or verify the only task bound to ``name`` and ``cwd``."""
     cwd = cwd.resolve()
@@ -901,7 +932,7 @@ def provision_named_thread(
         cwd=cwd,
         name=name,
         matches=matches,
-        expected_thread_id=expected_thread_id,
+        expected_thread_id=None if new_session else expected_thread_id,
     )
     if recovered_registered_task:
         expected_thread_id = None
@@ -951,9 +982,6 @@ def provision_named_thread(
                 f"Codex task {thread_id} belongs to {thread_cwd!r}, not {str(cwd)!r}"
             )
 
-        if thread.get("archived") is True:
-            client.request("thread/unarchive", {"threadId": thread_id})
-
         current_name = thread.get("name")
         if current_name not in (None, "", name):
             raise CodexStationError(
@@ -969,8 +997,39 @@ def provision_named_thread(
                 f"Codex task {thread_id} has an active turn; refusing to provision it"
             )
 
+        if new_session and not subscribed:
+            # Only replace the validated station binding, never an active or
+            # unrelated task. Keep its history available in the archive.
+            # thread/read does not reliably include an archived flag. Confirm
+            # against the archived catalog before trying to archive again.
+            archived_matches = _list_named_threads(
+                client, cwd=cwd, name=name, archived=True
+            )
+            already_archived = any(
+                match.get("id") == thread_id for match in archived_matches
+            )
+            if not already_archived:
+                _archive_idle_thread(client, thread_id)
+            return provision_named_thread(
+                client, cwd=cwd, name=name, expected_thread_id=None
+            )
+
+        if thread.get("archived") is True:
+            client.request("thread/unarchive", {"threadId": thread_id})
+
+        if not turns:
+            if not subscribed:
+                thread = _resume_thread(client, cwd=cwd, thread=thread)
+                subscribed = True
+            # A fresh task may not have a rollout until its first turn finishes.
+            _materialize_thread(client, cwd=cwd, thread_id=thread_id)
+            thread = _read_thread(client, thread_id, include_turns=True)
+
         thread = _assign_project(client, thread=thread, project_id=project_id)
-        client.request("thread/name/set", {"threadId": thread_id, "name": name})
+        # Desktop tasks can be readable even when name/set cannot find a rollout.
+        # Avoid that mutation when the persisted name is already correct.
+        if thread.get("name") != name:
+            client.request("thread/name/set", {"threadId": thread_id, "name": name})
         verified = _read_thread(client, thread_id, include_turns=True)
         if verified.get("name") != name:
             raise CodexStationError(
@@ -985,17 +1044,9 @@ def provision_named_thread(
                 f"Codex task {thread_id} changed project while being provisioned"
             )
         if not _thread_turns(verified, "thread/read"):
-            if not subscribed:
-                verified = _resume_thread(client, cwd=cwd, thread=verified)
-                subscribed = True
-            _materialize_thread(client, cwd=cwd, thread_id=thread_id)
-            client.request("thread/name/set", {"threadId": thread_id, "name": name})
-            verified = _read_thread(client, thread_id, include_turns=True)
-            if verified.get("name") != name:
-                raise CodexStationError(
-                    f"Codex task {thread_id} did not retain station name {name!r} "
-                    "after its bootstrap turn"
-                )
+            raise CodexStationError(
+                f"Codex task {thread_id} did not retain its bootstrap turn"
+            )
         succeeded = True
         return thread_id
     finally:

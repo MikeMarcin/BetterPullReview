@@ -1,35 +1,12 @@
 #!/usr/bin/env python3
 """Launch this checkout as one named Claude and Codex remote station.
 
-usage: launch_remote_station.py [workstream] [options]
-  workstream: optional. Inferred from `.remote-station.json` when the checkout
-              was launched before, otherwise from the checkout's branch (each
-              workstream in config/project.json names its branch). Pass it only
-              to be explicit; a value that disagrees with the checkout refuses.
-              `main` is the integrator; a platform-bound workstream launches
-              only on its host.
-  --machine <suffix>   append a machine token to the station name (mandatory
-                       when the same platform exists on more than one machine);
-                       inferred from the station file once a checkout has
-                       launched under one, so a relaunch never retypes it
-  --fresh-station      forget this checkout's recorded station and start over:
-                       archive the Codex tasks bound to it, drop the recorded
-                       Claude session and station id, and take the workstream's
-                       canonical name again
-  --read-only          bind with authority read-only-proof
-  --continue           require Claude to reattach the recorded exact session
-  --new-claude-session skip automatic reattachment and create a fresh session
-  --pair-codex         print a short-lived Codex Remote pairing code
-  --no-server          deprecated compatibility path: write the station file
-                       and print the lease-wrapped direct Codex command
-  --permission-mode <m> Claude permission mode; defaults to bypassPermissions
-                       because an unattended station that prompts simply hangs
+usage: launch_remote_station.py [workstream] [--fresh [codex|claude|both]]
 
-What you will see: after the Codex task is provisioned, Claude opens in this
-terminal. That is the station — the interactive session is the only form that
-exists, and is named, from the moment it starts — so leave it running. Work
-arrives as messages from the integrator; you can also drive it from
-claude.ai/code, the mobile app, or by typing here.
+Start or resume automatically, or use --fresh to clear context in enabled
+runtimes. Use --no-claude or --no-codex when one service is unavailable.
+Claude uses the compact Remote Control interface. --help-all shows setup and
+troubleshooting options. Workstreams and station names come from project.json.
 
 The default path holds one writer lease while Codex Managed Remote provisions
 and materializes a persistent task named for the station, then resumes the exact
@@ -624,6 +601,7 @@ def provision_codex(
     existing: dict[str, Any],
     pair: bool,
     fresh: bool = False,
+    new_session: bool = False,
 ) -> Iterator[dict[str, str]]:
     version = codex_cli_version(context)
     expected_thread_id = expected_codex_thread_id(existing)
@@ -658,6 +636,7 @@ def provision_codex(
                     cwd=context.root,
                     name=context.name,
                     expected_thread_id=expected_thread_id,
+                    new_session=new_session,
                 )
         except CodexStationError as error:
             raise LaunchRefusal(str(error)) from error
@@ -678,6 +657,7 @@ def provision_codex(
             cwd=context.root,
             name=context.name,
             expected_thread_id=expected_thread_id,
+            new_session=new_session,
         )
         yield {
             "thread_id": thread_id,
@@ -697,44 +677,22 @@ def claude_command(
     *,
     reattach: bool,
     session_id: str | None = None,
-    continue_conversation: bool = False,
 ) -> list[str]:
-    """The Claude process a station runs.
-
-    A fresh station uses the interactive form, `claude --remote-control
-    <station>`: the running process is the served session, so the name
-    exists and binds in peer lists the moment the process starts. The
-    `claude remote-control` server (`--spawn session` included) creates its
-    session only when a controller connects, which left every station
-    launched that way nameless until someone opened its environment.
-
-    Reattachment prefers the recorded session ID through the server form,
-    which is how a server-created session comes back; a station whose
-    session came from the interactive form has no recorded ID until the
-    bridge pointer appears, and resumes its own directory's conversation
-    with `--continue`, which reconnects through that conversation's
-    reconnection record.
-    """
-    permission = ["--permission-mode", arguments.permission_mode]
+    command = [
+        "claude",
+        "remote-control",
+        "--permission-mode",
+        arguments.permission_mode,
+    ]
     if reattach:
-        if session_id is not None:
-            return ["claude", "remote-control", *permission, "--session-id", session_id]
-        if continue_conversation:
-            return ["claude", "--continue", "--remote-control", context.name, *permission]
-        raise LaunchRefusal(
-            "this station has no recorded Claude session; run normally to create one"
-        )
-    return ["claude", "--remote-control", context.name, *permission]
-
-
-def has_local_conversation(root: pathlib.Path) -> bool:
-    """Whether Claude has a conversation record for this exact directory."""
-    encoded_root = re.sub(r"[^A-Za-z0-9-]", "-", str(root.resolve()))
-    project_dir = pathlib.Path.home() / ".claude" / "projects" / encoded_root
-    try:
-        return any(project_dir.glob("*.jsonl"))
-    except OSError:
-        return False
+        if session_id is None:
+            raise LaunchRefusal(
+                "this station has no recorded Claude session; run normally to create one"
+            )
+        command += ["--session-id", session_id]
+    else:
+        command += ["--name", context.name, "--spawn", "session"]
+    return command
 
 
 def claude_bridge_pointer(root: pathlib.Path) -> pathlib.Path:
@@ -885,19 +843,6 @@ def watch_for_claude_session(
         stop.wait(CLAUDE_SESSION_RECORD_POLL_SECONDS)
 
 
-def session_bound_notice(context: StationContext) -> str:
-    """What the operator is about to see, and what a peer will see."""
-    return (
-        f"Claude station {context.name}: Claude opens in this terminal now, "
-        f"and that interactive session IS the station — peers see it as "
-        f"{context.name} as soon as it starts. Leave it running; work arrives "
-        "as messages, and you can drive it from claude.ai/code, the mobile "
-        f"app, or by typing here. {context.station_file.name} records the "
-        "session ID when Claude's bridge pointer appears; until then a "
-        "relaunch resumes this directory's conversation with --continue."
-    )
-
-
 def run_fresh_claude(
     arguments: argparse.Namespace,
     context: StationContext,
@@ -919,7 +864,6 @@ def run_fresh_claude(
         daemon=True,
     )
     watcher.start()
-    print(session_bound_notice(context), flush=True)
     try:
         return subprocess.run(
             claude_command(arguments, context, reattach=False),
@@ -940,9 +884,6 @@ def run_claude(
     record_session: Callable[[str], None] | None = None,
 ) -> int:
     """Run Claude, resuming only the session bound to this exact station."""
-    continue_conversation = session_id is None and has_local_conversation(
-        context.root
-    )
     if arguments.reattach:
         return subprocess.run(
             claude_command(
@@ -950,7 +891,6 @@ def run_claude(
                 context,
                 reattach=True,
                 session_id=session_id,
-                continue_conversation=continue_conversation,
             ),
             cwd=context.root,
             check=False,
@@ -961,7 +901,7 @@ def run_claude(
             context,
             record_session=record_session,
         )
-    if session_id is None and not continue_conversation:
+    if session_id is None:
         return run_fresh_claude(
             arguments,
             context,
@@ -975,7 +915,6 @@ def run_claude(
             context,
             reattach=True,
             session_id=session_id,
-            continue_conversation=continue_conversation,
         ),
         cwd=context.root,
         check=False,
@@ -1000,20 +939,31 @@ def run_claude(
     )
 
 
+def wait_for_station_stop() -> int:
+    """Keep the supervisor's writer lease alive for a Codex-only station."""
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        return 0
+
+
 def supervise(arguments: argparse.Namespace, context: StationContext) -> int:
     existing = load_station_file(context.station_file)
-    # A fresh start still reads the file — provisioning needs the recorded task
-    # id to archive it — but nothing recorded there survives into the new
-    # station: not its id, not its Claude session, not its Codex task.
     remembered = {} if arguments.fresh_station else existing
     station_id = durable_station_id(remembered)
     claude_session_id = expected_claude_session_id(remembered)
     try:
-        codex_session = provision_codex(
-            context,
-            existing=existing,
-            pair=arguments.pair_codex,
-            fresh=arguments.fresh_station,
+        codex_session = (
+            contextlib.nullcontext(existing.get("codex"))
+            if arguments.no_codex
+            else provision_codex(
+                context,
+                existing=existing,
+                pair=arguments.pair_codex,
+                new_session=arguments.new_codex_session,
+                fresh=arguments.fresh_station,
+            )
         )
         with codex_session as codex:
             atomic_write_json(
@@ -1029,26 +979,32 @@ def supervise(arguments: argparse.Namespace, context: StationContext) -> int:
                     ),
                 ),
             )
-            codex_state = (
-                "station ready"
-                if uses_managed_codex_daemon(context)
-                else "task provisioned"
-            )
-            print(
-                f"Codex {codex_state}: {context.name} task {codex['thread_id']} "
-                f"(CLI {codex['cli_version']}, {codex_transport_label(context)})",
-                flush=True,
-            )
-            if context.environment == "windows-native":
+            if arguments.no_codex:
+                print("Codex skipped; saved task binding retained.", flush=True)
+            else:
+                codex_state = (
+                    "station ready"
+                    if uses_managed_codex_daemon(context)
+                    else "task provisioned"
+                )
                 print(
-                    "Codex Desktop sidebar: if this task is under Recents, drag "
-                    f"{context.name} onto the {PROJECT['display_name']} project; Desktop exposes no "
-                    "supported project-placement RPC.",
+                    f"Codex {codex_state}: {context.name} task {codex['thread_id']} "
+                    f"(CLI {codex['cli_version']}, {codex_transport_label(context)})",
                     flush=True,
                 )
+                if context.environment == "windows-native":
+                    print(
+                        "Codex Desktop sidebar: if this task is under Recents, drag "
+                        f"{context.name} onto the {PROJECT['display_name']} project; Desktop exposes no "
+                        "supported project-placement RPC.",
+                        flush=True,
+                    )
+            if arguments.no_claude:
+                print("Claude skipped. Codex station is running; press Ctrl+C to stop.", flush=True)
+                return wait_for_station_stop()
             if arguments.reattach:
                 claude_action = "requiring reattachment"
-            elif arguments.fresh_station or arguments.new_claude_session:
+            elif arguments.new_claude_session:
                 claude_action = "starting fresh"
             else:
                 claude_action = "resuming if available, otherwise starting fresh"
@@ -1103,8 +1059,14 @@ def internal_supervisor_arguments(arguments: argparse.Namespace) -> list[str]:
         command.append("--continue")
     if arguments.new_claude_session:
         command.append("--new-claude-session")
+    if arguments.new_codex_session:
+        command.append("--new-codex-session")
     if arguments.fresh_station:
         command.append("--fresh-station")
+    if arguments.no_claude:
+        command.append("--no-claude")
+    if arguments.no_codex:
+        command.append("--no-codex")
     if arguments.pair_codex:
         command.append("--pair-codex")
     return command
@@ -1167,59 +1129,90 @@ def run_legacy_no_server(context: StationContext) -> int:
 
 
 def parse_arguments(argv: list[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument(
-        "workstream",
-        nargs="?",
-        default=None,
-        choices=sorted(WORKSTREAMS),
-        help="optional; inferred from the station file or the checkout's branch",
-    )
-    parser.add_argument("--machine", default="")
-    parser.add_argument(
-        "--read-only",
-        action="store_const",
-        dest="authority",
-        const="read-only-proof",
-        default="lane-commit",
-    )
-    claude_session = parser.add_mutually_exclusive_group()
-    claude_session.add_argument(
-        "--continue",
-        "-c",
-        action="store_true",
-        dest="reattach",
-        help="require a recent Claude Remote Control session to reattach",
-    )
-    claude_session.add_argument(
-        "--new-claude-session",
-        action="store_true",
-        help="skip automatic Claude reattachment and create a fresh session",
-    )
-    parser.add_argument(
-        "--fresh-station",
-        action="store_true",
-        help=(
-            "forget this checkout's recorded station and start over under the "
-            "workstream's canonical name"
+    argv = list(sys.argv[1:] if argv is None else argv)
+    show_advanced = "--help-all" in argv
+    parser = argparse.ArgumentParser(
+        description="Start or resume this checkout's Claude and Codex station.",
+        epilog=(
+            "No options needed for normal use: the workstream is inferred and both "
+            "sessions resume automatically. Stop with Ctrl+C before restarting. "
+            "Use --help-all for setup and troubleshooting options."
         ),
     )
-    parser.add_argument("--pair-codex", action="store_true")
-    parser.add_argument("--no-server", action="store_true")
+    parser.add_argument(
+        "workstream", nargs="?", choices=sorted(WORKSTREAMS),
+        help="optional override; defaults to the station file or checkout branch",
+    )
+    parser.add_argument(
+        "--fresh", nargs="?", const="both", choices=("codex", "claude", "both"),
+        help="clear both contexts, or choose codex/claude; old Codex history is archived",
+    )
+    parser.add_argument("--help-all", action="help", help="show all setup and troubleshooting options")
+
+    services = parser.add_mutually_exclusive_group()
+    services.add_argument("--no-claude", action="store_true", help="run only Codex; keep this terminal open")
+    services.add_argument("--no-codex", action="store_true", help="run only Claude; skip all Codex setup")
+
+    advanced = parser.add_argument_group("setup and troubleshooting")
+
+    def advanced_help(text: str) -> str:
+        return text if show_advanced else argparse.SUPPRESS
+
+    advanced.add_argument(
+        "--machine", default="",
+        help=advanced_help("station-name suffix when multiple machines use the same platform"),
+    )
+    advanced.add_argument(
+        "--read-only", action="store_const", dest="authority",
+        const="read-only-proof", default="lane-commit",
+        help=advanced_help("launch with read-only station authority"),
+    )
+    claude_session = advanced.add_mutually_exclusive_group()
+    claude_session.add_argument(
+        "--require-claude-resume", "--continue", "-c",
+        action="store_true", dest="reattach",
+        help=advanced_help("require the recorded Claude session; fail instead of starting a replacement"),
+    )
+    claude_session.add_argument(
+        "--new-claude-session", action="store_true", help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--new-codex-session", action="store_true", help=argparse.SUPPRESS,
+    )
+    advanced.add_argument(
+        "--pair-codex", action="store_true",
+        help=advanced_help("pair Codex Remote on Unix; Windows pairing is in Desktop settings"),
+    )
+    advanced.add_argument(
+        "--no-server", action="store_true",
+        help=advanced_help("deprecated: print a direct Codex command without provisioning a station"),
+    )
     parser.add_argument("--_supervise", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument(
-        "--permission-mode",
-        default="bypassPermissions",
-        choices=(
-            "acceptEdits",
-            "auto",
-            "bypassPermissions",
-            "default",
-            "dontAsk",
-            "plan",
-        ),
+    advanced.add_argument(
+        "--permission-mode", default="bypassPermissions",
+        choices=("acceptEdits", "auto", "bypassPermissions", "default", "dontAsk", "plan"),
+        help=advanced_help("Claude permission mode; default bypassPermissions avoids unattended prompts"),
     )
-    return parser.parse_args(argv)
+    advanced.add_argument(
+        "--fresh-station", action="store_true",
+        help=advanced_help("legacy identity reset: discard bindings and inferred machine suffix"),
+    )
+    parsed = parser.parse_args(argv)
+    if parsed.fresh_station and (parsed.no_codex or parsed.no_claude):
+        parser.error("--fresh-station resets both identities; use --fresh with service selection")
+    if parsed.no_codex and (parsed.new_codex_session or parsed.fresh == "codex" or parsed.pair_codex):
+        parser.error("Codex is disabled; omit Codex reset and pairing options")
+    if parsed.no_claude and (parsed.new_claude_session or parsed.fresh == "claude" or parsed.reattach):
+        parser.error("Claude is disabled; omit Claude reset and resume options")
+    if parsed.no_server and (parsed.no_codex or parsed.no_claude):
+        parser.error("service selection requires normal station mode; omit --no-server")
+    parsed.new_codex_session |= not parsed.no_codex and parsed.fresh in ("codex", "both")
+    parsed.new_claude_session |= not parsed.no_claude and parsed.fresh in ("claude", "both")
+    if parsed.reattach and parsed.new_claude_session:
+        parser.error("cannot request fresh Claude context and require Claude resumption together")
+    if parsed.no_server and (parsed.new_codex_session or parsed.new_claude_session):
+        parser.error("fresh sessions require station provisioning; omit --no-server")
+    return parsed
 
 
 def main(argv: list[str] | None = None) -> int:

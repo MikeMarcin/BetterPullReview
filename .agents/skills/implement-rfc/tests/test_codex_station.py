@@ -297,7 +297,7 @@ class FakeClient:
                 for thread in self.threads.values()
                 if thread.get("cwd") == cwd
                 and term in str(thread.get("name", ""))
-                and not thread.get("archived", False)
+                and thread.get("archived", False) == params.get("archived", False)
             ]
             return {"data": data, "nextCursor": None}
         if method == "thread/start":
@@ -331,6 +331,8 @@ class FakeClient:
                 )
             return {"thread": dict(self.threads[params["threadId"]])}
         if method == "thread/name/set":
+            if not self.threads[params["threadId"]]["turns"]:
+                raise codex_station.CodexStationError("no rollout found for thread id")
             self.threads[params["threadId"]]["name"] = params["name"]
             return {}
         if method == "thread/metadata/update":
@@ -341,6 +343,13 @@ class FakeClient:
             self.threads[params["threadId"]]["archived"] = False
             return {"thread": dict(self.threads[params["threadId"]])}
         if method == "thread/archive":
+            thread_id = params["threadId"]
+            if thread_id in self.stale_writer_thread_ids:
+                raise codex_station.CodexStationError(
+                    "active writer", method=method,
+                    rpc_error={"code": -32600,
+                               "message": f"thread {thread_id} already has an active writer"},
+                )
             self.threads[params["threadId"]]["archived"] = True
             return {"thread": dict(self.threads[params["threadId"]])}
         if method == "thread/unsubscribe":
@@ -438,9 +447,8 @@ class ProvisionNamedThreadTests(unittest.TestCase):
                 "project/list",
                 "thread/list",
                 "thread/start",
-                "thread/name/set",
-                "thread/read",
                 "turn/start",
+                "thread/read",
                 "thread/name/set",
                 "thread/read",
                 "thread/unsubscribe",
@@ -928,6 +936,172 @@ class ProvisionNamedThreadTests(unittest.TestCase):
                 name=self.name,
                 expected_thread_id="thr-expected",
             )
+
+    def test_new_session_archives_history_and_creates_a_new_binding(self) -> None:
+        old = {
+            "id": "thr-old", "cwd": str(self.cwd), "name": self.name,
+            "turns": [{"id": "turn-old", "status": "completed"}],
+        }
+        client = FakeClient([old])
+        new_id = codex_station.provision_named_thread(
+            client, cwd=self.cwd, name=self.name,
+            expected_thread_id="thr-old", new_session=True,
+        )
+        self.assertNotEqual(new_id, "thr-old")
+        self.assertTrue(client.threads["thr-old"]["archived"])
+        self.assertEqual(client.threads["thr-old"]["turns"], old["turns"])
+        self.assertEqual(client.threads[new_id]["name"], self.name)
+        self.assertEqual(len(client.threads[new_id]["turns"]), 1)
+        self.assertEqual(codex_station.provision_named_thread(
+            client, cwd=self.cwd, name=self.name, expected_thread_id=new_id,
+        ), new_id)
+
+    def test_new_session_refuses_active_or_unrelated_tasks_before_archiving(self) -> None:
+        for changes in (
+            {"turns": [{"id": "turn-active", "status": "inProgress"}]},
+            {"name": "unrelated"},
+            {"cwd": str(self.cwd / "other")},
+        ):
+            with self.subTest(changes=changes):
+                client = FakeClient([{
+                    "id": "thr-old", "cwd": str(self.cwd), "name": self.name,
+                    "turns": [], **changes,
+                }])
+                with self.assertRaises(codex_station.CodexStationError):
+                    codex_station.provision_named_thread(
+                        client, cwd=self.cwd, name=self.name,
+                        expected_thread_id="thr-old", new_session=True,
+                    )
+                self.assertNotIn("thread/archive", [m for m, _ in client.calls])
+                self.assertNotIn("thread/start", [m for m, _ in client.calls])
+
+    def test_new_session_on_unprovisioned_station_creates_only_one_task(self) -> None:
+        client = FakeClient()
+        codex_station.provision_named_thread(
+            client, cwd=self.cwd, name=self.name,
+            expected_thread_id=None, new_session=True,
+        )
+        self.assertEqual(len(client.threads), 1)
+        self.assertNotIn("thread/archive", [m for m, _ in client.calls])
+
+    def test_reset_explains_desktop_owned_writer_without_unsubscribing(self) -> None:
+        client = FakeClient([{
+            "id": "thr-old", "cwd": str(self.cwd), "name": self.name,
+            "turns": [{"id": "turn-old", "status": "completed"}],
+        }], stale_writer_thread_ids={"thr-old"})
+        with self.assertRaisesRegex(codex_station.CodexStationError, "Archive this exact task"):
+            codex_station.provision_named_thread(
+                client, cwd=self.cwd, name=self.name,
+                expected_thread_id="thr-old", new_session=True,
+            )
+        methods = [m for m, _ in client.calls]
+        self.assertNotIn("thread/unsubscribe", methods)
+        self.assertNotIn("thread/start", methods)
+
+    def test_reset_recognizes_archival_when_read_omits_archived_flag(self) -> None:
+        class DesktopRead(FakeClient):
+            def request(self, method: str, params: dict) -> dict:
+                result = super().request(method, params)
+                if method == "thread/read":
+                    result["thread"].pop("archived", None)
+                return result
+
+        client = DesktopRead([{
+            "id": "thr-old", "cwd": str(self.cwd), "name": self.name,
+            "archived": True,
+            "turns": [{"id": "turn-old", "status": "completed"}],
+        }])
+        new_id = codex_station.provision_named_thread(
+            client, cwd=self.cwd, name=self.name,
+            expected_thread_id="thr-old", new_session=True,
+        )
+        self.assertNotEqual(new_id, "thr-old")
+        self.assertNotIn("thread/archive", [m for m, _ in client.calls])
+
+    def test_archive_collision_rechecks_turns_before_releasing_writer(self) -> None:
+        client = FakeClient([{
+            "id": "thr-old", "cwd": str(self.cwd), "name": self.name,
+            "turns": [{"id": "turn-active", "status": "inProgress"}],
+        }], stale_writer_thread_ids={"thr-old"})
+        with self.assertRaisesRegex(codex_station.CodexStationError, "active turn"):
+            codex_station._archive_idle_thread(client, "thr-old")
+        self.assertNotIn("thread/unsubscribe", [m for m, _ in client.calls])
+
+    def test_archive_writer_collision_is_not_retried(self) -> None:
+        class PersistentWriter(FakeClient):
+            def request(self, method: str, params: dict) -> dict:
+                if method == "thread/archive":
+                    self.stale_writer_thread_ids.add(params["threadId"])
+                return super().request(method, params)
+
+        client = PersistentWriter([{"id": "thr-old", "turns": []}])
+        with self.assertRaises(codex_station.CodexStationError):
+            codex_station._archive_idle_thread(client, "thr-old")
+        self.assertEqual([m for m, _ in client.calls].count("thread/archive"), 1)
+
+    def test_failed_reset_keeps_old_history_and_can_retry_archived_binding(self) -> None:
+        client = FakeClient([{
+            "id": "thr-old", "cwd": str(self.cwd), "name": self.name,
+            "turns": [{"id": "turn-old", "status": "completed"}],
+        }], turn_status="failed")
+        with self.assertRaisesRegex(codex_station.CodexStationError, "failed"):
+            codex_station.provision_named_thread(
+                client, cwd=self.cwd, name=self.name,
+                expected_thread_id="thr-old", new_session=True,
+            )
+        self.assertTrue(client.threads["thr-old"]["archived"])
+        self.assertEqual(client.calls[-1][0], "thread/unsubscribe")
+        client.turn_status = "completed"
+        new_id = codex_station.provision_named_thread(
+            client, cwd=self.cwd, name=self.name,
+            expected_thread_id="thr-old", new_session=True,
+        )
+        self.assertNotEqual(new_id, "thr-old")
+        self.assertNotIn("thread/unarchive", [m for m, _ in client.calls])
+
+    def test_registered_named_task_survives_unavailable_rename_rpc(self) -> None:
+        class ReadableDesktopClient(FakeClient):
+            def request(self, method: str, params: dict) -> dict:
+                if method == "thread/name/set":
+                    raise codex_station.CodexStationError(
+                        "no rollout found for thread id thr-existing"
+                    )
+                return super().request(method, params)
+
+        client = ReadableDesktopClient([
+            {
+                "id": "thr-existing",
+                "cwd": str(self.cwd),
+                "name": self.name,
+                "turns": [{"id": "turn-existing", "status": "completed"}],
+            }
+        ])
+        self.assertEqual(
+            codex_station.provision_named_thread(
+                client, cwd=self.cwd, name=self.name,
+                expected_thread_id="thr-existing",
+            ),
+            "thr-existing",
+        )
+
+    def test_bootstrap_failure_reports_server_error_message(self) -> None:
+        message = "The 'gpt-6-astra' model requires a newer version of Codex."
+
+        class UpgradeRequiredClient(FakeClient):
+            def wait_for_notification(self, *args, **kwargs) -> dict:
+                result = super().wait_for_notification(*args, **kwargs)
+                result["turn"]["status"] = "failed"
+                result["turn"]["error"] = {"message": message}
+                return result
+
+        client = UpgradeRequiredClient(turn_status="inProgress")
+        with self.assertRaises(codex_station.CodexStationError) as failure:
+            codex_station.provision_named_thread(
+                client, cwd=self.cwd, name=self.name, expected_thread_id=None,
+            )
+        self.assertIn(message, str(failure.exception))
+        self.assertIn("failed", str(failure.exception))
+        self.assertEqual(client.calls[-1][0], "thread/unsubscribe")
 
 
 class ReleaseNamedThreadsTests(unittest.TestCase):

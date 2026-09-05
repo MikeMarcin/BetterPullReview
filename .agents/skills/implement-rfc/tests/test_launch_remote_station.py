@@ -26,6 +26,9 @@ def arguments(**overrides: object) -> argparse.Namespace:
         "reattach": False,
         "new_claude_session": False,
         "fresh_station": False,
+        "new_codex_session": False,
+        "no_codex": False,
+        "no_claude": False,
         "pair_codex": False,
         "no_server": False,
         "_supervise": False,
@@ -263,13 +266,6 @@ class LauncherTests(unittest.TestCase):
             target.with_name(launcher.CLAUDE_BRIDGE_BACKUP_NAME).exists()
         )
 
-    def test_fresh_claude_announces_the_bound_name(self) -> None:
-        notice = launcher.session_bound_notice(self.context)
-        self.assertIn("fx-main-mac", notice)
-        self.assertIn("as soon as it starts", notice)
-        self.assertIn("opens in this terminal", notice)
-        self.assertIn("--continue", notice)
-
     def test_workstream_is_inferred_from_the_station_file(self) -> None:
         self.context.station_file.write_text(
             json.dumps({"schema": launcher.STATION_SCHEMA, "workstream": "linux"}),
@@ -476,8 +472,8 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(migrated["codex"], codex)
         self.assertIsNone(migrated["claude"])
         self.assertEqual(
-            run.call_args.args[0][0:3],
-            ["claude", "--remote-control", self.context.name],
+            run.call_args.args[0][0:2],
+            ["claude", "remote-control"],
         )
 
     def test_exact_session_id_is_forwarded_only_to_claude(self) -> None:
@@ -491,58 +487,6 @@ class LauncherTests(unittest.TestCase):
         self.assertNotIn("--continue", command)
         self.assertNotIn("--name", command)
         self.assertNotIn("--spawn", command)
-
-    def test_fresh_claude_is_the_interactive_form_bound_to_the_station_name(self) -> None:
-        """The served session is the process itself, so the name binds at launch.
-
-        The `remote-control` server, `--spawn session` included, creates its
-        session only when a controller connects: four probes of it on
-        2026-09-01 left no session and no peer-list entry, while the
-        interactive form was listed under its name within seconds.
-        """
-        command = launcher.claude_command(
-            arguments(),
-            self.context,
-            reattach=False,
-        )
-
-        self.assertEqual(command[:3], ["claude", "--remote-control", self.context.name])
-        self.assertIn("--permission-mode", command)
-        self.assertNotIn("remote-control", command)
-        self.assertNotIn("--spawn", command)
-        self.assertNotIn("--name", command)
-
-    def test_reattach_without_an_id_continues_the_directory_conversation(self) -> None:
-        command = launcher.claude_command(
-            arguments(reattach=True),
-            self.context,
-            reattach=True,
-            continue_conversation=True,
-        )
-        self.assertEqual(
-            command[:4],
-            ["claude", "--continue", "--remote-control", self.context.name],
-        )
-        self.assertNotIn("--session-id", command)
-
-    def test_normal_start_continues_a_directory_conversation_then_falls_back(self) -> None:
-        unavailable = subprocess.CompletedProcess(["claude"], 1)
-        fresh = subprocess.CompletedProcess(["claude"], 0)
-        with (
-            mock.patch.object(launcher, "has_local_conversation", return_value=True),
-            mock.patch.object(
-                launcher.subprocess,
-                "run",
-                side_effect=[unavailable, fresh],
-            ) as run,
-            mock.patch.object(launcher.time, "monotonic", return_value=10.0),
-        ):
-            result = launcher.run_claude(arguments(), self.context)
-
-        self.assertEqual(result, 0)
-        self.assertIn("--continue", run.call_args_list[0].args[0])
-        self.assertNotIn("--continue", run.call_args_list[1].args[0])
-        self.assertEqual(run.call_args_list[1].args[0][:2], ["claude", "--remote-control"])
 
     def test_normal_start_reattaches_then_falls_back_to_fresh_claude(self) -> None:
         unavailable = subprocess.CompletedProcess(["claude"], 1)
@@ -598,7 +542,7 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertNotIn("--session-id", run.call_args.args[0])
         self.assertNotIn("--continue", run.call_args.args[0])
-        self.assertEqual(run.call_args.args[0][:3], ["claude", "--remote-control", self.context.name])
+        self.assertEqual(run.call_args.args[0][:2], ["claude", "remote-control"])
 
     def test_explicit_new_claude_session_skips_reattachment(self) -> None:
         fresh = subprocess.CompletedProcess(["claude"], 0)
@@ -730,6 +674,7 @@ class LauncherTests(unittest.TestCase):
             cwd=context.root,
             name=context.name,
             expected_thread_id=None,
+            new_session=False,
         )
 
     def test_a_normal_relaunch_archives_nothing(self) -> None:
@@ -807,8 +752,8 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(written["codex"], codex)
         self.assertIsNone(written["claude"])
         self.assertEqual(
-            run.call_args.args[0][0:3],
-            ["claude", "--remote-control", self.context.name],
+            run.call_args.args[0][0:2],
+            ["claude", "remote-control"],
         )
 
     def test_pairing_is_explicit_and_follows_local_provisioning(self) -> None:
@@ -961,6 +906,7 @@ class LauncherTests(unittest.TestCase):
             cwd=context.root,
             name=context.name,
             expected_thread_id=None,
+            new_session=False,
         )
         connect.assert_not_called()
         ensure_remote.assert_not_called()
@@ -1096,6 +1042,147 @@ class LauncherTests(unittest.TestCase):
         current = json.loads(self.context.station_file.read_text(encoding="utf-8"))
         self.assertEqual(current["station_id"], "stn-1234abcd")
         self.assertIsNone(current["codex"])
+
+    def test_new_codex_flag_crosses_lease_boundary(self) -> None:
+        parsed = launcher.parse_arguments(["main", "--new-codex-session"])
+        self.assertIn("--new-codex-session", launcher.internal_supervisor_arguments(parsed))
+        self.assertFalse(parsed.new_claude_session)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            launcher.parse_arguments(["main", "--new-codex-session", "--no-server"])
+
+    def test_service_selection_and_fresh_apply_only_to_enabled_service(self) -> None:
+        for flag in ("--no-codex", "--no-claude"):
+            parsed = launcher.parse_arguments(["main", flag, "--fresh"])
+            self.assertEqual(parsed.new_codex_session, flag == "--no-claude")
+            self.assertEqual(parsed.new_claude_session, flag == "--no-codex")
+            self.assertIn(flag, launcher.internal_supervisor_arguments(parsed))
+        for flags in (
+            ["--no-codex", "--no-claude"],
+            ["--no-codex", "--pair-codex"],
+            ["--no-codex", "--fresh", "codex"],
+            ["--no-claude", "--continue"],
+            ["--no-claude", "--fresh", "claude"],
+            ["--no-claude", "--no-server"],
+        ):
+            with self.subTest(flags=flags):
+                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                    launcher.parse_arguments(flags)
+
+    def test_claude_only_skips_codex_and_preserves_its_binding(self) -> None:
+        codex = {"thread_id": "thr-old", "thread_name": self.context.name}
+        launcher.atomic_write_json(self.context.station_file, {"codex": codex})
+        def run(*args, **kwargs):
+            kwargs["record_session"]("session_New123")
+            return 0
+        with (
+            mock.patch.object(launcher, "provision_codex", side_effect=AssertionError("Codex is down")),
+            mock.patch.object(launcher, "run_claude", side_effect=run),
+        ):
+            self.assertEqual(launcher.supervise(arguments(no_codex=True), self.context), 0)
+        saved = launcher.load_station_file(self.context.station_file)
+        self.assertEqual(saved["codex"], codex)
+        self.assertEqual(saved["claude"]["session_id"], "session_New123")
+
+    def test_codex_only_holds_supervisor_open_without_starting_claude(self) -> None:
+        claude = {"session_id": "session_Old123"}
+        launcher.atomic_write_json(self.context.station_file, {"claude": claude})
+        events = []
+        @contextlib.contextmanager
+        def provision(*args, **kwargs):
+            events.append("open")
+            yield {"thread_id": "thr-new", "cli_version": "0.151.0"}
+            events.append("close")
+        def wait():
+            self.assertEqual(events, ["open"])
+            return 0
+        with (
+            mock.patch.object(launcher, "provision_codex", side_effect=provision),
+            mock.patch.object(launcher, "run_claude", side_effect=AssertionError("Claude is down")),
+            mock.patch.object(launcher, "wait_for_station_stop", side_effect=wait),
+        ):
+            self.assertEqual(launcher.supervise(arguments(no_claude=True), self.context), 0)
+        self.assertEqual(events, ["open", "close"])
+        self.assertEqual(launcher.load_station_file(self.context.station_file)["claude"], claude)
+
+    def test_codex_only_wait_stops_cleanly_on_ctrl_c(self) -> None:
+        with mock.patch.object(launcher.time, "sleep", side_effect=KeyboardInterrupt):
+            self.assertEqual(launcher.wait_for_station_stop(), 0)
+
+    def test_fresh_options_and_legacy_flags_reach_the_same_supervisor(self) -> None:
+        for flags, codex, claude in (
+            ([], False, False),
+            (["--fresh"], True, True),
+            (["--fresh", "both"], True, True),
+            (["--fresh", "codex"], True, False),
+            (["--fresh", "claude"], False, True),
+            (["--new-codex-session"], True, False),
+            (["--new-claude-session"], False, True),
+        ):
+            with self.subTest(flags=flags):
+                parsed = launcher.parse_arguments(["main", *flags])
+                self.assertEqual(parsed.new_codex_session, codex)
+                self.assertEqual(parsed.new_claude_session, claude)
+                forwarded = launcher.internal_supervisor_arguments(parsed)
+                self.assertEqual("--new-codex-session" in forwarded, codex)
+                self.assertEqual("--new-claude-session" in forwarded, claude)
+
+    def test_fresh_claude_conflicts_with_strict_resume(self) -> None:
+        for flags in (
+            ["--fresh", "--require-claude-resume"],
+            ["--fresh", "claude", "--continue"],
+            ["--fresh", "--no-server"],
+        ):
+            with self.subTest(flags=flags):
+                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                    launcher.parse_arguments(flags)
+        parsed = launcher.parse_arguments(["--fresh", "codex", "--require-claude-resume"])
+        self.assertTrue(parsed.reattach)
+        self.assertFalse(parsed.new_claude_session)
+
+    def test_help_separates_everyday_and_advanced_options(self) -> None:
+        for flag, advanced in (("--help", False), ("--help-all", True)):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as result:
+                launcher.parse_arguments([flag])
+            self.assertEqual(result.exception.code, 0)
+            self.assertIn("--fresh", output.getvalue())
+            self.assertEqual("--permission-mode" in output.getvalue(), advanced)
+            self.assertEqual("--require-claude-resume" in output.getvalue(), advanced)
+
+    def test_new_codex_session_updates_registry_and_preserves_claude(self) -> None:
+        old = launcher.station_document(
+            self.context, station_id="stn-existing",
+            codex={"thread_id": "thr-old"},
+            claude={"session_id": "session_Existing123"},
+        )
+        launcher.atomic_write_json(self.context.station_file, old)
+        new = {"thread_id": "thr-new", "thread_name": self.context.name,
+               "cli_version": "0.151.0"}
+        with (
+            mock.patch.object(launcher, "provision_codex",
+                              return_value=contextlib.nullcontext(new)) as provision,
+            mock.patch.object(launcher, "run_claude", return_value=0) as claude,
+        ):
+            self.assertEqual(launcher.supervise(
+                arguments(new_codex_session=True), self.context,
+            ), 0)
+        self.assertTrue(provision.call_args.kwargs["new_session"])
+        saved = launcher.load_station_file(self.context.station_file)
+        self.assertEqual(saved["codex"], new)
+        self.assertEqual(saved["claude"], old["claude"])
+        self.assertEqual(saved["station_id"], old["station_id"])
+        self.assertEqual(claude.call_args.kwargs["session_id"], "session_Existing123")
+
+    def test_fresh_claude_session_has_the_station_name_and_spawn_mode(self) -> None:
+        command = launcher.claude_command(
+            arguments(),
+            self.context,
+            reattach=False,
+        )
+
+        self.assertEqual(command[:2], ["claude", "remote-control"])
+        self.assertEqual(command[command.index("--name") + 1], self.context.name)
+        self.assertIn("--spawn", command)
 
 
 if __name__ == "__main__":
