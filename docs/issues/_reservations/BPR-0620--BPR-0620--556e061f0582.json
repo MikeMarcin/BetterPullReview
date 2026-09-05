@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0620"
+  ],
+  "reserve_for": "bpr-main-mac-agent-parent-death",
+  "purpose": "",
+  "created": "2026-09-05T22:55:03.355759+00:00",
+  "base": "f34175dcd15ecebef6b9a15b978ca55ab72750da"
+}
