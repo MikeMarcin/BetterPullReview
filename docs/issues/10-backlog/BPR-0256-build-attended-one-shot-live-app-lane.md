@@ -1,9 +1,9 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449]
+depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560]
 ---
 
 # Build the attended one-shot live application lane
@@ -1153,3 +1153,7 @@ another platform. No full matrix or new target-native platform run is claimed.
 ## Exact owner approval received — 2026-09-04
 
 The owner returned the [v007 approval](../../verification/reviews/designated-live-review-publication-v007/operator-response.md). Removing only Markdown quote prefixes and blank-line presentation yields the exact packet approval text, with all wording and identities unchanged. The packet digest, eight artifact hash/size pairs, all 37 current and committed source entries, unspent replay identity, and empty private mount parent revalidate. This authorizes only the packet's one attended publication attempt with browser/device sign-in and explicit Sign out. The card resumes for materialization, final static command inspection and the authorized attended run; no execution result is claimed yet.
+
+## v007 consumed; application sign-in refused — 2026-09-04
+
+The [attended result](../../verification/reviews/designated-live-review-publication-v007/attended-result.md) records the exact one-use run. GitHub browser authorization completed for the operator-reported MikeMarcin account, but the application refused data before session establishment. No PR or comment was opened/submitted. Explicit Sign out cleared the diagnostic, normal shutdown passed in 248.79 seconds, and the image detached. The approval is spent and cannot be retried. BPR-0559 investigates the supported-response failure and BPR-0560 fixes the owner's inability to copy the diagnostic. This card returns to backlog behind those repairs; no successor approval is requested before their work is concrete.

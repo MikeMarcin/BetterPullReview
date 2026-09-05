@@ -281,3 +281,7 @@ review is recorded on BPR-0256. It now awaits its own exact operator decision. v
 approval, live run, comment or GitHub UI observation exists for v007. The
 one-comment course includes explicit Sign out cleanup; any web reply remains
 a separate authority. This card's completion evidence is unchanged and open.
+
+## v007 attended disposition — 2026-09-04
+
+The owner approved v007 and its single run consumed the approval. Browser authorization completed, but the app refused GitHub data before establishing a session. No comment was published. Explicit Sign out and normal shutdown completed; the image detached. See the [frozen run result](../../verification/reviews/designated-live-review-publication-v007/attended-result.md). BPR-0559/BPR-0560 now precede BPR-0256 regeneration; v007 cannot be retried.
