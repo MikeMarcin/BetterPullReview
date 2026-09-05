@@ -24,8 +24,8 @@ live checks remain open. Closure still waits for BPR-0507 and every remaining
 criterion below. Advanced logging and broad Glaze conversion remain deferred.
 
 Planned cards: BPR-0616 (review-publication kill recovery, Done), BPR-0618
-(Git-fetch/epoch kill recovery, Done), and BPR-0619 (kill live SQLite journal
-transactions). Allocate later
+(Git-fetch/epoch kill recovery, Done), and BPR-0619 (live SQLite journal
+transaction kill recovery, Done). Allocate later
 slices after inspecting retained product coverage; do not introduce a parallel
 performance subsystem or fabricate timing budgets before measurement.
 
@@ -38,18 +38,20 @@ performance subsystem or fabricate timing budgets before measurement.
 | Memory and cache usage remain within documented budgets and recover after closing/pruning reviews. | Measure process/cache retention through close and prune; justify hardware-specific thresholds before enforcing them. | Open; no RFC-wide passing result claimed. |
 | Primary and secondary rate-limit simulations produce bounded backoff and useful UI state. | Reuse and assess provider/host rate-limit fixtures and their visible projection; add uncovered backoff cases. | Open; no RFC-wide passing result claimed. |
 | Offline mode uses clearly labeled cached data and never implies freshness. | Inspect selected cached-data behavior and exercise explicit stale/offline presentation. | Open; no RFC-wide passing result claimed. |
-| Process-kill tests recover Git cache and SQLite state without corruption or duplicate mutations. | BPR-0616: `live_review_submission_provider` and `live_review_submission_restart_recovery` passed 2/2, including five SIGKILL courses, SQLite integrity and zero duplicate POSTs. BPR-0618: all four real fetch/spool/prepared/visible kill courses pass, with repeated restart, exact epoch/ref identity, Git fsck, SQLite integrity and owned-spool cleanup. BPR-0619 now reproduces actual transaction interruptions: all six SQL rollback checks pass, but receiving (with/without history) and first-install startup fail; its repair remains open. AI kill remains to be scoped. | Partial passing evidence in BPR-0616 (`72022b52`) and BPR-0618 (`081fc9d1`, `21255d9c`); full criterion remains open. |
+| Process-kill tests recover Git cache and SQLite state without corruption or duplicate mutations. | BPR-0616: `live_review_submission_provider` and `live_review_submission_restart_recovery` passed 2/2, including five SIGKILL courses, SQLite integrity and zero duplicate POSTs. BPR-0618: all four real fetch/spool/prepared/visible kill courses pass, with repeated restart, exact epoch/ref identity, Git fsck, SQLite integrity and owned-spool cleanup. BPR-0619: all six receiving/spool/install transaction kills pass, including prior-history identity and two fresh restarts; unowned artifacts are preserved and new incoming admission is bounded. AI kill remains to be scoped. | Partial passing evidence in BPR-0616 (`72022b52`) BPR-0618 (`081fc9d1`, `21255d9c`) and BPR-0619 (`62c62c6d`); full criterion remains open. |
 | Fuzzers cover diff parsing/mapping, Markdown, settings/themes, API normalization, Git output parsing, and AI structured output. | Inventory custom parser entry points and add bounded fuzz targets/corpora for uncovered surfaces. | Open; no RFC-wide passing result claimed. |
 | Logging and diagnostics remain metadata-only under large/error conditions. | Reuse basic Quill metadata-only and bounded-backpressure evidence (BPR-0602, BPR-0606); assess pathological workloads. | Open; no RFC-wide passing result claimed. |
 | Architecture benchmarks and instrumentation prove active-set/changed-set scaling, serialized decision application, incremental Qt updates, deterministic cancellation, and stale-result rejection. | Reuse diff scale / host identity / incremental Qt evidence where inputs are unchanged; measure uncovered public paths. | Open; no RFC-wide passing result claimed. |
 
 ## Continuation
 
-BPR-0616 and BPR-0618 are complete. BPR-0619 is the next bounded slice:
-Six real receiving/spool/install transaction kills now verify SQL rollback.
-Three recovery courses fail: receiving with and without prior history, and
-first installation. Repair those gaps without deleting unowned artifacts;
-the passing spool and preexisting-install courses retain exact history. AI-session kill and measured public-path performance
-work follow. Reuse unchanged direct evidence from earlier RFCs. Run only
-acceptance-focused local checks; no GitHub Actions, push, paid CI or live
-mutation is part of this work.
+BPR-0616, BPR-0618 and BPR-0619 are complete. Next, scope the required
+AI-session kill lane against the existing agent invocation host, protocol loop
+and application composition fixtures. The inspected invocation-host tests cover
+cooperative cancellation and a later run, but do not contain forced parent
+process death; do not relabel that evidence as crash recovery. Use a local fake
+agent process, never a paid/live agent invocation. Then inventory retained
+public-path scale, memory, backoff/offline and parser-fuzz coverage before
+allocating missing bounded slices. Reuse unchanged direct evidence from earlier
+RFCs. No GitHub Actions, workflow dispatch, push, paid CI or live mutation is
+part of this work. RFC-0013 and this closeout remain open.
