@@ -278,3 +278,14 @@ no temporary worktree or new evidence/build root was created.
 The owner supplied the exact [v004 response](../../verification/reviews/device-session-bootstrap-diagnostic-v004/operator-response.md). Packet and executable hashes and executable length match; native inventory showed no app instance. Resume this single sign-in-only run and sanitized local-log reading, followed by explicit Sign out and quit. No PR or publication is authorized.
 
 The exact approved v004 executable launched once at 2026-09-05T08:51:41Z, PID 3736, with no arguments, the specified 24 environment variables removed and child stdout/stderr discarded. Log baseline was zero bytes. Native UI showed GitHub.com Native HTTPS, no connected host and empty device-code fields. The new log exists and contains startup. A Raise action reported user UI movement; foreground activation is not claimed. Continue this existing process only; operator browser authorization and its terminal result are pending, then explicit Sign out and quit. No relaunch is authorized.
+
+## v004 identifies the concrete query-policy failure
+
+The [logged result](../../verification/reviews/device-session-bootstrap-diagnostic-v004/attended-result.md)
+identifies `INTROSPECTION_LIMIT_EXCEEDED`. GitHub allows each introspection field
+twice per query; our document repeats fields/args 17 times, enumValues three and
+inputFields four. Viewer succeeds and capability HTTP 200 fails before schema
+acceptance. Explicit Sign out, disconnected UI, normal exit 0 and logged shutdown
+completed. V004 authority is consumed; no PR/publication ran. Continue offline
+query repair and an exact repetition-limit regression. Do not weaken capability
+validation or add another speculative diagnostic enum.
