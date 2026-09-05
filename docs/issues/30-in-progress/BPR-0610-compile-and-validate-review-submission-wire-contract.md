@@ -17,7 +17,13 @@ summary/inline prose. Existing source-line publication keeps its semantics.
 ## Ownership and scope
 
 Own `src/adapters/github/src/github_mutation_contract.hpp`, its `.cpp`, and
-`tests/github_contract/github_mutation_contract_tests.cpp`. Add a typed
+`tests/github_contract/github_mutation_contract_tests.cpp`, the central Glaze
+provider and dependency registration, GitHub target linkage, Glaze license and
+provenance, and focused dependency checks. The owner requested Glaze during
+implementation. Pin Glaze v8.3.0 and use typed JSON parsing/serialization for
+this new contract. Retain existing structural preflight bounds/duplicate-key
+checks; do not add a parallel hand-written numeric parser or migrate unrelated
+Qt parsers in this slice. Add a typed
 adapter-private review submission input with target, acting identity,
 disposition and summary body. Compile ordinary REST `POST /pulls/{n}/reviews`
 with explicit exact head, event and literal body; never create a pending review.
@@ -53,3 +59,12 @@ This is direct wire-contract evidence; no live review or shipped UI claim.
 [GitHub create-review contract](https://docs.github.com/en/rest/pulls/reviews?apiVersion=2022-11-28#create-a-review-for-a-pull-request),
 consulted 2026-09-05: explicit event submits the review, `body` is required
 for Comment and Request Changes, and creation responds with status 200.
+
+## Parser correction and owner preference — 2026-09-05
+
+The initial Qt-based candidate reproduced malformed `user.id` rounding:
+`22.0000000000000001` became the expected integer `22`. Raw response probes
+also cover malformed surrogate text and review IDs. These must pass using
+Glaze before completion; an earlier green fixture run is superseded.
+
+Closeout review runtime: native collaboration (gpt-6-astra, high).
