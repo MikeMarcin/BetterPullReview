@@ -1,8 +1,7 @@
 ---
 id: BPR-0559
 title: Diagnose device sign-in response refusal after browser authorization
-status: Parked
-parked_on: awaiting-owner-verdict
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -76,3 +75,7 @@ binary is required; v007 publication authority is spent and cannot be reused.
 ## Pending sign-in-only observation
 
 The [diagnostic checkpoint](../../verification/reviews/device-session-bootstrap-diagnostic-v001/operator-packet.md) is complete and ready for the owner. Packet SHA-256 `bfab453132fc6b5f2958555be2a575b6ad7542a187da83b794482099ded2c3fb` binds the exact 10,656,768-byte ordinary Release executable `5e27a59a8e4c0c663b36626860da9368ab62b2ca5bf56e09d63c25d92c0ac1ec`. No response has been supplied, no diagnostic run launched and no publication authority created. The card parks awaiting the owner; the actual root cause and repair criterion remain open. The existing Release build is retained for this active consumer. No temporary worktree or inspection logs remain.
+
+## Approved diagnostic observation — 2026-09-04
+
+The owner supplied the exact [one-run approval](../../verification/reviews/device-session-bootstrap-diagnostic-v001/operator-response.md). Packet and binary hashes match. The integrator resumes this card for the sign-in-only observation and cleanup; no PR or publication is authorized.
