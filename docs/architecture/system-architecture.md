@@ -666,7 +666,7 @@ pathname-based, and the generated CTest manifest/cache remains the trusted
 same-UID execution plan. Each reviewed packet therefore binds its exact stored
 DMG; separate image builds are not expected to be byte-identical.
 
-The production carrier is private and one-use. It first binds the application
+The source-line production carrier is private and one-use. It first binds the application
 session, workbench generation, exact target, and authenticated actor. The host
 then validates comparison, file, right-side semantic anchor, resolved path,
 and current head before atomically consuming the carrier immediately before

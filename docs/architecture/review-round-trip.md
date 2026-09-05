@@ -62,8 +62,8 @@ OID/ref, and head OID/ref. The acting database ID, node ID, and login are
 deliberately not compiled allowlist constants. They are taken from the exact
 authenticated session, cross-bound to its account/profile/host lease and
 accepted snapshot, and re-observed by the provider. An ordinary production
-launch has no execution authority and refuses before queuing an effect. The
-only production issuer is the attended bootstrap described below: it consumes
+launch has no source-line execution authority and refuses before queuing an effect. The
+only source-line production issuer is the attended bootstrap described below: it consumes
 one owner-private approval bound to the exact shipped executable, source
 surface, designated target, public target observation, and the schema, absolute
 normalized path, and random identity of one explicit replay namespace. The
@@ -571,6 +571,35 @@ completed live or attended run.
 The fixture proves what BetterPullReview sends and how it reacts. Only GitHub
 can show what GitHub makes of it.
 
+
+## Whole-review application host
+
+BPR-0615 adds `review_submission_application_host` beside the source-line host.
+It accepts one operation at a time and owns its stop source and exact session,
+generation and request context. Provider construction, storage opening,
+discovery, execution and destruction occur on the effect worker. Each accepted
+operation posts one terminal to the serialized decision lane, including explicit
+cancellation and shutdown. A busy, closed or unauthorized call is not accepted
+and queues no effect. The composition must retain the decision executor and
+projection through quiescence and reject retired session/generation before
+inspecting a terminal's summary.
+
+Whole-review authority is an independent, opaque, revocable, one-use grant. It
+binds session, generation, draft/attempt, complete authenticated target/actor,
+summary, disposition and retry key. Source-line grants cannot be substituted.
+The private whole-review issuer is intended for the normal authenticated Submit
+review handler after its core command is accepted for the exact displayed draft.
+This is the implementation's product assumption; no owner verdict is fabricated
+and it does not authorize an agent to run a live publication. Test builds refuse
+production issuance and use separate fixture grants. The app does not yet select
+this host or issuer; normal controls and composition remain in progress.
+
+Read-only discovery/reconciliation need no new publication grant and cannot
+select a submit effect. Discovery validates every recovered request's stable
+actor/PR scope before publishing the bounded list. Provider results with stale
+draft/attempt, a different request or an invalid receipt become an indeterminate
+result for the original request. A stop after confirmed publication cannot erase
+its receipt; a provider exception or timeout cannot establish nonpublication.
 
 ## Whole-review provider boundary
 

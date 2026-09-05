@@ -133,3 +133,56 @@ Documentation structure, all 62 documentation tests and `git diff --check` passe
 Remaining in this card: async host and exact one-use whole-review authority,
 normal PR-level editor, real composition/lifecycle and public-control fixtures.
 The four BPR-0143 live actions remain approved and unexecuted.
+
+
+## Async host progress — 2026-09-05
+
+The second slice implements `review_submission_application_host`, a separate
+one-use whole-review grant and a private user-submit issuer. The product
+implementation proceeds with normal authenticated Submit review as the stated
+recommended assumption, following the user's continuation; this is not recorded
+as an owner verdict or live-publication authorization. Source-line attended
+approval remains a distinct path. Production issuance refuses in test builds.
+
+The host accepts one operation at a time, constructs and destroys each provider
+on the effect worker, retains exact request/key context, and posts one terminal
+on the decision lane even through cancellation/shutdown. Read-only discovery and
+reconciliation need no new publication grant. Stale/invalid results remain
+indeterminate for the original request. Fixture tests cover all dispositions,
+no grant, exact scope, summary/disposition mismatch, replay, revocation, expiry,
+session/generation mismatch, pending discovery, stale attempts, invalid receipts,
+provider exceptions, enqueue failure, reentrant projection feedback and shutdown.
+The fixture directly checks provider creation/destruction stays off the decision
+lane. The core continues to own draft legality; no Qt or app selection is added
+in this slice.
+
+Verification:
+
+- Dev host target and production `build/app-release` application-library target
+  built successfully. Production application launch was not performed.
+- The eight-selector command below passed the host, prior source-line host,
+  architecture and isolation checks. Two pre-existing core/contract binaries
+  were absent in `build/dev`; after building those targets, their focused rerun
+  passed 2/2 in 0.60 seconds. No product assertion failed.
+
+```sh
+ctest --test-dir build/dev --output-on-failure -R '^(application_review_submission_application_host|application_review_mutation_application_host|application_review_submission_contract|core_review_submission|architecture_boundaries|architecture_boundary_contract|test_network_isolation_manifest|test_network_isolation_structure_contract)$'
+ctest --test-dir build/dev --output-on-failure -R '^(core_review_submission|application_review_submission_contract)$'
+```
+
+Scoped format and code-simplifier inspection passed. Documentation and diff
+gates pass. Existing ordinary build roots only; no retained temporary fixtures,
+credentials, logs or remote mutations. Optional independent host/authority
+review remains useful once real composition is connected; the available worker
+runtime previously exhausted its usage limit and was not repeatedly retried.
+
+Next: add core-decided controls and a separate `review_submission_editor` in the
+workbench conversations drawer, then wire accepted PR handoff, provider factory,
+pending restoration, core commands/terminals and shutdown in real composition.
+Use a separate `review_submission_composition_public_path.cpp` fixture executable
+through ordinary controls rather than extending the main CLI state machine.
+Preserve PR drafts on file navigation and identical refresh; changed authority
+must not silently rebind a draft. The app must retain the executor/projection
+through host quiescence. Add production selection/compile-seal checks and source
+manifest updates when these new components become selected. BPR-0615 remains
+In Progress and no RFC acceptance or live course is closed by this host slice.

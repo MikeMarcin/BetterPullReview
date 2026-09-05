@@ -283,3 +283,14 @@ moved head/base/refs and zero recovery POSTs. Prepared attempts stay unresolved;
 no new SQLite schema, live effects or credentials are involved. The card remains
 In Progress for host/authority, Qt controls and real application composition.
 BPR-0143 remains separately parked; its four authorized actions have not run.
+
+
+BPR-0615's recovery slice is committed at `f79c3628`. Its next host slice adds
+worker-owned provider lifetime, serialized exactly-once terminals and an opaque
+whole-review one-use grant. The normal authenticated Submit review policy is a
+stated implementation assumption, not a fabricated owner verdict or live-test
+permission. Dev and production application-library builds pass; selected host,
+core/contract, architecture and isolation checks pass after building two missing
+dev regression binaries. The card records exact commands. Next is the separate
+PR-level editor and real composition/public-control course; no live acceptance
+claim changes and RFC-BPR-0008 remains Proposed.

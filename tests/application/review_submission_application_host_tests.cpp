@@ -1,0 +1,272 @@
+#include "bpr/application/manual_executor.hpp"
+#include "bpr/application/review_mutation_application_host.hpp"
+#include "bpr/application/review_submission_application_host.hpp"
+#include "review_submission_execution_authority.hpp"
+#include <array>
+#include <cstdlib>
+#include <iostream>
+#include <stdexcept>
+#include <type_traits>
+
+namespace {
+	using namespace bpr;
+
+	void expect(const bool aCondition, const std::string_view aMessage)
+	{
+		if (!aCondition) {
+			std::cerr << "FAILED: " << aMessage << '\n';
+			std::exit(EXIT_FAILURE);
+		}
+	}
+
+	[[nodiscard]] auto request() -> application::review_submission_request
+	{
+		auto bytes = std::array<std::uint8_t, 32>{ };
+		bytes.fill(1U);
+		const auto target = core::review_mutation_target{
+			.Host = core::git_host_id{ 1U }, .Repository = core::repository_id{ 2U }, .PullRequest = core::pull_request_id{ 3U }, .ExpectedHead = core::git_commit_oid{ core::git_hash_algorithm::sha256, bytes }
+		};
+		const auto draft = core::review_submission_draft{
+			.Id = core::review_submission_draft_id{ 7U }, .Target = target, .ActingAccount = core::github_account_id{ 4U }, .Disposition = core::review_disposition::approve
+		};
+		const auto begun = core::apply(draft, { .Id = draft.Id, .Kind = core::review_submission_command_kind::begin_submit });
+		return { .Proposal = *core::propose(*begun.Draft), .IdempotencyKey = "fixture-review-key", .LiveBinding = application::review_submission_live_binding{ .Target = { .Semantic = target, .Hostname = application::github_canonical_hostname{ "github.com" }, .Repository = { .Owner = "fixture-owner", .Name = "fixture-repo" }, .Number = core::pull_request_number{ 1U }, .RepositoryDatabaseId = 11U, .RepositoryNodeId = "R_fixture", .PullRequestDatabaseId = 12U, .PullRequestNodeId = "PR_fixture", .BaseRepositoryDatabaseId = 11U, .BaseOid = target.ExpectedHead, .BaseRef = "main", .HeadRef = "fixture-review", .Open = true }, .ActingIdentity = { .Account = draft.ActingAccount, .DatabaseId = 5U, .NodeId = "U_fixture", .Login = "fixture-reviewer" } } };
+	}
+
+	[[nodiscard]] auto receipt() -> application::review_submission_receipt
+	{
+		const auto proposal = request().Proposal;
+		return { .ReviewDatabaseId = application::review_database_id{ 42U },
+				 .ReviewNodeId     = "PRR_fixture",
+				 .Target           = proposal.Target,
+				 .ActingAccount    = proposal.ActingAccount,
+				 .Disposition      = proposal.Disposition };
+	}
+
+	struct provider_state
+	{
+		bool                                                        InEffect = false;
+		std::size_t                                                 Created = 0U, Destroyed = 0U, Submitted = 0U, Reconciled = 0U;
+		std::vector<application::review_submission_request>         Pending;
+		std::function<void(application::review_submission_result&)> Answer;
+	};
+	struct provider final : application::review_submission_port
+	{
+		std::shared_ptr<provider_state> State;
+		explicit provider(std::shared_ptr<provider_state> aState)
+			: State{ std::move(aState) }
+		{
+			expect(State->InEffect, "provider construction runs off decision lane");
+			++State->Created;
+		}
+		~provider() override
+		{
+			expect(State->InEffect, "provider/storage teardown runs off decision lane");
+			++State->Destroyed;
+		}
+		auto pending(std::stop_token) -> application::review_submission_discovery override
+		{
+			expect(State->InEffect, "pending discovery runs on effect lane");
+			return State->Pending;
+		}
+		auto result(const application::review_submission_request& aRequest) -> application::review_submission_result
+		{
+			expect(State->InEffect, "provider submission runs on effect lane");
+			auto value                 = application::review_submission_result{ .Request     = aRequest,
+																				.Publication = application::review_submission_publication::published,
+																				.Receipt     = receipt() };
+			value.Receipt->Disposition = aRequest.Proposal.Disposition;
+			if (State->Answer) {
+				State->Answer(value);
+			}
+			return value;
+		}
+		auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token) -> application::review_submission_result override
+		{
+			++State->Submitted;
+			return result(aRequest);
+		}
+		auto reconcile(const application::review_submission_request& aRequest, std::stop_token) -> application::review_submission_result override
+		{
+			++State->Reconciled;
+			return result(aRequest);
+		}
+	};
+	struct effects final : application::effect_executor
+	{
+		application::manual_executor    Queue;
+		std::shared_ptr<provider_state> State;
+		bool                            Throw = false;
+		explicit effects(std::shared_ptr<provider_state> aState)
+			: State{ std::move(aState) }
+		{ }
+		void post(std::function<void()> aTask) override
+		{
+			if (Throw) {
+				throw std::runtime_error{ "queue refused" };
+			}
+			Queue.post([this, task = std::move(aTask)] { State->InEffect = true; task(); State->InEffect = false; });
+		}
+	};
+	struct projection final : application::review_submission_projection_port
+	{
+		std::shared_ptr<provider_state>                           State;
+		std::vector<application::review_submission_host_terminal> Terminals;
+		std::function<void()>                                     Feedback;
+		explicit projection(std::shared_ptr<provider_state> aState)
+			: State{ std::move(aState) }
+		{ }
+		void publish(const application::review_submission_host_terminal& aTerminal) override
+		{
+			expect(!State->InEffect, "terminals publish only on decision lane");
+			Terminals.push_back(aTerminal);
+			if (Feedback) {
+				Feedback();
+			}
+		}
+	};
+	struct fixture
+	{
+		std::shared_ptr<provider_state>                 State = std::make_shared<provider_state>();
+		effects                                         Effects{ State };
+		application::manual_executor                    Decisions;
+		projection                                      Projection{ State };
+		core::application_session_id                    Session{ 1U };
+		core::request_generation                        Generation{ 2U };
+		application::review_submission_application_host Host{
+			[state = State]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> { return std::make_unique<provider>(state); },
+			*request().LiveBinding, Session, Generation, Effects, Decisions, Projection
+		};
+		auto grant(const application::review_submission_request& aRequest = request()) -> application::review_submission_execution_grant
+		{
+			return application::make_review_submission_testing_grant(Session, Generation, aRequest);
+		}
+		void drain()
+		{
+			Effects.Queue.drain();
+			Decisions.drain();
+		}
+		auto outcome() const -> const application::review_submission_result&
+		{
+			return std::get<application::review_submission_result>(Projection.Terminals.back().Outcome);
+		}
+		~fixture()
+		{
+			Host.shutdown();
+			drain();
+		}
+	};
+	void test_exact_authority_and_async_delivery()
+	{
+		for (const auto disposition : { core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes }) {
+			fixture f;
+			auto    value              = request();
+			value.Proposal.Disposition = disposition;
+			value.Proposal.Body        = disposition == core::review_disposition::approve ? "" : "Literal review summary";
+			expect(!f.Host.submit(value, { }), "no authority refuses before effect");
+			auto grant            = f.grant(value);
+			auto changed          = value;
+			changed.Proposal.Body = "Different summary";
+			expect(!f.Host.submit(changed, grant), "summary mismatch cannot consume authority");
+			changed                      = value;
+			changed.Proposal.Disposition = disposition == core::review_disposition::approve ? core::review_disposition::comment : core::review_disposition::approve;
+			expect(!f.Host.submit(changed, grant), "disposition mismatch cannot consume authority");
+			const auto context = f.Host.submit(value, grant);
+			expect(context && context->Session == f.Session && context->Generation == f.Generation && !f.Host.is_quiescent(), "accepted request has exact host context");
+			expect(f.State->Created == 0U && f.Projection.Terminals.empty(), "acceptance performs no inline effects");
+			expect(!f.Host.submit(value, grant) && !f.Host.discover(), "duplicate and concurrent gestures queue nothing");
+			f.Effects.Queue.drain();
+			expect(f.State->Submitted == 1U && f.State->Destroyed == 1U && f.Projection.Terminals.empty() && !f.Host.is_quiescent(), "effect and teardown precede serialized terminal");
+			f.Decisions.drain();
+			expect(f.Host.is_quiescent() && f.Projection.Terminals.size() == 1U && f.outcome().Request == value && f.outcome().Publication == application::review_submission_publication::published, "one exact result reaches decision lane");
+			expect(!f.Host.submit(value, grant), "consumed authority cannot replay");
+		}
+		fixture f;
+		auto    revoked = f.grant();
+		revoked->revoke();
+		expect(!f.Host.submit(request(), revoked), "revoked authority refuses");
+		auto expired = application::make_review_submission_testing_grant(f.Session, f.Generation, request(), std::chrono::steady_clock::time_point::min());
+		expect(!f.Host.submit(request(), expired), "expired authority refuses");
+		auto otherSession    = application::make_review_submission_testing_grant(core::application_session_id{ 99U }, f.Generation, request());
+		auto otherGeneration = application::make_review_submission_testing_grant(f.Session, core::request_generation{ 99U }, request());
+		expect(!f.Host.submit(request(), otherSession) && !f.Host.submit(request(), otherGeneration), "session/generation cannot reuse grant");
+		expect(!application::detail::review_submission_user_authority_issuer::issue(f.Session, f.Generation, request()), "test build refuses production user authority issuance");
+	}
+	void test_recovery_and_bad_results()
+	{
+		fixture f;
+		f.State->Pending = { request() };
+		expect(f.Host.discover().has_value(), "discovery accepted");
+		f.drain();
+		expect(std::get<application::review_submission_discovery>(f.Projection.Terminals.back().Outcome).value() == f.State->Pending, "discovery preserves original request/key");
+		expect(f.Host.reconcile(request()).has_value(), "read-only recovery requires no new publication grant");
+		f.drain();
+		expect(f.State->Submitted == 0U && f.State->Reconciled == 1U, "recovery never chooses submit effect");
+		f.State->Pending.front().LiveBinding->ActingIdentity.NodeId = "another-actor";
+		expect(f.Host.discover().has_value(), "invalid discovery still terminates");
+		f.drain();
+		expect(!std::get<application::review_submission_discovery>(f.Projection.Terminals.back().Outcome), "host rejects pending identity mismatch");
+		for (const auto mode : { 0, 1, 2, 3 }) {
+			fixture bad;
+			bad.State->Answer = [mode](auto& result) {
+				if (mode == 0) {
+					result.Request.Proposal.Attempt = core::review_submission_attempt_id{ 99U };
+					result.Request.Proposal.Body.assign(1024U * 1024U, '\xFF');
+				}
+				if (mode == 1) {
+					result.Receipt.reset();
+				}
+				if (mode == 2) {
+					result.Receipt->ActingAccount = core::github_account_id{ 99U };
+				}
+				if (mode == 3) {
+					throw std::runtime_error{ "unknown outcome" };
+				}
+			};
+			expect(bad.Host.submit(request(), bad.grant()).has_value(), "fault course accepted");
+			bad.drain();
+			expect(bad.Projection.Terminals.size() == 1U && bad.outcome().Request == request() && !bad.outcome().Receipt && bad.outcome().Publication == application::review_submission_publication::indeterminate, "bad or missing terminal stays correlated and indeterminate");
+		}
+	}
+	void test_cancellation_shutdown_and_reentrancy()
+	{
+		for (const auto mode : { 0, 1, 2 }) {
+			fixture f;
+			if (mode == 2) {
+				f.Effects.Throw = true;
+			}
+			const auto context = f.Host.submit(request(), f.grant());
+			expect(context.has_value(), "cancellation/failure course accepted");
+			if (mode == 0) {
+				f.Host.cancel(*context);
+			}
+			if (mode == 1) {
+				f.Host.shutdown();
+			}
+			f.drain();
+			expect(f.Projection.Terminals.size() == 1U && f.Host.is_quiescent() && f.State->Submitted == 0U && f.outcome().Publication == application::review_submission_publication::definitely_not_published, "pre-effect stop/failure has one definite terminal");
+		}
+		fixture f;
+		f.State->Answer = [&](auto&) { f.Host.shutdown(); };
+		expect(f.Host.submit(request(), f.grant()).has_value(), "shutdown-during-effect accepted");
+		f.drain();
+		expect(f.outcome().Publication == application::review_submission_publication::published && f.Host.is_quiescent(), "shutdown cannot erase confirmed publication");
+		fixture reentrant;
+		bool    feedback              = false;
+		reentrant.Projection.Feedback = [&] { if (!feedback) { feedback = true; expect(reentrant.Host.discover().has_value(), "projection may enqueue next typed operation"); } };
+		expect(reentrant.Host.discover().has_value(), "reentrant course begins");
+		reentrant.drain();
+		reentrant.drain();
+		expect(reentrant.Projection.Terminals.size() == 2U && reentrant.Host.is_quiescent(), "reentrant feedback remains exactly once");
+	}
+}
+auto main() -> int
+{
+	static_assert(!std::is_convertible_v<bpr::application::review_mutation_execution_grant, bpr::application::review_submission_execution_grant>);
+	static_assert(!std::is_default_constructible_v<bpr::application::review_submission_execution_authority>);
+	test_exact_authority_and_async_delivery();
+	test_recovery_and_bad_results();
+	test_cancellation_shutdown_and_reentrancy();
+	std::cout << "review-submission-application-host-tests:pass\n";
+	return EXIT_SUCCESS;
+}
