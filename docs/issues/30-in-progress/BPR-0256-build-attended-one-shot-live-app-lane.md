@@ -1,7 +1,7 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449, BPR-0559, BPR-0560]
 ---
@@ -1159,3 +1159,28 @@ The owner returned the [v007 approval](../../verification/reviews/designated-liv
 The [attended result](../../verification/reviews/designated-live-review-publication-v007/attended-result.md) records the exact one-use run. GitHub browser authorization completed for the operator-reported MikeMarcin account, but the application refused data before session establishment. No PR or comment was opened/submitted. Explicit Sign out cleared the diagnostic, normal shutdown passed in 248.79 seconds, and the image detached. The approval is spent and cannot be retried. BPR-0559 investigates the supported-response failure and BPR-0560 fixes the owner's inability to copy the diagnostic. This card returns to backlog behind those repairs; no successor approval is requested before their work is concrete.
 
 Consumed-resource cleanup: after the run result was recorded and zero attachments verified, the v007 producer/image tree, static CTest graph, empty mount parent, empty private approval parent, and two temporary run-state/configure files were removed. No approval or replay marker was reset. The answered packet, response and result remain immutable. Existing dev and application-Release build roots are reused for the repairs.
+
+## v008 regeneration claim — 2026-09-05
+
+The owner resumed implementation of the RFCs. RFC-BPR-0008 is the first
+unfinished RFC; all BPR-0256 dependencies are now Done. BPR-0559's nine-part
+capability repair is committed in `b14a69d0`, and BPR-0605 observed live sign-in
+as MikeMarcin, all four supported capabilities and explicit Sign out. Its
+separate post-quit UI-inspection relaunch was disclosed and cleaned up; it
+does not extend any live authority.
+
+Resume unattended preparation of a v008 candidate from the current committed
+source, retaining the existing exact designated target and one-comment scope.
+Build and inspect the signed capsule, stored read-only image, source inventory
+and static opt-in plan; use fixture checks for changed dependencies and review
+the exact final artifacts. No approval materialization, live launch, credentials
+or publication is authorized by this claim. Prior packets and responses remain
+immutable and consumed. The owner explicitly defers schema-method evaluation
+and advanced logging; neither is part of this slice.
+
+Planned temporary producer: `build/bpr0256-v008-release`; static inspection graph:
+`build/bpr0256-v008-live-manifest`; private mount parent:
+`build/bpr0256-v008-live-mount-parent`. Retain only the final candidate while its
+attended decision is pending; remove intermediate artifacts and consumed
+inspection logs. Do not use an app UI getter or handle after quit; monitor the
+new sanitized log for sign-in completion and verify final process absence.
