@@ -1557,3 +1557,16 @@ classifies exactly as the same region of the complete blob. The suite also pins
 one classification to one lexical pass, refuses an absent blob before any span
 bound applies, refuses rather than truncates a classification above the bound,
 and reports cancellation.
+
+## Public-preview composition evidence
+
+The promoted anonymous capture set above anchors real service observations;
+synthetic paging/linkage/rate cases exercise limits without claiming a live
+service response. `application_anonymous_public_preview_public_path` follows
+the composed controls through the normal provider, cache/epoch authority, and
+rendered selected-file diff, including exact base/head/path/content, REST comment
+groups, mode invalidation, and zero credential/header/vault effects. It does not
+prove native live service access. BPR-0316 separately records one successful
+Mac native read of the owner-designated public `MikeMarcin/BPR-Test#1`, with nine
+HTTP 200 responses and the exact accepted head; no private content or token is
+committed as evidence.

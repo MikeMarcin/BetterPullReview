@@ -2491,3 +2491,30 @@ RFC-BPR-0014 and runs on release-operator or corporate-managed environments.
 Platform support is never inferred from Qt availability or a configuration
 file. RFC-BPR-0014 requires direct install, launch, runtime, and uninstall
 evidence from each supported native environment.
+
+## Public-preview operation and evidence
+
+The shipped macOS selection enables Public preview beside Connect for the
+selected native GitHub.com profile. From fresh start, activation is network-free
+and credential-free; entering a public target then uses the normal bounded REST
+pager and credential-free smart HTTP. Sign in switches to the existing device
+flow. Linux/Windows keep typed preview unavailability; GHES is refused. The mode
+provides metadata, diffs, and REST comment groups, with no viewer, GraphQL
+threads/resolution, viewed state, triage, private access, or publishing.
+
+`--self-test --public-preview-probe --automated-run-budget-ms 8000` reports the
+shipped selection with zero requests and works in tests-disabled Release. Add
+`--ghes-host ghe.example.invalid` to check the zero-request GHES refusal. The
+platform course selects its own expected mode, verifies its inventory before
+running the focused tests, and checks the Release artifact's test-seam absence,
+composed hosts, runtime, and dependencies. See the
+[RFC-0017 command ledger](../verification/RFC-BPR-0017.md) for exact executed
+commands and platform-specific evidence.
+
+The testing-only live-candidate flag forces production anonymous factories for
+an explicitly named public target. Its shared nine-request cap includes pages
+and replacement transports, and the first wire failure suppresses later sends.
+Nine operation kinds do not imply nine production HTTP requests. A dry run
+proves wiring only; a completed candidate requires an accepted public snapshot,
+head, and observed budget. Do not repeat an attended service read from a stale
+packet or treat a fixture or official service description as executed evidence.

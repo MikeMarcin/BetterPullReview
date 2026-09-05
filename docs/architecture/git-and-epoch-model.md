@@ -8,7 +8,7 @@ rule remains:
 
 RFC-BPR-0003 adds local Git-object residency and private review history. It
 does not create a second GitHub authentication path, operate on a developer
-worktree, make cached content available without fresh authentication, compute
+worktree, make authenticated cached content available without fresh authentication, compute
 the RFC-BPR-0004 diff, or claim the final RFC-BPR-0005 workbench.
 
 ## Selected boundary
@@ -16,7 +16,7 @@ the RFC-BPR-0004 diff, or claim the final RFC-BPR-0005 workbench.
 ```text
 accepted_pull_request_handoff from RFC-BPR-0002
     exact authority, snapshot/generations, base/head, review order,
-    and a revocable native-HTTPS account capability;
+    and a revocable native-HTTPS account or anonymous-public capability;
     no source-observation identity or observed time
         |
         v
@@ -1210,3 +1210,17 @@ RFC-BPR-0003 does not add:
 - QML, WebEngine, browser, listener, plugin, telemetry, or updater surfaces;
 - package formats, signing, notarization, or installers;
 - GitHub Actions build, test, package, release, or verification workflows.
+
+## Public-preview cache authority
+
+RFC-BPR-0017 adds an explicit access-mode discriminator to handoff, cache
+manifest, and SQLite authority keys. Anonymous public epochs have no current
+viewer or account-relative review association. Schema version 2 migrates prior
+rows into authenticated scope; the anonymous scope cannot enumerate those rows
+or satisfy a Git acquisition with their objects. Installed Git remains the
+local object engine and receives no network or credential capability.
+
+A selected anonymous file resolves exact repository path, base, head, and content
+through the same retained epoch session and diff host. Switching modes invalidates
+that session and its projection before another authority is accepted. This is
+public reading, not unauthenticated access to previously cached private data.

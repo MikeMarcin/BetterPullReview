@@ -1738,3 +1738,22 @@ decision; any future relaxation requires new direct public-contract evidence
 and separately scoped work. The open Windows execution is nonblocking for all
 other slices and later-RFC work; it blocks only its affected platform claim
 and final RFC-BPR-0002 Auto-Verified closeout.
+
+## Public-preview host lifecycle
+
+`activate_public_preview` enters the core's explicit public-preview mode only
+when composition supplies anonymous read authority. The shipped macOS selection
+is enabled (BPR-0316); Linux and Windows answer `public_preview_unavailable`.
+GHES selection on macOS answers policy refusal. From a fresh signed-out launch, activation/refusal sends zero requests and
+touches neither vault nor Authorization material. Replacing an authenticated
+session still owes that prior identity its existing credential cleanup.
+
+The host synthesizes an empty viewer and policy-unsupported capability record,
+uses the normal provider/normalizer, and projects REST comment groups separately
+from unavailable GraphQL review threads. `public_preview_projection.hpp` is the
+Qt-facing contract. Mode switches use the existing identity invalidation path:
+pending work, accepted content, account-relative associations, queue, epoch,
+cache session, and command projections cannot survive under the next authority.
+Anonymous smart HTTP carries a revocable public authority instead of an account
+credential. The native read and rendered-diff course is recorded in
+[the RFC-0017 ledger](../verification/RFC-BPR-0017.md).

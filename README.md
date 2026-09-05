@@ -21,6 +21,16 @@ presentation. Pull-request metadata, conversations, and accepted revision
 history can traverse the real `QAction` -> provider -> core acceptance ->
 rendered-window path.
 
+On macOS, select a GitHub.com native HTTPS profile and click **Public preview**
+beside Connect to open public pull requests without signing in. It shows metadata, changed-file diffs, and REST inline comment
+groups. It has no viewer identity, review-thread resolution, viewed-file state,
+triage, or publishing. The UI offers Sign in for those capabilities. Anonymous
+requests share the server-reported hourly budget; a 404 means private or missing
+without distinguishing them. Linux and Windows currently report preview
+unavailable, and GHES preview is refused. The
+[RFC-0017 ledger](docs/verification/RFC-BPR-0017.md) separates this implemented
+Mac path from outstanding RFC closeout work.
+
 The final-state review in BPR-0225 narrowed the workbench claim. BPR-0226 now
 connects the shipped RFC-BPR-0005 shell's primary intents and drawer widths to
 the workbench host, publishes host state to the real window, observes exact

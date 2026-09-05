@@ -345,3 +345,12 @@ with zero provider mutations.
 |---|---|
 | BPR-0168 | A person to grant Notification Center permission once and to see the banner. The harness proves the request's content and destination; it cannot prove the operating system showed it |
 | BPR-0169 | A designated repository and token. That the correlator cannot issue a request is structural and settled here; that GitHub's own reviewer state is also unchanged needs a server to answer |
+
+## Public-preview boundary
+
+A public-preview snapshot supplies no current-viewer role, account-relative
+review baseline, or triage authority. The host invalidates the preceding queue
+identity when entering or leaving that mode. Qt labels queue-role and private
+review-progress controls unavailable; an absent role is never guessed from
+review/comment history. Reading public metadata or REST comment groups does not
+create an actionable review queue or authorize publishing.

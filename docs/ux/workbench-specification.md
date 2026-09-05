@@ -81,6 +81,22 @@ control follows this same native-System inheritance. User-selectable System,
 Light, Dark, and high-contrast profiles remain RFC-BPR-0006 work, with a fresh
 installation defaulting to System.
 
+## Public preview
+
+On enabled macOS, Public preview beside Connect activates the selected native
+GitHub.com profile without sign-in. CLI selections still report unavailable. The title and session strip explicitly label the mode. The same file
+drawer and exact selected-file comparison show public content. REST inline
+comments appear as read-only root/reply groups, with no invented thread
+resolution. Unobserved and observed-empty conversations have different wording.
+
+Queue role, private review progress, review-thread resolution, and publishing
+remain visible but disabled with explanations. A budget ring has no consumed
+fraction before a budget was observed; after a read it shows the reported limit,
+remaining units, and reset. Exhaustion and private-or-missing failures offer
+Sign in. The Sign in gesture uses the selected profile's existing device path.
+GHES refuses preview and Linux/Windows report unavailable rather than silently
+trying a credentialed read. Switching mode clears stale identity-sensitive UI.
+
 ## Signing in with a device code
 
 RFC-BPR-0016 adds a second way to enrol a profile beside the token field, and

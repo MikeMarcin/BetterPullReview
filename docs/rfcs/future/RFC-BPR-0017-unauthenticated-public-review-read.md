@@ -12,31 +12,29 @@ pack_version: post-v2
 
 ## Status and scope
 
-This is a deferred scoping RFC for work after the canonical fourteen-RFC
-pack. It is not part of pack v2 and blocks nothing in it.
+The anonymous-service measurements and the owner's positive build decision
+are recorded, and the implementation now enables Public preview on macOS.
+Linux and Windows retain verified unavailable selections. RFC status remains
+Proposed until BPR-0309 reconciles acceptance, documentation, and closeout
+evidence; implementation progress does not itself close this RFC.
 
-It exists to answer one question before any code is committed to it: can
-BetterPullReview open a public pull request without the operator
-authenticating, and what is actually lost when it does. The findings below
-are the deliverable. The design that follows them is conditional on
-eligibility gates that are not yet satisfied, and the recommendation section
-states plainly when this work should not be done at all.
+The current read catalog adds REST inline review comments to the existing
+provider/pager/normalizer. Public preview admits nine REST operation kinds,
+refuses GraphQL and viewer identity, and uses explicit anonymous native HTTPS
+and public Git/cache/epoch/diff authority. Thread resolution, viewed state,
+account-relative associations, triage, and publishing remain unavailable.
+See [the product contract](../../architecture/product-contract.md#public-preview)
+and [verification ledger](../../verification/RFC-BPR-0017.md) for current behavior
+and exact evidence.
 
-The central finding contradicts the intuition that motivated the question.
-The read path is not broadly GraphQL-dependent and does not need a parallel
-REST implementation. Nine of ten read operations already speak REST, one does
-not, and the loss is confined to that one plus the two observations that have
-no anonymous meaning.
+The findings below describe the immutable pre-implementation base
+`a45750f6bd84716240aa27a20f0734f33808ab8e`. Statements about the missing REST
+comment operation, credential-mandatory factories, and absent anonymous
+composition are historical motivation; they are not claims about today's tree.
 
-That single operation costs more than the count suggests. It is the read
-catalog's only source of inline review comments, not merely of their
-resolution state, so losing it loses the source-anchored review conversation.
-The correction below states that plainly, because an earlier draft of these
-findings did not.
+## Findings established at the pre-implementation base
 
-## Findings established from the codebase
-
-These are verified against the tree, not asserted.
+The source locations in this historical analysis refer to that base.
 
 **Exactly one read operation uses GraphQL.** The route selection in
 [github_read_contract.cpp:1780](../../../src/adapters/github/src/github_read_contract.cpp#L1780)

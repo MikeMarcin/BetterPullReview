@@ -53,3 +53,15 @@ No release candidate is acceptable until all applicable gates pass from a clean 
 - Product contract, architecture, security, provider, epoch, diff, review semantics, AI, build, package, and operator documentation match runtime behavior.
 - Every generated index and documentation validator passes.
 - No release note overclaims a stub, disabled path, test-only surface, or unsupported platform.
+
+## Public-preview selection
+
+A delivered artifact must report its declared platform selection through the
+unconditional zero-request probe. macOS is enabled for GitHub.com; Linux and
+Windows are unavailable, and GHES is refused. Test-only forced selections,
+loopback trust seams, and live-candidate flags must be absent from tests-disabled
+Release. An enabled claim also needs the normal provider/normalizer, anonymous
+smart HTTP, mode-isolated cache/epoch/diff, and explicit unavailable-action
+checks. A passing macOS artifact does not enable another platform. The
+[RFC-0017 ledger](RFC-BPR-0017.md) retains exact bounded evidence and remaining
+closeout gates; this section is not release approval.

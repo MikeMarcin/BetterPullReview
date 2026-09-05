@@ -1111,3 +1111,17 @@ establish source/link compatibility only. BPR-0045 adds component-level
 Git/ref recovery orchestration plus guarded runtime-port source and current-
 host contract evidence; BPR-0047 supplies public composition, and BPR-0053
 retains every target-native Windows claim.
+
+## Anonymous public authority
+
+Public preview is an explicit authority with no viewer or credential, not a
+fallback after authenticated failure. Its production factories cannot enroll
+or retrieve vault material and must not send Authorization. GHES, GraphQL,
+viewer identity, and mutation admission fail before request construction. A
+404 stays existence-neutral; public cache identity includes the access mode
+and cannot select an authenticated private cache namespace.
+
+Native transport canaries, provider refusal counters, SQLite migration/restart,
+and selected-file diff tests cover separate boundaries. The successful bounded
+Mac live read proves its recorded target and source only; it authorizes no
+credential operation or mutation. Linux/Windows public preview remains unavailable.

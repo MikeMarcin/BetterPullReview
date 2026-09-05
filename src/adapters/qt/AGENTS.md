@@ -16,6 +16,10 @@ themes, rendering mechanics, and event translation.
   constructs, parses, or opens an address — `QUrl` and a literal scheme are
   both refused here by `VerifyArchitectureBoundaries.cmake`, so the
   system-browser capability is host-owned and lives outside this adapter.
+- Public-preview presentation receives only
+  `bpr/application/public_preview_projection.hpp` in addition to the ordinary
+  GitHub projection. Its explicit unavailable facts and semantic gestures must
+  not become provider, credential, transport, or effect access.
 - Do not place canonical GitHub, ledger, or semantic policy in Qt objects.
 - Keep presentation wording and Qt-local state at this boundary.
 - Test QAction translation, focus, accessibility, sizing, high DPI, rendered

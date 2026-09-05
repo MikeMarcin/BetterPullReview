@@ -19,6 +19,26 @@ actually observed, not a claim that the revision is still GitHub's current
 head. A force-pushed observed head may therefore remain comparable, while
 history that was never observed is never invented.
 
+## Public preview
+
+Public preview is a credential-free reading mode for public GitHub.com pull
+requests. macOS enables it; Linux and Windows select typed unavailability. GHES
+is refused before an anonymous request is constructed. Activation sends nothing;
+opening or refreshing a target performs bounded REST reads and public Git smart
+HTTP for exact selected-file comparisons.
+
+Inline REST comments and their reply groups are observable; GraphQL review
+threads and resolution, viewer identity, viewed-file state, account-relative
+review associations, triage, and publishing are unavailable. An unobserved
+conversation is distinct from an observed empty one. No default viewer or
+false resolution state substitutes for missing authority. Sign in leaves this
+mode through identity invalidation before authenticated state can be published.
+
+The server-reported rate budget is visible, exhaustion is terminal for the
+current read, and a 404 says private or missing without guessing which. A
+read's pagination can cost more than the nine eligible operation kinds; the
+live-candidate diagnostic's nine-request cap is not a production page limit.
+
 ## Credential acquisition
 
 A profile is enrolled by one of two paths, and both end in the same platform

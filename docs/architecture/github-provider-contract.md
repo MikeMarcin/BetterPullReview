@@ -69,6 +69,24 @@ is distinct from target authorization: normalized
 the selected thread/file, while actual mutation permission remains
 fail-closed until RFC-BPR-0008.
 
+## Anonymous read authority
+
+The existing provider and pager admit nine REST operation kinds under explicit
+public-preview authority: repository, pull request, files, commits, reviews,
+inline review comments, issue comments, checks, and search. `list_review_comments`
+uses `/pulls/{n}/comments` and exhausts its bounded REST pagination. Reply linkage
+forms comment groups; it supplies no GraphQL thread identity or resolution fact.
+Viewer identity and GraphQL each have a distinct typed pre-request refusal.
+Every GHES contract is refused.
+
+Anonymous native HTTPS accepts no credential parameter and sends no Authorization
+header. It performs no vault lookup or capability probe. The host supplies an
+explicit empty viewer, policy-unsupported capabilities, and unobserved capability
+evidence; those values cannot stand in for an authenticated schema observation.
+Rate observations preserve their resource and reset facts, exhausted reads do not
+retry, and 404 diagnostics disclose neither existence nor privacy. Full bounded
+pagination must complete before the existing normalizer can publish a snapshot.
+
 ## Authentication transports
 
 ### GitHub CLI broker

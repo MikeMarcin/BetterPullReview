@@ -1009,3 +1009,18 @@ surfaces.
 - Whole-application model resets for routine changes.
 - Full-state copies or full-PR scans for ordinary navigation and receipt updates.
 - Fake `IWidget`/`IButton` abstractions that hide Qt instead of containing it at the adapter boundary.
+
+## Anonymous public-preview allocation
+
+RFC-BPR-0017 uses the existing provider, pager, normalizer, epoch host, and diff
+host. Core owns explicit access mode, operation legality, unavailable facts,
+rate refusal, and identity generations. The application host selects a deliberate
+anonymous authority, owns effects and invalidation, and publishes the narrow
+`public_preview_projection.hpp` record. Qt receives that record and semantic
+gestures; it receives no credential, provider, or transport.
+
+The GitHub adapter supplies separate credential-free native REST and smart-HTTP
+factories with the existing TLS/proxy/redirect bounds. An invalid authenticated
+credential never selects them as a fallback. Composition enables this authority
+only on macOS. Cache and catalog keys include access mode, so anonymous objects
+and epochs cannot borrow an authenticated account's namespace.

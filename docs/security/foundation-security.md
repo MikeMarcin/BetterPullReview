@@ -161,3 +161,14 @@ not consume the already retained descriptor atomically. The generated CTest
 manifest and cache are trusted against same-user rewriting. These limits are
 why each attended decision binds one exact stored DMG and why no cross-build
 DMG reproducibility claim is made.
+
+## Anonymous reading
+
+RFC-BPR-0017 enables explicit credential-free native HTTPS on macOS only.
+Activation performs zero requests; a selected public read uses the existing
+TLS, proxy, redirect, response-limit, and cancellation boundaries with no vault
+or Authorization effects. Public Git acquisition uses native smart HTTP; it
+does not reuse the designated-live observer subprocess. Core, native transport,
+provider, host, cache, Qt, and tests-disabled Release evidence are recorded in
+[the RFC-0017 ledger](../verification/RFC-BPR-0017.md). A diagnostic dry run or
+an idle runtime audit alone does not prove a completed public read.
