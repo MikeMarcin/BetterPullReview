@@ -12,6 +12,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QColor>
 #include <QComboBox>
 #include <QCursor>
@@ -986,6 +987,58 @@ namespace {
 					QStringLiteral("Authentication failed"))
 				&& banner->isVisible(),
 			"identity connection failure presents a focused empty error state");
+	}
+
+	auto test_connection_diagnostics_can_be_copied() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(960, 640);
+		window.show();
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status      = core::github_status_delta{ .Status = core::github_status::session_failed },
+				.Diagnostics = { { .Code = core::github_reason_code::malformed_response } },
+			},
+		});
+		QApplication::processEvents();
+		const auto diagnostic = QStringLiteral("GitHub returned data that BetterPullReview could not safely use.");
+		for (const auto* name : { "githubStatus", "githubDiagnostic", "githubEmptyStateTitle", "githubEmptyStateBody" }) {
+			auto* const label      = required_label(window, name);
+			auto* const accessible = QAccessible::queryAccessibleInterface(label);
+			expect(label->textFormat() == Qt::PlainText
+					   && label->textInteractionFlags().testFlag(Qt::TextSelectableByMouse)
+					   && label->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard)
+					   && accessible != nullptr && accessible->text(QAccessible::Name) == label->text(),
+				   "status and diagnostic expose current literal text and support mouse/keyboard selection");
+		}
+		auto* const clipboard = QApplication::clipboard();
+		expect(clipboard != nullptr, "the Qt platform provides a clipboard");
+		required_child<QToolButton>(window, "copyGithubMessageButton")->click();
+		expect(clipboard->text() == QStringLiteral("Connection unavailable\n") + diagnostic,
+			   "the ordinary copy control copies the exact visible failure title and body");
+		required_child<QToolButton>(window, "copyGithubDiagnosticButton")->click();
+		expect(clipboard->text() == QString::fromStdString(window.github_status_text()) + QStringLiteral("\n") + diagnostic,
+			   "the status banner copies its current status and diagnostic without other fields");
+		capture_layout_state(window, QStringLiteral("copyable-connection-error"));
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{ .Status = core::github_status::no_profile },
+			},
+		});
+		required_child<QToolButton>(window, "copyGithubDiagnosticButton")->click();
+		expect(!clipboard->text().contains(diagnostic)
+				   && QAccessible::queryAccessibleInterface(required_label(window, "githubDiagnostic"))->text(QAccessible::Name).isEmpty(),
+			   "clearing the diagnostic also removes stale text from copy and accessibility");
+		required_child<QToolButton>(window, "copyGithubMessageButton")->click();
+		expect(clipboard->text().startsWith(QStringLiteral("Connect to GitHub\n"))
+				   && !clipboard->text().contains(diagnostic),
+			   "empty-state copy follows the new projection");
 	}
 
 	auto test_cancellation_states_and_failure_layouts() -> void
@@ -3012,6 +3065,7 @@ auto main(int argc, char** argv) -> int
 	test_conversation_model_is_stable_and_incremental();
 	test_intent_translation_is_narrow_and_account_is_output_only();
 	test_presentation_states_disclosures_and_responsive_layout();
+	test_connection_diagnostics_can_be_copied();
 	test_cancellation_states_and_failure_layouts();
 	test_identity_metadata_commands_and_refresh_semantics();
 	test_status_diagnostics_and_host_detail_are_complete();

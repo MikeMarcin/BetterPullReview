@@ -3,6 +3,8 @@
 #include "github_presentation_text.hpp"
 
 #include <QAction>
+#include <QApplication>
+#include <QClipboard>
 #include <QComboBox>
 #include <QFont>
 #include <QFrame>
@@ -281,17 +283,33 @@ namespace bpr::qt {
 			StatusBanner,
 		};
 		StatusLabel->setObjectName(QStringLiteral("githubStatus"));
-		StatusLabel->setAccessibleName(QStringLiteral("GitHub status"));
+		StatusLabel->setAccessibleDescription(QStringLiteral("GitHub status"));
 		StatusLabel->setWordWrap(true);
 		set_plain_text_label(StatusLabel);
+		StatusLabel->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		statusLayout->addWidget(StatusLabel);
 		DiagnosticLabel = new QLabel{ StatusBanner };
 		DiagnosticLabel->setObjectName(QStringLiteral("githubDiagnostic"));
-		DiagnosticLabel->setAccessibleName(QStringLiteral("GitHub diagnostic"));
+		DiagnosticLabel->setAccessibleDescription(QStringLiteral("GitHub diagnostic"));
 		DiagnosticLabel->setWordWrap(true);
 		set_plain_text_label(DiagnosticLabel);
+		DiagnosticLabel->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		DiagnosticLabel->hide();
 		statusLayout->addWidget(DiagnosticLabel);
+		auto* const copyMessage = new QToolButton{ StatusBanner };
+		copyMessage->setObjectName(QStringLiteral("copyGithubDiagnosticButton"));
+		copyMessage->setText(QStringLiteral("Copy message"));
+		copyMessage->setAccessibleName(QStringLiteral("Copy GitHub status and diagnostic"));
+		connect(copyMessage, &QToolButton::clicked, this, [this] {
+			if (auto* const clipboard = QApplication::clipboard(); clipboard != nullptr) {
+				auto message = StatusLabel->text();
+				if (!DiagnosticLabel->isHidden() && !DiagnosticLabel->text().isEmpty()) {
+					message += QStringLiteral("\n") + DiagnosticLabel->text();
+				}
+				clipboard->setText(message);
+			}
+		});
+		statusLayout->addWidget(copyMessage, 0, Qt::AlignLeft);
 		panelLayout->addWidget(StatusBanner);
 		connect(ProfileSelector,
 				&QComboBox::currentIndexChanged,

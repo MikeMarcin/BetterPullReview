@@ -15,7 +15,9 @@
 #include <QAbstractItemView>
 #include <QAccessible>
 #include <QAction>
+#include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -984,19 +986,32 @@ namespace bpr::qt {
 		auto* const emptyLayout = new QVBoxLayout{ emptyState };
 		EmptyStateTitleLabel    = new QLabel{ emptyState };
 		EmptyStateTitleLabel->setObjectName(QStringLiteral("githubEmptyStateTitle"));
-		EmptyStateTitleLabel->setAccessibleName(QStringLiteral("GitHub view state"));
+		EmptyStateTitleLabel->setAccessibleDescription(QStringLiteral("GitHub view state"));
 		EmptyStateTitleLabel->setAlignment(Qt::AlignCenter);
 		EmptyStateTitleLabel->setWordWrap(true);
 		detail::set_plain_text_label(EmptyStateTitleLabel);
+		EmptyStateTitleLabel->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		EmptyStateBodyLabel = new QLabel{ emptyState };
 		EmptyStateBodyLabel->setObjectName(QStringLiteral("githubEmptyStateBody"));
-		EmptyStateBodyLabel->setAccessibleName(QStringLiteral("GitHub view guidance"));
+		EmptyStateBodyLabel->setAccessibleDescription(QStringLiteral("GitHub view guidance"));
 		EmptyStateBodyLabel->setAlignment(Qt::AlignCenter);
 		EmptyStateBodyLabel->setWordWrap(true);
 		detail::set_plain_text_label(EmptyStateBodyLabel);
+		EmptyStateBodyLabel->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		emptyLayout->addStretch(1);
 		emptyLayout->addWidget(EmptyStateTitleLabel);
 		emptyLayout->addWidget(EmptyStateBodyLabel);
+		auto* const copyMessage = new QToolButton{ emptyState };
+		copyMessage->setObjectName(QStringLiteral("copyGithubMessageButton"));
+		copyMessage->setText(QStringLiteral("Copy message"));
+		copyMessage->setAccessibleName(QStringLiteral("Copy GitHub message"));
+		connect(copyMessage, &QToolButton::clicked, this, [this] {
+			if (auto* const clipboard = QApplication::clipboard(); clipboard != nullptr) {
+				clipboard->setText(EmptyStateTitleLabel->text() + QStringLiteral("\n")
+								   + EmptyStateBodyLabel->text());
+			}
+		});
+		emptyLayout->addWidget(copyMessage, 0, Qt::AlignHCenter);
 		emptyLayout->addStretch(2);
 		PullRequestStack->addWidget(emptyState);
 
