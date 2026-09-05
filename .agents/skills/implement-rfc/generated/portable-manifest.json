@@ -6,7 +6,7 @@
     },
     {
       "path": "SKILL.md",
-      "sha256": "2a61e0743ace909087dc71f3236b60e6ebc1d26ce71fc2b1cdbc9e7e5f9e2ce4"
+      "sha256": "846db80884acba63dc10b519d33e66e9f30f8f76cd8f76f966f49e9a75852a0b"
     },
     {
       "path": "agents/openai.yaml",
@@ -50,7 +50,7 @@
     },
     {
       "path": "references/runtime-compatibility.md",
-      "sha256": "7e634c031f0b055a2812e8802e376da62b4f6347c6f0233fd39acc666add3c02"
+      "sha256": "6ab9eb52a05977dbe4ac8b4e7254598fb98b3f8439e408b4e968aa77a6e8c909"
     },
     {
       "path": "schemas/project.schema.json",
@@ -141,6 +141,6 @@
       "sha256": "0c570e408e59704d19c64e228d206bf3b915622f6ee684a773d1c3e80e2f4bda"
     }
   ],
-  "portable_digest": "6c39f0b8460c3e0e",
+  "portable_digest": "57ed33dfc26344ed",
   "schema": "implement-rfc.portable-manifest.v1"
 }

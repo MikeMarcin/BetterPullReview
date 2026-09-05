@@ -33,6 +33,18 @@ work.
 
 ## Start And Reorientation
 
+Use one persistent runtime goal for the complete requested RFC set when an
+agent-callable goal facility is available and goal tracking is authorized.
+Inspect the existing goal first; reuse a matching unfinished goal rather than
+creating one per card or resume. Honor an earlier user request for goal tracking
+in the same session. Where the runtime requires an explicit user request, do
+not infer that permission from ordinary implementation work or skill selection.
+Never invent a token budget or replace an unrelated unfinished goal. If a goal
+is unavailable or unauthorized, continue repository work without it; a writable
+persistent session task list can provide the same progress view when permitted.
+The issue board and closeout cards remain authoritative, and a goal-tool failure
+must not block implementation.
+
 1. Confirm from live Git state that this checkout is the project
    `project.json` names and note the current branch. Read
    [references/remote-routing.md](references/remote-routing.md) only when
@@ -242,6 +254,12 @@ project integrator confirms on `main`.
 Final reporting names completed cards/commits, exact verification run,
 omitted or unavailable lanes, documentation updated, temporary resources
 removed, and remaining follow-ups or decisions.
+
+Mark a runtime goal complete only when the finish condition holds for its whole
+requested RFC set. Completing a slice, reaching an attended checkpoint, or
+ending a turn is not goal completion. Preserve the goal across resumes and
+follow the runtime's rules for blocked status; the closeout card records the
+next actionable work.
 
 ## Temporary Resources
 

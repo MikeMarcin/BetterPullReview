@@ -132,7 +132,12 @@ Claude Code officially discovers project skills from `.claude/skills/`; Codex us
 
 ### Long multi-commit sessions
 
-Claude Code has no agent-callable goal tool; its goal command is user-invoked, so the skill's Start step cannot anchor the objective there. Use the persistent session task list instead: mirror the requested RFC order and closeout phases as a courtesy view while the issue board and closeout cards stay authoritative.
+Where a runtime exposes only a user-invoked goal command, the agent cannot start
+it on the user's behalf. Use a writable persistent session task list when
+available and permitted, mirroring the requested RFC order and closeout phases.
+Where an agent-callable goal tool exists, follow the canonical skill's
+authorization, reuse and completion rules. Either facility is a progress view;
+the issue board and closeout cards stay authoritative.
 
 Claude Code compacts long conversations, and compaction can silently drop the in-memory task queue mid-run. The skill's reorientation procedure exists for exactly this failure: re-derive the next card from the live board and the closeout card, and never conclude from memory that no work remains. For pack-scale runs, a larger context window can delay compaction but does not remove reorientation. Delegate bounded read-heavy work when doing so materially protects the primary context; delegation is not required merely because a run is long.
 
