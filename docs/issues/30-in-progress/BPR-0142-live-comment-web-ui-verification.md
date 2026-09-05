@@ -1,9 +1,8 @@
 ---
 id: BPR-0142
 title: Verify a published comment in the GitHub web UI
-status: Parked
+status: In Progress
 rfc: RFC-BPR-0008
-parked_on: awaiting-owner-verdict
 depends_on: [BPR-0139, BPR-0221, BPR-0229, BPR-0235, BPR-0256, BPR-0318]
 ---
 
@@ -243,3 +242,9 @@ publication is needed. The remembered MikeMarcin session remains available.
 The one-comment course explicitly excluded replies and is spent; preserving
 sign-in and autonomous diagnosis do not manufacture an additional message or
 subjective human verdict. No new approval question was issued in this run.
+
+## One web reply authorized — 2026-09-05
+
+The owner quoted the exact one-reply request and answered “yes”. The actual
+response is recorded in the checkpoint directory. Execute that reply once and
+verify its return; preserve remembered sign-in. No result is claimed yet.
