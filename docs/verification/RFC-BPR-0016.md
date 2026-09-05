@@ -404,3 +404,13 @@ documentation gates passed as recorded on the terminal BPR-0541 card.
 This adds evidence for the approved policy without rewriting the historical
 RFC closeout. Native-vault continuity across OS processes and native
 Windows/Linux execution of this later change remain unclaimed.
+
+### Current composed sign-in obstruction — 2026-09-04
+
+The [v007 attended run](reviews/designated-live-review-publication-v007/attended-result.md)
+completed browser authorization but the application refused GitHub data before
+establishing its session. Earlier fixture and route-probe evidence remains
+historical at its recorded scope; it does not prove this current composed
+sign-in succeeded. BPR-0559 adds safe bootstrap-stage diagnostics and awaits
+an exact sign-in-only observation to identify the failing response contract.
+No current live publication or successful app session is claimed.

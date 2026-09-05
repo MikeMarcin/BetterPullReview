@@ -1496,6 +1496,70 @@ namespace {
 		return authority;
 	}
 
+	auto test_bootstrap_failure_stages_are_exact_and_replacement_safe() -> void
+	{
+		for (const auto stage : { application::github_bootstrap_failure_stage::account_identity,
+								  application::github_bootstrap_failure_stage::capability_discovery }) {
+			for (const bool replace : { false, true }) {
+				host_fixture fixture;
+				fixture.Host.enroll_profile(core::host_profile_id{ 11U }, credential());
+				const auto profile = fixture.Provider.Profiles.front().Request;
+				fixture.Provider.Profiles.front().Completion(application::github_profile_success{
+					.Request = profile, .Authority = native_profile(profile.Context.Profile) });
+				fixture.Lane.drain();
+				if (stage == application::github_bootstrap_failure_stage::capability_discovery) {
+					const auto bootstrap = fixture.Provider.Viewers.front().Request;
+					fixture.Provider.Viewers.front().Completion(application::github_viewer_success{
+						.Request = bootstrap, .Viewer = viewer(), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = { } });
+					fixture.Lane.drain();
+					const auto store = fixture.Vault.Stores.front().Context;
+					fixture.Vault.Stores.front().Completion(application::github_credential_store_success{
+						.Context = store, .Disposition = application::github_credential_store_disposition::stored });
+					fixture.Lane.drain();
+					const auto retrieve = fixture.Vault.Retrieves.front().Context;
+					fixture.Vault.Retrieves.front().Completion(application::github_credential_retrieve_success{
+						.Context = retrieve, .Credential = credential() });
+					fixture.Lane.drain();
+					const auto account = fixture.Provider.Viewers.back().Request;
+					fixture.Provider.Viewers.back().Completion(application::github_viewer_success{
+						.Request = account, .Viewer = viewer(), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = std::make_shared<fake_lease>() });
+					fixture.Lane.drain();
+				}
+				if (replace) {
+					fixture.Host.dispatch(core::activate_host_profile_intent{ .Profile = core::host_profile_id{ 12U } });
+				}
+				if (stage == application::github_bootstrap_failure_stage::account_identity) {
+					const auto call = fixture.Provider.Viewers.front();
+					call.Completion(application::github_viewer_error{
+						.Request = call.Request, .Error = { .Failure = application::github_provider_failure::malformed_response } });
+				} else {
+					const auto call = fixture.Provider.Capabilities.front();
+					call.Completion(application::github_capability_error{
+						.Request = call.Request, .Error = { .Failure = application::github_provider_failure::malformed_response } });
+				}
+				fixture.Lane.drain();
+				if (!fixture.Vault.Deletes.empty()) {
+					const auto call = fixture.Vault.Deletes.front();
+					call.Completion(application::github_credential_delete_success{
+						.Context = call.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+					fixture.Lane.drain();
+				}
+				if (replace) {
+					expect(fixture.Projections.host_diagnostic_count() == 0U
+							   && fixture.Host.state().ActiveProfile == core::host_profile_id{ 12U },
+						   "retired bootstrap failure cannot label or fail the replacement identity");
+				} else {
+					const auto& update = fixture.Projections.last_transition_update();
+					expect(update.Transition->Status->Status == core::github_status::session_failed
+							   && update.Transition->Diagnostics.front().Code == core::github_reason_code::malformed_response
+							   && update.HostDiagnostics.size() == 1U
+							   && update.HostDiagnostics.front().BootstrapStage == stage,
+						   "exact bootstrap stage accompanies its unchanged core failure after cleanup");
+				}
+			}
+		}
+	}
+
 	auto test_enrollment_acceptance_snapshot_and_exact_delete() -> void
 	{
 		host_fixture fixture;
@@ -5469,6 +5533,7 @@ namespace {
 
 auto main() -> int
 {
+	test_bootstrap_failure_stages_are_exact_and_replacement_safe();
 	test_failed_startup_load_keeps_repeated_replacement_blocked();
 	test_sign_out_during_binding_load_erases_the_loaded_authority();
 	test_replacement_during_binding_load_waits_for_exact_cleanup();

@@ -518,14 +518,33 @@ namespace bpr::qt {
 		const core::github_reason_code                                  aReason,
 		const std::optional<std::uint32_t>                              aRetryAfter,
 		const std::optional<application::github_rate_limit_projection>& aRateLimit,
-		const bool                                                      aHostDetail)
+		const bool                                                      aHostDetail,
+		const application::github_bootstrap_failure_stage               aBootstrapStage)
 	{
 		if (
 			!aHostDetail && LastDiagnosticHasHostDetail
 			&& LastDiagnosticReason == aReason) {
 			return;
 		}
-		const auto message = reason_text(aReason, aRetryAfter, aRateLimit);
+		auto message = reason_text(aReason, aRetryAfter, aRateLimit);
+		if (!message.isEmpty()) {
+			switch (aBootstrapStage) {
+			case application::github_bootstrap_failure_stage::none:
+				break;
+			case application::github_bootstrap_failure_stage::local_enrollment:
+				message.prepend(QStringLiteral("Local enrollment: "));
+				break;
+			case application::github_bootstrap_failure_stage::account_identity:
+				message.prepend(QStringLiteral("Account identity observation: "));
+				break;
+			case application::github_bootstrap_failure_stage::capability_discovery:
+				message.prepend(QStringLiteral("Capability discovery: "));
+				break;
+			case application::github_bootstrap_failure_stage::session_acceptance:
+				message.prepend(QStringLiteral("Session acceptance: "));
+				break;
+			}
+		}
 		DiagnosticLabel->setText(message);
 		DiagnosticLabel->setVisible(!message.isEmpty());
 		LastDiagnosticReason        = message.isEmpty() ? std::nullopt : std::optional{ aReason };

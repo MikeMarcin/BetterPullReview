@@ -2214,7 +2214,8 @@ namespace bpr::qt {
 			aDiagnostic.Reason,
 			aDiagnostic.RetryAfterSeconds,
 			aDiagnostic.RateLimitCause,
-			true);
+			true,
+			aDiagnostic.BootstrapStage);
 	}
 
 	void workbench_window::clear_github_pull_request()

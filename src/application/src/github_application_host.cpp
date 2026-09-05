@@ -566,8 +566,10 @@ namespace bpr::application {
 
 		struct deferred_session_terminal
 		{
-			core::github_session_request_context Context;
-			std::optional<core::github_failure>  Failure;
+			core::github_session_request_context  Context;
+			std::optional<core::github_failure>   Failure;
+			github_bootstrap_failure_stage        Stage = github_bootstrap_failure_stage::none;
+			std::optional<github_host_diagnostic> Diagnostic;
 		};
 
 		struct session_candidate
@@ -1252,7 +1254,7 @@ namespace bpr::application {
 			}
 		}
 
-		void dispatch_core(const core::github_event& aEvent)
+		void dispatch_core(const core::github_event& aEvent, std::optional<github_host_diagnostic_projection> aFailureDiagnostic = std::nullopt)
 		{
 			auto output = core::transition(State, aEvent);
 			for (const auto& request : output.Requests) {
@@ -1266,24 +1268,25 @@ namespace bpr::application {
 					AcceptedSnapshot.reset();
 				}
 			}
-			publish_and_execute(output);
+			publish_and_execute(output, std::move(aFailureDiagnostic));
 		}
 
-		void publish_and_execute(const core::github_transition_output& aOutput)
+		void publish_and_execute(const core::github_transition_output& aOutput, std::optional<github_host_diagnostic_projection> aFailureDiagnostic = std::nullopt)
 		{
 			if (Closing) {
 				return;
 			}
-			publish_transition(aOutput);
+			publish_transition(aOutput, nullptr, nullptr, std::move(aFailureDiagnostic));
 			for (const auto& request : aOutput.Requests) {
 				execute(request);
 			}
 		}
 
 		void publish_transition(
-			const core::github_transition_output&     aOutput,
-			const github_session_read_model* const    aSession     = nullptr,
-			const github_pull_request_snapshot* const aPullRequest = nullptr) noexcept
+			const core::github_transition_output&            aOutput,
+			const github_session_read_model* const           aSession           = nullptr,
+			const github_pull_request_snapshot* const        aPullRequest       = nullptr,
+			std::optional<github_host_diagnostic_projection> aFailureDiagnostic = std::nullopt) noexcept
 		{
 			try {
 				std::optional<github_session_projection> sessionProjection;
@@ -1295,11 +1298,20 @@ namespace bpr::application {
 				if (aPullRequest != nullptr) {
 					pullRequestProjection = project_github_pull_request(*aPullRequest);
 				}
+				std::vector<github_host_diagnostic_projection> diagnostics;
+				// Only a core-accepted failure receives the call site's stage. A stale
+				// terminal cannot publish context onto a replacement session.
+				if (aFailureDiagnostic
+					&& aOutput.Status == core::github_status_delta{ .Status = core::github_status::session_failed }
+					&& !aOutput.Diagnostics.empty()) {
+					aFailureDiagnostic->Reason = aOutput.Diagnostics.front().Code;
+					diagnostics.push_back(std::move(*aFailureDiagnostic));
+				}
 				const github_presentation_update update{
 					.Transition      = project_github_transition(aOutput),
 					.Session         = std::move(sessionProjection),
 					.PullRequest     = std::move(pullRequestProjection),
-					.HostDiagnostics = { },
+					.HostDiagnostics = std::move(diagnostics),
 				};
 				Projections.publish(update);
 			} catch (...) {
@@ -1308,14 +1320,16 @@ namespace bpr::application {
 			publish_public_preview();
 		}
 
-		void publish_diagnostic(const github_host_diagnostic& aDiagnostic) noexcept
+		void publish_diagnostic(const github_host_diagnostic& aDiagnostic, const github_bootstrap_failure_stage aStage = github_bootstrap_failure_stage::none) noexcept
 		{
 			try {
+				auto diagnostic           = project_github_host_diagnostic(aDiagnostic);
+				diagnostic.BootstrapStage = aStage;
 				const github_presentation_update update{
 					.Transition      = std::nullopt,
 					.Session         = std::nullopt,
 					.PullRequest     = std::nullopt,
-					.HostDiagnostics = { project_github_host_diagnostic(aDiagnostic) },
+					.HostDiagnostics = { std::move(diagnostic) },
 				};
 				Projections.publish(update);
 			} catch (...) {
@@ -2059,7 +2073,7 @@ namespace bpr::application {
 				|| provider_completion_request(aCompletion) != current) {
 				PendingProvider = std::monostate{ };
 				fail_session(current.Context,
-							 core::github_failure::malformed_response);
+							 core::github_failure::malformed_response, false, github_bootstrap_failure_stage::account_identity);
 				return;
 			}
 
@@ -2069,14 +2083,14 @@ namespace bpr::application {
 				PendingProvider      = std::monostate{ };
 				if (!valid_viewer(
 						authority, context, success->Viewer, success->RateLimits)) {
-					fail_session(context, core::github_failure::malformed_response);
+					fail_session(context, core::github_failure::malformed_response, false, github_bootstrap_failure_stage::account_identity);
 					return;
 				}
 
 				if (ViewerMode == viewer_mode::bootstrap) {
 					if (success->AccountTransport != nullptr) {
 						fail_session(context,
-									 core::github_failure::malformed_response);
+									 core::github_failure::malformed_response, false, github_bootstrap_failure_stage::account_identity);
 						return;
 					}
 					static_cast<void>(merge(RateLimits, success->RateLimits));
@@ -2098,7 +2112,7 @@ namespace bpr::application {
 				}
 
 				if (success->AccountTransport == nullptr) {
-					fail_session(context, core::github_failure::malformed_response);
+					fail_session(context, core::github_failure::malformed_response, false, github_bootstrap_failure_stage::account_identity);
 					return;
 				}
 				if (ViewerMode == viewer_mode::account) {
@@ -2106,13 +2120,13 @@ namespace bpr::application {
 						|| success->Viewer.Account != CredentialAuthority->Account) {
 						fail_session(context,
 									 core::github_failure::malformed_response,
-									 true);
+									 true, github_bootstrap_failure_stage::account_identity);
 						return;
 					}
 					if (BootstrapViewer.has_value()
 						&& success->Viewer != *BootstrapViewer) {
 						fail_session(context,
-									 core::github_failure::malformed_response);
+									 core::github_failure::malformed_response, false, github_bootstrap_failure_stage::account_identity);
 						return;
 					}
 				}
@@ -2154,7 +2168,15 @@ namespace bpr::application {
 				fail_session(error->Request.Context,
 							 errorValid
 								 ? mapped_failure(error->Error.Failure)
-								 : core::github_failure::malformed_response);
+								 : core::github_failure::malformed_response,
+							 false, github_bootstrap_failure_stage::account_identity,
+							 errorValid ? std::optional{ github_host_diagnostic{
+											  .Reason            = core::reason_for(mapped_failure(error->Error.Failure)),
+											  .RetryAfterSeconds = error->Error.RetryAfterSeconds,
+											  .RateLimits        = RateLimits,
+											  .RateLimitCause    = error->Error.RateLimitCause,
+										  } }
+										: std::nullopt);
 				return;
 			}
 
@@ -2179,7 +2201,7 @@ namespace bpr::application {
 		{
 			const auto epoch = next_epoch();
 			if (!epoch.has_value()) {
-				fail_session(aContext, core::github_failure::malformed_response);
+				fail_session(aContext, core::github_failure::malformed_response, false, github_bootstrap_failure_stage::capability_discovery);
 				return;
 			}
 			const auto key    = capability_key(aProfile, aViewer.Account);
@@ -2198,7 +2220,7 @@ namespace bpr::application {
 			}
 			if (lookup.Status != github_capability_cache_lookup_status::miss
 				&& lookup.Status != github_capability_cache_lookup_status::expired) {
-				fail_session(aContext, core::github_failure::malformed_response);
+				fail_session(aContext, core::github_failure::malformed_response, false, github_bootstrap_failure_stage::capability_discovery);
 				return;
 			}
 
@@ -2312,7 +2334,7 @@ namespace bpr::application {
 				|| provider_completion_request(aCompletion) != current) {
 				PendingProvider = std::monostate{ };
 				fail_session(current.Context,
-							 core::github_failure::malformed_response);
+							 core::github_failure::malformed_response, false, github_bootstrap_failure_stage::capability_discovery);
 				return;
 			}
 
@@ -2323,7 +2345,7 @@ namespace bpr::application {
 					|| !valid_capability_rate_limits(
 						success->Request.ProfileAuthority, success->RateLimits)) {
 					fail_session(success->Request.Context,
-								 core::github_failure::malformed_response);
+								 core::github_failure::malformed_response, false, github_bootstrap_failure_stage::capability_discovery);
 					return;
 				}
 				const github_capability_probe_observation observation{
@@ -2341,7 +2363,8 @@ namespace bpr::application {
 						staged.Error
 								== github_capability_cache_error::capacity_exhausted
 							? core::github_failure::response_too_large
-							: core::github_failure::malformed_response);
+							: core::github_failure::malformed_response,
+						false, github_bootstrap_failure_stage::capability_discovery);
 					return;
 				}
 				static_cast<void>(merge(RateLimits, success->RateLimits));
@@ -2380,7 +2403,14 @@ namespace bpr::application {
 				fail_session(error->Request.Context,
 							 errorValid
 								 ? mapped_failure(error->Error.Failure)
-								 : core::github_failure::malformed_response);
+								 : core::github_failure::malformed_response,
+							 false, github_bootstrap_failure_stage::capability_discovery, errorValid ? std::optional{ github_host_diagnostic{
+																										   .Reason            = core::reason_for(mapped_failure(error->Error.Failure)),
+																										   .RetryAfterSeconds = error->Error.RetryAfterSeconds,
+																										   .RateLimits        = RateLimits,
+																										   .RateLimitCause    = error->Error.RateLimitCause,
+																									   } }
+																									 : std::nullopt);
 				return;
 			}
 
@@ -2548,7 +2578,7 @@ namespace bpr::application {
 			};
 			if (!validate(model, aCandidate.Context).valid()) {
 				fail_session(aCandidate.Context,
-							 core::github_failure::malformed_response);
+							 core::github_failure::malformed_response, false, github_bootstrap_failure_stage::session_acceptance);
 				return;
 			}
 			if (CredentialAuthority.has_value() && !CredentialBindingRemembered) {
@@ -2582,7 +2612,7 @@ namespace bpr::application {
 			if (!output.AcceptedSession.has_value()
 				|| *output.AcceptedSession != expected) {
 				StagedSession.reset();
-				publish_and_execute(output);
+				publish_and_execute(output, github_host_diagnostic_projection{ .BootstrapStage = github_bootstrap_failure_stage::session_acceptance });
 				if (CredentialLifecycle == credential_lifecycle::provisional
 					&& CredentialAuthority.has_value()
 					&& CredentialSessionContext.has_value()
@@ -2599,11 +2629,12 @@ namespace bpr::application {
 					|| committed.Entry != aCandidate.CapabilityEvidence) {
 					StagedSession.reset();
 					publish_diagnostic(github_host_diagnostic{
-						.Reason            = core::github_reason_code::malformed_response,
-						.RetryAfterSeconds = std::nullopt,
-						.RateLimits        = { },
-						.RateLimitCause    = std::nullopt,
-					});
+										   .Reason            = core::github_reason_code::malformed_response,
+										   .RetryAfterSeconds = std::nullopt,
+										   .RateLimits        = { },
+										   .RateLimitCause    = std::nullopt,
+									   },
+									   github_bootstrap_failure_stage::session_acceptance);
 					auto rollback = core::transition(
 						State, core::deactivate_github_identity_intent{ });
 					publish_and_execute(rollback);
@@ -2641,7 +2672,7 @@ namespace bpr::application {
 		void start_store(const core::github_session_request_context& aContext)
 		{
 			if (!CredentialAuthority.has_value() || !SessionEnrollment.has_value()) {
-				fail_session(aContext, core::github_failure::vault);
+				fail_session(aContext, core::github_failure::vault, false, github_bootstrap_failure_stage::local_enrollment);
 				return;
 			}
 			const github_credential_operation_context operation{
@@ -2808,7 +2839,7 @@ namespace bpr::application {
 				});
 				if (CredentialSessionContext.has_value()) {
 					fail_session(*CredentialSessionContext,
-								 core::github_failure::vault);
+								 core::github_failure::vault, false, github_bootstrap_failure_stage::local_enrollment);
 				}
 				return;
 			}
@@ -2818,7 +2849,7 @@ namespace bpr::application {
 				ActiveVaultContext.reset();
 				if (CredentialSessionContext.has_value()) {
 					fail_session(*CredentialSessionContext,
-								 core::github_failure::vault);
+								 core::github_failure::vault, false, github_bootstrap_failure_stage::local_enrollment);
 				} else {
 					publish_diagnostic(github_host_diagnostic{
 						.Reason            = core::github_reason_code::vault_unavailable,
@@ -2843,7 +2874,7 @@ namespace bpr::application {
 				cancel_session(session);
 				return;
 			}
-			fail_session(session, core::github_failure::vault);
+			fail_session(session, core::github_failure::vault, false, github_bootstrap_failure_stage::local_enrollment);
 		}
 
 		void start_retrieve(const github_provider_attempt aAttempt)
@@ -3496,7 +3527,9 @@ namespace bpr::application {
 
 		void fail_session(const core::github_session_request_context& aContext,
 						  const core::github_failure                  aFailure,
-						  const bool                                  aDeletePersistentCredential = false)
+						  const bool                                  aDeletePersistentCredential = false,
+						  const github_bootstrap_failure_stage        aStage                      = github_bootstrap_failure_stage::none,
+						  std::optional<github_host_diagnostic>       aDiagnostic                 = std::nullopt)
 		{
 			cancel_provider();
 			if (CredentialAuthority.has_value()
@@ -3507,23 +3540,30 @@ namespace bpr::application {
 					|| aDeletePersistentCredential || RestoredDeviceBinding)) {
 				start_delete(aContext.IdentityGeneration,
 							 deferred_session_terminal{
-								 .Context = aContext,
-								 .Failure = aFailure,
+								 .Context    = aContext,
+								 .Failure    = aFailure,
+								 .Stage      = aStage,
+								 .Diagnostic = std::move(aDiagnostic),
 							 });
 				return;
 			}
-			fail_session_direct(aContext, aFailure);
+			fail_session_direct(aContext, aFailure, aStage, std::move(aDiagnostic));
 		}
 
 		void
-		fail_session_direct(const core::github_session_request_context& aContext,
-							const core::github_failure                  aFailure)
+		fail_session_direct(const core::github_session_request_context&  aContext,
+							const core::github_failure                   aFailure,
+							const github_bootstrap_failure_stage         aStage      = github_bootstrap_failure_stage::none,
+							const std::optional<github_host_diagnostic>& aDiagnostic = std::nullopt)
 		{
 			reset_session_scratch();
+			auto diagnostic           = aDiagnostic ? project_github_host_diagnostic(*aDiagnostic) : github_host_diagnostic_projection{ };
+			diagnostic.BootstrapStage = aStage;
 			dispatch_core(core::github_session_failed_event{
-				.Context = aContext,
-				.Failure = aFailure,
-			});
+							  .Context = aContext,
+							  .Failure = aFailure,
+						  },
+						  aStage == github_bootstrap_failure_stage::none ? std::nullopt : std::optional{ std::move(diagnostic) });
 		}
 
 		void cancel_session(const core::github_session_request_context& aContext)
@@ -3550,7 +3590,7 @@ namespace bpr::application {
 		void finish_deferred_terminal(const deferred_session_terminal& aTerminal)
 		{
 			if (aTerminal.Failure.has_value()) {
-				fail_session_direct(aTerminal.Context, *aTerminal.Failure);
+				fail_session_direct(aTerminal.Context, *aTerminal.Failure, aTerminal.Stage, aTerminal.Diagnostic);
 			} else {
 				reset_session_scratch();
 				dispatch_core(core::github_session_cancelled_event{

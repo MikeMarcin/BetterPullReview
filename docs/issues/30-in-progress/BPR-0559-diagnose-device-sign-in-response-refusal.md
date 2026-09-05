@@ -35,3 +35,39 @@ No raw response, credential, remote error text, or new network operation is
 permitted. This improves the next observation; it does not itself prove the
 live response failure repaired. Root-cause acceptance remains open until the
 actual failing contract is known.
+
+## Safe diagnostic instrumentation verified — 2026-09-04
+
+The host now attaches a finite bootstrap stage to the exact core-accepted
+session failure, carrying it through deferred credential cleanup. Stale
+terminals cannot label a replacement session. Qt renders local enrollment,
+account identity observation, capability discovery, or session acceptance
+with the existing safe diagnostic; Copy message copies that same displayed
+text. Provider replies, credentials and remote error messages do not cross
+the projection. No parser, retry or authority policy was relaxed.
+
+Worker dev and tests-disabled Release incremental builds pass. The worker's
+final four selectors passed 4/4 in 3.72 seconds; integrator reproduction:
+
+```sh
+ctest --test-dir build/dev --output-on-failure -R '^(application_github_host|qt_composed_github_scale_(100|125|200))$'
+```
+
+passed 4/4 in 3.13 seconds. Host cases distinguish viewer and capability
+refusal, deferred cleanup and stale replacement; the composed Qt window
+covers all four prefixes, copying, precedence and clearing. The rendered
+capability failure was inspected and exposes both message and copy control.
+Strict tidy passes for all five changed TUs and final host/test repeat;
+seven-file formatting, code-simplifier review, documentation and diff hygiene
+pass. No app composition source/pin changed; no full matrix or live check ran.
+
+Initial implementation verification failures were corrected: a misplaced
+initializer failed compilation, and a regression test used an unavailable
+fixture Public preview transition instead of ordinary profile activation.
+Neither result is represented as passing. All thirteen consumed
+`/tmp/bpr0559-*.log` files were removed after results and diffs were reviewed.
+The existing dev/Release roots and ignored renders are reused.
+
+This slice improves observation only. The live response refusal remains
+unidentified. A separate sign-in-only attended check of the exact new Release
+binary is required; v007 publication authority is spent and cannot be reused.

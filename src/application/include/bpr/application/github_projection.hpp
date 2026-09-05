@@ -194,6 +194,16 @@ namespace bpr::application {
 		auto operator<=>(const github_pull_request_projection&) const = default;
 	};
 
+	/// \brief Identifies the bounded sign-in step that refused a session.
+	/// No request, credential, or provider response crosses this projection.
+	enum class github_bootstrap_failure_stage : std::uint8_t {
+		none,
+		local_enrollment,
+		account_identity,
+		capability_discovery,
+		session_acceptance,
+	};
+
 	/// \brief Describes the github host diagnostic projection record.
 	struct github_host_diagnostic_projection
 	{
@@ -201,6 +211,7 @@ namespace bpr::application {
 		std::optional<std::uint32_t>                RetryAfterSeconds = std::nullopt;
 		github_rate_limits_projection               RateLimits{ };
 		std::optional<github_rate_limit_projection> RateLimitCause = std::nullopt;
+		github_bootstrap_failure_stage              BootstrapStage = github_bootstrap_failure_stage::none;
 
 		auto operator<=>(const github_host_diagnostic_projection&) const = default;
 	};
