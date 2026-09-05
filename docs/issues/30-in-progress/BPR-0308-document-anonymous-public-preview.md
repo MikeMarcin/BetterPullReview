@@ -1,7 +1,7 @@
 ---
 id: BPR-0308
 title: Document anonymous public-preview behavior and boundaries
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0017
 depends_on: [BPR-0305, BPR-0306, BPR-0307]
 ---
@@ -20,3 +20,10 @@ depends_on: [BPR-0305, BPR-0306, BPR-0307]
   probe evidence.
 - Agent guidance changes only for a stable reusable rule; documentation gates
   and focused negatives pass.
+
+## Claimed — 2026-09-04
+
+Dependencies are terminal. Update current behavior from `a319dd51` and
+`dd822350`, preserve historical attended evidence unchanged, and classify
+the immutable-base paths in the ledger this card explicitly requires.
+No product behavior changes or new live requests belong to this slice.
