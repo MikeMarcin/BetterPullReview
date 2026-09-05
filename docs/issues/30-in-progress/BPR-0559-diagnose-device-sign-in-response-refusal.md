@@ -276,3 +276,5 @@ no temporary worktree or new evidence/build root was created.
 ## Exact v004 approval received
 
 The owner supplied the exact [v004 response](../../verification/reviews/device-session-bootstrap-diagnostic-v004/operator-response.md). Packet and executable hashes and executable length match; native inventory showed no app instance. Resume this single sign-in-only run and sanitized local-log reading, followed by explicit Sign out and quit. No PR or publication is authorized.
+
+The exact approved v004 executable launched once at 2026-09-05T08:51:41Z, PID 3736, with no arguments, the specified 24 environment variables removed and child stdout/stderr discarded. Log baseline was zero bytes. Native UI showed GitHub.com Native HTTPS, no connected host and empty device-code fields. The new log exists and contains startup. A Raise action reported user UI movement; foreground activation is not claimed. Continue this existing process only; operator browser authorization and its terminal result are pending, then explicit Sign out and quit. No relaunch is authorized.
