@@ -2539,6 +2539,13 @@ Several capability response records with that identity are expected. The
 `native_https_transport_fixture`, and `application_logging` selectors cover the
 repetition-limit repair from document expansion through composed session startup.
 
+During an approved attended sign-in, record the log's starting byte offset and
+monitor new sanitized records for completion. The operator should not need to
+send a completion message. Observe the app after the terminal event, when device
+fields are cleared, then explicitly Sign out. After quitting, verify process
+absence and the shutdown record without calling an app UI handle or getter:
+those inspection calls can relaunch the app, as the BPR-0605 course demonstrated.
+
 The file contains UTC timestamps, application startup/shutdown, GitHub viewer
 and capability outcomes, local request numbers, capability HTTP status and a
 sanitized error summary. Unknown capability error message/type/code prose stays

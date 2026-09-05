@@ -46,3 +46,8 @@ from the official schema; they did not model the live repetition policy.
 
 Not started. No live calls, credential operations or implementation changes
 are authorized by creating this card. The current nine-query plan remains.
+
+The later [[BPR-0605]] observation completed the nine-query capability course
+successfully in about 6.49 seconds. This is one live sample, not a benchmark.
+Its post-discovery UI showed 4,989/5,000 GraphQL points remaining, but there is
+no pre-run baseline from which to attribute this batch's actual point cost.

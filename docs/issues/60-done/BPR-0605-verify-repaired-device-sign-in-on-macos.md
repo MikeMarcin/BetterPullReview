@@ -1,7 +1,7 @@
 ---
 id: BPR-0605
 title: Verify repaired device sign-in on macOS
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: [BPR-0559]
 ---
@@ -50,3 +50,27 @@ The owner supplied the exact [operator response](../../verification/reviews/devi
 ## Approved run launched once
 
 After immediate packet/executable revalidation and zero-process checks, the exact approved executable launched at 2026-09-05T09:43:41.983192Z, PID 20562, with no arguments, the specified 24 environment variables removed and stdout/stderr discarded. The existing local log baseline is 4,350 bytes; only subsequent records belong to this observation. The agent will monitor those records for terminal completion, so the operator need not signal completion manually. Continue this existing process only, then explicitly Sign out and quit.
+
+## Concluded observation — functional success with procedure deviation
+
+The [attended result](../../verification/reviews/device-session-bootstrap-diagnostic-v005/attended-result.md)
+records live session success as `@MikeMarcin`, nine HTTP-200 capability responses,
+all four supported capability presentations, explicit Sign out, disconnected UI,
+logged shutdown and the approved child's exit 0. Completion was detected from
+the log without operator notification. Capability discovery took about 6.49
+seconds in this one observation; point cost remains unmeasured.
+
+The one-launch requirement was **not met**: a UI-state inspection after close
+unintentionally relaunched the app. That second instance remained signed out,
+performed no logged viewer/capability work, and was closed immediately after
+the deviation was detected and disclosed. Logged shutdown and process absence
+were then verified without another UI inspection. No second sign-in or PR action
+occurred. This card concludes the consumed observation with that explicit
+procedural failure; it does not claim a clean one-launch acceptance pass or
+authorize a repeat. The functional repair is now observed working live.
+
+The durable operating instructions now require automatic log-based completion
+detection and prohibit app-handle inspection after quit. No source or binary
+changed. Documentation structure and its 62 tests pass; diff hygiene passes.
+No temporary log, build root or worktree was created. The owner's full local log
+remains outside Git; packet and response bytes remain immutable.

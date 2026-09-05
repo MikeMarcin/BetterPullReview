@@ -71,8 +71,10 @@ Windows file logging is explicitly unavailable; Linux native evidence, advanced
 controls and full RFC closeout remain deferred. No new live sign-in ran during
 that foundation slice. The subsequent approved BPR-0559 observation used this
 log to identify GitHub's introspection repetition limit; `b14a69d0` repairs the
-query plan with focused offline evidence. Changed-build live acceptance remains
-unverified.
+query plan with focused offline evidence. BPR-0605 subsequently observed live
+sign-in success through that log and the native UI, followed by explicit Sign
+out. Its result separately records an unintended signed-out relaunch during a
+post-quit UI inspection; strict one-launch compliance is not claimed.
 
 ## Problem and intended outcome
 

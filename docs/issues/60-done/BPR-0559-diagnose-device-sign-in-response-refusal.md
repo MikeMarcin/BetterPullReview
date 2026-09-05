@@ -25,7 +25,10 @@ Fixed in `b14a69d0`: the logged live failure was GitHub's introspection
 repetition limit. Nine bounded canonical queries now gather the same capability
 facts, with exact part correlation, aggregate limits and complete-only session
 acceptance. Direct offline and composed checks pass; see the final verification
-record below. The changed executable has not been verified against live GitHub.
+record below. The later [[BPR-0605]] course observed live sign-in success as
+MikeMarcin and explicit Sign out. Its post-quit inspection accidentally reopened
+a signed-out instance, which was closed; strict one-launch compliance is not
+claimed for that attended course.
 The historical entries below retain the earlier observations and uncertainty.
 
 ## Initial source-backed finding
