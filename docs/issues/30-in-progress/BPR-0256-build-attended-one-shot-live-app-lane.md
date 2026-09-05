@@ -1,8 +1,7 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: Parked
-parked_on: awaiting-owner-verdict
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263, BPR-0318, BPR-0448, BPR-0449]
 ---
@@ -1150,3 +1149,7 @@ worktree remains; `git worktree list` contains only the original main checkout.
 The Mac and portable ready lanes are empty. BPR-0295 remains ineligible until
 RFC-BPR-0013 closes; other remaining cards depend on attended/live evidence or
 another platform. No full matrix or new target-native platform run is claimed.
+
+## Exact owner approval received — 2026-09-04
+
+The owner returned the [v007 approval](../../verification/reviews/designated-live-review-publication-v007/operator-response.md). Removing only Markdown quote prefixes and blank-line presentation yields the exact packet approval text, with all wording and identities unchanged. The packet digest, eight artifact hash/size pairs, all 37 current and committed source entries, unspent replay identity, and empty private mount parent revalidate. This authorizes only the packet's one attended publication attempt with browser/device sign-in and explicit Sign out. The card resumes for materialization, final static command inspection and the authorized attended run; no execution result is claimed yet.
