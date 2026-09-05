@@ -1,8 +1,7 @@
 ---
 id: BPR-0559
 title: Diagnose device sign-in response refusal after browser authorization
-status: Parked
-parked_on: awaiting-owner-verdict
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -221,3 +220,7 @@ unknown code can still leave the cause unresolved. Existing live approvals
 are consumed; no PR or publication is included. The existing Release build
 is retained for this pending consumer. No temporary worktree or inspection
 logs remain. The portable and Mac ready lanes contain no other startable card.
+
+## Exact v003 approval received
+
+The owner supplied the exact [v003 operator response](../../verification/reviews/device-session-bootstrap-diagnostic-v003/operator-response.md). Packet and executable digests and length match. Native inventory showed no existing instance. The integrator resumes this single sign-in-only diagnostic run, followed by explicit Sign out and quit. No PR or publication is authorized.
