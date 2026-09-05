@@ -161,3 +161,14 @@ Source slice `9414ffc93b70aae51104b20c81a974b890eecf5a` is committed. The [v002 
 The owner supplied the exact [v002 operator response](../../verification/reviews/device-session-bootstrap-diagnostic-v002/operator-response.md). Packet and binary digests were reverified, and native app inventory showed no existing instance. The integrator resumes the one sign-in-only diagnostic run with explicit Sign out and quit.
 
 The approved v002 executable was launched once with no arguments after another digest check, excluding the specified 24 environment variables and discarding child output. Native UI showed no connected host and the expected GitHub.com Native HTTPS profile; the window was raised successfully. Operator device/browser authorization is pending. Continue this existing run; do not launch again.
+
+## v002 result: GraphQL error envelope
+
+The [v002 attended result](../../verification/reviews/device-session-bootstrap-diagnostic-v002/attended-result.md)
+records the exact fixed diagnostic: capability discovery detected a GraphQL
+error envelope. Copy message, explicit Sign out, terminal disconnected UI and
+normal exit 0 were observed. No PR was opened or publication attempted.
+The category locates the `envelope.contains("errors")` branch after native
+metadata admission and JSON parsing. The error contents were not retained;
+no particular GraphQL rejection or root repair is established. V002 authority
+is consumed. Continue bounded offline query/error-contract investigation.
